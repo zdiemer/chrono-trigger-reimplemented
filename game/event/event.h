@@ -84,16 +84,16 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_wait_frames_16, 0xBC) \
     X(event_cmd_wait_frames_32, 0xBD) \
     X(event_cmd_if_assignment_held_any, 0x2D) \
-    X(event_cmd_if_assignment_held_fourth, 0x30) \
-    X(event_cmd_if_assignment_held_first, 0x31) \
+    X(event_cmd_if_dash_held, 0x30) \
+    X(event_cmd_if_confirm_held, 0x31) \
     X(event_cmd_if_held_a, 0x34) \
     X(event_cmd_if_held_b, 0x35) \
     X(event_cmd_if_held_x, 0x36) \
     X(event_cmd_if_held_y, 0x37) \
     X(event_cmd_if_held_l, 0x38) \
     X(event_cmd_if_held_r, 0x39) \
-    X(event_cmd_if_pressed_fourth_assignment, 0x3B) \
-    X(event_cmd_if_pressed_first_assignment, 0x3C) \
+    X(event_cmd_if_pressed_dash, 0x3B) \
+    X(event_cmd_if_pressed_confirm, 0x3C) \
     X(event_cmd_if_pressed_a, 0x3F) \
     X(event_cmd_if_pressed_b, 0x40) \
     X(event_cmd_if_pressed_x, 0x41) \

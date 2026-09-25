@@ -10,6 +10,7 @@
 #include "event/variables.h"
 #include "field/field.h"
 #include "field/layers.h"
+#include "field/parts.h"
 #include "field/party.h"
 #include "port/vars_ram.h"
 
@@ -54,6 +55,8 @@ typedef struct {
     bool to_nobody;
     bool moved_on;   /* a party member took the next footprint of the trail */
     Touch touch;     /* what the leader's walking into an object did */
+    bool looked_to_push;
+    uint8_t length;   /* the command's bytes, as its row says */
 } Noted;
 
 typedef void (*NoteBefore)(const GameState *g, const EventCommand *c, Noted *n);
@@ -219,11 +222,13 @@ static void note_party_step(const GameState *g, const EventCommand *c, Noted *n)
 {
     if (field_screen_recentring(g) != 0 || !object_is_party_member(g, c->self))
         return;
-    ObjectKind place = object_role(g, c->self).kind;
-    if (place != ROLE_LEADER)
+    PartyPlace place = object_party_place(g, c->self);
+    if (place != PARTY_LEADER)
         n->moved_on = party_member_moves_on(g, place);
-    else if (leader_has_contact(g))
+    else if (leader_has_contact(g)) {
         n->touch = leaders_touch(g);
+        n->looked_to_push = leader_looks_to_push(g, n->touch.touched);
+    }
 }
 
 static void derive_party_step(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
@@ -236,14 +241,14 @@ static void derive_party_step(GameState *g, const EventCommand *c, EventFlow flo
         l->y = (uint16_t)(c->at & 0x00FF);
         return;
     }
-    ObjectKind place = object_role(g, c->self).kind;
+    PartyPlace place = object_party_place(g, c->self);
     l->y = field_object_offset(c->self);
-    if (place != ROLE_LEADER) {
+    if (place != PARTY_LEADER) {
         l->overflow = field_member_step_overflow(g, place, n->moved_on);
         return;
     }
     l->overflow = field_leader_step_overflow(g, l->overflow);
-    l->y = event_touch_y(g, n->touch, l->y);
+    l->y = event_touch_y(g, n->looked_to_push, l->y);
     l->overflow = event_place_worked_out_overflow(n->touch.touched || n->touch.pushed, l->overflow);
 }
 
@@ -266,14 +271,14 @@ static void derive_formation(GameState *g, const EventCommand *c, EventFlow flow
         l->y = (uint16_t)(c->at & 0x00FF);
         l->overflow = false;
     } else if (flow.kind == FLOW_END_TURN) {
-        l->y = (uint16_t)(c->at + 7);
+        l->y = (uint16_t)(c->at + n->length);
     }
 }
 
 static void note_gathering_starts(const GameState *g, const EventCommand *c, Noted *n)
 {
     (void)c;
-    n->starts = place_taken(g, 1) && !(field_mode_flags(g) & FIELD_PARTY_GATHERING);
+    n->starts = place_taken(g, PARTY_FIRST_MEMBER) && !field_party_gathering(g);
 }
 
 static void derive_gathering(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
@@ -292,7 +297,7 @@ static void derive_gathering(GameState *g, const EventCommand *c, EventFlow flow
 static void derive_tile_copy(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
 {
     (void)flow, (void)n;
-    event_keep_offset(g, (uint16_t)(c->at + 7));
+    event_keep_offset(g, (uint16_t)(c->at + n->length - 1));
     l->y = field_tile_copy_y(g, l->y);
     l->overflow = field_tile_copy_overflow(g, l->overflow);
 }
@@ -476,6 +481,7 @@ static void before(GameState *g, const OriginalLeaves *l, const EventOpcode *row
      * reads it back itself */
     if (l->shared_comparison)
         set_event_condition_resume(g, (uint16_t)(c->at + row->jump));
+    n->length = row->length;
     if (l->note)
         l->note(g, c, n);
 }
@@ -563,10 +569,24 @@ void leave_in_the_way_check(GameState *g, FieldObject self) { field_leave_in_the
 
 bool event_place_worked_out_overflow(bool worked_out, bool before) { return worked_out ? false : before; }
 
-uint16_t event_touch_y(const GameState *g, Touch t, uint16_t before)
+uint16_t event_touch_y(const GameState *g, bool looked_to_push, uint16_t before)
 {
-    return t.looks_to_push ? field_leader_contact(g) : before;
+    return looked_to_push ? field_leader_contact(g) : before;
 }
+
+static struct {
+    bool left, overflow;
+} confirm_overflow;
+
+void event_forget_overflow(void) { confirm_overflow.left = false; }
+
+void event_leave_overflow(bool overflow)
+{
+    confirm_overflow.left = true;
+    confirm_overflow.overflow = overflow;
+}
+
+bool event_overflow_left(bool before) { return confirm_overflow.left ? confirm_overflow.overflow : before; }
 
 void leave_walk_overflow(const GameState *g, FieldObject self)
 {

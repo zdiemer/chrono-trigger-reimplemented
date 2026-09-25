@@ -6,26 +6,44 @@
  * lines offered as choices; the choice made becomes the object's result,
  * which its script can then test. Where the window goes -- where the game
  * decides, the top or the bottom of the screen -- is part of the command. */
+#include "event/dialog.h"
+
 #include "event/leaves.h"
-#include "field/field.h"
 #include "event/script.h"
+#include "field/field.h"
 
 /* ---- The dialog window ---------------------------------------------------------------- */
 
 enum { DIALOG_IDLE = 0, DIALOG_OPENING = 1 };
 
-static bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
+bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
 
-/* Open the window on a line for an object, which waits on it. */
-static void open_dialog(GameState *g, FieldObject speaker, uint8_t line, WindowPlace where)
+/* The window opens on a line for a speaker. */
+static void show_the_window(GameState *g, FieldObject speaker, uint8_t line, WindowPlace where)
 {
-    set_event_object_wait_dialog(g, speaker, 1);
     set_dialog_string(g, line);
     dialog_set_speaker(g, speaker);
     set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
     set_dialog_state(g, DIALOG_OPENING);
     set_dialog_box_position(g, where);
-    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~FIELD_DIALOG_OPENED_BY_THE_FIELD));
+}
+
+/* Open the window on a line for an object, which waits on it. */
+static void open_dialog(GameState *g, FieldObject speaker, uint8_t line, WindowPlace where)
+{
+    set_event_object_wait_dialog(g, speaker, 1);
+    show_the_window(g, speaker, line, where);
+    forget_dialog_opened_by_the_field(g);
+}
+
+// $C0:1F0E
+/* The field's own message, a chest's: it clears the mark the battle's
+ * messages clear too. */
+void field_message_opens(GameState *g, FieldObject speaker, uint8_t line)
+{
+    show_the_window(g, speaker, line, WINDOW_ANYWHERE);
+    mark_dialog_opened_by_the_field(g);
+    set_field_message_mark(g, 0);
 }
 
 /* Whether the object's dialog has been read and closed: it opened one and

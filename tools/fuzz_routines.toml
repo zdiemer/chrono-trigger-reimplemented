@@ -1487,7 +1487,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_assignment_held_fourth"
+name = "event_cmd_if_dash_held"
 at = "C0:66B2"
 subsystem = "event"
 state = "field"
@@ -1495,7 +1495,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_assignment_held_fourth"
+name = "event_cmd_if_dash_held"
 variant = "loose"
 at = "C0:66B2"
 subsystem = "event"
@@ -1504,7 +1504,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_assignment_held_first"
+name = "event_cmd_if_confirm_held"
 at = "C0:66BC"
 subsystem = "event"
 state = "field"
@@ -1512,7 +1512,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_assignment_held_first"
+name = "event_cmd_if_confirm_held"
 variant = "loose"
 at = "C0:66BC"
 subsystem = "event"
@@ -1623,7 +1623,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_pressed_fourth_assignment"
+name = "event_cmd_if_pressed_dash"
 at = "C0:6719"
 subsystem = "event"
 state = "field"
@@ -1631,7 +1631,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_pressed_fourth_assignment"
+name = "event_cmd_if_pressed_dash"
 variant = "loose"
 at = "C0:6719"
 subsystem = "event"
@@ -1640,7 +1640,7 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_if_pressed_first_assignment"
+name = "event_cmd_if_pressed_confirm"
 at = "C0:6724"
 subsystem = "event"
 state = "field"
@@ -1648,7 +1648,7 @@ args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D
 why = "the field's page and data bank, the running object a slot, the script offset below $8000"
 
 [[routine]]
-name = "event_cmd_if_pressed_first_assignment"
+name = "event_cmd_if_pressed_confirm"
 variant = "loose"
 at = "C0:6724"
 subsystem = "event"
@@ -4557,6 +4557,74 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E013E-7E013F=00-08", "--fill", "7E0140-7E0141=04-0C", "--fill", "7E0142-7E0143=00-0C"]
 why = "small rectangles near each other, so copies overlap their own tiles"
+
+[[routine]]
+name = "field_walk_the_leader"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=00-3F"]
+why = "the field's page and data bank; the leader an object (odd ones turned away), the map's objects inside the tables and its index mask within the 64 by 64: the guard's (field/walk.c)"
+
+[[routine]]
+name = "field_walk_the_leader"
+variant = "walking"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E011F-7E0120=01-01", "--fill", "7E0162-7E0162=00-00", "--fill", "7E0138-7E0138=00-00", "--fill", "7E1800-7E18FF=08-37"]
+why = "the player walking the leader into the map and the objects: control, no choices, no recentring, the collisions on, and every object on the map's middle tiles"
+
+[[routine]]
+name = "field_recentre_the_screen"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0138-7E0138=00-03"]
+why = "the field's page and data bank; the leader an object (the guard's, field/walk.c); the recentring's states and one past them"
+
+[[routine]]
+name = "event_party_back_together"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E019C=00-80", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank; the party's places objects or none (odd ones turned away), their call levels among the eight: the guard's (event/party.c)"
+
+[[routine]]
+name = "field_press_confirm"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank; the leader an object (odd ones turned away), the map's objects inside the tables, the call levels among the eight: the guard's (event/contact.c)"
+
+[[routine]]
+name = "field_press_confirm"
+variant = "talking"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E1100-7E117F=00-08", "--fill", "7E1800-7E18FF=10-11"]
+why = "the confirm button pressed with nobody met: the search, every object within a tile or so of the leader, their roles the kinds the search tells apart (the window-only one's), the talk to what it finds and the chests' look"
+
+[[routine]]
+name = "field_press_confirm"
+variant = "item"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=01-01", "--fill", "7E1801-7E1801=02-02", "--fill", "7E1881-7E1881=02-02", "--fill", "7E73C2-7E73C2=00-00", "--fill", "7E1D08-7E1D08=10-10", "--fill", "7E1D09-7E1D09=00-00"]
+why = "the leader facing down at the chest whose record is at $F5:0010 (an item, on row 3, column 2), nobody in view: the chest's flag (random) opened or not, and the item to the party's inventory"
+
+[[routine]]
+name = "field_press_confirm"
+variant = "gold"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=00-00", "--fill", "7E1801-7E1801=25-25", "--fill", "7E1881-7E1881=0C-0D", "--fill", "7E7CE5-7E7CE5=80-FF", "--fill", "7E7BE5-7E7BE5=00-00", "--fill", "7E1D08-7E1D08=28-28", "--fill", "7E1D09-7E1D09=02-02"]
+why = "the leader facing up at the chest whose record is at $F5:0228 (gold, on row 11, column 37), a tile or two below it: the look past an open tile, the gold to the party"
+
+[[routine]]
+name = "field_press_confirm"
+variant = "nothing"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=03-03", "--fill", "7E1801-7E1801=05-05", "--fill", "7E1881-7E1881=15-15", "--fill", "7E85C6-7E85C6=00-00", "--fill", "7E1D08-7E1D08=30-30", "--fill", "7E1D09-7E1D09=02-02"]
+why = "the leader facing right at the chest whose record is at $F5:0230 (nothing of its own, on row 21, column 6): the flag and the request, no gift and no message"
 
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #

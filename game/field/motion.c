@@ -379,13 +379,19 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
 }
 
 /* The search starts at the slot after the last object and runs down to the
- * second. With no objects, or as many as the tables have slots, the original
- * would go on into slots past the tables (it counts round 128); no map has
- * either, and the entries' guards leave those to the original. */
+ * second. The original doubles the count in a byte, so a count past 127
+ * starts from what is left of it (the endings' maps count 163). A start of 0
+ * would go on round into the slots past the tables (it counts round 128), as
+ * would one past them; no map has either, and the entries' guards leave
+ * those to the original. */
+enum { SEARCH_COUNT_BITS = 0x7F };
+
+FieldObject object_search_start(const GameState *g) { return (FieldObject)(event_object_count(g) & SEARCH_COUNT_BITS); }
+
 bool object_search_fits(const GameState *g)
 {
-    uint8_t count = event_object_count(g);
-    return count != 0 && count < FIELD_OBJECTS;
+    FieldObject start = object_search_start(g);
+    return start != 0 && start < FIELD_OBJECTS;
 }
 
 /* For the original's code and shadow mode (field/scratch.h): the blocking
@@ -398,25 +404,18 @@ static void leave_blocking_check(GameState *g, Facing facing, FieldPosition at)
     original_cell16(g, 0xDD, at.y);
 }
 
-/* How another object stands from this one, the way this one faces: whether
- * it is on the side it looks, how far along the way, and how far across. */
-typedef struct {
-    bool ahead;
-    uint16_t along, across;
-} Measure;
-
-static Measure measure(FieldPosition at, FieldPosition there, Facing facing, bool earlier_slot)
+ObjectBearing object_bearing(FieldPosition at, FieldPosition there, Facing facing, bool measured_nearer)
 {
     bool vertical = facing == FACING_UP || facing == FACING_DOWN;
     bool looking_back = facing == FACING_UP || facing == FACING_LEFT;
-    Measure m;
-    m.ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, earlier_slot, looking_back,
+    ObjectBearing m;
+    m.ahead = distance_ahead(vertical ? there.y : there.x, vertical ? at.y : at.x, measured_nearer, looking_back,
                              &m.along);
     m.across = distance_across(vertical ? there.x : there.y, vertical ? at.x : at.y);
     return m;
 }
 
-static bool close_ahead(Measure m) { return m.ahead && m.along < REACH; }
+static bool close_ahead(ObjectBearing m) { return m.ahead && m.along < REACH; }
 
 /* For the original's code and shadow mode: the check keeps each object it
  * measures as a byte in the word field_target_object, whose high byte it
@@ -467,7 +466,7 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, Search
     Facing facing = object_facing(g, obj);
     FieldPosition at = object_position(g, obj);
     ORIGINAL_EFFECT(leave_blocking_check(g, facing, at));
-    for (FieldObject other = (FieldObject)event_object_count(g); other != 0; other--) {
+    for (FieldObject other = object_search_start(g); other != 0; other--) {
         n->passed++;
         if (object_view(g, other) == OUT_OF_VIEW)
             continue;
@@ -475,7 +474,7 @@ static ObjectsAhead look_for_objects_ahead(GameState *g, FieldObject obj, Search
         if (can_block_in_view(g, other, obj)) {
             n->measured++;
             r = (ObjectsAhead){ false, true, other };
-            Measure m = measure(at, object_position(g, other), facing, other < obj);
+            ObjectBearing m = object_bearing(at, object_position(g, other), facing, other < obj);
             if (close_ahead(m) && m.across < REACH)
                 return (ObjectsAhead){ true, true, other };
         }
@@ -781,8 +780,8 @@ void field_object_in_the_way(Snes *s)
         /* the last distance it measured: along the way, and across where the
          * object was close ahead */
         vars_peek(true);
-        Measure m = measure(object_position(g, obj), object_position(g, r.object),
-                            object_facing(g, obj), r.object < obj);
+        ObjectBearing m = object_bearing(object_position(g, obj), object_position(g, r.object),
+                                         object_facing(g, obj), r.object < obj);
         vars_peek(false);
         uint16_t last = close_ahead(m) ? m.across : m.along;
         s->cpu.a = (uint16_t)((last & 0xFF00) | (s->cpu.a & 0x00FF));

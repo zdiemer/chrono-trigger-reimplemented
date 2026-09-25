@@ -29,6 +29,7 @@
 #include "field/line_effects.h"
 #include "field/object_update.h"
 #include "field/party.h"
+#include "field/walk.h"
 #include "field/sprites.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
@@ -730,7 +731,7 @@ const NativeEntry game_natives[] = {
 
     /* event engine */
     { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
-      NEEDS_M8_X16, .cost_milli = 4878, .guard = event_has_objects },
+      NEEDS_M8_X16_BINARY, .cost_milli = 4961, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_has_objects },
     { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
       NEEDS_M8_X8, .cost_milli = 4723, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .guard = event_runs_an_object },
@@ -788,16 +789,16 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC06295, event_cmd_set_blocked_by, 5000, event_cmd_set_blocked_by_accepts),
     EVENT_CMD(0xC062A4, event_cmd_set_arrival, 4625, event_cmd_set_arrival_accepts),
     EVENT_CMD(0xC066A5, event_cmd_if_assignment_held_any, 5000, event_cmd_if_assignment_held_any_accepts),
-    EVENT_CMD(0xC066B2, event_cmd_if_assignment_held_fourth, 5000, event_cmd_if_assignment_held_fourth_accepts),
-    EVENT_CMD(0xC066BC, event_cmd_if_assignment_held_first, 4303, event_cmd_if_assignment_held_first_accepts),
+    EVENT_CMD(0xC066B2, event_cmd_if_dash_held, 5000, event_cmd_if_dash_held_accepts),
+    EVENT_CMD(0xC066BC, event_cmd_if_confirm_held, 4303, event_cmd_if_confirm_held_accepts),
     EVENT_CMD(0xC066C6, event_cmd_if_held_a, 5000, event_cmd_if_held_a_accepts),
     EVENT_CMD(0xC066E5, event_cmd_if_held_b, 5000, event_cmd_if_held_b_accepts),
     EVENT_CMD(0xC066EF, event_cmd_if_held_x, 5000, event_cmd_if_held_x_accepts),
     EVENT_CMD(0xC066F9, event_cmd_if_held_y, 5000, event_cmd_if_held_y_accepts),
     EVENT_CMD(0xC06705, event_cmd_if_held_l, 5000, event_cmd_if_held_l_accepts),
     EVENT_CMD(0xC0670F, event_cmd_if_held_r, 5000, event_cmd_if_held_r_accepts),
-    EVENT_CMD(0xC06719, event_cmd_if_pressed_fourth_assignment, 5000, event_cmd_if_pressed_fourth_assignment_accepts),
-    EVENT_CMD(0xC06724, event_cmd_if_pressed_first_assignment, 5000, event_cmd_if_pressed_first_assignment_accepts),
+    EVENT_CMD(0xC06719, event_cmd_if_pressed_dash, 5000, event_cmd_if_pressed_dash_accepts),
+    EVENT_CMD(0xC06724, event_cmd_if_pressed_confirm, 5000, event_cmd_if_pressed_confirm_accepts),
     EVENT_CMD(0xC06732, event_cmd_if_pressed_a, 5000, event_cmd_if_pressed_a_accepts),
     EVENT_CMD(0xC05535, event_cmd_face_0, 3094, event_cmd_face_0_accepts),
     EVENT_CMD(0xC05539, event_cmd_face_1, 3094, event_cmd_face_1_accepts),
@@ -827,7 +828,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC04F0A, event_cmd_move_in_direction_from_variables_keep_facing, 5000, event_cmd_move_in_direction_from_variables_keep_facing_accepts),
     EVENT_CMD(0xC052C0, event_cmd_move_toward_object_keep_facing, 5000, event_cmd_move_toward_object_keep_facing_accepts),
     EVENT_CMD(0xC054F5, event_cmd_move_toward_party_member_keep_facing, 5000, event_cmd_move_toward_party_member_keep_facing_accepts),
-    EVENT_CMD(0xC03002, event_cmd_walk_with_the_party, 4641, event_cmd_walk_with_the_party_accepts),
+    EVENT_CMD(0xC03002, event_cmd_walk_with_the_party, 4634, event_cmd_walk_with_the_party_accepts),
     EVENT_CMD(0xC0326C, event_cmd_take_formation, 2521, event_cmd_take_formation_accepts),
     EVENT_CMD(0xC0345A, event_cmd_gather_party, 3763, event_cmd_gather_party_accepts),
     EVENT_CMD(0xC03546, event_cmd_follow_object, 5995, event_cmd_follow_object_accepts),
@@ -930,10 +931,14 @@ const NativeEntry game_natives[] = {
 #undef EVENT_CMD
     /* the leader meeting objects, and the members sent back to it (event/contact.c, event/party.c); 8-bit
      * index registers */
+    { .addr = 0xC01AAC, .name = "field_press_confirm", .fn = field_press_confirm, NEEDS_M8_X16_BINARY,
+      .cost_milli = 2860, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_confirm_can_run },
     { .addr = 0xC05AC5, .name = "event_talk_to_contact", .fn = event_talk_to_contact, NEEDS_M8_X8_BINARY,
       .cost_milli = 4533, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = event_contact_is_one },
     { .addr = 0xC03154, .name = "event_touch_contact", .fn = event_touch_contact, NEEDS_M8_X8_BINARY,
-      .cost_milli = 4250, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_touch_can_run },
+      .cost_milli = 3351, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_touch_can_run },
+    { .addr = 0xC0034B, .name = "event_party_back_together", .fn = event_party_back_together, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3871, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = event_party_back_can_run },
     { .addr = 0xC05B1F, .name = "event_member_back_to_the_leader", .fn = event_member_back_to_the_leader,
       NEEDS_M8_X8_BINARY, .cost_milli = 4167, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = event_member_can_go_back },
@@ -982,6 +987,11 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 3700, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
       .guard = field_current_object_low_bank },
+    /* the leader's walk and the screen's recentring (field/walk.c); 8-bit A, 16-bit X */
+    { .addr = 0xC0881E, .name = "field_walk_the_leader", .fn = field_walk_the_leader, NEEDS_M8_X16_BINARY,
+      .cost_milli = 6288, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_walk_can_run },
+    { .addr = 0xC0885A, .name = "field_recentre_the_screen", .fn = field_recentre_the_screen, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3546, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_recentring_can_run },
     /* the party's steps (field/party_trail.c); 8-bit A and X */
     { .addr = 0xC09E29, .name = "field_leader_steps", .fn = field_leader_steps, NEEDS_M8_X8_BINARY,
       .cost_milli = 4026, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_leader_can_step },

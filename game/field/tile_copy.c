@@ -19,7 +19,6 @@
 #include "field/field.h"
 #include "field/object.h"
 #include "field/parts.h"
-#include "field/scratch.h"
 #include "port/machine.h"
 #include "vars.h"
 
@@ -49,16 +48,10 @@ static void set_table_byte(GameState *g, MapTable table, MapPlace p, uint8_t v)
 
 /* ---- The copy described -------------------------------------------------------------------- */
 
-uint16_t field_map_table_address(MapTable table)
-{
-    static const uint16_t address[MAP_TABLES] = { 0x3000, 0x3040, 0x3080, 0x30C0, 0x7000, 0x7040 };
-    return address[table];
-}
-
 TileRectangle field_described_tile_copy(const GameState *g)
 {
     MapPlace from = map_place_at(field_tile_copy_from(g)), last = map_place_at(field_tile_copy_to(g));
-    return (TileRectangle){ from, (uint8_t)(last.column - from.column), (uint8_t)(last.row - from.row),
+    return (TileRectangle){ from, (uint8_t)(last.column - from.column + 1), (uint8_t)(last.row - from.row + 1),
                             map_place_at(field_tile_copy_destination(g)) };
 }
 
@@ -67,58 +60,29 @@ static MapPlace offset_by(MapPlace p, unsigned row, unsigned column)
     return (MapPlace){ (uint8_t)(p.row + row), (uint8_t)(p.column + column) };
 }
 
-/* ---- What the original leaves (field/scratch.h) -------------------------------------------- */
-
-/* A whole table's copy leaves its width, the rows it counted down, the
- * columns it started each row at, offset by where the original keeps the
- * table, and where that is; a bit's copy the last bit it took, and the columns within
- * the row. */
-static void leave_table_copied(GameState *g, TileRectangle r, MapTable table)
-{
-    uint16_t base = field_map_table_address(table);
-    original_cell16(g, 0xDB, r.columns);
-    original_cell16(g, 0xDD, 0);
-    original_cell16(g, 0xDF, (uint8_t)(r.from.column + base));
-    original_cell16(g, 0xE1, (uint8_t)(r.to.column + base));
-    /* the table's address, in the cells the direction routine keeps its
-     * own tile in */
-    set_field_own_tile_x(g, (uint8_t)base);
-    set_field_own_tile_y(g, (uint8_t)(base >> 8));
-}
-
-static void leave_bit_copied(GameState *g, TileRectangle r, uint8_t bit)
-{
-    MapPlace last = offset_by(r.from, r.rows, r.columns);
-    original_cell8(g, 0xD9, (uint8_t)(field_tile_properties(g, last.row, last.column) & bit));
-    original_cell16(g, 0xDB, r.columns);
-    original_cell16(g, 0xDD, 0);
-    original_cell16(g, 0xDF, r.from.column);
-    original_cell16(g, 0xE1, r.to.column);
-    original_cell16(g, 0xE3, 0);
-}
 
 /* ---- Copying ------------------------------------------------------------------------------- */
 
 static void copy_table(GameState *g, TileRectangle r, MapTable table)
 {
-    for (unsigned row = 0; row <= r.rows; row++)
-        for (unsigned column = 0; column <= r.columns; column++)
+    for (unsigned row = 0; row < r.height; row++)
+        for (unsigned column = 0; column < r.width; column++)
             set_table_byte(g, table, offset_by(r.to, row, column),
                            table_byte(g, table, offset_by(r.from, row, column)));
-    ORIGINAL_EFFECT(leave_table_copied(g, r, table));
+    ORIGINAL_EFFECT(field_leave_table_copied(g, r, table));
 }
 
 static void copy_property_bit(GameState *g, TileRectangle r, uint8_t bit)
 {
-    for (unsigned row = 0; row <= r.rows; row++) {
-        for (unsigned column = 0; column <= r.columns; column++) {
+    for (unsigned row = 0; row < r.height; row++) {
+        for (unsigned column = 0; column < r.width; column++) {
             MapPlace from = offset_by(r.from, row, column), to = offset_by(r.to, row, column);
             uint8_t there = field_tile_properties(g, to.row, to.column);
             set_field_tile_properties(g, to.row, to.column,
                                       (uint8_t)((there & ~bit) | (field_tile_properties(g, from.row, from.column) & bit)));
         }
     }
-    ORIGINAL_EFFECT(leave_bit_copied(g, r, bit));
+    ORIGINAL_EFFECT(field_leave_bit_copied(g, r, bit));
 }
 
 // $C0:AF4E, and its table copy $C0:B096

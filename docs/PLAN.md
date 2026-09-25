@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 127 files, 117 of
-29,918 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 129 files, 117 of
+31,159 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -179,8 +179,8 @@ round the call-outs to the original's code:
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
-| event | 0 | 20 | 0 | 2,841 | 0.01 | 11% |
-| field | 0 | 20 | 0 | 4,667 | 0.01 | 24% |
+| event | 0 | 21 | 0 | 3,264 | 0.01 | 12% |
+| field | 0 | 21 | 0 | 5,485 | 0.01 | 23% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
@@ -343,7 +343,7 @@ docstring says which way it is wrong). **67% of the code is still generated.**
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 11.2K | 1.1K | 83% | 42 |
-| field engine, events (`$C0`) | 59.4K | 21.7K | 1.4K | 63% | 258 |
+| field engine, events (`$C0`) | 59.4K | 25.9K | 5.0K | 56% | 262 |
 | menus, text (`$C2`) | 59.3K | 15.0K | 2.6K | 75% | 173 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
@@ -483,17 +483,27 @@ are ports. What event's bridges still call in the original is the menus' party
 routines (`$C2:8004`, through their dispatcher, for `$D5`, `$F8`-`$FA`), which
 go with `$C2`, and the location change from `$C0:3B71`.
 
-The next chunk is what feeds the trail: **the leader's walk and the camera**,
-the field's per-frame `$C0:881E` and what it calls -- the pad's walk
-(`$C0:8925`-`$C0:8A3C`), the collision against the map and its objects
-(`$C0:8A6D`, `$C0:9923`), the ground under the leader, slopes and climbs and
-moving floors (`$C0:9AA1`-`$C0:9DC2`), the map's edges and exits
-(`$C0:9175`, `$C0:9C5C`), and the screen's following of it with the edge
-bookkeeping (`$C0:99DE`, `$C0:93E1`) -- the runs `$C0:8924` (2184 bytes),
-`$C0:93E1` (2068), `$C0:9C37` (396) and `$C0:87F1` (273). It also closes the
-two pieces of the party the first chunk left at its edge: the trail's start at
-a map's setup (`$C0:9DC3`, which reads the ground under the leader through
-the walk's routines) and the gathering after a battle (`$C0:034B`).
+The second chunk (RECOMP.md, "Phase 3, field and events: the leader's walk
+and the confirm button") took what feeds the trail: the leader's walk every
+frame (`$C0:881E`) with the collision against the map's levels and objects,
+the exits, step events and moving floors, the screen following the leader and
+recentring on the grid; the trail's start at a map's setup (`$C0:9DC3`) and
+the party's gathering after a battle (`$C0:034B`); and the confirm button
+(`$C0:1AAC`): the search for the object before the leader, the talk, and the
+chests.
+
+The next chunk is the other half of the camera: **the screen's edges and the
+map streaming in**. The walk and the recentring still call the screen's edges
+(`$C0:93E1`, 1346 bytes unported) after the layers' scroll: it counts each
+layer's position in tiles as the screen moves and, where a layer crosses a
+tile, has a row or a column of its tile map built into the upload buffers
+through the WRAM port (`$C0:8243`-`$C0:8444`), by the builders the map's load
+uses too (the run `$C0:7199`, 3585 bytes: `$C0:7612`, `$C0:77E4`, `$C0:79CF`,
+`$C0:7BA9`, `$C0:7D66`), then works out the edges (`$C0:7F9A`, a port). The
+builders read the map's tiles, the tile set halves the tile copy knows, and
+the layers' page; they want the WRAM port as a platform service rather than
+its register, and the tile map's row and column as the map's concepts. That
+is about 5.5 KiB of one concept, and it closes the walk's last call-out.
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

@@ -680,11 +680,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
   from `$C0:3B71`, and `$4E`'s stack.
 - **What the party on the map left** (RECOMP.md, "Phase 3, field and events:
   the party on the map"):
-  - the trail's start at a map's setup (`$C0:9DC3`, where the openings hand
-    back) and the gathering after a battle (`$C0:034B`, which calls
-    `event_member_back_to_the_leader`) are still the original's: the first
-    reads the ground under the leader through the walk's `$C0:9AC8` and
-    `$C0:9AD3`, and both go with the walk;
   - an object is made pushable by bit 1 of the byte event `$84` stores, and
     `$84`'s row decodes that byte as solidity alone, its guard taking only 0
     or 1: a script making an object pushable (`$84` with 2 or 3) runs as the
@@ -698,6 +693,26 @@ below. `python3 tools/timing_census.py` re-runs the census.
     horizontal parts twice); the vertical half is never read there, since a
     member waiting on a footprint with no ground stands, so a native build
     can wipe it whole.
+- **What the leader's walk left** (RECOMP.md, "Phase 3, field and events:
+  the leader's walk and the confirm button"):
+  - the walk and the screen's recentring still call the layers' scroll
+    (`$C0:91AC`, a port) and the screen's edges (`$C0:93E1`, the original's)
+    as call-outs on the layers' page; the edges stream the map's rows and
+    columns in through the WRAM port (`$C0:8243`-`$C0:8444`, the builders at
+    `$C0:7199`), the next chunk (PLAN.md);
+  - a chest's gift goes to the party through the battle bank's inventory
+    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out: the
+    party's inventory as a module is the menus' or the battle's to write, and
+    the confirm button calls it once it is;
+  - `field_message_mark` (`$02A1`) is cleared by the chests' message and the
+    battle's (`$CD:0264`), and nothing read so far reads it;
+  - the walk's guard leaves to the original a frame where the map's object
+    count, doubled in a byte, starts the search past the tables (112 and 123
+    at `$7F:2000`, for a frame or two in six movies: 20 of 194,763 calls),
+    where the original reads the bytes after them; and a frame with nobody
+    leading and a step asked for, where it indexes the tables with the empty
+    place's marker (`$80`). A native build has no bytes past the tables to
+    read: what `$7F:2000` holds on those frames is still to be read.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the
@@ -742,9 +757,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
     at `$C0:7628`). The field's rewrite reads those routines.
   - The menus' party routines 6, 7 and `$0A` (events `$F8`-`$FA`, `$D5`),
     through the dispatcher `$C2:8C36`: the menus' port names them.
-  - The player's button assignments the scripts ask about, the first and the
-    fourth (events `$30`/`$31`, `$3B`/`$3C`): which command each is (dash,
-    confirm, ...) is the menus' settings screen's to say.
   Each is named for its address or its position until it is.
 - **The field's shadows hold hardware bytes.** The tint (event `$F1`) is
   written as the fixed colour's register byte and a colour-math setting

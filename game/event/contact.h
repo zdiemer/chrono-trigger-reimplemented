@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 
+#include "event/chests.h"
 #include "field/object.h"
 #include "snes/system.h"
 #include "state.h"
@@ -17,29 +18,37 @@ void touch_what_the_leader_met(GameState *g);
 /* The player talks to the object before the leader. */
 void talk_to_the_leaders_contact(GameState *g);
 
-/* What walking into an object does, before it is done (the touch and event
- * $B0's derivations of what the original leaves): whether the object takes
- * calls at all, whether it takes the touch now, whether the leader then
- * looks to push it (no push is under way, and the object doesn't run at the
- * most urgent level), and whether it is pushed, to which tile. */
+/* The player presses the confirm button on the field: the leader talks to
+ * the object before it and opens the chest before it, whose gift (if any)
+ * the party's inventory is to take, and the field then announce. */
+ChestGift press_confirm(GameState *g);
+
+/* What walking into an object does, worked out before it is done: whether
+ * the object takes the touch now, and whether it is pushed, to which tile. */
 typedef struct {
-    bool answers;
     bool touched;
-    bool looks_to_push;
     bool pushed;
     MapTile to;
 } Touch;
 Touch leaders_touch(const GameState *g);
+
+/* Whether the leader looks to push the object at all, having touched it or
+ * not (`touched`): it takes calls, no push is under way, and it doesn't run
+ * at the most urgent level. */
+bool leader_looks_to_push(const GameState *g, bool touched);
 
 /* The guards' part: the object the leader is up against is one the tables
  * hold, at a level the places hold, and a push would look at a tile of the
  * map by a facing of the leader's four. */
 bool event_touch_is_ours(const GameState *g);
 
-/* The registered entries, and their guards: the talk ($C0:5AC5, from the
- * field's confirm button) and the touch ($C0:3154, from event $B0). */
+/* The registered entries, and their guards: the confirm button ($C0:1AAC,
+ * from the field's main loop), the talk ($C0:5AC5, from the confirm button)
+ * and the touch ($C0:3154, from event $B0). */
+void field_press_confirm(Snes *s);
 void event_talk_to_contact(Snes *s);
 void event_touch_contact(Snes *s);
+bool field_confirm_can_run(Snes *s);
 bool event_contact_is_one(Snes *s);
 bool event_touch_can_run(Snes *s);
 

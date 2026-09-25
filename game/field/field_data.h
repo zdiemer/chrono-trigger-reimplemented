@@ -7,6 +7,7 @@
 #ifndef CT_GAME_FIELD_DATA_H
 #define CT_GAME_FIELD_DATA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "rom.h"
@@ -89,5 +90,73 @@ static inline uint8_t field_facing_of_direction(const GameState *g, uint8_t dire
 /* The game's 256 random bytes, at $C0:FE00, which it steps through
  * (field_draw_random): a blocked object's new direction, a script's dice. */
 static inline uint8_t field_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
+
+/* The ground's slopes (field/walk.c): a tile whose shape is one of the 22
+ * slopes is parted into its upper and its lower level by a line across it.
+ * For each, how far a point's place across the tile is shifted down to rise
+ * along the line (mirrored: counted from the tile's other side), where the
+ * line starts, and which side of it is the upper level ($C0:9BF5, $C0:9C0B,
+ * $C0:9C21, 22 bytes each). */
+enum { FIELD_SLOPES = 22 };
+typedef struct {
+    uint8_t shift;
+    bool mirrored;
+    uint8_t start;
+    uint8_t upper_side;
+} FieldSlope;
+
+static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
+{
+    uint8_t shift = rom_read8(g, 0xC09BF5u + shape);
+    uint8_t start = rom_read8(g, 0xC09C0Bu + shape);
+    uint8_t side = rom_read8(g, 0xC09C21u + shape);
+    return (FieldSlope){ (uint8_t)(shift & 0x7F), (shift & 0x80) != 0, start, side };
+}
+
+/* A location's exit (field/walk.c): a tile of the map, and the location the
+ * party goes to from it, as a script writes a location (event/locations.c):
+ * the map in the low 9 bits of a word whose high byte says how, and where the
+ * party stands there. The exits are seven bytes each in bank $E5, from the
+ * place field_location_exits says. */
+typedef struct {
+    uint8_t x, y;
+    uint8_t reach;   /* read by nothing the walk does */
+    uint16_t map_and_how;
+    uint8_t to_x, to_y;
+} FieldExit;
+
+static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t index)
+{
+    uint32_t at = 0xE50000u + (uint16_t)(exits + index * 7u);
+    FieldExit e;
+    e.x = rom_read8(g, at);
+    e.y = rom_read8(g, at + 1);
+    e.reach = rom_read8(g, at + 2);
+    e.map_and_how = (uint16_t)(rom_read8(g, at + 3) | rom_read8(g, at + 4) << 8);
+    e.to_x = rom_read8(g, at + 5);
+    e.to_y = rom_read8(g, at + 6);
+    return e;
+}
+
+/* A chest (event/chests.c): the tile it stands on (row << 8 | column), and
+ * what it holds (event/chests.c says how). Four bytes each, one list for the
+ * game in bank $F5, a location's a run of it (field_chests); a chest's place
+ * is where in the bank its record is. */
+enum { FIELD_CHEST_BYTES = 4 };
+typedef struct {
+    uint16_t tile;
+    uint16_t contents;
+} FieldChest;
+
+static inline uint16_t field_chest_place(uint16_t first, uint8_t index)
+{
+    return (uint16_t)(first + index * FIELD_CHEST_BYTES);
+}
+
+static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
+{
+    uint32_t at = 0xF50000u + place;
+    return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
+}
 
 #endif

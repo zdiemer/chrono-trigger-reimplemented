@@ -45,13 +45,28 @@ typedef struct {
 static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_t)(index >> 8), (uint8_t)index }; }
 
 /* What the map says of a tile: a byte of properties, and two of attributes.
- * The upper attributes' bit 6 raises the upper half of an object standing
- * there in front of the map; the lower attributes' bit 7 blocks moves onto
- * the tile, and bit 6 raises an object's lower half. */
+ *
+ * The properties' top six bits are the tile's shape, how it is parted between
+ * the map's two levels (field/walk.c, TileShape).
+ *
+ * The upper attributes: bit 6 raises the upper half of an object standing
+ * there in front of the map; bit 4 is a step event, set off by the leader
+ * walking onto the tile beyond it; bits 0-3 a moving floor, bits 2-3 how fast
+ * it pulls (none, slow, walking pace, fast) and bits 0-1 which way (up, down,
+ * left, right).
+ *
+ * The lower attributes: bit 7 blocks objects' moves onto the tile, and bit 6
+ * raises an object's lower half; bits 0-2 the level of the tile's lower part
+ * and bits 3-5 its upper part's, each the level (0 none, 1, 2, or 3 stairs
+ * joining them) and a crossing bit above it (a way over or under that leaves
+ * the leader on its level). */
 typedef struct {
     uint8_t properties, upper, lower;
 } TileAttributes;
 enum { TILE_RAISES_SPRITES = 0x40, TILE_BLOCKED = 0x80 };
+enum { TILE_SHAPE_SHIFT = 2 };
+enum { TILE_STEP_EVENT = 0x10, TILE_FLOOR_SPEED = 0x0C, TILE_FLOOR_WAY = 0x03 };
+enum { TILE_LOWER_PART = 0, TILE_UPPER_PART_SHIFT = 3, TILE_LEVEL_BITS = 0x03, TILE_CROSSING_BIT = 0x04 };
 
 /* The priority a sprite's half takes on a tile (object.h's 0-3): in front of
  * the map where the tile raises it, among the map's layers otherwise. */

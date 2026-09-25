@@ -12,22 +12,11 @@
 
 enum { FULL_BRIGHTNESS = 0x0F };
 
-/* A location as a script writes it: the map in the low 9 bits of a word whose
- * high byte says how the change is made, and the tile in a second word. The
- * game keeps the how in a byte of its own: bits 1-4 shifted down, and bit 7. */
-typedef struct {
-    uint16_t map;
-    uint8_t x, y;
-    uint8_t how;
-} Location;
-
-enum { MAP_BITS = 0x01FF };
-
+/* A location as a script writes it (field/field.h): the map and how in a
+ * word, and the tile in a second word. */
 static Location location_of(uint16_t map_and_how, uint16_t tile)
 {
-    uint8_t high = (uint8_t)(map_and_how >> 8);
-    return (Location){ map_and_how & MAP_BITS, (uint8_t)tile, (uint8_t)(tile >> 8),
-                       (uint8_t)(((high >> 1) & 0x0F) | (high & 0x80)) };
+    return location_from(map_and_how, (uint8_t)tile, (uint8_t)(tile >> 8));
 }
 
 static void set_location_as(GameState *g, LocationRecord record, Location l)

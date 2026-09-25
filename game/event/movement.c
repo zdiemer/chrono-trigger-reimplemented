@@ -392,8 +392,8 @@ static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 {
     if (field_screen_recentring(g) == 0 && object_is_party_member(g, self)) {
         object_start_one_step(g, self);
-        ObjectKind place = object_role(g, self).kind;
-        if (place == ROLE_LEADER) {
+        PartyPlace place = object_party_place(g, self);
+        if (place == PARTY_LEADER) {
             party_leader_steps(g, self);
             if (leader_has_contact(g))
                 touch_what_the_leader_met(g);
@@ -414,8 +414,8 @@ static bool party_can_step(const GameState *g, FieldObject self)
         return true;
     if (!party_trail_places_hold(g))
         return false;
-    ObjectKind place = object_role(g, self).kind;
-    if (place != ROLE_LEADER)
+    PartyPlace place = object_party_place(g, self);
+    if (place != PARTY_LEADER)
         return field_same_link(party_member_link(g, place), field_link_to(self));
     return !leader_has_contact(g) || event_touch_is_ours(g);
 }

@@ -71,7 +71,15 @@ void leave_walk_overflow(const GameState *g, FieldObject self);
  * calls' leaves the overflow clear, and the touch leaves Y the object where
  * it looked to push it. */
 bool event_place_worked_out_overflow(bool worked_out, bool before);
-uint16_t event_touch_y(const GameState *g, Touch t, uint16_t before);
+uint16_t event_touch_y(const GameState *g, bool looked_to_push, uint16_t before);
+
+/* What the confirm button leaves (event/contact.c, event/chests.c): the
+ * overflow of the last sum on its way -- the search's measures, a talk's
+ * place, a chest's lookup and its flag's test -- which the field's main loop
+ * carries on. Recorded as it goes, and taken by the entry. */
+void event_forget_overflow(void);
+void event_leave_overflow(bool overflow);
+bool event_overflow_left(bool before);
 
 /* The original keeps a command's offset (or where it goes on) in
  * event_saved_position across its calls, and reads it back itself. */

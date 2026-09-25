@@ -147,7 +147,7 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
 }
 
 /* A formation's place: the top bits of its column and row say the way it
- * faces, the column's the higher of the facing's two bits. */
+ * faces there (event/party.h). */
 enum { FACING_BIT = 0x80, TILE_BITS = 0x7F };
 
 static FormationPlace decode_FormationPlace(const GameState *g, const EventArg *arg, uint16_t at)
@@ -156,7 +156,7 @@ static FormationPlace decode_FormationPlace(const GameState *g, const EventArg *
         return (FormationPlace){ { 0, 0 }, FACING_UP };
     uint8_t column = script_byte(g, (uint16_t)(at + arg->operand));
     uint8_t row = script_byte(g, (uint16_t)(at + arg->operand + 1));
-    Facing facing = (Facing)((column & FACING_BIT ? 2 : 0) | (row & FACING_BIT ? 1 : 0));
+    Facing facing = formation_facing((column & FACING_BIT) != 0, (row & FACING_BIT) != 0);
     return (FormationPlace){ { (uint8_t)(column & TILE_BITS), (uint8_t)(row & TILE_BITS) }, facing };
 }
 

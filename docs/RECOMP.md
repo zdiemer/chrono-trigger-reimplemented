@@ -6140,6 +6140,133 @@ at a time -- which one scalar fits only on average: `field_copy_tiles` and
 clocks in a call starting in vblank, writing the map's tables in RAM, which the
 vblank check finds moves no video write).
 
+### Phase 3, field and events: the leader's walk and the confirm button
+
+The second chunk of bank `$C0`: what feeds the party's trail, and what the
+player does with the leader besides walking it. `python3 tools/burndown.py`
+for `$C0`: 21.7 KiB ported, 1.4 inlined, 63% left and 258 entries before;
+25.9 KiB, 5.0 inlined, 56% and 262 after -- 4.2 KiB, counted with the
+tool's fix below, which leaves the "before" as the first chunk reported it.
+The concept's other half,
+the screen's edges streaming the map in as it scrolls (`$C0:93E1`, the row and
+column builders), is 5.5 KiB of its own and the next chunk (PLAN.md).
+
+**The walk** (`field/walk.c`, `$C0:881E`, every field frame). The pad asks
+for a walk or, with the dash held, a run, on top of what a moving floor pulls
+(`$C0:88EE`, the eight directions `$C0:8925`-`$C0:8A6C`). The leader stands
+in a box against the map, its feet at its position; walking one way, the
+box's leading side is looked at at both corners (`$C0:8AB5`-`$C0:8E20`), and
+walking aslant its leading corner and both sides (`$C0:8E21`-`$C0:9174`, four tables of which side
+nudges which way), where a corner meeting another level nudges the leader
+round it and a wall stops it. Before the map, the other objects: the first,
+from the last slot down, standing close to where the leader is going
+(`$C0:9923`) is what it is up against, and stops it if solid. The map has
+two levels; each tile's shape (a slope from a table of 22, a half, a
+quarter) says which parts of it are on which (`$C0:9AA1`-`$C0:9C36`), and the
+leader walks on its level, onto stairs joining the two, over or under a
+crossing. What it steps onto takes effect (`$C0:9C5C`): an exit, a step
+event, a moving floor's pull for the next frame, a climb. It stays within the
+map's edges (`$C0:9175`), and the screen follows it while it is past the
+screen's middle the way it walks (`$C0:99DE`). The recentring (`$C0:885A`)
+scrolls the screen back onto the 16-pixel grid a pixel a frame while a
+script waits on it. Both still call the layers' scroll (`$C0:91AC`, a port)
+and the screen's edges (`$C0:93E1`, the original's) on the layers' page.
+
+**The party's start and its gathering** (`$C0:9DC3`, `$C0:034B`), which the
+first chunk left at its edge: at a map's setup the trail starts afresh and
+the leader takes the level and ground of its tile (the map's openings' entry,
+`event/bridge.c`, runs it as C and hands back only where its guard fails);
+after a battle the members walk back to the leader through the gathering
+script (`event/party.c`, `party_back_together`), timed as
+`event_member_back_to_the_leader`.
+
+**The confirm button** (`event/contact.c`, `$C0:1AAC`; `event/chests.c`).
+Where a dialog waits for the button, the press is the dialog's. Otherwise the
+leader talks to the object it walked into this frame or, failing that, the
+first object near enough before it (`$C0:1CFC` and its four ways: under 28
+pixels along the way it faces, 12 across), and then opens the chest before
+it. That search measures as the objects-in-the-way search does, the
+original's borrow included, so `field/motion.c`'s measure became
+`object_bearing` in `field/object.h` for both. A chest (`$C0:1DF4`-`$C0:1F23`)
+is a tile the leader can't walk onto whose walkable byte names it; the
+game's chests are one list in bank `$F5` (`field_chest_at`), and a chest's
+number in it is its story flag, one bit each from the story memory's second
+byte. Opening one raises the flag, asks the main loop to show it open, and
+gives the party an item (nine bits, into variable 0) or gold (into
+`field_chest_gold`) through the battle bank's inventory service
+(`$C1:8003`, a call-out, which keeps the flags), then the field's own message
+(`event/dialog.c`, `field_message_opens`); an opened chest's message says it
+is empty, and a chest marked as holding nothing of its own gives nothing and
+says nothing (its location's script does the rest).
+
+**What the review of the first chunk asked, folded in.** A party place is
+one type (`PartyPlace`, `object_party_place`); the leader's ground an enum
+(`GroundKind`, the stored byte inside `LeaderGround`); one setter for a party
+script's destination and the facing encoding in `event/party.c`; a tile
+copy's rectangle as its size, the table addresses in the leaves; `Touch` the
+outcome alone; named setters for `field_mode_flags`; the fidget flag decoded
+in the idle count's storage. The contact the leader is up against is one
+concept in `field/field.h` (`leader_contact`, `set_leader_contact`,
+`leader_loses_contact`), which the walk, the search and the touch share.
+
+**What the game's buttons are.** The walk dashes on the fourth of the
+player's assignments and the confirm button is the first, which settles what
+the scripts' button conditions ask (`$30`/`$31`, `$3B`/`$3C`, renamed
+`event_cmd_if_dash_held`, `_if_confirm_held`, `_if_pressed_dash`,
+`_if_pressed_confirm`); `core/input.h` names them `ASSIGNED_DASH` and
+`ASSIGNED_CONFIRM`.
+
+**The searches' start.** The original doubles the object count in a byte, so
+a count past 127 starts the searches from what is left of it: the endings'
+and some battles' maps keep 143, 148 or 163 at `$7F:2000`. The three searches
+(the walk's, the confirm button's and `field_object_in_the_way`) start at
+`object_search_start`; the guards had required a count under 64, which turned
+away 541 of the walk's calls in the library before the fix.
+
+**The burndown's bridges.** `tools/burndown.py` read the call inside
+`bridge_call`'s own body (`game/field/bridge.c`, and the battle's
+`battle_call`) as an unreadable call-out of every port that uses a bridge, and
+so credited those ports no callee at all. It reads the bridge at each
+delegate's call now, as `tools/dontcare_check.py` does. On main it moves
+`$C1` from 10.5 to 20.6 KiB (the battle's ports call out through
+`battle_call`) and leaves `$C0` at 21.7; the walk, which calls out through
+`bridge_call`, would have been credited 0.3 KiB of its 3.6 without it.
+
+**What shadow mode found.** The recentring's state moved to "under way" before
+its call-outs, where the original steps it after them (`WRAM[0138]` at the
+call to `$C0:91AC`, in five movies). Then, over the 26 movies: every entry matches and none is interrupted:
+`field_walk_the_leader` 194,763 calls (20 refused, above and TODO.md),
+`field_press_confirm` 190,882, `field_recentre_the_screen` 174,
+`event_party_back_together` 25, and `event_run_init_scripts` 243 with the
+start as C; every other entry's totals are the first chunk's, the renamed
+button conditions included. `ct_dev --native on --recomp only --misses`
+interprets nothing on `field`.
+
+**What fuzzing found** (seed 1, 20,000 states each, `tools/fuzz_routines.toml`):
+a chest's item is nine bits, not eight (9,829 of 20,000 mismatched on the
+item variant, at variable 0's high byte and the inventory's copy of Y). Then
+every new entry fuzzes clean (PORTING.md's row), with variants that fix
+what random state rarely reaches: the leader walking into the map's middle
+with the player's control, objects close enough to talk to (the window-only
+kind included), and the leader facing a chest from the game's list that holds
+an item, gold or nothing of its own, each with its flag random. Against the
+predecessors (5,000 states each), every field and event entry keeps its
+mismatches (none); the searches' start compares more states of the moves
+that search (`event_cmd_follow_object` loose 282 where 132).
+
+**The timing gate.** The walk's time follows the map: standing, the
+original spends about 1,000 clocks, walking into it ten times that, working
+each point out at length where the port reads a few bytes. One scalar fit
+that badly (4.5% of its stretches off by 1,024 clocks or more, the worst
+16,456), so the port charges each look at a point, and more for the ground
+where the point is no wall, at the walk's own rate (`charge_as`, as `field/motion.c`'s
+search does): calibrated, the walk is within the gate's limits with no
+exception. The new rows were calibrated over the library, and three of the
+subsystem's moved with them: `event_run_init_scripts` 4,878 to 4,961 (the
+party's start now runs as C in its call), `event_touch_contact` 4,250 to
+3,351 (the review's changes to the touch moved its accesses) and
+`event_cmd_walk_with_the_party` 4,641 to 4,634.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

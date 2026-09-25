@@ -510,6 +510,10 @@
  * event $E3 sets it, a battle ($D8) and a screen scroll ($E7) clear it */
 #define RAM_FIELD_PLAYER_CONTROL 0x7E011Fu
 #define RAM_FIELD_PLAYER_CONTROL_DP 0x1Fu    /* page field */
+/* Nonzero: the map and its objects stop the leader's walk (the field's setup sets it; with 0 the
+ * leader walks through everything) */
+#define RAM_FIELD_LEADER_COLLIDES 0x7E0120u
+#define RAM_FIELD_LEADER_COLLIDES_DP 0x20u   /* page field */
 /* Fixed color shadow (channel bits 5-7, intensity 0-4) the field NMI writes every frame */
 #define RAM_FIELD_FIXED_COLOR 0x7E0121u
 #define RAM_FIELD_FIXED_COLOR_DP 0x21u       /* page field */
@@ -551,6 +555,10 @@
  * dialog_speaker ($C0:9193) */
 #define RAM_DIALOG_WINDOW_OBJECT 0x7E0132u
 #define RAM_DIALOG_WINDOW_OBJECT_DP 0x32u    /* page field */
+/* How long the field's dialog window stays: frames left, or $FFFF until the player presses the
+ * confirm button, a press the window takes for itself [2 bytes] */
+#define RAM_FIELD_DIALOG_HOLD 0x7E0134u
+#define RAM_FIELD_DIALOG_HOLD_DP 0x34u       /* page field */
 /* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
 #define RAM_FIELD_FADE_REQUEST 0x7E0136u
 #define RAM_FIELD_FADE_REQUEST_DP 0x36u      /* page field */
@@ -604,11 +612,23 @@
  * (and set when $C0:1F0E opens one) */
 #define RAM_FIELD_MODE_FLAGS 0x7E0154u
 #define RAM_FIELD_MODE_FLAGS_DP 0x54u        /* page field */
+/* Which of the map's levels the leader walks on (field/walk.c, MapLevel): 1 or 2, or 3 on stairs
+ * that join them */
+#define RAM_FIELD_LEADER_LEVEL 0x7E0155u
+#define RAM_FIELD_LEADER_LEVEL_DP 0x55u      /* page field */
 /* Frames the party has stood about: the frame wait ($C0:EC60) counts it in its low ten bits, the
  * party's walking and running clear it; bit 15 once the leader has fidgeted, after which it
  * fidgets now and then [2 bytes] */
 #define RAM_FIELD_IDLE_FRAMES 0x7E0158u
 #define RAM_FIELD_IDLE_FRAMES_DP 0x58u       /* page field */
+/* The tile (row << 8 | column) whose step event the leader set off (field_requests' step event),
+ * which the field's main loop runs [2 bytes] */
+#define RAM_FIELD_STEP_TILE 0x7E015Bu
+#define RAM_FIELD_STEP_TILE_DP 0x5Bu         /* page field */
+/* The tile (row << 8 | column) of the chest the leader opened last, which the field's main loop
+ * shows open (field_requests' opened chest) [2 bytes] */
+#define RAM_FIELD_OPENED_CHEST_TILE 0x7E015Du
+#define RAM_FIELD_OPENED_CHEST_TILE_DP 0x5Du /* page field */
 /* 1 while a dialog with choices runs */
 #define RAM_DIALOG_CHOICE_ACTIVE 0x7E0162u
 #define RAM_DIALOG_CHOICE_ACTIVE_DP 0x62u    /* page field */
@@ -734,11 +754,12 @@
  * facing lookups index with [2 bytes] */
 #define RAM_FIELD_DIRECTION 0x7E01EEu
 #define RAM_FIELD_DIRECTION_DP 0xEEu         /* page field */
-/* Tile the direction is computed from [2 bytes] */
+/* Tile the direction is computed from; the tile copy keeps the word here too [2 bytes] */
 #define RAM_FIELD_OWN_TILE 0x7E01F0u
 #define RAM_FIELD_OWN_TILE_DP 0xF0u          /* page field */
 #define RAM_FIELD_OWN_TILE_X 0x7E01F0u       /* Tile X */
 #define RAM_FIELD_OWN_TILE_Y 0x7E01F1u       /* Tile Y */
+#define RAM_FIELD_OWN_TILE_COPY_TABLE 0x7E01F0u /* Where in work RAM the tile copy's last whole table starts (its rows 256 bytes apart), which the copy leaves in these cells; nothing reads it */
 /* Tile the direction is computed toward [2 bytes] */
 #define RAM_FIELD_TARGET_TILE 0x7E01F2u
 #define RAM_FIELD_TARGET_TILE_DP 0xF2u       /* page field */
@@ -755,10 +776,16 @@
 /* Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a
  * location) [2 bytes] */
 #define RAM_LOCATION_RECORD_OFFSET 0x7E01FEu
+/* The gold in the chest the leader just opened, which its message shows (the battle keeps its
+ * target's display here: battle_target_display) [2 bytes] */
+#define RAM_FIELD_CHEST_GOLD 0x7E0200u
 /* The party's position on the overworld, in pixels; it moves in 16-pixel steps [4 bytes] */
 #define RAM_WORLD_POSITION 0x7E0283u
 #define RAM_WORLD_POSITION_X 0x7E0283u       /* Horizontal */
 #define RAM_WORLD_POSITION_Y 0x7E0285u       /* Vertical */
+/* Cleared when the field opens its own message (a chest's) and when the battle opens one
+ * ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md) */
+#define RAM_FIELD_MESSAGE_MARK 0x7E02A1u
 /* Long pointer to the per-line table the quadrilateral is rasterized into (two bytes per line,
  * left X then right X); the rasterizer moves it a byte on to draw the right-hand edges and back
  * again [3 bytes] */
@@ -1066,6 +1093,17 @@
 #define RAM_FIELD_SCREEN_SCROLL_TARGET_DP 0x02u /* page field_layers */
 #define RAM_FIELD_SCREEN_SCROLL_TARGET_X 0x7E1D02u /* Column */
 #define RAM_FIELD_SCREEN_SCROLL_TARGET_Y 0x7E1D03u /* Row */
+/* Where the location's exits start in bank $E5, seven bytes each (field/field_data.h, FieldExit)
+ * [2 bytes] */
+#define RAM_FIELD_LOCATION_EXITS 0x7E1D04u
+#define RAM_FIELD_LOCATION_EXITS_DP 0x04u    /* page field_layers */
+/* Where the game's chests start in bank $F5, and this location's, four bytes each
+ * (field/field_data.h, FieldChest); a chest's number, which its story flag is, counts from the
+ * first [2 x $2 bytes, by 0: the first of the game's chests, 1: the location's first] */
+#define RAM_FIELD_CHESTS 0x7E1D06u
+#define RAM_FIELD_CHESTS_COUNT 2u
+#define RAM_FIELD_CHESTS_STRIDE 0x02u
+#define RAM_FIELD_CHESTS_DP 0x06u            /* page field_layers */
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 #define RAM_FIELD_SCREEN_LEFT 0x7E1D0Au
 #define RAM_FIELD_SCREEN_LEFT_DP 0x0Au       /* page field_layers */
@@ -1078,6 +1116,14 @@
 /* The screen's bottom edge in 8-pixel tiles */
 #define RAM_FIELD_SCREEN_BOTTOM 0x7E1D10u
 #define RAM_FIELD_SCREEN_BOTTOM_DP 0x10u     /* page field_layers */
+/* The map's edges in 16-pixel tiles, which the screen doesn't scroll past and the leader doesn't
+ * walk past [4 bytes] */
+#define RAM_FIELD_MAP_EDGES 0x7E1D1Au
+#define RAM_FIELD_MAP_EDGES_DP 0x1Au         /* page field_layers */
+#define RAM_FIELD_MAP_EDGES_LEFT 0x7E1D1Au   /* The first column */
+#define RAM_FIELD_MAP_EDGES_RIGHT 0x7E1D1Bu  /* The last column */
+#define RAM_FIELD_MAP_EDGES_TOP 0x7E1D1Cu    /* The row above the first the leader stands on */
+#define RAM_FIELD_MAP_EDGES_BOTTOM 0x7E1D1Du /* The row above the last the leader stands on */
 /* Mask applied to a tile index (row << 8 | column) before the map attribute tables are read [2
  * bytes] */
 #define RAM_FIELD_MAP_INDEX_MASK 0x7E1D1Eu
@@ -1090,6 +1136,12 @@
 #define RAM_FIELD_LAYER_EXTRA_SPEED_DP 0x24u /* page field_layers */
 #define RAM_FIELD_LAYER_EXTRA_SPEED_X 0x7E1D24u /* Horizontal */
 #define RAM_FIELD_LAYER_EXTRA_SPEED_Y 0x7E1D25u /* Vertical */
+/* How a moving floor under the leader pulls the party next frame, 1/16 pixel on each axis,
+ * signed [2 bytes] */
+#define RAM_FIELD_FLOOR_PULL 0x7E1D2Au
+#define RAM_FIELD_FLOOR_PULL_DP 0x2Au        /* page field_layers */
+#define RAM_FIELD_FLOOR_PULL_X 0x7E1D2Au     /* Across */
+#define RAM_FIELD_FLOOR_PULL_Y 0x7E1D2Bu     /* Down */
 /* How the pad walks the leader this frame, 1/16 pixel a frame on each axis, signed: $10 walking,
  * $20 running (the dash button held), 0 still ($C0:8925 and on) [2 bytes] */
 #define RAM_FIELD_LEADER_WALK 0x7E1D2Cu
@@ -1102,6 +1154,12 @@
 #define RAM_FIELD_SCREEN_SCROLL_STEP_COUNT 2u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_STRIDE 0x02u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_DP 0x2Eu /* page field_layers */
+/* The high bytes the leader's walk makes of field_screen_scroll_step as it works the leader's
+ * step out as words: the step's sign; nothing reads them [2 x $2 bytes, by axis (X, Y)] */
+#define RAM_FIELD_SCREEN_SCROLL_STEP_HIGH 0x7E1D2Fu
+#define RAM_FIELD_SCREEN_SCROLL_STEP_HIGH_COUNT 2u
+#define RAM_FIELD_SCREEN_SCROLL_STEP_HIGH_STRIDE 0x02u
+#define RAM_FIELD_SCREEN_SCROLL_STEP_HIGH_DP 0x2Fu /* page field_layers */
 /* How far the leader moves this frame, 1/16 pixel on each axis, signed: the pad's walk and a
  * moving floor's pull, less what the map's blocks and its edges stop ($C0:9175) [2 bytes] */
 #define RAM_FIELD_LEADER_MOVEMENT 0x7E1D32u
@@ -1162,6 +1220,12 @@
  * return (field/scratch.h: kept for the original's code and shadow mode) [16 bytes] */
 #define RAM_FIELD_LAYER_EDGE_WORK 0x7E1D60u
 #define RAM_FIELD_LAYER_EDGE_WORK_DP 0x60u   /* page field_layers */
+/* Where the walk leaves the leader: across, where it will stand (1/16 pixel), and down, a tile
+ * beyond where it will stand the way it goes, the tile whose step event it sets off [4 bytes] */
+#define RAM_FIELD_WALK_AHEAD 0x7E1D70u
+#define RAM_FIELD_WALK_AHEAD_DP 0x70u        /* page field_layers */
+#define RAM_FIELD_WALK_AHEAD_X 0x7E1D70u     /* Across */
+#define RAM_FIELD_WALK_AHEAD_Y 0x7E1D72u     /* Down, a tile ahead */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run [4
  * x $1 bytes, by upload group (tiles, tiles alt, columns, columns alt)] */
 #define RAM_FIELD_LAYER_UPLOAD_FLAGS 0x7E1D78u
@@ -1193,6 +1257,17 @@
 #define RAM_FIELD_LAYER_SCROLL_DP 0x87u      /* page field_layers */
 #define RAM_FIELD_LAYER_SCROLL_H 0x7E1D87u   /* Horizontal */
 #define RAM_FIELD_LAYER_SCROLL_V 0x7E1D89u   /* Vertical */
+/* Each layer's pixel within its 16-pixel map tile across (0-15), which the screen's edges count
+ * as it scrolls [3 x $1 bytes, by layer (BG1-BG3)] */
+#define RAM_FIELD_LAYER_FINE_X 0x7E1D93u
+#define RAM_FIELD_LAYER_FINE_X_COUNT 3u
+#define RAM_FIELD_LAYER_FINE_X_STRIDE 0x01u
+#define RAM_FIELD_LAYER_FINE_X_DP 0x93u      /* page field_layers */
+/* And down [3 x $1 bytes, by layer (BG1-BG3)] */
+#define RAM_FIELD_LAYER_FINE_Y 0x7E1D96u
+#define RAM_FIELD_LAYER_FINE_Y_COUNT 3u
+#define RAM_FIELD_LAYER_FINE_Y_STRIDE 0x01u
+#define RAM_FIELD_LAYER_FINE_Y_DP 0x96u      /* page field_layers */
 /* Each layer's position in tiles [3 x $2 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_LAYER_POSITION 0x7E1D99u
 #define RAM_FIELD_LAYER_POSITION_COUNT 3u
@@ -1254,6 +1329,16 @@
 #define RAM_FIELD_TILE_LOWER_ATTRIBUTES 0x7E7040u
 #define RAM_FIELD_TILE_LOWER_ATTRIBUTES_ROWS 64u
 #define RAM_FIELD_TILE_LOWER_ATTRIBUTES_ROW_STRIDE 0x100u
+/* Each tile's exit, the location's exit the leader takes stepping onto it (bit 7: none) [64
+ * bytes] [64 rows, $100 bytes apart] */
+#define RAM_FIELD_TILE_EXITS 0x7E7080u
+#define RAM_FIELD_TILE_EXITS_ROWS 64u
+#define RAM_FIELD_TILE_EXITS_ROW_STRIDE 0x100u
+/* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
+ * it holds (field_chests) [64 bytes] [64 rows, $100 bytes apart] */
+#define RAM_FIELD_TILE_WALKABLE 0x7E70C0u
+#define RAM_FIELD_TILE_WALKABLE_ROWS 64u
+#define RAM_FIELD_TILE_WALKABLE_ROW_STRIDE 0x100u
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line

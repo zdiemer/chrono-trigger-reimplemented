@@ -33,9 +33,4 @@ bool object_takes_a_call_now(const GameState *g, FieldObject object, uint8_t lev
  * the move it was making. */
 void object_run_script_from(GameState *g, FieldObject object, uint8_t level, uint16_t start);
 
-/* For what the original leaves: the offset of an object's place at a level
- * among the places, which it works out in a scratch cell (and keeps there
- * where the field hands an object a script). */
-uint16_t event_place_offset(FieldObject object, uint8_t level);
-
 #endif

@@ -231,6 +231,20 @@ void object_set_facing(GameState *g, FieldObject obj, Facing facing);
 /* It turns on the spot: the new facing shows from the next frame. */
 void object_turn(GameState *g, FieldObject obj, Facing facing);
 
+/* How another object stands from one at `at`, the way the one faces: whether
+ * it is on the side it looks, and how far along the way and across it is
+ * (field/motion.c). The original measures an object `measured_nearer` a
+ * sixteenth nearer along (its subtraction borrows what a comparison of the
+ * two objects' slots before it left), across a sixteenth short, and a
+ * distance behind as the one's complement; so two objects exactly a tile
+ * apart are within a tile one way and not the other. The objects in an
+ * object's way and the one the player talks to are measured so. */
+typedef struct {
+    bool ahead;
+    uint16_t along, across;
+} ObjectBearing;
+ObjectBearing object_bearing(FieldPosition at, FieldPosition there, Facing facing, bool measured_nearer);
+
 /* How the object's sprite is layered against the map's layers: a priority, 0
  * (behind everything) to 3 (in front of everything), for its upper half and
  * its lower half; or following the map, where each tile says (field/layers.h,
@@ -472,8 +486,11 @@ typedef struct {
     FieldObject object;
 } ObjectsAhead;
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
-/* Whether the search fits the tables: there are objects, fewer than the
- * slots. Its callers' guards make sure. */
+/* Where the field's searches over the map's objects start -- this one, the
+ * leader's walk's and the confirm button's -- and whether that fits the
+ * tables: one slot past the map's objects, down to the second. Its callers'
+ * guards make sure. */
+FieldObject object_search_start(const GameState *g);
 bool object_search_fits(const GameState *g);
 
 /* A step to line the object up with its tile's middle, or with another

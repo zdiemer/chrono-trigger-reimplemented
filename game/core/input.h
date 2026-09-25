@@ -21,6 +21,12 @@ enum {
 /* The sets kept through the player's button assignments (input_mapped). */
 typedef enum { ASSIGNED_PRESSED, ASSIGNED_HELD, ASSIGNED_REPEATING } AssignedSet;
 
+/* What the field makes of two of the assignments, as a set through them has
+ * them: the first confirms -- talks, opens a chest, closes a dialog that
+ * waits for it (event/contact.c) -- and the fourth dashes (field/walk.c).
+ * The scripts ask about the two as well (event/input.c). */
+enum { ASSIGNED_CONFIRM = BUTTON_A, ASSIGNED_DASH = BUTTON_SELECT };
+
 /* The buttons (PadBits) that, held together and alone, reset the console, from any mode that
  * reads the controller (the scenes check them too, scene/frame.c). */
 enum { RESET_BUTTONS = IN_BUTTON_L | IN_BUTTON_R | IN_BUTTON_SELECT | IN_BUTTON_START };
