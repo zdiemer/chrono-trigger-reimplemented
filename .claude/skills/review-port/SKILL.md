@@ -554,7 +554,7 @@ Each of these is a finding. Every example here comes from this repo.
     lines with X". Write the fill; keep the idiom only where the gate needs
     its exact bytes, and say so.
 
-57. **A quirk parameter named for one of its uses.** A flag that is the add's
+57. **A quirk parameter or constant named for one of its uses.** A flag that is the add's
     carry at one call and the subtraction's no-borrow at another, named and
     commented for the first. Check every call site of such a parameter
     against its name and comment.
@@ -648,6 +648,19 @@ Each of these is a finding. Every example here comes from this repo.
     game's terms, the quirk's effect is applied by one marked line (never a
     local the logic branches on), the library is shown not to reach a
     visible difference, and the divergence is listed in docs/TODO.md.
+
+82. **A table keyed by which original routine runs.** Rows that reproduce
+    the differences between near-copies of a routine (`y_rules(layout,
+    reload)`) are item 7 moved into data. Each row that differs must say
+    what differs on screen, or be shown unreachable and dropped.
+83. **One routine's quirk promoted into a platform service.** A service body
+    that carries a game's rule (`vid_oam_y` holding one layout's hiding rule
+    while its siblings live in the port). The platform keeps the plain
+    encoding; the game's rule stays in the port with its siblings.
+84. **Result fields that only say which registers are defined.** `placed`,
+    `rebuilt`, `overflow`: plain bools with game-sounding names that exist
+    to tell a wrapper which flags to set. Items 26 and 45 in their most
+    easily missed form; the wrapper asks the state instead.
 
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
