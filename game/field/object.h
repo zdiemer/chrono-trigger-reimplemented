@@ -267,6 +267,14 @@ bool tile_on_the_map(MapTile tile);
 /* Its halves' priorities, 0-3; or those its own layering gives. */
 void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower);
 void object_take_own_priorities(GameState *g, FieldObject obj);
+/* Its halves' priorities as a value to hand on, which only the storage looks
+ * into: the party's trail keeps the leader's, and each member takes them on
+ * where the leader had them (field/party.h). */
+typedef struct {
+    uint8_t lower_stored, upper_stored;
+} SpritePriorities;
+SpritePriorities object_sprite_priorities(const GameState *g, FieldObject obj);
+void object_take_sprite_priorities(GameState *g, FieldObject obj, SpritePriorities priorities);
 
 /* ---- Animation (field/animation.c) --------------------------------------------------- */
 
@@ -277,8 +285,19 @@ typedef enum {
     ANIMATE_SHOW_FRAME,      /* holds one frame a script chose */
 } ObjectAnimationMode;
 
-/* The animations the field picks for an object animating with its movement. */
-enum { ANIMATION_STAND = 0, ANIMATION_WALK = 1, ANIMATION_RUN = 6 };
+/* The animations the field picks for an object animating with its movement;
+ * and those the party also shows on its own (field/party.h): running against
+ * something that stops it, the pose the leader holds while the player picks
+ * an answer, climbing, and a fidget when it has stood about a while. */
+enum {
+    ANIMATION_STAND = 0,
+    ANIMATION_WALK = 1,
+    ANIMATION_RUN = 6,
+    ANIMATION_RUN_ON_THE_SPOT = 0x17,
+    ANIMATION_CHOOSING = 0x19,
+    ANIMATION_CLIMB = 0x1B,
+    ANIMATION_FIDGET = 0x21,
+};
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
 
@@ -307,6 +326,9 @@ void object_end_frame_time(GameState *g, FieldObject obj);
 typedef enum { MOVEMENT_KEPT_BY_SCRIPT, MOVEMENT_STAND, MOVEMENT_WALK, MOVEMENT_RUN } MovementAnimation;
 MovementAnimation object_animate_movement(GameState *g, FieldObject obj);
 void object_stand(GameState *g, FieldObject obj);
+/* Show one of the movement animations, from its first frame, unless the
+ * object is already showing it: the party picks its own (field/party.h). */
+void object_show_movement(GameState *g, FieldObject obj, uint8_t animation);
 
 /* Every frame, for an object in view: count down to its next frame, and when
  * it is due, queue the object for the frame builder and move to the frame. */
@@ -356,6 +378,9 @@ void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blockin
  * moves. */
 void object_set_solidity(GameState *g, FieldObject obj, bool solid);
 bool object_solid(const GameState *g, FieldObject obj);
+/* Whether the leader can push it a tile by walking into it (event/contact.c):
+ * a crate, a statue. */
+bool object_can_be_pushed(const GameState *g, FieldObject obj);
 
 /* What the object does on arriving where a script walked it: line itself up
  * with the tile's middle, or with the object it walked up to. */
@@ -369,6 +394,10 @@ bool object_lines_up(const GameState *g, FieldObject obj, ObjectArrival how);
  * (object_start_walk). */
 void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps);
 uint8_t object_move_length(const GameState *g, FieldObject obj);
+/* The original keeps a second copy of the length, which nothing reads, and
+ * clears it where the field hands an object a script of its own (a talk, a
+ * touch, the party's scripts: event/calls.h). Scaffolding. */
+void object_clear_move_length_copy(GameState *g, FieldObject obj);
 
 /* Whether a move's steps may take the object out of its tile: never, once
  * (the move's first step may cross), or always. */
@@ -409,6 +438,9 @@ typedef struct {
     int8_t x, y;
 } Velocity;
 Velocity object_velocity(const GameState *g, FieldObject obj);
+/* The field's own routines that move an object a frame at a time (the
+ * party, field/party.h) give it the frame's step on each axis. */
+void object_set_step(GameState *g, FieldObject obj, Velocity step);
 
 /* Set the object heading in a direction at its speed, whatever is in the way. */
 void object_head(GameState *g, FieldObject obj, Direction direction);

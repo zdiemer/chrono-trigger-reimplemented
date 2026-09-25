@@ -14,10 +14,12 @@
 #include <stdint.h>
 
 #include "event/script.h"
+#include "field/party.h"
+#include "snes/system.h"
 
-/* The party's places, and the character byte of an empty one (the party's
- * record of who is in it keeps the character with its top bit set). */
-enum { PARTY_PLACES = FIELD_PARTY_OBJECTS_COUNT, NO_CHARACTER = 0x80 };
+/* The character byte of an empty place (the party's record of who is in it
+ * keeps the character with its top bit set); the places are field/party.h's. */
+enum { NO_CHARACTER = 0x80 };
 
 /* Whether a place of the party is taken, and the object its member walks
  * the map as. An empty place has none: the commands that allow one decode
@@ -59,6 +61,29 @@ bool member_place_readable(const GameState *g, PartyPlace place);
 
 /* The character leading the party. */
 static inline uint8_t party_leader(const GameState *g) { return party_members(g, 0); }
+
+/* The party's own scripts, which every map load puts after the map's own
+ * ($C0:5CEC; tools/disasm/eventscript.py reads them): a member walks up to
+ * the leader and, once the gathering count says all are there, hands the
+ * party back to the player; a member walks to its place in a formation,
+ * faces its way and counts itself in the formation count; an object being
+ * pushed walks to its tile. Each is script from an offset, with the tile and
+ * the facing the command that starts it writes into its operands. */
+enum {
+    GATHER_SCRIPT = 0x16FF,
+    FORMATION_SCRIPTS = 0x171F, FORMATION_SCRIPT_BYTES = 0x20,   /* one a place, in the places' order */
+    FORMATION_TILE = 8, FORMATION_FACING = 11,
+    PUSH_SCRIPT = 0x177F, PUSH_TILE = 1,
+};
+
+/* The counts the party's scripts keep, in two of the map's variables. */
+enum { FORMATION_COUNT = 0xFE, GATHERING_COUNT = 0xFF };
+
+/* After a battle, the members go back to the leader ($C0:034B, still the
+ * original's, calls this for each). */
+void member_back_to_the_leader(GameState *g, FieldObject member);
+void event_member_back_to_the_leader(Snes *s);
+bool event_member_can_go_back(Snes *s);
 
 /* Someone leaves the party: their place is empty, on the map and in the
  * party's record. */

@@ -114,6 +114,12 @@ typedef enum { NEXT_TO_IT, WELL_ON_SCREEN } WalkEnd;
 typedef uint8_t PartyPlace;
 /* A tint's colour, added to the picture or taken away from it. */
 typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
+/* A place in a formation a script lays out for the party (event/party.c):
+ * the tile the member walks to, and the way it faces there. */
+typedef struct {
+    MapTile tile;
+    Facing facing;
+} FormationPlace;
 
 /* Every parameter an operation of the language takes, by type and name. A
  * row of the table says how the command's operands decode into the ones its
@@ -138,7 +144,7 @@ typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
     X(uint8_t, tile_x) X(uint8_t, tile_y) X(bool, centred) X(uint16_t, x) X(uint16_t, y)        \
     X(uint8_t, layering) X(ObjectSprite, sprite)                                                 \
     /* moves */                                                                                  \
-    X(MoveStyle, style) X(bool, counted) X(WalkEnd, until) X(uint8_t, steps)                    \
+    X(MoveStyle, style) X(bool, counted) X(WalkEnd, until) X(uint8_t, steps) X(bool, once)      \
     X(Direction, direction) X(uint8_t, height) X(uint8_t, velocity_x) X(uint8_t, velocity_y)    \
     X(uint8_t, acceleration)                                                                     \
     /* the party */                                                                              \
@@ -160,6 +166,10 @@ typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
     X(uint16_t, destination) X(uint8_t, maps) X(uint16_t, drift) X(uint8_t, layers)             \
     X(uint8_t, scroll_x) X(uint8_t, scroll_y) X(uint8_t, scanline)
 
+/* And the parameters a row decodes into a record of the language's rather
+ * than a number: the three places of a formation, the leader's first. */
+#define EVENT_RECORD_PARAMETERS(X)     X(FormationPlace, leader_place) X(FormationPlace, first_place) X(FormationPlace, second_place)
+
 /* A command, decoded by its row: the object whose script is running, where
  * the command is in the script, the host (for the commands that wait on the
  * sound driver), and every parameter of the language, of which an operation
@@ -170,6 +180,7 @@ typedef struct {
     Platform *platform;
 #define EVENT_PARAMETER_FIELD(type, name) type name;
     EVENT_PARAMETERS(EVENT_PARAMETER_FIELD)
+    EVENT_RECORD_PARAMETERS(EVENT_PARAMETER_FIELD)
 #undef EVENT_PARAMETER_FIELD
 } EventCommand;
 
@@ -247,6 +258,7 @@ typedef enum {
     ARG_BIT,             /* the operand is a bit number: the byte with that bit set */
     ARG_ALL_BUT_BIT,     /* the operand is a bit number: the byte with every other bit set */
     ARG_FLAG,            /* the operand is 0 or 1: false or true */
+    ARG_FORMATION_PLACE, /* two operands, a tile's column and row, their top bits the way it faces */
 } EventArgKind;
 
 typedef struct {
@@ -276,6 +288,7 @@ typedef struct {
 #define BIT(n) { ARG_BIT, (n), 0, 0 }
 #define ALL_BUT_BIT(n) { ARG_ALL_BUT_BIT, (n), 0, 0 }
 #define FLAG(n) { ARG_FLAG, (n), 0, 0 }
+#define FORMATION_PLACE(n) { ARG_FORMATION_PLACE, (n), 0, 0 }
 
 /* The widths, as a row gives them. */
 #define BYTES CONSTANT(AS_BYTE)
@@ -289,6 +302,7 @@ typedef struct {
     struct {               /* how each parameter the operation reads is decoded; the rest are ARG_NONE */
 #define EVENT_PARAMETER_SPEC(type, name) EventArg name;
         EVENT_PARAMETERS(EVENT_PARAMETER_SPEC)
+        EVENT_RECORD_PARAMETERS(EVENT_PARAMETER_SPEC)
 #undef EVENT_PARAMETER_SPEC
     };
     uint8_t length;        /* the command's bytes, its opcode's included */

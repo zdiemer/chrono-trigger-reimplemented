@@ -18,7 +18,9 @@
 #include "core/sound_driver.h"
 #include "core/tile_animation.h"
 #include "data/decompress.h"
+#include "event/contact.h"
 #include "event/event.h"
+#include "event/party.h"
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/field.h"
@@ -26,6 +28,7 @@
 #include "field/layers.h"
 #include "field/line_effects.h"
 #include "field/object_update.h"
+#include "field/party.h"
 #include "field/sprites.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
@@ -729,7 +732,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
       NEEDS_M8_X16, .cost_milli = 4878, .guard = event_has_objects },
     { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
-      NEEDS_M8_X8, .cost_milli = 4596, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+      NEEDS_M8_X8, .cost_milli = 4723, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .guard = event_runs_an_object },
 
     /* event commands (game/event/). Entered through the command table with
@@ -755,7 +758,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC02FCA, event_cmd_wait_frames_8, 5343, event_cmd_wait_frames_8_accepts),
     EVENT_CMD(0xC02FD2, event_cmd_wait_frames_16, 5002, event_cmd_wait_frames_16_accepts),
     EVENT_CMD(0xC02FCE, event_cmd_wait_frames_32, 5396, event_cmd_wait_frames_32_accepts),
-    EVENT_CMD(0xC02FFD, event_cmd_behave_once, 5000, event_cmd_behave_once_accepts),
+    EVENT_CMD(0xC02FFD, event_cmd_walk_with_the_party_once, 5000, event_cmd_walk_with_the_party_once_accepts),
     EVENT_CMD(0xC03557, event_cmd_use_text, 3350, event_cmd_use_text_accepts),
     EVENT_CMD(0xC03570, event_cmd_say, 3004, event_cmd_say_accepts),
     EVENT_CMD(0xC035B5, event_cmd_say_top, 3054, event_cmd_say_top_accepts),
@@ -824,7 +827,9 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC04F0A, event_cmd_move_in_direction_from_variables_keep_facing, 5000, event_cmd_move_in_direction_from_variables_keep_facing_accepts),
     EVENT_CMD(0xC052C0, event_cmd_move_toward_object_keep_facing, 5000, event_cmd_move_toward_object_keep_facing_accepts),
     EVENT_CMD(0xC054F5, event_cmd_move_toward_party_member_keep_facing, 5000, event_cmd_move_toward_party_member_keep_facing_accepts),
-    EVENT_CMD(0xC03002, event_cmd_behave, 3374, event_cmd_behave_accepts),
+    EVENT_CMD(0xC03002, event_cmd_walk_with_the_party, 4641, event_cmd_walk_with_the_party_accepts),
+    EVENT_CMD(0xC0326C, event_cmd_take_formation, 2521, event_cmd_take_formation_accepts),
+    EVENT_CMD(0xC0345A, event_cmd_gather_party, 3763, event_cmd_gather_party_accepts),
     EVENT_CMD(0xC03546, event_cmd_follow_object, 5995, event_cmd_follow_object_accepts),
     EVENT_CMD(0xC0354F, event_cmd_follow_party_member, 5903, event_cmd_follow_party_member_accepts),
     EVENT_CMD(0xC04E73, event_cmd_move_in_direction, 3722, event_cmd_move_in_direction_accepts),
@@ -905,7 +910,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03D7A, event_cmd_wait_for_screen_tint, 2856, event_cmd_wait_for_screen_tint_accepts),
     EVENT_CMD(0xC03D07, event_cmd_tint, 3985, event_cmd_tint_accepts),
     EVENT_CMD(0xC03D84, event_cmd_shake_screen, 3229, event_cmd_shake_screen_accepts),
-    EVENT_CMD(0xC03D97, event_cmd_copy_tiles, 2854, event_cmd_copy_tiles_accepts),
+    EVENT_CMD(0xC03D97, event_cmd_copy_tiles, 6262, event_cmd_copy_tiles_accepts),
     EVENT_CMD(0xC03DC5, event_cmd_queue_tile_copy, 3011, event_cmd_queue_tile_copy_accepts),
     EVENT_CMD(0xC03DF4, event_cmd_drift_layers, 4458, event_cmd_drift_layers_accepts),
     EVENT_CMD(0xC03E30, event_cmd_scroll_camera, 2605, event_cmd_scroll_camera_accepts),
@@ -923,6 +928,15 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03B98, event_cmd_go_to_location_now_raising_1e, 3982, event_cmd_go_to_location_now_raising_1e_accepts),
     EVENT_CMD(0xC03B9E, event_cmd_go_to_worked_out_location, 2022, event_cmd_go_to_worked_out_location_accepts),
 #undef EVENT_CMD
+    /* the leader meeting objects, and the members sent back to it (event/contact.c, event/party.c); 8-bit
+     * index registers */
+    { .addr = 0xC05AC5, .name = "event_talk_to_contact", .fn = event_talk_to_contact, NEEDS_M8_X8_BINARY,
+      .cost_milli = 4533, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = event_contact_is_one },
+    { .addr = 0xC03154, .name = "event_touch_contact", .fn = event_touch_contact, NEEDS_M8_X8_BINARY,
+      .cost_milli = 4250, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_touch_can_run },
+    { .addr = 0xC05B1F, .name = "event_member_back_to_the_leader", .fn = event_member_back_to_the_leader,
+      NEEDS_M8_X8_BINARY, .cost_milli = 4167, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = event_member_can_go_back },
 
     /* field */
     { .addr = 0xC00B64, .name = "field_install_nmi", .fn = field_install_nmi,
@@ -968,6 +982,13 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0A88D, .name = "field_update_object_visibility", .fn = field_update_object_visibility,
       NEEDS_M8_X8_BINARY, .cost_milli = 3700, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z,
       .guard = field_current_object_low_bank },
+    /* the party's steps (field/party_trail.c); 8-bit A and X */
+    { .addr = 0xC09E29, .name = "field_leader_steps", .fn = field_leader_steps, NEEDS_M8_X8_BINARY,
+      .cost_milli = 4026, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_leader_can_step },
+    { .addr = 0xC0A26B, .name = "field_first_member_follows", .fn = field_first_member_follows, NEEDS_M8_X8_BINARY,
+      .cost_milli = 2398, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_first_member_can_follow },
+    { .addr = 0xC0A2CE, .name = "field_second_member_follows", .fn = field_second_member_follows, NEEDS_M8_X8_BINARY,
+      .cost_milli = 2583, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_second_member_can_follow },
     /* per-frame object update loop and its steps; 8-bit A and X */
     { .addr = 0xC0A810, .name = "field_update_objects", .fn = field_update_objects, NEEDS_M8_X8,
       .cost_milli = 4963, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_objects_counted },
@@ -1008,6 +1029,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC091AC, .name = "field_update_layer_scroll", .fn = field_update_layer_scroll,
       .p_mask = CPU_FLAG_M | CPU_FLAG_D, .p_value = CPU_FLAG_M, .cost_milli = 4240,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_layers_page_low_bank },
+    { .addr = 0xC0AF4E, .name = "field_copy_tiles", .fn = field_copy_tiles, NEEDS_M8_X16_BINARY, .cost_milli = 6129,
+      .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = field_tile_copy_fits },
     { .addr = 0xC0A521, .name = "field_unpack_tile_maps", .fn = field_unpack_tile_maps, NEEDS_M8_X16,
       .cost_milli = 8951, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_unpack_stays_clear },
     /* sprite graphics */

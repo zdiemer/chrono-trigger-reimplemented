@@ -231,6 +231,17 @@ void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, 
     set_field_object_sprite_priority(g, obj, (uint16_t)(high << 8 | low));
 }
 
+SpritePriorities object_sprite_priorities(const GameState *g, FieldObject obj)
+{
+    uint16_t both = field_object_sprite_priority(g, obj);
+    return (SpritePriorities){ (uint8_t)both, (uint8_t)(both >> 8) };
+}
+
+void object_take_sprite_priorities(GameState *g, FieldObject obj, SpritePriorities priorities)
+{
+    set_field_object_sprite_priority(g, obj, (uint16_t)(priorities.upper_stored << 8 | priorities.lower_stored));
+}
+
 bool object_follows_the_map(const GameState *g, FieldObject obj) { return own_layering(g, obj).follows_the_map; }
 
 bool tile_on_the_map(MapTile tile)
@@ -288,12 +299,14 @@ void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blockin
     set_field_object_blocking(g, obj, blocking);
 }
 
-/* Solidity is kept as a byte, 1 or 0. */
-enum { SOLID = 0x01 };
+/* Solidity is kept as a byte, 1 or 0, beside whether the leader can push the
+ * object. */
+enum { SOLID = 0x01, PUSHABLE = 0x02 };
 
 // $C0:4867
 void object_set_solidity(GameState *g, FieldObject obj, bool solid) { set_field_object_solid(g, obj, solid ? SOLID : 0); }
 bool object_solid(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & SOLID) != 0; }
+bool object_can_be_pushed(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & PUSHABLE) != 0; }
 
 // $C0:62A4
 void object_set_arrival(GameState *g, FieldObject obj, ObjectArrival arrival) { set_field_object_arrival_flags(g, obj, arrival); }
@@ -314,6 +327,8 @@ void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps)
 }
 
 uint8_t object_move_length(const GameState *g, FieldObject obj) { return field_object_step_length(g, obj); }
+
+void object_clear_move_length_copy(GameState *g, FieldObject obj) { set_field_object_step_count(g, obj, 0); }
 
 /* The mark is kept as a byte, 1 while the move runs. */
 enum { SCRIPTED_MOVE_MARK = 1 };

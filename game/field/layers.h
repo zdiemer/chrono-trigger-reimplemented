@@ -70,6 +70,23 @@ TileAttributes map_tile_attributes(const GameState *g, MapPlace p);
  * (255, 255). Only the two attribute bytes, which is what layering reads. */
 TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p);
 
+/* A script's change to the map (field/tile_copy.c): make the copy
+ * field_tile_copy describes; and whether a copy of the rectangle from one
+ * tile to another to a destination stays on the map, as the game's copies
+ * do (the guards'). */
+void map_copy_tiles(GameState *g);
+bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination);
+
+/* What the copy leaves its callers, worked out beside the other field
+ * routines' (field/leaves.c): Y and the overflow, as its last table's copy
+ * leaves them, or as it found them where it copied nothing. */
+uint16_t field_tile_copy_y(const GameState *g, uint16_t before);
+bool field_tile_copy_overflow(const GameState *g, bool before);
+
+/* field/tile_copy.c */
+void field_copy_tiles(Snes *s);
+bool field_tile_copy_fits(Snes *s);
+
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);

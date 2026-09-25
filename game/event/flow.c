@@ -143,18 +143,6 @@ static EventFlow stop_here(GameState *g)
 }
 EVENT_OPERATION_TAKING_NOTHING(stop_here)
 
-// $C0:2FFD
-/* Let the object behave as its state says for one step (the command after
- * it, event_cmd_behave in movement.c), then go on. The original calls that
- * command's handler and moves its result past its own opcode. */
-void event_cmd_behave_once(Snes *s)
-{
-    if (!event_call_bridge(s, 0xC02FFD, 0xC03002, event_cmd_behave))
-        return;
-    s->cpu.x++;
-    m_rts(s);
-}
-
 /* The comparisons' operator must be one of their table's (the guard's part):
  * the byte comparisons' eight, the word comparisons' seven. */
 static bool compares_bytes(const GameState *g, uint8_t comparison)
@@ -196,6 +184,5 @@ EVENT_OPCODES(event_flow_opcodes,
     { 0xBA, OPERATION(wait_frames), .frames = CONSTANT(8), .length = 1 },
     { 0xBC, OPERATION(wait_frames), .frames = CONSTANT(16), .length = 1 },
     { 0xBD, OPERATION(wait_frames), .frames = CONSTANT(32), .length = 1 },
-    { 0xAF, .length = 1 },
     { 0xB1, OPERATION(wait_for_next_frame), .length = 1 },
     { 0xB2, OPERATION(stop_here), .length = 1 });
