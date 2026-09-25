@@ -628,6 +628,18 @@ Each of these is a finding. Every example here comes from this repo.
     `field_chests[0]` the game's list, `[1]` the location's: item 42 in the
     RAM map. Split them there.
 
+78. **A don't-care that rests on a new analysis hint.** When a change adds a
+    hint to the liveness analysis (`re/hints.toml`), check the hint against
+    the ROM: which registers the routine saves, restores, reads and leaves
+    to whatever runs next. A wrong hint kills a live register everywhere the
+    routine is called, and every declaration that leans on it passes the
+    check. Ask for a test that ties the hint to the disassembly.
+79. **A file named for something it doesn't contain.** `save_screen.c`
+    holding the slots' summaries while the load screen lives elsewhere.
+80. **A shared mechanism whose header states a rule its callers break.**
+    `menu_run`'s header says pure-C siblings are called as C; a caller runs
+    one through an emulated `JSR`. Item 41 aimed at a bridge's contract.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
