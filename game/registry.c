@@ -50,6 +50,7 @@
 #include "menu/text.h"
 #include "menu/typeset.h"
 #include "menu/graphics.h"
+#include "menu/items.h"
 #include "menu/windows.h"
 #include "menu/top_layer.h"
 #include "menu/vram.h"
@@ -1398,6 +1399,15 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2C511, .name = "menu_load_window_design", .fn = menu_load_window_design_entry,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5000, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_window_design_is_loadable },
+    /* the items as the menus show them (game/menu/items.c) */
+    { .addr = 0xC29875, .name = "menu_build_items", .fn = menu_build_items, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 5000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_items_are_buildable },
+    { .addr = 0xC28881, .name = "menu_look_up_item", .fn = menu_look_up_item, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 5000, .dont_care = DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC288AD, .name = "menu_find_item_data", .fn = menu_find_item_data, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 5000, .dont_care = DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC288D8, .name = "menu_find_item_figures", .fn = menu_find_item_figures, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5000, .dont_care = DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_figures_are_findable },
     /* the typesetter (game/menu/typeset.c) and the menus' labels */
     { .addr = 0xC257DF, .name = "menu_text_start", .fn = menu_text_start_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4215, .dont_care = DC_N | DC_Z,

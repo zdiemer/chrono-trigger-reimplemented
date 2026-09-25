@@ -4734,6 +4734,42 @@ iterations = 2000
 why = "the menus' page and data bank, any of the queue's whole counts with room for the design's record, a palette change the count has room for; the design and the window style random (the design is taken a setting's three bits)"
 
 [[routine]]
+name = "menu_build_items"
+at = "C2:9875"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 500
+why = "the menus' page and data bank, the zero word 0 as the menus keep it; the inventory, the story's bytes, the location and the rest random (the save code's list and the members' figures after the tables are the original's, which read them too)"
+
+[[routine]]
+name = "menu_look_up_item"
+at = "C2:8881"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any item id in A (the ids past the last category's end fall in the last), any widths"
+
+[[routine]]
+name = "menu_find_item_data"
+at = "C2:88AD"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any item id in A"
+
+[[routine]]
+name = "menu_find_item_figures"
+at = "C2:88D8"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E04CC-7E04CC=00-04", "--fill", "7E04CD-7E04CD=00-00"]
+iterations = 2000
+why = "the item looked up last of one of the five categories (the guard), its place in it random"
+
+[[routine]]
 name = "menu_text_start"
 at = "C2:57DF"
 subsystem = "menu"

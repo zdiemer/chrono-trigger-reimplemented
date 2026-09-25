@@ -2486,6 +2486,15 @@ void set_menu_travel_location(GameState *g, uint16_t v);
 uint8_t menu_circle_bank_high(const GameState *g);
 void set_menu_circle_bank_high(GameState *g, uint8_t v);
 
+/* The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1
+ * armour, 2 helmets, 3 accessories, 4 the rest) */
+uint16_t menu_item_category(const GameState *g);
+void set_menu_item_category(GameState *g, uint16_t v);
+
+/* The item last looked up: its place in its category */
+uint16_t menu_item_in_category(const GameState *g);
+void set_menu_item_in_category(GameState *g, uint16_t v);
+
 /* The location */
 uint16_t menu_saved_location_id(const GameState *g);
 void set_menu_saved_location_id(GameState *g, uint16_t v);
@@ -2582,6 +2591,16 @@ void set_menu_cursor_direction(GameState *g, uint8_t v);
 uint8_t menu_cursor_held(const GameState *g);
 void set_menu_cursor_held(GameState *g, uint8_t v);
 
+/* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
+ * can use it */
+uint16_t menu_item_data_at(const GameState *g);
+void set_menu_item_data_at(GameState *g, uint16_t v);
+
+/* Where the item last looked up has its figures in bank $CC ($C2:88D8): a weapon's attack,
+ * armour's defence */
+uint16_t menu_item_figures_at(const GameState *g);
+void set_menu_item_figures_at(GameState *g, uint16_t v);
+
 /* Added to each $1800 record's X position when its sprites are drawn */
 uint16_t menu_record_origin_x(const GameState *g);
 void set_menu_record_origin_x(GameState *g, uint16_t v);
@@ -2589,6 +2608,12 @@ void set_menu_record_origin_x(GameState *g, uint16_t v);
 /* Added to each $1800 record's Y position when its sprites are drawn */
 uint8_t menu_record_origin_y(const GameState *g);
 void set_menu_record_origin_y(GameState *g, uint8_t v);
+
+enum { MENU_PLACE_ITEMS_COUNT = 3 };   /* by which */
+/* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
+ * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF */
+uint16_t menu_place_items(const GameState *g, unsigned i);
+void set_menu_place_items(GameState *g, unsigned i, uint16_t v);
 
 /* The tilemap word of the window style being drawn's first tile: its number, where the style's
  * twenty tiles start, and its attribute (palette and priority), which every tile of the window
@@ -2635,6 +2660,12 @@ enum { MENU_SAVE_SLOT_DESIGN_COUNT = 3 };   /* by save slot */
  * row in */
 uint8_t menu_save_slot_design(const GameState *g, unsigned slot);
 void set_menu_save_slot_design(GameState *g, unsigned slot, uint8_t v);
+
+enum { MENU_STORY_ITEMS_COUNT = 2 };   /* by which */
+/* $FFFF where the story allows something the item lists show, set as the menus open from bit 0
+ * ($0D7C) and bit 1, inverted ($0D7E), of the story byte at $7F:00BA */
+uint16_t menu_story_items(const GameState *g, unsigned i);
+void set_menu_story_items(GameState *g, unsigned i, uint16_t v);
 
 /* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
  * the setup's clearing */
@@ -2839,6 +2870,23 @@ void set_menu_pending_scroll_y(GameState *g, uint16_t v);
 uint8_t menu_gate_flags(const GameState *g);
 void set_menu_gate_flags(GameState *g, uint8_t v);
 
+enum { MENU_INVENTORY_PAST_THE_ITEMS_COUNT = 14 };   /* by place past the inventory */
+/* The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory
+ * ($C2:9988) takes as its places 242-255 */
+uint8_t menu_inventory_past_the_items(const GameState *g, unsigned i);
+void set_menu_inventory_past_the_items(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_INVENTORY_COUNTS_PAST_THE_ITEMS_COUNT = 14 };   /* by place past the inventory */
+/* The fourteen bytes after the inventory's counts, which the clean-up takes as its places
+ * 242-255 */
+uint8_t menu_inventory_counts_past_the_items(const GameState *g, unsigned i);
+void set_menu_inventory_counts_past_the_items(GameState *g, unsigned i, uint8_t v);
+
+/* The three bytes after the characters' names (the Epoch's the last, at $7E:2C4D), which the
+ * menus copy as they open */
+uint32_t menu_past_the_names(const GameState *g);
+void set_menu_past_the_names(GameState *g, uint32_t v);
+
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes, one at a time] */
 enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
@@ -2863,6 +2911,38 @@ void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
 enum { MENU_WINDOW_LINE_TABLE_BYTES = 149 };
 uint8_t menu_window_line_table_byte(const GameState *g, unsigned at);
 void set_menu_window_line_table_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_ITEM_KINDS_COUNT = 242 };   /* by item */
+/* Each item's kind, its data's first byte's bits 1-4 */
+uint8_t menu_item_kinds(const GameState *g, unsigned i);
+void set_menu_item_kinds(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_ITEM_PRICES_COUNT = 242 };   /* by item */
+/* Each item's price, its data's second and third bytes */
+uint16_t menu_item_prices(const GameState *g, unsigned i);
+void set_menu_item_prices(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_ITEM_USERS_COUNT = 242 };   /* by item */
+/* Each item's fourth data byte: for what can be equipped, a bit for each character who can
+ * (Crono bit 7); cleared for the items past the accessories */
+uint8_t menu_item_users(const GameState *g, unsigned i);
+void set_menu_item_users(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_ITEM_AMOUNTS_COUNT = 242 };   /* by item */
+/* Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their
+ * figures where the second's bit 6 is set, else 0; cleared for the items past them */
+uint8_t menu_item_amounts(const GameState *g, unsigned i);
+void set_menu_item_amounts(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_ITEM_POWERS_COUNT = 148 };   /* by item */
+/* The first byte of each weapon's, armour's and helmet's figures: its attack or defence */
+uint8_t menu_item_powers(const GameState *g, unsigned i);
+void set_menu_item_powers(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_ITEM_NAME_PLACES_COUNT = 242 };   /* by item */
+/* Where each item's name starts in bank $CC, eleven bytes a name from $0B5E */
+uint16_t menu_item_name_places(const GameState *g, unsigned i);
+void set_menu_item_name_places(GameState *g, unsigned i, uint16_t v);
 
 enum { MENU_MAP_GRAPHICS_COUNT = 1024 };   /* by byte */
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 */
@@ -3026,6 +3106,11 @@ enum { MENU_BLANK_STRING_COUNT = 32 };   /* by tile */
  * a list has nothing to name */
 uint8_t menu_blank_string(const GameState *g, unsigned i);
 void set_menu_blank_string(GameState *g, unsigned i, uint8_t v);
+
+/* A copy the menus take as they open of menu_past_the_names (what the three bytes are is not
+ * worked out) */
+uint32_t menu_copy_past_the_names(const GameState *g);
+void set_menu_copy_past_the_names(GameState *g, uint32_t v);
 
 enum { MENU_MATH_RECORDS_COUNT = 40 };   /* by record; a line count with bit 7 set ends the list */
 /* 0 for a single entry; nonzero for a ramp; bit 7 ends the list */

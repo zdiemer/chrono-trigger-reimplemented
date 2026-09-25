@@ -1865,6 +1865,11 @@
 /* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
  * a word */
 #define RAM_MENU_CIRCLE_BANK_HIGH 0x7E0359u
+/* The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1
+ * armour, 2 helmets, 3 accessories, 4 the rest) [2 bytes] */
+#define RAM_MENU_ITEM_CATEGORY 0x7E04CCu
+/* The item last looked up: its place in its category [2 bytes] */
+#define RAM_MENU_ITEM_IN_CATEGORY 0x7E04CEu
 /* Where the party was when a map screen changed the location: the location number and the map
  * position, the same three values it also copies to location_previous [4 bytes] */
 #define RAM_MENU_SAVED_LOCATION 0x7E04FCu
@@ -1926,10 +1931,22 @@
 #define RAM_MENU_CURSOR_DIRECTION 0x7E0D1Eu
 /* Nonzero keeps the cursor where it is against the next push; the push clears it */
 #define RAM_MENU_CURSOR_HELD 0x7E0D1Fu
+/* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
+ * can use it [2 bytes] */
+#define RAM_MENU_ITEM_DATA_AT 0x7E0D28u
+/* Where the item last looked up has its figures in bank $CC ($C2:88D8): a weapon's attack,
+ * armour's defence [2 bytes] */
+#define RAM_MENU_ITEM_FIGURES_AT 0x7E0D2Au
 /* Added to each $1800 record's X position when its sprites are drawn [2 bytes] */
 #define RAM_MENU_RECORD_ORIGIN_X 0x7E0D2Eu
 /* Added to each $1800 record's Y position when its sprites are drawn */
 #define RAM_MENU_RECORD_ORIGIN_Y 0x7E0D30u
+/* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
+ * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF [3 x $2 bytes, by
+ * which] */
+#define RAM_MENU_PLACE_ITEMS 0x7E0D32u
+#define RAM_MENU_PLACE_ITEMS_COUNT 3u
+#define RAM_MENU_PLACE_ITEMS_STRIDE 0x02u
 /* The tilemap word of the window style being drawn's first tile: its number, where the style's
  * twenty tiles start, and its attribute (palette and priority), which every tile of the window
  * takes [2 bytes] */
@@ -1965,6 +1982,11 @@
 #define RAM_MENU_SAVE_SLOT_DESIGN 0x7E0D79u
 #define RAM_MENU_SAVE_SLOT_DESIGN_COUNT 3u
 #define RAM_MENU_SAVE_SLOT_DESIGN_STRIDE 0x01u
+/* $FFFF where the story allows something the item lists show, set as the menus open from bit 0
+ * ($0D7C) and bit 1, inverted ($0D7E), of the story byte at $7F:00BA [2 x $2 bytes, by which] */
+#define RAM_MENU_STORY_ITEMS 0x7E0D7Cu
+#define RAM_MENU_STORY_ITEMS_COUNT 2u
+#define RAM_MENU_STORY_ITEMS_STRIDE 0x02u
 /* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
  * the setup's clearing */
 #define RAM_MENU_CURSOR_ALWAYS_BACK 0x7E0D83u
@@ -2094,6 +2116,19 @@
 /* Which half of each of the time dial's double-buffered per-line tables is being rebuilt: bit 0
  * the window, bit 1 the matrix, bit 2 its second pair */
 #define RAM_MENU_GATE_FLAGS 0x7E1BF5u
+/* The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory
+ * ($C2:9988) takes as its places 242-255 [14 x $1 bytes, by place past the inventory] */
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS 0x7E24F2u
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS_COUNT 14u
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS_STRIDE 0x01u
+/* The fourteen bytes after the inventory's counts, which the clean-up takes as its places
+ * 242-255 [14 x $1 bytes, by place past the inventory] */
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS 0x7E25F2u
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS_COUNT 14u
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS_STRIDE 0x01u
+/* The three bytes after the characters' names (the Epoch's the last, at $7E:2C4D), which the
+ * menus copy as they open [3 bytes] */
+#define RAM_MENU_PAST_THE_NAMES 0x7E2C53u
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
@@ -2111,6 +2146,35 @@
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
+/* Each item's kind, its data's first byte's bits 1-4 [242 x $1 bytes, by item] */
+#define RAM_MENU_ITEM_KINDS 0x7E7700u
+#define RAM_MENU_ITEM_KINDS_COUNT 242u
+#define RAM_MENU_ITEM_KINDS_STRIDE 0x01u
+/* Each item's price, its data's second and third bytes [242 x $2 bytes, by item] */
+#define RAM_MENU_ITEM_PRICES 0x7E7800u
+#define RAM_MENU_ITEM_PRICES_COUNT 242u
+#define RAM_MENU_ITEM_PRICES_STRIDE 0x02u
+/* Each item's fourth data byte: for what can be equipped, a bit for each character who can
+ * (Crono bit 7); cleared for the items past the accessories [242 x $1 bytes, by item] */
+#define RAM_MENU_ITEM_USERS 0x7E7A00u
+#define RAM_MENU_ITEM_USERS_COUNT 242u
+#define RAM_MENU_ITEM_USERS_STRIDE 0x01u
+/* Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their
+ * figures where the second's bit 6 is set, else 0; cleared for the items past them [242 x $1
+ * bytes, by item] */
+#define RAM_MENU_ITEM_AMOUNTS 0x7E7B00u
+#define RAM_MENU_ITEM_AMOUNTS_COUNT 242u
+#define RAM_MENU_ITEM_AMOUNTS_STRIDE 0x01u
+/* The first byte of each weapon's, armour's and helmet's figures: its attack or defence [148 x
+ * $1 bytes, by item] */
+#define RAM_MENU_ITEM_POWERS 0x7E7C00u
+#define RAM_MENU_ITEM_POWERS_COUNT 148u
+#define RAM_MENU_ITEM_POWERS_STRIDE 0x01u
+/* Where each item's name starts in bank $CC, eleven bytes a name from $0B5E [242 x $2 bytes, by
+ * item] */
+#define RAM_MENU_ITEM_NAME_PLACES 0x7E7D00u
+#define RAM_MENU_ITEM_NAME_PLACES_COUNT 242u
+#define RAM_MENU_ITEM_NAME_PLACES_STRIDE 0x02u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */
 #define RAM_MENU_MAP_GRAPHICS 0x7E8621u
@@ -2213,6 +2277,9 @@
 #define RAM_MENU_BLANK_STRING 0x7E9B76u
 #define RAM_MENU_BLANK_STRING_COUNT 32u
 #define RAM_MENU_BLANK_STRING_STRIDE 0x01u
+/* A copy the menus take as they open of menu_past_the_names (what the three bytes are is not
+ * worked out) [3 bytes] */
+#define RAM_MENU_COPY_PAST_THE_NAMES 0x7E9D96u
 /* What the menus' per-line color math table is built from: each record a run of lines at one
  * color, or (a nonzero line count) a sixteen-step ramp through the ramp colors [40 x $2 bytes,
  * by record; a line count with bit 7 set ends the list] */

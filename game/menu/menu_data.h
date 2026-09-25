@@ -83,6 +83,28 @@ enum {
     MENU_UPLOADS_WINDOW_SETS = 0xFC8F, MENU_UPLOAD_WINDOW_DESIGN = 0xC548,
 };
 
+/* ---- The items ------------------------------------------------------------------------------ */
+
+/* The items' ids fall in five categories, each from its first id
+ * ($C2:88A7: weapons 0, armour $5A, helmets $7B, accessories $94, the rest
+ * $BC, and the end $F2). Each category's data (the kind, the price, who can
+ * use it) and figures (attack or defence, more for an accessory) are records
+ * in bank $CC, where each table starts and how long its records are in bank
+ * $FF ($CF0E and $CF18, $CF1D and $CF27). */
+enum { MENU_ITEM_CATEGORIES = 5, MENU_ITEMS = 0xF2, MENU_ITEM_TABLES_BANK = 0xCC0000u };
+static inline uint8_t menu_item_category_start(const GameState *g, unsigned category)
+{
+    return rom_read8(g, 0xC288A7u + category);
+}
+static inline uint16_t menu_item_data_table(const GameState *g, unsigned category) { return rom_read16(g, 0xFFCF0Eu + 2u * category); }
+static inline uint8_t menu_item_data_record_bytes(const GameState *g, unsigned category) { return rom_read8(g, 0xFFCF18u + category); }
+static inline uint16_t menu_item_figures_table(const GameState *g, unsigned category) { return rom_read16(g, 0xFFCF1Du + 2u * category); }
+static inline uint8_t menu_item_figures_record_bytes(const GameState *g, unsigned category) { return rom_read8(g, 0xFFCF27u + category); }
+static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_ITEM_TABLES_BANK | at); }
+
+/* The items' names start at $CC:0B5E, eleven bytes each (menu_item_name). */
+enum { MENU_ITEM_NAMES = 0x0B5E };
+
 /* ---- What the typesetter inserts ----------------------------------------------------------- */
 
 /* A number's decimal digits are the glyphs from $D4 on. */

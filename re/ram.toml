@@ -4513,6 +4513,148 @@ meaning = "Screen brightness the vblank handler sets at the end of each frame; 0
 source = "game/menu/display.c, menu_nmi_work $C2:842A"
 
 [[var]]
+name = "menu_item_category"
+addr = "7E:04CC"
+size = 2
+subsystem = "menu"
+meaning = "The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1 armour, 2 helmets, 3 accessories, 4 the rest)"
+source = "game/menu/items.c, $C2:8881"
+
+[[var]]
+name = "menu_item_in_category"
+addr = "7E:04CE"
+size = 2
+subsystem = "menu"
+meaning = "The item last looked up: its place in its category"
+source = "game/menu/items.c, $C2:8881"
+
+[[var]]
+name = "menu_item_data_at"
+addr = "7E:0D28"
+size = 2
+subsystem = "menu"
+meaning = "Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who can use it"
+source = "game/menu/items.c, $C2:88AD"
+
+[[var]]
+name = "menu_item_figures_at"
+addr = "7E:0D2A"
+size = 2
+subsystem = "menu"
+meaning = "Where the item last looked up has its figures in bank $CC ($C2:88D8): a weapon's attack, armour's defence"
+source = "game/menu/items.c, $C2:88D8"
+
+[[var]]
+name = "menu_story_items"
+addr = "7E:0D7C"
+size = 2
+count = 2
+index = "which"
+subsystem = "menu"
+meaning = "$FFFF where the story allows something the item lists show, set as the menus open from bit 0 ($0D7C) and bit 1, inverted ($0D7E), of the story byte at $7F:00BA"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_place_items"
+addr = "7E:0D32"
+size = 2
+count = 3
+index = "which"
+subsystem = "menu"
+meaning = "Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34 $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_kinds"
+addr = "7E:7700"
+count = 0xF2
+index = "item"
+subsystem = "menu"
+meaning = "Each item's kind, its data's first byte's bits 1-4"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_prices"
+addr = "7E:7800"
+size = 2
+count = 0xF2
+index = "item"
+subsystem = "menu"
+meaning = "Each item's price, its data's second and third bytes"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_users"
+addr = "7E:7A00"
+count = 0xF2
+index = "item"
+subsystem = "menu"
+meaning = "Each item's fourth data byte: for what can be equipped, a bit for each character who can (Crono bit 7); cleared for the items past the accessories"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_amounts"
+addr = "7E:7B00"
+count = 0xF2
+index = "item"
+subsystem = "menu"
+meaning = "Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their figures where the second's bit 6 is set, else 0; cleared for the items past them"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_powers"
+addr = "7E:7C00"
+count = 0x94
+index = "item"
+subsystem = "menu"
+meaning = "The first byte of each weapon's, armour's and helmet's figures: its attack or defence"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_item_name_places"
+addr = "7E:7D00"
+size = 2
+count = 0xF2
+index = "item"
+subsystem = "menu"
+meaning = "Where each item's name starts in bank $CC, eleven bytes a name from $0B5E"
+source = "game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_inventory_past_the_items"
+addr = "7E:24F2"
+count = 14
+index = "place past the inventory"
+subsystem = "menu"
+meaning = "The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory ($C2:9988) takes as its places 242-255"
+source = "game/menu/items.c, $C2:9988"
+
+[[var]]
+name = "menu_inventory_counts_past_the_items"
+addr = "7E:25F2"
+count = 14
+index = "place past the inventory"
+subsystem = "menu"
+meaning = "The fourteen bytes after the inventory's counts, which the clean-up takes as its places 242-255"
+source = "game/menu/items.c, $C2:9988"
+
+[[var]]
+name = "menu_copy_past_the_names"
+addr = "7E:9D96"
+size = 3
+subsystem = "menu"
+meaning = "A copy the menus take as they open of menu_past_the_names (what the three bytes are is not worked out)"
+source = "game/menu/items.c, $C2:997A"
+
+[[var]]
+name = "menu_past_the_names"
+addr = "7E:2C53"
+size = 3
+subsystem = "menu"
+meaning = "The three bytes after the characters' names (the Epoch's the last, at $7E:2C4D), which the menus copy as they open"
+source = "game/menu/items.c, $C2:997A"
+
+[[var]]
 name = "menu_vram_queue_bytes_high"
 addr = "7E:0D12"
 subsystem = "menu"
