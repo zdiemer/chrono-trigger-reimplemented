@@ -111,15 +111,14 @@ game/battle/window.h battle_work16 battle_work[0] battle_work
 game/battle/window.h battle_work16 battle_work[1] battle_work
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
 game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
-game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact
+game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high  # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
+game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
-game/field/bridge.c field_current_object_slot field_current_object field_current_object
-game/field/field.h leader_contact field_leader_contact field_leader_contact
+game/field/field.h leader_contact field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer only
 game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer only
 game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer only
-game/field/leaves.c field_step_start_y field_current_object field_current_object
 game/field/line_effects.c keep_wave_line field_direction field_direction
 game/field/line_effects.c wave_line_kept field_direction field_direction
 game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile only
@@ -127,18 +126,13 @@ game/field/motion.c field_direction_to_target field_own_tile_y field_own_tile on
 game/field/motion.c field_direction_to_target field_target_tile_x field_target_tile only
 game/field/motion.c field_direction_to_target field_target_tile_y field_target_tile only
 game/field/motion.c field_line_up_with_object field_target_object field_target_object only
-game/field/motion.c field_line_up_with_tile field_current_object field_current_object
 game/field/motion.c field_set_velocity field_direction field_direction
 game/field/motion.c field_start_step field_direction field_direction
 game/field/motion.c object_take_step field_object_accelerating field_object_accelerating
 game/field/motion.c party_member_take_step field_object_accelerating field_object_accelerating
-game/field/object.c object_current field_current_object field_current_object
-game/field/object.c object_current_is_one field_current_object field_current_object
-game/field/object.c object_make_current field_current_object field_current_object
 game/field/object.c object_records_state field_object_sprite_state field_object_sprite_state
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
-game/field/sprites.c field_update_object_sprites field_current_object field_current_object
 game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch
 game/field/sprites.c range_next field_sprite_range_next event_scratch
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
@@ -279,10 +273,6 @@ run battle_touching battle_product
 run battle_within_long_reach battle_product
 run battle_within_near_reach battle_product
 run battle_within_search_reach battle_product
-run event_run_init_scripts field_current_object
-run event_run_object_script field_current_object
-run field_build_sprite_table field_current_object
-run field_update_objects field_current_object
 run menu_draw_member_portrait menu_scratch
 run menu_object_wave_hdma menu_wave_phase                                                                     # the wave starts from whatever the field's page left in that cell ($01E2), in the original as here (TODO.md, "The menus' wave phase starts from event's scratch cell"): in the native shape it starts from another leftover, a different phase of the wave over a map screen's top layer on its first frames, and nothing else reads it
 run scene_draw_circle_jump scene_circle_center_x                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte

@@ -83,10 +83,18 @@ static inline uint8_t field_object_offset(FieldObject obj) { return field_link_t
  *
  * The object whose turn it is: the event engine runs its script, and the
  * object update, the sprite table and the original's routines work on it.
- * The original keeps it as a word whose low byte is the object's link. */
+ * The original keeps it as a word whose low byte is the object's link, and
+ * whether a word is one of the objects the tables hold takes the whole word
+ * (the guards', and the per-frame turn's), so a byte left after the link
+ * makes the current object unrecognised: they see no object. Making an
+ * object current changes the link alone, as the per-frame turn does; the
+ * map's openings and the sprite table's building make it recognised,
+ * clearing that byte. */
 FieldObject object_current(const GameState *g);
 bool object_current_is_one(const GameState *g);
 void object_make_current(GameState *g, FieldObject obj);
+void object_make_current_recognised(GameState *g, FieldObject obj);
+void object_recognise_current(GameState *g);
 
 /* ---- Role (field/object.c) ------------------------------------------------------------ */
 
@@ -154,6 +162,7 @@ uint16_t object_sprite_records(const GameState *g, FieldObject obj);
  * sets the first four's. */
 uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n);
 void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits);
+void object_set_sprites_high_bits(GameState *g, FieldObject obj, unsigned first, uint8_t bits);
 
 /* Its sprite records' state: whether they have been built since the object
  * came into view, and how many of the frame's sprites the frame builder has
@@ -487,9 +496,10 @@ typedef struct {
 } ObjectsAhead;
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
 /* Where the field's searches over the map's objects start -- this one, the
- * leader's walk's and the confirm button's -- and whether that fits the
- * tables: one slot past the map's objects, down to the second. Its callers'
- * guards make sure. */
+ * leader's walk's and the confirm button's -- one slot past the map's
+ * objects, down to the second; and whether that start is inside the tables,
+ * which this search's and the confirm button's guards require (the walk
+ * handles a start past them, field/walk.c). */
 FieldObject object_search_start(const GameState *g);
 bool object_search_fits(const GameState *g);
 

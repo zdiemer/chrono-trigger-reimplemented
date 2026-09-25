@@ -172,6 +172,28 @@ measure syntax. Read your own file before reporting. If a function is a run of
 setters in the original's order, if there's a function per opcode that differs
 only in operands, or if a comment restates a name or an encoding, it isn't done.
 
+## The third trap: a downstream call-out that compares a register
+
+The gate compares what the original leaves in the registers wherever a
+call-out to still-generated code reads them, and liveness can't always prove
+a flag dead. The tempting answer -- carry the carry, V or Y through the
+formulas so the call-out sees the original's -- is the one that has failed
+review most often (battle's enemy scripts and its effects both went back for
+it). Don't thread a register through the logic. In this order:
+
+1. **Find what the consumer does with it** and name that in the game's terms
+   ("the running total passed 32767"); the wrapper derives it from the state
+   after the logic returns.
+2. **Declare it don't-care with evidence**: a `ct_fuzz --poison-dc` run named
+   in a `dc-evidence:` note (docs/PORTING.md).
+3. **Port the consumer**, so there is no call-out to feed.
+
+If none of those is possible yet, make the chunk smaller and leave the
+routine generated. A narrower chunk that is truly C beats a wide one that
+carries the machine. The same goes for rebuilding the original's call stack
+so a call-out can return through it (review rubric item 85): port the
+call-out or have the guard refuse what reaches it.
+
 ## Scaffolding is marked, not mixed in
 
 A scratch write the original makes, a register or flag its callers might

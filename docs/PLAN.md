@@ -171,16 +171,16 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **1 of 145 files, 117 of
-37,854 lines, is on the backlog**: `data/decompress.c`. What is still on the
+38,060 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
-| menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
+| menu | 0 | 26 | 0 | 9,270 | 0.03 | 34% |
 | event | 0 | 21 | 0 | 3,273 | 0.01 | 12% |
-| field | 0 | 22 | 0 | 5,915 | 0.01 | 22% |
+| field | 0 | 22 | 0 | 6,127 | 0.01 | 22% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
@@ -338,13 +338,13 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **53% of the code is still generated.**
+docstring says which way it is wrong). **51% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 31.7K | 11.5K | 51% | 202 |
-| field engine, events (`$C0`) | 59.4K | 30.0K | 8.6K | 49% | 266 |
-| menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 214 |
+| field engine, events (`$C0`) | 59.4K | 33.5K | 8.7K | 44% | 277 |
+| menus, text (`$C2`) | 59.3K | 22.8K | 6.9K | 62% | 226 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 5.0K | 2.8K | 68% | 27 |
 | field graphics (`$FD`) | 15.3K | 8.7K | 0.6K | 43% | 52 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **53% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **125.6K** | **34.0K** | **53%** | **1016** |
+| **total** | **268.5K** | **130.3K** | **34.1K** | **51%** | **1039** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -521,11 +521,17 @@ in") took the other half of the camera: each layer's move a pixel at a time
 and the rows and columns of the map that come into view as it scrolls
 (`$C0:93E1` and the builders it calls, `$C0:8243`-`$C0:8444`), the layers
 drawn at a map's load (`$C0:75E9`, `$C0:78EC`, `$C0:7CB5`), and the 20 walk
-calls the guard refused (a map object count of 64-127). `$C0` now stands at
-30.0 KiB ported, 49% left. The wave stops here for the tooling pass; what
-`python3 tools/burndown.py --uncovered C0` lists next is the frame builder
-(`$C0:CBDC`, 6488 bytes), the field's main loop and map loading
-(`$C0:0B86`, 3878) and the sprite layouts (`$C0:BA65`, 3285).
+calls the guard refused (a map object count of 64-127).
+
+The fourth (RECOMP.md, "Phase 3, field and events: the larger sprite
+layouts") took the run the existing ports called out to most: the 8-, 12-
+and 24-sprite layouts' placing and rebuilding (`$C0:BA65`-`$C0:C739`), and
+the spare sprite tile areas a new frame is drawn into, claimed and freed
+(`$C0:E935`-`$C0:EA41`); the sprite table's building draws every object as C
+now. `$C0` stands at 33.5 KiB ported, 44% left. What `python3
+tools/burndown.py --uncovered C0` lists next is the frame builder
+(`$C0:CBDC`, 6488 bytes), which now calls ports for its areas, and the
+field's main loop and map loading (`$C0:0B86`, 3878).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

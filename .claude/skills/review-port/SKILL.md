@@ -662,6 +662,19 @@ Each of these is a finding. Every example here comes from this repo.
     to tell a wrapper which flags to set. Items 26 and 45 in their most
     easily missed form; the wrapper asks the state instead.
 
+85. **The original's call stack mirrored in the logic.** An enum of `JSR`
+    sites with push and pop around calls and a "stopped" check after each,
+    so that a call-out can rebuild the original's return frames. It pins the
+    logic to the ROM's call graph. Port the call-outs that need it, or have
+    the guard refuse what reaches them.
+86. **A CPU-flag parameter on a shared service whose only effect is a
+    leftover cell** (`battle_multiply_words_carrying(..., carry)`). Once the
+    service writes the cell plainly the flag looks like game input.
+87. **Scaffolding promoted to game state without naming it.** Item 71's fix
+    is to write a value plainly, but the reader must say what the value is in
+    the game's terms; a run of "kept plainly" across unrelated files to
+    satisfy one reader is the original's register traffic by another name.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"

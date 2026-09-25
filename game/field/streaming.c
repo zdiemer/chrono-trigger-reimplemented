@@ -43,10 +43,13 @@ enum { ENTRY_BYTES = 2 };
 
 static uint16_t look_entry(const GameState *g, unsigned layer, uint16_t look, Quarter q)
 {
-    unsigned at = (unsigned)q * ENTRY_BYTES;
-    if (layer == FIELD_BG3)
-        return (uint16_t)(field_bg3_tile_looks_byte(g, look, at) | field_bg3_tile_looks_byte(g, look, at + 1) << 8);
-    return (uint16_t)(field_tile_looks_byte(g, look, at) | field_tile_looks_byte(g, look, at + 1) << 8);
+    bool bg3 = layer == FIELD_BG3;
+    switch (q) {
+    case TOP_LEFT: return bg3 ? field_bg3_tile_looks_top_left(g, look) : field_tile_looks_top_left(g, look);
+    case TOP_RIGHT: return bg3 ? field_bg3_tile_looks_top_right(g, look) : field_tile_looks_top_right(g, look);
+    case BOTTOM_LEFT: return bg3 ? field_bg3_tile_looks_bottom_left(g, look) : field_tile_looks_bottom_left(g, look);
+    default: return bg3 ? field_bg3_tile_looks_bottom_right(g, look) : field_tile_looks_bottom_right(g, look);
+    }
 }
 
 /* A layer's look for a map tile: BG1 and BG2 take theirs from one of two
@@ -74,9 +77,8 @@ static uint16_t index_mask(const GameState *g, unsigned layer)
 
 /* Where the lines go: the three layers' staging buffers one after another,
  * a line along a row from a buffer's start and one down a column from $80
- * into it; a layer drawn whole at a map's load runs on from the first
- * buffer's start through the next. */
-enum { STAGING_BYTES = 0x800, STAGED_ROW = 0x00, STAGED_COLUMN = 0x80 };
+ * into it (field/field.h); a layer drawn whole at a map's load runs on from
+ * the first buffer's start through the next. */
 
 typedef struct {
     uint16_t at;   /* from the first buffer's start */
@@ -84,7 +86,7 @@ typedef struct {
 
 static void stage_byte(GameState *g, uint16_t at, uint8_t v)
 {
-    set_field_layer_staging_byte(g, at / STAGING_BYTES, at % STAGING_BYTES, v);
+    set_field_layer_staging_byte(g, at / FIELD_LAYER_STAGING_BYTES, at % FIELD_LAYER_STAGING_BYTES, v);
 }
 
 static void stage(GameState *g, Staging *s, uint16_t entry)
@@ -155,7 +157,7 @@ static void stage_half(GameState *g, Staging *out, unsigned layer, LineWay way, 
 
 // $C0:7612 (BG1's rows), $C0:77E4 (BG1's columns), $C0:79CF, $C0:7BA9 (BG2's), $C0:7D66, $C0:7E60 (BG3's)
 /* The map tile along the line moves on after each, within the layer's
- * mask; a row's goes on past its last map tile too, a column's stops on it. */
+ * mask. */
 static void build_line(GameState *g, unsigned layer, Line line, Staging *out)
 {
     uint16_t mask = index_mask(g, layer);
@@ -172,17 +174,19 @@ static void build_line(GameState *g, unsigned layer, Line line, Staging *out)
         if (odd_start_counts(layer, line.way))
             tiles--;
     }
+    uint8_t last = p.along;
     while (tiles > 0) {
         uint16_t look = look_at(g, layer, line.way, p);
         stage_half(g, out, layer, line.way, p, look, false);
         stage_half(g, out, layer, line.way, p, look, true);
         tiles--;
-        if (row || tiles > 0)
-            p.along = (uint8_t)((p.along + 1) & along_mask);
+        last = p.along;
+        p.along = (uint8_t)((p.along + 1) & along_mask);
     }
     if (odd && odd_start_counts(layer, line.way))   /* the second half again: see above */
         stage_half(g, out, layer, line.way, p, look_at(g, layer, line.way, p), true);
-    ORIGINAL_EFFECT(leave_line(g, line, row ? (LineEnd){ p.along, p.across } : (LineEnd){ p.across, p.along }));
+    /* the original's rows leave the map tile after the last, its columns the last */
+    ORIGINAL_EFFECT(leave_line(g, line, row ? (LineEnd){ p.along, p.across } : (LineEnd){ p.across, last }));
 }
 
 /* ---- The layers' moves, a pixel at a time ------------------------------------------------ */
@@ -257,7 +261,8 @@ typedef struct {
     Axis axis;
     bool forward;
     bool half_pace;        /* BG2 at half the pace: a place in 32 pixels, a scroll every other one */
-    bool always_due;       /* BG1's and a half-pace BG2's crossings bring their lines in */
+    bool moves_edges;      /* its crossings move the screen's edges it goes by: BG1's, or a half-pace BG2's own */
+    bool always_due;       /* its crossings bring their lines in even where it is drawn whole: the same two */
     uint8_t fine;
     uint16_t scroll;
     uint8_t wave;
@@ -272,8 +277,9 @@ static bool moves_the_waves(const LayerMove *m) { return m->layer == FIELD_BG3 &
 
 static LayerMove start_moving(const GameState *g, unsigned layer, Axis axis, bool forward)
 {
-    LayerMove m = { layer, axis, forward, keeps_own_edges(g, layer), false, 0, 0, 0, false };
-    m.always_due = layer == FIELD_BG1 || m.half_pace;
+    LayerMove m = { layer, axis, forward, keeps_own_edges(g, layer), false, false, 0, 0, 0, false };
+    m.moves_edges = layer == FIELD_BG1 || m.half_pace;
+    m.always_due = m.moves_edges;
     m.fine = axis == AXIS_X ? field_layer_fine_x(g, layer) : field_layer_fine_y(g, layer);
     m.scroll = axis == AXIS_X ? field_layer_scroll_h(g, layer) : field_layer_scroll_v(g, layer);
     if (moves_the_waves(&m))
@@ -311,7 +317,7 @@ static void move_a_pixel(GameState *g, LayerMove *m)
     if (!m->half_pace || (m->fine & 1) == 0)
         m->scroll = (uint16_t)(m->scroll + by);
     if (crosses) {
-        if (m->always_due)
+        if (m->moves_edges)
             move_screen_edges(g, m->half_pace, m->axis, by);
         m->crossed = true;
     }
@@ -328,21 +334,15 @@ static void note_the_crossing(GameState *g, const LayerMove *m)
 
 /* ---- Streaming ------------------------------------------------------------------------- */
 
-/* A row spans the screen and a tile either side, a column the screen and a
- * tile above, in map tiles. */
-enum { ROW_TILES = 18, COLUMN_TILES = 15 };
-
-/* A layer's place in its tile map, in 8-pixel tiles: 64 across and 32 down,
- * round which it wraps. */
-enum { TILE_MAP_COLUMNS = 64, TILE_MAP_ROWS = 32 };
-
+/* A layer's place in its tile map, in 8-pixel tiles, moved a step; it wraps
+ * round the map (field/field.h). */
 static void move_place_in_tile_map(GameState *g, unsigned layer, Side side)
 {
     switch (side) {
-    case SIDE_BELOW: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) + 1) & (TILE_MAP_ROWS - 1))); break;
-    case SIDE_ABOVE: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) - 1) & (TILE_MAP_ROWS - 1))); break;
-    case SIDE_RIGHT: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) + 1) & (TILE_MAP_COLUMNS - 1))); break;
-    default: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) - 1) & (TILE_MAP_COLUMNS - 1))); break;
+    case SIDE_BELOW: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) + 1) & (FIELD_TILE_MAP_ROWS - 1))); break;
+    case SIDE_ABOVE: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) - 1) & (FIELD_TILE_MAP_ROWS - 1))); break;
+    case SIDE_RIGHT: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) + 1) & (FIELD_TILE_MAP_COLUMNS - 1))); break;
+    default: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) - 1) & (FIELD_TILE_MAP_COLUMNS - 1))); break;
     }
 }
 
@@ -352,20 +352,20 @@ static void move_place_in_tile_map(GameState *g, unsigned layer, Side side)
 static Line line_coming_in(ScreenEdges e, Side side)
 {
     switch (side) {
-    case SIDE_BELOW: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.bottom, ROW_TILES };
-    case SIDE_ABOVE: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.top, ROW_TILES };
-    case SIDE_RIGHT: return (Line){ DOWN_A_COLUMN, e.right, (uint8_t)(e.top - 1), COLUMN_TILES };
-    default: return (Line){ DOWN_A_COLUMN, e.left, (uint8_t)(e.top - 1), COLUMN_TILES };
+    case SIDE_BELOW: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.bottom, FIELD_ROW_MAP_TILES };
+    case SIDE_ABOVE: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.top, FIELD_ROW_MAP_TILES };
+    case SIDE_RIGHT: return (Line){ DOWN_A_COLUMN, e.right, (uint8_t)(e.top - 1), FIELD_COLUMN_MAP_TILES };
+    default: return (Line){ DOWN_A_COLUMN, e.left, (uint8_t)(e.top - 1), FIELD_COLUMN_MAP_TILES };
     }
 }
 
 /* Where the staging buffers lie, for the work RAM port's cursor the
  * original leaves after its last line. */
-enum { STAGING = 0xC800, WORK_RAM_LOWER_BANK = 0 };
+enum { WORK_RAM_LOWER_BANK = 0 };
 
 static void leave_port_after(GameState *g, Staging s)
 {
-    hw_port_seek(g, (uint16_t)(STAGING + s.at), WORK_RAM_LOWER_BANK);
+    hw_port_seek(g, (uint16_t)(field_staged_line(FIELD_BG1, false) + s.at), WORK_RAM_LOWER_BANK);
 }
 
 /* The streaming's time: a steady part, and a part the lines' lengths and the
@@ -393,7 +393,7 @@ static void build_line_charged(GameState *g, unsigned layer, Line line, Staging 
 static void bring_in(GameState *g, unsigned layer, Side side)
 {
     Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), side);
-    Staging out = { (uint16_t)(layer * STAGING_BYTES + (line.way == ALONG_A_ROW ? STAGED_ROW : STAGED_COLUMN)) };
+    Staging out = { (uint16_t)(field_staged_line(layer, line.way == DOWN_A_COLUMN) - field_staged_line(FIELD_BG1, false)) };
     build_line_charged(g, layer, line, &out, line.way == ALONG_A_ROW ? ACCESSES_16_ROW_ENTRIES : ACCESSES_16_COLUMN_ENTRIES);
     ORIGINAL_EFFECT(leave_port_after(g, out));
     move_place_in_tile_map(g, layer, side);
@@ -547,7 +547,7 @@ enum { WITHIN_THE_MAPS = 0x3F3F };
  * other way round, or so far apart that the rows would run past the staging
  * buffers (past the bank, as the original's port goes on, or for ever to a
  * bottom of 255), are left to the original. */
-enum { STAGED_ROWS = 3 * STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
+enum { STAGED_ROWS = 3 * FIELD_LAYER_STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
 
 bool field_bg2_drawing_can_run(Snes *s)
 {

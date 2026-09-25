@@ -28,7 +28,7 @@
 
 /* ---- Screen positions --------------------------------------------------------------------- */
 
-enum { SCREEN_FINE = 0x07, TILE_PIXELS = 8, POSITION_PIXEL = 16 };
+enum { SCREEN_FINE = 0x07, POSITION_PIXEL = 16 };
 
 /* The screen's top left corner on the map, in pixels: its tile, and the
  * layer's fine scroll within it. */
@@ -41,8 +41,8 @@ static ScreenOrigin screen_origin(const GameState *g)
     ScreenOrigin o;
     o.fine_x = field_layer_scroll_h(g, FIELD_BG1) & SCREEN_FINE;
     o.fine_y = field_layer_scroll_v(g, FIELD_BG1) & SCREEN_FINE;
-    o.x = (uint16_t)(field_screen_left(g) * TILE_PIXELS + o.fine_x);
-    o.y = (uint16_t)(field_screen_top(g) * TILE_PIXELS + o.fine_y);
+    o.x = (uint16_t)(field_screen_left(g) * FIELD_ENTRY_PIXELS + o.fine_x);
+    o.y = (uint16_t)(field_screen_top(g) * FIELD_ENTRY_PIXELS + o.fine_y);
     return o;
 }
 

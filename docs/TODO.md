@@ -890,6 +890,17 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$7F:2000` holds on those frames, and whether the confirm button's and
     the moves' searches meet it too (their guards still require a count
     under 64), is still to be read.
+- **What the larger sprite layouts left** (RECOMP.md, "Phase 3, field and
+  events: the larger sprite layouts"):
+  - the layouts' show rules differ between routines for the same object (the
+    8-sprite placing shows sprites its rebuild hides); a native renderer that
+    clips sprites itself would drop the rules, and the 24-sprite layout's
+    "nothing to draw" from its last sum's carry, once the gate retires;
+  - the sprite table's building runs as one stretch now, and its fuzzing
+    stops at the access budget on random rows (before and after): a variant
+    with a few objects in view would compare it;
+  - `field_frame_staging_claims`' last four entries are cleared with the four
+    areas' and claim nothing read so far.
 - **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
   the map scrolling in"):
   - the rows BG1's and BG2's builders end with the second half of the map
@@ -906,20 +917,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
   - the blank that clears the staging at `$C0:75A0` (a block move from
     `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
     1104 bytes left in the run) are the original's.
-  - from its review: the walk's search past the tables fills a local `Met`
-    inside `ORIGINAL_EFFECT` that the logic then branches on, and
-    `in_the_party`/`stands_close` take a raw byte offset so the phantom slots
-    can flow through; keep the logic typed (`FieldObject`), put the byte
-    comparison in a scaffolding helper whose only effect is one marked line
-    applying the stop (review rubric item 81), and fix the stale comments in
-    `motion.c:383` and `object.h:489` that still say the guards refuse such
-    starts; name the geometry once in `field.h` (the 16-pixel map tile, the
-    8-pixel entry, the 32-entry tile map, `ROW_TILES`/`COLUMN_TILES` derived
-    from the field screen's size and margins, where `TILE_PIXELS` is 16 in
-    `walk.c` and 8 in `object_update.c`); `STAGING = 0xC800` and the `$80`
-    column offset from the map, shared with `display.c`; the tile looks'
-    quarters as fields; `streaming.c:180`'s loop shape set by scaffolding;
-    `always_due`'s second meaning; the stale `layer_moves_a_pixel` sources.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the

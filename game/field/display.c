@@ -69,7 +69,6 @@ typedef struct {
     uint8_t layer;
     uint8_t parts;
     uint8_t sizes, addresses;   /* the run's first size and first address, as field/layers.h names them */
-    uint16_t staged;            /* where the run's first part lies in bank $7E */
     bool down_a_column;
     uint32_t site[3];           /* each part's transfer, for its origin tag */
 } EdgeRun;
@@ -87,36 +86,36 @@ static uint16_t edge_word(const GameState *g, uint8_t (*byte)(const GameState *,
  * column buffer. */
 static const EdgeRun edge_runs[FIELD_EDGE_UPLOADS] = {
     /* $C0:8445 */ { .layer = FIELD_BG1, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
-                   .staged = 0xC800, .down_a_column = false, .site = { 0xC0844D, 0xC08468, 0xC0848A } },
+                   .down_a_column = false, .site = { 0xC0844D, 0xC08468, 0xC0848A } },
     /* $C0:84C1 */ { .layer = FIELD_BG2, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
-                   .staged = 0xD000, .down_a_column = false, .site = { 0xC084C9, 0xC084E4, 0xC08506 } },
+                   .down_a_column = false, .site = { 0xC084C9, 0xC084E4, 0xC08506 } },
     /* $C0:8523 */ { .layer = FIELD_BG3, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_BOTTOM_ROW,
-                   .staged = 0xD800, .down_a_column = false, .site = { 0xC0852B, 0xC08546, 0xC08568 } },
+                   .down_a_column = false, .site = { 0xC0852B, 0xC08546, 0xC08568 } },
     /* $C0:8585 */ { .layer = FIELD_BG1, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
-                   .staged = 0xC800, .down_a_column = false, .site = { 0xC0858D, 0xC085A8, 0xC085CA } },
+                   .down_a_column = false, .site = { 0xC0858D, 0xC085A8, 0xC085CA } },
     /* $C0:85E7 */ { .layer = FIELD_BG2, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
-                   .staged = 0xD000, .down_a_column = false, .site = { 0xC085EF, 0xC0860A, 0xC0862C } },
+                   .down_a_column = false, .site = { 0xC085EF, 0xC0860A, 0xC0862C } },
     /* $C0:8649 */ { .layer = FIELD_BG3, .parts = 3, .sizes = EDGE_ROW_SIZES, .addresses = EDGE_TOP_ROW,
-                   .staged = 0xD800, .down_a_column = false, .site = { 0xC08651, 0xC0866C, 0xC0868E } },
+                   .down_a_column = false, .site = { 0xC08651, 0xC0866C, 0xC0868E } },
     /* $C0:86AB */ { .layer = FIELD_BG1, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
-                   .staged = 0xC880, .down_a_column = true, .site = { 0xC086AF, 0xC086C4 } },
+                   .down_a_column = true, .site = { 0xC086AF, 0xC086C4 } },
     /* $C0:86F7 */ { .layer = FIELD_BG2, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
-                   .staged = 0xD080, .down_a_column = true, .site = { 0xC086FB, 0xC08710 } },
+                   .down_a_column = true, .site = { 0xC086FB, 0xC08710 } },
     /* $C0:8729 */ { .layer = FIELD_BG3, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_RIGHT_COLUMN,
-                   .staged = 0xD880, .down_a_column = true, .site = { 0xC0872D, 0xC08742 } },
+                   .down_a_column = true, .site = { 0xC0872D, 0xC08742 } },
     /* $C0:875B */ { .layer = FIELD_BG1, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
-                   .staged = 0xC880, .down_a_column = true, .site = { 0xC0875F, 0xC08774 } },
+                   .down_a_column = true, .site = { 0xC0875F, 0xC08774 } },
     /* $C0:878D */ { .layer = FIELD_BG2, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
-                   .staged = 0xD080, .down_a_column = true, .site = { 0xC08791, 0xC087A6 } },
+                   .down_a_column = true, .site = { 0xC08791, 0xC087A6 } },
     /* $C0:87BF */ { .layer = FIELD_BG3, .parts = 2, .sizes = EDGE_COLUMN_SIZES, .addresses = EDGE_LEFT_COLUMN,
-                   .staged = 0xD880, .down_a_column = true, .site = { 0xC087C3, 0xC087D8 } },
+                   .down_a_column = true, .site = { 0xC087C3, 0xC087D8 } },
 };
 
 void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload)
 {
     const EdgeRun *r = &edge_runs[upload];
     const VidVramPort *port = r->down_a_column ? &column_port : &word_port;
-    uint16_t source = r->staged;
+    uint16_t source = field_staged_line(r->layer, r->down_a_column);
     for (unsigned k = 0; k < r->parts; k++) {
         uint16_t size = edge_word(g, field_layer_edge_sizes_byte, r->layer, r->sizes + k);
         if (size != 0) {

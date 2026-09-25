@@ -23,31 +23,33 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { HALF_COLUMNS = 32, MAP_COLUMNS = 64, MAP_ROWS = 32, SECOND_HALF = 0x0400, LAST_ROW_OF_HALF = 0x03E0 };
-enum { COLUMN_MASK = MAP_COLUMNS - 1, ROW_MASK = MAP_ROWS - 1 };
-enum { SCREEN_ROWS = 28 };   /* the row below the screen's is 28 on from its top */
+enum {
+    SECOND_HALF = FIELD_TILE_MAP_HALF_COLUMNS * FIELD_TILE_MAP_ROWS,   /* a half's entries: where the second starts */
+    LAST_ROW_OF_HALF = (FIELD_TILE_MAP_ROWS - 1) * FIELD_TILE_MAP_HALF_COLUMNS,
+};
+enum { COLUMN_MASK = FIELD_TILE_MAP_COLUMNS - 1, ROW_MASK = FIELD_TILE_MAP_ROWS - 1 };
 
 /* ---- The edges -------------------------------------------------------------------------- */
 
 /* The tile map index of a column on a row. */
 static uint16_t map_index(uint16_t column, uint16_t row)
 {
-    uint16_t start = (uint16_t)(row * HALF_COLUMNS);
-    return column < HALF_COLUMNS ? (uint16_t)(start + column) : (uint16_t)(column - HALF_COLUMNS + start + SECOND_HALF);
+    uint16_t start = (uint16_t)(row * FIELD_TILE_MAP_HALF_COLUMNS);
+    return column < FIELD_TILE_MAP_HALF_COLUMNS ? (uint16_t)(start + column) : (uint16_t)(column - FIELD_TILE_MAP_HALF_COLUMNS + start + SECOND_HALF);
 }
 
 /* Where the same row starts in the other half. */
 static uint16_t other_half_row(uint16_t column, uint16_t row)
 {
-    uint16_t start = (uint16_t)(row * HALF_COLUMNS);
-    return column < HALF_COLUMNS ? (uint16_t)(start + SECOND_HALF) : start;
+    uint16_t start = (uint16_t)(row * FIELD_TILE_MAP_HALF_COLUMNS);
+    return column < FIELD_TILE_MAP_HALF_COLUMNS ? (uint16_t)(start + SECOND_HALF) : start;
 }
 
 /* A column's index as the top and bottom edges use it: the column's own, in
  * the last row of its half. */
 static uint16_t column_in_last_row(uint16_t column)
 {
-    return column < HALF_COLUMNS ? column : (uint16_t)(column + LAST_ROW_OF_HALF);
+    return column < FIELD_TILE_MAP_HALF_COLUMNS ? column : (uint16_t)(column + LAST_ROW_OF_HALF);
 }
 
 /* A row run: its tile map indexes from its start, from the row's start in
@@ -86,13 +88,13 @@ typedef struct {
 static void top_row(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
 {
     uint16_t index = map_index(column, row);
-    uint16_t to_half_end = (uint16_t)((column < HALF_COLUMNS ? HALF_COLUMNS : MAP_COLUMNS) - column);
+    uint16_t to_half_end = (uint16_t)((column < FIELD_TILE_MAP_HALF_COLUMNS ? FIELD_TILE_MAP_HALF_COLUMNS : FIELD_TILE_MAP_COLUMNS) - column);
     bool wraps = to_half_end == 1;
     e->row_sizes = (RowSizes){ (uint16_t)(to_half_end * 2),
-                               (uint16_t)((wraps ? HALF_COLUMNS : HALF_COLUMNS + 2 - to_half_end) * 2),
+                               (uint16_t)((wraps ? FIELD_TILE_MAP_HALF_COLUMNS : FIELD_TILE_MAP_HALF_COLUMNS + 2 - to_half_end) * 2),
                                wraps ? 2 : 0 };
     if (wraps)
-        set_field_layer_edge_wrap(g, (uint16_t)(index - (HALF_COLUMNS - 1)));
+        set_field_layer_edge_wrap(g, (uint16_t)(index - (FIELD_TILE_MAP_HALF_COLUMNS - 1)));
     e->top_row = (RowRun){ index, other_half_row(column, row), field_layer_edge_wrap(g) };
 }
 
@@ -102,7 +104,7 @@ static void top_row(GameState *g, LayerEdges *e, uint16_t column, uint16_t row)
 static void bottom_row(LayerEdges *e, uint16_t column, uint16_t row)
 {
     uint16_t index = map_index(column, row);
-    e->bottom_row = (RowRun){ index, other_half_row(column, row), (uint16_t)(index - (HALF_COLUMNS - 1)) };
+    e->bottom_row = (RowRun){ index, other_half_row(column, row), (uint16_t)(index - (FIELD_TILE_MAP_HALF_COLUMNS - 1)) };
 }
 
 // $C0:81D6
@@ -112,7 +114,7 @@ static void bottom_row(LayerEdges *e, uint16_t column, uint16_t row)
 static void left_column(LayerEdges *e, uint16_t column, uint16_t row)
 {
     e->left_column = (ColumnRun){ map_index(column, row), column_in_last_row(column) };
-    e->column_sizes = (ColumnSizes){ (uint16_t)((MAP_ROWS - row) * 2), (uint16_t)(row * 2) };
+    e->column_sizes = (ColumnSizes){ (uint16_t)((FIELD_TILE_MAP_ROWS - row) * 2), (uint16_t)(row * 2) };
 }
 
 // $C0:8218
@@ -158,7 +160,7 @@ static void store_layer_edges(GameState *g, unsigned layer, uint16_t base, const
  * wrap and the columns' parts, in cells of the layers' page. */
 static void leave_for_original(GameState *g, uint16_t right_column_at, uint16_t row_above, const LayerEdges *last)
 {
-    original_layer_cell16(g, 0x52, (uint16_t)(row_above * HALF_COLUMNS));
+    original_layer_cell16(g, 0x52, (uint16_t)(row_above * FIELD_TILE_MAP_HALF_COLUMNS));
     original_layer_cell16(g, 0x62, right_column_at);
     original_layer_cell16(g, 0x64, row_above);
     original_layer_cell16(g, 0x6A, last->row_sizes.wrapped);
@@ -178,9 +180,9 @@ void field_find_layer_edges(GameState *g)
         uint8_t x = field_layer_position_x(g, layer), y = field_layer_position_y(g, layer);
         uint16_t left_of_screen = (uint16_t)((x - 1) & COLUMN_MASK);
         above = (uint16_t)((y - 1) & ROW_MASK);
-        right = (uint16_t)((x + HALF_COLUMNS) & COLUMN_MASK);
+        right = (uint16_t)((x + FIELD_TILE_MAP_HALF_COLUMNS) & COLUMN_MASK);
         top_row(g, &e, left_of_screen, (uint16_t)(y & ROW_MASK));
-        bottom_row(&e, left_of_screen, (uint16_t)((y + SCREEN_ROWS) & ROW_MASK));
+        bottom_row(&e, left_of_screen, (uint16_t)((y + FIELD_SCREEN_ROWS) & ROW_MASK));
         left_column(&e, (uint16_t)(x & COLUMN_MASK), above);
         right_column(&e, right, above);
         store_layer_edges(g, layer, field_layer_map_base(g, layer), &e);

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "field/object.h"
+#include "ram.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -127,6 +128,44 @@ static inline void leader_loses_contact(GameState *g) { set_field_leader_contact
  * none open, its text still showing, the player picking an answer, or one
  * picked. */
 enum { DIALOG_NO_CHOICES = 0, DIALOG_CHOICES_SHOWING = 1, DIALOG_CHOOSING = 2, DIALOG_CHOSEN = 3 };
+
+/* The field's geometry. A map tile is 16 pixels; a layer's tile map entry,
+ * an 8-pixel tile, is a quarter of one. Each layer's tile map is 64 entries
+ * across, in two halves of 32 side by side, and 32 down, round which the
+ * layer's place wraps; the screen shows 32 entries across and 28 down. The
+ * lines that stream in as the screen scrolls reach a map tile past the
+ * screen: a row from a tile left of it to a tile right of it, a column from a
+ * tile above it (field/streaming.c). */
+enum {
+    FIELD_MAP_TILE_PIXELS = 16,
+    FIELD_ENTRY_PIXELS = 8,
+    FIELD_TILE_MAP_COLUMNS = 64,
+    FIELD_TILE_MAP_HALF_COLUMNS = 32,
+    FIELD_TILE_MAP_ROWS = 32,
+    FIELD_SCREEN_COLUMNS = 32,
+    FIELD_SCREEN_ROWS = 28,
+    FIELD_ENTRIES_A_MAP_TILE = FIELD_MAP_TILE_PIXELS / FIELD_ENTRY_PIXELS,
+    FIELD_ROW_MAP_TILES = FIELD_SCREEN_COLUMNS / FIELD_ENTRIES_A_MAP_TILE + 2,
+    FIELD_COLUMN_MAP_TILES = FIELD_SCREEN_ROWS / FIELD_ENTRIES_A_MAP_TILE + 1,
+};
+
+/* The frame builder's areas in bank $7F (field_frame_staging), where an
+ * object's new frame is drawn before it goes to VRAM (field/sprites.c). */
+enum { FIELD_FRAME_AREAS = RAM_FIELD_FRAME_STAGING_COUNT };
+static inline uint16_t field_frame_area_at(unsigned area)
+{
+    return (uint16_t)(RAM_ABS(RAM_FIELD_FRAME_STAGING) + area * RAM_FIELD_FRAME_STAGING_STRIDE);
+}
+
+/* Where a layer's streamed lines are staged for VRAM (field_layer_staging):
+ * a row from its buffer's start, a column from $80 in; the deferred uploads
+ * send them from there (field/display.c). */
+enum { FIELD_STAGED_ROW = 0x00, FIELD_STAGED_COLUMN = 0x80 };
+static inline uint16_t field_staged_line(unsigned layer, bool column)
+{
+    return (uint16_t)(RAM_ABS(RAM_FIELD_LAYER_STAGING) + layer * RAM_FIELD_LAYER_STAGING_STRIDE +
+                      (column ? FIELD_STAGED_COLUMN : FIELD_STAGED_ROW));
+}
 
 /* The field's three layers, as the tables of layers index them. */
 enum { FIELD_BG1, FIELD_BG2, FIELD_BG3, FIELD_LAYERS };

@@ -6957,6 +6957,109 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
+### Phase 3, field and events: the larger sprite layouts
+
+The fourth chunk of bank `$C0`, and chunk 3's review. Of the three runs
+PLAN.md named, the sprite layouts are the one the ports called out to most
+(ten call sites from `field/sprites.c`, against three from the main loop's
+ports and none into the frame builder). `python3 tools/burndown.py` for
+`$C0`: 30.0 KiB ported, 8.6 inlined, 49% left and 266 entries before; 33.5,
+8.7, 44% and 277 after -- 3.5 KiB.
+
+**The larger layouts** (`field/sprites.c`, `place_larger`). An object's
+sprites are 4, 8, 12 or 24 records; the 8-, 12- and 24-sprite layouts
+(`$C0:BA65`, `$C0:BCDC`, `$C0:BFF2`, `$C0:C2BF`, `$C0:C73A` with its fours
+`$C0:C6E7`) are placed as the 4-sprite one is: each four sprites' X at the
+object's screen X and their ninth bits as one of the object's high bytes
+(`object_set_sprites_high_bits`), then every sprite's Y; a rebuild takes the
+offsets, and after the Y the looks, from the object's new frame. What
+differs is which sprites show and which are hidden on the table's line. The
+table keeps a sprite's Y as a byte, so one above the screen wraps round to
+the table's last lines or, further off, onto the screen, and each of the
+original's routines hides its own by where the object stands -- above the
+screen's top, in its lower half or its upper half. The port works from the
+sprite's signed top line and names each rule by what it shows (`ShowRule`:
+"shown reaching down onto the screen", "hidden just below the screen",
+"shown in the top half" and so on); each routine's three are a row of one
+table (`ShowRules`), the 4-sprite layout's among them, each row's comment
+saying what differs on the screen (the 8-sprite placing shows the sprites
+below an object in the upper half wherever they land, where its rebuild
+hides them past the middle). The 24-sprite layout is always placed, and an
+object of it above the screen whose last sprite starts on the screen or less
+than 256 lines above it isn't drawn that frame (the original answers
+"nothing to draw" with its last sum's carry). That is the game's behaviour,
+kept as plain logic, which returns only whether the object shows; the
+overflow the original's code reads after a placing (its last sum's, or the
+24-sprite layout's step past its records) is worked out from the state by
+the entries (`placing_overflow`), which look before the update at what it
+will do (`records_work`) to know whether it placed and whether it rebuilt.
+
+**The frame's tile areas** (`claim_frame_areas`, `free_frame_areas`). The
+frame builder draws an object's new frame into areas in bank `$7F` before
+it goes to VRAM (`field_frame_staging`, four from `$7F:3800`, `$200` bytes
+each, which chunk 4 first took for VRAM areas: the builder hands the address
+to the WRAM port): one for the 4-sprite layout, two side by side for the 8,
+three for the 12, which it claims for the object
+(`field_frame_staging_claims`, `$C0:E952`, `$C0:E97A`, `$C0:E9AA`, recording
+where the object's frame goes, `field_object_frame_staging`) and which are free
+again once the records are rebuilt from the frame (`$C0:E9E2`, `$C0:E9FF`,
+`$C0:EA1F`); a map's start frees them all (`$C0:E935`). The frees clear Y's
+high byte (they take 8-bit index registers) and the update's callers read Y,
+which the entries hand on.
+
+**The draws are C.** With every layout's records its own, the sprite table's
+building draws every object as C (it drew as C only where every object's
+records needed nothing of the original's before), timed as the draw, the
+update and the layouts' routines. The 4-sprite rebuild is C too.
+
+**Chunk 3's review, folded in.** The walk's search stays typed in objects
+(`in_the_party`, `stands_close` take a `FieldObject`), and what the original
+meets past the tables overrides its outcome in one marked line,
+`ORIGINAL_EFFECT(stops = stopped_past_the_tables(...))` (review rubric item
+81). The current object's word is made current as a word plainly where the
+map setup and the sprite table's building keep it so
+(`object_make_current_recognised`, `object_recognise_current`), which the
+effects check found read as a word by logic but cleared only as scaffolding;
+its ten baseline lines are gone, and the contact's two carry their reason.
+`field/field.h` names the field's geometry once -- the map tile, the entry,
+the tile map's size, the screen's, the streamed lines' lengths -- and the
+staging's lines (`field_staged_line`), which `layers.c`, `streaming.c`,
+`display.c`, `walk.c` and `object_update.c` take; the tile looks' quarters
+are fields in the map.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call of
+every entry matches: `field_place_8_sprites` 43,339, `field_place_12_sprites`
+24,238 (54 interrupted), the rebuilds 554 and 569, the claims 37,507, 563 and
+591, the frees 37,502 (8 interrupted), 554 and 569, the clearing 786; the
+update, the draw and the table's building keep their calls, and the
+building's interrupted calls rose from 336 to 1,472 of 193,483 (it runs as one
+stretch now, which the frame's interrupt falls in more often; its fuzzing
+stops at the budget on random rows, as before). Fuzzed (seed 1, 20,000
+states, `tools/fuzz_routines.toml`): each layout's placing and rebuilding 0 of
+5,000 on random positions and 0 of 20,000 with the object above the screen,
+the claims 0 of 20,000 each, the frees and the clearing 0 of 5,000 and 20,000,
+the update and the draw with the larger layouts 0 of 1,252; a deliberately
+wrong rule (the 8-sprite placing's upper half as its rebuild's) mismatched 592
+of 3,000, which is what the variants are for. Against the predecessors every
+field and event entry keeps its mismatches (none).
+
+**Chunk 4's review, folded in.** The placing's logic returns only whether
+the object shows, and the entries work out the overflow and Y the original's
+callers read from the state (review rubric items 82-84); the show rules are
+named for what they show and are one table, the 4-sprite layout's row moved
+out of the platform (`vid_oam_y` is gone; `VID_OAM_HIDDEN_Y` stays). The
+frame's areas turned out to be staging in bank `$7F`, not VRAM (the builder
+hands their address to the WRAM port), and are mapped so
+(`field_frame_staging`); their owners are links to objects. The objects'
+sprite high bytes are byte tables reached through one table of the three,
+since they lie apart in memory. Over the 26 movies every call still matches;
+fuzzed against chunk 4's build with the same seed, all 26 sprite entries and
+variants keep their counts (0 mismatched), and seven rows' `cost_milli` were
+recalibrated.
+
+**The timing gate.** The new rows and the update, the draw, the building and
+`event_run_init_scripts` were calibrated over the library; no exception.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

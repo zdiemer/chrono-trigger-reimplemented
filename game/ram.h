@@ -752,6 +752,14 @@
 #define RAM_FIELD_SPRITE_RANGE_NEXT_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_STRIDE 0x02u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_DP 0xDBu /* page field */
+/* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
+ * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
+ * ninth bit (field/scratch.h: kept for the original's code and shadow mode) [2 x $1 bytes, by
+ * cell ($E7, $E8)] */
+#define RAM_FIELD_SCRATCH_MORE 0x7E01E7u
+#define RAM_FIELD_SCRATCH_MORE_COUNT 2u
+#define RAM_FIELD_SCRATCH_MORE_STRIDE 0x01u
+#define RAM_FIELD_SCRATCH_MORE_DP 0xE7u      /* page field */
 /* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
  * field_object_in_the_way found blocking [2 bytes] */
 #define RAM_FIELD_TARGET_OBJECT 0x7E01E9u
@@ -878,6 +886,14 @@
 #define RAM_FIELD_OBJECT_SCREEN_Y 0x7E0A80u
 #define RAM_FIELD_OBJECT_SCREEN_Y_COUNT 64u
 #define RAM_FIELD_OBJECT_SCREEN_Y_STRIDE 0x02u
+/* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
+ * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
+ * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
+ * records are rebuilt from the frame [8 x $1 bytes, by area of field_frame_staging (the last
+ * four entries are cleared with the first four and claim nothing read so far)] */
+#define RAM_FIELD_FRAME_STAGING_CLAIMS 0x7E0BC0u
+#define RAM_FIELD_FRAME_STAGING_CLAIMS_COUNT 8u
+#define RAM_FIELD_FRAME_STAGING_CLAIMS_STRIDE 0x01u
 /* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
  * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
 #define RAM_FIELD_BG2_HALF_SCROLL 0x7E0BC9u
@@ -909,6 +925,11 @@
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY 0x7E0C00u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_STRIDE 0x02u
+/* Where in bank $7F the object's new frame's tiles are drawn: the first of the
+ * field_frame_staging areas it claimed [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAME_STAGING 0x7E0D80u
+#define RAM_FIELD_OBJECT_FRAME_STAGING_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAME_STAGING_STRIDE 0x02u
 /* First object of each screen row's list, negative for none [64 x $2 bytes, by screen row
  * (screen Y / 4, even)] */
 #define RAM_FIELD_ROW_FIRST_OBJECT 0x7E0E00u
@@ -1397,6 +1418,10 @@
 #define RAM_FIELD_TILE_LOOKS 0x7EB000u
 #define RAM_FIELD_TILE_LOOKS_COUNT 512u
 #define RAM_FIELD_TILE_LOOKS_STRIDE 0x08u
+#define RAM_FIELD_TILE_LOOKS_TOP_LEFT 0x7EB000u /* The top left quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_TOP_RIGHT 0x7EB002u /* The top right quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_BOTTOM_LEFT 0x7EB004u /* The bottom left quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_BOTTOM_RIGHT 0x7EB006u /* The bottom right quarter's entry */
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [256 x $8 bytes, by
@@ -1404,6 +1429,10 @@
 #define RAM_FIELD_BG3_TILE_LOOKS 0x7EC000u
 #define RAM_FIELD_BG3_TILE_LOOKS_COUNT 256u
 #define RAM_FIELD_BG3_TILE_LOOKS_STRIDE 0x08u
+#define RAM_FIELD_BG3_TILE_LOOKS_TOP_LEFT 0x7EC000u /* The top left quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_TOP_RIGHT 0x7EC002u /* The top right quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_BOTTOM_LEFT 0x7EC004u /* The bottom left quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_BOTTOM_RIGHT 0x7EC006u /* The bottom right quarter's entry */
 /* Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0,
  * the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's
  * load, the whole screen's rows [3 x $800 bytes, by layer (BG1-BG3)] */
@@ -1566,30 +1595,37 @@
 #define RAM_FIELD_AUTO_SCROLL_POSITION_STRIDE 0x04u
 #define RAM_FIELD_AUTO_SCROLL_POSITION_X 0x7F346Bu /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_POSITION_Y 0x7F346Du /* Vertical */
+/* Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before
+ * they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on) [4 x $200
+ * bytes, by area: an object's new frame takes one for the 4-sprite layout, two side by side for
+ * the 8, three for the 12] */
+#define RAM_FIELD_FRAME_STAGING 0x7F3800u
+#define RAM_FIELD_FRAME_STAGING_COUNT 4u
+#define RAM_FIELD_FRAME_STAGING_STRIDE 0x200u
 /* The objects' sprites as their frames give them, 8 bytes a sprite at the object's
  * field_object_sprite_records offset, as the records keep them (the X offset a word, the Y
  * offset, the tile and the attributes at the records' places), which a rebuild takes the records
  * from [832 bytes] */
 #define RAM_FIELD_SPRITE_FRAME_DATA 0x7F4800u
-/* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) [64 x $2 bytes,
- * by object slot (X = slot * 2)] */
+/* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) [128 x $1
+ * bytes, by object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE 0x7F4B40u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x02u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x01u
 /* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
  * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
  * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes] */
 #define RAM_FIELD_SPRITE_RECORDS 0x7F4BC0u
-/* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [64 x
- * $2 bytes, by object slot (X = slot * 2)] */
+/* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [128
+ * x $1 bytes, by object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH 0x7F4F00u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_STRIDE 0x02u
-/* The object's fifth and sixth OAM high table bytes (24-sprite layout) [64 x $2 bytes, by object
- * slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_STRIDE 0x01u
+/* The object's fifth and sixth OAM high table bytes (24-sprite layout) [128 x $1 bytes, by
+ * object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST 0x7F4F80u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_STRIDE 0x02u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_STRIDE 0x01u
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
