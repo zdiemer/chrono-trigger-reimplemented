@@ -713,6 +713,19 @@ below. `python3 tools/timing_census.py` re-runs the census.
     service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out: the
     party's inventory as a module is the menus' or the battle's to write, and
     the confirm button calls it once it is;
+  - from chunk 2's review: `field_chests` is one variable of two words that
+    mean different things (the game's list, the location's run); split it
+    in the map, have the chest lookup take a chest's number, and name
+    `field_exit`'s record size. The four collision nudges of the walk
+    (`field/walk.c`, across, along and the two aslant) are near-identical and
+    want one `nudge_around`; `look()` slows a climb as a side effect of
+    looking, which wants to be visible at its callers. The climb's note
+    reuses the layers' wrap cell (`field_layer_edge_wrap`'s low byte), a
+    second meaning the map should name. The confirm button's `Search` keeps
+    scaffolding-only fields (`passed`, `measured`, `last_measured`) beside
+    the result. `battle_event_flags`' bits want one enum, shared by
+    `event/party.c` (`PARTY_STAYS_PUT`) and `battle/sound.c`
+    (`KEEPS_FIELD_SONG`);
   - `field_message_mark` (`$02A1`) is cleared by the chests' message and the
     battle's (`$CD:0264`), and nothing read so far reads it;
   - the walk's guard leaves to the original a frame where the map's object

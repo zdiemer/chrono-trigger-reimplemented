@@ -94,7 +94,7 @@ FieldSlopeSum field_slope_sum(const GameState *g, uint8_t slope, uint8_t fine_x,
 /* The first of the tiles' shapes that are slopes (field/walk.c, one shape a
  * slope); and where on its tile the party is taken to stand at a map's
  * start, and that tile. */
-enum { FIELD_SHAPE_FIRST_SLOPE = 2, FIELD_START_FINE_X = 0x80, FIELD_START_FINE_Y = 0xFF };
+enum { FIELD_START_FINE_X = 0x80, FIELD_START_FINE_Y = 0xFF };
 MapPlace field_start_place(const GameState *g);
 
 /* What the party's start on the map leaves the openings' caller

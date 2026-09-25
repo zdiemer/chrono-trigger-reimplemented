@@ -234,7 +234,7 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
         return;
     }
     uint8_t shown = ANIMATION_STAND;
-    if (field_player_control(g) != 0) {
+    if (party_is_the_players(g)) {
         IdleTime idle = idle_time(g);
         bool fidgets_now_and_then = idle.fidgeted || idle.frames > FIDGET_AFTER;
         if (fidgets_now_and_then && idle.frames % FIDGET_EVERY != FIDGET_EVERY - 1)

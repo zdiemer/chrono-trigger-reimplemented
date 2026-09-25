@@ -6209,6 +6209,19 @@ in the idle count's storage. The contact the leader is up against is one
 concept in `field/field.h` (`leader_contact`, `set_leader_contact`,
 `leader_loses_contact`), which the walk, the search and the touch share.
 
+**Chunk 2's review.** It rated `field/walk.c` a translation on one count:
+the screen's check carried "what the original leaves A with" out of the
+check, for a scaffolding re-run of it. The check returns whether the screen
+follows now, and what the original's cells get, the check turned back up
+included, is worked out from the state by the leaves beside the check
+(`leave_screen_check`, `leave_check_down_turned_back`). With it: the tile's
+shape is an enum in `field/layers.h` (`TileShape`), the level a `MapLevel`;
+the pad reads `core/input.h`'s buttons; the recentring's step is named;
+whether the player has the party is `party_is_the_players` and
+`hand_the_party_to_the_player` (`field/field.h`); and the call-outs whose
+site depended on a ternary are written out per case, so the checks read a
+literal each. What it left for later is in TODO.md.
+
 **What the game's buttons are.** The walk dashes on the fourth of the
 player's assignments and the confirm button is the first, which settles what
 the scripts' button conditions ask (`$30`/`$31`, `$3B`/`$3C`, renamed

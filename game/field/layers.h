@@ -47,7 +47,7 @@ static inline MapPlace map_place_at(uint16_t index) { return (MapPlace){ (uint8_
 /* What the map says of a tile: a byte of properties, and two of attributes.
  *
  * The properties' top six bits are the tile's shape, how it is parted between
- * the map's two levels (field/walk.c, TileShape).
+ * the map's two levels (TileShape, below).
  *
  * The upper attributes: bit 6 raises the upper half of an object standing
  * there in front of the map; bit 4 is a step event, set off by the leader
@@ -65,6 +65,28 @@ typedef struct {
 } TileAttributes;
 enum { TILE_RAISES_SPRITES = 0x40, TILE_BLOCKED = 0x80 };
 enum { TILE_SHAPE_SHIFT = 2 };
+
+/* A tile's shape: all the lower part, all the upper, one of the 22 slopes
+ * (field/field_data.h, FieldSlope: a line across the tile, one side of it
+ * the upper part), a half or a quarter the upper, or a climb (the lower
+ * part, where the party goes up and down at a walk). Any other is the lower
+ * part. */
+typedef enum {
+    SHAPE_LOWER = 0,
+    SHAPE_UPPER = 1,
+    SHAPE_FIRST_SLOPE = 2,
+    SHAPE_LEFT_HALF = 24,   /* past the slopes */
+    SHAPE_TOP_HALF,
+    SHAPE_BOTTOM_LEFT_QUARTER,
+    SHAPE_BOTTOM_RIGHT_QUARTER,
+    SHAPE_TOP_RIGHT_QUARTER,
+    SHAPE_TOP_LEFT_QUARTER,
+    SHAPE_CLIMB,
+} TileShape;
+
+static inline TileShape tile_shape(TileAttributes tile) { return (TileShape)(tile.properties >> TILE_SHAPE_SHIFT); }
+static inline bool tile_shape_is_a_slope(TileShape shape) { return shape >= SHAPE_FIRST_SLOPE && shape < SHAPE_LEFT_HALF; }
+static inline uint8_t tile_shape_slope(TileShape shape) { return (uint8_t)(shape - SHAPE_FIRST_SLOPE); }
 enum { TILE_STEP_EVENT = 0x10, TILE_FLOOR_SPEED = 0x0C, TILE_FLOOR_WAY = 0x03 };
 enum { TILE_LOWER_PART = 0, TILE_UPPER_PART_SHIFT = 3, TILE_LEVEL_BITS = 0x03, TILE_CROSSING_BIT = 0x04 };
 

@@ -171,7 +171,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **1 of 129 files, 117 of
-31,159 lines, is on the backlog**: `data/decompress.c`. What is still on the
+31,170 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -179,8 +179,8 @@ round the call-outs to the original's code:
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
-| event | 0 | 21 | 0 | 3,264 | 0.01 | 12% |
-| field | 0 | 21 | 0 | 5,485 | 0.01 | 23% |
+| event | 0 | 21 | 0 | 3,273 | 0.01 | 12% |
+| field | 0 | 21 | 0 | 5,487 | 0.01 | 22% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |

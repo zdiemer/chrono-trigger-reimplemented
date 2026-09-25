@@ -265,17 +265,13 @@ bool field_tile_copy_overflow(const GameState *g, bool before)
 
 /* ---- The party's start on the map (field/walk.c: $C0:9DC3) ----------------------------------- */
 
-static uint8_t start_shape(const GameState *g)
-{
-    return (uint8_t)(map_tile_attributes(g, field_start_place(g)).properties >> TILE_SHAPE_SHIFT);
-}
+static TileShape start_shape(const GameState *g) { return tile_shape(map_tile_attributes(g, field_start_place(g))); }
 
 /* Whether the tile it starts on is a slope, whose look counts its shift in
  * Y. */
 bool field_start_on_a_slope(const GameState *g)
 {
-    uint8_t shape = start_shape(g);
-    return shape >= FIELD_SHAPE_FIRST_SLOPE && shape < FIELD_SHAPE_FIRST_SLOPE + FIELD_SLOPES;
+    return tile_shape_is_a_slope(start_shape(g));
 }
 
 /* On a slope, the overflow of taking the point's height from the line's
@@ -285,6 +281,6 @@ bool field_start_overflow(const GameState *g, bool before)
     if (!field_start_on_a_slope(g))
         return before;
     FieldSlopeSum s =
-        field_slope_sum(g, (uint8_t)(start_shape(g) - FIELD_SHAPE_FIRST_SLOPE), FIELD_START_FINE_X, FIELD_START_FINE_Y);
+        field_slope_sum(g, tile_shape_slope(start_shape(g)), FIELD_START_FINE_X, FIELD_START_FINE_Y);
     return field_subtract_overflows8((uint8_t)(s.sum + s.height), s.height);
 }

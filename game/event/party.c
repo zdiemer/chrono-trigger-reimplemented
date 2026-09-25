@@ -304,7 +304,7 @@ static EventFlow take_formation(GameState *g, FormationPlace leader_place, Forma
         set_variable_byte(g, FORMATION_COUNT, 0);
         return end_turn();
     }
-    set_field_player_control(g, 0);
+    hand_the_party_to_the_player(g, false);
     const FormationPlace places[PARTY_PLACES] = { leader_place, first_place, second_place };
     uint8_t count = 1;
     for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
@@ -396,9 +396,12 @@ static void leave_member_named(GameState *g, FieldObject member)
  * where it stands sends nobody. */
 void party_back_together(GameState *g)
 {
-    if ((battle_event_flags(g) & PARTY_STAYS_PUT) || !place_taken(g, PARTY_FIRST_MEMBER)) {
-        if (!(battle_event_flags(g) & PARTY_STAYS_PUT))
-            set_field_player_control(g, 1);
+    if (battle_event_flags(g) & PARTY_STAYS_PUT) {
+        set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
+        return;
+    }
+    if (!place_taken(g, PARTY_FIRST_MEMBER)) {
+        hand_the_party_to_the_player(g, true);
         set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
         return;
     }

@@ -279,7 +279,7 @@ ChestGift press_confirm(GameState *g)
         set_field_dialog_hold(g, 0);
         return nothing;
     }
-    if (field_player_control(g) == 0)
+    if (!party_is_the_players(g))
         return nothing;
     if (!leader_has_contact(g))
         find_the_object_before_the_leader(g);
@@ -334,10 +334,16 @@ void field_press_confirm(Snes *s)
     ChestGift gift = press_confirm(g);
     if (gift.kind != GIFT_NOTHING) {
         ORIGINAL_EFFECT(leave_overflow(s));
-        s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | (gift.kind == GIFT_ITEM ? GIVES_AN_ITEM : GIVES_GOLD));
         s->cpu.y = gift.amount;
-        if (!bridge_call_long(s, gift.kind == GIFT_ITEM ? 0xC01E72 : 0xC01E84, GIVE_TO_THE_PARTY,
-                              THE_INVENTORY_IGNORES, on_the_field_page(s, false)))
+        bool came_back;
+        if (gift.kind == GIFT_ITEM) {
+            s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | GIVES_AN_ITEM);
+            came_back = bridge_call_long(s, 0xC01E72, GIVE_TO_THE_PARTY, THE_INVENTORY_IGNORES, on_the_field_page(s, false));
+        } else {
+            s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | GIVES_GOLD);
+            came_back = bridge_call_long(s, 0xC01E84, GIVE_TO_THE_PARTY, THE_INVENTORY_IGNORES, on_the_field_page(s, false));
+        }
+        if (!came_back)
             return;
         announce_the_gift(g, gift);
     }
@@ -412,7 +418,7 @@ bool event_touch_can_run(Snes *s)
 static bool confirm_fits(const GameState *g)
 {
     if (!(input_mapped(g, ASSIGNED_PRESSED) & ASSIGNED_CONFIRM) || field_dialog_hold(g) == HOLD_UNTIL_CONFIRMED ||
-        field_player_control(g) == 0)
+        !party_is_the_players(g))
         return true;
     FieldLink leader = party_member_link(g, PARTY_LEADER);
     if (field_party_objects_high(g, PARTY_LEADER) != 0 || !field_link_names_object(leader))

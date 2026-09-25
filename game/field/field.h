@@ -105,6 +105,12 @@ static inline void mark_dialog_opened_by_the_field(GameState *g)
     field_mode_flag(g, FIELD_DIALOG_OPENED_BY_THE_FIELD, true);
 }
 
+/* Whether the player has the party (field_player_control): only then does
+ * the pad walk the leader, the confirm button talk and open chests, and Start
+ * pause the field. Scripts take it away for a scene and hand it back. */
+static inline bool party_is_the_players(const GameState *g) { return field_player_control(g) != 0; }
+static inline void hand_the_party_to_the_player(GameState *g, bool theirs) { set_field_player_control(g, theirs ? 1 : 0); }
+
 /* The object the leader is up against (event/contact.c): the one its walk ran
  * into this frame, or the one before it when the player presses the confirm
  * button; or none. The game keeps the link in a word, whose high byte a

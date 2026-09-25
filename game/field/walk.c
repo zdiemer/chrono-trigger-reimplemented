@@ -129,27 +129,11 @@ typedef enum { NO_LEVEL = 0, STAIRS = 3 } MapLevel;
  * whether that part is a crossing, whether the tile is a climb, and the
  * tile's attributes the step onto it takes on. */
 typedef struct {
-    uint8_t level;
+    MapLevel level;
     bool crossing;
     bool climb;
     TileAttributes tile;
 } Ground;
-
-/* The tiles' shapes, from their properties: all the lower part, all the
- * upper, one of the slopes, a half or a quarter the upper, or a climb (the
- * lower part). The rest are the lower part. */
-enum {
-    SHAPE_LOWER = 0,
-    SHAPE_UPPER = 1,
-    SHAPE_FIRST_SLOPE = FIELD_SHAPE_FIRST_SLOPE,
-    SHAPE_LEFT_HALF = SHAPE_FIRST_SLOPE + FIELD_SLOPES,
-    SHAPE_TOP_HALF,
-    SHAPE_BOTTOM_LEFT_QUARTER,
-    SHAPE_BOTTOM_RIGHT_QUARTER,
-    SHAPE_TOP_RIGHT_QUARTER,
-    SHAPE_TOP_LEFT_QUARTER,
-    SHAPE_CLIMB,
-};
 
 /* Where in its tile a point is: its fine position on each axis, a half tile
  * at $80. */
@@ -169,11 +153,13 @@ FieldSlopeSum field_slope_sum(const GameState *g, uint8_t slope, uint8_t fine_x,
         along = (uint8_t)~along;
     uint8_t height = (uint8_t)(fine_y >> 2);
     uint8_t sum = (uint8_t)(s.start + along - height);
-    return (FieldSlopeSum){ along, height, sum, ((s.upper_side ^ sum) & 0x80) != 0 };
+    /* the point is on the upper part where the sum's sign isn't the upper
+     * side's */
+    return (FieldSlopeSum){ along, height, sum, ((int8_t)s.upper_side < 0) != ((int8_t)sum < 0) };
 }
 
 /* Whether a point of a tile of the shape is on the tile's upper part. */
-static bool on_upper_part(const GameState *g, uint8_t shape, uint8_t fine_x, uint8_t fine_y)
+static bool on_upper_part(const GameState *g, TileShape shape, uint8_t fine_x, uint8_t fine_y)
 {
     switch (shape) {
     case SHAPE_LOWER: return false;
@@ -185,8 +171,8 @@ static bool on_upper_part(const GameState *g, uint8_t shape, uint8_t fine_x, uin
     case SHAPE_TOP_RIGHT_QUARTER: return !in_left_half(fine_x) && in_top_half(fine_y);
     case SHAPE_TOP_LEFT_QUARTER: return in_left_half(fine_x) && in_top_half(fine_y);
     default:
-        if (shape < SHAPE_LEFT_HALF) {
-            FieldSlopeSum s = field_slope_sum(g, (uint8_t)(shape - SHAPE_FIRST_SLOPE), fine_x, fine_y);
+        if (tile_shape_is_a_slope(shape)) {
+            FieldSlopeSum s = field_slope_sum(g, tile_shape_slope(shape), fine_x, fine_y);
             ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK_BACK, s.sum));
             return s.upper;
         }
@@ -198,13 +184,13 @@ static bool on_upper_part(const GameState *g, uint8_t shape, uint8_t fine_x, uin
  * where the part's level sits. */
 static uint8_t crossing_byte(uint8_t lower, uint8_t shift) { return (uint8_t)(lower & TILE_CROSSING_BIT << shift); }
 
-static void record_ground(Ground ground, uint8_t shape, uint8_t fine_y, uint8_t shift)
+static void record_ground(Ground ground, TileShape shape, uint8_t fine_y, uint8_t shift)
 {
     record_cell(CELL_PROPERTIES, ground.tile.properties);
     record_cell(CELL_UPPER_ATTRIBUTES, ground.tile.upper);
     record_cell(CELL_LOWER_ATTRIBUTES, ground.tile.lower);
     record_cell(CELL_HEIGHT_IN_TILE, (uint8_t)(fine_y >> 2));
-    record_cell(CELL_SHAPE, shape >= SHAPE_FIRST_SLOPE ? (uint8_t)(shape - SHAPE_FIRST_SLOPE) : 0);
+    record_cell(CELL_SHAPE, shape >= SHAPE_FIRST_SLOPE ? tile_shape_slope(shape) : 0);
     record_cell(CELL_LEVEL, ground.level);
     record_cell(CELL_CROSSING, crossing_byte(ground.tile.lower, shift));
     record_cell(CELL_PRIORITY_LOWER, (uint8_t)(tile_priority(ground.tile.upper) << 4));
@@ -227,11 +213,11 @@ static Ground ground_at(GameState *g, MapPlace place, uint8_t fine_x, uint8_t fi
 {
     Ground ground = { 0 };
     ground.tile = map_tile_attributes(g, place);
-    uint8_t shape = (uint8_t)(ground.tile.properties >> TILE_SHAPE_SHIFT);
+    TileShape shape = tile_shape(ground.tile);
     ground.climb = shape == SHAPE_CLIMB;
     note_climb(g, ground.climb);
     uint8_t shift = on_upper_part(g, shape, fine_x, fine_y) ? TILE_UPPER_PART_SHIFT : TILE_LOWER_PART;
-    ground.level = (uint8_t)(ground.tile.lower >> shift & TILE_LEVEL_BITS);
+    ground.level = (MapLevel)(ground.tile.lower >> shift & TILE_LEVEL_BITS);
     ground.crossing = crossing_byte(ground.tile.lower, shift) != 0;
     ORIGINAL_EFFECT(record_ground(ground, shape, fine_y, shift));
     return ground;
@@ -615,7 +601,7 @@ static Velocity floor_pull(uint8_t upper_attributes)
 static void step_onto(GameState *g, Walk *w)
 {
     MapPoint to = { (uint16_t)(w->at.x + w->step.x), (uint16_t)(w->at.y + w->step.y) };
-    MapPoint ahead = { to.x, (uint16_t)(((uint8_t)w->step.y & 0x80) ? to.y - ONE_TILE : to.y + ONE_TILE) };
+    MapPoint ahead = { to.x, (uint16_t)((int8_t)w->step.y < 0 ? to.y - ONE_TILE : to.y + ONE_TILE) };
     w->look = to;
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, to.x));
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, to.y));
@@ -668,8 +654,8 @@ static void walk_against_the_map(GameState *g, Walk *w)
 
 /* ---- The pad ------------------------------------------------------------------------------ */
 
-/* The pad's directions, as the held buttons' high byte keeps them. */
-enum { PAD_RIGHT = 0x01, PAD_LEFT = 0x02, PAD_DOWN = 0x04, PAD_UP = 0x08, PAD_DIRECTIONS = 0x0F };
+/* The direction pad's buttons. */
+enum { DIRECTIONS = BUTTON_UP | BUTTON_DOWN | BUTTON_LEFT | BUTTON_RIGHT };
 enum { WALKING = 0x10, RUNNING = 0x20 };
 
 // $C0:88EE, and the directions' $C0:8925-$C0:8A6C
@@ -679,15 +665,15 @@ static Velocity pad_walk(const GameState *g)
 {
     uint16_t held = input_mapped(g, ASSIGNED_HELD);
     int8_t pace = (held & ASSIGNED_DASH) ? RUNNING : WALKING;
-    switch ((held >> 8) & PAD_DIRECTIONS) {
-    case PAD_RIGHT: return (Velocity){ pace, 0 };
-    case PAD_LEFT: return (Velocity){ (int8_t)-pace, 0 };
-    case PAD_DOWN: return (Velocity){ 0, pace };
-    case PAD_UP: return (Velocity){ 0, (int8_t)-pace };
-    case PAD_DOWN | PAD_RIGHT: return (Velocity){ pace, pace };
-    case PAD_DOWN | PAD_LEFT: return (Velocity){ (int8_t)-pace, pace };
-    case PAD_UP | PAD_RIGHT: return (Velocity){ pace, (int8_t)-pace };
-    case PAD_UP | PAD_LEFT: return (Velocity){ (int8_t)-pace, (int8_t)-pace };
+    switch (held & DIRECTIONS) {
+    case BUTTON_RIGHT: return (Velocity){ pace, 0 };
+    case BUTTON_LEFT: return (Velocity){ (int8_t)-pace, 0 };
+    case BUTTON_DOWN: return (Velocity){ 0, pace };
+    case BUTTON_UP: return (Velocity){ 0, (int8_t)-pace };
+    case BUTTON_DOWN | BUTTON_RIGHT: return (Velocity){ pace, pace };
+    case BUTTON_DOWN | BUTTON_LEFT: return (Velocity){ (int8_t)-pace, pace };
+    case BUTTON_UP | BUTTON_RIGHT: return (Velocity){ pace, (int8_t)-pace };
+    case BUTTON_UP | BUTTON_LEFT: return (Velocity){ (int8_t)-pace, (int8_t)-pace };
     default: return (Velocity){ 0, 0 };
     }
 }
@@ -754,59 +740,70 @@ static uint8_t fine_scroll(const GameState *g, Axis axis)
 // $C0:9A1F, $C0:9A3D, $C0:9A60, $C0:9A7E
 /* Whether the screen follows the leader forward (right, down) or back by
  * `pixels`: short of the map's edge, while the leader is past the screen's
- * middle that way; at the edge, only as far as the screen's last tile. The
- * value the check ends on is what the original leaves A with. */
-typedef struct {
-    bool follows;
-    uint8_t ended_on;
-} Follow;
-
-static Follow screen_follows(GameState *g, FieldObject leader, Axis axis, bool forward, uint8_t pixels)
+ * middle that way; at the edge, only as far as the screen's last tile. */
+static bool screen_follows(const GameState *g, FieldObject leader, Axis axis, bool forward, uint8_t pixels)
 {
     uint8_t screen = screen_leading_edge(g, axis, forward), edge = map_edge(g, axis, forward);
     uint8_t middle = axis == AXIS_X ? SCREEN_MIDDLE_X : SCREEN_MIDDLE_Y;
     if (forward) {
-        ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK, pixels));
         if (screen < edge)
-            return (Follow){ leader_on_screen(g, leader, axis) > middle, middle };
+            return leader_on_screen(g, leader, axis) > middle;
         if (screen > edge)
-            return (Follow){ false, screen };
-        uint8_t fine = (uint8_t)(fine_scroll(g, axis) + pixels);
-        return (Follow){ fine < TILE_PIXELS, fine };
+            return false;
+        return (uint8_t)(fine_scroll(g, axis) + pixels) < TILE_PIXELS;
     }
-    ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK_BACK, pixels));
-    ORIGINAL_EFFECT(record_cell(CELL_SCREEN_CHECK, screen));
     if (edge < screen)
-        return (Follow){ leader_on_screen(g, leader, axis) < middle, 0 };
+        return leader_on_screen(g, leader, axis) < middle;
     if (edge > screen)
-        return (Follow){ false, 0 };
-    return (Follow){ (int8_t)(fine_scroll(g, axis) - pixels) >= 0, 0 };
+        return false;
+    return (int8_t)(fine_scroll(g, axis) - pixels) >= 0;
+}
+
+/* For the original's code and shadow mode: what each check leaves in the
+ * walk's cells -- forward, how far; back, how far and the screen's edge that
+ * way. The original, turning down the screen's step down, goes on into its
+ * check up with what the check down ended on (the screen's middle short of
+ * the map's edge, the screen's edge past it, and at it the fine scroll with
+ * the step), negated and made pixels, which only these cells show. */
+static void leave_screen_check(const GameState *g, Axis axis, bool forward, uint8_t pixels)
+{
+    if (forward) {
+        record_cell(CELL_SCREEN_CHECK, pixels);
+        return;
+    }
+    record_cell(CELL_SCREEN_CHECK_BACK, pixels);
+    record_cell(CELL_SCREEN_CHECK, screen_leading_edge(g, axis, false));
+}
+
+static void leave_check_down_turned_back(const GameState *g, uint8_t pixels)
+{
+    uint8_t screen = screen_leading_edge(g, AXIS_Y, true), edge = map_edge(g, AXIS_Y, true);
+    uint8_t ended_on = screen < edge ? SCREEN_MIDDLE_Y : screen > edge ? screen : (uint8_t)(fine_scroll(g, AXIS_Y) + pixels);
+    leave_screen_check(g, AXIS_Y, false, (uint8_t)((uint8_t)-ended_on >> 4));
 }
 
 static uint8_t pixels_of(int8_t step) { return (uint8_t)((step < 0 ? -step : step) >> 4); }
 
+/* Whether the screen follows the leader one way on an axis. */
+static bool screen_follows_step(const GameState *g, FieldObject leader, Axis axis, int8_t step)
+{
+    bool forward = step > 0;
+    ORIGINAL_EFFECT(leave_screen_check(g, axis, forward, pixels_of(step)));
+    return screen_follows(g, leader, axis, forward, pixels_of(step));
+}
+
 // $C0:99DE
-/* The screen follows the leader's step on each axis where it may. The
- * original, turning down the screen's step down, goes on into its check up
- * with what the check down ended on, which only its cells show. */
+/* The screen follows the leader's step on each axis where it may. */
 static Velocity follow_with_the_screen(GameState *g, FieldObject leader, Velocity step)
 {
     Velocity screen = step;
-    if (step.x == 0 && step.y == 0)
-        return screen;
-    if (step.x > 0 && !screen_follows(g, leader, AXIS_X, true, pixels_of(step.x)).follows)
+    if (step.x != 0 && !screen_follows_step(g, leader, AXIS_X, step.x))
         screen.x = 0;
-    if (step.x < 0 && !screen_follows(g, leader, AXIS_X, false, pixels_of(step.x)).follows)
-        screen.x = 0;
-    if (step.y > 0) {
-        Follow down = screen_follows(g, leader, AXIS_Y, true, pixels_of(step.y));
-        if (!down.follows) {
-            screen.y = 0;
-            ORIGINAL_EFFECT(screen_follows(g, leader, AXIS_Y, false, (uint8_t)((uint8_t)-down.ended_on >> 4)));
-        }
-    }
-    if (step.y < 0 && !screen_follows(g, leader, AXIS_Y, false, pixels_of(step.y)).follows)
+    if (step.y != 0 && !screen_follows_step(g, leader, AXIS_Y, step.y)) {
         screen.y = 0;
+        if (step.y > 0)
+            ORIGINAL_EFFECT(leave_check_down_turned_back(g, pixels_of(step.y)));
+    }
     return screen;
 }
 
@@ -820,20 +817,31 @@ static void leave_step_signs(GameState *g, Step step)
     set_field_screen_scroll_step_high(g, AXIS_Y, (uint8_t)((uint16_t)step.y >> 8));
 }
 
+/* Where the screen's recentring onto the grid is (field_screen_recentring):
+ * none under way, starting, or under way. */
+typedef enum { RECENTRED = 0, RECENTRE_STARTS = 1, RECENTRING = 2 } Recentring;
+
 /* How the leader would step this frame before the map has its say: a moving
  * floor's pull, and the pad's walk where the party is the player's. */
 static Velocity pad_and_pull(const GameState *g, Velocity *walk)
 {
     *walk = (Velocity){ 0, 0 };
-    if (dialog_choice_active(g) == DIALOG_NO_CHOICES && field_player_control(g) != 0 &&
-        field_screen_recentring(g) == 0)
+    if (dialog_choice_active(g) == DIALOG_NO_CHOICES && party_is_the_players(g) &&
+        field_screen_recentring(g) == RECENTRED)
         *walk = pad_walk(g);
     return (Velocity){ (int8_t)(field_floor_pull_x(g) + walk->x), (int8_t)(field_floor_pull_y(g) + walk->y) };
 }
 
 // $C0:881E
-/* With nobody leading the party (a scene before anyone joins), the walk has
- * nobody to move, and the guard leaves a step then to the original. */
+/* The leader's walk this frame: the leader forgets what it was up against;
+ * the pad (where the party is the player's) and a moving floor ask for a
+ * step; where the leader collides with the map, the map and the other
+ * objects stop it or turn it aside, and what it steps onto takes effect;
+ * it stays within the map's edges; and the screen follows it where it may.
+ * The step, the leader's movement and the screen's step are what the party's
+ * step and the layers' scroll take on from here. With nobody leading the
+ * party (a scene before anyone joins) and no step, there is nobody to move;
+ * the guard leaves a step then to the original. */
 void leader_walks(GameState *g)
 {
     ORIGINAL_EFFECT(forget_walk_cells());
@@ -863,7 +871,14 @@ void leader_walks(GameState *g)
 
 /* ---- The screen back onto the grid --------------------------------------------------------------- */
 
-typedef enum { RECENTRED = 0, RECENTRE_STARTS = 1, RECENTRING = 2 } Recentring;
+
+/* The screen's step back onto the grid: a pixel, toward the leader. */
+enum { A_PIXEL_FORWARD = 0x10, A_PIXEL_BACK = 0xF0 };
+
+static uint8_t pixel_toward(uint8_t leader_on_screen, uint8_t middle)
+{
+    return leader_on_screen >= middle ? A_PIXEL_FORWARD : A_PIXEL_BACK;
+}
 
 // $C0:885A
 /* While a script has the screen scroll back onto the 16-pixel grid (before a
@@ -881,14 +896,14 @@ bool screen_recentres(GameState *g)
         set_field_leader_movement_x(g, 0);
         set_field_leader_movement_y(g, 0);
         set_field_screen_scroll_step(g, AXIS_X,
-                                     off_x == 0 ? 0 : leader_on_screen(g, leader, AXIS_X) >= SCREEN_MIDDLE_X ? 0x10 : 0xF0);
+                                     off_x == 0 ? 0 : pixel_toward(leader_on_screen(g, leader, AXIS_X), SCREEN_MIDDLE_X));
         set_field_screen_scroll_step(g, AXIS_Y, 0);
         if (off_x == 0 && off_y == 0) {
             set_field_screen_recentring(g, RECENTRED);
             return false;
         }
         if (off_y != 0)
-            set_field_screen_scroll_step(g, AXIS_Y, leader_on_screen(g, leader, AXIS_Y) >= SCREEN_MIDDLE_Y ? 0x10 : 0xF0);
+            set_field_screen_scroll_step(g, AXIS_Y, pixel_toward(leader_on_screen(g, leader, AXIS_Y), SCREEN_MIDDLE_Y));
         return true;
     case RECENTRING:
         set_field_leader_movement_x(g, 0);
@@ -984,10 +999,14 @@ void field_walk_the_leader(Snes *s)
 void field_recentre_the_screen(Snes *s)
 {
     on_the_layers_page(s);
-    uint8_t state = field_screen_recentring(state_of(s));
+    bool starts = (Recentring)field_screen_recentring(state_of(s)) == RECENTRE_STARTS;
     bool moves = screen_recentres(state_of(s));
-    if (moves && !scroll_the_layers(s, state == RECENTRE_STARTS ? 0xC088B9 : 0xC088DD,
-                                    state == RECENTRE_STARTS ? 0xC088BC : 0xC088E0))
+    bool came_back = true;
+    if (moves && starts)
+        came_back = scroll_the_layers(s, 0xC088B9, 0xC088BC);
+    else if (moves)
+        came_back = scroll_the_layers(s, 0xC088DD, 0xC088E0);
+    if (!came_back)
         return;
     if (moves)
         screen_recentring_moved(state_of(s));
