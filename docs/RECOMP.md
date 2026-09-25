@@ -6938,6 +6938,20 @@ wrong rule (the 8-sprite placing's upper half as its rebuild's) mismatched 592
 of 3,000, which is what the variants are for. Against the predecessors every
 field and event entry keeps its mismatches (none).
 
+**Chunk 4's review, folded in.** The placing's logic returns only whether
+the object shows, and the entries work out the overflow and Y the original's
+callers read from the state (review rubric items 82-84); the show rules are
+named for what they show and are one table, the 4-sprite layout's row moved
+out of the platform (`vid_oam_y` is gone; `VID_OAM_HIDDEN_Y` stays). The
+frame's areas turned out to be staging in bank `$7F`, not VRAM (the builder
+hands their address to the WRAM port), and are mapped so
+(`field_frame_staging`); their owners are links to objects. The objects'
+sprite high bytes are byte tables reached through one table of the three,
+since they lie apart in memory. Over the 26 movies every call still matches;
+fuzzed against chunk 4's build with the same seed, all 26 sprite entries and
+variants keep their counts (0 mismatched), and seven rows' `cost_milli` were
+recalibrated.
+
 **The timing gate.** The new rows and the update, the draw, the building and
 `event_run_init_scripts` were calibrated over the library; no exception.
 
