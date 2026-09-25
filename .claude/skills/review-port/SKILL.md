@@ -687,6 +687,22 @@ Each of these is a finding. Every example here comes from this repo.
 90. **The same test written two ways on one field** (`l == 2` and
     `(l & 0x0F) == 2`) with no comment saying why.
 
+91. **Twin functions that differ only in the order they read cells**, kept
+    for the open-bus value on an input no game state produces. Item 34 in
+    the form of read order: a guard refuses the input and one function takes
+    the difference as a parameter.
+92. **A hardware cursor as the parameter between two ported functions.** Item
+    89 with a register (the work RAM port's address) in place of a cell. Pass
+    the destination; leave the cursor's final place as scaffolding.
+
+**Items 75 and 88 together.** When the wrapper needs to tell apart cases the
+game merges (to derive a flag) and working them out from the state would mean
+re-running the logic: first do the port-routine skill's third trap (name the
+reader, or prove it dead with `--poison-dc`). If the flag survives, a status
+enum is acceptable when every member is a real game condition and everything
+that derives registers from it lives outside the logic file (the subsystem's
+leaves), never in the logic's own header.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
