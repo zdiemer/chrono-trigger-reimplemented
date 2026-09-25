@@ -2110,26 +2110,74 @@ void set_menu_tasks_step(GameState *g, unsigned i, uint8_t v);
 uint16_t menu_wave_phase(const GameState *g);
 void set_menu_wave_phase(GameState *g, uint16_t v);
 
-/* Which entry of the table below to load */
-uint8_t menu_load_request_entry(const GameState *g);
-void set_menu_load_request_entry(GameState *g, uint8_t v);
-/* Long pointer to the table of streams */
-uint32_t menu_load_request_table(const GameState *g);
-void set_menu_load_request_table(GameState *g, uint32_t v);
-/* Long pointer to where it goes */
-uint32_t menu_load_request_dest(const GameState *g);
-void set_menu_load_request_dest(GameState *g, uint32_t v);
-/* How much of it to take */
-uint8_t menu_load_request_size(const GameState *g);
-void set_menu_load_request_size(GameState *g, uint8_t v);
-/* Which of the loader's ways to read it */
-uint8_t menu_load_request_kind(const GameState *g);
-void set_menu_load_request_kind(GameState *g, uint8_t v);
+enum { MENU_TEXT_ARGUMENTS_COUNT = 12 };   /* by byte */
+/* What a string's numbers and names are read from, in order, on the text page: the caller puts
+ * them here before it starts the string */
+uint8_t menu_text_arguments(const GameState *g, unsigned i);
+void set_menu_text_arguments(GameState *g, unsigned i, uint8_t v);
 
-/* How wide, in pixels, the graphic the menus' loader last loaded is (the load screen draws that
- * many tiles, rounded up, of an era label) */
-uint8_t menu_loaded_graphic_width(const GameState *g);
-void set_menu_loaded_graphic_width(GameState *g, uint8_t v);
+/* Which string of the table below to set */
+uint8_t menu_text_string(const GameState *g);
+void set_menu_text_string(GameState *g, uint8_t v);
+/* Long pointer to the table of strings: a word each, within the table's bank */
+uint32_t menu_text_strings(const GameState *g);
+void set_menu_text_strings(GameState *g, uint32_t v);
+/* Long pointer to the tiles the text is set in: the line's first tile row */
+uint32_t menu_text_tiles(const GameState *g);
+void set_menu_text_tiles(GameState *g, uint32_t v);
+/* How many more glyphs the setting may draw before it stops; the caller sets it before each call */
+uint8_t menu_text_budget(const GameState *g);
+void set_menu_text_budget(GameState *g, uint8_t v);
+/* How the text is set: bit 7, lines start at the tiles' left edge; the low four bits 0 for
+ * four-colour tiles and any other for sixteen-colour ones, 2 for a line started a tile further
+ * left */
+uint8_t menu_text_layout(const GameState *g);
+void set_menu_text_layout(GameState *g, uint8_t v);
+/* Why the setting stopped: 0 the string ended, 3 a wait (the frames in `wait`), 4-12 a line or
+ * page break the caller acts on (5-12 start the next line: odd ones at the margin, even ones
+ * indented), $10 the budget ran out */
+uint8_t menu_text_stop(const GameState *g);
+void set_menu_text_stop(GameState *g, uint8_t v);
+/* The frames a wait in the string asks for */
+uint8_t menu_text_wait(const GameState *g);
+void set_menu_text_wait(GameState *g, uint8_t v);
+/* How many glyphs the current line has */
+uint8_t menu_text_line_glyphs(const GameState *g);
+void set_menu_text_line_glyphs(GameState *g, uint8_t v);
+
+/* What the next glyph comes from: 0 the string, 1 an inserted name or word, 2 a number's decimal
+ * digits, 3 its hex digits */
+uint8_t menu_text_reading_source(const GameState *g);
+void set_menu_text_reading_source(GameState *g, uint8_t v);
+/* Long pointer to the string's next byte */
+uint32_t menu_text_reading_at(const GameState *g);
+void set_menu_text_reading_at(GameState *g, uint32_t v);
+/* The pen's X on the line, in pixels: where the next glyph starts. A label's width once it is
+ * set */
+uint8_t menu_text_reading_pen(const GameState *g);
+void set_menu_text_reading_pen(GameState *g, uint8_t v);
+/* The glyph being drawn: $A0 up for the font's first 96, $1xx and $2xx for the two-byte ones */
+uint16_t menu_text_reading_glyph(const GameState *g);
+void set_menu_text_reading_glyph(GameState *g, uint16_t v);
+/* Long pointer to the next glyph of what is being inserted (a name, a word of the dictionary, a
+ * number's digits) */
+uint32_t menu_text_reading_insert(const GameState *g);
+void set_menu_text_reading_insert(GameState *g, uint32_t v);
+/* How many glyphs of the insert are left */
+uint8_t menu_text_reading_insert_left(const GameState *g);
+void set_menu_text_reading_insert_left(GameState *g, uint8_t v);
+/* The dictionary code the insert came from */
+uint8_t menu_text_reading_code(const GameState *g);
+void set_menu_text_reading_code(GameState *g, uint8_t v);
+/* Long pointer to the next of the string's arguments (menu_text_arguments) */
+uint32_t menu_text_reading_arguments_at(const GameState *g);
+void set_menu_text_reading_arguments_at(GameState *g, uint32_t v);
+
+enum { MENU_TEXT_DIGITS_COUNT = 8 };   /* by digit */
+/* A number's digits as the string shows them, the first first: decimal values 0-9, or hex digits
+ * as glyphs */
+uint8_t menu_text_digits(const GameState *g, unsigned i);
+void set_menu_text_digits(GameState *g, unsigned i, uint8_t v);
 
 /* Which byte of the glyph is being drawn, 0-23: its twelve lines, two bitplanes a line */
 uint16_t menu_glyph_byte(const GameState *g);
@@ -2145,13 +2193,30 @@ void set_menu_glyph_number(GameState *g, uint8_t v);
 uint16_t menu_glyph_spill(const GameState *g);
 void set_menu_glyph_spill(GameState *g, uint16_t v);
 
+/* The last division's quotient, with the byte after it */
+uint16_t menu_number_conversion_quotient(const GameState *g);
+void set_menu_number_conversion_quotient(GameState *g, uint16_t v);
+/* The units of an eight-digit number */
+uint8_t menu_number_conversion_last(const GameState *g);
+void set_menu_number_conversion_last(GameState *g, uint8_t v);
+
 /* The glyph drawer's count of line pairs left in the band of tiles it is drawing (4, then 8) */
 uint8_t menu_glyph_lines_left(const GameState *g);
 void set_menu_glyph_lines_left(GameState *g, uint8_t v);
 
+/* The number being shown's second byte, as it is read (its other bytes share cells with the
+ * glyph drawer). Scaffolding: nothing reads it after */
+uint8_t menu_number_second_byte(const GameState *g);
+void set_menu_number_second_byte(GameState *g, uint8_t v);
+
 /* How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7) */
-uint8_t menu_glyph_pen_offset(const GameState *g);
-void set_menu_glyph_pen_offset(GameState *g, uint8_t v);
+uint16_t menu_glyph_pen_offset(const GameState *g);
+void set_menu_glyph_pen_offset(GameState *g, uint16_t v);
+
+/* A step of working out where a glyph's right pixels are: half the glyph's number times 8.
+ * Scaffolding: nothing reads it after */
+uint16_t menu_glyph_font_step(const GameState *g);
+void set_menu_glyph_font_step(GameState *g, uint16_t v);
 
 /* Which tile column of the text line the pen is in, doubled (the pen's X, $34, AND $F8, shifted
  * right twice): an index into the column table at $C2:5FE6 */
@@ -2188,6 +2253,10 @@ void set_menu_objects_frozen(GameState *g, uint8_t v);
 /* The location the Epoch is parked on, which the map view shows a marker for */
 uint16_t menu_epoch_location(const GameState *g);
 void set_menu_epoch_location(GameState *g, uint16_t v);
+
+/* Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing) */
+uint8_t menu_text_hex(const GameState *g);
+void set_menu_text_hex(GameState *g, uint8_t v);
 
 /* The song an object script last asked the sound driver for, kept beside the request itself */
 uint8_t menu_song_playing(const GameState *g);

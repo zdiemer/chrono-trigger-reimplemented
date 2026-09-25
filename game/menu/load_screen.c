@@ -203,9 +203,9 @@ static void ask_which_to_carry_on_from(GameState *g)
     /* counted in its first byte: the second, read with it, never carries */
     uint16_t taken = menu_save_header_taken(g);
     set_menu_save_header_taken(g, (uint16_t)((taken & 0xFF00) | (uint8_t)(taken + 1)));
-    set_menu_load_request_entry(g, QUESTION_LABEL);
+    set_menu_text_string(g, QUESTION_LABEL);
     set_menu_load_destination(g, QUESTION_LABEL_AT);
-    set_menu_load_request_table(g, QUESTION_LABEL_TABLE);
+    set_menu_text_strings(g, QUESTION_LABEL_TABLE);
 }
 
 /* The question's label, once drawn: two strips of it over the header. */

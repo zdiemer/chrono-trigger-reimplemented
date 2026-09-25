@@ -4328,13 +4328,6 @@ meaning = "Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it 
 source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; $C2:F914"
 
 [[var]]
-name = "menu_loaded_graphic_width"
-addr = "7E:0234"
-subsystem = "menu"
-meaning = "How wide, in pixels, the graphic the menus' loader last loaded is (the load screen draws that many tiles, rounded up, of an era label)"
-source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
-
-[[var]]
 name = "menu_scratch"
 addr = "7E:0000"
 page = "menu"
@@ -5219,6 +5212,7 @@ source = "game/menu/glyphs.c, menu_draw_glyph $C2:5E36"
 name = "menu_glyph_pen_offset"
 addr = "7E:026A"
 page = "menu_glyph"
+size = 2
 subsystem = "menu"
 meaning = "How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7)"
 source = "game/menu/glyphs.c, menu_draw_glyph_line $C2:5E89; set at $C2:5DEC"
@@ -6497,39 +6491,165 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c; game/
   size = 2
   meaning = "The squashed iris: the centre line, where its lower half starts"
 [[var]]
-name = "menu_load_request"
+name = "menu_text"
 addr = "7E:020C"
-stride = 9
+stride = 12
 subsystem = "menu"
-meaning = "What the graphics loader at $C2:57DF is to load, on its own direct page $0200"
-source = "game/menu/epoch.c, menu_epoch_load_map_graphics $C2:6965; game/menu/save_screen.c"
+meaning = "A text being set in glyphs of the proportional font ($C2:57DF starts it, $C2:5823 sets the next few glyphs): which string, where its tiles go, and where the setting stopped, on the text page $0200. The dialog, the battle's messages and the menus' labels all use it"
+source = "game/menu/typeset.c; game/menu/epoch.c, game/menu/save_screen.c and game/menu/load_screen.c set strings up"
 
   [[var.field]]
-  name = "entry"
+  name = "string"
   offset = 0
-  meaning = "Which entry of the table below to load"
+  meaning = "Which string of the table below to set"
 
   [[var.field]]
-  name = "table"
+  name = "strings"
   offset = 1
   size = 3
-  meaning = "Long pointer to the table of streams"
+  meaning = "Long pointer to the table of strings: a word each, within the table's bank"
 
   [[var.field]]
-  name = "dest"
+  name = "tiles"
   offset = 4
   size = 3
-  meaning = "Long pointer to where it goes"
+  meaning = "Long pointer to the tiles the text is set in: the line's first tile row"
 
   [[var.field]]
-  name = "size"
+  name = "budget"
   offset = 7
-  meaning = "How much of it to take"
+  meaning = "How many more glyphs the setting may draw before it stops; the caller sets it before each call"
 
   [[var.field]]
-  name = "kind"
+  name = "layout"
   offset = 8
-  meaning = "Which of the loader's ways to read it"
+  meaning = "How the text is set: bit 7, lines start at the tiles' left edge; the low four bits 0 for four-colour tiles and any other for sixteen-colour ones, 2 for a line started a tile further left"
+
+  [[var.field]]
+  name = "stop"
+  offset = 9
+  meaning = "Why the setting stopped: 0 the string ended, 3 a wait (the frames in `wait`), 4-12 a line or page break the caller acts on (5-12 start the next line: odd ones at the margin, even ones indented), $10 the budget ran out"
+
+  [[var.field]]
+  name = "wait"
+  offset = 10
+  meaning = "The frames a wait in the string asks for"
+
+  [[var.field]]
+  name = "line_glyphs"
+  offset = 11
+  meaning = "How many glyphs the current line has"
+
+[[var]]
+name = "menu_text_arguments"
+addr = "7E:0200"
+count = 12
+index = "byte"
+subsystem = "menu"
+meaning = "What a string's numbers and names are read from, in order, on the text page: the caller puts them here before it starts the string"
+source = "game/menu/typeset.c, $C2:57DF points the text's argument pointer here"
+
+[[var]]
+name = "menu_text_reading"
+addr = "7E:0230"
+stride = 0x10
+subsystem = "menu"
+meaning = "Where the setting of a text has got to, so a call can take it up where the last left off"
+source = "game/menu/typeset.c, $C2:57DF and $C2:5823"
+
+  [[var.field]]
+  name = "source"
+  offset = 0
+  meaning = "What the next glyph comes from: 0 the string, 1 an inserted name or word, 2 a number's decimal digits, 3 its hex digits"
+
+  [[var.field]]
+  name = "at"
+  offset = 1
+  size = 3
+  meaning = "Long pointer to the string's next byte"
+
+  [[var.field]]
+  name = "pen"
+  offset = 4
+  meaning = "The pen's X on the line, in pixels: where the next glyph starts. A label's width once it is set"
+
+  [[var.field]]
+  name = "glyph"
+  offset = 5
+  size = 2
+  meaning = "The glyph being drawn: $A0 up for the font's first 96, $1xx and $2xx for the two-byte ones"
+
+  [[var.field]]
+  name = "insert"
+  offset = 7
+  size = 3
+  meaning = "Long pointer to the next glyph of what is being inserted (a name, a word of the dictionary, a number's digits)"
+
+  [[var.field]]
+  name = "insert_left"
+  offset = 10
+  meaning = "How many glyphs of the insert are left"
+
+  [[var.field]]
+  name = "code"
+  offset = 11
+  meaning = "The dictionary code the insert came from"
+
+  [[var.field]]
+  name = "arguments_at"
+  offset = 13
+  size = 3
+  meaning = "Long pointer to the next of the string's arguments (menu_text_arguments)"
+
+[[var]]
+name = "menu_text_digits"
+addr = "7E:0240"
+count = 8
+index = "digit"
+subsystem = "menu"
+meaning = "A number's digits as the string shows them, the first first: decimal values 0-9, or hex digits as glyphs"
+source = "game/menu/typeset.c"
+
+[[var]]
+name = "menu_text_hex"
+addr = "7E:02A1"
+subsystem = "menu"
+meaning = "Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing)"
+source = "game/menu/typeset.c, $C2:595D and $C2:5994"
+
+[[var]]
+name = "menu_number_conversion"
+addr = "7E:0265"
+stride = 3
+subsystem = "menu"
+meaning = "What converting a number to decimal leaves on the text page past the glyph drawer's cells: the last division's quotient as it was built, and the last cell of an eight-digit number. Scaffolding: nothing reads them"
+source = "game/menu/typeset.c, $C2:614B and $C2:6231"
+
+  [[var.field]]
+  name = "quotient"
+  offset = 0
+  size = 2
+  meaning = "The last division's quotient, with the byte after it"
+
+  [[var.field]]
+  name = "last"
+  offset = 2
+  meaning = "The units of an eight-digit number"
+
+[[var]]
+name = "menu_number_second_byte"
+addr = "7E:0269"
+subsystem = "menu"
+meaning = "The number being shown's second byte, as it is read (its other bytes share cells with the glyph drawer). Scaffolding: nothing reads it after"
+source = "game/menu/typeset.c, $C2:5985 and $C2:59C8"
+
+[[var]]
+name = "menu_glyph_font_step"
+addr = "7E:026C"
+size = 2
+subsystem = "menu"
+meaning = "A step of working out where a glyph's right pixels are: half the glyph's number times 8. Scaffolding: nothing reads it after"
+source = "game/menu/typeset.c, $C2:5DDC"
 
 [[var]]
 name = "menu_objects_frozen"
