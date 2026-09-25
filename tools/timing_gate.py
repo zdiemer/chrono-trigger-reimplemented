@@ -130,10 +130,13 @@ class Entry:
         self.bad_tag = None
 
     def add(self, other):
-        if self.cost_milli is not None and other.cost_milli != self.cost_milli:
+        # A report whose every stretch of the entry was interrupted has no
+        # totals line, so no cost_milli to compare.
+        if self.cost_milli is not None and other.cost_milli is not None and other.cost_milli != self.cost_milli:
             raise ValueError("%s: cost_milli %d in one report and %d in another (mixed builds)"
                              % (self.name, self.cost_milli, other.cost_milli))
-        self.cost_milli = other.cost_milli
+        if other.cost_milli is not None:
+            self.cost_milli = other.cost_milli
         for f in ("stretches", "exact", "original", "bus", "dma", "error", "vblank_stretches", "movies"):
             setattr(self, f, getattr(self, f) + getattr(other, f))
         for f in ("max_error", "vblank_max", "picture_max"):
@@ -269,7 +272,9 @@ def aggregate(reports):
             if name not in out:
                 out[name] = Entry(name, e.addr)
             out[name].add(e)
-    return out
+    # an entry no report measured a stretch of (all interrupted) has nothing
+    # to judge
+    return {name: e for name, e in out.items() if e.cost_milli is not None}
 
 
 def load(paths):

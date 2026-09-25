@@ -6870,6 +6870,104 @@ runs whatever the registry has there. The library's gate passes unchanged,
 with `battle_enemy_scripts_choose` recalibrated (8,036 to 7,902) for the
 plain writes it makes now.
 
+### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
+
+An enemy's turn is C to its end now, but for the original's code it calls out
+to (the tech's targeting, messages, bringing enemies in and the showing): the
+attack's and the tech's effect is worked out in C (`game/battle/effect_work.c`,
+`$C1:D7C4`, `$C1:D8D1`), and the notes of the action for its targets
+(`$FD:AAD2`, `$FD:AB01`) are C inline in the turn. The work is in four files:
+
+- `effect_work.c`: going through the targets, the effect's record copied and
+  its kind run from a C table (`$C1:D9D7`; the thirteen kinds with work, each
+  a registered entry for the party's code, which still runs them from
+  `$C1:D523`), what acted on each target noted (`$C1:D508`), the hits'
+  numbers added up (`$C1:EB68`), and the machine's side;
+- `effect_amounts.c`: healing (`$C1:DA37`), draining (`$C1:E77B`), a hit's
+  tests of landing (`$C1:DE87`, `$C1:DE9E`, `$C1:DEF0`, `$C1:DC64`), its
+  damage by the eight formulas the dispatch reaches (`$C1:E0F5`; its formulas
+  9 and 10 are behind a test that sends every kind but 8 to the weapon's), the
+  defence (`$C1:E65F`), and the damage applied (`$C1:DCAD`), with the damage
+  table and the numbers shown recorded (`$C1:EBF8`, `$C1:E89F`, `$C1:E8E2`);
+- `effect_statuses.c`: curing, inflicting and the status timers (`$C1:DB5E`,
+  `$C1:DBAA`, `$C1:E006`, `$C1:E976`);
+- `effect_modifiers.c`: the twenty-one modifier routines as a C table
+  (`$C1:FA61`), applying the action's and the weapon's (`$C1:EB1C`,
+  `$C1:EA6F`), and stealing (`$C1:E9D5`).
+
+The ROM's records are read through `effect_data.h` (an attack's or a tech's
+eleven bytes, an effect's twelve, a modifier's three, an item's healing, an
+enemy's items to steal).
+
+**The machine inside the work.** Two things an effect does are the original's
+code still: the clock modifier reads the controller (`$C2:8002`) and a steal
+gives its item (`$FD:B655`); a kind or a modifier's routine past its table
+calls wherever the table's bytes point (no record has one). The work asks
+for them through a host (`EffectHost`), which makes the call as the original
+does from where it is: the work keeps the JSRs it is inside as steps, and the
+host pushes their returns so that shadow mode pairs the call with the
+original's. The original's arithmetic leaves its cells, its carries, its Y
+register and its overflow flag where later code reads them, and the work
+keeps each where it is read: the long arithmetic's cells are game state
+(`arith.h`, with `battle_multiply_words_carrying` and `battle_divide_carrying`
+for the carry the instructions before a call leave); the random draws divide
+by the high word a division leaves, so every carry into one is the
+original's; the controller's reading saves Y on the stack, so the work
+carries what the original's shifts and draws leave there (`machine_y`, and a
+draw clears its high byte); and the showing after the work takes the overflow
+flag along through the battle's step, which saves it, so the pieces that end
+a kind's work say what their last add leaves (`machine_v`). Liveness can't
+prove the flag dead there (the step's target is picked at run time) and a
+`--poison-dc` run of the showing mismatches, so it is carried rather than
+declared.
+
+**What it found.** The drain reads its stat's offset as a word from the cell
+its kind is handed in, whose high byte nothing sets, and adds it to the stat
+block's offset in 16 bits; a modifier that beats its target outright marks
+it beaten by battle slot from `$AEB0`, so a party member's mark lands in two
+bytes before the enemies' (`battle_beaten_marks_low`) or on "any enemy
+beaten"; about a tenth (`$C1:C1B2`) is three subtractions, not four;
+inflicting gives back what its callers test (none, shrugged off, done), and
+the in-hit steal takes that as its chance; the attack's note (`$FD:AB01`)
+multiplies the attack's number with A's high byte along, so its entry is
+guarded on A's high byte clear (as the turn leaves it). The kind entries are
+guarded on an actor and one to eleven listed targets that are combatants. The
+effects check's runs caught a party tech in `endings-bucket-lavos` whose clock
+modifier reads the direct page's first word the target marking had left as
+scaffolding: the marking keeps it plainly now. What the work still reads of
+the direct page as the original leaves it is in TODO.md, each line in the
+baseline with its reason; the arithmetic's quotient cell the turn wait's
+change leaves (`enemy_actions.c`) is plain too.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the enemies' work-outs 347 techs and 23 attacks (175 and 9 compared whole,
+the rest interrupted), and through the party's code the kinds 765 hits, 60
+restorations, 39 statuses, 26 drains, 86 items' restorations and a few cures
+(239, 52, 35, 23, 48 compared). The steal, the repeated hits, the item's
+status, the lost condition bit and the showing of the actor's HP aren't
+reached by any movie.
+
+**Fuzzing.** Every new entry, seed 1, 5,000 states each on `gato-battle`
+(`tools/fuzz_routines.toml`: an actor and one to eleven listed combatants,
+the action's and the weapons' modifiers among the real ones, the actions from
+the ROM's records), none mismatching and all 5,000 compared. The enemies' turns
+rewritten around them (`fuzz_compare.py`, 22 routines) none mismatching; on
+three of the turn's states a fuzzed tech adds up seven sets of numbers, which
+reach the acting enemy's cell as the original's do, and the turn's end then
+reads its accessors past the enemies (reported, not a mismatch).
+Fuzzing found what shadow mode couldn't: the drain's word read and its 16-bit
+wrap, the Y the draws clear, the beaten mark, the tenth's subtractions, and
+the carry the controller's reading hands back.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the kinds
+from 3,000 to 23,569-45,640, the work-outs to 10,516 and 11,543 (their kinds
+timed as their own), the notes to 21,979 (a few instructions of C for the
+original's multiply); `battle_multiply_16x16` from 27,455 to 31,377, the
+enemies' multiplies now C and its callers the party's; the enemy's turn and
+its attack's to 5,020 and 7,951. Every entry is within the limits with no
+exception added. `tools/timing_gate.py` now takes an entry some report
+measured no stretch of (all interrupted) without failing.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

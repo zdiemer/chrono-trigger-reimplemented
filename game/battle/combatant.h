@@ -83,6 +83,9 @@ Statuses combatant_statuses(const GameState *g, unsigned slot);
  * slot that names no combatant (a marked candidate, none) is read wherever
  * the table's word past its end takes it. */
 uint8_t combatant_stat_byte(const GameState *g, uint8_t slot, uint16_t offset);
+/* A stat by a stat block's offset among the blocks, as the effect code keeps
+ * one it didn't work out itself (battle_effect_other_block). */
+uint8_t combatant_stat_byte_at_block(const GameState *g, uint16_t block, uint16_t offset);
 void set_combatant_stat_byte(GameState *g, uint8_t slot, uint16_t offset, uint8_t v);
 uint8_t combatant_stat_byte_by_place(const GameState *g, uint8_t slot, uint16_t offset);
 uint16_t combatant_stat_word_by_place(const GameState *g, uint8_t slot, uint16_t offset);

@@ -50,6 +50,11 @@ static void set_stats_byte_at(GameState *g, uint32_t at, uint8_t v)
         wram_write8(g, stray_stats_place(g, at), v);
 }
 
+uint8_t combatant_stat_byte_at_block(const GameState *g, uint16_t block, uint16_t offset)
+{
+    return stats_byte_at(g, (uint32_t)block + offset);
+}
+
 uint8_t combatant_stat_byte(const GameState *g, uint8_t slot, uint16_t offset)
 {
     return stats_byte_at(g, (uint32_t)slot * BATTLE_STAT_BLOCK_BYTES + offset);

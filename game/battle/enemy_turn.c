@@ -5,17 +5,17 @@
  * (battle_enemy_block_actions), and moves on to the next; reacting, it carries
  * out its reaction's action at once. The action does its part (battle/
  * enemy_actions.c) and says what the turn does after it: work its effect out
- * on its first target and show it, only show it, or nothing more. Its effect
- * is worked out by the original's code still, as are an attack's and a
- * tech's setting up, a tech's targeting, messages and bringing enemies in:
- * this is the machine's side of the turn, which calls them and runs the
- * rest as C.
+ * on its targets and show it, only show it, or nothing more. Its effect is
+ * worked out in C (battle/effect_work.c); a tech's targeting, messages,
+ * bringing enemies in and the showing are the original's code still: this is
+ * the machine's side of the turn, which calls them and runs the rest as C.
  *
  * After the turn the enemy has nothing chosen, and where its action was aimed
  * at an enemy (and doesn't say otherwise) the enemies react. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
+#include "battle/effect_work.h"
 #include "battle/enemy_actions.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
@@ -149,8 +149,8 @@ static FirstTarget take_first_target(GameState *g)
         return NO_ONE_LEFT;
     set_battle_candidates(g, 0, target);
     battle_mark_first_target(g);
-    set_battle_hit_counts(g, 0, 0);
-    set_battle_hit_counts(g, 1, 0);
+    set_battle_effect_flags(g, 0, 0);
+    set_battle_effect_flags(g, 1, 0);
     return TARGET_TAKEN;
 }
 
@@ -178,7 +178,6 @@ enum {
     READS_A = DC_X | DC_Y | DC_FLAGS,
     READS_X = DC_A | DC_Y | DC_FLAGS,
     READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
-    READS_A_HIGH_AND_CARRY = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
 /* An enemy that comes into the battle (battle/enemy_actions.c) is set up by
@@ -218,26 +217,22 @@ static bool attack_turn(Snes *s, ScriptPlace at)
 {
     GameState *g = state_of(s);
     enemy_attack_begins(g, at);
-    /* the attack's working out takes A's high byte along (clear here) and the
-     * carry the original's test of the attack's number leaves: set for a
-     * number past the one that takes the enemy's own detail */
-    s->cpu.a &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, battle_action_number(g) > 1);
-    if (!battle_call_long(s, 0xC19A25, 0xFDAB01, READS_A_HIGH_AND_CARRY))
-        return false;
+    /* the attack noted for its targets takes the carry the original's test
+     * of the attack's number leaves: set for a number past the one that takes
+     * the enemy's own detail */
+    TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS, battle_action_number(g) > 1));
     enemy_attack_ends(g);
     return true;
 }
 
-/* A tech carried out: its targets, its targeting and its setting up by the
- * original's code, its message. The actions that change stats first give
- * their message apart and say no further target is none only by its id.
- * The tech's targeting and its setting up are the original's, and read the
- * carry the code before them leaves: the targeting, `aim_carry` (worked out
- * by the caller); the setting up, the carry of marking the targets, which
- * starts from comparing the first with the first enemy's slot, with A's high
- * byte clear. */
-static bool tech_after_targets(Snes *s, uint32_t aim_site, uint32_t set_up_site, uint32_t message_site, bool stats_first,
+/* A tech carried out: its targets, its targeting by the original's code, the
+ * tech noted for its targets (battle/effect_work.c), its message. The actions
+ * that change stats first give their message apart and say no further target
+ * is none only by its id. The targeting and the noting read the carry the
+ * code before them leaves: the targeting, `aim_carry` (worked out by the
+ * caller); the noting, the carry of marking the targets, which starts from
+ * comparing the first with the first enemy's slot. */
+static bool tech_after_targets(Snes *s, uint32_t aim_site, uint32_t message_site, bool stats_first,
                                bool aim_carry, uint8_t message)
 {
     GameState *g = state_of(s);
@@ -248,10 +243,8 @@ static bool tech_after_targets(Snes *s, uint32_t aim_site, uint32_t set_up_site,
         set_battle_action_kind(g, ACTION_TECH);
     bool past_party = battle_action_targets(g, 0) >= BATTLE_FIRST_ENEMY;
     if (enemy_tech_aimed(g)) {
-        s->cpu.a = 0;
-        m_set_flag(s, CPU_FLAG_C, battle_other_marks_carry(g, battle_first_mark_carry(g, past_party)));
-        if (!battle_call_long(s, set_up_site, 0xFDAAD2, READS_A_HIGH_AND_CARRY))
-            return false;
+        bool carry = battle_other_marks_carry(g, battle_first_mark_carry(g, past_party));
+        TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS, carry));
         enemy_tech_ends(g);
         if (!show_message(s, message_site, stats_first ? battle_action_message(g) : message))
             return false;
@@ -267,7 +260,7 @@ static bool tech_body(Snes *s, ScriptPlace at)
     enemy_tech_begins(g, script_enemy(s), at, true);
     /* the targeting takes the carry of the test for no third target */
     bool no_third = battle_action_further_targets(g, 1) == NO_CANDIDATE;
-    return tech_after_targets(s, 0xC19AEB, 0xC19B1C, 0xC19B35, false, no_third, enemy_tech_at(g, at).message);
+    return tech_after_targets(s, 0xC19AEB, 0xC19B35, false, no_third, enemy_tech_at(g, at).message);
 }
 
 void battle_enemy_tech_body(Snes *s);
@@ -313,14 +306,14 @@ static bool stats_before_tech(Snes *s, ScriptPlace at, bool adding)
 static bool set_stats_then_tech_turn(Snes *s, ScriptPlace at)
 {
     bool aim_carry = stats_before_tech(s, at, false);
-    return tech_after_targets(s, 0xC1A0F2, 0xC1A128, 0xC1A13D, true, aim_carry, 0);
+    return tech_after_targets(s, 0xC1A0F2, 0xC1A13D, true, aim_carry, 0);
 }
 
 // $C1:A20B
 static bool add_to_stats_then_tech_turn(Snes *s, ScriptPlace at)
 {
     bool aim_carry = stats_before_tech(s, at, true);
-    return tech_after_targets(s, 0xC1A33A, 0xC1A370, 0xC1A385, true, aim_carry, 0);
+    return tech_after_targets(s, 0xC1A33A, 0xC1A385, true, aim_carry, 0);
 }
 
 // $C1:9B48
@@ -557,9 +550,14 @@ void battle_start_action_showing(Snes *s)
         m_rts(s);
 }
 
-/* The effect worked out on the first target: the tech's by $C1:D7C4, anything
- * else's by $C1:D8D1. */
-enum { WORKS_OUT_TECHS = 0xC1D7C4, WORKS_OUT_ATTACKS = 0xC1D8D1 };
+/* The effect worked out on the action's targets (battle/effect_work.c): the
+ * tech's, or anything else's as an attack's. */
+static bool work_out_effect(Snes *s)
+{
+    if (battle_action_kind(state_of(s)) == ACTION_TECH)
+        return battle_run(s, 0xC18E15, 0xC1D7C4, battle_work_out_enemy_tech);
+    return battle_run(s, 0xC18E10, 0xC1D8D1, battle_work_out_enemy_attack);
+}
 
 // $C1:8CF9
 static bool enemy_turn(Snes *s)
@@ -582,8 +580,7 @@ static bool enemy_turn(Snes *s)
             case TARGET_GONE: end_turn(s); return true;
             case TARGET_TAKEN: break;
             }
-            if (battle_action_kind(g) == ACTION_TECH ? !battle_call(s, 0xC18E15, WORKS_OUT_TECHS, READS_NOTHING)
-                                                     : !battle_call(s, 0xC18E10, WORKS_OUT_ATTACKS, READS_NOTHING))
+            if (!work_out_effect(s))
                 return false;
             if (!effect_shown(g)) {
                 end_turn(s);

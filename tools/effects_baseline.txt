@@ -29,6 +29,10 @@ game/battle/draw_objects.c drawing_a_combatant battle_draw_object battle_draw_ob
 game/battle/draw_objects.c next_free battle_oam_next battle_oam_next
 game/battle/draw_objects.c parts_last_drawn battle_draw_part_count battle_draw_part_count
 game/battle/draw_objects.c slot_being_drawn battle_draw_object battle_draw_object
+game/battle/effect_amounts.c effect_drain battle_low_scratch[27] battle_low_scratch # the drain reads the stat's offset as a word from the cell its kind is handed over in, whose high byte nothing in the effect code sets (0 as the game plays): whatever the code before left there, as the original reads it
+game/battle/effect_modifiers.c by_the_clock battle_low_scratch[0] battle_low_scratch # the clock modifier adds half of whatever the direct page's first word holds, as the original does; what the effect code and the target marking before it leave there is kept plainly, but the party's code between them is the original's
+game/battle/effect_modifiers.c by_the_clock battle_low_scratch[1] battle_low_scratch # the clock modifier adds half of whatever the direct page's first word holds, as the original does; what the effect code and the target marking before it leave there is kept plainly, but the party's code between them is the original's
+game/battle/effect_modifiers.c effect_steal battle_low_scratch[26] battle_low_scratch # a steal takes the rare item where the cell its modifier's chance is left in says so, whatever modifier it was (the steal's own keeps it plainly); no enemy's action steals
 game/battle/effect_paths.c battle_chase_angle battle_chase_cells[0] battle_chase_cells only
 game/battle/effect_paths.c battle_chase_angle battle_chase_cells[1] battle_chase_cells only
 game/battle/effect_paths.c battle_chase_angle battle_chase_cells[2] battle_chase_cells only
@@ -45,8 +49,6 @@ game/battle/effect_paths.c cell battle_effect_cells[8] battle_effect_cells only
 game/battle/effect_paths.c cell battle_effect_cells[9] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[0] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[1] battle_effect_cells only
-game/battle/enemy_actions.c place_left_by_draw battle_wide_math[4] battle_wide_math
-game/battle/enemy_actions.c place_left_by_draw battle_wide_math[5] battle_wide_math
 game/battle/enemy_scripts.c battle_enemy_find_reactions battle_enemy_turn battle_enemy_turn
 game/battle/enemy_scripts.c battle_enemy_find_script_place battle_enemy_turn battle_enemy_turn
 game/battle/enemy_scripts.c enemy_choosing_in_cells battle_block_start battle_block_start
@@ -67,8 +69,6 @@ game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_
 game/battle/positions.c combatant_in_work battle_work[0] battle_work
 game/battle/positions.c reach_entry battle_product battle_product                                             # the product the reach test just kept plainly (positions.c distance_squared)
 game/battle/positions.c search_carry battle_product battle_product                                            # the product the search just kept plainly (positions.c distance_squared); the menu window's scaffolding reuses the cell between
-game/battle/random.c draw_entry battle_wide_math[4] battle_wide_math
-game/battle/random.c draw_entry battle_wide_math[5] battle_wide_math
 game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
 game/battle/screen.h screen_cell battle_scratch battle_scratch
 game/battle/screen.h screen_cell battle_scratch[0] battle_scratch only

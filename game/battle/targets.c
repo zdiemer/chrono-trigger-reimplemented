@@ -593,6 +593,9 @@ bool battle_take_marked_candidate(GameState *g)
 
 static uint16_t slot_bit(uint8_t slot) { return slot < 16 ? (uint16_t)(0x8000u >> slot) : 0; }
 
+/* The marking works the bits out by shifting in the direct page's first word. */
+enum { SHIFT_CELL = 0x00 };
+
 // $C1:AD09
 void battle_mark_first_target(GameState *g)
 {
@@ -601,7 +604,9 @@ void battle_mark_first_target(GameState *g)
     if (battle_candidate_count(g) == 0 || first == NO_CANDIDATE)
         return;
     set_battle_action_target_bits(g, slot_bit(first));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
+    /* the shift's cell is left clear: the clock modifier reads it later
+     * (battle/effect_modifiers.c), so it is kept plainly */
+    battle_keep_word(g, SHIFT_CELL, 0);
 }
 
 // $C1:AD35
@@ -616,7 +621,7 @@ void battle_mark_other_targets(GameState *g)
         bits |= slot_bit(battle_candidates(g, place));
     set_battle_action_other_targets(g, bits);
     if (count >= 2)
-        ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
+        battle_keep_word(g, SHIFT_CELL, 0);
     ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, 0));
 }
 

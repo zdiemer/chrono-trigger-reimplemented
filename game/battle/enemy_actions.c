@@ -571,8 +571,10 @@ static void add_to_turn_wait(GameState *g, uint8_t enemy, Selector who, uint8_t 
 {
     select_by(g, enemy, who);
     battle_keep_byte(g, BATTLE_TECH_HITS_LEFT, amount);
-    ORIGINAL_EFFECT(set_battle_wide_math(g, 4, amount & (uint8_t)~TAKE_AWAY));
-    ORIGINAL_EFFECT(set_battle_wide_math(g, 5, 0));
+    /* the change is left in the long arithmetic's quotient cell, which is
+     * game state (battle/arith.h): an effect worked out after reads it back */
+    set_battle_wide_math(g, 4, amount & (uint8_t)~TAKE_AWAY);
+    set_battle_wide_math(g, 5, 0);
     uint8_t slot = battle_candidates(g, 0), wait = combatant_turn_wait(g, slot);
     uint8_t changed = changed_by_signed(wait, amount);
     /* what is left with its top bit set is 1 (0 stays 0) */

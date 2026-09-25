@@ -15,6 +15,7 @@
 #ifndef CT_GAME_BATTLE_ARITH_H
 #define CT_GAME_BATTLE_ARITH_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "state.h"
@@ -53,5 +54,20 @@ uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
  * high word, or what the last long division left of its dividend's. Game
  * state: the random draw divides with it (battle/random.c). */
 uint16_t battle_long_high_word(const GameState *g);
+
+/* The two as the effect code calls them (battle/effect_parts.h), which leaves
+ * in the cells what its instructions before each call leave: the carry goes
+ * into the multiply's leftovers, and into the top of the high word a division
+ * leaves. The division divides the leftover high word and `low`, and leaves
+ * the quotient's low word in its cell as well. */
+uint32_t battle_multiply_words_carrying(GameState *g, uint16_t a, uint16_t b, bool carry);
+BattleLongQuotient battle_divide_carrying(GameState *g, uint16_t low, uint16_t divisor, bool carry);
+
+/* What the cells hold of the last call: its second number (a division's
+ * divisor), and the quotient's (or product's) low word, which a few of the
+ * effect code's steps read back as they are. */
+uint16_t battle_wide_math_second(const GameState *g);
+uint16_t battle_wide_math_quotient(const GameState *g);
+void battle_set_wide_math_quotient(GameState *g, uint16_t v);
 
 #endif

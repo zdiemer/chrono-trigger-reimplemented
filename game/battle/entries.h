@@ -213,6 +213,25 @@ void battle_enemy_takes_turn(Snes *s);
 void battle_enemy_tech_body(Snes *s);
 bool battle_enemy_tech_body_ready(Snes *s);
 void battle_start_action_showing(Snes *s);
+/* battle/effect_work.c: an enemy's action's effect worked out, each kind of
+ * effect as the party's code runs it, and the notes of the enemy's action. */
+void battle_work_out_enemy_tech(Snes *s);
+void battle_work_out_enemy_attack(Snes *s);
+void battle_effect_restore(Snes *s);
+void battle_effect_cure(Snes *s);
+void battle_effect_inflict(Snes *s);
+void battle_effect_hit(Snes *s);
+void battle_effect_drain(Snes *s);
+void battle_effect_steal(Snes *s);
+void battle_effect_restore_showing_hp(Snes *s);
+void battle_effect_hit_repeatedly(Snes *s);
+void battle_effect_item_restore(Snes *s);
+void battle_effect_item_cure(Snes *s);
+void battle_effect_item_status(Snes *s);
+void battle_effect_lose_condition_bit(Snes *s);
+bool battle_effect_ready(Snes *s);
+void battle_note_enemy_tech(Snes *s);
+void battle_note_enemy_attack(Snes *s);
 void battle_enemy_pose_turn(Snes *s);
 bool battle_enemy_pose_turn_ready(Snes *s);
 void battle_enemy_attack_turn(Snes *s);
