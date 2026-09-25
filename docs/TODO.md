@@ -458,8 +458,10 @@ rest waits, is [PLAN.md](PLAN.md).
     "no" with it;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
     `$D2C4`) only run inside `menu_open`'s comparison, so shadow mode compares
-    them there and the timing gate calibrates them only through it; `$C2:D306`
-    (a label moved two pixels right) is inline in `$C2:D2C4` and no entry;
+    them there and the timing gate can't calibrate them alone: what their
+    estimates miss is in `menu_open`'s own rate (28004, against about 5000 for
+    the menus' other bridges); `$C2:D306` (a label moved two pixels right) is
+    inline in `$C2:D2C4` and no entry;
   - a window list's strings that include work RAM (a name, a number) draw
     through the text port's accepted divergences when fuzzing fills that RAM
     at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of

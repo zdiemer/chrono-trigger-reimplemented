@@ -6099,7 +6099,7 @@ twice goes wrong is not worked out (TODO.md); the code is out of the tree
 until it is, since nothing else calls it.
 
 **Timing.** Every entry is calibrated from the library but the ones only
-`menu_open` runs, and a window list charges each command at its handler's
+`menu_open` runs, whose error its own rate takes up (TODO.md), and a window list charges each command at its handler's
 rate (the handlers are in the `LANGUAGE` table: the first cut took their
 addresses from the ROM's table without their bank, so their time went to no
 hand port). The inside's pattern is drawn a row and repeated with block moves
