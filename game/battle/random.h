@@ -15,7 +15,6 @@
 #ifndef CT_GAME_BATTLE_RANDOM_H
 #define CT_GAME_BATTLE_RANDOM_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "state.h"
@@ -25,9 +24,5 @@ uint8_t battle_random(GameState *g, uint8_t lowest, uint8_t limit);
 
 /* $C1:AF79: a number from the second position (the critical hits'). */
 uint8_t battle_random_other(GameState *g, uint8_t lowest, uint8_t limit);
-
-/* The carry a draw of `drawn` leaves its caller: its last compare's, or the
- * add of the lowest number's. */
-bool battle_draw_carry(const GameState *g, uint8_t lowest, uint8_t limit, uint8_t drawn);
 
 #endif

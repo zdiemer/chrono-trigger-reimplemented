@@ -99,12 +99,13 @@ rest waits, is [PLAN.md](PLAN.md).
     the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
-    `$C1:BFA4`/`$C1:EC7F`; from an effect's working out (RECOMP.md, "Phase
-    3, battle chunk 2: an effect worked out"), the controller's reading
-    `$C2:8002` (the clock modifier), the stolen item's giving `$FD:B655`, and
-    whatever an effect kind or a modifier's routine past its table points at;
-    the party's own working out (`$C1:D523`, `$C1:D74F`, `$C1:BF46`), which
-    runs the kinds' ports; a member that comes back once when knocked out
+    `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
+    original (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"):
+    stealing (`$C1:D3BF`, `$C1:E9D5` and the item's giving `$FD:B655`, into
+    the party's inventory or its battle records at `$A0B8`, whose meaning is
+    to work out) and the clock modifier (`$C1:EE27`, whose controller read
+    waits on the console); the party's own working out (`$C1:D523`,
+    `$C1:D74F`, `$C1:BF46`), which runs the kinds' ports; a member that comes back once when knocked out
     (from `$C1:B316`); the timers' kinds' handlers `$C1:8862`-`$C1:8C08`; the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
     `$C1:3760`, the position modes `$C1:762E`; an effect's next
@@ -156,17 +157,15 @@ rest waits, is [PLAN.md](PLAN.md).
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
-  - Reads of the direct page an effect's working out keeps from the
-    original, each in `tools/effects_baseline.txt` with its reason: the drain
-    reads its stat's offset as a word whose high byte (`$1B`) nothing in the
-    effect code sets; the clock modifier adds half the page's first word
-    (`$00`); a steal takes the rare item by the cell (`$1A`) its modifier's
-    chance is left in, whatever modifier it was. No enemy's action reaches
-    the last two (a party tech in `endings-bucket-lavos` reaches the clock,
-    after the target marking, which keeps `$00` plainly); all three need the
-    party's code before them in C to be shown plain. The work also carries the original's Y register
-    (`EffectWork.machine_y`) for the controller's reading, which saves it on
-    the stack: that goes with the call-out.
+  - What an effect's working out still hands the machine as scaffolding
+    (RECOMP.md, "Phase 3, battle chunk 2"): the overflow flag of its last add,
+    which the action's showing (`$C1:BFA4`) saves with the flags across its
+    frame waits and nothing in the battle's banks tests (`battle/overflow.h`,
+    noted in the arithmetic, taken by the work-out's entry); it goes when the
+    showing's step is a port, or when a fuzz run of the showing can finish
+    (it waits on frames). The entries turn away a drain where `$1B` isn't
+    clear, the byte the original reads its stat's offset's high byte from;
+    the party's code before it is where to show the game always leaves it so.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;

@@ -1,6 +1,8 @@
 /* Battle: the battle's random numbers (battle/random.h). */
 #include "battle/random.h"
 
+#include "battle/overflow.h"
+
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -51,9 +53,12 @@ static uint8_t draw(GameState *g, Position p, uint8_t lowest, uint8_t limit)
     if (limit == 0 || limit == lowest)
         return limit;
     uint8_t width = (uint8_t)(limit - lowest), number = battle_random_number(g, position(g, p));
+    ORIGINAL_EFFECT(battle_leave_overflow(battle_add_overflows8(limit, (uint8_t)~lowest, true)));
     if (width == WHOLE_TABLE)
         return number;
-    uint8_t drawn = (uint8_t)(lowest + over_range(g, number, width));
+    uint8_t within = over_range(g, number, width);
+    ORIGINAL_EFFECT(battle_leave_add_overflow8(within, lowest));
+    uint8_t drawn = (uint8_t)(lowest + within);
     step_position(g, p);
     return drawn;
 }
@@ -72,7 +77,7 @@ uint8_t battle_random_other(GameState *g, uint8_t lowest, uint8_t limit)
  * inside, which clears their high bytes, and saves and puts back the long
  * division's quotient cell around its division, leaving that word in X. The
  * carry is its last compare's, or the add of the lowest number's. */
-bool battle_draw_carry(const GameState *g, uint8_t lowest, uint8_t limit, uint8_t drawn)
+static bool draw_carry(const GameState *g, uint8_t lowest, uint8_t limit, uint8_t drawn)
 {
     if (lowest == NO_DRAW)
         return true;
@@ -93,7 +98,7 @@ static void draw_entry(Snes *s, Position p)
     m_set_a8(s, drawn);
     s->cpu.x = (uint16_t)(battle_wide_math(g, QUOTIENT_CELL) | battle_wide_math(g, QUOTIENT_CELL + 1) << 8);
     s->cpu.y &= 0x00FF;
-    m_set_flag(s, CPU_FLAG_C, battle_draw_carry(g, lowest, limit, drawn));
+    m_set_flag(s, CPU_FLAG_C, draw_carry(g, lowest, limit, drawn));
     m_rts(s);
 }
 

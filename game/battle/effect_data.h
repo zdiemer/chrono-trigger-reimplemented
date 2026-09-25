@@ -1,12 +1,12 @@
 /* Battle: the records an action's effect is worked out from, as the ROM
- * holds them.
+ * holds them, decoded.
  *
  * An enemy's attack and each of its techs is a record of eleven bytes: how
  * the action is marked for those it hits, the effect it has, and the modifier
  * applied to what the effect works out. The effect is a record of twelve
  * bytes: its kind (heal, cure, inflict a status, hit, ...) and the numbers the
  * kind takes, which say different things for different kinds. A modifier is
- * a routine and two numbers. */
+ * a routine and two numbers (battle/effect_modifiers.c decodes them). */
 #ifndef CT_GAME_BATTLE_EFFECT_DATA_H
 #define CT_GAME_BATTLE_EFFECT_DATA_H
 
@@ -52,6 +52,78 @@ static inline ActionRecord action_record(const GameState *g, ActionTable table, 
 
 enum { EFFECT_RECORD_BYTES = 12, NO_EFFECT = 0xFF };
 
+/* The kinds of effect, by the record's first byte; 4 and 9-$28 do nothing,
+ * and none is past $2C. */
+typedef enum {
+    EFFECT_RESTORE = 0x00,             /* restore HP or MP by the actor's magic */
+    EFFECT_CURE = 0x01,                /* cure statuses, perhaps revive, perhaps heal */
+    EFFECT_INFLICT = 0x02,             /* a status, where it lands */
+    EFFECT_HIT = 0x03,                 /* a hit, and its chances of a status and a steal */
+    EFFECT_DRAIN = 0x05,               /* HP or MP drained to the actor */
+    EFFECT_STEAL = 0x06,               /* an item stolen */
+    EFFECT_RESTORE_SHOWING_HP = 0x07,  /* restore, and show the actor's HP */
+    EFFECT_HIT_REPEATEDLY = 0x08,      /* hits, several of them */
+    EFFECT_ITEM_RESTORE = 0x29,        /* an item's restoring */
+    EFFECT_ITEM_CURE = 0x2A,           /* an item's cure */
+    EFFECT_ITEM_STATUS = 0x2B,         /* an item's status */
+    EFFECT_LOSE_CONDITION_BIT = 0x2C,  /* the target's condition loses its bit 6 */
+    EFFECT_KINDS = 0x2D,
+} EffectKind;
+
+/* The effect's flags, the first byte: a hit that can't be turned away, one
+ * that can't miss, a barrier and a shield passed; a hit's chances of a status
+ * and to steal. The second: the attacker's weapon's modifier as well, and the
+ * defence scaled by quarters. */
+enum {
+    EFFECT_STEALS = 0x02, EFFECT_GIVES_STATUS = 0x04, EFFECT_CANT_BE_TURNED_AWAY = 0x10, EFFECT_CANT_MISS = 0x20,
+    EFFECT_PASSES_BARRIER = 0x40, EFFECT_PASSES_SHIELD = 0x80,
+};
+enum { EFFECT_WITH_WEAPON_MODIFIER = 0x80, EFFECT_DEFENCE_QUARTERS = 0x03 };
+
+/* What a cure does: bit 7 revives, bit 6 heals as well; a healing's multiple
+ * is the low five bits. What a drain takes: bit 7 HP, bit 6 MP. */
+enum { CURE_REVIVES = 0x80, CURE_HEALS = 0x40, MULTIPLE_BITS = 0x1F, DRAINS_HP = 0x80, DRAINS_MP = 0x40 };
+
+typedef struct {
+    uint8_t kind;
+    union {                                               /* the second and third bytes */
+        struct { uint8_t multiple, restores; } restore;   /* restore */
+        struct { uint8_t how, restores; } cure;          /* cure: how, and a healing's restores */
+        struct { uint8_t status_byte, statuses; } inflict;/* inflict and an item's status */
+        struct { uint8_t chance, statuses; } hit;         /* a hit's chance (a percent) of statuses of the first byte */
+        struct { uint8_t what, share; } drain;            /* drain: what, and the twentieths of its most */
+        struct { uint8_t hits; } repeated;                /* hits repeatedly (and each hit's chance, as a hit's) */
+    };
+    uint8_t aim_stat, evasion_stat;                       /* a hit's test of landing */
+    union {
+        struct { uint8_t formula, defence_stat; } damage; /* a hit's damage */
+        struct { uint8_t base_chance, magic_divisor; } landing; /* a status's chance */
+    };
+    uint8_t flags, more_flags;
+    uint8_t power;
+    uint8_t kinds_turned_away;                            /* the target kinds (STAT_KIND) that turn a hit away */
+    uint8_t misses;                                       /* bit 7 the attacker's miss shows, bit 6 the dodge */
+} EffectRecord;
+
+/* The record decoded for the kind it is worked out as (which is its first
+ * byte, where the work reads it there). */
+static inline EffectRecord effect_record_decode(const uint8_t b[EFFECT_RECORD_BYTES], uint8_t kind)
+{
+    EffectRecord e = { .kind = b[0], .aim_stat = b[3], .evasion_stat = b[4], .flags = b[7], .more_flags = b[8],
+                       .power = b[9], .kinds_turned_away = b[10], .misses = b[11] };
+    e.damage.formula = b[5];
+    e.damage.defence_stat = b[6];
+    switch (kind) {
+    case EFFECT_RESTORE:
+    case EFFECT_RESTORE_SHOWING_HP: e.restore.multiple = (uint8_t)(b[1] & MULTIPLE_BITS); e.restore.restores = b[2]; break;
+    case EFFECT_CURE: e.cure.how = b[1]; e.cure.restores = b[2]; break;
+    case EFFECT_DRAIN: e.drain.what = b[1]; e.drain.share = b[2]; break;
+    case EFFECT_INFLICT: e.inflict.status_byte = b[1]; e.inflict.statuses = b[2]; break;
+    default: e.hit.chance = b[1]; e.hit.statuses = b[2]; break; /* a hit, and the hits repeated */
+    }
+    return e;
+}
+
 /* $CC:89C6 and $CC:7AC9, an effect by number, for the attacks and the
  * techs. */
 static inline uint32_t effect_record_place(ActionTable table, uint8_t effect)
@@ -66,7 +138,7 @@ static inline uint8_t effect_record_byte(const GameState *g, ActionTable table, 
 
 /* ---- Modifiers and items ----------------------------------------------------------------- */
 
-/* $CC:2A05: a modifier is the routine's number and its two numbers. */
+/* $CC:2A05: a modifier is its routine's number and its two numbers. */
 typedef struct {
     uint8_t routine, first, second;
 } ModifierRecord;
@@ -76,12 +148,6 @@ static inline ModifierRecord modifier_record(const GameState *g, uint8_t modifie
     uint32_t at = 0xCC2A05u + (uint32_t)(modifier * 3);
     return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
-
-/* $CC:5E04 and $CC:5E05: the item an enemy can have stolen from it, the
- * common one and the rare one, in its record of seven bytes (by the id it is
- * fighting as, times seven: an offset the caller works out). */
-static inline uint8_t enemy_common_item(const GameState *g, uint16_t record) { return rom_read8(g, 0xCC5E04u + record); }
-static inline uint8_t enemy_rare_item(const GameState *g, uint16_t record) { return rom_read8(g, 0xCC5E05u + record); }
 
 /* $CC:05CD: an item's healing, four bytes an item: what it restores or cures,
  * how much (a multiple, or $0F for all), and the power of it. The original

@@ -12,6 +12,7 @@
  *
  * After the turn the enemy has nothing chosen, and where its action was aimed
  * at an enemy (and doesn't say otherwise) the enemies react. */
+#include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
@@ -220,7 +221,10 @@ static bool attack_turn(Snes *s, ScriptPlace at)
     /* the attack noted for its targets takes the carry the original's test
      * of the attack's number leaves: set for a number past the one that takes
      * the enemy's own detail */
-    TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS, battle_action_number(g) > 1));
+    TIMED_AS(g, 0xFDAB01, effect_note_enemy_action(g, ENEMY_ATTACKS));
+    /* its multiply takes the carry of the test of the attack's number: set for
+     * a number past the one that takes the enemy's own detail */
+    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_action_number(g) > 1));
     enemy_attack_ends(g);
     return true;
 }
@@ -243,8 +247,9 @@ static bool tech_after_targets(Snes *s, uint32_t aim_site, uint32_t message_site
         set_battle_action_kind(g, ACTION_TECH);
     bool past_party = battle_action_targets(g, 0) >= BATTLE_FIRST_ENEMY;
     if (enemy_tech_aimed(g)) {
-        bool carry = battle_other_marks_carry(g, battle_first_mark_carry(g, past_party));
-        TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS, carry));
+        TIMED_AS(g, 0xFDAAD2, effect_note_enemy_action(g, ENEMY_TECHS));
+        /* its multiply takes the carry of the marking of the targets */
+        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_other_marks_carry(g, battle_first_mark_carry(g, past_party))));
         enemy_tech_ends(g);
         if (!show_message(s, message_site, stats_first ? battle_action_message(g) : message))
             return false;

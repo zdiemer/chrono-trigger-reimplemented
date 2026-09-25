@@ -55,19 +55,28 @@ uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
  * state: the random draw divides with it (battle/random.c). */
 uint16_t battle_long_high_word(const GameState *g);
 
-/* The two as the effect code calls them (battle/effect_parts.h), which leaves
- * in the cells what its instructions before each call leave: the carry goes
- * into the multiply's leftovers, and into the top of the high word a division
- * leaves. The division divides the leftover high word and `low`, and leaves
- * the quotient's low word in its cell as well. */
-uint32_t battle_multiply_words_carrying(GameState *g, uint16_t a, uint16_t b, bool carry);
-BattleLongQuotient battle_divide_carrying(GameState *g, uint16_t low, uint16_t divisor, bool carry);
+/* $C1:C92A as the effect code calls it (battle/effect_parts.h): the leftover
+ * high word and `low` over `divisor`, so that a product just made is divided
+ * whole; the quotient's low word is left in its cell as well. Where it
+ * divides, the high word it leaves is clear. */
+BattleLongQuotient battle_divide_leftover(GameState *g, uint16_t low, uint16_t divisor);
 
-/* What the cells hold of the last call: its second number (a division's
- * divisor), and the quotient's (or product's) low word, which a few of the
- * effect code's steps read back as they are. */
-uint16_t battle_wide_math_second(const GameState *g);
+/* The same where the original's caller comes in with its carry set: the high
+ * word the division leaves has its top bit set, which the next division then
+ * divides with (one caller does: the evasion's level bonus, battle/
+ * effect_amounts.c). */
+BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uint16_t divisor);
+
+/* What the cells hold of the last call, which a few of the effect code's
+ * steps read back as they are: the quotient's (or the product's) low word,
+ * and the first number. */
 uint16_t battle_wide_math_quotient(const GameState *g);
+uint16_t battle_wide_math_first(const GameState *g);
 void battle_set_wide_math_quotient(GameState *g, uint16_t v);
+
+/* The word-by-word multiply leaves its second number's cell clear but for the
+ * carry its caller came in with: scaffolding, for the callers whose carry is
+ * set (the multiply itself leaves it 0). */
+void battle_leave_multiply_carry(GameState *g, bool carry);
 
 #endif

@@ -5,6 +5,7 @@
 
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/overflow.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -115,26 +116,46 @@ static void keep_high_word_left(GameState *g, uint16_t v) { set_wide_word(g, RES
 uint16_t battle_long_high_word(const GameState *g) { return wide_word(g, RESULT_HIGH); }
 
 /* It shifts its second number out bit by bit, and the carry the caller had in
- * as its first bit, which is all of it that is left. */
-static void leave_word_product(GameState *g, uint16_t a, uint32_t product, bool carry_in)
+ * as its first bit, which is all of it that is left: the cell is clear but for
+ * that bit, whose value nothing reads (battle_leave_multiply_carry). */
+static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 {
     set_wide_word(g, FIRST, a);
-    set_wide_word(g, SECOND, carry_in);
+    set_battle_wide_math(g, SECOND + 1, 0);
+    ORIGINAL_EFFECT(set_battle_wide_math(g, SECOND, 0));
     set_wide_word(g, RESULT_LOW, (uint16_t)product);
 }
 
-uint32_t battle_multiply_words_carrying(GameState *g, uint16_t a, uint16_t b, bool carry)
+void battle_leave_multiply_carry(GameState *g, bool carry) { set_battle_wide_math(g, SECOND, carry); }
+
+/* The overflow its adds leave (battle/overflow.h): the last add's, the first
+ * number added into the product's high word for each bit of the second; with
+ * no bit set, none. */
+static void leave_multiply_overflow(uint16_t a, uint16_t b)
+{
+    uint16_t high = 0;
+    for (unsigned bit = 0; bit < 16; bit++) {
+        bool carry = false;
+        if (b & (1u << bit)) {
+            battle_leave_add_overflow16(a, high);
+            carry = (uint32_t)a + high > 0xFFFF;
+            high = (uint16_t)(a + high);
+        }
+        high = (uint16_t)(carry << 15 | high >> 1);
+    }
+}
+
+uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 {
     uint32_t product = multiply_words(a, b);
     keep_high_word_left(g, (uint16_t)(product >> 16));
-    leave_word_product(g, a, product, carry);
+    leave_word_product(g, a, product);
+    ORIGINAL_EFFECT(leave_multiply_overflow(a, b));
     return product;
 }
 
-uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b) { return battle_multiply_words_carrying(g, a, b, false); }
-
-uint16_t battle_wide_math_second(const GameState *g) { return wide_word(g, SECOND); }
 uint16_t battle_wide_math_quotient(const GameState *g) { return wide_word(g, RESULT_LOW); }
+uint16_t battle_wide_math_first(const GameState *g) { return wide_word(g, FIRST); }
 void battle_set_wide_math_quotient(GameState *g, uint16_t v) { set_wide_word(g, RESULT_LOW, v); }
 
 // $C1:C92A
@@ -180,15 +201,25 @@ static void leave_long_division(GameState *g, uint32_t dividend, uint16_t diviso
     set_wide_word(g, FIRST, divides(dividend, divisor) ? (uint16_t)(q.quotient >> QUOTIENT_BITS_LEFT_BEHIND) : (uint16_t)dividend);
 }
 
-BattleLongQuotient battle_divide_carrying(GameState *g, uint16_t low, uint16_t divisor, bool carry)
+static BattleLongQuotient divide_leftover(GameState *g, uint16_t low, uint16_t divisor, bool top_bit)
 {
     uint32_t dividend = (uint32_t)battle_long_high_word(g) << 16 | low;
     WideQuotient q = divide_long(dividend, divisor);
     set_wide_word(g, RESULT_LOW, (uint16_t)q.quotient);
     set_wide_word(g, WIDE_REMAINDER, q.remainder);
-    keep_high_word_left(g, division_high_word_left(dividend, divisor, carry));
+    keep_high_word_left(g, division_high_word_left(dividend, divisor, top_bit));
     leave_long_division(g, dividend, divisor, q);
     return (BattleLongQuotient){ q.quotient, q.remainder };
+}
+
+BattleLongQuotient battle_divide_leftover(GameState *g, uint16_t low, uint16_t divisor)
+{
+    return divide_leftover(g, low, divisor, false);
+}
+
+BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uint16_t divisor)
+{
+    return divide_leftover(g, low, divisor, true);
 }
 
 BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t divisor)
@@ -226,7 +257,10 @@ void battle_multiply_8x16(Snes *s)
 void battle_multiply_16x16(Snes *s)
 {
     GameState *g = state_of(s);
-    battle_multiply_words_carrying(g, wide_word(g, FIRST), wide_word(g, SECOND), m_flag(s, CPU_FLAG_C));
+    battle_multiply_words(g, wide_word(g, FIRST), wide_word(g, SECOND));
+    /* the carry its caller came in with, which the caller's next division can
+     * take as its divisor */
+    battle_leave_multiply_carry(g, m_flag(s, CPU_FLAG_C));
     s->cpu.a = BATTLE_PAGE;
     m_set_flag(s, CPU_FLAG_C, false);
     m_sep(s, CPU_FLAG_M);
@@ -239,7 +273,11 @@ void battle_multiply_16x16(Snes *s)
 void battle_divide(Snes *s)
 {
     GameState *g = state_of(s);
-    battle_divide_carrying(g, wide_word(g, FIRST), wide_word(g, SECOND), m_flag(s, CPU_FLAG_C));
+    /* the caller's carry picks the high word the division leaves */
+    if (m_flag(s, CPU_FLAG_C))
+        battle_divide_leftover_marked(g, wide_word(g, FIRST), wide_word(g, SECOND));
+    else
+        battle_divide_leftover(g, wide_word(g, FIRST), wide_word(g, SECOND));
     s->cpu.a = BATTLE_PAGE;
     m_rts(s);
 }

@@ -119,10 +119,15 @@ class Bot:
         return self.state.targets[0] == want
 
     def back_out(self, member):
-        for _ in range(4):
+        """Press B until the member's command menu is back (or the turn has gone). Each
+        press waits for the menu to move and is released before the next: presses held
+        back to back are one press to the game, which left the bot in a tech list."""
+        for _ in range(8):
             if self.state.member != member or (self.state.page == 0 and self.state.targeting == 0):
                 return
-            self.press("B", None, 10)
+            before = (self.state.page, self.state.targeting)
+            self.press("B", lambda s, b=before: (s.page, s.targeting) != b or s.member != member, 20)
+            self.step(2)
 
     # ---- actions -------------------------------------------------------------------------
 
