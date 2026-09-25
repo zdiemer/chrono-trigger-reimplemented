@@ -203,9 +203,38 @@ RecordsState object_records_state(const GameState *g, FieldObject obj)
 void object_mark_records_built(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, RECORDS_BUILT_BIT); }
 void object_records_to_build(GameState *g, FieldObject obj) { set_field_object_sprite_state(g, obj, 0); }
 
-/* The battle's placement byte: $FF leaves it to the battle. */
-enum { THE_BATTLE_PLACES_IT = 0xFF };
-void object_let_the_battle_place(GameState *g, FieldObject obj) { set_field_object_battle_info(g, obj, THE_BATTLE_PLACES_IT); }
+/* The frame drawn, kept as its number; $FF is none. */
+enum { NO_FRAME_DRAWN = 0xFF };
+void object_forget_frame_drawn(GameState *g, FieldObject obj) { set_field_object_frame_drawn(g, obj, NO_FRAME_DRAWN); }
+uint8_t object_frame_drawn(const GameState *g, FieldObject obj) { return field_object_frame_drawn(g, obj); }
+void object_set_frame_drawn(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_frame_drawn(g, obj, frame); }
+/* A part counted on as the byte it is kept in: past 127 parts it would reach
+ * the built bit. */
+void object_note_frame_part_drawn(GameState *g, FieldObject obj)
+{
+    RecordsState st = object_records_state(g, obj);
+    uint8_t stored = (uint8_t)((st.built ? RECORDS_BUILT_BIT : 0) | st.changed);
+    set_field_object_sprite_state(g, obj, (uint8_t)(stored + 1));
+}
+
+/* Its sprites' look in the frames' form: the attributes (palette, page, and
+ * one of its halves' priorities), and where the tiles are. */
+uint8_t object_frame_attributes(const GameState *g, FieldObject obj, bool upper_half)
+{
+    SpritePriorities priorities = object_sprite_priorities(g, obj);
+    uint8_t priority = upper_half ? priorities.upper_stored : priorities.lower_stored;
+    return (uint8_t)(field_object_palette(g, obj) | (field_object_sprite_tiles(g, obj) >> 8) | priority);
+}
+uint16_t object_sprite_tiles(const GameState *g, FieldObject obj) { return field_object_sprite_tiles(g, obj); }
+
+ObjectGraphics object_graphics(const GameState *g, FieldObject obj)
+{
+    return (ObjectGraphics){ field_object_graphics_bank(g, obj), field_object_graphics_address(g, obj) };
+}
+ObjectGraphics object_frame_descriptions(const GameState *g, FieldObject obj)
+{
+    return (ObjectGraphics){ field_object_frames_bank(g, obj), field_object_frames_address(g, obj) };
+}
 
 /* ---- Facing ------------------------------------------------------------------------------ */
 
@@ -313,7 +342,7 @@ void object_set_layering(GameState *g, FieldObject obj, ObjectLayering layering)
         object_layer_as_the_map(g, obj, object_tile(g, obj));
     else
         object_set_sprite_priorities(g, obj, layering.upper, layering.lower);
-    object_let_the_battle_place(g, obj);
+    object_forget_frame_drawn(g, obj);
     object_end_frame_time(g, obj);
 }
 

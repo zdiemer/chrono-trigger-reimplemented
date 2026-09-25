@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+#include "field/object.h"
 #include "snes/system.h"
 
 /* Where the sprite table is in low RAM (field_sprite_table), which the
@@ -32,5 +33,16 @@ bool field_sprites_update_in_tables(Snes *s);
 bool field_sprites_place_object(Snes *s);
 bool field_sprites_place_8(Snes *s);
 bool field_sprites_place_12(Snes *s);
+
+/* For the frame builder (field/frames.c): the claim of the tile areas a new
+ * frame is drawn into, a sprite of the frame's data the records are rebuilt
+ * from, and whether the object's records lie inside their tables. */
+typedef struct {
+    int8_t x, y;
+    uint8_t tile, attributes;
+} FrameSprite;
+bool sprites_claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout);
+void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
+bool sprites_records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);
 
 #endif

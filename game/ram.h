@@ -679,6 +679,10 @@
  * cleared) */
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT 0x7E0178u
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT_DP 0x78u /* page field */
+/* Where the next entry of field_vram_queue_source's queue goes, as an offset (entry * 2): the
+ * frame queue starts it at 0 each frame and the frame builder adds an entry for each frame it
+ * finishes */
+#define RAM_FIELD_VRAM_QUEUE_END 0x7E0179u
 /* OAM entry after the last one each sprite range used last frame; entries beyond this frame's
  * are hidden [3 x $2 bytes, by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set)] */
 #define RAM_FIELD_SPRITE_RANGE_END 0x7E017Bu
@@ -727,6 +731,9 @@
  * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes] */
 #define RAM_FIELD_WORK 0x7E01C1u
 #define RAM_FIELD_WORK_DP 0xC1u              /* page field */
+/* The frame builder's count of a run of a frame's tiles still to draw, a word [2 bytes] */
+#define RAM_FIELD_FRAME_TILES_LEFT 0x7E01C9u
+#define RAM_FIELD_FRAME_TILES_LEFT_DP 0xC9u  /* page field */
 /* Sprites of the current object still to write while the OAM table is built */
 #define RAM_FIELD_SPRITES_LEFT 0x7E01C9u
 #define RAM_FIELD_SPRITES_LEFT_DP 0xC9u      /* page field */
@@ -739,6 +746,15 @@
 /* Where in bank $7F the frame builder puts the next sprite tile it copies [2 bytes] */
 #define RAM_FIELD_SPRITE_TILE_OFFSET 0x7E01D0u
 #define RAM_FIELD_SPRITE_TILE_OFFSET_DP 0xD0u /* page field */
+/* The bank of field_sprite_tile_offset, $7F, which the frame builder sets */
+#define RAM_FIELD_SPRITE_TILE_BANK 0x7E01D2u
+#define RAM_FIELD_SPRITE_TILE_BANK_DP 0xD2u  /* page field */
+/* A long pointer to the frame description the frame builder draws from
+ * (object_frame_descriptions) [3 bytes] */
+#define RAM_FIELD_FRAME_DESCRIPTION 0x7E01D3u
+#define RAM_FIELD_FRAME_DESCRIPTION_DP 0xD3u /* page field */
+#define RAM_FIELD_FRAME_DESCRIPTION_ADDRESS 0x7E01D3u /* The description's address */
+#define RAM_FIELD_FRAME_DESCRIPTION_BANK 0x7E01D5u /* Its bank */
 /* A long pointer to an object's current animation frame entry: the frame read sets the address,
  * its caller the bank [3 bytes] */
 #define RAM_FIELD_FRAME_ENTRY 0x7E01D6u
@@ -876,6 +892,11 @@
 #define RAM_FIELD_VRAM_QUEUE_USED 0x7E09A0u
 #define RAM_FIELD_VRAM_QUEUE_USED_COUNT 8u
 #define RAM_FIELD_VRAM_QUEUE_USED_STRIDE 0x02u
+/* The byte after each entry's field_vram_queue_used, which the frame builder's word-wide marking
+ * of the entries also writes; nothing reads it [8 x $2 bytes, by queue entry] */
+#define RAM_FIELD_VRAM_QUEUE_USED_HIGH 0x7E09A1u
+#define RAM_FIELD_VRAM_QUEUE_USED_HIGH_COUNT 8u
+#define RAM_FIELD_VRAM_QUEUE_USED_HIGH_STRIDE 0x02u
 /* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
  * origin) [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SCREEN_X 0x7E0A00u
@@ -925,6 +946,12 @@
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY 0x7E0C00u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_STRIDE 0x02u
+/* Where the object's sprite tiles are in VRAM: the first tile's number (9 bits, the high byte's
+ * bit 0 the sprite attributes' page bit); its sprites' tiles follow two apart, and a new frame's
+ * are sent there [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_SPRITE_TILES 0x7E0D00u
+#define RAM_FIELD_OBJECT_SPRITE_TILES_COUNT 64u
+#define RAM_FIELD_OBJECT_SPRITE_TILES_STRIDE 0x02u
 /* Where in bank $7F the object's new frame's tiles are drawn: the first of the
  * field_frame_staging areas it claimed [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_FRAME_STAGING 0x7E0D80u
@@ -952,17 +979,23 @@
 #define RAM_FIELD_OBJECT_IN_VIEW 0x7E0F00u
 #define RAM_FIELD_OBJECT_IN_VIEW_COUNT 64u
 #define RAM_FIELD_OBJECT_IN_VIEW_STRIDE 0x02u
-/* A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453
- * into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF [64 x $2 bytes, by object
- * slot (X = slot * 2)] */
-#define RAM_FIELD_OBJECT_BATTLE_INFO 0x7E0F01u
-#define RAM_FIELD_OBJECT_BATTLE_INFO_COUNT 64u
-#define RAM_FIELD_OBJECT_BATTLE_INFO_STRIDE 0x02u
+/* The frame whose tiles the object's sprites show, which the frame builder skips drawing again;
+ * $FF (coming into view, event $8E's layering) draws whichever comes next. A battle's start
+ * keeps it with the party's places ($C0:0453 into $7E:29B4) and its end puts it back ($C0:083B
+ * from $7E:29C3) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAME_DRAWN 0x7E0F01u
+#define RAM_FIELD_OBJECT_FRAME_DRAWN_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAME_DRAWN_STRIDE 0x02u
 /* Sprite priority mode: bit 7 takes the priority from the map tile, else bits 0-1 and 4-5 give
  * it; bits 2-3 pick the OAM range [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_PRIORITY_MODE 0x7E0F80u
 #define RAM_FIELD_OBJECT_PRIORITY_MODE_COUNT 64u
 #define RAM_FIELD_OBJECT_PRIORITY_MODE_STRIDE 0x02u
+/* The palette bits of the object's sprites' attributes, which the frame builder puts in each
+ * sprite of a new frame [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_PALETTE 0x7E0F81u
+#define RAM_FIELD_OBJECT_PALETTE_COUNT 64u
+#define RAM_FIELD_OBJECT_PALETTE_STRIDE 0x02u
 /* Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object [64 x
  * $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_STEP_LENGTH 0x7E1000u
@@ -991,16 +1024,37 @@
 #define RAM_FIELD_OBJECT_CHARACTER 0x7E1101u
 #define RAM_FIELD_OBJECT_CHARACTER_COUNT 64u
 #define RAM_FIELD_OBJECT_CHARACTER_STRIDE 0x02u
+/* The bank of the object's graphics set (field_sprite_graphics), which its frames' tiles come
+ * from [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_GRAPHICS_BANK 0x7E1200u
+#define RAM_FIELD_OBJECT_GRAPHICS_BANK_COUNT 64u
+#define RAM_FIELD_OBJECT_GRAPHICS_BANK_STRIDE 0x02u
 /* Bits 0-1: how many sprite records the object draws (4, 8, 12 or 24) [64 x $2 bytes, by object
  * slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SPRITE_LAYOUT 0x7E1201u
 #define RAM_FIELD_OBJECT_SPRITE_LAYOUT_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_LAYOUT_STRIDE 0x02u
+/* The address of the object's graphics set (field_sprite_graphics) [64 x $2 bytes, by object
+ * slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_GRAPHICS_ADDRESS 0x7E1280u
+#define RAM_FIELD_OBJECT_GRAPHICS_ADDRESS_COUNT 64u
+#define RAM_FIELD_OBJECT_GRAPHICS_ADDRESS_STRIDE 0x02u
+/* The bank of the object's frame descriptions: for each frame, the tiles of its sprites (four
+ * words a sprite, bit 14 mirrored) and then each sprite's X and Y offset [64 x $2 bytes, by
+ * object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAMES_BANK 0x7E1300u
+#define RAM_FIELD_OBJECT_FRAMES_BANK_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAMES_BANK_STRIDE 0x02u
 /* The frame shown in animation mode 3 (static frame) [64 x $2 bytes, by object slot (X = slot *
  * 2)] */
 #define RAM_FIELD_OBJECT_STATIC_FRAME 0x7E1301u
 #define RAM_FIELD_OBJECT_STATIC_FRAME_COUNT 64u
 #define RAM_FIELD_OBJECT_STATIC_FRAME_STRIDE 0x02u
+/* Where the object's frame descriptions start: frame n's at n times a description's size, summed
+ * in 16 bits [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAMES_ADDRESS 0x7E1380u
+#define RAM_FIELD_OBJECT_FRAMES_ADDRESS_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAMES_ADDRESS_STRIDE 0x02u
 /* Size of one facing's part of the object's animation frame table (facing 1-3 add it 1-3 times
  * to field_object_frame_table) [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_FACING_TABLE_SIZE 0x7E1480u

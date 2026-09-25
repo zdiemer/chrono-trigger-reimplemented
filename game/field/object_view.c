@@ -122,15 +122,15 @@ static bool belongs_in_view(const GameState *g, FieldObject obj)
 }
 
 /* Coming into view: it is in view, in no row yet, with its animation
- * starting afresh, its sprite records to be built, and no place kept for a
- * battle. */
+ * starting afresh, its sprite records to be built, and its next frame drawn
+ * whatever it is. */
 static void come_into_view(GameState *g, FieldObject obj)
 {
     object_out_of_rows(g, obj);
     object_set_in_view(g, obj, true);
     object_restart_animation(g, obj);
     object_records_to_build(g, obj);
-    object_let_the_battle_place(g, obj);
+    object_forget_frame_drawn(g, obj);
 }
 
 /* Left view: a dialog waiting on the object ends, unless the dialog box has

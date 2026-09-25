@@ -24,6 +24,7 @@
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/field.h"
+#include "field/frames.h"
 #include "field/graphics.h"
 #include "field/layers.h"
 #include "field/line_effects.h"
@@ -1407,6 +1408,8 @@ const NativeEntry game_natives[] = {
       .guard = field_tile_copy_keeps_saved_y },
     { .addr = 0xC0CB3A, .name = "field_read_animation_frame", .fn = field_read_animation_frame, NEEDS_M8_X8_BINARY,
       .cost_milli = 3914, .dont_care = DC_Y | DC_N | DC_Z, .guard = field_object_frames_in_bank },
+    { .addr = 0xC0CAD9, .name = "field_draw_next_frame", .fn = field_draw_next_frame, NEEDS_M8_X8_BINARY,
+      .cost_milli = 5755, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z, .guard = field_frames_can_draw },
 
     /* menu */
     { .addr = 0xC25E89, .name = "menu_draw_glyph_line", .fn = menu_draw_glyph_line, NEEDS_M8_X16,

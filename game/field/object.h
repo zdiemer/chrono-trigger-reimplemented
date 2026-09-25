@@ -165,8 +165,9 @@ void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t b
 void object_set_sprites_high_bits(GameState *g, FieldObject obj, unsigned first, uint8_t bits);
 
 /* Its sprite records' state: whether they have been built since the object
- * came into view, and how many of the frame's sprites the frame builder has
- * changed since. An object coming into view has none to build from yet. */
+ * came into view, and how many parts of a new frame the frame builder has
+ * drawn since (field/frames.c), which the records are rebuilt from once the
+ * frame is whole. An object coming into view has none to build from yet. */
 typedef struct {
     bool built;
     uint8_t changed;
@@ -174,11 +175,32 @@ typedef struct {
 RecordsState object_records_state(const GameState *g, FieldObject obj);
 void object_mark_records_built(GameState *g, FieldObject obj);
 void object_records_to_build(GameState *g, FieldObject obj);
+void object_note_frame_part_drawn(GameState *g, FieldObject obj);
 
-/* Where a battle on the map puts the object is the battle's to choose: what
- * coming into view and a script's layering leave (the byte the field hands
- * the battle with the party's placement, re/ram.toml). */
-void object_let_the_battle_place(GameState *g, FieldObject obj);
+/* The frame its sprites' tiles show, which the frame builder doesn't draw
+ * again. Coming into view and a script's layering forget it, so the next
+ * frame is drawn whatever it is (the layering changes the sprites'
+ * attributes, which a frame's drawing sets). A battle keeps it for the
+ * party (re/ram.toml). */
+uint8_t object_frame_drawn(const GameState *g, FieldObject obj);
+void object_set_frame_drawn(GameState *g, FieldObject obj, uint8_t frame);
+void object_forget_frame_drawn(GameState *g, FieldObject obj);
+
+/* Where the object's pictures come from: its graphics set, whose tiles its
+ * frames are drawn from, and its frame descriptions, which say which tiles
+ * each frame's sprites show and where (field/frames.c). A long address. */
+typedef struct {
+    uint8_t bank;
+    uint16_t address;
+} ObjectGraphics;
+ObjectGraphics object_graphics(const GameState *g, FieldObject obj);
+ObjectGraphics object_frame_descriptions(const GameState *g, FieldObject obj);
+/* Where its sprites' tiles are in VRAM: the first tile's number, and the
+ * sprite attributes' page bit above it. */
+uint16_t object_sprite_tiles(const GameState *g, FieldObject obj);
+/* A sprite of its frames' attributes: its palette, its tiles' page, and the
+ * priority of its upper or its lower half (object_set_sprite_priorities). */
+uint8_t object_frame_attributes(const GameState *g, FieldObject obj, bool upper_half);
 
 /* Before a map's objects first run their scripts: none solid, none falling. */
 void object_start_on_the_map(GameState *g, FieldObject obj);
@@ -323,6 +345,11 @@ enum {
 };
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
+/* The frame a script has it hold (ANIMATE_SHOW_FRAME). */
+uint8_t object_held_frame(const GameState *g, FieldObject obj);
+/* Whether its frame tables lie in their bank, where taking its next frame
+ * (object_take_next_frame) reads them as the original does. */
+bool object_frame_tables_in_bank(const GameState *g, FieldObject obj);
 
 /* What a script does with an object's animation. A one-off plays for a
  * number of half passes: a pass is the animation's times run through once,
@@ -365,6 +392,7 @@ typedef struct {
     uint8_t frame;
 } ObjectFrame;
 ObjectFrame object_take_next_frame(GameState *g, FieldObject obj);
+ObjectFrame object_peek_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank);
 
 /* ---- Motion (field/motion.c, field/object.c) ------------------------------------------- */
 

@@ -224,6 +224,19 @@ static uint8_t frame_y_offset(const GameState *g, SpriteRecord r)
 }
 static uint16_t frame_look(const GameState *g, SpriteRecord r) { return frame_word(g, r, RECORD_TILE); }
 
+/* A new frame's sprite, which the frame builder puts in the frame's data
+ * (field/frames.c): its offsets (the X kept as a word), its tile and its
+ * attributes. */
+void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite)
+{
+    unsigned at = sprite_record(g, obj, n).at;
+    set_field_sprite_frame_data_byte(g, at + RECORD_X_OFFSET, (uint8_t)sprite.x);
+    set_field_sprite_frame_data_byte(g, at + RECORD_X_OFFSET + 1, sprite.x < 0 ? 0xFF : 0x00);
+    set_field_sprite_frame_data_byte(g, at + RECORD_Y_OFFSET, (uint8_t)sprite.y);
+    set_field_sprite_frame_data_byte(g, at + RECORD_TILE, sprite.tile);
+    set_field_sprite_frame_data_byte(g, at + RECORD_ATTRIBUTES, sprite.attributes);
+}
+
 
 /* The object's sprites as a list, from its records and its high bits. */
 static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)
@@ -567,6 +580,24 @@ static bool claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout
         return true;
     }
     return false;
+}
+
+/* The frame builder's claim, timed as the routine that makes it. */
+bool sprites_claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout)
+{
+    enum { CLAIM_4 = 0xC0E952, CLAIM_8 = 0xC0E97A, CLAIM_12 = 0xC0E9AA };
+    bool claimed;
+    TIMED_AS(g, layout == LAYOUT_4 ? CLAIM_4 : layout == LAYOUT_8 ? CLAIM_8 : CLAIM_12,
+             claimed = claim_frame_areas(g, obj, layout));
+    return claimed;
+}
+
+/* Whether an object's records, and so its frame's data, lie inside the tables
+ * for a layout. */
+static bool records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);
+bool sprites_records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout)
+{
+    return records_in_the_tables(g, obj, layout);
 }
 
 // $C0:E935
