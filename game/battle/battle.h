@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "original_effects.h"
 #include "state.h"
 #include "vars.h"
 
@@ -19,6 +20,24 @@ enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PAR
        BATTLE_FIRST_ENEMY = BATTLE_PARTY_SIZE };
 
 static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
+
+/* A combatant's stat block (battle_stats) is $80 bytes. */
+enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
+
+/* How the battle was set up (battle_setup_flags; the vblank keeps a copy,
+ * battle_setup_flags_copy). */
+enum {
+    BATTLE_SETUP_PARTY_OFF_GRID = 0x04, /* the party stands off the battlefield's grid */
+    BATTLE_SETUP_DEMO = 0x20,           /* a demo battle: the party acts at once, and any button ends it */
+    BATTLE_SETUP_NO_RUNNING = 0x80,     /* L and R held don't run away */
+};
+
+static inline bool battle_is_demo(const GameState *g) { return (battle_setup_flags(g) & BATTLE_SETUP_DEMO) != 0; }
+
+/* Between actions (battle/damage.c): the action's damage table cleared, and
+ * the numbers shown over the combatants it hit. */
+void battle_clear_damage_table(GameState *g);
+void battle_clear_numbers_shown(GameState *g);
 
 /* The battlefield's objects: the combatants' are the eleven from $0C on, in
  * battle slot order. */
@@ -39,5 +58,52 @@ static inline uint8_t combatant_y(const GameState *g, unsigned slot)
     unsigned object = battle_object_of(slot);
     return object < BATTLE_OBJECT_Y_COUNT ? battle_object_y(g, object) : battle_object_y_unchecked(g, object);
 }
+
+/* ---- The direct page's working cells (battle_low_scratch) --------------------------------- */
+
+/* The battle's code works in the direct page's first cells. What a port
+ * leaves there for the original's code or for shadow mode alone is
+ * scaffolding, written with these through ORIGINAL_EFFECT. */
+static inline void battle_leave_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
+{
+    set_battle_low_scratch(g, at, (uint8_t)v);
+    set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
+}
+
+/* Some of them carry a value on to a later reader that takes it as game
+ * input, so the enemies' scripts, their turns and the selectors keep what
+ * they write there plainly (battle_keep_*):
+ *
+ *   - $0B is the high byte of the stat offset the scripts' stat test reads
+ *     (battle/enemy_conditions.c): whatever the last word the choosing or a
+ *     selector kept at $0A-$0B left there;
+ *   - $0E is what an enemy tech's hits are noted as (battle/enemy_actions.c)
+ *     where the tech's targeting ($C1:C1DD, the original's) doesn't set it,
+ *     which is whatever was last left there: the tech's number, the end of a
+ *     further target's selection, or before the tech anything an action or a
+ *     condition kept there;
+ *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
+ *     candidate past the combatants (the stat test's doubled walk goes past
+ *     the list, a candidate that is none) is read wherever the table of the
+ *     stat blocks' places points, which can be these cells, so the
+ *     conditions that read candidates' stats keep what they write there
+ *     before and while they read. */
+enum {
+    BATTLE_NUMBER_TESTED = 0x08,
+    BATTLE_STAT_OFFSET_LOW = 0x0A,
+    BATTLE_STAT_OFFSET_HIGH = 0x0B,
+    BATTLE_TECH_HITS_LEFT = 0x0E,
+};
+
+static inline void battle_keep_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+static inline void battle_keep_word(GameState *g, unsigned at, uint16_t v) { battle_leave_word(g, at, v); }
+
+/* A word kept at $0A-$0B, whose high byte is the stat offset's. */
+static inline void battle_keep_stat_offset_word(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_STAT_OFFSET_LOW, v); }
+static inline uint8_t battle_stat_offset_high(const GameState *g) { return battle_low_scratch(g, BATTLE_STAT_OFFSET_HIGH); }
+
+static inline void battle_keep_tech_hits_left(GameState *g, uint8_t v) { set_battle_low_scratch(g, BATTLE_TECH_HITS_LEFT, v); }
+static inline uint8_t battle_tech_hits_left(const GameState *g) { return battle_low_scratch(g, BATTLE_TECH_HITS_LEFT); }
 
 #endif

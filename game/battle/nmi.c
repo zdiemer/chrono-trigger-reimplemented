@@ -32,8 +32,8 @@
 static bool start_held(Platform *pf, PfOrigin o) { return (in_read_high(pf, o, 0) & (IN_BUTTON_START >> 8)) != 0; }
 static bool low_held(Platform *pf, PfOrigin o, uint16_t button) { return (in_read_low(pf, o, 0) & button) != 0; }
 
-/* The battle's setup can forbid the pause; it is taken only in the fight. */
-enum { SETUP_NO_PAUSE = 0x20, MODE_FIGHT = 1 };
+/* A demo battle can't be paused, and the pause is taken only in the fight. */
+enum { MODE_FIGHT = 1 };
 
 /* ---- The frame -------------------------------------------------------------------------- */
 
@@ -69,7 +69,7 @@ static void count_frame(GameState *g)
 
 static bool pause_allowed(const GameState *g)
 {
-    return battle_mode(g) == MODE_FIGHT && !(battle_setup_flags_copy(g) & SETUP_NO_PAUSE) && !battle_pause_blocked(g);
+    return battle_mode(g) == MODE_FIGHT && !(battle_setup_flags_copy(g) & BATTLE_SETUP_DEMO) && !battle_pause_blocked(g);
 }
 
 /* Start pauses and unpauses the fight, once per press. Where the pause isn't

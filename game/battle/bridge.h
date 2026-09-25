@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/battle.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "state.h"
@@ -63,9 +64,8 @@ bool battle_widths_m8_x16(const Snes *s);
 
 /* ---- What the registers name -------------------------------------------------------------- */
 
-/* A combatant's stat block is $80 bytes, and an index register holding its
- * offset names the combatant. */
-enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
+/* An index register holding a stat block's offset (battle.h) names the
+ * combatant. */
 static inline unsigned battle_slot_of_stat_block(uint16_t offset) { return offset / BATTLE_STAT_BLOCK_BYTES; }
 bool battle_names_stat_block(uint16_t offset);
 bool battle_names_combatant(uint16_t slot);

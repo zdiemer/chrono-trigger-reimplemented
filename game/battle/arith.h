@@ -30,4 +30,26 @@ typedef struct {
 } BattleQuotient;
 BattleQuotient battle_divide_by(GameState *g, uint16_t dividend, uint8_t divisor);
 
+/* $C1:C92A: a long divided by a word, with the remainder. Nothing is divided
+ * when the dividend's low word is 0, whatever its high word, nor by 0: the
+ * quotient and the remainder are 0 then. The numbers are left in the cells
+ * the original's callers hand them over in, as its code leaves them, except
+ * the quotient's cell, which the random draw (battle/random.h) saves and puts
+ * back around its division. */
+typedef struct {
+    uint32_t quotient;
+    uint16_t remainder;
+} BattleLongQuotient;
+BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t divisor);
+
+/* $C1:C90B: a word times a word, a 32-bit product, the numbers and the
+ * product left in the cells the original's callers use, as its code leaves
+ * them with the caller's carry clear. */
+uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
+
+/* The long arithmetic's leftover high word: the last word-by-word product's
+ * high word, or what the last long division left of its dividend's. Game
+ * state: the random draw divides with it (battle/random.c). */
+uint16_t battle_long_high_word(const GameState *g);
+
 #endif
