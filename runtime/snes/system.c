@@ -76,6 +76,8 @@ static void clone_pointers(Snes *dst)
     dst->cpu.bus.ctx = &dst->bus;
     dst->apu.spc.bus.ctx = &dst->apu;
     dst->bus.wram_written = NULL;
+    dst->bus.wram_scaffold = NULL;
+    dst->bus.scaffolding = NULL;
     dst->bus.on_access = NULL;
     dst->cpu.on_insn = NULL;
     dst->apu.on_insn = NULL;

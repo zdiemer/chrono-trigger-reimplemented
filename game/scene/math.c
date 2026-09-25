@@ -102,7 +102,7 @@ static void multiply_signed(GameState *g, SceneProgramPage page)
 {
     uint16_t a = scene_call_first(g, page);
     uint8_t b = (uint8_t)scene_call_second(g, page);
-    uint8_t leftover = (uint8_t)(scene_call_product(g, page) >> 16);
+    uint8_t leftover = scene_call_product_third_byte(g, page);
     bool negative = ((a >> 8) ^ b) & 0x80;
     uint16_t size_a = magnitude16(a);
     uint8_t size_b = magnitude8(b);

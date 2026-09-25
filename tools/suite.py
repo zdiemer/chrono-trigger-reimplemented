@@ -24,7 +24,10 @@ scripts must reach their outcomes in the shipping mode
 liveness analysis agrees with (tools/dontcare_check.py, static, with the call
 logs the shadow runs just wrote); and no port may transliterate the assembly
 where one didn't before (tools/portstyle.py, static, a ratchet against its
-baseline). Exit status is 0 only when all of that holds.
+baseline); and no port's logic may read what some port writes only as
+scaffolding where none did before (tools/effects_check.py, static and over the
+vblank check's shipping-mode runs, a ratchet against its baseline). Exit status
+is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
 that starts from a cartridge save finds it by CRC-32 among the committed ones
@@ -229,6 +232,23 @@ def check_dontcare(args, ctx):
     return rc == 0, "dontcare", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_effects(args, ctx):
+    """No port reads, as logic, what some port writes only as scaffolding
+    (tools/effects_check.py, a ratchet against its baseline): in the source,
+    and in the shipping-mode runs the vblank check just made, whose logs list
+    the reads it caught (ct_dev --scaffold-reads)."""
+    cmd = [sys.executable, str(ROOT / "tools/effects_check.py"), "--check"]
+    logs = [args.out / "vblank" / ("%s-ship.log" % name) for name in ctx["movies"]]
+    logs = [str(p) for p in logs if p.exists()]
+    if logs:
+        cmd += ["--runs"] + logs
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    if not logs:
+        summary += " (no shipping-mode logs: the source only)"
+    return rc == 0, "effects", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 def check_portstyle(args, ctx):
     """No port transliterates the assembly where one didn't before
     (tools/portstyle.py, static, a ratchet against its baseline)."""
@@ -244,6 +264,7 @@ CHECKS = (
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
+    ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
 )
 

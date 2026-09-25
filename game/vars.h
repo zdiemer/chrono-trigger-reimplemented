@@ -6959,6 +6959,10 @@ void set_scene_call_dividend(GameState *g, SceneProgramPage page, uint32_t v);
 /* The multiplies' 32-bit product */
 uint32_t scene_call_product(const GameState *g, SceneProgramPage page);
 void set_scene_call_product(GameState *g, SceneProgramPage page, uint32_t v);
+/* The product's third byte as the last routine to use the cells left it, which the signed
+ * multiply adds into its product */
+uint8_t scene_call_product_third_byte(const GameState *g, SceneProgramPage page);
+void set_scene_call_product_third_byte(GameState *g, SceneProgramPage page, uint8_t v);
 /* The 32-bit divide's divisor */
 uint32_t scene_call_divisor(const GameState *g, SceneProgramPage page);
 void set_scene_call_divisor(GameState *g, SceneProgramPage page, uint32_t v);

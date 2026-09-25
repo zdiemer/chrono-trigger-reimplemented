@@ -3,7 +3,7 @@
  *
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--budget N]
- *           [--keep AREA]... [--fill AREA=lo-hi]... [--range A|X|Y=lo-hi]...
+ *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
  *           [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
@@ -45,6 +45,12 @@
  * operands point into WRAM, or an object's fields at [$6D]+$20 stay in range.
  * Areas at pointers are applied after the rest (and after the registers), in
  * order, so a pointer can be filled first and the fields it reaches after.
+ * An area's range can take every STEP-th byte of it, AREA:STEP, for a field
+ * of each record in a table; and a fill can pick each element from a set,
+ * AREA=V,V,... (as wide as the widest value written: 2 hex digits a byte, 4 a
+ * word, low byte first), so a script's place or a record's offset is one of
+ * the real ones; or copy another cell's bytes, AREA=@BBAAAA, which is applied
+ * after every other area, so two cells the game keeps equal are.
  * --range A|X|Y=lo-hi limits a register's random value, for example to keep
  * script offsets inside the script buffer: indexing past the end of a data
  * area reaches I/O space, whose open bus reads depend on instruction fetches
@@ -67,6 +73,12 @@
  * there hides a wrong declaration. It is the evidence a don't-care
  * declaration liveness can't prove carries (docs/PORTING.md, "Declarations
  * liveness can't prove"). The states are those of the same seed without it.
+ * --stop-at-call BBAAAA (up to 8) ends a state's comparison at the port's
+ * call-out to that routine: the machines are compared at the callee's entry,
+ * with the call's don't-care set, the original run up to the same call. For a
+ * port that yields to the next frame through a task switch (the menus'
+ * `$C2:821E`), which never returns on the stack it was called on, so a state
+ * would otherwise be skipped as a call-out past the budget.
  * --poison-site BBAAAA scrambles only at the call-outs made from that site
  * (the original's JSR or JSL), to tell which declaration a mismatch is in.
  */
@@ -140,6 +152,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--budget")) o.budget = strtoul(v, NULL, 0);
         else if (!strcmp(a, "--step-limit")) o.budget = 4 * strtoul(v, NULL, 0);
         else if (!strcmp(a, "--details")) o.details = (int)strtol(v, NULL, 0);
+        else if (!strcmp(a, "--stop-at-call") && o.nstop_calls < FUZZ_MAX_STOP_CALLS)
+            o.stop_calls[o.nstop_calls++] = (uint32_t)strtoul(v, NULL, 16);
         else if (!strcmp(a, "--poison-site")) {
             o.poison_dc = true;
             o.poison_site = (uint32_t)strtoul(v, NULL, 16);
@@ -204,6 +218,9 @@ int main(int argc, char **argv)
            r.guard + r.callout + r.both_long + r.original_long, r.guard, r.callout, r.both_long, r.original_long);
     if (o.poison_dc)
         printf("%s: scrambled the don't-care set of %lu call-outs in the states compared\n", e->name, r.scrambled);
+    if (o.nstop_calls)
+        printf("%s: %lu of the states compared where the port called a --stop-at-call routine\n", e->name,
+               r.at_call);
     /* Random states reach indices no movie does: an accessor called past what
      * re/ram.toml declares, usually where no guard turns the state away. */
     range_report(stdout);
@@ -211,8 +228,9 @@ int main(int argc, char **argv)
 
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
-                    "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi]... "
+                    "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
                     "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "  [--stop-at-call BBAAAA]...\n"
                     "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "
                     "register; BB:[...]: in bank BB)\n");

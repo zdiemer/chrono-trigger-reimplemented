@@ -10,7 +10,8 @@
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
- *          [--sound-lockstep-level status|keys|dsp|state]
+ *          [--sound-lockstep-level status|keys|dsp|state] [--scaffold-reads]
+ *          [--as-port BBAAAA[,BBAAAA...]]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -77,6 +78,17 @@
  * (dev/sound_state.h), to find where they part. It prints a summary, writes
  * each differing tick to out.txt, and a run that differs exits 1. It needs a
  * run from power-on.
+ * --shadow-details N describes up to N mismatches in the native report, and
+ * apart from them up to N notes (abandoned comparisons, timing), mismatches
+ * first (default 16 each, at most 256).
+ * --scaffold-reads (with --native on) prints a `scaffold read:` line for each
+ * work RAM byte a port read whose latest write was scaffolding, a port's inside
+ * ORIGINAL_EFFECT: what the native build would read stale (runtime/port/
+ * scaffold_reads.h, tools/effects_check.py --runs).
+ * --as-port BBAAAA[,...] runs each of those routines of the original as one
+ * hand port would run: all at once with time stopped, its time owed after
+ * (dev/as_port.h). For trying what the shipping mode does with a port of a
+ * routine before writing it, a routine that spans frames above all.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,8 +107,10 @@
 #include "sram_find.h"
 #include "platform/audio.h"
 #include "port/machine.h"
+#include "port/scaffold_reads.h"
 #include "port/vars_pages.h"
 #include "snes/render.h"
+#include "as_port.h"
 #include "snes/system.h"
 #include "snes/zst.h"
 #include "trace.h"
@@ -351,8 +365,10 @@ int main(int argc, char **argv)
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64], *includes[64];
     int nexcludes = 0, nincludes = 0;
+    const char *as_ports = NULL;
+    int shadow_details = -1;
     PortTiming port_timing = PORT_TIMING_ESTIMATE;
-    bool timing_report = false, page_report = false, port_horizon_interrupts = false;
+    bool timing_report = false, page_report = false, port_horizon_interrupts = false, scaffold_reads = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i], *v = i + 1 < argc ? argv[i + 1] : NULL;
         if (!strcmp(a, "--timing-report")) {
@@ -365,6 +381,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--insn-stats")) {
             insn_stats = true;
+            continue;
+        }
+        if (!strcmp(a, "--scaffold-reads")) {
+            scaffold_reads = true;
             continue;
         }
         if (!strcmp(a, "--vid-check") && (!v || v[0] == '-')) {
@@ -420,6 +440,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--include") && nincludes < 64) includes[nincludes++] = v;
+        else if (!strcmp(a, "--as-port")) as_ports = v;
+        else if (!strcmp(a, "--shadow-details")) shadow_details = (int)strtol(v, NULL, 10);
         else if (!strcmp(a, "--port-timing")) {
             if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
             else if (!strcmp(v, "oracle")) port_timing = PORT_TIMING_ORACLE;
@@ -485,7 +507,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]]\n");
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -575,11 +597,15 @@ int main(int argc, char **argv)
         fprintf(stderr, "out of memory\n");
         return 1;
     }
+    if (as_ports && as_port_add(&table, as_ports) != 0)
+        return 2;
     NativeRuntime *natives = natives_restart(NULL, &table, native_mode, &snes);
     native_set_port_timing(natives, port_timing);
     native_set_port_horizon(natives, port_horizon_interrupts);
     native_set_timing_report(natives, timing_report);
     native_set_page_report(natives, page_report);
+    if (shadow_details >= 0)
+        native_set_details(natives, shadow_details);
     if (audio_direct) {
         /* the sound driver's registry entries run the backend */
         if (native_mode != NATIVE_ON || recomp_only) {
@@ -645,6 +671,13 @@ int main(int argc, char **argv)
     };
     static uint8_t wram_written[SNES_WRAM_SIZE];
     snes.bus.wram_written = wram_written;
+    if (scaffold_reads) {
+        if (native_mode != NATIVE_ON) {
+            fprintf(stderr, "--scaffold-reads needs --native on (shadow mode runs ports on a copy)\n");
+            return 2;
+        }
+        scaffold_reads_start(&snes);
+    }
     ct_trace_writer *trace = NULL;
     if (trace_path) {
         trace = ct_trace_open(trace_path, ct_crc32(image, image_len), "ct_dev; interpreter", regions,
@@ -723,6 +756,8 @@ int main(int argc, char **argv)
      * next variable in work RAM, which only the original's layout makes work.
      * tools/suite.py fails a movie that prints one. */
     range_report(stderr);
+    if (scaffold_reads)
+        scaffold_reads_report(stderr);
     au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();

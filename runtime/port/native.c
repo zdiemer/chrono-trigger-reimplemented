@@ -20,7 +20,12 @@ static void push16_raw(Snes *s, uint16_t v)
 }
 
 #define MAX_ACTIVE 32
-#define MAX_DETAILS 16
+/* Details kept for the report: of mismatches, and apart from them of
+ * everything else (an abandoned comparison, a timing note), so that notes
+ * can't crowd out the mismatch the gate fails on. native_set_details lowers
+ * or raises how many of each are kept, up to MAX_DETAILS. */
+#define MAX_DETAILS 256
+#define DEFAULT_DETAILS 16
 #define RESUME_SLOTS 4096
 #define MAX_SEGMENT_PARTS 32   /* distinct routines one stretch of a port attributes time to */
 
@@ -133,7 +138,18 @@ typedef struct Debt {
     uint32_t clocks;
     uint32_t pc;
     uint16_t s;
+    /* An interrupt was taken at the boundary and its handler hasn't come back
+     * to it yet, and when (s->master): the debt waits for it, wherever the
+     * handler moves the stack (pay_debt). */
+    bool handler;
+    uint64_t handler_at;
 } Debt;
+
+/* ON: how long a debt waits for a handler taken at its boundary that runs on
+ * a stack of its own. A vblank handler finishes inside the frame it starts in;
+ * one that hasn't by then left the boundary for good (a task switch), and the
+ * time is paid where the machine is. */
+#define DEBT_HANDLER_CLOCKS ((uint64_t)SNES_LINES_PER_FRAME * SNES_CLOCKS_PER_LINE)
 
 #define MAX_DEBTS 16
 
@@ -246,8 +262,10 @@ struct NativeRuntime {
      * (paying debt, below). */
     Debt debts[MAX_DEBTS];
     int ndebts;
-    char details[MAX_DETAILS][400];
-    int ndetails;
+    char details[2][MAX_DETAILS][400];   /* [0] mismatches, [1] notes */
+    int ndetails[2];
+    unsigned long dropped[2];            /* past the limit */
+    int detail_limit;
 
     int generated;               /* generated entries in the table */
     Snes *attached;
@@ -334,6 +352,7 @@ static int entry_cmp(const void *a, const void *b)
 NativeRuntime *native_create(const NativeEntry *table, int count, NativeMode mode)
 {
     NativeRuntime *rt = calloc(1, sizeof *rt);
+    rt->detail_limit = DEFAULT_DETAILS;
     NativeEntry *sorted = malloc(sizeof *sorted * (size_t)(count ? count : 1));
     memcpy(sorted, table, sizeof *sorted * (size_t)count);
     qsort(sorted, (size_t)count, sizeof *sorted, entry_cmp);
@@ -539,9 +558,18 @@ const NativeEntry *native_hand_entry(Snes *s)
 
 static void detail(NativeRuntime *rt, const char *prefix, const NativeEntry *e, const char *what)
 {
-    if (rt->ndetails >= MAX_DETAILS)
+    int kind = strcmp(prefix, "mismatch") != 0;
+    if (rt->ndetails[kind] >= rt->detail_limit) {
+        rt->dropped[kind]++;
         return;
-    snprintf(rt->details[rt->ndetails++], sizeof rt->details[0], "%s %06X %s: %s", prefix, e->addr, e->name, what);
+    }
+    snprintf(rt->details[kind][rt->ndetails[kind]++], sizeof rt->details[0][0], "%s %06X %s: %s", prefix, e->addr,
+             e->name, what);
+}
+
+void native_set_details(NativeRuntime *rt, int limit)
+{
+    rt->detail_limit = limit < 0 ? 0 : limit > MAX_DETAILS ? MAX_DETAILS : limit;
 }
 
 static bool diff_bytes(char *out, size_t n, const char *name, const uint8_t *a, const uint8_t *b, size_t size,
@@ -963,7 +991,7 @@ static void owe(NativeRuntime *rt, const Snes *s, uint32_t clocks)
         top->clocks += clocks;   /* the same point (or no room: paid with the latest) */
         return;
     }
-    rt->debts[rt->ndebts++] = (Debt){ clocks, pc, s->cpu.s };
+    rt->debts[rt->ndebts++] = (Debt){ .clocks = clocks, .pc = pc, .s = s->cpu.s };
 }
 
 /* A step of up to `clocks` that native code (a debt's payment, an idle wait)
@@ -1004,13 +1032,27 @@ static int32_t pay_debt(NativeRuntime *rt, Snes *s, uint32_t pc)
 {
     Debt *d = &rt->debts[rt->ndebts - 1];
     bool here = pc == d->pc && s->cpu.s == d->s;
-    if (!here && s->cpu.s < d->s)
+    if (here)
+        d->handler = false;   /* back from any handler taken here */
+    else if (s->cpu.s < d->s)
         return DEBT_WAITS;   /* inside a handler taken during the payment: the debt waits for its return */
-    if (here && interrupt_deliverable(s))
+    else if (d->handler && s->master - d->handler_at < DEBT_HANDLER_CLOCKS)
+        /* The same, for a handler that moved the stack above the boundary's
+         * (the menus' vblank handler runs on a stack of its own at $1DFD).
+         * Paying the rest inside it, as this did, held interrupts there for
+         * as long as the port's time ran on: a port whose time spans a frame
+         * had the next vblank's interrupt taken inside the handler of the
+         * last, whose stack switch overwrote the S it had saved, and the game
+         * ran into a BRK (docs/PORTING.md, "A port that spans frames"). */
+        return DEBT_WAITS;
+    if (here && interrupt_deliverable(s)) {
+        d->handler = true;
+        d->handler_at = s->master;
         return DEBT_INTERRUPT;
-    /* Not here and not deeper: the machine left the boundary some other way
-     * (an interrupt it didn't take after all, a handler that switched
-     * stacks): the time is paid where it is. */
+    }
+    /* Not here, not deeper and no handler of its own running: the machine
+     * left the boundary some other way (an interrupt it didn't take after
+     * all, a handler that never came back): the time is paid where it is. */
     uint32_t spend = until_interrupt(s, d->clocks < SNES_CLOCKS_PER_LINE ? d->clocks : SNES_CLOCKS_PER_LINE);
     d->clocks -= spend;
     if (!d->clocks)
@@ -2115,6 +2157,7 @@ unsigned long native_call_steps;
 unsigned long native_call_timeouts;
 void (*native_call_timeout_hook)(void);
 bool (*native_call_poison)(uint32_t site, uint32_t target, uint64_t *bits);
+void (*native_call_stop)(uint32_t site, uint32_t target, uint16_t dont_care);
 
 /* Interpret a call-out's callee in place, up to its return (ret, with S back
  * at s_after), interrupts held off and no time passing. */
@@ -2254,7 +2297,10 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
         return;
     }
 
-    /* Not inside the runtime (tests, tools): interpret the callee right here. */
+    /* Not inside the runtime (tests, tools): interpret the callee right here,
+     * unless the tool ends the run at this call. */
+    if (native_call_stop)
+        native_call_stop(site, target, dont_care);
     uint64_t bits;
     if (!dont_care || poisoning || !native_call_poison || !native_call_poison(site, target, &bits)) {
         call_in_place(s, site, target, ret, s_after);
@@ -2492,8 +2538,13 @@ void native_report(const NativeRuntime *rt, FILE *out)
         if (rt->active[i].failed_passes)
             fprintf(out, "  mismatch %06X %s: %s (still waiting for a pass that matches when the run ended)\n",
                     rt->active[i].entry->addr, rt->active[i].entry->name, rt->active[i].failed_why);
-    for (int i = 0; i < rt->ndetails; i++)
-        fprintf(out, "  %s\n", rt->details[i]);
+    for (int kind = 0; kind < 2; kind++) {
+        for (int i = 0; i < rt->ndetails[kind]; i++)
+            fprintf(out, "  %s\n", rt->details[kind][i]);
+        if (rt->dropped[kind])
+            fprintf(out, "  (%lu more %s not described; ct_dev --shadow-details N keeps up to %d)\n",
+                    rt->dropped[kind], kind ? "notes" : "mismatches", MAX_DETAILS);
+    }
 }
 
 const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name)
@@ -2505,7 +2556,15 @@ const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name)
     return NULL;
 }
 
-const char *native_detail(const NativeRuntime *rt, int i) { return i >= 0 && i < rt->ndetails ? rt->details[i] : NULL; }
+const char *native_detail(const NativeRuntime *rt, int i)
+{
+    if (i < 0)
+        return NULL;
+    if (i < rt->ndetails[0])
+        return rt->details[0][i];
+    i -= rt->ndetails[0];
+    return i < rt->ndetails[1] ? rt->details[1][i] : NULL;
+}
 
 int native_failed(const NativeRuntime *rt)
 {

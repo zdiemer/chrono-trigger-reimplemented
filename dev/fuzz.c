@@ -56,14 +56,50 @@ bool fuzz_parse_area(const char *spec, bool keep, FuzzArea *out)
         if (!parse_hex(&p, &out->lo_addr) || *p++ != '-' || !parse_hex(&p, &out->hi_addr))
             return false;
     }
+    out->width = 1;
+    if (*p == ':') {
+        p++;
+        if (!parse_hex(&p, &out->step) || out->step == 0)
+            return false;
+    }
     if (keep)
         return *p == 0;
-    uint32_t lo, hi;
-    if (*p++ != '=' || !parse_hex(&p, &lo) || *p++ != '-' || !parse_hex(&p, &hi) || *p || lo > 0xFF || hi > 0xFF)
+    if (*p++ != '=')
         return false;
-    out->lo = (uint8_t)lo;
-    out->hi = (uint8_t)hi;
-    return true;
+    if (*p == '@') {   /* a tie: the bytes at another address */
+        p++;
+        out->copy = true;
+        return parse_hex(&p, &out->copy_from) && *p == 0;
+    }
+    uint32_t lo, hi;
+    const char *first = p;
+    if (!parse_hex(&p, &lo))
+        return false;
+    if (*p == '-') {   /* a byte from lo to hi */
+        p++;
+        if (!parse_hex(&p, &hi) || *p || lo > 0xFF || hi > 0xFF)
+            return false;
+        out->lo = (uint8_t)lo;
+        out->hi = (uint8_t)hi;
+        return true;
+    }
+    /* a set of values, as wide as the widest written */
+    p = first;
+    unsigned digits = 0;
+    for (;;) {
+        const char *at = p;
+        if (out->nvalues == FUZZ_MAX_VALUES || !parse_hex(&p, &v) || p - at > 8)
+            return false;
+        if ((unsigned)(p - at) > digits)
+            digits = (unsigned)(p - at);
+        out->values[out->nvalues++] = v;
+        if (*p == 0)
+            break;
+        if (*p++ != ',')
+            return false;
+    }
+    out->width = (uint8_t)((digits + 1) / 2);
+    return out->width >= 1 && out->width <= 4;
 }
 
 static uint64_t rng_state;
@@ -108,24 +144,46 @@ static long wram_index(uint32_t addr)
     return -1;
 }
 
-static void set_byte(Snes *m, const Snes *base, const FuzzArea *f, uint32_t addr)
+static void put_byte(Snes *m, uint32_t addr, uint8_t v)
 {
     long i = wram_index(addr);
-    if (i < 0)
-        return;   /* not work RAM: nothing to set */
+    if (i >= 0)
+        m->bus.wram[i] = v;   /* not work RAM: nothing to set */
+}
+
+static uint8_t get_byte(const Snes *m, uint32_t addr)
+{
+    long i = wram_index(addr);
+    return i < 0 ? 0 : m->bus.wram[i];
+}
+
+/* The element of `f` that starts at `addr`, the n-th: `room` bytes of it are
+ * inside the area. */
+static void set_element(Snes *m, const Snes *base, const FuzzArea *f, uint32_t addr, uint32_t n, uint32_t room)
+{
+    uint32_t width = f->width < room ? f->width : room;
     if (f->keep) {
-        m->bus.wram[i] = base->bus.wram[i];
+        for (uint32_t k = 0; k < width; k++)
+            put_byte(m, addr + k, get_byte(base, addr + k));
+    } else if (f->copy) {
+        put_byte(m, addr, get_byte(m, f->copy_from + n));
+    } else if (f->nvalues) {
+        uint32_t v = f->values[rng() % (unsigned)f->nvalues];
+        for (uint32_t k = 0; k < width; k++)
+            put_byte(m, addr + k, (uint8_t)(v >> (8 * k)));
     } else {
         unsigned span = f->hi >= f->lo ? f->hi - f->lo + 1u : 1u;
-        m->bus.wram[i] = (uint8_t)(f->lo + rng() % span);
+        put_byte(m, addr, (uint8_t)(f->lo + rng() % span));
     }
 }
 
 static void apply_area(Snes *m, const Snes *base, const FuzzArea *f)
 {
+    uint32_t step = f->step ? f->step : f->width;
     if (f->base == FUZZ_AT_ADDRESS) {
-        for (uint32_t addr = f->lo_addr; addr <= f->hi_addr && addr <= 0xFFFFFF; addr++)
-            set_byte(m, base, f, addr);
+        uint32_t n = 0;
+        for (uint32_t addr = f->lo_addr; addr <= f->hi_addr && addr <= 0xFFFFFF; addr += step, n++)
+            set_element(m, base, f, addr, n, f->hi_addr - addr + 1);
         return;
     }
     uint16_t pointer;
@@ -140,8 +198,8 @@ static void apply_area(Snes *m, const Snes *base, const FuzzArea *f)
     }
     if (f->bank >= 0)
         bank = (uint32_t)f->bank;
-    for (uint32_t k = 0; k < f->count; k++)
-        set_byte(m, base, f, bank << 16 | (uint16_t)(pointer + f->offset + (int32_t)k));
+    for (uint32_t k = 0, n = 0; k < f->count; k += step, n++)
+        set_element(m, base, f, bank << 16 | (uint16_t)(pointer + f->offset + (int32_t)k), n, f->count - k);
 }
 
 /* ---- the port's work, and stopping it --------------------------------------------- */
@@ -154,7 +212,9 @@ static Fiber *native_fiber;
 
 static unsigned long native_work, native_budget;
 static bool in_callout;            /* the interpreter is running one of the port's call-outs */
-static enum { RAN_OK, RAN_OUT_OWN, RAN_OUT_CALLOUT } native_ran;
+static enum { RAN_OK, RAN_OUT_OWN, RAN_OUT_CALLOUT, RAN_TO_STOP_CALL } native_ran;
+static const FuzzOptions *stop_options;
+static uint16_t stop_call_dont_care;
 
 static void native_fiber_main(void *arg)
 {
@@ -182,6 +242,22 @@ static void callout_timeout(void)
 {
     native_ran = RAN_OUT_CALLOUT;
     fiber_switch(fiber_main());
+}
+
+/* A call-out to one of --stop-at-call's routines: the port has run up to the
+ * callee's entry, where the comparison ends (the fiber is abandoned there). */
+static void stop_at_call(uint32_t site, uint32_t target, uint16_t dont_care)
+{
+    (void)site;
+    if (in_callout)
+        return;   /* the port's own call-outs only, not their callees' ports' */
+    for (int i = 0; i < stop_options->nstop_calls; i++) {
+        if (stop_options->stop_calls[i] == target) {
+            native_ran = RAN_TO_STOP_CALL;
+            stop_call_dont_care = dont_care;
+            fiber_switch(fiber_main());
+        }
+    }
 }
 
 static CpuStep callout_step(Cpu *cpu)
@@ -378,6 +454,8 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
      * instructions, only catches a callee that halts. */
     native_call_step_limit = o->budget;
     native_call_timeout_hook = callout_timeout;
+    stop_options = o;
+    native_call_stop = o->nstop_calls ? stop_at_call : NULL;
     native_call_poison = o->poison_dc ? poison_call : NULL;
     poison_site = o->poison_site;
     rng_state = o->seed * 0x9E3779B97F4A7C15ull | 1;
@@ -395,7 +473,7 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
             if (o->areas[k].base == FUZZ_AT_ADDRESS && o->areas[k].keep)
                 apply_area(m, base, &o->areas[k]);
         for (int k = 0; k < o->nareas; k++)
-            if (o->areas[k].base == FUZZ_AT_ADDRESS && !o->areas[k].keep)
+            if (o->areas[k].base == FUZZ_AT_ADDRESS && !o->areas[k].keep && !o->areas[k].copy)
                 apply_area(m, base, &o->areas[k]);
         uint64_t bits = rng();
         const uint8_t arith = CPU_FLAG_N | CPU_FLAG_V | CPU_FLAG_Z | CPU_FLAG_C;
@@ -413,7 +491,11 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         }
         /* relative to pointers, now that the state holds them */
         for (int k = 0; k < o->nareas; k++)
-            if (o->areas[k].base != FUZZ_AT_ADDRESS)
+            if (o->areas[k].base != FUZZ_AT_ADDRESS && !o->areas[k].copy)
+                apply_area(m, base, &o->areas[k]);
+        /* ties last, so what they copy is what the state holds */
+        for (int k = 0; k < o->nareas; k++)
+            if (o->areas[k].copy)
                 apply_area(m, base, &o->areas[k]);
         /* Call it: return to address $0000 in the routine's bank. */
         uint16_t ret_s = m->cpu.s;
@@ -464,6 +546,13 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         fiber_switch(native_fiber);
         native.bus.on_access = NULL;
         uint16_t lowest_s;
+        bool at_call = native_ran == RAN_TO_STOP_CALL;
+        if (at_call) {
+            /* The port is at the callee's entry, never to go on. */
+            fiber_destroy(native_fiber);
+            native_fiber = NULL;
+            native_ran = RAN_OK;
+        }
         if (native_ran != RAN_OK) {
             /* Abandoned where it was: the fiber can't be resumed. */
             fiber_destroy(native_fiber);
@@ -491,13 +580,14 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
         uint32_t stop_pc = cpu_pc24(&native.cpu);
         uint16_t stop_s = native.cpu.s;
         char what[160];
-        if (native_stop_at_direct && native_stop_at_direct != stop_pc && !native_is_return(&orig, native_stop_at_direct)) {
+        if (!at_call && native_stop_at_direct && native_stop_at_direct != stop_pc &&
+            !native_is_return(&orig, native_stop_at_direct)) {
             snprintf(what, sizeof what, "stopped at %06X, but declared what is dead at %06X", stop_pc,
                      native_stop_at_direct);
             report(&r, o, log, it, what, NULL, NULL, 0);
             continue;
         }
-        if (!native_stop_at_direct && !native_returned_direct && e->dont_care) {
+        if (!at_call && !native_stop_at_direct && !native_returned_direct && e->dont_care) {
             snprintf(what, sizeof what, "stopped at %06X without declaring it (m_stop_at), with a don't-care set",
                      stop_pc);
             report(&r, o, log, it, what, NULL, NULL, 0);
@@ -524,8 +614,9 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
          * head), the first pass where the machines are the same counts, as in
          * shadow mode (native.c, reach_point); one that is the same at no pass
          * is reported with the first pass's difference. */
-        uint16_t dont_care =
-            native_finish_dont_care(e->dont_care, native_stop_dont_care_direct, native_stop_own_direct);
+        uint16_t dont_care = at_call ? stop_call_dont_care
+                                     : native_finish_dont_care(e->dont_care, native_stop_dont_care_direct,
+                                                               native_stop_own_direct);
         bool same = false;
         char first_what[160] = "";
         for (unsigned pass = 0; pass < FUZZ_MAX_POINT_PASSES; pass++) {
@@ -545,11 +636,13 @@ FuzzResult fuzz_run(const Snes *base, const NativeEntry *e, const FuzzOptions *o
                 lowest_s = low;
         }
         r.scrambled += poison_calls;
+        r.at_call += at_call;
         if (same)
             r.matched++;
         else
             report(&r, o, log, it, first_what, &first_pass, &native, dont_care);
     }
     native_call_poison = NULL;
+    native_call_stop = NULL;
     return r;
 }

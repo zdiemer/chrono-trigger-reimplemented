@@ -431,7 +431,10 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   (`tools/timing_gate.py --calibrate game/registry.c`) rewrites every measured
   `cost_milli`, so an agent commits only its own subsystem's.
 - **Each agent validates its own branch** with the full gate and
-  `--long-routes`, and fuzzes every entry it writes or rewrites.
+  `--long-routes`, and fuzzes every entry it writes or rewrites. The gate's
+  effects check holds the branch to the native shape: a read by the logic of
+  what a port writes only as scaffolding is answered before the merge, not
+  added to its baseline unexplained (PORTING.md, "Scaffolding").
 - **Whoever merges** takes them one at a time, and after each: regenerates
   `game/ram.h` from the merged `re/ram.toml` (`python3 tools/ram_map.py
   header`), recomputes the burndown for this table, and runs the **full gate

@@ -1,0 +1,239 @@
+# Reads, outside scaffolding, of cells some port writes inside ORIGINAL_EFFECT
+# (tools/effects_check.py). The native-shape build compiles those writes out,
+# so each is a value that build may read stale (docs/PORTING.md, "Scaffolding").
+# --check fails on a finding not listed here. A line is the read's file and
+# function, what it reads, and the variable written as scaffolding, then an
+# optional `# reason`. The findings of main and of the branches in flight when
+# the check came in are listed unanswered; answering one -- making the write
+# plain, or showing where the value the read takes comes from and saying so
+# after the line -- is how the list empties. A new finding is answered the same
+# way before it merges: a line added here says why.
+
+game/battle/animation.c posing battle_work battle_work
+game/battle/arith.c battle_multiply_8x16 battle_long_multiply battle_long_multiply
+game/battle/arith.c battle_multiply_8x8 battle_multiply_factors battle_multiply_factors
+game/battle/battle.h battle_stat_offset_high battle_low_scratch battle_low_scratch
+game/battle/battle.h battle_tech_hits_left battle_low_scratch battle_low_scratch
+game/battle/digits.c digits_entry battle_number battle_number
+game/battle/digits.c kept_digits battle_digits battle_digits
+game/battle/display.c fade_brightness battle_scratch battle_scratch
+game/battle/draw_objects.c at_a_sprite battle_oam_next battle_oam_next
+game/battle/draw_objects.c battle_copy_frame_tiles battle_draw_tile_groups battle_draw_tile_groups
+game/battle/draw_objects.c battle_draw_afterimage battle_draw_scratch battle_draw_scratch
+game/battle/draw_objects.c drawing_a_combatant battle_draw_object battle_draw_object
+game/battle/draw_objects.c next_free battle_oam_next battle_oam_next
+game/battle/draw_objects.c parts_last_drawn battle_draw_part_count battle_draw_part_count
+game/battle/draw_objects.c slot_being_drawn battle_draw_object battle_draw_object
+game/battle/effect_paths.c battle_chase_angle battle_chase_cells battle_chase_cells
+game/battle/effect_paths.c battle_multiply_scale battle_low_scratch battle_low_scratch
+game/battle/effect_paths.c battle_sine_scale battle_low_scratch battle_low_scratch
+game/battle/effect_paths.c cell battle_effect_cells battle_effect_cells
+game/battle/effect_paths.c cell_word battle_effect_cells battle_effect_cells
+game/battle/enemy_actions.c place_left_by_draw battle_wide_math battle_wide_math
+game/battle/enemy_scripts.c battle_enemy_find_reactions battle_enemy_turn battle_enemy_turn
+game/battle/enemy_scripts.c battle_enemy_find_script_place battle_enemy_turn battle_enemy_turn
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_block_start battle_block_start
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_condition_kind battle_condition_kind
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_condition_pair battle_condition_pair
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_enemy_turn battle_enemy_turn
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_actions_place battle_script_actions_place
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_outcome battle_script_outcome
+game/battle/enemy_scripts.c enemy_choosing_in_cells battle_script_place battle_script_place
+game/battle/enemy_turn.c action_to_carry_out battle_script_actions_place battle_script_actions_place
+game/battle/enemy_turn.c enemy_turn battle_script_outcome battle_script_outcome
+game/battle/enemy_turn.c move_on battle_script_outcome battle_script_outcome
+game/battle/enemy_turn.c run_action_entry battle_script_place battle_script_place
+game/battle/enemy_turn.c script_enemy battle_enemy_turn battle_enemy_turn
+game/battle/frame.c update_the_frame battle_effect_sprite_attributes battle_effect_sprite_attributes
+game/battle/menu_window.c tech_page_carry battle_digits battle_digits
+game/battle/nmi.c last_math_operand battle_divider_busy battle_divider_busy
+game/battle/nmi.c last_math_operand battle_divider_operands battle_divider_operands
+game/battle/nmi.c last_math_operand battle_multiplier_operands battle_multiplier_operands
+game/battle/positions.c battle_direction_between battle_direction_cells battle_direction_cells
+game/battle/positions.c battle_distance_along battle_multiply_factors battle_multiply_factors
+game/battle/positions.c combatant_in_work battle_work battle_work
+game/battle/positions.c reach_entry battle_product battle_product
+game/battle/positions.c search_carry battle_product battle_product
+game/battle/random.c draw_entry battle_wide_math battle_wide_math
+game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
+game/battle/screen.h screen_cell battle_scratch battle_scratch
+game/battle/screen_beam.c battle_quad_edge_slope battle_low_scratch battle_low_scratch
+game/battle/screen_beam.c corners_in_cells battle_low_scratch battle_low_scratch
+game/battle/targets.c battle_select_by battle_enemy_turn battle_enemy_turn
+game/battle/targets.c battle_select_from_script battle_enemy_turn battle_enemy_turn
+game/battle/targets.c battle_select_from_script battle_script_place battle_script_place
+game/battle/targets.c battle_select_party battle_enemy_turn battle_enemy_turn
+game/battle/targets.c selector_entry battle_enemy_turn battle_enemy_turn
+game/battle/tiles.c battle_decode_tile_row battle_scratch battle_scratch
+game/battle/uploads.c battle_upload_tile_rows battle_scratch battle_scratch
+game/battle/uploads.c battle_vram_transfer battle_scratch battle_scratch
+game/battle/wait.c battle_wait_line_loop battle_scratch battle_scratch
+game/battle/window.h battle_work16 battle_work battle_work
+game/battle/window_leaves.c party_status_carry battle_digits battle_digits
+game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub                                 # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
+game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact
+game/event/script.h script_byte event_script_byte field_sprite_records
+game/event/script.h script_word event_script_byte field_sprite_records
+game/field/bridge.c field_current_object_slot field_current_object field_current_object
+game/field/field.h leader_contact field_leader_contact field_leader_contact
+game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer
+game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer
+game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer
+game/field/leaves.c field_step_start_y field_current_object field_current_object
+game/field/line_effects.c keep_wave_line field_direction field_direction
+game/field/line_effects.c wave_line_kept field_direction field_direction
+game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile
+game/field/motion.c field_direction_to_target field_own_tile_y field_own_tile
+game/field/motion.c field_direction_to_target field_target_tile_x field_target_tile
+game/field/motion.c field_direction_to_target field_target_tile_y field_target_tile
+game/field/motion.c field_line_up_with_object field_target_object field_target_object
+game/field/motion.c field_line_up_with_tile field_current_object field_current_object
+game/field/motion.c field_set_velocity field_direction field_direction
+game/field/motion.c field_start_step field_direction field_direction
+game/field/motion.c object_take_step field_object_accelerating field_object_accelerating
+game/field/motion.c party_member_take_step field_object_accelerating field_object_accelerating
+game/field/object.c object_current field_current_object field_current_object
+game/field/object.c object_current_is_one field_current_object field_current_object
+game/field/object.c object_make_current field_current_object field_current_object
+game/field/object.c object_records_state field_object_sprite_state field_object_sprite_state
+game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
+game/field/object_view.c object_view field_object_in_view field_object_in_view
+game/field/sprites.c field_update_object_sprites field_current_object field_current_object
+game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch
+game/field/sprites.c range_next field_sprite_range_next event_scratch
+game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
+game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
+game/menu/cursor.c move_cursor menu_cursor_index menu_object_sprite_script
+game/menu/cursor.c place_cursor menu_cursor_flip menu_object_sprite_group
+game/menu/cursor.c place_cursor menu_cursor_index menu_object_sprite_script
+game/menu/display.c menu_object_upload_vram_queue menu_object_vram_queue_busy menu_window_operands
+game/menu/display.c menu_object_upload_vram_queue menu_object_vram_queue_end menu_window_operands
+game/menu/display.c send_object_queue menu_object_vram_queue_bank menu_after_slot_shown
+game/menu/display.c send_object_queue menu_object_vram_queue_bank menu_number_size
+game/menu/display.c send_object_queue menu_object_vram_queue_bank menu_text_work
+game/menu/display.c send_object_queue menu_object_vram_queue_busy menu_window_operands
+game/menu/display.c send_object_queue menu_object_vram_queue_end menu_window_operands
+game/menu/display.c send_object_queue menu_object_vram_queue_port menu_number_blanking
+game/menu/display.c send_object_queue menu_object_vram_queue_size menu_line_start
+game/menu/display.c send_object_queue menu_object_vram_queue_size menu_number_digits
+game/menu/display.c send_object_queue menu_object_vram_queue_size menu_text_work
+game/menu/display.c send_object_queue menu_object_vram_queue_source menu_number_dest
+game/menu/display.c send_object_queue menu_object_vram_queue_source menu_window_operands
+game/menu/display.c send_object_queue menu_object_vram_queue_vram menu_number_size
+game/menu/display.c send_object_queue menu_object_vram_queue_vram menu_text_work
+game/menu/display.c send_object_queue menu_object_vram_queue_vram menu_window_place
+game/menu/display.c send_object_shadows menu_object_shadows_bg2_scroll_x menu_time_played_shown
+game/menu/display.c send_object_shadows menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/epoch.c draw_gate_window menu_object_scratch_gate_window_bank menu_object_scratch
+game/menu/epoch.c menu_epoch_load_gate_stream menu_object_scratch_bytes_byte menu_object_scratch
+game/menu/epoch.c menu_epoch_load_gate_stream menu_object_scratch_bytes_byte menu_scratch
+game/menu/epoch.c menu_epoch_multiply_signed menu_object_scratch_bytes_byte menu_object_scratch
+game/menu/epoch.c menu_epoch_multiply_signed menu_object_scratch_bytes_byte menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_bottom menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_bottom menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_left menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_left menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_right menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_right menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_tile_x menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_tile_x menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_tile_y menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_tile_y menu_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_top menu_object_scratch
+game/menu/epoch.c menu_epoch_outside_sides menu_object_scratch_area_top menu_scratch
+game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte menu_object_scratch
+game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte menu_scratch
+game/menu/epoch.c time_dial menu_object_slots_turn menu_setting_spare
+game/menu/glyphs.c draw_glyph menu_glyph_dest menu_glyph_dest
+game/menu/glyphs.c draw_glyph_line menu_glyph_byte menu_glyph_byte
+game/menu/glyphs.c draw_glyph_line menu_glyph_dest menu_glyph_dest
+game/menu/line_effects.c capsule_fill_end scene_circle_center_y scene_circle_center_y
+game/menu/line_effects.c capsule_iris scene_circle_center_y scene_circle_center_y
+game/menu/line_effects.c capsule_iris scene_circle_radius scene_circle_radius
+game/menu/line_effects.c set_up_circle scene_circle_center_x scene_circle_center_x
+game/menu/line_effects.c set_up_circle scene_circle_center_y scene_circle_center_y
+game/menu/line_effects.c set_up_circle scene_circle_radius scene_circle_radius
+game/menu/load_screen.c ask_to_erase menu_cursor_index menu_object_sprite_script
+game/menu/load_screen.c menu_answer_erase menu_cursor_index menu_object_sprite_script
+game/menu/load_screen.c menu_choose_game_to_carry_on_from menu_cursor_index menu_object_sprite_script
+game/menu/load_screen.c menu_choose_on_load_screen menu_cursor_index menu_object_sprite_script
+game/menu/load_screen.c show_and_tick menu_cursor_index menu_object_sprite_script
+game/menu/map.c menu_map_upload_block menu_object_scratch_redraw_tilemap menu_object_scratch
+game/menu/map.c menu_map_upload_block menu_object_scratch_redraw_x menu_object_scratch
+game/menu/map.c named_plane menu_object_scratch_plane menu_object_scratch
+game/menu/map.c named_plane menu_object_scratch_plane menu_scratch
+game/menu/map.c scroll_entry menu_object_scratch_step menu_object_scratch
+game/menu/map.c scroll_entry menu_object_scratch_step menu_scratch
+game/menu/object_commands.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/object_script.c move_top_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/objects.c byte_at menu_object_slots_bytes_byte menu_setting_spare
+game/menu/objects.c menu_object_velocity menu_object_slots_velocity_y menu_setting_spare
+game/menu/save_screen.c draw_member_rows menu_save_summary_byte menu_save_summary
+game/menu/save_screen.c draw_member_rows menu_scratch_save_member menu_object_scratch
+game/menu/save_screen.c draw_member_rows menu_scratch_save_member menu_scratch
+game/menu/save_screen.c draw_the_rows_portrait menu_save_member_row menu_save_member_row
+game/menu/save_screen.c draw_the_rows_portrait menu_scratch_save_member menu_object_scratch
+game/menu/save_screen.c draw_the_rows_portrait menu_scratch_save_member menu_scratch
+game/menu/save_screen.c member_present menu_save_summary_byte menu_save_summary
+game/menu/save_screen.c menu_read_save_slots menu_scratch_slot_check menu_object_scratch
+game/menu/save_screen.c menu_read_save_slots menu_scratch_slot_check menu_scratch
+game/menu/save_screen.c place_cursor menu_cursor_flip menu_object_sprite_group
+game/menu/save_screen.c place_cursor menu_cursor_index menu_object_sprite_script
+game/menu/save_screen.c show_member menu_save_summary_byte menu_save_summary
+game/menu/save_screen.c show_save_slot menu_cursor_index menu_object_sprite_script
+game/menu/save_screen.c slot_era menu_save_summary_byte menu_save_summary
+game/menu/script_bridge.c call_routine menu_object_call_target menu_window_operands
+game/menu/script_bridge.c note menu_object_vram_queue_end menu_window_operands
+game/menu/sprites.c draw_node menu_object_shadows_bg2_scroll_x menu_time_played_shown
+game/menu/sprites.c menu_insert_sprite_node menu_object_sprite_group menu_object_sprite_group
+game/menu/text.c menu_draw_time_played $7E98CD menu_save_summary
+game/menu/text.c new_line menu_line_start menu_line_start
+game/menu/text.c two_digits_at $7E98C9 menu_save_summary
+game/menu/text.c two_digits_at $7E98CA menu_save_summary
+game/menu/text.c two_digits_at $7E98CB menu_save_summary
+game/menu/text.c two_digits_at $7E98CC menu_save_summary
+game/menu/top_layer.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/top_layer.c move_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/top_layer.c wave menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/vram.c hold_the_queue menu_object_vram_queue_busy menu_window_operands
+game/menu/vram.c hold_the_queue menu_object_vram_queue_end menu_window_operands
+game/menu/vram.c menu_object_queue_is_whole menu_object_vram_queue_end menu_window_operands
+game/menu/wave.c wave menu_object_shadows_bg3_scroll_x menu_save_member_row
+game/menu/windows.c menu_window_frame menu_window_place menu_window_place
+game/menu/windows.c menu_window_in_design menu_window_place menu_window_place
+game/menu/windows.c menu_window_inside menu_text_work_window_columns menu_text_work
+game/menu/windows.c menu_window_inside menu_text_work_window_rows menu_text_work
+game/menu/windows.c menu_window_inside menu_window_place menu_window_place
+game/menu/windows.c operands_in_cells menu_window_operands menu_window_operands
+game/menu/windows.c size_in_cells menu_window_operands menu_window_operands
+game/menu/windows.c strings_convert_from_one menu_zero menu_object_sprite_script
+game/scene/circle.c draw_circle scene_circle_center_x scene_circle_center_x                                   # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+game/scene/circle.c draw_circle scene_circle_center_y scene_circle_center_y                                   # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+game/scene/circle.c draw_circle scene_circle_radius scene_circle_radius                                       # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+game/scene/math.c divide scene_call_dividend scene_call                                                       # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c divide scene_call_divisor scene_call                                                        # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c divide_8_8 scene_call_second scene_call                                                     # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c multiply scene_call_first scene_call                                                        # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c multiply scene_call_second scene_call                                                       # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c multiply_signed scene_call_first scene_call                                                 # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c multiply_signed scene_call_product scene_call                                               # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c multiply_signed scene_call_second scene_call                                                # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c scene_find_divisor scene_call_quotient_limit scene_call                                     # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c scene_multiply_signed scene_call_first scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/math.c scene_multiply_signed scene_call_second scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/screen.c transfer scene_call_transfer_control scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+game/scene/screen.c transfer scene_call_transfer_register scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
+run battle_divide battle_wide_math
+run battle_multiply_16x16 battle_wide_math
+run battle_set_screen_effect battle_scratch
+run event_run_init_scripts field_current_object
+run event_run_object_script field_current_object
+run field_build_sprite_table field_current_object
+run field_update_objects field_current_object
+run menu_draw_member_portrait menu_scratch
+run menu_draw_save_slot menu_scratch
+run menu_object_wave_hdma menu_wave_phase
+run menu_show_save_slot menu_scratch
+run scene_draw_circle_jump scene_circle_center_x                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+run scene_draw_circle_jump scene_circle_center_y                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+run scene_draw_circle_jump scene_circle_radius                                                                # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte

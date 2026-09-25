@@ -162,6 +162,13 @@ rest waits, is [PLAN.md](PLAN.md).
       effect sprite record by `from + 2`), and inline ROM reads in
       `main_loop.c` and `scripts.c`: index-taking accessors returning records;
     - `x + 1` written to cells that mean a bool or a load step;
+    - `battle_run` (`battle/bridge.c`) calls a sibling port's function
+      directly, skipping its entry's precondition and guard, so a state the
+      sibling's guard would hand to the original runs the port anyway: with
+      PC set to the routine and the return address pushed, ask
+      `native_hand_entry(s)` (which checks both) and run its function only
+      when it is that sibling's entry, and otherwise make the call-out
+      (`battle_call`) so the original runs;
     - `NATIVE_TIME_AS` takes a `Snes *`, so the draw pass, `step_movers` and
       `step_enemy_group` take one only to name their parts' time: a charge
       hook reachable from `GameState` (a runtime change);
@@ -367,24 +374,61 @@ rest waits, is [PLAN.md](PLAN.md).
   by the strict solve, so nothing rests on it, but a constraint that keeps the
   lists' entries inside the program's tasks would fuzz what the tasks do with
   the registers the port passes.
-- **What Phase 3's first `$C0` chunk found the tools lacking**:
-  `fuzz_compare.py` reports "before error" for every new entry (the old
-  binary has nothing at its address), so it wants an after-only mode;
-  `ct_fuzz --fill` takes contiguous ranges only, so a routine reading
-  alternating meaningful and random bytes needs a fill per byte; the event
-  engine takes a second table row for an opcode silently, the last one
-  winning, where it could warn; and proving V dead at the command level
+- **What Phase 3's first `$C0` chunk found the tools lacking**, still open:
+  the event engine takes a second table row for an opcode silently, the last
+  one winning, where it could warn; and proving V dead at the command level
   (following the field loop's `JML`s) would remove most of the Y/V
   derivations the state routines' ports carry.
-- **Nothing checks that the native shape behaves like the original.** The
-  native-shape build (`ct_game_native_shape`, `CT_WITHOUT_ORIGINAL_EFFECTS`)
-  is compiled, never run, so a value the game reads that a port writes only
-  inside `ORIGINAL_EFFECT` changes play there and no gate sees it (battle's
-  first conversion chunk: the random draws read the long arithmetic's
-  leftover high word, written only as scaffolding). A static check that no
-  cell an `ORIGINAL_EFFECT` writes is read by a port outside one, or a movie
-  run of a native-shape `ct_dev` compared at the level of game outcomes,
-  would catch it.
+- **Reads of scaffolding the effects check holds in its baseline**
+  (`tools/effects_baseline.txt`; RECOMP.md, "The tooling pass after Phase 3's
+  first chunks"). Each is a value the native build reads stale unless shown
+  otherwise; answering one deletes its line. What the library's shipping-mode
+  runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
+  - battle: `battle_divide` reads `battle_wide_math` (`$2A`-`$2F`) where its
+    own scaffolding, or `battle_multiply_16x16`'s, wrote last: the original's
+    callers divide what the last multiply or divide left there, so those
+    results are game state (the battle branch's `battle_long_high_word` is the
+    same finding, answered); `battle_multiply_16x16` reads `$2B` its own
+    scaffolding left; `battle_set_screen_effect` reads `battle_scratch`
+    `$55`-`$57`, last written by `battle_build_fade_tables`' and
+    `battle_decode_tile_row`'s scaffolding;
+  - field and event: `field_current_object`'s high byte (`$016E`), which only
+    scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
+    `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
+    word by `object_current_is_one` and `object_make_current`, in
+    `event_run_init_scripts`, `event_run_object_script`, `field_update_objects`
+    and `field_build_sprite_table`: in the native build it is whatever last
+    wrote the word;
+  - menus: `menu_scratch` (`$0000`-`$0001`), read by `menu_show_save_slot`,
+    `menu_draw_save_slot` and `menu_draw_member_portrait` where their own
+    scaffolding wrote it last; `menu_object_wave_hdma` reads
+    `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
+    scaffolding wrote that byte (`menus-end-of-time`), which may be a field
+    cell over the same byte rather than the menus' own.
+  The source check's findings on main are broader (battle 33, field 29,
+  event 3, menu 49, scene 16, core 1; `python3 tools/effects_check.py`): most
+  are the entry wrappers reading the operands the original's callers hand
+  them, which a line with that reason answers, but the `[only]` ones in logic
+  (`python3 tools/effects_check.py | grep only`) are where to look first.
+- **The run check doesn't mark event's parallel table.** `event/leaves.c`'s
+  runner is `#if ORIGINAL_EFFECTS` code around the operation, not an
+  `ORIGINAL_EFFECT`, so `--scaffold-reads` counts its writes as the logic's;
+  the source check sees them. Evaluating the runner's before and after parts
+  inside an `ORIGINAL_EFFECT` (or bumping `original_effect_depth` around
+  them) would let the runs see them too.
+- **A debt waits a frame at most for a handler taken at its boundary**
+  (`runtime/port/native.c`, `DEBT_HANDLER_CLOCKS`): a handler that moves the
+  stack and doesn't come back within a frame, but does later, gets the rest of
+  the port's time paid inside it again. None does in the library; a debt that
+  followed the handler's own return (its RTI to the boundary's PC) rather than
+  a time bound would be exact.
+- **Nested comparisons end at the enclosing routine's point.** An entry the
+  original reaches inside another port's stretch (the menus' labels inside
+  `menu_open`) is compared up to its first point, and set aside (`abandoned`)
+  when the enclosing routine's point comes first. Following both past it
+  needs shadow mode to check every active comparison at each step rather than
+  the innermost: the enclosing one resumed by its callee's return while the
+  nested one waits for a later instruction.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the

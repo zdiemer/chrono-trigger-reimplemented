@@ -45,6 +45,7 @@ add_library(ct_runtime STATIC
   runtime/snes/zst.c
   runtime/port/fiber.c
   runtime/port/native.c
+  runtime/port/scaffold_reads.c
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
@@ -223,7 +224,7 @@ target_link_libraries(ct_game_native_shape PRIVATE ct_game)
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/range_report.c
+add_executable(ct_dev dev/ct_dev.c dev/as_port.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/range_report.c
   dev/sound_compare.c dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c)
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_recomp ct_runtime ct_trace)
@@ -257,6 +258,9 @@ add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)
 target_link_libraries(shadow_test PRIVATE ct_runtime)
+# How the shipping mode pays a port's time around interrupts (runtime/port/native.c).
+add_executable(debt_test tests/port/debt_test.c)
+target_link_libraries(debt_test PRIVATE ct_runtime)
 # The fuzzer's core (dev/fuzz.c) on made-up routines and ports.
 add_executable(fuzz_test tests/port/fuzz_test.c dev/fuzz.c)
 target_include_directories(fuzz_test PRIVATE dev)

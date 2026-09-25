@@ -188,6 +188,18 @@ operands where it is handed back, not with ALU helpers in the logic. The
 native-shape build (`ct_game_native_shape`) compiles your logic with all of it
 switched off, and must still build; `portstyle.py` counts what you marked.
 
+**A value your logic reads is never scaffolding, anywhere.** The trap that got
+past the gate twice in Phase 3's first chunks: a cell a port writes only inside
+`ORIGINAL_EFFECT` (the long arithmetic's leftover high word, a window frame's
+inside size) that the next routine then reads as game input. It builds, it
+matches in shadow mode, and the native build reads it stale.
+`python3 tools/effects_check.py --new` lists every such read in the source that
+the baseline doesn't hold, and the gate also runs the library in the shipping
+mode with `--scaffold-reads`, which catches the read in order. Answer each
+finding before you report: the write is the game's, so make it plain; or the
+read takes what something else sets first (the original's caller, every call),
+and its baseline line says so after a `#`.
+
 An index past a variable's count, bytes, rows or columns is an alias of
 whatever follows it in the original's memory: `ct_dev` counts it (`accessor
 out of range`) and the gate fails. Where the gate needs the original's stray
@@ -264,6 +276,8 @@ cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc && cmake --build buil
 # 2. --native on
 # 3. fuzz every entry you wrote or rewrote:
 build/main/ct_fuzz --load-state <state> --routine <name>
+# 3b. no logic reads what a port writes only as scaffolding (the gate runs it too):
+python3 tools/effects_check.py --new
 # 4. the full gate, which must print "suite OK":
 python3 tools/suite.py --ct-dev build/main/ct_dev -j 3 --long-routes
 python3 -m unittest discover tests
@@ -272,6 +286,23 @@ python3 -m unittest discover tests
 An `interrupted` count in a shadow run is **not noise**: those calls were never
 compared, so they are exactly what fuzzing is for. Record in your PORTING.md row
 which ones the library never reached.
+
+**A routine that spans frames** (its original takes more than a frame, with the
+vblank handler landing inside it) needs nothing special in the port -- the
+runtime takes those interrupts at the port's boundary -- but every shadow call
+of it is interrupted, so it is fuzzed or it is unchecked. Try the shipping mode
+with the original run as one port before and after writing it:
+`ct_dev --native on --as-port BBAAAA` over the movie that reaches it
+(docs/PORTING.md, "A port that spans frames"). Stop at the original's yield
+(a task switch like `$C2:821E`'s, a `JMP` to the task loop), never run through
+it; `ct_fuzz --stop-at-call BBAAAA` compares a port up to such a call-out.
+
+**Fuzzing constraints that are real states.** A field of every record in a
+table is `--fill AREA:STEP=lo-hi`; a word that must be one of a few real ones
+(a script's place) is `--fill AREA=0010,0200,...`; two cells the game keeps
+equal are `--fill AREA=@BBAAAA`. For a chunk of new ports, list them in
+`tools/fuzz_routines.toml` and run `tools/fuzz_compare.py` with no `--before`:
+each is reported `new`, with its own counts.
 
 ### Rewriting an existing port: fuzz the predecessor too
 

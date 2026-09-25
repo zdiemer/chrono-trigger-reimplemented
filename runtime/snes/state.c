@@ -593,6 +593,8 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     s->bus.rom_size = keep.bus.rom_size;
     s->bus.io = keep.bus.io;
     s->bus.wram_written = keep.bus.wram_written;
+    s->bus.wram_scaffold = keep.bus.wram_scaffold;
+    s->bus.scaffolding = keep.bus.scaffolding;
     s->cpu.bus = keep.cpu.bus;
     s->cpu.on_insn = keep.cpu.on_insn;
     s->cpu.on_insn_ctx = keep.cpu.on_insn_ctx;

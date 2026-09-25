@@ -84,6 +84,14 @@ typedef struct SnesBus {
      * writes. Lets traces be compared against emulators with random power-on RAM. */
     uint8_t *wram_written;
 
+    /* Optional, for ct_dev --scaffold-reads (docs/PORTING.md, "Scaffolding"):
+     * SNES_WRAM_SIZE bytes, each set to whether the latest write of that WRAM
+     * byte was made while *scaffolding is nonzero (a port inside
+     * ORIGINAL_EFFECT), so that a port's later read of it can be told apart.
+     * Both are set together; clones don't copy them. */
+    uint8_t *wram_scaffold;
+    const int *scaffolding;
+
     uint64_t write_epoch;                       /* see SNES_TRACK_PAGE_BITS */
     uint64_t wram_page_epoch[SNES_WRAM_PAGES];  /* epoch of each page's latest write */
 
