@@ -116,9 +116,9 @@ game/event/party.c event_member_back_to_the_leader field_leader_contact field_le
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
 game/field/field.h leader_contact field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
-game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer only
-game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer only
-game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer only
+game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer
+game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer
+game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer
 game/field/line_effects.c keep_wave_line field_direction field_direction
 game/field/line_effects.c wave_line_kept field_direction field_direction
 game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile only

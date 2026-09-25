@@ -4803,6 +4803,29 @@ state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=03-03", "--fill", "7E1801-7E1801=05-05", "--fill", "7E1881-7E1881=15-15", "--fill", "7E85C6-7E85C6=00-00", "--fill", "7E1D08-7E1D08=30-30", "--fill", "7E1D09-7E1D09=02-02"]
 why = "the leader facing right at the chest whose record is at $F5:0230 (nothing of its own, on row 21, column 6): the flag and the request, no gift and no message"
 
+[[routine]]
+name = "field_draw_next_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E0179-7E0179=00,02,04,06,08,0A,0C", "--fill", "7E1210-7E1210=D2,D3,D4,D5,7F", "--fill", "7E0BC0-7E0BC3=7F-8F", "--fill", "7E0F11-7E0F11=FF-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E0D91-7E0D91=38-39", "--fill", "7E1211-7E1211=00-02", "--fill", "7E1790-7E1790=00-02", "--fill", "7E1B10-7E1B10=00-03"]
+why = "drawing the current object 8 (as the frame queue sets it) with the 4-, 8- and 12-sprite layouts, animating (the frame read runs, the facings one of the four as its guard needs): its descriptions in a ROM bank, its records and areas inside their tables (the guard's), the queue at any entry with room, the graphics in each of the ROM's banks of them or built in $7F, the areas free or held, 0-3 parts drawn"
+
+[[routine]]
+name = "field_draw_next_frame"
+variant = "held"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E0179-7E0179=00,02,04,06,08,0A,0C", "--fill", "7E1210-7E1210=D2,D3,D4,D5,7F", "--fill", "7E0BC0-7E0BC3=7F-8F", "--fill", "7E0F11-7E0F11=FF-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E0D91-7E0D91=38-39", "--fill", "7E1211-7E1211=00-02", "--fill", "7E1790-7E1790=03-03", "--fill", "7E1B10-7E1B10=00-03"]
+why = "as above, holding a frame: the 8-sprite layout drawn whole, the 12-sprite one never"
+
+[[routine]]
+name = "field_draw_next_frame"
+variant = "split"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E0179-7E0179=00,02,04,06,08,0A,0C", "--fill", "7E1210-7E1210=D2,D3,D4,D5,7F", "--fill", "7E0BC0-7E0BC3=7F-8F", "--fill", "7E0F11-7E0F11=FF-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E0D91-7E0D91=38-39", "--fill", "7E1211-7E1211=02-02", "--fill", "7E1790-7E1790=00-02", "--fill", "7E1B10-7E1B10=00-03", "--fill", "7E0D10-7E0D10=68-68"]
+why = "the 12-sprite layout with its tiles half way along a row ($68), each of its three parts"
+
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
 # Two states: the menus proper (the field menu open, menus-field-menu) and the sprite-object

@@ -889,6 +889,12 @@ void set_field_animation_queue_tail(GameState *g, uint8_t v);
 uint8_t field_animation_queue_front(const GameState *g);
 void set_field_animation_queue_front(GameState *g, uint8_t v);
 
+/* Where the next entry of field_vram_queue_source's queue goes, as an offset (entry * 2): the
+ * frame queue starts it at 0 each frame and the frame builder adds an entry for each frame it
+ * finishes */
+uint8_t field_vram_queue_end(const GameState *g);
+void set_field_vram_queue_end(GameState *g, uint8_t v);
+
 enum { FIELD_SPRITE_RANGE_END_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
 /* OAM entry after the last one each sprite range used last frame; entries beyond this frame's
  * are hidden */
@@ -938,6 +944,10 @@ enum { FIELD_WORK_BYTES = 8 };
 uint8_t field_work_byte(const GameState *g, unsigned at);
 void set_field_work_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The frame builder's count of a run of a frame's tiles still to draw, a word */
+uint16_t field_frame_tiles_left(const GameState *g);
+void set_field_frame_tiles_left(GameState *g, uint16_t v);
+
 /* Sprites of the current object still to write while the OAM table is built */
 uint8_t field_sprites_left(const GameState *g);
 void set_field_sprites_left(GameState *g, uint8_t v);
@@ -952,6 +962,17 @@ void set_field_sprite_graphics_bank(GameState *g, uint8_t v);
 /* Where in bank $7F the frame builder puts the next sprite tile it copies */
 uint16_t field_sprite_tile_offset(const GameState *g);
 void set_field_sprite_tile_offset(GameState *g, uint16_t v);
+
+/* The bank of field_sprite_tile_offset, $7F, which the frame builder sets */
+uint8_t field_sprite_tile_bank(const GameState *g);
+void set_field_sprite_tile_bank(GameState *g, uint8_t v);
+
+/* The description's address */
+uint16_t field_frame_description_address(const GameState *g);
+void set_field_frame_description_address(GameState *g, uint16_t v);
+/* Its bank */
+uint8_t field_frame_description_bank(const GameState *g);
+void set_field_frame_description_bank(GameState *g, uint8_t v);
 
 /* The entry's address: the facing's frame table plus animation * 4 + frame */
 uint16_t field_frame_entry_address(const GameState *g);
@@ -1126,6 +1147,12 @@ enum { FIELD_VRAM_QUEUE_USED_COUNT = 8 };   /* by queue entry * 2 */
 uint8_t field_vram_queue_used(const GameState *g, unsigned i);
 void set_field_vram_queue_used(GameState *g, unsigned i, uint8_t v);
 
+enum { FIELD_VRAM_QUEUE_USED_HIGH_COUNT = 8 };   /* by queue entry */
+/* The byte after each entry's field_vram_queue_used, which the frame builder's word-wide marking
+ * of the entries also writes; nothing reads it */
+uint8_t field_vram_queue_used_high(const GameState *g, unsigned i);
+void set_field_vram_queue_used_high(GameState *g, unsigned i, uint8_t v);
+
 enum { FIELD_OBJECT_SCREEN_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
  * origin) */
@@ -1201,6 +1228,13 @@ void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
 
+enum { FIELD_OBJECT_SPRITE_TILES_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where the object's sprite tiles are in VRAM: the first tile's number (9 bits, the high byte's
+ * bit 0 the sprite attributes' page bit); its sprites' tiles follow two apart, and a new frame's
+ * are sent there */
+uint16_t field_object_sprite_tiles(const GameState *g, unsigned slot);
+void set_field_object_sprite_tiles(GameState *g, unsigned slot, uint16_t v);
+
 enum { FIELD_OBJECT_FRAME_STAGING_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Where in bank $7F the object's new frame's tiles are drawn: the first of the
  * field_frame_staging areas it claimed */
@@ -1238,17 +1272,25 @@ void set_field_object_in_view(GameState *g, unsigned slot, uint8_t v);
 uint8_t field_object_in_view_unchecked(const GameState *g, unsigned slot);
 void set_field_object_in_view_unchecked(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_OBJECT_BATTLE_INFO_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453
- * into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF */
-uint8_t field_object_battle_info(const GameState *g, unsigned slot);
-void set_field_object_battle_info(GameState *g, unsigned slot, uint8_t v);
+enum { FIELD_OBJECT_FRAME_DRAWN_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The frame whose tiles the object's sprites show, which the frame builder skips drawing again;
+ * $FF (coming into view, event $8E's layering) draws whichever comes next. A battle's start
+ * keeps it with the party's places ($C0:0453 into $7E:29B4) and its end puts it back ($C0:083B
+ * from $7E:29C3) */
+uint8_t field_object_frame_drawn(const GameState *g, unsigned slot);
+void set_field_object_frame_drawn(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_PRIORITY_MODE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Sprite priority mode: bit 7 takes the priority from the map tile, else bits 0-1 and 4-5 give
  * it; bits 2-3 pick the OAM range */
 uint8_t field_object_priority_mode(const GameState *g, unsigned slot);
 void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_PALETTE_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The palette bits of the object's sprites' attributes, which the frame builder puts in each
+ * sprite of a new frame */
+uint8_t field_object_palette(const GameState *g, unsigned slot);
+void set_field_object_palette(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_STEP_LENGTH_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object */
@@ -1291,15 +1333,38 @@ enum { FIELD_OBJECT_CHARACTER_COUNT = 64 };   /* by object slot (X = slot * 2) *
 uint8_t field_object_character(const GameState *g, unsigned slot);
 void set_field_object_character(GameState *g, unsigned slot, uint8_t v);
 
+enum { FIELD_OBJECT_GRAPHICS_BANK_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The bank of the object's graphics set (field_sprite_graphics), which its frames' tiles come
+ * from */
+uint8_t field_object_graphics_bank(const GameState *g, unsigned slot);
+void set_field_object_graphics_bank(GameState *g, unsigned slot, uint8_t v);
+
 enum { FIELD_OBJECT_SPRITE_LAYOUT_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Bits 0-1: how many sprite records the object draws (4, 8, 12 or 24) */
 uint8_t field_object_sprite_layout(const GameState *g, unsigned slot);
 void set_field_object_sprite_layout(GameState *g, unsigned slot, uint8_t v);
 
+enum { FIELD_OBJECT_GRAPHICS_ADDRESS_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The address of the object's graphics set (field_sprite_graphics) */
+uint16_t field_object_graphics_address(const GameState *g, unsigned slot);
+void set_field_object_graphics_address(GameState *g, unsigned slot, uint16_t v);
+
+enum { FIELD_OBJECT_FRAMES_BANK_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The bank of the object's frame descriptions: for each frame, the tiles of its sprites (four
+ * words a sprite, bit 14 mirrored) and then each sprite's X and Y offset */
+uint8_t field_object_frames_bank(const GameState *g, unsigned slot);
+void set_field_object_frames_bank(GameState *g, unsigned slot, uint8_t v);
+
 enum { FIELD_OBJECT_STATIC_FRAME_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The frame shown in animation mode 3 (static frame) */
 uint8_t field_object_static_frame(const GameState *g, unsigned slot);
 void set_field_object_static_frame(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_FRAMES_ADDRESS_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where the object's frame descriptions start: frame n's at n times a description's size, summed
+ * in 16 bits */
+uint16_t field_object_frames_address(const GameState *g, unsigned slot);
+void set_field_object_frames_address(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_FACING_TABLE_SIZE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Size of one facing's part of the object's animation frame table (facing 1-3 add it 1-3 times

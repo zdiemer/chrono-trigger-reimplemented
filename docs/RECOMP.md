@@ -6955,6 +6955,73 @@ recalibrated.
 **The timing gate.** The new rows and the update, the draw, the building and
 `event_run_init_scripts` were calibrated over the library; no exception.
 
+### Phase 3, field and events: the frame builder
+
+The fifth chunk of bank `$C0`: the frame builder, which the previous chunk's
+tile areas are drawn by. `python3 tools/burndown.py` for `$C0`: 33.5 KiB
+ported, 44% left and 277 entries before; 37.2, 37% and 278 after -- 3.7 KiB.
+
+**What it is** (`field/frames.c`, `field_draw_next_frame` `$C0:CAD9` with
+its layouts `$C0:CBDC`, `$C0:CEF5`, `$C0:D4F7` and their parts). When an
+object's animation moves on to a frame its tiles don't show, the frame queue
+(`$C0:CA76`, still interpreted: it stops at a scanline) has the builder draw
+it: the next frame (the animation's, through the frame read, or the one a
+script holds) is claimed tile areas in bank `$7F`, its tiles are copied there
+from the object's graphics set as its description names them (straight or
+mirrored, by the copies `field/graphics.c` already had), the areas are
+queued to be sent to the object's tiles in VRAM, and the frame's sprites --
+offsets, tiles, attributes -- go into the frame's data, which the records are
+rebuilt from. The 8- and 12-sprite frames are drawn a part at a time, one
+part each time the queue comes to the object, and the parts are counted in
+the records' state byte, which is what holds the records' rebuild until the
+frame is whole. The original's six near-copies (a layout, and for the
+12-sprite layout whether its tiles start half way along a row of VRAM's, at
+tile `$68`) are four rows of one table of plans: which of the description's
+tiles each part draws where, the two stretches sent to VRAM, where the
+sprites' tile numbers skip a row, and which sprites take the object's upper
+half's priority (for the 4-sprite layout, by where each starts).
+
+**What it taught the map.** `$0F01` was named for the battle; it is the frame
+the object's tiles show (`field_object_frame_drawn`: coming into view and a
+script's layering forget it, `object_forget_frame_drawn`, so the next frame is
+drawn whatever it is; the battle keeps it for the party). The object's
+graphics set and frame descriptions (`$1200`/`$1280`, `$1300`/`$1380`), its
+tiles in VRAM (`$0D00`) and its palette (`$0F81`) are mapped, and so are the
+builder's own cells: the queue's end (`$79`), the description's pointer and
+the count on the field's page (whose `field_work` stops at `$C8`).
+
+**What the callers read.** The frame queue reads the carry (more of the frame
+to draw: the object stays at the queue's head) and hands the overflow on;
+liveness keeps the overflow, so the entry works it out after the logic from
+what the logic came to and the state (`build_overflow`: the frame read's,
+the last copy's step along the areas, the second stretch's place, or the
+tiles' skip of a row), with the overflow and the animation's frame from
+before the call.
+
+**What shadow mode and fuzzing found.** The first run mismatched a fifth of
+the calls on `$D9`, the attributes' cell the original leaves (now
+scaffolding); the guard then refused one real call, an object with no areas
+yet ($FFFF) in the middle of its frame, which only a first part's claim
+would give it: the guard asks only of the parts after the first that their
+areas lie inside the bank. Fuzzing found graphics built in bank `$7F` whose
+tiles the frame names run past the bank, where the copies read low RAM
+through bank `$80` (the builder's own cells among it); the guard looks ahead
+at the frame the builder will draw (`object_peek_next_frame`) and refuses
+those. The look ahead first read the frame tables' bank before their offset,
+which moved the frame read's open-bus byte; `field_read_animation_frame`'s
+fuzzing caught it (604 of 4,089) and the bank is read last again.
+Over the 26 movies every call matches: 231,605, none interrupted and none
+refused. Fuzzed (seeds 1 and 2, 20,000 states each, `tools/fuzz_routines.toml`):
+object 8 animating with the 4-, 8- and 12-sprite layouts 0 of 13,837 and 0 of
+13,743, holding a frame 0 of 13,795 and 0 of 13,724, the 12-sprite layout
+with its tiles at `$68` 0 of 13,766 and 0 of 13,624 (the rest turned away by
+the guard); a deliberately wrong plan
+(the split layout's last run a byte off) mismatched 1,749 of 3,465. Against
+chunk 4's build every other field entry keeps its counts.
+
+**The timing gate.** The new row was calibrated over the library; no
+exception.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

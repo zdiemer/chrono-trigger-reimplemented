@@ -2148,14 +2148,77 @@ meaning = "Set with field_object_step_length by event $87 and cleared by the par
 source = "game/event/properties.c set_move_length $C0:4876"
 
 [[var]]
-name = "field_object_battle_info"
+name = "field_object_frame_drawn"
 addr = "7E:0F01"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "A byte per object the field hands the battle with the party's and enemies' placement ($C0:0453 into $7E:29B4, $C0:083B from $7E:29C3); event $8E sets it to $FF"
-source = "game/event/properties.c set_layering $C0:4C74"
+meaning = "The frame whose tiles the object's sprites show, which the frame builder skips drawing again; $FF (coming into view, event $8E's layering) draws whichever comes next. A battle's start keeps it with the party's places ($C0:0453 into $7E:29B4) and its end puts it back ($C0:083B from $7E:29C3)"
+source = "game/field/frames.c, draw_next_frame ($C0:CAD9); game/event/properties.c set_layering $C0:4C74"
+
+[[var]]
+name = "field_object_palette"
+addr = "7E:0F81"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The palette bits of the object's sprites' attributes, which the frame builder puts in each sprite of a new frame"
+source = "game/field/frames.c, frame_sprites ($C0:CAD9)"
+
+[[var]]
+name = "field_object_sprite_tiles"
+addr = "7E:0D00"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Where the object's sprite tiles are in VRAM: the first tile's number (9 bits, the high byte's bit 0 the sprite attributes' page bit); its sprites' tiles follow two apart, and a new frame's are sent there"
+source = "game/field/frames.c, queue_upload, frame_sprites ($C0:CAD9)"
+
+[[var]]
+name = "field_object_graphics_bank"
+addr = "7E:1200"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The bank of the object's graphics set (field_sprite_graphics), which its frames' tiles come from"
+source = "game/field/frames.c, draw_next_frame ($C0:CAD9)"
+
+[[var]]
+name = "field_object_graphics_address"
+addr = "7E:1280"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The address of the object's graphics set (field_sprite_graphics)"
+source = "game/field/frames.c, draw_next_frame ($C0:CAD9)"
+
+[[var]]
+name = "field_object_frames_bank"
+addr = "7E:1300"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The bank of the object's frame descriptions: for each frame, the tiles of its sprites (four words a sprite, bit 14 mirrored) and then each sprite's X and Y offset"
+source = "game/field/frames.c, frame_description ($C0:CAD9)"
+
+[[var]]
+name = "field_object_frames_address"
+addr = "7E:1380"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Where the object's frame descriptions start: frame n's at n times a description's size, summed in 16 bits"
+source = "game/field/frames.c, frame_description ($C0:CAD9)"
 
 [[var]]
 name = "field_object_role"
@@ -13318,6 +13381,60 @@ name = "bottom_right"
 offset = 6
 size = 2
 meaning = "The bottom right quarter's entry"
+
+[[var]]
+name = "field_frame_tiles_left"
+addr = "7E:01C9"
+page = "field"
+size = 2
+reuses = "field_sprites_left"
+subsystem = "field"
+meaning = "The frame builder's count of a run of a frame's tiles still to draw, a word"
+source = "game/field/frames.c, draw_run ($C0:CAD9)"
+
+[[var]]
+name = "field_sprite_tile_bank"
+addr = "7E:01D2"
+page = "field"
+subsystem = "field"
+meaning = "The bank of field_sprite_tile_offset, $7F, which the frame builder sets"
+source = "game/field/frames.c, draw_next_frame ($C0:CAD9)"
+
+[[var]]
+name = "field_frame_description"
+addr = "7E:01D3"
+page = "field"
+stride = 3
+subsystem = "field"
+meaning = "A long pointer to the frame description the frame builder draws from (object_frame_descriptions)"
+source = "game/field/frames.c, draw_next_frame ($C0:CAD9)"
+[[var.field]]
+name = "address"
+offset = 0
+size = 2
+meaning = "The description's address"
+[[var.field]]
+name = "bank"
+offset = 2
+size = 1
+meaning = "Its bank"
+
+[[var]]
+name = "field_vram_queue_end"
+addr = "7E:0179"
+subsystem = "field"
+meaning = "Where the next entry of field_vram_queue_source's queue goes, as an offset (entry * 2): the frame queue starts it at 0 each frame and the frame builder adds an entry for each frame it finishes"
+source = "game/field/frames.c, queue_upload ($C0:CAD9)"
+
+[[var]]
+name = "field_vram_queue_used_high"
+addr = "7E:09A1"
+count = 8
+stride = 2
+index = "queue entry"
+subsystem = "field"
+meaning = "The byte after each entry's field_vram_queue_used, which the frame builder's word-wide marking of the entries also writes; nothing reads it"
+source = "game/field/frames.c, queue_upload ($C0:CAD9)"
 
 [[var]]
 name = "field_frame_staging"

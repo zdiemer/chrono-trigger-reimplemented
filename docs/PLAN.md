@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 142 files, 117 of
-37,024 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 143 files, 117 of
+37,421 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -179,12 +179,12 @@ round the call-outs to the original's code:
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
-| event | 0 | 21 | 0 | 3,273 | 0.01 | 12% |
-| field | 0 | 22 | 0 | 6,127 | 0.01 | 22% |
+| event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
+| field | 0 | 23 | 0 | 6,524 | 0.01 | 20% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
-| **total** | **1** | **127** | **117** | **29,918** | **0.03** | **31%** |
+| **total** | **1** | **128** | **117** | **30,313** | **0.03** | **31%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -338,12 +338,12 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **52% of the code is still generated.**
+docstring says which way it is wrong). **51% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 31.7K | 11.5K | 51% | 202 |
-| field engine, events (`$C0`) | 59.4K | 33.5K | 8.7K | 44% | 277 |
+| field engine, events (`$C0`) | 59.4K | 37.2K | 8.7K | 37% | 278 |
 | menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 214 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 5.0K | 2.8K | 68% | 27 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **52% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **129.1K** | **34.1K** | **52%** | **1027** |
+| **total** | **268.5K** | **132.8K** | **34.1K** | **51%** | **1028** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -525,10 +525,18 @@ layouts") took the run the existing ports called out to most: the 8-, 12-
 and 24-sprite layouts' placing and rebuilding (`$C0:BA65`-`$C0:C739`), and
 the spare sprite tile areas a new frame is drawn into, claimed and freed
 (`$C0:E935`-`$C0:EA41`); the sprite table's building draws every object as C
-now. `$C0` stands at 33.5 KiB ported, 44% left. What `python3
-tools/burndown.py --uncovered C0` lists next is the frame builder
-(`$C0:CBDC`, 6488 bytes), which now calls ports for its areas, and the
-field's main loop and map loading (`$C0:0B86`, 3878).
+now.
+
+The fifth (RECOMP.md, "Phase 3, field and events: the frame builder") took
+the frame builder the frame queue runs (`$C0:CAD9` with its three layouts,
+`$C0:CBDC`-`$C0:D123`, `$C0:D28A`-`$C0:D4F6` in part and `$C0:D4F7`-
+`$C0:DD27`): a new frame's tiles drawn into the staging areas, queued for
+VRAM and put in the frame's data, a part at a time for the larger layouts.
+`$C0` stands at 37.2 KiB ported, 37% left. What is left of the builder's run
+is its immediate twin (`$C0:CB0A` and its layouts `$C0:CDC8`, `$C0:D124`,
+`$C0:DD28`, reached by `BRL` from the battle's return at `$C0:086E` and
+`$C0:0902`, so only as part of that routine) and `$C0:E12A`; next by size is
+the field's main loop and map loading (`$C0:0B86`, 3878 bytes).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

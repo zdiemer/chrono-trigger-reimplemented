@@ -84,6 +84,7 @@ static void set_one_off_animation(GameState *g, FieldObject obj, uint8_t animati
 
 /* The frame a script holds. */
 static void set_held_frame(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_static_frame(g, obj, frame); }
+uint8_t object_held_frame(const GameState *g, FieldObject obj) { return field_object_static_frame(g, obj); }
 
 /* A one-off's half passes left (above). The last half pass is the one-off
  * played out, holding its frame; none is no one-off. */
@@ -420,11 +421,22 @@ void object_animation_tick(GameState *g, FieldObject obj)
 
 /* The object's frame table for its facing, in the bank the frame builder
  * names: a table a facing, in the facings' order. */
-static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj)
+static uint16_t facing_table_offset(const GameState *g, FieldObject obj)
 {
     uint16_t size = field_object_facing_table_size(g, obj);
-    uint16_t facing_table = (uint16_t)(object_facing(g, obj) * size + field_object_frame_table(g, obj));
-    return (FieldFrameTable){ field_frame_entry_bank(g), facing_table };
+    return (uint16_t)(object_facing(g, obj) * size + field_object_frame_table(g, obj));
+}
+
+static FieldFrameTable facing_frame_table_in(const GameState *g, FieldObject obj, uint8_t bank)
+{
+    return (FieldFrameTable){ bank, facing_table_offset(g, obj) };
+}
+
+/* The bank read after the offset, as the original reads them. */
+static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj)
+{
+    uint16_t offset = facing_table_offset(g, obj);
+    return (FieldFrameTable){ field_frame_entry_bank(g), offset };
 }
 
 /* What the object shows next, found without changing anything: the frame
@@ -441,7 +453,11 @@ typedef struct {
     uint16_t place;
 } NextFrame;
 
-static NextFrame find_next_frame(const GameState *g, FieldObject obj)
+/* The tables' bank, where the builder names it (THE_BUILDERS_BANK), else the
+ * bank given. */
+enum { THE_BUILDERS_BANK = -1 };
+
+static NextFrame find_next_frame_in(const GameState *g, FieldObject obj, int bank)
 {
     uint8_t frame = field_object_animation_frame(g, obj);
     bool one_off = object_animation_mode(g, obj) == ANIMATE_PLAY;
@@ -449,7 +465,8 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj)
     /* Looked up last, just before its frame is read, as the original does: a
      * table pointing where nothing answers reads the last byte on the bus,
      * the table's bank (fuzzing found it; no object the game makes does). */
-    FieldFrameTable table = facing_frame_table(g, obj);
+    FieldFrameTable table = bank == THE_BUILDERS_BANK ? facing_frame_table(g, obj)
+                                                      : facing_frame_table_in(g, obj, (uint8_t)bank);
     uint16_t place = field_animation_place(table.offset, animation, frame);
     uint8_t shown = field_animation_frame_number(g, table, place);
     if (shown != END_OF_FRAMES)
@@ -457,6 +474,24 @@ static NextFrame find_next_frame(const GameState *g, FieldObject obj)
     if (one_off)
         return (NextFrame){ END_OF_A_ONE_OFF, 0, place };
     return (NextFrame){ STARTING_OVER, 0, (uint16_t)(place - frame) };
+}
+
+static NextFrame find_next_frame(const GameState *g, FieldObject obj)
+{
+    return find_next_frame_in(g, obj, THE_BUILDERS_BANK);
+}
+
+/* The frame the object would take next from its tables in `bank`, without
+ * taking it: for a guard that looks ahead at what the builder will draw. */
+ObjectFrame object_peek_next_frame(const GameState *g, FieldObject obj, uint8_t bank)
+{
+    NextFrame next = find_next_frame_in(g, obj, bank);
+    switch (next.found) {
+    case END_OF_A_ONE_OFF: return (ObjectFrame){ false, 0 };
+    case STARTING_OVER:
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table_in(g, obj, bank), next.place) };
+    default: return (ObjectFrame){ true, next.frame };
+    }
 }
 
 // $C0:CB3A
@@ -545,15 +580,18 @@ bool field_object_delays_in_bank(Snes *s)
     return ok;
 }
 
+bool object_frame_tables_in_bank(const GameState *g, FieldObject obj)
+{
+    return object_facing_is_one(g, obj) &&
+           (object_facing(g, obj) != FACING_RIGHT || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE);
+}
+
 bool field_object_frames_in_bank(Snes *s)
 {
     if (!field_object_x_low_bank(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_object_in_x(s);
-    bool ok = object_facing_is_one(g, obj) &&
-              (object_facing(g, obj) != FACING_RIGHT || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE);
+    bool ok = object_frame_tables_in_bank(state_of(s), (FieldObject)field_object_in_x(s));
     vars_peek(false);
     return ok;
 }

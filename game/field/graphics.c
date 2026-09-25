@@ -9,6 +9,7 @@
  * builder's two tile copies; the frame it builds is read in field/animation.c. */
 #include "field/graphics.h"
 
+#include "charge.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/field_data.h"
@@ -78,6 +79,17 @@ static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
     uint16_t at = tile_offset(tile);
     for (uint16_t k = 0; k < TILE_BYTES; k++)
         hw_port_write(g, field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics_set(g) + (uint16_t)(at + k))));
+}
+
+/* A frame's tile drawn where the builder has put the build offset and the
+ * port's cursor (field/frames.c): mirrored where its description says,
+ * timed as the copy that draws it. */
+void field_draw_frame_tile(GameState *g, uint16_t tile)
+{
+    if (tile & FIELD_TILE_MIRRORED)
+        TIMED_AS(g, 0xC0E534, copy_sprite_tile_flipped(g, tile));
+    else
+        TIMED_AS(g, 0xC0E687, copy_sprite_tile(g, tile));
 }
 
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */

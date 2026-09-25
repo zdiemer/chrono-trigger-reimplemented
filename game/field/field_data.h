@@ -28,6 +28,13 @@ static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { retur
  * carried into the next bank as the original's indexed reads carry. */
 static inline uint8_t field_sprite_graphics_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
 
+/* An object's frame descriptions (field/frames.c): for each frame, the tiles
+ * its sprites show, a word each (four a sprite), and then each sprite's X and
+ * Y offset from the object, a byte each. `at` is a 24-bit address, carried
+ * into the next bank as the original's indexed reads carry. */
+static inline uint16_t field_frame_tile_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
+static inline uint8_t field_frame_offset_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
+
 /* The ROM's banks of sprite graphics, which a graphics set's bank names: the
  * original copies from each of the four with a routine of its own, and a bank
  * past them (or before) from the last. */
@@ -47,6 +54,8 @@ static inline uint16_t field_sprite_graphics_word(const GameState *g, uint32_t a
  * is the table's offset plus animation * 4 plus the frame, summed in 16
  * bits as the original does. */
 enum { FIELD_FRAMES_A_ANIMATION = 4, FIELD_ANIMATION_TIMES_BANK = 0xE4 };
+/* The bank the frame builder names for the frame tables (field/frames.c). */
+enum { FIELD_FRAME_TABLES_BANK = 0xE4 };
 
 typedef struct {
     uint8_t bank;

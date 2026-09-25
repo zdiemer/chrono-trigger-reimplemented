@@ -902,6 +902,26 @@ below. `python3 tools/timing_census.py` re-runs the census.
     with a few objects in view would compare it;
   - `field_frame_staging_claims`' last four entries are cleared with the four
     areas' and claim nothing read so far.
+- **What the frame builder left** (RECOMP.md, "Phase 3, field and events:
+  the frame builder"):
+  - the builder's immediate twin, `$C0:CB0A` with its layouts `$C0:CDC8`,
+    `$C0:D124` and `$C0:DD28`, is reached only by `BRL` from the battle's
+    return (`$C0:086E`, `$C0:0902`), so it goes with that routine; and
+    `$C0:E12A` (called from `$C0:0212` and `$C0:47E9`) is still the
+    original's;
+  - a 12-sprite object holding a frame is never drawn and stays at the
+    queue's head, so the queue spends the rest of its lines on it every
+    frame; the port keeps that, and a native build without the scanline
+    budget (PLAN.md's beam-coupled routines) has to decide what the
+    queue does instead;
+  - a frame is drawn into the staging areas in bank `$7F` and sent to VRAM by
+    the queue the vblank empties; a native renderer could take the frame's
+    tiles as they are drawn, and the areas, their claims and the queue would
+    go with the gate;
+  - the guard refuses graphics built in bank `$7F` whose tiles the frame
+    names run past the bank (the copies would read low RAM through bank
+    `$80`, the builder's own cells among it, which the port writes at other
+    moments); no object the game makes does.
 - **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
   the map scrolling in"):
   - the rows BG1's and BG2's builders end with the second half of the map

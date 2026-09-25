@@ -105,6 +105,7 @@ add_library(ct_game STATIC
   game/field/bridge.c
   game/field/display.c
   game/field/frame.c
+  game/field/frames.c
   game/field/graphics.c
   game/field/interrupts.c
   game/field/layers.c
