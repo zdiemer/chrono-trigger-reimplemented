@@ -223,29 +223,6 @@ static inline int16_t vid_oam_x(uint8_t low, uint8_t high_bits)
 }
 static inline bool vid_oam_large(uint8_t high_bits) { return (high_bits & 0x02) != 0; }
 
-/* The table's Y for a sprite `offset` lines on from a point at screen line
- * `anchor` (a signed coordinate; the offset is added as a byte, as the game
- * keeps it). The table's Y is a byte, so the sum comes round past 255 for a
- * sprite near the picture's top, and what it means depends on where the point
- * is: a point above the picture shows only the sprites that came round onto
- * the lines just above line 0 (the table's $E0 and past, whose lower parts
- * show at the top); a point in the picture's lower half hides those, which
- * would otherwise show at its top; and a point in its upper half hides the
- * sprites past its middle that didn't reach the hide line. Hidden sprites are
- * put on VID_OAM_HIDDEN_Y. */
-static inline uint8_t vid_oam_y(int16_t anchor, uint8_t offset)
-{
-    enum { LOWER_HALF = 0x80 };
-    uint16_t sum = (uint16_t)(offset + (uint8_t)anchor);
-    uint8_t y = (uint8_t)sum;
-    bool came_round = sum > 0xFF;
-    if (anchor < 0)
-        return came_round && y >= VID_OAM_HIDDEN_Y ? y : VID_OAM_HIDDEN_Y;
-    if (anchor & LOWER_HALF)
-        return came_round && y >= VID_OAM_HIDDEN_Y ? VID_OAM_HIDDEN_Y : y;
-    return y >= LOWER_HALF && y < VID_OAM_HIDDEN_Y ? VID_OAM_HIDDEN_Y : y;
-}
-
 typedef struct {
     uint8_t size_select;    /* which pair of sprite sizes (0-7) */
     uint16_t base;          /* VRAM word address of sprite tile 0 */

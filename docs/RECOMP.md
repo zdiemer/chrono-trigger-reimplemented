@@ -6868,24 +6868,35 @@ sprites are 4, 8, 12 or 24 records; the 8-, 12- and 24-sprite layouts
 object's screen X and their ninth bits as one of the object's high bytes
 (`object_set_sprites_high_bits`), then every sprite's Y; a rebuild takes the
 offsets, and after the Y the looks, from the object's new frame. What
-differs is which Ys are kept on the screen and which hidden on the table's
-line: a sprite's Y is its offset added to the object's screen Y as bytes,
-and each of the original's routines keeps its own sums by where the object
-stands -- above the screen's top, in its lower half or its upper half. The
-five rules (`YRule`) and each routine's three (`y_rules`) are the original's,
-the 8-sprite placing's odd one included (it keeps a sum from an offset down
-the screen that didn't come round, where its rebuild hides the same sum in
-the lower half). The 24-sprite layout is always placed, and hands the draw
-the carry of its last sum as whether there is nothing to draw: above the
-screen, where its last sprite's Y came round past 255, the object isn't drawn
-that frame. That is the game's behaviour, kept as plain logic.
+differs is which sprites show and which are hidden on the table's line. The
+table keeps a sprite's Y as a byte, so one above the screen wraps round to
+the table's last lines or, further off, onto the screen, and each of the
+original's routines hides its own by where the object stands -- above the
+screen's top, in its lower half or its upper half. The port works from the
+sprite's signed top line and names each rule by what it shows (`ShowRule`:
+"shown reaching down onto the screen", "hidden just below the screen",
+"shown in the top half" and so on); each routine's three are a row of one
+table (`ShowRules`), the 4-sprite layout's among them, each row's comment
+saying what differs on the screen (the 8-sprite placing shows the sprites
+below an object in the upper half wherever they land, where its rebuild
+hides them past the middle). The 24-sprite layout is always placed, and an
+object of it above the screen whose last sprite starts on the screen or less
+than 256 lines above it isn't drawn that frame (the original answers
+"nothing to draw" with its last sum's carry). That is the game's behaviour,
+kept as plain logic, which returns only whether the object shows; the
+overflow the original's code reads after a placing (its last sum's, or the
+24-sprite layout's step past its records) is worked out from the state by
+the entries (`placing_overflow`), which look before the update at what it
+will do (`records_work`) to know whether it placed and whether it rebuilt.
 
 **The frame's tile areas** (`claim_frame_areas`, `free_frame_areas`). The
-frame builder draws an object's new frame into spare sprite tile areas in
-VRAM (four from `$3800`, `$200` words each): one for the 4-sprite layout, two
-side by side for the 8, three for the 12, which it claims for the object
-(`field_sprite_vram_claims`, `$C0:E952`, `$C0:E97A`, `$C0:E9AA`, recording
-where the object's frame goes, `field_object_frame_vram`) and which are free
+frame builder draws an object's new frame into areas in bank `$7F` before
+it goes to VRAM (`field_frame_staging`, four from `$7F:3800`, `$200` bytes
+each, which chunk 4 first took for VRAM areas: the builder hands the address
+to the WRAM port): one for the 4-sprite layout, two side by side for the 8,
+three for the 12, which it claims for the object
+(`field_frame_staging_claims`, `$C0:E952`, `$C0:E97A`, `$C0:E9AA`, recording
+where the object's frame goes, `field_object_frame_staging`) and which are free
 again once the records are rebuilt from the frame (`$C0:E9E2`, `$C0:E9FF`,
 `$C0:EA1F`); a map's start frees them all (`$C0:E935`). The frees clear Y's
 high byte (they take 8-bit index registers) and the update's callers read Y,
@@ -6902,7 +6913,7 @@ meets past the tables overrides its outcome in one marked line,
 `ORIGINAL_EFFECT(stops = stopped_past_the_tables(...))` (review rubric item
 81). The current object's word is made current as a word plainly where the
 map setup and the sprite table's building keep it so
-(`object_make_current_afresh`, `object_keep_current_in_a_word`), which the
+(`object_make_current_recognised`, `object_recognise_current`), which the
 effects check found read as a word by logic but cleared only as scaffolding;
 its ten baseline lines are gone, and the contact's two carry their reason.
 `field/field.h` names the field's geometry once -- the map tile, the entry,

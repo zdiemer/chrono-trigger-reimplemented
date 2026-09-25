@@ -153,16 +153,30 @@ SpriteRange object_sprite_range(const GameState *g, FieldObject obj)
 
 uint16_t object_sprite_records(const GameState *g, FieldObject obj) { return field_object_sprite_records(g, obj); }
 
-/* The high bits are kept in three words, eight sprites each. */
-enum { SPRITES_A_HIGH_WORD = 8, SPRITES_A_HIGH_BYTE = 4 };
+/* The high bytes are kept two to an object in each of three tables, which
+ * lie apart in memory ($7F:4F00, $7F:4B40, $7F:4F80), so they are indexed
+ * through a table of the three: the n-th high byte is in table n / 2, the
+ * object's first byte or its second. */
+enum { SPRITES_A_HIGH_BYTE = 4, HIGH_BYTES_A_TABLE = 2 };
+
+static const struct {
+    uint8_t (*get)(const GameState *g, unsigned index);
+    void (*set)(GameState *g, unsigned index, uint8_t v);
+} high_tables[] = {
+    { field_object_sprite_high, set_field_object_sprite_high },
+    { field_object_sprite_high_more, set_field_object_sprite_high_more },
+    { field_object_sprite_high_last, set_field_object_sprite_high_last },
+};
+
+static unsigned high_byte_index(FieldObject obj, unsigned byte)
+{
+    return obj * HIGH_BYTES_A_TABLE + byte % HIGH_BYTES_A_TABLE;
+}
 
 uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n)
 {
-    unsigned w = n / SPRITES_A_HIGH_WORD;
-    uint16_t word = w == 0   ? field_object_sprite_high(g, obj)
-                    : w == 1 ? field_object_sprite_high_more(g, obj)
-                             : field_object_sprite_high_last(g, obj);
-    return (uint8_t)(word >> (8 * ((n / SPRITES_A_HIGH_BYTE) & 1)));
+    unsigned byte = n / SPRITES_A_HIGH_BYTE;
+    return high_tables[byte / HIGH_BYTES_A_TABLE].get(g, high_byte_index(obj, byte));
 }
 
 void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits)
@@ -172,18 +186,8 @@ void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t b
 
 void object_set_sprites_high_bits(GameState *g, FieldObject obj, unsigned first, uint8_t bits)
 {
-    unsigned w = first / SPRITES_A_HIGH_WORD;
-    bool high_byte = (first / SPRITES_A_HIGH_BYTE) & 1;
-    uint16_t word = w == 0   ? field_object_sprite_high(g, obj)
-                    : w == 1 ? field_object_sprite_high_more(g, obj)
-                             : field_object_sprite_high_last(g, obj);
-    word = high_byte ? (uint16_t)((word & 0x00FF) | bits << 8) : (uint16_t)((word & 0xFF00) | bits);
-    if (w == 0)
-        set_field_object_sprite_high(g, obj, word);
-    else if (w == 1)
-        set_field_object_sprite_high_more(g, obj, word);
-    else
-        set_field_object_sprite_high_last(g, obj, word);
+    unsigned byte = first / SPRITES_A_HIGH_BYTE;
+    high_tables[byte / HIGH_BYTES_A_TABLE].set(g, high_byte_index(obj, byte), bits);
 }
 
 /* The records' state is kept as a byte: the count, and the top bit set once
@@ -381,5 +385,8 @@ void object_make_current(GameState *g, FieldObject obj)
     set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_link_byte(field_link_to(obj))));
 }
 
-void object_make_current_afresh(GameState *g, FieldObject obj) { set_field_current_object(g, field_link_byte(field_link_to(obj))); }
-void object_keep_current_in_a_word(GameState *g) { set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF)); }
+void object_make_current_recognised(GameState *g, FieldObject obj)
+{
+    set_field_current_object(g, field_link_byte(field_link_to(obj)));
+}
+void object_recognise_current(GameState *g) { set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF)); }

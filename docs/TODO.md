@@ -893,14 +893,14 @@ below. `python3 tools/timing_census.py` re-runs the census.
     under 64), is still to be read.
 - **What the larger sprite layouts left** (RECOMP.md, "Phase 3, field and
   events: the larger sprite layouts"):
-  - the layouts' Y rules differ between routines for the same object (the
-    8-sprite placing keeps sums its rebuild hides); a native renderer that
+  - the layouts' show rules differ between routines for the same object (the
+    8-sprite placing shows sprites its rebuild hides); a native renderer that
     clips sprites itself would drop the rules, and the 24-sprite layout's
     "nothing to draw" from its last sum's carry, once the gate retires;
   - the sprite table's building runs as one stretch now, and its fuzzing
     stops at the access budget on random rows (before and after): a variant
     with a few objects in view would compare it;
-  - `field_sprite_vram_claims`' last four entries are cleared with the four
+  - `field_frame_staging_claims`' last four entries are cleared with the four
     areas' and claim nothing read so far.
 - **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
   the map scrolling in"):

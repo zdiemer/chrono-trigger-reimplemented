@@ -3833,10 +3833,8 @@ unchecked = "the original places a fifth sprite's Y for an object above the scre
 [[var]]
 name = "field_object_sprite_high"
 addr = "7F:4F00"
-size = 2
-count = 64
-stride = 2
-index = "object slot (X = slot * 2)"
+count = 128
+index = "object slot * 2, and 1 more for its second byte"
 subsystem = "field"
 meaning = "The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite)"
 source = "game/field/sprites.c, field_draw_object_sprites $C0:B309, field_position_sprites $C0:B788"
@@ -3844,10 +3842,8 @@ source = "game/field/sprites.c, field_draw_object_sprites $C0:B309, field_positi
 [[var]]
 name = "field_object_sprite_high_more"
 addr = "7F:4B40"
-size = 2
-count = 64
-stride = 2
-index = "object slot (X = slot * 2)"
+count = 128
+index = "object slot * 2, and 1 more for its second byte"
 subsystem = "field"
 meaning = "The object's third and fourth OAM high table bytes (12- and 24-sprite layouts)"
 source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
@@ -3855,10 +3851,8 @@ source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
 [[var]]
 name = "field_object_sprite_high_last"
 addr = "7F:4F80"
-size = 2
-count = 64
-stride = 2
-index = "object slot (X = slot * 2)"
+count = 128
+index = "object slot * 2, and 1 more for its second byte"
 subsystem = "field"
 meaning = "The object's fifth and sixth OAM high table bytes (24-sprite layout)"
 source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
@@ -13326,6 +13320,17 @@ size = 2
 meaning = "The bottom right quarter's entry"
 
 [[var]]
+name = "field_frame_staging"
+addr = "7F:3800"
+size = 0x200
+count = 4
+stride = 0x200
+index = "area: an object's new frame takes one for the 4-sprite layout, two side by side for the 8, three for the 12"
+subsystem = "field"
+meaning = "Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on)"
+source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA)"
+
+[[var]]
 name = "field_layer_staging"
 addr = "7E:C800"
 size = 0x800
@@ -13337,21 +13342,21 @@ meaning = "Each layer's tile map entries staged for VRAM: the row the screen scr
 source = "game/field/streaming.c, build_line ($C0:7612-$C0:7F57)"
 
 [[var]]
-name = "field_sprite_vram_claims"
+name = "field_frame_staging_claims"
 addr = "7E:0BC0"
 count = 8
-index = "area: the four spare sprite tile areas in VRAM from $3800, $200 words each (the last four entries are cleared with them and claim nothing read so far)"
+index = "area of field_frame_staging (the last four entries are cleared with the first four and claim nothing read so far)"
 subsystem = "field"
-meaning = "Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's records are rebuilt from the frame"
+meaning = "Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's records are rebuilt from the frame"
 source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA), free_frame_areas ($C0:E9E2, $C0:E9FF, $C0:EA1F), free_every_frame_area $C0:E935"
 
 [[var]]
-name = "field_object_frame_vram"
+name = "field_object_frame_staging"
 addr = "7E:0D80"
 size = 2
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas it claimed"
+meaning = "Where in bank $7F the object's new frame's tiles are drawn: the first of the field_frame_staging areas it claimed"
 source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA)"

@@ -1511,12 +1511,14 @@ stay for the ports not moved yet (below).
   window band's tilemap, its full-line window and its screens now read as
   values (`field/line_effects.c`).
 - **The sprite table's form.** `VID_OAM_*` and `vid_oam_x_low`,
-  `vid_oam_high_bits`, `vid_oam_x`, `vid_oam_large` and `vid_oam_y` turn a
-  signed screen position into the table's entry and high bits and back; the
-  field's sprites (`field/sprites.c`) hold positions as signed coordinates
-  and no longer know the ninth bit, the hide line (`VID_OAM_HIDDEN_Y`) or how a
-  byte Y that comes round is read by where its object is (`vid_oam_y`, the
-  rule `$C0:B788` applies). The table stays game memory: the field still
+  `vid_oam_high_bits`, `vid_oam_x` and `vid_oam_large` turn a signed screen
+  position into the table's entry and high bits and back, and
+  `VID_OAM_HIDDEN_Y` is the line that shows nowhere; the field's sprites
+  (`field/sprites.c`) hold positions as signed coordinates and no longer know
+  the ninth bit. Which sprites a placing hides is the game's, not the
+  table's: each layout's placing has its own rules, which `field/sprites.c`
+  keeps together in one table (an earlier `vid_oam_y` held the 4-sprite
+  layout's alone). The table stays game memory: the field still
   builds it where the original did, since other routines read it, and
   `vid_submit_sprites` (the sprite list "Migrating an existing port" sketches)
   waits for all of them.

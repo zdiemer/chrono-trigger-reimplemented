@@ -149,6 +149,14 @@ enum {
     FIELD_COLUMN_MAP_TILES = FIELD_SCREEN_ROWS / FIELD_ENTRIES_A_MAP_TILE + 1,
 };
 
+/* The frame builder's areas in bank $7F (field_frame_staging), where an
+ * object's new frame is drawn before it goes to VRAM (field/sprites.c). */
+enum { FIELD_FRAME_AREAS = RAM_FIELD_FRAME_STAGING_COUNT };
+static inline uint16_t field_frame_area_at(unsigned area)
+{
+    return (uint16_t)(RAM_ABS(RAM_FIELD_FRAME_STAGING) + area * RAM_FIELD_FRAME_STAGING_STRIDE);
+}
+
 /* Where a layer's streamed lines are staged for VRAM (field_layer_staging):
  * a row from its buffer's start, a column from $80 in; the deferred uploads
  * send them from there (field/display.c). */

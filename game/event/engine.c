@@ -252,7 +252,7 @@ static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_e
 static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
 {
     uint16_t at = event_object_script_position(g, object);
-    object_make_current_afresh(g, object);   /* the map setup keeps it as a word ($C0:58FB) */
+    object_make_current_recognised(g, object);   /* the map setup sets the whole word ($C0:58FB) */
     EventStep st;
     for (;;) {
         *stopped_at = at;

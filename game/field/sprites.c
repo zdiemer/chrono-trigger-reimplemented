@@ -43,7 +43,7 @@
 #include "wram.h"
 
 /* A sprite as the table shows it. Its Y is already in the table's form (the
- * records hold it that way, vid_oam_y); its X is a screen coordinate. */
+ * records hold it that way, table_y); its X is a screen coordinate. */
 typedef struct {
     int16_t x;
     uint8_t y, tile, attributes;
@@ -250,6 +250,109 @@ static void draw_object(GameState *g, FieldObject obj)
     write_sprites(g, object_sprite_range(g, obj), sprites, count);
 }
 
+/* ---- Which sprites show -------------------------------------------------------------------- *
+ *
+ * A sprite's place down the screen is its offset from the object added to
+ * the object's screen Y; the table keeps that as a byte, so a sprite whose
+ * top is above the screen wraps round to the table's last lines (224-255,
+ * whose lower parts show at the screen's top), and one further off wraps
+ * round onto the screen itself. So each placing hides some sprites on the
+ * table's hiding line, by rules that depend on where the object stands --
+ * above the screen, in its lower half or in its upper half -- and that are
+ * each routine's own: an object in the same place shows different sprites
+ * under different layouts. The port keeps each routine's rules. */
+typedef enum { ABOVE_THE_SCREEN, LOWER_HALF, UPPER_HALF, ZONES } Zone;
+
+/* The table's hiding line is the first below the screen. */
+enum { HIDDEN = VID_OAM_HIDDEN_Y, BELOW_THE_SCREEN = VID_OAM_HIDDEN_Y, SPRITE_LINES = 32, TABLE_LINES = 256,
+       SCREEN_MIDDLE_LINE = 128 };
+
+static Zone zone_of(int16_t screen_y)
+{
+    /* the object's screen Y is nine bits, and the ninth makes it negative
+     * (screen_coordinate_of): 256-511 read as -256 to -1, so a place of
+     * 256-383, below the screen, counts as above it, as the original takes
+     * the ninth bit */
+    if (screen_y < 0)
+        return ABOVE_THE_SCREEN;
+    return screen_y >= SCREEN_MIDDLE_LINE ? LOWER_HALF : UPPER_HALF;
+}
+
+/* The rules, by what shows. A sprite "reaching up" has a negative offset
+ * (it is above the object's point); its top is its place down the screen. */
+typedef enum {
+    SHOWN_ANYWHERE,                       /* no hiding: past the bottom they wrap round to the top */
+    HIDDEN_JUST_BELOW_THE_SCREEN,         /* hide a sprite starting on the 32 lines below the screen, which would show
+                                             at its top; one further down wraps round unhidden */
+    HIDDEN_REACHING_UP_FROM_BELOW,        /* the same, only for sprites reaching up */
+    SHOWN_IN_THE_TOP_HALF,                /* show a sprite that lands in the screen's upper half: starting there,
+                                             reaching down onto it from up to 32 lines above, or starting just below
+                                             the screen, which wraps round to its top; hide one starting in the lower
+                                             half, or so far above that it would wrap to the bottom */
+    SHOWN_BELOW_OR_IN_THE_TOP_HALF,       /* sprites below the object show wherever they land; those reaching up as in
+                                             the top half */
+    SHOWN_REACHING_DOWN_ONTO_THE_SCREEN,  /* show only sprites reaching up that reach down onto the screen from the 32
+                                             lines above it */
+    SHOWN_ONLY_WRAPPED_FROM_FAR_ABOVE,    /* hide everything but a sprite below the object that starts 129 to 256 lines
+                                             above the screen, whose place wraps round onto its upper half */
+} ShowRule;
+
+static bool shown(ShowRule rule, int16_t top, bool reaches_up)
+{
+    bool in_the_top_half = (top >= -SPRITE_LINES && top < SCREEN_MIDDLE_LINE) || top >= BELOW_THE_SCREEN;
+    switch (rule) {
+    case SHOWN_ANYWHERE: return true;
+    case HIDDEN_JUST_BELOW_THE_SCREEN: return top < BELOW_THE_SCREEN || top >= TABLE_LINES;
+    case HIDDEN_REACHING_UP_FROM_BELOW: return !reaches_up || top < BELOW_THE_SCREEN;
+    case SHOWN_IN_THE_TOP_HALF: return in_the_top_half;
+    case SHOWN_BELOW_OR_IN_THE_TOP_HALF: return !reaches_up || in_the_top_half;
+    case SHOWN_REACHING_DOWN_ONTO_THE_SCREEN: return reaches_up && top >= -SPRITE_LINES && top < 0;
+    case SHOWN_ONLY_WRAPPED_FROM_FAR_ABOVE: return !reaches_up && top >= -TABLE_LINES && top < -SCREEN_MIDDLE_LINE;
+    }
+    return true;
+}
+
+/* A sprite's Y in the table: its place, or the hiding line. */
+static uint8_t table_y(ShowRule rule, int16_t screen_y, uint8_t offset)
+{
+    bool reaches_up = (int8_t)offset < 0;
+    int16_t top = (int16_t)(screen_y + (int8_t)offset);
+    return shown(rule, top, reaches_up) ? (uint8_t)top : HIDDEN;
+}
+
+/* Each routine's rules, by where the object stands (above, lower half,
+ * upper half). */
+typedef struct {
+    ShowRule zone[ZONES];
+} ShowRules;
+
+/* 4 sprites, placed and rebuilt ($C0:B788, $C0:B8CA): below an object in the
+ * lower half, a sprite starting just below the screen shows at its top
+ * unless it reaches up. */
+static const ShowRules FOUR = { { SHOWN_REACHING_DOWN_ONTO_THE_SCREEN, HIDDEN_REACHING_UP_FROM_BELOW,
+                                  SHOWN_IN_THE_TOP_HALF } };
+/* 8 sprites placed ($C0:BA65): unlike their rebuild, below an object in the
+ * upper half they show wherever they land. */
+static const ShowRules EIGHT_PLACED = { { SHOWN_REACHING_DOWN_ONTO_THE_SCREEN, HIDDEN_JUST_BELOW_THE_SCREEN,
+                                          SHOWN_BELOW_OR_IN_THE_TOP_HALF } };
+/* 8 sprites rebuilt ($C0:BCDC): below an object in the lower half, unlike
+ * the 4-sprite layout, the lines just below the screen are hidden whichever
+ * way the sprite reaches. */
+static const ShowRules EIGHT_REBUILT = { { SHOWN_REACHING_DOWN_ONTO_THE_SCREEN, HIDDEN_JUST_BELOW_THE_SCREEN,
+                                           SHOWN_IN_THE_TOP_HALF } };
+/* 12 and 24 sprites ($C0:BFF2, $C0:C2BF, $C0:C73A): an object above the
+ * screen shows almost nothing, and one in the lower half hides nothing. */
+static const ShowRules LARGEST = { { SHOWN_ONLY_WRAPPED_FROM_FAR_ABOVE, SHOWN_ANYWHERE, SHOWN_IN_THE_TOP_HALF } };
+
+static const ShowRules *rules_for(SpriteLayout layout, bool reload)
+{
+    switch (layout) {
+    case LAYOUT_4: return &FOUR;
+    case LAYOUT_8: return reload ? &EIGHT_REBUILT : &EIGHT_PLACED;
+    default: return &LARGEST;
+    }
+}
+
 /* ---- Placing the 4-sprite layout ------------------------------------------------------------ */
 
 enum { SPRITES_PLACED = 4 };
@@ -262,9 +365,6 @@ static uint8_t all_large(void)
         bits = (uint8_t)(bits | vid_oam_high_bits(0, true) << (BITS_A_SPRITE * i));
     return bits;
 }
-
-/* An object whose screen position is above the screen's top edge. */
-static bool above_the_screen(int16_t screen_y) { return screen_y < 0; }
 
 /* For the original's code and shadow mode (field/scratch.h): placing leaves
  * the object's screen position ($C3, $C5, as the object's table keeps it),
@@ -294,7 +394,7 @@ static uint8_t stray_fifth_y_offset(const GameState *g, FieldObject obj)
 static void leave_stray_fifth_sprite_y(GameState *g, FieldObject obj, int16_t screen_y)
 {
     unsigned fifth = (unsigned)sprite_record(g, obj, SPRITES_PLACED).at;
-    uint8_t y = vid_oam_y(screen_y, stray_fifth_y_offset(g, obj));
+    uint8_t y = table_y(FOUR.zone[ABOVE_THE_SCREEN], screen_y, stray_fifth_y_offset(g, obj));
     set_field_sprite_records_byte_unchecked(g, fifth + RECORD_Y, y);
 }
 
@@ -323,9 +423,9 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
         SpriteRecord r = sprite_record(g, obj, n);
         if (reload)
             set_record_y_offset(g, r, frame_y_offset(g, r));
-        set_record_y(g, r, vid_oam_y(at.y, record_y_offset(g, r)));
+        set_record_y(g, r, table_y(FOUR.zone[zone_of(at.y)], at.y, record_y_offset(g, r)));
     }
-    if (above_the_screen(at.y))
+    if (zone_of(at.y) == ABOVE_THE_SCREEN)
         ORIGINAL_EFFECT(leave_stray_fifth_sprite_y(g, obj, at.y));
     if (reload)
         for (unsigned n = 0; n < SPRITES_PLACED; n++) {
@@ -339,67 +439,9 @@ static void place_sprites(GameState *g, FieldObject obj, bool reload)
 
 /* The 8-, 12- and 24-sprite layouts are placed as the 4-sprite one is, four
  * sprites at a time for their X (each four's ninth bits a high byte of the
- * object's) and then every sprite's Y; a rebuild first takes the offsets and,
- * after the Y, the looks from the object's new frame. What differs is which
- * Ys are kept on the screen and which are hidden on the table's hiding line.
- * A sprite's Y is its offset added to the object's screen Y as bytes, which
- * can come round past 255; where the object stands -- above the screen's
- * top, in its lower half, or in its upper half -- each of the original's
- * routines keeps its own sums, and the port keeps them as it does. */
-typedef enum { ABOVE_THE_SCREEN, LOWER_HALF, UPPER_HALF, ZONES } Zone;
-
-typedef enum {
-    KEEPS_EVERY_SUM,
-    KEEPS_SUMS_SHORT_OF_THE_LINE,          /* hides those at the line or past it */
-    KEEPS_THE_TOP_HALF_AND_PAST_THE_LINE,  /* hides those in the lower half short of the line */
-    KEEPS_WRAPPED_SUMS_PAST_THE_LINE,      /* hides those that didn't come round past 255 onto the line or past it */
-    KEEPS_THE_TOP_HALF_UNWRAPPED,          /* hides those that came round, and those in the lower half */
-    KEEPS_OFFSETS_DOWN_THE_SCREEN,         /* keeps a sum from an offset down the screen that didn't come round; the rest as the top half and past the line */
-} YRule;
-
-static Zone zone_of(int16_t screen_y)
-{
-    if (screen_y < 0)
-        return ABOVE_THE_SCREEN;
-    return ((uint8_t)screen_y & 0x80) ? LOWER_HALF : UPPER_HALF;
-}
-
-enum { HIDDEN = VID_OAM_HIDDEN_Y, LOWER_HALF_OF_THE_LINES = 0x80 };
-
-static uint8_t kept_or_hidden(YRule rule, uint8_t offset, uint8_t anchor)
-{
-    uint16_t sum = (uint16_t)(offset + anchor);
-    uint8_t y = (uint8_t)sum;
-    bool came_round = sum > 0xFF;
-    bool top_half = y < LOWER_HALF_OF_THE_LINES, past_the_line = y >= HIDDEN;
-    switch (rule) {
-    case KEEPS_EVERY_SUM: return y;
-    case KEEPS_SUMS_SHORT_OF_THE_LINE: return past_the_line ? HIDDEN : y;
-    case KEEPS_THE_TOP_HALF_AND_PAST_THE_LINE: return top_half || past_the_line ? y : HIDDEN;
-    case KEEPS_WRAPPED_SUMS_PAST_THE_LINE: return came_round && past_the_line ? y : HIDDEN;
-    case KEEPS_THE_TOP_HALF_UNWRAPPED: return !came_round && top_half ? y : HIDDEN;
-    default:
-        if (!(offset & LOWER_HALF_OF_THE_LINES) && !came_round)
-            return y;
-        return top_half || past_the_line ? y : HIDDEN;
-    }
-}
-
-/* Each routine's rules, by where the object stands. */
-typedef struct {
-    YRule zone[ZONES];
-} YRules;
-
-// $C0:BA65 (8, placing), $C0:BCDC (8, rebuilding), $C0:BFF2 (12, placing), $C0:C2BF (12, rebuilding), $C0:C73A (24)
-static YRules y_rules(SpriteLayout layout, bool reload)
-{
-    if (layout == LAYOUT_8)
-        return reload ? (YRules){ { KEEPS_WRAPPED_SUMS_PAST_THE_LINE, KEEPS_SUMS_SHORT_OF_THE_LINE,
-                                    KEEPS_THE_TOP_HALF_AND_PAST_THE_LINE } }
-                      : (YRules){ { KEEPS_WRAPPED_SUMS_PAST_THE_LINE, KEEPS_SUMS_SHORT_OF_THE_LINE,
-                                    KEEPS_OFFSETS_DOWN_THE_SCREEN } };
-    return (YRules){ { KEEPS_THE_TOP_HALF_UNWRAPPED, KEEPS_EVERY_SUM, KEEPS_THE_TOP_HALF_AND_PAST_THE_LINE } };
-}
+ * object's) and then every sprite's Y, by their own rules for which show
+ * (above); a rebuild first takes the offsets and, after the Y, the looks from
+ * the object's new frame. */
 
 /* Four sprites' X at the object's screen X, and their ninth bits, with every
  * sprite large, as one of the object's high bytes. */
@@ -451,36 +493,29 @@ static void leave_larger_place(GameState *g, FieldObject obj, SpriteLayout layou
     original_cell16(g, 0xE7, (uint16_t)(records + last_four * RECORD_BYTES));
 }
 
-/* What placing hands back: whether the last sprite's sum overflowed, which
- * the callers read; and for the 24-sprite layout, whether there is nothing
- * to draw, which its placing answers with the carry it ends on (below). */
-typedef struct {
-    bool overflow;
-    bool nothing_to_draw;
-} Placed;
-
 // $C0:BA65, $C0:BCDC, $C0:BFF2, $C0:C2BF, $C0:C73A (and its fours $C0:C6E7)
 /* Place a larger layout's sprites at the object's screen position, taking
  * their offsets and looks from its new frame where `reload`. The 24-sprite
- * layout is only ever placed (its frame's sprites are its records), and its
- * placing tells the draw there is nothing to draw where its last sum carried:
- * above the screen, where its last sprite's Y came round past 255; elsewhere
- * where its records end past the bank's end, which the game never has. */
-static Placed place_larger(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
+ * layout is only ever placed (its frame's sprites are its records). False
+ * where the object isn't drawn this frame: a 24-sprite object above the
+ * screen whose last sprite starts on the screen or reaches up no more than
+ * 256 lines above it (the original answers "nothing to draw" with the carry
+ * its last sprite's place leaves). */
+static bool place_larger(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
 {
     ScreenPoint at = object_screen_position(g, obj);
     unsigned sprites = layouts[layout].sprites;
     for (unsigned first = 0; first < sprites; first += SPRITES_PLACED)
         place_four_across(g, obj, first, at.x, reload);
     Zone zone = zone_of(at.y);
-    YRule rule = y_rules(layout, reload).zone[zone];
-    uint8_t anchor = (uint8_t)at.y, last_offset = 0;
+    ShowRule rule = rules_for(layout, reload)->zone[zone];
+    uint8_t last_offset = 0;
     for (unsigned n = 0; n < sprites; n++) {
         SpriteRecord r = sprite_record(g, obj, n);
         if (reload)
             set_record_y_offset(g, r, frame_y_offset(g, r));
         last_offset = record_y_offset(g, r);
-        set_record_y(g, r, kept_or_hidden(rule, last_offset, anchor));
+        set_record_y(g, r, table_y(rule, at.y, last_offset));
     }
     if (reload)
         for (unsigned n = 0; n < sprites; n++) {
@@ -488,47 +523,47 @@ static Placed place_larger(GameState *g, FieldObject obj, SpriteLayout layout, b
             set_record_look(g, r, frame_look(g, r));
         }
     ORIGINAL_EFFECT(leave_larger_place(g, obj, layout, zone));
-    Placed placed = { field_add_overflows8(last_offset, anchor), false };
-    if (layout == LAYOUT_24 && zone != ABOVE_THE_SCREEN) {
-        /* the 24-sprite layout's counting loops end on a step to the next record */
-        uint16_t last = sprite_record(g, obj, sprites - 1).at;
-        placed = (Placed){ field_add_overflows16(last, RECORD_BYTES), (uint32_t)last + RECORD_BYTES > 0xFFFF };
-    } else if (layout == LAYOUT_24) {
-        placed.nothing_to_draw = (uint16_t)(last_offset + anchor) > 0xFF;
-    }
-    return placed;
+    if (layout != LAYOUT_24 || zone != ABOVE_THE_SCREEN)
+        return true;
+    int16_t last_top = (int16_t)(at.y + (int8_t)last_offset);
+    bool last_reaches = (int8_t)last_offset < 0 ? last_top >= -TABLE_LINES : last_top >= 0;
+    return !last_reaches;
 }
 
 /* ---- The frame's tile areas ---------------------------------------------------------------- */
 
-/* The frame builder draws an object's new frame into spare sprite tile areas
- * in VRAM, one for the 4-sprite layout, two side by side for the 8, three for
- * the 12, which it holds for the object (field_sprite_vram_claims) until the
+/* The frame builder draws an object's new frame into areas in bank $7F
+ * (field_frame_area_at), one for the 4-sprite layout, two side by side for
+ * the 8, three for the 12, which it holds for the object until the
  * object's records are rebuilt from the frame; then they are free again. It
  * looks for the object's claim from the first area on, as far as a run of
  * that many areas can start. */
-enum { FRAME_AREAS = 4, FREE_AREA = 0x80, TAKEN_BIT = 0x80 };
-enum { FIRST_AREA_VRAM = 0x3800, AREA_WORDS = 0x200 };
-
 static unsigned areas_for(SpriteLayout layout) { return layout == LAYOUT_4 ? 1 : layout == LAYOUT_8 ? 2 : 3; }
-static bool area_free(const GameState *g, unsigned k) { return (field_sprite_vram_claims(g, k) & TAKEN_BIT) != 0; }
+
+/* Who holds an area: an object, or a link to none. */
+static FieldLink area_owner(const GameState *g, unsigned k) { return field_link_stored(field_frame_staging_claims(g, k)); }
+static void set_area_owner(GameState *g, unsigned k, FieldLink owner)
+{
+    set_field_frame_staging_claims(g, k, field_link_byte(owner));
+}
+static bool area_free(const GameState *g, unsigned k) { return !field_link_is_object(area_owner(g, k)); }
 
 // $C0:E952 (4), $C0:E97A (8), $C0:E9AA (12)
 /* The frame builder claims areas for the object's new frame: the first run
- * of free ones long enough, whose first's VRAM the frame's tiles go to.
+ * of free ones long enough, in whose first the frame is drawn.
  * False where none is free. */
 static bool claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout)
 {
     unsigned count = areas_for(layout);
-    for (unsigned k = 0; k + count <= FRAME_AREAS; k++) {
+    for (unsigned k = 0; k + count <= FIELD_FRAME_AREAS; k++) {
         bool free = true;
         for (unsigned a = 0; a < count; a++)
             free = free && area_free(g, k + a);
         if (!free)
             continue;
         for (unsigned a = 0; a < count; a++)
-            set_field_sprite_vram_claims(g, k + a, field_object_offset(obj));
-        set_field_object_frame_vram(g, obj, (uint16_t)(FIRST_AREA_VRAM + k * AREA_WORDS));
+            set_area_owner(g, k + a, field_link_to(obj));
+        set_field_object_frame_staging(g, obj, field_frame_area_at(k));
         return true;
     }
     return false;
@@ -538,19 +573,19 @@ static bool claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout
 /* A map's start frees every area. */
 static void free_every_frame_area(GameState *g)
 {
-    for (unsigned k = 0; k < FIELD_SPRITE_VRAM_CLAIMS_COUNT; k++)
-        set_field_sprite_vram_claims(g, k, FREE_AREA);
+    for (unsigned k = 0; k < FIELD_FRAME_STAGING_CLAIMS_COUNT; k++)
+        set_area_owner(g, k, field_no_link());
 }
 
 // $C0:E9E2 (4), $C0:E9FF (8), $C0:EA1F (12)
 static void free_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout)
 {
     unsigned count = areas_for(layout);
-    for (unsigned k = 0; k + count <= FRAME_AREAS; k++) {
-        if (field_sprite_vram_claims(g, k) != field_object_offset(obj))
+    for (unsigned k = 0; k + count <= FIELD_FRAME_AREAS; k++) {
+        if (!field_same_link(area_owner(g, k), field_link_to(obj)))
             continue;
         for (unsigned a = 0; a < count; a++)
-            set_field_sprite_vram_claims(g, k + a, FREE_AREA);
+            set_area_owner(g, k + a, field_no_link());
         return;
     }
 }
@@ -580,78 +615,91 @@ static RecordsWork records_work(const GameState *g, FieldObject obj)
     return st.changed < at_least ? RECORDS_NOTHING : RECORDS_REBUILD;
 }
 
-/* What bringing the records up to date came to, and the overflow it left
- * (where it placed or rebuilt), which the callers read. */
+/* What bringing the records up to date came to. */
 typedef enum { RECORDS_NONE_TO_DRAW, RECORDS_READY } RecordsOutcome;
-typedef struct {
-    RecordsOutcome outcome;
-    bool placed;
-    bool overflow;
-    bool rebuilt;
-} RecordsUpdate;
 
 /* The layouts' placing and rebuilding, which are entries of their own, each
  * timed as its routine: the 4-sprite layout's with the fifth sprite's stray Y
- * (place_sprites), the larger ones' with their own rules (place_larger). */
+ * (place_sprites), the larger ones' with their own rules (place_larger).
+ * False where the object isn't drawn this frame. */
 enum { PLACE_4 = 0xC0B788, REBUILD_4 = 0xC0B8CA, PLACE_8 = 0xC0BA65, REBUILD_8 = 0xC0BCDC, PLACE_12 = 0xC0BFF2,
        REBUILD_12 = 0xC0C2BF };
 
-static bool place_4(GameState *g, FieldObject obj, bool reload);
-
-static Placed place_layout(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
+static bool place_layout(GameState *g, FieldObject obj, SpriteLayout layout, bool reload)
 {
-    Placed placed = { false, false };
+    bool shows = true;
     switch (layout) {
     case LAYOUT_4:
-        TIMED_AS(g, reload ? REBUILD_4 : PLACE_4, placed.overflow = place_4(g, obj, reload));
+        TIMED_AS(g, reload ? REBUILD_4 : PLACE_4, place_sprites(g, obj, reload));
         break;
     case LAYOUT_8:
-        TIMED_AS(g, reload ? REBUILD_8 : PLACE_8, placed = place_larger(g, obj, layout, reload));
+        TIMED_AS(g, reload ? REBUILD_8 : PLACE_8, shows = place_larger(g, obj, layout, reload));
         break;
     case LAYOUT_12:
-        TIMED_AS(g, reload ? REBUILD_12 : PLACE_12, placed = place_larger(g, obj, layout, reload));
+        TIMED_AS(g, reload ? REBUILD_12 : PLACE_12, shows = place_larger(g, obj, layout, reload));
         break;
     default:
-        placed = place_larger(g, obj, layout, false);
+        shows = place_larger(g, obj, layout, false);
         break;
     }
-    return placed;
+    return shows;
 }
 
 // $C0:B701
 /* Bring an object's records up to date for drawing: place them, or rebuild
  * them from its new frame and free the frame's tile areas, marking them
  * built. The object is the current one. */
-static RecordsUpdate bring_records_up_to_date(GameState *g, FieldObject obj)
+static RecordsOutcome bring_records_up_to_date(GameState *g, FieldObject obj)
 {
     SpriteLayout layout = object_sprite_layout(g, obj);
     RecordsWork work = records_work(g, obj);
-    RecordsUpdate u = { RECORDS_READY, false, false, false };
-    if (work == RECORDS_NOTHING) {
-        u.outcome = RECORDS_NONE_TO_DRAW;
-        return u;
-    }
-    Placed placed = place_layout(g, obj, layout, work == RECORDS_REBUILD);
-    u.placed = true;
-    u.overflow = placed.overflow;
-    if (placed.nothing_to_draw)
-        u.outcome = RECORDS_NONE_TO_DRAW;
+    if (work == RECORDS_NOTHING)
+        return RECORDS_NONE_TO_DRAW;
+    bool shows = place_layout(g, obj, layout, work == RECORDS_REBUILD);
     if (work == RECORDS_REBUILD) {
         free_frame_areas(g, obj, layout);
         object_mark_records_built(g, obj);
-        u.rebuilt = true;
     }
-    return u;
+    return shows ? RECORDS_READY : RECORDS_NONE_TO_DRAW;
 }
 
-/* What the update leaves the original's code: the overflow where it placed,
- * and Y as a byte where it rebuilt (freeing the frame's areas takes 8-bit
- * index registers, which clears Y's high byte, and its caller reads Y). */
-static void leave_update_registers(Snes *s, RecordsUpdate u)
+/* ---- What the entries leave ------------------------------------------------------------- */
+
+/* The overflow of a step from the object's last record to the next, which a
+ * draw and the 24-sprite layout's loops end on. */
+static bool records_end_overflow(const GameState *g, FieldObject obj)
 {
-    if (u.placed)
-        m_set_flag(s, CPU_FLAG_V, u.overflow);
-    if (u.rebuilt)
+    uint16_t last = sprite_record(g, obj, (unsigned)(layout_of(g, obj).sprites - 1)).at;
+    return field_add_overflows16(last, RECORD_BYTES);
+}
+
+/* The overflow of the last sum a placing made, which its callers read: the
+ * last sprite's place (the 4-sprite layout's stray fifth's, for an object
+ * above the screen), or for the 24-sprite layout on or below the screen the
+ * step past its records. Worked out afresh from what the placing left. */
+static bool placing_overflow(const GameState *g, FieldObject obj, SpriteLayout layout)
+{
+    ScreenPoint at = object_screen_position(g, obj);
+    Zone zone = zone_of(at.y);
+    if (layout == LAYOUT_24 && zone != ABOVE_THE_SCREEN)
+        return records_end_overflow(g, obj);
+    uint8_t last_offset = layout == LAYOUT_4 && zone == ABOVE_THE_SCREEN
+                              ? stray_fifth_y_offset(g, obj)
+                              : record_y_offset(g, sprite_record(g, obj, (unsigned)(layouts[layout].sprites - 1)));
+    return field_add_overflows8(last_offset, (uint8_t)at.y);
+}
+
+/* What an update leaves the original's code, by the work it had to do
+ * (records_work, looked at before): the overflow of its placing's last sum
+ * where it placed, and Y as a byte where it rebuilt (freeing the frame's
+ * areas takes 8-bit index registers, which clears Y's high byte, and its
+ * caller reads Y). */
+static void leave_update_registers(Snes *s, FieldObject obj, RecordsWork work)
+{
+    const GameState *g = state_of(s);
+    if (work != RECORDS_NOTHING)
+        m_set_flag(s, CPU_FLAG_V, placing_overflow(g, obj, object_sprite_layout(g, obj)));
+    if (work == RECORDS_REBUILD)
         s->cpu.y &= 0x00FF;
 }
 
@@ -660,33 +708,37 @@ static void leave_update_registers(Snes *s, RecordsUpdate u)
 void field_update_object_sprites(Snes *s)
 {
     GameState *g = state_of(s);
-    RecordsUpdate u = bring_records_up_to_date(g, (FieldObject)field_current_object_slot(s));
-    leave_update_registers(s, u);
-    m_set_flag(s, CPU_FLAG_C, u.outcome == RECORDS_NONE_TO_DRAW);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    RecordsWork work = records_work(g, obj);
+    RecordsOutcome r = bring_records_up_to_date(g, obj);
+    leave_update_registers(s, obj, work);
+    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
     m_rts(s);
-}
-
-/* The overflow of the last sprite's step to the next record, which the
- * callers read. */
-static bool records_end_overflow(const GameState *g, FieldObject obj)
-{
-    uint16_t last = sprite_record(g, obj, (unsigned)(layout_of(g, obj).sprites - 1)).at;
-    return field_add_overflows16(last, RECORD_BYTES);
 }
 
 enum { UPDATE_RECORDS = 0xC0B701, DRAW = 0xC0B309 };
 
-static RecordsUpdate update_and_draw(GameState *g, FieldObject obj);
 static bool records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);
 
-/* A draw's flags: the carry says there was nothing to draw, and after a
- * draw the overflow is that of the records' end. */
-static void leave_draw_flags(Snes *s, RecordsUpdate u, FieldObject obj)
+/* An object's draw: its records brought up to date, and its sprites drawn
+ * if there are any. */
+static RecordsOutcome update_and_draw(GameState *g, FieldObject obj)
 {
-    leave_update_registers(s, u);
-    if (u.outcome == RECORDS_READY)
+    RecordsOutcome r;
+    TIMED_AS(g, UPDATE_RECORDS, r = bring_records_up_to_date(g, obj));
+    if (r == RECORDS_READY)
+        draw_object(g, obj);
+    return r;
+}
+
+/* A draw's registers: the update's, and after a draw the overflow of the
+ * records' end; the carry says there was nothing to draw. */
+static void leave_draw_registers(Snes *s, FieldObject obj, RecordsWork work, RecordsOutcome r)
+{
+    leave_update_registers(s, obj, work);
+    if (r == RECORDS_READY)
         m_set_flag(s, CPU_FLAG_V, records_end_overflow(state_of(s), obj));
-    m_set_flag(s, CPU_FLAG_C, u.outcome == RECORDS_NONE_TO_DRAW);
+    m_set_flag(s, CPU_FLAG_C, r == RECORDS_NONE_TO_DRAW);
 }
 
 // $C0:B309
@@ -694,8 +746,10 @@ static void leave_draw_flags(Snes *s, RecordsUpdate u, FieldObject obj)
  * sprites drawn into its range. */
 void field_draw_object_sprites(Snes *s)
 {
+    GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
-    leave_draw_flags(s, update_and_draw(state_of(s), obj), obj);
+    RecordsWork work = records_work(g, obj);
+    leave_draw_registers(s, obj, work, update_and_draw(g, obj));
     m_rts(s);
 }
 
@@ -731,23 +785,13 @@ static bool every_draw_is_own(const GameState *g)
     return true;
 }
 
-/* An object's draw: its records brought up to date, and its sprites drawn
- * if there are any. */
-static RecordsUpdate update_and_draw(GameState *g, FieldObject obj)
-{
-    RecordsUpdate u;
-    TIMED_AS(g, UPDATE_RECORDS, u = bring_records_up_to_date(g, obj));
-    if (u.outcome == RECORDS_READY)
-        draw_object(g, obj);
-    return u;
-}
-
 static void draw_as_c(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
-    RecordsUpdate u;
-    TIMED_AS(g, DRAW, u = update_and_draw(g, obj));
-    leave_draw_flags(s, u, obj);
+    RecordsWork work = records_work(g, obj);
+    RecordsOutcome r;
+    TIMED_AS(g, DRAW, r = update_and_draw(g, obj));
+    leave_draw_registers(s, obj, work, r);
 }
 
 /* The draw, called as the original calls it where the port doesn't draw as
@@ -803,7 +847,7 @@ void field_build_sprite_table(Snes *s)
     GameState *g = state_of(s);
     start_ranges(g);
     open_table_stream(g);
-    object_keep_current_in_a_word(g);   /* the building keeps it in a word whose high byte it clears */
+    object_recognise_current(g);   /* the building clears the byte after the link */
     bool as_c = every_draw_is_own(g);
     for (int row = FIELD_ROWS - 1; row >= 0; row--) {
         FieldLink link = row_first_object(g, (unsigned)row);
@@ -818,18 +862,6 @@ void field_build_sprite_table(Snes *s)
     m_rts(s);
 }
 
-/* The 4-sprite layout placed, and the overflow of its last sum: the fifth
- * sprite's, for an object above the screen's top
- * (leave_stray_fifth_sprite_y). */
-static bool place_4(GameState *g, FieldObject obj, bool reload)
-{
-    place_sprites(g, obj, reload);
-    ScreenPoint at = object_screen_position(g, obj);
-    uint8_t last_offset = above_the_screen(at.y) ? stray_fifth_y_offset(g, obj)
-                                                 : record_y_offset(g, sprite_record(g, obj, SPRITES_PLACED - 1));
-    return field_add_overflows8(last_offset, (uint8_t)at.y);
-}
-
 /* The placing and rebuilding entries: the object in X (16-bit), which the
  * guard has made sure is the current one, whose high table bits the
  * original's placing writes. They leave the overflow of their last sum. */
@@ -837,8 +869,11 @@ static void place_entry(Snes *s, SpriteLayout layout, bool reload)
 {
     GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_object_in_x(s);
-    bool overflow = layout == LAYOUT_4 ? place_4(g, obj, reload) : place_larger(g, obj, layout, reload).overflow;
-    m_set_flag(s, CPU_FLAG_V, overflow);
+    if (layout == LAYOUT_4)
+        place_sprites(g, obj, reload);
+    else
+        place_larger(g, obj, layout, reload);
+    m_set_flag(s, CPU_FLAG_V, placing_overflow(g, obj, layout));
     m_rts(s);
 }
 
@@ -876,7 +911,7 @@ static void claim_entry(Snes *s, SpriteLayout layout)
     GameState *g = state_of(s);
     FieldObject obj = object_current(g);
     bool claimed = claim_frame_areas(g, obj, layout);
-    s->cpu.x = claimed ? (uint8_t)field_current_object(g) : (uint16_t)(FRAME_AREAS - areas_for(layout) + 1);
+    s->cpu.x = claimed ? (uint8_t)field_current_object(g) : (uint16_t)(FIELD_FRAME_AREAS - areas_for(layout) + 1);
     if (claimed)
         m_set_flag(s, CPU_FLAG_V, false);
     m_set_flag(s, CPU_FLAG_C, claimed);

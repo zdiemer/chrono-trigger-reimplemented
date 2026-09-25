@@ -1137,13 +1137,13 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
 
-enum { FIELD_SPRITE_VRAM_CLAIMS_COUNT = 8 };   /* by area: the four spare sprite tile areas in VRAM from $3800, $200 words each (the last four entries are cleared with them and claim nothing read so far) */
-/* Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of
+enum { FIELD_FRAME_STAGING_CLAIMS_COUNT = 8 };   /* by area of field_frame_staging (the last four entries are cleared with the first four and claim nothing read so far) */
+/* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
  * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
  * records are rebuilt from the frame */
-uint8_t field_sprite_vram_claims(const GameState *g, unsigned i);
-void set_field_sprite_vram_claims(GameState *g, unsigned i, uint8_t v);
+uint8_t field_frame_staging_claims(const GameState *g, unsigned i);
+void set_field_frame_staging_claims(GameState *g, unsigned i, uint8_t v);
 
 /* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
  * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
@@ -1201,11 +1201,11 @@ void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
 
-enum { FIELD_OBJECT_FRAME_VRAM_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas
- * it claimed */
-uint16_t field_object_frame_vram(const GameState *g, unsigned slot);
-void set_field_object_frame_vram(GameState *g, unsigned slot, uint16_t v);
+enum { FIELD_OBJECT_FRAME_STAGING_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where in bank $7F the object's new frame's tiles are drawn: the first of the
+ * field_frame_staging areas it claimed */
+uint16_t field_object_frame_staging(const GameState *g, unsigned slot);
+void set_field_object_frame_staging(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_ROW_FIRST_OBJECT_COUNT = 64 };   /* by screen row (screen Y / 4, even) */
 /* First object of each screen row's list, negative for none */
@@ -2048,6 +2048,14 @@ void set_field_auto_scroll_position_x(GameState *g, unsigned layer, uint16_t v);
 uint16_t field_auto_scroll_position_y(const GameState *g, unsigned layer);
 void set_field_auto_scroll_position_y(GameState *g, unsigned layer, uint16_t v);
 
+enum { FIELD_FRAME_STAGING_COUNT = 4 };   /* by area: an object's new frame takes one for the 4-sprite layout, two side by side for the 8, three for the 12 */
+/* Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before
+ * they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on) [512 bytes,
+ * one at a time] */
+enum { FIELD_FRAME_STAGING_BYTES = 512 };
+uint8_t field_frame_staging_byte(const GameState *g, unsigned i, unsigned at);
+void set_field_frame_staging_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
 /* The objects' sprites as their frames give them, 8 bytes a sprite at the object's
  * field_object_sprite_records offset, as the records keep them (the X offset a word, the Y
  * offset, the tile and the attributes at the records' places), which a rebuild takes the records
@@ -2056,10 +2064,10 @@ enum { FIELD_SPRITE_FRAME_DATA_BYTES = 832 };
 uint8_t field_sprite_frame_data_byte(const GameState *g, unsigned at);
 void set_field_sprite_frame_data_byte(GameState *g, unsigned at, uint8_t v);
 
-enum { FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT = 64 };   /* by object slot (X = slot * 2) */
+enum { FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT = 128 };   /* by object slot * 2, and 1 more for its second byte */
 /* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) */
-uint16_t field_object_sprite_high_more(const GameState *g, unsigned slot);
-void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint16_t v);
+uint8_t field_object_sprite_high_more(const GameState *g, unsigned slot);
+void set_field_object_sprite_high_more(GameState *g, unsigned slot, uint8_t v);
 
 /* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
  * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
@@ -2078,15 +2086,15 @@ void set_field_sprite_records_byte(GameState *g, unsigned at, uint8_t v);
 uint8_t field_sprite_records_byte_unchecked(const GameState *g, unsigned at);
 void set_field_sprite_records_byte_unchecked(GameState *g, unsigned at, uint8_t v);
 
-enum { FIELD_OBJECT_SPRITE_HIGH_COUNT = 64 };   /* by object slot (X = slot * 2) */
+enum { FIELD_OBJECT_SPRITE_HIGH_COUNT = 128 };   /* by object slot * 2, and 1 more for its second byte */
 /* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) */
-uint16_t field_object_sprite_high(const GameState *g, unsigned slot);
-void set_field_object_sprite_high(GameState *g, unsigned slot, uint16_t v);
+uint8_t field_object_sprite_high(const GameState *g, unsigned slot);
+void set_field_object_sprite_high(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT = 64 };   /* by object slot (X = slot * 2) */
+enum { FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT = 128 };   /* by object slot * 2, and 1 more for its second byte */
 /* The object's fifth and sixth OAM high table bytes (24-sprite layout) */
-uint16_t field_object_sprite_high_last(const GameState *g, unsigned slot);
-void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v);
+uint8_t field_object_sprite_high_last(const GameState *g, unsigned slot);
+void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v);
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 

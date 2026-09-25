@@ -886,15 +886,14 @@
 #define RAM_FIELD_OBJECT_SCREEN_Y 0x7E0A80u
 #define RAM_FIELD_OBJECT_SCREEN_Y_COUNT 64u
 #define RAM_FIELD_OBJECT_SCREEN_Y_STRIDE 0x02u
-/* Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of
+/* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
  * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
- * records are rebuilt from the frame [8 x $1 bytes, by area: the four spare sprite tile areas in
- * VRAM from $3800, $200 words each (the last four entries are cleared with them and claim
- * nothing read so far)] */
-#define RAM_FIELD_SPRITE_VRAM_CLAIMS 0x7E0BC0u
-#define RAM_FIELD_SPRITE_VRAM_CLAIMS_COUNT 8u
-#define RAM_FIELD_SPRITE_VRAM_CLAIMS_STRIDE 0x01u
+ * records are rebuilt from the frame [8 x $1 bytes, by area of field_frame_staging (the last
+ * four entries are cleared with the first four and claim nothing read so far)] */
+#define RAM_FIELD_FRAME_STAGING_CLAIMS 0x7E0BC0u
+#define RAM_FIELD_FRAME_STAGING_CLAIMS_COUNT 8u
+#define RAM_FIELD_FRAME_STAGING_CLAIMS_STRIDE 0x01u
 /* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
  * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
 #define RAM_FIELD_BG2_HALF_SCROLL 0x7E0BC9u
@@ -926,11 +925,11 @@
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY 0x7E0C00u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_STRIDE 0x02u
-/* Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas
- * it claimed [64 x $2 bytes, by object slot (X = slot * 2)] */
-#define RAM_FIELD_OBJECT_FRAME_VRAM 0x7E0D80u
-#define RAM_FIELD_OBJECT_FRAME_VRAM_COUNT 64u
-#define RAM_FIELD_OBJECT_FRAME_VRAM_STRIDE 0x02u
+/* Where in bank $7F the object's new frame's tiles are drawn: the first of the
+ * field_frame_staging areas it claimed [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAME_STAGING 0x7E0D80u
+#define RAM_FIELD_OBJECT_FRAME_STAGING_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAME_STAGING_STRIDE 0x02u
 /* First object of each screen row's list, negative for none [64 x $2 bytes, by screen row
  * (screen Y / 4, even)] */
 #define RAM_FIELD_ROW_FIRST_OBJECT 0x7E0E00u
@@ -1596,30 +1595,37 @@
 #define RAM_FIELD_AUTO_SCROLL_POSITION_STRIDE 0x04u
 #define RAM_FIELD_AUTO_SCROLL_POSITION_X 0x7F346Bu /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_POSITION_Y 0x7F346Du /* Vertical */
+/* Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before
+ * they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on) [4 x $200
+ * bytes, by area: an object's new frame takes one for the 4-sprite layout, two side by side for
+ * the 8, three for the 12] */
+#define RAM_FIELD_FRAME_STAGING 0x7F3800u
+#define RAM_FIELD_FRAME_STAGING_COUNT 4u
+#define RAM_FIELD_FRAME_STAGING_STRIDE 0x200u
 /* The objects' sprites as their frames give them, 8 bytes a sprite at the object's
  * field_object_sprite_records offset, as the records keep them (the X offset a word, the Y
  * offset, the tile and the attributes at the records' places), which a rebuild takes the records
  * from [832 bytes] */
 #define RAM_FIELD_SPRITE_FRAME_DATA 0x7F4800u
-/* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) [64 x $2 bytes,
- * by object slot (X = slot * 2)] */
+/* The object's third and fourth OAM high table bytes (12- and 24-sprite layouts) [128 x $1
+ * bytes, by object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE 0x7F4B40u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x02u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_MORE_STRIDE 0x01u
 /* The objects' sprites, 8 bytes each from an object's field_object_sprite_records offset (a byte
  * offset, as the game keeps it): screen X, screen Y ($E0 hidden), the X offset from the object's
  * screen position (a word), the Y offset, then the tile and attribute bytes [832 bytes] */
 #define RAM_FIELD_SPRITE_RECORDS 0x7F4BC0u
-/* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [64 x
- * $2 bytes, by object slot (X = slot * 2)] */
+/* The object's first two OAM high table bytes (size bits and X bit 8, two bits per sprite) [128
+ * x $1 bytes, by object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH 0x7F4F00u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_STRIDE 0x02u
-/* The object's fifth and sixth OAM high table bytes (24-sprite layout) [64 x $2 bytes, by object
- * slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_STRIDE 0x01u
+/* The object's fifth and sixth OAM high table bytes (24-sprite layout) [128 x $1 bytes, by
+ * object slot * 2, and 1 more for its second byte] */
 #define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST 0x7F4F80u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT 64u
-#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_STRIDE 0x02u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_COUNT 128u
+#define RAM_FIELD_OBJECT_SPRITE_HIGH_LAST_STRIDE 0x01u
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 

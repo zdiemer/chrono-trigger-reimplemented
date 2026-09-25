@@ -79,7 +79,6 @@ static uint16_t index_mask(const GameState *g, unsigned layer)
  * a line along a row from a buffer's start and one down a column from $80
  * into it (field/field.h); a layer drawn whole at a map's load runs on from
  * the first buffer's start through the next. */
-enum { STAGING_BYTES = FIELD_LAYER_STAGING_BYTES };
 
 typedef struct {
     uint16_t at;   /* from the first buffer's start */
@@ -87,7 +86,7 @@ typedef struct {
 
 static void stage_byte(GameState *g, uint16_t at, uint8_t v)
 {
-    set_field_layer_staging_byte(g, at / STAGING_BYTES, at % STAGING_BYTES, v);
+    set_field_layer_staging_byte(g, at / FIELD_LAYER_STAGING_BYTES, at % FIELD_LAYER_STAGING_BYTES, v);
 }
 
 static void stage(GameState *g, Staging *s, uint16_t entry)
@@ -335,21 +334,15 @@ static void note_the_crossing(GameState *g, const LayerMove *m)
 
 /* ---- Streaming ------------------------------------------------------------------------- */
 
-/* A row spans the screen and a tile either side, a column the screen and a
- * tile above, in map tiles. */
-enum { ROW_TILES = FIELD_ROW_MAP_TILES, COLUMN_TILES = FIELD_COLUMN_MAP_TILES };
-
-/* A layer's place in its tile map, in 8-pixel tiles: 64 across and 32 down,
- * round which it wraps. */
-enum { TILE_MAP_COLUMNS = FIELD_TILE_MAP_COLUMNS, TILE_MAP_ROWS = FIELD_TILE_MAP_ROWS };
-
+/* A layer's place in its tile map, in 8-pixel tiles, moved a step; it wraps
+ * round the map (field/field.h). */
 static void move_place_in_tile_map(GameState *g, unsigned layer, Side side)
 {
     switch (side) {
-    case SIDE_BELOW: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) + 1) & (TILE_MAP_ROWS - 1))); break;
-    case SIDE_ABOVE: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) - 1) & (TILE_MAP_ROWS - 1))); break;
-    case SIDE_RIGHT: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) + 1) & (TILE_MAP_COLUMNS - 1))); break;
-    default: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) - 1) & (TILE_MAP_COLUMNS - 1))); break;
+    case SIDE_BELOW: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) + 1) & (FIELD_TILE_MAP_ROWS - 1))); break;
+    case SIDE_ABOVE: set_field_layer_position_y(g, layer, (uint8_t)((field_layer_position_y(g, layer) - 1) & (FIELD_TILE_MAP_ROWS - 1))); break;
+    case SIDE_RIGHT: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) + 1) & (FIELD_TILE_MAP_COLUMNS - 1))); break;
+    default: set_field_layer_position_x(g, layer, (uint8_t)((field_layer_position_x(g, layer) - 1) & (FIELD_TILE_MAP_COLUMNS - 1))); break;
     }
 }
 
@@ -359,10 +352,10 @@ static void move_place_in_tile_map(GameState *g, unsigned layer, Side side)
 static Line line_coming_in(ScreenEdges e, Side side)
 {
     switch (side) {
-    case SIDE_BELOW: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.bottom, ROW_TILES };
-    case SIDE_ABOVE: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.top, ROW_TILES };
-    case SIDE_RIGHT: return (Line){ DOWN_A_COLUMN, e.right, (uint8_t)(e.top - 1), COLUMN_TILES };
-    default: return (Line){ DOWN_A_COLUMN, e.left, (uint8_t)(e.top - 1), COLUMN_TILES };
+    case SIDE_BELOW: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.bottom, FIELD_ROW_MAP_TILES };
+    case SIDE_ABOVE: return (Line){ ALONG_A_ROW, (uint8_t)(e.left - 1), e.top, FIELD_ROW_MAP_TILES };
+    case SIDE_RIGHT: return (Line){ DOWN_A_COLUMN, e.right, (uint8_t)(e.top - 1), FIELD_COLUMN_MAP_TILES };
+    default: return (Line){ DOWN_A_COLUMN, e.left, (uint8_t)(e.top - 1), FIELD_COLUMN_MAP_TILES };
     }
 }
 
@@ -554,7 +547,7 @@ enum { WITHIN_THE_MAPS = 0x3F3F };
  * other way round, or so far apart that the rows would run past the staging
  * buffers (past the bank, as the original's port goes on, or for ever to a
  * bottom of 255), are left to the original. */
-enum { STAGED_ROWS = 3 * STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
+enum { STAGED_ROWS = 3 * FIELD_LAYER_STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
 
 bool field_bg2_drawing_can_run(Snes *s)
 {
