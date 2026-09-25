@@ -376,6 +376,15 @@ rest waits, is [PLAN.md](PLAN.md).
   winning, where it could warn; and proving V dead at the command level
   (following the field loop's `JML`s) would remove most of the Y/V
   derivations the state routines' ports carry.
+- **Nothing checks that the native shape behaves like the original.** The
+  native-shape build (`ct_game_native_shape`, `CT_WITHOUT_ORIGINAL_EFFECTS`)
+  is compiled, never run, so a value the game reads that a port writes only
+  inside `ORIGINAL_EFFECT` changes play there and no gate sees it (battle's
+  first conversion chunk: the random draws read the long arithmetic's
+  leftover high word, written only as scaffolding). A static check that no
+  cell an `ORIGINAL_EFFECT` writes is read by a port outside one, or a movie
+  run of a native-shape `ct_dev` compared at the level of game outcomes,
+  would catch it.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
