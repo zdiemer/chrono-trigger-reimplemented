@@ -7,6 +7,8 @@
  * the state it left, and the logic files call none of them but through
  * ORIGINAL_EFFECT. */
 #include "field/field.h"
+#include "field/field_data.h"
+#include "field/layers.h"
 #include "field/parts.h"
 #include "field/party.h"
 #include "field/object.h"
@@ -147,7 +149,7 @@ static bool gait_lookup_overflow(Velocity walk, bool before)
 /* The leader's: the gait's lookup, but on a climb, which looks nothing up. */
 bool field_leader_step_overflow(const GameState *g, bool before)
 {
-    if (field_leader_ground(g) & GROUND_CLIMB)
+    if (ground_kind(leader_ground(g)) == GROUND_CLIMB)
         return before;
     return gait_lookup_overflow(field_pad_walk(g), before);
 }
@@ -157,17 +159,18 @@ bool field_leader_step_overflow(const GameState *g, bool before)
  * on a climb it compares the leader's pace with the pad's where both went up
  * or down; on a moving floor, the last sum is the vertical walk against the
  * floor's pull, or the lookup's of that where it goes up. */
-bool field_member_step_overflow(const GameState *g, unsigned place, bool moved_on)
+bool field_member_step_overflow(const GameState *g, PartyPlace place, bool moved_on)
 {
     uint8_t at = field_trail_position(g, place), ahead = field_trail_position(g, place - 1);
     uint8_t measured_from = moved_on ? (uint8_t)(at - 1) % FIELD_TRAIL_GROUND_COUNT : at;
     bool v = field_subtract_overflows8(ahead, measured_from);
     Footprint f = field_footprint(g, at);
+    GroundKind kind = ground_kind(f.ground);
     if (moved_on)
-        return (f.ground & GROUND_CLIMB) ? v : gait_lookup_overflow(f.walk, v);
-    if (f.ground == 0)
+        return kind == GROUND_CLIMB ? v : gait_lookup_overflow(f.walk, v);
+    if (kind == GROUND_PLAIN)
         return v;
-    if (f.ground & GROUND_CLIMB)
+    if (kind == GROUND_CLIMB)
         return f.walk.y != 0 && f.movement.y != 0 ? field_subtract_overflows8((uint8_t)f.movement.y, (uint8_t)f.walk.y)
                                                   : v;
     uint8_t against_pull = (uint8_t)-field_floor_pull(f.movement.y);
@@ -192,7 +195,40 @@ static int last_part(uint8_t maps)
     return NO_PART;
 }
 
-static uint16_t last_row_start(TileRectangle r) { return (uint16_t)((r.to.row + r.rows) << 8 | r.to.column); }
+/* Where the original keeps each whole table: their rows interleaved, a row
+ * of each every 256 bytes. */
+static uint16_t map_table_address(MapTable table)
+{
+    static const uint16_t address[MAP_TABLES] = { 0x3000, 0x3040, 0x3080, 0x30C0, 0x7000, 0x7040 };
+    return address[table];
+}
+
+static uint16_t last_row_start(TileRectangle r) { return (uint16_t)((r.to.row + r.height - 1) << 8 | r.to.column); }
+
+/* A whole table's copy leaves its width less one (the block move's count),
+ * the rows it counted down, the columns it started each row at offset by
+ * where the table is, and where that is; a bit's copy the last bit it took
+ * and the same, the columns within the row. */
+void field_leave_table_copied(GameState *g, TileRectangle r, MapTable table)
+{
+    uint16_t base = map_table_address(table);
+    original_cell16(g, 0xDB, (uint16_t)(r.width - 1));
+    original_cell16(g, 0xDD, 0);
+    original_cell16(g, 0xDF, (uint8_t)(r.from.column + base));
+    original_cell16(g, 0xE1, (uint8_t)(r.to.column + base));
+    set_field_own_tile_copy_table(g, base);
+}
+
+void field_leave_bit_copied(GameState *g, TileRectangle r, uint8_t bit)
+{
+    MapPlace last = { (uint8_t)(r.from.row + r.height - 1), (uint8_t)(r.from.column + r.width - 1) };
+    original_cell8(g, 0xD9, (uint8_t)(field_tile_properties(g, last.row, last.column) & bit));
+    original_cell16(g, 0xDB, (uint16_t)(r.width - 1));
+    original_cell16(g, 0xDD, 0);
+    original_cell16(g, 0xDF, r.from.column);
+    original_cell16(g, 0xE1, r.to.column);
+    original_cell16(g, 0xE3, 0);
+}
 
 /* Y: a whole table's copy leaves it past the last row's last tile, where the
  * original keeps the table; a bit's copy on that tile, counted from the
@@ -204,8 +240,8 @@ uint16_t field_tile_copy_y(const GameState *g, uint16_t before)
         return before;
     TileRectangle r = field_described_tile_copy(g);
     if (part >= MAP_TABLES)
-        return (uint16_t)(last_row_start(r) + r.columns);
-    return (uint16_t)(field_map_table_address((MapTable)part) + last_row_start(r) + r.columns + 1);
+        return (uint16_t)(last_row_start(r) + r.width - 1);
+    return (uint16_t)(map_table_address((MapTable)part) + last_row_start(r) + r.width);
 }
 
 /* The overflow: a whole table's copy steps to its last row with a sum that
@@ -220,9 +256,31 @@ bool field_tile_copy_overflow(const GameState *g, bool before)
     if (part >= MAP_TABLES)
         return false;
     TileRectangle r = field_described_tile_copy(g);
-    uint16_t base = field_map_table_address((MapTable)part);
-    if (r.rows == 0)
+    uint16_t base = map_table_address((MapTable)part);
+    if (r.height == 1)
         return field_add_overflows16((uint16_t)(r.to.row << 8 | r.to.column), base);
     enum { ROW = 0x100 };
     return field_add_overflows16((uint16_t)(base + last_row_start(r) - ROW), ROW);
+}
+
+/* ---- The party's start on the map (field/walk.c: $C0:9DC3) ----------------------------------- */
+
+static TileShape start_shape(const GameState *g) { return tile_shape(map_tile_attributes(g, field_start_place(g))); }
+
+/* Whether the tile it starts on is a slope, whose look counts its shift in
+ * Y. */
+bool field_start_on_a_slope(const GameState *g)
+{
+    return tile_shape_is_a_slope(start_shape(g));
+}
+
+/* On a slope, the overflow of taking the point's height from the line's
+ * start and its place along. */
+bool field_start_overflow(const GameState *g, bool before)
+{
+    if (!field_start_on_a_slope(g))
+        return before;
+    FieldSlopeSum s =
+        field_slope_sum(g, tile_shape_slope(start_shape(g)), FIELD_START_FINE_X, FIELD_START_FINE_Y);
+    return field_subtract_overflows8((uint8_t)(s.sum + s.height), s.height);
 }

@@ -1,13 +1,13 @@
 /* The party on the map: the leader, whom the player walks with the pad, and
  * the two members behind it, who walk in its footsteps (field/party_trail.c).
  *
- * The walk ($C0:881E, still the original's) works out each frame how the pad
- * walks the leader, how far the map lets it move and what the ground under
- * it does; the party's scripts then run event $B0 every frame, which moves
- * each of them a step (event/movement.c, behave): the leader as the walk
- * says, leaving a footprint on its trail, and each member along the trail.
- * The places of the party are those of event/party.h: 0 the leader, 1 and 2
- * the members. */
+ * The walk (field/walk.c) works out each frame how the pad walks the leader,
+ * how far the map lets it move and what the ground under it does; the
+ * party's scripts then run event $B0 every frame, which moves each of them a
+ * step (event/movement.c, step_with_the_party): the leader as the walk says,
+ * leaving a footprint on its trail, and each member along the trail. The
+ * party has three places, the leader's first; the scripts name a member by
+ * place (event/party.h). */
 #ifndef CT_GAME_FIELD_PARTY_H
 #define CT_GAME_FIELD_PARTY_H
 
@@ -19,15 +19,37 @@
 #include "state.h"
 #include "vars.h"
 
-/* What the ground under the leader does, as the walk finds it: a climb (a
- * ladder, a vine, a rope), where the party goes up and down at a walk and
- * shows its climbing animation; or a moving floor, which pulls the party
- * along. */
-typedef uint8_t LeaderGround;
-enum { GROUND_CLIMB = 0x04, GROUND_MOVING_FLOOR = 0x08 };
+/* A place in the party: the leader's, and the two members' behind it. */
+typedef uint8_t PartyPlace;
+enum { PARTY_LEADER = 0, PARTY_FIRST_MEMBER = 1, PARTY_SECOND_MEMBER = 2, PARTY_PLACES = 3 };
 
-/* The party's places, the leader's first. */
-enum { PARTY_LEADER = 0, PARTY_PLACES = FIELD_PARTY_OBJECTS_COUNT };
+/* The place of a member of the party (object_is_party_member). */
+PartyPlace object_party_place(const GameState *g, FieldObject obj);
+
+/* What the ground under the leader does, as the walk finds it: plain ground;
+ * a climb (a ladder, a vine, a rope), where the party goes up and down at a
+ * walk and shows its climbing animation; or a moving floor, which pulls the
+ * party along. The walk and the footprints keep it as a byte of flags, which
+ * only these see: the walk makes no other, and any other byte reads as the
+ * original reads it (a climb where it says one, a moving floor otherwise). */
+typedef enum { GROUND_PLAIN, GROUND_CLIMB, GROUND_MOVING_FLOOR } GroundKind;
+typedef struct {
+    uint8_t stored;
+} LeaderGround;
+enum { GROUND_CLIMB_BIT = 0x04, GROUND_MOVING_FLOOR_BIT = 0x08 };
+
+static inline GroundKind ground_kind(LeaderGround ground)
+{
+    if (ground.stored == 0)
+        return GROUND_PLAIN;
+    return (ground.stored & GROUND_CLIMB_BIT) ? GROUND_CLIMB : GROUND_MOVING_FLOOR;
+}
+static inline LeaderGround leader_ground_of(bool climb, bool moving_floor)
+{
+    return (LeaderGround){ (uint8_t)((climb ? GROUND_CLIMB_BIT : 0) | (moving_floor ? GROUND_MOVING_FLOOR_BIT : 0)) };
+}
+LeaderGround leader_ground(const GameState *g);
+void set_leader_ground(GameState *g, LeaderGround ground);
 
 /* This frame's step of the party, which event $B0 takes for each of its
  * places: the leader moves as the walk says and leaves a footprint where it
@@ -35,26 +57,33 @@ enum { PARTY_LEADER = 0, PARTY_PLACES = FIELD_PARTY_OBJECTS_COUNT };
  * ahead of it to draw away. Either shows its walk, its run, its climb or
  * stands, as the footprint says. */
 void party_leader_steps(GameState *g, FieldObject leader);
-void party_member_follows(GameState *g, FieldObject member, unsigned place);
+void party_member_follows(GameState *g, FieldObject member, PartyPlace place);
 
 /* Whether a member takes the next footprint this frame, or waits: it keeps
  * its distance from the one ahead of it. */
-bool party_member_moves_on(const GameState *g, unsigned place);
+bool party_member_moves_on(const GameState *g, PartyPlace place);
 
 /* The party regroups (a script moved the members about the leader, or
  * gathered them to it): the members pick the trail up at the leader's newest
  * footprint, with nothing of the way behind it to retrace. */
 void party_trail_regroup(GameState *g);
 
+/* A map's start: the trail starts afresh, the whole party at its first
+ * footprint, with nothing behind it (field/walk.c). */
+void party_trail_start(GameState *g);
+
+/* After a battle the members catch the trail up at the leader's newest
+ * footprint, the way behind it as it was (event/party.c). */
+void party_trail_catch_up(GameState *g);
+
+/* A place of the party takes the map's layering at a map's start: its
+ * object's halves' priorities, 0-3. The original lays an empty place out as
+ * the slot past the object tables, which only its effects keep. */
+void party_place_layered(GameState *g, PartyPlace place, uint8_t upper, uint8_t lower);
+
 /* Whether the trail's places are its footprints: the game's always are (the
  * guards'). */
 bool party_trail_places_hold(const GameState *g);
-
-/* What its entries leave the original's callers, worked out beside the
- * other field routines' (field/leaves.c): the overflow of the leader's step,
- * and of a member's, which follows from whether it moved on. */
-bool field_leader_step_overflow(const GameState *g, bool before);
-bool field_member_step_overflow(const GameState *g, unsigned place, bool moved_on);
 
 /* The registered entries (field/party_trail.c): the leader's step ($C0:9E29)
  * and each member's ($C0:A26B, $C0:A2CE), as event $B0's handler calls them,

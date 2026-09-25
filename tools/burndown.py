@@ -150,6 +150,8 @@ def read_ports(root: pathlib.Path, an) -> list:
                 f = src.func_at(call.offset)
                 if f is None or f.name not in names:
                     continue
+                if f.name in dc.BRIDGES.get(path, ()):
+                    continue                    # the bridge's own call, read at each delegate's call instead
                 pairs = _call_values(dc, ev, src, f, call)
                 if pairs is None or not all(is_call(site) for site, _ in pairs):
                     port.unreadable = True      # not read, or read as something that isn't a call

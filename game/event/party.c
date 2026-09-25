@@ -5,6 +5,7 @@
  * Leaving and the menus' routines are bridges: the first because what it
  * hands back is the carry the command was entered with (below), the others
  * because the menus' routines ($C2:8004) are still the original's code. */
+#include "charge.h"
 #include "event/bridge.h"
 #include "event/calls.h"
 #include "event/party.h"
@@ -195,24 +196,81 @@ void event_cmd_party_routine_7(Snes *s) { party_routines(s, 0xC03E67, 7, false);
 
 enum { PARTY_SCRIPT_LEVEL = 0 };
 
-/* The original keeps the operand bytes of the last place it lays out. */
-enum { COLUMN_FACING_BIT = 0x80, ROW_FACING_BIT = 0x80 };
+/* Where each of the party's scripts starts, and where in it the command
+ * that starts it writes the tile to go to (a column, then a row) and, for a
+ * formation's, the way to face (the facing command's operand). */
+static const struct {
+    uint16_t start;
+    uint8_t tile_operand, facing_operand;
+} party_scripts[] = {
+    [GATHERING_SCRIPT] = { 0x16FF, 0, 0 },
+    [FORMATION_SCRIPT_LEADER] = { 0x171F, 8, 11 },
+    [FORMATION_SCRIPT_FIRST_MEMBER] = { 0x173F, 8, 11 },
+    [FORMATION_SCRIPT_SECOND_MEMBER] = { 0x175F, 8, 11 },
+    [PUSH_SCRIPT] = { 0x177F, 1, 0 },
+};
+
+uint16_t party_script_start(PartyScript script) { return party_scripts[script].start; }
+
+void party_script_go_to(GameState *g, PartyScript script, MapTile tile)
+{
+    unsigned at = (unsigned)party_scripts[script].start + party_scripts[script].tile_operand;
+    set_event_script_byte(g, at, tile.x);
+    set_event_script_byte(g, at + 1, tile.y);
+}
+
+/* The facing command's operand is the way to face as the objects number the
+ * facings (field/object.h). */
+void party_script_face(GameState *g, PartyScript script, Facing facing)
+{
+    set_event_script_byte(g, (unsigned)party_scripts[script].start + party_scripts[script].facing_operand,
+                          (uint8_t)facing);
+}
+
+/* A formation place's facing bits, column's and row's, by the way they say. */
+static const struct {
+    bool column, row;
+} facing_bits[] = {
+    [FACING_UP] = { false, false },
+    [FACING_DOWN] = { false, true },
+    [FACING_LEFT] = { true, false },
+    [FACING_RIGHT] = { true, true },
+};
+
+Facing formation_facing(bool column_bit, bool row_bit)
+{
+    for (unsigned f = FACING_UP; f <= FACING_RIGHT; f++)
+        if (facing_bits[f].column == column_bit && facing_bits[f].row == row_bit)
+            return (Facing)f;
+    return FACING_UP;
+}
+
+void formation_facing_bits(Facing facing, bool *column_bit, bool *row_bit)
+{
+    *column_bit = facing_bits[facing].column;
+    *row_bit = facing_bits[facing].row;
+}
+
+/* The original keeps the operand bytes of the last place it lays out: the
+ * column and the row, each with its facing bit. */
+enum { FACING_BIT = 0x80 };
 
 static void keep_formation_place(GameState *g, FormationPlace p)
 {
-    keep_byte(g, KEPT_SECOND, (uint8_t)(p.tile.x | (p.facing & 2 ? COLUMN_FACING_BIT : 0)));
-    keep_byte(g, KEPT_THIRD, (uint8_t)(p.tile.y | (p.facing & 1 ? ROW_FACING_BIT : 0)));
+    bool column_bit, row_bit;
+    formation_facing_bits(p.facing, &column_bit, &row_bit);
+    keep_byte(g, KEPT_SECOND, (uint8_t)(p.tile.x | (column_bit ? FACING_BIT : 0)));
+    keep_byte(g, KEPT_THIRD, (uint8_t)(p.tile.y | (row_bit ? FACING_BIT : 0)));
 }
 
-/* A member takes its place in the formation: its script is told the tile
- * and the way to face, and it drops what it was doing for it. */
+/* A member takes its place in the formation: it drops what it was doing for
+ * its script, which is told the tile and the way to face. */
 static void send_to_formation_place(GameState *g, PartyPlace place, FormationPlace p)
 {
-    uint16_t script = (uint16_t)(FORMATION_SCRIPTS + place * FORMATION_SCRIPT_BYTES);
-    object_run_script_from(g, member_object(g, place), PARTY_SCRIPT_LEVEL, script);
-    set_event_script_byte(g, (unsigned)script + FORMATION_TILE, p.tile.x);
-    set_event_script_byte(g, (unsigned)script + FORMATION_TILE + 1, p.tile.y);
-    set_event_script_byte(g, (unsigned)script + FORMATION_FACING, p.facing);
+    PartyScript script = formation_script(place);
+    object_run_script_from(g, member_object(g, place), PARTY_SCRIPT_LEVEL, party_script_start(script));
+    party_script_go_to(g, script, p.tile);
+    party_script_face(g, script, p.facing);
     ORIGINAL_EFFECT(keep_formation_place(g, p));
 }
 
@@ -246,7 +304,7 @@ static EventFlow take_formation(GameState *g, FormationPlace leader_place, Forma
         set_variable_byte(g, FORMATION_COUNT, 0);
         return end_turn();
     }
-    set_field_player_control(g, 0);
+    hand_the_party_to_the_player(g, false);
     const FormationPlace places[PARTY_PLACES] = { leader_place, first_place, second_place };
     uint8_t count = 1;
     for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
@@ -265,35 +323,36 @@ EVENT_OPERATION(take_formation, leader_place, first_place, second_place)
  * gathering script. */
 static void send_to_the_leader(GameState *g, FieldObject member)
 {
-    object_run_script_from(g, member, PARTY_SCRIPT_LEVEL, GATHER_SCRIPT);
+    object_run_script_from(g, member, PARTY_SCRIPT_LEVEL, party_script_start(GATHERING_SCRIPT));
 }
 
 /* The count the gathering scripts reach once every member is with the
  * leader: it starts at one more for the second place empty. */
 enum { ALL_GATHERED = 3 };
 
+
 // $C0:345A
 /* The members gather to the leader, and the script waits until they are
  * there; with nobody but the leader, it goes on at once. */
 static EventFlow gather_party(GameState *g)
 {
-    if (!place_taken(g, 1))
+    if (!place_taken(g, PARTY_FIRST_MEMBER))
         return end_turn();
-    if (field_mode_flags(g) & FIELD_PARTY_GATHERING) {
+    if (field_party_gathering(g)) {
         if (variable_byte(g, GATHERING_COUNT) < ALL_GATHERED)
             return stay();
-        set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~FIELD_PARTY_GATHERING));
+        set_field_party_gathering(g, false);
         party_trail_regroup(g);
         return next_command();
     }
-    send_to_the_leader(g, member_object(g, 1));
+    send_to_the_leader(g, member_object(g, PARTY_FIRST_MEMBER));
     uint8_t count = ALL_GATHERED - 1;
-    if (place_taken(g, 2)) {
-        send_to_the_leader(g, member_object(g, 2));
+    if (place_taken(g, PARTY_SECOND_MEMBER)) {
+        send_to_the_leader(g, member_object(g, PARTY_SECOND_MEMBER));
         count = ALL_GATHERED - 2;
     }
     set_variable_byte(g, GATHERING_COUNT, count);
-    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) | FIELD_PARTY_GATHERING));
+    set_field_party_gathering(g, true);
     return stay();
 }
 EVENT_OPERATION_TAKING_NOTHING(gather_party)
@@ -315,6 +374,74 @@ void event_member_back_to_the_leader(Snes *s)
     GameState *g = state_of(s);
     member_back_to_the_leader(g, field_linked_object(field_link_stored(field_leader_contact(g))));
     m_rts(s);
+}
+
+/* The battle an event starts can leave the party where it stands afterward
+ * (bit 7 of the flags the event hands the battle, event/locations.c). */
+enum { PARTY_STAYS_PUT = 0x80 };
+
+/* For the original: it names each member it sends back in the cell the
+ * leader's contact is kept in, which the walk sets again before it reads
+ * it. */
+static void leave_member_named(GameState *g, FieldObject member)
+{
+    set_field_leader_contact(g, field_object_offset(member));
+}
+
+// $C0:034B
+/* After a battle the party comes back together: the members walk back to
+ * the leader through the gathering script, as $DA sends them, and catch its
+ * trail up; the gathering count starts as $DA's does. With nobody behind the
+ * leader, the party is the player's at once; a battle that leaves the party
+ * where it stands sends nobody. */
+void party_back_together(GameState *g)
+{
+    if (battle_event_flags(g) & PARTY_STAYS_PUT) {
+        set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
+        return;
+    }
+    if (!place_taken(g, PARTY_FIRST_MEMBER)) {
+        hand_the_party_to_the_player(g, true);
+        set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
+        return;
+    }
+    uint8_t gathered = ALL_GATHERED;
+    for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES && place_taken(g, place); place++) {
+        FieldObject member = member_object(g, place);
+        ORIGINAL_EFFECT(leave_member_named(g, member));
+        TIMED_AS(g, 0xC05B1F, member_back_to_the_leader(g, member));
+        gathered--;
+    }
+    set_variable_byte(g, GATHERING_COUNT, gathered);
+    party_trail_catch_up(g);
+}
+
+/* Its entry: from the field's return from a battle ($C0:027E), which goes on
+ * at $C0:00EB, the field's frame, where the original's routine ends. */
+void event_party_back_together(Snes *s)
+{
+    party_back_together(state_of(s));
+    m_rep(s, CPU_FLAG_X);
+    m_stop_at(s, 0xC000EB, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+}
+
+/* Its guard: on the field's page; the members there are objects the tables
+ * hold at levels the places hold, and the cell the original names them in
+ * holds only their offsets (it adds its whole word to a place's). */
+bool event_party_back_can_run(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = field_leader_contact_high(g) == 0;
+    for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES && ok && place_taken(g, place); place++) {
+        FieldLink link = party_member_link(g, place);
+        ok = field_link_names_object(link) &&
+             event_object_call_state_level(g, field_linked_object(link)) < EVENT_LEVELS;
+    }
+    vars_peek(false);
+    return ok;
 }
 
 /* Its guard: the member is an object the tables hold, as the game keeps it

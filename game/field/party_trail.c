@@ -40,8 +40,8 @@
 
 enum { TRAIL_FOOTPRINTS = FIELD_TRAIL_GROUND_COUNT };
 
-static uint8_t place_on_trail(const GameState *g, unsigned place) { return field_trail_position(g, place); }
-static void set_place_on_trail(GameState *g, unsigned place, uint8_t at) { set_field_trail_position(g, place, at); }
+static uint8_t place_on_trail(const GameState *g, PartyPlace place) { return field_trail_position(g, place); }
+static void set_place_on_trail(GameState *g, PartyPlace place, uint8_t at) { set_field_trail_position(g, place, at); }
 
 /* The footprint after one, round the ring. */
 static uint8_t next_footprint(uint8_t at) { return (uint8_t)((at + 1) % TRAIL_FOOTPRINTS); }
@@ -55,7 +55,7 @@ Footprint field_footprint(const GameState *g, uint8_t at)
         { (int8_t)field_trail_movement_x(g, at), (int8_t)field_trail_movement_y(g, at) },
         { (int8_t)field_trail_walk_x(g, at), (int8_t)field_trail_walk_y(g, at) },
         { field_trail_lower_priority(g, at), field_trail_upper_priority(g, at) },
-        field_trail_ground(g, at),
+        { field_trail_ground(g, at) },
     };
 }
 
@@ -67,7 +67,7 @@ static void leave_footprint(GameState *g, uint8_t at, Footprint f)
     set_field_trail_walk_y(g, at, (uint8_t)f.walk.y);
     set_field_trail_lower_priority(g, at, f.priorities.lower_stored);
     set_field_trail_upper_priority(g, at, f.priorities.upper_stored);
-    set_field_trail_ground(g, at, f.ground);
+    set_field_trail_ground(g, at, f.ground.stored);
 }
 
 Velocity field_pad_walk(const GameState *g)
@@ -91,13 +91,37 @@ static bool is_leader(const GameState *g, FieldObject obj)
     return field_same_link(party_member_link(g, PARTY_LEADER), field_link_to(obj));
 }
 
-/* How long the party has stood about, which the frame wait counts. */
-static uint16_t idle_frames(const GameState *g) { return field_idle_frames(g); }
-static void set_idle_frames(GameState *g, uint16_t frames) { set_field_idle_frames(g, frames); }
+LeaderGround leader_ground(const GameState *g) { return (LeaderGround){ field_leader_ground(g) }; }
+void set_leader_ground(GameState *g, LeaderGround ground) { set_field_leader_ground(g, ground.stored); }
+
+PartyPlace object_party_place(const GameState *g, FieldObject obj)
+{
+    switch (object_role(g, obj).kind) {
+    case ROLE_PARTY_1: return PARTY_FIRST_MEMBER;
+    case ROLE_PARTY_2: return PARTY_SECOND_MEMBER;
+    default: return PARTY_LEADER;
+    }
+}
+
+/* How long the party has stood about: the frames the frame wait counts, and
+ * whether the leader has fidgeted since the party last moved, kept as one
+ * word with the flag its top bit. */
+typedef struct {
+    uint16_t frames;
+    bool fidgeted;
+} IdleTime;
+enum { FIDGETED_BIT = 0x8000 };
+
+static IdleTime idle_time(const GameState *g)
+{
+    uint16_t stored = field_idle_frames(g);
+    return (IdleTime){ (uint16_t)(stored & ~FIDGETED_BIT), (stored & FIDGETED_BIT) != 0 };
+}
+static void mark_fidgeted(GameState *g) { set_field_idle_frames(g, (uint16_t)(field_idle_frames(g) | FIDGETED_BIT)); }
 
 bool party_trail_places_hold(const GameState *g)
 {
-    for (unsigned place = 0; place < PARTY_PLACES; place++)
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++)
         if (place_on_trail(g, place) >= TRAIL_FOOTPRINTS)
             return false;
     return true;
@@ -188,7 +212,7 @@ static void face_the_way(GameState *g, FieldObject obj, Pose p)
 }
 
 /* On the move, the party isn't standing about. */
-static void count_as_on_the_move(GameState *g) { set_idle_frames(g, 0); }
+static void count_as_on_the_move(GameState *g) { set_field_idle_frames(g, 0); }
 
 /* The leader running with the pad but held where it is (against a wall, a
  * shut door) runs on the spot; not where a moving floor carries it. */
@@ -201,7 +225,7 @@ static bool runs_on_the_spot(const GameState *g, FieldObject obj, bool carried)
  * the party in the player's hands, once it has stood about long enough it
  * may fidget, and then may again every 128 frames, keeping between times
  * whatever it shows; otherwise it stands. */
-enum { FIDGET_AFTER = 0x2FF, FIDGET_EVERY = 0x80, HAS_FIDGETED = 0x8000, FIDGET_CHANCE = 8 };
+enum { FIDGET_AFTER = 0x2FF, FIDGET_EVERY = 0x80, FIDGET_CHANCE = 8 };
 
 static void stand_or_fidget(GameState *g, FieldObject obj)
 {
@@ -210,12 +234,13 @@ static void stand_or_fidget(GameState *g, FieldObject obj)
         return;
     }
     uint8_t shown = ANIMATION_STAND;
-    if (field_player_control(g) != 0) {
-        uint16_t idle = idle_frames(g);
-        if (idle > FIDGET_AFTER && (idle % FIDGET_EVERY) != FIDGET_EVERY - 1)
+    if (party_is_the_players(g)) {
+        IdleTime idle = idle_time(g);
+        bool fidgets_now_and_then = idle.fidgeted || idle.frames > FIDGET_AFTER;
+        if (fidgets_now_and_then && idle.frames % FIDGET_EVERY != FIDGET_EVERY - 1)
             return;
-        if (idle >= FIDGET_AFTER) {
-            set_idle_frames(g, (uint16_t)(idle | HAS_FIDGETED));
+        if (fidgets_now_and_then || idle.frames == FIDGET_AFTER) {
+            mark_fidgeted(g);
             if (field_draw_random(g) < FIDGET_CHANCE)
                 shown = ANIMATION_FIDGET;
         }
@@ -256,13 +281,14 @@ static void climb(GameState *g, FieldObject obj, bool going)
 // $C0:9E29, and its gait $C0:9E84
 void party_leader_steps(GameState *g, FieldObject leader)
 {
-    LeaderGround ground = field_leader_ground(g);
+    LeaderGround ground = leader_ground(g);
+    GroundKind kind = ground_kind(ground);
     Velocity walk = field_pad_walk(g);
-    ORIGINAL_EFFECT(leave_carried(g, ground != 0 && !(ground & GROUND_CLIMB)));
-    if (ground & GROUND_CLIMB)
+    ORIGINAL_EFFECT(leave_carried(g, kind == GROUND_MOVING_FLOOR));
+    if (kind == GROUND_CLIMB)
         climb(g, leader, walk.y != 0);
     else
-        take_pose(g, leader, pose_of(g, walk), ground != 0);
+        take_pose(g, leader, pose_of(g, walk), kind == GROUND_MOVING_FLOOR);
     Velocity moved = leader_movement(g);
     if (!leader_moves(g)) {
         object_set_step(g, leader, (Velocity){ 0, 0 });
@@ -278,7 +304,7 @@ void party_leader_steps(GameState *g, FieldObject leader)
 
 enum { KEEPS_BEHIND_A_MOVING_LEADER = 24, CLOSES_UP_TO = 16 };
 
-bool party_member_moves_on(const GameState *g, unsigned place)
+bool party_member_moves_on(const GameState *g, PartyPlace place)
 {
     uint8_t keeps = leader_moves(g) ? KEEPS_BEHIND_A_MOVING_LEADER : CLOSES_UP_TO;
     return footprints_between(place_on_trail(g, place - 1), place_on_trail(g, place)) >= keeps;
@@ -303,11 +329,12 @@ int8_t field_floor_pull(int8_t movement)
 // $C0:9F6F
 static void wait_on_the_trail(GameState *g, FieldObject member, Footprint f)
 {
-    if (f.ground == 0) {
+    GroundKind kind = ground_kind(f.ground);
+    if (kind == GROUND_PLAIN) {
         stand_or_fidget(g, member);
         return;
     }
-    if (f.ground & GROUND_CLIMB) {
+    if (kind == GROUND_CLIMB) {
         if (f.walk.y != 0 && f.movement.y != 0 && f.movement.y != f.walk.y)
             return;
         object_restart_animation(g, member);
@@ -319,7 +346,7 @@ static void wait_on_the_trail(GameState *g, FieldObject member, Footprint f)
 }
 
 // $C0:A26B (the first member), $C0:A2CE (the second), and their gait $C0:9ED1, $C0:9F20
-void party_member_follows(GameState *g, FieldObject member, unsigned place)
+void party_member_follows(GameState *g, FieldObject member, PartyPlace place)
 {
     ORIGINAL_EFFECT(leave_carried(g, false));
     object_set_step(g, member, (Velocity){ 0, 0 });
@@ -332,7 +359,7 @@ void party_member_follows(GameState *g, FieldObject member, unsigned place)
     Footprint f = field_footprint(g, next);
     object_set_step(g, member, f.movement);
     object_take_sprite_priorities(g, member, f.priorities);
-    if (f.ground & GROUND_CLIMB)
+    if (ground_kind(f.ground) == GROUND_CLIMB)
         climb(g, member, f.walk.y != 0);
     else
         take_pose(g, member, pose_of(g, f.walk), false);
@@ -347,11 +374,51 @@ void party_member_follows(GameState *g, FieldObject member, unsigned place)
 void party_trail_regroup(GameState *g)
 {
     uint8_t newest = place_on_trail(g, PARTY_LEADER);
-    for (unsigned place = PARTY_LEADER + 1; place < PARTY_PLACES; place++)
+    for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES; place++)
         set_place_on_trail(g, place, newest);
     set_field_trail_movement_x(g, newest, 0);
     set_field_trail_walk_x(g, newest, 0);
     set_field_trail_ground(g, newest, 0);
+}
+
+/* ---- A map's start, and after a battle ---------------------------------------------------- */
+
+// $C0:9DC3
+/* The whole party at the first footprint, which says it moved and walked no
+ * way. */
+void party_trail_start(GameState *g)
+{
+    for (PartyPlace place = PARTY_LEADER; place < PARTY_PLACES; place++)
+        set_place_on_trail(g, place, 0);
+    set_field_trail_movement_x(g, 0, 0);
+    set_field_trail_movement_y(g, 0, 0);
+    set_field_trail_walk_x(g, 0, 0);
+    set_field_trail_walk_y(g, 0, 0);
+}
+
+// $C0:0384
+void party_trail_catch_up(GameState *g)
+{
+    uint8_t newest = place_on_trail(g, PARTY_LEADER);
+    set_place_on_trail(g, PARTY_FIRST_MEMBER, newest);
+    set_place_on_trail(g, PARTY_SECOND_MEMBER, newest);
+}
+
+/* For shadow mode: the slot past the object tables, where the original lays
+ * an empty place out (its marker's slot), keeps the priorities it writes. */
+static void leave_stray_priorities(GameState *g, FieldLink marker, uint8_t upper, uint8_t lower)
+{
+    set_field_object_sprite_priority_unchecked(g, field_linked_object(marker),
+                                               (uint16_t)(upper << 4 << 8 | lower << 4));
+}
+
+void party_place_layered(GameState *g, PartyPlace place, uint8_t upper, uint8_t lower)
+{
+    FieldLink link = party_member_link(g, place);
+    if (field_link_is_object(link))
+        object_set_sprite_priorities(g, field_linked_object(link), upper, lower);
+    else
+        ORIGINAL_EFFECT(leave_stray_priorities(g, link, upper, lower));
 }
 
 /* ---- The entries ----------------------------------------------------------------------- */
@@ -366,7 +433,7 @@ void field_leader_steps(Snes *s)
     m_rts(s);
 }
 
-static void member_follows(Snes *s, unsigned place)
+static void member_follows(Snes *s, PartyPlace place)
 {
     GameState *g = state_of(s);
     FieldObject member = object_current(g);
@@ -379,8 +446,8 @@ static void member_follows(Snes *s, unsigned place)
     m_rts(s);
 }
 
-void field_first_member_follows(Snes *s) { member_follows(s, 1); }
-void field_second_member_follows(Snes *s) { member_follows(s, 2); }
+void field_first_member_follows(Snes *s) { member_follows(s, PARTY_FIRST_MEMBER); }
+void field_second_member_follows(Snes *s) { member_follows(s, PARTY_SECOND_MEMBER); }
 
 /* The guards. The leader's step is the current object's, whichever it is;
  * a member's moves the object in its place of the party and animates the
@@ -388,7 +455,7 @@ void field_second_member_follows(Snes *s) { member_follows(s, 2); }
  * through the data bank, and the trail by the places on it. */
 bool field_leader_can_step(Snes *s) { return field_current_object_bank_zero(s); }
 
-static bool member_can_follow(Snes *s, unsigned place)
+static bool member_can_follow(Snes *s, PartyPlace place)
 {
     if (!field_current_object_bank_zero(s))
         return false;
@@ -400,5 +467,5 @@ static bool member_can_follow(Snes *s, unsigned place)
     return ok;
 }
 
-bool field_first_member_can_follow(Snes *s) { return member_can_follow(s, 1); }
-bool field_second_member_can_follow(Snes *s) { return member_can_follow(s, 2); }
+bool field_first_member_can_follow(Snes *s) { return member_can_follow(s, PARTY_FIRST_MEMBER); }
+bool field_second_member_can_follow(Snes *s) { return member_can_follow(s, PARTY_SECOND_MEMBER); }

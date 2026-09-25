@@ -664,6 +664,11 @@ void set_field_setting_1e(GameState *g, uint8_t v);
 uint8_t field_player_control(const GameState *g);
 void set_field_player_control(GameState *g, uint8_t v);
 
+/* Nonzero: the map and its objects stop the leader's walk (the field's setup sets it; with 0 the
+ * leader walks through everything) */
+uint8_t field_leader_collides(const GameState *g);
+void set_field_leader_collides(GameState *g, uint8_t v);
+
 /* Fixed color shadow (channel bits 5-7, intensity 0-4) the field NMI writes every frame */
 uint8_t field_fixed_color(const GameState *g);
 void set_field_fixed_color(GameState *g, uint8_t v);
@@ -716,6 +721,11 @@ void set_dialog_box_position(GameState *g, uint8_t v);
  * dialog_speaker ($C0:9193) */
 uint8_t dialog_window_object(const GameState *g);
 void set_dialog_window_object(GameState *g, uint8_t v);
+
+/* How long the field's dialog window stays: frames left, or $FFFF until the player presses the
+ * confirm button, a press the window takes for itself */
+uint16_t field_dialog_hold(const GameState *g);
+void set_field_dialog_hold(GameState *g, uint16_t v);
 
 /* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
 uint8_t field_fade_request(const GameState *g);
@@ -791,11 +801,26 @@ void set_field_display_flags(GameState *g, uint8_t v);
 uint8_t field_mode_flags(const GameState *g);
 void set_field_mode_flags(GameState *g, uint8_t v);
 
+/* Which of the map's levels the leader walks on (field/walk.c, MapLevel): 1 or 2, or 3 on stairs
+ * that join them */
+uint8_t field_leader_level(const GameState *g);
+void set_field_leader_level(GameState *g, uint8_t v);
+
 /* Frames the party has stood about: the frame wait ($C0:EC60) counts it in its low ten bits, the
  * party's walking and running clear it; bit 15 once the leader has fidgeted, after which it
  * fidgets now and then */
 uint16_t field_idle_frames(const GameState *g);
 void set_field_idle_frames(GameState *g, uint16_t v);
+
+/* The tile (row << 8 | column) whose step event the leader set off (field_requests' step event),
+ * which the field's main loop runs */
+uint16_t field_step_tile(const GameState *g);
+void set_field_step_tile(GameState *g, uint16_t v);
+
+/* The tile (row << 8 | column) of the chest the leader opened last, which the field's main loop
+ * shows open (field_requests' opened chest) */
+uint16_t field_opened_chest_tile(const GameState *g);
+void set_field_opened_chest_tile(GameState *g, uint16_t v);
 
 /* 1 while a dialog with choices runs */
 uint8_t dialog_choice_active(const GameState *g);
@@ -945,6 +970,10 @@ void set_field_own_tile_x(GameState *g, uint8_t v);
 /* Tile Y */
 uint8_t field_own_tile_y(const GameState *g);
 void set_field_own_tile_y(GameState *g, uint8_t v);
+/* Where in work RAM the tile copy's last whole table starts (its rows 256 bytes apart), which
+ * the copy leaves in these cells; nothing reads it */
+uint16_t field_own_tile_copy_table(const GameState *g);
+void set_field_own_tile_copy_table(GameState *g, uint16_t v);
 
 /* Tile X */
 uint8_t field_target_tile_x(const GameState *g);
@@ -968,12 +997,22 @@ void set_field_random_index(GameState *g, uint8_t v);
 uint16_t location_record_offset(const GameState *g);
 void set_location_record_offset(GameState *g, uint16_t v);
 
+/* The gold in the chest the leader just opened, which its message shows (the battle keeps its
+ * target's display here: battle_target_display) */
+uint16_t field_chest_gold(const GameState *g);
+void set_field_chest_gold(GameState *g, uint16_t v);
+
 /* Horizontal */
 uint16_t world_position_x(const GameState *g);
 void set_world_position_x(GameState *g, uint16_t v);
 /* Vertical */
 uint16_t world_position_y(const GameState *g);
 void set_world_position_y(GameState *g, uint16_t v);
+
+/* Cleared when the field opens its own message (a chest's) and when the battle opens one
+ * ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md) */
+uint8_t field_message_mark(const GameState *g);
+void set_field_message_mark(GameState *g, uint8_t v);
 
 /* The table's address in its bank */
 uint16_t field_window_shape_table_address(const GameState *g);
@@ -1110,6 +1149,12 @@ enum { FIELD_OBJECT_SPRITE_PRIORITY_COUNT = 64 };   /* by object slot (X = slot 
  * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 */
 uint16_t field_object_sprite_priority(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
+/* Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the
+ * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 Unchecked, for marked scaffolding only:
+ * a map's start lays an empty place of the party out as the slot its marker names, the first
+ * past the tables (game/field/party_trail.c leave_stray_priorities, $C0:9E0E) */
+uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
+void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_ROW_FIRST_OBJECT_COUNT = 64 };   /* by screen row (screen Y / 4, even) */
 /* First object of each screen row's list, negative for none */
@@ -1367,6 +1412,17 @@ void set_field_screen_scroll_target_x(GameState *g, uint8_t v);
 uint8_t field_screen_scroll_target_y(const GameState *g);
 void set_field_screen_scroll_target_y(GameState *g, uint8_t v);
 
+/* Where the location's exits start in bank $E5, seven bytes each (field/field_data.h, FieldExit) */
+uint16_t field_location_exits(const GameState *g);
+void set_field_location_exits(GameState *g, uint16_t v);
+
+enum { FIELD_CHESTS_COUNT = 2 };   /* by 0: the first of the game's chests, 1: the location's first */
+/* Where the game's chests start in bank $F5, and this location's, four bytes each
+ * (field/field_data.h, FieldChest); a chest's number, which its story flag is, counts from the
+ * first */
+uint16_t field_chests(const GameState *g, unsigned i);
+void set_field_chests(GameState *g, unsigned i, uint16_t v);
+
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 uint8_t field_screen_left(const GameState *g);
 void set_field_screen_left(GameState *g, uint8_t v);
@@ -1383,6 +1439,19 @@ void set_field_screen_top(GameState *g, uint8_t v);
 uint8_t field_screen_bottom(const GameState *g);
 void set_field_screen_bottom(GameState *g, uint8_t v);
 
+/* The first column */
+uint8_t field_map_edges_left(const GameState *g);
+void set_field_map_edges_left(GameState *g, uint8_t v);
+/* The last column */
+uint8_t field_map_edges_right(const GameState *g);
+void set_field_map_edges_right(GameState *g, uint8_t v);
+/* The row above the first the leader stands on */
+uint8_t field_map_edges_top(const GameState *g);
+void set_field_map_edges_top(GameState *g, uint8_t v);
+/* The row above the last the leader stands on */
+uint8_t field_map_edges_bottom(const GameState *g);
+void set_field_map_edges_bottom(GameState *g, uint8_t v);
+
 /* Mask applied to a tile index (row << 8 | column) before the map attribute tables are read */
 uint16_t field_map_index_mask(const GameState *g);
 void set_field_map_index_mask(GameState *g, uint16_t v);
@@ -1395,6 +1464,13 @@ void set_field_layer_extra_speed_x(GameState *g, unsigned layer, uint8_t v);
 uint8_t field_layer_extra_speed_y(const GameState *g, unsigned layer);
 void set_field_layer_extra_speed_y(GameState *g, unsigned layer, uint8_t v);
 
+/* Across */
+uint8_t field_floor_pull_x(const GameState *g);
+void set_field_floor_pull_x(GameState *g, uint8_t v);
+/* Down */
+uint8_t field_floor_pull_y(const GameState *g);
+void set_field_floor_pull_y(GameState *g, uint8_t v);
+
 /* Across (right positive) */
 uint8_t field_leader_walk_x(const GameState *g);
 void set_field_leader_walk_x(GameState *g, uint8_t v);
@@ -1406,6 +1482,12 @@ enum { FIELD_SCREEN_SCROLL_STEP_COUNT = 2 };   /* by axis (X, Y) */
 /* This frame's screen scroll step toward field_screen_scroll_target ($10 or $F0) */
 uint8_t field_screen_scroll_step(const GameState *g, unsigned i);
 void set_field_screen_scroll_step(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_SCREEN_SCROLL_STEP_HIGH_COUNT = 2 };   /* by axis (X, Y) */
+/* The high bytes the leader's walk makes of field_screen_scroll_step as it works the leader's
+ * step out as words: the step's sign; nothing reads them */
+uint8_t field_screen_scroll_step_high(const GameState *g, unsigned i);
+void set_field_screen_scroll_step_high(GameState *g, unsigned i, uint8_t v);
 
 /* Across */
 uint8_t field_leader_movement_x(const GameState *g);
@@ -1480,6 +1562,13 @@ enum { FIELD_LAYER_EDGE_WORK_BYTES = 16 };
 uint8_t field_layer_edge_work_byte(const GameState *g, unsigned at);
 void set_field_layer_edge_work_byte(GameState *g, unsigned at, uint8_t v);
 
+/* Across */
+uint16_t field_walk_ahead_x(const GameState *g);
+void set_field_walk_ahead_x(GameState *g, uint16_t v);
+/* Down, a tile ahead */
+uint16_t field_walk_ahead_y(const GameState *g);
+void set_field_walk_ahead_y(GameState *g, uint16_t v);
+
 enum { FIELD_LAYER_UPLOAD_FLAGS_COUNT = 4 };   /* by upload group (tiles, tiles alt, columns, columns alt) */
 /* Deferred tile map uploads for the field NMI: bits 0-2 one per layer, cleared after they run */
 uint8_t field_layer_upload_flags(const GameState *g, unsigned i);
@@ -1510,6 +1599,17 @@ void set_field_layer_scroll_h(GameState *g, unsigned layer, uint16_t v);
 /* Vertical */
 uint16_t field_layer_scroll_v(const GameState *g, unsigned layer);
 void set_field_layer_scroll_v(GameState *g, unsigned layer, uint16_t v);
+
+enum { FIELD_LAYER_FINE_X_COUNT = 3 };   /* by layer (BG1-BG3) */
+/* Each layer's pixel within its 16-pixel map tile across (0-15), which the screen's edges count
+ * as it scrolls */
+uint8_t field_layer_fine_x(const GameState *g, unsigned layer);
+void set_field_layer_fine_x(GameState *g, unsigned layer, uint8_t v);
+
+enum { FIELD_LAYER_FINE_Y_COUNT = 3 };   /* by layer (BG1-BG3) */
+/* And down */
+uint8_t field_layer_fine_y(const GameState *g, unsigned layer);
+void set_field_layer_fine_y(GameState *g, unsigned layer, uint8_t v);
 
 enum { FIELD_LAYER_POSITION_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Column */
@@ -1599,6 +1699,18 @@ void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column
  * map_tile_attributes_past_the_map; 20 real calls over the movie library) */
 uint8_t field_tile_lower_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_lower_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
+
+/* Each tile's exit, the location's exit the leader takes stepping onto it (bit 7: none) [a byte
+ * by row and column] */
+enum { FIELD_TILE_EXITS_ROWS = 64, FIELD_TILE_EXITS_COLUMNS = 64 };
+uint8_t field_tile_exits(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_exits(GameState *g, unsigned row, unsigned column, uint8_t v);
+
+/* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
+ * it holds (field_chests) [a byte by row and column] */
+enum { FIELD_TILE_WALKABLE_ROWS = 64, FIELD_TILE_WALKABLE_COLUMNS = 64 };
+uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);

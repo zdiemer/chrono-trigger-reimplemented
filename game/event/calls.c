@@ -48,7 +48,9 @@ static void leave_multiplying(GameState *g, uint8_t level)
     hw_multiply_by(g, BYTES_PER_LEVEL);
 }
 
-uint16_t event_place_offset(FieldObject object, uint8_t level)
+/* The offset of an object's place at a level among the places, which the
+ * original works out in a scratch cell. */
+static uint16_t event_place_offset(FieldObject object, uint8_t level)
 {
     return (uint16_t)(level * BYTES_PER_LEVEL + field_object_offset(object));
 }

@@ -6,8 +6,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "field/object.h"
 #include "snes/system.h"
 #include "state.h"
+#include "vars.h"
 
 /* field_display_flags, which the line effects' builders, the vblank handler
  * and the line interrupt share. */
@@ -24,14 +26,50 @@ enum {
     FIELD_DISPLAY_SETUP = 0x80,
 };
 
-/* field_requests: what the event scripts ask of the field's main loop. A
- * battle is asked for with a tile copy: the main loop copies the queued
- * tiles (as the last queued copy described them) along with it. */
+/* field_requests: what the event scripts and the leader's walk ask of the
+ * field's main loop. A battle is asked for with a tile copy: the main loop
+ * copies the queued tiles (as the last queued copy described them) along with
+ * it. */
 enum {
     FIELD_REQUEST_BATTLE = 0x01,
+    FIELD_REQUEST_OPEN_CHEST = 0x02,        /* show the chest at field_opened_chest_tile open */
+    FIELD_REQUEST_STEP_EVENT = 0x10,        /* run the step event at field_step_tile */
     FIELD_REQUEST_TILE_COPY = 0x20,         /* copy the queued tiles into the maps */
     FIELD_REQUEST_LOCATION_CHANGE = 0x80,   /* go where location_next says */
 };
+
+static inline void field_request(GameState *g, uint8_t request)
+{
+    set_field_requests(g, (uint8_t)(field_requests(g) | request));
+}
+static inline bool field_requested(const GameState *g, uint8_t request) { return (field_requests(g) & request) != 0; }
+
+/* A location, as scripts and the map's exits give one: the map in the low 9
+ * bits of a word whose high byte says how the change is made, and the tile the
+ * party stands on there. The game keeps the how in a byte of its own: the high
+ * byte's bits 1-4 shifted down, and its bit 7. */
+typedef struct {
+    uint16_t map;
+    uint8_t x, y;
+    uint8_t how;
+} Location;
+enum { LOCATION_MAP_BITS = 0x01FF };
+
+static inline Location location_from(uint16_t map_and_how, uint8_t x, uint8_t y)
+{
+    uint8_t high = (uint8_t)(map_and_how >> 8);
+    return (Location){ (uint16_t)(map_and_how & LOCATION_MAP_BITS), x, y,
+                       (uint8_t)(((high >> 1) & 0x0F) | (high & 0x80)) };
+}
+
+/* Where the party goes next, which the main loop takes it to once asked. */
+static inline void field_set_next_location(GameState *g, Location l)
+{
+    set_location_next_id(g, l.map);
+    set_location_next_x(g, l.x);
+    set_location_next_y(g, l.y);
+    set_location_next_flags(g, l.how);
+}
 
 /* field_effect_status: what the field has running, or has finished, that a
  * script waits on. */
@@ -42,12 +80,48 @@ enum {
     FIELD_TINT_CHANGES = 0x18,              /* what a tint with a rate sets running */
 };
 
-/* field_mode_flags: what the field has under way that scripts and the
- * field's own routines look at. The party gathering to its leader (event
- * $DA and after a battle: event/party.c), an object being pushed
+/* What the field has under way that scripts and the field's own routines
+ * look at (field_mode_flags): the party gathering to its leader (event $DA:
+ * event/party.c), an object being pushed until its push script is done
  * (event/contact.c), and a dialog the field opened itself rather than a
  * script (event/dialog.c). */
 enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20 };
+
+static inline void field_mode_flag(GameState *g, uint8_t flag, bool on)
+{
+    uint8_t now = field_mode_flags(g);
+    set_field_mode_flags(g, (uint8_t)(on ? now | flag : now & ~flag));
+}
+static inline bool field_party_gathering(const GameState *g) { return (field_mode_flags(g) & FIELD_PARTY_GATHERING) != 0; }
+static inline void set_field_party_gathering(GameState *g, bool on) { field_mode_flag(g, FIELD_PARTY_GATHERING, on); }
+static inline bool field_object_being_pushed(const GameState *g) { return (field_mode_flags(g) & FIELD_OBJECT_PUSHED) != 0; }
+static inline void mark_field_object_pushed(GameState *g) { field_mode_flag(g, FIELD_OBJECT_PUSHED, true); }
+static inline void forget_dialog_opened_by_the_field(GameState *g)
+{
+    field_mode_flag(g, FIELD_DIALOG_OPENED_BY_THE_FIELD, false);
+}
+static inline void mark_dialog_opened_by_the_field(GameState *g)
+{
+    field_mode_flag(g, FIELD_DIALOG_OPENED_BY_THE_FIELD, true);
+}
+
+/* Whether the player has the party (field_player_control): only then does
+ * the pad walk the leader, the confirm button talk and open chests, and Start
+ * pause the field. Scripts take it away for a scene and hand it back. */
+static inline bool party_is_the_players(const GameState *g) { return field_player_control(g) != 0; }
+static inline void hand_the_party_to_the_player(GameState *g, bool theirs) { set_field_player_control(g, theirs ? 1 : 0); }
+
+/* The object the leader is up against (event/contact.c): the one its walk ran
+ * into this frame, or the one before it when the player presses the confirm
+ * button; or none. The game keeps the link in a word, whose high byte a
+ * contact found clears and the walk's start, forgetting the last, leaves. */
+static inline FieldLink leader_contact(const GameState *g) { return field_link_stored(field_leader_contact(g)); }
+static inline void set_leader_contact(GameState *g, FieldLink object)
+{
+    set_field_leader_contact(g, field_link_byte(object));
+    set_field_leader_contact_high(g, 0);
+}
+static inline void leader_loses_contact(GameState *g) { set_field_leader_contact(g, field_link_byte(field_no_link())); }
 
 /* dialog_choice_active: where a dialog with choices is (event/dialog.c):
  * none open, its text still showing, the player picking an answer, or one

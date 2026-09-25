@@ -45,6 +45,7 @@
 
 #include "event/variables.h"
 #include "field/object.h"
+#include "field/party.h"
 
 /* ---- The script -------------------------------------------------------------------- */
 
@@ -109,9 +110,6 @@ typedef enum { WALKING, SLIDING } MoveStyle;
 /* Where a walk toward another object ends: next to it, or where the walker
  * stands well on screen (someone running in to join a scene). */
 typedef enum { NEXT_TO_IT, WELL_ON_SCREEN } WalkEnd;
-/* A place in the party, as scripts name a member: 0 the leader, 1 and 2 the
- * others (event/party.h). */
-typedef uint8_t PartyPlace;
 /* A tint's colour, added to the picture or taken away from it. */
 typedef enum { TINT_ADDED, TINT_TAKEN_AWAY } TintMix;
 /* A place in a formation a script lays out for the party (event/party.c):

@@ -82,6 +82,7 @@ add_library(ct_game STATIC
   game/event/animation.c
   game/event/bridge.c
   game/event/calls.c
+  game/event/chests.c
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
@@ -117,6 +118,7 @@ add_library(ct_game STATIC
   game/field/window_corners.c
   game/field/scroll.c
   game/field/tile_copy.c
+  game/field/walk.c
   game/field/sprites.c
   game/field/window_shape.c
   game/menu/display.c

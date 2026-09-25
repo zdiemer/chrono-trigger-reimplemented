@@ -1531,12 +1531,70 @@ meaning = "The object the open dialog window is placed by: cleared when a dialog
 source = "game/event/dialog.c open_dialog; $C0:9193"
 
 [[var]]
+name = "field_leader_collides"
+addr = "7E:0120"
+page = "field"
+subsystem = "field"
+meaning = "Nonzero: the map and its objects stop the leader's walk (the field's setup sets it; with 0 the leader walks through everything)"
+source = "game/field/walk.c field_walk_the_leader $C0:881E; $C0:0BC8"
+
+[[var]]
+name = "field_dialog_hold"
+addr = "7E:0134"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "How long the field's dialog window stays: frames left, or $FFFF until the player presses the confirm button, a press the window takes for itself"
+source = "game/event/contact.c press_confirm $C0:1AAC; $C0:20A5, $C0:21BE"
+
+[[var]]
+name = "field_leader_level"
+addr = "7E:0155"
+page = "field"
+subsystem = "field"
+meaning = "Which of the map's levels the leader walks on (field/walk.c, MapLevel): 1 or 2, or 3 on stairs that join them"
+source = "game/field/walk.c reachable, step_onto ($C0:9C37, $C0:9C5C), party_start_on_the_map ($C0:9DC3)"
+
+[[var]]
+name = "field_step_tile"
+addr = "7E:015B"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "The tile (row << 8 | column) whose step event the leader set off (field_requests' step event), which the field's main loop runs"
+source = "game/field/walk.c step_onto $C0:9D35"
+
+[[var]]
+name = "field_opened_chest_tile"
+addr = "7E:015D"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "The tile (row << 8 | column) of the chest the leader opened last, which the field's main loop shows open (field_requests' opened chest)"
+source = "game/event/chests.c open_the_chest $C0:1DF4"
+
+[[var]]
+name = "field_chest_gold"
+addr = "7E:0200"
+size = 2
+subsystem = "field"
+meaning = "The gold in the chest the leader just opened, which its message shows (the battle keeps its target's display here: battle_target_display)"
+source = "game/event/chests.c open_the_chest $C0:1E7C"
+
+[[var]]
+name = "field_message_mark"
+addr = "7E:02A1"
+subsystem = "field"
+meaning = "Cleared when the field opens its own message (a chest's) and when the battle opens one ($CD:0264); what reads it isn't found in the banks read so far (docs/TODO.md)"
+source = "game/event/dialog.c field_message_opens, the chests' $C0:1F20"
+
+[[var]]
 name = "field_screen_recentring"
 addr = "7E:0138"
 page = "field"
 subsystem = "field"
 meaning = "The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0 waits)"
-source = "game/event/movement.c, behave $C0:3002; $C0:177F, $C0:885A"
+source = "game/event/movement.c step_with_the_party $C0:3002; $C0:177F, $C0:885A"
 
 [[var]]
 name = "field_idle_frames"
@@ -1582,7 +1640,7 @@ addr = "7E:01EB"
 page = "field"
 subsystem = "field"
 meaning = "The object the leader is up against (its offset in the object tables; negative for none): the one it walked into this frame (cleared at $C0:881E, set by the walk's check), or found before it when the player pressed the confirm button ($C0:1CFC)"
-source = "game/event/contact.c touch_what_the_leader_met $C0:3154, talk_to_what_the_leader_faces $C0:5AC5; $C0:881E, $C0:1AC6"
+source = "game/event/contact.c touch_what_the_leader_met $C0:3154, talk_to_the_leaders_contact $C0:5AC5; $C0:881E, $C0:1AC6"
 
 [[var]]
 name = "field_tile_copy"
@@ -1809,8 +1867,8 @@ addr = "7E:01F0"
 page = "field"
 stride = 2
 subsystem = "field"
-meaning = "Tile the direction is computed from"
-source = "game/field/motion.c field_direction_to_target $C0:ABA2; game/event/movement.c aim"
+meaning = "Tile the direction is computed from; the tile copy keeps the word here too"
+source = "game/field/motion.c field_direction_to_target $C0:ABA2; game/event/movement.c aim; game/field/leaves.c field_leave_table_copied ($C0:B096)"
 [[var.field]]
 name = "x"
 offset = 0
@@ -1819,6 +1877,11 @@ meaning = "Tile X"
 name = "y"
 offset = 1
 meaning = "Tile Y"
+[[var.field]]
+name = "copy_table"
+offset = 0
+size = 2
+meaning = "Where in work RAM the tile copy's last whole table starts (its rows 256 bytes apart), which the copy leaves in these cells; nothing reads it"
 
 [[var]]
 name = "field_target_tile"
@@ -1976,6 +2039,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5"
 source = "game/field/object.c object_set_sprite_priorities, object_layer_as_the_map $C0:4BA3, object_set_layering $C0:4C74; game/field/motion.c take_priorities_for_the_step"
+unchecked = "a map's start lays an empty place of the party out as the slot its marker names, the first past the tables (game/field/party_trail.c leave_stray_priorities, $C0:9E0E)"
 
 [[var]]
 name = "field_row_first_object"
@@ -2511,7 +2575,7 @@ page = "field_layers"
 stride = 2
 subsystem = "field"
 meaning = "How the pad walks the leader this frame, 1/16 pixel a frame on each axis, signed: $10 walking, $20 running (the dash button held), 0 still ($C0:8925 and on)"
-source = "game/field/party_trail.c leader_walk ($C0:9E29); $C0:882F, $C0:8925"
+source = "game/field/party_trail.c field_pad_walk ($C0:9E29); $C0:882F, $C0:8925"
 [[var.field]]
 name = "x"
 offset = 0
@@ -2547,6 +2611,69 @@ meaning = "What the ground under the leader does this frame (field/party.h, Lead
 source = "game/field/party_trail.c ($C0:9E29, $C0:9E84); $C0:9D6A, $C0:9E20"
 
 [[var]]
+name = "field_location_exits"
+addr = "7E:1D04"
+page = "field_layers"
+size = 2
+subsystem = "field"
+meaning = "Where the location's exits start in bank $E5, seven bytes each (field/field_data.h, FieldExit)"
+source = "game/field/walk.c take_an_exit $C0:9CBD"
+
+[[var]]
+name = "field_chests"
+addr = "7E:1D06"
+page = "field_layers"
+size = 2
+count = 2
+stride = 2
+index = "0: the first of the game's chests, 1: the location's first"
+subsystem = "field"
+meaning = "Where the game's chests start in bank $F5, and this location's, four bytes each (field/field_data.h, FieldChest); a chest's number, which its story flag is, counts from the first"
+source = "game/event/chests.c open_the_chest $C0:1E0C"
+
+[[var]]
+name = "field_map_edges"
+addr = "7E:1D1A"
+page = "field_layers"
+stride = 4
+subsystem = "field"
+meaning = "The map's edges in 16-pixel tiles, which the screen doesn't scroll past and the leader doesn't walk past"
+source = "game/field/walk.c keep_to_the_map $C0:9175, follow_with_the_screen $C0:99DE"
+[[var.field]]
+name = "left"
+offset = 0
+meaning = "The first column"
+[[var.field]]
+name = "right"
+offset = 1
+meaning = "The last column"
+[[var.field]]
+name = "top"
+offset = 2
+meaning = "The row above the first the leader stands on"
+[[var.field]]
+name = "bottom"
+offset = 3
+meaning = "The row above the last the leader stands on"
+
+[[var]]
+name = "field_floor_pull"
+addr = "7E:1D2A"
+page = "field_layers"
+stride = 2
+subsystem = "field"
+meaning = "How a moving floor under the leader pulls the party next frame, 1/16 pixel on each axis, signed"
+source = "game/field/walk.c step_onto $C0:9D6A, field_walk_the_leader $C0:88E5"
+[[var.field]]
+name = "x"
+offset = 0
+meaning = "Across"
+[[var.field]]
+name = "y"
+offset = 1
+meaning = "Down"
+
+[[var]]
 name = "field_screen_scroll_step"
 addr = "7E:1D2E"
 page = "field_layers"
@@ -2556,6 +2683,56 @@ index = "axis (X, Y)"
 subsystem = "field"
 meaning = "This frame's screen scroll step toward field_screen_scroll_target ($10 or $F0)"
 source = "game/field/layers.c, field_update_layer_scroll $C0:91AC"
+
+[[var]]
+name = "field_screen_scroll_step_high"
+addr = "7E:1D2F"
+page = "field_layers"
+count = 2
+stride = 2
+index = "axis (X, Y)"
+subsystem = "field"
+meaning = "The high bytes the leader's walk makes of field_screen_scroll_step as it works the leader's step out as words: the step's sign; nothing reads them"
+source = "game/field/walk.c leave_step_signs ($C0:8A6D)"
+
+[[var]]
+name = "field_walk_ahead"
+addr = "7E:1D70"
+page = "field_layers"
+stride = 4
+subsystem = "field"
+meaning = "Where the walk leaves the leader: across, where it will stand (1/16 pixel), and down, a tile beyond where it will stand the way it goes, the tile whose step event it sets off"
+source = "game/field/walk.c step_onto $C0:9C5C"
+[[var.field]]
+name = "x"
+offset = 0
+size = 2
+meaning = "Across"
+[[var.field]]
+name = "y"
+offset = 2
+size = 2
+meaning = "Down, a tile ahead"
+
+[[var]]
+name = "field_layer_fine_x"
+addr = "7E:1D93"
+page = "field_layers"
+count = 3
+index = "layer (BG1-BG3)"
+subsystem = "field"
+meaning = "Each layer's pixel within its 16-pixel map tile across (0-15), which the screen's edges count as it scrolls"
+source = "game/field/walk.c follow_with_the_screen $C0:99DE, recentre_the_screen $C0:885A; $C0:93E1"
+
+[[var]]
+name = "field_layer_fine_y"
+addr = "7E:1D96"
+page = "field_layers"
+count = 3
+index = "layer (BG1-BG3)"
+subsystem = "field"
+meaning = "And down"
+source = "game/field/walk.c follow_with_the_screen $C0:99DE, recentre_the_screen $C0:885A; $C0:93E1"
 
 [[var]]
 name = "field_layer_still"
@@ -3202,7 +3379,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "How far the leader moved across in the frame of each footprint, 1/16 pixel, signed (field_leader_movement)"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_movement_y"
@@ -3211,7 +3388,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "How far the leader moved down in the frame of each footprint, 1/16 pixel, signed"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_walk_x"
@@ -3220,7 +3397,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "How the pad walked the leader across in the frame of each footprint (field_leader_walk)"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_walk_y"
@@ -3229,7 +3406,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "How the pad walked the leader down in the frame of each footprint"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_lower_priority"
@@ -3238,7 +3415,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "The leader's lower half's sprite priority byte in the frame of each footprint (field_object_sprite_priority +0)"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_upper_priority"
@@ -3247,7 +3424,7 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "The leader's upper half's sprite priority byte in the frame of each footprint (field_object_sprite_priority +1)"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_trail_ground"
@@ -3256,7 +3433,27 @@ count = 128
 index = "footprint (field_trail_position)"
 subsystem = "field"
 meaning = "The ground under the leader in the frame of each footprint (field_leader_ground)"
-source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+source = "game/field/party_trail.c field_footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_tile_exits"
+addr = "7E:7080"
+size = 0x40
+rows = 64
+row_stride = 0x100
+subsystem = "field"
+meaning = "Each tile's exit, the location's exit the leader takes stepping onto it (bit 7: none)"
+source = "game/field/walk.c take_an_exit $C0:9CB7"
+
+[[var]]
+name = "field_tile_walkable"
+addr = "7E:70C0"
+size = 0x40
+rows = 64
+row_stride = 0x100
+subsystem = "field"
+meaning = "Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest it holds (field_chests)"
+source = "game/field/walk.c probe $C0:9AA1; game/event/chests.c chest_before_the_leader $C0:1E9A"
 
 [[var]]
 name = "field_line_effect_tables"

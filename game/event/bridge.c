@@ -5,6 +5,8 @@
 #include "event/engine.h"
 #include "event/event_data.h"
 #include "port/native.h"
+#include "field/parts.h"
+#include "field/walk.h"
 
 /* ---- The registers a command leaves --------------------------------------------------- */
 
@@ -242,9 +244,37 @@ void event_run_object_script(Snes *s)
     }
 }
 
+/* After the openings the party starts on the map (field/walk.h), and the
+ * map setup returns. What the start leaves its caller: Y's low byte, which
+ * the start's look at a slope clears (it counts its shift in Y), and the
+ * slope's overflow (field/leaves.c). */
+static void leave_start_registers(Snes *s, bool slope, bool overflow)
+{
+    s->cpu.y = slope ? 0 : (uint16_t)(s->cpu.y & 0x00FF);
+    m_set_flag(s, CPU_FLAG_V, overflow);
+}
+
+static void start_the_party(Snes *s)
+{
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool fits = party_start_fits(g);
+    bool slope = fits && field_start_on_a_slope(g);
+    bool overflow = fits && field_start_overflow(g, m_flag(s, CPU_FLAG_V));
+    vars_peek(false);
+    if (!fits) {
+        m_stop_at(s, 0xC09DC3, DC_A | DC_X | DC_N | DC_Z | DC_C);
+        return;
+    }
+    party_start_on_the_map(g);
+    ORIGINAL_EFFECT(leave_start_registers(s, slope, overflow));
+    m_rep(s, CPU_FLAG_X);
+    m_rts(s);
+}
+
 // $C0:58DE (inside the map setup routine)
-/* The map's openings, on the machine; goes on at $C0:9DC3 rather than
- * returning. */
+/* The map's openings, on the machine, and then the party's start on the map
+ * ($C0:9DC3), which returns from the map setup. */
 void event_run_init_scripts(Snes *s)
 {
     OnTheMachine m = { s, IN_AN_OPENING };
@@ -264,7 +294,7 @@ void event_run_init_scripts(Snes *s)
         hand_over(s, at, 0xC05915, 0);
         return;
     default:
-        m_stop_at(s, 0xC09DC3, DC_A | DC_X | DC_N | DC_Z | DC_C);
+        start_the_party(s);
         return;
     }
 }
