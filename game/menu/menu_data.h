@@ -26,15 +26,26 @@
 static inline uint8_t menu_font_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
 /* The tile columns of a line of text, where the glyph drawer puts a glyph's
- * lines ($C2:5FE6): the byte offset of each column's tile in the text's tile
- * buffer, 32 columns, a word each. A line of text is two rows of tiles; the
- * first 16 columns are its left half, $10 bytes a tile, and the other 16 its
- * right half, $200 bytes on. */
+ * lines: the byte offset of each column's tile in the text's tile buffer, a
+ * word each. A line of text is two rows of tiles; the first 16 columns are
+ * its left half, a tile after another, and the next 16 its right half, two
+ * rows of tiles on. In four-colour tiles ($C2:5FE6) a tile is $10 bytes and
+ * a row $100; in sixteen-colour ones ($C2:6066) $20 and $200. The tables go
+ * on to 64 columns, which no line reaches. */
 enum { MENU_TEXT_COLUMNS = 32 };
 static inline uint16_t menu_text_column_offset(const GameState *g, unsigned column)
 {
     return rom_read16(g, 0xC25FE6u + 2u * column);
 }
+static inline uint16_t menu_text_column_offset_16_colour(const GameState *g, unsigned column)
+{
+    return rom_read16(g, 0xC26066u + 2u * column);
+}
+
+/* How far the pen moves after each of the font's glyphs ($C2:60E6), by the
+ * glyph's number less $A0 (a byte: the two-byte glyphs take their low byte's
+ * entry, and the table runs on into what follows it). */
+static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index) { return rom_read8(g, 0xC260E6u + index); }
 
 /* ---- Text --------------------------------------------------------------------------------- */
 

@@ -328,10 +328,10 @@ static void request_map_view_graphics(GameState *g)
     if ((set == SET_OF_A_LATER_STORY && menu_story_progress(g) < STORY_OF_THE_LATER_SET)
         || (set == SET_OF_THE_EPOCH_WINGS && !(menu_story_flags_epoch(g) & EPOCH_WINGS_FLAG)))
         set = EARLY_SET;
-    set_menu_load_request_entry(g, set);
-    set_menu_load_request_table(g, MAP_VIEW_SETS);
-    set_menu_load_request_kind(g, LOADER_KIND);
-    set_menu_load_request_dest(g, RAM_MENU_MAP_GRAPHICS);
+    set_menu_text_string(g, set);
+    set_menu_text_strings(g, MAP_VIEW_SETS);
+    set_menu_text_layout(g, LOADER_KIND);
+    set_menu_text_tiles(g, RAM_MENU_MAP_GRAPHICS);
 }
 
 /* ---- The map view: its objects ---------------------------------------------------------------- */
@@ -1377,7 +1377,7 @@ static void load_map_view_graphics(Snes *s)
     m_jsr_dc(s, 0xC26965, 0xC25798, READS_NOTHING | DC_DB);   /* clear the loader's buffer */
     request_map_view_graphics(g);
     m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);   /* the loader */
-    set_menu_load_request_size(g, MAP_VIEW_GRAPHICS_BYTES);
+    set_menu_text_budget(g, MAP_VIEW_GRAPHICS_BYTES);
     m_jsl_dc(s, 0xC269C4, 0xC25823, READS_NOTHING | DC_D);
     vid_send_vram(m_platform(s), PF_AT(0xC269C8), 0x6200, PF_GAME(RAM_MENU_MAP_GRAPHICS), 0x0400, &after_high);
 }

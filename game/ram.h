@@ -1765,16 +1765,39 @@
  * loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the
  * object's own the first frame all the same [2 bytes] */
 #define RAM_MENU_WAVE_PHASE 0x7E01E2u
-/* What the graphics loader at $C2:57DF is to load, on its own direct page $0200 [9 bytes] */
-#define RAM_MENU_LOAD_REQUEST 0x7E020Cu
-#define RAM_MENU_LOAD_REQUEST_ENTRY 0x7E020Cu /* Which entry of the table below to load */
-#define RAM_MENU_LOAD_REQUEST_TABLE 0x7E020Du /* Long pointer to the table of streams */
-#define RAM_MENU_LOAD_REQUEST_DEST 0x7E0210u /* Long pointer to where it goes */
-#define RAM_MENU_LOAD_REQUEST_SIZE 0x7E0213u /* How much of it to take */
-#define RAM_MENU_LOAD_REQUEST_KIND 0x7E0214u /* Which of the loader's ways to read it */
-/* How wide, in pixels, the graphic the menus' loader last loaded is (the load screen draws that
- * many tiles, rounded up, of an era label) */
-#define RAM_MENU_LOADED_GRAPHIC_WIDTH 0x7E0234u
+/* What a string's numbers and names are read from, in order, on the text page: the caller puts
+ * them here before it starts the string [12 x $1 bytes, by byte] */
+#define RAM_MENU_TEXT_ARGUMENTS 0x7E0200u
+#define RAM_MENU_TEXT_ARGUMENTS_COUNT 12u
+#define RAM_MENU_TEXT_ARGUMENTS_STRIDE 0x01u
+/* A text being set in glyphs of the proportional font ($C2:57DF starts it, $C2:5823 sets the
+ * next few glyphs): which string, where its tiles go, and where the setting stopped, on the text
+ * page $0200. The dialog, the battle's messages and the menus' labels all use it [12 bytes] */
+#define RAM_MENU_TEXT 0x7E020Cu
+#define RAM_MENU_TEXT_STRING 0x7E020Cu       /* Which string of the table below to set */
+#define RAM_MENU_TEXT_STRINGS 0x7E020Du      /* Long pointer to the table of strings: a word each, within the table's bank */
+#define RAM_MENU_TEXT_TILES 0x7E0210u        /* Long pointer to the tiles the text is set in: the line's first tile row */
+#define RAM_MENU_TEXT_BUDGET 0x7E0213u       /* How many more glyphs the setting may draw before it stops; the caller sets it before each call */
+#define RAM_MENU_TEXT_LAYOUT 0x7E0214u       /* How the text is set: bit 7, lines start at the tiles' left edge; the low four bits 0 for four-colour tiles and any other for sixteen-colour ones, 2 for a line started a tile further left */
+#define RAM_MENU_TEXT_STOP 0x7E0215u         /* Why the setting stopped: 0 the string ended, 3 a wait (the frames in `wait`), 4-12 a line or page break the caller acts on (5-12 start the next line: odd ones at the margin, even ones indented), $10 the budget ran out */
+#define RAM_MENU_TEXT_WAIT 0x7E0216u         /* The frames a wait in the string asks for */
+#define RAM_MENU_TEXT_LINE_GLYPHS 0x7E0217u  /* How many glyphs the current line has */
+/* Where the setting of a text has got to, so a call can take it up where the last left off [16
+ * bytes] */
+#define RAM_MENU_TEXT_READING 0x7E0230u
+#define RAM_MENU_TEXT_READING_SOURCE 0x7E0230u /* What the next glyph comes from: 0 the string, 1 an inserted name or word, 2 a number's decimal digits, 3 its hex digits */
+#define RAM_MENU_TEXT_READING_AT 0x7E0231u   /* Long pointer to the string's next byte */
+#define RAM_MENU_TEXT_READING_PEN 0x7E0234u  /* The pen's X on the line, in pixels: where the next glyph starts. A label's width once it is set */
+#define RAM_MENU_TEXT_READING_GLYPH 0x7E0235u /* The glyph being drawn: $A0 up for the font's first 96, $1xx and $2xx for the two-byte ones */
+#define RAM_MENU_TEXT_READING_INSERT 0x7E0237u /* Long pointer to the next glyph of what is being inserted (a name, a word of the dictionary, a number's digits) */
+#define RAM_MENU_TEXT_READING_INSERT_LEFT 0x7E023Au /* How many glyphs of the insert are left */
+#define RAM_MENU_TEXT_READING_CODE 0x7E023Bu /* The dictionary code the insert came from */
+#define RAM_MENU_TEXT_READING_ARGUMENTS_AT 0x7E023Du /* Long pointer to the next of the string's arguments (menu_text_arguments) */
+/* A number's digits as the string shows them, the first first: decimal values 0-9, or hex digits
+ * as glyphs [8 x $1 bytes, by digit] */
+#define RAM_MENU_TEXT_DIGITS 0x7E0240u
+#define RAM_MENU_TEXT_DIGITS_COUNT 8u
+#define RAM_MENU_TEXT_DIGITS_STRIDE 0x01u
 /* Which byte of the glyph is being drawn, 0-23: its twelve lines, two bitplanes a line [2 bytes] */
 #define RAM_MENU_GLYPH_BYTE 0x7E0260u
 #define RAM_MENU_GLYPH_BYTE_DP 0x60u         /* page menu_glyph */
@@ -1787,12 +1810,24 @@
  * bytes] */
 #define RAM_MENU_GLYPH_SPILL 0x7E0263u
 #define RAM_MENU_GLYPH_SPILL_DP 0x63u        /* page menu_glyph */
+/* What converting a number to decimal leaves on the text page past the glyph drawer's cells: the
+ * last division's quotient as it was built, and the last cell of an eight-digit number.
+ * Scaffolding: nothing reads them [3 bytes] */
+#define RAM_MENU_NUMBER_CONVERSION 0x7E0265u
+#define RAM_MENU_NUMBER_CONVERSION_QUOTIENT 0x7E0265u /* The last division's quotient, with the byte after it */
+#define RAM_MENU_NUMBER_CONVERSION_LAST 0x7E0267u /* The units of an eight-digit number */
 /* The glyph drawer's count of line pairs left in the band of tiles it is drawing (4, then 8) */
 #define RAM_MENU_GLYPH_LINES_LEFT 0x7E0268u
 #define RAM_MENU_GLYPH_LINES_LEFT_DP 0x68u   /* page menu_glyph */
-/* How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7) */
+/* The number being shown's second byte, as it is read (its other bytes share cells with the
+ * glyph drawer). Scaffolding: nothing reads it after */
+#define RAM_MENU_NUMBER_SECOND_BYTE 0x7E0269u
+/* How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7) [2 bytes] */
 #define RAM_MENU_GLYPH_PEN_OFFSET 0x7E026Au
 #define RAM_MENU_GLYPH_PEN_OFFSET_DP 0x6Au   /* page menu_glyph */
+/* A step of working out where a glyph's right pixels are: half the glyph's number times 8.
+ * Scaffolding: nothing reads it after [2 bytes] */
+#define RAM_MENU_GLYPH_FONT_STEP 0x7E026Cu
 /* Which tile column of the text line the pen is in, doubled (the pen's X, $34, AND $F8, shifted
  * right twice): an index into the column table at $C2:5FE6 [2 bytes] */
 #define RAM_MENU_GLYPH_PEN_COLUMN 0x7E026Eu
@@ -1818,6 +1853,8 @@
 #define RAM_MENU_OBJECTS_FROZEN 0x7E0294u
 /* The location the Epoch is parked on, which the map view shows a marker for [2 bytes] */
 #define RAM_MENU_EPOCH_LOCATION 0x7E029Fu
+/* Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing) */
+#define RAM_MENU_TEXT_HEX 0x7E02A1u
 /* The song an object script last asked the sound driver for, kept beside the request itself */
 #define RAM_MENU_SONG_PLAYING 0x7E02AEu
 /* The location the time dial chose to travel to, or $FFFF where the player left it [2 bytes] */

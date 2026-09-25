@@ -169,9 +169,9 @@ enum { ERA_LABEL_GRAPHIC = 0x5E00, ERA_LABEL_TILES = 0x5248, ERA_LABEL_FIRST_TIL
 static void request_era_label(GameState *g, uint8_t era)
 {
     set_menu_save_slot_era(g, era);
-    set_menu_load_request_entry(g, era);
+    set_menu_text_string(g, era);
     set_menu_load_destination(g, ERA_LABEL_GRAPHIC);
-    set_menu_load_request_table(g, MENU_ERA_LABELS);
+    set_menu_text_strings(g, MENU_ERA_LABELS);
 }
 
 /* How many tiles wide an era label of `width` pixels is. */
@@ -235,7 +235,7 @@ static bool draw_header(Snes *s)
         menu_set_widths(s, true, false);
         if (!menu_call(s, 0xC2D3DF, 0xC2F90C, LOADER_IGNORES))
             return false;
-        set_menu_save_era_width(g, menu_loaded_graphic_width(g));
+        set_menu_save_era_width(g, menu_text_reading_pen(g));
     }
     finish_header(g);
     return true;
@@ -566,8 +566,8 @@ enum { UPLOAD_SLOT_LABELS = 0xD198 };
 
 static void request_label(GameState *g, uint32_t table, uint8_t entry, uint16_t at)
 {
-    set_menu_load_request_entry(g, entry);
-    set_menu_load_request_table(g, table);
+    set_menu_text_string(g, entry);
+    set_menu_text_strings(g, table);
     set_menu_load_destination(g, at);
 }
 
@@ -621,7 +621,7 @@ void menu_draw_chapter_label(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
-    request_label(g, CHAPTER_LABELS, menu_load_request_entry(g), at);
+    request_label(g, CHAPTER_LABELS, menu_text_string(g), at);
     wram_fill8(g, 0x7E0000u | at, CHAPTER_LABEL_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
@@ -636,7 +636,7 @@ void menu_draw_chapter_label(Snes *s)
  * into $C2:D296). */
 void menu_draw_empty_label(Snes *s)
 {
-    set_menu_load_request_entry(state_of(s), EMPTY_SLOT_LABEL);
+    set_menu_text_string(state_of(s), EMPTY_SLOT_LABEL);
     menu_draw_chapter_label(s);
 }
 
@@ -677,7 +677,7 @@ void menu_read_design_and_chapter(Snes *s)
     set_menu_save_slot_design(g, slot, (uint8_t)(saved_byte(pf, game, SAVED_SETTINGS_SECOND) & DESIGN_BITS));
     uint8_t progress = saved_byte(pf, game, SAVED_CHAPTER);
     uint8_t chapter = chapter_of(g, progress);
-    set_menu_load_request_entry(g, chapter);
+    set_menu_text_string(g, chapter);
     menu_set_widths(s, true, true);
     ORIGINAL_EFFECT(menu_leave_compare(s, progress, menu_chapter_start(g, chapter)));
     if (!menu_run(s, 0xC2D288, 0xC2D296, menu_draw_chapter_label))
@@ -746,7 +746,7 @@ void menu_read_save_slots(Snes *s)
             if (!menu_run(s, 0xC2D182, 0xC2D19F, menu_read_slot_summary))
                 return;
         } else {
-            set_menu_load_request_entry(g, EMPTY_SLOT_LABEL);
+            set_menu_text_string(g, EMPTY_SLOT_LABEL);
             if (!menu_run(s, 0xC2D17A, 0xC2D296, menu_draw_chapter_label))
                 return;
         }
