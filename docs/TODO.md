@@ -367,6 +367,15 @@ rest waits, is [PLAN.md](PLAN.md).
   by the strict solve, so nothing rests on it, but a constraint that keeps the
   lists' entries inside the program's tasks would fuzz what the tasks do with
   the registers the port passes.
+- **What Phase 3's first `$C0` chunk found the tools lacking**:
+  `fuzz_compare.py` reports "before error" for every new entry (the old
+  binary has nothing at its address), so it wants an after-only mode;
+  `ct_fuzz --fill` takes contiguous ranges only, so a routine reading
+  alternating meaningful and random bytes needs a fill per byte; the event
+  engine takes a second table row for an opcode silently, the last one
+  winning, where it could warn; and proving V dead at the command level
+  (following the field loop's `JML`s) would remove most of the Y/V
+  derivations the state routines' ports carry.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
