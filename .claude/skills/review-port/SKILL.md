@@ -675,6 +675,18 @@ Each of these is a finding. Every example here comes from this repo.
     the game's terms; a run of "kept plainly" across unrelated files to
     satisfy one reader is the original's register traffic by another name.
 
+88. **An out-parameter dressed as an outcome enum.** Game-sounding members
+    that only separate cases the game's own result merges. The check: if
+    every member maps onto the same game-state value, it is the registers.
+    The tell-tales are a `(void)local;` in an entry whose only other use is
+    inside `ORIGINAL_EFFECT`, and public `void` twins of a private function
+    that returns the struct.
+89. **Cells as the calling convention between two C functions.** A ported
+    caller writes cells and a ported callee reads them back as its
+    parameters (`menu_set_label(g, menu_load_destination(g))`). Pass them.
+90. **The same test written two ways on one field** (`l == 2` and
+    `(l & 0x0F) == 2`) with no comment saying why.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
