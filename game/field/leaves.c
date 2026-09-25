@@ -8,6 +8,7 @@
  * ORIGINAL_EFFECT. */
 #include "field/field.h"
 #include "field/parts.h"
+#include "field/party.h"
 #include "field/object.h"
 #include "field/scratch.h"
 #include "vars.h"
@@ -125,4 +126,103 @@ bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_
 bool field_screen_test_overflow(const GameState *g, MapTile tile)
 {
     return field_subtract_overflows8(tile.y, (uint8_t)(field_screen_top(g) >> 1));
+}
+
+/* ---- The party's steps (field/party.h: $C0:9E29, $C0:A26B, $C0:A2CE) --------------------- */
+
+/* The gait's lookup adds 33 to the complement of each axis's speed that goes
+ * backward, the horizontal's first: its overflow is the last of those sums,
+ * where it made one. */
+enum { BACKWARD_SPEED_BIAS = 0x21 };
+
+static bool gait_lookup_overflow(Velocity walk, bool before)
+{
+    if (walk.y < 0)
+        return field_add_overflows8((uint8_t)~walk.y, BACKWARD_SPEED_BIAS);
+    if (walk.x < 0)
+        return field_add_overflows8((uint8_t)~walk.x, BACKWARD_SPEED_BIAS);
+    return before;
+}
+
+/* The leader's: the gait's lookup, but on a climb, which looks nothing up. */
+bool field_leader_step_overflow(const GameState *g, bool before)
+{
+    if (field_leader_ground(g) & GROUND_CLIMB)
+        return before;
+    return gait_lookup_overflow(field_pad_walk(g), before);
+}
+
+/* A member's: the distance to the one ahead of it, which it measures before
+ * it moves on, and then the lookup of the gait its footprint shows. Waiting
+ * on a climb it compares the leader's pace with the pad's where both went up
+ * or down; on a moving floor, the last sum is the vertical walk against the
+ * floor's pull, or the lookup's of that where it goes up. */
+bool field_member_step_overflow(const GameState *g, unsigned place, bool moved_on)
+{
+    uint8_t at = field_trail_position(g, place), ahead = field_trail_position(g, place - 1);
+    uint8_t measured_from = moved_on ? (uint8_t)(at - 1) % FIELD_TRAIL_GROUND_COUNT : at;
+    bool v = field_subtract_overflows8(ahead, measured_from);
+    Footprint f = field_footprint(g, at);
+    if (moved_on)
+        return (f.ground & GROUND_CLIMB) ? v : gait_lookup_overflow(f.walk, v);
+    if (f.ground == 0)
+        return v;
+    if (f.ground & GROUND_CLIMB)
+        return f.walk.y != 0 && f.movement.y != 0 ? field_subtract_overflows8((uint8_t)f.movement.y, (uint8_t)f.walk.y)
+                                                  : v;
+    uint8_t against_pull = (uint8_t)-field_floor_pull(f.movement.y);
+    uint8_t walk = (uint8_t)(against_pull + (uint8_t)f.walk.y);
+    if ((int8_t)walk < 0)
+        return field_add_overflows8((uint8_t)~walk, BACKWARD_SPEED_BIAS);
+    return field_add_overflows8(against_pull, (uint8_t)f.walk.y);
+}
+
+/* ---- A tile copy (field/layers.h: $C0:AF4E) ------------------------------------------------ */
+
+/* The copy takes the tables in the order of the bits its description names
+ * them by, whole tables first and the properties' bits last: the last part
+ * it made is its highest bit. */
+enum { NO_PART = -1, TILE_COPY_PARTS = 8 };
+
+static int last_part(uint8_t maps)
+{
+    for (int part = TILE_COPY_PARTS - 1; part >= 0; part--)
+        if (maps & 1u << part)
+            return part;
+    return NO_PART;
+}
+
+static uint16_t last_row_start(TileRectangle r) { return (uint16_t)((r.to.row + r.rows) << 8 | r.to.column); }
+
+/* Y: a whole table's copy leaves it past the last row's last tile, where the
+ * original keeps the table; a bit's copy on that tile, counted from the
+ * map's first. */
+uint16_t field_tile_copy_y(const GameState *g, uint16_t before)
+{
+    int part = last_part(field_tile_copy_maps(g));
+    if (part == NO_PART)
+        return before;
+    TileRectangle r = field_described_tile_copy(g);
+    if (part >= MAP_TABLES)
+        return (uint16_t)(last_row_start(r) + r.columns);
+    return (uint16_t)(field_map_table_address((MapTable)part) + last_row_start(r) + r.columns + 1);
+}
+
+/* The overflow: a whole table's copy steps to its last row with a sum that
+ * leaves the signed range where the row starts from $8000 on (the attribute
+ * tables' lower rows), or with one row, found where it goes; a bit's copy
+ * stays in the map's first 16 KiB, and leaves it clear. */
+bool field_tile_copy_overflow(const GameState *g, bool before)
+{
+    int part = last_part(field_tile_copy_maps(g));
+    if (part == NO_PART)
+        return before;
+    if (part >= MAP_TABLES)
+        return false;
+    TileRectangle r = field_described_tile_copy(g);
+    uint16_t base = field_map_table_address((MapTable)part);
+    if (r.rows == 0)
+        return field_add_overflows16((uint16_t)(r.to.row << 8 | r.to.column), base);
+    enum { ROW = 0x100 };
+    return field_add_overflows16((uint16_t)(base + last_row_start(r) - ROW), ROW);
 }

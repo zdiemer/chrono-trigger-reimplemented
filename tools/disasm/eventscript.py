@@ -268,8 +268,11 @@ COMMANDS = {
     0xAC: C("static_frame", 0x2F71, _k("frame", B)),
     0xAD: C("wait", 0x2F96, _k("frames", B)),
     0xAE: C("reset_animation", 0x2E8F),
-    0xAF: C("run_state_routine_once", 0x2FFD),
-    0xB0: C("run_state_routine", 0x3002, flow="stop"),
+    # $C0:2FFD, $C0:3002: the party's step every frame (game/field/party.h): the
+    # leader walks as the pad says and leaves a footprint, the members walk the
+    # leader's trail; $B0 stays on itself, $AF goes on the next frame.
+    0xAF: C("walk_with_the_party_once", 0x2FFD),
+    0xB0: C("walk_with_the_party", 0x3002, flow="stop"),
     0xB1: C("yield", 0x353F),
     0xB2: C("halt", 0x3543, flow="stop"),
     0xB3: C("loop_animation_0", 0x2E87),
@@ -315,13 +318,15 @@ COMMANDS = {
     # $C0:37F9: $C2:8004 function $0C with X = the operand; the result to a variable.
     0xD7: C("party_query_0c", 0x37F9, _k("value", B), _k("var", V)),
     0xD8: C("start_battle", 0x3A83, _k("a", B), _k("b", B)),
-    # $C0:326C: point the three party members' scripts at the moves built in the
-    # buffer at $7F:3720, $7F:3740, $7F:3760 (tile pairs, bit 7 of each marking
-    # the axis), and wait until they are done.
-    0xD9: C("move_party", 0x326C, _k("x1", B), _k("y1", B), _k("x2", B), _k("y2", B), _k("x3", B),
-            _k("y3", B)),
-    # $C0:345A: the second and third members run the code at $7F:3700 until done.
-    0xDA: C("party_follow", 0x345A),
+    # $C0:326C: the party walks into a formation, each to its tile (the leader's
+    # first), running the party's scripts at $7F:3720, $7F:3740, $7F:3760, and
+    # the command waits until all are there. Bit 7 of a place's column and of its
+    # row are the way it then faces (game/event/party.c).
+    0xD9: C("take_formation", 0x326C, _k("leader_x", B), _k("leader_y", B), _k("first_x", B),
+            _k("first_y", B), _k("second_x", B), _k("second_y", B)),
+    # $C0:345A: the members gather to the leader, running the party's script at
+    # $7F:3700, and the command waits until they are there.
+    0xDA: C("gather_party", 0x345A),
     0xDC: C("store_location", 0x3AF1, _k("location", W), _k("position", W)),
     0xDD: C("set_location", 0x3B1B, _k("location", W), _k("position", W)),
     0xDE: C("set_location_with_1e", 0x3B45, _k("location", W), _k("position", W)),
@@ -331,8 +336,11 @@ COMMANDS = {
     0xE2: C("change_location_from_variables", 0x3B9E, _k("location", V), _k("a", V), _k("b", V),
             _k("c", V), flow="stop"),
     0xE3: C("set_player_control", 0x3C05, _k("value", B)),
-    0xE4: C("copy_tiles", 0x3D97, _k("a", W), _k("b", W), _k("c", W), _k("d", B)),
-    0xE5: C("queue_tile_copy", 0x3DC5, _k("a", W), _k("b", W), _k("c", W), _k("d", B)),
+    # $C0:3D97, $C0:3DC5: a rectangle of the map's tiles, from its top left tile
+    # to its bottom right, copied over the place at a third, in the tables the
+    # last byte names (game/field/tile_copy.c): now, or on the field's next pass.
+    0xE4: C("copy_tiles", 0x3D97, _k("from", W), _k("to", W), _k("destination", W), _k("maps", B)),
+    0xE5: C("queue_tile_copy", 0x3DC5, _k("from", W), _k("to", W), _k("destination", W), _k("maps", B)),
     0xE6: C("set_layer_extra_speed", 0x3DF4, _k("value", W), _k("layers", B), _k("e", B)),
     0xE7: C("scroll_screen", 0x3E30, _k("x", B), _k("y", B)),
     0xE8: C("play_sound", 0x3C11, _k("effect", B)),

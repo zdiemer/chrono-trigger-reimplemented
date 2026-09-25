@@ -42,6 +42,18 @@ enum {
     FIELD_TINT_CHANGES = 0x18,              /* what a tint with a rate sets running */
 };
 
+/* field_mode_flags: what the field has under way that scripts and the
+ * field's own routines look at. The party gathering to its leader (event
+ * $DA and after a battle: event/party.c), an object being pushed
+ * (event/contact.c), and a dialog the field opened itself rather than a
+ * script (event/dialog.c). */
+enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20 };
+
+/* dialog_choice_active: where a dialog with choices is (event/dialog.c):
+ * none open, its text still showing, the player picking an answer, or one
+ * picked. */
+enum { DIALOG_NO_CHOICES = 0, DIALOG_CHOICES_SHOWING = 1, DIALOG_CHOOSING = 2, DIALOG_CHOSEN = 3 };
+
 /* The field's three layers, as the tables of layers index them. */
 enum { FIELD_BG1, FIELD_BG2, FIELD_BG3, FIELD_LAYERS };
 

@@ -6,8 +6,11 @@
  * hands back is the carry the command was entered with (below), the others
  * because the menus' routines ($C2:8004) are still the original's code. */
 #include "event/bridge.h"
+#include "event/calls.h"
 #include "event/party.h"
 #include "event/variables.h"
+#include "field/field.h"
+#include "field/party.h"
 
 /* ---- Someone to walk up to or ask after -------------------------------------------------- */
 
@@ -180,6 +183,177 @@ void event_cmd_party_routine_6(Snes *s) { party_routines(s, 0xC03E67, 6, false);
 // $C0:3E75
 void event_cmd_party_routine_7(Snes *s) { party_routines(s, 0xC03E67, 7, false); }
 
+/* ---- The party regrouping ---------------------------------------------------------------- *
+ *
+ * Two commands take the party out of the player's hands and move it as one,
+ * through the party's own scripts (event/party.h), each member dropping what
+ * it was doing for its script at the most urgent level: $D9 walks each of
+ * the party to a place in a formation, and $DA gathers the members back to
+ * the leader. Each counts its members in as they get there, in a variable
+ * the scripts share, and waits until all have; then the members pick the
+ * leader's trail up afresh, from where the leader stands (field/party.h). */
+
+enum { PARTY_SCRIPT_LEVEL = 0 };
+
+/* The original keeps the operand bytes of the last place it lays out. */
+enum { COLUMN_FACING_BIT = 0x80, ROW_FACING_BIT = 0x80 };
+
+static void keep_formation_place(GameState *g, FormationPlace p)
+{
+    keep_byte(g, KEPT_SECOND, (uint8_t)(p.tile.x | (p.facing & 2 ? COLUMN_FACING_BIT : 0)));
+    keep_byte(g, KEPT_THIRD, (uint8_t)(p.tile.y | (p.facing & 1 ? ROW_FACING_BIT : 0)));
+}
+
+/* A member takes its place in the formation: its script is told the tile
+ * and the way to face, and it drops what it was doing for it. */
+static void send_to_formation_place(GameState *g, PartyPlace place, FormationPlace p)
+{
+    uint16_t script = (uint16_t)(FORMATION_SCRIPTS + place * FORMATION_SCRIPT_BYTES);
+    object_run_script_from(g, member_object(g, place), PARTY_SCRIPT_LEVEL, script);
+    set_event_script_byte(g, (unsigned)script + FORMATION_TILE, p.tile.x);
+    set_event_script_byte(g, (unsigned)script + FORMATION_TILE + 1, p.tile.y);
+    set_event_script_byte(g, (unsigned)script + FORMATION_FACING, p.facing);
+    ORIGINAL_EFFECT(keep_formation_place(g, p));
+}
+
+/* Whether any of the party still runs the party's script. */
+static bool someone_still_moving(const GameState *g)
+{
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++)
+        if (place_taken(g, place) && event_object_call_state_level(g, member_object(g, place)) == PARTY_SCRIPT_LEVEL)
+            return true;
+    return false;
+}
+
+/* The count the formation's scripts reach once all of the party is in
+ * place: it starts at one more for each place that is empty. */
+enum { ALL_IN_FORMATION = 4 };
+
+// $C0:326C
+/* The party walks into a formation, each to its tile, facing its way, and the
+ * script waits until all are there and done. The leader's place comes first;
+ * the members' are left out where their places are empty. */
+static EventFlow take_formation(GameState *g, FormationPlace leader_place, FormationPlace first_place,
+                                FormationPlace second_place)
+{
+    uint8_t in_place = variable_byte(g, FORMATION_COUNT);
+    if (in_place != 0) {
+        if (in_place < ALL_IN_FORMATION)
+            return stay();
+        party_trail_regroup(g);
+        if (someone_still_moving(g))
+            return stay();
+        set_variable_byte(g, FORMATION_COUNT, 0);
+        return end_turn();
+    }
+    set_field_player_control(g, 0);
+    const FormationPlace places[PARTY_PLACES] = { leader_place, first_place, second_place };
+    uint8_t count = 1;
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
+        if (!place_taken(g, place)) {
+            count = (uint8_t)(ALL_IN_FORMATION - place);
+            break;
+        }
+        send_to_formation_place(g, place, places[place]);
+    }
+    set_variable_byte(g, FORMATION_COUNT, count);
+    return stay();
+}
+EVENT_OPERATION(take_formation, leader_place, first_place, second_place)
+
+/* A member goes to the leader: it drops what it was doing for the party's
+ * gathering script. */
+static void send_to_the_leader(GameState *g, FieldObject member)
+{
+    object_run_script_from(g, member, PARTY_SCRIPT_LEVEL, GATHER_SCRIPT);
+}
+
+/* The count the gathering scripts reach once every member is with the
+ * leader: it starts at one more for the second place empty. */
+enum { ALL_GATHERED = 3 };
+
+// $C0:345A
+/* The members gather to the leader, and the script waits until they are
+ * there; with nobody but the leader, it goes on at once. */
+static EventFlow gather_party(GameState *g)
+{
+    if (!place_taken(g, 1))
+        return end_turn();
+    if (field_mode_flags(g) & FIELD_PARTY_GATHERING) {
+        if (variable_byte(g, GATHERING_COUNT) < ALL_GATHERED)
+            return stay();
+        set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~FIELD_PARTY_GATHERING));
+        party_trail_regroup(g);
+        return next_command();
+    }
+    send_to_the_leader(g, member_object(g, 1));
+    uint8_t count = ALL_GATHERED - 1;
+    if (place_taken(g, 2)) {
+        send_to_the_leader(g, member_object(g, 2));
+        count = ALL_GATHERED - 2;
+    }
+    set_variable_byte(g, GATHERING_COUNT, count);
+    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) | FIELD_PARTY_GATHERING));
+    return stay();
+}
+EVENT_OPERATION_TAKING_NOTHING(gather_party)
+
+// $C0:5B1F
+/* After a battle a member goes back to the leader, unless it is disabled or
+ * already runs the party's script. */
+void member_back_to_the_leader(GameState *g, FieldObject member)
+{
+    if (object_disabled(g, member) || event_object_call_state_level(g, member) == PARTY_SCRIPT_LEVEL)
+        return;
+    send_to_the_leader(g, member);
+}
+
+/* Its entry: the field's routine after a battle ($C0:034B) names the member
+ * in the cell the leader's contact is kept in, with 8-bit index registers. */
+void event_member_back_to_the_leader(Snes *s)
+{
+    GameState *g = state_of(s);
+    member_back_to_the_leader(g, field_linked_object(field_link_stored(field_leader_contact(g))));
+    m_rts(s);
+}
+
+/* Its guard: the member is an object the tables hold, as the game keeps it
+ * (the original adds its whole word to the place's offset), at a level the
+ * places hold. */
+bool event_member_can_go_back(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    uint8_t member = field_leader_contact(g);
+    bool ok = field_names_object(member) && field_leader_contact_high(g) == 0 &&
+              event_object_call_state_level(g, field_linked_object(field_link_stored(member))) < EVENT_LEVELS;
+    vars_peek(false);
+    return ok;
+}
+
+/* The regrouping's guard: the party's places hold objects the tables do, as
+ * the game keeps them (the original adds each one's whole word to a place's
+ * offset), at levels the places hold, where they are taken (the leader's always is:
+ * the game never regroups a party with nobody leading it), and the trail's
+ * places are its footprints. */
+static bool party_can_regroup(const GameState *g)
+{
+    if (!place_taken(g, 0))
+        return false;
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
+        if (!place_taken(g, place))
+            continue;
+        FieldLink link = party_member_link(g, place);
+        if (!field_link_names_object(link) || field_party_objects_high(g, place) != 0 ||
+            event_object_call_state_level(g, field_linked_object(link)) >= EVENT_LEVELS)
+            return false;
+    }
+    return party_trail_places_hold(g);
+}
+EVENT_CHECK_TAKING_NOTHING(party_can_regroup)
+
 /* $D6's guard: every party member's object is one the port reaches, or there
  * is nobody in the place. */
 static bool members_are_objects(const GameState *g)
@@ -193,6 +367,9 @@ EVENT_CHECK_TAKING_NOTHING(members_are_objects)
 
 EVENT_OPCODES(event_party_opcodes,
     { 0x20, OPERATION(note_leader), .variable = VARIABLE(1), .length = 2 },
+    { 0xD9, OPERATION(take_formation), .leader_place = FORMATION_PLACE(1), .first_place = FORMATION_PLACE(3),
+      .second_place = FORMATION_PLACE(5), .length = 7, CHECK(party_can_regroup) },
+    { 0xDA, OPERATION(gather_party), .length = 1, CHECK(party_can_regroup) },
     { 0xD6, .character = OPERAND(1), .length = 2, CHECK(members_are_objects) },
     { 0xD5, .first_argument = OPERAND(1), .second_argument = OPERAND(2), .length = 3 },
     { 0xF8, .length = 1 },

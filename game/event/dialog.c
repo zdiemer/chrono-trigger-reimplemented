@@ -7,14 +7,12 @@
  * which its script can then test. Where the window goes -- where the game
  * decides, the top or the bottom of the screen -- is part of the command. */
 #include "event/leaves.h"
+#include "field/field.h"
 #include "event/script.h"
 
 /* ---- The dialog window ---------------------------------------------------------------- */
 
 enum { DIALOG_IDLE = 0, DIALOG_OPENING = 1 };
-/* field_mode_flags: set when the field opens a dialog itself ($C0:1F0E), and
- * cleared when a script does. */
-enum { DIALOG_FROM_THE_FIELD = 0x20 };
 
 static bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
 
@@ -27,7 +25,7 @@ static void open_dialog(GameState *g, FieldObject speaker, uint8_t line, WindowP
     set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
     set_dialog_state(g, DIALOG_OPENING);
     set_dialog_box_position(g, where);
-    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~DIALOG_FROM_THE_FIELD));
+    set_field_mode_flags(g, (uint8_t)(field_mode_flags(g) & ~FIELD_DIALOG_OPENED_BY_THE_FIELD));
 }
 
 /* Whether the object's dialog has been read and closed: it opened one and
@@ -45,7 +43,7 @@ static void offer_choices(GameState *g, uint8_t first_choice, uint8_t last_choic
 {
     set_dialog_choice_first(g, first_choice);
     set_dialog_choice_last(g, last_choice);
-    set_dialog_choice_active(g, 1);
+    set_dialog_choice_active(g, DIALOG_CHOICES_SHOWING);
 }
 
 /* An object's result: the last answer given to its question, or a value a
@@ -98,7 +96,7 @@ static EventFlow ask(GameState *g, FieldObject self, uint8_t line, uint8_t first
         return stay();
     if (finished_reading(g, self)) {
         set_answer(g, self, dialog_choice(g));
-        set_dialog_choice_active(g, 0);
+        set_dialog_choice_active(g, DIALOG_NO_CHOICES);
         return next_command();
     }
     offer_choices(g, first_choice, last_choice);

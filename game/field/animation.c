@@ -204,7 +204,7 @@ static void leave_speed_part(GameState *g, uint8_t v) { original_cell8(g, 0xD9, 
 
 /* Switch the object to a movement animation, from its first frame, unless it
  * is already showing that one. */
-static void animate_movement_with(GameState *g, FieldObject obj, uint8_t animation)
+void object_show_movement(GameState *g, FieldObject obj, uint8_t animation)
 {
     if (looped_animation(g, obj) == animation)
         return;
@@ -243,7 +243,7 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
                                                                                     : MOVEMENT_WALK;
     static const uint8_t animations[] = { [MOVEMENT_STAND] = ANIMATION_STAND, [MOVEMENT_WALK] = ANIMATION_WALK,
                                           [MOVEMENT_RUN] = ANIMATION_RUN };
-    animate_movement_with(g, obj, animations[choice]);
+    object_show_movement(g, obj, animations[choice]);
     return choice;
 }
 
@@ -252,7 +252,7 @@ MovementAnimation object_animate_movement(GameState *g, FieldObject obj)
 void object_stand(GameState *g, FieldObject obj)
 {
     if (object_animation_mode(g, obj) == ANIMATE_WITH_MOVEMENT)
-        animate_movement_with(g, obj, ANIMATION_STAND);
+        object_show_movement(g, obj, ANIMATION_STAND);
 }
 
 /* ---- The frame, every frame -------------------------------------------------------------- */

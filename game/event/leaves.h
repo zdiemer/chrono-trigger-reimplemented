@@ -44,6 +44,7 @@
 #include "state.h"
 #include "vars.h"
 
+#include "event/contact.h"
 #include "event/script.h"
 #include "field/scratch.h"
 
@@ -64,6 +65,13 @@ EventStep event_perform_leaving(GameState *g, Platform *pf, const EventOpcode *r
 void leave_set_off(GameState *g, FieldObject self, StepStart start, bool walking);
 void leave_in_the_way_check(GameState *g, FieldObject self);
 void leave_walk_overflow(const GameState *g, FieldObject self);
+
+/* What the leader's talk and touch leave (event/contact.c), which event
+ * $B0's derivation takes for the touch too: working out a place among the
+ * calls' leaves the overflow clear, and the touch leaves Y the object where
+ * it looked to push it. */
+bool event_place_worked_out_overflow(bool worked_out, bool before);
+uint16_t event_touch_y(const GameState *g, Touch t, uint16_t before);
 
 /* The original keeps a command's offset (or where it goes on) in
  * event_saved_position across its calls, and reads it back itself. */

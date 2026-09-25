@@ -133,6 +133,7 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_set_sprite_hidden, 0x91) \
     X(event_cmd_set_animation_line_limit, 0x47) \
     X(event_cmd_set_player_control, 0xE3) \
+    X(event_cmd_copy_tiles, 0xE4) \
     X(event_cmd_queue_tile_copy, 0xE5) \
     X(event_cmd_drift_layers, 0xE6) \
     X(event_cmd_scroll_camera, 0xE7) \
@@ -193,21 +194,22 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_move_toward_party_member_keep_facing, 0x9F) \
     X(event_cmd_move_to_tile_keep_facing, 0xA0) \
     X(event_cmd_move_to_tile_from_variables_keep_facing, 0xA1) \
+    X(event_cmd_walk_with_the_party, 0xB0) \
+    X(event_cmd_walk_with_the_party_once, 0xAF) \
+    X(event_cmd_take_formation, 0xD9) \
+    X(event_cmd_gather_party, 0xDA) \
     X(event_cmd_follow_object, 0xB5) \
     X(event_cmd_follow_party_member, 0xB6)
 
 #define EVENT_BRIDGES(X) \
-    X(event_cmd_behave_once, 0xAF) \
     X(event_cmd_go_to_location_now_raising_1e, 0xDF) \
     X(event_cmd_go_to_location_now, 0xE1) \
     X(event_cmd_copy_data, 0x4E) \
-    X(event_cmd_behave, 0xB0) \
     X(event_cmd_party_routine_0a, 0xD5) \
     X(event_cmd_take_out_of_party, 0xD6) \
     X(event_cmd_party_routine_6_7, 0xF8) \
     X(event_cmd_party_routine_6, 0xF9) \
     X(event_cmd_party_routine_7, 0xFA) \
-    X(event_cmd_copy_tiles, 0xE4) \
     X(event_cmd_play_effect, 0xE8) \
     X(event_cmd_play_song, 0xEA) \
     X(event_cmd_fade_music, 0xEB) \

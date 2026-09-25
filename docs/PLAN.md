@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 129 files, 117 of
-30,902 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 132 files, 117 of
+31,655 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -179,22 +179,21 @@ round the call-outs to the original's code:
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
-| event | 0 | 19 | 0 | 2,454 | 0.01 | 12% |
-| field | 0 | 18 | 0 | 4,198 | 0.02 | 26% |
+| event | 0 | 20 | 0 | 2,841 | 0.01 | 11% |
+| field | 0 | 20 | 0 | 4,667 | 0.01 | 24% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
-| **total** | **1** | **124** | **117** | **29,062** | **0.03** | **31%** |
+| **total** | **1** | **127** | **117** | **29,918** | **0.03** | **31%** |
 
-Scene's 45%, event's 13% and field's 26% are their entries' wrappers, their
+Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
 name (`portstyle.py`'s own column misses one-line definitions and
 macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
 what is neither an entry nor a guard, and why). Event's moves call the field's
 motion as C now (RECOMP.md, "Phase 3a: event onto the field's objects"); its
 bridges left are the commands whose callees are still the original's (the
-sound driver, the menus' party routines, the field's state routines, the tile
-copy and the location change).
+sound driver, the menus' party routines and the location change).
 
 ### What decoupling means here, and what it must not break
 
@@ -339,12 +338,12 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **70% of the code is still generated.**
+docstring says which way it is wrong). **67% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 11.2K | 1.1K | 83% | 42 |
-| field engine, events (`$C0`) | 59.4K | 18.7K | 0.4K | 68% | 249 |
+| field engine, events (`$C0`) | 59.4K | 21.7K | 1.4K | 63% | 258 |
 | menus, text (`$C2`) | 59.3K | 15.0K | 2.6K | 75% | 173 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 2.7K | 0.5K | 83% | 27 |
@@ -356,7 +355,7 @@ docstring says which way it is wrong). **70% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 1.1K | 0.0K | 68% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **81.4K** | **5.1K** | **70%** | **798** |
+| **total** | **268.5K** | **88.6K** | **10.3K** | **67%** | **807** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -479,30 +478,27 @@ at `$C6:FD00`, and without knowing what each stream holds their ports would be
 named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
 menus' map").
 
-**What event's bridges still call in the original.** Of the event commands'
-44 bridge helpers, most call the field's motion and animation, which are hand
-ports and, since the field's rewrite, C in `field/object.h` (`$C0:ABA2`,
-`$C0:5B95`, `$C0:ACFD`, `$C0:AC69`, `$C0:5614`, `$C0:568B`, `$C0:305D`,
-`$C0:30B3`), and the sound driver (`$C7:0004`, a port). What is still generated
-behind them, with the instructions each reaches and its bytes to the next
-label (`functions.json`):
+**`$C0`: the field and events.** The first chunk (RECOMP.md, "Phase 3, field
+and events: the party on the map") took the move and state commands off the
+machine: the party's step every frame (`$B0`, `$AF`) is an operation over a
+module of the party's own (`field/party.h`: the leader's trail and the members
+following it), and the leader's talk and touch, the push, the party's
+regrouping (`$D9`, `$DA`) and the map's tile copy (`$E4` and the main loop's)
+are ports. What event's bridges still call in the original is the menus' party
+routines (`$C2:8004`, through their dispatcher, for `$D5`, `$F8`-`$FA`), which
+go with `$C2`, and the location change from `$C0:3B71`.
 
-| Routine | Called from | Instructions | Bytes |
-|---|---|--:|--:|
-| `$C0:9E29` | `$B0`, an object in state 0 | 33 | 91 |
-| `$C0:A26B` | `$B0`, state 1 | 215 | 99 |
-| `$C0:A2CE` | `$B0`, state 2 | 219 | 109 |
-| `$C0:5B8D` | `$B0` after `$C0:9E29`, whose carry decides whether `$C0:3154` runs | 6 | 8 |
-| `$C0:3154` | `$B0` when it does | 42 | 93 |
-| `$C0:AF4E` | `$E4`'s tile copy | 167 | 328 |
-| `$C2:8004` | the menus' party routines (`$D5`, `$F8`-`$FA`), through their dispatcher | 3 | 146 |
-
-The three state routines share code past their labels (215 and 219
-instructions in about 100 bytes each), and `$C0:3154` lies in a 1003-byte
-unported run, `$C0:9E29` in one of 462 and `$C0:A26B`/`$C0:A2CE` in the 1168
-bytes from `$C0:A079`: those runs, with `$C0:AF4E`, are the `$C0` chunk that
-would take the move and state commands off the machine entirely. `$C2:8004` is
-the menus' and goes with `$C2`.
+The next chunk is what feeds the trail: **the leader's walk and the camera**,
+the field's per-frame `$C0:881E` and what it calls -- the pad's walk
+(`$C0:8925`-`$C0:8A3C`), the collision against the map and its objects
+(`$C0:8A6D`, `$C0:9923`), the ground under the leader, slopes and climbs and
+moving floors (`$C0:9AA1`-`$C0:9DC2`), the map's edges and exits
+(`$C0:9175`, `$C0:9C5C`), and the screen's following of it with the edge
+bookkeeping (`$C0:99DE`, `$C0:93E1`) -- the runs `$C0:8924` (2184 bytes),
+`$C0:93E1` (2068), `$C0:9C37` (396) and `$C0:87F1` (273). It also closes the
+two pieces of the party the first chunk left at its edge: the trail's start at
+a map's setup (`$C0:9DC3`, which reads the ground under the leader through
+the walk's routines) and the gathering after a battle (`$C0:034B`).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

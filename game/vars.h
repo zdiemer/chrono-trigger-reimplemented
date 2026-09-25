@@ -746,9 +746,11 @@ void set_dialog_window_object(GameState *g, uint8_t v);
 uint8_t field_fade_request(const GameState *g);
 void set_field_fade_request(GameState *g, uint8_t v);
 
-/* Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496) */
-uint8_t field_state_routine_hold(const GameState *g);
-void set_field_state_routine_hold(GameState *g, uint8_t v);
+/* The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F
+ * sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0
+ * waits) */
+uint8_t field_screen_recentring(const GameState *g);
+void set_field_screen_recentring(GameState *g, uint8_t v);
 
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 uint8_t field_window2_edge(const GameState *g);
@@ -814,6 +816,12 @@ void set_field_display_flags(GameState *g, uint8_t v);
 uint8_t field_mode_flags(const GameState *g);
 void set_field_mode_flags(GameState *g, uint8_t v);
 
+/* Frames the party has stood about: the frame wait ($C0:EC60) counts it in its low ten bits, the
+ * party's walking and running clear it; bit 15 once the leader has fidgeted, after which it
+ * fidgets now and then */
+uint16_t field_idle_frames(const GameState *g);
+void set_field_idle_frames(GameState *g, uint16_t v);
+
 /* 1 while a dialog with choices runs */
 uint8_t dialog_choice_active(const GameState *g);
 void set_dialog_choice_active(GameState *g, uint8_t v);
@@ -878,6 +886,19 @@ enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 uint8_t field_party_objects(const GameState *g, unsigned member);
 void set_field_party_objects(GameState *g, unsigned member, uint8_t v);
 
+enum { FIELD_PARTY_OBJECTS_HIGH_COUNT = 3 };   /* by party member * 2 */
+/* The high byte of each of field_party_objects as the original's 16-bit index registers keep the
+ * object (a 16-bit store of it, $C0:42B3, leaves 0 here): the party's regrouping adds the whole
+ * word into a place's offset */
+uint8_t field_party_objects_high(const GameState *g, unsigned member);
+void set_field_party_objects_high(GameState *g, unsigned member, uint8_t v);
+
+enum { FIELD_TRAIL_POSITION_COUNT = 3 };   /* by party place */
+/* Where each of the party is on the leader's trail (an entry of the field_trail_ tables): the
+ * leader's newest footprint, and the footprint each member has got to */
+uint8_t field_trail_position(const GameState *g, unsigned i);
+void set_field_trail_position(GameState *g, unsigned i, uint8_t v);
+
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
@@ -924,6 +945,18 @@ void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v);
  * field_object_in_the_way found blocking */
 uint16_t field_target_object(const GameState *g);
 void set_field_target_object(GameState *g, uint16_t v);
+
+/* The object the leader is up against (its offset in the object tables; negative for none): the
+ * one it walked into this frame (cleared at $C0:881E, set by the walk's check), or found before
+ * it when the player pressed the confirm button ($C0:1CFC) */
+uint8_t field_leader_contact(const GameState *g);
+void set_field_leader_contact(GameState *g, uint8_t v);
+
+/* The high byte of field_leader_contact as the original's 16-bit index registers keep the object
+ * (its stores of it are 16-bit, which leave 0 here): the talk, the touch and the push add the
+ * whole word into a place's offset and a function's */
+uint8_t field_leader_contact_high(const GameState *g);
+void set_field_leader_contact_high(GameState *g, uint8_t v);
 
 /* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
  * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
@@ -1387,10 +1420,30 @@ void set_field_layer_extra_speed_x(GameState *g, unsigned layer, uint8_t v);
 uint8_t field_layer_extra_speed_y(const GameState *g, unsigned layer);
 void set_field_layer_extra_speed_y(GameState *g, unsigned layer, uint8_t v);
 
+/* Across (right positive) */
+uint8_t field_leader_walk_x(const GameState *g);
+void set_field_leader_walk_x(GameState *g, uint8_t v);
+/* Down (down positive) */
+uint8_t field_leader_walk_y(const GameState *g);
+void set_field_leader_walk_y(GameState *g, uint8_t v);
+
 enum { FIELD_SCREEN_SCROLL_STEP_COUNT = 2 };   /* by axis (X, Y) */
 /* This frame's screen scroll step toward field_screen_scroll_target ($10 or $F0) */
 uint8_t field_screen_scroll_step(const GameState *g, unsigned i);
 void set_field_screen_scroll_step(GameState *g, unsigned i, uint8_t v);
+
+/* Across */
+uint8_t field_leader_movement_x(const GameState *g);
+void set_field_leader_movement_x(GameState *g, uint8_t v);
+/* Down */
+uint8_t field_leader_movement_y(const GameState *g);
+void set_field_leader_movement_y(GameState *g, uint8_t v);
+
+/* What the ground under the leader does this frame (field/party.h, LeaderGround): bit 2 a climb,
+ * where the party goes up and down at a walk and shows its climbing animation; bit 3 a moving
+ * floor, which pulls the party along ($C0:9D6A) */
+uint8_t field_leader_ground(const GameState *g);
+void set_field_leader_ground(GameState *g, uint8_t v);
 
 /* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
  * the screen's steps and offsets) */
@@ -1593,6 +1646,44 @@ enum { FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT = 64 };   /* by object slot (X = s
  * holding its last frame) */
 uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot);
 void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_TRAIL_MOVEMENT_X_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* How far the leader moved across in the frame of each footprint, 1/16 pixel, signed
+ * (field_leader_movement) */
+uint8_t field_trail_movement_x(const GameState *g, unsigned i);
+void set_field_trail_movement_x(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_MOVEMENT_Y_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* How far the leader moved down in the frame of each footprint, 1/16 pixel, signed */
+uint8_t field_trail_movement_y(const GameState *g, unsigned i);
+void set_field_trail_movement_y(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_WALK_X_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* How the pad walked the leader across in the frame of each footprint (field_leader_walk) */
+uint8_t field_trail_walk_x(const GameState *g, unsigned i);
+void set_field_trail_walk_x(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_WALK_Y_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* How the pad walked the leader down in the frame of each footprint */
+uint8_t field_trail_walk_y(const GameState *g, unsigned i);
+void set_field_trail_walk_y(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_LOWER_PRIORITY_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* The leader's lower half's sprite priority byte in the frame of each footprint
+ * (field_object_sprite_priority +0) */
+uint8_t field_trail_lower_priority(const GameState *g, unsigned i);
+void set_field_trail_lower_priority(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_UPPER_PRIORITY_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* The leader's upper half's sprite priority byte in the frame of each footprint
+ * (field_object_sprite_priority +1) */
+uint8_t field_trail_upper_priority(const GameState *g, unsigned i);
+void set_field_trail_upper_priority(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_TRAIL_GROUND_COUNT = 128 };   /* by footprint (field_trail_position) */
+/* The ground under the leader in the frame of each footprint (field_leader_ground) */
+uint8_t field_trail_ground(const GameState *g, unsigned i);
+void set_field_trail_ground(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_LINE_EFFECT_TABLES_COUNT = 16 };   /* by table set * 8 + effect slot */
 /* Indirect tables of the eight per-line effects (tile map addresses, BG1-BG3 scroll, screens,

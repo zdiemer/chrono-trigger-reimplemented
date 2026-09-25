@@ -1531,12 +1531,58 @@ meaning = "The object the open dialog window is placed by: cleared when a dialog
 source = "game/event/dialog.c open_dialog; $C0:9193"
 
 [[var]]
-name = "field_state_routine_hold"
+name = "field_screen_recentring"
 addr = "7E:0138"
 page = "field"
 subsystem = "field"
-meaning = "Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496)"
-source = "game/event/movement.c, behave $C0:3002"
+meaning = "The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0 waits)"
+source = "game/event/movement.c, behave $C0:3002; $C0:177F, $C0:885A"
+
+[[var]]
+name = "field_idle_frames"
+addr = "7E:0158"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "Frames the party has stood about: the frame wait ($C0:EC60) counts it in its low ten bits, the party's walking and running clear it; bit 15 once the leader has fidgeted, after which it fidgets now and then"
+source = "game/field/party_trail.c stand_or_fidget $C0:A1E9, count_as_on_the_move $C0:A171; $C0:EC60"
+
+[[var]]
+name = "field_trail_position"
+addr = "7E:01AB"
+page = "field"
+count = 3
+index = "party place"
+subsystem = "field"
+meaning = "Where each of the party is on the leader's trail (an entry of the field_trail_ tables): the leader's newest footprint, and the footprint each member has got to"
+source = "game/field/party_trail.c party_leader_steps $C0:9E29, party_member_follows $C0:A26B, $C0:A2CE; saved across a battle at $C0:0167, back at $C0:1A99"
+
+[[var]]
+name = "field_leader_contact_high"
+addr = "7E:01EC"
+page = "field"
+subsystem = "field"
+meaning = "The high byte of field_leader_contact as the original's 16-bit index registers keep the object (its stores of it are 16-bit, which leave 0 here): the talk, the touch and the push add the whole word into a place's offset and a function's"
+source = "game/event/contact.c contact_is_one ($C0:5AC5, $C0:3154, $C0:31B1); $C0:1D3A"
+
+[[var]]
+name = "field_party_objects_high"
+addr = "7E:0198"
+page = "field"
+count = 3
+stride = 2
+index = "party member * 2"
+subsystem = "field"
+meaning = "The high byte of each of field_party_objects as the original's 16-bit index registers keep the object (a 16-bit store of it, $C0:42B3, leaves 0 here): the party's regrouping adds the whole word into a place's offset"
+source = "game/event/party.c party_can_regroup ($C0:326C, $C0:345A); $C0:42B3, $C0:4327, $C0:43DA"
+
+[[var]]
+name = "field_leader_contact"
+addr = "7E:01EB"
+page = "field"
+subsystem = "field"
+meaning = "The object the leader is up against (its offset in the object tables; negative for none): the one it walked into this frame (cleared at $C0:881E, set by the walk's check), or found before it when the player pressed the confirm button ($C0:1CFC)"
+source = "game/event/contact.c touch_what_the_leader_met $C0:3154, talk_to_what_the_leader_faces $C0:5AC5; $C0:881E, $C0:1AC6"
 
 [[var]]
 name = "field_tile_copy"
@@ -2459,6 +2505,48 @@ offset = 1
 meaning = "Vertical"
 
 [[var]]
+name = "field_leader_walk"
+addr = "7E:1D2C"
+page = "field_layers"
+stride = 2
+subsystem = "field"
+meaning = "How the pad walks the leader this frame, 1/16 pixel a frame on each axis, signed: $10 walking, $20 running (the dash button held), 0 still ($C0:8925 and on)"
+source = "game/field/party_trail.c leader_walk ($C0:9E29); $C0:882F, $C0:8925"
+[[var.field]]
+name = "x"
+offset = 0
+meaning = "Across (right positive)"
+[[var.field]]
+name = "y"
+offset = 1
+meaning = "Down (down positive)"
+
+[[var]]
+name = "field_leader_movement"
+addr = "7E:1D32"
+page = "field_layers"
+stride = 2
+subsystem = "field"
+meaning = "How far the leader moves this frame, 1/16 pixel on each axis, signed: the pad's walk and a moving floor's pull, less what the map's blocks and its edges stop ($C0:9175)"
+source = "game/field/party_trail.c leader_movement ($C0:9E29); $C0:9175"
+[[var.field]]
+name = "x"
+offset = 0
+meaning = "Across"
+[[var.field]]
+name = "y"
+offset = 1
+meaning = "Down"
+
+[[var]]
+name = "field_leader_ground"
+addr = "7E:1D34"
+page = "field_layers"
+subsystem = "field"
+meaning = "What the ground under the leader does this frame (field/party.h, LeaderGround): bit 2 a climb, where the party goes up and down at a walk and shows its climbing animation; bit 3 a moving floor, which pulls the party along ($C0:9D6A)"
+source = "game/field/party_trail.c ($C0:9E29, $C0:9E84); $C0:9D6A, $C0:9E20"
+
+[[var]]
 name = "field_screen_scroll_step"
 addr = "7E:1D2E"
 page = "field_layers"
@@ -3106,6 +3194,69 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "How much of a one-off animation is left to play, in half passes (0 none playing; 1 played out, holding its last frame)"
 source = "game/field/animation.c half_passes_left, object_play_animation $C0:2E9A, count_a_pass, object_next_frame_to_draw $C0:CB3A"
+
+[[var]]
+name = "field_trail_movement_x"
+addr = "7F:0C00"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "How far the leader moved across in the frame of each footprint, 1/16 pixel, signed (field_leader_movement)"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_movement_y"
+addr = "7F:0C80"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "How far the leader moved down in the frame of each footprint, 1/16 pixel, signed"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_walk_x"
+addr = "7F:0D00"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "How the pad walked the leader across in the frame of each footprint (field_leader_walk)"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_walk_y"
+addr = "7F:0D80"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "How the pad walked the leader down in the frame of each footprint"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_lower_priority"
+addr = "7F:0E00"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "The leader's lower half's sprite priority byte in the frame of each footprint (field_object_sprite_priority +0)"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_upper_priority"
+addr = "7F:0E80"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "The leader's upper half's sprite priority byte in the frame of each footprint (field_object_sprite_priority +1)"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
+
+[[var]]
+name = "field_trail_ground"
+addr = "7F:0F00"
+count = 128
+index = "footprint (field_trail_position)"
+subsystem = "field"
+meaning = "The ground under the leader in the frame of each footprint (field_leader_ground)"
+source = "game/field/party_trail.c footprint, leave_footprint ($C0:9E29, $C0:A26B, $C0:A2CE, $C0:9F6F)"
 
 [[var]]
 name = "field_line_effect_tables"

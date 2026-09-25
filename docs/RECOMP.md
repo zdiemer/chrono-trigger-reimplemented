@@ -6110,6 +6110,147 @@ already has. In the shipping mode the menus' vblank work lands on line 41-44
 once in each of four save movies (two picture lines on one frame;
 `tools/vblank_check_exceptions.txt`).
 
+### Phase 3, field and events: the party on the map
+
+The first chunk of bank `$C0` in wave 2. PLAN.md's table of what event's
+bridges still called in the original chose it: the field's state routines
+behind `$B0` (`$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`, `$C0:3154`) and
+the tile copy behind `$E4` (`$C0:AF4E`), with the unported runs they lie in.
+Reading them showed what they are: the leader leaving a trail and the members
+walking it, the leader touching and pushing what it walks into, and the map
+changing under a script. The chunk took those and what is the same concept
+beside them: the player talking to an object (`$C0:5AC5`, from the field's
+confirm button), the party's regrouping commands (`$D9` `$C0:326C`, `$DA`
+`$C0:345A`), and a member sent back to the leader after a battle
+(`$C0:5B1F`). `python3 tools/burndown.py` for `$C0`: 19.0 KiB ported, 0.7
+inlined, 68% left and 249 entries before; 21.7 KiB, 1.4 inlined, 63% and 258
+after -- 3.4 KiB, against the 8-12 a wave-2 chunk aims at; what fills it out by
+concept is the leader's walk, the next chunk (below, and PLAN.md).
+
+**The party as a module** (`field/party.h`, `field/party_trail.c`). Every
+frame the leader moves it leaves a footprint on a ring of 128 in bank `$7F`:
+how far it moved, how the pad walked it, how its sprite was layered, and the
+ground under it (a climb, a moving floor). Each member walks the trail behind
+the one ahead of it, a footprint a frame, keeping 24 footprints back while the
+leader moves and closing to 16 when it stands, so the party bunches up and
+strings out. What each shows follows the footprint: standing, walking or
+running and facing its way, climbing, the leader running on the spot against
+a wall, a pose while the player picks an answer, a fidget when the party has
+stood about. The original's state routines were one function a gait and a
+facing (sixteen of them, `$C0:A079`-`$C0:A15C`, reached through a table of
+64 words at `$C0:9FF7`); they are one `Pose` -- a gait and a facing, or a
+diagonal's two -- looked up from the two axes' gaits. The lookup keeps the
+original's index arithmetic, one named function: it runs the vertical speed
+and an eighth of the horizontal together into one byte, which muddles speeds
+other than the pad's, and a member waiting on a moving floor looks up what the
+floor's pull leaves of the leader's walk, which can be any. `$B0` and `$AF` are
+one operation (`step_with_the_party`, `once` the short form's row), with no
+call-out left; the entries were renamed for it (`event_cmd_walk_with_the_party`
+and `_once`, `$C0:3002` and `$C0:2FFD`) and carry their predecessors' totals.
+
+**The leader meeting objects** (`event/contact.c`). The field notes the object
+the leader is up against (`field_leader_contact`): the one its walk ran into,
+or the one before it when the confirm button is pressed. Talking and touching
+are calls the field makes on the object's script, the same as objects make on
+each other, so `event/calls.h` came out of `calls.c`: an object's function's
+start, whether it takes a call now, and running a script from a place at a
+level (`object_run_script_from`), which the calls, the talk, the touch, the
+push and the regrouping all use. A pushable object (bit 1 of the byte `$84`
+stores beside solidity) goes a tile the leader's way where that tile is open,
+through the party's push script; the decision is one function
+(`leaders_touch`) that both the touch and what its derivations work out call.
+
+**The party's scripts and the regrouping** (`event/party.c`). Every map load
+copies three runs of commands after the map's own script (`$C0:5CEC`): a
+member walking up to the leader, a member walking to a tile and facing a way,
+and an object walking to a tile. `$D9` and `$DA` hand them to the party at the
+most urgent level, writing the tile and facing into the scripts' operands,
+and wait on a count two of the map's variables keep (`FORMATION_COUNT`,
+`GATHERING_COUNT`); then the members pick the trail up from the leader's newest
+footprint (`party_trail_regroup`). A formation's place is decoded once, by its
+row, into a `FormationPlace` (a tile, and a facing from the top bits of its
+column and row): the language's rows now decode into records as well as
+numbers (`EVENT_RECORD_PARAMETERS`, `FORMATION_PLACE(n)`), which is what
+TODO.md asks of the location's decoding too.
+
+**The tile copy** (`field/tile_copy.c`) copies a rectangle over another place
+in the tables its description names: each layer's tiles, the tiles' properties
+and their two bytes of attributes, or of the properties only the bit that says
+which half of the tile set BG1's or BG2's tile comes from (read from the tile
+builders at `$C0:762D` and `$C0:79EA`). It goes a tile at a time, top to
+bottom and left to right, as the original's block moves do, so a copy onto
+itself a little right or down repeats its first tiles. `$E4` is an operation
+calling it; the main loop's copy (`$C0:1790`) reaches the same entry.
+
+**What the map gained**: the trail (seven tables at `$7F:0C00`-`$7F:0F7F`)
+and where each of the party is on it (`field_trail_position`, `$01AB`); the
+walk's outputs on the layers' page (`field_leader_walk` `$1D2C`,
+`field_leader_movement` `$1D32`, `field_leader_ground` `$1D34`); the idle
+count the frame wait keeps (`field_idle_frames`, `$0158`, masked `$83FF` at
+`$C0:EC60`); the leader's contact (`$01EB`); and `field_state_routine_hold`
+renamed for what `$0138` is, the screen recentring on the leader before a
+queued tile copy (`field_screen_recentring`). `field/field.h` names
+`field_mode_flags`' bits (the party gathering, an object being pushed, a
+dialog the field opened, which `event/dialog.c` had to itself) and
+`dialog_choice_active`'s states. `field/object.h` gained an object's step
+(`object_set_step`), its sprite priorities as a value to hand on
+(`SpritePriorities`), whether it can be pushed, the party's animations beside
+the movement ones, and `object_show_movement`, which was `animation.c`'s own.
+
+**What shadow mode found.** The first library run mismatched on two things:
+the gap between two places on the trail was worked out as a C remainder of a
+negative difference (so a member whose place had wrapped past the one ahead
+took the next footprint when it should have waited), and the regrouping's
+hand-overs leave Y's low byte (they run with 8-bit index registers), which the
+derivation had as the whole offset. After those, over the 26 movies every entry
+matches, none is refused, and every other entry's totals are the
+predecessor's. The one move that was a bridge is compared now:
+`event_cmd_walk_with_the_party` 251,565 calls, 867 matched before (the rest
+abandoned inside the engine's stretch), all matched after. The new entries:
+`field_leader_steps` 116,079 calls, `field_first_member_follows` 83,032,
+`field_second_member_follows` 51,587, `event_touch_contact` 1,871,
+`event_cmd_take_formation` 716, `field_copy_tiles` 261,
+`event_cmd_gather_party` 166, `event_talk_to_contact` 99,
+`event_member_back_to_the_leader` 10; none interrupted. `$AF` has no call in
+the library, nor does a push.
+
+**What fuzzing found.** The original adds the leader's contact and the
+party's objects into a place's offset (and a function's) as 16-bit words, so
+the byte after each is read too: `$01EC`, and `$0198`, `$019A`, `$019C`
+after the party's places. The game stores those objects with 16-bit index
+registers and keeps the bytes 0, which random states don't: 14,926 of 20,000
+talks mismatched until the map named them (`field_leader_contact_high`,
+`field_party_objects_high`) and the guards required them 0. The trail's gap
+showed on the members' own entries before the library did (344 of 20,000).
+Then every entry fuzzes clean (PORTING.md's row), with variants that fix the
+paths random state rarely reaches: a leader up against an object that takes
+calls (touch and push), a member in its place with its role, the leader
+standing with the player's control (fidgets) and during a choice, footprints
+on plain ground, a formation and a gathering with members missing, and tile
+copies small enough to overlap themselves. The predecessors of `$B0`, `$AF`
+and `$E4` compare the same states with the same mismatches (none); the new
+guards turn away a few more (a contact's high byte, a copy off the map).
+
+**What was left at the edge, and why.** The trail's start at a map's setup
+(`$C0:9DC3`, where the openings hand back) and the gathering after a battle
+(`$C0:034B`) stay the original's: the first reads the ground under the leader
+through the walk's own routines (`$C0:9AC8`, `$C0:9AD3`), and both go with
+the walk. The inventory and membership commands (`$C7`-`$D7`) call the
+battle bank's item routine and the menus' party routines, and would have been
+bridges only. The objects' own loading (`$57`-`$83`, their sprites through
+`$C0:448D`) is a concept of its own, objects coming onto the map.
+
+**The timing gate.** The new rows were calibrated over the library, and two
+event rows moved with them: `event_cmd_walk_with_the_party` 3,374 to 4,641 (its
+time is now the party's step as C, where it was its bridge's own loop) and
+`event_run_object_script` 4,596 to 4,723 (the engine runs `$B0` as C inside
+its stretch). The tile copy's time follows the rectangle and the tables it
+takes -- whole tables by the original's block move, a tile set's half a byte
+at a time -- which one scalar fits only on average: `field_copy_tiles` and
+`event_cmd_copy_tiles` are in `tools/timing_exceptions.txt` (at most 26,414
+clocks in a call starting in vblank, writing the map's tables in RAM, which the
+vblank check finds moves no video write).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

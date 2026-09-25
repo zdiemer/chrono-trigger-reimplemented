@@ -264,11 +264,6 @@ rest waits, is [PLAN.md](PLAN.md).
     the rest, `loop_animation_0`/`_1` the idle and walking loops,
     `party_routine_*` what the menus' routines do, `*_1e` what
     `field_setting_1e` is once that is known;
-  - `$B0`'s bridge (`event_cmd_behave`): thick, its roles used as indices
-    into tables of ROM addresses (review-port item 42), the machine's
-    registers edited directly, and its comment's "wandering townsperson",
-    which it isn't (only party members reach the state routines); it becomes
-    an operation when those routines are ports;
   - `move_to_tile`'s branches follow the original's order more than the
     game's, and its sliding tail repeats `arrive`'s;
   - the tint's colour kept as the hardware's bytes (`screen.c`);
@@ -365,6 +360,24 @@ rest waits, is [PLAN.md](PLAN.md).
   by the strict solve, so nothing rests on it, but a constraint that keeps the
   lists' entries inside the program's tasks would fuzz what the tasks do with
   the registers the port passes.
+- **What Phase 3's first `$C0` chunk found the tools lacking**:
+  `fuzz_compare.py` reports "before error" for every new entry (the old
+  binary has nothing at its address), so it wants an after-only mode;
+  `ct_fuzz --fill` takes contiguous ranges only, so a routine reading
+  alternating meaningful and random bytes needs a fill per byte; the event
+  engine takes a second table row for an opcode silently, the last one
+  winning, where it could warn; and proving V dead at the command level
+  (following the field loop's `JML`s) would remove most of the Y/V
+  derivations the state routines' ports carry.
+- **Nothing checks that the native shape behaves like the original.** The
+  native-shape build (`ct_game_native_shape`, `CT_WITHOUT_ORIGINAL_EFFECTS`)
+  is compiled, never run, so a value the game reads that a port writes only
+  inside `ORIGINAL_EFFECT` changes play there and no gate sees it (battle's
+  first conversion chunk: the random draws read the long arithmetic's
+  leftover high word, written only as scaffolding). A static check that no
+  cell an `ORIGINAL_EFFECT` writes is read by a port outside one, or a movie
+  run of a native-shape `ct_dev` compared at the level of game outcomes,
+  would catch it.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
@@ -697,19 +710,36 @@ below. `python3 tools/timing_census.py` re-runs the census.
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
-  onto the field's objects"): 15 bridges, rows of the language's table that
-  call out to code still the original's: letting an object behave as its state
-  says (`$B0`, and `$AF` which runs it once; the field's state routines
-  `$C0:9E29`, `$C0:A26B`, `$C0:A2CE`, `$C0:5B8D`, `$C0:3154`), the sound
-  driver (`sound.c`), the menus' party routines (`$C2:8004`) and `$D6`'s
-  carry, the tile copy `$C0:AF4E`, the location change from `$C0:3B71`, and
-  `$4E`'s stack.
+  onto the field's objects"): 12 bridges, rows of the language's table that
+  call out to code still the original's: the sound driver (`sound.c`), the
+  menus' party routines (`$C2:8004`) and `$D6`'s carry, the location change
+  from `$C0:3B71`, and `$4E`'s stack.
+- **What the party on the map left** (RECOMP.md, "Phase 3, field and events:
+  the party on the map"):
+  - the trail's start at a map's setup (`$C0:9DC3`, where the openings hand
+    back) and the gathering after a battle (`$C0:034B`, which calls
+    `event_member_back_to_the_leader`) are still the original's: the first
+    reads the ground under the leader through the walk's `$C0:9AC8` and
+    `$C0:9AD3`, and both go with the walk;
+  - an object is made pushable by bit 1 of the byte event `$84` stores, and
+    `$84`'s row decodes that byte as solidity alone, its guard taking only 0
+    or 1: a script making an object pushable (`$84` with 2 or 3) runs as the
+    original's, and the library makes none. Decode the byte into the two;
+  - the original adds the leader's contact and the party's objects into a
+    place's offset as words, whose high bytes (`field_leader_contact_high`,
+    `field_party_objects_high`) the game keeps 0 and the guards require
+    so; a build without the original's memory keeps the objects, not the words;
+  - regrouping wipes the footprint the members pick the trail up at, and the
+    original wipes only its horizontal half and its ground (it stores the
+    horizontal parts twice); the vertical half is never read there, since a
+    member waiting on a footprint with no ground stands, so a native build
+    can wipe it whole.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the
-  engine's stretch"): `event_cmd_behave`'s 250,698 calls over the library are
-  counted abandoned rather than matched, while the engine's entries match on
-  every call. They are still checked (every call-out's registers, the
+  engine's stretch"): the bridges left (the sound commands, the menus' party
+  routines, the location change, `$4E`) are counted abandoned rather than
+  matched, while the engine's entries match on every call. They are still checked (every call-out's registers, the
   engine's state at its end), and fuzzing covers them one by one; a way for
   shadow mode to compare a nested port's stretch would count them again.
 - **Event's scaffolding, and what would let liveness drop it** (RECOMP.md,

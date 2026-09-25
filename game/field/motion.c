@@ -113,6 +113,12 @@ static void stand_still(GameState *g, FieldObject obj)
 
 Velocity object_velocity(const GameState *g, FieldObject obj) { return (Velocity){ step_x(g, obj), step_y(g, obj) }; }
 
+void object_set_step(GameState *g, FieldObject obj, Velocity step)
+{
+    set_step_x(g, obj, step.x);
+    set_step_y(g, obj, step.y);
+}
+
 /* ---- Directions -------------------------------------------------------------------------- */
 
 Quarter field_quarter_between(MapTile from, MapTile to)

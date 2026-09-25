@@ -994,23 +994,6 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
-name = "event_cmd_behave_once"
-at = "C0:2FFD"
-subsystem = "event"
-state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
-
-[[routine]]
-name = "event_cmd_behave_once"
-variant = "loose"
-at = "C0:2FFD"
-subsystem = "event"
-state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
-
-[[routine]]
 name = "event_cmd_use_text"
 at = "C0:3557"
 subsystem = "event"
@@ -2212,21 +2195,65 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the objects' facings one of the four (and their frame delays below 4, which share the rows), since the guard turns away a sliding move whose object faces none of them (event/movement.c); the map's object count 1 to 63, since the search for an object in the way runs past the tables otherwise and the guard leaves that to the original (object_search_fits); the operand a place of the party (0, 2 or 4, a place doubled, or an odd one the guard refuses); the first two places links to objects the tables hold (the absent variant empties them)"
 
 [[routine]]
-name = "event_cmd_behave"
+name = "event_cmd_walk_with_the_party"
 at = "C0:3002"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1100-7E117F=00-02", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00"]
+why = "the field's page and data bank, the running object a slot and one of the party (role 0-2, so each of the three steps runs), the script offset below $8000; the call levels among the eight the places hold (the leader's touch needs them), the trail's places its footprints, the facings one of the four, the party's places objects: the guard's (event/movement.c, party_can_step)"
 
 [[routine]]
-name = "event_cmd_behave"
+name = "event_cmd_walk_with_the_party"
+variant = "member"
+at = "C0:3002"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1102-7E1102=01-01", "--fill", "7E0199-7E0199=02-02", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03"]
+why = "the first member's step: the running object 1, in the party's second place with its role; the trail's places its footprints"
+
+[[routine]]
+name = "event_cmd_walk_with_the_party"
+variant = "touch"
+at = "C0:3002"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1102-7E1102=00-00", "--fill", "7E01EB-7E01EB=06-06", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C06-7E1C06=00-07", "--fill", "7E1C07-7E1C07=00-00", "--fill", "7E0197-7E0197=02-02", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03"]
+why = "the leader's step with an object to touch: the running object 1 leading the party, up against object 3 at one of the eight levels and not refusing calls, so its touch and push run"
+
+[[routine]]
+name = "event_cmd_walk_with_the_party"
 variant = "loose"
 at = "C0:3002"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1100-7E117F=00-02", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00"]
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+
+[[routine]]
+name = "event_cmd_walk_with_the_party_once"
+at = "C0:2FFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1100-7E117F=00-02", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00"]
+why = "the field's page and data bank, the running object a slot and one of the party (role 0-2, so each of the three steps runs), the script offset below $8000; the call levels among the eight the places hold (the leader's touch needs them), the trail's places its footprints, the facings one of the four, the party's places objects: the guard's (event/movement.c, party_can_step)"
+
+[[routine]]
+name = "event_cmd_walk_with_the_party_once"
+variant = "member"
+at = "C0:2FFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1102-7E1102=01-01", "--fill", "7E0199-7E0199=02-02", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03"]
+why = "the first member's step: the running object 1, in the party's second place with its role; the trail's places its footprints"
+
+[[routine]]
+name = "event_cmd_walk_with_the_party_once"
+variant = "touch"
+at = "C0:2FFD"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1102-7E1102=00-00", "--fill", "7E01EB-7E01EB=06-06", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C06-7E1C06=00-07", "--fill", "7E1C07-7E1C07=00-00", "--fill", "7E0197-7E0197=02-02", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E1600-7E167F=00-03"]
+why = "the leader's step with an object to touch: the running object 1 leading the party, up against object 3 at one of the eight levels and not refusing calls, so its touch and push run"
 
 [[routine]]
 name = "event_cmd_follow_object"
@@ -3620,8 +3647,8 @@ name = "event_cmd_copy_tiles"
 at = "C0:3D97"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,6=00-3F"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the rectangle's corners and where it goes on the map's 64 by 64 tiles, which the guard requires of the copy (event/screen.c)"
 
 [[routine]]
 name = "event_cmd_copy_tiles"
@@ -3630,7 +3657,7 @@ at = "C0:3D97"
 subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+why = "the script offset and the rectangle anywhere: the guard refuses commands whose operands would pass the buffer's end, and copies off the map"
 
 [[routine]]
 name = "event_cmd_queue_tile_copy"
@@ -3903,6 +3930,86 @@ subsystem = "event"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+
+[[routine]]
+name = "event_cmd_take_formation"
+at = "C0:326C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00", "--fill", "7F03FC-7F03FC=00-05"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the party's places objects the tables hold, at levels the places hold, the trail's places its footprints (the guard's, event/party.c); the formation's count 0-5, so each of its steps runs"
+
+[[routine]]
+name = "event_cmd_take_formation"
+variant = "alone"
+at = "C0:326C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E019C=80-FF", "--fill", "7F03FC-7F03FC=00-05"]
+why = "the same with the members' places empty"
+
+[[routine]]
+name = "event_cmd_take_formation"
+variant = "loose"
+at = "C0:326C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00", "--fill", "7F03FC-7F03FC=00-05"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+
+[[routine]]
+name = "event_cmd_gather_party"
+at = "C0:345A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=00-7F", "--fill", "7E019C-7E019C=00-00", "--fill", "7F03FE-7F03FE=00-04"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the party's places objects the tables hold, at levels the places hold, the trail's places its footprints (the guard's, event/party.c); the gathering's count 0-4, so it waits and finishes"
+
+[[routine]]
+name = "event_cmd_gather_party"
+variant = "two"
+at = "C0:345A"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7E0197-7E0197=00-7F", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=00-7F", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019C=80-FF", "--fill", "7F03FE-7F03FE=00-04"]
+why = "the same with the second member's place empty"
+
+[[routine]]
+name = "event_touch_contact"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=00-7F", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E1600-7E167F=00-03", "--fill", "7E0197-7E0197=00-7F"]
+why = "the field's page and data bank; the object the leader is up against one of the slots (odd ones turned away), the call levels among the eight, the facings one of the four and the leader's place an object: the guard's (event/contact.c)"
+
+[[routine]]
+name = "event_touch_contact"
+variant = "answers"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=06-06", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C06-7E1C06=00-07", "--fill", "7E1C07-7E1C07=00-00", "--fill", "7E1106-7E1106=00-7F", "--fill", "7E1006-7E1006=00-7F", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E1600-7E167F=00-03"]
+why = "object 3 the one met, taking calls (not refusing, disabled or unreachable), so the touch and the push run"
+
+[[routine]]
+name = "event_talk_to_contact"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=00-7F", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank; the object before the leader one of the slots (odd ones turned away), the call levels among the eight: the guard's (event/contact.c)"
+
+[[routine]]
+name = "event_talk_to_contact"
+variant = "answers"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=06-06", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C06-7E1C06=00-07", "--fill", "7E1C07-7E1C07=00-00", "--fill", "7E1106-7E1106=00-7F", "--fill", "7E1006-7E1006=00-7F"]
+why = "object 3 the one before the leader, taking calls, so the talk runs"
+
+[[routine]]
+name = "event_member_back_to_the_leader"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=00-7F", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
+why = "the field's page and data bank; the member one of the slots (odd ones turned away), the call levels among the eight: the guard's (event/party.c)"
 
 # ---- field: banks C0, C3 and FD (the field's own routines) -----------------------------------------
 #
@@ -4390,6 +4497,66 @@ subsystem = "field"
 state = "field"
 args = ["--db", "00"]
 why = "a bank reaching low RAM"
+
+[[routine]]
+name = "field_leader_steps"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot; the pad's walk, the movement, the ground and the trail random (the pose lookup's muddled speeds included)"
+
+[[routine]]
+name = "field_leader_steps"
+variant = "standing"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1D2C-7E1D2D=00-00", "--fill", "7E1D32-7E1D34=00-00", "--fill", "7E011F-7E011F=00-01", "--fill", "7E0162-7E0162=01-02"]
+why = "the leader standing on plain ground: the choosing pose, and with the player's control the idle count's fidgets"
+
+[[routine]]
+name = "field_first_member_follows"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0199-7E0199=02-02", "--fill", "7E01AB-7E01AD=00-7F"]
+why = "the field's page and data bank; the running object the one in the party's place, the trail's places its footprints (the guard's, field/party_trail.c); the footprints random"
+
+[[routine]]
+name = "field_first_member_follows"
+variant = "plain"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=02-02", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0199-7E0199=02-02", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7F0F00-7F0F7F=00-00", "--fill", "7E011F-7E011F=00-01", "--fill", "7E0162-7E0162=01-02"]
+why = "the footprints on plain ground, so a member waiting stands, and with the player's control fidgets"
+
+[[routine]]
+name = "field_second_member_follows"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--fill", "7E019B-7E019B=04-04", "--fill", "7E01AB-7E01AD=00-7F"]
+why = "the field's page and data bank; the running object the one in the party's place, the trail's places its footprints (the guard's, field/party_trail.c); the footprints random"
+
+[[routine]]
+name = "field_second_member_follows"
+variant = "plain"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=04-04", "--fill", "7E016E-7E016E=00-00", "--fill", "7E019B-7E019B=04-04", "--fill", "7E01AB-7E01AD=00-7F", "--fill", "7F0F00-7F0F7F=00-00", "--fill", "7E011F-7E011F=00-01", "--fill", "7E0162-7E0162=01-02"]
+why = "the footprints on plain ground, so a member waiting stands, and with the player's control fidgets"
+
+[[routine]]
+name = "field_copy_tiles"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E013E-7E0143=00-3F"]
+why = "the field's page and data bank; the rectangle's corners and where it goes on the map's 64 by 64 tiles, which the guard requires (field/tile_copy.c); the tables it takes random"
+
+[[routine]]
+name = "field_copy_tiles"
+variant = "overlapping"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E013E-7E013F=00-08", "--fill", "7E0140-7E0141=04-0C", "--fill", "7E0142-7E0143=00-0C"]
+why = "small rectangles near each other, so copies overlap their own tiles"
 
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
