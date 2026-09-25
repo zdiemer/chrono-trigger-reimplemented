@@ -466,12 +466,15 @@ routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 `$C2`'s first three chunks are in (RECOMP.md, "Phase 3, wave 2"): the Epoch's
 two Mode 7 screens, which were also P2's last leftover; the object scripts'
 whole instruction set; and the map those scripts scroll and redraw. The menus
-proper have started (RECOMP.md, "Phase 3, menus"): the load screen, the window
-command language every screen is drawn with, the cursor and the sounds, and
-the menus' opening up to its graphics. Next is the rest of the opening (the
-graphics at `$C2:968D`, the sprites, the items) and the text engine
-(`$C2:57DF`-`$C2:6263` with the loader `$C2:F90C`), which the labels and every
-screen's strings call. `python3 tools/burndown.py --uncovered C2` puts the
+proper have started (RECOMP.md, "Phase 3, menus", and "Phase 3, menus: the
+typesetter, the graphics and the items"): the load screen, the window command
+language every screen is drawn with, the cursor and the sounds, the
+typesetter the dialog and every screen set their text with, and the menus'
+opening but for the characters' sprites. Next are those sprites
+(`$C2:F3CA`, with the record's loading `$C2:F422` and the animation
+`$C2:F69D`-`$C2:F870` that the records' task runs every frame), which belong
+with `menu/sprites.c`'s record sprites, and then the screens themselves.
+`python3 tools/burndown.py --uncovered C2` puts the
 largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
 (1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with
 `menu/display.c`'s loader half rather than on its own, and only once the

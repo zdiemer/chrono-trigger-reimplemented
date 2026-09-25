@@ -6311,6 +6311,85 @@ the call-outs from an enemy's turn, the timers' kinds' handlers, and the
 quirks and the one accepted divergence (narrowing the candidates by the aim,
 which the original never leaves where every candidate is marked).
 
+### Phase 3, menus: the typesetter, the graphics and the items
+
+The menus' second chunk: the engine every string of the game's text is set
+with, and the rest of the menus' opening but for the characters' sprites.
+`python3 tools/burndown.py` for `$C2`: 19.8 KiB ported and 67% left after the
+first chunk, 22.8 KiB and 62% left after this one, 226 entries.
+
+**The typesetter** (`menu/typeset.c`, `$C2:57DF`-`$C2:6262`). The dialog, the
+battle's messages and the menus' labels all set their text with it: a caller
+names the string (a table and a number), the tiles and their layout, puts the
+string's numbers and names on the text page, starts it (`$C2:57DF`) and then
+calls it (`$C2:5823`) with a budget of glyphs, a glyph or two a frame for the
+dialog's typing. A call stops at the string's end, a wait, a line or page
+break the caller acts on, or the budget's end, and says which; where it has
+got to lives in the text page's cells (`menu_text_reading`), so the next call
+takes it up in the middle of a word, a name or a number. The string's bytes
+are glyphs (and the font's two-byte half), words of the dictionary, and
+control codes: the breaks, the numbers (decimal without leading zeros, or hex
+where the page's hex setting is on) and the names (a character's, the
+party's, an item's, a tech's, an enemy's). The glyph drawer (`menu/glyphs.c`)
+now draws from parameters, into four- or sixteen-colour tiles, and its three
+entries take them from the page's cells as before; the menus' label setting
+(`$C2:F90C`), which sets a label a line of 32 glyphs at a time, is a port too,
+and the load screen and the save screen call it as C where nothing after it
+reads what it leaves in the registers.
+
+Two things the gate made the port keep. What a call leaves in X and Y is read
+after the label setting, so the typesetter works it out from how the call
+ended (at a control code, out of budget in the string or in an insert, or not
+begun), the scaffolding a small `Ending` the reading functions return. And a
+name past the pointer table's seven is read through the table's neighbours,
+which can put it on the text page itself: the original counts the name's
+glyphs with the insert already begun, pointer and source set, so the port
+does too (fuzzing found it: a party member with an id past the characters').
+
+**The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
+every screen draws with, built in work RAM from the ROM's graphics and sent
+to VRAM as the menus open: four-colour tiles laid out as sixteen-colour ones,
+three-plane tiles given a fourth, extra planes made from the ink of the ones
+there, then the menus' colours and the window design the player chose (which
+the settings screen loads on its own too). The display's queue sending, its
+palette, and its two transfers into work RAM became functions on the game's
+state (`menu_send_upload_queue`, `menu_send_palette`, `menu_clear_memory`,
+`menu_copy_rom_to_memory`) for this.
+
+**The items** (`menu/items.c`, `$C2:9875`, and the lookups `$C2:8881`,
+`$C2:88AD`, `$C2:88D8`). As the menus open, the inventory loses the places no
+item fills, the story's and the place's say in what the item lists offer is
+noted, and every item's kind, price, users, amount, attack or defence and
+name place is copied into the menus' tables; the save code's list of what the
+party carries (`$FF:F813`) and each member's figures (`$C2:99B2`) are still
+the original's, called from the port.
+
+**What is left of the opening** is the characters' sprites (`$C2:F3CA`): each
+of the menus' eight records loaded with a character's sprite (`$C2:F422`,
+which decompresses its tiles) and started on its animation (`$C2:F69D`-
+`$C2:F870`, which the records' task runs every frame). They belong with
+`menu/sprites.c`'s record sprites and are the next chunk's (PLAN.md).
+
+**Found by fuzzing**: the names' count on the text page, above; a number's
+leading zeros are shifted out of its digit cells as the original shifts them,
+leaving the cells past the number as they were; the lookups leave Y's high
+byte clear (they run with 8-bit index registers). **Found by shadow mode**:
+the lookup leaves the category in A; the item tables leave the second place
+note's test and item $C8's kind in the flags the save code's list saves; the
+graphics leave the tile loops' counts in the menus' first cells, and the
+flags of the design's setting.
+
+**The effects check** found the glyph drawer's entries reading cells only
+the original's setter writes now; the baseline gives the reason (only the
+original's code calls those entries). The queue's count is written a word
+wide as game state, since the byte after it aliases the sprite-object mode's
+slots.
+
+**Timing.** Calibrated from the library. `menu_text_go_on` and
+`menu_set_label` carry the glyph drawer's spread (the pen's offset decides
+its shifts), and are timing exceptions like `menu_draw_text`. The graphics and
+the items run once as the menus open, with the screen blanked.
+
 ### Phase 3, field and events: the party on the map
 
 The first chunk of bank `$C0` in wave 2. PLAN.md's table of what event's

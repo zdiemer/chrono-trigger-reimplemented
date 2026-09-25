@@ -221,7 +221,7 @@ static void note_story_and_place(GameState *g)
  * items' tables. */
 void menu_build_item_tables(GameState *g)
 {
-    TIMED_AS(g, 0xC29988, clean_up_inventory(g));
+    clean_up_inventory(g);
     note_story_and_place(g);
     copy_items_data(g);
     note_name_places(g);

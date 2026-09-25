@@ -252,9 +252,6 @@ rest waits, is [PLAN.md](PLAN.md).
     `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
     whose top-left tile is off the map, or a queue without room for a
     scroll's strips to the original, none of which the library makes;
-  - the glyph drawer takes the font's addresses from the text engine
-    (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
-    that engine ported first;
   - what the Epoch's review rated "mostly" (`menu/epoch.c`, `top_layer.c`):
     - the gate window's fill walks its edges through the `menu_gate_edge_*`
       cells, which nothing else reads, masking a 16-bit declaration down to
@@ -540,13 +537,23 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
+  typesetter, the graphics and the items"):
+  - the characters' sprites as the menus open (`$C2:F3CA`, `$C2:F422`) and
+    the records' animation (`$C2:F69D`-`$C2:F870`), still the original's;
+  - the typesetter's `$12` followed by 2-7, which jumps into code in the
+    original, sets nothing in the port: no string has it (6 of 20,000 fuzzed
+    states read random ROM as text and reach it);
+  - the save code's list of what the party carries (`$FF:F813`) and each
+    member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which the
+    items' tables call, are the original's;
+  - what the three bytes at `$7E:2C53` the menus copy as they open are, and
+    the story's bits the item lists read (`menu_story_items`,
+    `menu_place_items`), is not worked out.
 - **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
-  - the opening's call-outs: the menus' graphics (`$C2:968D`, with
-    `$C2:960B`-`$C2:9678` and the design's graphics `$C2:C511`), the
-    characters' sprites (`$C2:F3CA`), the items and figures (`$C2:9875`),
-    the text loader (`$C2:F90C`) and the save code in bank `$FF` (the slot's
-    check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
-    (`$C2:956E`);
+  - the opening's and the load screen's call-outs into the save code in bank
+    `$FF` (the slot's check `$FF:F9C4`, the load `$FF:FAED`) and the new
+    game's state (`$C2:956E`);
   - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
     frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
     none mismatching), and no movie erases a slot: a movie that erases one on

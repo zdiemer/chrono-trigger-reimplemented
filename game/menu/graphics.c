@@ -172,9 +172,9 @@ static void build_first_sets(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, MENU_ROM_REPLACED_TILES, REPLACED_AT,
                                                    MENU_ROM_REPLACED_TILES_BYTES));
     widen_to_sixteen_colours(g, WIDENED_FROM, WIDENED_AT, WIDENED_TILES);
-    TIMED_AS(g, 0xC29678, ink_the_third_plane(g, INKED_TILE));
+    ink_the_third_plane(g, INKED_TILE);
     for (uint16_t tile = INKED_TILES_FROM; tile < INKED_TILES_TO; tile = (uint16_t)(tile + SIXTEEN_COLOUR_TILE))
-        TIMED_AS(g, 0xC29678, ink_the_third_plane(g, tile));
+        ink_the_third_plane(g, tile);
     queue_in_place_of(g, MENU_UPLOADS_FIRST_SETS, 2);
     set_menu_vram_queue_bytes_high(g, 0);   /* the count written a word wide */
     send_now(g, pf);
@@ -186,8 +186,8 @@ static void build_first_sets(GameState *g, Platform *pf)
 static void build_second_set(GameState *g, Platform *pf)
 {
     move_from_rom(g, MENU_ROM_MORE_FOUR_COLOUR_TILES, FOUR_COLOUR_AT, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES);
-    TIMED_AS(g, 0xC2960B, widen_three_plane_tiles(g, MENU_ROM_THREE_PLANE_TILES, THREE_PLANE_AT, MENU_THREE_PLANE_TILES));
-    TIMED_AS(g, 0xC2962E, ink_the_fourth_plane(g, THREE_PLANE_AT, INKED_THREE_PLANE_TILES));
+    widen_three_plane_tiles(g, MENU_ROM_THREE_PLANE_TILES, THREE_PLANE_AT, MENU_THREE_PLANE_TILES);
+    ink_the_fourth_plane(g, THREE_PLANE_AT, INKED_THREE_PLANE_TILES);
     move_in_work_ram(g, FOUR_COLOUR_AT, BUFFER, SECOND_SET_BYTES);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_SECOND_SET, 1));
     send_now(g, pf);
@@ -201,7 +201,7 @@ static void build_window_sets(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC29542, menu_copy_rom_to_memory(g, pf, MENU_ROM_WINDOW_DESIGNS, BUFFER,
                                                    MENU_WINDOW_DESIGNS * MENU_WINDOW_DESIGN_BYTES));
     move_in_work_ram(g, DESIGN_TILES_FROM, DESIGN_TILES_PLACE, DESIGN_TILES_BYTES);
-    TIMED_AS(g, 0xC2962E, ink_the_fourth_plane(g, BUFFER, INKED_WINDOW_TILES));
+    ink_the_fourth_plane(g, BUFFER, INKED_WINDOW_TILES);
     queue_in_place_of(g, MENU_UPLOADS_WINDOW_SETS, 3);
     send_now(g, pf);
 }
@@ -239,13 +239,13 @@ static void build_last_set(GameState *g, Platform *pf)
     move_in_work_ram(g, MOVED_FROM, MOVED_TO, MOVED_BYTES);
     move_in_work_ram(g, (uint16_t)(MOVED_FROM + MOVED_BYTES), SECOND_MOVED_TO, MOVED_BYTES);
     move_in_work_ram(g, BUFFER, SPREAD_TO, SPREAD_BYTES);
-    TIMED_AS(g, 0xC2962E, ink_the_fourth_plane(g, SPREAD_TO, INKED_LAST_TILES));
+    ink_the_fourth_plane(g, SPREAD_TO, INKED_LAST_TILES);
     /* two pairs of tiles from the ROM, each pair's second in the row below */
     for (unsigned i = 0; i < 4; i++)
         move_from_rom(g, (uint16_t)(MENU_ROM_SIXTEEN_COLOUR_TILES + i * ROM_TILE_PAIR),
                       (uint16_t)(SPREAD_TO + (i & 1) * ROWS_APART + (i >> 1) * ROM_TILE_PAIR), ROM_TILE_PAIR);
-    TIMED_AS(g, 0xC29653, ink_the_last_two_planes(g, SPREAD_TO, 4));
-    TIMED_AS(g, 0xC29653, ink_the_last_two_planes(g, (uint16_t)(SPREAD_TO + ROWS_APART), 4));
+    ink_the_last_two_planes(g, SPREAD_TO, 4);
+    ink_the_last_two_planes(g, (uint16_t)(SPREAD_TO + ROWS_APART), 4);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_LAST_SET, 1));
     send_now(g, pf);
 }
@@ -290,7 +290,7 @@ void menu_load_window_design(GameState *g)
     uint8_t design = (uint8_t)(menu_window_design(g) & DESIGN_SETTING_BITS);
     move_from_rom(g, (uint16_t)(MENU_ROM_WINDOW_DESIGNS + design * MENU_WINDOW_DESIGN_BYTES), DESIGN_BUFFER,
                   MENU_WINDOW_DESIGN_BYTES + 1);
-    TIMED_AS(g, 0xC2962E, ink_the_fourth_plane(g, DESIGN_BUFFER, DESIGN_TILES));
+    ink_the_fourth_plane(g, DESIGN_BUFFER, DESIGN_TILES);
     TIMED_AS(g, 0xC28385, queue_records(g, MENU_UPLOAD_WINDOW_DESIGN, 1));
     TIMED_AS(g, 0xC2ED08, menu_load_window_colours(g, menu_window_style(g)));
 }
