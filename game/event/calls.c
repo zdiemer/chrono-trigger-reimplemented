@@ -20,10 +20,11 @@
  * mustn't be interrupted), and unreachable objects are passed over
  * (field/object.h). */
 #include "cpu_io.h"
+#include "event/calls.h"
 #include "event/leaves.h"
 #include "event/script.h"
 
-enum { LOWEST_LEVEL = 7, FUNCTIONS = 16 };
+enum { LOWEST_LEVEL = EVENT_LEVELS - 1, FUNCTIONS = 16 };
 
 static bool refusing_calls(const GameState *g, FieldObject object)
 {
@@ -40,20 +41,25 @@ enum { OBJECTS_PER_LEVEL = 64, BYTES_PER_LEVEL = OBJECTS_PER_LEVEL * 2 };
 typedef uint16_t Place;   /* an entry of event_saved_positions */
 
 /* What the original leaves as it finds a place: the multiplier holding the
- * level's offset (it multiplies in hardware), and the offset in a scratch
- * cell. */
-static void leave_place_found(GameState *g, FieldObject object, uint8_t level)
+ * level's offset (it multiplies in hardware). */
+static void leave_multiplying(GameState *g, uint8_t level)
 {
     hw_set_multiplicand(g, level);
     hw_multiply_by(g, BYTES_PER_LEVEL);
-    keep_word(g, KEPT_FIFTH, (uint16_t)(level * BYTES_PER_LEVEL + field_object_offset(object)));
+}
+
+uint16_t event_place_offset(FieldObject object, uint8_t level)
+{
+    return (uint16_t)(level * BYTES_PER_LEVEL + field_object_offset(object));
 }
 
 static Place place_of(FieldObject object, uint8_t level) { return (Place)(level * OBJECTS_PER_LEVEL + object); }
 
+/* ... and the calls keep its offset in a scratch cell. */
 static Place place_found(GameState *g, FieldObject object, uint8_t level)
 {
-    ORIGINAL_EFFECT(leave_place_found(g, object, level));
+    ORIGINAL_EFFECT(leave_multiplying(g, level));
+    ORIGINAL_EFFECT(keep_word(g, KEPT_FIFTH, event_place_offset(object, level)));
     return place_of(object, level);
 }
 
@@ -78,11 +84,18 @@ static Resumption resumption_below(const GameState *g, FieldObject object, uint8
 
 /* Where one of an object's functions starts: the table at the head of the
  * script holds 16 offsets for each object. */
+static uint16_t function_table(FieldObject object) { return (uint16_t)(object * FUNCTIONS * 2); }
+
+uint16_t object_function_start(const GameState *g, FieldObject object, uint8_t function)
+{
+    return script_word(g, (uint16_t)(function_table(object) + function * 2));
+}
+
+/* A call keeps where the target's functions are as it looks one up. */
 static uint16_t function_start(GameState *g, FieldObject object, uint8_t function)
 {
-    uint16_t table = (uint16_t)(object * FUNCTIONS * 2), entry = (uint16_t)(function * 2);
-    ORIGINAL_EFFECT(keep_word(g, KEPT_SIXTH, table));
-    return script_word(g, (uint16_t)(table + entry));
+    ORIGINAL_EFFECT(keep_word(g, KEPT_SIXTH, function_table(object)));
+    return object_function_start(g, object, function);
 }
 
 /* ---- Making a call ------------------------------------------------------------------------ */
@@ -130,14 +143,39 @@ static int urgency(GameState *g, FieldObject target, uint8_t level, uint8_t func
     return urgency_of(g, target, level);
 }
 
+/* The object keeps its place at the level it runs at, to come back to, and
+ * runs script from `start` at `level`, forgetting the move it was making. */
+static void run_from(GameState *g, FieldObject object, Place own, uint8_t level, uint16_t start)
+{
+    set_place(g, own, event_object_script_position(g, object));
+    set_event_object_script_position(g, object, start);
+    set_event_object_call_state_level(g, object, level);
+    object_stop_moving(g, object);
+}
+
 /* The target drops what it is doing for the function. */
 static void interrupt(GameState *g, FieldObject target, uint8_t level, uint8_t function)
 {
     Place own = place_found(g, target, event_object_call_state_level(g, target));
-    set_place(g, own, event_object_script_position(g, target));
-    set_event_object_script_position(g, target, function_start(g, target, function));
-    set_event_object_call_state_level(g, target, level);
-    object_stop_moving(g, target);
+    run_from(g, target, own, level, function_start(g, target, function));
+}
+
+/* The field's hand-overs keep the place's offset in another scratch cell
+ * than the calls do. */
+void object_run_script_from(GameState *g, FieldObject object, uint8_t level, uint16_t start)
+{
+    uint8_t own = event_object_call_state_level(g, object);
+    ORIGINAL_EFFECT(leave_multiplying(g, own));
+    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, event_place_offset(object, own)));
+    run_from(g, object, place_of(object, own), level, start);
+    ORIGINAL_EFFECT(object_clear_move_length_copy(g, object));
+}
+
+bool object_takes_calls(const GameState *g, FieldObject object) { return answer_of(g, object) == TAKES_CALLS; }
+
+bool object_takes_a_call_now(const GameState *g, FieldObject target, uint8_t level)
+{
+    return object_takes_calls(g, target) && urgency_of(g, target, level) < 0;
 }
 
 // $C0:603E

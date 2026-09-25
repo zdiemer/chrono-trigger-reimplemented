@@ -5,9 +5,12 @@
  * V that follow from the command, what it did and the state before and after.
  * The build without the original's effects has none of it. */
 #include "event/leaves.h"
+#include "event/contact.h"
 #include "event/party.h"
 #include "event/variables.h"
 #include "field/field.h"
+#include "field/layers.h"
+#include "field/party.h"
 #include "port/vars_ram.h"
 
 #if ORIGINAL_EFFECTS
@@ -49,6 +52,8 @@ typedef enum { V_AS_IT_WAS, V_OF_ADDING, V_OF_SUBTRACTING } OverflowLeft;
 typedef struct {
     bool starts;
     bool to_nobody;
+    bool moved_on;   /* a party member took the next footprint of the trail */
+    Touch touch;     /* what the leader's walking into an object did */
 } Noted;
 
 typedef void (*NoteBefore)(const GameState *g, const EventCommand *c, Noted *n);
@@ -205,6 +210,93 @@ static void derive_drift(GameState *g, const EventCommand *c, EventFlow flow, co
         l->y = c->drift;
 }
 
+/* The party's step ($B0, and $AF once): the step's routines run with 8-bit
+ * index registers, and leave Y the one stepping, or where the leader looked
+ * to push what it walked into, that; and the overflow of the leader's or the
+ * member's step (field/party.h), or clear where the leader's touch worked
+ * out a place among the calls'. The party holding still leaves both. */
+static void note_party_step(const GameState *g, const EventCommand *c, Noted *n)
+{
+    if (field_screen_recentring(g) != 0 || !object_is_party_member(g, c->self))
+        return;
+    ObjectKind place = object_role(g, c->self).kind;
+    if (place != ROLE_LEADER)
+        n->moved_on = party_member_moves_on(g, place);
+    else if (leader_has_contact(g))
+        n->touch = leaders_touch(g);
+}
+
+static void derive_party_step(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    if (field_screen_recentring(g) != 0)
+        return;
+    event_keep_offset(g, c->at);
+    if (!object_is_party_member(g, c->self)) {
+        l->y = (uint16_t)(c->at & 0x00FF);
+        return;
+    }
+    ObjectKind place = object_role(g, c->self).kind;
+    l->y = field_object_offset(c->self);
+    if (place != ROLE_LEADER) {
+        l->overflow = field_member_step_overflow(g, place, n->moved_on);
+        return;
+    }
+    l->overflow = field_leader_step_overflow(g, l->overflow);
+    l->y = event_touch_y(g, n->touch, l->y);
+    l->overflow = event_place_worked_out_overflow(n->touch.touched || n->touch.pushed, l->overflow);
+}
+
+/* The party's regrouping ($D9, $DA; event/party.c): each keeps its offset;
+ * sending the party off, it hands each its script with 8-bit index
+ * registers, which leaves Y's low byte, and works out a place among the
+ * calls', which leaves the overflow clear; the formation's parse is past its
+ * places when it is over, and the gathering keeps its offset in a second
+ * cell as it starts. */
+static void note_formation_starts(const GameState *g, const EventCommand *c, Noted *n)
+{
+    (void)c;
+    n->starts = variable_byte(g, FORMATION_COUNT) == 0;
+}
+
+static void derive_formation(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    event_keep_offset(g, c->at);
+    if (n->starts) {
+        l->y = (uint16_t)(c->at & 0x00FF);
+        l->overflow = false;
+    } else if (flow.kind == FLOW_END_TURN) {
+        l->y = (uint16_t)(c->at + 7);
+    }
+}
+
+static void note_gathering_starts(const GameState *g, const EventCommand *c, Noted *n)
+{
+    (void)c;
+    n->starts = place_taken(g, 1) && !(field_mode_flags(g) & FIELD_PARTY_GATHERING);
+}
+
+static void derive_gathering(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    event_keep_offset(g, c->at);
+    if (!n->starts)
+        return;
+    original_cell16(g, 0xC3, c->at);
+    l->y = (uint16_t)(c->at & 0x00FF);
+    l->overflow = false;
+}
+
+/* A tile copy made now ($E4): the command keeps its last byte's offset, and
+ * the copy leaves Y and the overflow (field/layers.h). */
+static void derive_tile_copy(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)n;
+    event_keep_offset(g, (uint16_t)(c->at + 7));
+    l->y = field_tile_copy_y(g, l->y);
+    l->overflow = field_tile_copy_overflow(g, l->overflow);
+}
+
 #define PARSE(n) .parse = (n), .parse_on_jump = (n)
 #define KEEP(how, parameter) { KEEP_##how, PARAMETER_##parameter, 0 }
 #define KEEP_OPERAND(n) { KEEP_OPERAND_BYTE, 0, (n) }
@@ -271,6 +363,9 @@ static const OriginalLeaves by_opcode[256] = {
     [0x42] = { .parse = 2, .parse_on_jump = 1 },
     [0x43] = { .parse = 2, .parse_on_jump = 1 },
     [0x44] = { .parse = 2, .parse_on_jump = 1 },
+    /* the party */
+    [0xD9] = { .note = note_formation_starts, .derive = derive_formation },
+    [0xDA] = { .note = note_gathering_starts, .derive = derive_gathering },
     /* places */
     [0xE2] = { .note = note_change_asked, .derive = derive_change_asked },
     [0xDC] = { .first = KEEP(WORD, map_and_how) },
@@ -285,6 +380,8 @@ static const OriginalLeaves by_opcode[256] = {
     [0x7A] = { .note = note_move_starts, .derive = derive_jump },
     [0x7B] = { .note = note_move_starts, .derive = derive_launch },
     [0x8F] = { .derive = derive_arrived_on_screen },
+    [0xB0] = { .note = note_party_step, .derive = derive_party_step },
+    [0xAF] = { .note = note_party_step, .derive = derive_party_step },
     [0xB5] = { .offset_kept_last = true },
     [0xB6] = { .offset_kept_last = true },
     /* object properties */
@@ -305,6 +402,7 @@ static const OriginalLeaves by_opcode[256] = {
     /* the screen */
     [0x47] = { .parse = 2 },
     [0xE3] = { .parse = 2 },
+    [0xE4] = { .derive = derive_tile_copy },
     [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift), .derive = derive_drift },
     [0xF0] = { .first = KEEP_OPERAND(1) },
     /* the story */
@@ -426,7 +524,7 @@ EventStep event_perform_leaving(GameState *g, Platform *pf, const EventOpcode *r
 {
     const OriginalLeaves *l = original_leaves(row->opcode);
     EventCommand c = event_decode(g, pf, row, at);
-    Noted n = { false, false };
+    Noted n = { 0 };
     /* what the derivations look at costs the machine no time: the original
      * never reads it again (port/vars_ram.h) */
     vars_peek(true);
@@ -462,6 +560,13 @@ void leave_set_off(GameState *g, FieldObject self, StepStart start, bool walking
 }
 
 void leave_in_the_way_check(GameState *g, FieldObject self) { field_leave_in_the_way_check(g, self, running.at); }
+
+bool event_place_worked_out_overflow(bool worked_out, bool before) { return worked_out ? false : before; }
+
+uint16_t event_touch_y(const GameState *g, Touch t, uint16_t before)
+{
+    return t.looks_to_push ? field_leader_contact(g) : before;
+}
 
 void leave_walk_overflow(const GameState *g, FieldObject self)
 {

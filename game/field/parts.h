@@ -1,15 +1,17 @@
-/* The parts of the field's motion and animation (field/motion.c,
- * field/animation.c) that what their routines leave the original's code is
- * worked out from (field/leaves.c): the direction routine's quarter and
- * scale, a direction's steps at the object's speed, whether the check for
- * objects in the way looks at all, and where the frame read reads. Nothing
- * else of the game calls these; object.h is the objects' vocabulary. */
+/* The parts of the field's motion, animation and party (field/motion.c,
+ * field/animation.c, field/party_trail.c) that what their routines leave the
+ * original's code is worked out from (field/leaves.c): the direction
+ * routine's quarter and scale, a direction's steps at the object's speed,
+ * whether the check for objects in the way looks at all, where the frame
+ * read reads, and the party's footprints and the pad's walk. Nothing else of
+ * the game calls these; object.h and party.h are the vocabulary. */
 #ifndef CT_GAME_FIELD_PARTS_H
 #define CT_GAME_FIELD_PARTS_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "field/layers.h"
 #include "field/object.h"
 #include "state.h"
 
@@ -42,5 +44,40 @@ uint16_t field_facing_frame_table(const GameState *g, FieldObject obj);
 uint16_t field_first_frame_place(const GameState *g, FieldObject obj);
 bool field_animation_rewound(const GameState *g, FieldObject obj);
 bool field_frame_before_the_first(uint8_t frame);
+
+/* A footprint of the leader's trail (field/party_trail.c): how far it moved
+ * that frame, how the pad walked it, its sprite's priorities and the ground
+ * under it. */
+typedef struct {
+    Velocity movement;
+    Velocity walk;
+    SpritePriorities priorities;
+    uint8_t ground;
+} Footprint;
+Footprint field_footprint(const GameState *g, uint8_t at);
+
+/* A tile copy (field/tile_copy.c): the map's tables it can take whole, in
+ * the order it takes them, and where the original keeps each (their rows
+ * interleaved, a row of each every 256 bytes); what the copy's description
+ * names, a table's bit or one of the properties' bits alone; and the
+ * rectangle it describes, whose rows and columns past the first say its
+ * size. */
+typedef enum {
+    MAP_BG1_TILES, MAP_BG2_TILES, MAP_BG3_TILES, MAP_PROPERTIES, MAP_UPPER_ATTRIBUTES, MAP_LOWER_ATTRIBUTES, MAP_TABLES
+} MapTable;
+uint16_t field_map_table_address(MapTable table);
+enum { COPY_BG1_TILE_SET_HALF = 0x40, COPY_BG2_TILE_SET_HALF = 0x80 };
+
+typedef struct {
+    MapPlace from;
+    uint8_t columns, rows;
+    MapPlace to;
+} TileRectangle;
+TileRectangle field_described_tile_copy(const GameState *g);
+
+/* How the pad walks the leader this frame, and a moving floor's pull in a
+ * footprint's movement, rounded away from nothing to whole walking steps. */
+Velocity field_pad_walk(const GameState *g);
+int8_t field_floor_pull(int8_t movement);
 
 #endif

@@ -9,6 +9,7 @@
  * running (field/field.h, field_effect_status) until they arrive. */
 #include "event/bridge.h"
 #include "field/field.h"
+#include "field/layers.h"
 
 enum { ALL_MAPS = 0x07 };   /* a tile copy's maps: one bit each */
 
@@ -181,22 +182,25 @@ static EventFlow set_animation_line_limit(GameState *g, uint8_t scanline)
 EVENT_OPERATION(set_animation_line_limit, scanline)
 
 // $C0:3D97
-/* Change the map's tiles now (the field's copy, $C0:AF4E, still the
- * original's code, called out to). Ends the turn. */
-void event_cmd_copy_tiles(Snes *s)
+/* Change the map's tiles now (field/layers.h): a door opens, a bridge
+ * appears. Ends the turn. */
+static EventFlow copy_tiles(GameState *g, uint16_t from, uint16_t to, uint16_t destination, uint8_t maps)
 {
-    enum { LENGTH = 8 };
-    GameState *g = state_of(s);
-    uint16_t at = event_command_offset(s);
-    EventCommand c = event_command_of(s, 0xE4);
-    describe_tile_copy(g, c.from, c.to, c.destination, c.maps);
-    /* the command's last byte, kept across the copy in event_saved_position:
-     * the copy's indexed stores can land on it, and the command goes on from
-     * what it holds after, as the original's does */
-    event_keep_offset(g, (uint16_t)(at + LENGTH - 1));
-    if (bridge_call(s, 0xC03DBD, 0xC0AF4E, DC_A | DC_X | DC_N | DC_Z | DC_C, event_machine(s, false)))
-        event_return(s, (EventStep){ (uint16_t)(event_saved_position(g) + 1), false });
+    describe_tile_copy(g, from, to, destination, maps);
+    map_copy_tiles(g);
+    return end_turn();
 }
+EVENT_OPERATION(copy_tiles, from, to, destination, maps)
+
+/* Its guard: the rectangle and where it goes are on the map, as the game's
+ * copies are; past its edges the original's block moves run on into the
+ * next table, and on into the cell the command keeps its offset in. */
+static bool copy_stays_on_the_map(const GameState *g, uint16_t from, uint16_t to, uint16_t destination)
+{
+    (void)g;
+    return map_tile_copy_fits(from, to, destination);
+}
+EVENT_CHECK(copy_stays_on_the_map, from, to, destination)
 
 EVENT_OPCODES(event_screen_opcodes,
     { 0xE3, OPERATION(set_player_control), .control = OPERAND(1), .length = 2 },
@@ -212,5 +216,5 @@ EVENT_OPCODES(event_screen_opcodes,
       .length = 5 },
     { 0xE7, OPERATION(scroll_camera), .scroll_x = OPERAND(1), .scroll_y = OPERAND(2), .length = 3 },
     { 0x47, OPERATION(set_animation_line_limit), .scanline = OPERAND(1), .length = 2 },
-    { 0xE4, .from = OPERAND_WORD(1), .to = OPERAND_WORD(3), .destination = OPERAND_WORD(5), .maps = OPERAND(7),
-      .length = 8 });
+    { 0xE4, OPERATION(copy_tiles), .from = OPERAND_WORD(1), .to = OPERAND_WORD(3), .destination = OPERAND_WORD(5),
+      .maps = OPERAND(7), .length = 8, CHECK(copy_stays_on_the_map) });

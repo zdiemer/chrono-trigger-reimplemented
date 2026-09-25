@@ -1,6 +1,6 @@
 /* Scripts moving objects about the map: walking to a tile or up to another
  * object, a number of steps in a direction, a jump or a launch, following
- * someone about, and letting an object behave as its state says.
+ * someone about, and the party's step every frame.
  *
  * A move is a number of steps the field's object update takes one a frame
  * (field/motion.c); a move command stays on itself while one runs, and looks
@@ -18,8 +18,8 @@
  * (who may not be in the party: event/party.h) -- or in a direction; the
  * table's rows say which opcode walks or slides, counts, or reads its
  * operands from variables. A jump, a launch and following are operations
- * too; letting an object behave as its state says calls the field's own
- * routines, which are still the original's, and is a bridge.
+ * too, and so is the party's step, which the party's own module takes
+ * (field/party.h).
  *
  * What the original's handlers leave in Y and V for the code after them
  * (event/leaves.h) is the field's routines' they called: each move says so
@@ -27,9 +27,11 @@
  * (field/scratch.h). */
 #include "cpu_io.h"
 #include "event/bridge.h"
+#include "event/contact.h"
 #include "event/leaves.h"
 #include "event/party.h"
 #include "event/script.h"
+#include "field/party.h"
 #include "field/scratch.h"
 
 /* ---- What the original leaves (event/leaves.h, field/scratch.h) --------------------------- */
@@ -376,49 +378,48 @@ static EventFlow follow_party_member(GameState *g, FieldObject self, PartyPlace 
 }
 EVENT_OPERATION(follow_party_member, self, member)
 
-/* ---- Behaving as the state says ------------------------------------------------------------ */
+/* ---- The party's step ------------------------------------------------------------------ */
 
-enum { STATE_ROUTINES = 3 };
-/* What the state routines leave that the command doesn't hand on. */
-enum { STATE_DONT_CARE = DC_A | DC_X | DC_N | DC_Z };
-
-// $C0:3002
-/* Let the object behave as its state says, a step at a time, for as long as
- * the script stays here: the field's own routines for a wandering
- * townsperson, a party member following the leader (state 0 $C0:9E29, and
- * then $C0:3154 if $C0:5B8D accepts its facing; 1 $C0:A26B; 2 $C0:A2CE).
- * Nothing happens while field_state_routine_hold is set. The routines are
- * the original's, called with 8-bit index registers. */
-void event_cmd_behave(Snes *s)
+// $C0:3002, and $C0:2FFD once
+/* Every frame the party is in the player's hands, each of its scripts runs
+ * this: the object takes its step as one of the party (field/party.h) -- the
+ * leader as the pad walks it, touching what it walks into
+ * (event/contact.h), the others along the leader's trail. The script stays
+ * on it, or with the short form goes on the next frame. An object not in the
+ * party does nothing; the party holds still while the screen scrolls back
+ * onto the leader. */
+static EventFlow step_with_the_party(GameState *g, FieldObject self, bool once)
 {
-    static const uint32_t sites[STATE_ROUTINES] = { 0xC03047, 0xC03037, 0xC03027 };
-    static const uint32_t routines[STATE_ROUTINES] = { 0xC09E29, 0xC0A26B, 0xC0A2CE };
-    GameState *g = state_of(s);
-    uint16_t at = event_command_offset(s);
-    if (field_state_routine_hold(g) != 0) {
-        event_return(s, (EventStep){ at, false });
-        return;
-    }
-    ORIGINAL_EFFECT(event_keep_offset(g, at));
-    s->cpu.p |= CPU_FLAG_X;   /* 8-bit index registers, which clears their high bytes */
-    s->cpu.x &= 0x00FF;
-    s->cpu.y &= 0x00FF;
-    FieldObject self = object_current(g);
-    ObjectRole role = object_role(g, self);
-    if (object_is_party_member(g, self)) {
+    if (field_screen_recentring(g) == 0 && object_is_party_member(g, self)) {
         object_start_one_step(g, self);
-        if (!bridge_call(s, sites[role.kind], routines[role.kind], STATE_DONT_CARE, event_machine(s, true)))
-            return;
-        if (role.kind == ROLE_LEADER) {
-            if (!bridge_call(s, 0xC0304F, 0xC05B8D, STATE_DONT_CARE, event_machine(s, true)))
-                return;
-            if (m_flag(s, CPU_FLAG_C) && !bridge_call(s, 0xC03054, 0xC03154, STATE_DONT_CARE, event_machine(s, true)))
-                return;
+        ObjectKind place = object_role(g, self).kind;
+        if (place == ROLE_LEADER) {
+            party_leader_steps(g, self);
+            if (leader_has_contact(g))
+                touch_what_the_leader_met(g);
+        } else {
+            party_member_follows(g, self, place);
         }
     }
-    s->cpu.p &= (uint8_t)~CPU_FLAG_X;
-    event_return(s, (EventStep){ at, false });
+    return once ? end_turn() : stay();
 }
+EVENT_OPERATION(step_with_the_party, self, once)
+
+/* Its guard: a member steps the object in its place of the party, which the
+ * game has the one stepping; the trail's places are its footprints; and what
+ * the leader walks into, the touch can reach (event/contact.h). */
+static bool party_can_step(const GameState *g, FieldObject self)
+{
+    if (field_screen_recentring(g) != 0 || !object_is_party_member(g, self))
+        return true;
+    if (!party_trail_places_hold(g))
+        return false;
+    ObjectKind place = object_role(g, self).kind;
+    if (place != ROLE_LEADER)
+        return field_same_link(party_member_link(g, place), field_link_to(self));
+    return !leader_has_contact(g) || event_touch_is_ours(g);
+}
+EVENT_CHECK(party_can_step, self)
 
 /* The moves that set off, following included, look for an object in the
  * way, over the object slots (object_search_fits). */
@@ -458,6 +459,8 @@ EVENT_OPCODES(event_movement_opcodes,
       .steps = OPERAND(2), .length = 3 },
     { 0x8F, OPERATION(move_toward_member), .member = MEMBER(1), WALKS_LOOKING, .until = CONSTANT(WELL_ON_SCREEN),
       .length = 2 },
+    { 0xB0, OPERATION(step_with_the_party), .once = CONSTANT(false), .length = 1, CHECK(party_can_step) },
+    { 0xAF, OPERATION(step_with_the_party), .once = CONSTANT(true), .length = 1, CHECK(party_can_step) },
     { 0x92, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2), WALKS, .length = 3 },
     { 0x9C, OPERATION(move_in_direction), .direction = OPERAND(1), .steps = OPERAND(2),
       .style = CONSTANT(SLIDING), .length = 3 },
@@ -467,5 +470,4 @@ EVENT_OPCODES(event_movement_opcodes,
     { 0x7B, OPERATION(launch), .velocity_x = OPERAND(1), .velocity_y = OPERAND(2), .acceleration = OPERAND(3),
       .steps = OPERAND(4), .length = 5 },
     { 0xB5, OPERATION(follow), .target = OBJECT(1), .length = 2, CHECK(can_look_its_way) },
-    { 0xB6, OPERATION(follow_party_member), .member = MEMBER(1), .length = 2, CHECK(can_look_its_way) },
-    { 0xB0, .length = 1 });
+    { 0xB6, OPERATION(follow_party_member), .member = MEMBER(1), .length = 2, CHECK(can_look_its_way) });

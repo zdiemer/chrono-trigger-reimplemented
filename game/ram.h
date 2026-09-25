@@ -554,9 +554,11 @@
 /* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
 #define RAM_FIELD_FADE_REQUEST 0x7E0136u
 #define RAM_FIELD_FADE_REQUEST_DP 0x36u      /* page field */
-/* Nonzero: event $B0 runs no state routine and waits (set at $C0:177F and $C0:A496) */
-#define RAM_FIELD_STATE_ROUTINE_HOLD 0x7E0138u
-#define RAM_FIELD_STATE_ROUTINE_HOLD_DP 0x38u /* page field */
+/* The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F
+ * sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0
+ * waits) */
+#define RAM_FIELD_SCREEN_RECENTRING 0x7E0138u
+#define RAM_FIELD_SCREEN_RECENTRING_DP 0x38u /* page field */
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 #define RAM_FIELD_WINDOW2_EDGE 0x7E013Cu
 #define RAM_FIELD_WINDOW2_EDGE_DP 0x3Cu      /* page field */
@@ -602,6 +604,11 @@
  * (and set when $C0:1F0E opens one) */
 #define RAM_FIELD_MODE_FLAGS 0x7E0154u
 #define RAM_FIELD_MODE_FLAGS_DP 0x54u        /* page field */
+/* Frames the party has stood about: the frame wait ($C0:EC60) counts it in its low ten bits, the
+ * party's walking and running clear it; bit 15 once the leader has fidgeted, after which it
+ * fidgets now and then [2 bytes] */
+#define RAM_FIELD_IDLE_FRAMES 0x7E0158u
+#define RAM_FIELD_IDLE_FRAMES_DP 0x58u       /* page field */
 /* 1 while a dialog with choices runs */
 #define RAM_DIALOG_CHOICE_ACTIVE 0x7E0162u
 #define RAM_DIALOG_CHOICE_ACTIVE_DP 0x62u    /* page field */
@@ -659,6 +666,20 @@
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_DP 0x97u     /* page field */
+/* The high byte of each of field_party_objects as the original's 16-bit index registers keep the
+ * object (a 16-bit store of it, $C0:42B3, leaves 0 here): the party's regrouping adds the whole
+ * word into a place's offset [3 x $2 bytes, by party member * 2] */
+#define RAM_FIELD_PARTY_OBJECTS_HIGH 0x7E0198u
+#define RAM_FIELD_PARTY_OBJECTS_HIGH_COUNT 3u
+#define RAM_FIELD_PARTY_OBJECTS_HIGH_STRIDE 0x02u
+#define RAM_FIELD_PARTY_OBJECTS_HIGH_DP 0x98u /* page field */
+/* Where each of the party is on the leader's trail (an entry of the field_trail_ tables): the
+ * leader's newest footprint, and the footprint each member has got to [3 x $1 bytes, by party
+ * place] */
+#define RAM_FIELD_TRAIL_POSITION 0x7E01ABu
+#define RAM_FIELD_TRAIL_POSITION_COUNT 3u
+#define RAM_FIELD_TRAIL_POSITION_STRIDE 0x01u
+#define RAM_FIELD_TRAIL_POSITION_DP 0xABu    /* page field */
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
@@ -698,6 +719,16 @@
  * field_object_in_the_way found blocking [2 bytes] */
 #define RAM_FIELD_TARGET_OBJECT 0x7E01E9u
 #define RAM_FIELD_TARGET_OBJECT_DP 0xE9u     /* page field */
+/* The object the leader is up against (its offset in the object tables; negative for none): the
+ * one it walked into this frame (cleared at $C0:881E, set by the walk's check), or found before
+ * it when the player pressed the confirm button ($C0:1CFC) */
+#define RAM_FIELD_LEADER_CONTACT 0x7E01EBu
+#define RAM_FIELD_LEADER_CONTACT_DP 0xEBu    /* page field */
+/* The high byte of field_leader_contact as the original's 16-bit index registers keep the object
+ * (its stores of it are 16-bit, which leave 0 here): the talk, the touch and the push add the
+ * whole word into a place's offset and a function's */
+#define RAM_FIELD_LEADER_CONTACT_HIGH 0x7E01ECu
+#define RAM_FIELD_LEADER_CONTACT_HIGH_DP 0xECu /* page field */
 /* Direction ($00/$40/$80/$C0 quadrants, a byte to a turn) field_direction_to_target computes and
  * field_start_step moves in; a word whose high byte field_direction_to_target clears, which the
  * facing lookups index with [2 bytes] */
@@ -1059,12 +1090,29 @@
 #define RAM_FIELD_LAYER_EXTRA_SPEED_DP 0x24u /* page field_layers */
 #define RAM_FIELD_LAYER_EXTRA_SPEED_X 0x7E1D24u /* Horizontal */
 #define RAM_FIELD_LAYER_EXTRA_SPEED_Y 0x7E1D25u /* Vertical */
+/* How the pad walks the leader this frame, 1/16 pixel a frame on each axis, signed: $10 walking,
+ * $20 running (the dash button held), 0 still ($C0:8925 and on) [2 bytes] */
+#define RAM_FIELD_LEADER_WALK 0x7E1D2Cu
+#define RAM_FIELD_LEADER_WALK_DP 0x2Cu       /* page field_layers */
+#define RAM_FIELD_LEADER_WALK_X 0x7E1D2Cu    /* Across (right positive) */
+#define RAM_FIELD_LEADER_WALK_Y 0x7E1D2Du    /* Down (down positive) */
 /* This frame's screen scroll step toward field_screen_scroll_target ($10 or $F0) [2 x $2 bytes,
  * by axis (X, Y)] */
 #define RAM_FIELD_SCREEN_SCROLL_STEP 0x7E1D2Eu
 #define RAM_FIELD_SCREEN_SCROLL_STEP_COUNT 2u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_STRIDE 0x02u
 #define RAM_FIELD_SCREEN_SCROLL_STEP_DP 0x2Eu /* page field_layers */
+/* How far the leader moves this frame, 1/16 pixel on each axis, signed: the pad's walk and a
+ * moving floor's pull, less what the map's blocks and its edges stop ($C0:9175) [2 bytes] */
+#define RAM_FIELD_LEADER_MOVEMENT 0x7E1D32u
+#define RAM_FIELD_LEADER_MOVEMENT_DP 0x32u   /* page field_layers */
+#define RAM_FIELD_LEADER_MOVEMENT_X 0x7E1D32u /* Across */
+#define RAM_FIELD_LEADER_MOVEMENT_Y 0x7E1D33u /* Down */
+/* What the ground under the leader does this frame (field/party.h, LeaderGround): bit 2 a climb,
+ * where the party goes up and down at a walk and shows its climbing animation; bit 3 a moving
+ * floor, which pulls the party along ($C0:9D6A) */
+#define RAM_FIELD_LEADER_GROUND 0x7E1D34u
+#define RAM_FIELD_LEADER_GROUND_DP 0x34u     /* page field_layers */
 /* Bit 1: BG2, bit 2: BG3 stays where it is while the screen scrolls (its accumulators leave out
  * the screen's steps and offsets) */
 #define RAM_FIELD_LAYER_STILL 0x7E1D36u
@@ -1223,6 +1271,41 @@
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES 0x7F0B01u
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT 64u
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_STRIDE 0x02u
+/* How far the leader moved across in the frame of each footprint, 1/16 pixel, signed
+ * (field_leader_movement) [128 x $1 bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_MOVEMENT_X 0x7F0C00u
+#define RAM_FIELD_TRAIL_MOVEMENT_X_COUNT 128u
+#define RAM_FIELD_TRAIL_MOVEMENT_X_STRIDE 0x01u
+/* How far the leader moved down in the frame of each footprint, 1/16 pixel, signed [128 x $1
+ * bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_MOVEMENT_Y 0x7F0C80u
+#define RAM_FIELD_TRAIL_MOVEMENT_Y_COUNT 128u
+#define RAM_FIELD_TRAIL_MOVEMENT_Y_STRIDE 0x01u
+/* How the pad walked the leader across in the frame of each footprint (field_leader_walk) [128 x
+ * $1 bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_WALK_X 0x7F0D00u
+#define RAM_FIELD_TRAIL_WALK_X_COUNT 128u
+#define RAM_FIELD_TRAIL_WALK_X_STRIDE 0x01u
+/* How the pad walked the leader down in the frame of each footprint [128 x $1 bytes, by
+ * footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_WALK_Y 0x7F0D80u
+#define RAM_FIELD_TRAIL_WALK_Y_COUNT 128u
+#define RAM_FIELD_TRAIL_WALK_Y_STRIDE 0x01u
+/* The leader's lower half's sprite priority byte in the frame of each footprint
+ * (field_object_sprite_priority +0) [128 x $1 bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_LOWER_PRIORITY 0x7F0E00u
+#define RAM_FIELD_TRAIL_LOWER_PRIORITY_COUNT 128u
+#define RAM_FIELD_TRAIL_LOWER_PRIORITY_STRIDE 0x01u
+/* The leader's upper half's sprite priority byte in the frame of each footprint
+ * (field_object_sprite_priority +1) [128 x $1 bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_UPPER_PRIORITY 0x7F0E80u
+#define RAM_FIELD_TRAIL_UPPER_PRIORITY_COUNT 128u
+#define RAM_FIELD_TRAIL_UPPER_PRIORITY_STRIDE 0x01u
+/* The ground under the leader in the frame of each footprint (field_leader_ground) [128 x $1
+ * bytes, by footprint (field_trail_position)] */
+#define RAM_FIELD_TRAIL_GROUND 0x7F0F00u
+#define RAM_FIELD_TRAIL_GROUND_COUNT 128u
+#define RAM_FIELD_TRAIL_GROUND_STRIDE 0x01u
 /* Indirect tables of the eight per-line effects (tile map addresses, BG1-BG3 scroll, screens,
  * window 1, color math, window 2 edge), two sets, the second picked by field_display_flags [16 x
  * $57 bytes, by table set * 8 + effect slot] */
