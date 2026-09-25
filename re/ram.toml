@@ -3798,6 +3798,15 @@ meaning = "The three active party members as character ids, $80 for an empty slo
 source = "tools/movies/addresses.py PARTY_MEMBERS; game/event/party.c take_out_of_party $C0:3A07"
 
 [[var]]
+name = "party_waiting"
+addr = "7E:2983"
+count = 6
+index = "waiting place"
+subsystem = "core"
+meaning = "The party's members who aren't active, as character ids, $80 for an empty place"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
 name = "game_settings"
 addr = "7E:2990"
 count = 3
@@ -4479,15 +4488,15 @@ addr = "7E:0D49"
 count = 4
 index = "save slot"
 subsystem = "menu"
-meaning = "Nonzero for the save slots that hold a game; the load screen skips the others"
+meaning = "Nonzero for the save slots that hold a game, and for the fourth row while it can be chosen (the menus set it to $FF as they open; it is 0 while the load screen asks which game a New Game+ continues from); the load screen's cursor skips the others"
 source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_slot $C2:D36C"
 
 [[var]]
 name = "menu_wait_frames"
 addr = "7E:0D76"
 subsystem = "menu"
-meaning = "A frame countdown the vblank handler decrements until it reaches zero"
-source = "game/menu/display.c, menu_nmi_work $C2:842A"
+meaning = "A frame countdown the vblank handler decrements until it reaches zero: the menus' sounds wait on it, three frames after one plays"
+source = "game/menu/display.c, menu_nmi_work $C2:842A; game/menu/cursor.c, the menus' sounds $C2:EB03"
 
 [[var]]
 name = "menu_save_slot_era"
@@ -4539,6 +4548,49 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 0
   size = 2
   meaning = "The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte)"
+  [[var.field]]
+  name = "window_style_fourfold"
+  offset = 0
+  meaning = "The window command lists: the window style's number times four, halfway to its tiles' first"
+  [[var.field]]
+  name = "cursor_button_bit"
+  offset = 0
+  meaning = "The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last"
+  [[var.field]]
+  name = "erased_slot_rows"
+  offset = 0
+  size = 2
+  meaning = "The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic"
+  [[var.field]]
+  name = "slot_check"
+  offset = 0
+  size = 2
+  meaning = "The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong"
+  [[var.field]]
+  name = "label_moves"
+  offset = 0
+  size = 1
+  meaning = "A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in its place"
+  [[var.field]]
+  name = "window_columns_left"
+  offset = 0
+  size = 2
+  meaning = "The window command lists: the columns a swapped rectangle's row had left, 0 once it is done"
+  [[var.field]]
+  name = "window_right_side"
+  offset = 6
+  size = 2
+  meaning = "The window command lists: how far a frame's right side is from its left, in bytes"
+  [[var.field]]
+  name = "window_tile"
+  offset = 8
+  size = 2
+  meaning = "The window command lists: the tilemap word a frame's next part starts from, or the inside's first"
+  [[var.field]]
+  name = "window_pattern_row"
+  offset = 0x0A
+  size = 2
+  meaning = "The window command lists: which row of a window inside's four-row pattern comes next, times four"
   [[var.field]]
   name = "save_member_record"
   offset = 2
@@ -4594,7 +4646,7 @@ count = 42
 index = "cursor position of the current menu (the table runs up to the palette at $9480)"
 subsystem = "menu"
 meaning = "Where the cursor sprite goes for each cursor position of the current menu; the load screen moves its fourth row's between two choices"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot $C2:E743"
   [[var.field]]
   name = "x"
   offset = 0
@@ -4604,21 +4656,21 @@ source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_s
   offset = 1
   meaning = "The cursor's Y"
   [[var.field]]
-  name = "right"
+  name = "up"
   offset = 2
-  meaning = "The position right of this one ($80 set: none, leave the menu that way)"
-  [[var.field]]
-  name = "left"
-  offset = 3
-  meaning = "The position left of it"
+  meaning = "The position above this one ($80 set: the push leaves the menu's positions that way)"
   [[var.field]]
   name = "down"
-  offset = 4
+  offset = 3
   meaning = "The position below it"
   [[var.field]]
-  name = "up"
+  name = "left"
+  offset = 4
+  meaning = "The position left of it"
+  [[var.field]]
+  name = "right"
   offset = 5
-  meaning = "The position above it"
+  meaning = "The position right of it"
 
 [[var]]
 name = "menu_cursor_moves"
@@ -4760,6 +4812,254 @@ meaning = "The current menu's cursor position: the cursor sprite is placed from 
 source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
 
 [[var]]
+name = "menu_cursor_left_from"
+addr = "7E:0055"
+page = "menu"
+subsystem = "menu"
+meaning = "The cursor position the cursor last moved away from"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_frame_start"
+addr = "7E:0081"
+page = "menu"
+subsystem = "menu"
+meaning = "Where the cursor was when this frame's input was read: the menus play the cursor's sound where it has moved since"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_screen"
+addr = "7E:0067"
+page = "menu"
+subsystem = "menu"
+meaning = "Which of the menus' screens runs, by the dispatch at $C2:826F: 0 the main menu, 14 the load screen, and the rest between them"
+source = "game/menu/load_screen.c; the menus' main task $C2:826F"
+
+[[var]]
+name = "menu_screen_step"
+addr = "7E:0068"
+page = "menu"
+subsystem = "menu"
+meaning = "Which step of its screen the menus' main task runs this frame; each screen's steps are its handlers, in the table the screen's number picks"
+source = "game/menu/load_screen.c; game/menu/cursor.c, menu_read_cursor $C2:E984; the menus' main task $C2:826F"
+
+[[var]]
+name = "menu_save_slot_design"
+addr = "7E:0D79"
+count = 3
+index = "save slot"
+subsystem = "menu"
+meaning = "The window design each save slot's game was saved with, which the load screen draws the slot's row in"
+source = "game/menu/load_screen.c, the slots' rows $C2:D32C; the slots' summaries $C2:D266"
+
+[[var]]
+name = "menu_kept_cursor"
+addr = "7E:0F00"
+subsystem = "menu"
+meaning = "The cursor position a screen keeps to come back to: the load screen's slot while it asks whether to erase it"
+source = "game/menu/load_screen.c, $C2:E898, $C2:E731"
+
+[[var]]
+name = "menu_graphic_first_tile"
+addr = "7E:0DC7"
+size = 2
+subsystem = "menu"
+meaning = "The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the load screen's slot labels, the text loader's graphics)"
+source = "game/menu/load_screen.c, the slots' rows $C2:D10D; the text loader $C2:F9E1"
+
+[[var]]
+name = "second_controller"
+addr = "7E:041F"
+size = 2
+subsystem = "core"
+meaning = "The second controller's buttons as the console last read them, in the controller's own order, which the load screen looks at for its hidden erase (Select and Start held)"
+source = "game/menu/load_screen.c, $C2:E61B; the menus' input $C2:848D"
+
+[[var]]
+name = "save_slot_chosen"
+addr = "7E:0414"
+subsystem = "core"
+meaning = "The save slot the game goes on in: the one the player chose to load, or the first empty one a new game will be saved to"
+source = "game/menu/load_screen.c, $C2:E654, $C2:E691; the save's load $FF:F9FB"
+
+[[var]]
+name = "times_finished"
+addr = "7E:299E"
+subsystem = "core"
+meaning = "How many times the game on the cartridge has been finished, as a new game starts with it (the cartridge's count at $30:7FE1)"
+source = "game/menu/load_screen.c, $C2:E66A; the save $FF:FA6F"
+
+[[var]]
+name = "frames_at_leaving"
+addr = "7E:29AD"
+subsystem = "core"
+meaning = "The menus' frame count when they left for the game, which the battle takes its random numbers' start from"
+source = "game/menu/load_screen.c, $C2:E6A5, $C2:805E"
+
+[[var]]
+name = "menu_carry_on_question"
+addr = "7E:52C0"
+count = 0x100
+index = "byte"
+subsystem = "menu"
+meaning = "The load screen's slot header rows in BG3's tilemap buffer, where the question of which game a New Game+ carries on from is laid out over the header, and cleared when the player goes back"
+source = "game/menu/load_screen.c, $C2:E841, $C2:E6ED"
+
+[[var]]
+name = "menu_members"
+addr = "7E:0D5F"
+count = 9
+index = "member, as the menus list them"
+subsystem = "menu"
+meaning = "The party's characters as the menus list them: the active members, then the waiting ones, $FF past the last"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_member_places"
+addr = "7E:0D68"
+count = 9
+index = "member, as the menus list them"
+subsystem = "menu"
+meaning = "Each listed member's place in the party: 0-2 active, 3-8 waiting"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_blank_string"
+addr = "7E:9B76"
+count = 32
+index = "tile"
+subsystem = "menu"
+meaning = "Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where a list has nothing to name"
+source = "game/menu/opening.c, the menus' opening $C2:8103; its readers $C2:A5B6, $C2:DD71"
+
+[[var]]
+name = "menu_setting_sound_output"
+addr = "7E:0D86"
+subsystem = "menu"
+meaning = "The settings screen's cells, one a setting, which the menus unpack from the player's settings as they open: stereo or mono (the first byte's bit 3)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_own_buttons"
+addr = "7E:0D87"
+subsystem = "menu"
+meaning = "Nonzero where the player's own button assignments are in use rather than the default (the first byte's bit 4)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4; $C2:C564"
+
+[[var]]
+name = "menu_setting_keep_menu_cursors"
+addr = "7E:0D88"
+subsystem = "menu"
+meaning = "Nonzero where the menus keep their cursors' places from one opening to the next (the first byte's bit 5)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4; the main menu $C2:99D9"
+
+[[var]]
+name = "menu_setting_active_time"
+addr = "7E:0D89"
+subsystem = "menu"
+meaning = "Nonzero for the battle's active time (the first byte's bit 6)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_battle_gauge"
+addr = "7E:0D8A"
+subsystem = "menu"
+meaning = "The battle gauge's layout (the third byte's low two bits)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_battle_speed"
+addr = "7E:0D8B"
+subsystem = "menu"
+meaning = "The battle's speed (the first byte's low three bits)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_keep_battle_command"
+addr = "7E:0D8D"
+subsystem = "menu"
+meaning = "Nonzero where the battle keeps each member's command cursor (the second byte's bit 6)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_keep_battle_lists"
+addr = "7E:0D8E"
+subsystem = "menu"
+meaning = "Nonzero where the battle keeps each member's tech and item cursors (the second byte's bit 7)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_descriptions"
+addr = "7E:0D8F"
+subsystem = "menu"
+meaning = "Nonzero where the battle shows a tech's or item's description as the cursor meets it (the first byte's bit 7)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_message_speed"
+addr = "7E:0D90"
+subsystem = "menu"
+meaning = "How fast the dialog's messages go (the second byte's bits 3-5)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_slot_game_at"
+addr = "7E:007B"
+size = 2
+subsystem = "menu"
+meaning = "Where the save slot the save code last checked ($FF:F9C4) keeps its game, as the bus addresses save memory ($6000 on): what the slots' summaries are read from"
+source = "game/menu/save_screen.c, the slots read $C2:D19F, $C2:D266"
+
+[[var]]
+name = "menu_setting_spare"
+addr = "7E:0D91"
+subsystem = "menu"
+meaning = "The byte after the unpacked settings, which their clearing clears with them; nothing in bank C2 reads it"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_cursor_buttons"
+addr = "7E:0D1D"
+subsystem = "menu"
+meaning = "The buttons read this frame as the menus take them: bit 7 choose and bit 6 go back (the player's first two assignments), bits 1 and 0 the seventh and eighth, repeating; none on a step's first frame"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_direction"
+addr = "7E:0D1E"
+subsystem = "menu"
+meaning = "The way the cursor was pushed this frame: 0 right, 1 left, 2 down, 3 up, $80 none"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_held"
+addr = "7E:0D1F"
+subsystem = "menu"
+meaning = "Nonzero keeps the cursor where it is against the next push; the push clears it"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_step_seen"
+addr = "7E:0D17"
+subsystem = "menu"
+meaning = "The screen step the cursor last read the buttons in: a step's first frame reads none"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_always_back"
+addr = "7E:0D83"
+subsystem = "menu"
+meaning = "Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but the setup's clearing"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_queued_sounds"
+addr = "7E:0DBC"
+subsystem = "menu"
+meaning = "Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound 7, played by $C2:EAD6 the first first"
+source = "game/menu/cursor.c, menu_play_queued_sound $C2:EAD6"
+
+[[var]]
 name = "menu_cursor_flip"
 addr = "7E:0056"
 page = "menu"
@@ -4777,21 +5077,146 @@ meaning = "The cursor sprite's tile and attributes"
 source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D"
 
 [[var]]
-name = "menu_window_effect_channel"
-addr = "7E:005B"
+name = "menu_time_played_shown"
+addr = "7E:0022"
 page = "menu"
 size = 2
 subsystem = "menu"
-meaning = "The DMA channel base address window command 12 programs a per-line effect slot on"
-source = "game/menu/display.c, menu_window_set_line_effect $C2:F337"
+meaning = "The time played a save slot's header shows, as the numbers it draws: the hours (99 at most), then the minutes"
+source = "game/menu/text.c, menu_draw_time_played $C2:F28D"
 
 [[var]]
-name = "menu_window_effect_mode"
-addr = "7E:005D"
+name = "menu_tasks"
+addr = "7E:00B0"
+page = "menu"
+stride = 8
+count = 8
+index = "task, 8 bytes a task ($B0 + 8 * the task)"
+subsystem = "menu"
+meaning = "The menus' tasks, which their scheduler ($C2:81B9) runs a turn of each frame, each on a stack of its own: the screen's main task, the sprites' and the cursor's, a fade, a graphic's loading"
+source = "game/menu/load_screen.c; the scheduler $C2:81B9, a task's start $C2:8249, its yield $C2:821E"
+  [[var.field]]
+  name = "state"
+  offset = 0
+  meaning = "0 no task; 1 to start at `start`; 2 waiting `countdown` frames, to go on from `stack`"
+  [[var.field]]
+  name = "countdown"
+  offset = 1
+  meaning = "The frames the task still waits"
+  [[var.field]]
+  name = "start"
+  offset = 2
+  size = 2
+  meaning = "Where a task to start begins, in bank C2"
+  [[var.field]]
+  name = "stack"
+  offset = 4
+  size = 2
+  meaning = "The task's stack pointer while it waits"
+  [[var.field]]
+  name = "step"
+  offset = 6
+  meaning = "The screen step (menu_screen_step) the task waits in, put back when it goes on"
+
+[[var]]
+name = "menu_current_task"
+addr = "7E:006E"
 page = "menu"
 subsystem = "menu"
-meaning = "Window command 12's per-line transfer mode (the destination register follows it)"
-source = "game/menu/display.c, menu_window_set_line_effect $C2:F337"
+meaning = "The task the scheduler is running, its record's offset from the first ($B0)"
+source = "the scheduler $C2:81E8, a task's yield $C2:823A"
+
+[[var]]
+name = "menu_screen_argument"
+addr = "7E:0071"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "What the menus' caller entered them with in X, which the screen they open on takes as its argument (a shop's number, a party member)"
+source = "game/menu/opening.c, the menus' opening $C2:806B"
+
+[[var]]
+name = "menu_active_members"
+addr = "7E:0073"
+page = "menu"
+subsystem = "menu"
+meaning = "How many of the party's members are active (in its first three places), as the menus count them opening"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_member_count"
+addr = "7E:0075"
+page = "menu"
+subsystem = "menu"
+meaning = "How many members the party has, active and waiting, as the menus count them opening"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_list_top"
+addr = "7E:0057"
+page = "menu"
+subsystem = "menu"
+meaning = "The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared as the menus open"
+source = "game/menu/opening.c, the menus' opening $C2:8101; $C2:EAA7"
+
+[[var]]
+name = "menu_after_slot_shown"
+addr = "7E:007A"
+page = "menu"
+subsystem = "menu"
+meaning = "The byte after the save slot shown, which the slots' reading clears with it and then reads with it, the slot a word wide"
+source = "game/menu/save_screen.c, menu_read_save_slots $C2:D161, $C2:D168"
+
+[[var]]
+name = "menu_zero"
+addr = "7E:0051"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "A word the menus set to 0 as they open and read wherever they want a zero: an index's first value, a table's start (the number drawer's powers of two), a value ORed in"
+source = "game/menu/text.c, menu_number_to_bcd $C2:F13F; game/menu/windows.c; the menus' opening $C2:80FF"
+
+[[var]]
+name = "menu_window_operands"
+addr = "7E:005B"
+page = "menu"
+count = 6
+index = "the operand's byte"
+subsystem = "menu"
+meaning = "The operands of the window command being run, copied out of its list; the last command's stay behind (a shorter command leaves the longer one's last bytes after its own)"
+source = "game/menu/windows.c, menu_run_window_list $C2:ED31"
+
+[[var]]
+name = "menu_window_place"
+addr = "7E:0063"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $7E the last window command's window, string or rectangle starts: its place from the drawing origin, two bytes a tile and $40 a row; a command that walks rows down leaves it past the last it read"
+source = "game/menu/windows.c, the window command lists $C2:ED31, the place $C2:ED90"
+
+[[var]]
+name = "menu_fill_tile"
+addr = "7E:007D"
+page = "menu"
+subsystem = "menu"
+meaning = "The tile a window command last filled a stretch of tilemap with; the fill's attribute goes to the text's (menu_text_attribute, the byte after), which the strings drawn after it take"
+source = "game/menu/windows.c, the fill command $C2:ED77"
+
+[[var]]
+name = "menu_window_style"
+addr = "7E:0D47"
+size = 2
+subsystem = "menu"
+meaning = "The tilemap word of the window style being drawn's first tile: its number, where the style's twenty tiles start, and its attribute (palette and priority), which every tile of the window takes"
+source = "game/menu/windows.c, the window style $C2:EDD3"
+
+[[var]]
+name = "menu_window_design"
+addr = "7E:0D8C"
+subsystem = "menu"
+meaning = "Which of the eight window designs the player chose in the settings, which windows are drawn in unless their list names a style"
+source = "game/menu/windows.c, the window style $C2:EDD3 and colours $C2:ED08"
 
 [[var]]
 name = "menu_save_slot_shown"
@@ -4839,7 +5264,7 @@ addr = "7E:008A"
 page = "menu"
 stride = 4
 subsystem = "menu"
-meaning = "The text drawer's work: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word"
+meaning = "Work cells the text drawer and the window command lists share: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word; a window's columns and rows"
 source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispatch $C2:EFBE"
   [[var.field]]
   name = "number"
@@ -4851,6 +5276,16 @@ source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispat
   offset = 0
   size = 2
   meaning = "The last control code's handler, which its dispatch jumps through; nothing else reads it"
+  [[var.field]]
+  name = "window_columns"
+  offset = 0
+  size = 2
+  meaning = "The window command lists' drawing: how many columns wide (or bytes, less one, of a row it copies) what it draws is, as the last command left it"
+  [[var.field]]
+  name = "window_rows"
+  offset = 2
+  size = 2
+  meaning = "The window command lists' drawing: the rows it has left to draw or copy, which the last command leaves at 0 or at a frame's inside rows"
 
 [[var]]
 name = "menu_draw_origin"
@@ -4862,13 +5297,13 @@ meaning = "The place in a tilemap buffer in bank $7E the menus draw relative to:
 source = "game/menu/text.c, the move control code $C2:F005; game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
 
 [[var]]
-name = "menu_text_line_start"
+name = "menu_line_start"
 addr = "7E:0065"
 page = "menu"
 size = 2
 subsystem = "menu"
-meaning = "Where the line of text being drawn starts in bank $7E: a new line goes back there a row or two down, and the move code puts it anywhere"
-source = "game/menu/text.c, menu_draw_text $C2:EF65, the new line and move control codes $C2:EFF4, $C2:F005"
+meaning = "Where the line being drawn starts in bank $7E: a line of text, which a new line goes back to a row or two down and the move code puts anywhere; or the tilemap row a window command is drawing, which it leaves past the last"
+source = "game/menu/text.c, menu_draw_text $C2:EF65, the new line and move control codes $C2:EFF4, $C2:F005; game/menu/windows.c, the window command lists $C2:ED31"
 
 [[var]]
 name = "menu_number_digits"
@@ -6313,7 +6748,7 @@ count = 2
 stride = 2
 index = "plane"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Which background tile column of the map each plane has at its left edge (0-191), set from the party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its tile groups would be the first plane's map, so only two planes can be scrolled"
 source = "game/menu/map.c, menu_map_scroll_x $C2:0568, menu_map_redraw $C2:09C5"
 
@@ -6325,7 +6760,7 @@ count = 3
 stride = 2
 index = "plane"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "And which tile row it has at its top edge (0-127)"
 source = "game/menu/map.c, menu_map_scroll_y $C2:066C, menu_map_redraw $C2:09C5"
 

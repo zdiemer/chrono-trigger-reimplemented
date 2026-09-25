@@ -870,51 +870,7 @@ void menu_copy_to_memory(Snes *s)
     m_rts(s);
 }
 
-/* ---- Window commands -------------------------------------------------------------------------------- */
-
-/* Command 12 of the window command interpreter ($C2:ED31) takes the channel and
- * its two control bytes from the command stream, so the target has to be read
- * back out of them; the guard leaves a channel that isn't one of the eight
- * bases, or a pair no target names, to the original, which writes at whatever
- * offsets the operand gives. */
-bool menu_window_line_effect_is_known(Snes *s)
-{
-    uint16_t cell = (uint16_t)(s->cpu.d + 0x5B);
-    uint16_t channel = (uint16_t)(snes_bus_peek(&s->bus, cell) | snes_bus_peek(&s->bus, (uint16_t)(cell + 1)) << 8);
-    if ((channel & 0xFF8F) != M_DP_DMA)   /* the eight channels' own base addresses */
-        return false;
-    uint8_t control = snes_bus_peek(&s->bus, (uint16_t)(cell + 2));
-    uint8_t dest = snes_bus_peek(&s->bus, (uint16_t)(cell + 3));
-    VidLineEffect e = { 0 };
-    return vid_line_effect_decode(control, dest, &e);
-}
-
-/* A slot's table: at $7E:9000, 128 bytes a slot. */
-static uint16_t window_table_of(uint8_t slot) { return (uint16_t)(0x9000 + (slot << 7)); }
-
-// $C2:F337
-/* Program the per-line effect slot a window command names, from the
- * channel's control bytes, on its table, which the command's other handlers
- * fill. The command's operands are on its page: the channel's base address at
- * $5B and its control bytes at $5D; the table's address goes to $61. It
- * leaves the base in Y. */
-void menu_window_set_line_effect(Snes *s)
-{
-    Platform *pf = m_platform(s);
-    uint16_t base = m_read16(s, m_dp(s, 0x5B));
-    uint16_t control = m_read16(s, m_dp(s, 0x5D));
-    uint8_t slot = (uint8_t)((base >> 4) & 7);
-    uint16_t table = window_table_of(slot);
-    VidLineEffect e = { 0 };
-    vid_line_effect_decode((uint8_t)control, (uint8_t)(control >> 8), &e);
-    e.indirect_bank = 0x7E;
-    e.table = PF_GAME(0x7E0000u | table);
-    vid_set_line_slot(pf, PF_AT(0xC2F342), slot, &e);
-    m_write16(s, m_dp(s, 0x61), table);
-    vid_set_line_table(pf, PF_AT(0xC2F35C), slot, table);
-    s->cpu.y = base;
-    m_rts(s);
-}
+/* ---- The window line table ----------------------------------------------------------------------- */
 
 /* The window line table: 96 lines of one value, then sixteen groups of three
  * one-line entries, the first half at one level and the second at another,

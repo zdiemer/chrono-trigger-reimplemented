@@ -189,21 +189,14 @@ rest waits, is [PLAN.md](PLAN.md).
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
     mismatches in PORTING.md);
   - the load screen's member rows keep their own place, where the original
-    reads it back from its cells after the window list and the portrait (both
-    still the original's) have run: a list run over random memory that
-    changes those cells is where the two part (8 of about 3,400 fuzzed
-    slots); the lists' port closes it;
+    reads it back from its cells after the member row's window list and the
+    portrait have run; both are C now, and write those cells only as the
+    original does, so the two part only where a list's strings write over the
+    cells (none of the game's do);
   - the map's strips are built in the upload buffer where the game keeps it:
     `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
     whose top-left tile is off the map, or a queue without room for a
     scroll's strips to the original, none of which the library makes;
-  - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
-    mode compares `menu_draw_save_slot` only where the original's own code
-    calls it (1,139 of 15,708 calls; the rest are inside its caller's
-    comparison);
-  - `menu_saves_finished_game` (`menu/menu_data.h`) reads the cartridge's
-    save RAM at `$30:7FE2` through the ROM accessor: a save-RAM service should
-    take it;
   - the glyph drawer takes the font's addresses from the text engine
     (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
     that engine ported first;
@@ -483,17 +476,71 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
+  - the opening's call-outs: the menus' graphics (`$C2:968D`, with
+    `$C2:960B`-`$C2:9678` and the design's graphics `$C2:C511`), the
+    characters' sprites (`$C2:F3CA`), the items and figures (`$C2:9875`),
+    the text loader (`$C2:F90C`) and the save code in bank `$FF` (the slot's
+    check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
+    (`$C2:956E`);
+  - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
+    original's: ported, it matched where shadow mode compared it but broke the
+    `beyond_time` route in the shipping mode (RECOMP.md, "Phase 3, menus", "A
+    port that spans frames"). The drawing takes more than a frame and the
+    menus' vblank handler runs inside it; with the port's time owed at its
+    return, the handler is taken there twice and the game ends in a `BRK`.
+    Reproduce with the Final Battle save (`oracle/saves/technoplaza/ct-state15.srm`),
+    Start at frame 1620 and `--native on`: the screen is black at frame 1899.
+    Either the runtime's debt handling has a case the menus' handler meets
+    (its stack switch to `$1DFD`, its lag flag `$0D01`), or the port needs to
+    stop where the original's frame would. Worked out, the port can come
+    back;
+  - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
+    slot, and `ct_fuzz` can't run past its wait for the next frame
+    (`$C2:821E`, a task switch), so every fuzzed state is skipped. A movie that
+    erases a slot on the load screen would check it, and `menu_answer_erase`'s
+    "no" with it;
+  - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
+    `$D2C4`) only run inside `menu_open`'s comparison, so shadow mode compares
+    them there and the timing gate can't calibrate them alone: what their
+    estimates miss is in `menu_open`'s own rate (28004, against about 5000 for
+    the menus' other bridges); `$C2:D306` (a label moved two pixels right) is
+    inline in `$C2:D2C4` and no entry;
+  - a window list's strings that include work RAM (a name, a number) draw
+    through the text port's accepted divergences when fuzzing fills that RAM
+    at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of
+    the lists'); no list of the game's reaches them.
+- **What chunk 1's review of the menus left for later** (RECOMP.md, "Phase 3,
+  menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
+  `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
+  with named values, and the load screen's steps by name rather than
+  `step ± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
+  block moves' time charged in scaffolding; windows.c's operands decoded once
+  into a struct per operation; one `first_push()` in cursor.c; names for
+  `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
+  offsets and the literal `$9890`/`$98C9`; opening.c's driver calls as a table
+  of `PF_CALL_DC` sites;
+  - from the fixes' re-review: after a full `WINDOW` command and after
+    `menu_window_in_design` (`$C2:ECDB`) the inside's columns and rows are
+    still written only as scaffolding, so an inside drawn after one of them
+    would read stale sizes in the native shape (no screen does today);
+    `windows.c`'s "what the original leaves" comment still says nothing reads
+    those cells; `tools/disasm/keeps.py` steps over calls as reading nothing,
+    so a callee on the scheduler's path that reads a register would be missed
+    (the path has none today); `read_cursor`'s `(void)r;`.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to
   `$0920` (`TSX`) to run on a stack of its own, which the pairing of pushes
   can't follow, so its `PHP` reads every flag for every caller. The same holds
-  across the menus' task switch (`$C2:821E`), and for the scene program's task
-  lists (`$7E:3994`, `$7E:39C8`), whose tasks leave through `JMP $39A7` into
-  the loop's own code and carry on with the next task rather than return.
+  for the scene program's task lists (`$7E:3994`, `$7E:39C8`), whose tasks
+  leave through `JMP $39A7` into the loop's own code and carry on with the
+  next task rather than return.
   Following S through the cell it is saved in, and a callee that finishes its
   caller's iteration, would free them (RECOMP.md, "The tooling pass after
-  wave 1: the analysis").
+  wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
+  a `[[keeps]]` hint instead (RECOMP.md, "Phase 3, menus"); the scene's task
+  lists could take the same.
 - **Scene cells the menu objects use.** The C6 irises and motion routines
   (`menu/object_commands.c`) run on the menu's direct page and use the circle
   drawer's and the scaler's cells, which the map files under the scene; their

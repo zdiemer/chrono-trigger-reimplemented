@@ -210,12 +210,13 @@ static void charge_conversion(GameState *g, uint32_t value, uint8_t bytes)
 }
 
 /* The number of `bytes` bytes at `at` as decimal digits. */
-static uint32_t converted(GameState *g, uint32_t at, uint8_t bytes)
+static uint32_t value_converted(GameState *g, uint32_t value, uint8_t bytes)
 {
-    uint32_t value = number_at(g, at, bytes);
     ORIGINAL_EFFECT(charge_conversion(g, value, bytes));
     return decimal_digits(value);
 }
+
+static uint32_t converted(GameState *g, uint32_t at, uint8_t bytes) { return value_converted(g, number_at(g, at, bytes), bytes); }
 
 // $C2:F13F
 /* Convert the number of `bytes` bytes at `at` to decimal digits, for the menus
@@ -229,14 +230,19 @@ static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
 // $C2:F114
 /* Draw the number at `at` as its format says, at the pen. Returns where the
  * pen goes on. */
-static uint16_t draw_number(GameState *g, uint32_t at, uint8_t format, uint16_t pen)
+static uint16_t draw_value(GameState *g, uint32_t value, uint8_t format, uint16_t pen)
 {
     NumberFormat f = number_format(format);
-    uint32_t digits = converted(g, at, f.bytes);
+    uint32_t digits = value_converted(g, value, f.bytes);
     set_menu_text_work_number(g, digits);
     uint16_t after = draw_digits(g, pen, digits, f);
     ORIGINAL_EFFECT(leave_number_drawn(g, format, f, digits, pen));
     return after;
+}
+
+static uint16_t draw_number(GameState *g, uint32_t at, uint8_t format, uint16_t pen)
+{
+    return draw_value(g, number_at(g, at, number_format(format).bytes), format, pen);
 }
 
 /* Where the number's four bytes are on the menus' page, as the original
@@ -309,8 +315,8 @@ static bool count_a_tile(GameState *g)
  * one-row text. */
 static uint16_t new_line(GameState *g)
 {
-    uint16_t start = (uint16_t)(menu_text_line_start(g) + (one_row(g) ? ROW_BYTES : 2 * ROW_BYTES));
-    set_menu_text_line_start(g, start);
+    uint16_t start = (uint16_t)(menu_line_start(g) + (one_row(g) ? ROW_BYTES : 2 * ROW_BYTES));
+    set_menu_line_start(g, start);
     return start;
 }
 
@@ -318,7 +324,7 @@ static uint16_t new_line(GameState *g)
 static uint16_t move_to(GameState *g, uint16_t offset)
 {
     uint16_t start = (uint16_t)(offset + menu_draw_origin(g));
-    set_menu_text_line_start(g, start);
+    set_menu_line_start(g, start);
     return start;
 }
 
@@ -515,10 +521,60 @@ static TextPlace draw_text(GameState *g, TextPlace p, uint16_t *pen, uint8_t set
 {
     set_menu_text_flags(g, settings);
     set_menu_text_tile_limit(g, (uint8_t)(settings & 0x7F));
-    set_menu_text_line_start(g, *pen);
+    set_menu_line_start(g, *pen);
     TextPlace stopped = draw_string(g, p, pen);
     set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) & KEPT_AFTER_A_STRING));
     return stopped;
+}
+
+// $C2:F28D
+/* The time played, as hours and minutes with a colon between, from its
+ * digits at `digits` in work RAM (bank $7E): the minutes' units and tens,
+ * the hours' units and tens, and a fifth byte set once the clock has run past
+ * what the digits hold, which shows as 99:59. Each number two digits with no
+ * leading zero blanked, the colon in the attribute of the tile the screen was
+ * last filled with. Returns where the pen goes on. */
+enum { MOST_HOURS = 99, MOST_MINUTES = 59, COLON = 0x2D, TWO_DIGITS = 0x91 };
+
+static uint8_t two_digits_at(const GameState *g, uint16_t at)
+{
+    uint8_t units = wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | at);
+    uint8_t tens = wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(at + 1));
+    return (uint8_t)(tens * 10 + units);
+}
+
+/* The time's four digits are decimal, or the clock has run past them (its
+ * fifth byte set), when they aren't read at all. */
+enum { TIME_DIGIT_COUNT = 4, TIME_RAN_PAST = 4, MOST_DIGIT = 9 };
+
+bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits)
+{
+    if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
+        return true;
+    for (unsigned i = 0; i < TIME_DIGIT_COUNT; i++)
+        if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
+            return false;
+    return true;
+}
+
+uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits)
+{
+    uint8_t hours = MOST_HOURS, minutes = MOST_MINUTES;
+    if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
+        minutes = two_digits_at(g, digits);
+        hours = two_digits_at(g, (uint16_t)(digits + 2));
+    }
+    set_menu_time_played_shown(g, (uint16_t)(minutes << 8 | hours));
+    pen = draw_value(g, hours, TWO_DIGITS, pen);
+    wram_write16(g, in_tilemap(pen, 0), (uint16_t)(menu_text_attribute(g) << 8 | COLON));
+    pen = (uint16_t)(pen + TILE_BYTES);
+    return draw_value(g, minutes, TWO_DIGITS, pen);
+}
+
+uint16_t menu_draw_string(GameState *g, uint32_t string, uint16_t pen, uint8_t settings)
+{
+    (void)draw_text(g, (TextPlace){ (uint8_t)(string >> 16), (uint16_t)string }, &pen, settings);
+    return pen;
 }
 
 /* ---- The entries ------------------------------------------------------------------------- */
@@ -637,4 +693,40 @@ void menu_number_to_bcd(Snes *s)
     convert_number(g, m_abs(s, s->cpu.y), bytes);
     s->cpu.y = (uint16_t)(s->cpu.y + bytes);
     m_rts(s);
+}
+
+// $C2:F28D
+void menu_draw_time(Snes *s)
+{
+    (void)menu_draw_time_played(state_of(s), s->cpu.x, s->cpu.y);
+    m_rts(s);
+}
+
+/* The time played is read where the game keeps a header's digits, in work
+ * RAM's bank, apart from the cells the time is drawn from, and drawn past the
+ * drawer's cells; its digits are decimal, as the clock keeps them. */
+enum { TIME_DIGITS = 5, TIME_SHOWN_CELLS = 0x22, TIME_SHOWN_END = 0x24 };
+
+static bool clear_of_the_time_shown(uint16_t digits)
+{
+    return (uint32_t)digits + TIME_DIGITS <= TIME_SHOWN_CELLS || digits >= TIME_SHOWN_END;
+}
+
+/* Nor is the time drawn over the stack: five tiles from the pen, clear of the
+ * drawer's calls below the stack pointer and of the caller's return above it. */
+enum { TIME_TILES = 5, CALLS_BELOW = 16, RETURN_BYTES = 2 };
+
+static bool pen_clear_of_the_stack(uint16_t pen, uint16_t sp)
+{
+    return (uint32_t)pen + TIME_TILES * TILE_BYTES + CALLS_BELOW <= sp || pen > (uint32_t)sp + RETURN_BYTES;
+}
+
+bool menu_time_is_drawable(Snes *s)
+{
+    vars_peek(true);
+    bool decimal = menu_time_digits_are_decimal(state_of(s), s->cpu.y);
+    vars_peek(false);
+    return on_the_menus_page(s) && s->cpu.db == TILEMAP_BANK && converts_from_one(s) && clear_of_the_time_shown(s->cpu.y)
+           && decimal && pen_clear_of_the_stack(s->cpu.x, s->cpu.s)
+           && clear_of_the_drawers_cells(0x7E0000u | s->cpu.y, s->cpu.x) && clear_of_the_stack(0x7E0000u | s->cpu.y, s->cpu.s);
 }

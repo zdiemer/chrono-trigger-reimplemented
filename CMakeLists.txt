@@ -122,15 +122,19 @@ add_library(ct_game STATIC
   game/field/walk.c
   game/field/sprites.c
   game/field/window_shape.c
+  game/menu/bridge.c
+  game/menu/cursor.c
   game/menu/display.c
   game/menu/epoch.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/line_effects.c
+  game/menu/load_screen.c
   game/menu/map.c
   game/menu/object_commands.c
   game/menu/object_script.c
   game/menu/objects.c
+  game/menu/opening.c
   game/menu/save_screen.c
   game/menu/script.c
   game/menu/script_bridge.c
@@ -140,6 +144,7 @@ add_library(ct_game STATIC
   game/menu/top_layer.c
   game/menu/vram.c
   game/menu/wave.c
+  game/menu/windows.c
   game/sound/driver.c
   game/sound/sequencer.c
   game/sound/songs.c

@@ -90,16 +90,19 @@ HEADERS = ("runtime/port/native.h", "runtime/cpu/cpu65816.h")
 DEFAULT_COVERAGE = ("traces/coverage-*.txt", "traces/saves/cov-*.txt")
 DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
-# The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h):
-# bridge_call(s, site, target, set, machine) and bridge_call_long(...), and the
-# battle's battle_call(s, site, target, set) and battle_call_long(...), are
+# The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h,
+# game/menu/bridge.h): bridge_call(s, site, target, set, machine) and
+# bridge_call_long(...), the battle's battle_call(s, site, target, set) and
+# battle_call_long(...), and the menus' menu_call and menu_call_long, are
 # m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
 # call's return; their arguments are read where they are called, and the
 # helpers' own bodies (BRIDGES) aren't declarations of their own.
-DELEGATES = ("bridge_call", "bridge_call_long", "battle_call", "battle_call_long")
+DELEGATES = ("bridge_call", "bridge_call_long", "battle_call", "battle_call_long", "menu_call", "menu_call_long",
+             "menu_call_returning")
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back"),
+    "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
 DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES
@@ -1199,6 +1202,13 @@ def main(argv=None) -> int:
         return rom.data[off] if off is not None else None
 
     findings, rows, counts = run(args.tree, lv, opcode_at, strict)
+    # The `[[keeps]]` hints liveness takes on trust, checked against the code
+    # (tools/disasm/keeps.py): a wrong one kills a register every declaration
+    # past it could lean on.
+    from tools.disasm import keeps as keeps_mod
+    wrong_keeps = keeps_mod.check(an)
+    for f in wrong_keeps:
+        print(f)
     if args.list:
         for r in rows:
             print(r)
@@ -1207,7 +1217,7 @@ def main(argv=None) -> int:
     print(f"{len(findings)} finding(s) over {counts['entries']} entries with a don't-care set, "
           f"{counts['stops']} stop and {counts['calls']} call-out declarations"
           + ("" if calls else " (no call logs: liveness may be too trusting)"))
-    return 1 if findings else 0
+    return 1 if findings or wrong_keeps else 0
 
 
 if __name__ == "__main__":
