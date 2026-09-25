@@ -1785,6 +1785,16 @@ meaning = "Sprites of the current object still to write while the OAM table is b
 source = "game/field/sprites.c, field_draw_object_sprites $C0:B309"
 
 [[var]]
+name = "field_scratch_more"
+addr = "7E:01E7"
+page = "field"
+count = 2
+index = "cell ($E7, $E8)"
+subsystem = "field"
+meaning = "Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where its last four sprites' records start there, or (the 24-sprite layout's) the third of them's ninth bit (field/scratch.h: kept for the original's code and shadow mode)"
+source = "game/field/sprites.c, leave_larger_place ($C0:BA65, $C0:BFF2, $C0:C6E7)"
+
+[[var]]
 name = "field_work"
 addr = "7E:01C1"
 page = "field"
@@ -13325,3 +13335,23 @@ index = "layer (BG1-BG3)"
 subsystem = "field"
 meaning = "Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0, the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's load, the whole screen's rows"
 source = "game/field/streaming.c, build_line ($C0:7612-$C0:7F57)"
+
+[[var]]
+name = "field_sprite_vram_claims"
+addr = "7E:0BC0"
+count = 8
+index = "area: the four spare sprite tile areas in VRAM from $3800, $200 words each (the last four entries are cleared with them and claim nothing read so far)"
+subsystem = "field"
+meaning = "Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's records are rebuilt from the frame"
+source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA), free_frame_areas ($C0:E9E2, $C0:E9FF, $C0:EA1F), free_every_frame_area $C0:E935"
+
+[[var]]
+name = "field_object_frame_vram"
+addr = "7E:0D80"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas it claimed"
+source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA)"

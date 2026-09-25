@@ -167,7 +167,23 @@ uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n)
 
 void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits)
 {
-    set_field_object_sprite_high(g, obj, (uint16_t)((field_object_sprite_high(g, obj) & 0xFF00) | bits));
+    object_set_sprites_high_bits(g, obj, 0, bits);
+}
+
+void object_set_sprites_high_bits(GameState *g, FieldObject obj, unsigned first, uint8_t bits)
+{
+    unsigned w = first / SPRITES_A_HIGH_WORD;
+    bool high_byte = (first / SPRITES_A_HIGH_BYTE) & 1;
+    uint16_t word = w == 0   ? field_object_sprite_high(g, obj)
+                    : w == 1 ? field_object_sprite_high_more(g, obj)
+                             : field_object_sprite_high_last(g, obj);
+    word = high_byte ? (uint16_t)((word & 0x00FF) | bits << 8) : (uint16_t)((word & 0xFF00) | bits);
+    if (w == 0)
+        set_field_object_sprite_high(g, obj, word);
+    else if (w == 1)
+        set_field_object_sprite_high_more(g, obj, word);
+    else
+        set_field_object_sprite_high_last(g, obj, word);
 }
 
 /* The records' state is kept as a byte: the count, and the top bit set once

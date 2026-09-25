@@ -161,6 +161,7 @@ uint16_t object_sprite_records(const GameState *g, FieldObject obj);
  * sets the first four's. */
 uint8_t object_sprite_high_bits(const GameState *g, FieldObject obj, unsigned n);
 void object_set_first_sprites_high_bits(GameState *g, FieldObject obj, uint8_t bits);
+void object_set_sprites_high_bits(GameState *g, FieldObject obj, unsigned first, uint8_t bits);
 
 /* Its sprite records' state: whether they have been built since the object
  * came into view, and how many of the frame's sprites the frame builder has

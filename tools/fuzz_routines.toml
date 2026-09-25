@@ -4234,6 +4234,131 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", 
 why = "the object below $100 with its records below $300, inside the records (the guard refuses records past them); the records' routines run as call-outs"
 
 [[routine]]
+name = "field_place_8_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
+why = "placing the 8-sprite layout: the object in X the current one (the guard's), its records anywhere the guard takes, its screen position and offsets random (every zone's rules)"
+
+[[routine]]
+name = "field_place_8_sprites"
+variant = "above"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02", "--fill", "7E0A91-7E0A91=01-01"]
+why = "the object above the screen's top (its screen Y's ninth bit set), where each routine keeps only what comes round onto the screen"
+
+[[routine]]
+name = "field_rebuild_8_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
+why = "rebuilding the 8-sprite layout from the frame: the object in X the current one (the guard's), its records anywhere the guard takes, its screen position and offsets random (every zone's rules)"
+
+[[routine]]
+name = "field_rebuild_8_sprites"
+variant = "above"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02", "--fill", "7E0A91-7E0A91=01-01"]
+why = "the object above the screen's top (its screen Y's ninth bit set), where each routine keeps only what comes round onto the screen"
+
+[[routine]]
+name = "field_place_12_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
+why = "placing the 12-sprite layout: the object in X the current one (the guard's), its records anywhere the guard takes, its screen position and offsets random (every zone's rules)"
+
+[[routine]]
+name = "field_place_12_sprites"
+variant = "above"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02", "--fill", "7E0A91-7E0A91=01-01"]
+why = "the object above the screen's top (its screen Y's ninth bit set), where each routine keeps only what comes round onto the screen"
+
+[[routine]]
+name = "field_rebuild_12_sprites"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02"]
+why = "rebuilding the 12-sprite layout from the frame: the object in X the current one (the guard's), its records anywhere the guard takes, its screen position and offsets random (every zone's rules)"
+
+[[routine]]
+name = "field_rebuild_12_sprites"
+variant = "above"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=0010-0010", "--fill", "[X]+1700,1=00-00", "--fill", "[X]+1701,1=00-02", "--fill", "7E0A91-7E0A91=01-01"]
+why = "the object above the screen's top (its screen Y's ninth bit set), where each routine keeps only what comes round onto the screen"
+
+[[routine]]
+name = "field_free_4_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=0E-12"]
+why = "the current object 8, the four areas' claims its own, a neighbour's or one either side of it, so each run of 1 is found or not"
+
+[[routine]]
+name = "field_free_8_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=0E-12"]
+why = "the current object 8, the four areas' claims its own, a neighbour's or one either side of it, so each run of 2 is found or not"
+
+[[routine]]
+name = "field_free_12_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=0E-12"]
+why = "the current object 8, the four areas' claims its own, a neighbour's or one either side of it, so each run of 3 is found or not"
+
+[[routine]]
+name = "field_claim_4_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=7E-81"]
+why = "the current object 8; each area free or held (a byte either side of the top bit), so a run of 1 is found at each place or not at all"
+
+[[routine]]
+name = "field_claim_8_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=7E-81"]
+why = "the current object 8; each area free or held (a byte either side of the top bit), so a run of 2 is found at each place or not at all"
+
+[[routine]]
+name = "field_claim_12_sprite_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0BC0-7E0BC3=7E-81"]
+why = "the current object 8; each area free or held (a byte either side of the top bit), so a run of 3 is found at each place or not at all"
+
+[[routine]]
+name = "field_free_every_sprite_area"
+subsystem = "field"
+state = "field"
+args = []
+why = "any state: it sets its own page"
+
+[[routine]]
+name = "field_update_object_sprites"
+variant = "larger"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-02", "--fill", "[7E016D]+1201,1=01-03", "--fill", "[7E016D]+1B00,1=00-84"]
+why = "the 8-, 12- and 24-sprite layouts, their records built or not and changed by 0-4 sprites: placing, rebuilding and freeing the frame's areas, or nothing"
+
+[[routine]]
+name = "field_draw_object_sprites"
+variant = "larger"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016E-7E016E=00-00", "--fill", "[7E016D]+1700,1=00-00", "--fill", "[7E016D]+1701,1=00-02", "--keep", "7E0181-7E018C", "--keep", "7E01DB-7E01E0", "--fill", "[7E016D]+1201,1=01-03", "--fill", "[7E016D]+1B00,1=00-84"]
+why = "the 8-, 12- and 24-sprite layouts, their records built or not and changed by 0-4 sprites: placing, rebuilding and freeing the frame's areas, or nothing"
+
+[[routine]]
 name = "field_position_sprites"
 subsystem = "field"
 state = "field"

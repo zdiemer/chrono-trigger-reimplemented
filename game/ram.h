@@ -752,6 +752,14 @@
 #define RAM_FIELD_SPRITE_RANGE_NEXT_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_STRIDE 0x02u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_DP 0xDBu /* page field */
+/* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
+ * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
+ * ninth bit (field/scratch.h: kept for the original's code and shadow mode) [2 x $1 bytes, by
+ * cell ($E7, $E8)] */
+#define RAM_FIELD_SCRATCH_MORE 0x7E01E7u
+#define RAM_FIELD_SCRATCH_MORE_COUNT 2u
+#define RAM_FIELD_SCRATCH_MORE_STRIDE 0x01u
+#define RAM_FIELD_SCRATCH_MORE_DP 0xE7u      /* page field */
 /* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
  * field_object_in_the_way found blocking [2 bytes] */
 #define RAM_FIELD_TARGET_OBJECT 0x7E01E9u
@@ -878,6 +886,15 @@
 #define RAM_FIELD_OBJECT_SCREEN_Y 0x7E0A80u
 #define RAM_FIELD_OBJECT_SCREEN_Y_COUNT 64u
 #define RAM_FIELD_OBJECT_SCREEN_Y_STRIDE 0x02u
+/* Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of
+ * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
+ * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
+ * records are rebuilt from the frame [8 x $1 bytes, by area: the four spare sprite tile areas in
+ * VRAM from $3800, $200 words each (the last four entries are cleared with them and claim
+ * nothing read so far)] */
+#define RAM_FIELD_SPRITE_VRAM_CLAIMS 0x7E0BC0u
+#define RAM_FIELD_SPRITE_VRAM_CLAIMS_COUNT 8u
+#define RAM_FIELD_SPRITE_VRAM_CLAIMS_STRIDE 0x01u
 /* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
  * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
 #define RAM_FIELD_BG2_HALF_SCROLL 0x7E0BC9u
@@ -909,6 +926,11 @@
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY 0x7E0C00u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_COUNT 64u
 #define RAM_FIELD_OBJECT_SPRITE_PRIORITY_STRIDE 0x02u
+/* Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas
+ * it claimed [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_FRAME_VRAM 0x7E0D80u
+#define RAM_FIELD_OBJECT_FRAME_VRAM_COUNT 64u
+#define RAM_FIELD_OBJECT_FRAME_VRAM_STRIDE 0x02u
 /* First object of each screen row's list, negative for none [64 x $2 bytes, by screen row
  * (screen Y / 4, even)] */
 #define RAM_FIELD_ROW_FIRST_OBJECT 0x7E0E00u

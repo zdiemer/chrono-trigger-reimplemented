@@ -966,6 +966,13 @@ enum { FIELD_SPRITE_RANGE_NEXT_COUNT = 3 };   /* by sprite range (0 priority bit
 uint16_t field_sprite_range_next(const GameState *g, unsigned i);
 void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v);
 
+enum { FIELD_SCRATCH_MORE_COUNT = 2 };   /* by cell ($E7, $E8) */
+/* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
+ * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
+ * ninth bit (field/scratch.h: kept for the original's code and shadow mode) */
+uint8_t field_scratch_more(const GameState *g, unsigned i);
+void set_field_scratch_more(GameState *g, unsigned i, uint8_t v);
+
 /* Slot of the object a move approaches (doubled, a word, as the event moves keep it), or that
  * field_object_in_the_way found blocking */
 uint16_t field_target_object(const GameState *g);
@@ -1130,6 +1137,14 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
 
+enum { FIELD_SPRITE_VRAM_CLAIMS_COUNT = 8 };   /* by area: the four spare sprite tile areas in VRAM from $3800, $200 words each (the last four entries are cleared with them and claim nothing read so far) */
+/* Which object (its offset, slot * 2) holds each of the spare sprite tile areas a new frame of
+ * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
+ * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
+ * records are rebuilt from the frame */
+uint8_t field_sprite_vram_claims(const GameState *g, unsigned i);
+void set_field_sprite_vram_claims(GameState *g, unsigned i, uint8_t v);
+
 /* Bit 7: BG2 scrolls a pixel for every two its moves ask for, and keeps screen edges of its own
  * (field_bg2_screen_left...); from the map's flags ($C0:A3A4) */
 uint8_t field_bg2_half_scroll(const GameState *g);
@@ -1185,6 +1200,12 @@ void set_field_object_sprite_priority(GameState *g, unsigned slot, uint16_t v);
  * past the tables (game/field/party_trail.c leave_stray_priorities, $C0:9E0E) */
 uint16_t field_object_sprite_priority_unchecked(const GameState *g, unsigned slot);
 void set_field_object_sprite_priority_unchecked(GameState *g, unsigned slot, uint16_t v);
+
+enum { FIELD_OBJECT_FRAME_VRAM_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where in VRAM (a word address) the object's new frame's tiles go: the first of the spare areas
+ * it claimed */
+uint16_t field_object_frame_vram(const GameState *g, unsigned slot);
+void set_field_object_frame_vram(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_ROW_FIRST_OBJECT_COUNT = 64 };   /* by screen row (screen Y / 4, even) */
 /* First object of each screen row's list, negative for none */
