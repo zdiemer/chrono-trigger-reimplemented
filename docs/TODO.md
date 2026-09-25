@@ -475,7 +475,15 @@ rest waits, is [PLAN.md](PLAN.md).
   into a struct per operation; one `first_push()` in cursor.c; names for
   `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
   offsets and the literal `$9890`/`$98C9`; opening.c's driver calls as a table
-  of `PF_CALL_DC` sites.
+  of `PF_CALL_DC` sites;
+  - from the fixes' re-review: after a full `WINDOW` command and after
+    `menu_window_in_design` (`$C2:ECDB`) the inside's columns and rows are
+    still written only as scaffolding, so an inside drawn after one of them
+    would read stale sizes in the native shape (no screen does today);
+    `windows.c`'s "what the original leaves" comment still says nothing reads
+    those cells; `tools/disasm/keeps.py` steps over calls as reading nothing,
+    so a callee on the scheduler's path that reads a register would be missed
+    (the path has none today); `read_cursor`'s `(void)r;`.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to
