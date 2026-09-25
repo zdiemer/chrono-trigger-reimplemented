@@ -50,6 +50,14 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Sn
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    /* the sibling runs as C only where the runtime would run it there, its
+     * guard and preconditions holding; otherwise the call is a real one, and
+     * the runtime runs whatever the registry has for the state it meets */
+    const NativeEntry *e = native_hand_entry(s);
+    if (!e || e->fn != entry) {
+        s->cpu.s = stack;
+        return long_call ? battle_call_long(s, site, routine, 0) : battle_call(s, site, routine, 0);
+    }
     NATIVE_TIME_AS(s, routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
     return returned && battle_back(s, returns_to, page, data_bank(s));

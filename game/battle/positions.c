@@ -46,7 +46,7 @@ static uint16_t distance_squared(GameState *g, BattlePoint a, BattlePoint b)
     uint16_t sum = (uint16_t)(dx_squared + battle_multiply(g, dy, dy));
     ORIGINAL_EFFECT(leave_work_word(g, LEFT_FIRST, dy));
     ORIGINAL_EFFECT(leave_work_word(g, LEFT_SECOND, dx_squared));
-    ORIGINAL_EFFECT(set_battle_product(g, sum));
+    set_battle_product(g, sum); /* the reach tests' callers take their carry from it */
     return sum;
 }
 
@@ -388,7 +388,9 @@ Overlap battle_box_overlaps(GameState *g, uint8_t slot)
 /* ---- Directions ------------------------------------------------------------------------------ */
 
 /* What the direction leaves in its cells: the two points, their differences
- * and signs, their sizes, the table's place and the angle ($D3-$E3). */
+ * and signs, their sizes, the table's place and the angle ($D3-$E3). The
+ * original's callers ask for the next direction from the points left there,
+ * so they are game state, kept plainly. */
 static void leave_direction(GameState *g, BattlePoint from, BattlePoint to, uint8_t across, uint8_t down, uint8_t angle)
 {
     uint16_t index = battle_arctangent_index(across, down);
@@ -414,7 +416,7 @@ uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to)
         angle = below ? (uint8_t)(HALF_TURN - angle) : (uint8_t)(HALF_TURN + angle);
     else if (!below)
         angle = (uint8_t)-angle;
-    ORIGINAL_EFFECT(leave_direction(g, from, to, across, down, angle));
+    leave_direction(g, from, to, across, down, angle);
     return angle;
 }
 

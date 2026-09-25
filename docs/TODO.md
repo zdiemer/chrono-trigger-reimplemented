@@ -199,19 +199,6 @@ rest waits, is [PLAN.md](PLAN.md).
       ...), `battle_target_display`'s fields, and the stale `source` lines
       naming functions that no longer exist (`battle_run_queued_scripts`
       and about fifty others);
-    - `battle_run` (`game/battle/bridge.c`) runs a sibling entry as C without
-      its guard, so a sibling whose guard would turn the state away (a
-      fuzzed place, a turn naming no combatant) runs anyway, and callers
-      guard by hand where it matters (`battle_take_turn`). The fix: give
-      `battle_run`/`battle_run_long` the entry's guard (every sibling the
-      battle runs has one: the per-entry `_ready` guards of the scripts'
-      commands, `battle_on_page` and the rest) and, where it refuses, make
-      the JSR as a real call-out (`m_jsr_dc`/`m_jsl_dc` at the same site, no
-      don't-care), which shadow mode pairs with the original's call as it
-      does any other and which the runtime then runs through the registry,
-      guard and all. Twenty-four call sites change; a registry lookup of a
-      guard by address (`runtime/port/native.h` has none) would spare them
-      naming it, but is a runtime change;
     - from the enemies' minds' review (RECOMP.md, "Phase 3, wave 2: the
       enemies' minds"): `enemy_turn.c` runs the actions' turns, which are C,
       as sibling entries through `battle_run` and the dispatch's registers,
@@ -432,23 +419,6 @@ rest waits, is [PLAN.md](PLAN.md).
   first chunks"). Each is a value the native build reads stale unless shown
   otherwise; answering one deletes its line. What the library's shipping-mode
   runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
-  - battle: the long arithmetic's cells are read as game state after only
-    scaffolding wrote them, the case the first chunk's `battle_long_high_word`
-    answered for one cell: `battle_divide` reads `battle_wide_math`
-    (`$2A`-`$2F`) its own or `battle_multiply_16x16`'s scaffolding left (the
-    original's callers divide what the last multiply or divide left there),
-    `battle_multiply_16x16` reads `$2B` so, and the random draws
-    (`battle_draw_random`, `battle_draw_random_other`) read `$2C`-`$2D` that
-    `battle_multiply_16x16`'s scaffolding left; the reach tests
-    (`battle_touching`, `battle_within_long_reach`, `_near_reach`,
-    `_search_reach`) read `battle_product` (`$AF`-`$B0`) their own scaffolding
-    wrote; `battle_direction_between` reads `battle_direction_cells`
-    (`$D5`-`$D6`) likewise (twice, `endings-bucket-lavos`);
-    `battle_enemy_find_reactions` reads `battle_enemy_turn` (`$B252`) after
-    `battle_dispatch_expired_timers`' scaffolding; and
-    `battle_set_screen_effect` reads `battle_scratch` `$55`-`$57`, last
-    written by `battle_build_fade_tables`' and `battle_decode_tile_row`'s
-    scaffolding;
   - field and event: `field_current_object`'s high byte (`$016E`), which only
     scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
     `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
@@ -461,7 +431,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
     scaffolding wrote that byte (`menus-end-of-time`), which may be a field
     cell over the same byte rather than the menus' own.
-  The source check's findings on main are broader (battle 101, field 29,
+  The source check's findings on main are broader (battle 87, field 29,
   event 3, menu 103, scene 15, core 1, by element, after the battle's and the
   menus' first chunks; `python3 tools/effects_check.py`): most
   are the entry wrappers reading the operands the original's callers hand

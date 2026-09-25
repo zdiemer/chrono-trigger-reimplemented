@@ -6852,6 +6852,24 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
+**Battle's findings, answered.** The long arithmetic's cells (`$28`-`$33`,
+the 8-bit multiplies' operands and the multiplier's copies) are game state:
+the original's callers multiply and divide what the last call left there, so
+`game/battle/arith.c` writes them plainly and only the multiplier's and
+divider's own state is scaffolding. So are the reach tests' product
+(`battle_product`), the direction's cells, the fade tables' last intensities
+and the tile decoder's row cells (`$53`-`$57`, which a screen effect's settings
+read where its command doesn't set them), and the enemy at work
+(`battle_enemy_turn`) as the choosing leaves it, written after its scaffolding
+so that the plain write is the last. What is left in the baseline for battle
+is the entries' operands, each line with its reason. `battle_run` now runs a
+sibling as C only where the registry gives that sibling's entry for the state
+(`native_hand_entry`, guard and preconditions included); otherwise it makes
+the call as the original's, with nothing declared don't-care, and the runtime
+runs whatever the registry has there. The library's gate passes unchanged,
+with `battle_enemy_scripts_choose` recalibrated (8,036 to 7,902) for the
+plain writes it makes now.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

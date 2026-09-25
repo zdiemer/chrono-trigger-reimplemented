@@ -101,7 +101,7 @@ DELEGATES = ("bridge_call", "bridge_call_long", "battle_call", "battle_call_long
              "menu_call_returning")
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back"),
-    "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back"),
+    "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry"),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]

@@ -6,10 +6,12 @@
  * interrupt handlers, which do arithmetic of their own and put the operands
  * back (battle/nmi.c). A port computes in C; these return the result, and
  * leave what the original's routine leaves -- the cells, the copies, the
- * multiplier's and divider's state -- for the original's code and shadow mode
- * (scaffolding, game/original_effects.h). A port that ran the routine's work
- * inline in a caller's call to it leaves the same, so the caller's port
- * matches the original's caller. */
+ * multiplier's and divider's state. The cells and the copies are game state,
+ * kept plainly: the original's callers multiply and divide what the last
+ * multiply or divide left in them, and the interrupt handlers put the copies
+ * back; only the hardware's state is scaffolding (game/original_effects.h). A
+ * port that ran the routine's work inline in a caller's call to it leaves the
+ * same, so the caller's port matches the original's caller. */
 #ifndef CT_GAME_BATTLE_ARITH_H
 #define CT_GAME_BATTLE_ARITH_H
 

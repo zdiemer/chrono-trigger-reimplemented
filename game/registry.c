@@ -412,7 +412,7 @@ const NativeEntry game_natives[] = {
       .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_candidates_ready },
     { .addr = 0xC1AD35, .name = "battle_mark_other_targets_entry", .fn = battle_mark_other_targets_entry, NEEDS_M8_X16_BINARY, .cost_milli = 8160,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_candidates_ready },
-    { .addr = 0xC18C09, .name = "battle_enemy_scripts_choose", .fn = battle_enemy_scripts_choose, NEEDS_M8_X16_BINARY, .cost_milli = 8036,
+    { .addr = 0xC18C09, .name = "battle_enemy_scripts_choose", .fn = battle_enemy_scripts_choose, NEEDS_M8_X16_BINARY, .cost_milli = 7902,
       .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, .guard = battle_enemies_choose_ready },
     { .addr = 0xC1AFD2, .name = "battle_enemy_script_choose", .fn = battle_enemy_script_choose, NEEDS_M8_X16_BINARY, .cost_milli = 19288,
       .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS, .guard = battle_enemy_first_block_ready },

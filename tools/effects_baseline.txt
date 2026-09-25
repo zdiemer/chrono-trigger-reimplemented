@@ -11,15 +11,8 @@
 
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[0] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[2] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[3] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors only
-game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[1] battle_multiply_factors only
-game/battle/arith.c wide_word battle_wide_math[0] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[1] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[2] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[3] battle_wide_math only
+game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
+game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[1] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
 game/battle/battle.h battle_stat_offset_high battle_low_scratch[11] battle_low_scratch
 game/battle/digits.c digits_entry battle_number battle_number only
 game/battle/digits.c kept_digits battle_digits[2] battle_digits
@@ -70,17 +63,10 @@ game/battle/enemy_turn.c run_action_entry battle_script_place battle_script_plac
 game/battle/enemy_turn.c script_enemy battle_enemy_turn battle_enemy_turn
 game/battle/frame.c update_the_frame battle_effect_sprite_attributes battle_effect_sprite_attributes
 game/battle/menu_window.c tech_page_carry battle_digits[3] battle_digits
-game/battle/nmi.c last_math_operand battle_divider_busy battle_divider_busy only
-game/battle/nmi.c last_math_operand battle_divider_operands[2] battle_divider_operands only
-game/battle/nmi.c last_math_operand battle_multiplier_operands[1] battle_multiplier_operands only
-game/battle/positions.c battle_direction_between battle_direction_cells[0] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[1] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[2] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[3] battle_direction_cells
-game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_multiply_factors only
+game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_multiply_factors              # the entry's operand (the radius): the original's callers put it in the cell, every call
 game/battle/positions.c combatant_in_work battle_work[0] battle_work
-game/battle/positions.c reach_entry battle_product battle_product only
-game/battle/positions.c search_carry battle_product battle_product only
+game/battle/positions.c reach_entry battle_product battle_product                                             # the product the reach test just kept plainly (positions.c distance_squared)
+game/battle/positions.c search_carry battle_product battle_product                                            # the product the search just kept plainly (positions.c distance_squared); the menu window's scaffolding reuses the cell between
 game/battle/random.c draw_entry battle_wide_math[4] battle_wide_math
 game/battle/random.c draw_entry battle_wide_math[5] battle_wide_math
 game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
@@ -100,8 +86,8 @@ game/battle/targets.c battle_select_from_script battle_enemy_turn battle_enemy_t
 game/battle/targets.c battle_select_from_script battle_script_place battle_script_place
 game/battle/targets.c battle_select_party battle_enemy_turn battle_enemy_turn
 game/battle/targets.c selector_entry battle_enemy_turn battle_enemy_turn
-game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch only
-game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch only
+game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
+game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch only
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch only
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch only
@@ -255,24 +241,12 @@ game/scene/math.c divide_8_8 scene_call_second scene_call                       
 game/scene/math.c multiply scene_call_first scene_call                                                        # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply scene_call_second scene_call                                                       # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply_signed scene_call_first scene_call                                                 # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
-game/scene/math.c multiply_signed scene_call_product scene_call                                               # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply_signed scene_call_second scene_call                                                # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_find_divisor scene_call_quotient_limit scene_call                                     # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_multiply_signed scene_call_first scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_multiply_signed scene_call_second scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/screen.c transfer scene_call_transfer_control scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/screen.c transfer scene_call_transfer_register scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
-run battle_direction_between battle_direction_cells
-run battle_divide battle_wide_math
-run battle_draw_random battle_wide_math
-run battle_draw_random_other battle_wide_math
-run battle_enemy_find_reactions battle_enemy_turn
-run battle_multiply_16x16 battle_wide_math
-run battle_set_screen_effect battle_scratch
-run battle_touching battle_product
-run battle_within_long_reach battle_product
-run battle_within_near_reach battle_product
-run battle_within_search_reach battle_product
 run event_run_init_scripts field_current_object
 run event_run_object_script field_current_object
 run field_build_sprite_table field_current_object
