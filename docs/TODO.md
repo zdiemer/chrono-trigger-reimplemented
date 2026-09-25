@@ -93,12 +93,17 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and nearly all of the turn's work (an enemy's turn `$C1:8CF9`,
-    a member's `$FD:AB30`, carrying out an action `$C1:B967`, the scripts'
-    conditions and their handlers, the rewards `$FD:B201`/`$C1:D0A2`/
-    `$C1:F93E`/`$FD:AD17`); the pose's setup `$C1:308C`, the target search
-    `$C1:2986`, the direction `$C1:0222`, the enemy animation effects' nine
-    handlers `$C1:3760`, the position modes `$C1:762E`; an effect's next
+    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, carrying
+    out an action `$C1:B967`, the rewards `$FD:B201`/`$C1:D0A2`/
+    `$C1:F93E`/`$FD:AD17`); from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
+    the enemies' minds"), the effects' working out `$C1:D7C4`/`$C1:D8D1`,
+    the attack's and the tech's setting up `$FD:AB01`/`$FD:AAD2`, the tech's
+    targeting `$C1:C1DD`, an enemy's coming in `$FD:B438`, the calling in
+    `$FD:A990`, the message `$CD:0033` and the action's showing
+    `$C1:BFA4`/`$C1:EC7F`; a member that comes back once when knocked out
+    (from `$C1:B316`); the timers' kinds' handlers `$C1:8862`-`$C1:8C08`; the
+    pose's setup `$C1:308C`, the enemy animation effects' nine handlers
+    `$C1:3760`, the position modes `$C1:762E`; an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030`, `$FD:A95F` from the menu window;
@@ -117,6 +122,26 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_effect_command_cells`); the five window tile blocks the frame
     loads and what reads `battle_block_uploads_made`; what the marker sprite
     is to the player; why the upload lets enemies in slots 4 and 6+ through.
+  - Quirks of the enemies' scripts reproduced on purpose (RECOMP.md, "Phase 3,
+    wave 2: the enemies' minds"): the test of a stat's value goes on from a
+    candidate to the one at twice its slot in the list; the walk toward a
+    target measures its reach against a box the multiplier's leftover picks,
+    with a radius from a cell the walk doesn't set; a condition's target taken
+    from one marked candidate is battle slot 1 where the first isn't the one
+    marked; the selector of the enemies with a status in their third status
+    byte (`$C1:A8C5`, which no script uses) stores its A over the cell it keeps
+    its place in the stat blocks' table in, and reads the blocks that leftover
+    gives; the draw among four leaves the script's place on a byte it stepped
+    over until the choosing puts it back; a condition that finds nobody holds
+    without choosing for some kinds and fails for others.
+  - An accepted divergence of the enemies' scripts: narrowing the candidates
+    by the aim (`$C1:ADA1`) never leaves its loop in the original where every
+    candidate is marked, and the game would hang; the port takes that
+    candidate. And the choosing's cells (`battle_script_place` and the rest)
+    are written when a choosing ends, not as it reads: the walk's stray box
+    read (`$C1:2C02`, which no script asks for) lands on them on a few fuzzed
+    states (1 of 3,751 for `$C1:938D`, 3 of 4,942 for `$C1:AFD2`, seed 1),
+    where the original reads the place mid-condition.
   - Quirks reproduced on purpose, for a native build to decide on: the chase's
     angle index spilling into `battle_numbers_rising`; a combatant of 1-14
     parts copying eight tile groups; the homing jump lifting twice; an
@@ -131,19 +156,15 @@ rest waits, is [PLAN.md](PLAN.md).
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
   - what battle's review rated "mostly" (no file rated translation):
-    - the loop calls its own subsystem's ports through ROM addresses and
-      `battle_call` (`$C1:B093`, `$C1:B0B6`, the damage and number clears,
-      `battle_give_turn`), under a list headed "the original's routines";
-      call them as C (or `battle_run` for the machine-shaped ones), and drop
-      the carry set before a call whose set declares `DC_C`;
-    - `react()` walks the enemy scripts through memory cells
-      (`script_place`, `block_start`, ...), pushes a local on the machine
-      stack and names an outcome "2": a cursor in locals and named outcomes;
-    - scratch writes outside `ORIGINAL_EFFECT` (`battle_low_scratch`
-      `$14/$15`), and cells used for a second meaning
-      (`battle_effect_sprite_attributes` as the step's member): declare them;
-    - one fact defined several times: the demo flag, `PARTY_OFF_GRID`,
-      "out of the fight", the first combatant object, the graphics kinds
+    - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
+      enemy's turn through the choosing's cells and take its outcome and the
+      script's place back from them, and push the acting enemy on the machine
+      stack under the turn, whose call-outs compare it: the turn's results as
+      values once its call-outs are ports;
+    - a cell used for a second meaning (`battle_effect_sprite_attributes` as
+      the step's member): declare it;
+    - one fact defined several times: "out of the fight", the first combatant
+      object, the graphics kinds
       (`kind != 3` in `sprites.c` against `kind < 3` in `animation.c`, which
       disagree on kind 4), two `battle_sine_magnitude`s over different
       tables, one ROM table under two names twice, the battle's VRAM places
@@ -171,6 +192,40 @@ rest waits, is [PLAN.md](PLAN.md).
       ...), `battle_target_display`'s fields, and the stale `source` lines
       naming functions that no longer exist (`battle_run_queued_scripts`
       and about fifty others);
+    - `battle_run` (`game/battle/bridge.c`) runs a sibling entry as C without
+      its guard, so a sibling whose guard would turn the state away (a
+      fuzzed place, a turn naming no combatant) runs anyway, and callers
+      guard by hand where it matters (`battle_take_turn`). The fix: give
+      `battle_run`/`battle_run_long` the entry's guard (every sibling the
+      battle runs has one: the per-entry `_ready` guards of the scripts'
+      commands, `battle_on_page` and the rest) and, where it refuses, make
+      the JSR as a real call-out (`m_jsr_dc`/`m_jsl_dc` at the same site, no
+      don't-care), which shadow mode pairs with the original's call as it
+      does any other and which the runtime then runs through the registry,
+      guard and all. Twenty-four call sites change; a registry lookup of a
+      guard by address (`runtime/port/native.h` has none) would spare them
+      naming it, but is a runtime change;
+    - from the enemies' minds' review (RECOMP.md, "Phase 3, wave 2: the
+      enemies' minds"): `enemy_turn.c` runs the actions' turns, which are C,
+      as sibling entries through `battle_run` and the dispatch's registers,
+      and they give their results (the outcome, the follow-up, the message
+      kept, how far the script was read) through the battle's cells: a C
+      dispatch returning them once the turn's call-outs are ports;
+      `targets.c`'s entries named for bytes (`battle_select_members_with_02`,
+      `battle_select_slot_3_again`) and the emulation of `$1F`'s stray
+      pointer, which no script reaches; `positions.c`'s `walk`, still the
+      original's steps; `rules_data.h`'s accessors taking byte offsets; the
+      `_by_wide_place` stat accessors, which name the original's indexing
+      rather than what is read; and the meanings of the action record's
+      bit 4 (`ACTED_BIT_4`) and the flags action's second do-nothing bit;
+      from its re-review: the carrying-out side (`enemy_actions.c`'s turn
+      parts) still decodes operands by position, where the choosing's rows
+      decode them by layout; the flags action's bits are a `uint8_t` tested
+      in turn, not a decoded choice; the pose kinds ($04, $0D) are unnamed;
+      and the cells a candidate past the combatants can be read from are kept
+      plainly only where the conditions write them ($08, $0A-$0B, $0E:
+      battle.h), not the selectors' other scaffolding ($02, $0C-$0D), which
+      such a read could reach as well;
     - `nmi.c` is named for the interrupt, and the battle's two vblank
       handlers sit in `nmi.c` and `display.c` without pointing at each other;
       `frame.h` describes `BattleScrollMode` by what is still the original's.
@@ -182,21 +237,14 @@ rest waits, is [PLAN.md](PLAN.md).
     nothing, where the original jumps or recurses (`menu_draw_text`'s fuzz
     mismatches in PORTING.md);
   - the load screen's member rows keep their own place, where the original
-    reads it back from its cells after the window list and the portrait (both
-    still the original's) have run: a list run over random memory that
-    changes those cells is where the two part (8 of about 3,400 fuzzed
-    slots); the lists' port closes it;
+    reads it back from its cells after the member row's window list and the
+    portrait have run; both are C now, and write those cells only as the
+    original does, so the two part only where a list's strings write over the
+    cells (none of the game's do);
   - the map's strips are built in the upload buffer where the game keeps it:
     `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
     whose top-left tile is off the map, or a queue without room for a
     scroll's strips to the original, none of which the library makes;
-  - the load screen's slot is drawn as C from `menu_show_save_slot`, so shadow
-    mode compares `menu_draw_save_slot` only where the original's own code
-    calls it (1,139 of 15,708 calls; the rest are inside its caller's
-    comparison);
-  - `menu_saves_finished_game` (`menu/menu_data.h`) reads the cartridge's
-    save RAM at `$30:7FE2` through the ROM accessor: a save-RAM service should
-    take it;
   - the glyph drawer takes the font's addresses from the text engine
     (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
     that engine ported first;
@@ -439,17 +487,71 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
+  - the opening's call-outs: the menus' graphics (`$C2:968D`, with
+    `$C2:960B`-`$C2:9678` and the design's graphics `$C2:C511`), the
+    characters' sprites (`$C2:F3CA`), the items and figures (`$C2:9875`),
+    the text loader (`$C2:F90C`) and the save code in bank `$FF` (the slot's
+    check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
+    (`$C2:956E`);
+  - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
+    original's: ported, it matched where shadow mode compared it but broke the
+    `beyond_time` route in the shipping mode (RECOMP.md, "Phase 3, menus", "A
+    port that spans frames"). The drawing takes more than a frame and the
+    menus' vblank handler runs inside it; with the port's time owed at its
+    return, the handler is taken there twice and the game ends in a `BRK`.
+    Reproduce with the Final Battle save (`oracle/saves/technoplaza/ct-state15.srm`),
+    Start at frame 1620 and `--native on`: the screen is black at frame 1899.
+    Either the runtime's debt handling has a case the menus' handler meets
+    (its stack switch to `$1DFD`, its lag flag `$0D01`), or the port needs to
+    stop where the original's frame would. Worked out, the port can come
+    back;
+  - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
+    slot, and `ct_fuzz` can't run past its wait for the next frame
+    (`$C2:821E`, a task switch), so every fuzzed state is skipped. A movie that
+    erases a slot on the load screen would check it, and `menu_answer_erase`'s
+    "no" with it;
+  - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
+    `$D2C4`) only run inside `menu_open`'s comparison, so shadow mode compares
+    them there and the timing gate can't calibrate them alone: what their
+    estimates miss is in `menu_open`'s own rate (28004, against about 5000 for
+    the menus' other bridges); `$C2:D306` (a label moved two pixels right) is
+    inline in `$C2:D2C4` and no entry;
+  - a window list's strings that include work RAM (a name, a number) draw
+    through the text port's accepted divergences when fuzzing fills that RAM
+    at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of
+    the lists'); no list of the game's reaches them.
+- **What chunk 1's review of the menus left for later** (RECOMP.md, "Phase 3,
+  menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
+  `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
+  with named values, and the load screen's steps by name rather than
+  `step ± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
+  block moves' time charged in scaffolding; windows.c's operands decoded once
+  into a struct per operation; one `first_push()` in cursor.c; names for
+  `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
+  offsets and the literal `$9890`/`$98C9`; opening.c's driver calls as a table
+  of `PF_CALL_DC` sites;
+  - from the fixes' re-review: after a full `WINDOW` command and after
+    `menu_window_in_design` (`$C2:ECDB`) the inside's columns and rows are
+    still written only as scaffolding, so an inside drawn after one of them
+    would read stale sizes in the native shape (no screen does today);
+    `windows.c`'s "what the original leaves" comment still says nothing reads
+    those cells; `tools/disasm/keeps.py` steps over calls as reading nothing,
+    so a callee on the scheduler's path that reads a register would be missed
+    (the path has none today); `read_cursor`'s `(void)r;`.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to
   `$0920` (`TSX`) to run on a stack of its own, which the pairing of pushes
   can't follow, so its `PHP` reads every flag for every caller. The same holds
-  across the menus' task switch (`$C2:821E`), and for the scene program's task
-  lists (`$7E:3994`, `$7E:39C8`), whose tasks leave through `JMP $39A7` into
-  the loop's own code and carry on with the next task rather than return.
+  for the scene program's task lists (`$7E:3994`, `$7E:39C8`), whose tasks
+  leave through `JMP $39A7` into the loop's own code and carry on with the
+  next task rather than return.
   Following S through the cell it is saved in, and a callee that finishes its
   caller's iteration, would free them (RECOMP.md, "The tooling pass after
-  wave 1: the analysis").
+  wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
+  a `[[keeps]]` hint instead (RECOMP.md, "Phase 3, menus"); the scene's task
+  lists could take the same.
 - **Scene cells the menu objects use.** The C6 irises and motion routines
   (`menu/object_commands.c`) run on the menu's direct page and use the circle
   drawer's and the scaler's cells, which the map files under the scene; their

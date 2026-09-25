@@ -34,6 +34,14 @@ battle_irq hdma-enable lines taken late behind the battle's masked frame work, a
 # brightness 1 of 15. Screenshots of the shipping mode show both frames.
 menu_mode_start display visible the menu's blank at line 172 of frame 1705 lands on a frame already at brightness 0: every pixel is black with or without it
 C2:2535 hdma-enable visible the menus' HDMA stops at line 95 of the fade-out's last frame (frame 3538), at brightness 1 of 15, instead of in forced blank
+# The menus' vblank work, behind a frame whose work the shipping mode estimates
+# since the load screen's and the windows' ports (RECOMP.md, "Phase 3, menus"):
+# once in each of four save movies the frame's work ends past vblank, and the
+# work's display write, which ends the forced blank, lands on line 41-44
+# instead of in vblank. menus-shop-inn frame 2702 in screenshots: lines 41 and
+# 42 black where the reference has the picture, the rest of the frame the same.
+menu_nmi_work display visible the frame's work estimated past vblank once a movie: the display write lands on lines 41-44, two or three picture lines black on one frame
+menu_nmi_work display unblank as its visible entry: the end of the forced blank on lines 43-44 instead of in vblank, once a movie
 # The battle's forced blank under the window, taken late behind the masked frame
 # work as battle_irq above: the reference lands on lines 212 and 218 in the same
 # fights, the shipping mode on 216 and 219, three times.

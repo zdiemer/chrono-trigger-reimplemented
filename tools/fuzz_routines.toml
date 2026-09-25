@@ -5022,15 +5022,6 @@ iterations = 2000
 why = "the menus' page and data bank"
 
 [[routine]]
-name = "menu_reset_sprites"
-at = "C2:E92D"
-subsystem = "menu"
-state = "menus"
-args = ["--d", "0000", "--db", "7E"]
-iterations = 2000
-why = "the menus' page and data bank"
-
-[[routine]]
 name = "menu_load_slot_rows_effect"
 at = "C2:CFFB"
 subsystem = "menu"
@@ -5053,9 +5044,9 @@ name = "menu_draw_save_slot"
 at = "C2:D36C"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
 iterations = 2000
-why = "the menus' page and data bank, the slot shown one of the four rows, the slots' summaries of the load screen's kind (members that are characters; every byte small), the VRAM queue empty"
+why = "the menus' page and data bank, the slot shown one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
 
 [[routine]]
 name = "menu_draw_save_slot"
@@ -5072,9 +5063,397 @@ name = "menu_show_save_slot"
 at = "C2:E743"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07"]
 iterations = 2000
-why = "the menus' page and data bank, the cursor on one of the four rows, the slots' summaries of the load screen's kind (members that are characters; every byte small), the VRAM queue empty"
+why = "the menus' page and data bank, the cursor on one of the four rows, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them, every other byte small, the slots' designs each one of the eight), the VRAM queue empty, numbers converted from one"
+
+[[routine]]
+name = "menu_run_window_list"
+at = "C2:ED31"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "X=BD2E-C429", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, a list start anywhere among the game's window command lists (bank $FF, $BD2E-$C429; the guard walks the list and takes those whose commands draw into the buffers, game/menu/windows.c), the drawing origin above low RAM and the number conversion from one"
+
+[[routine]]
+name = "menu_run_window_list"
+variant = "loose"
+at = "C2:ED31"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "X=BD2E-C429", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the same with the drawing origin anywhere: the guard takes only lists that stay in the buffers"
+
+[[routine]]
+name = "menu_window_fill"
+at = "C2:ED77"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005B-7E005B=03-FF", "--fill", "7E005C-7E005C=00-01"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, a fill of up to a row or two"
+
+[[routine]]
+name = "menu_window_copy_area"
+at = "C2:EF05"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005F-7E005F=01-20", "--fill", "7E0060-7E0060=01-10"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, an area of up to 32 by 16 tiles"
+
+[[routine]]
+name = "menu_window_draw"
+at = "C2:EDAA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005F-7E005F=03-20", "--fill", "7E0060-7E0060=03-1C", "--fill", "7E0D8C-7E0D8C=00-07"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, a window of 3 to 32 by 3 to 28 tiles in any of the eight designs"
+
+[[routine]]
+name = "menu_window_draw_frame_only"
+at = "C2:EDB0"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005F-7E005F=03-20", "--fill", "7E0060-7E0060=03-1C", "--fill", "7E0D8C-7E0D8C=00-07"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, a window of 3 to 32 by 3 to 28 tiles in any of the eight designs"
+
+[[routine]]
+name = "menu_window_fill_inside_only"
+at = "C2:EDB6"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005F-7E005F=03-20", "--fill", "7E0060-7E0060=03-1C", "--fill", "7E0D8C-7E0D8C=00-07"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, a window of 3 to 32 by 3 to 28 tiles in any of the eight designs"
+
+[[routine]]
+name = "menu_window_draw_string"
+at = "C2:EF48"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E0051-7E0052=00-00", "--fill", "7E005B-7E005B=00-3D", "--fill", "7E005C-7E005C=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the drawing origin above low RAM, the number conversion from one; one of the 62 strings the game's lists draw ($FF:C457), at a random place and with random settings (a random string number reads other bytes as a string, where menu_draw_text's accepted divergences on control codes no string has are, PORTING.md)"
+
+[[routine]]
+name = "menu_window_set_origin"
+at = "C2:F332"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the new origin random"
+
+[[routine]]
+name = "menu_window_copy_bytes"
+at = "C2:F364"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM; the run's source anywhere in bank $FF"
+
+[[routine]]
+name = "menu_window_swap_areas"
+at = "C2:F378"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-9F", "--fill", "7E005F-7E005F=01-20", "--fill", "7E0060-7E0060=01-10"]
+iterations = 2000
+why = "the menus' page and data bank, the command's operands random in the cells the interpreter copies them to, the drawing origin above low RAM, areas of up to 32 by 16 tiles"
+
+[[routine]]
+name = "menu_window_frame"
+at = "C2:EDF6"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0063-7E0063=00-FF", "--fill", "7E0064-7E0064=20-9F", "--fill", "7E005F-7E005F=03-20", "--fill", "7E0060-7E0060=03-1C", "--fill", "7E0D47-7E0D47=00-EB"]
+iterations = 2000
+why = "the menus' page and data bank, the window's place above low RAM ($63-$64), its size in the operands' cells, its style's first tile with room for the twenty ($0D47)"
+
+[[routine]]
+name = "menu_window_inside"
+at = "C2:EE7F"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0063-7E0063=00-FF", "--fill", "7E0064-7E0064=20-9F", "--fill", "7E008A-7E008A=01-1E", "--fill", "7E008B-7E008B=00-00", "--fill", "7E008C-7E008C=01-1A", "--fill", "7E008D-7E008D=00-00", "--fill", "7E0D47-7E0D47=00-EB"]
+iterations = 2000
+why = "the menus' page and data bank, the window's place above low RAM ($63-$64), its size in the operands' cells, its style's first tile with room for the twenty ($0D47); the inside's size as the frame leaves it ($8A, $8C: up to 30 by 26)"
+
+[[routine]]
+name = "menu_window_colours"
+at = "C2:ED08"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D8C-7E0D8C=00-07"]
+iterations = 2000
+why = "the menus' page and data bank, one of the eight designs; the style (the palette row) random"
+
+[[routine]]
+name = "menu_window_in_design"
+at = "C2:ECDB"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0063-7E0063=00-FF", "--fill", "7E0064-7E0064=20-9F", "--fill", "7E005F-7E005F=03-20", "--fill", "7E0060-7E0060=03-1C", "--fill", "7E0D8C-7E0D8C=00-07", "--fill", "7E0079-7E0079=00-03"]
+iterations = 2000
+why = "the menus' page and data bank, the slot window's place above low RAM, its size, the slot one of the four rows and one of the eight designs"
+
+[[routine]]
+name = "menu_lay_out_label_strip"
+at = "C2:FB97"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "X=2000-9FFF", "--range", "Y=0001-0020"]
+iterations = 2000
+why = "the menus' page and data bank, a strip of 1 to 32 columns placed above low RAM (X) and a random tile"
+
+[[routine]]
+name = "menu_lay_out_graphic_strip"
+at = "C2:FBB4"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "X=2000-9FFF", "--range", "Y=0001-0020"]
+iterations = 2000
+why = "the menus' page and data bank, a strip of 1 to 32 columns placed above low RAM (X) and a random tile"
+
+[[routine]]
+name = "menu_draw_time"
+at = "C2:F28D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00", "--range", "X=0200-9FFF"]
+iterations = 2000
+why = "the menus' page and data bank, the number conversion from one, the pen past the number drawer's cells; the time played random (hours past 99 shown as 99:59)"
+
+[[routine]]
+name = "menu_clear_sprites_for_cursor"
+at = "C2:E923"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29"]
+iterations = 2000
+why = "the menus' page and data bank, the cursor on one of its menu's 42 places"
+
+[[routine]]
+name = "menu_reset_sprites"
+at = "C2:E92D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29"]
+iterations = 2000
+why = "the menus' page and data bank, the cursor on one of its menu's 42 places"
+
+[[routine]]
+name = "menu_read_cursor_input"
+at = "C2:E984"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=00-29", "--fill", "7E9380-7E947B=00-29"]
+iterations = 2000
+why = "the menus' page and data bank, the cursor on one of its menu's 42 places, every place's neighbours places too; the buttons random"
+
+[[routine]]
+name = "menu_play_sound"
+at = "C2:EABA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_play_cursor_sound"
+at = "C2:EAC2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_play_refusal_sound"
+at = "C2:EACC"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_play_queued_sound"
+at = "C2:EAD6"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_send_sound_on_other_voices"
+at = "C2:EAF9"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_send_sound"
+at = "C2:EB03"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the sound and the queued sounds random"
+
+[[routine]]
+name = "menu_choose_on_load_screen"
+at = "C2:E61B"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached"
+
+[[routine]]
+name = "menu_choose_game_to_carry_on_from"
+at = "C2:E6AE"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached"
+
+[[routine]]
+name = "menu_answer_erase"
+at = "C2:E705"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-EF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0054-7E0054=04-05", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0F00-7E0F00=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E939A-7E93A3=04-05"]
+iterations = 2000
+why = "the menus' page and data bank, the erase question up: the cursor on yes or no (places 4 and 5, whose neighbours are each other), over one of the three slots, the cursor kept for going back on a row; the VRAM queue empty, a palette change the drawing counts, numbers converted from one; the buttons random, so yes, no and going back are each reached"
+
+[[routine]]
+name = "menu_ask_which_to_carry_on_from"
+at = "C2:E841"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three"
+
+[[routine]]
+name = "menu_erase_slot"
+at = "C2:E8B7"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three"
+
+[[routine]]
+name = "menu_draw_slot_window"
+at = "C2:D32C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0D8C-7E0D8C=00-07", "--fill", "7E0D79-7E0D7B=00-07"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three, the player's design and the slots' each one of the eight"
+
+[[routine]]
+name = "menu_read_save_slots"
+at = "C2:D156"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the VRAM queue empty, the menus' zero word 0 (the count of the slots starts from it); the cartridge's saves as the state has them"
+
+[[routine]]
+name = "menu_read_slot_summary"
+at = "C2:D19F"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E007A-7E007A=00-00", "--fill", "7E007B-7E007B=00-FF", "--fill", "7E007C-7E007C=60-77", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three; the cartridge's saves as the state has them; the game the check found anywhere in the save memory ($7B)"
+
+[[routine]]
+name = "menu_read_design_and_chapter"
+at = "C2:D266"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E007A-7E007A=00-00", "--fill", "7E007B-7E007B=00-FF", "--fill", "7E007C-7E007C=60-77", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three; the cartridge's saves as the state has them; the game the check found anywhere in the save memory ($7B)"
+
+[[routine]]
+name = "menu_draw_empty_label"
+at = "C2:D28D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E007A-7E007A=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three; the cartridge's saves as the state has them"
+
+[[routine]]
+name = "menu_draw_chapter_label"
+at = "C2:D296"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E007A-7E007A=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three; the cartridge's saves as the state has them"
+
+[[routine]]
+name = "menu_draw_slot_name"
+at = "C2:D2C4"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E007A-7E007A=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the slot shown one of the three; the cartridge's saves as the state has them"
+
+[[routine]]
+name = "menu_open"
+at = "C2:8096"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the data bank on work RAM's, as the menus' entry leaves it; everything else random (the opening sets its own page)"
+
+[[routine]]
+name = "menu_list_party"
+at = "C2:816A"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the party's nine places random, members and empty places both"
+
+[[routine]]
+name = "menu_unpack_settings"
+at = "C2:92F4"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank; the settings random"
+
+[[routine]]
+name = "menu_clear_sprite_table"
+at = "C2:984A"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
 
 [[routine]]
 name = "menu_object_spawn"
@@ -7835,6 +8214,1145 @@ subsystem = "battle"
 state = "battle"
 args = ["--interrupt"]
 why = "an interrupt handler; it saves and restores its caller's registers"
+
+# -- the enemies' minds: their scripts, the conditions and actions, the selectors and the target
+# search (battle/enemy_scripts.c, enemy_conditions.c, enemy_actions.c, enemy_turn.c, targets.c,
+# positions.c, random.c)
+
+[[routine]]
+name = "battle_draw_random"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-00FF"]
+why = "the limit in A and the lowest in X, a byte each"
+
+[[routine]]
+name = "battle_draw_random_other"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "the limit in A"
+
+[[routine]]
+name = "battle_search_for_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_nearest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_farthest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_nearest_other_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_farthest_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_within_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_level"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_other_below"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_other_to_the_right"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_walk"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_in_lower_half"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_in_upper_half"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_at_right_edge"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_at_left_edge"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_nearer_to_third"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_search_within_wide_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E986E-7E986E=00-0E", "--fill", "7E986F-7E9871=00-0A", "--range", "A=0000-00FF"]
+why = "a kind of search and three combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_within_long_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A", "--range", "Y=0000-000A"]
+why = "the two combatants in X and Y"
+
+[[routine]]
+name = "battle_within_search_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A", "--range", "Y=0000-000A"]
+why = "the two combatants in X and Y"
+
+[[routine]]
+name = "battle_within_far_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A", "--range", "Y=0000-000A"]
+why = "the two combatants in X and Y"
+
+[[routine]]
+name = "battle_touching"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A", "--range", "Y=0000-000A"]
+why = "the two combatants in X and Y"
+
+[[routine]]
+name = "battle_within_near_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-000A", "--range", "Y=0000-000A"]
+why = "the two combatants in X and Y"
+
+[[routine]]
+name = "battle_grid_stops_combatant"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0080-7E0080=00-0A", "--fill", "7E0081-7E0081=00-00", "--range", "A=0000-00FF"]
+why = "the combatant in its word at $80"
+
+[[routine]]
+name = "battle_box_meets_another"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0080-7E0080=00-0A", "--fill", "7E0081-7E0081=00-00", "--range", "A=0000-00FF"]
+why = "the combatant in its word at $80"
+
+[[routine]]
+name = "battle_direction_between"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_distance_along"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "an angle in A and a radius in the multiply's cell"
+
+[[routine]]
+name = "battle_select_party"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_nobody"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_everyone"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_itself"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_last_to_act_on_it"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_random_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_nearest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_farthest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_weakest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_by_condition"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_by_status_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_by_status_2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_by_status_3"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_by_status_4"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_02"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_80"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_04"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_04_of_4"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_40_of_4"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_10_of_3"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_members_with_08_of_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_nearest_other_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_farthest_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_weakest_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_by_condition"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_enemies_by_condition"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_by_status_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_enemies_by_status_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_by_status_2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_enemies_by_status_2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_02"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_80"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_04"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_40_of_4"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_02_of_condition"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemies_with_01_of_19"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_weakest_other_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_3"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_4"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_5"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_6"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_7"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_8"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_9"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_10"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_reserve_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_0"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_1"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_2"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_3_again"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_4_again"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_5_again"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_slot_6_again"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_strongest_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_other_enemy_at_random"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_from_script"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_select_by"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "the selector in A; an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_clear_candidates_entry"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_mark_first_target_entry"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAECB-7EAECB=00-0B"]
+why = "the candidates counted as the guard takes them"
+
+[[routine]]
+name = "battle_mark_other_targets_entry"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAECB-7EAECB=00-0B"]
+why = "the candidates counted as the guard takes them"
+
+[[routine]]
+name = "battle_enemy_scripts_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "every enemy's choosing from its script's start, the actions kept in the scripts; the candidates and the search's cells as the game leaves them"
+
+[[routine]]
+name = "battle_enemy_script_choose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--fill", "7EB1CF-7EB1CF=00-00"]
+why = "the id in A and no pair of conditions under way; an enemy at work and the actions kept in the scripts, as the guard takes them (the routine finds the script itself); the candidates and the search's cells as the game leaves them"
+
+[[routine]]
+name = "battle_enemy_condition_held"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_choose_actions"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_find_reactions"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "the id in A; an enemy at work and the actions kept in the scripts, as the guard takes them (the routine finds the script itself); the candidates and the search's cells as the game leaves them"
+
+[[routine]]
+name = "battle_enemy_find_script_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF", "--range", "X=8D08-CBC8"]
+why = "the place in X; an enemy at work and the actions kept in the scripts, as the guard takes them (the routine finds the script itself); the candidates and the search's cells as the game leaves them"
+
+[[routine]]
+name = "battle_condition_always"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_at_half_hp"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_with_status"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_is_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_enemy_present"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_enemies_at_most"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_frames_at_least"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_count_compared"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_at_most_hp"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stat_at_least"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stat_bits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stat_at_most"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_within_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_level_with"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stands_beside"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_could_walk_to"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stands_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_acted_on_by"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_acted_on_by_this"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_acted_bit"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_acted_on_by_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_acted_with_elements"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_chance"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stat_is"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_other_kind_present"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_members_at_most"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_is_party_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_three_on_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_chooses_but_fails"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_within_wide_reach"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_was_beaten"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_stands_apart"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_condition_turn_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_choose_pose"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_choose_aim"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_draw_one_of_four"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_forgive_block"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_note_number"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_need_beaten"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_record_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_note_actor_bits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_pose_kind"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_takes_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_tech_body"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_start_action_showing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_enemy_pose_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_attack_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_tech_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_no_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_choose_again_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_change_into_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_leave_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_die_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_set_stat_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_add_to_stat_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_flags_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_message_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_bring_back_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_set_stats_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_set_stats_then_tech_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_add_to_turn_wait_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_add_to_stats_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_add_to_stats_then_tech_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_enemy_call_in_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_finish_beaten_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAEB2-7EAEB2=00-00"]
+iterations = 5000
+why = "no enemy beaten: with one, the battle's step waits for frames, which fuzzing compares the time of (the demo variant runs the rest)"
+
+[[routine]]
+name = "battle_finish_beaten_enemies"
+variant = "demo"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2989-7E2989=20-20"]
+iterations = 5000
+why = "a demo battle, which skips the step: the beaten enemies counted at random"
 
 # ---- core: the controller and the play time clock ----------------------------------------------
 

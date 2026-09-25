@@ -2,7 +2,285 @@
 #ifndef CT_GAME_BATTLE_ENTRIES_H
 #define CT_GAME_BATTLE_ENTRIES_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "snes/system.h"
+#include "state.h"
+
+/* What the original's routines leave in the carry for its callers, worked out
+ * for the bridges that call them: the marking of the first target ($C1:AD09)
+ * and of the others ($C1:AD35), from the candidates and the carry it found
+ * (battle/targets.c); and a combatant's screen box (battle/objects.c), its
+ * last sum's. */
+bool battle_first_mark_carry(const GameState *g, bool carry);
+bool battle_other_marks_carry(const GameState *g, bool carry);
+bool battle_bounds_carry(const GameState *g, unsigned slot);
+
+/* The enemies' minds: battle/random.c, positions.c, targets.c, enemy_scripts.c,
+ * enemy_conditions.c, enemy_actions.c, enemy_turn.c, and main_loop.c's
+ * beaten enemies. */
+/* battle/random.c */
+void battle_draw_random(Snes *s);
+void battle_draw_random_other(Snes *s);
+
+/* battle/positions.c */
+void battle_search_for_target(Snes *s);
+void battle_search_nearest_member(Snes *s);
+void battle_search_farthest_member(Snes *s);
+void battle_search_nearest_other_enemy(Snes *s);
+void battle_search_farthest_enemy(Snes *s);
+void battle_search_within_reach(Snes *s);
+void battle_search_level(Snes *s);
+void battle_search_other_below(Snes *s);
+void battle_search_other_to_the_right(Snes *s);
+void battle_search_walk(Snes *s);
+void battle_search_in_lower_half(Snes *s);
+void battle_search_in_upper_half(Snes *s);
+void battle_search_at_right_edge(Snes *s);
+void battle_search_at_left_edge(Snes *s);
+void battle_search_nearer_to_third(Snes *s);
+void battle_search_within_wide_reach(Snes *s);
+void battle_within_long_reach(Snes *s);
+void battle_within_search_reach(Snes *s);
+void battle_within_far_reach(Snes *s);
+void battle_touching(Snes *s);
+void battle_within_near_reach(Snes *s);
+void battle_grid_stops_combatant(Snes *s);
+void battle_box_meets_another(Snes *s);
+void battle_direction_between(Snes *s);
+void battle_distance_along(Snes *s);
+
+/* battle/targets.c */
+void battle_select_party(Snes *s);
+void battle_select_nobody(Snes *s);
+void battle_select_everyone(Snes *s);
+void battle_select_itself(Snes *s);
+void battle_select_last_to_act_on_it(Snes *s);
+void battle_select_random_member(Snes *s);
+void battle_select_nearest_member(Snes *s);
+void battle_select_farthest_member(Snes *s);
+void battle_select_weakest_member(Snes *s);
+void battle_select_members_by_condition(Snes *s);
+void battle_select_members_by_status_1(Snes *s);
+void battle_select_members_by_status_2(Snes *s);
+void battle_select_members_by_status_3(Snes *s);
+void battle_select_members_by_status_4(Snes *s);
+void battle_select_members_with_02(Snes *s);
+void battle_select_members_with_80(Snes *s);
+void battle_select_members_with_04(Snes *s);
+void battle_select_members_with_04_of_4(Snes *s);
+void battle_select_members_with_40_of_4(Snes *s);
+void battle_select_members_with_10_of_3(Snes *s);
+void battle_select_members_with_08_of_1(Snes *s);
+void battle_select_other_enemies(Snes *s);
+void battle_select_enemies(Snes *s);
+void battle_select_nearest_other_enemy(Snes *s);
+void battle_select_farthest_enemy(Snes *s);
+void battle_select_weakest_enemy(Snes *s);
+void battle_select_other_enemies_by_condition(Snes *s);
+void battle_select_enemies_by_condition(Snes *s);
+void battle_select_other_enemies_by_status_1(Snes *s);
+void battle_select_enemies_by_status_1(Snes *s);
+void battle_select_other_enemies_by_status_2(Snes *s);
+void battle_select_enemies_by_status_2(Snes *s);
+void battle_select_other_enemies_with_02(Snes *s);
+void battle_select_other_enemies_with_80(Snes *s);
+void battle_select_other_enemies_with_04(Snes *s);
+void battle_select_other_enemies_with_40_of_4(Snes *s);
+void battle_select_other_enemies_with_02_of_condition(Snes *s);
+void battle_select_other_enemies_with_01_of_19(Snes *s);
+void battle_select_weakest_other_enemy(Snes *s);
+void battle_select_slot_3(Snes *s);
+void battle_select_slot_4(Snes *s);
+void battle_select_slot_5(Snes *s);
+void battle_select_slot_6(Snes *s);
+void battle_select_slot_7(Snes *s);
+void battle_select_slot_8(Snes *s);
+void battle_select_slot_9(Snes *s);
+void battle_select_slot_10(Snes *s);
+void battle_select_reserve_enemy(Snes *s);
+void battle_select_slot_0(Snes *s);
+void battle_select_slot_1(Snes *s);
+void battle_select_slot_2(Snes *s);
+void battle_select_slot_3_again(Snes *s);
+void battle_select_slot_4_again(Snes *s);
+void battle_select_slot_5_again(Snes *s);
+void battle_select_slot_6_again(Snes *s);
+void battle_select_strongest_member(Snes *s);
+void battle_select_other_enemy_at_random(Snes *s);
+void battle_select_from_script(Snes *s);
+void battle_select_by(Snes *s);
+void battle_clear_candidates_entry(Snes *s);
+void battle_mark_first_target_entry(Snes *s);
+void battle_mark_other_targets_entry(Snes *s);
+
+/* battle/enemy_scripts.c */
+void battle_enemy_scripts_choose(Snes *s);
+void battle_enemy_script_choose(Snes *s);
+void battle_enemy_condition_held(Snes *s);
+void battle_enemy_choose_actions(Snes *s);
+void battle_enemy_find_reactions(Snes *s);
+void battle_enemy_find_script_place(Snes *s);
+
+/* battle/enemy_conditions.c */
+void battle_condition_always(Snes *s);
+bool battle_condition_always_ready(Snes *s);
+void battle_condition_at_half_hp(Snes *s);
+bool battle_condition_at_half_hp_ready(Snes *s);
+void battle_condition_with_status(Snes *s);
+bool battle_condition_with_status_ready(Snes *s);
+void battle_condition_is_enemy(Snes *s);
+bool battle_condition_is_enemy_ready(Snes *s);
+void battle_condition_enemy_present(Snes *s);
+bool battle_condition_enemy_present_ready(Snes *s);
+void battle_condition_enemies_at_most(Snes *s);
+bool battle_condition_enemies_at_most_ready(Snes *s);
+void battle_condition_frames_at_least(Snes *s);
+bool battle_condition_frames_at_least_ready(Snes *s);
+void battle_condition_count_compared(Snes *s);
+bool battle_condition_count_compared_ready(Snes *s);
+void battle_condition_at_most_hp(Snes *s);
+bool battle_condition_at_most_hp_ready(Snes *s);
+void battle_condition_stat_at_least(Snes *s);
+bool battle_condition_stat_at_least_ready(Snes *s);
+void battle_condition_stat_bits(Snes *s);
+bool battle_condition_stat_bits_ready(Snes *s);
+void battle_condition_stat_at_most(Snes *s);
+bool battle_condition_stat_at_most_ready(Snes *s);
+void battle_condition_within_reach(Snes *s);
+bool battle_condition_within_reach_ready(Snes *s);
+void battle_condition_level_with(Snes *s);
+bool battle_condition_level_with_ready(Snes *s);
+void battle_condition_stands_beside(Snes *s);
+bool battle_condition_stands_beside_ready(Snes *s);
+void battle_condition_could_walk_to(Snes *s);
+bool battle_condition_could_walk_to_ready(Snes *s);
+void battle_condition_stands_in(Snes *s);
+bool battle_condition_stands_in_ready(Snes *s);
+void battle_condition_acted_on_by(Snes *s);
+bool battle_condition_acted_on_by_ready(Snes *s);
+void battle_condition_acted_on_by_this(Snes *s);
+bool battle_condition_acted_on_by_this_ready(Snes *s);
+void battle_condition_acted_bit(Snes *s);
+bool battle_condition_acted_bit_ready(Snes *s);
+void battle_condition_acted_on_by_member(Snes *s);
+bool battle_condition_acted_on_by_member_ready(Snes *s);
+void battle_condition_acted_with_elements(Snes *s);
+bool battle_condition_acted_with_elements_ready(Snes *s);
+void battle_condition_chance(Snes *s);
+bool battle_condition_chance_ready(Snes *s);
+void battle_condition_stat_is(Snes *s);
+bool battle_condition_stat_is_ready(Snes *s);
+void battle_condition_other_kind_present(Snes *s);
+bool battle_condition_other_kind_present_ready(Snes *s);
+void battle_condition_members_at_most(Snes *s);
+bool battle_condition_members_at_most_ready(Snes *s);
+void battle_condition_is_party_member(Snes *s);
+bool battle_condition_is_party_member_ready(Snes *s);
+void battle_condition_three_on_out(Snes *s);
+bool battle_condition_three_on_out_ready(Snes *s);
+void battle_condition_chooses_but_fails(Snes *s);
+bool battle_condition_chooses_but_fails_ready(Snes *s);
+void battle_condition_within_wide_reach(Snes *s);
+bool battle_condition_within_wide_reach_ready(Snes *s);
+void battle_condition_was_beaten(Snes *s);
+bool battle_condition_was_beaten_ready(Snes *s);
+void battle_condition_stands_apart(Snes *s);
+bool battle_condition_stands_apart_ready(Snes *s);
+void battle_condition_turn_wait(Snes *s);
+bool battle_condition_turn_wait_ready(Snes *s);
+
+/* battle/enemy_actions.c */
+void battle_enemy_choose_pose(Snes *s);
+bool battle_enemy_choose_pose_ready(Snes *s);
+void battle_enemy_choose_aim(Snes *s);
+bool battle_enemy_choose_aim_ready(Snes *s);
+void battle_enemy_draw_one_of_four(Snes *s);
+bool battle_enemy_draw_one_of_four_ready(Snes *s);
+void battle_enemy_forgive_block(Snes *s);
+bool battle_enemy_forgive_block_ready(Snes *s);
+void battle_enemy_note_number(Snes *s);
+bool battle_enemy_note_number_ready(Snes *s);
+void battle_enemy_need_beaten(Snes *s);
+bool battle_enemy_need_beaten_ready(Snes *s);
+void battle_enemy_record_action(Snes *s);
+void battle_enemy_note_actor_bits(Snes *s);
+void battle_enemy_pose_kind(Snes *s);
+
+/* battle/enemy_turn.c */
+void battle_enemy_takes_turn(Snes *s);
+void battle_enemy_tech_body(Snes *s);
+bool battle_enemy_tech_body_ready(Snes *s);
+void battle_start_action_showing(Snes *s);
+void battle_enemy_pose_turn(Snes *s);
+bool battle_enemy_pose_turn_ready(Snes *s);
+void battle_enemy_attack_turn(Snes *s);
+bool battle_enemy_attack_turn_ready(Snes *s);
+void battle_enemy_tech_turn(Snes *s);
+bool battle_enemy_tech_turn_ready(Snes *s);
+void battle_enemy_no_turn(Snes *s);
+bool battle_enemy_no_turn_ready(Snes *s);
+void battle_enemy_choose_again_turn(Snes *s);
+bool battle_enemy_choose_again_turn_ready(Snes *s);
+void battle_enemy_change_into_turn(Snes *s);
+bool battle_enemy_change_into_turn_ready(Snes *s);
+void battle_enemy_leave_turn(Snes *s);
+bool battle_enemy_leave_turn_ready(Snes *s);
+void battle_enemy_die_turn(Snes *s);
+bool battle_enemy_die_turn_ready(Snes *s);
+void battle_enemy_set_stat_turn(Snes *s);
+bool battle_enemy_set_stat_turn_ready(Snes *s);
+void battle_enemy_add_to_stat_turn(Snes *s);
+bool battle_enemy_add_to_stat_turn_ready(Snes *s);
+void battle_enemy_flags_turn(Snes *s);
+bool battle_enemy_flags_turn_ready(Snes *s);
+void battle_enemy_message_turn(Snes *s);
+bool battle_enemy_message_turn_ready(Snes *s);
+void battle_enemy_bring_back_turn(Snes *s);
+bool battle_enemy_bring_back_turn_ready(Snes *s);
+void battle_enemy_set_stats_turn(Snes *s);
+bool battle_enemy_set_stats_turn_ready(Snes *s);
+void battle_enemy_set_stats_then_tech_turn(Snes *s);
+bool battle_enemy_set_stats_then_tech_turn_ready(Snes *s);
+void battle_enemy_add_to_turn_wait_turn(Snes *s);
+bool battle_enemy_add_to_turn_wait_turn_ready(Snes *s);
+void battle_enemy_add_to_stats_turn(Snes *s);
+bool battle_enemy_add_to_stats_turn_ready(Snes *s);
+void battle_enemy_add_to_stats_then_tech_turn(Snes *s);
+bool battle_enemy_add_to_stats_then_tech_turn_ready(Snes *s);
+void battle_enemy_call_in_turn(Snes *s);
+bool battle_enemy_call_in_turn_ready(Snes *s);
+
+/* battle/main_loop.c */
+void battle_finish_beaten_enemies(Snes *s);
+
+/* their guards: each entry above that carries out a script's command has
+ * its own, which knows the command (name_ready) */
+typedef enum {
+    TAKES_NOTHING,       /* nothing of the script at the place */
+    TAKES_CONDITION,     /* a condition the entry carries out, and its block */
+    TAKES_HELD,          /* the actions after the condition that held */
+    TAKES_ACTION,        /* an action the entry chooses or carries out */
+    TAKES_SELECTOR,      /* the selector after the place */
+    TAKES_SELECTOR_IN_A, /* the selector in A */
+    TAKES_ACTIONS,       /* the actions the choosing is at */
+} ScriptUse;
+bool battle_script_entry_ready(Snes *s, ScriptUse use, uint8_t command);
+bool battle_enemy_script_ready(Snes *s);
+bool battle_enemy_first_block_ready(Snes *s);
+bool battle_enemy_held_ready(Snes *s);
+bool battle_script_selector_ready(Snes *s);
+bool battle_selector_in_a_ready(Snes *s);
+uint8_t battle_selector_in_a(const Snes *s);
+bool battle_enemy_actions_ready(Snes *s);
+bool battle_enemy_turn_ready(Snes *s);
+bool battle_candidates_ready(Snes *s);
+bool battle_enemy_choosing_ready(Snes *s);
+bool battle_enemies_choose_ready(Snes *s);
+bool battle_search_ready(Snes *s);
+bool battle_reach_test_ready(Snes *s);
+bool battle_combatant_in_work_ready(Snes *s);
 
 /* battle/wait.c */
 bool battle_frame_wait_is_idle(Snes *s);

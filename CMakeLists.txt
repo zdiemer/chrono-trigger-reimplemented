@@ -122,15 +122,19 @@ add_library(ct_game STATIC
   game/field/walk.c
   game/field/sprites.c
   game/field/window_shape.c
+  game/menu/bridge.c
+  game/menu/cursor.c
   game/menu/display.c
   game/menu/epoch.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/line_effects.c
+  game/menu/load_screen.c
   game/menu/map.c
   game/menu/object_commands.c
   game/menu/object_script.c
   game/menu/objects.c
+  game/menu/opening.c
   game/menu/save_screen.c
   game/menu/script.c
   game/menu/script_bridge.c
@@ -140,6 +144,7 @@ add_library(ct_game STATIC
   game/menu/top_layer.c
   game/menu/vram.c
   game/menu/wave.c
+  game/menu/windows.c
   game/sound/driver.c
   game/sound/sequencer.c
   game/sound/songs.c
@@ -168,6 +173,10 @@ add_library(ct_game STATIC
   game/battle/digits.c
   game/battle/display.c
   game/battle/effect_animation.c
+  game/battle/enemy_actions.c
+  game/battle/enemy_conditions.c
+  game/battle/enemy_scripts.c
+  game/battle/enemy_turn.c
   game/battle/effect_paths.c
   game/battle/frame.c
   game/battle/main_loop.c
@@ -175,6 +184,8 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/positions.c
+  game/battle/random.c
   game/battle/reset.c
   game/battle/screen_beam.c
   game/battle/screen_gradient.c
@@ -194,6 +205,7 @@ add_library(ct_game STATIC
   game/battle/sound.c
   game/battle/sprites.c
   game/battle/status.c
+  game/battle/targets.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c

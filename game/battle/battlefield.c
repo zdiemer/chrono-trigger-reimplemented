@@ -12,7 +12,7 @@
 #include "original_effects.h"
 #include "vars.h"
 
-enum { GRID_CELLS = 256, CELL_PIXELS_SHIFT = 4, CELL_TAKEN = 0x40, PARTY_OFF_GRID = 0x04 };
+enum { GRID_CELLS = 256, CELL_PIXELS_SHIFT = 4, CELL_TAKEN = 0x40 };
 
 /* A slot's presence and position, read as the original indexes them: past
  * the eleventh, into the tables after. */
@@ -51,7 +51,7 @@ static void mark_combatants(GameState *g)
 {
     for (unsigned cell = 0; cell < GRID_CELLS; cell++)
         set_battle_grid(g, cell, battle_base_grid(g, cell));
-    uint8_t first = (battle_setup_flags(g) & PARTY_OFF_GRID) ? BATTLE_FIRST_ENEMY : 0;
+    uint8_t first = (battle_setup_flags(g) & BATTLE_SETUP_PARTY_OFF_GRID) ? BATTLE_FIRST_ENEMY : 0;
     unsigned last_row = NO_ROW;
     for (unsigned slot = first; slot < first + (unsigned)BATTLE_COMBATANTS; slot++) {
         if (!slot_present(g, slot))

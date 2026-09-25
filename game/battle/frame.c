@@ -98,7 +98,7 @@ static void square_the_window_top(GameState *g)
  * handler applies. On even frames, while the window isn't sliding, the
  * arrangement follows the one the battle wants, and the player's button flips
  * it, once a press; not in a demo battle. */
-enum { DEMO_BATTLE = 0x20, FLIP_BUTTON = 0x01, HELD_BUTTONS = 1 };
+enum { FLIP_BUTTON = 0x01, HELD_BUTTONS = 1 };
 
 static void flip_the_arrangement(GameState *g)
 {
@@ -111,7 +111,7 @@ static void choose_the_arrangement(GameState *g)
 {
     if (battle_alternate_frame(g) != battle_alternate_request(g))
         flip_the_arrangement(g);
-    bool pressed = !(battle_setup_flags_copy(g) & DEMO_BATTLE) && (input_mapped(g, HELD_BUTTONS) & FLIP_BUTTON);
+    bool pressed = !(battle_setup_flags_copy(g) & BATTLE_SETUP_DEMO) && (input_mapped(g, HELD_BUTTONS) & FLIP_BUTTON);
     if (!pressed) {
         set_battle_alternate_toggle_held(g, 0);
     } else if (!battle_alternate_toggle_held(g)) {
@@ -325,7 +325,7 @@ static bool any_button_held(Platform *pf)
 
 static bool end_the_demo(GameState *g, Platform *pf)
 {
-    if (!(battle_setup_flags(g) & DEMO_BATTLE))
+    if (!battle_is_demo(g))
         return false;
     if (any_button_held(pf))
         set_battle_demo_exiting(g, 1);
@@ -341,7 +341,7 @@ static bool end_the_demo(GameState *g, Platform *pf)
 
 /* Holding L and R together for two seconds makes the party run, where the
  * battle allows it; the time counts on while they are held. */
-enum { BUTTONS_L_R = IN_BUTTON_L | IN_BUTTON_R, RUN_AFTER_FRAMES = 120, NO_RUNNING_AWAY = 0x80 };
+enum { BUTTONS_L_R = IN_BUTTON_L | IN_BUTTON_R, RUN_AFTER_FRAMES = 120 };
 
 static void hold_to_run(GameState *g, Platform *pf)
 {
@@ -354,7 +354,7 @@ static void hold_to_run(GameState *g, Platform *pf)
     }
     uint16_t held = (uint16_t)(battle_lr_held(g) + 1);
     set_battle_lr_held(g, held);
-    if (held >= RUN_AFTER_FRAMES && !(battle_setup_flags(g) & NO_RUNNING_AWAY))
+    if (held >= RUN_AFTER_FRAMES && !(battle_setup_flags(g) & BATTLE_SETUP_NO_RUNNING))
         set_battle_run_counter(g, (uint16_t)(battle_run_counter(g) + 1));
 }
 

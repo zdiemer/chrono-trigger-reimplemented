@@ -45,18 +45,19 @@ static uint8_t bound_after(uint8_t at, uint8_t half_size)
     return in_far_half(at) && !in_far_half(bound) ? (uint8_t)SCREEN_FAR_EDGE : bound;
 }
 
-/* The party stands off the battlefield's grid (battle_setup_flags). */
-enum { PARTY_OFF_GRID = 0x04, BOX_BELOW = 8 };
+/* The box reaches 8 pixels below the object, unless the party stands off the
+ * battlefield's grid. */
+enum { BOX_BELOW = 8 };
 
 // $C1:285A
 /* Work out the object's box from the position it was last given. */
-static void update_bounds(GameState *g, unsigned slot)
+void battle_update_bounds(GameState *g, unsigned slot)
 {
     uint8_t x = battle_bounds_x(g, slot), y = battle_bounds_y(g, slot);
     set_battle_bounds_left(g, slot, bound_before(x, battle_object_half_width(g, slot)));
     set_battle_bounds_right(g, slot, bound_after(x, battle_object_half_width(g, slot)));
     set_battle_bounds_top(g, slot, bound_before(y, battle_object_half_height(g, slot)));
-    bool below = !(battle_setup_flags(g) & PARTY_OFF_GRID);
+    bool below = !(battle_setup_flags(g) & BATTLE_SETUP_PARTY_OFF_GRID);
     set_battle_bounds_bottom(g, slot, below ? (uint8_t)(y + BOX_BELOW) : y);
 }
 
@@ -69,7 +70,7 @@ static void update_all_bounds(GameState *g)
             continue;
         set_battle_bounds_x(g, slot, battle_object_x(g, battle_combatant_object(slot)));
         set_battle_bounds_y(g, slot, battle_object_y(g, battle_combatant_object(slot)));
-        update_bounds(g, slot);
+        battle_update_bounds(g, slot);
     }
 }
 
@@ -131,10 +132,10 @@ static void leave_position_slot(GameState *g, unsigned slot)
  * last sum leaves the carry for the callers: the bottom's, or the top's
  * when the box has none below; and a bound clamped at the near edge leaves A's
  * high byte clear (the original clamps with its direct page, 0). */
-static bool bounds_carry(const GameState *g, unsigned slot)
+bool battle_bounds_carry(const GameState *g, unsigned slot)
 {
     uint8_t y = battle_bounds_y(g, slot);
-    if (!(battle_setup_flags(g) & PARTY_OFF_GRID))
+    if (!(battle_setup_flags(g) & BATTLE_SETUP_PARTY_OFF_GRID))
         return y + BOX_BELOW > 0xFF;
     return y >= battle_object_half_height(g, slot);
 }
@@ -145,10 +146,10 @@ void battle_update_object_bounds(Snes *s)
     unsigned slot = s->cpu.x;
     bool clamped = past_near_edge(battle_bounds_x(g, slot), battle_object_half_width(g, slot))
                    || past_near_edge(battle_bounds_y(g, slot), battle_object_half_height(g, slot));
-    update_bounds(g, slot);
+    battle_update_bounds(g, slot);
     if (clamped)
         s->cpu.a = 0;
-    m_set_flag(s, CPU_FLAG_C, bounds_carry(g, slot));
+    m_set_flag(s, CPU_FLAG_C, battle_bounds_carry(g, slot));
     m_rts(s);
 }
 

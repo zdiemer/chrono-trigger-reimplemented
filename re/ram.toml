@@ -3861,6 +3861,15 @@ meaning = "The three active party members as character ids, $80 for an empty slo
 source = "tools/movies/addresses.py PARTY_MEMBERS; game/event/party.c take_out_of_party $C0:3A07"
 
 [[var]]
+name = "party_waiting"
+addr = "7E:2983"
+count = 6
+index = "waiting place"
+subsystem = "core"
+meaning = "The party's members who aren't active, as character ids, $80 for an empty place"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
 name = "game_settings"
 addr = "7E:2990"
 count = 3
@@ -4542,15 +4551,15 @@ addr = "7E:0D49"
 count = 4
 index = "save slot"
 subsystem = "menu"
-meaning = "Nonzero for the save slots that hold a game; the load screen skips the others"
+meaning = "Nonzero for the save slots that hold a game, and for the fourth row while it can be chosen (the menus set it to $FF as they open; it is 0 while the load screen asks which game a New Game+ continues from); the load screen's cursor skips the others"
 source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_slot $C2:D36C"
 
 [[var]]
 name = "menu_wait_frames"
 addr = "7E:0D76"
 subsystem = "menu"
-meaning = "A frame countdown the vblank handler decrements until it reaches zero"
-source = "game/menu/display.c, menu_nmi_work $C2:842A"
+meaning = "A frame countdown the vblank handler decrements until it reaches zero: the menus' sounds wait on it, three frames after one plays"
+source = "game/menu/display.c, menu_nmi_work $C2:842A; game/menu/cursor.c, the menus' sounds $C2:EB03"
 
 [[var]]
 name = "menu_save_slot_era"
@@ -4602,6 +4611,49 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 0
   size = 2
   meaning = "The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte)"
+  [[var.field]]
+  name = "window_style_fourfold"
+  offset = 0
+  meaning = "The window command lists: the window style's number times four, halfway to its tiles' first"
+  [[var.field]]
+  name = "cursor_button_bit"
+  offset = 0
+  meaning = "The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last"
+  [[var.field]]
+  name = "erased_slot_rows"
+  offset = 0
+  size = 2
+  meaning = "The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic"
+  [[var.field]]
+  name = "slot_check"
+  offset = 0
+  size = 2
+  meaning = "The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong"
+  [[var.field]]
+  name = "label_moves"
+  offset = 0
+  size = 1
+  meaning = "A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in its place"
+  [[var.field]]
+  name = "window_columns_left"
+  offset = 0
+  size = 2
+  meaning = "The window command lists: the columns a swapped rectangle's row had left, 0 once it is done"
+  [[var.field]]
+  name = "window_right_side"
+  offset = 6
+  size = 2
+  meaning = "The window command lists: how far a frame's right side is from its left, in bytes"
+  [[var.field]]
+  name = "window_tile"
+  offset = 8
+  size = 2
+  meaning = "The window command lists: the tilemap word a frame's next part starts from, or the inside's first"
+  [[var.field]]
+  name = "window_pattern_row"
+  offset = 0x0A
+  size = 2
+  meaning = "The window command lists: which row of a window inside's four-row pattern comes next, times four"
   [[var.field]]
   name = "save_member_record"
   offset = 2
@@ -4657,7 +4709,7 @@ count = 42
 index = "cursor position of the current menu (the table runs up to the palette at $9480)"
 subsystem = "menu"
 meaning = "Where the cursor sprite goes for each cursor position of the current menu; the load screen moves its fourth row's between two choices"
-source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984 (the neighbours by the push each follows); game/menu/save_screen.c, menu_show_save_slot $C2:E743"
   [[var.field]]
   name = "x"
   offset = 0
@@ -4667,21 +4719,21 @@ source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_s
   offset = 1
   meaning = "The cursor's Y"
   [[var.field]]
-  name = "right"
+  name = "up"
   offset = 2
-  meaning = "The position right of this one ($80 set: none, leave the menu that way)"
-  [[var.field]]
-  name = "left"
-  offset = 3
-  meaning = "The position left of it"
+  meaning = "The position above this one ($80 set: the push leaves the menu's positions that way)"
   [[var.field]]
   name = "down"
-  offset = 4
+  offset = 3
   meaning = "The position below it"
   [[var.field]]
-  name = "up"
+  name = "left"
+  offset = 4
+  meaning = "The position left of it"
+  [[var.field]]
+  name = "right"
   offset = 5
-  meaning = "The position above it"
+  meaning = "The position right of it"
 
 [[var]]
 name = "menu_cursor_moves"
@@ -4823,6 +4875,254 @@ meaning = "The current menu's cursor position: the cursor sprite is placed from 
 source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D, menu_show_save_slot $C2:E743"
 
 [[var]]
+name = "menu_cursor_left_from"
+addr = "7E:0055"
+page = "menu"
+subsystem = "menu"
+meaning = "The cursor position the cursor last moved away from"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_frame_start"
+addr = "7E:0081"
+page = "menu"
+subsystem = "menu"
+meaning = "Where the cursor was when this frame's input was read: the menus play the cursor's sound where it has moved since"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_screen"
+addr = "7E:0067"
+page = "menu"
+subsystem = "menu"
+meaning = "Which of the menus' screens runs, by the dispatch at $C2:826F: 0 the main menu, 14 the load screen, and the rest between them"
+source = "game/menu/load_screen.c; the menus' main task $C2:826F"
+
+[[var]]
+name = "menu_screen_step"
+addr = "7E:0068"
+page = "menu"
+subsystem = "menu"
+meaning = "Which step of its screen the menus' main task runs this frame; each screen's steps are its handlers, in the table the screen's number picks"
+source = "game/menu/load_screen.c; game/menu/cursor.c, menu_read_cursor $C2:E984; the menus' main task $C2:826F"
+
+[[var]]
+name = "menu_save_slot_design"
+addr = "7E:0D79"
+count = 3
+index = "save slot"
+subsystem = "menu"
+meaning = "The window design each save slot's game was saved with, which the load screen draws the slot's row in"
+source = "game/menu/load_screen.c, the slots' rows $C2:D32C; the slots' summaries $C2:D266"
+
+[[var]]
+name = "menu_kept_cursor"
+addr = "7E:0F00"
+subsystem = "menu"
+meaning = "The cursor position a screen keeps to come back to: the load screen's slot while it asks whether to erase it"
+source = "game/menu/load_screen.c, $C2:E898, $C2:E731"
+
+[[var]]
+name = "menu_graphic_first_tile"
+addr = "7E:0DC7"
+size = 2
+subsystem = "menu"
+meaning = "The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the load screen's slot labels, the text loader's graphics)"
+source = "game/menu/load_screen.c, the slots' rows $C2:D10D; the text loader $C2:F9E1"
+
+[[var]]
+name = "second_controller"
+addr = "7E:041F"
+size = 2
+subsystem = "core"
+meaning = "The second controller's buttons as the console last read them, in the controller's own order, which the load screen looks at for its hidden erase (Select and Start held)"
+source = "game/menu/load_screen.c, $C2:E61B; the menus' input $C2:848D"
+
+[[var]]
+name = "save_slot_chosen"
+addr = "7E:0414"
+subsystem = "core"
+meaning = "The save slot the game goes on in: the one the player chose to load, or the first empty one a new game will be saved to"
+source = "game/menu/load_screen.c, $C2:E654, $C2:E691; the save's load $FF:F9FB"
+
+[[var]]
+name = "times_finished"
+addr = "7E:299E"
+subsystem = "core"
+meaning = "How many times the game on the cartridge has been finished, as a new game starts with it (the cartridge's count at $30:7FE1)"
+source = "game/menu/load_screen.c, $C2:E66A; the save $FF:FA6F"
+
+[[var]]
+name = "frames_at_leaving"
+addr = "7E:29AD"
+subsystem = "core"
+meaning = "The menus' frame count when they left for the game, which the battle takes its random numbers' start from"
+source = "game/menu/load_screen.c, $C2:E6A5, $C2:805E"
+
+[[var]]
+name = "menu_carry_on_question"
+addr = "7E:52C0"
+count = 0x100
+index = "byte"
+subsystem = "menu"
+meaning = "The load screen's slot header rows in BG3's tilemap buffer, where the question of which game a New Game+ carries on from is laid out over the header, and cleared when the player goes back"
+source = "game/menu/load_screen.c, $C2:E841, $C2:E6ED"
+
+[[var]]
+name = "menu_members"
+addr = "7E:0D5F"
+count = 9
+index = "member, as the menus list them"
+subsystem = "menu"
+meaning = "The party's characters as the menus list them: the active members, then the waiting ones, $FF past the last"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_member_places"
+addr = "7E:0D68"
+count = 9
+index = "member, as the menus list them"
+subsystem = "menu"
+meaning = "Each listed member's place in the party: 0-2 active, 3-8 waiting"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_blank_string"
+addr = "7E:9B76"
+count = 32
+index = "tile"
+subsystem = "menu"
+meaning = "Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where a list has nothing to name"
+source = "game/menu/opening.c, the menus' opening $C2:8103; its readers $C2:A5B6, $C2:DD71"
+
+[[var]]
+name = "menu_setting_sound_output"
+addr = "7E:0D86"
+subsystem = "menu"
+meaning = "The settings screen's cells, one a setting, which the menus unpack from the player's settings as they open: stereo or mono (the first byte's bit 3)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_own_buttons"
+addr = "7E:0D87"
+subsystem = "menu"
+meaning = "Nonzero where the player's own button assignments are in use rather than the default (the first byte's bit 4)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4; $C2:C564"
+
+[[var]]
+name = "menu_setting_keep_menu_cursors"
+addr = "7E:0D88"
+subsystem = "menu"
+meaning = "Nonzero where the menus keep their cursors' places from one opening to the next (the first byte's bit 5)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4; the main menu $C2:99D9"
+
+[[var]]
+name = "menu_setting_active_time"
+addr = "7E:0D89"
+subsystem = "menu"
+meaning = "Nonzero for the battle's active time (the first byte's bit 6)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_battle_gauge"
+addr = "7E:0D8A"
+subsystem = "menu"
+meaning = "The battle gauge's layout (the third byte's low two bits)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_battle_speed"
+addr = "7E:0D8B"
+subsystem = "menu"
+meaning = "The battle's speed (the first byte's low three bits)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_keep_battle_command"
+addr = "7E:0D8D"
+subsystem = "menu"
+meaning = "Nonzero where the battle keeps each member's command cursor (the second byte's bit 6)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_keep_battle_lists"
+addr = "7E:0D8E"
+subsystem = "menu"
+meaning = "Nonzero where the battle keeps each member's tech and item cursors (the second byte's bit 7)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_descriptions"
+addr = "7E:0D8F"
+subsystem = "menu"
+meaning = "Nonzero where the battle shows a tech's or item's description as the cursor meets it (the first byte's bit 7)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_setting_message_speed"
+addr = "7E:0D90"
+subsystem = "menu"
+meaning = "How fast the dialog's messages go (the second byte's bits 3-5)"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_slot_game_at"
+addr = "7E:007B"
+size = 2
+subsystem = "menu"
+meaning = "Where the save slot the save code last checked ($FF:F9C4) keeps its game, as the bus addresses save memory ($6000 on): what the slots' summaries are read from"
+source = "game/menu/save_screen.c, the slots read $C2:D19F, $C2:D266"
+
+[[var]]
+name = "menu_setting_spare"
+addr = "7E:0D91"
+subsystem = "menu"
+meaning = "The byte after the unpacked settings, which their clearing clears with them; nothing in bank C2 reads it"
+source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_cursor_buttons"
+addr = "7E:0D1D"
+subsystem = "menu"
+meaning = "The buttons read this frame as the menus take them: bit 7 choose and bit 6 go back (the player's first two assignments), bits 1 and 0 the seventh and eighth, repeating; none on a step's first frame"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_direction"
+addr = "7E:0D1E"
+subsystem = "menu"
+meaning = "The way the cursor was pushed this frame: 0 right, 1 left, 2 down, 3 up, $80 none"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_held"
+addr = "7E:0D1F"
+subsystem = "menu"
+meaning = "Nonzero keeps the cursor where it is against the next push; the push clears it"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_step_seen"
+addr = "7E:0D17"
+subsystem = "menu"
+meaning = "The screen step the cursor last read the buttons in: a step's first frame reads none"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_cursor_always_back"
+addr = "7E:0D83"
+subsystem = "menu"
+meaning = "Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but the setup's clearing"
+source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_queued_sounds"
+addr = "7E:0DBC"
+subsystem = "menu"
+meaning = "Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound 7, played by $C2:EAD6 the first first"
+source = "game/menu/cursor.c, menu_play_queued_sound $C2:EAD6"
+
+[[var]]
 name = "menu_cursor_flip"
 addr = "7E:0056"
 page = "menu"
@@ -4840,21 +5140,146 @@ meaning = "The cursor sprite's tile and attributes"
 source = "game/menu/save_screen.c, menu_reset_sprites $C2:E92D"
 
 [[var]]
-name = "menu_window_effect_channel"
-addr = "7E:005B"
+name = "menu_time_played_shown"
+addr = "7E:0022"
 page = "menu"
 size = 2
 subsystem = "menu"
-meaning = "The DMA channel base address window command 12 programs a per-line effect slot on"
-source = "game/menu/display.c, menu_window_set_line_effect $C2:F337"
+meaning = "The time played a save slot's header shows, as the numbers it draws: the hours (99 at most), then the minutes"
+source = "game/menu/text.c, menu_draw_time_played $C2:F28D"
 
 [[var]]
-name = "menu_window_effect_mode"
-addr = "7E:005D"
+name = "menu_tasks"
+addr = "7E:00B0"
+page = "menu"
+stride = 8
+count = 8
+index = "task, 8 bytes a task ($B0 + 8 * the task)"
+subsystem = "menu"
+meaning = "The menus' tasks, which their scheduler ($C2:81B9) runs a turn of each frame, each on a stack of its own: the screen's main task, the sprites' and the cursor's, a fade, a graphic's loading"
+source = "game/menu/load_screen.c; the scheduler $C2:81B9, a task's start $C2:8249, its yield $C2:821E"
+  [[var.field]]
+  name = "state"
+  offset = 0
+  meaning = "0 no task; 1 to start at `start`; 2 waiting `countdown` frames, to go on from `stack`"
+  [[var.field]]
+  name = "countdown"
+  offset = 1
+  meaning = "The frames the task still waits"
+  [[var.field]]
+  name = "start"
+  offset = 2
+  size = 2
+  meaning = "Where a task to start begins, in bank C2"
+  [[var.field]]
+  name = "stack"
+  offset = 4
+  size = 2
+  meaning = "The task's stack pointer while it waits"
+  [[var.field]]
+  name = "step"
+  offset = 6
+  meaning = "The screen step (menu_screen_step) the task waits in, put back when it goes on"
+
+[[var]]
+name = "menu_current_task"
+addr = "7E:006E"
 page = "menu"
 subsystem = "menu"
-meaning = "Window command 12's per-line transfer mode (the destination register follows it)"
-source = "game/menu/display.c, menu_window_set_line_effect $C2:F337"
+meaning = "The task the scheduler is running, its record's offset from the first ($B0)"
+source = "the scheduler $C2:81E8, a task's yield $C2:823A"
+
+[[var]]
+name = "menu_screen_argument"
+addr = "7E:0071"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "What the menus' caller entered them with in X, which the screen they open on takes as its argument (a shop's number, a party member)"
+source = "game/menu/opening.c, the menus' opening $C2:806B"
+
+[[var]]
+name = "menu_active_members"
+addr = "7E:0073"
+page = "menu"
+subsystem = "menu"
+meaning = "How many of the party's members are active (in its first three places), as the menus count them opening"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_member_count"
+addr = "7E:0075"
+page = "menu"
+subsystem = "menu"
+meaning = "How many members the party has, active and waiting, as the menus count them opening"
+source = "game/menu/opening.c, the party's list $C2:816A"
+
+[[var]]
+name = "menu_list_top"
+addr = "7E:0057"
+page = "menu"
+subsystem = "menu"
+meaning = "The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared as the menus open"
+source = "game/menu/opening.c, the menus' opening $C2:8101; $C2:EAA7"
+
+[[var]]
+name = "menu_after_slot_shown"
+addr = "7E:007A"
+page = "menu"
+subsystem = "menu"
+meaning = "The byte after the save slot shown, which the slots' reading clears with it and then reads with it, the slot a word wide"
+source = "game/menu/save_screen.c, menu_read_save_slots $C2:D161, $C2:D168"
+
+[[var]]
+name = "menu_zero"
+addr = "7E:0051"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "A word the menus set to 0 as they open and read wherever they want a zero: an index's first value, a table's start (the number drawer's powers of two), a value ORed in"
+source = "game/menu/text.c, menu_number_to_bcd $C2:F13F; game/menu/windows.c; the menus' opening $C2:80FF"
+
+[[var]]
+name = "menu_window_operands"
+addr = "7E:005B"
+page = "menu"
+count = 6
+index = "the operand's byte"
+subsystem = "menu"
+meaning = "The operands of the window command being run, copied out of its list; the last command's stay behind (a shorter command leaves the longer one's last bytes after its own)"
+source = "game/menu/windows.c, menu_run_window_list $C2:ED31"
+
+[[var]]
+name = "menu_window_place"
+addr = "7E:0063"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $7E the last window command's window, string or rectangle starts: its place from the drawing origin, two bytes a tile and $40 a row; a command that walks rows down leaves it past the last it read"
+source = "game/menu/windows.c, the window command lists $C2:ED31, the place $C2:ED90"
+
+[[var]]
+name = "menu_fill_tile"
+addr = "7E:007D"
+page = "menu"
+subsystem = "menu"
+meaning = "The tile a window command last filled a stretch of tilemap with; the fill's attribute goes to the text's (menu_text_attribute, the byte after), which the strings drawn after it take"
+source = "game/menu/windows.c, the fill command $C2:ED77"
+
+[[var]]
+name = "menu_window_style"
+addr = "7E:0D47"
+size = 2
+subsystem = "menu"
+meaning = "The tilemap word of the window style being drawn's first tile: its number, where the style's twenty tiles start, and its attribute (palette and priority), which every tile of the window takes"
+source = "game/menu/windows.c, the window style $C2:EDD3"
+
+[[var]]
+name = "menu_window_design"
+addr = "7E:0D8C"
+subsystem = "menu"
+meaning = "Which of the eight window designs the player chose in the settings, which windows are drawn in unless their list names a style"
+source = "game/menu/windows.c, the window style $C2:EDD3 and colours $C2:ED08"
 
 [[var]]
 name = "menu_save_slot_shown"
@@ -4902,7 +5327,7 @@ addr = "7E:008A"
 page = "menu"
 stride = 4
 subsystem = "menu"
-meaning = "The text drawer's work: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word"
+meaning = "Work cells the text drawer and the window command lists share: the number being drawn, in decimal digits; the control codes' dispatch leaves the handler's address in its first word; a window's columns and rows"
 source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispatch $C2:EFBE"
   [[var.field]]
   name = "number"
@@ -4914,6 +5339,16 @@ source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispat
   offset = 0
   size = 2
   meaning = "The last control code's handler, which its dispatch jumps through; nothing else reads it"
+  [[var.field]]
+  name = "window_columns"
+  offset = 0
+  size = 2
+  meaning = "The window command lists' drawing: how many columns wide (or bytes, less one, of a row it copies) what it draws is, as the last command left it"
+  [[var.field]]
+  name = "window_rows"
+  offset = 2
+  size = 2
+  meaning = "The window command lists' drawing: the rows it has left to draw or copy, which the last command leaves at 0 or at a frame's inside rows"
 
 [[var]]
 name = "menu_draw_origin"
@@ -4925,13 +5360,13 @@ meaning = "The place in a tilemap buffer in bank $7E the menus draw relative to:
 source = "game/menu/text.c, the move control code $C2:F005; game/menu/save_screen.c, menu_draw_save_slot $C2:D36C, menu_draw_member_portrait $C2:D466"
 
 [[var]]
-name = "menu_text_line_start"
+name = "menu_line_start"
 addr = "7E:0065"
 page = "menu"
 size = 2
 subsystem = "menu"
-meaning = "Where the line of text being drawn starts in bank $7E: a new line goes back there a row or two down, and the move code puts it anywhere"
-source = "game/menu/text.c, menu_draw_text $C2:EF65, the new line and move control codes $C2:EFF4, $C2:F005"
+meaning = "Where the line being drawn starts in bank $7E: a line of text, which a new line goes back to a row or two down and the move code puts anywhere; or the tilemap row a window command is drawing, which it leaves past the last"
+source = "game/menu/text.c, menu_draw_text $C2:EF65, the new line and move control codes $C2:EFF4, $C2:F005; game/menu/windows.c, the window command lists $C2:ED31"
 
 [[var]]
 name = "menu_number_digits"
@@ -6376,7 +6811,7 @@ count = 2
 stride = 2
 index = "plane"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "Which background tile column of the map each plane has at its left edge (0-191), set from the party's tile at $0102 ($C2:2720). A third plane's word would be menu_map_row's first, and its tile groups would be the first plane's map, so only two planes can be scrolled"
 source = "game/menu/map.c, menu_map_scroll_x $C2:0568, menu_map_redraw $C2:09C5"
 
@@ -6388,7 +6823,7 @@ count = 3
 stride = 2
 index = "plane"
 page = "menu"
-subsystem = "menu"
+subsystem = "menu_object"
 meaning = "And which tile row it has at its top edge (0-127)"
 source = "game/menu/map.c, menu_map_scroll_y $C2:066C, menu_map_redraw $C2:09C5"
 
@@ -6889,14 +7324,14 @@ meaning = "Long pointers the battle's routines read the ROM through, each routin
 source = "game/battle/sprites.c battle_build_object_graphics $C1:1C55; game/battle/animation.c load_enemy_frame_list $C1:3364"
 
 [[var]]
-name = "battle_direction_points"
+name = "battle_direction_cells"
 addr = "7E:00D3"
 page = "battle"
-count = 4
-index = "byte"
+count = 17
+index = "byte: the two points, from X and Y ($D3, $D4) to X and Y ($D5, $D6); their differences and signs ($D7-$DA); the angle ($DB); the sizes of the differences, words ($DC the horizontal an eighth, $DE, $E0); the arctangent table's place, a word ($E2)"
 subsystem = "battle"
-meaning = "The two points $C1:0222 finds the direction between: from X and Y ($D3, $D4) to X and Y ($D5, $D6)"
-source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+meaning = "What $C1:0222 finds the direction between two points in: the points it is given, and the cells it works in"
+source = "game/battle/positions.c battle_direction $C1:0222; game/battle/animation.c face_nearest_enemy $C1:2F22"
 
 [[var]]
 name = "battle_product"
@@ -7451,60 +7886,73 @@ source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
 
 [[var]]
 name = "battle_stats"
-addr = "7E:5E2F"
+addr = "7E:5E2D"
 count = 11
 stride = 0x80
 index = "battle slot (0-2 the party, 3-10 enemies)"
 unchecked = "the turn's end reads the status of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667)"
 subsystem = "battle"
-meaning = "Per-combatant stat blocks ($80 bytes each; the record is placed at the lowest byte the ports index by slot * $80)"
+meaning = "Per-combatant stat blocks ($80 bytes each), where the battle keeps a combatant's HP and MP, its statuses and what it is made of; the enemies' scripts name a stat by its offset in the block (the table of the blocks' places at $FD:A80B)"
 source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, battle_update_low_hp_flag $C1:B093, battle_update_status_flags $C1:B0B6; game/battle/window.c draw_member $C1:0311"
   [[var.field]]
-  name = "low_hp"
+  name = "block"
   offset = 0
+  size = 0x80
+  meaning = "The whole block a byte at a time, by its offset: how an enemy's script names a stat to test or change"
+  [[var.field]]
+  name = "low_hp"
+  offset = 0x02
   meaning = "Bit 0 set while HP is at most an eighth of max HP"
   [[var.field]]
   name = "hp"
-  offset = 1
+  offset = 0x03
   size = 2
   meaning = "Current HP"
   [[var.field]]
   name = "max_hp"
-  offset = 3
+  offset = 0x05
   size = 2
   meaning = "Maximum HP"
   [[var.field]]
   name = "mp"
-  offset = 5
+  offset = 0x07
   size = 2
   meaning = "Current MP (what tech costs are checked against)"
   [[var.field]]
   name = "max_mp"
-  offset = 7
+  offset = 0x09
   size = 2
   meaning = "Maximum MP"
   [[var.field]]
   name = "condition"
-  offset = 0x1B
+  offset = 0x1D
   meaning = "Bit 7 set while the combatant is knocked out ($5E4A for slot 0)"
   [[var.field]]
   name = "status"
-  offset = 0x1C
+  offset = 0x1E
   size = 4
   meaning = "The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests"
   [[var.field]]
   name = "carried"
-  offset = 0x27
+  offset = 0x29
   meaning = "A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0)"
   [[var.field]]
   name = "status_kept"
-  offset = 0x23
+  offset = 0x25
   size = 2
   meaning = "Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0)"
   [[var.field]]
   name = "worn_item"
-  offset = 0x28
+  offset = 0x2A
   meaning = "An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen)"
+  [[var.field]]
+  name = "revival"
+  offset = 0x22
+  meaning = "Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F for slot 0; $C1:B30F)"
+  [[var.field]]
+  name = "status_ignored"
+  offset = 0x23
+  meaning = "Statuses of the first status byte the combatant shrugs off: an enemy with confusion's bit here isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA)"
 
 # ---- the battlefield grid and setup tables -------------------------------------
 
@@ -7613,6 +8061,10 @@ source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battl
   name = "state"
   offset = 0
   meaning = "Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen"
+  [[var.field]]
+  name = "choice_flags"
+  offset = 1
+  meaning = "Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out"
   [[var.field]]
   name = "partners"
   offset = 5
@@ -8243,11 +8695,11 @@ meaning = "battle_random_position kept between battles: taken at the start and p
 source = "game/battle/main_loop.c battle_main_loop_start $C1:8000, $C1:8443"
 
 [[var]]
-name = "battle_random_at_start"
+name = "battle_random_other_position"
 addr = "7E:B3E6"
 subsystem = "battle"
-meaning = "battle_random_position as the battle started"
-source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
+meaning = "A second position in the battle's table of random numbers, which the critical hits' rolls take from: it starts each battle where battle_random_position does, and each of those draws steps it on"
+source = "game/battle/main_loop.c battle_main_loop_start $C1:8000; game/battle/random.c battle_random_other $C1:AF79"
 
 [[var]]
 name = "battle_demo_kept"
@@ -8389,12 +8841,12 @@ meaning = "Set to have the enemy take its turn whatever animation it shows"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/animation.c load_enemy_frame_list $C1:3364 (loading an acting animation clears it; the enemy animation effect handlers count it up)"
 
 [[var]]
-name = "battle_enemy_turn_held"
+name = "battle_enemy_script_outcome"
 addr = "7E:B24A"
 count = 8
 index = "enemy (battle slot - 3), or the reaction's place"
 subsystem = "battle"
-meaning = "Nonzero to hold the enemy's turn; a reaction leaves its outcome here, by the reaction's place among the action's targets"
+meaning = "What the enemy's script came to when it last chose what the enemy does (battle_script_outcome): only an enemy whose script chose an action (0) takes its turn; a reaction leaves its outcome here, by the reaction's place among the action's targets"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C09"
 
 [[var]]
@@ -8402,6 +8854,7 @@ name = "battle_turn_wait"
 addr = "7E:B158"
 count = 11
 index = "battle slot"
+unchecked = "an enemy's script asks for the turn wait of a candidate that names no combatant (none), which reads on into the table after (game/battle/enemy_conditions.c, $C1:97D5)"
 subsystem = "battle"
 meaning = "The combatant's turn wait: what its turn timer starts from again after it acts"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:BCE1, $C1:B392"
@@ -8491,12 +8944,12 @@ meaning = "Where the enemy's script is read, in bank CC"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:B488"
 
 [[var]]
-name = "battle_script_restart_place"
+name = "battle_script_actions_place"
 addr = "7E:B273"
 size = 2
 subsystem = "battle"
-meaning = "Where the enemy's reactions start in its script"
-source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C63"
+meaning = "Where in its script the actions of the block an enemy's script chose start (and, as its reactions are looked at, where they start); an enemy's turn keeps the place of the action it carried out here"
+source = "game/battle/enemy_scripts.c choose_actions $C1:8C3E, enemy_turn $C1:8CF9; game/battle/enemy_reactions.c"
 
 [[var]]
 name = "battle_block_start"
@@ -8514,17 +8967,17 @@ meaning = "The enemy's animation, kept while its reactions run and put back afte
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
-name = "battle_second_condition"
+name = "battle_condition_pair"
 addr = "7E:B1CF"
 subsystem = "battle"
-meaning = "Set when the block being tested has a second condition"
-source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
+meaning = "How far a block's two conditions have got: 1 while the first is tested, $80 once it held (on the target battle_condition_target keeps) and the second is tested, 0 for a block of one condition, or once both held"
+source = "game/battle/enemy_scripts.c evaluate_script $C1:AFD2; game/battle/enemy_conditions.c ($C1:AEFD, $C1:8C3E)"
 
 [[var]]
 name = "battle_script_outcome"
 addr = "7E:AF24"
 subsystem = "battle"
-meaning = "What testing a block of an enemy's script came to: 0 its conditions held and the enemy acts; otherwise the script goes on (2: on to the next block at once)"
+meaning = "What testing a block of an enemy's script came to: 0 its conditions held and its actions are chosen; 1 they didn't, and the script goes on to its next block; 2 they held but there is nothing the actions can be done to, and it goes on from past them"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; the conditions' handlers ($C1:B80D)"
 
 [[var]]
@@ -8535,14 +8988,14 @@ meaning = "The enemy's foe, kept while a reaction names the actor instead"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
-name = "battle_reaction_places"
+name = "battle_enemy_next_action"
 addr = "7E:B1D4"
 size = 2
 count = 8
-index = "place among the targets"
+index = "enemy (battle slot - 3); the reactions index it by the reaction's place among the action's targets"
 subsystem = "battle"
-meaning = "A place in the script kept for each reaction, by the reaction's place among the action's targets"
-source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C63"
+meaning = "Where in its script the enemy is in its chosen block's actions: the one its next turn carries out, which each turn steps past"
+source = "game/battle/enemy_scripts.c choose_actions $C1:8C63, enemy_turn $C1:8CF9; game/battle/enemy_reactions.c"
 
 [[var]]
 name = "battle_reaction_place_kept"
@@ -8556,7 +9009,7 @@ source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 name = "battle_condition_kind"
 addr = "7E:B239"
 subsystem = "battle"
-meaning = "The kind of the condition being tested (its handler's number)"
+meaning = "The kind of the condition being tested (its number in the scripts)"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C3E"
 
 [[var]]
@@ -8648,6 +9101,7 @@ name = "battle_combatant_id"
 addr = "7E:AF0A"
 count = 11
 index = "battle slot"
+unchecked = "an enemy's script's condition names whoever last acted on the enemy by the low four bits of its action record, up to 15 (game/battle/enemy_conditions.c, $C1:9514)"
 subsystem = "battle"
 meaning = "What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills. It stays while the combatant is out, and comes back into battle_combatant_fighting when it is revived"
 source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
@@ -8662,21 +9116,21 @@ meaning = "The animation the enemy shows (its frame list is loaded for it, battl
 source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6; game/battle/animation.c; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
-name = "battle_enemy_link"
+name = "battle_enemy_target"
 addr = "7E:5E15"
 count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
-meaning = "The battle slot of the combatant the enemy goes with (another part of it): an enemy out of the fight with its link out too has its turn's script dropped"
-source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/animation.c battle_step_enemy_effects $C1:3714"
+meaning = "The battle slot of the combatant the enemy's chosen action is aimed at, which its attack takes for its target and its animation's effect follows: an enemy out of the fight whose target is out too forgets what it chose"
+source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/enemy_actions.c ($C1:9810, $C1:983A, $C1:99BE)"
 
 [[var]]
-name = "battle_enemy_link_seen"
+name = "battle_enemy_target_seen"
 addr = "7E:9752"
 count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
-meaning = "The enemy's link (battle_enemy_link) as its animation effect last saw it"
+meaning = "The enemy's target (battle_enemy_target) as its animation's effect last saw it"
 source = "game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/setup_reset.c rest_the_enemies in battle_setup_state $CC:E2E4 ($FF: none yet)"
 
 [[var]]
@@ -8705,21 +9159,21 @@ meaning = "The combatant's status bit that restarts its script ($04 of the secon
 source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6"
 
 [[var]]
-name = "battle_enemy_script_blocks"
+name = "battle_enemy_script_block"
 addr = "7E:B263"
 count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
-meaning = "How many blocks of its script the enemy's turn has moved past this turn; a block's conditions are tested again only when this and battle_enemy_script_block_seen differ"
+meaning = "The block of its script the enemy's script is testing, counted from 0 (0 again once it has chosen)"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:8C09, $C1:8C63"
 
 [[var]]
-name = "battle_enemy_script_block_seen"
+name = "battle_enemy_actions_block"
 addr = "7E:B26B"
 count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
-meaning = "battle_enemy_script_blocks as the enemy's turn last started from it; $FF makes the next turn start the script over"
+meaning = "The block whose actions the enemy is going through (battle_enemy_script_blocks as it chose it): choosing the same block again goes on with its next action; $FF chooses afresh"
 source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6; $C1:8C63"
 
 [[var]]
@@ -8732,12 +9186,12 @@ meaning = "The kind of the condition in its script the enemy's turn tested last 
 source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; $C1:8C3E; game/battle/main_loop.c battle_main_loop_start $C1:8000"
 
 [[var]]
-name = "battle_enemy_script_started"
+name = "battle_enemy_action_chosen"
 addr = "7E:B2B6"
 count = 8
 index = "enemy (battle slot - 3)"
 subsystem = "battle"
-meaning = "Set once the enemy's script has been found and started ($C1:8C09 starts the script of a present enemy with it clear); cleared when the enemy and its link are out, or its script says so"
+meaning = "Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the turn, when the enemy and its link are out, or where the script could find no one to act on ($C1:8C09 has the script of a present enemy with it clear choose again)"
 source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; $C1:8C09, $C1:8CF5; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
 
 [[var]]
@@ -8791,6 +9245,345 @@ addr = "7E:993B"
 subsystem = "battle"
 meaning = "battle_frame_phase as the battle's frame loop saved it before stepping the animations ($C1:10A6), which it puts back after; the enemies' step stops short of it"
 source = "game/battle/animation.c step_enemy_group $C1:3234"
+
+# ---- the enemies' scripts: choosing, targets, the search (game/battle/enemy_*.c, targets.c) ----
+
+[[var]]
+name = "battle_random_lowest"
+addr = "7E:0025"
+page = "battle"
+subsystem = "battle"
+meaning = "The lowest number the battle's last random draw was asked for, left in its cell"
+source = "game/battle/random.c battle_random $C1:AF22"
+
+[[var]]
+name = "battle_random_limit"
+addr = "7E:B31E"
+subsystem = "battle"
+meaning = "The limit the battle's last random draw was asked for, left in its cell"
+source = "game/battle/random.c battle_random $C1:AF22"
+
+[[var]]
+name = "battle_candidate_count"
+addr = "7E:AECB"
+subsystem = "battle"
+meaning = "How many combatants battle_candidates holds"
+source = "game/battle/targets.c; the selectors at $C1:B8BB"
+
+[[var]]
+name = "battle_candidates"
+addr = "7E:AECC"
+count = 11
+index = "place"
+unchecked = "the test of a stat's value ($C1:95FA) looks at its second candidate on at twice the first's slot, and so on, past the list (game/battle/enemy_conditions.c stat_is)"
+subsystem = "battle"
+meaning = "The combatants an action is being aimed among (battle slots in the low four bits, $FF past them): what a selector of an enemy's script picked, then the one chosen first, or the action's targets; bit 7 marks those a condition picked out, or that draw the enemies' aim, bit 6 those that turn it"
+source = "game/battle/targets.c; the selectors at $C1:B8BB, $C1:AC14, $C1:ADA1, $C1:AE21"
+
+[[var]]
+name = "battle_candidate_place"
+addr = "7E:AEC9"
+size = 2
+subsystem = "battle"
+meaning = "The place in battle_candidates a condition's test is at, left in its cell"
+source = "game/battle/enemy_conditions.c ($C1:8EAB); game/battle/targets.c ($C1:AD68)"
+
+[[var]]
+name = "battle_action_target_count"
+addr = "7E:AD8D"
+subsystem = "battle"
+meaning = "How many targets battle_action_targets holds"
+source = "game/battle/enemy_actions.c ($C1:99BE, $C1:9A3D); game/battle/targets.c ($C1:A4AF)"
+
+[[var]]
+name = "battle_first_candidate"
+addr = "7E:B2AE"
+subsystem = "battle"
+meaning = "The first combatant a selector of an enemy's script picked, kept for the tech's targeting ($C1:C1DD)"
+source = "game/battle/targets.c select_targets $C1:AC14; game/battle/enemy_actions.c ($C1:9AE5)"
+
+[[var]]
+name = "battle_condition_target"
+addr = "7E:AED8"
+subsystem = "battle"
+meaning = "The combatant the first of a block's two conditions settled on, which a selector with bit 7 set names for the second"
+source = "game/battle/enemy_conditions.c ($C1:AEFD); game/battle/targets.c select_targets $C1:AC14"
+
+[[var]]
+name = "battle_candidate_considered"
+addr = "7E:AF1E"
+subsystem = "battle"
+meaning = "The combatant a selection by status is looking at, left in its cell"
+source = "game/battle/targets.c ($C1:AE70)"
+
+[[var]]
+name = "battle_candidate_statuses"
+addr = "7E:AF1F"
+subsystem = "battle"
+meaning = "The bits of a stat block byte a selection by status looks for, left in its cell"
+source = "game/battle/targets.c ($C1:AE70)"
+
+[[var]]
+name = "battle_candidates_turning"
+addr = "7E:AF20"
+subsystem = "battle"
+meaning = "How many of the combatants a selection by status picked turn the enemies' aim (bit 6 in battle_candidates)"
+source = "game/battle/targets.c ($C1:AE70, $C1:ADA1)"
+
+[[var]]
+name = "battle_candidates_drawing"
+addr = "7E:AF21"
+subsystem = "battle"
+meaning = "How many of the combatants a selection by status picked draw the enemies' aim (bit 7 in battle_candidates)"
+source = "game/battle/targets.c ($C1:AE70, $C1:ADA1)"
+
+[[var]]
+name = "battle_search_other"
+addr = "7E:9870"
+subsystem = "battle"
+meaning = "The combatant the target search ($C1:2986) measures the searcher against, and as it looks for the nearest or farthest, the one it is looking at"
+source = "game/battle/target_search.c"
+
+[[var]]
+name = "battle_search_third"
+addr = "7E:9871"
+subsystem = "battle"
+meaning = "A third combatant some of the target search's kinds measure against, or with the walk toward a target, whether the searcher may not pass through the others"
+source = "game/battle/target_search.c"
+
+[[var]]
+name = "battle_search_failed"
+addr = "7E:9872"
+subsystem = "battle"
+meaning = "What the target search's test came to: 0 it held, $FF it didn't"
+source = "game/battle/target_search.c"
+
+[[var]]
+name = "battle_search_through_marked"
+addr = "7E:9875"
+subsystem = "battle"
+meaning = "Set to let a walk through the battlefield's grid pass cells marked with bit 7"
+source = "game/battle/target_search.c ($C1:2926)"
+
+[[var]]
+name = "battle_search_range"
+addr = "7E:9893"
+size = 2
+subsystem = "battle"
+meaning = "The square of the distance within which the target search's nearness test holds"
+source = "game/battle/target_search.c ($C1:2B37)"
+
+[[var]]
+name = "battle_enemy_block_actions"
+addr = "7E:B1E4"
+size = 2
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "Where in its script the action the enemy's script chose for its next turn is: the turn carries out the action at battle_enemy_next_action only while the two agree"
+source = "game/battle/enemy_scripts.c choose_actions $C1:8C63, enemy_turn $C1:8CF9"
+
+[[var]]
+name = "battle_enemy_script_counter"
+addr = "7E:B320"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "A count each enemy's script keeps for itself: an action counts it up or starts it over, and a condition compares it"
+source = "game/battle/enemy_actions.c ($C1:9DCE); game/battle/enemy_conditions.c ($C1:9082)"
+
+[[var]]
+name = "battle_enemy_beaten_counted"
+addr = "7E:AE85"
+count = 8
+index = "enemy (battle slot - 3)"
+subsystem = "battle"
+meaning = "Set once an enemy's being beaten has been seen to, so that it isn't beaten again; cleared as an enemy is brought in"
+source = "game/battle/combatants.c ($C1:B3A3); game/battle/enemy_scripts.c ($C1:AC5E); game/battle/enemy_actions.c ($C1:9ED5)"
+
+[[var]]
+name = "battle_action_kind"
+addr = "7E:AEE3"
+subsystem = "battle"
+meaning = "What an enemy's action is: its byte in the script as the action is chosen and started; then what the turn's code carries out (2 a tech, 5 an enemy brought in, 7 an enemy leaving)"
+source = "game/battle/enemy_scripts.c ($C1:8CE0); game/battle/enemy_actions.c"
+
+[[var]]
+name = "battle_action_number"
+addr = "7E:AEE4"
+subsystem = "battle"
+meaning = "The attack's or the tech's number in an enemy's action"
+source = "game/battle/enemy_actions.c ($C1:99BE, $C1:9A3D)"
+
+[[var]]
+name = "battle_action_pose"
+addr = "7E:AEE5"
+subsystem = "battle"
+meaning = "The pose an enemy announces its chosen action with"
+source = "game/battle/enemy_actions.c ($C1:9810, $C1:983A)"
+
+[[var]]
+name = "battle_action_pose_kind"
+addr = "7E:AEE8"
+subsystem = "battle"
+meaning = "Low four bits from the pose an enemy's action is announced with: 4 for poses 1 and 2, $D for 3 and 4, 0 for the rest ($C1:ACCE); the high four bits are kept"
+source = "game/battle/enemy_actions.c ($C1:ACCE)"
+
+[[var]]
+name = "battle_action_source"
+addr = "7E:AE90"
+subsystem = "battle"
+meaning = "The first byte of the action record the effect code carries out: 0 for an enemy's action"
+source = "game/battle/enemy_actions.c ($C1:ACF2)"
+
+[[var]]
+name = "battle_action_actor"
+addr = "7E:AE91"
+subsystem = "battle"
+meaning = "The battle slot of the combatant whose action the effect code carries out"
+source = "game/battle/enemy_actions.c ($C1:ACF2)"
+
+[[var]]
+name = "battle_action_type"
+addr = "7E:AE92"
+subsystem = "battle"
+meaning = "What kind of action the effect code carries out (battle_action_kind as it was started)"
+source = "game/battle/enemy_actions.c ($C1:ACF2)"
+
+[[var]]
+name = "battle_action_what"
+addr = "7E:AE93"
+subsystem = "battle"
+meaning = "The attack's, the tech's or the effect's number the effect code carries out"
+source = "game/battle/enemy_actions.c ($C1:ACF2, $C1:895B)"
+
+[[var]]
+name = "battle_action_extra"
+addr = "7E:AE94"
+subsystem = "battle"
+meaning = "A byte of the action record an enemy's action starts at 0"
+source = "game/battle/enemy_scripts.c ($C1:8D0D)"
+
+[[var]]
+name = "battle_action_target_bits"
+addr = "7E:AE95"
+size = 2
+subsystem = "battle"
+meaning = "The action's first target, a bit (bit 15 battle slot 0, down)"
+source = "game/battle/targets.c ($C1:AD09)"
+
+[[var]]
+name = "battle_action_further_targets"
+addr = "7E:AE97"
+count = 2
+index = "second or third"
+subsystem = "battle"
+meaning = "A tech's second and third targets, battle slots ($FF none)"
+source = "game/battle/enemy_actions.c ($C1:9A3D)"
+
+[[var]]
+name = "battle_action_flags"
+addr = "7E:AE9B"
+subsystem = "battle"
+meaning = "Flags of the action the effect code carries out, cleared as an enemy's turn starts; bit 7 a critical hit"
+source = "game/battle/enemy_scripts.c ($C1:8D1C); $C1:EDB5"
+
+[[var]]
+name = "battle_action_actor_bits"
+addr = "7E:B18E"
+subsystem = "battle"
+meaning = "The acting enemy's battle slot ORed into the low bits, with bit 7 for an attack and bit 6 for a tech ($C1:AC89)"
+source = "game/battle/enemy_actions.c ($C1:AC89)"
+
+[[var]]
+name = "battle_action_tech_hits"
+addr = "7E:B18F"
+subsystem = "battle"
+meaning = "0 for an enemy's attack; for its tech, what the tech's targeting ($C1:C1DD) left in the direct page's $0E ($C1:AC89)"
+source = "game/battle/enemy_actions.c ($C1:AC89)"
+
+[[var]]
+name = "battle_action_step"
+addr = "7E:B191"
+subsystem = "battle"
+meaning = "A byte an enemy's attack or tech starts at 0 ($C1:AC89)"
+source = "game/battle/enemy_actions.c ($C1:AC89)"
+
+[[var]]
+name = "battle_attack_hits"
+addr = "7E:AEEB"
+subsystem = "battle"
+meaning = "4 as an enemy's attack starts ($C1:ACB0)"
+source = "game/battle/enemy_actions.c ($C1:AC89)"
+
+[[var]]
+name = "battle_action_detail"
+addr = "7E:B18C"
+subsystem = "battle"
+meaning = "A detail of the action carried out: an enemy's tech's number, or for its attack 0 or its stat block's byte $1B"
+source = "game/battle/enemy_actions.c ($C1:99BE, $C1:9A3D)"
+
+[[var]]
+name = "battle_action_state"
+addr = "7E:B1FC"
+subsystem = "battle"
+meaning = "Bit 1 set while an enemy's attack is carried out; its techs clear it"
+source = "game/battle/enemy_actions.c ($C1:99BE, $C1:9A3D)"
+
+[[var]]
+name = "battle_action_further_ids"
+addr = "7E:B2EB"
+count = 2
+index = "second or third"
+subsystem = "battle"
+meaning = "What a tech's second and third targets are (battle_combatant_fighting of each)"
+source = "game/battle/enemy_actions.c ($C1:9AC9)"
+
+[[var]]
+name = "battle_action_follow_up"
+addr = "7E:B3B8"
+subsystem = "battle"
+meaning = "What an enemy's turn does after its action: 0 works the action out on its first target and shows it, 1 only shows it, 2 nothing more"
+source = "game/battle/enemy_actions.c; game/battle/enemy_scripts.c enemy_turn $C1:8D93"
+
+[[var]]
+name = "battle_action_message"
+addr = "7E:B3C7"
+subsystem = "battle"
+meaning = "The message an enemy's action shows as it ends, 0 none"
+source = "game/battle/enemy_actions.c"
+
+[[var]]
+name = "battle_action_message_high"
+addr = "7E:B3C8"
+subsystem = "battle"
+meaning = "The byte after battle_action_message, which the actions that set stats clear as they keep the message as a word"
+source = "game/battle/enemy_actions.c ($C1:9F62, $C1:9FDA, $C1:A213)"
+
+[[var]]
+name = "battle_hit_counts"
+addr = "7E:AE4D"
+count = 2
+index = "byte"
+subsystem = "battle"
+meaning = "Two bytes the effect's working out starts at 0 before an enemy's action"
+source = "game/battle/enemy_scripts.c ($C1:8E02)"
+
+[[var]]
+name = "battle_action_quiet"
+addr = "7E:AE55"
+subsystem = "battle"
+meaning = "Bit 3 set when the enemies an action hits don't react to it; cleared as an enemy's action on an enemy ends"
+source = "game/battle/enemy_scripts.c ($C1:8E97)"
+
+[[var]]
+name = "battle_places"
+addr = "7E:AE6D"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The place each combatant stands in its side's formation; an enemy brought in takes over the place of the one it replaces"
+source = "game/battle/enemy_actions.c ($C1:9B8D, $C1:9E78)"
 
 # ---- per-slot object state -------------------------------------------------------
 
@@ -9013,7 +9806,14 @@ name = "battle_target_found"
 addr = "7E:9873"
 subsystem = "battle"
 meaning = "The combatant $C1:2986's search found (battle slot)"
-source = "game/battle/animation.c face_nearest_enemy $C1:2F22"
+source = "game/battle/animation.c face_nearest_enemy $C1:2F22; game/battle/positions.c"
+
+[[var]]
+name = "battle_target_found_high"
+addr = "7E:9874"
+subsystem = "battle"
+meaning = "The byte after battle_target_found, which the nearest and farthest finds clear as they store the slot as a word; nothing reads it"
+source = "game/battle/positions.c find_extreme ($C1:29EC, $C1:2A34, $C1:2A89, $C1:2AD4)"
 
 [[var]]
 name = "battle_member_sitting_out"
@@ -9259,6 +10059,7 @@ name = "battle_bounds_x"
 addr = "7E:A039"
 count = 11
 index = "battle slot"
+unchecked = "the enemies' conditions search from whichever combatant their candidates list, $FF (none) among them, which reads and writes the box place past the table as the original's indexed stores do (game/battle/positions.c; fuzzing only, no movie)"
 subsystem = "battle"
 meaning = "Object's X position the bounds were computed from"
 source = "game/battle/objects.c battle_update_all_object_bounds $C1:283D"
@@ -9268,6 +10069,7 @@ name = "battle_bounds_y"
 addr = "7E:A050"
 count = 11
 index = "battle slot"
+unchecked = "the enemies' conditions search from whichever combatant their candidates list, $FF (none) among them, which reads and writes the box place past the table as the original's indexed stores do (game/battle/positions.c; fuzzing only, no movie)"
 subsystem = "battle"
 meaning = "Object's Y position the bounds were computed from"
 source = "game/battle/objects.c battle_update_all_object_bounds $C1:283D"
@@ -9865,12 +10667,12 @@ source = "game/battle/effect_paths.c step_drifts $CF:F978"
 
 [[var]]
 name = "battle_orbit_radius"
-addr = "7E:9737"
-count = 8
-index = "enemy"
+addr = "7E:9734"
+count = 11
+index = "battle slot"
 subsystem = "battle"
-meaning = "Orbit radius (the orbit ends when it reaches 8)"
-source = "game/battle/effect_paths.c step_drifts $CF:F978"
+meaning = "The radius of an enemy's drift about its orbit's center (the drift ends when it reaches 8); a combatant's trial walk toward a target (the target search's walk) reaches this much farther each step"
+source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/target_search.c walk_toward $C1:2C02"
 
 [[var]]
 name = "battle_orbit_radius_step"
