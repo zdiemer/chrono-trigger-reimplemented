@@ -602,6 +602,22 @@ Each of these is a finding. Every example here comes from this repo.
     operands (`PUSH_SCRIPT + PUSH_TILE + 1`) is item 3 aimed at code: one
     named operation per patch, beside where the script is defined.
 
+71. **Game state written only in scaffolding.** A cell the logic reads back
+    (a quirk the game can see) written only inside `ORIGINAL_EFFECT`: the
+    native-shape build then behaves differently. Grep every scaffolding
+    cell for readers in logic; a value something reads is game state,
+    written as a plain statement and named as such. This is a bug, not style.
+72. **Guards that know their entry by `s->cpu.pc`.** Scanning a table's ROM
+    address column for the PC is handler identity by machine position, and
+    makes routine columns in logic tables look necessary. Generate a guard
+    per entry with its kind as a constant.
+73. **A handler that calls the continuation.** A condition that itself
+    "chooses the block's actions", as the original's `JSR` did, instead of
+    returning a result the interpreter's loop acts on.
+74. **A header that admits its state is the original's cells** ("the state
+    the choosing keeps is the original's, in its cells"). Not a disclosure
+    that excuses item 13; a flag to check it.
+
 **Re-reviews are scoped.** After a round that fixes files rated translation, the
 fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
