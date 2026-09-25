@@ -49,6 +49,7 @@
 #include "menu/sound.h"
 #include "menu/text.h"
 #include "menu/typeset.h"
+#include "menu/graphics.h"
 #include "menu/windows.h"
 #include "menu/top_layer.h"
 #include "menu/vram.h"
@@ -1390,6 +1391,13 @@ const NativeEntry game_natives[] = {
     /* menu */
     { .addr = 0xC25E89, .name = "menu_draw_glyph_line", .fn = menu_draw_glyph_line, NEEDS_M8_X16,
       .guard = menu_glyph_line_is_drawable, .cost_milli = 3477, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+    /* the menus' graphics (game/menu/graphics.c) */
+    { .addr = 0xC2968D, .name = "menu_build_graphics", .fn = menu_build_graphics_entry, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 5000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_graphics_are_buildable },
+    { .addr = 0xC2C511, .name = "menu_load_window_design", .fn = menu_load_window_design_entry,
+      .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5000, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_window_design_is_loadable },
     /* the typesetter (game/menu/typeset.c) and the menus' labels */
     { .addr = 0xC257DF, .name = "menu_text_start", .fn = menu_text_start_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4215, .dont_care = DC_N | DC_Z,

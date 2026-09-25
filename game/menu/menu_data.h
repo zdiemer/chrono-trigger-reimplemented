@@ -47,6 +47,42 @@ static inline uint16_t menu_text_column_offset_16_colour(const GameState *g, uns
  * entry, and the table runs on into what follows it). */
 static inline uint8_t menu_glyph_width(const GameState *g, uint8_t index) { return rom_read8(g, 0xC260E6u + index); }
 
+/* ---- The menus' graphics ------------------------------------------------------------------- */
+
+/* The graphics the menus build their tile sets from (game/menu/graphics.c),
+ * in bank $FF: four-colour tiles (224 of them from $8E60, the second $100
+ * bytes then replaced from $C9FC; more from $D5E4), three-plane tiles
+ * ($DBE4), the eight windows' designs ($9E10, $280 bytes a design), and four
+ * sixteen-colour tiles at $9CF0. */
+enum {
+    MENU_ROM_BANK = 0xFF0000u,
+    MENU_ROM_FOUR_COLOUR_TILES = 0x8E60, MENU_ROM_FOUR_COLOUR_TILES_BYTES = 0x0E00,
+    MENU_ROM_REPLACED_TILES = 0xC9FC, MENU_ROM_REPLACED_TILES_BYTES = 0x0100,
+    MENU_ROM_MORE_FOUR_COLOUR_TILES = 0xD5E4, MENU_ROM_MORE_FOUR_COLOUR_TILES_BYTES = 0x0600,
+    MENU_ROM_THREE_PLANE_TILES = 0xDBE4, MENU_THREE_PLANE_TILES = 0x95,
+    MENU_ROM_WINDOW_DESIGNS = 0x9E10, MENU_WINDOW_DESIGN_BYTES = 0x280, MENU_WINDOW_DESIGNS = 8,
+    MENU_ROM_SIXTEEN_COLOUR_TILES = 0x9CF0,
+};
+static inline uint8_t menu_rom_graphic_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+
+/* The menus' colours in bank $FF, a word each: two sets of four for the
+ * palette's first rows ($9C68, $9C78, $CBBC) and two of sixteen ($CBC4,
+ * $9DF0). */
+enum {
+    MENU_ROM_FIRST_COLOURS = 0x9C68, MENU_ROM_SECOND_COLOURS = 0x9C78, MENU_ROM_THIRD_COLOURS = 0xCBBC,
+    MENU_ROM_ROW_7_COLOURS = 0xCBC4, MENU_ROM_ROW_8_COLOURS = 0x9DF0,
+};
+static inline uint16_t menu_rom_colour(const GameState *g, uint16_t from, unsigned i)
+{
+    return rom_read16(g, MENU_ROM_BANK | (uint16_t)(from + 2u * i));
+}
+
+/* The upload records the sets are sent with (bank C2, menu_upload_record). */
+enum {
+    MENU_UPLOADS_FIRST_SETS = 0xFC6F, MENU_UPLOAD_SECOND_SET = 0xFC7F, MENU_UPLOAD_LAST_SET = 0xFC87,
+    MENU_UPLOADS_WINDOW_SETS = 0xFC8F, MENU_UPLOAD_WINDOW_DESIGN = 0xC548,
+};
+
 /* ---- What the typesetter inserts ----------------------------------------------------------- */
 
 /* A number's decimal digits are the glyphs from $D4 on. */

@@ -4716,6 +4716,24 @@ iterations = 2000
 why = "the text page and the font tables' bank; the pen's offset in its tile (0-7), a column the line's table has, the glyph's pixels in the font's bank ($FF) and bound for sixteen-colour tiles in bank $7E, as the setter hands them over (the guards, game/menu/glyphs.c)"
 
 [[routine]]
+name = "menu_build_graphics"
+at = "C2:968D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-EF"]
+iterations = 500
+why = "the menus' page and data bank as the opening leaves them, the upload queue empty (it builds its first queue over the queue's start) and a palette change the count has room for; everything else random: the graphics are built from the ROM whatever the buffers held (500 states: each sends five sets to VRAM)"
+
+[[routine]]
+name = "menu_load_window_design"
+at = "C2:C511"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78,80,88,90,98,A0,A8,B0,B8,C0,C8,D0,D8,E0,E8,F0,F8", "--fill", "7E0D15-7E0D15=00-EF"]
+iterations = 2000
+why = "the menus' page and data bank, any of the queue's whole counts with room for the design's record, a palette change the count has room for; the design and the window style random (the design is taken a setting's three bits)"
+
+[[routine]]
 name = "menu_text_start"
 at = "C2:57DF"
 subsystem = "menu"

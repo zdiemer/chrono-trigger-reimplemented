@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 143 files, 117 of
-37,386 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 144 files, 117 of
+37,628 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 

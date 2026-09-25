@@ -265,7 +265,7 @@ static uint16_t move_the_block(GameState *g)
 
 // $C2:86A9
 /* The working palette to CGRAM, when it has changed since it was last sent. */
-static void send_palette(GameState *g, Platform *pf)
+void menu_send_palette(GameState *g, Platform *pf)
 {
     if (menu_palette_changed(g) == 0)
         return;
@@ -292,7 +292,7 @@ void menu_vblank_upload(Snes *s)
         set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) & ~BLOCK_MOVE_ASKED));
         y = move_the_block(g);
     }
-    NATIVE_TIME_AS(s, 0xC286A9, send_palette(g, pf));
+    NATIVE_TIME_AS(s, 0xC286A9, menu_send_palette(g, pf));
     uint16_t table = (uint16_t)RAM_ABS(RAM_MENU_MATH_LINE_TABLES)
                      + ((menu_math_line_table_offset(g) >> 8) ? RAM_MENU_MATH_LINE_TABLES_STRIDE : 0);
     vid_set_line_table(pf, PF_AT(0xC28660), 0, table);
@@ -333,16 +333,11 @@ bool menu_vblank_work_runs(Snes *s)
 /* The queued VRAM uploads, the last queued first, which empties the queue.
  * A size of 0 is a whole 64 KiB, as the transfer registers read it. It leaves
  * the first entry's bank in Y. */
-void menu_upload_vram_queue(Snes *s)
+void menu_send_upload_queue(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
     unsigned entries = menu_vram_queue_bytes(g) / MENU_UPLOAD_BYTES;
-    s->cpu.y &= 0xFF;   /* the queue is read with 8-bit index registers */
-    if (entries == 0) {
-        m_rts(s);
+    if (entries == 0)
         return;
-    }
     set_menu_vram_queue_bytes(g, 0);
     vid_start_vram_uploads(pf, PF_AT(0xC2867A), NULL);
     for (unsigned i = entries; i-- > 0;) {
@@ -351,7 +346,16 @@ void menu_upload_vram_queue(Snes *s)
                       PF_GAME((uint32_t)menu_vram_queue_bank(g, i) << 16 | menu_vram_queue_source(g, i)),
                       size ? size : 0x10000u, NULL);
     }
-    s->cpu.y = menu_vram_queue_bank(g, 0);
+}
+
+void menu_upload_vram_queue(Snes *s)
+{
+    GameState *g = state_of(s);
+    bool any = menu_vram_queue_bytes(g) >= MENU_UPLOAD_BYTES;
+    s->cpu.y &= 0xFF;   /* the queue is read with 8-bit index registers */
+    menu_send_upload_queue(g, m_platform(s));
+    if (any)
+        s->cpu.y = menu_vram_queue_bank(g, 0);
     m_rts(s);
 }
 
@@ -388,7 +392,7 @@ bool menu_vram_queue_is_whole(Snes *s)
 // $C2:86A9
 void menu_upload_palette(Snes *s)
 {
-    send_palette(state_of(s), m_platform(s));
+    menu_send_palette(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -815,7 +819,7 @@ void menu_init_video(Snes *s)
  * RAM port, with the per-line effects off first (the transfer runs on one of
  * their channels). The destination is memory, not video, so the transfer goes through
  * the SNES-only escape; the port's address is its input. */
-static void clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
+void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes)
 {
     vid_enable_line_effects(pf, PF_AT(0xC2951B), 0x00);
     hw_port_seek(g, at, 0);
@@ -834,7 +838,7 @@ void menu_init_video_memory(Snes *s)
     Platform *pf = m_platform(s);
     vid_send_vram_fill(pf, PF_AT(0xC294D8), 0x0000, PF_GAME(0xC29510), 0xFFFF, NULL);
     for (int i = 0; i < 3; i++)
-        NATIVE_TIME_AS(s, 0xC29512, clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
+        NATIVE_TIME_AS(s, 0xC29512, menu_clear_memory(g, pf, stretches[i].at, stretches[i].bytes));
     plp(s);
     s->cpu.d = m_pull16(s);
     s->cpu.db = m_pull8(s);
@@ -855,18 +859,23 @@ bool menu_memory_stretch_misses_the_stack(Snes *s)
 /* Clear Y bytes of work RAM from $7E:X. */
 void menu_fill_memory(Snes *s)
 {
-    clear_memory(state_of(s), m_platform(s), s->cpu.x, s->cpu.y);
+    menu_clear_memory(state_of(s), m_platform(s), s->cpu.x, s->cpu.y);
     m_rts(s);
 }
 
 // $C2:9542
 /* Copy Y bytes from $FF:A into work RAM at $7E:X through the work RAM port:
  * memory again, so the SNES-only escape. */
+void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes)
+{
+    const VidSnesTransfer t = { .dest = 0x80, .source = 0xFF0000u | from, .size = bytes };
+    hw_port_seek(g, at, 0);
+    vid_snes_copy(pf, PF_AT(0xC2954B), &t);
+}
+
 void menu_copy_to_memory(Snes *s)
 {
-    const VidSnesTransfer t = { .dest = 0x80, .source = 0xFF0000u | s->cpu.a, .size = s->cpu.y };
-    hw_port_seek(state_of(s), s->cpu.x, 0);
-    vid_snes_copy(m_platform(s), PF_AT(0xC2954B), &t);
+    menu_copy_rom_to_memory(state_of(s), m_platform(s), s->cpu.a, s->cpu.x, s->cpu.y);
     m_rts(s);
 }
 

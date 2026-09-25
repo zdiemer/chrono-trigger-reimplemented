@@ -2074,6 +2074,17 @@ void set_menu_scratch_cursor_button_bit(GameState *g, uint8_t v);
  * graphic */
 uint16_t menu_scratch_erased_slot_rows(const GameState *g);
 void set_menu_scratch_erased_slot_rows(GameState *g, uint16_t v);
+/* The menus' graphics ($C2:968D): the count of rows a tile's planes are built a pair at a time
+ * with, which the loops leave at 0 (the three-plane tiles' a word, the inking a byte) */
+uint16_t menu_scratch_graphics_count(const GameState *g);
+void set_menu_scratch_graphics_count(GameState *g, uint16_t v);
+/* The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it */
+uint8_t menu_scratch_graphics_rows(const GameState *g);
+void set_menu_scratch_graphics_rows(GameState *g, uint8_t v);
+/* The menus' graphics: the three-plane tiles left to widen ($C2:960B), which the loop leaves at
+ * 0 */
+uint16_t menu_scratch_graphics_tiles(const GameState *g);
+void set_menu_scratch_graphics_tiles(GameState *g, uint16_t v);
 /* The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one
  * without the save's mark, $4040 for one whose sum is wrong */
 uint16_t menu_scratch_slot_check(const GameState *g);
@@ -2538,6 +2549,11 @@ void set_menu_brightness(GameState *g, uint8_t v);
 /* Bytes queued in the VRAM upload queue, 8 per entry; the vblank upload sends them and clears it */
 uint8_t menu_vram_queue_bytes(const GameState *g);
 void set_menu_vram_queue_bytes(GameState *g, uint8_t v);
+
+/* The byte after the queue's count, which the menus' graphics write as the count's high byte (a
+ * word store, $C2:96E8); nothing reads it */
+uint8_t menu_vram_queue_bytes_high(const GameState *g);
+void set_menu_vram_queue_bytes_high(GameState *g, uint8_t v);
 
 /* Per-line effect slots to enable after the vblank uploads (bits 0-6); bit 7 asks the vblank for
  * the block move set up at $7E:9694 */

@@ -18,6 +18,7 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/graphics.h"
 #include "menu/save_screen.h"
 #include "original_effects.h"
 #include "platform/audio.h"
@@ -170,9 +171,9 @@ static bool open_the_menus(Snes *s)
     if (!menu_call(s, 0xC280F0, 0xC2940D, SETUP_IGNORES))
         return false;
     clear_the_menus_cells(g);
-    /* the graphics come back with an 8-bit accumulator */
-    if (!menu_call_returning(s, 0xC28124, 0xC2968D, SETUP_IGNORES, true, false)
-        || !menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots))
+    TIMED_AS(g, 0xC2968D, menu_build_graphics(g, m_platform(s)));
+    menu_leave_graphics_built(s);
+    if (!menu_run(s, 0xC28127, 0xC2D156, menu_read_save_slots))
         return false;
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
     if (!menu_run(s, 0xC2812D, 0xC28663, menu_upload_vram_queue))

@@ -129,6 +129,7 @@ add_library(ct_game STATIC
   game/menu/epoch.c
   game/menu/frame.c
   game/menu/glyphs.c
+  game/menu/graphics.c
   game/menu/line_effects.c
   game/menu/load_screen.c
   game/menu/map.c

@@ -1602,6 +1602,9 @@
 #define RAM_MENU_SCRATCH_WINDOW_STYLE_FOURFOLD 0x7E0000u /* The window command lists: the window style's number times four, halfway to its tiles' first */
 #define RAM_MENU_SCRATCH_CURSOR_BUTTON_BIT 0x7E0000u /* The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last */
 #define RAM_MENU_SCRATCH_ERASED_SLOT_ROWS 0x7E0000u /* The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic */
+#define RAM_MENU_SCRATCH_GRAPHICS_COUNT 0x7E0000u /* The menus' graphics ($C2:968D): the count of rows a tile's planes are built a pair at a time with, which the loops leave at 0 (the three-plane tiles' a word, the inking a byte) */
+#define RAM_MENU_SCRATCH_GRAPHICS_ROWS 0x7E0000u /* The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it */
+#define RAM_MENU_SCRATCH_GRAPHICS_TILES 0x7E0002u /* The menus' graphics: the three-plane tiles left to widen ($C2:960B), which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_SLOT_CHECK 0x7E0000u /* The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong */
 #define RAM_MENU_SCRATCH_LABEL_MOVES 0x7E0000u /* A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in its place */
 #define RAM_MENU_SCRATCH_WINDOW_COLUMNS_LEFT 0x7E0000u /* The window command lists: the columns a swapped rectangle's row had left, 0 once it is done */
@@ -1904,6 +1907,9 @@
 #define RAM_MENU_BRIGHTNESS_DP 0x10u         /* page menu_vblank */
 /* Bytes queued in the VRAM upload queue, 8 per entry; the vblank upload sends them and clears it */
 #define RAM_MENU_VRAM_QUEUE_BYTES 0x7E0D11u
+/* The byte after the queue's count, which the menus' graphics write as the count's high byte (a
+ * word store, $C2:96E8); nothing reads it */
+#define RAM_MENU_VRAM_QUEUE_BYTES_HIGH 0x7E0D12u
 /* Per-line effect slots to enable after the vblank uploads (bits 0-6); bit 7 asks the vblank for
  * the block move set up at $7E:9694 */
 #define RAM_MENU_LINE_EFFECTS 0x7E0D13u

@@ -1616,6 +1616,12 @@ uint8_t menu_scratch_cursor_button_bit(const GameState *g) { return r8(g, 0x7E00
 void set_menu_scratch_cursor_button_bit(GameState *g, uint8_t v) { w8(g, 0x7E0000u, v); }
 uint16_t menu_scratch_erased_slot_rows(const GameState *g) { return r16(g, 0x7E0000u); }
 void set_menu_scratch_erased_slot_rows(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
+uint16_t menu_scratch_graphics_count(const GameState *g) { return r16(g, 0x7E0000u); }
+void set_menu_scratch_graphics_count(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
+uint8_t menu_scratch_graphics_rows(const GameState *g) { return r8(g, 0x7E0000u); }
+void set_menu_scratch_graphics_rows(GameState *g, uint8_t v) { w8(g, 0x7E0000u, v); }
+uint16_t menu_scratch_graphics_tiles(const GameState *g) { return r16(g, 0x7E0002u); }
+void set_menu_scratch_graphics_tiles(GameState *g, uint16_t v) { w16(g, 0x7E0002u, v); }
 uint16_t menu_scratch_slot_check(const GameState *g) { return r16(g, 0x7E0000u); }
 void set_menu_scratch_slot_check(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
 uint8_t menu_scratch_label_moves(const GameState *g) { return r8(g, 0x7E0000u); }
@@ -1838,6 +1844,8 @@ uint8_t menu_brightness(const GameState *g) { return r8(g, 0x7E0D10u); }
 void set_menu_brightness(GameState *g, uint8_t v) { w8(g, 0x7E0D10u, v); }
 uint8_t menu_vram_queue_bytes(const GameState *g) { return r8(g, 0x7E0D11u); }
 void set_menu_vram_queue_bytes(GameState *g, uint8_t v) { w8(g, 0x7E0D11u, v); }
+uint8_t menu_vram_queue_bytes_high(const GameState *g) { return r8(g, 0x7E0D12u); }
+void set_menu_vram_queue_bytes_high(GameState *g, uint8_t v) { w8(g, 0x7E0D12u, v); }
 uint8_t menu_line_effects(const GameState *g) { return r8(g, 0x7E0D13u); }
 void set_menu_line_effects(GameState *g, uint8_t v) { w8(g, 0x7E0D13u, v); }
 uint8_t menu_palette_changed(const GameState *g) { return r8(g, 0x7E0D15u); }
