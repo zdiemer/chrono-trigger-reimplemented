@@ -7,9 +7,7 @@
  * - opening: the screen drawn -- its windows, a row for each of the three
  *   slots in the design the slot's game was saved with, the summary of the
  *   slot saved last (menu/save_screen.c), and once the game has been finished
- *   a fourth row with two choices -- then faded in. Still the original's
- *   ($C2:E613, $C2:E7C3): drawn as one port, the screen spans frames of time
- *   the menus' vblank handler would have to take inside it (docs/TODO.md);
+ *   a fourth row with two choices -- then faded in;
  * - choosing: the cursor moves between the slots that hold a game and the
  *   fourth row. Choosing a slot loads its game and leaves the menus for it;
  *   choosing the fourth row starts a new game, saved later in the first empty
@@ -39,7 +37,7 @@
 #include "platform/audio.h"
 #include "port/native.h"
 
-/* ---- Drawing on the screen ------------------------------------------------------------------------ */
+/* ---- Drawing the screen ------------------------------------------------------------------------ */
 
 static void queue_upload(GameState *g, uint16_t record)
 {
@@ -51,13 +49,16 @@ static void draw_list(GameState *g, Platform *pf, uint16_t list)
     TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
 }
 
-/* The screen's window command lists: the erase question, and the panel it
- * covers put back. */
-enum { ERASE_QUESTION = 0xC391, ERASE_QUESTION_CLOSED = 0xC191 };
+/* The screen's window command lists: its windows; the panel the chosen slot's
+ * summary sits in; the fourth row's two choices; the erase question, and the
+ * panel it covers put back. */
+enum { SCREEN_WINDOWS = 0xC0ED, SUMMARY_PANEL = 0xC322, NEW_GAME_CHOICES = 0xC36B, ERASE_QUESTION = 0xC391,
+       ERASE_QUESTION_CLOSED = 0xC191 };
 
-/* The screen's uploads (records in bank C2, menu_data.h): the parts the steps
- * redraw. */
+/* The screen's uploads (records in bank C2, menu_data.h): the three layers'
+ * tilemaps as a whole, the text's graphics, and the parts the steps redraw. */
 enum {
+    UPLOAD_TEXT_GRAPHICS = 0xFC53, UPLOAD_BG1 = 0xFBCE, UPLOAD_BG2 = 0xFBF8, UPLOAD_BG3 = 0xFC14,
     UPLOAD_BG1_QUESTION = 0xFBEA, UPLOAD_BG2_ROWS = 0xFBFF, UPLOAD_BG3_ROWS = 0xFC1B, UPLOAD_BG2_SUMMARY = 0xFC0D,
     UPLOAD_NEW_GAME_PLUS = 0xE88A,
 };
@@ -67,8 +68,9 @@ enum {
 /* A slot's row: its number, its name label (drawn with the dialog's font when
  * the menus opened, $C2:D2C4), and a window in the design the slot's game was
  * saved with, the slot's own palette row, with a small box at its left end.
- * The rows are four tile rows apart. */
-enum { ROW_TILE_ROWS = 4 };
+ * The rows start at $7E:4EC6 in BG3's tilemap, four tile rows apart. */
+enum { SLOT_ROWS_AT = 0x4EC6, ROW_TILE_ROWS = 4, LABEL_TILES_A_SLOT = 0x20, NUMBER_COLUMNS = 2, LABEL_COLUMNS = 16 };
+enum { NUMBER_ATTRIBUTE = 0x3000, LABEL_AFTER_NUMBER = 5 };
 
 /* The slot's window: 24 tiles by 4 at $7E:3E8C in BG2's, four rows a slot,
  * and the box 4 by 4 at its row's third column. */
@@ -119,8 +121,34 @@ static void draw_slot_window(GameState *g, uint8_t slot)
     set_menu_window_design(g, (uint8_t)(game_settings(g, 1) & DESIGN_BITS));
 }
 
-/* The fourth row, under the three slots: a new game, or once the game has
- * been finished, a New Game+ beside it. */
+/* The slots' labels' first tiles, a slot's $20 after the one before's; the
+ * rows' drawing leaves the one after the last, where a label drawn after them
+ * would start. */
+static void keep_next_label_tile(GameState *g, uint8_t first)
+{
+    set_menu_graphic_first_tile(g, (uint16_t)((menu_graphic_first_tile(g) & 0xFF00) | first));
+}
+
+// $C2:D10D, $C2:D131
+/* The three slots' rows. */
+static void draw_slot_rows(GameState *g)
+{
+    uint16_t row = SLOT_ROWS_AT;
+    for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++, row = (uint16_t)(row + WINDOW_ROW_BYTES)) {
+        uint16_t number = (uint16_t)(NUMBER_ATTRIBUTE | (slot * NUMBER_COLUMNS + 1));
+        uint16_t after = row;
+        TIMED_AS(g, 0xC2FBB4, after = menu_lay_out_strip(g, row, NUMBER_COLUMNS, number));
+        TIMED_AS(g, 0xC2FB97, menu_lay_out_label(g, (uint16_t)(after + LABEL_AFTER_NUMBER * MENU_TILE_BYTES),
+                                                 LABEL_COLUMNS, (uint8_t)(LABEL_TILES_A_SLOT * (slot + 1))));
+        TIMED_AS(g, 0xC2D32C, draw_slot_window(g, slot));
+    }
+    keep_next_label_tile(g, (uint8_t)(LABEL_TILES_A_SLOT * (MENU_SAVE_SLOTS + 1)));
+}
+
+/* ---- Opening the screen ------------------------------------------------------------------------ */
+
+/* The slot the cursor starts on: the one saved last, or the fourth row where
+ * no slot holds a game. */
 enum { FOURTH_ROW = 3 };
 
 static bool any_slot_in_use(const GameState *g)
@@ -128,9 +156,103 @@ static bool any_slot_in_use(const GameState *g)
     return (menu_save_slot_in_use(g, 0) | menu_save_slot_in_use(g, 1) | menu_save_slot_in_use(g, 2)) != 0;
 }
 
+static uint8_t slot_to_start_on(GameState *g, Platform *pf)
+{
+    uint8_t last = saves_last_slot(pf, PF_AT(0xC2E7CF));
+    return any_slot_in_use(g) ? last : FOURTH_ROW;
+}
+
+/* The screen's colours past the windows': the first half of palette row 2,
+ * and row 7. */
+static void load_screen_colours(GameState *g)
+{
+    enum { ROW_2_LOWER = 2 * 16, ROW_7 = 7 * 16 };
+    for (unsigned i = 0; i < MENU_LOAD_SCREEN_TEXT_COLOURS; i++)
+        set_menu_palette(g, ROW_2_LOWER + i, menu_load_screen_text_colour(g, i));
+    for (unsigned i = 0; i < MENU_LOAD_SCREEN_ROW_7_COLOURS; i++)
+        set_menu_palette(g, ROW_7 + i, menu_load_screen_row_7_colour(g, i));
+}
+
+/* The screen's per-line effects: the colour math table and slots 1, 3 and 4. */
+enum { LOAD_SCREEN_LINE_EFFECTS = 0x1B };
+
+/* After the chosen slot's summary: its panel, the colour math table, the
+ * fourth row's choices once the game has been finished, the colours, and the
+ * whole screen queued. */
+static void finish_screen(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
+    if (saves_finished(pf, PF_AT(0xC2E7F9)))
+        draw_list(g, pf, NEW_GAME_CHOICES);
+    set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
+    set_menu_line_effects(g, LOAD_SCREEN_LINE_EFFECTS);
+    load_screen_colours(g);
+    queue_upload(g, UPLOAD_TEXT_GRAPHICS);
+    queue_upload(g, UPLOAD_BG1);
+    queue_upload(g, UPLOAD_BG2);
+    queue_upload(g, UPLOAD_BG3);
+}
+
+/* The flags the screen's drawing has as it calls the summary's drawing and
+ * showing, which those save as they start: the last load before each. */
+static void leave_start_slot_loaded(Snes *s, uint8_t slot)
+{
+    menu_leave_load(s, slot);
+    m_set_flag(s, CPU_FLAG_C, true);   /* the rows' last count, at three */
+}
+
+// $C2:E7C3
+/* Draw the load screen: its windows, the slots' rows, the summary of the slot
+ * the cursor starts on, the panel around it, and the rest. */
+static bool draw_load_screen(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    menu_set_widths(s, true, m_x8(s));
+    draw_list(g, pf, SCREEN_WINDOWS);
+    draw_slot_rows(g);
+    uint8_t slot = slot_to_start_on(g, pf);
+    set_menu_save_slot_shown(g, slot);
+    set_menu_cursor_index(g, slot);
+    ORIGINAL_EFFECT(leave_start_slot_loaded(s, slot));
+    if (!menu_run(s, 0xC2E7E8, 0xC2D36C, menu_draw_save_slot))
+        return false;
+    set_menu_text_attribute(g, 0);
+    draw_list(g, pf, SUMMARY_PANEL);
+    if (!menu_run(s, 0xC2E7F3, 0xC2E743, menu_show_save_slot))
+        return false;
+    finish_screen(g, pf);
+    return true;
+}
+
+void menu_draw_load_screen(Snes *s)
+{
+    menu_save_p(s);
+    if (!draw_load_screen(s))
+        return;
+    menu_restore_p(s);
+    m_rts(s);
+}
+
 /* The dispatch's return: every step returns into the main task's yield. A
  * step that goes back to choosing leaves 16-bit widths behind it. */
 static void leave_wide(Snes *s) { menu_set_widths(s, false, false); }
+
+// $C2:E613
+/* The screen's first step: drawn, then on to choosing, and the fade in
+ * started by the menus' own task start ($C2:83B2, the original's), where the
+ * port stops. */
+enum { FADE_IN_START = 0xC283B2 };
+enum { FADE_IN_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+void menu_open_load_screen(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (!menu_run(s, 0xC2E613, 0xC2E7C3, menu_draw_load_screen))
+        return;
+    set_menu_screen_step(g, (uint8_t)(menu_screen_step(g) + 1));
+    m_stop_at(s, FADE_IN_START, FADE_IN_IGNORES);
+}
 
 /* ---- Choosing ---------------------------------------------------------------------------------- */
 
@@ -545,7 +667,8 @@ void menu_draw_slot_window(Snes *s)
  * cursor on one of the four rows with a place to move to, at least one slot
  * with a game and summaries whose members are characters (menu/save_screen.c),
  * the sounds' cells, and room in the upload queue for what a step queues. */
-enum { QUEUE_BYTES = 0x100, MOST_UPLOADS_A_STEP = 6 };
+enum { QUEUE_BYTES = 0x100, MOST_UPLOADS_A_STEP = 6, MOST_UPLOADS_OPENING = 8 };
+enum { SAVE_MEMORY = 0x306000 };
 
 static bool queue_takes(Snes *s, unsigned uploads)
 {
@@ -600,6 +723,19 @@ bool menu_load_screen_runs(Snes *s)
 {
     return menu_on_page_work_ram(s) && menu_cursor_is_movable(s) && cursor_stays_on_the_rows(s)
            && menu_save_slots_are_showable(s) && menu_sounds_on_page(s) && queue_takes(s, MOST_UPLOADS_A_STEP);
+}
+
+/* The opening's drawing: the slot the cartridge says was saved last is one of
+ * the rows. (The colour math records it builds its table from are the
+ * screen's own lists'.) */
+bool menu_load_screen_draws(Snes *s)
+{
+    if (!menu_on_page_work_ram(s) || !queue_takes(s, MOST_UPLOADS_OPENING))
+        return false;
+    vars_peek(true);
+    bool ok = snes_bus_peek(&s->bus, SAVE_MEMORY + SAVES_LAST_SLOT) <= FOURTH_ROW && menu_save_slots_can_show(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
 /* A slot's window is one of the three rows', and the colours it loads can be

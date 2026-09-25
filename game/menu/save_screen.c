@@ -253,11 +253,13 @@ static void draw_the_rows_portrait(GameState *g)
  * command list draws it from, and the portrait, one row of tilemap below the
  * other. The list draws at the drawing origin; the loop keeps its own place,
  * where the original reads it back from the origin's cell after each row. */
+/* The row's cells, which the portrait's own entry ($C2:D466) takes its row
+ * and member from. */
 static void note_member_row(GameState *g, unsigned row, uint8_t member)
 {
     set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + row * MEMBER_RECORD_BYTES));
     set_menu_save_member_row(g, (uint16_t)row);
-    set_menu_scratch_save_member(g, (uint16_t)((menu_scratch_save_member(g) & 0xFF00) | member));
+    set_menu_scratch_save_member_character(g, member);
 }
 
 static void draw_member_rows(GameState *g, Platform *pf)
@@ -266,7 +268,7 @@ static void draw_member_rows(GameState *g, Platform *pf)
     set_menu_draw_origin(g, origin);
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
         uint8_t member = menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES);
-        ORIGINAL_EFFECT(note_member_row(g, row, member));
+        note_member_row(g, row, member);
         if (member_present(g, row)) {
             show_member(g, row);
             draw_list(g, pf, MEMBER_ROW_LIST);
@@ -275,8 +277,8 @@ static void draw_member_rows(GameState *g, Platform *pf)
             set_menu_draw_origin(g, origin);
         }
     }
-    ORIGINAL_EFFECT(set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + MEMBER_ROWS * MEMBER_RECORD_BYTES)));
-    ORIGINAL_EFFECT(set_menu_save_member_row(g, MEMBER_ROWS));
+    set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + MEMBER_ROWS * MEMBER_RECORD_BYTES));
+    set_menu_save_member_row(g, MEMBER_ROWS);
 }
 
 // $C2:D410

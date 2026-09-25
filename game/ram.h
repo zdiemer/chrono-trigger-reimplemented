@@ -1598,6 +1598,7 @@
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
+#define RAM_MENU_SCRATCH_SAVE_MEMBER_CHARACTER 0x7E0000u /* The same, its low byte alone: the rows' loop writes the character a byte wide */
 #define RAM_MENU_SCRATCH_WINDOW_STYLE_FOURFOLD 0x7E0000u /* The window command lists: the window style's number times four, halfway to its tiles' first */
 #define RAM_MENU_SCRATCH_CURSOR_BUTTON_BIT 0x7E0000u /* The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last */
 #define RAM_MENU_SCRATCH_ERASED_SLOT_ROWS 0x7E0000u /* The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic */

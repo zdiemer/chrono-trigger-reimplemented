@@ -1606,6 +1606,8 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v) 
 
 uint16_t menu_scratch_save_member(const GameState *g) { return r16(g, 0x7E0000u); }
 void set_menu_scratch_save_member(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
+uint8_t menu_scratch_save_member_character(const GameState *g) { return r8(g, 0x7E0000u); }
+void set_menu_scratch_save_member_character(GameState *g, uint8_t v) { w8(g, 0x7E0000u, v); }
 uint8_t menu_scratch_window_style_fourfold(const GameState *g) { return r8(g, 0x7E0000u); }
 void set_menu_scratch_window_style_fourfold(GameState *g, uint8_t v) { w8(g, 0x7E0000u, v); }
 uint8_t menu_scratch_cursor_button_bit(const GameState *g) { return r8(g, 0x7E0000u); }

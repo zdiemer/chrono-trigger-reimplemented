@@ -5312,6 +5312,24 @@ iterations = 2000
 why = "the menus' page and data bank; the sound and the queued sounds random"
 
 [[routine]]
+name = "menu_open_load_screen"
+at = "C2:E613"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, at least the first slot with a game (the movies' calls are all interrupted)"
+
+[[routine]]
+name = "menu_draw_load_screen"
+at = "C2:E7C3"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D49-7E0D49=01-01"]
+iterations = 2000
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, at least the first slot with a game (the movies' calls are all interrupted)"
+
+[[routine]]
 name = "menu_choose_on_load_screen"
 at = "C2:E61B"
 subsystem = "menu"
@@ -5352,9 +5370,9 @@ name = "menu_erase_slot"
 at = "C2:E8B7"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02", "--stop-at-call", "C2821E"]
 iterations = 2000
-why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three"
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three; compared up to its wait for the next frame ($C2:821E, a task switch the fuzzer can't run past)"
 
 [[routine]]
 name = "menu_draw_slot_window"

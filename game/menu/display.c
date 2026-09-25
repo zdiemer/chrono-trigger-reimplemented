@@ -434,7 +434,7 @@ static uint16_t put_ramp(GameState *g, uint16_t at, uint8_t lines_a_step)
 /* Build the per-line color math table the menus run on per-line effect slot
  * 0, and program the slot: the ramp colors refreshed from the ROM, then each
  * record a single entry or a ramp, into whichever table isn't showing. */
-static void build_math_line_table(GameState *g, Platform *pf)
+void menu_build_math_table(GameState *g, Platform *pf)
 {
     enum { TABLE_BYTES = 0x100 };
     for (unsigned i = 0; i < MENU_MATH_RAMP_COLORS_COUNT; i++)
@@ -474,7 +474,7 @@ bool menu_math_list_fits(Snes *s)
 
 void menu_build_math_line_table(Snes *s)
 {
-    build_math_line_table(state_of(s), m_platform(s));
+    menu_build_math_table(state_of(s), m_platform(s));
     m_rts(s);
 }
 

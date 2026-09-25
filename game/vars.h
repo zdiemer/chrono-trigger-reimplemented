@@ -2060,6 +2060,9 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint16_t v);
  * byte; the portrait clears the high byte) */
 uint16_t menu_scratch_save_member(const GameState *g);
 void set_menu_scratch_save_member(GameState *g, uint16_t v);
+/* The same, its low byte alone: the rows' loop writes the character a byte wide */
+uint8_t menu_scratch_save_member_character(const GameState *g);
+void set_menu_scratch_save_member_character(GameState *g, uint8_t v);
 /* The window command lists: the window style's number times four, halfway to its tiles' first */
 uint8_t menu_scratch_window_style_fourfold(const GameState *g);
 void set_menu_scratch_window_style_fourfold(GameState *g, uint8_t v);

@@ -4616,6 +4616,10 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   size = 2
   meaning = "The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte)"
   [[var.field]]
+  name = "save_member_character"
+  offset = 0
+  meaning = "The same, its low byte alone: the rows' loop writes the character a byte wide"
+  [[var.field]]
   name = "window_style_fourfold"
   offset = 0
   meaning = "The window command lists: the window style's number times four, halfway to its tiles' first"

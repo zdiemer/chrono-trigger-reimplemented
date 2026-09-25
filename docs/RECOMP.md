@@ -6114,7 +6114,27 @@ return and the handler taken there, twice, and with the time charged cheaply
 entries left to the original. Why it went wrong was the runtime's: the
 debt was paid inside the menus' vblank handler, which moves the stack, and
 the next vblank nested in it (fixed; "The tooling pass after Phase 3's first
-chunks", below). The port is out of the tree until it comes back (TODO.md).
+chunks", below). The port came back after that fix, unchanged but for
+`$C2:E613` stopping with `m_stop_at` at the task start it jumps to
+(`$C2:83B2`), which starts the screen's fade-in: `beyond_time` passes in the
+shipping mode, and both entries are fuzzed (2,000 states each, none
+mismatching), which is their only check, since every call of theirs in the
+library is interrupted. For the same reason the timing gate has no stretch of
+theirs to calibrate from: their `cost_milli` is left at the menus' ports'
+usual 5000, and nearly all their time is their callees' (the window lists,
+the slot's drawing and showing), each at its own calibrated rate.
+
+**What the effects check found** ("The tooling pass after Phase 3's first
+chunks", below): reads of cells the menus' ports wrote only in scaffolding.
+The load screen's member rows write the row and the member the portrait's
+own entry (`$C2:D466`) reads as plain state, the member as a byte of its own
+(`menu_scratch_save_member_character`), as the original's `STA` does; a
+window's frame leaves the inside's size as plain state wherever it is drawn
+(the frame's entry, a list's window with or without its inside, the save
+slot's window `$C2:ECDB`); the slots' rows keep the next label's first tile
+plainly. `menu_object_wave_hdma` reads a phase another subsystem's scaffolding
+leaves in the field page's cell, as the original's does; that one has a
+reason in `tools/effects_baseline.txt`.
 
 **Timing.** Every entry is calibrated from the library but the ones only
 `menu_open` runs, whose error its own rate takes up (TODO.md), and a window list charges each command at its handler's

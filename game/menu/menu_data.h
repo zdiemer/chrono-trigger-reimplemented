@@ -109,6 +109,12 @@ static inline uint16_t menu_portrait_colour(const GameState *g, uint8_t characte
     return rom_read16(g, 0xFF0000u | (uint16_t)(0xCC84u + character * 32u + 2u * i));
 }
 
+/* The load screen's colours past its windows' ($FF:CC74, eight for the
+ * upper half of palette row 2; $FF:CE30, the sixteen of row 7). */
+enum { MENU_LOAD_SCREEN_TEXT_COLOURS = 8, MENU_LOAD_SCREEN_ROW_7_COLOURS = 16 };
+static inline uint16_t menu_load_screen_text_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCC74u + 2u * i); }
+static inline uint16_t menu_load_screen_row_7_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCE30u + 2u * i); }
+
 /* The chapters of the story a slot's label names, by where the story had got
  * to ($FF:D024, 26 of them, each the first value of the story's progress in
  * that chapter). */

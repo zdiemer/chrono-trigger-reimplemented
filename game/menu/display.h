@@ -2,7 +2,14 @@
 #ifndef CT_GAME_MENU_DISPLAY_H
 #define CT_GAME_MENU_DISPLAY_H
 
+#include "platform/video.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* Build the per-line colour math table the menus show from the next frame,
+ * from the records the screen left (menu_math_records), and put line-effect
+ * slot 0 on it. */
+void menu_build_math_table(GameState *g, Platform *pf);
 
 /* The mode at $C2:800E (the menus proper) */
 void menu_mode_start(Snes *s);

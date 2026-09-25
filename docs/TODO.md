@@ -547,19 +547,11 @@ rest waits, is [PLAN.md](PLAN.md).
     the text loader (`$C2:F90C`) and the save code in bank `$FF` (the slot's
     check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
     (`$C2:956E`);
-  - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
-    original's: its port broke the `beyond_time` route in the shipping mode,
-    which was the runtime's (a debt paid inside a vblank handler that moved
-    the stack; RECOMP.md, "The tooling pass after Phase 3's first chunks").
-    The port can come back as it was, `$C2:E613` stopping with `m_stop_at` at
-    the task yield `$C2:83B2` it jumps to; then the `beyond_time` route in the
-    shipping mode, fuzzing both entries (every library call is interrupted),
-    and calibration, maybe with a timing exception;
-  - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
-    slot, and `ct_fuzz` can't run past its wait for the next frame
-    (`$C2:821E`, a task switch). `ct_fuzz --stop-at-call C2821E` compares it up
-    to that call, which is most of it; a movie that erases a slot on the load
-    screen would check the rest, and `menu_answer_erase`'s "no" with it;
+  - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
+    frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
+    none mismatching), and no movie erases a slot: a movie that erases one on
+    the load screen would check the rest, and `menu_answer_erase`'s "no" with
+    it;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
     `$D2C4`) only run inside `menu_open`'s stretch, so shadow mode compares
     them up to their first point and sets them aside there (`abandoned`); the
