@@ -23,9 +23,15 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { HALF_COLUMNS = 32, MAP_COLUMNS = 64, MAP_ROWS = 32, SECOND_HALF = 0x0400, LAST_ROW_OF_HALF = 0x03E0 };
+enum {
+    HALF_COLUMNS = FIELD_TILE_MAP_HALF_COLUMNS,
+    MAP_COLUMNS = FIELD_TILE_MAP_COLUMNS,
+    MAP_ROWS = FIELD_TILE_MAP_ROWS,
+    SECOND_HALF = HALF_COLUMNS * MAP_ROWS,                 /* a half's entries: where the second starts */
+    LAST_ROW_OF_HALF = (MAP_ROWS - 1) * HALF_COLUMNS,
+};
 enum { COLUMN_MASK = MAP_COLUMNS - 1, ROW_MASK = MAP_ROWS - 1 };
-enum { SCREEN_ROWS = 28 };   /* the row below the screen's is 28 on from its top */
+enum { SCREEN_ROWS = FIELD_SCREEN_ROWS };   /* the row below the screen's is this far on from its top */
 
 /* ---- The edges -------------------------------------------------------------------------- */
 

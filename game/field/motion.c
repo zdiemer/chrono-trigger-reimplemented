@@ -380,10 +380,12 @@ static bool can_block_in_view(const GameState *g, FieldObject other, FieldObject
 
 /* The search starts at the slot after the last object and runs down to the
  * second. The original doubles the count in a byte, so a count past 127
- * starts from what is left of it (the endings' maps count 163). A start of 0
- * would go on round into the slots past the tables (it counts round 128), as
- * would one past them; no map has either, and the entries' guards leave
- * those to the original. */
+ * starts from what is left of it (the endings' maps count 163). A start past
+ * the tables (a count of 64 to 127) starts on the slots past them, which the
+ * leader's walk ports (field/walk.c, stopped_past_the_tables) and this
+ * search's and the confirm button's guards still leave to the original; a
+ * start of 0 would go round into those slots from slot 0 (it counts round
+ * 128), which no map makes. */
 enum { SEARCH_COUNT_BITS = 0x7F };
 
 FieldObject object_search_start(const GameState *g) { return (FieldObject)(event_object_count(g) & SEARCH_COUNT_BITS); }

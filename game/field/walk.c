@@ -295,13 +295,11 @@ static bool is_open(Way way) { return way == WAY_OPEN; }
 
 /* ---- Other objects in the way -------------------------------------------------------------- */
 
-/* Whether a slot is one of the party's places, by the byte the party keeps
- * for it (an empty place's marker is a byte too, which a slot past the
- * tables can match). */
-static bool in_the_party(const GameState *g, uint8_t offset)
+/* Whether an object is one of the party's, by its place. */
+static bool in_the_party(const GameState *g, FieldObject obj)
 {
     for (PartyPlace place = PARTY_LEADER; place < PARTY_PLACES; place++)
-        if (field_link_byte(party_member_link(g, place)) == offset)
+        if (field_same_link(party_member_link(g, place), field_link_to(obj)))
             return true;
     return false;
 }
@@ -313,56 +311,50 @@ enum { REACH = 0xE0 };
 static uint16_t magnitude(uint16_t d) { return (d & 0x8000) ? (uint16_t)-d : d; }
 
 // $C0:9965
-/* Whether something at `at` stands close to the point. The original
- * measures a sixteenth short across, and down a sixteenth short too unless
- * the slot is past the second member's (its slots' comparisons' borrow). */
-static bool stands_close(const GameState *g, uint8_t offset, FieldPosition at, MapPoint p)
+/* Whether the object, standing at `at`, stands close to the point. The
+ * original measures a sixteenth short across, and down a sixteenth short
+ * too unless the object's slot is past the second member's (its slots'
+ * comparisons' borrow). */
+static bool stands_close(const GameState *g, FieldObject obj, FieldPosition at, MapPoint p)
 {
     uint8_t second = field_link_byte(party_member_link(g, PARTY_SECOND_MEMBER));
-    uint16_t short_down = offset > second ? 0 : 1;
+    uint16_t short_down = field_object_offset(obj) > second ? 0 : 1;
     uint16_t down = (uint16_t)(at.y - p.y - short_down), across = (uint16_t)(at.x - p.x - 1);
     return magnitude(down) < REACH && magnitude(across) < REACH;
 }
 
-/* What the search met: nothing, or the slot, and whether it stops the
- * leader. */
-typedef struct {
-    bool met;
-    uint8_t offset;
-    bool solid;
-} Met;
-
-/* For shadow mode: what the original meets past the object tables. A map's
- * object count of 64 to 127 (the original's search starts from it doubled
- * in a byte) starts the search on the slots past the tables, where the
- * original reads the next tables' bytes as a slot's (field/object.h,
- * object_past_the_tables): whether it is in view from the bytes after the
- * in-view flags, whether it is disabled from the bytes after the roles, and
- * where it stands from the objects' vertical positions (read as its
- * horizontal one) and velocities (as its vertical one). Where one of those
- * reads as in view, enabled, no party place's and close, the original stops
- * there: the leader is up against no object (the slot's byte has the top bit
- * of a link to none), and stopped if the byte after the solidity flags says
- * solid.
+/* For shadow mode: what the original meets past the object tables, where
+ * a map's object count of 64 to 127 (the original's search starts from it
+ * doubled in a byte) starts its search. It reads the next tables' bytes as a
+ * slot's (field/object.h, object_past_the_tables): whether it is in view
+ * from the bytes after the in-view flags, whether it is disabled from the
+ * bytes after the roles, and where it stands from the objects' vertical
+ * positions (read as its horizontal one) and velocities (as its vertical
+ * one); and it takes an empty party place's marker for one of those slots.
+ * Where one reads as in view, enabled, no party place's and close, the
+ * original stops its search there, before the map's objects: the leader is
+ * up against no object (the slot's byte has a link to none's top bit), and
+ * stopped where the byte after the solidity flags says solid. So this
+ * overrides the search's outcome, `stops`, and the contact it left, where it
+ * meets such a slot; elsewhere it leaves them.
  *
  * Whether the game sees it: over the movie library the count is 112 or 123
- * for a frame or two in six movies (20 calls), while a map changes, and no
- * slot past the tables reads as close on any of them, so the leader walks as
- * it would have. A native build looks at the map's objects alone. */
-static void what_the_original_meets_past_the_tables(const GameState *g, FieldObject start, MapPoint p, Met *m)
+ * on a frame or two in six movies (20 calls), and on none of them does the
+ * walk search at all (the leader isn't stepping into anything; a debug build
+ * reporting every such search found none). A native build looks at the
+ * map's objects alone (docs/TODO.md). */
+static bool stopped_past_the_tables(GameState *g, FieldObject start, MapPoint p, bool stops)
 {
     for (FieldObject slot = start; slot >= FIELD_OBJECTS; slot--) {
-        uint8_t offset = field_object_offset(slot);
         if (object_view_past_the_tables(g, slot) == OUT_OF_VIEW)
             continue;
         ObjectPastTheTables past = object_past_the_tables(g, slot);
-        if (past.disabled || in_the_party(g, offset))
+        if (past.disabled || in_the_party(g, slot) || !stands_close(g, slot, past.at, p))
             continue;
-        if (stands_close(g, offset, past.at, p)) {
-            *m = (Met){ true, offset, object_solid_past_the_tables(g, slot) };
-            return;
-        }
+        set_leader_contact(g, field_link_to(slot));
+        return object_solid_past_the_tables(g, slot);
     }
+    return stops;
 }
 
 // $C0:9923
@@ -370,26 +362,28 @@ static void what_the_original_meets_past_the_tables(const GameState *g, FieldObj
  * of the map's down, that is in view, not disabled and not one of the party,
  * and stands close. The leader is up against it; it stops the leader if it
  * is solid. The original looks from one slot past the map's objects, and
- * never at slot 0; from past the tables, for a count past them, where it
- * reads what isn't an object (above). */
+ * never at slot 0; for a count past the tables, from past them first
+ * (above). */
 static bool object_stands_in_the_way(GameState *g, MapPoint p)
 {
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_X, p.x));
     ORIGINAL_EFFECT(record_cell_word(CELL_LOOK_Y, p.y));
     FieldObject start = object_search_start(g);
-    Met m = { false, 0, false };
-    if (start >= FIELD_OBJECTS)
-        ORIGINAL_EFFECT(what_the_original_meets_past_the_tables(g, start, p, &m));
-    FieldObject first = start < FIELD_OBJECTS ? start : FIELD_OBJECTS - 1;
-    for (FieldObject obj = first; obj >= 1 && !m.met; obj--) {
-        uint8_t offset = field_object_offset(obj);
-        if (object_view(g, obj) == OUT_OF_VIEW || object_disabled(g, obj) || in_the_party(g, offset))
+    FieldObject met = 0;
+    bool found = false;
+    for (FieldObject obj = start < FIELD_OBJECTS ? start : FIELD_OBJECTS - 1; obj >= 1 && !found; obj--) {
+        if (object_view(g, obj) == OUT_OF_VIEW || object_disabled(g, obj) || in_the_party(g, obj))
             continue;
-        if (stands_close(g, offset, object_position(g, obj), p))
-            m = (Met){ true, offset, object_solid(g, obj) };
+        if (stands_close(g, obj, object_position(g, obj), p)) {
+            met = obj;
+            found = true;
+        }
     }
-    set_leader_contact(g, m.met ? field_link_stored(m.offset) : field_no_link());
-    return m.met && m.solid;
+    set_leader_contact(g, found ? field_link_to(met) : field_no_link());
+    bool stops = found && object_solid(g, met);
+    if (start >= FIELD_OBJECTS)
+        ORIGINAL_EFFECT(stops = stopped_past_the_tables(g, start, p, stops));
+    return stops;
 }
 
 /* ---- The leader's box ------------------------------------------------------------------------ */
@@ -756,7 +750,7 @@ static Velocity keep_to_the_map(GameState *g, FieldObject leader, Velocity step)
  * of its nine-bit place, so that a leader off the screen's left or top reads
  * as far along. The screen's middle, for following: across, and down, where
  * the leader stands a little below it. */
-enum { SCREEN_MIDDLE_X = 0x80, SCREEN_MIDDLE_Y = 0x88, TILE_PIXELS = 16 };
+enum { SCREEN_MIDDLE_X = 0x80, SCREEN_MIDDLE_Y = 0x88 };
 
 static uint8_t leader_on_screen(const GameState *g, FieldObject leader, Axis axis)
 {
@@ -795,7 +789,7 @@ static bool screen_follows(const GameState *g, FieldObject leader, Axis axis, bo
             return leader_on_screen(g, leader, axis) > middle;
         if (screen > edge)
             return false;
-        return (uint8_t)(fine_scroll(g, axis) + pixels) < TILE_PIXELS;
+        return (uint8_t)(fine_scroll(g, axis) + pixels) < FIELD_MAP_TILE_PIXELS;
     }
     if (edge < screen)
         return leader_on_screen(g, leader, axis) < middle;

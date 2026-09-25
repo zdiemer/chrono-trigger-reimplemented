@@ -575,13 +575,6 @@ static bool draw(Snes *s, FieldObject obj, unsigned row, unsigned site, bool as_
     return false;
 }
 
-/* For the original's code and shadow mode (field/scratch.h): the building
- * keeps the current object as a byte in its word, whose high byte it clears. */
-static void leave_current_object_as_byte(GameState *g)
-{
-    set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF));
-}
-
 /* The ranges start over each frame at their first entries. */
 static void start_ranges(GameState *g)
 {
@@ -600,7 +593,7 @@ void field_build_sprite_table(Snes *s)
     GameState *g = state_of(s);
     start_ranges(g);
     open_table_stream(g);
-    ORIGINAL_EFFECT(leave_current_object_as_byte(g));
+    object_keep_current_in_a_word(g);   /* the building keeps it in a word whose high byte it clears */
     bool as_c = every_draw_is_own(g);
     for (int row = FIELD_ROWS - 1; row >= 0; row--) {
         FieldLink link = row_first_object(g, (unsigned)row);

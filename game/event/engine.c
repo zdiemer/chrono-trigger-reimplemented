@@ -243,11 +243,8 @@ EventTurnEnd event_run_turn(GameState *g, FieldObject object, const EventRunner 
     return TURN_OVER;
 }
 
-/* For the original's code and shadow mode: the map setup keeps the current
- * object as a word (it runs with 16-bit index registers, $C0:58FB), which
- * clears the byte after the link; and it keeps the openings' end, the
- * object count doubled, in event_object_end. */
-static void leave_current_as_a_word(GameState *g) { set_field_current_object(g, (uint8_t)field_current_object(g)); }
+/* For the original's code and shadow mode: the map setup keeps the
+ * openings' end, the object count doubled, in event_object_end. */
 static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_end(g, (uint16_t)(count * 2)); }
 
 /* An object's opening: its script up to its first zero byte, after which the
@@ -255,8 +252,7 @@ static void leave_openings_end(GameState *g, uint8_t count) { set_event_object_e
 static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRunner *r, uint16_t *stopped_at)
 {
     uint16_t at = event_object_script_position(g, object);
-    object_make_current(g, object);
-    ORIGINAL_EFFECT(leave_current_as_a_word(g));
+    object_make_current_afresh(g, object);   /* the map setup keeps it as a word ($C0:58FB) */
     EventStep st;
     for (;;) {
         *stopped_at = at;

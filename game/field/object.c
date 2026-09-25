@@ -364,3 +364,6 @@ void object_make_current(GameState *g, FieldObject obj)
 {
     set_field_current_object(g, (uint16_t)((field_current_object(g) & 0xFF00) | field_link_byte(field_link_to(obj))));
 }
+
+void object_make_current_afresh(GameState *g, FieldObject obj) { set_field_current_object(g, field_link_byte(field_link_to(obj))); }
+void object_keep_current_in_a_word(GameState *g) { set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF)); }

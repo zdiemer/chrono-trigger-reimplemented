@@ -83,10 +83,17 @@ static inline uint8_t field_object_offset(FieldObject obj) { return field_link_t
  *
  * The object whose turn it is: the event engine runs its script, and the
  * object update, the sprite table and the original's routines work on it.
- * The original keeps it as a word whose low byte is the object's link. */
+ * The original keeps it as a word whose low byte is the object's link, and
+ * whether a word is one of the objects the tables hold takes the whole word
+ * (the guards', and the per-frame turn's). Making an object current changes
+ * the link alone, as the per-frame turn does; the map's openings and the
+ * sprite table's building make it current as a word, which clears the byte
+ * after the link, and so does anything that starts afresh from them. */
 FieldObject object_current(const GameState *g);
 bool object_current_is_one(const GameState *g);
 void object_make_current(GameState *g, FieldObject obj);
+void object_make_current_afresh(GameState *g, FieldObject obj);
+void object_keep_current_in_a_word(GameState *g);
 
 /* ---- Role (field/object.c) ------------------------------------------------------------ */
 
@@ -487,9 +494,10 @@ typedef struct {
 } ObjectsAhead;
 ObjectsAhead object_in_the_way(GameState *g, FieldObject obj);
 /* Where the field's searches over the map's objects start -- this one, the
- * leader's walk's and the confirm button's -- and whether that fits the
- * tables: one slot past the map's objects, down to the second. Its callers'
- * guards make sure. */
+ * leader's walk's and the confirm button's -- one slot past the map's
+ * objects, down to the second; and whether that start is inside the tables,
+ * which this search's and the confirm button's guards require (the walk
+ * handles a start past them, field/walk.c). */
 FieldObject object_search_start(const GameState *g);
 bool object_search_fits(const GameState *g);
 

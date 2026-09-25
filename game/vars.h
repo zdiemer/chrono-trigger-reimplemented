@@ -1804,23 +1804,36 @@ uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 enum { FIELD_TILE_LOOKS_COUNT = 512 };   /* by look: a layer's map tile, with the tile set half the tile's properties give BG1 and BG2 (bit 8) */
-/* BG1's and BG2's map tiles as 8-pixel tile map entries: a 16-pixel tile's four (top left, top
- * right, bottom left, bottom right, a word each), decompressed from the map's tile set
- * ($C0:09DD) over the map's data once that is unpacked [8 bytes, one at a time] */
-enum { FIELD_TILE_LOOKS_BYTES = 8 };
-uint8_t field_tile_looks_byte(const GameState *g, unsigned layer, unsigned at);
-void set_field_tile_looks_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+/* The top left quarter's entry */
+uint16_t field_tile_looks_top_left(const GameState *g, unsigned layer);
+void set_field_tile_looks_top_left(GameState *g, unsigned layer, uint16_t v);
+/* The top right quarter's entry */
+uint16_t field_tile_looks_top_right(const GameState *g, unsigned layer);
+void set_field_tile_looks_top_right(GameState *g, unsigned layer, uint16_t v);
+/* The bottom left quarter's entry */
+uint16_t field_tile_looks_bottom_left(const GameState *g, unsigned layer);
+void set_field_tile_looks_bottom_left(GameState *g, unsigned layer, uint16_t v);
+/* The bottom right quarter's entry */
+uint16_t field_tile_looks_bottom_right(const GameState *g, unsigned layer);
+void set_field_tile_looks_bottom_right(GameState *g, unsigned layer, uint16_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);
 void set_field_map_data(GameState *g, uint8_t v);
 
 enum { FIELD_BG3_TILE_LOOKS_COUNT = 256 };   /* by look: BG3's map tile */
-/* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [8 bytes, one at a
- * time] */
-enum { FIELD_BG3_TILE_LOOKS_BYTES = 8 };
-uint8_t field_bg3_tile_looks_byte(const GameState *g, unsigned i, unsigned at);
-void set_field_bg3_tile_looks_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* The top left quarter's entry */
+uint16_t field_bg3_tile_looks_top_left(const GameState *g, unsigned i);
+void set_field_bg3_tile_looks_top_left(GameState *g, unsigned i, uint16_t v);
+/* The top right quarter's entry */
+uint16_t field_bg3_tile_looks_top_right(const GameState *g, unsigned i);
+void set_field_bg3_tile_looks_top_right(GameState *g, unsigned i, uint16_t v);
+/* The bottom left quarter's entry */
+uint16_t field_bg3_tile_looks_bottom_left(const GameState *g, unsigned i);
+void set_field_bg3_tile_looks_bottom_left(GameState *g, unsigned i, uint16_t v);
+/* The bottom right quarter's entry */
+uint16_t field_bg3_tile_looks_bottom_right(const GameState *g, unsigned i);
+void set_field_bg3_tile_looks_bottom_right(GameState *g, unsigned i, uint16_t v);
 
 enum { FIELD_LAYER_STAGING_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0,

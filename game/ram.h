@@ -1397,6 +1397,10 @@
 #define RAM_FIELD_TILE_LOOKS 0x7EB000u
 #define RAM_FIELD_TILE_LOOKS_COUNT 512u
 #define RAM_FIELD_TILE_LOOKS_STRIDE 0x08u
+#define RAM_FIELD_TILE_LOOKS_TOP_LEFT 0x7EB000u /* The top left quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_TOP_RIGHT 0x7EB002u /* The top right quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_BOTTOM_LEFT 0x7EB004u /* The bottom left quarter's entry */
+#define RAM_FIELD_TILE_LOOKS_BOTTOM_RIGHT 0x7EB006u /* The bottom right quarter's entry */
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [256 x $8 bytes, by
@@ -1404,6 +1408,10 @@
 #define RAM_FIELD_BG3_TILE_LOOKS 0x7EC000u
 #define RAM_FIELD_BG3_TILE_LOOKS_COUNT 256u
 #define RAM_FIELD_BG3_TILE_LOOKS_STRIDE 0x08u
+#define RAM_FIELD_BG3_TILE_LOOKS_TOP_LEFT 0x7EC000u /* The top left quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_TOP_RIGHT 0x7EC002u /* The top right quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_BOTTOM_LEFT 0x7EC004u /* The bottom left quarter's entry */
+#define RAM_FIELD_BG3_TILE_LOOKS_BOTTOM_RIGHT 0x7EC006u /* The bottom right quarter's entry */
 /* Each layer's tile map entries staged for VRAM: the row the screen scrolls onto from byte 0,
  * the column from byte $80 (the deferred edge uploads send them, field/display.c); at a map's
  * load, the whole screen's rows [3 x $800 bytes, by layer (BG1-BG3)] */
