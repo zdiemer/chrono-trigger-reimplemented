@@ -15,25 +15,33 @@
  *     (battle/timers.c), the turn's handler among them: the turn below.
  *
  * A turn (the handler of the turn timer, battle_give_turn) gives the
- * combatant whose timer ran out its turn: an enemy picks its action from its
- * script, a party member's command menu opens (or, in a demo battle or under a
- * status that decides for it, its action is picked for it). The party's
- * chosen actions are carried out one at a time in the order they were
- * chosen. After an action the enemies it hit react, each running its script's
- * reactions.
+ * combatant whose timer ran out its turn: an enemy carries out the action its
+ * script chose (battle/enemy_turn.c), a party member's command menu opens
+ * (or, in a demo battle or under a status that decides for it, its action is
+ * picked for it). The party's chosen actions are carried out one at a time in
+ * the order they were chosen. After an action the enemies it hit react, each
+ * through its script's reactions, and the enemies with nothing chosen choose
+ * again (battle/enemy_scripts.h).
  *
- * Nearly all of this is still the original's code, which the loop calls: the
- * battle steps (the routine at $C1:0003 with the step in A, which waits for
- * frames), the scripts' conditions and actions, the rewards. What is ported is
- * the loop's own logic; the calls are bridges (battle/bridge.h). */
+ * Much of this is still the original's code, which the loop calls: the battle
+ * steps (the routine at $C1:0003 with the step in A, which waits for frames),
+ * carrying out the party's actions, the rewards. The loop's own logic is C,
+ * and so are the enemies' choosing and their scripts' reactions; the calls are
+ * bridges (battle/bridge.h), and the loop runs its siblings that call the
+ * original's code as its JSRs would (battle_run). */
 #include "battle/main_loop.h"
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
+#include "battle/enemy_scripts.h"
 #include "battle/entries.h"
+#include "battle/random.h"
+#include "battle/targets.h"
 #include "battle/timers.h"
+#include "charge.h"
 #include "original_effects.h"
+#include "port/native.h"
 #include "rom.h"
 #include "vars.h"
 
@@ -50,15 +58,11 @@ enum {
 };
 enum { BATTLE_STEP = 0xC10003 };
 
-/* The loop's other callees, named for what they do (as far as that is
- * worked out; docs/TODO.md). */
+/* The loop's other callees in the original's code, named for what they do (as
+ * far as that is worked out; docs/TODO.md). */
 enum {
     CLEAR_TURN_STATE = 0xFDA982,     /* clear the turns' state */
     SET_UP_STATS = 0xC1FA8B,         /* set the combatants' stats up for the battle */
-    RANDOM_NUMBER = 0xC1AF22,        /* a random number up to A, from the battle's table */
-    START_ENEMY_SCRIPTS = 0xC18C09,  /* start the enemies' scripts */
-    CLEAR_DAMAGE = 0xFDACFD,         /* the action's damage table cleared (battle/damage.c) */
-    UPDATE_COMBATANTS = 0xC1B223,    /* every combatant's update (battle/combatants.c) */
     CLEAR_PARTY_STATUSES = 0xC1EA9D, /* the party's statuses cleared, at the battle's end */
     CLEAR_ENEMY_MARKS = 0xC1B3BB,    /* the enemies' battle marks cleared, at the end */
     PARTY_STANDS_DOWN = 0xC1B7F2,    /* each member's step 2 (its menu closed) */
@@ -76,20 +80,26 @@ enum {
     RUN_AWAY_MARKS = 0xFDAA98,       /* the party's stat blocks marked for running away */
     SHOW_MESSAGE = 0xCD0021,         /* a battle message */
     START_ACTION = 0xC1895B,         /* an action started (the running away, $79) */
-    ENEMY_TURN = 0xC18CF9,           /* an enemy's turn: its script picks its action */
     SPEED_UP_TURN = 0xC1BD6F,        /* a hasted combatant's turn wait halved */
     MEMBER_TURN = 0xFDAB30,          /* a party member's turn: what its statuses decide */
-    CHECK_COMBINATIONS = 0xC1B575,   /* which members can join a combination tech (battle/menu_window.c) */
     MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, /* a member whose status picks its action */
     DEMO_PARTY_TURN = 0xC1B70E,      /* a demo battle's party picks its actions */
     DEMO_NEXT_TURN = 0xC1B725,       /* a demo battle's turns reset */
     CARRY_OUT_ACTION = 0xC1B967,     /* a member's chosen action carried out */
     AFTER_ACTION = 0xC1B762,         /* the action's targets that were knocked out */
     PARTY_COUNTERS = 0xFDAC6E,       /* the party members' counterattacks */
-    FIND_SCRIPT = 0xC1B488,          /* an enemy's script found, by its id (A) */
-    FINISH_BEATEN = 0xC1AC5E,        /* the enemies beaten by the action finished */
-    CLEAR_TARGETS = 0xC1AC46,        /* the action's targets cleared */
-    CLEAR_NUMBERS = 0xFDACEE,        /* the numbers shown over the combatants cleared */
+};
+
+/* The loop's siblings that call the original's code, run as its JSRs call
+ * them: an enemy's turn (battle/enemy_turn.c), every combatant's update
+ * (battle/combatants.c), the combination check (battle/menu_window.c), the
+ * turn itself (below), and the beaten enemies seen to (below). */
+enum {
+    ENEMY_TURN = 0xC18CF9,
+    UPDATE_COMBATANTS = 0xC1B223,
+    CHECK_COMBINATIONS = 0xC1B575,
+    GIVE_TURN = 0xC18461,
+    FINISH_BEATEN = 0xC1AC5E,
 };
 
 /* The original's code runs as the battle's does: 8-bit A, 16-bit index
@@ -104,7 +114,7 @@ enum {
     READS_A = DC_X | DC_Y | DC_FLAGS,
     READS_A_AND_OVERFLOW = DC_X | DC_Y | DC_N | DC_Z | DC_C,
     READS_ALL_OF_A = DC_X | DC_Y | DC_N | DC_Z,
-    READS_Y = DC_A | DC_X | DC_FLAGS,
+    READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_FLAGS,
     READS_Y_AND_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C,
 };
 
@@ -119,6 +129,21 @@ static bool step(Snes *s, uint32_t site, uint8_t number)
     return battle_call(s, site, BATTLE_STEP, READS_A_AND_OVERFLOW);
 }
 
+/* The party member the loop is working on, where the original's code it
+ * calls finds it (a word on the direct page). */
+static void leave_member_for_callees(GameState *g, uint8_t member)
+{
+    set_battle_low_scratch(g, 0x14, member);
+    set_battle_low_scratch(g, 0x15, 0);
+}
+
+/* Which members can join a combination tech (battle/menu_window.c), run as
+ * the loop's JSR at `site` calls it. */
+static bool check_combinations(Snes *s, uint32_t site)
+{
+    return battle_run(s, site, CHECK_COMBINATIONS, battle_update_combo_members);
+}
+
 /* ---- The battle's start ------------------------------------------------------------------ */
 
 /* Where the battle's random numbers are drawn from its table: kept between
@@ -127,18 +152,17 @@ static void take_random_position(GameState *g)
 {
     uint8_t kept = battle_random_kept(g);
     set_battle_random_position(g, kept);
-    set_battle_random_at_start(g, kept);
+    set_battle_random_other_position(g, kept);
 }
 
 /* A demo battle is set up as a normal one: its bit of the setup flags is kept
  * apart until then. */
-enum { SETUP_DEMO = 0x20 };
 
 static void set_demo_aside(GameState *g)
 {
     uint8_t flags = battle_setup_flags(g);
-    set_battle_demo_kept(g, flags & SETUP_DEMO);
-    set_battle_setup_flags(g, flags & (uint8_t)~SETUP_DEMO);
+    set_battle_demo_kept(g, flags & BATTLE_SETUP_DEMO);
+    set_battle_setup_flags(g, flags & (uint8_t)~BATTLE_SETUP_DEMO);
 }
 
 /* The orders are drawn from a pool, which the battle keeps where the enemies'
@@ -172,54 +196,41 @@ static void list_combatants_for_the_order(GameState *g)
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 1, 0));
 }
 
-/* A random number up to `limit`, through the original's routine (its X, the
- * lowest number, 0). */
-static bool draw_random(Snes *s, uint32_t site, uint8_t limit, uint8_t *drawn)
+/* A random number below `limit`, from the battle's own position. */
+static uint8_t draw_below(GameState *g, uint8_t limit)
 {
-    s->cpu.x = 0;
-    m_set_a8(s, limit);
-    if (!battle_call(s, site, RANDOM_NUMBER, DC_Y | DC_FLAGS | DC_AH))
-        return false;
-    *drawn = (uint8_t)s->cpu.a;
-    return true;
+    uint8_t drawn = 0;
+    TIMED_AS(g, 0xC1AF22, drawn = battle_random(g, 0, limit));
+    return drawn;
 }
 
 /* Draw the combatants into the timers' order at random, each once: a place
  * already drawn is drawn again. */
-static bool draw_timer_order(Snes *s)
+static void draw_timer_order(GameState *g)
 {
-    GameState *g = state_of(s);
     uint8_t length = battle_timer_order_length(g);
     unsigned placed = 0;
     do {
-        uint8_t drawn;
-        m_push16(s, (uint16_t)placed);
-        if (!draw_random(s, 0xC1807B, length, &drawn))
-            return false;
-        m_pull16(s);
+        uint8_t drawn = draw_below(g, length);
         uint8_t entry = pool(g, drawn);
         if (entry == DRAWN)
             continue;
         set_battle_timer_order(g, placed++, (uint8_t)(entry - 1));
         set_pool(g, drawn, DRAWN);
     } while (placed < length);
-    return true;
 }
 
 /* Then the enemies' own order, drawn the same way from their ids; it ends when
  * every enemy with an id is placed. */
-static bool draw_enemy_order(Snes *s)
+static void draw_enemy_order(GameState *g)
 {
-    GameState *g = state_of(s);
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_order(g, enemy, DRAWN);
         set_pool(g, enemy, battle_combatant_id(g, BATTLE_FIRST_ENEMY + enemy));
     }
     unsigned placed = 0;
     for (;;) {
-        uint8_t drawn;
-        if (!draw_random(s, 0xC180B1, BATTLE_ENEMIES, &drawn))
-            return false;
+        uint8_t drawn = draw_below(g, BATTLE_ENEMIES);
         if (pool(g, drawn) == DRAWN)
             continue;
         set_pool(g, drawn, DRAWN);
@@ -227,13 +238,13 @@ static bool draw_enemy_order(Snes *s)
         unsigned left = 0;
         while (pool(g, left) == DRAWN && ++left < battle_enemy_count(g))
             ;
-        if (left >= battle_enemy_count(g)) {
-            /* the enemies' scripts are started with the count placed in Y */
-            s->cpu.y = (uint16_t)placed;
-            return true;
-        }
+        if (left >= battle_enemy_count(g))
+            return;
     }
 }
+
+/* The enemies with nothing chosen choose what they do next. */
+static void enemies_choose(GameState *g) { TIMED_AS(g, 0xC18C09, enemy_scripts_choose(g)); }
 
 /* A demo battle's party acts at once and its enemies never. */
 enum { AT_ONCE = 1, NEVER = 0xFF };
@@ -248,7 +259,7 @@ static void finish_start(GameState *g)
 static void put_demo_back(GameState *g)
 {
     set_battle_setup_flags(g, battle_setup_flags(g) | battle_demo_kept(g));
-    if (!(battle_setup_flags(g) & SETUP_DEMO))
+    if (!battle_is_demo(g))
         return;
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++)
         set_battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot, battle_slot_is_party(slot) ? AT_ONCE : NEVER);
@@ -274,11 +285,10 @@ static bool start_battle(Snes *s)
         return false;
     }
     list_combatants_for_the_order(g);
-    if (!draw_timer_order(s) || !draw_enemy_order(s))
-        return false;
+    draw_timer_order(g);
+    draw_enemy_order(g);
     finish_start(g);
-    if (!battle_call(s, 0xC180E8, START_ENEMY_SCRIPTS, READS_Y))
-        return false;
+    enemies_choose(g);
     put_demo_back(g);
     return true;
 }
@@ -358,7 +368,7 @@ static bool leave_with_rewards(Snes *s)
 {
     GameState *g = state_of(s);
     restore_party_max_hp(g);
-    if (battle_setup_flags(g) & SETUP_DEMO)
+    if (battle_is_demo(g))
         return leave_without_rewards(s);
     if (battle_rewards_held(g) == 0) {
         if (!battle_call_long(s, 0xC183E0, SHARE_EXPERIENCE, READS_NOTHING))
@@ -453,27 +463,21 @@ static bool run_away(Snes *s)
            && battle_call(s, 0xC1821B, CLEAR_ENEMY_MARKS, READS_NOTHING) && leave_without_rewards(s);
 }
 
-/* The low HP and statuses of every combatant, through their entries
- * (battle/combatants.c), as the original calls them with the combatant in X
- * and Y. */
-static bool follow_combatants(Snes *s)
+/* The party's low HP noted, and every combatant's statuses followed
+ * (battle/combatants.c). */
+static void follow_combatants(GameState *g)
 {
-    static const uint16_t low_hp_calls[BATTLE_PARTY_SIZE] = { 0x8198, 0x81A4, 0x81B0 };
-    static const uint16_t status_calls[BATTLE_PARTY_SIZE] = { 0x819B, 0x81A7, 0x81B3 };
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
-        s->cpu.x = (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES);
-        s->cpu.y = (uint16_t)slot;
-        if (battle_slot_is_party(slot) && !battle_call(s, 0xC10000u | low_hp_calls[slot], 0xC1B093, DC_A | DC_Y | DC_FLAGS))
-            return false;
-        uint32_t status_call = battle_slot_is_party(slot) ? 0xC10000u | status_calls[slot] : 0xC181C2;
-        /* the statuses read the carry, which the step to an enemy's stat
-         * block leaves clear */
-        if (!battle_slot_is_party(slot))
-            m_set_flag(s, CPU_FLAG_C, false);
-        if (!battle_call(s, status_call, 0xC1B0B6, DC_A | DC_N | DC_V | DC_Z | DC_C))
-            return false;
+        if (battle_slot_is_party(slot))
+            TIMED_AS(g, 0xC1B093, combatant_note_low_hp(g, slot));
+        TIMED_AS(g, 0xC1B0B6, combatant_follow_statuses(g, slot));
     }
-    return true;
+}
+
+/* Every combatant's update, run as the loop's JSR at `site` calls it. */
+static bool update_combatants(Snes *s, uint32_t site)
+{
+    return battle_run(s, site, UPDATE_COMBATANTS, battle_update_all_combatants);
 }
 
 /* A party member whose status keeps it from acting has its action dropped,
@@ -511,29 +515,28 @@ enum { LOOP_HEAD = 0xC18120, LOOP_HEAD_DEAD = DC_A | DC_X | DC_Y | DC_FLAGS };
 static bool run_pass(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!battle_call_long(s, 0xC1812C, CLEAR_DAMAGE, READS_NOTHING)
-        || !battle_call(s, 0xC18130, UPDATE_COMBATANTS, READS_NOTHING))
+    TIMED_AS(g, 0xFDACFD, battle_clear_damage_table(g));
+    if (!update_combatants(s, 0xC18130))
         return false;
     if (battle_party_defeated(g))
         return lose(s);
     if (enemies_beaten(g))
         return win(s);
-    if (!follow_combatants(s))
-        return false;
+    follow_combatants(g);
     if (battle_timers_held(g)) {
         if (!cancel_unable_members(s, 0xC181DB))
             return false;
         m_stop_at(s, REST_OF_PASS, PASS_STOP_DEAD);
         return true;
     }
-    if (!(battle_setup_flags(g) & SETUP_DEMO) && battle_run_counter(g) != 0)
+    if (!battle_is_demo(g) && battle_run_counter(g) != 0)
         return run_away(s);
     if (battle_action_running(g) == 0) {
         m_rep(s, CPU_FLAG_M);
         m_stop_at(s, TIMERS, PASS_STOP_DEAD);
         return true;
     }
-    if (!battle_call(s, 0xC1822B, 0xC18461, READS_Y_AND_OVERFLOW))
+    if (!battle_take_turn(s, 0xC1822B))
         return false;
     m_stop_at(s, REST_OF_PASS, PASS_STOP_DEAD);
     return true;
@@ -546,7 +549,7 @@ static bool run_pass(Snes *s)
 static bool end_pass(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!(battle_setup_flags(g) & SETUP_DEMO)) {
+    if (!battle_is_demo(g)) {
         m_stop_at(s, LOOP_HEAD, LOOP_HEAD_DEAD);
         return true;
     }
@@ -576,7 +579,7 @@ static bool enemy_can_act(GameState *g, unsigned enemy)
     if (!from_animation && !battle_enemy_acts_anyway(g, enemy))
         return false;
     set_battle_enemy_acts_anyway(g, enemy, false);
-    return battle_enemy_turn_held(g, enemy) == 0;
+    return battle_enemy_script_outcome(g, enemy) == OUTCOME_HELD;
 }
 
 /* The turn wait an enemy that acted starts again from. */
@@ -591,15 +594,11 @@ static bool enemy_turn(Snes *s, uint8_t slot)
 {
     GameState *g = state_of(s);
     set_battle_enemy_acting(g, (uint8_t)(slot - BATTLE_FIRST_ENEMY));
-    s->cpu.x = slot;
-    /* taking the slot's number less 3 leaves the carry set, which the enemy's
-     * turn carries through to the speed-up after it */
-    m_set_flag(s, CPU_FLAG_C, true);
-    if (!battle_call(s, 0xC184D6, ENEMY_TURN, READS_NOTHING))
+    if (!battle_run(s, 0xC184D6, ENEMY_TURN, battle_enemy_takes_turn))
         return false;
     restart_turn_wait(g, slot);
     s->cpu.x = slot;
-    if (!battle_call(s, 0xC184E1, SPEED_UP_TURN, DC_A | DC_Y | DC_N | DC_Z))
+    if (!battle_call(s, 0xC184E1, SPEED_UP_TURN, DC_A | DC_Y | DC_FLAGS))
         return false;
     battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
     return true;
@@ -637,20 +636,20 @@ static bool member_turn(Snes *s, uint8_t member, MemberTurn *turn)
     s->cpu.y = member;
     s->cpu.x = (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES);
     s->cpu.a = 0;
+    /* working the stat block's place out leaves the carry clear */
+    m_set_flag(s, CPU_FLAG_C, false);
     if (!battle_call_long(s, 0xC18526, MEMBER_TURN, DC_N | DC_Z))
         return false;
-    set_battle_low_scratch(g, 0x14, member);
-    set_battle_low_scratch(g, 0x15, 0);
+    leave_member_for_callees(g, member);
     if (battle_member_acts_for_itself(g)) {
         *turn = ACTED_FOR_ITSELF;
         set_battle_acting_for_itself(g, member);
-        return battle_call(s, 0xC18538, CHECK_COMBINATIONS, READS_NOTHING)
-               && battle_call(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_ALL_OF_A);
+        return check_combinations(s, 0xC18538) && battle_call(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH);
     }
     *turn = TO_THE_QUEUE;
     if (member_action(g, member) != NO_ACTION)
         return true;
-    if (battle_setup_flags(g) & SETUP_DEMO) {
+    if (battle_is_demo(g)) {
         *turn = DEMO_PICKED;
         return battle_call(s, 0xC1855C, DEMO_PARTY_TURN, READS_NOTHING);
     }
@@ -708,11 +707,10 @@ static bool check_members(Snes *s)
         set_battle_member_updating(g, (uint8_t)member);
         if (battle_combatant_id(g, member) == COMBATANT_NONE)
             continue;
-        set_battle_low_scratch(g, 0x14, (uint8_t)member);
-        set_battle_low_scratch(g, 0x15, 0);
+        leave_member_for_callees(g, (uint8_t)member);
         s->cpu.x = (uint16_t)member;
         m_set_a8(s, (uint8_t)member);
-        if (!battle_call(s, 0xC1884B, CHECK_COMBINATIONS, READS_NOTHING))
+        if (!check_combinations(s, 0xC1884B))
             return false;
         s->cpu.x = (uint16_t)member;
         s->cpu.a = (uint16_t)member;
@@ -735,8 +733,7 @@ static void next_spare_member(GameState *g)
     if (member & 0x80)
         member = BATTLE_PARTY_SIZE - 1;
     set_battle_spare_turn_member(g, member);
-    set_battle_low_scratch(g, 0x14, member);
-    set_battle_low_scratch(g, 0x15, 0);
+    leave_member_for_callees(g, member);
 }
 
 /* The queue: the party's chosen actions carried out one at a time. */
@@ -745,7 +742,7 @@ static bool run_queue(Snes *s, bool note_ready, TurnGoesOn *next)
     GameState *g = state_of(s);
     if (note_ready)
         note_members_ready(g);
-    if (battle_setup_flags(g) & SETUP_DEMO) {
+    if (battle_is_demo(g)) {
         s->cpu.a = battle_setup_flags(g);
         if (!battle_call(s, 0xC1858F, DEMO_NEXT_TURN, READS_ALL_OF_A))
             return false;
@@ -800,129 +797,88 @@ static bool give_turn(Snes *s, TurnGoesOn *next)
 
 /* ---- After an action: the enemies' reactions ---------------------------------------------- */
 
-/* An enemy's script, in bank CC: blocks of conditions and actions. A block's
- * conditions are four bytes each (the first the condition's kind), up to an
- * end marker, then its actions, up to another; the script ends with its own
- * marker. The reactions are the blocks after the script's turn blocks. */
-enum { BLOCK_END = 0xFE, SCRIPT_END = 0xFF, CONDITION_BYTES = 4, REVIVES = 0x20 };
-
-static uint8_t script_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xCC0000u | at); }
-
-static uint16_t past_block_end(const GameState *g, uint16_t at)
-{
-    do
-        at++;
-    while (script_byte(g, at) != BLOCK_END);
-    return at;
-}
+/* A beaten enemy reacts only where its reactions start with the condition
+ * that brings it back (battle/enemy_conditions.c): it is back in the fight
+ * for them. */
+enum { COMES_BACK_TO_REACT = 0x20 };
 
 /* The statuses that keep an enemy from reacting. */
 enum { STATUSES_THAT_STOP_REACTIONS = 0x8F };
 
-/* The conditions' handlers' table in the ROM (bank C1). */
-static uint16_t condition_handler(const GameState *g, uint8_t kind)
-{
-    return rom_read16(g, 0xC1B80Du + (uint16_t)(kind * 2));
-}
-
-/* What a block's conditions left: 0 all held (the enemy acts), 2 ... the
- * script's own outcome (battle_script_outcome). */
-enum { CONDITIONS_HELD = 0, OUTCOME_TWO = 2 };
-
-/* Test a condition through its handler; the kind goes in its cell. */
-static bool test_condition(Snes *s, uint32_t site, uint16_t at)
+/* The enemy's turn for its reaction, run as the loop's JSR calls it; the
+ * enemy it is (battle_enemy_acting) is the one acting again after it. The
+ * original keeps it on the stack under the call, which is the frame the
+ * turn's calls are made over. Then every combatant's update. */
+static bool carry_out_reaction(Snes *s)
 {
     GameState *g = state_of(s);
-    uint8_t kind = script_byte(g, at);
-    set_battle_condition_kind(g, kind);
-    /* the handlers take the kind doubled in A as well, with the flags of
-     * doubling it */
-    uint8_t doubled = (uint8_t)(kind << 1);
-    s->cpu.x = doubled;
-    s->cpu.a = doubled;
-    m_set_nz8(s, doubled);
-    m_set_flag(s, CPU_FLAG_C, kind & 0x80);
-    return battle_call(s, site, 0xC10000u | condition_handler(g, kind), 0);
+    uint8_t reacting = battle_enemy_acting(g);
+    m_push8(s, reacting);
+    if (!battle_run(s, 0xC18780, ENEMY_TURN, battle_enemy_takes_turn))
+        return false;
+    m_pull8(s);
+    set_battle_enemy_acting(g, reacting);
+    return update_combatants(s, 0xC18787);
 }
 
-/* One enemy's reactions to the action: the blocks of its reactions, each
- * tested and, where its conditions hold, acted on, until one whose outcome
- * stops the script, or the script's end. */
+// $C1:8671 (to $C1:8809)
+/* One enemy's reactions to the action: its script's reaction section looked
+ * through for the actor (its foe while it reacts), and a block whose
+ * conditions hold carried out at once, until one that holds and leaves the
+ * outcome held, or the section's end. The reaction's place among the action's
+ * targets (`entry`) indexes the per-enemy cells the original keeps it in. */
 static bool react(Snes *s, unsigned entry, uint8_t target)
 {
     GameState *g = state_of(s);
-    unsigned enemy = (uint8_t)(target - BATTLE_FIRST_ENEMY);
+    uint8_t enemy = (uint8_t)(target - BATTLE_FIRST_ENEMY);
     bool gone = !combatant_in_fight(g, target);
-    set_battle_enemy_turn(g, (uint8_t)enemy);
-    set_battle_enemy_acting(g, (uint8_t)enemy);
-    m_set_a8(s, gone ? battle_combatant_id(g, target) : battle_combatant_fighting(g, target));
-    if (!battle_call(s, gone ? 0xC186A8 : 0xC186D8, FIND_SCRIPT, READS_A))
-        return false;
-    uint16_t at = battle_script_place(g);
-    set_battle_script_restart_place(g, at);
-    set_battle_block_start(g, at);
+    set_battle_enemy_acting(g, enemy);
+    uint8_t id = gone ? battle_combatant_id(g, target) : battle_combatant_fighting(g, target);
+    ScriptChoosing c = enemy_choosing(g, enemy);
+    TIMED_AS(g, 0xC1B488, c.place = enemy_reactions_start(g, enemy, id));
+    c.block_start = c.actions_from = c.place;
     if (gone) {
-        if (script_byte(g, at) != REVIVES)
+        if (enemy_script_byte(g, c.block_start) != COMES_BACK_TO_REACT) {
+            enemy_leave_choosing(g, &c);
             return true;
+        }
         set_battle_combatant_fighting(g, target, battle_combatant_id(g, target));
     }
     set_battle_animation_kept(g, battle_enemy_animation(g, enemy));
-    if (battle_stats_status(g, target) & STATUSES_THAT_STOP_REACTIONS)
+    if (battle_stats_status(g, target) & STATUSES_THAT_STOP_REACTIONS) {
+        enemy_leave_choosing(g, &c);
         return true;
+    }
     for (;;) {
-        set_battle_second_condition(g, false);
-        set_battle_script_outcome(g, CONDITIONS_HELD);
-        uint8_t foe = battle_foes(g, enemy);
-        set_battle_foe_kept(g, foe);
+        c.outcome = OUTCOME_HELD;
+        set_battle_foe_kept(g, battle_foes(g, enemy));
         set_battle_foes(g, enemy, battle_last_actor(g));
-        uint16_t block = battle_block_start(g);
-        set_battle_script_place(g, block);
-        bool second = script_byte(g, (uint16_t)(block + CONDITION_BYTES)) != BLOCK_END;
-        set_battle_second_condition(g, second);
-        set_battle_reaction_place_kept(g, battle_reaction_places(g, entry));
-        if (!test_condition(s, 0xC1874E, block))
-            return false;
-        if (battle_second_condition(g)) {
-            uint16_t next = (uint16_t)(battle_block_start(g) + CONDITION_BYTES);
-            set_battle_script_place(g, next);
-            if (!test_condition(s, 0xC18769, next))
-                return false;
-        }
-        if (battle_script_outcome(g) == CONDITIONS_HELD) {
+        set_battle_reaction_place_kept(g, battle_enemy_next_action(g, entry));
+        enemy_test_block(g, &c);
+        if (c.outcome == OUTCOME_HELD) {
             set_battle_foes(g, enemy, battle_last_actor(g));
-            uint8_t acting = battle_enemy_acting(g);
-            m_push8(s, acting);
-            if (!battle_call(s, 0xC18780, ENEMY_TURN, READS_NOTHING))
+            /* the turn is a machine entry still: it takes the reaction's
+             * actions from the cells, and its outcome and how far it read the
+             * script come back through them (docs/TODO.md) */
+            enemy_hand_back_choosing(g, &c);
+            if (!carry_out_reaction(s))
                 return false;
-            set_battle_enemy_acting(g, m_pull8(s));
-            if (!battle_call(s, 0xC18787, UPDATE_COMBATANTS, READS_NOTHING))
-                return false;
-            set_battle_reaction_places(g, entry, battle_reaction_place_kept(g));
-            uint8_t outcome = battle_script_outcome(g);
-            set_battle_enemy_turn_held(g, entry, outcome);
-            if (outcome == OUTCOME_TWO)
-                set_battle_enemy_script_started(g, entry, false);
+            c = enemy_choosing_in_cells(g);
+            set_battle_enemy_next_action(g, entry, battle_reaction_place_kept(g));
+            set_battle_enemy_script_outcome(g, entry, c.outcome);
+            if (c.outcome == OUTCOME_NOBODY_TO_ACT_ON)
+                set_battle_enemy_action_chosen(g, entry, false);
         }
-        uint8_t outcome = battle_script_outcome(g);
-        if (outcome == CONDITIONS_HELD)
+        if (c.outcome == OUTCOME_HELD || !enemy_script_next_block(g, &c))
             break;
-        if (outcome != OUTCOME_TWO) {
-            set_battle_second_condition(g, false);
-            set_battle_script_place(g, past_block_end(g, battle_script_place(g)));
-        }
-        uint16_t next = (uint16_t)(past_block_end(g, battle_script_place(g)) + 1);
-        set_battle_script_place(g, next);
-        if (script_byte(g, next) == SCRIPT_END)
-            break;
-        set_battle_block_start(g, next);
-        set_battle_enemy_script_blocks(g, entry, (uint8_t)(battle_enemy_script_blocks(g, entry) + 1));
+        c.block_start = c.place;
+        set_battle_enemy_script_block(g, entry, (uint8_t)(battle_enemy_script_block(g, entry) + 1));
         set_battle_foes(g, enemy, battle_foe_kept(g));
     }
+    enemy_leave_choosing(g, &c);
     set_battle_enemy_animation(g, battle_enemy_acting(g), battle_animation_kept(g));
     return true;
 }
-
-enum { FORGET_LEAVES_Y = 4 };
 
 /* Forget the actor's chosen action. The original finds it at four times the
  * actor, a byte, so an actor past the combatants lands in the tables after. */
@@ -951,22 +907,21 @@ static bool actor_silenced(const GameState *g, uint8_t actor)
 static bool enemies_react(Snes *s)
 {
     GameState *g = state_of(s);
-    set_battle_enemy_turn(g, 0);
+    /* the original starts them with the choosing's cells at no enemy, no
+     * pair and nothing failed */
+    ScriptChoosing none_yet = enemy_choosing(g, 0);
+    none_yet.pair = PAIR_NONE;
+    none_yet.outcome = OUTCOME_HELD;
+    enemy_leave_choosing(g, &none_yet);
     set_battle_reaction_entry(g, 0);
-    set_battle_second_condition(g, false);
-    set_battle_script_outcome(g, CONDITIONS_HELD);
     for (unsigned entry = 0; entry < BATTLE_ENEMIES; entry++) {
         set_battle_reaction_entry(g, (uint8_t)entry);
-        if (entry > 0) {
+        if (entry > 0)
             forget_actors_action(g);
-            /* the original forgets it with a loop whose count it leaves in
-             * Y, which the conditions' handlers read */
-            ORIGINAL_EFFECT(s->cpu.y = FORGET_LEAVES_Y);
-        }
         uint8_t target = battle_reaction_targets(g, entry);
         if (target >= BATTLE_FIRST_ENEMY && target != NOBODY && !react(s, entry, target))
             return false;
-        if (!battle_call(s, 0xC18809, CHECK_COMBINATIONS, READS_NOTHING))
+        if (!check_combinations(s, 0xC18809))
             return false;
     }
     set_battle_reaction_entry(g, BATTLE_ENEMIES);
@@ -979,7 +934,7 @@ static bool enemies_react(Snes *s)
 static bool follow_up(Snes *s, uint8_t actor)
 {
     GameState *g = state_of(s);
-    if (battle_setup_flags(g) & SETUP_DEMO)
+    if (battle_is_demo(g))
         return true;
     if (!battle_action_hit_enemy(g))
         return battle_call_long(s, 0xC18650, PARTY_COUNTERS, READS_NOTHING);
@@ -997,7 +952,7 @@ static bool after_action(Snes *s, bool skip_to_end)
 {
     GameState *g = state_of(s);
     if (!skip_to_end) {
-        if (!battle_call(s, 0xC18626, UPDATE_COMBATANTS, READS_NOTHING))
+        if (!update_combatants(s, 0xC18626))
             return false;
         for (unsigned i = 0; i < BATTLE_COMBATANTS; i++)
             set_battle_reaction_targets(g, i, battle_action_targets(g, i));
@@ -1008,15 +963,15 @@ static bool after_action(Snes *s, bool skip_to_end)
         if (!follow_up(s, actor))
             return false;
     }
-    if (!battle_call(s, 0xC1881C, FINISH_BEATEN, READS_OVERFLOW))
+    if (!battle_run(s, 0xC1881C, FINISH_BEATEN, battle_finish_beaten_enemies))
         return false;
     set_battle_action_hit_enemy(g, false);
-    if (!battle_party_defeated(g) && !battle_call(s, 0xC18826, START_ENEMY_SCRIPTS, READS_Y))
-        return false;
+    if (!battle_party_defeated(g))
+        enemies_choose(g);
     set_battle_actor(g, battle_last_actor(g));
     forget_actors_action(g);
-    if (!battle_call(s, 0xC18832, CLEAR_TARGETS, READS_NOTHING) || !battle_call_long(s, 0xC18835, CLEAR_NUMBERS, READS_NOTHING))
-        return false;
+    TIMED_AS(g, 0xC1AC46, battle_clear_candidates(g));
+    TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     set_battle_action_hit_enemy(g, false);
     return true;
 }
@@ -1041,7 +996,42 @@ static bool take_turns(Snes *s)
     return after_action(s, next == TO_THE_END);
 }
 
+// $C1:AC5E
+/* The enemies the action beat are counted as beaten, and (but in a demo) the
+ * battle shows them beaten (battle step 6); the action no longer beat any. */
+enum { STEP_ENEMIES_BEATEN = 6 };
+
+static bool finish_beaten_enemies(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (battle_enemy_beaten_any(g)) {
+        for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
+            if (battle_enemy_beaten(g, enemy))
+                set_battle_enemy_beaten_counted(g, enemy, true);
+        if (!battle_is_demo(g) && !step(s, 0xC1AC7E, STEP_ENEMIES_BEATEN))
+            return false;
+    }
+    set_battle_enemy_beaten_any(g, false);
+    return true;
+}
+
 /* ---- The entries ------------------------------------------------------------------------ */
+
+/* The turn is the port's where the turn's place names a combatant, as every
+ * battle has it (its guard); otherwise the original's, which reads Y and the
+ * overflow as the caller leaves them. */
+bool battle_take_turn(Snes *s, uint32_t site)
+{
+    if (battle_turn_names_combatant(s))
+        return battle_run(s, site, GIVE_TURN, battle_give_turn);
+    return battle_call(s, site, GIVE_TURN, READS_Y_AND_OVERFLOW);
+}
+
+void battle_finish_beaten_enemies(Snes *s)
+{
+    if (finish_beaten_enemies(s))
+        m_rts(s);
+}
 
 void battle_give_turn(Snes *s)
 {

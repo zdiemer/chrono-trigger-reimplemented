@@ -30,6 +30,8 @@
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
+#include "battle/positions.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -229,26 +231,33 @@ static bool member_can_turn(const GameState *g, unsigned member)
     return !combatant_knocked_out(g, member) && !(combatant_statuses(g, member) & STATUS_NO_TURNS);
 }
 
-/* The search $C1:2986 makes for the member's nearest enemy. */
-enum { NEAREST_ENEMY = 2 };
-
-static void ask_for_nearest_enemy(GameState *g, unsigned member)
+/* The member's nearest enemy, by the battlefield's search (battle/positions.h),
+ * asked as the original asks it: its question and searcher in their cells. */
+static uint8_t nearest_enemy(GameState *g, unsigned member)
 {
-    set_battle_target_search(g, NEAREST_ENEMY);
+    set_battle_target_search(g, SEARCH_NEAREST_OTHER_ENEMY);
     set_battle_target_searcher(g, (uint8_t)member);
+    TIMED_AS(g, 0xC12986,
+             battle_search(g, SEARCH_NEAREST_OTHER_ENEMY, (uint8_t)member, battle_search_other(g), battle_search_third(g)));
+    return battle_target_found(g);
 }
 
-/* The member faces the enemy found, and the direction's code takes the two
- * points it is between. */
-static void aim_at_enemy_found(GameState *g, unsigned member)
+/* The member aims at the enemy: the direction from where it stands to where
+ * the enemy does, which the original works out from the two points in its
+ * cells. */
+static uint8_t direction_to(GameState *g, unsigned member, uint8_t enemy)
 {
-    uint8_t enemy = battle_target_found(g);
     set_battle_member_facing_target(g, member, enemy);
-    set_battle_direction_points(g, 0, battle_object_x(g, battle_combatant_object(member)));
-    set_battle_direction_points(g, 1, battle_object_y(g, battle_combatant_object(member)));
-    set_battle_direction_points(g, 2, battle_object_x(g, battle_combatant_object(enemy)));
-    set_battle_direction_points(g, 3, battle_object_y(g, battle_combatant_object(enemy)));
+    BattlePoint from = { battle_object_x(g, battle_combatant_object(member)), battle_object_y(g, battle_combatant_object(member)) };
+    BattlePoint to = { battle_object_x(g, battle_combatant_object(enemy)), battle_object_y(g, battle_combatant_object(enemy)) };
+    set_battle_direction_cells(g, 0, from.x);
+    set_battle_direction_cells(g, 1, from.y);
+    set_battle_direction_cells(g, 2, to.x);
+    set_battle_direction_cells(g, 3, to.y);
     ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
+    uint8_t direction = 0;
+    TIMED_AS(g, 0xC10222, direction = battle_direction(g, from, to));
+    return direction;
 }
 
 /* Face the way the direction found gives; true if the member turned. */
@@ -493,7 +502,7 @@ uint8_t combatant_choose_pose(GameState *g, unsigned slot)
 
 /* ---- The enemies' animation effects ------------------------------------------------------- */
 
-/* An enemy's animation can run an effect beside it (following its link,
+/* An enemy's animation can run an effect beside it (following its target,
  * moving on a path), every few frames: its handler, chosen by the
  * animation's effect ($CC:FBAB), is still the original's. The resting
  * animation has none, nor an animation with its top bit set. */
@@ -509,44 +518,28 @@ static bool effect_due(GameState *g, unsigned enemy)
     return true;
 }
 
-/* The effect notes the enemy's link as it goes. */
-static void note_link(GameState *g, unsigned enemy)
+/* The effect notes the enemy's target as it goes. */
+static void note_target(GameState *g, unsigned enemy)
 {
-    set_battle_enemy_link_seen(g, enemy, battle_enemy_link(g, enemy));
+    set_battle_enemy_target_seen(g, enemy, battle_enemy_target(g, enemy));
 }
 
 /* ---- The bridges and the entries ------------------------------------------------------- */
 
 /* The steps run beside the machine: the party's calls the pose's setup
- * ($C1:308C) and, as a member faces, the search for its nearest enemy
- * ($C1:2986, through $C1:0045) and the direction to it ($C1:0222), which are
- * still the original's; and the pose's choice and the frames' graphics, run
- * as C here, are timed as their own routines (NATIVE_TIME_AS). */
-typedef enum { FACING_KEPT, TURNED, STOPPED } Facing;
-
-enum { FIND_TARGET = 5 };
+ * ($C1:308C), which is still the original's; and the pose's choice and the
+ * frames' graphics, run as C here, are timed as their own routines
+ * (NATIVE_TIME_AS). */
 
 // $C1:2F22
-/* The member faces its nearest enemy, when it has the turn to. The search
- * and the direction run inside the original's subroutine, so its return
- * address is on the stack under their calls. */
-static Facing face_nearest_enemy(Snes *s, unsigned member)
+/* The member faces its nearest enemy, when it has the turn to; true if it
+ * turned. */
+static bool face_nearest_enemy(GameState *g, unsigned member)
 {
-    GameState *g = state_of(s);
     if (!members_turn_to_face(g, member) || !member_can_turn(g, member))
-        return FACING_KEPT;
-    ask_for_nearest_enemy(g, member);
-    m_push16(s, 0x2E2D);
-    s->cpu.a = FIND_TARGET;
-    /* The pose's choice leaves the overflow clear, and the search can read it. */
-    m_set_flag(s, CPU_FLAG_V, false);
-    if (!battle_call(s, 0xC12F60, 0xC10045, DC_X | DC_Y | DC_N | DC_Z | DC_C))
-        return STOPPED;
-    aim_at_enemy_found(g, member);
-    if (!battle_call(s, 0xC12F82, 0xC10222, DC_A | DC_X | DC_Y | DC_FLAGS))
-        return STOPPED;
-    m_pull16(s);
-    return face_direction(g, member, s->cpu.a) ? TURNED : FACING_KEPT;
+        return false;
+    uint8_t enemy = nearest_enemy(g, member);
+    return face_direction(g, member, direction_to(g, member, enemy));
 }
 
 // $C1:2E28
@@ -561,14 +554,12 @@ static bool next_party_frame(Snes *s, unsigned member)
     /* The pose's choice hands the animation back in A, whose high byte the
      * pose's setup reads. */
     s->cpu.a = animation;
-    Facing facing = face_nearest_enemy(s, member);
-    if (facing == STOPPED)
-        return false;
+    bool turned = face_nearest_enemy(g, member);
     if (!battle_call(s, 0xC12E2E, 0xC1308C, DC_AL | DC_X | DC_Y | DC_FLAGS))
         return false;
     animation = with_running(g, member, animation);
     uint8_t frame = take_next_party_frame(g, member, animation);
-    if (member_graphics_change(g, member, animation, facing == TURNED) && battle_object_builds_graphics(g, member))
+    if (member_graphics_change(g, member, animation, turned) && battle_object_builds_graphics(g, member))
         NATIVE_TIME_AS(s, 0xC11C55, battle_build_frame_graphics(g, member, frame));
     return true;
 }
@@ -715,7 +706,7 @@ void battle_step_enemy_effects(Snes *s)
                 continue;
             if (!battle_slot_present(g, enemy_slot(enemy)))
                 continue;
-            note_link(g, enemy);
+            note_target(g, enemy);
             if (animation & NO_EFFECT_BIT)
                 continue;
             if (!run_effect(s, enemy))

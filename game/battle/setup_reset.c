@@ -149,7 +149,7 @@ static void rest_the_enemies(GameState *g)
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         set_battle_enemy_frame_delay(g, enemy, enemy < EARLY_ENEMIES ? EARLY_FRAME_DELAY : LATE_FRAME_DELAY);
         set_battle_enemy_animation_loaded(g, enemy, SETUP_NONE);
-        set_battle_enemy_link_seen(g, enemy, SETUP_NONE);
+        set_battle_enemy_target_seen(g, enemy, SETUP_NONE);
         set_battle_object_palette_initial(g, BATTLE_FIRST_ENEMY + enemy, SETUP_NONE);
         set_battle_anchor_sources(g, enemy, SETUP_NONE);
         set_battle_enemy_effect_delay(g, enemy, ENEMY_EFFECTS_WAIT);

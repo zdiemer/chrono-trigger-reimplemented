@@ -9,6 +9,7 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/main_loop.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -173,10 +174,11 @@ void battle_tick_timers(Snes *s)
 }
 
 /* Run each due kind's handler, as the original's loop calls them: the kind on
- * the stack under the call and its bit in its cell. The turn's handler also
- * reads Y, which the search left at the last kind and a handler before it
- * leaves as it likes, and the overflow flag, which the test of the due bits
- * sets from their bit 14. */
+ * the stack under the call and its bit in its cell. The turn's handler is the
+ * main loop's (battle/main_loop.c); where it is the original's (a turn that
+ * names no combatant), it reads Y, which the search left at the last kind and
+ * a handler before it leaves as it likes, and the overflow flag, which the
+ * test of the due bits sets from their bit 14. */
 enum { DUE_TEST_OVERFLOW = 0x4000 };
 
 static bool call_handler(Snes *s, BattleTimer kind)
@@ -186,7 +188,7 @@ static bool call_handler(Snes *s, BattleTimer kind)
     if (kind != BATTLE_TIMER_TURN)
         return battle_call(s, THE_HANDLERS_CALL, 0xC10000u | kind_handlers[kind], DC_A | DC_X | DC_Y | DC_FLAGS);
     m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
-    return battle_call(s, THE_HANDLERS_CALL, 0xC18461, DC_A | DC_X | DC_N | DC_Z | DC_C);
+    return battle_take_turn(s, THE_HANDLERS_CALL);
 }
 
 static bool run_due_handlers(Snes *s)

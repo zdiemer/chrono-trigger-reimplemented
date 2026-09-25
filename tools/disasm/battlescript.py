@@ -553,20 +553,49 @@ class Cond:
     handler: int
 
 
-# Condition names say what the handler tests where that is read; the rest
-# keep their number. Byte 1 is a target selector (read through $C1:AC14,
+# Condition names are the ports' (game/battle/enemy_conditions.c), which say
+# what each tests. Byte 1 is a target selector (read through $C1:AC14,
 # dispatched through $C1:B8BB) in 01, 03, 08-0F, 1C, 1D, 1F and 22; byte 2 is in
-# 18 and 23-28.
+# 18 and 23-28. $16 and $19 hold as $00 does, and $23-$28 test as $18 does
+# (the same handlers).
 _COND_NAMES = {
     0x00: "always",
-    0x01: "hp_half",         # a target at or below half its maximum HP ($0003, $0005)
-    0x02: "status",          # bytes 2, 3: an offset into the stat block and a mask all set
-    0x03: "enemy_is",        # a target whose enemy id ($AEFF) is byte 2
-    0x04: "present",         # enemy id byte 2 in the battle ($AF02) or not, by byte 3
-    0x05: "enemies_at_most", # at most byte 1 enemies left
-    0x06: "counter_at_least",  # the 24-bit $96F1 at least bytes 1-3
-    0x07: "turns",           # $B320 for this enemy against byte 1, by byte 2
-    0x08: "hp_at_most",      # a target's HP at most the word at 2
+    0x01: "at_half_hp",          # a target at or below half its maximum HP
+    0x02: "with_status",         # bytes 2, 3: an offset into the stat block and a mask all set
+    0x03: "is_enemy",            # a target whose enemy id is byte 2
+    0x04: "enemy_present",       # enemy id byte 2 in the battle or not, by byte 3
+    0x05: "enemies_at_most",     # at most byte 1 enemies left
+    0x06: "frames_at_least",     # the battle has gone on at least bytes 1-3 frames
+    0x07: "count_compared",      # the enemy's own count at most byte 1, or at least it
+    0x08: "at_most_hp",          # a target's HP at most the word at 2
+    0x09: "stat_at_least",       # any picked with a stat block byte at least a number
+    0x0A: "stat_bits",           # the one picked has any of the bits given of a stat block byte
+    0x0B: "stat_at_most",        # any picked with a stat block byte at most a number
+    0x0C: "within_reach",        # a target within the enemy's reach
+    0x0D: "level_with",          # a target level with the enemy on the screen
+    0x0E: "stands_beside",       # those picked below the enemy or to its right, by byte 3
+    0x0F: "could_walk_to",       # the enemy could walk to within reach of a target
+    0x10: "stands_in",           # the enemy stands in a half or at an edge of the battlefield
+    0x11: "acted_on_by",         # an attack (or a tech) last acted on it, or not
+    0x12: "acted_on_by_this",    # that attack or tech (byte 1) last acted on it
+    0x13: "acted_bit",           # the record of what last acted on it has bit 4 as asked
+    0x14: "acted_on_by_member",  # whoever last acted on it is the party member named
+    0x15: "acted_with_elements", # what last acted on it had all the elements named, or not
+    0x16: "16",
+    0x17: "chance",              # a chance, in percent
+    0x18: "stat_is",             # any picked with a stat block byte equal to a number
+    0x19: "19",
+    0x1A: "other_kind_present",  # an enemy of another kind than named in the fight
+    0x1B: "members_at_most",     # at most byte 1 party members in the fight
+    0x1C: "is_party_member",     # the one picked is a party member of the fight
+    0x1D: "three_on_out",        # the enemy three slots after the one picked out of the fight, or in it
+    0x1E: "chooses_but_fails",   # chooses the block's actions, and fails it
+    0x1F: "within_wide_reach",   # a target within the enemy's wider reach
+    0x20: "was_beaten",          # the enemy was beaten by the action
+    0x21: "stands_apart",        # the enemy's standing is anything but plain
+    0x22: "turn_wait",           # the one picked has a turn wait under a number, or not
+    0x23: "stat_is_23", 0x24: "stat_is_24", 0x25: "stat_is_25",
+    0x26: "stat_is_26", 0x27: "stat_is_27", 0x28: "stat_is_28",
 }
 CONDITION_HANDLERS = (
     0x8EA7, 0x8EAB, 0x8F11, 0x8F87, 0x8FDA, 0x9013, 0x9045, 0x9082, 0x90BE, 0x9130, 0x918E, 0x91F9, 0x925D,
@@ -584,18 +613,26 @@ class Action:
     run: int                         # handler in $C1:B88D
 
 
-_ACTION_NAMES = {
-    0x01: "attack",       # byte 1 the attack, byte 2 a target selector
-    0x02: "tech",         # byte 1 the technique; targets from bytes 2 and 3
-    0x04: "random",       # one of the next four actions ($C1:98C5)
-    0x09: "vanish",       # the enemy leaves ($AEFF = $FF), animation byte 1
-    0x0A: "die",          # HP 0 and leaves; byte 2 a message
-    0x0B: "set_stat",     # stat block offset 1 = byte 2 (or ORed, byte 3); message byte 4
-    0x0C: "add_stat",     # offset 1 += byte 2 (bit 7: subtract), clamped; message byte 3
-    0x0F: "message",      # message byte 1 ($CD:0033)
-    0x11: "set_stats",    # four (offset, value) pairs, message byte 9
-    0x13: "add_counter",  # target byte 1, $B158 += byte 2 (bit 7: subtract)
-    0x14: "add_stats",    # four (offset, amount) pairs, message byte 9
+_ACTION_NAMES = {                     # the ports' (game/battle/enemy_actions.h)
+    0x00: "pose",                     # a pose toward a combatant, and nothing more
+    0x01: "attack",                   # byte 1 the attack, byte 2 the pose
+    0x02: "tech",                     # byte 1 the technique; targets from bytes 3 and 4
+    0x04: "one_of_four",              # one of the next four actions, drawn ($C1:98C5)
+    0x05: "choose_again",             # choose again (no script has it)
+    0x07: "change_into",              # change into an enemy waiting in reserve
+    0x09: "leave",                    # the enemy leaves, animation byte 1
+    0x0A: "die",                      # HP 0 and leaves; byte 2 a message
+    0x0B: "set_stat",                 # stat block offset 1 = byte 2 (or ORed, byte 3); message byte 4
+    0x0C: "add_to_stat",              # offset 1 += byte 2 (bit 7: subtract), clamped; message byte 3
+    0x0D: "flags",                    # the enemy's own count and flags; message byte 2
+    0x0F: "message",                  # message byte 1 ($CD:0033)
+    0x10: "bring_back",               # the beaten enemies come back
+    0x11: "set_stats",                # four (offset, value) pairs, message byte 9
+    0x12: "set_stats_then_tech",      # five pairs, then a tech
+    0x13: "add_to_turn_wait",         # a combatant's turn wait added to (bit 7: taken from)
+    0x14: "add_to_stats",             # four (offset, amount) pairs, message byte 9
+    0x15: "add_to_stats_then_tech",   # five pairs added to, then a tech
+    0x16: "call_in",                  # enemies called into the battle
 }
 ACTION_CHOOSE = (0x9810, 0x983A, 0x983A, 0x98C4, 0x98C5, 0x9960, 0x9961, 0x9962, 0x9966, 0x9967, 0x9978,
                  0x9979, 0x997D, 0x997E, 0x997F, 0x9980, 0x9981, 0x99B4, 0x99B4, 0x99B4, 0x99B4, 0x99B4, 0x9981)
