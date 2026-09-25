@@ -536,28 +536,31 @@ static TextPlace draw_text(GameState *g, TextPlace p, uint16_t *pen, uint8_t set
  * last filled with. Returns where the pen goes on. */
 enum { MOST_HOURS = 99, MOST_MINUTES = 59, COLON = 0x2D, TWO_DIGITS = 0x91 };
 
-/* Tens times ten, plus the units, in a byte. A digit past 9 (no clock the
- * game keeps has one) overflows the original's shifts, whose carries it adds
- * in; the port keeps them. */
-static uint8_t tens_and_units(uint8_t tens, uint8_t units)
-{
-    uint8_t twice = (uint8_t)(tens << 1);
-    bool carry = (twice & 0x40) != 0;   /* out of the third doubling */
-    uint16_t sum = (uint16_t)((uint8_t)(twice << 2) + twice + carry);
-    return (uint8_t)(sum + units + (sum >> 8));
-}
-
 static uint8_t two_digits_at(const GameState *g, uint16_t at)
 {
     uint8_t units = wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | at);
     uint8_t tens = wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(at + 1));
-    return tens_and_units(tens, units);
+    return (uint8_t)(tens * 10 + units);
+}
+
+/* The time's four digits are decimal, or the clock has run past them (its
+ * fifth byte set), when they aren't read at all. */
+enum { TIME_DIGIT_COUNT = 4, TIME_RAN_PAST = 4, MOST_DIGIT = 9 };
+
+bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits)
+{
+    if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) != 0)
+        return true;
+    for (unsigned i = 0; i < TIME_DIGIT_COUNT; i++)
+        if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + i)) > MOST_DIGIT)
+            return false;
+    return true;
 }
 
 uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits)
 {
     uint8_t hours = MOST_HOURS, minutes = MOST_MINUTES;
-    if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + 4)) == 0) {
+    if (wram_read8(g, (uint32_t)TILEMAP_BANK << 16 | (uint16_t)(digits + TIME_RAN_PAST)) == 0) {
         minutes = two_digits_at(g, digits);
         hours = two_digits_at(g, (uint16_t)(digits + 2));
     }
@@ -701,7 +704,7 @@ void menu_draw_time(Snes *s)
 
 /* The time played is read where the game keeps a header's digits, in work
  * RAM's bank, apart from the cells the time is drawn from, and drawn past the
- * drawer's cells. */
+ * drawer's cells; its digits are decimal, as the clock keeps them. */
 enum { TIME_DIGITS = 5, TIME_SHOWN_CELLS = 0x22, TIME_SHOWN_END = 0x24 };
 
 static bool clear_of_the_time_shown(uint16_t digits)
@@ -720,7 +723,10 @@ static bool pen_clear_of_the_stack(uint16_t pen, uint16_t sp)
 
 bool menu_time_is_drawable(Snes *s)
 {
+    vars_peek(true);
+    bool decimal = menu_time_digits_are_decimal(state_of(s), s->cpu.y);
+    vars_peek(false);
     return on_the_menus_page(s) && s->cpu.db == TILEMAP_BANK && converts_from_one(s) && clear_of_the_time_shown(s->cpu.y)
-           && pen_clear_of_the_stack(s->cpu.x, s->cpu.s)
+           && decimal && pen_clear_of_the_stack(s->cpu.x, s->cpu.s)
            && clear_of_the_drawers_cells(0x7E0000u | s->cpu.y, s->cpu.x) && clear_of_the_stack(0x7E0000u | s->cpu.y, s->cpu.s);
 }

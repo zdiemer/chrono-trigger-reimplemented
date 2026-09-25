@@ -25,6 +25,16 @@ void menu_clear_sprites_but_cursor(GameState *g);
  * and the buttons the player assigned come out as menu_cursor_buttons. */
 void menu_read_cursor(GameState *g);
 
+/* What the original's reading leaves in the registers and its loop's cell,
+ * noted before a read and left after it, for a caller that runs the read as
+ * C (scaffolding: ORIGINAL_EFFECT). */
+typedef struct {
+    bool new_step, pushed, moved;
+    uint8_t push, from;
+} MenuCursorRead;
+MenuCursorRead menu_note_cursor_read(const GameState *g);
+void menu_leave_cursor_read(Snes *s, MenuCursorRead r);
+
 /* The entries. */
 void menu_clear_sprite_table(Snes *s);
 void menu_reset_sprites(Snes *s);

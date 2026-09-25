@@ -144,14 +144,9 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_members(g, i, BLANK);
 }
 
-/* What the stubs' block move leaves before the sound calls: A emptied (the
- * driver reads its high byte), X and Y past the stubs and their copy. */
-static void leave_stubs_moved(Snes *s)
-{
-    s->cpu.a = 0xFFFF;
-    s->cpu.x = 0x840E;
-    s->cpu.y = 0x0508;
-}
+/* What the stubs' block move leaves before the sound calls: its count run
+ * out, $FFFF, of which the driver's call reads the high byte. */
+static void leave_stubs_moved(Snes *s) { s->cpu.a |= 0xFF00; }
 
 /* Registers the routines the opening calls don't read (tools/dontcare_check.py
  * checks each). */

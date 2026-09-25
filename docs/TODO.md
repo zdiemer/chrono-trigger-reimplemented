@@ -466,6 +466,16 @@ rest waits, is [PLAN.md](PLAN.md).
     through the text port's accepted divergences when fuzzing fills that RAM
     at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of
     the lists'); no list of the game's reaches them.
+- **What chunk 1's review of the menus left for later** (RECOMP.md, "Phase 3,
+  menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
+  `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
+  with named values, and the load screen's steps by name rather than
+  `step ± 1`; the inside's pattern as `pattern[row % 4][column % 4]` with the
+  block moves' time charged in scaffolding; windows.c's operands decoded once
+  into a struct per operation; one `first_push()` in cursor.c; names for
+  `MENU_SOUND_6` and `_7`; a `SlotSummary` record for the summary's byte
+  offsets and the literal `$9890`/`$98C9`; opening.c's driver calls as a table
+  of `PF_CALL_DC` sites.
 - **Liveness across a saved stack pointer.** The overflow flag is still live
   after `$FD:C2C1` and the rest of the field loop's callees (the carry and X
   no longer are): the menus' entry `$C2:800E` saves P and then copies S to

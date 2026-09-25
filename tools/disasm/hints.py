@@ -82,6 +82,7 @@ class Hints:
     state_at: dict = field(default_factory=dict)       # addr -> (m, x) forced
     noreturn: set = field(default_factory=set)
     inline_args: dict = field(default_factory=dict)    # function -> bytes skipped after JSR
+    keep_resumes: dict = field(default_factory=dict)   # a `keeps` function -> where its caller's turn resumes
     keeps: dict = field(default_factory=dict)          # function -> (kept, read): register names it
                                                        # returns as its caller had them, and reads
     indirect: dict = field(default_factory=dict)       # JMP (abs)/JML [abs] site -> targets
@@ -184,6 +185,8 @@ def load(path: Path) -> Hints:
         h.inline_args[parse(i["addr"])] = i["size"]
     for k in doc.get("keeps", []):
         h.keeps[parse(k["addr"])] = (tuple(k["regs"]), tuple(k.get("reads", ())))
+        if "resume" in k:
+            h.keep_resumes[parse(k["addr"])] = parse(k["resume"])
     for i in doc.get("indirect", []):
         if "targets" not in i and "derive" not in i:
             raise ValueError(f"indirect {i['at']}: needs targets or derive")

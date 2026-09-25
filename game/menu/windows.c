@@ -142,6 +142,15 @@ static void draw_sides(GameState *g, uint16_t row, uint8_t columns, uint16_t row
  * less two. */
 static uint16_t inside_of(uint8_t across_the_frame) { return (uint16_t)(across_the_frame - 2); }
 
+/* The inside's size a frame leaves for the inside's own drawing ($C2:EE7F),
+ * which a screen that draws a frame and then its inside reads: game state,
+ * not only what the original's cells happen to hold. */
+static void keep_inside_size(GameState *g, MenuWindowSize size)
+{
+    set_menu_text_work_window_columns(g, inside_of(size.columns));
+    set_menu_text_work_window_rows(g, inside_of(size.rows));
+}
+
 void menu_draw_window_frame(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style)
 {
     uint16_t sides = inside_of(size.rows);
@@ -429,6 +438,8 @@ static void run_command(GameState *g, Platform *pf, uint8_t command, const Opera
     case SWAP_AREAS: swap_areas(g, operand_place(o, 0), operand_place(o, 2), operand_size(o, 4)); break;
     case WINDOW:
         draw_window(g, operand_place(o, 2), o->bytes[0], o->bytes[1], operand_size(o, 4), parts & FRAME, parts & INSIDE);
+        if (parts == FRAME)
+            keep_inside_size(g, operand_size(o, 4));
         break;
     case STRING: draw_string(g, operand_word(o, 0), operand_place(o, 2), o->bytes[4]); break;
     case SET_ORIGIN: set_origin(g, operand_word(o, 0)); break;
@@ -797,6 +808,7 @@ void menu_window_frame(Snes *s)
     MenuWindowSize size = size_in_cells(g);
     MenuWindowStyle style = menu_window_style(g);
     menu_draw_window_frame(g, at, size, style);
+    keep_inside_size(g, size);
     ORIGINAL_EFFECT(leave_frame(g, at, size, style));
     m_rts(s);
 }

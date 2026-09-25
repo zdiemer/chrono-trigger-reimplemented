@@ -225,25 +225,20 @@ void menu_clear_sprites_for_cursor(Snes *s)
  * sound driver): the accumulator the last cell it looked at, X and Y where
  * the push's search and the buttons' loop left them, each a byte; and the
  * loop's bit in its cell. */
-typedef struct {
-    bool new_step, pushed, moved;
-    uint8_t push, from;
-} CursorRead;
-
-static CursorRead note_read(const GameState *g)
+MenuCursorRead menu_note_cursor_read(const GameState *g)
 {
     vars_peek(true);
     uint8_t pushes = pad_pushes(g);
     unsigned push = 0;
     while (push < PUSHES && !(pushes >> push & 1))
         push++;
-    CursorRead r = { menu_screen_step(g) != menu_cursor_step_seen(g), push < PUSHES,
-                     push < PUSHES && menu_cursor_held(g) == 0, (uint8_t)push, menu_cursor_index(g) };
+    MenuCursorRead r = { menu_screen_step(g) != menu_cursor_step_seen(g), push < PUSHES,
+                         push < PUSHES && menu_cursor_held(g) == 0, (uint8_t)push, menu_cursor_index(g) };
     vars_peek(false);
     return r;
 }
 
-static void leave_read(Snes *s, CursorRead r)
+void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
 {
     enum { PLACE_BYTES = 6, BUTTON_LOOPS = 2, LAST_BUTTON_ASSIGNMENT = 1 };
     const GameState *g = state_of(s);
@@ -261,9 +256,9 @@ static void leave_read(Snes *s, CursorRead r)
 // $C2:E984
 void menu_read_cursor_input(Snes *s)
 {
-    CursorRead r = note_read(state_of(s));
+    MenuCursorRead r = menu_note_cursor_read(state_of(s));
     menu_read_cursor(state_of(s));
-    ORIGINAL_EFFECT(leave_read(s, r));
+    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
     m_rts(s);
 }
 

@@ -262,12 +262,14 @@ static void leave_moved(Snes *s)
 static void leave_carry(Snes *s, bool c) { m_set_flag(s, CPU_FLAG_C, c); }
 
 /* Read the cursor, and leave the flags of the buttons' test after it. */
-static bool read_cursor(Snes *s, uint32_t at)
+static void read_cursor(Snes *s)
 {
-    if (!menu_run(s, at, 0xC2E984, menu_read_cursor_input))
-        return false;
+    GameState *g = state_of(s);
+    MenuCursorRead r = menu_note_cursor_read(g);
+    (void)r;
+    TIMED_AS(g, 0xC2E984, menu_read_cursor(g));
+    ORIGINAL_EFFECT(menu_leave_cursor_read(s, r));
     ORIGINAL_EFFECT(leave_buttons(s));
-    return true;
 }
 
 static bool tick(Snes *s, uint32_t at) { return menu_run(s, at, 0xC2EAC2, menu_play_cursor_sound); }
@@ -339,8 +341,7 @@ void menu_choose_on_load_screen(Snes *s)
         return;
     }
     ORIGINAL_EFFECT(second != ERASE_BUTTONS ? leave_compare(s, second, ERASE_BUTTONS) : leave_compare(s, slot, FOURTH_ROW));
-    if (!read_cursor(s, 0xC2E632))
-        return;
+    read_cursor(s);
     if (!(menu_cursor_buttons(g) & CHOSE)) {
         if (show_and_tick(s, 0xC2E63A, 0xC2E643))
             m_rts(s);
@@ -376,8 +377,7 @@ static void back_to_choosing(GameState *g)
 void menu_choose_game_to_carry_on_from(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!read_cursor(s, 0xC2E6AE))
-        return;
+    read_cursor(s);
     uint8_t buttons = menu_cursor_buttons(g);
     if (!(buttons & (CHOSE | WENT_BACK))) {
         if (show_and_tick(s, 0xC2E6B8, 0xC2E6C1))
@@ -409,8 +409,7 @@ void menu_choose_game_to_carry_on_from(Snes *s)
 void menu_answer_erase(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!read_cursor(s, 0xC2E705))
-        return;
+    read_cursor(s);
     uint8_t buttons = menu_cursor_buttons(g);
     if (!(buttons & (CHOSE | WENT_BACK))) {
         if (menu_cursor_index(g) != menu_cursor_frame_start(g)) {
@@ -467,7 +466,7 @@ void menu_ask_which_to_carry_on_from(Snes *s)
  * on. The record goes where the summary is drawn from. */
 enum { EMPTY_LABELS_AT = 0x7000, EMPTY_LABEL_BYTES = 0x200, EMPTY_LABELS_VRAM = 0x7900, EMPTY_LABEL_VRAM_WORDS = 0x100 };
 enum { MARKED_RECORD_BANK = 0x7E, FOURTH_ROW_LEFT_X = 0x08 };
-enum { YIELD_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB };
+enum { YIELD_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The slot's game gone: the slot no longer in use, its mark on the cartridge
  * spoilt; with no game left, the game no longer counts as finished and the

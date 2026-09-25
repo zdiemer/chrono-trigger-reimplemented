@@ -6056,8 +6056,22 @@ them and no mode handler could declare anything dead. `re/hints.toml` now has
 `[[keeps]]` (DISASSEMBLY.md): a call that comes back with the listed
 registers as its caller had them, reading only `reads`. Liveness takes the
 call as that summary (`tools/disasm/liveness.py`, `_kept_summary`), and
-`tests/test_disasm.py` checks it on a task switch built in the test. The
-don't-care check still finds nothing across the library.
+`tests/test_disasm.py` checks it on a task switch built in the test.
+
+The first cut of the hint was wrong about DB, which the review found: neither
+entry saves or restores it, and the scheduler resumes the next task with the
+yielding task's DB, setting it only after every task has had its turn
+(`$C2:81C1`). The hint had DB dead everywhere, which let a false `DC_DB` on the
+load screen's yield past the don't-care check, and five entries' declarations
+with it. The hint now names DB in `reads`, and `tools/disasm/keeps.py` checks
+every `[[keeps]]` hint against the code: the entry pushes exactly the kept
+registers, the hint's `resume` pulls them back in reverse before it returns,
+and every register the entry doesn't save that some path to the next task
+reads before setting, or doesn't set at all, is in `reads`. The don't-care
+check runs it, so a wrong hint fails the gate; `tests/test_disasm.py` has a
+switch built in the test that a wrong hint of each kind fails on. The check
+takes `$822B`'s `XBA` as reading both bytes of A, so its hint names `AH` as
+well. The six declarations are the smaller sets liveness now gives.
 
 **Found by shadow mode.** The cursor's reading leaves its loop's bit in the
 menus' first cell; a label strip steps its tile after setting bit 4, not
@@ -6073,8 +6087,11 @@ the settings' clearing clears a byte past the last setting; the slots' count
 starts from the menus' zero word, and the gold a summary hides is written
 from it; the summary reads the checked slot's game from the cell the save
 code leaves (`menu_slot_game_at`), not from the slot's number, and steps
-through the party a byte at a time within its page; the time played's digits
-past 9 carry through the original's multiplication by ten; a window list's
+through the party a byte at a time within its page; a time played's digit
+past 9 carries through the original's shifts that multiply by ten, which no
+clock of the game's makes, so the time's guard and the save screen's (whose
+header draws the cartridge's time) take only decimal digits and the port
+multiplies by ten; a window list's
 string reads the number conversion's zero word, so the save screen's guard
 now asks for it too; the header's "taken" count is a byte; loading a design's
 colours counts a palette change a word wide, so the drawing's guards leave

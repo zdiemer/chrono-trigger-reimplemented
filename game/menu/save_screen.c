@@ -250,27 +250,33 @@ static void draw_the_rows_portrait(GameState *g)
 
 // $C2:D36C, from $C2:D404
 /* A row for each member in the party: the member's record where the window
- * command list draws it from, and the portrait. The rows' cells are what the
- * command list and the portrait read; the list the rows are drawn with leaves
- * them be, so the loop keeps its own place where the original reads it back
- * from them after each row. */
+ * command list draws it from, and the portrait, one row of tilemap below the
+ * other. The list draws at the drawing origin; the loop keeps its own place,
+ * where the original reads it back from the origin's cell after each row. */
+static void note_member_row(GameState *g, unsigned row, uint8_t member)
+{
+    set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + row * MEMBER_RECORD_BYTES));
+    set_menu_save_member_row(g, (uint16_t)row);
+    set_menu_scratch_save_member(g, (uint16_t)((menu_scratch_save_member(g) & 0xFF00) | member));
+}
+
 static void draw_member_rows(GameState *g, Platform *pf)
 {
-    set_menu_draw_origin(g, MEMBER_ROWS_AT);
-    set_menu_scratch_save_member_record(g, SUMMARY_AT);
-    set_menu_save_member_row(g, 0);
+    uint16_t origin = MEMBER_ROWS_AT;
+    set_menu_draw_origin(g, origin);
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
         uint8_t member = menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES);
-        set_menu_scratch_save_member(g, (uint16_t)((menu_scratch_save_member(g) & 0xFF00) | member));
+        ORIGINAL_EFFECT(note_member_row(g, row, member));
         if (member_present(g, row)) {
             show_member(g, row);
             draw_list(g, pf, MEMBER_ROW_LIST);
-            TIMED_AS(g, 0xC2D466, draw_the_rows_portrait(g));
-            set_menu_draw_origin(g, (uint16_t)(menu_draw_origin(g) + MEMBER_ROW_BYTES));
+            TIMED_AS(g, 0xC2D466, draw_member_portrait(g, origin, row, member));
+            origin = (uint16_t)(origin + MEMBER_ROW_BYTES);
+            set_menu_draw_origin(g, origin);
         }
-        set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + (row + 1) * MEMBER_RECORD_BYTES));
-        set_menu_save_member_row(g, (uint16_t)(row + 1));
     }
+    ORIGINAL_EFFECT(set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + MEMBER_ROWS * MEMBER_RECORD_BYTES)));
+    ORIGINAL_EFFECT(set_menu_save_member_row(g, MEMBER_ROWS));
 }
 
 // $C2:D410
@@ -359,8 +365,6 @@ static bool show_save_slot(Snes *s)
     if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
         uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
         set_menu_cursor_places_x(g, FOURTH_ROW, x);
-        m_set_a8(s, x);
-        s->cpu.x = slot;
         if (!menu_run(s, 0xC2E777, 0xC2EAC2, menu_play_cursor_sound))
             return false;
     }
@@ -521,17 +525,16 @@ static void read_summary(GameState *g, Platform *pf, uint8_t slot)
         for (unsigned i = 0; i < GOLD_BYTES; i++)
             put_summary_byte(g, slot, header + HEADER_GOLD + i, 0);
 }
-/* What reading a summary leaves in the menus' cells and the multiplier: its
- * record cursor past the members (the drawing origin's cell), the game's
+/* What reading a summary leaves in the menus' cells and the multiplier: the
+ * game's
  * start moved on a byte a member in the time played's cell and its count run
  * down in the row's; the multiplier with the last row's party byte, and the
  * last member's name's place worked out from its character. */
 enum { RECORD_START_MULTIPLIER = CHARACTER_BYTES, NAME_MULTIPLIER = NAME_BYTES };
 
-static void leave_summary_read(GameState *g, Platform *pf, uint8_t slot)
+static void leave_summary_read(GameState *g, Platform *pf)
 {
     uint16_t game = checked_game(g);
-    set_menu_draw_origin(g, (uint16_t)(RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES + SUMMARY_MEMBER_BYTES));
     uint16_t on_the_bus = menu_slot_game_at(g);
     set_menu_time_played_shown(g, (uint16_t)((on_the_bus & 0xFF00) | (uint8_t)(on_the_bus + MEMBER_ROWS)));
     set_menu_save_member_row(g, (uint16_t)(menu_save_member_row(g) & 0xFF00));
@@ -699,7 +702,10 @@ void menu_read_slot_summary(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, false, false);
     read_summary(g, pf, slot);
-    ORIGINAL_EFFECT(leave_summary_read(g, pf, slot));
+    /* the drawing origin left on the summary's header, past its members,
+     * where the reading got to: the cell the window lists draw from */
+    set_menu_draw_origin(g, (uint16_t)(RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES + SUMMARY_MEMBER_BYTES));
+    ORIGINAL_EFFECT(leave_summary_read(g, pf));
     ORIGINAL_EFFECT(leave_flag_tested(s));
     if (!menu_run(s, 0xC2D261, 0xC2D266, menu_read_design_and_chapter))
         return;
@@ -746,7 +752,7 @@ void menu_read_save_slots(Snes *s)
             return;
         ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, false));
     }
-    ORIGINAL_EFFECT(set_menu_save_slot_shown(g, MENU_SAVE_SLOTS));
+    set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);   /* past the last, as the count leaves it */
     TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, UPLOAD_SLOT_LABELS)));
     menu_restore_p(s);
     m_rts(s);
@@ -761,7 +767,8 @@ void menu_read_save_slots(Snes *s)
  * upload queue, a palette change the drawing can count, numbers converted
  * from the first power of two (the word the conversion starts from is 0
  * whenever the menus draw, menu/text.c), and summaries whose members are
- * characters. Looked at without the machine's time. */
+ * characters and whose time played is in decimal digits. Looked at without
+ * the machine's time. */
 
 static bool members_are_characters(const GameState *g, uint8_t slot)
 {
@@ -773,9 +780,18 @@ static bool members_are_characters(const GameState *g, uint8_t slot)
     return true;
 }
 
+/* The time played the summary's header shows, where its copy is drawn from:
+ * digits the clock keeps (menu/text.c), which the cartridge's games have. */
+static bool time_is_decimal(const GameState *g, uint8_t slot)
+{
+    uint16_t summary = (uint16_t)(RAM_ABS(RAM_SAVE_SLOT_SUMMARIES) + slot * SUMMARY_BYTES);
+    return menu_time_digits_are_decimal(g, (uint16_t)(summary + (TIME_PLAYED_DIGITS - SUMMARY_AT)));
+}
+
 static bool slot_is_drawable(const GameState *g, uint8_t slot)
 {
-    return slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0 || members_are_characters(g, slot);
+    return slot >= SAVE_SLOTS || menu_save_slot_in_use(g, slot) == 0
+           || (members_are_characters(g, slot) && time_is_decimal(g, slot));
 }
 
 static bool drawing_counts(const GameState *g)

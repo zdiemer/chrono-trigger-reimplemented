@@ -422,6 +422,33 @@ class Analysis(unittest.TestCase):
         lv.solve()
         self.assertTrue(lv.live_at(0xC08000) & C)
 
+    def test_keeps_hints_are_checked_against_the_code(self):
+        from tools.disasm import keeps
+        # C0:8000  JSR $8010 ; RTS
+        # C0:8010  PHX ; PHP ; LDA #$00 ; TSC ; BEQ $8030 ; BRA $8020   (the switch: S saved)
+        # C0:8020  PLB ; LDA $40                                          (DB set on this way only)
+        # C0:8023  TCS ; PLP ; PLX ; RTS                                  (the resume)
+        # C0:8030  LDA #$00 ; BRA $8023                                   (the other way, DB unset)
+        # Y and D are neither saved nor set, so the next task sees them: read, as DB is.
+        code = {0xC08000: bytes.fromhex("201080 60".replace(" ", "")),
+                0xC08010: bytes.fromhex("DA 08 A900 3B F019 8007".replace(" ", "")),
+                0xC08020: bytes.fromhex("AB A540 1B 28 FA 60".replace(" ", "")),
+                0xC08030: bytes.fromhex("A900 80EF".replace(" ", ""))}
+        h = Hints()
+        h.keeps[0xC08010] = (("X", "P"), ("Y", "D", "DB"))
+        h.keep_resumes[0xC08010] = 0xC08023
+        an = self.run_an(code, 0xC08000, hints=h)
+        self.assertEqual(keeps.check(an), [])
+        h.keeps[0xC08010] = (("X", "P"), ("Y", "D"))
+        self.assertIn("DB reaches", " ".join(keeps.check(an)), "a register the next task can see is read")
+        h.keeps[0xC08010] = (("X", "Y", "P"), ("D", "DB"))
+        self.assertIn("pushes", " ".join(keeps.check(an)), "the kept registers are the pushed ones")
+        h.keeps[0xC08010] = (("X", "P"), ("Y", "D", "DB"))
+        h.keep_resumes[0xC08010] = 0xC08003
+        self.assertIn("pulls", " ".join(keeps.check(an)), "the resume pulls them back")
+        del h.keep_resumes[0xC08010]
+        self.assertIn("no resume", " ".join(keeps.check(an)))
+
     def test_liveness_through_a_table_filled_at_run_time(self):
         from tools.disasm.hints import TableHint
         from tools.disasm.liveness import A, Liveness
