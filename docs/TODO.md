@@ -542,17 +542,28 @@ rest waits, is [PLAN.md](PLAN.md).
   - the characters' sprites as the menus open (`$C2:F3CA`, `$C2:F422`) and
     the records' animation (`$C2:F69D`-`$C2:F870`), still the original's;
   - the typesetter's `$12` followed by 2-7, which jumps into code in the
-    original, sets nothing in the port: no string has it (6 of 20,000 fuzzed
-    states read random ROM as text and reach it);
-  - the typesetter's reading functions return an `Ending` whose only use is
-    the X and Y the entries leave (the port-routine skill's "third trap"):
-    liveness has them read after `$C2:F90C` because the save screen's slot
-    rows (`$C2:D19F`, `$C2:D296`) return into the menus' task yield
-    (`$C2:CF5B` jumps to `$C2:821E`), which keeps X and Y for the next
-    handler the menus' thread dispatches (`$C2:828E`), and two of those,
-    `$C2:C7E0` and `$C2:E236`, read Y. The state can't say it instead (a
-    pause code leaves the stop as the budget does); porting the handlers, or
+    original that isn't a handler, ends the call in the port as a pause does,
+    setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
+    random ROM as text and reach it);
+  - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
+    and `$C2:D296` after it) is worked out in the wrappers by reading the
+    string again from where the call began, scaffolding that stands because
+    the menus' task yield (`$C2:CF5B` jumps to `$C2:821E`) keeps X and Y for
+    the next handler the menus' thread dispatches (`$C2:828E`), and two of
+    those, `$C2:C7E0` and `$C2:E236`, read Y (liveness, through
+    `$C2:E984`'s paths that leave Y alone). Porting those handlers, or
     showing no path from the slot rows reaches them, drops it;
+  - the typesetter's control codes as a C table with a column for where a
+    name comes from, in place of `control_code`'s chain;
+  - the glyphs by index (a glyph number and its width's index are the same
+    thing counted from `$A0`), rather than by the string's byte;
+  - `items.c`'s tables reached through record accessors, and the story's and
+    the place's notes (`menu_story_items`, `menu_place_items`) named for what
+    they say;
+  - `graphics.c`'s tile sets named by what they hold rather than where they
+    go;
+  - the save screen's `menu_scratch_save_member_*` fields renamed for what
+    they hold;
   - the save code's list of what the party carries (`$FF:F813`) and each
     member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which the
     items' tables call, are the original's;

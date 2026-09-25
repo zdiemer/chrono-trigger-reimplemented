@@ -6334,17 +6334,27 @@ party's, an item's, a tech's, an enemy's). The glyph drawer (`menu/glyphs.c`)
 now draws from parameters, into four- or sixteen-colour tiles, and its three
 entries take them from the page's cells as before; the menus' label setting
 (`$C2:F90C`), which sets a label a line of 32 glyphs at a time, is a port too,
-and the load screen and the save screen call it as C where nothing after it
-reads what it leaves in the registers.
+taking the label's table, string and tiles and giving back its width, and the
+load screen and the save screen call it as C, the chapter label leaving what
+it leaves in the registers.
 
-Two things the gate made the port keep. What a call leaves in X and Y is read
-after the label setting, so the typesetter works it out from how the call
-ended (at a control code, out of budget in the string or in an insert, or not
-begun), the scaffolding a small `Ending` the reading functions return. And a
-name past the pointer table's seven is read through the table's neighbours,
-which can put it on the text page itself: the original counts the name's
-glyphs with the insert already begun, pointer and source set, so the port
-does too (fuzzing found it: a party member with an id past the characters').
+Three things the gate made the port keep. What a call leaves in X and Y is
+read after the label setting: the save screen's slot rows return into the
+menus' task yield, which keeps X and Y for the next screen handler, and two of
+those read Y. The logic doesn't keep how a call ended; the entries' wrappers
+work it out as scaffolding, reading the string again from where the call began
+to find what it read last (a glyph, an insert, or a control code), with the
+insert's source for whether some of it is left. A first version passed a small
+`Ending` back through the reading functions for this, and review rated it a
+translation: it told apart only what the original's registers do. A name past
+the pointer table's seven is read through the table's neighbours, which can
+put it on the text page itself: the original counts the name's glyphs with the
+insert already begun, pointer and source set, so the port does too (fuzzing
+found it: a party member with an id past the characters'). And the budget is
+counted down on the page glyph by glyph, not in hand: such a name reads the
+budget's cell as a glyph, and a label long enough to wrap its bank draws over
+it (fuzzing found a chapter label that differed when the budget was kept in
+a local).
 
 **The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
 every screen draws with, built in work RAM from the ROM's graphics and sent

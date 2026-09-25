@@ -35,6 +35,7 @@
 #include "cpu_io.h"
 #include "menu/line_effects.h"
 #include "menu/menu_data.h"
+#include "menu/typeset.h"
 #include "menu/object.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
@@ -321,7 +322,7 @@ enum { STORY_OF_THE_LATER_SET = 0x36, EPOCH_WINGS_FLAG = 0x01 };
  * of the table at $C6:F400, set by the typesetter (typeset.c), its twelve
  * glyphs in one call, in sixteen-colour tiles laid out a tile further left,
  * into its buffer at $7E:8621. */
-enum { MAP_VIEW_SETS = 0xC6F400, SIXTEEN_COLOURS_A_TILE_LEFT = 0x02, MAP_VIEW_GLYPHS = 0x0C };
+enum { MAP_VIEW_SETS = 0xC6F400, MAP_VIEW_GLYPHS = 0x0C };
 
 static void request_map_view_graphics(GameState *g)
 {
@@ -331,7 +332,7 @@ static void request_map_view_graphics(GameState *g)
         set = EARLY_SET;
     set_menu_text_string(g, set);
     set_menu_text_strings(g, MAP_VIEW_SETS);
-    set_menu_text_layout(g, SIXTEEN_COLOURS_A_TILE_LEFT);
+    set_menu_text_layout(g, MENU_TEXT_A_TILE_FURTHER_LEFT);
     set_menu_text_tiles(g, RAM_MENU_MAP_GRAPHICS);
 }
 

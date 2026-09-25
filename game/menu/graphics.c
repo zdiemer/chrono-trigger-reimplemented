@@ -163,7 +163,7 @@ enum {
 };
 
 // $C2:968D-$C2:96EB
-/* The first sets: four-colour tiles laid out as sixteen-colour ones, nine
+/* The first sets: four-colour tiles laid out as sixteen-colour ones, eleven
  * with their ink in the third plane, and the four-colour tiles as they are. */
 static void build_first_sets(GameState *g, Platform *pf)
 {

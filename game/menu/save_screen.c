@@ -166,13 +166,14 @@ static uint8_t slot_era(const GameState *g)
  * $7E:5248 and the row below. */
 enum { ERA_LABEL_GRAPHIC = 0x5E00, ERA_LABEL_TILES = 0x5248, ERA_LABEL_FIRST_TILE = 1 };
 
-/* Ask the menus' graphics loader for an era's label. */
-static void request_era_label(GameState *g, uint8_t era)
+/* Set an era's label, and note it as the one the header shows; its width. */
+static uint8_t set_era_label(GameState *g, uint8_t era)
 {
     set_menu_save_slot_era(g, era);
-    set_menu_text_string(g, era);
     set_menu_load_destination(g, ERA_LABEL_GRAPHIC);
-    set_menu_text_strings(g, MENU_ERA_LABELS);
+    uint8_t width;
+    TIMED_AS(g, 0xC2F90C, width = menu_set_label(g, MENU_ERA_LABELS, era, ERA_LABEL_GRAPHIC));
+    return width;
 }
 
 /* How many tiles wide an era label of `width` pixels is. */
@@ -226,10 +227,8 @@ static bool draw_header(Snes *s)
     draw_header_window(g, m_platform(s));
     uint8_t era = slot_era(g);
     if (era != menu_save_slot_era(g)) {
-        request_era_label(g, era);
         menu_set_widths(s, true, false);
-        TIMED_AS(g, 0xC2F90C, menu_set_label(g, menu_load_destination(g)));
-        set_menu_save_era_width(g, menu_text_reading_pen(g));
+        set_menu_save_era_width(g, set_era_label(g, era));
     }
     finish_header(g);
     return true;
@@ -558,11 +557,12 @@ enum { CHAPTER_LABELS = 0xFFD03E, EMPTY_SLOT_LABEL = MENU_CHAPTERS, CHAPTER_LABE
  * to VRAM $7000. */
 enum { UPLOAD_SLOT_LABELS = 0xD198 };
 
-static void request_label(GameState *g, uint32_t table, uint8_t entry, uint16_t at)
+/* Set a label of `table` into its place at `at`, noted as where the menus'
+ * graphic goes. */
+static void set_label_at(GameState *g, uint32_t table, uint8_t entry, uint16_t at)
 {
-    set_menu_text_string(g, entry);
-    set_menu_text_strings(g, table);
     set_menu_load_destination(g, at);
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, table, entry, at));
 }
 
 // $C2:D306
@@ -599,14 +599,10 @@ enum { DESIGN_BITS = 0x07 };
 
 /* ---- The labels and summaries on the machine --------------------------------------------------- */
 
-/* Each of these runs as the original's JSR reaches it, saving P as it starts:
- * the label setting's call from the deepest of them is compared with every
- * frame on the stack under it, so each leaves the flags the original's code
- * has before its call to the next, and runs it as the JSR does. The chapter
- * label calls it through the machine, since what it leaves in X and Y is read
- * after; the slot's name as C. It runs with a 16-bit accumulator and index
- * registers; what it doesn't read (tools/dontcare_check.py checks it): */
-enum { TEXT_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
+/* Each of these runs as the original's JSR reaches it, saving P as it starts,
+ * and leaves the flags the original's code has before its call to the next.
+ * The chapter label leaves what the label's setting leaves in X and Y, which
+ * is read after it (typeset.c says by whom). */
 
 // $C2:D296
 /* A slot's chapter label (or the empty slot's, whichever its caller asked
@@ -616,12 +612,11 @@ void menu_draw_chapter_label(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
-    request_label(g, CHAPTER_LABELS, menu_text_string(g), at);
     wram_fill8(g, 0x7E0000u | at, CHAPTER_LABEL_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2D2BF, 0xC2F90C, TEXT_LOADER_IGNORES))
-        return;
+    set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
+    ORIGINAL_EFFECT(menu_leave_label_set(s));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -643,11 +638,10 @@ void menu_draw_slot_name(Snes *s)
     menu_save_p(s);
     uint8_t slot = menu_save_slot_shown(g);
     uint16_t at = (uint16_t)(SLOT_NAMES_AT + slot * SLOT_NAME_BYTES);
-    request_label(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     ORIGINAL_EFFECT(hw_set_multiplicand(g, slot));
     ORIGINAL_EFFECT((void)hw_multiply_by(g, SLOT_NAME_BYTES));
     menu_set_widths(s, false, false);
-    TIMED_AS(g, 0xC2F90C, menu_set_label(g, at));
+    set_label_at(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     /* a shift of 0 is taken as 256 moves */
     uint8_t moves = menu_slot_name_shift(g, slot);
     do
