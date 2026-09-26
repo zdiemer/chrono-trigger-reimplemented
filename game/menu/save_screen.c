@@ -28,6 +28,7 @@
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
+#include "menu/leaves.h"
 #include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/vram.h"
@@ -602,7 +603,7 @@ enum { DESIGN_BITS = 0x07 };
 /* Each of these runs as the original's JSR reaches it, saving P as it starts,
  * and leaves the flags the original's code has before its call to the next.
  * The chapter label leaves what the label's setting leaves in X and Y, which
- * is read after it (typeset.c says by whom). */
+ * the analysis has read after it (menu/leaves.c says where). */
 
 // $C2:D296
 /* A slot's chapter label (or the empty slot's, whichever its caller asked
@@ -616,7 +617,7 @@ void menu_draw_chapter_label(Snes *s)
     ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
     set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
-    ORIGINAL_EFFECT(menu_leave_label_set(s));
+    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_label_set_leaves(g), menu_text_stop(g)));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -863,6 +864,19 @@ bool menu_slot_labels_are_drawable(Snes *s)
         return false;
     vars_peek(true);
     bool ok = menu_save_slot_shown(state_of(s)) < SAVE_SLOTS;
+    vars_peek(false);
+    return ok;
+}
+
+/* The chapter label its caller named, one the label setting can take. */
+bool menu_chapter_label_is_drawable(Snes *s)
+{
+    if (!menu_slot_labels_are_drawable(s))
+        return false;
+    const GameState *g = state_of(s);
+    vars_peek(true);
+    uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
+    bool ok = menu_label_can_be_set(g, CHAPTER_LABELS, menu_text_string(g), at);
     vars_peek(false);
     return ok;
 }

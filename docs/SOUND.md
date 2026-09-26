@@ -422,7 +422,13 @@ for where it loads), so the driver reads its sound memory by address
 (`stray_reads`); there are none in any movie or fuzzer run.
 
 **Interface.** Commands are calls with the command and parameters the game
-sends (`sound_run_command`). Ticks are `sound_tick`, or its three parts for a
+sends (`sound_run_command`). A song's start is two calls for a host that
+uploads the song's data between them as the CPU half does:
+`sound_announce_song` when the command comes (the music stops; a new echo delay
+stops the echo writing and moves its buffer at once, as the original does at
+`$0BE6-$0C05`, since the samples about to arrive may lie where the old, longer
+buffer was) and `sound_start_announced_song` once the data is in (`$0C08`);
+`sound_run_command` does both at once. Ticks are `sound_tick`, or its three parts for a
 host that gives commands at the points the original takes them, and
 `sound_tick_while_loading`. Loads are `sound_load_effects` and
 `sound_load_instrument`. The echo's wait after a change of its delay is
@@ -462,8 +468,9 @@ library before the next:
   sent, command `$71`'s instrument), the echo writing again (`$1397`) and its
   buffer ready (`$0CE5`, `$134B`), the tick's parts where the original reaches
   them (`$02F2`, `$036E`, `$0371`), the loading tick (`$0415`), and the output
-  levels the meter read (`$145C`). At each tick's start it compares what the
-  last one left: the status, every key-on and key-off write in order, every
+  levels the meter read (`$145C`). At each tick's start, and when a song's
+  upload is in (what its command did must be done before the samples came),
+  it compares what the C driver left: the status, every key-on and key-off write in order, every
   S-DSP register but the three the S-DSP changes itself (ENVX, OUTX, ENDX), and
   the driver's own sample in sound memory; and at `state`, the drivers' state
   field by field against the original's sound RAM (`dev/sound_state.c`), which
@@ -482,8 +489,18 @@ library before the next:
   (6,385,781 ticks, 1,192,589 loading, 81,607 commands, 2,407 loads), and so
   are 200 with made-up songs (6,435,163 ticks, 563,082 loading, 81,650
   commands, 2,148 loads).
+- `ct_dev --sound-lockstep-audio exact` (`dev/sound_audio.c`) hears it: a
+  second S-DSP, started from the original's as the driver boots and playing
+  over the same sound memory (its own echo buffer apart), takes the C driver's
+  writes, each at the sample where the original made the same write that tick
+  (or where it was made, if the original made none), and every sample it makes
+  is compared with the original's, the output and each voice's envelope and
+  level. `host` lands a tick's writes at the tick's start instead, as the
+  host below does, to hear what that changes; `--sound-lockstep-wav` writes
+  both outputs.
 - `sound_test` (no ROM) checks the comparison, the voices' register mapping,
-  and the driver on a synthetic cartridge.
+  and the driver on a synthetic cartridge, a song's command and start apart
+  among it.
 
 What the checks found in the port, each fixed: the echo volume a loading tick
 sets; a paused tick's end; the order of a song's voices and the echo's wait
@@ -512,9 +529,63 @@ command, an upload's end or a wait's end before it ticks again; otherwise the
 next tick's status covers an answer before the CPU half has seen it.
 `ct_sound_fuzz --sound-driver c` checks the host's side of the protocol: 400
 runs of 400 commands with the game's songs and 100 with made-up ones, every
-command and upload answered. From power-on, the title music starts 233 ms
+command and upload answered. `ct_dev --sound-driver c` runs a movie with the
+host in the SPC700's place (it drifts from the movie, the timing not being
+the original's). Both check the one thing the original never lets happen: a
+byte uploaded where the S-DSP is writing its echo
+(`sound_host_uploads_into_echo`; a run with any exits 1). From power-on, the title music starts 233 ms
 sooner than with the original (the game's timing isn't the original's), and
 aligned by that the two are the same waveform to within 2% of its level over
 its first seconds, the rest being the S-DSP's envelope counter at another
 phase; later they drift apart as the game's timing does. The mode can't replay
 a movie or save a state (TODO.md).
+
+**What playing it found.** Reported by ear: battle music "very off" (the
+normal battle theme in Magus's castle), and some hi-hats "tinny" in the house
+after the intro. Measured:
+
+- *Samples overwritten by the echo, in the host.* The host passed a song's
+  command to the driver only after the song's upload, so the old song's echo
+  went on writing its buffer while the new samples arrived; when the new song
+  has a shorter echo delay (a battle after a castle or the fair), its samples
+  land in the old buffer and the echo overwrote them. The lockstep couldn't
+  see it: it runs no host, and compared nothing between a song's command and
+  its first tick. Sound memory compared every 300 frames with the original's,
+  over each sample the directory names outside both echo buffers, while both
+  runs have the same directory: with the old host 12 of the 26 movies had
+  overwritten samples (gato-battle in 86 of its snapshots, fair 15,
+  fair-companion 70, late-lavos 135, the endings and the Black Omen too);
+  with the fix none has, but for two that are the original's own (below).
+  The host now announces the song at its command and starts it at the upload's
+  end, with the echo's wait counted from the command as the original counts
+  it; `sound_host_uploads_into_echo` counts 17,752 such bytes over fair with the
+  old order and none with the new. The two left: battle-magus's samples
+  `$23`-`$25` and the end of `$22` lie where an earlier song's delay-15 echo
+  was, in the original as in the C driver (the CPU half keeps the blocks), so
+  both play whatever each echo left there; and one menus-epoch snapshot taken
+  mid-upload.
+- *The driver itself, sample for sample* (`--sound-lockstep-audio`). With
+  the lockstep's writes landed where the original's land, the second S-DSP's
+  output is the original's to the sample over 6 of the 26 movies, and over the
+  power-on ones but for 0.01-0.02% of samples, from the intro on (80.7 s,
+  the effect voices' levels); over the long save movies more samples differ
+  (up to half on late-lavos, where commands and loads come thick), but the
+  difference's power stays under 1.5% of the signal's. So this is a
+  measurement, not yet a check (TODO.md). Landed at the tick's start as the
+  host does, every note is the same (sample, pitch, volume, envelope) and
+  starts up to about a millisecond earlier; a note that slides from its first
+  tick starts on the slide's first step rather than a few samples on its
+  unslid pitch. Over the house's songs each voice's spectrum is the
+  original's to within 0.2 dB in every band, but for one of the intro's
+  sliding voices (0.4 dB at 500-1000 Hz, 0.7 dB above 8 kHz). The noise voice (the intro's
+  hi-hat) plays the same envelopes at the same noise clock; its noise differs
+  sample by sample only because the noise generator's phase does.
+- *The house scene through the host.* Over new-game with the host in the
+  SPC700's place, the songs after the intro (`$11`, `$12`, `$0F`) play the
+  same notes as the original's (every voice's samples, pitches and envelopes
+  matched note for note, the volumes to within a step of a fade or tremolo
+  caught at another phase) from uncorrupted samples, and the mix's spectrum is
+  the original's to within 0.1 dB in each band over the intro's song. So the
+  hi-hat report isn't reproduced by any movie: the difference found is the
+  overwritten samples, which can reach a song's percussion only when an earlier
+  song change left them under an echo (TODO.md).

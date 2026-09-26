@@ -170,15 +170,15 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 157 files, 117 of
-41,276 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 158 files, 117 of
+41,851 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
-| battle | 0 | 56 | 0 | 14,670 | 0.02 | 26% |
-| menu | 0 | 26 | 0 | 9,300 | 0.03 | 34% |
+| battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
+| menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
 | field | 0 | 25 | 0 | 6,872 | 0.01 | 20% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
@@ -344,7 +344,7 @@ docstring says which way it is wrong). **47% of the code is still generated.**
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 39.3K | 18.0K | 39% | 227 |
 | field engine, events (`$C0`) | 59.4K | 40.7K | 9.2K | 32% | 288 |
-| menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 226 |
+| menus, text (`$C2`) | 59.3K | 22.3K | 6.9K | 62% | 231 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
 | field graphics (`$FD`) | 15.3K | 8.9K | 0.8K | 42% | 54 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **47% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **142.2K** | **41.2K** | **47%** | **1077** |
+| **total** | **268.5K** | **143.0K** | **41.2K** | **47%** | **1082** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -467,13 +467,14 @@ routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 two Mode 7 screens, which were also P2's last leftover; the object scripts'
 whole instruction set; and the map those scripts scroll and redraw. The menus
 proper have started (RECOMP.md, "Phase 3, menus", and "Phase 3, menus: the
-typesetter, the graphics and the items"): the load screen, the window command
-language every screen is drawn with, the cursor and the sounds, the
-typesetter the dialog and every screen set their text with, and the menus'
-opening but for the characters' sprites. Next are those sprites
-(`$C2:F3CA`, with the record's loading `$C2:F422` and the animation
-`$C2:F69D`-`$C2:F870` that the records' task runs every frame), which belong
-with `menu/sprites.c`'s record sprites, and then the screens themselves.
+typesetter, the graphics and the items", and "Phase 3, menus: the
+characters in the records"): the load screen, the window command language
+every screen is drawn with, the cursor and the sounds, the typesetter the
+dialog and every screen set their text with, and the menus' opening, the
+characters in its records animated. Next are the screens themselves, first
+the two whose handlers the typesetter's register leaves stand for
+(`menu/leaves.c`: `$C2:C7AC`-`$C2:C7E0` and `$C2:E1ED`-`$C2:E236`), with
+the records' task (`$C2:F657`) their sprites run on.
 `python3 tools/burndown.py --uncovered C2` puts the
 largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
 (1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with

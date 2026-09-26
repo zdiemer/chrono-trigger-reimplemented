@@ -22,7 +22,8 @@
  *
  * With --sound-driver c there is no original: the C driver plays in the
  * SPC700's place as ct_play's does (frontend/sound_host.h), and a run checks
- * that it answers the CPU half's every command and upload.
+ * that it answers the CPU half's every command and upload, and that nothing
+ * is uploaded where the echo is writing (sound_host_uploads_into_echo).
  *
  * The CPU half's work RAM the harness reads (the effect set sent, command
  * $71's block) is written here as the CPU half would have it. The data the
@@ -271,9 +272,11 @@ static bool load_instrument(uint8_t block)
     if (!send_command(LOAD, 0, 0, 0))
         return false;
     Upload u = { (LOAD + 1) & 0x7F, true };
+    /* a block of silence where the CPU half puts the song's first sample,
+     * below any echo buffer (the longest reaches down to $7900) */
     static const uint8_t sample[9] = { 0x03 };
     uint16_t tuning = sound_instrument_tuning(game(), block), envelope = sound_instrument_envelope(game(), block);
-    return send_bytes(&u, 0x8000, KIND_DATA_TICKING, sample, sizeof sample) && send_words(&u, 0x1F40, &tuning, 1) &&
+    return send_bytes(&u, 0x4901, KIND_DATA_TICKING, sample, sizeof sample) && send_words(&u, 0x1F40, &tuning, 1) &&
            send_words(&u, 0x1FC0, &envelope, 1) && finish(&u);
 }
 
@@ -697,8 +700,14 @@ int main(int argc, char **argv)
         fprintf(stderr, "run %ld (seed %llu): %ld commands%s; ", r, (unsigned long long)(seed + (uint64_t)r), sent,
                 stuck ? ", the driver stopped answering" : "");
         bool same = true;
-        if (hosted)
-            fprintf(stderr, "%s\n", stuck ? "stuck" : "answered");
+        if (hosted) {
+            unsigned long into_echo = sound_host_uploads_into_echo(host);
+            same = into_echo == 0;
+            fprintf(stderr, "%s", stuck ? "stuck" : "answered");
+            if (!same)
+                fprintf(stderr, ", but %lu bytes were uploaded where the echo was writing", into_echo);
+            fprintf(stderr, "\n");
+        }
         else
             same = sound_lockstep_report(lockstep, NULL, stderr);
         if (!same || stuck) {

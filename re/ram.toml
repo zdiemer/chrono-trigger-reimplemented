@@ -148,10 +148,10 @@ source = "LDA #$0200 : TCD at $C2:57E6 and $C2:582A; menu_draw_glyph entered wit
 name = "menu_record"
 subsystem = "menu"
 meaning = "A menu record's own page: the $40-byte records the task at $C2:F657 runs with the direct page on each, drawing their sprites"
-source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040. Measured over the 26 movies (ct_dev --page-report): menu_draw_record_sprites ($C2:F871) entered with D on each of the eight records and nothing else ($1800 3744 calls, $1840 3497, $1880 3545, $18C0, $1900, $1940 and $1980 1868 each, $19C0 1259; all eight in menus-end-of-time)"
+source = "PEA #$1800/#$1980/#$19C0 : PLD at $C2:F3CF, $C2:CE2F, $C2:BA1F and more, and TCD after ADC #$0040 / SBC #$0040. Measured over the 26 movies (ct_dev --page-report): menu_draw_record_sprites ($C2:F871) entered with D on each of the eight records and nothing else ($1800 3744 calls, $1840 3497, $1880 3545, $18C0, $1900, $1940 and $1980 1868 each, $19C0 1259; all eight in menus-end-of-time); the opening ($C2:F3CA) marks a ninth, $1A00, empty, and the records' task ($C2:F657) passes it by"
 why = "D walks a table of records, so an offset names a field of whichever record is current"
 instances = [
-  { name = "record", base = 0x1800, count = 8, stride = 0x40 },
+  { name = "record", base = 0x1800, count = 9, stride = 0x40 },
 ]
 
 [[page]]
@@ -5047,6 +5047,25 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 8
   size = 2
   meaning = "A window record's sprites: the next sprite's tile past the record's first"
+  [[var.field]]
+  name = "sprite_animations_entry"
+  offset = 0
+  size = 2
+  meaning = "A record's load ($C2:F422): its sprite's animations' number doubled, their place in the tables of animations"
+  [[var.field]]
+  name = "frame_blocks_left"
+  offset = 0
+  meaning = "A record's frame ($C2:F75C): its blocks, counted down as they are queued when they are an odd number, which the loop leaves at 0"
+  [[var.field]]
+  name = "frame_tiles_end"
+  offset = 2
+  size = 2
+  meaning = "A record's frame: the end of its tile list, a word a tile (its blocks times 32)"
+  [[var.field]]
+  name = "frame_mirror_bytes"
+  offset = 6
+  size = 2
+  meaning = "A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0"
 
 [[var]]
 name = "menu_save_member_row"
@@ -5808,6 +5827,221 @@ size = 0x1E
 subsystem = "menu"
 meaning = "Each sprite's offset across and down from the record's place, a signed byte each, up to the record's end"
 source = "game/menu/objects.c, menu_draw_record_sprites $C2:F871"
+
+[[var]]
+name = "menu_record_sprite"
+page = "menu_record"
+dp = 0x00
+subsystem = "menu"
+meaning = "The sprite the record shows, its number in its set ($FF: none; the task passes the record by)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_sprite_set"
+page = "menu_record"
+dp = 0x01
+subsystem = "menu"
+meaning = "Which set of sprites the record's is from: 0 the playable characters' (their graphics as they are in the ROM), 1 and up the others' (their graphics packed, unpacked at the record's load); 2 and up take ten-byte assignments where the first two take five"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame_shown"
+page = "menu_record"
+dp = 0x03
+subsystem = "menu"
+meaning = "The frame of its sprite's frames the record's tiles show ($FF: none yet)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_graphics"
+page = "menu_record"
+dp = 0x04
+size = 3
+subsystem = "menu"
+meaning = "Where the record's sprite's graphics are, 32 bytes a tile: in the ROM, or where its load unpacked them ($7E:B000 + $800 a record)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame_data"
+page = "menu_record"
+dp = 0x07
+size = 3
+subsystem = "menu"
+meaning = "Where the record's sprite's frames are: each the tiles of its blocks (16 tile words a block) and its sprites' offsets (8 bytes a block)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_animation_frames_at"
+page = "menu_record"
+dp = 0x0A
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $E4 the record's sprite's animations' frames start: four frames an animation, the facings one after another"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_animation_times_at"
+page = "menu_record"
+dp = 0x0C
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $E4 the record's sprite's animations' frame times start: four an animation"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_animation"
+page = "menu_record"
+dp = 0x11
+subsystem = "menu"
+meaning = "The animation the record is asked to play: bits 0-6 its number, bit 7 that it loops from menu_record_loop_frame rather than from its start"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_animation_shown"
+page = "menu_record"
+dp = 0x12
+subsystem = "menu"
+meaning = "The animation the record plays ($FF after a load: none), which a change of menu_record_animation starts afresh"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame_time"
+page = "menu_record"
+dp = 0x13
+subsystem = "menu"
+meaning = "Frames left of the record's current frame, counted down after it shows"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_animation_count"
+page = "menu_record"
+dp = 0x14
+size = 2
+subsystem = "menu"
+meaning = "How many animations the record's sprite has a facing (the length of a facing's list)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame"
+page = "menu_record"
+dp = 0x16
+subsystem = "menu"
+meaning = "The record's place in its animation's frames ($FF: an empty animation)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_facing"
+page = "menu_record"
+dp = 0x17
+subsystem = "menu"
+meaning = "The facing the record's animations are taken from: 0-3"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_hidden"
+page = "menu_record"
+dp = 0x18
+subsystem = "menu"
+meaning = "Nonzero while the record isn't drawn (bit 7: nor animated); a load clears it"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame_list"
+page = "menu_record"
+dp = 0x1B
+size = 3
+subsystem = "menu"
+meaning = "Where the record's current animation's frames are, a byte each"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_frame_times"
+page = "menu_record"
+dp = 0x1E
+size = 3
+subsystem = "menu"
+meaning = "Where the record's current animation's frame times are, a byte each (0 ends the animation)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_loop_frame"
+page = "menu_record"
+dp = 0x21
+subsystem = "menu"
+meaning = "The frame a looping animation goes back to at its end"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_opening_records_loaded"
+addr = "7E:0022"
+reuses = "menu_time_played_shown"
+page = "menu"
+subsystem = "menu"
+meaning = "The menus' opening counts the records it loads here, in the time played shown's hours, which the save screen's header then takes for a time it has drawn"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA"
+
+[[var]]
+name = "menu_record_blocks_sent"
+addr = "7E:0D73"
+subsystem = "menu"
+meaning = "Blocks of the records' frame tiles (32 by 32 pixels, $200 bytes) queued for VRAM this frame: the records' task clears it every frame and holds back a record's next frame once it reaches menu_record_block_limit; each block's tiles are built at $7E:8000 + $200 a block (the frame buffer, reached through wram.h since its place is worked out)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D, and the records' task $C2:F657"
+
+[[var]]
+name = "menu_record_buffer_half"
+addr = "7E:0D72"
+subsystem = "menu"
+meaning = "Bit 7 puts the records' frame tiles half a block ($100 bytes) further into their buffer; nothing in bank $C2 writes it"
+source = "game/menu/sprites.c, menu_animate_record $C2:F69D ($C2:F766 reads the word it makes with menu_record_blocks_sent)"
+
+[[var]]
+name = "menu_record_block_limit"
+addr = "7E:0D75"
+subsystem = "menu"
+meaning = "How many blocks of frame tiles the records' task sends a frame before it holds the rest back (the screens set 1-7)"
+source = "the records' task $C2:F657; STA $0D75 at $C2:AF64 and ten other screens"
+
+[[var]]
+name = "menu_record_frame_tile_list"
+addr = "7E:9890"
+reuses = "menu_save_summary"
+size = 2
+count = 0x60
+index = "the tile's place in the frame"
+subsystem = "menu"
+meaning = "The tiles of the frame a record shows, a word each (bits 0-10 the tile in its graphics, 0 a blank tile, bit 14 mirrored), copied from the frame's data over the save summary; the record's sprite assignment's five bytes are copied there first as its load reads them (menu_save_summary)"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_upload_vram"
+addr = "7E:9A88"
+size = 2
+subsystem = "menu"
+meaning = "The upload a record's frame queues: the VRAM word its tiles go to"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_upload_source"
+addr = "7E:9A8A"
+size = 3
+subsystem = "menu"
+meaning = "The upload a record's frame queues: where in the frame buffer its tiles are"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_upload_size"
+addr = "7E:9A8D"
+size = 2
+subsystem = "menu"
+meaning = "The upload a record's frame queues: how many bytes"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
+
+[[var]]
+name = "menu_record_upload_spare"
+addr = "7E:9A8F"
+subsystem = "menu"
+meaning = "The eighth byte of the upload record a record's frame queues, which the queue copies with it and nothing reads or writes here"
+source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D"
 
 [[var]]
 name = "menu_glyph_byte"
