@@ -522,6 +522,13 @@ rest waits, is [PLAN.md](PLAN.md).
   needs shadow mode to check every active comparison at each step rather than
   the innermost: the enclosing one resumed by its callee's return while the
   nested one waits for a later instruction.
+- **Why a guard refused a real call isn't reported.** Shadow mode and the
+  calls log count refusals but don't say which condition refused or what the
+  state was; agents have added a print and rebuilt to find out (battle's
+  phantom timer slot, the menus' refusals). A `ct_dev --guard-details N` that
+  names the entry, the failing condition and the cells it read, for the first
+  N refusals, would save that; so would counting refusals per entry in the
+  shadow report.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
