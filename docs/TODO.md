@@ -179,6 +179,12 @@ rest waits, is [PLAN.md](PLAN.md).
     `menu_window.c` (the member who can't act) and `combatants.c` (the status
     seen) name confusion, and `re/ram.toml`'s `battle_status_script_seen`
     says so too: say confused.
+  - Bit 4 of a party member's action record's choice (`CHOICE_HELD`,
+    battle.h): a knocked-out member's choice loses it (`combatants.c`), and a
+    choice of it alone leaves the member's turn as it is, its timer and record
+    untouched (`member_turn.c`, RECOMP.md, "Phase 3, battle chunk 5"). Which
+    menu command sets it, and what the player sees, is to work out; name it
+    then.
   - The statuses' timers (RECOMP.md, "Phase 3, battle chunk 3"): the first
     status byte's `$10` (a point of HP lost each time its timer runs out) and
     the fourth's `$20` (5 MP back every tenth) are named for what the battle

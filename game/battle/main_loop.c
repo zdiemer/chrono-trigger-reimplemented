@@ -47,16 +47,8 @@
 
 /* ---- The original's routines the loop calls ------------------------------------------------ */
 
-/* A battle step: what the battle shows and waits for, by number, through the
- * routine at $C1:0003 (its table at $C1:0051). */
-enum {
-    STEP_SET_UP = 0,        /* set the battle up */
-    STEP_OPEN_MENU = 1,     /* a party member's turn: its command menu opens */
-    STEP_NEXT_FRAME = 3,    /* the frame's work, and a wait for the next */
-    STEP_VICTORY = 8,       /* the party's victory */
-    STEP_DEFEAT = 9,        /* the party's defeat */
-};
-enum { BATTLE_STEP = 0xC10003 };
+/* A battle step (BattleStep, battle.h), by number, through the routine at
+ * $C1:0003 (its table at $C1:0051). */
 
 /* The loop's other callees in the original's code, named for what they do (as
  * far as that is worked out; docs/TODO.md). */
@@ -123,7 +115,7 @@ enum {
  * attributes in). */
 static void set_step_member(GameState *g, uint8_t member) { set_battle_effect_sprite_attributes(g, member); }
 
-static bool step(Snes *s, uint32_t site, uint8_t number)
+static bool step(Snes *s, uint32_t site, BattleStep number)
 {
     m_set_a8(s, number);
     /* the overflow flag the step saves with the flags across its frame waits
@@ -287,7 +279,7 @@ static bool start_battle(Snes *s)
         return false;
     m_sep(s, CPU_FLAG_M);
     set_demo_aside(g);
-    if (!step(s, 0xC1802D, STEP_SET_UP))
+    if (!step(s, 0xC1802D, BATTLE_STEP_SET_UP))
         return false;
     /* a battle without enemies (none is set up so) is the original's */
     if (battle_enemy_count(g) == 0 || battle_enemy_count(g) > BATTLE_ENEMIES) {
@@ -313,8 +305,8 @@ static void next_frame(Snes *s)
     GameState *g = state_of(s);
     set_battle_loop_count(g, (uint8_t)(battle_loop_count(g) + 1));
     set_battle_damage_hit(g, 0);
-    s->cpu.a = STEP_NEXT_FRAME;
-    m_set_nz8(s, STEP_NEXT_FRAME);
+    s->cpu.a = BATTLE_STEP_NEXT_FRAME;
+    m_set_nz8(s, BATTLE_STEP_NEXT_FRAME);
     m_jsr(s, 0xC18129, BATTLE_STEP);
 }
 
@@ -426,12 +418,12 @@ static bool lose(Snes *s)
     set_battle_defeat_showing(g, true);
     for (unsigned frame = 0; frame < DEFEAT_FRAMES; frame++) {
         ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, (uint8_t)frame));
-        if (!step(s, 0xC18151, STEP_NEXT_FRAME))
+        if (!step(s, 0xC18151, BATTLE_STEP_NEXT_FRAME))
             return false;
     }
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, DEFEAT_FRAMES));
     set_battle_defeat_showing(g, false);
-    return step(s, 0xC18161, STEP_DEFEAT) && leave_without_rewards(s);
+    return step(s, 0xC18161, BATTLE_STEP_DEFEAT) && leave_without_rewards(s);
 }
 
 /* Every enemy is beaten: the victory, and away with the rewards. */
@@ -444,7 +436,7 @@ static bool win(Snes *s)
         return false;
     battle_ends(g, BATTLE_WON_OR_RAN);
     set_battle_won(g, VICTORY_MARK);
-    return battle_call(s, 0xC18183, CLEAR_PARTY_STATUSES, READS_CARRY) && step(s, 0xC18188, STEP_VICTORY)
+    return battle_call(s, 0xC18183, CLEAR_PARTY_STATUSES, READS_CARRY) && step(s, 0xC18188, BATTLE_STEP_VICTORY)
            && leave_with_rewards(s);
 }
 
@@ -662,7 +654,7 @@ static bool member_turn(Snes *s, uint8_t member, MemberTurn *turn)
     }
     set_member_action(g, member, MENU_OPEN);
     set_step_member(g, member);
-    return step(s, 0xC1856D, STEP_OPEN_MENU);
+    return step(s, 0xC1856D, BATTLE_STEP_OPEN_MENU);
 }
 
 /* The next party member whose chosen action is carried out, from the queue of
@@ -1011,7 +1003,6 @@ static bool take_turns(Snes *s)
 // $C1:AC5E
 /* The enemies the action beat are counted as beaten, and (but in a demo) the
  * battle shows them beaten (battle step 6); the action no longer beat any. */
-enum { STEP_ENEMIES_BEATEN = 6 };
 
 static bool finish_beaten_enemies(Snes *s)
 {
@@ -1020,7 +1011,7 @@ static bool finish_beaten_enemies(Snes *s)
         for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
             if (battle_enemy_beaten(g, enemy))
                 set_battle_enemy_beaten_counted(g, enemy, true);
-        if (!battle_is_demo(g) && !step(s, 0xC1AC7E, STEP_ENEMIES_BEATEN))
+        if (!battle_is_demo(g) && !step(s, 0xC1AC7E, BATTLE_STEP_ENEMIES_BEATEN))
             return false;
     }
     set_battle_enemy_beaten_any(g, false);

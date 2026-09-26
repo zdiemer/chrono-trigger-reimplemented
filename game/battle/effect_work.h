@@ -57,11 +57,6 @@ TechOutcome effect_work_out_member_tech(GameState *g, Platform *pf);
  * accessory (by its battle slot). */
 uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned part, uint8_t slot);
 
-/* Whether the port works out the party's tech in battle_action_detail on the
- * action's targets, or the item used (the entries' guards; the member's turn
- * asks them once its targeting has run). */
-bool effect_member_tech_ported(const GameState *g);
-bool effect_item_use_ported(const GameState *g);
 void effect_use_item(GameState *g, Platform *pf);
 
 /* For the entries' guards: whether the port works out an effect of a kind

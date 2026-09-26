@@ -42,6 +42,14 @@ enum { BATTLE_JSR_SIZE = 3, BATTLE_JSL_SIZE = 4 };
 bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
+/* Stop at the return of the JSR at `site`, where the original carries on with
+ * the machine as its callee left it: for a port that asks, after a call-out,
+ * whether what the callee left is what it goes on with. */
+void battle_stop_after_call(Snes *s, uint32_t site);
+
+/* The battle's steps' routine (BattleStep, battle.h). */
+enum { BATTLE_STEP = 0xC10003 };
+
 /* After a call made some other way (a service's call-out), returning to
  * `returns_to` on the page and bank it was made on: the same test, and the
  * same stop. */

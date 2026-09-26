@@ -14532,6 +14532,32 @@ meaning = "How the last steal came out, which the member's turn shows ($C1:BC21)
 source = "game/battle/effect_steal.c ($C1:E9D5, $FD:B655)"
 
 [[var]]
+name = "battle_action_came_to_nothing"
+addr = "7E:AF23"
+reuses = "battle_member_acts_for_itself"
+subsystem = "battle"
+meaning = "Set where a party member's action came to nothing: its targeting found no target ($C1:C1DD), or its attack no enemy left in the fight ($C1:D656); the member's turn then skips the rest. The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends ($FD:B655)"
+source = "game/battle/member_turn.c, game/battle/party_work.c"
+
+[[var]]
+name = "battle_turn_member"
+addr = "7E:B3F4"
+reuses = "battle_acting_for_itself"
+subsystem = "battle"
+meaning = "The party member whose chosen action is carried out, whose record the turn clears as it ends ($C1:B9C4, $C1:BCF9)"
+source = "game/battle/member_turn.c"
+
+[[var]]
+name = "battle_members_taking_part"
+addr = "7E:B3E7"
+count = 3
+index = "party slot"
+reuses = "battle_combo_called_off"
+subsystem = "battle"
+meaning = "Set for the members taking part in the action carried out (the member and its combination tech's partners), whose queued actions the calling off drops where one can't act ($FD:A93C)"
+source = "game/battle/member_turn.c ($C1:B9B7)"
+
+[[var]]
 name = "battle_member_partners_kept"
 addr = "7E:003D"
 page = "battle"

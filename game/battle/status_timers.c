@@ -73,20 +73,7 @@ static bool has_timed_status(const GameState *g, BattleTimer kind, uint8_t slot)
     return (combatant_statuses(g, slot) & battle_timed_status(kind)) != 0;
 }
 
-/* The status its timer times taken off the combatant: its own bit, not one it
- * keeps whatever happens. */
-enum { STATUS_BYTES = 4 };
 
-static void wear_status_off(GameState *g, BattleTimer kind, uint8_t slot)
-{
-    Statuses status = battle_timed_status(kind);
-    for (unsigned byte = 0; byte < STATUS_BYTES; byte++) {
-        uint8_t bit = (uint8_t)(status >> (8 * byte));
-        if (bit)
-            set_combatant_stat_byte(g, slot, (uint16_t)(STAT_STATUS_1 + byte),
-                                    (uint8_t)(stat(g, slot, (uint16_t)(STAT_STATUS_1 + byte)) & (uint8_t)~bit));
-    }
-}
 
 static bool hasted(const GameState *g, uint8_t slot)
 {
@@ -171,7 +158,7 @@ static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
         }
         battle_set_timer_count(g, kind, slot, length);
         if (timed_statuses[kind].wearing_off_clears)
-            wear_status_off(g, kind, slot);
+            combatant_lose_statuses(g, slot, battle_timed_status(kind));
         battle_stop_timer(g, kind, slot);
         return NOTHING_TO_SHOW;
     }

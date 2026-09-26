@@ -41,6 +41,8 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return battle_back(s, site + BATTLE_JSL_SIZE, page, bank);
 }
 
+void battle_stop_after_call(Snes *s, uint32_t site) { m_stop_at_own(s, site + BATTLE_JSR_SIZE, 0); }
+
 static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), bool long_call)
 {
     uint16_t page = m_direct_page(s), stack = s->cpu.s;

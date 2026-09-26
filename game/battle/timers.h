@@ -54,6 +54,8 @@ void battle_set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint
 /* How long a status's timer runs for the combatant, once the status starts it. */
 uint8_t battle_timer_length(const GameState *g, BattleTimer timer, unsigned slot);
 bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot);
+/* Whether it isn't stopped: running, or run out. */
+bool battle_timer_running(const GameState *g, BattleTimer timer, unsigned slot);
 
 /* Whose timer of a kind the last search found run out: the combatant before
  * where the kind's search goes on in the order (the order's last where it

@@ -63,7 +63,12 @@ enum {
     STATUS3_EVADES_MUCH_BETTER = 0x40,
     /* Haste: its turns come twice as fast. */
     STATUS3_HASTE = 0x80,
+    /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
+    STATUS3_TIMER_11 = 0x02,
 };
+
+/* Where the third and fourth status bytes sit in Statuses. */
+enum { STATUS_BYTE_3_SHIFT = 16, STATUS_BYTE_4_SHIFT = 24 };
 
 /* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
 enum {
@@ -77,6 +82,9 @@ enum {
     STATUS4_REGAINS_MP = 0x20,
     /* A shield: as the barrier, against the effects that pass the barrier. */
     STATUS4_SHIELD = 0x40,
+    /* The top bit keeps the combatant from acting (combatant_cant_act) and
+     * from joining a combination tech, beside what its hits do below. */
+    STATUS4_KEEPS_FROM_ACTING = 0x80,
     /* Its hits do half as much again. */
     STATUS4_HITS_HALF_AGAIN = 0x80,
 };
@@ -157,6 +165,14 @@ bool combatant_knocked_out(const GameState *g, unsigned slot);
  * turns, stopped, the one that restarts its script, or the fourth status
  * byte's top one. */
 bool combatant_cant_act(const GameState *g, unsigned slot);
+
+/* A combatant's MP, a word in its stat block. */
+uint16_t combatant_mp(const GameState *g, unsigned slot);
+void set_combatant_mp(GameState *g, unsigned slot, uint16_t mp);
+
+/* The statuses taken off the combatant (their own bits, not the ones it keeps
+ * whatever happens). */
+void combatant_lose_statuses(GameState *g, unsigned slot, Statuses statuses);
 bool combatant_in_fight(const GameState *g, unsigned slot);
 
 /* What a slot is fighting as (battle_combatant_fighting), what it is, and its

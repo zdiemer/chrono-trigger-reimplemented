@@ -4996,6 +4996,11 @@
 /* Set while a party member's chosen action is carried out ($C1:B96A), cleared as it ends
  * ($C1:BD6B); nothing reads it */
 #define RAM_BATTLE_MEMBER_TURN_RUNNING 0x7EAF22u
+/* Set where a party member's action came to nothing: its targeting found no target ($C1:C1DD),
+ * or its attack no enemy left in the fight ($C1:D656); the member's turn then skips the rest.
+ * The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends
+ * ($FD:B655) */
+#define RAM_BATTLE_ACTION_CAME_TO_NOTHING 0x7EAF23u
 /* Set by a party member's turn when a status of its picks its action for it */
 #define RAM_BATTLE_MEMBER_ACTS_FOR_ITSELF 0x7EAF23u
 /* What testing a block of an enemy's script came to: 0 its conditions held and its actions are
@@ -5309,6 +5314,12 @@
 #define RAM_BATTLE_COMBO_CALLED_OFF 0x7EB3E7u
 #define RAM_BATTLE_COMBO_CALLED_OFF_COUNT 3u
 #define RAM_BATTLE_COMBO_CALLED_OFF_STRIDE 0x01u
+/* Set for the members taking part in the action carried out (the member and its combination
+ * tech's partners), whose queued actions the calling off drops where one can't act ($FD:A93C) [3
+ * x $1 bytes, by party slot] */
+#define RAM_BATTLE_MEMBERS_TAKING_PART 0x7EB3E7u
+#define RAM_BATTLE_MEMBERS_TAKING_PART_COUNT 3u
+#define RAM_BATTLE_MEMBERS_TAKING_PART_STRIDE 0x01u
 /* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
  * status that keeps it from combination techs); the combination check reads it after each call */
 #define RAM_BATTLE_COMBO_MEMBER_OUT 0x7EB3EAu
@@ -5320,6 +5331,9 @@
 #define RAM_BATTLE_COMBO_PAIRS_STRIDE 0x01u
 /* The party member whose status picks its action */
 #define RAM_BATTLE_ACTING_FOR_ITSELF 0x7EB3F4u
+/* The party member whose chosen action is carried out, whose record the turn clears as it ends
+ * ($C1:B9C4, $C1:BCF9) */
+#define RAM_BATTLE_TURN_MEMBER 0x7EB3F4u
 /* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while
  * the message shows [2 x $200 bytes, by half (the first goes to VRAM $5800 on odd frames, the
  * second to $5980 on even ones)] */

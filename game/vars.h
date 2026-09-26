@@ -7132,6 +7132,13 @@ void set_battle_candidates_drawing(GameState *g, uint8_t v);
 uint8_t battle_member_turn_running(const GameState *g);
 void set_battle_member_turn_running(GameState *g, uint8_t v);
 
+/* Set where a party member's action came to nothing: its targeting found no target ($C1:C1DD),
+ * or its attack no enemy left in the fight ($C1:D656); the member's turn then skips the rest.
+ * The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends
+ * ($FD:B655) */
+uint8_t battle_action_came_to_nothing(const GameState *g);
+void set_battle_action_came_to_nothing(GameState *g, uint8_t v);
+
 /* Set by a party member's turn when a status of its picks its action for it */
 uint8_t battle_member_acts_for_itself(const GameState *g);
 void set_battle_member_acts_for_itself(GameState *g, uint8_t v);
@@ -7628,6 +7635,12 @@ enum { BATTLE_COMBO_CALLED_OFF_COUNT = 3 };   /* by party slot */
 uint8_t battle_combo_called_off(const GameState *g, unsigned slot);
 void set_battle_combo_called_off(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_MEMBERS_TAKING_PART_COUNT = 3 };   /* by party slot */
+/* Set for the members taking part in the action carried out (the member and its combination
+ * tech's partners), whose queued actions the calling off drops where one can't act ($FD:A93C) */
+uint8_t battle_members_taking_part(const GameState *g, unsigned slot);
+void set_battle_members_taking_part(GameState *g, unsigned slot, uint8_t v);
+
 /* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
  * status that keeps it from combination techs); the combination check reads it after each call */
 uint8_t battle_combo_member_out(const GameState *g);
@@ -7642,6 +7655,11 @@ void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v);
 /* The party member whose status picks its action */
 uint8_t battle_acting_for_itself(const GameState *g);
 void set_battle_acting_for_itself(GameState *g, uint8_t v);
+
+/* The party member whose chosen action is carried out, whose record the turn clears as it ends
+ * ($C1:B9C4, $C1:BCF9) */
+uint8_t battle_turn_member(const GameState *g);
+void set_battle_turn_member(GameState *g, uint8_t v);
 
 enum { BATTLE_MESSAGE_TILES_COUNT = 2 };   /* by half (the first goes to VRAM $5800 on odd frames, the second to $5980 on even ones) */
 /* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while

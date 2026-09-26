@@ -115,7 +115,31 @@ bool combatant_knocked_out(const GameState *g, unsigned slot)
     return (battle_stats_condition(g, slot) & CONDITION_KNOCKED_OUT) != 0;
 }
 
-static const Statuses KEEP_FROM_ACTING = STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | 0x80000000u;
+static const Statuses KEEP_FROM_ACTING =
+    STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | (Statuses)STATUS4_KEEPS_FROM_ACTING << STATUS_BYTE_4_SHIFT;
+
+uint16_t combatant_mp(const GameState *g, unsigned slot)
+{
+    return (uint16_t)(combatant_stat_byte(g, (uint8_t)slot, STAT_MP) | combatant_stat_byte(g, (uint8_t)slot, STAT_MP + 1) << 8);
+}
+
+void set_combatant_mp(GameState *g, unsigned slot, uint16_t mp)
+{
+    set_combatant_stat_byte(g, (uint8_t)slot, STAT_MP, (uint8_t)mp);
+    set_combatant_stat_byte(g, (uint8_t)slot, STAT_MP + 1, (uint8_t)(mp >> 8));
+}
+
+enum { STATUS_BYTES = 4 };
+
+void combatant_lose_statuses(GameState *g, unsigned slot, Statuses statuses)
+{
+    for (unsigned byte = 0; byte < STATUS_BYTES; byte++) {
+        uint8_t bits = (uint8_t)(statuses >> (8 * byte));
+        if (bits)
+            set_combatant_stat_byte(g, (uint8_t)slot, (uint16_t)(STAT_STATUS_1 + byte),
+                                    (uint8_t)(combatant_stat_byte(g, (uint8_t)slot, (uint16_t)(STAT_STATUS_1 + byte)) & ~bits));
+    }
+}
 
 bool combatant_cant_act(const GameState *g, unsigned slot)
 {
@@ -239,24 +263,20 @@ static bool enemy_in_reserve(const GameState *g, unsigned slot)
 /* A party member knocked out drops the choice bit 4 of its action record
  * marks; the original makes a call there that does nothing, having named the
  * member the actor first, which stays. */
-enum { CHOICE_DROPPED_ON_KNOCK_OUT = 0x10 };
-
 static void drop_choice(GameState *g, unsigned member)
 {
     uint8_t flags = battle_member_actions_choice_flags(g, member);
-    if (!(flags & CHOICE_DROPPED_ON_KNOCK_OUT))
+    if (!(flags & CHOICE_HELD))
         return;
     set_battle_actor(g, (uint8_t)member);
-    set_battle_member_actions_choice_flags(g, member, flags & (uint8_t)~CHOICE_DROPPED_ON_KNOCK_OUT);
+    set_battle_member_actions_choice_flags(g, member, flags & (uint8_t)~CHOICE_HELD);
 }
 
 /* The original reaches a member's action record through its place, which it
- * leaves in a cell ($06). */
+ * leaves in a cell (battle.h, BATTLE_MEMBER_CELL). */
 static void leave_record_place(GameState *g, unsigned member)
 {
-    uint16_t place = battle_member_record_place(g, (uint8_t)member);
-    set_battle_low_scratch(g, 6, (uint8_t)place);
-    set_battle_low_scratch(g, 7, (uint8_t)(place >> 8));
+    battle_leave_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, (uint8_t)member));
 }
 
 /* An enemy leaving the fight is beaten, where it hadn't been counted beaten

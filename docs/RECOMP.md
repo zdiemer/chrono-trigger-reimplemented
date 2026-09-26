@@ -8081,6 +8081,23 @@ stray place, and that the showing takes A's high byte along.
 9,762, the attack 17,584, the waits 21,164, the turn's end 7,665, the step
 2,350.
 
+**After the review.** One bridge mechanism (rubric item 104): the item's
+use, the tech's working out and the attack's tech are siblings run with
+`battle_run`, as the showing is, their guards deciding C or the original's
+code, and the turn goes on in C either way; the one stop left is after the
+targeting (`battle_stop_after_call`, bridge.c), where what it left is past
+what the turn reads. The three cells the turn uses for something other than
+their names say are named for it in the map (`battle_action_came_to_nothing`,
+`battle_turn_member`, `battle_members_taking_part`, each `reuses` the other);
+the choice's bits, the partners, the battle's steps (`BattleStep`), the stop
+at the first target and cell `$06` (`BATTLE_MEMBER_CELL`) have one definition
+each in battle.h, and the steal's outcome one decoder (`effect_last_steal`).
+The tech's payment leaves the carry it hands the last multiply once, derived
+after the three payments (`leave_payment_carry`). With the attack's tech run
+as a sibling, the attack's fuzzing now reaches the showing in nearly every
+state, past the budget: stopped at the showing's call, the one difference
+left is A's low byte, which the showing doesn't read.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
