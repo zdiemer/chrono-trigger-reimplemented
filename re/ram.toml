@@ -1522,6 +1522,92 @@ meaning = "Set to 1 by events $DE and $DF with the location they set; cleared at
 source = "game/event/locations.c, set_location $C0:3B45, go_to_location_now_raising_1e $C0:3B98"
 
 [[var]]
+name = "field_menus_locked"
+addr = "7E:0110"
+page = "field"
+subsystem = "field"
+meaning = "Nonzero keeps the menus from opening on the field (the main menu and the one the Start assignment opens, $C0:1939, $C0:19A2); the field's start clears it ($C0:0B92) and nothing in the field's code sets it, so scripts do, through the event engine's memory writes"
+source = "game/field/menus.c, field_pause_and_menus $C0:18D9, field_press_start $C0:1985"
+
+[[var]]
+name = "field_pause_locked"
+addr = "7E:0111"
+page = "field"
+subsystem = "field"
+meaning = "Nonzero keeps Start from pausing the field ($C0:18E0); the field's start clears it ($C0:0B94), and scripts set it as they do field_menus_locked"
+source = "game/field/menus.c, field_pause_and_menus $C0:18D9"
+
+[[var]]
+name = "field_brightness_before_pause"
+addr = "7E:011A"
+page = "field"
+subsystem = "field"
+meaning = "The brightness the field had when it was paused, which the pause shows at half and puts back when it ends"
+source = "game/field/menus.c, pause $C0:18E8"
+
+[[var]]
+name = "field_character_objects"
+addr = "7E:018D"
+page = "field"
+count = 7
+index = "character (Crono 0, Marle 1, Lucca 2, Robo 3, Frog 4, Ayla 5, Magus 6)"
+subsystem = "field"
+meaning = "The field object each playable character is on this map, a link, negative for none: the map's start clears them ($C0:0C26), the event commands that load a character set theirs ($C0:41E4-$C0:4214), and a menu that changes the party runs each one's start again ($C0:1A03)"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_party_as_loaded"
+addr = "7E:0194"
+page = "field"
+count = 3
+index = "party place"
+subsystem = "field"
+meaning = "The party (party_members) as the map's characters were last set up for it ($C0:0C34, $C0:1A5D): a menu that leaves the party otherwise has the characters' objects start again"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_kept_party_x"
+addr = "7F:1D09"
+size = 2
+count = 3
+stride = 2
+index = "party place"
+subsystem = "field"
+meaning = "Each party member's X on the map (field_object_x), kept while a menu is open ($C0:011B) and put back after it ($C0:1A72)"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_kept_party_y"
+addr = "7F:1D0F"
+size = 2
+count = 3
+stride = 2
+index = "party place"
+subsystem = "field"
+meaning = "Each party member's Y on the map (field_object_y), kept while a menu is open"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_kept_party_priorities"
+addr = "7F:1D15"
+size = 2
+count = 3
+stride = 2
+index = "party place"
+subsystem = "field"
+meaning = "Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a menu is open"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_kept_trail_positions"
+addr = "7F:1D1B"
+count = 3
+index = "party place"
+subsystem = "field"
+meaning = "Where each of the party was on the leader's trail (field_trail_position), kept while a menu is open"
+source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
 name = "field_player_control"
 addr = "7E:011F"
 page = "field"

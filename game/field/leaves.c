@@ -6,6 +6,7 @@
  * derives a register, a flag or a cell from what the routine was given and
  * the state it left, and the logic files call none of them but through
  * ORIGINAL_EFFECT. */
+#include "event/variables.h"
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/layers.h"
@@ -355,4 +356,15 @@ bool field_start_overflow(const GameState *g, bool before)
     FieldSlopeSum s =
         field_slope_sum(g, tile_shape_slope(start_shape(g)), FIELD_START_FINE_X, FIELD_START_FINE_Y);
     return field_subtract_overflows8((uint8_t)(s.sum + s.height), s.height);
+}
+
+/* ---- The Start assignment ($C0:1985) ------------------------------------------------------- */
+
+/* The story's progress less the progress its menu waits for ($C0:1993). Its
+ * readers: the menus' entry keeps the flags it is entered with ($C2:8013's
+ * PHP), and the main loop's next frame reaches the sound driver's saved flags
+ * (tools/v_readers.py --after C0:1985). */
+bool field_story_test_overflow(const GameState *g)
+{
+    return field_subtract_overflows8(story_progress(g), FIELD_START_MENU_FROM_STORY);
 }

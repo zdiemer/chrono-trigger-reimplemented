@@ -502,6 +502,15 @@
 /* Negative: the field line interrupt does nothing */
 #define RAM_FIELD_IRQ_DISABLED 0x7E010Fu
 #define RAM_FIELD_IRQ_DISABLED_DP 0x0Fu      /* page field */
+/* Nonzero keeps the menus from opening on the field (the main menu and the one the Start
+ * assignment opens, $C0:1939, $C0:19A2); the field's start clears it ($C0:0B92) and nothing in
+ * the field's code sets it, so scripts do, through the event engine's memory writes */
+#define RAM_FIELD_MENUS_LOCKED 0x7E0110u
+#define RAM_FIELD_MENUS_LOCKED_DP 0x10u      /* page field */
+/* Nonzero keeps Start from pausing the field ($C0:18E0); the field's start clears it ($C0:0B94),
+ * and scripts set it as they do field_menus_locked */
+#define RAM_FIELD_PAUSE_LOCKED 0x7E0111u
+#define RAM_FIELD_PAUSE_LOCKED_DP 0x11u      /* page field */
 /* Requests to the field main loop: bit 7 a location change (location_next), bit 0 a battle (set
  * with bit 5 by event $D8), bit 5 also a queued tile copy (event $E5) */
 #define RAM_FIELD_REQUESTS 0x7E0117u
@@ -513,6 +522,10 @@
 /* Brightness shadow the field NMI writes to the display every frame (0: forced blank) */
 #define RAM_FIELD_BRIGHTNESS 0x7E0119u
 #define RAM_FIELD_BRIGHTNESS_DP 0x19u        /* page field */
+/* The brightness the field had when it was paused, which the pause shows at half and puts back
+ * when it ends */
+#define RAM_FIELD_BRIGHTNESS_BEFORE_PAUSE 0x7E011Au
+#define RAM_FIELD_BRIGHTNESS_BEFORE_PAUSE_DP 0x1Au /* page field */
 /* Brightness a gradual change started by event $F0 moves toward */
 #define RAM_FIELD_BRIGHTNESS_TARGET 0x7E011Bu
 #define RAM_FIELD_BRIGHTNESS_TARGET_DP 0x1Bu /* page field */
@@ -715,6 +728,21 @@
 #define RAM_FIELD_SPRITE_RANGE_SPARE_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_SPARE_STRIDE 0x04u
 #define RAM_FIELD_SPRITE_RANGE_SPARE_DP 0x83u /* page field */
+/* The field object each playable character is on this map, a link, negative for none: the map's
+ * start clears them ($C0:0C26), the event commands that load a character set theirs
+ * ($C0:41E4-$C0:4214), and a menu that changes the party runs each one's start again ($C0:1A03)
+ * [7 x $1 bytes, by character (Crono 0, Marle 1, Lucca 2, Robo 3, Frog 4, Ayla 5, Magus 6)] */
+#define RAM_FIELD_CHARACTER_OBJECTS 0x7E018Du
+#define RAM_FIELD_CHARACTER_OBJECTS_COUNT 7u
+#define RAM_FIELD_CHARACTER_OBJECTS_STRIDE 0x01u
+#define RAM_FIELD_CHARACTER_OBJECTS_DP 0x8Du /* page field */
+/* The party (party_members) as the map's characters were last set up for it ($C0:0C34,
+ * $C0:1A5D): a menu that leaves the party otherwise has the characters' objects start again [3 x
+ * $1 bytes, by party place] */
+#define RAM_FIELD_PARTY_AS_LOADED 0x7E0194u
+#define RAM_FIELD_PARTY_AS_LOADED_COUNT 3u
+#define RAM_FIELD_PARTY_AS_LOADED_STRIDE 0x01u
+#define RAM_FIELD_PARTY_AS_LOADED_DP 0x94u   /* page field */
 /* Object slot of each active party member, negative for none [3 x $2 bytes, by party member * 2] */
 #define RAM_FIELD_PARTY_OBJECTS 0x7E0197u
 #define RAM_FIELD_PARTY_OBJECTS_COUNT 3u
@@ -1678,6 +1706,26 @@
 #define RAM_FIELD_PRESSED_TILES_STRIDE 0x02u
 /* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_QUAD 0x7F1CEAu
+/* Each party member's X on the map (field_object_x), kept while a menu is open ($C0:011B) and
+ * put back after it ($C0:1A72) [3 x $2 bytes, by party place] */
+#define RAM_FIELD_KEPT_PARTY_X 0x7F1D09u
+#define RAM_FIELD_KEPT_PARTY_X_COUNT 3u
+#define RAM_FIELD_KEPT_PARTY_X_STRIDE 0x02u
+/* Each party member's Y on the map (field_object_y), kept while a menu is open [3 x $2 bytes, by
+ * party place] */
+#define RAM_FIELD_KEPT_PARTY_Y 0x7F1D0Fu
+#define RAM_FIELD_KEPT_PARTY_Y_COUNT 3u
+#define RAM_FIELD_KEPT_PARTY_Y_STRIDE 0x02u
+/* Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a
+ * menu is open [3 x $2 bytes, by party place] */
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES 0x7F1D15u
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_COUNT 3u
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_STRIDE 0x02u
+/* Where each of the party was on the leader's trail (field_trail_position), kept while a menu is
+ * open [3 x $1 bytes, by party place] */
+#define RAM_FIELD_KEPT_TRAIL_POSITIONS 0x7F1D1Bu
+#define RAM_FIELD_KEPT_TRAIL_POSITIONS_COUNT 3u
+#define RAM_FIELD_KEPT_TRAIL_POSITIONS_STRIDE 0x01u
 /* A wave's per-line scroll, 16 lines long, which a waving layer's scroll table points into [64 x
  * $4 bytes, by table set * 32 + line (the second 16 of each set repeat the first)] */
 #define RAM_FIELD_LINE_WAVE 0x7F1D27u

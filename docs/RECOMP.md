@@ -7386,6 +7386,51 @@ The ninth chunk of bank `$C0`, and chunk 8's review.
   accessor: `original_cell8` reaches the field page's scratch run
   (`$C1`-`$E8`), and `$F0` is the direction routine's named tile.
 
+**What it is** (field/menus.c). Once a frame the field's main loop hands
+the buttons to `field_pause_and_menus` (`$C0:18D9`): Start pauses the field
+while the player has the party and no script has locked the pause (the
+picture at half its brightness, the play time clock stopped, until Start
+again); the Start assignment (`field_press_start`, `$C0:1985`) moves an open
+dialog window between the top of the screen and the bottom, or, with none
+open and the story's progress at `$49` or past, opens the menus at their mode
+5; X opens the main menu (mode 1); otherwise a waiting choice takes the
+buttons. A menu opens only while the player has the party, no choice waits and
+no script has locked the menus: the field fades out a step a frame, keeps the
+party's places, and calls the menus; after them it sets itself up again,
+brings back the characters of a party the menu changed
+(`field_bring_the_party_back`, `$C0:1A03`: each character's object starts
+again in its script, Frog's before Robo's as the original has them, and the
+party goes back where it was kept), and fades in. The Start assignment's menu
+also takes a menu a script asked for as shown. Most of the work is still the
+original's routines, called out to from their own calls (the frame wait, the
+menus, the field's setup and fade in); the two menus' call sequences are one
+function over a table of their sites. The RAM map names the pause's and the
+menus' locks (`$0110`, `$0111`), the brightness kept over the pause, the
+characters' objects (`$8D`-`$93`), the party as last loaded, and the party's
+places kept over a menu (`$7F:1D09`-`$7F:1D1D`).
+
+A's high byte and the overflow are read after both entries, so the port
+leaves A's high byte as the routines it called left it and declares only its
+low byte dead; the Start assignment's subtraction of the story's progress
+sets the overflow, which field/leaves.c works out (`field_story_test_overflow`:
+`tools/v_readers.py --after C0:1985` has it read).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches: `field_pause_and_menus` 191,044, `field_press_start` 1,
+`field_bring_the_party_back` 3, none interrupted or refused. Fuzzed (seeds 1
+and 2, 20,000 states each), compared up to the first frame wait, the blanking
+before a menu or a choice's call, since the pause and the menus run for
+frames: the buttons 0 of 19,450 and 19,424 (550 and 576 past the call-out
+budget, where the Start assignment's own calls run on), the Start assignment 0
+of 20,000 each, the party put back 0 of 20,000 each, and the characters'
+starts, compared up to the first, 0 of 20,000 each. The rows are sensitive: a
+pause at a quarter brightness mismatched 342 of 2,922, the menus unlocked 126
+and the story's overflow a step off 155 of 3,000, the trail left alone 2,945,
+and the player's control ignored 163.
+
+**The timing gate.** The three rows were calibrated over the library; no
+exception.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out
