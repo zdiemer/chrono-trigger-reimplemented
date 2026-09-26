@@ -95,6 +95,9 @@ bool object_current_is_one(const GameState *g);
 void object_make_current(GameState *g, FieldObject obj);
 void object_make_current_recognised(GameState *g, FieldObject obj);
 void object_recognise_current(GameState *g);
+/* Whether the byte after the link is clear, so that making an object current
+ * leaves it recognised. */
+bool object_making_current_recognises(const GameState *g);
 
 /* ---- Role (field/object.c) ------------------------------------------------------------ */
 
@@ -142,6 +145,7 @@ void object_set_unreachable(GameState *g, FieldObject obj, bool unreachable);
 /* Whether the object has a sprite, and whether it shows. */
 typedef enum { SPRITE_HIDDEN = 0x00, SPRITE_SHOWN = 0x01, SPRITE_NONE = 0x80 } ObjectSprite;
 void object_set_sprite(GameState *g, FieldObject obj, ObjectSprite sprite);
+bool object_has_no_sprite(const GameState *g, FieldObject obj);
 bool object_can_be_seen(const GameState *g, FieldObject obj);
 
 /* The object leaves the map: disabled, its sprite hidden. */
@@ -345,6 +349,9 @@ enum {
 };
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
+/* Hold a frame, as a script's holding does, with nothing else of its
+ * animation changed (the party defeated in a battle, field/battle_return.c). */
+void object_hold_frame(GameState *g, FieldObject obj, uint8_t frame);
 /* Whether a script has it hold a frame (ANIMATE_SHOW_FRAME), and which. */
 bool object_holds_frame(const GameState *g, FieldObject obj);
 uint8_t object_held_frame(const GameState *g, FieldObject obj);
@@ -558,6 +565,9 @@ ScreenPoint object_screen_position(const GameState *g, FieldObject obj);
 /* Where on the screen the object is drawn, from its position and the
  * screen's. */
 void object_update_screen_position(GameState *g, FieldObject obj);
+/* Where on the screen the battle kept it drawn, in pixels, as bytes: the
+ * ninth bit of each stays as it was. */
+void object_put_on_screen_as_kept(GameState *g, FieldObject obj, uint8_t x, uint8_t y);
 
 /* The rows: an object in view is in the row for its screen position (four
  * pixels a row), a list linked both ways whose first object the row keeps,

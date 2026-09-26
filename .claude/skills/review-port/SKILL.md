@@ -719,6 +719,19 @@ Each of these is a finding. Every example here comes from this repo.
     while its stated reason is wrong, which misleads whoever next decides
     whether it can go. Check the claim against PORTING.md.
 
+97. **Timing fudge dressed as block-move bytes.** `charge_block_move(g, N)`
+    where N is a cycle estimate turned into "bytes", not a real fill or copy,
+    gets round "a tag, never a number". A port charges only the bytes it
+    actually fills or copies; calibration and the timing exceptions take the
+    rest.
+98. **Aliasing guards that list offenders instead of stating the invariant.**
+    A guard that exists because the port keeps a cell in hand checks "nothing
+    the call reads or writes touches that cell" on every path, not a list of
+    the known ways in.
+99. **Two cells read as one machine word.** `(lo | hi << 8) << 1 & 0xFF00`
+    reproduces a 16-bit load spanning two variables (item 46's sibling). Read
+    each in its own terms.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

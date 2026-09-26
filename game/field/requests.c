@@ -99,14 +99,16 @@ static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uin
  * three after; nothing reads it in between, but the call is compared, so the
  * shape is noted first where the original does. */
 enum { SWITCH_SOUND = 0xC01B90, SOUND_READS_NOTHING = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* By the switch, the shapes' columns in turn: each calls from its own
- * place, which is also where the port stops if the call comes back other
- * than it went. */
-static const uint32_t sound_sites[] = { 0xC00D92, 0xC00E8F, 0xC01040, 0xC01212, 0xC0149D };
-static unsigned switch_number(SwitchPress p)
-{
-    return p.shape == SWITCH_ONE_BY_TWO ? 0 : p.shape == SWITCH_TWO_BY_TWO ? 1 + p.step_column : 3 + p.step_column;
-}
+/* Where each switch calls the sound from, by its shape and the column
+ * stepped into: its own place, which is also where the port stops if the
+ * call comes back other than it went. */
+static const struct {
+    uint32_t left, right;   /* stepped into the switch's left column, or its right */
+} sound_sites[] = {
+    [SWITCH_ONE_BY_TWO] = { 0xC00D92, 0xC00D92 },
+    [SWITCH_TWO_BY_TWO] = { 0xC00E8F, 0xC01040 },
+    [SWITCH_TWO_BY_THREE] = { 0xC01212, 0xC0149D },
+};
 
 static void leave_shape_before_the_sound(GameState *g, SwitchPress p)
 {
@@ -129,7 +131,9 @@ static bool answer_step_event(Snes *s)
         return true;
     ORIGINAL_EFFECT(leave_shape_before_the_sound(g, p));
     s->cpu.a = (uint16_t)(field_switch_sound_high_a(g, p, step) << 8 | (s->cpu.a & 0xFF));
-    if (!bridge_call(s, sound_sites[switch_number(p)], SWITCH_SOUND, SOUND_READS_NOTHING, on_the_field_page(s, false)))
+    unsigned shape = p.shape;
+    uint32_t site = p.step_column == 0 ? sound_sites[shape].left : sound_sites[shape].right;
+    if (!bridge_call(s, site, SWITCH_SOUND, SOUND_READS_NOTHING, on_the_field_page(s, false)))
         return false;
     field_queue_switch_redraw(g, p, step);
     m_set_flag(s, CPU_FLAG_V, field_switch_redraw_overflow(g));

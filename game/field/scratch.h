@@ -92,12 +92,11 @@ bool field_screen_test_overflow(const GameState *g, MapTile tile);
  * took a frame and the frame the object was on before. */
 bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_frame, uint8_t frame_before);
 
-/* The field page's cell at $D9, where many of the field's routines leave the
- * last value they worked with (a switch's last entry's row, a frame's
- * attributes). */
-enum { FIELD_LAST_WORKED_CELL = 0xD9 };
-
-enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_MORE_SCRATCH_CELLS = 0xE7, FIELD_LAYER_WORK_CELLS = 0x50,
+/* The field page's cells: its work cells from $C1, and from $D9 the scratch
+ * cells, the first of which ($D9) is where many of the field's routines
+ * leave the last value they worked with (a switch's last entry's row, a
+ * frame's attributes). */
+enum { FIELD_WORK_CELLS = 0xC1, FIELD_SCRATCH_CELLS = 0xD9, FIELD_LAST_WORKED_CELL = FIELD_SCRATCH_CELLS, FIELD_MORE_SCRATCH_CELLS = 0xE7, FIELD_LAYER_WORK_CELLS = 0x50,
        FIELD_LAYER_EDGE_CELLS = 0x60 };
 enum { SHAPE_EDGE_CELLS = 0x53, SHAPE_STEP_CELLS = 0xF0 };
 

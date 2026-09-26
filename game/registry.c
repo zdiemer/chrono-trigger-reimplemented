@@ -25,6 +25,7 @@
 #include "field/display.h"
 #include "field/field.h"
 #include "field/frames.h"
+#include "field/battle_return.h"
 #include "field/requests.h"
 #include "field/graphics.h"
 #include "field/layers.h"
@@ -1447,6 +1448,10 @@ const NativeEntry game_natives[] = {
       .cost_milli = 2911, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_requests_can_run },
     { .addr = 0xC0ED15, .name = "field_redraw_after_picture", .fn = field_redraw_after_picture, NEEDS_M8_X16,
       .cost_milli = 7380, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_redraw_can_run },
+    { .addr = 0xC00715, .name = "field_return_from_battle", .fn = field_return_from_battle, NEEDS_M8_X16_BINARY,
+      .cost_milli = 6109, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_battle_return_can_run },
+    { .addr = 0xC0072E, .name = "field_hold_party_if_defeated", .fn = field_hold_party_if_defeated, NEEDS_M8_X16,
+      .cost_milli = 3750, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC0CB0A, .name = "field_put_drawn_frame", .fn = field_put_drawn_frame, NEEDS_M8_X8_BINARY,
       .cost_milli = 4047, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_frames_can_put },
     { .addr = 0xC0CAD9, .name = "field_draw_next_frame", .fn = field_draw_next_frame, NEEDS_M8_X8_BINARY,
