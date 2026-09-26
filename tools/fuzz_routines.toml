@@ -4867,7 +4867,7 @@ why = "the 12-sprite layout with its tiles at $68"
 name = "field_return_from_battle"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7E01A3-7E01AA=80,12,14,16,18,1A,1C", "--fill", "7E016E-7E016E=00-00", "--fill", "7F01EC-7F01EC=00-02", "--fill", "7E1700-7E171D=00-00", "--fill", "7E1300-7E137F=C0-FF", "--fill", "7E1A93-7E1A9D=00,01,80", "--keep", "7E0E00-7E0EFF", "--fill", "7E29C6-7E29C6=00,01,02", "--fill", "7E29D2-7E29D2=00,01,02", "--fill", "7E29DE-7E29DE=00,01,02", "--fill", "7E29EA-7E29EA=00,01,02", "--fill", "7E29F6-7E29F6=00,01,02", "--fill", "7E2A02-7E2A02=00,01,02", "--fill", "7E2A0E-7E2A0E=00,01,02", "--fill", "7E2A1A-7E2A1A=00,01,02", "--stop-at-call", "C0B271"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7E01A3-7E01AA=80,12,14,16,18,1A,1C", "--fill", "7E016E-7E016E=00,00,00,01", "--fill", "7F01EC-7F01EC=00-02", "--fill", "7E1700-7E171D=00-00", "--fill", "7E1300-7E137F=C0-FF", "--fill", "7E1A93-7E1A9D=00,01,80", "--fill", "7E0B00-7E0B7F=80,FF,00,02,04,06,08,0C,12,20,7E", "--fill", "7E0F93-7E0F93=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F95-7E0F95=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F97-7E0F97=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F99-7E0F99=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F9B-7E0F9B=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F9D-7E0F9D=00,02,04,06,08,0A,0C,0E", "--keep", "7E0E00-7E0EFF", "--fill", "7E29C6-7E29C6=00,01,02", "--fill", "7E29D2-7E29D2=00,01,02", "--fill", "7E29DE-7E29DE=00,01,02", "--fill", "7E29EA-7E29EA=00,01,02", "--fill", "7E29F6-7E29F6=00,01,02", "--fill", "7E2A02-7E2A02=00,01,02", "--fill", "7E2A0E-7E2A0E=00,01,02", "--fill", "7E2A1A-7E2A1A=00,01,02", "--stop-at-call", "C0B271"]
 why = "the field's page; the battle's enemies some of objects 9-14 or none, each taken away (kind 0) or kept, with a sprite or without, the party three of objects 0-6 or fewer; the current object's word clear above its link, every record at the start of the records and their descriptions in the ROM, the rows as the state has them (the guard's). Compared up to the sprite table's building: that routine's own call-outs can't finish on this state (its own row is skipped for the same reason), and field_hold_party_if_defeated fuzzes what follows it"
 
 [[routine]]
@@ -4876,6 +4876,13 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,80", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7F01EC-7F01EC=00-02"]
 why = "the party three of objects 0-6 or fewer, the battle won, lost or fled"
+
+[[routine]]
+name = "field_give_up_palette"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0154-7E0154=00,80,7F", "--fill", "7E0F91-7E0F91=00,02,04,06,08,0A,0C,0E", "--fill", "7E0B00-7E0B7F=80,FF,00,02,04,06,08,0C,12,20,7E"]
+why = "the current object 8 with each palette slot, its sharers before and after it objects or none (either byte for none), and the palettes a script set or not"
 
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #

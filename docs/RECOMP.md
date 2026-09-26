@@ -7354,6 +7354,38 @@ sound driver's saved flags (`$C7:0A39`'s `PHP`, taken back other than by
 **The timing gate.** The two rows were calibrated over the library; no
 exception.
 
+### Phase 3, field and events: the pause and the menus opened from the field
+
+The ninth chunk of bank `$C0`, and chunk 8's review.
+
+**Chunk 8's review, folded in.**
+- *The palette give-up is a port* (field/palettes.c, `field_give_up_palette`
+  `$C0:734C`). The field's eight sprite palette slots are shared by objects
+  with the same colors, each slot's sharers a list in the order they took it
+  (`field_object_palette_older`/`_newer` at `$0B00`/`$0B01`, the newest by
+  slot at `$0B80`), and an object giving its slot up leaves the list; while a
+  script has loaded palettes itself (`$0154` bit 7, event `$33`) objects keep
+  out of the slots. The battle's return and the view update
+  (field/object_view.c) run it as C, so the rebuilt JSR frame, the call-site
+  arithmetic and the `Snes *` in `bring_back_enemy` are gone, and so is the
+  view update's call-out. Fuzzed (seeds 1 and 2): 0 of 20,000 each; breaking
+  either branch mismatched 159 and 1,623 of 3,000. Over the 26 movies every
+  call matches (350, from the view update and the return).
+- The return's work is a `GameState` function (`put_back_after_battle`);
+  the entry keeps only the sprite table's bridge and the defeat's hold.
+- *The `$016E` guard, named.* The frame put-back's layouts read the current
+  object's whole word under 16-bit index registers (`$C0:CE57`, `$C0:D21C`,
+  `$C0:DE91`, `$C0:E08C`), so a byte after the link makes them draw another
+  object's tiles. The condition stays, with its readers named, and the
+  put-back's own guard (`field_frames_can_put`) takes it too; it refuses no
+  library call.
+- One `BattleResult` (battle/battle.h), which battle/main_loop.c sets and the
+  field reads; the party's places are `put_party_back`, with `PARTY_PLACES`
+  from field/party.h and the leader's place left to the guard; the taken-away
+  kind is named. The screen's corner stays in `field_own_tile` through its
+  accessor: `original_cell8` reaches the field page's scratch run
+  (`$C1`-`$E8`), and `$F0` is the direction routine's named tile.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

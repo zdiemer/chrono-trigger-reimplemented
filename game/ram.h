@@ -626,7 +626,9 @@
 #define RAM_FIELD_DISPLAY_FLAGS 0x7E0153u
 #define RAM_FIELD_DISPLAY_FLAGS_DP 0x53u     /* page field */
 /* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
- * (and set when $C0:1F0E opens one) */
+ * (and set when $C0:1F0E opens one); bit 7 set when a script loads an object's palette itself
+ * (event $33, $C0:3711), after which objects neither take nor give up the shared palette slots
+ * ($C0:7170, $C0:734C) until the next map clears it ($C0:0BF2) */
 #define RAM_FIELD_MODE_FLAGS 0x7E0154u
 #define RAM_FIELD_MODE_FLAGS_DP 0x54u        /* page field */
 /* Which of the map's levels the leader walks on (field/walk.c, MapLevel): 1 or 2, or 3 on stairs
@@ -942,6 +944,23 @@
 #define RAM_FIELD_OBJECT_SCREEN_Y 0x7E0A80u
 #define RAM_FIELD_OBJECT_SCREEN_Y_COUNT 64u
 #define RAM_FIELD_OBJECT_SCREEN_Y_STRIDE 0x02u
+/* Of the objects sharing the object's sprite palette slot (the same colors), the one that took
+ * it before this one: a link, negative for none ($C0:7170 when it takes the slot, $C0:734C when
+ * it gives it up) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_PALETTE_OLDER 0x7E0B00u
+#define RAM_FIELD_OBJECT_PALETTE_OLDER_COUNT 64u
+#define RAM_FIELD_OBJECT_PALETTE_OLDER_STRIDE 0x02u
+/* Of the objects sharing the object's sprite palette slot, the one that took it after this one:
+ * a link, negative for none [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_PALETTE_NEWER 0x7E0B01u
+#define RAM_FIELD_OBJECT_PALETTE_NEWER_COUNT 64u
+#define RAM_FIELD_OBJECT_PALETTE_NEWER_STRIDE 0x02u
+/* The object that took each sprite palette slot last, the newest of those sharing it: a link,
+ * negative when no object has the slot ($C0:7170, $C0:734C) [8 x $1 bytes, by sprite palette
+ * slot] */
+#define RAM_FIELD_PALETTE_SLOT_NEWEST 0x7E0B80u
+#define RAM_FIELD_PALETTE_SLOT_NEWEST_COUNT 8u
+#define RAM_FIELD_PALETTE_SLOT_NEWEST_STRIDE 0x01u
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
  * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
@@ -1027,7 +1046,8 @@
 #define RAM_FIELD_OBJECT_PRIORITY_MODE_COUNT 64u
 #define RAM_FIELD_OBJECT_PRIORITY_MODE_STRIDE 0x02u
 /* The palette bits of the object's sprites' attributes, which the frame builder puts in each
- * sprite of a new frame [64 x $2 bytes, by object slot (X = slot * 2)] */
+ * sprite of a new frame: the sprite palette slot the object has, doubled [64 x $2 bytes, by
+ * object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_PALETTE 0x7E0F81u
 #define RAM_FIELD_OBJECT_PALETTE_COUNT 64u
 #define RAM_FIELD_OBJECT_PALETTE_STRIDE 0x02u

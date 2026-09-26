@@ -1686,8 +1686,8 @@ name = "field_mode_flags"
 addr = "7E:0154"
 page = "field"
 subsystem = "field"
-meaning = "Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog (and set when $C0:1F0E opens one)"
-source = "game/event/dialog.c open_dialog; $C0:1F1E"
+meaning = "Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog (and set when $C0:1F0E opens one); bit 7 set when a script loads an object's palette itself (event $33, $C0:3711), after which objects neither take nor give up the shared palette slots ($C0:7170, $C0:734C) until the next map clears it ($C0:0BF2)"
+source = "game/event/dialog.c open_dialog; $C0:1F1E; game/field/palettes.c object_give_up_palette $C0:734C"
 
 [[var]]
 name = "dialog_choice_last"
@@ -2164,8 +2164,37 @@ count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "The palette bits of the object's sprites' attributes, which the frame builder puts in each sprite of a new frame"
-source = "game/field/frames.c, frame_sprites ($C0:CAD9)"
+meaning = "The palette bits of the object's sprites' attributes, which the frame builder puts in each sprite of a new frame: the sprite palette slot the object has, doubled"
+source = "game/field/frames.c, frame_sprites ($C0:CAD9); game/field/palettes.c"
+
+[[var]]
+name = "field_object_palette_older"
+addr = "7E:0B00"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Of the objects sharing the object's sprite palette slot (the same colors), the one that took it before this one: a link, negative for none ($C0:7170 when it takes the slot, $C0:734C when it gives it up)"
+source = "game/field/palettes.c object_give_up_palette $C0:734C"
+
+[[var]]
+name = "field_object_palette_newer"
+addr = "7E:0B01"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Of the objects sharing the object's sprite palette slot, the one that took it after this one: a link, negative for none"
+source = "game/field/palettes.c object_give_up_palette $C0:734C"
+
+[[var]]
+name = "field_palette_slot_newest"
+addr = "7E:0B80"
+count = 8
+index = "sprite palette slot"
+subsystem = "field"
+meaning = "The object that took each sprite palette slot last, the newest of those sharing it: a link, negative when no object has the slot ($C0:7170, $C0:734C)"
+source = "game/field/palettes.c object_give_up_palette $C0:734C"
 
 [[var]]
 name = "field_object_sprite_tiles"

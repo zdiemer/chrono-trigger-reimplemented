@@ -822,7 +822,9 @@ uint8_t field_display_flags(const GameState *g);
 void set_field_display_flags(GameState *g, uint8_t v);
 
 /* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
- * (and set when $C0:1F0E opens one) */
+ * (and set when $C0:1F0E opens one); bit 7 set when a script loads an object's palette itself
+ * (event $33, $C0:3711), after which objects neither take nor give up the shared palette slots
+ * ($C0:7170, $C0:734C) until the next map clears it ($C0:0BF2) */
 uint8_t field_mode_flags(const GameState *g);
 void set_field_mode_flags(GameState *g, uint8_t v);
 
@@ -1202,6 +1204,25 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
 
+enum { FIELD_OBJECT_PALETTE_OLDER_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Of the objects sharing the object's sprite palette slot (the same colors), the one that took
+ * it before this one: a link, negative for none ($C0:7170 when it takes the slot, $C0:734C when
+ * it gives it up) */
+uint8_t field_object_palette_older(const GameState *g, unsigned slot);
+void set_field_object_palette_older(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_PALETTE_NEWER_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Of the objects sharing the object's sprite palette slot, the one that took it after this one:
+ * a link, negative for none */
+uint8_t field_object_palette_newer(const GameState *g, unsigned slot);
+void set_field_object_palette_newer(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_PALETTE_SLOT_NEWEST_COUNT = 8 };   /* by sprite palette slot */
+/* The object that took each sprite palette slot last, the newest of those sharing it: a link,
+ * negative when no object has the slot ($C0:7170, $C0:734C) */
+uint8_t field_palette_slot_newest(const GameState *g, unsigned slot);
+void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v);
+
 enum { FIELD_FRAME_STAGING_CLAIMS_COUNT = 8 };   /* by area of field_frame_staging (the last four entries are cleared with the first four and claim nothing read so far) */
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
@@ -1326,7 +1347,7 @@ void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_PALETTE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The palette bits of the object's sprites' attributes, which the frame builder puts in each
- * sprite of a new frame */
+ * sprite of a new frame: the sprite palette slot the object has, doubled */
 uint8_t field_object_palette(const GameState *g, unsigned slot);
 void set_field_object_palette(GameState *g, unsigned slot, uint8_t v);
 

@@ -508,7 +508,9 @@ bool field_frames_can_put(Snes *s)
     if (!field_current_object_bank_zero(s))
         return false;
     vars_peek(true);
-    bool ok = object_drawn_frame_can_go_back(state_of(s), (FieldObject)field_current_object_slot(s));
+    const GameState *g = state_of(s);
+    bool ok = object_making_current_recognises(g) &&
+              object_drawn_frame_can_go_back(g, (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }
