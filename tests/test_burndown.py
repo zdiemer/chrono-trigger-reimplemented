@@ -115,12 +115,19 @@ class Burndown(unittest.TestCase):
         self.assertEqual(p.stops, {0xC08104})
         # the call before the stop is inlined; the one after it may be the original's
         self.assertEqual(inlined, {0xC08020, 0xC08021})
-        # its own code after the stop still counts: a port often stops on some paths only
-        self.assertIn(0xC08105, own)
+        # the code from the stop on is the original's, down to its return
+        self.assertNotIn(0xC08104, own)
+        self.assertNotIn(0xC08105, own)
+        self.assertNotIn(0xC08108, own)
+        self.assertIn(0xC08103, own)
         # a stop where a call returns is a port giving up after a call-out: it goes on there otherwise
         p, own, inlined = stopper(PORT.replace("0xC08104, 0", "0xC08103, 0"))
         self.assertEqual(p.stops, set())
         self.assertEqual(inlined, {0xC08020, 0xC08021, 0xC08030, 0xC08031})
+        # one there that declares what is dead hands back all the same
+        p, own, inlined = stopper(PORT.replace("0xC08104, 0", "0xC08103, 0x0002"))
+        self.assertEqual(p.stops, {0xC08103})
+        self.assertNotIn(0xC08103, own)
 
     def test_a_call_out_that_cant_be_read_credits_nothing(self):
         # the site and target come from somewhere the check can't follow

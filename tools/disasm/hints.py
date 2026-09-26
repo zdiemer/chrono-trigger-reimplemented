@@ -89,6 +89,9 @@ class Hints:
     derive: dict = field(default_factory=dict)         # indirect or table site -> "deriver.part" (derive.py)
     header_vectors: bool = False                       # enter the NMI, IRQ and reset vectors of the header
     bounds: dict = field(default_factory=dict)         # indirect or table site -> argument kind (BOUNDS)
+    # table site -> the entries its index can reach whatever the data, argued
+    # from the dispatch (tools/v_readers.py); only a `derive` table has one
+    index_reach: dict = field(default_factory=dict)
     nofollow: set = field(default_factory=set)         # indirect sites whose targets are entries, not traced
     data: list = field(default_factory=list)           # (start, end) inclusive, never code
     data_regions: list = field(default_factory=list)   # DataHint, sorted by start
@@ -202,6 +205,10 @@ def load(path: Path) -> Hints:
             h.derive[parse(t["at"])] = t["derive"]
         if "bound" in t:
             h.bounds[parse(t["at"])] = _bound(t)
+        if "index_reach" in t:
+            if "derive" not in t:
+                raise ValueError(f"jumptable {t['at']}: index_reach is for a table derived from data")
+            h.index_reach[parse(t["at"])] = t["index_reach"]
     for d in doc.get("data", []):
         start, end = parse(d["start"]), parse(d["end"])
         if end < start or start >> 16 != end >> 16:

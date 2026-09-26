@@ -11,7 +11,8 @@
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--scaffold-reads]
- *          [--as-port BBAAAA[,BBAAAA...]]
+ *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-set AXYNVZC]
+ *          [--index-check BBAAAA]...
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -89,6 +90,18 @@
  * hand port would run: all at once with time stopped, its time owed after
  * (dev/as_port.h). For trying what the shipping mode does with a port of a
  * routine before writing it, a routine that spans frames above all.
+ * --poison-site BBAAAA (with --native on) scrambles, at each call-out a hand
+ * port makes from that site with a don't-care set, the registers and flags the
+ * set names (native_site_poison); --poison-set AXYNVZC (any of those letters)
+ * scrambles only those of the set. A declaration that holds leaves the run's
+ * trace as it is without the scrambling; one the original's code reads changes
+ * it. It prints each site's calls and how many had the overflow flag inverted.
+ * --index-check BBAAAA (with --native off --recomp off, where the interpreter
+ * runs everything) notes the X register each time the instruction there runs,
+ * and prints the largest and how often it was past $FE: the check of a jump
+ * table's `index_reach` hint (re/hints.toml). Both are the evidence for a
+ * declaration liveness can't prove (docs/PORTING.md, "Declarations liveness
+ * can't prove"; tools/dc_evidence.py runs them).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -203,9 +216,35 @@ static void record_call(Coverage *cov, uint32_t site, uint32_t target)
     }
 }
 
+/* --index-check: the instructions named, how often the interpreter ran each,
+ * the largest X it ran with, and how often X was past the limit. */
+typedef struct {
+    uint32_t pc;
+    unsigned long runs, over;
+    uint16_t largest;
+} IndexCheck;
+static IndexCheck index_checks[16];
+static int nindex_checks;
+static uint16_t index_limit = 0xFE;
+
+static void note_index(uint32_t pc, uint16_t x)
+{
+    for (int i = 0; i < nindex_checks; i++) {
+        if (index_checks[i].pc != pc)
+            continue;
+        index_checks[i].runs++;
+        if (x > index_checks[i].largest)
+            index_checks[i].largest = x;
+        if (x > index_limit)
+            index_checks[i].over++;
+    }
+}
+
 static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
 {
     Coverage *cov = ctx;
+    if (nindex_checks)
+        note_index(pc, cov->snes->cpu.x);
     if (io_log)
         io_log_note_instruction(io_log, pc);
     if (event_reads)
@@ -348,6 +387,36 @@ static void report_page_refusals(void)
                     (unsigned)r[i].last_d);
 }
 
+/* --poison-site: the call sites named, how many calls each made and in how
+ * many the overflow flag was among what was scrambled (so inverted). */
+typedef struct {
+    uint32_t site;
+    unsigned long calls, v_inverted;
+} PoisonSite;
+static PoisonSite poison_sites[16];
+static int npoison_sites;
+static uint64_t poison_state = 0x9E3779B97F4A7C15ull;
+static uint16_t poison_set = 0xFFFF;
+
+static bool poison_site(uint32_t site, uint32_t target, uint64_t *bits, uint16_t *set)
+{
+    (void)target;
+    for (int i = 0; i < npoison_sites; i++) {
+        if (poison_sites[i].site != site)
+            continue;
+        *set &= poison_set;
+        poison_state ^= poison_state << 13;
+        poison_state ^= poison_state >> 7;
+        poison_state ^= poison_state << 17;
+        *bits = poison_state;
+        poison_sites[i].calls++;
+        if (*set & DC_V)
+            poison_sites[i].v_inverted++;
+        return *set != 0;
+    }
+    return false;
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
@@ -441,6 +510,25 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--include") && nincludes < 64) includes[nincludes++] = v;
         else if (!strcmp(a, "--as-port")) as_ports = v;
+        else if (!strcmp(a, "--poison-site") && npoison_sites < 16)
+            poison_sites[npoison_sites++].site = (uint32_t)strtoul(v, NULL, 16);
+        else if (!strcmp(a, "--index-check") && nindex_checks < 16)
+            index_checks[nindex_checks++].pc = (uint32_t)strtoul(v, NULL, 16);
+        else if (!strcmp(a, "--poison-set")) {
+            poison_set = 0;
+            for (const char *c = v; *c; c++) {
+                switch (*c) {
+                case 'A': poison_set |= DC_A; break;
+                case 'X': poison_set |= DC_X; break;
+                case 'Y': poison_set |= DC_Y; break;
+                case 'N': poison_set |= DC_N; break;
+                case 'V': poison_set |= DC_V; break;
+                case 'Z': poison_set |= DC_Z; break;
+                case 'C': poison_set |= DC_C; break;
+                default: break;
+                }
+            }
+        }
         else if (!strcmp(a, "--shadow-details")) shadow_details = (int)strtol(v, NULL, 10);
         else if (!strcmp(a, "--port-timing")) {
             if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
@@ -507,7 +595,8 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]]\n");
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--poison-site BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -636,7 +725,9 @@ int main(int argc, char **argv)
         misses = misses_create(&snes);
     if (event_reads_path)
         event_reads = event_reads_create(&snes);
-    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path) {
+    if (nindex_checks && (native_mode != NATIVE_OFF || recomp))
+        fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --recomp off\n");
+    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -671,6 +762,13 @@ int main(int argc, char **argv)
     };
     static uint8_t wram_written[SNES_WRAM_SIZE];
     snes.bus.wram_written = wram_written;
+    if (npoison_sites) {
+        if (native_mode != NATIVE_ON) {
+            fprintf(stderr, "--poison-site needs --native on (shadow mode runs ports on a copy)\n");
+            return 2;
+        }
+        native_site_poison = poison_site;
+    }
     if (scaffold_reads) {
         if (native_mode != NATIVE_ON) {
             fprintf(stderr, "--scaffold-reads needs --native on (shadow mode runs ports on a copy)\n");
@@ -758,6 +856,12 @@ int main(int argc, char **argv)
     range_report(stderr);
     if (scaffold_reads)
         scaffold_reads_report(stderr);
+    for (int i = 0; i < npoison_sites; i++)
+        fprintf(stderr, "poison-site: %06X calls %lu, V inverted %lu\n", (unsigned)poison_sites[i].site,
+                poison_sites[i].calls, poison_sites[i].v_inverted);
+    for (int i = 0; i < nindex_checks; i++)
+        fprintf(stderr, "index-check: %06X runs %lu, largest X $%04X, past $%02X %lu\n", (unsigned)index_checks[i].pc,
+                index_checks[i].runs, (unsigned)index_checks[i].largest, (unsigned)index_limit, index_checks[i].over);
     au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();

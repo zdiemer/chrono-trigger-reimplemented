@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 147 files, 117 of
-39,031 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 153 files, 117 of
+40,920 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -180,11 +180,11 @@ round the call-outs to the original's code:
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 27 | 0 | 9,834 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
-| field | 0 | 23 | 0 | 6,530 | 0.01 | 20% |
+| field | 0 | 25 | 0 | 6,872 | 0.01 | 20% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
-| **total** | **1** | **128** | **117** | **30,313** | **0.03** | **31%** |
+| **total** | **1** | **130** | **117** | **30,655** | **0.03** | **31%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -338,24 +338,24 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **50% of the code is still generated.**
+docstring says which way it is wrong). **48% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 31.7K | 11.5K | 51% | 202 |
-| field engine, events (`$C0`) | 59.4K | 37.2K | 8.7K | 37% | 278 |
-| menus, text (`$C2`) | 59.3K | 23.6K | 6.9K | 60% | 231 |
-| scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
-| battle frame work (`$CD`) | 15.5K | 5.0K | 2.8K | 68% | 27 |
-| field graphics (`$FD`) | 15.3K | 8.7K | 0.6K | 43% | 52 |
-| battle sprites (`$CF`) | 6.8K | 6.7K | 0.4K | 2% | 44 |
+| battle (`$C1`, `$CE`) | 64.9K | 38.0K | 17.6K | 41% | 215 |
+| field engine, events (`$C0`) | 59.4K | 39.4K | 8.8K | 34% | 281 |
+| menus, text (`$C2`) | 59.3K | 22.3K | 6.9K | 62% | 231 |
+| scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
+| battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
+| field graphics (`$FD`) | 15.3K | 8.8K | 0.6K | 43% | 54 |
+| battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
-| scene engine (`$C3`) | 3.9K | 3.8K | 0.7K | 4% | 28 |
+| scene engine (`$C3`) | 3.9K | 3.3K | 0.6K | 16% | 28 |
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **134.9K** | **34.1K** | **50%** | **1045** |
+| **total** | **268.5K** | **140.3K** | **40.3K** | **48%** | **1063** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -485,18 +485,21 @@ at `$C6:FD00`, and without knowing what each stream holds their ports would be
 named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
 menus' map").
 
-`$C1`'s first chunk is in (RECOMP.md, "Phase 3, wave 2: the enemies' minds"):
-the enemies' scripts -- the choosing, the conditions, the actions, the
-selectors -- the target search and the battlefield's questions, the random
-numbers, and an enemy's turn as far as the original's effect code. What is
-left of the bank, by `python3 tools/burndown.py --uncovered C1`, is the
-effects' working out and carrying out (`$C1:DA37` 8,234 bytes, `$C1:D132`
-2,213, `$C1:CBC3` 1,379, `$C1:C96A` 553), the combatants' animation commands
-and the enemy effects (`$C1:5CF1` 6,346, `$C1:4CF0` 3,563, `$C1:3772` 2,278,
-`$C1:75CC` 981), a party member's turn (`$C1:BCE1` 1,276, `$C1:B961` 767) and
-the timers' kinds' handlers (`$C1:883D` 972). The enemy's turn calls into the
-first group at every attack and tech, so the effects are the next chunk to
-take: they would make the turn C to its end.
+`$C1`'s first two chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
+minds" and "Phase 3, battle chunk 2: an effect worked out"): the enemies'
+scripts -- the choosing, the conditions, the actions, the selectors -- the
+target search and the battlefield's questions, the random numbers, and an
+enemy's turn to its end, its effect worked out in C (the kinds, the damage
+formulas, the statuses and the modifiers). What is left of the bank, by
+`python3 tools/burndown.py --uncovered C1` (63% of it covered), is the
+combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346 bytes,
+`$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205` (2,140), the
+party's side of an effect (`$C1:CBC3` 1,090 and the party's working out
+`$C1:D523`, which runs the kinds' ports), a party member's turn (`$C1:BCE1`,
+`$C1:B961`) and the timers' kinds' handlers (`$C1:883D`). The party's
+working out is the next chunk: with it an action is C from the turn to its
+showing whoever acts, and the reads of the direct page the effect work keeps
+from the party's code (TODO.md) can be made plain.
 
 **`$C0`: the field and events.** The first chunk (RECOMP.md, "Phase 3, field
 and events: the party on the map") took the move and state commands off the
@@ -539,8 +542,22 @@ VRAM and put in the frame's data, a part at a time for the larger layouts.
 `$C0` stands at 37.2 KiB ported, 37% left. What is left of the builder's run
 is its immediate twin (`$C0:CB0A` and its layouts `$C0:CDC8`, `$C0:D124`,
 `$C0:DD28`, reached by `BRL` from the battle's return at `$C0:086E` and
-`$C0:0902`, so only as part of that routine) and `$C0:E12A`; next by size is
-the field's main loop and map loading (`$C0:0B86`, 3878 bytes).
+`$C0:0902`, so only as part of that routine) and `$C0:E12A`.
+
+The sixth (RECOMP.md, "Phase 3, field and events: the switches and the main
+loop's requests") took the main loop's `$C0:0C76` as far as the step
+event's floor switches, and the redraw of their tiles after the picture
+(`$C0:ED15`); the location change, the menus, a chest, the tile copy and
+the battle are handed to the original where it reads the requests. The
+burndown no longer counts a port's hand-backs as its own (RECOMP.md, "the
+drawn frame put on the records").
+
+The seventh took the frame builder's twin, which puts the frame an object
+shows straight onto its records when the field comes back from a battle
+(`$C0:CB0A` and its layouts). `$C0` stands at 39.4 KiB ported, 34% left; what
+is left is the requests `$C0:0C76` hands back, the field's start
+(`$C0:0B86`), the battle's return that calls the twin (`$C0:0715`-`$C0:0904`),
+and the pause and the menu opening (`$C0:18D9`-`$C0:1A6F`).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

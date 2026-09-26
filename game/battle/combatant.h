@@ -27,34 +27,86 @@
  * battle's code names them for what it does with them. */
 typedef uint32_t Statuses;
 
-/* The status bits this code tests, by what they do in the battle. */
+/* The status bits the battle's code tests, by what they do in the battle.
+ * The first status byte (the low byte of Statuses): */
 enum {
-    /* The combatant gets no turns while it has this: its turn timer stops. */
-    STATUS_NO_TURNS = 0x02,
-    /* Its enemy's script starts over when this comes or goes. */
-    STATUS_RESTARTS_SCRIPT = 0x04,
+    /* Blind: its aim is a quarter as good, and it is easier to hit. */
+    STATUS_BLIND = 0x01,
+    /* Asleep: it gets no turns while it has this, its turn timer stopped; a
+     * hit wakes it. */
+    STATUS_ASLEEP = 0x02,
+    /* Confused: its enemy's script starts over when this comes or goes; a hit
+     * brings it to its senses, and it is easier to hit. */
+    STATUS_CONFUSED = 0x04,
     /* A party member with it can't use techs, nor join a combination tech. */
     STATUS_NO_TECHS = 0x08,
+    /* Slow: its turns come half as fast, and it defends less well. */
+    STATUS_SLOW = 0x20,
+    /* Poisoned: its aim and its defence are lower, its hits weaker. */
+    STATUS_POISON = 0x40,
     /* Stop: while it lasts the combatant's other timers stand still, and
      * only this status's own counts (battle/timers.c). */
     STATUS_STOP = 0x80,
 };
 
+/* A hit wakes the target and brings it to its senses. */
+enum { STATUSES_A_HIT_ENDS = STATUS_ASLEEP | STATUS_CONFUSED };
+
+/* The third status byte (with the kept ones, STAT_KEPT_STATUS_3): */
+enum {
+    /* Evades a little better: its evasion is doubled. */
+    STATUS3_EVADES_BETTER = 0x01,
+    /* Evades much better: its evasion is two and a half times. */
+    STATUS3_EVADES_MUCH_BETTER = 0x40,
+    /* Haste: its turns come twice as fast. */
+    STATUS3_HASTE = 0x80,
+};
+
+/* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
+enum {
+    /* Its hits do a quarter more. */
+    STATUS4_HITS_A_QUARTER_HARDER = 0x02,
+    /* A barrier: the hits the effect doesn't pass it with do seven tenths. */
+    STATUS4_BARRIER = 0x04,
+    /* Its hits do half as much again, the half rounded down first. */
+    STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08,
+    /* A shield: as the barrier, against the effects that pass the barrier. */
+    STATUS4_SHIELD = 0x40,
+    /* Its hits do half as much again. */
+    STATUS4_HITS_HALF_AGAIN = 0x80,
+};
+
 /* The bytes of a combatant's stat block the battle's code reads by their
  * offsets, as the enemies' scripts name a stat. */
 typedef enum {
-    STAT_OTHER = 0x01,
+    STAT_ELEMENTS = 0x01,        /* the elements of its attack, one bit each, the first from the top */
     STAT_HP = 0x03,              /* a word */
     STAT_MAX_HP = 0x05,          /* a word */
-    STAT_FLAGS = 0x19,
+    STAT_MP = 0x07,              /* a word */
+    STAT_MAX_MP = 0x09,          /* a word */
+    STAT_LEVEL = 0x12,
+    STAT_KIND = 0x19,            /* the kinds of effect it turns away; bit 7, it can't be felled outright */
+    STAT_FAMILY = 0x1A,          /* the families some modifiers single out */
     STAT_ATTACK_DETAIL = 0x1B,   /* an enemy's attack's detail */
     STAT_CONDITION = 0x1D,       /* knocked out, and the enemy's flag */
     STAT_STATUS_1 = 0x1E,
     STAT_STATUS_2 = 0x1F,
     STAT_STATUS_3 = 0x20,
     STAT_STATUS_4 = 0x21,
+    STAT_SHRUGS_OFF = 0x22,      /* the bits of the condition it shrugs off, then of the first and second status bytes */
     STAT_STATUS_IGNORED = 0x23,  /* the first status byte's bits it shrugs off */
+    STAT_KEPT_STATUS_3 = 0x25,   /* the third status byte's bits it keeps whatever happens */
     STAT_KEPT_STATUS_4 = 0x26,   /* the fourth status byte's bits it keeps whatever happens */
+    STAT_POWER = 0x36,
+    STAT_HIT = 0x37,
+    STAT_MAGIC = 0x39,
+    STAT_STAMINA = 0x3A,
+    STAT_SPEED = 0x3D,
+    STAT_ELEMENT_AFFINITY = 0x3F, /* four, an element each: bit 7 absorbs it, bit 6 two less, the rest the scale's divisor */
+    STAT_WEAPON_ATTACK = 0x43,   /* a word */
+    STAT_CRITICAL_RATE = 0x45,
+    STAT_WEAPON_MODIFIER = 0x46, /* the modifier its weapon applies */
+    STAT_WEAPON_MODIFIER_ON = 0x47, /* bit 0: its weapon's modifier applies */
 } StatOffset;
 
 /* The condition byte's bit for knocked out. */
@@ -83,6 +135,9 @@ Statuses combatant_statuses(const GameState *g, unsigned slot);
  * slot that names no combatant (a marked candidate, none) is read wherever
  * the table's word past its end takes it. */
 uint8_t combatant_stat_byte(const GameState *g, uint8_t slot, uint16_t offset);
+/* A stat by a stat block's offset among the blocks, as the effect code keeps
+ * one it didn't work out itself (battle_effect_other_block). */
+uint8_t combatant_stat_byte_at_block(const GameState *g, uint16_t block, uint16_t offset);
 void set_combatant_stat_byte(GameState *g, uint8_t slot, uint16_t offset, uint8_t v);
 uint8_t combatant_stat_byte_by_place(const GameState *g, uint8_t slot, uint16_t offset);
 uint16_t combatant_stat_word_by_place(const GameState *g, uint8_t slot, uint16_t offset);

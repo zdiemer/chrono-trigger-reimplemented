@@ -60,7 +60,9 @@ static void end_rising_table(GameState *g, FadeTable table, unsigned entries)
 }
 
 /* The original counts the two intensities in its scratch cells, color-math
- * value and fraction together, and leaves the last pair's there. */
+ * value and fraction together, and leaves the last pair's there, where a
+ * screen effect's settings that the script command doesn't set are read from
+ * (battle/screen_motion.c): game state, kept plainly. */
 static void leave_intensities(GameState *g, const FadePair *p)
 {
     uint16_t fell = (uint16_t)(ALL_CHANNELS << 8 | (uint16_t)(FALL_FROM - (p->entries + 1) * p->step));
@@ -84,7 +86,7 @@ static void build_fade_tables(GameState *g)
         }
         end_rising_table(g, p->rises, p->entries);
     }
-    ORIGINAL_EFFECT(leave_intensities(g, &pairs[1]));
+    leave_intensities(g, &pairs[1]);
 }
 
 /* ---- The entry ------------------------------------------------------------------------ */

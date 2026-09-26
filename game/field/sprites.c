@@ -237,6 +237,16 @@ void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSp
     set_field_sprite_frame_data_byte(g, at + RECORD_ATTRIBUTES, sprite.attributes);
 }
 
+/* The same sprite put straight on the object's records (their offsets and
+ * look; the screen position is the next placing's). */
+void sprites_set_record_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite)
+{
+    SpriteRecord r = sprite_record(g, obj, n);
+    set_record_x_offset(g, r, (uint16_t)(int16_t)sprite.x);
+    set_record_y_offset(g, r, (uint8_t)sprite.y);
+    set_record_look(g, r, (uint16_t)(sprite.attributes << 8 | sprite.tile));
+}
+
 
 /* The object's sprites as a list, from its records and its high bits. */
 static unsigned object_sprites(const GameState *g, FieldObject obj, Sprite *out)

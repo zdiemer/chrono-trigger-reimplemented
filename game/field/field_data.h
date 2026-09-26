@@ -35,6 +35,14 @@ static inline uint8_t field_sprite_graphics_byte(const GameState *g, uint32_t at
 static inline uint16_t field_frame_tile_word(const GameState *g, uint32_t at) { return rom_read16(g, at); }
 static inline uint8_t field_frame_offset_byte(const GameState *g, uint32_t at) { return rom_read8(g, at); }
 
+/* A bank every address of which holds data -- the ROM's high banks and their
+ * mirrors, or work RAM -- where a read never finds nothing to answer it and
+ * takes what the bus last held. */
+static inline bool field_bank_always_answers(uint8_t bank)
+{
+    return (bank >= 0x40 && bank < 0x80) || bank >= 0xC0;
+}
+
 /* The ROM's banks of sprite graphics, which a graphics set's bank names: the
  * original copies from each of the four with a routine of its own, and a bank
  * past them (or before) from the last. */

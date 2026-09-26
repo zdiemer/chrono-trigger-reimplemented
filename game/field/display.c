@@ -13,7 +13,9 @@
  * the frame is blanked, and the time to vblank goes to one of two jobs. */
 #include "field/display.h"
 #include "field/sprites.h"
+#include "field/switches.h"
 
+#include "charge.h"
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/layers.h"
@@ -370,3 +372,23 @@ void field_irq_after_hblank(Snes *s)
         return;
     m_return_to_interrupted(s);
 }
+
+/* ---- After the picture ---------------------------------------------------------------------- */
+
+// $C0:ED15
+/* The line interrupt's job in the time after the picture, on the frames it
+ * isn't bank $FD's: the windows' corners, where they need it, and the looks
+ * of a switch pressed or a chest opened (field/switches.c). */
+void field_redraw_after_picture(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    if (field_windows_need_refresh(g))
+        TIMED_AS(g, 0xC0F05E, field_refresh_corners(g, pf));
+    field_redraw_changed_tiles(g, pf);
+    m_rts(s);
+}
+
+/* Its guard: the data bank $00, on whatever page the interrupt has (it
+ * reaches its cells as the field's page does). */
+bool field_redraw_can_run(Snes *s) { return m_bank_is_zero(s); }

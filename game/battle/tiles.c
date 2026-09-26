@@ -99,7 +99,7 @@ static void decode_tile(GameState *g, uint16_t descriptor, uint16_t mask, uint16
         uint16_t upper_at = (uint16_t)(at + HALF_TILE_BYTES + row * 2);
         set_tile_word(g, upper_at, with_third_plane(tile_word(g, upper_at), third, mask));
     }
-    ORIGINAL_EFFECT(leave_third_plane(g, third));
+    leave_third_plane(g, third); /* the screen effect's settings can read it (screen_setup.c) */
 }
 
 /* The original swaps rows through a cell; it is left the last row it moved. */
@@ -137,7 +137,9 @@ static void mirror_tile(GameState *g, uint16_t at)
 
 /* What the original leaves of the row: where its descriptors ended (the
  * pointer's bank twice over), the row set twice over, the tiles decoded, and
- * none left to count; and the row's palette word, twice. */
+ * none left to count; and the row's palette word, twice. The first cells are
+ * the ones a screen effect's settings are read from where the script command
+ * doesn't set them (battle/screen_motion.c), so they are kept plainly. */
 enum { LEFT_DESCRIPTORS = 0x0E, LEFT_TILES_DONE = 0x16, LEFT_TILES_LEFT = 0x22 };
 enum { DESCRIPTOR_BANK = 0xCF, DESCRIPTOR_TABLE = 0xA000 };
 enum { LEFT_DESCRIPTOR_BANK = 0x10, LEFT_SECOND_BANK = 0x14 };
@@ -162,7 +164,7 @@ static void decode_tile_row(GameState *g, uint16_t row_set, uint16_t tiles)
 {
     uint16_t descriptors = (uint16_t)(row_set * ROW_SET_BYTES);
     uint16_t palettes = battle_tile_row_palette_word(g, (uint16_t)(row_set * 2));
-    ORIGINAL_EFFECT(leave_row(g, row_set, palettes));
+    leave_row(g, row_set, palettes);
     uint16_t at = 0;
     for (uint16_t tile = 0; tile < tiles; tile++) {
         uint16_t descriptor = battle_tile_descriptor(g, descriptors);
@@ -177,7 +179,7 @@ static void decode_tile_row(GameState *g, uint16_t row_set, uint16_t tiles)
         descriptors = (uint16_t)(descriptors + DESCRIPTOR_BYTES);
         at = (uint16_t)(at + TILE_BYTES);
     }
-    ORIGINAL_EFFECT(leave_row_end(g, descriptors, tiles));
+    leave_row_end(g, descriptors, tiles);
 }
 
 /* ---- The entry ------------------------------------------------------------------------- */

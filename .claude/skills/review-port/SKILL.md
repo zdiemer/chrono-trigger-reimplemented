@@ -703,6 +703,22 @@ Each of these is a finding. Every example here comes from this repo.
     leaves helper that works the flag out from the final state
     (`event/contact.c`).
 
+94. **A leaves derivation that decodes state differently from the logic.** A
+    helper that works a register out must read the state through the logic
+    file's own storage functions, never re-decode the layout with raw
+    accessors, or it quietly diverges at the edges (a tile map's column 63
+    read as BG1's column 0 in one file and BG2's in the other).
+95. **Origin tags passed into a logic helper's signature.** A drawing
+    function that takes a table of sites and an index only to tag its writes
+    (`redraw_tile(..., RedrawSites at, unsigned n)`): item 45 for tags. Tag
+    once, with a literal, where the branch starts its uploads.
+
+96. **A justification that contradicts what shadow mode compares.** A comment
+    keeping scaffolding or a register derivation "because shadow mode
+    compares X" where docs/PORTING.md says it doesn't. The code may be right
+    while its stated reason is wrong, which misleads whoever next decides
+    whether it can go. Check the claim against PORTING.md.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

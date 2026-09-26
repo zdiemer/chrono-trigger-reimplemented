@@ -1,12 +1,12 @@
 /* Field mode: building object sprite graphics when an animation frame changes.
  *
- * The frame builder (reached from the queue $C0:CA76 works through each frame)
- * assembles an object's sprite tiles, 32 bytes each, in bank $7F at the
- * offset field_sprite_tile_offset holds, from the graphics set
- * field_sprite_graphics points at (the ROM's banks $D2-$D5, or graphics built
- * in $7F). A tile is copied straight, or mirrored left to right through the
- * work RAM port, whose cursor the builder has already placed. These are the
- * builder's two tile copies; the frame it builds is read in field/animation.c. */
+ * The frame builder (field/frames.c) assembles an object's sprite tiles, 32
+ * bytes each, in bank $7F, from the object's graphics set (the ROM's banks
+ * $D2-$D5, or graphics built in $7F). A tile is copied straight, or mirrored
+ * left to right. These are the builder's two tile copies; each is also an
+ * entry of its own, which the original's code calls with the set in
+ * field_sprite_graphics and the place in field_sprite_tile_offset (the
+ * straight copy) or the work RAM port's cursor (the mirrored one). */
 #include "field/graphics.h"
 
 #include "charge.h"
@@ -19,94 +19,89 @@
 #include "vars.h"
 #include "wram.h"
 
-enum { TILE_BYTES = 32, TILE_NUMBER_MASK = 0x07FF };
-enum { BUILD_BANK = 0x7F };
-
-/* The graphics set's pointer, read low byte first as a long pointer is: a
- * pointer to nothing reads what the bus last held, its bank byte. */
-static uint32_t graphics_set(const GameState *g)
-{
-    uint16_t address = field_sprite_graphics_address(g);
-    return (uint32_t)field_sprite_graphics_bank(g) << 16 | address;
-}
-
 /* A tile's offset in its graphics set. */
-static uint16_t tile_offset(uint16_t tile) { return (uint16_t)((tile & TILE_NUMBER_MASK) * TILE_BYTES); }
+static uint16_t tile_offset(uint16_t tile) { return (uint16_t)((tile & FIELD_TILE_NUMBER) * FIELD_TILE_BYTES); }
 
-/* The graphics set's bank, as the copy reads it: bank $7F where the builder
- * made the graphics, else the ROM's bank of sprite graphics it names
+/* The graphics set's bank, as the straight copy reads it: bank $7F where the
+ * builder made the graphics, else the ROM's bank of sprite graphics it names
  * (field_data.h). */
 static uint8_t source_bank(uint8_t bank)
 {
-    return bank == BUILD_BANK ? bank : field_sprite_graphics_rom_bank(bank);
+    return bank == FIELD_BUILD_BANK ? bank : field_sprite_graphics_rom_bank(bank);
+}
+
+// $C0:E687
+/* Copy a tile straight, a word at a time. The tile is at the set's address
+ * plus its offset, in 16 bits, in the bank the copy reads; the addresses
+ * carry into the next bank past $FFFF, as the original's indexed accesses
+ * do. */
+static void copy_sprite_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
+{
+    uint16_t from = (uint16_t)(tile_offset(tile) + set.address);
+    uint32_t source = (uint32_t)source_bank(set.bank) << 16;
+    for (uint16_t k = 0; k < FIELD_TILE_BYTES; k += 2) {
+        uint32_t at = source + k + from;
+        uint16_t word = (source >> 16) == FIELD_BUILD_BANK ? wram_read16(g, at) : field_sprite_graphics_word(g, at);
+        wram_write16(g, ((uint32_t)FIELD_BUILD_BANK << 16) + k + to, word);
+    }
+}
+
+// $C0:E534
+/* Copy a tile mirrored left to right: each of its 32 bytes, from the set's
+ * address plus the tile's offset in its bank, bit-reversed, to `to` in the
+ * build bank. */
+static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
+{
+    uint16_t at = tile_offset(tile);
+    uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
+    for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++) {
+        uint8_t b = field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k)));
+        wram_write8(g, ((uint32_t)FIELD_BUILD_BANK << 16) + (uint16_t)(to + k), b);
+    }
+}
+
+/* A frame's tile drawn in bank $7F, timed as the copy that draws it. */
+void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
+{
+    if (tile & FIELD_TILE_MIRRORED)
+        TIMED_AS(g, 0xC0E534, copy_sprite_tile_flipped(g, set, tile, to));
+    else
+        TIMED_AS(g, 0xC0E687, copy_sprite_tile(g, set, tile, to));
 }
 
 /* ---- For the original's code and shadow mode (field/scratch.h) -------------------------- */
 
-/* The tile copies save the caller's Y at $C5 (and give it back from there). */
-enum { SAVED_Y_CELL = 0xC5 };
-static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, SAVED_Y_CELL, y); }
-
-// $C0:E687
-/* Copy sprite tile `tile` of the graphics set to the build offset, a word at
- * a time, then point the work RAM port's cursor past it. The tile is at the
- * set's address plus its offset, in 16 bits, in the bank the copy reads. The
- * addresses carry into the next bank past $FFFF, as the original's indexed
- * accesses do. Returns where the cursor now is. */
-static uint16_t copy_sprite_tile(GameState *g, uint16_t tile)
-{
-    uint32_t graphics = graphics_set(g);
-    uint16_t from = (uint16_t)(tile_offset(tile) + graphics);
-    uint16_t to = field_sprite_tile_offset(g);
-    uint32_t source = (uint32_t)source_bank((uint8_t)(graphics >> 16)) << 16;
-    for (uint16_t k = 0; k < TILE_BYTES; k += 2) {
-        uint32_t at = source + k + from;
-        uint16_t word = (source >> 16) == BUILD_BANK ? wram_read16(g, at) : field_sprite_graphics_word(g, at);
-        wram_write16(g, ((uint32_t)BUILD_BANK << 16) + k + to, word);
-    }
-    uint16_t cursor = (uint16_t)(to + TILE_BYTES);
-    hw_port_seek_address(g, cursor);
-    return cursor;
-}
-
-// $C0:E534
-/* Write sprite tile `tile` mirrored left to right to the work RAM port: each
- * of its 32 bytes, from the graphics set's pointer plus the tile's offset,
- * bit-reversed. (The pointer is read for every byte: the port's cursor can
- * reach it.) */
-static void copy_sprite_tile_flipped(GameState *g, uint16_t tile)
-{
-    uint16_t at = tile_offset(tile);
-    for (uint16_t k = 0; k < TILE_BYTES; k++)
-        hw_port_write(g, field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics_set(g) + (uint16_t)(at + k))));
-}
-
-/* A frame's tile drawn where the builder has put the build offset and the
- * port's cursor (field/frames.c): mirrored where its description says,
- * timed as the copy that draws it. */
-void field_draw_frame_tile(GameState *g, uint16_t tile)
-{
-    if (tile & FIELD_TILE_MIRRORED)
-        TIMED_AS(g, 0xC0E534, copy_sprite_tile_flipped(g, tile));
-    else
-        TIMED_AS(g, 0xC0E687, copy_sprite_tile(g, tile));
-}
+/* The tile copies save the caller's Y (and give it back from there). */
+static void leave_saved_y(GameState *g, uint16_t y) { original_cell16(g, FIELD_SAVED_Y_CELL, y); }
 
 /* ---- Entries: the frame builder's calls, on the field's page ------------------------------ */
 
+/* The set the original's caller left in field_sprite_graphics. */
+static ObjectGraphics graphics_left(const GameState *g)
+{
+    return (ObjectGraphics){ field_sprite_graphics_bank(g), field_sprite_graphics_address(g) };
+}
+
 /* 16-bit A, the tile. Y comes back as it came, from the cell the copy saved
- * it in (the mirrored copy's guard keeps its writes off the cell). The
- * straight copy leaves A its cursor, and the overflow of its sum. */
+ * it in (the guards keep the copies' writes off the cell). The straight copy
+ * draws at field_sprite_tile_offset, and leaves the port's cursor past the
+ * tile in the bank it is in, A that cursor, and the overflow of its sum; the
+ * mirrored one draws at the port's cursor, which it leaves past the tile. */
 static void tile_copy_entry(Snes *s, bool mirrored)
 {
     GameState *g = state_of(s);
     uint16_t tile = s->cpu.a, y = s->cpu.y;
     ORIGINAL_EFFECT(leave_saved_y(g, y));
     if (mirrored) {
-        copy_sprite_tile_flipped(g, tile);
+        uint16_t to = (uint16_t)s->bus.wram_port_addr;
+        copy_sprite_tile_flipped(g, graphics_left(g), tile, to);
+        hw_port_seek_address(g, (uint16_t)(to + FIELD_TILE_BYTES));
     } else {
-        uint16_t cursor = copy_sprite_tile(g, tile);
-        m_set_flag(s, CPU_FLAG_V, field_add_overflows16((uint16_t)(cursor - TILE_BYTES), TILE_BYTES));
+        uint16_t to = field_sprite_tile_offset(g);
+        copy_sprite_tile(g, graphics_left(g), tile, to);
+        uint16_t cursor = (uint16_t)(to + FIELD_TILE_BYTES);
+        hw_port_seek_address(g, cursor);
+        m_set_flag(s, CPU_FLAG_V, field_add_overflows16(to, FIELD_TILE_BYTES));
         tile = cursor;
     }
     s->cpu.a = tile;
@@ -117,21 +112,24 @@ static void tile_copy_entry(Snes *s, bool mirrored)
 void field_copy_sprite_tile(Snes *s) { tile_copy_entry(s, false); }
 void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
 
-/* The mirrored copy's guard: on the field's page with the data bank $00, and
- * the work RAM port's 32 bytes clear of the cell the copy saves Y in, which
- * it would otherwise write over before the original reads Y back. The frame
- * builder places the port on the tiles it builds in bank $7F. */
-enum { PORT_SPACE = 0x20000, SAVED_Y_AT = 0x00100 + SAVED_Y_CELL };
+/* The mirrored copy's guard: on the field's page with the data bank $00, the
+ * tile's 32 bytes in banks where every address answers (elsewhere the copy
+ * would read what the bus last held; the set's address carries into the next
+ * bank, the last bank's into bank $00), and the port's 32 bytes inside the
+ * build bank, where the frame builder places it. */
+enum { PORT_BANK_BIT = 0x10000, BANK_END = 0x10000 };
 
-bool field_tile_copy_keeps_saved_y(Snes *s)
+bool field_tile_copy_in_build_bank(Snes *s)
 {
     if (!field_on_page_bank_zero(s))
         return false;
+    vars_peek(true);
+    ObjectGraphics set = graphics_left(state_of(s));
+    vars_peek(false);
+    uint32_t first = ((uint32_t)set.bank << 16 | set.address) + tile_offset(s->cpu.a);
+    uint32_t last = first + FIELD_TILE_BYTES - 1;
+    if (!field_bank_always_answers((uint8_t)(first >> 16)) || !field_bank_always_answers((uint8_t)(last >> 16)))
+        return false;
     uint32_t port = s->bus.wram_port_addr;
-    for (uint32_t k = 0; k < TILE_BYTES; k++) {
-        uint32_t at = (port + k) % PORT_SPACE;
-        if (at == SAVED_Y_AT || at == SAVED_Y_AT + 1)
-            return false;
-    }
-    return true;
+    return (port & PORT_BANK_BIT) && (port & 0xFFFF) + FIELD_TILE_BYTES <= BANK_END;
 }

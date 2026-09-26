@@ -2599,6 +2599,17 @@ meaning = "The screen's left edge in 8-pixel tiles (with the fine scroll, the sc
 source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
 
 [[var]]
+name = "field_screen_edges_high"
+addr = "7E:1D0B"
+page = "field_layers"
+count = 2
+stride = 4
+index = "0 the left edge's, 1 the top edge's"
+subsystem = "field"
+meaning = "The bytes after field_screen_left and field_screen_top, which the main loop's switches and chests read with them as words for their working copies of the screen's edges"
+source = "game/field/switches.c"
+
+[[var]]
 name = "field_screen_right"
 addr = "7E:1D0C"
 page = "field_layers"
@@ -9523,6 +9534,7 @@ name = "battle_enemy_beaten"
 addr = "7E:AEB3"
 count = 8
 index = "enemy (battle slot - 3)"
+unchecked = "a hit beats the target it names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c, $C1:DE0A)"
 subsystem = "battle"
 meaning = "Set for each enemy the action beat"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:AC5E, $C1:B762"
@@ -9618,6 +9630,7 @@ name = "battle_action_targets"
 addr = "7E:AD8E"
 count = 11
 index = "place"
+unchecked = "the effect code reads the target at the count less one in a byte, which is 255 past a count of 0 (game/battle/effect_amounts.c)"
 subsystem = "battle"
 meaning = "The action's targets ($FF past them)"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; $C1:AC46"
@@ -9703,6 +9716,7 @@ name = "battle_enemy_animation"
 addr = "7E:5E0D"
 count = 8
 index = "enemy (battle slot - 3)"
+unchecked = "a hit beats the target it names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c, $C1:DE0A)"
 subsystem = "battle"
 meaning = "The animation the enemy shows (its frame list is loaded for it, battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn only from a few of them"
 source = "game/battle/combatants.c battle_update_status_flags $C1:B0B6; game/battle/animation.c; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
@@ -10017,6 +10031,7 @@ source = "game/battle/enemy_actions.c ($C1:9810, $C1:983A)"
 [[var]]
 name = "battle_action_pose_kind"
 addr = "7E:AEE8"
+reuses = "battle_effect_record"
 subsystem = "battle"
 meaning = "Low four bits from the pose an enemy's action is announced with: 4 for poses 1 and 2, $D for 3 and 4, 0 for the rest ($C1:ACCE); the high four bits are kept"
 source = "game/battle/enemy_actions.c ($C1:ACCE)"
@@ -10104,6 +10119,7 @@ source = "game/battle/enemy_actions.c ($C1:AC89)"
 [[var]]
 name = "battle_attack_hits"
 addr = "7E:AEEB"
+reuses = "battle_effect_record"
 subsystem = "battle"
 meaning = "4 as an enemy's attack starts ($C1:ACB0)"
 source = "game/battle/enemy_actions.c ($C1:AC89)"
@@ -10153,13 +10169,13 @@ meaning = "The byte after battle_action_message, which the actions that set stat
 source = "game/battle/enemy_actions.c ($C1:9F62, $C1:9FDA, $C1:A213)"
 
 [[var]]
-name = "battle_hit_counts"
+name = "battle_effect_flags"
 addr = "7E:AE4D"
 count = 2
 index = "byte"
 subsystem = "battle"
-meaning = "Two bytes the effect's working out starts at 0 before an enemy's action"
-source = "game/battle/enemy_scripts.c ($C1:8E02)"
+meaning = "The effect's flags, from its record's eighth and ninth bytes: in the first, $10 and $20 skip a hit's two tests (it can't be dodged, it can't miss), $04 a chance of a status, $02 a chance to steal, $40 and $80 leave out the target's barrier or shield; in the second, $80 the attacker's weapon's modifier as well, and the low two bits a quarter-step scale of the defence. An enemy's turn starts them at 0"
+source = "game/battle/effect_work.c ($C1:EB0E); game/battle/enemy_turn.c ($C1:8E02)"
 
 [[var]]
 name = "battle_action_quiet"
@@ -11484,6 +11500,7 @@ addr = "7E:B328"
 count = 33
 stride = 4
 index = "hit (0-2) * 11 + battle slot"
+unchecked = "the effect code records a hit past the third, or for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8)"
 subsystem = "battle"
 meaning = "What each of an action's three hits does to each combatant, cleared each pass of the main loop"
 source = "game/battle/damage.c battle_clear_damage $FD:ACFD; $C1:EC12, $C1:EC39, $C1:EC7F"
@@ -11514,6 +11531,7 @@ addr = "7E:AD9C"
 count = 44
 stride = 4
 index = "set * 11 + battle slot (the animation script's number commands $50-$53 show sets 0-3)"
+unchecked = "the effect code adds up up to seven sets of numbers and reads a record by a slot past the combatants (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F)"
 subsystem = "battle"
 meaning = "The numbers shown over the combatants, a set per number command of the animation script, one a combatant"
 source = "game/battle/numbers.c header; game/battle/damage.c battle_clear_numbers $FD:ACEE"
@@ -12766,10 +12784,10 @@ source = "game/battle/screen_setup.c battle_build_fade_tables $D1:F83D"
 name = "battle_low_scratch"
 addr = "7E:0000"
 page = "battle"
-count = 0x20
-index = "byte ($00-$1F)"
+count = 0x22
+index = "byte ($00-$21)"
 subsystem = "battle"
-meaning = "Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
+meaning = "Direct-page scratch the battle's routines share at $00-$21 (the effect code hands its numbers over in $16-$21): the multiply's operands and product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at $12-$19)"
 source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF, battle_quad_edge_slopes $D1:F91D (screen_beam.c); $D1:F9E7; game/battle/effect_paths.c $CF:F9FB"
 
 [[var]]
@@ -13941,6 +13959,68 @@ size = 1
 meaning = "Its bank"
 
 [[var]]
+name = "field_tiles_to_redraw"
+addr = "7E:015F"
+page = "field"
+subsystem = "field"
+meaning = "Map tiles whose new looks wait for the line interrupt's time after the picture ($C0:ED15): bit 1 an opened chest's (field_chest_entries), bit 4 a pressed switch's (field_switch_entries)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_shape"
+addr = "7E:0160"
+page = "field"
+subsystem = "field"
+meaning = "The shape of the switch pressed last: 0 a tile and the one above, 1 two by two, 2 two across by three down"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_kind"
+addr = "7E:0161"
+page = "field"
+subsystem = "field"
+meaning = "The kind of chest opened last: 0 the map tile $FE, 1 the map tile $E0"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_sound"
+addr = "7E:01FB"
+page = "field"
+subsystem = "field"
+meaning = "The sound effect a chest makes opening ($65 from the field's start)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_sound"
+addr = "7E:01FC"
+page = "field"
+subsystem = "field"
+meaning = "The sound effect a switch makes pressed ($53 from the field's start)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_entries"
+addr = "7E:09B2"
+size = 2
+count = 4
+stride = 2
+index = "the opened chest's four tile map entries (top left, top right, bottom left, bottom right)"
+subsystem = "field"
+meaning = "VRAM addresses of BG1's tile map entries the opened chest's new look goes to"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_entries"
+addr = "7E:09CA"
+size = 2
+count = 24
+stride = 2
+index = "four for each of the pressed switch's tiles (top left, top right, bottom left, bottom right), up to six tiles"
+subsystem = "field"
+meaning = "VRAM addresses of BG1's tile map entries the pressed switch's new looks go to"
+source = "game/field/switches.c"
+
+[[var]]
 name = "field_vram_queue_end"
 addr = "7E:0179"
 subsystem = "field"
@@ -13956,6 +14036,17 @@ index = "queue entry"
 subsystem = "field"
 meaning = "The byte after each entry's field_vram_queue_used, which the frame builder's word-wide marking of the entries also writes; nothing reads it"
 source = "game/field/frames.c, queue_upload ($C0:CAD9)"
+
+[[var]]
+name = "field_pressed_tiles"
+addr = "7F:1CC8"
+size = 2
+count = 16
+stride = 2
+index = "slot; negative: free"
+subsystem = "field"
+meaning = "The step events the leader has set off on this map (field_step_tile each), kept as a list until it is full"
+source = "game/field/switches.c, remember_step ($C0:28C0)"
 
 [[var]]
 name = "field_frame_staging"
@@ -13998,3 +14089,264 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Where in bank $7F the object's new frame's tiles are drawn: the first of the field_frame_staging areas it claimed"
 source = "game/field/sprites.c, claim_frame_areas ($C0:E952, $C0:E97A, $C0:E9AA)"
+
+# ---- The effect's working out (game/battle/effect_*.c) -----------------------------------
+
+[[var]]
+name = "battle_effect_record"
+addr = "7E:AEE6"
+count = 12
+index = "byte of the effect's record"
+subsystem = "battle"
+meaning = "The effect being worked out, copied from its record ($CC:7AC9, $CC:89C6): its kind, then the numbers the kind takes"
+source = "game/battle/effect_work.c ($C1:D838, $C1:D945)"
+
+[[var]]
+name = "battle_effect_actor_block"
+addr = "7E:B1F4"
+size = 2
+subsystem = "battle"
+meaning = "The acting combatant's stat block's offset among the blocks (its battle slot times $80)"
+source = "game/battle/effect_work.c ($C1:E9A3)"
+
+[[var]]
+name = "battle_effect_target_block"
+addr = "7E:B1F6"
+size = 2
+subsystem = "battle"
+meaning = "The target's stat block's offset among the blocks (its battle slot times $80)"
+source = "game/battle/effect_work.c ($C1:E9B8)"
+
+[[var]]
+name = "battle_effect_other_block"
+addr = "7E:B1F8"
+size = 2
+subsystem = "battle"
+meaning = "A stat block's offset two of the damage formulas read a stat of (kinds 7 and 8), which the party's code leaves; not worked out"
+source = "game/battle/effect_amounts.c ($C1:E3DE, $C1:E467)"
+
+[[var]]
+name = "battle_effect_target"
+addr = "7E:B1FD"
+subsystem = "battle"
+meaning = "The battle slot of the target the effect is being worked out on"
+source = "game/battle/effect_work.c ($C1:E9B8)"
+
+[[var]]
+name = "battle_effect_missed"
+addr = "7E:B200"
+subsystem = "battle"
+meaning = "$80 once the effect missed its target, 0 once it landed"
+source = "game/battle/effect_work.c"
+
+[[var]]
+name = "battle_damage_flags_given"
+addr = "7E:B202"
+subsystem = "battle"
+meaning = "How the next entry of the damage table is marked, as its caller gives it: $80 a heal (the amount is negated), $40 MP, $20 a miss"
+source = "game/battle/effect_amounts.c ($C1:EBF8)"
+
+[[var]]
+name = "battle_damage_flags_kept"
+addr = "7E:B203"
+subsystem = "battle"
+meaning = "The marks of the damage table's last entry"
+source = "game/battle/effect_amounts.c ($C1:EBF8)"
+
+[[var]]
+name = "battle_effect_given_status"
+addr = "7E:B29A"
+count = 11
+index = "battle slot"
+unchecked = "the weapon's status is noted for the target the work is at, which a fuzzed list can put past the combatants (game/battle/effect_statuses.c, $C1:E99F)"
+subsystem = "battle"
+meaning = "The status the attacker's weapon adds to each target its hit's status chance took (the weapon's stat byte $46), cleared for each effect"
+source = "game/battle/effect_statuses.c ($C1:E99F)"
+
+[[var]]
+name = "battle_damage_variance"
+addr = "7E:B2BE"
+subsystem = "battle"
+meaning = "The random part a damage formula adds to its hit, drawn with the formula"
+source = "game/battle/effect_amounts.c ($C1:E0F5)"
+
+[[var]]
+name = "battle_action_record_place"
+addr = "7E:B2C3"
+size = 2
+subsystem = "battle"
+meaning = "The acting attack's or tech's record's offset among the records (its number times 11)"
+source = "game/battle/effect_work.c ($C1:D7DD); game/battle/enemy_turn.c ($FD:AAE3)"
+
+[[var]]
+name = "battle_effect_record_place"
+addr = "7E:B2C5"
+size = 2
+subsystem = "battle"
+meaning = "The effect's record's offset among the effects (its number times 12)"
+source = "game/battle/effect_work.c ($C1:D833)"
+
+[[var]]
+name = "battle_effect_number"
+addr = "7E:B2C8"
+subsystem = "battle"
+meaning = "The number of the effect being worked out"
+source = "game/battle/effect_work.c ($C1:D81A)"
+
+[[var]]
+name = "battle_effects_worked"
+addr = "7E:B2C9"
+subsystem = "battle"
+meaning = "How many of the action's effects have been worked out"
+source = "game/battle/effect_work.c ($C1:D8AD)"
+
+[[var]]
+name = "battle_effect_sure"
+addr = "7E:B2CA"
+subsystem = "battle"
+meaning = "$40 while the action can't miss (its record's first byte says so), whose effects then skip their test of landing"
+source = "game/battle/effect_work.c ($C1:D7F9)"
+
+[[var]]
+name = "battle_effect_modifier"
+addr = "7E:B2CC"
+subsystem = "battle"
+meaning = "The modifier the effect is worked out with, from the action's record (or, for a moment, the weapon's)"
+source = "game/battle/effect_work.c ($C1:D857); game/battle/effect_modifiers.c"
+
+[[var]]
+name = "battle_element_resisted"
+addr = "7E:B2CD"
+count = 3
+index = "0: the element (0-3), 1: the target's resistance to it, 2: the scale over it (4)"
+subsystem = "battle"
+meaning = "The element modifier's working: the damage times the scale over the resistance"
+source = "game/battle/effect_modifiers.c ($C1:EF39)"
+
+[[var]]
+name = "battle_hits_left"
+addr = "7E:B2D0"
+subsystem = "battle"
+meaning = "How many hits an effect that hits several times has left"
+source = "game/battle/effect_work.c ($C1:D431)"
+
+[[var]]
+name = "battle_effect_target_count"
+addr = "7E:B2ED"
+subsystem = "battle"
+meaning = "How many targets the action has, kept while the effect's loop counts them down"
+source = "game/battle/effect_work.c ($C1:D7FF)"
+
+[[var]]
+name = "battle_effect_amount"
+addr = "7E:AD89"
+size = 2
+subsystem = "battle"
+meaning = "The amount the effect is working out on its target: damage, or negated, what it heals"
+source = "game/battle/effect_amounts.c ($C1:DCDD)"
+
+[[var]]
+name = "battle_party_out_count"
+addr = "7E:AD9A"
+subsystem = "battle"
+meaning = "How many party members are out of the fight, as the modifier that hits harder for each counts them"
+source = "game/battle/effect_modifiers.c ($C1:EDFD)"
+
+[[var]]
+name = "battle_effect_hit_test"
+addr = "7E:AE4F"
+subsystem = "battle"
+meaning = "A byte the effect's working out clears before each effect and after a hit's test of landing"
+source = "game/battle/effect_work.c ($C1:D87D); game/battle/effect_amounts.c ($C1:DCA9)"
+
+[[var]]
+name = "battle_member_revive_marks"
+addr = "7E:AE51"
+count = 3
+index = "party member"
+subsystem = "battle"
+meaning = "A party member's mark below 3 is cleared as it is revived or cured"
+source = "game/battle/effect_statuses.c ($C1:DBA6)"
+
+[[var]]
+name = "battle_effect_modifier_kept"
+addr = "7E:AE57"
+subsystem = "battle"
+meaning = "The effect's modifier, kept across a hit of an effect that hits several times"
+source = "game/battle/effect_work.c ($C1:D45F)"
+
+[[var]]
+name = "battle_target_bits_kept"
+addr = "7E:AE58"
+size = 2
+subsystem = "battle"
+meaning = "The action's targets as bits, kept as the death modifier takes one out of them"
+source = "game/battle/effect_modifiers.c ($C1:F162)"
+
+[[var]]
+name = "battle_steal_marks"
+addr = "7E:AE5A"
+count = 11
+index = "battle slot"
+reuses = "battle_member_updating"
+unchecked = "a steal reads the marks of the target the work is at, which a fuzzed list can put past the combatants (game/battle/effect_modifiers.c, $C1:EA29)"
+subsystem = "battle"
+meaning = "What an enemy still has to steal: bit 7 its rare item, bit 6 its common one"
+source = "game/battle/effect_modifiers.c ($C1:EA29)"
+
+[[var]]
+name = "battle_action_modifier_kept"
+addr = "7E:AE78"
+subsystem = "battle"
+meaning = "The action's modifier, kept while the weapon's is applied"
+source = "game/battle/effect_modifiers.c ($C1:EA72)"
+
+[[var]]
+name = "battle_effect_total"
+addr = "7E:AE7B"
+size = 2
+reuses = "battle_status_script_seen"
+subsystem = "battle"
+meaning = "The damage the action's effects have done, added up"
+source = "game/battle/effect_work.c ($C1:D7CA); game/battle/effect_amounts.c ($C1:DE7D)"
+
+[[var]]
+name = "battle_steal_outcome"
+addr = "7E:B3BF"
+subsystem = "battle"
+meaning = "How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to take"
+source = "game/battle/effect_modifiers.c ($C1:E9D5)"
+
+[[var]]
+name = "battle_timer_lengths"
+addr = "7E:B0D4"
+count = 132
+index = "timer kind (0-11) * 11 + battle slot"
+subsystem = "battle"
+meaning = "How long each combatant's status timers run once a status starts them; the turn's are battle_turn_wait"
+source = "game/battle/effect_statuses.c ($C1:E006)"
+
+[[var]]
+name = "battle_action_elements"
+addr = "7E:B190"
+subsystem = "battle"
+meaning = "The elements of the acting enemy's attack or tech (its record's third byte), which the element modifier reads and the targets note as what acted on them"
+source = "game/battle/effect_work.c ($FD:AAF6, $FD:AB25); game/battle/effect_modifiers.c ($C1:EF39)"
+
+[[var]]
+name = "battle_shrugged_off_mark"
+addr = "7E:0040"
+page = "battle"
+reuses = "battle_screen_script"
+subsystem = "battle"
+meaning = "$80 once the target shrugged off a status of its first status byte the effect gave it; the screen script's pointer has the byte at other times"
+source = "game/battle/effect_statuses.c ($C1:DC5F)"
+
+[[var]]
+name = "battle_beaten_marks_low"
+addr = "7E:AEB0"
+count = 2
+index = "battle slot (0-1)"
+subsystem = "battle"
+meaning = "Where the modifier that beats its target outright marks a party member in the first two slots as beaten: it marks by battle slot from here, so the third member's mark is battle_enemy_beaten_any and an enemy's is battle_enemy_beaten"
+source = "game/battle/effect_modifiers.c ($C1:F124)"

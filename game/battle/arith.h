@@ -6,13 +6,16 @@
  * interrupt handlers, which do arithmetic of their own and put the operands
  * back (battle/nmi.c). A port computes in C; these return the result, and
  * leave what the original's routine leaves -- the cells, the copies, the
- * multiplier's and divider's state -- for the original's code and shadow mode
- * (scaffolding, game/original_effects.h). A port that ran the routine's work
- * inline in a caller's call to it leaves the same, so the caller's port
- * matches the original's caller. */
+ * multiplier's and divider's state. The cells and the copies are game state,
+ * kept plainly: the original's callers multiply and divide what the last
+ * multiply or divide left in them, and the interrupt handlers put the copies
+ * back; only the hardware's state is scaffolding (game/original_effects.h). A
+ * port that ran the routine's work inline in a caller's call to it leaves the
+ * same, so the caller's port matches the original's caller. */
 #ifndef CT_GAME_BATTLE_ARITH_H
 #define CT_GAME_BATTLE_ARITH_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "state.h"
@@ -51,5 +54,29 @@ uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
  * high word, or what the last long division left of its dividend's. Game
  * state: the random draw divides with it (battle/random.c). */
 uint16_t battle_long_high_word(const GameState *g);
+
+/* $C1:C92A as the effect code calls it (battle/effect_parts.h): the leftover
+ * high word and `low` over `divisor`, so that a product just made is divided
+ * whole; the quotient's low word is left in its cell as well. Where it
+ * divides, the high word it leaves is clear. */
+BattleLongQuotient battle_divide_leftover(GameState *g, uint16_t low, uint16_t divisor);
+
+/* The same where the original's caller comes in with its carry set: the high
+ * word the division leaves has its top bit set, which the next division then
+ * divides with (one caller does: the evasion's level bonus, battle/
+ * effect_amounts.c). */
+BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uint16_t divisor);
+
+/* What the cells hold of the last call, which a few of the effect code's
+ * steps read back as they are: the quotient's (or the product's) low word,
+ * and the first number. */
+uint16_t battle_wide_math_quotient(const GameState *g);
+uint16_t battle_wide_math_first(const GameState *g);
+void battle_set_wide_math_quotient(GameState *g, uint16_t v);
+
+/* The word-by-word multiply leaves its second number's cell clear but for the
+ * carry its caller came in with: scaffolding, for the callers whose carry is
+ * set (the multiply itself leaves it 0). */
+void battle_leave_multiply_carry(GameState *g, bool carry);
 
 #endif

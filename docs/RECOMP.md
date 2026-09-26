@@ -6413,8 +6413,9 @@ and the three long routes pass in the shipping mode.
 
 The menus' third chunk: the characters the menus show, in the records the
 screens draw their sprites from (`menu/sprites.c`, "The characters the
-records show"). `python3 tools/burndown.py` for `$C2`: 22.8 KiB ported and 62%
-left after the second chunk, 23.6 KiB and 60% left after this one, 231 entries.
+records show"). `python3 tools/burndown.py` for `$C2` (as main's tree counts it
+after the battle's second chunk): 21.5 KiB ported and 64% left after the
+second chunk, 22.3 KiB and 62% left after this one, 231 entries.
 
 **What a record shows.** A record ($40 bytes at `$7E:1800` on, the direct
 page its routines run on; nine of them, the ninth `$1A00` only marked empty)
@@ -7217,6 +7218,309 @@ chunk 4's build every other field entry keeps its counts.
 
 **The timing gate.** The new row was calibrated over the library; no
 exception.
+
+### Phase 3, field and events: the switches and the main loop's requests
+
+The sixth chunk of bank `$C0`, and chunk 5's review.
+
+**Chunk 5's review, folded in.**
+- *The overflow past the frame queue* (the port-routine skill's third trap).
+  Liveness keeps it live round the main loop, but the only readers it
+  reaches are the menus' entry, which saves the flags (`$C2:8013`'s `PHP`)
+  and puts them back on leaving; banks `$C0` and `$FD` have no branch on
+  it. With no port call-out there to poison, it stays derived, from a
+  status of game conditions (`FrameBuild`, field/parts.h) in field/leaves.c,
+  outside the logic file.
+- *The copies take their set and place.* `field_draw_frame_tile(g, set,
+  tile, to)`; the work RAM port's final place and the cells only the
+  original's code reads (the set, the place, the frame tables' bank) are
+  scaffolding, and the copies' entries read them as their calling
+  convention (baseline lines with that reason).
+- *One frame read.* `object_take_next_frame` takes the tables' bank, which
+  the `$C0:CB3A` wrapper reads; its guard refuses a bank where an address
+  doesn't answer (`field_bank_always_answers`), so the read order no longer
+  matters and the twin is gone. The mirrored copy's guard does the same for
+  the tile's bytes, which fuzzing showed carry out of bank `$FF` into bank
+  `$00`'s open bus (38 of 9,944 before the guard).
+- The tile's constants live once in field/graphics.h; the 4-sprite
+  priority rule and the `$68` plan say what they are; `object_holds_frame`;
+  `sprite_offset` takes an `Axis`.
+
+**What it is** (field/requests.c, field/switches.c). The main loop's
+`$C0:0C76` moves the brightness and tint changes a step each frame, and
+answers the requests. The port answers a step event itself: the step is
+remembered on the map, and a floor switch stepped onto is pressed -- its
+tiles move on to the next in the tile set, in one of three shapes (a tile
+and the one above, two by two, two across by three down, `SwitchShapeTiles`,
+where the original has five near-copies), its sound is played, and the
+VRAM addresses of its tiles' entries in BG1's tile map are queued. The
+line interrupt's job after the picture (`$C0:ED15`) draws the queued looks
+(field_redraw_changed_tiles), a chest's as well, and refreshes the windows'
+corners. The location change, the menus, a chest's opening, the tile copy
+and the battle are handed to the original's code where it reads the
+requests (`m_stop_at_own` at `$C0:0C8A` and `$C0:1770`). A chest's opening
+went with the stop: at its sound the original has A's high byte and the
+overflow from the path into it, which only the path gives, so porting it
+means porting the path (TODO).
+
+**What it taught the map.** The redraws' flags (`field_tiles_to_redraw`,
+`$5F`), the switch's shape, the chest's kind, the two sounds, the entries'
+VRAM addresses (`$09B2`, `$09CA`), the steps remembered (`$7F:1CC8`), and
+the bytes after the screen's left and top edges (read as words).
+
+**What shadow mode and fuzzing found.** A chest's opening mismatched once
+(telepod-lavos): the sound driver's call came back through a path the
+original reaches with other registers; the chest went to the stop. The
+switch's sound reads A's high byte (the driver keeps it), which the port
+works out from the switch's tiles (field/leaves.c). Over the 26 movies every call of the three matches: the requests 191,044,
+the redraw after the picture 98,342, the frame builder 231,605; none
+interrupted or refused. Fuzzed (seeds 1 and 2, 20,000 states each):
+`field_handle_requests` 0 of 19,944 and 0 of 19,946 with any requests but
+those it hands on at once, and a step onto each switch's bottom tiles 0 of
+9,866 and 0 of 9,882 (the rest past the call-out budget); the redraw 0 of
+20,000 each. A deliberately wrong shape (one of the two-by-two's tiles off
+by one) mismatched 289 of 1,433 in the requests and 492 of 3,000 in the
+redraw. `python3 tools/burndown.py` now credits `$C0` with 56.4 KiB and 5%
+left, which is wrong the way its docstring warns: it walks
+`field_handle_requests`' region through the branches the port hands to the
+original at `$C0:0C8A` and `$C0:1770`, into the location change's reset to
+the main loop and everything that reaches. What the chunk made C is the
+step event's switches and the redraw, about 2.6 KiB.
+
+**The timing gate.** The new rows, and the two chunk 5's review moved (the
+mirrored copy, whose estimate no longer counts the port's writes through
+the port, and the builder), were calibrated over the library; no
+exception.
+
+### Phase 3, field and events: the drawn frame put on the records
+
+The seventh chunk of bank `$C0`, and chunk 6's review.
+
+**Chunk 6's review, folded in.**
+- *The switch sound's A-high byte* (the port-routine skill's third trap). Its
+  reader is named: the sound driver saves A on the stack as it starts
+  (`$C7:0147`'s `PHA`), so the byte stays in the stack below the caller's
+  frame, which shadow mode compares. Liveness has the driver read it, so it
+  can't be declared dead; the derivation stays in field/leaves.c and reads
+  the map through switches.c's own decoding (`field_map_byte`), where it had
+  read column 63 as BG1's (review rubric item 94).
+- *Origin tags* (item 95): `redraw_quarter` takes no site; each branch tags
+  its uploads' start with a literal.
+- The guard refuses a one-by-two switch whose upper tile is the tile set's
+  last, and the word-wide move is gone; `leave_entries` leaves its cells
+  through `original_cell16`, and `$D9` is one named cell
+  (`FIELD_LAST_WORKED_CELL`); the redraw after the picture is in display.c
+  with `field_windows_need_refresh`; one `pressed_shape`; the chest kinds are
+  named (`ChestKind`, by where each is in the tile set). The switch sound keeps a site a switch: the call's
+  return is where the port stops if the call comes back otherwise.
+- The mirrored copy takes a place in the build bank, like the straight
+  copy, and its guard takes a port there alone, where the frame builders put
+  it. The fuzzer can't set the port (its saved states have it in bank `$7E`,
+  where the sprite table's building leaves it), so the entry's row compares
+  nothing; the copy is fuzzed through `field_draw_next_frame`.
+- *The burndown's overcount.* `tools/burndown.py` no longer walks on from a
+  place a port hands back at, and a stop at a call's return counts as a
+  hand-back where it declares what is dead there (a bare one is still a
+  bridge giving up); `tests/test_burndown.py` covers both. `$C0` goes from
+  5% left to 36%, and the total from 41% to 51%.
+
+**What it is** (field/frames.c, `field_put_drawn_frame` `$C0:CB0A` with its
+layouts `$C0:CDC8`, `$C0:D124`, `$C0:DD28`). The frame builder's twin, which
+the field's return from a battle calls for each of the party and the enemies
+it puts back ($C0:07EC, $C0:08A0, by `BRL` from their own code): it puts the
+frame the object's tiles already show straight onto its records, built, and
+draws nothing, since the tiles in VRAM are as the battle found them. It is
+the builder's frame sprites (the same plans, the `$68` split's too) going to
+the records instead of the frame's data (`sprites_set_record_sprite`). A
+registry address inside a routine is a block boundary for the generated
+code, so the entry takes the `BRL`s as calls; its return goes to its
+callers' own callers, which read none of the registers.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches (84, none interrupted or refused). Fuzzed (seeds 1 and 2, 20,000
+states each): each layout 0 of 20,000, the 12-sprite layout at `$68` 0 of
+20,000; the 4-sprite priority rule a line off mismatched 4 of 3,000.
+`$C0` stands at 39.4 KiB ported, 34% left.
+
+**The timing gate.** The new row, and the mirrored copy the review moved,
+were calibrated over the library; no exception.
+
+**Battle's findings, answered.** The long arithmetic's cells (`$28`-`$33`,
+the 8-bit multiplies' operands and the multiplier's copies) are game state:
+the original's callers multiply and divide what the last call left there, so
+`game/battle/arith.c` writes them plainly and only the multiplier's and
+divider's own state is scaffolding. So are the reach tests' product
+(`battle_product`), the direction's cells, the fade tables' last intensities
+and the tile decoder's row cells (`$53`-`$57`, which a screen effect's settings
+read where its command doesn't set them), and the enemy at work
+(`battle_enemy_turn`) as the choosing leaves it, written after its scaffolding
+so that the plain write is the last. What is left in the baseline for battle
+is the entries' operands, each line with its reason. `battle_run` now runs a
+sibling as C only where the registry gives that sibling's entry for the state
+(`native_hand_entry`, guard and preconditions included); otherwise it makes
+the call as the original's, with nothing declared don't-care, and the runtime
+runs whatever the registry has there. The library's gate passes unchanged,
+with `battle_enemy_scripts_choose` recalibrated (8,036 to 7,902) for the
+plain writes it makes now.
+
+### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
+
+An enemy's turn is C to its end now, but for the original's code it calls out
+to (the tech's targeting, messages, bringing enemies in and the showing): the
+attack's and the tech's effect is worked out in C (`game/battle/effect_work.c`,
+`$C1:D7C4`, `$C1:D8D1`), and the notes of the action for its targets
+(`$FD:AAD2`, `$FD:AB01`) are C inline in the turn. The work is in four files:
+
+- `effect_work.c`: going through the targets, the effect's record decoded
+  (`EffectRecord`, `effect_data.h`) and its kind run by a switch, each case
+  timed as its own routine (`$C1:D9D7`'s kinds with work, each a registered
+  entry for the party's code, which still runs them from `$C1:D523`); what
+  acted on each target noted (`$C1:D508`), the hits' numbers added up
+  (`$C1:EB68`), and the entries with their guards;
+- `effect_amounts.c`: healing (`$C1:DA37`), draining (`$C1:E77B`), a hit's
+  tests of landing (`$C1:DE87`, `$C1:DE9E`, `$C1:DEF0`, `$C1:DC64`), its
+  damage by the eight formulas the dispatch reaches (`$C1:E0F5`; its formulas
+  9 and 10 are behind a test that sends every kind but 8 to the weapon's), the
+  defence (`$C1:E65F`), and the damage applied (`$C1:DCAD`), with the damage
+  table and the numbers shown recorded (`$C1:EBF8`, `$C1:E89F`, `$C1:E8E2`);
+- `effect_statuses.c`: curing, inflicting and the status timers (`$C1:DB5E`,
+  `$C1:DBAA`, `$C1:E006`, `$C1:E976`);
+- `effect_modifiers.c`: the modifier record decoded into its routine and what
+  its two numbers mean for it (a percent, a stat, the families singled out,
+  ...), applied by a switch (`$C1:FA61`'s routines, `$C1:EB1C`, `$C1:EA6F`).
+
+The statuses' bits and the stat block's offsets the work reads are named once,
+in `battle/combatant.h`.
+
+**What stays the original's.** Stealing is the party's alone (no enemy's
+action steals): its item goes to the party's inventory or its battle records
+(`$FD:B655`), which is the party's chunk, so the steal kind isn't registered
+and the entries turn away a hit that steals, and the rare item's chance with
+it. The clock modifier (`$C1:EE27`) reads the controller mid-work, a read that
+waits on the console (the port leaves that wait to the original, as
+`core/input.c` does), and no enemy's action has it: the entries turn it away.
+So does a modifier routine past the table's 21, a kind past `$2C` (none in the
+ROM), and a drain where the byte the original reads its stat's offset's high
+byte from (`$1B`, which nothing in the effect code sets and the game leaves
+clear) isn't clear. With that, the work makes no call to the original's code.
+
+**The arithmetic.** The work multiplies and divides plainly (`effect_times`,
+`effect_over`), with no carry in or out. The long arithmetic's cells are game
+state (`arith.h`): a division divides the high word the last call left with
+the number it is given, which is how a product just made is divided whole,
+and the random draws divide by that high word too. The carry the original
+comes into a call with matters to the game in one place, and the port names
+it: the evasion's level bonus (`level_bonus` in `effect_amounts.c`) divides
+twice with the carry set, so the second division divides a number of over two
+billion and the bonus is its quotient's low byte, not the levels over twenty
+(`battle_divide_leftover_marked`). Two more leftovers move a result and are
+kept with a comment: the defence's quarter steps multiply with the high byte
+of the last number the arithmetic worked on, and the element's scale of 4 is
+set a byte at a time over the high byte the hit's division by 256 left, so it
+is 260 as a rule. The shares a formula's random part is drawn up to are
+multiplies (77/256, 205/1024), but for the tenth of a word, which the
+original's shifts round part by part.
+
+**What the machine still wants, as scaffolding.** A multiply leaves the carry
+its caller came in with in its second number's cell, which only the
+original's code reads (a party caller divides by it, which the effects
+check's runs found): the multiply leaves 0 there, its entry the machine's
+carry, and the few callers in the work whose carry is set and whose multiply
+is the last before the work returns say so in `ORIGINAL_EFFECT`
+(`battle_leave_multiply_carry`). The kinds hand the party's code back the
+carry of their last note (set), A's high byte clear and Y past the note's
+bytes: the entry wrapper sets them. The hits' numbers added up leave the carry
+of the compare that chose the last kind to move, worked out once after the
+adding from the two records' kinds (`leave_last_compare`), and a target after
+the first is taken with the carry the note before it leaves
+(`take_next_target`).
+
+**The overflow flag, declared dead.** The original's adds leave the processor's
+overflow flag as their last result had it, and the effect worked out for an
+enemy hands it on to the action's showing (`$C1:BFA4`), the battle's step
+(`$C1:0003`) and what follows the action (`$C1:B762`), which save it with the
+flags across their frame waits. Nothing tests it: there is no `BVS` or `BVC`
+in the battle's banks (the menus' are the ROM's only ones), and the one `PHP`
+the code after reaches whose byte isn't put back by `PLP` (the sound driver's,
+`$C7:0A39`) throws it away. The liveness analysis agrees where it can follow
+the code, and the work-outs declare V don't-care (`DC_V`) on that; but the
+strict solve the call-outs are held to gives up at the jump tables the
+animation scripts (`$C1:75D1`, `$C1:7633`) and the enemies' scripts
+(`$C1:874E`, `$C1:B006`) dispatch through, whose targets come from data, and a
+fuzz run can't settle it (the showing waits on frames past any budget). Two
+new pieces of evidence do. `tools/v_readers.py` solves liveness as strictly,
+but follows each of those four tables to every word its dispatch can index:
+each is `ASL A` on an 8-bit A, `TAX` and the dispatch, with nothing jumping
+past the `ASL`, so where A's high byte is clear X is at most `$FE`, 128 words,
+each code the analysis traced. The bound is an `index_reach` hint on each
+table in `re/hints.toml`, and the tool checks every part of it, A's high byte
+too: `tools/disasm/high_byte.py` follows it through every path and call the
+analysis traced, and has it clear at all four `ASL`s, resting only on D's
+high byte being zero at the `TDC`s that clear it (the battle's direct page is
+`$0000`). `tests/test_v_readers.py` holds the hints to the ROM. The two
+condition dispatches after the first (`$C1:8769`, `$C1:B021`) carry no bound:
+44 of the routines the first's words reach return with A's high byte unknown,
+and V is dead into the three callees without them. `ct_dev --index-check`
+records X at the four dispatches over the library on the interpreter alone:
+never past `$FE` (135,810 runs, the largest X `$7E`). With the bound, V is dead
+into all three callees. `ct_dev --poison-site` inverts V at a call-out's own
+site in the shipping mode; the library with it at the three declarations'
+sites traces the same as without in every movie, the picture included, but
+for the stack's page, where the inverted flag the callees push lies after they
+pull it. Per site: 441 calls into the showing, 6,440 into what follows the
+action, and of the step's six sites 285 from the menu's (`$C1:856D`) and 4 to
+32 from the other five, which rest on the static result alone. The three
+call-outs declare V don't-care with a `dc-evidence:` note naming both and the
+per-site counts, which `tools/dontcare_check.py` reads and re-checks
+(PORTING.md, "Declarations liveness can't prove"); `tools/dc_evidence.py`
+makes the runs again. The work computes no overflow.
+
+**What it found.** The drain reads its stat's offset as a word from the cell
+its kind is handed in; a modifier that fells its target outright marks it by
+battle slot from `$AEB0`, so a party member's mark lands in two bytes before
+the enemies' (`battle_beaten_marks_low`) or on "any enemy beaten"; about a
+tenth (`$C1:C1B2`) is three subtractions, not four; formula 8 works nothing
+out and takes whatever the quotient cell holds; a number's place is a byte,
+so from the fourth hit of an effect that hits repeatedly a set of numbers
+reaches past the records into the effect's own flags, as the original's does;
+and once one of those hits lands, the rest are made sure by setting the
+effect's flags to "can't miss" alone, so they lose the status chance and the
+barrier and shield passes the first had.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the enemies' work-outs 347 techs and 23 attacks (175 and 9 compared whole,
+the rest interrupted), and through the party's code the kinds 765 hits, 86
+items' restorations, 60 restorations, 39 statuses, 26 drains, and a few cures
+(229, 48, 52, 35, 23 compared; 32 hits turned away, the party's steals and
+clock). The repeated hits, the item's status, the lost condition bit and the
+showing of the actor's HP aren't reached by any movie.
+
+**Fuzzing.** Every new entry, seed 1, 5,000 states each on `gato-battle`
+(`tools/fuzz_routines.toml`: an actor and one to eleven listed combatants at
+a set of numbers and a hit the showing has, the modifiers among those the port
+has, the actions from the ROM's records, `$1B` clear), none mismatching; all
+5,000 compared but the hits (2,508) and the repeated hits (2,546, one to three
+of them), whose other states are steals turned away. The enemies' turns around
+them (`fuzz_compare.py --subsystem battle`, 356 routines) none mismatching.
+Fuzzing found what shadow mode couldn't: the drain's word read, the beaten
+mark, the tenth's subtractions, the record decoded by the kind the entry runs
+(not its first byte), the defence's quarters taken from the flags as the work
+goes (not the record's), and a set of numbers from the fourth repeated hit on
+reaching the effect's flags.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only (the kinds
+22,770-45,350, the work-outs 14,758 and 16,958, the notes 21,091,
+`battle_multiply_16x16` 29,285, the enemy's attack's turn 8,519); every entry
+within the limits with no exception added. `tools/timing_gate.py` takes an
+entry some report measured no stretch of (all interrupted) without failing.
+
+**The routes.** The new timing moved the `bucket_lavos` route's core fight onto
+a turn where the bot's A in a tech's target cursor didn't take, and its backing
+out pressed B four times back to back, which the game reads as one press: it
+left the tech list open and waited on it for good (the game takes the tech
+from the same state, in the original's code too). The bot now releases between
+presses and waits for each to move the menu (`tools/movies/bot.py`), and every
+route reaches its outcome in the shipping mode.
 
 ## Risks
 

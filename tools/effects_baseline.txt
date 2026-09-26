@@ -11,15 +11,9 @@
 
 game/battle/animation.c posing battle_work[20] battle_work
 game/battle/animation.c posing battle_work[21] battle_work
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[0] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[2] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x16 battle_long_multiply[3] battle_long_multiply only
-game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors only
-game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[1] battle_multiply_factors only
-game/battle/arith.c wide_word battle_wide_math[0] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[1] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[2] battle_wide_math only
-game/battle/arith.c wide_word battle_wide_math[3] battle_wide_math only
+game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[0] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
+game/battle/arith.c battle_multiply_8x8 battle_multiply_factors[1] battle_multiply_factors                    # the entry's operands: the original's callers put them in the cells, every call
+game/battle/arith.c wide_word battle_wide_math[2] battle_wide_math # the entries' operands (the multiply's and the division's second number): the original's callers put them in the cells, every call
 game/battle/battle.h battle_stat_offset_high battle_low_scratch[11] battle_low_scratch
 game/battle/digits.c digits_entry battle_number battle_number only
 game/battle/digits.c kept_digits battle_digits[2] battle_digits
@@ -52,8 +46,7 @@ game/battle/effect_paths.c cell battle_effect_cells[8] battle_effect_cells only
 game/battle/effect_paths.c cell battle_effect_cells[9] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[0] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[1] battle_effect_cells only
-game/battle/enemy_actions.c place_left_by_draw battle_wide_math[4] battle_wide_math
-game/battle/enemy_actions.c place_left_by_draw battle_wide_math[5] battle_wide_math
+game/battle/effect_work.c kind_ported battle_low_scratch[27] battle_low_scratch # the entries' guard: a drain is turned away where the byte the original reads its stat's offset's high byte from isn't clear (the game leaves it clear)
 game/battle/enemy_scripts.c battle_enemy_find_reactions battle_enemy_turn battle_enemy_turn
 game/battle/enemy_scripts.c battle_enemy_find_script_place battle_enemy_turn battle_enemy_turn
 game/battle/enemy_scripts.c enemy_choosing_in_cells battle_block_start battle_block_start
@@ -70,19 +63,10 @@ game/battle/enemy_turn.c run_action_entry battle_script_place battle_script_plac
 game/battle/enemy_turn.c script_enemy battle_enemy_turn battle_enemy_turn
 game/battle/frame.c update_the_frame battle_effect_sprite_attributes battle_effect_sprite_attributes
 game/battle/menu_window.c tech_page_carry battle_digits[3] battle_digits
-game/battle/nmi.c last_math_operand battle_divider_busy battle_divider_busy only
-game/battle/nmi.c last_math_operand battle_divider_operands[2] battle_divider_operands only
-game/battle/nmi.c last_math_operand battle_multiplier_operands[1] battle_multiplier_operands only
-game/battle/positions.c battle_direction_between battle_direction_cells[0] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[1] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[2] battle_direction_cells
-game/battle/positions.c battle_direction_between battle_direction_cells[3] battle_direction_cells
-game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_multiply_factors only
+game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_multiply_factors              # the entry's operand (the radius): the original's callers put it in the cell, every call
 game/battle/positions.c combatant_in_work battle_work[0] battle_work
-game/battle/positions.c reach_entry battle_product battle_product only
-game/battle/positions.c search_carry battle_product battle_product only
-game/battle/random.c draw_entry battle_wide_math[4] battle_wide_math
-game/battle/random.c draw_entry battle_wide_math[5] battle_wide_math
+game/battle/positions.c reach_entry battle_product battle_product                                             # the product the reach test just kept plainly (positions.c distance_squared)
+game/battle/positions.c search_carry battle_product battle_product                                            # the product the search just kept plainly (positions.c distance_squared); the menu window's scaffolding reuses the cell between
 game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
 game/battle/screen.h screen_cell battle_scratch battle_scratch
 game/battle/screen.h screen_cell battle_scratch[0] battle_scratch only
@@ -100,8 +84,8 @@ game/battle/targets.c battle_select_from_script battle_enemy_turn battle_enemy_t
 game/battle/targets.c battle_select_from_script battle_script_place battle_script_place
 game/battle/targets.c battle_select_party battle_enemy_turn battle_enemy_turn
 game/battle/targets.c selector_entry battle_enemy_turn battle_enemy_turn
-game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch only
-game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch only
+game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
+game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch only
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch only
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch only
@@ -111,14 +95,18 @@ game/battle/window.h battle_work16 battle_work[0] battle_work
 game/battle/window.h battle_work16 battle_work[1] battle_work
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
 game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
-game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high  # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
-game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
+game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
+game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact                  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
-game/field/field.h leader_contact field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
-game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer
-game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer
-game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer
+game/field/animation.c field_read_animation_frame field_frame_entry_bank field_frame_entry only               # the entry's calling convention: every caller of the frame read sets the tables' bank first (the builders); the C builder passes it
+game/field/field.h leader_contact field_leader_contact field_leader_contact                                   # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
+game/field/graphics.c graphics_left field_sprite_graphics_address event_source_pointer only                   # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_address field_sprite_graphics only                  # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_bank event_source_pointer only                      # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_bank field_sprite_graphics only                     # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c tile_copy_entry field_sprite_tile_offset event_target_pointer only                      # the entry's calling convention: the original's callers set it every call (the frame builders, $C0:CB0A still the original's); the C builder passes the place
+game/field/graphics.c tile_copy_entry field_sprite_tile_offset field_sprite_tile_offset only                  # the entry's calling convention: the original's callers set it every call (the frame builders, $C0:CB0A still the original's); the C builder passes the place
 game/field/line_effects.c keep_wave_line field_direction field_direction
 game/field/line_effects.c wave_line_kept field_direction field_direction
 game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile only
@@ -133,10 +121,9 @@ game/field/motion.c party_member_take_step field_object_accelerating field_objec
 game/field/object.c object_records_state field_object_sprite_state field_object_sprite_state
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
-game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch
-game/field/sprites.c range_next field_sprite_range_next event_scratch
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
 game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
+game/field/switches.c pressed_shape field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
 game/menu/cursor.c move_cursor menu_cursor_index menu_object_sprite_script
 game/menu/cursor.c place_cursor menu_cursor_flip menu_object_sprite_group
 game/menu/cursor.c place_cursor menu_cursor_index menu_object_sprite_script
@@ -255,24 +242,12 @@ game/scene/math.c divide_8_8 scene_call_second scene_call                       
 game/scene/math.c multiply scene_call_first scene_call                                                        # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply scene_call_second scene_call                                                       # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply_signed scene_call_first scene_call                                                 # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
-game/scene/math.c multiply_signed scene_call_product scene_call                                               # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c multiply_signed scene_call_second scene_call                                                # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_find_divisor scene_call_quotient_limit scene_call                                     # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_multiply_signed scene_call_first scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/math.c scene_multiply_signed scene_call_second scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/screen.c transfer scene_call_transfer_control scene_call                                           # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
 game/scene/screen.c transfer scene_call_transfer_register scene_call                                          # the scene program sets a call's operands before each call; the scaffolding is another call's results in the same record (scene_call), and no run finds one read
-run battle_direction_between battle_direction_cells
-run battle_divide battle_wide_math
-run battle_draw_random battle_wide_math
-run battle_draw_random_other battle_wide_math
-run battle_enemy_find_reactions battle_enemy_turn
-run battle_multiply_16x16 battle_wide_math
-run battle_set_screen_effect battle_scratch
-run battle_touching battle_product
-run battle_within_long_reach battle_product
-run battle_within_near_reach battle_product
-run battle_within_search_reach battle_product
 run menu_draw_member_portrait menu_scratch
 run menu_object_wave_hdma menu_wave_phase                                                                     # the wave starts from whatever the field's page left in that cell ($01E2), in the original as here (TODO.md, "The menus' wave phase starts from event's scratch cell"): in the native shape it starts from another leftover, a different phase of the wave over a map screen's top layer on its first frames, and nothing else reads it
 run scene_draw_circle_jump scene_circle_center_x                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
@@ -290,3 +265,5 @@ game/menu/text.c two_digits_at $7E98CC menu_record_frame_tile_list              
 game/menu/sprites.c frame_tiles_left menu_record_frame_tile_list menu_record_frame_tile_list                   # the frame building's own entry ($C2:F75C) takes the frame's tiles where the original's animation leaves them; only the original's code would call it, and the animation is C now, passing them as C
 game/menu/sprites.c frame_tiles_left menu_record_frame_tile_list menu_save_summary                             # the frame building's own entry ($C2:F75C) takes the frame's tiles where the original's animation leaves them; only the original's code would call it, and the animation is C now, passing them as C
 run menu_queue_built_vram_upload menu_record_frame_tile_list                                                   # an upload built over the save summary ($7E:9890, seven bytes) is queued with its eighth, unused byte, which the records' frame's tile list left there; nothing reads the queue's eighth bytes
+game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between
+game/field/sprites.c range_next field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between

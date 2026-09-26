@@ -345,7 +345,8 @@ enum {
 };
 
 ObjectAnimationMode object_animation_mode(const GameState *g, FieldObject obj);
-/* The frame a script has it hold (ANIMATE_SHOW_FRAME). */
+/* Whether a script has it hold a frame (ANIMATE_SHOW_FRAME), and which. */
+bool object_holds_frame(const GameState *g, FieldObject obj);
 uint8_t object_held_frame(const GameState *g, FieldObject obj);
 /* Whether its frame tables lie in their bank, where taking its next frame
  * (object_take_next_frame) reads them as the original does. */
@@ -391,8 +392,8 @@ typedef struct {
     bool has_frame;
     uint8_t frame;
 } ObjectFrame;
-ObjectFrame object_take_next_frame(GameState *g, FieldObject obj);
-ObjectFrame object_peek_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank);
+ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables_bank);
+ObjectFrame object_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank);
 
 /* ---- Motion (field/motion.c, field/object.c) ------------------------------------------- */
 

@@ -49,6 +49,12 @@ bool field_edge_runs_small(Snes *s);
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);
 
 /* field/window_corners.c */
+void field_refresh_corners(GameState *g, Platform *pf);
+/* Whether the windows' corners are to be refreshed: while a window's
+ * selection is kept (field_window_tile_slot not the no-selection marker). */
+bool field_windows_need_refresh(const GameState *g);
+void field_redraw_after_picture(Snes *s);
+bool field_redraw_can_run(Snes *s);
 void field_refresh_window_corners(Snes *s);
 void field_write_window_corners_0(Snes *s);
 void field_write_window_corners_1(Snes *s);

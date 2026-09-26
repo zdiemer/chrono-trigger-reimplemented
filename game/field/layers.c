@@ -32,6 +32,9 @@ enum { COLUMN_MASK = FIELD_TILE_MAP_COLUMNS - 1, ROW_MASK = FIELD_TILE_MAP_ROWS 
 /* ---- The edges -------------------------------------------------------------------------- */
 
 /* The tile map index of a column on a row. */
+static uint16_t map_index(uint16_t column, uint16_t row);
+uint16_t field_tile_map_index(uint16_t column, uint16_t row) { return map_index(column, row); }
+
 static uint16_t map_index(uint16_t column, uint16_t row)
 {
     uint16_t start = (uint16_t)(row * FIELD_TILE_MAP_HALF_COLUMNS);

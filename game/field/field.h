@@ -36,6 +36,7 @@ enum {
     FIELD_REQUEST_OPEN_CHEST = 0x02,        /* show the chest at field_opened_chest_tile open */
     FIELD_REQUEST_STEP_EVENT = 0x10,        /* run the step event at field_step_tile */
     FIELD_REQUEST_TILE_COPY = 0x20,         /* copy the queued tiles into the maps */
+    FIELD_REQUEST_MENUS = 0x40,             /* open the menus a script asked for */
     FIELD_REQUEST_LOCATION_CHANGE = 0x80,   /* go where location_next says */
 };
 

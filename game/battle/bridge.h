@@ -54,7 +54,10 @@ bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
  * return as battle_call's callee must, on the page it was called on and with
  * whatever data bank it chose (the frame work sets its own); otherwise it
  * stopped where the original carries on, or at the return. For a machine-shaped sibling: one whose work
- * is C on the game's state is called as C. */
+ * is C on the game's state is called as C. Where the entry's guard (or its
+ * registered preconditions) turns the state away, the call is made as a real
+ * call instead, declaring nothing don't-care, and the runtime runs what the
+ * registry has there. */
 bool battle_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 bool battle_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 

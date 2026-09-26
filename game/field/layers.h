@@ -114,6 +114,9 @@ TileAttributes map_tile_attributes_past_the_map(const GameState *g, MapPlace p);
  * tile to another to a destination stays on the map, as the game's copies
  * do (the guards'). */
 void map_copy_tiles(GameState *g);
+/* The index of a column and a row of a layer's tile map in VRAM, which is
+ * two halves of 32 columns side by side. */
+uint16_t field_tile_map_index(uint16_t column, uint16_t row);
 bool map_tile_copy_fits(uint16_t from, uint16_t to, uint16_t destination);
 
 /* What the copy leaves its callers, worked out beside the other field

@@ -106,6 +106,7 @@ add_library(ct_game STATIC
   game/field/display.c
   game/field/frame.c
   game/field/frames.c
+  game/field/requests.c
   game/field/graphics.c
   game/field/interrupts.c
   game/field/layers.c
@@ -118,6 +119,7 @@ add_library(ct_game STATIC
   game/field/object_view.c
   game/field/party_trail.c
   game/field/streaming.c
+  game/field/switches.c
   game/field/window_corners.c
   game/field/scroll.c
   game/field/tile_copy.c
@@ -178,12 +180,16 @@ add_library(ct_game STATIC
   game/battle/damage.c
   game/battle/digits.c
   game/battle/display.c
+  game/battle/effect_amounts.c
   game/battle/effect_animation.c
+  game/battle/effect_modifiers.c
   game/battle/enemy_actions.c
   game/battle/enemy_conditions.c
   game/battle/enemy_scripts.c
   game/battle/enemy_turn.c
   game/battle/effect_paths.c
+  game/battle/effect_statuses.c
+  game/battle/effect_work.c
   game/battle/frame.c
   game/battle/main_loop.c
   game/battle/menu_window.c
