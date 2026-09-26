@@ -7586,6 +7586,27 @@ needed no new evidence; `tools/suite.py --evidence` ran the notes' library
 runs again with the handlers in C, and every note's sites still made what
 they cite.
 
+**After the review.** The review passed the module ("mostly") and asked for
+one vocabulary. The timers are named by the status each times (`timers.h`;
+kinds 6, 7 and 11 keep neutral names, docs/TODO.md), and starting one, its
+count and its length are operations of `timers.c` (`battle_start_timer`,
+`battle_set_timer_count`, `battle_timer_length`), which `effect_statuses.c`
+calls too; `battle_timer_lengths` is two-dimensional in the map, kind by
+slot, as the counts are. The handlers' table says what each kind does, which
+status it follows and whether wearing off clears it (the slow's doesn't), and
+the search dispatches through a table of the handlers beside it rather than
+a switch (rubric item 100). The number's showing, `$C1:895B`, is an entry
+of its own, run from poison's and the MP's handlers with `battle_run`, as the
+original's `JSR` calls it (item 101): 12 calls over the library, the rest
+compared in the handler that ran them. The empty place of the order is
+ported the way the absent party member was: a timer's slot of `$FF` reaches
+past its kind's row through the unchecked accessors (`battle_timer_counts`,
+`battle_timer_runs_left`, `battle_timer_lengths` declare why), so the
+evading much better's four calls for nobody run in C and are compared, none
+mismatching, and the guard turns away nothing real. Fuzzed again, every
+handler with the order's last place empty as well (`variant = "nobody"`),
+none mismatching.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

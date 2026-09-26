@@ -16,21 +16,47 @@
 
 enum { TIMER_RUNNING = 0x01, TIMER_RUN_OUT = 0x80, TIMER_STOPPED = 0 };
 
+/* A slot past the combatants (the order's empty place) reaches past the kind's
+ * row, as the original's indexed accesses do (battle/timers.h). */
+static bool in_row(unsigned slot) { return slot < BATTLE_COMBATANTS; }
+
 static uint8_t timer_state(const GameState *g, BattleTimer timer, unsigned slot)
 {
-    return battle_timer_flags_byte(g, timer, slot);
+    return in_row(slot) ? battle_timer_flags_byte(g, timer, slot) : battle_timer_flags_byte_unchecked(g, timer, slot);
 }
 static void set_timer_state(GameState *g, BattleTimer timer, unsigned slot, uint8_t state)
 {
-    set_battle_timer_flags_byte(g, timer, slot, state);
+    if (in_row(slot))
+        set_battle_timer_flags_byte(g, timer, slot, state);
+    else
+        set_battle_timer_flags_byte_unchecked(g, timer, slot, state);
 }
 static uint8_t timer_count(const GameState *g, BattleTimer timer, unsigned slot)
 {
-    return battle_timer_counts_byte(g, timer, slot);
+    return in_row(slot) ? battle_timer_counts_byte(g, timer, slot) : battle_timer_counts_byte_unchecked(g, timer, slot);
 }
 static void set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
 {
-    set_battle_timer_counts_byte(g, timer, slot, count);
+    if (in_row(slot))
+        set_battle_timer_counts_byte(g, timer, slot, count);
+    else
+        set_battle_timer_counts_byte_unchecked(g, timer, slot, count);
+}
+
+uint8_t battle_timer_length(const GameState *g, BattleTimer timer, unsigned slot)
+{
+    return in_row(slot) ? battle_timer_lengths_byte(g, timer, slot) : battle_timer_lengths_byte_unchecked(g, timer, slot);
+}
+
+void battle_set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
+{
+    set_timer_count(g, timer, slot, count);
+}
+
+void battle_start_timer(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
+{
+    set_timer_count(g, timer, slot, count);
+    battle_restart_timer(g, timer, slot);
 }
 
 static bool timer_counting(uint8_t state) { return state != TIMER_STOPPED && !(state & TIMER_RUN_OUT); }
@@ -113,7 +139,9 @@ static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
     return (battle_timer_flags_byte_unchecked(g, timer, slot) & TIMER_RUN_OUT) != 0;
 }
 
-/* The due bits run from kind 0 at bit 12 down to the turn at bit 0. */
+/* The due bits run from kind 0 at bit 12 down to the turn at bit 0. Seeing
+ * to a kind clears the bits above them too, which nothing sets: the
+ * original's masks keep the thirteen alone. */
 enum { DUE_BITS = 0x1FFF };
 
 static uint16_t due_bit(BattleTimer kind) { return (uint16_t)(1u << (BATTLE_TIMER_TURN - kind)); }
@@ -196,7 +224,7 @@ static bool call_handler(Snes *s, BattleTimer kind)
     s->cpu.x = (uint16_t)(kind * 2);
     s->cpu.a = 0;
     if (kind != BATTLE_TIMER_TURN)
-        return battle_run(s, THE_HANDLERS_CALL, battle_status_timer_handler(kind), battle_status_timer_entries[kind]);
+        return battle_see_to_timer_as_called(s, THE_HANDLERS_CALL, kind);
     m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
     return battle_take_turn(s, THE_HANDLERS_CALL);
 }

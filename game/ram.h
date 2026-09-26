@@ -4798,10 +4798,11 @@
 #define RAM_BATTLE_TIMER_RUNS_LEFT_COUNT 13u
 #define RAM_BATTLE_TIMER_RUNS_LEFT_STRIDE 0x0Bu
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait [132 x $1 bytes, by timer kind (0-11) * 11 + battle slot] */
+ * battle_turn_wait [12 x $B bytes, by kind of timer (0-11, the timed statuses); a byte a battle
+ * slot] */
 #define RAM_BATTLE_TIMER_LENGTHS 0x7EB0D4u
-#define RAM_BATTLE_TIMER_LENGTHS_COUNT 132u
-#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x01u
+#define RAM_BATTLE_TIMER_LENGTHS_COUNT 12u
+#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x0Bu
 /* The combatant's turn wait: what its turn timer starts from again after it acts [11 x $1 bytes,
  * by battle slot] */
 #define RAM_BATTLE_TURN_WAIT 0x7EB158u

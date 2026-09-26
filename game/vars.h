@@ -6817,6 +6817,13 @@ enum { BATTLE_TIMER_COUNTS_COUNT = 13 };   /* by kind of timer (0-11 the timed s
 enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
+ * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, for marked
+ * scaffolding only: a status's timer found run out at the order's empty place ($FF) is seen to
+ * for that slot, past the kind's row, as the original's handlers do
+ * (game/battle/status_timers.c) */
+uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_FLAGS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
 /* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
@@ -6840,12 +6847,26 @@ enum { BATTLE_TIMER_RUNS_LEFT_COUNT = 13 };   /* by kind of timer (0-11 the time
 enum { BATTLE_TIMER_RUNS_LEFT_BYTES = 11 };
 uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How many more times each combatant's status timer runs out before the status wears off (or,
+ * for magic regained, before it regains): counted down, and set back to 10 when it gets there
+ * [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's timer found run
+ * out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the
+ * original's handlers do (game/battle/status_timers.c) */
+uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
-enum { BATTLE_TIMER_LENGTHS_COUNT = 132 };   /* by timer kind (0-11) * 11 + battle slot */
+enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed statuses); a byte a battle slot */
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait */
-uint8_t battle_timer_lengths(const GameState *g, unsigned i);
-void set_battle_timer_lengths(GameState *g, unsigned i, uint8_t v);
+ * battle_turn_wait [11 bytes, one at a time] */
+enum { BATTLE_TIMER_LENGTHS_BYTES = 11 };
+uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How long each combatant's status timers run once a status starts them; the turn's are
+ * battle_turn_wait [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's
+ * timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's
+ * row, as the original's handlers do (game/battle/status_timers.c) */
+uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */

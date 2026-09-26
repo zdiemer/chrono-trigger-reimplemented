@@ -3740,14 +3740,20 @@ uint16_t battle_action_running(const GameState *g) { return r16(g, 0x7EAF25u); }
 void set_battle_action_running(GameState *g, uint16_t v) { w16(g, 0x7EAF25u, v); }
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 529, "battle_timer_counts_byte", "count", i, 13u); IN_RANGE(g, 529, "battle_timer_counts_byte", "bytes", at, 11u); return r8(g, 0x7EAF27u + (uint32_t)i * 0x0Bu + at); }
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 529, "set_battle_timer_counts_byte", "count", i, 13u); IN_RANGE(g, 529, "set_battle_timer_counts_byte", "bytes", at, 11u); w8(g, 0x7EAF27u + (uint32_t)i * 0x0Bu + at, v); }
+uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAF27u + (uint32_t)i * 0x0Bu + at); }
+void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAF27u + (uint32_t)i * 0x0Bu + at, v); }
 uint8_t battle_timer_flags_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 530, "battle_timer_flags_byte", "count", i, 13u); IN_RANGE(g, 530, "battle_timer_flags_byte", "bytes", at, 11u); return r8(g, 0x7EAFB6u + (uint32_t)i * 0x0Bu + at); }
 void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 530, "set_battle_timer_flags_byte", "count", i, 13u); IN_RANGE(g, 530, "set_battle_timer_flags_byte", "bytes", at, 11u); w8(g, 0x7EAFB6u + (uint32_t)i * 0x0Bu + at, v); }
 uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EAFB6u + (uint32_t)i * 0x0Bu + at); }
 void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EAFB6u + (uint32_t)i * 0x0Bu + at, v); }
 uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 531, "battle_timer_runs_left_byte", "count", i, 13u); IN_RANGE(g, 531, "battle_timer_runs_left_byte", "bytes", at, 11u); return r8(g, 0x7EB045u + (uint32_t)i * 0x0Bu + at); }
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 531, "set_battle_timer_runs_left_byte", "count", i, 13u); IN_RANGE(g, 531, "set_battle_timer_runs_left_byte", "bytes", at, 11u); w8(g, 0x7EB045u + (uint32_t)i * 0x0Bu + at, v); }
-uint8_t battle_timer_lengths(const GameState *g, unsigned i) { IN_RANGE(g, 532, "battle_timer_lengths", "count", i, 132u); return r8(g, 0x7EB0D4u + (uint32_t)i * 0x01u); }
-void set_battle_timer_lengths(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 532, "set_battle_timer_lengths", "count", i, 132u); w8(g, 0x7EB0D4u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EB045u + (uint32_t)i * 0x0Bu + at); }
+void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EB045u + (uint32_t)i * 0x0Bu + at, v); }
+uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at) { IN_RANGE(g, 532, "battle_timer_lengths_byte", "count", i, 12u); IN_RANGE(g, 532, "battle_timer_lengths_byte", "bytes", at, 11u); return r8(g, 0x7EB0D4u + (uint32_t)i * 0x0Bu + at); }
+void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v) { IN_RANGE(g, 532, "set_battle_timer_lengths_byte", "count", i, 12u); IN_RANGE(g, 532, "set_battle_timer_lengths_byte", "bytes", at, 11u); w8(g, 0x7EB0D4u + (uint32_t)i * 0x0Bu + at, v); }
+uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at) { return r8(g, 0x7EB0D4u + (uint32_t)i * 0x0Bu + at); }
+void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v) { w8(g, 0x7EB0D4u + (uint32_t)i * 0x0Bu + at, v); }
 uint8_t battle_turn_wait(const GameState *g, unsigned slot) { IN_RANGE(g, 533, "battle_turn_wait", "count", slot, 11u); return r8(g, 0x7EB158u + (uint32_t)slot * 0x01u); }
 void set_battle_turn_wait(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 533, "set_battle_turn_wait", "count", slot, 11u); w8(g, 0x7EB158u + (uint32_t)slot * 0x01u, v); }
 uint8_t battle_turn_wait_unchecked(const GameState *g, unsigned slot) { return r8(g, 0x7EB158u + (uint32_t)slot * 0x01u); }

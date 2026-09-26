@@ -53,8 +53,8 @@ bool battle_back(Snes *s, uint32_t returns_to, uint16_t page, uint8_t bank);
  * its time counted as the routine's own. True if it came back to the call's
  * return as battle_call's callee must, on the page it was called on and with
  * whatever data bank it chose (the frame work sets its own); otherwise it
- * stopped where the original carries on, or at the return. For a machine-shaped sibling: one whose work
- * is C on the game's state is called as C. Where the entry's guard (or its
+ * stopped where the original carries on, or at the return. For a machine-shaped sibling, or a sibling
+ * whose guard must be able to turn a call away: one whose work is C on the game's state is called as C. Where the entry's guard (or its
  * registered preconditions) turns the state away, the call is made as a real
  * call instead, declaring nothing don't-care, and the runtime runs what the
  * registry has there. */
