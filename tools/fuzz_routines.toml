@@ -6856,6 +6856,51 @@ iterations = 2000
 why = "on the first window record's page ($1800), which draws one sprite or none as the records the game draws do"
 
 [[routine]]
+name = "menu_load_record_sprites"
+at = "C2:F3CA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E1801-7E1801=00-02", "--fill", "7E1841-7E1841=00-02", "--fill", "7E1881-7E1881=00-02", "--fill", "7E18C1-7E18C1=00-02", "--fill", "7E1901-7E1901=00-02", "--fill", "7E1941-7E1941=00-02", "--fill", "7E1981-7E1981=00-02", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-03", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78"]
+iterations = 500
+why = "the opening on the menus' page, each of the seven records' sprites from any of the three sets (the playable characters' as they are, the others' unpacked), the frame buffer part filled"
+
+[[routine]]
+name = "menu_load_record_sprite"
+at = "C2:F422"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1840", "--db", "7E", "--fill", "7E1840-7E1840=00-FF", "--fill", "7E1841-7E1841=00-02"]
+iterations = 2000
+why = "the second record's page, any sprite of any set, the playable characters' and the others' (whose graphics it unpacks), none among them"
+
+[[routine]]
+name = "menu_animate_record"
+at = "C2:F69D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E1803-7E1803=00-FF", "--fill", "7E1811-7E1812=00-FF", "--fill", "7E1813-7E1813=00-FF", "--fill", "7E1816-7E1816=00-03", "--fill", "7E1817-7E1817=00-03", "--fill", "7E1821-7E1821=00-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E180D", "--keep", "7E1814-7E1815", "--keep", "7E1819-7E1820"]
+iterations = 2000
+why = "the first record, its sprite as the state has it loaded, any animation asked for and shown, in any facing, any frame shown, the frame buffer part filled and the VRAM queue whole"
+
+[[routine]]
+name = "menu_show_record_frame"
+at = "C2:F75C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E1806", "--keep", "7E1819-7E181A", "--fill", "7E9690-7E9690=54", "--fill", "7E9691-7E9691=7E", "--fill", "7E9693-7E9693=6B"]
+iterations = 2000
+why = "the first record, its graphics as the state has them loaded, a frame's tile list of any tiles (blank, copied, mirrored) over the save summary, the block move's stub as the animation leaves it, the frame buffer part filled and the VRAM queue whole"
+
+[[routine]]
+name = "menu_step_record_animation"
+at = "C2:F69B"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E1803-7E1803=00-FF", "--fill", "7E1811-7E1812=00-FF", "--fill", "7E1813-7E1813=00-FF", "--fill", "7E1816-7E1816=00-03", "--fill", "7E1817-7E1817=00-03", "--fill", "7E1821-7E1821=00-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E180D", "--keep", "7E1814-7E1815", "--keep", "7E1819-7E1820"]
+iterations = 2000
+why = "as menu_animate_record, a frame on"
+
+[[routine]]
 name = "menu_wait_for_field_song_faded"
 at = "C2:CBC1"
 subsystem = "menu"

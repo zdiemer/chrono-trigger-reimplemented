@@ -430,6 +430,66 @@ static inline uint8_t menu_gate_pixel_pair(const GameState *g, unsigned i) { ret
 /* The End of Time's gate screen's setup, twelve bytes ($FF:D57A). */
 static inline uint8_t menu_gate_screen_setup(const GameState *g, unsigned i) { return rom_read8(g, 0xFFD57Au + i); }
 
+/* ---- The sprites the menus' records show -------------------------------------------------- */
+
+/* A sprite's assignment says what it is made of: its graphics, its frames,
+ * its colours and its animations, a number each into the tables below, and
+ * its size (bits 0-1: 1, 2, 3 or 6 blocks of 32 by 32 pixels; bit 4: the
+ * second of its colour sets). The playable characters' sprites and the
+ * others' are three sets of assignments in bank $E4, whose places the table
+ * at $C2:F55C gives (a word a set, taken at the set's number doubled as a
+ * byte); the first two sets' assignments are five bytes, the rest's ten. The
+ * tables of places are at the end of the bank ($E4:FFE0 on, a word each). */
+enum { MENU_SPRITE_ASSIGNMENT_BYTES = 5, MENU_SPRITE_BANK = 0xE40000 };
+static inline uint16_t menu_sprite_set_place(const GameState *g, uint8_t set_doubled)
+{
+    return rom_read16(g, 0xC2F55Cu + set_doubled);
+}
+static inline uint8_t menu_sprite_assignment_byte(const GameState *g, uint16_t at)
+{
+    return rom_read8(g, MENU_SPRITE_BANK | at);
+}
+/* The graphics and the frames of a sprite: a 24-bit address each, three
+ * bytes a sprite in the tables $E4:FFE0 and $E4:FFE2 place; `at` is the entry's
+ * place, the table's own offset added. */
+static inline uint16_t menu_sprite_graphics_table(const GameState *g) { return rom_read16(g, 0xE4FFE0u); }
+static inline uint16_t menu_sprite_frames_table(const GameState *g) { return rom_read16(g, 0xE4FFE2u); }
+static inline uint32_t menu_sprite_place(const GameState *g, uint16_t at)
+{
+    return (uint32_t)rom_read16(g, MENU_SPRITE_BANK + at) | (uint32_t)rom_read8(g, MENU_SPRITE_BANK + at + 2u) << 16;
+}
+/* A sprite's animations: where their frames and their frame times start in
+ * bank $E4, a word a sprite in the tables $E4:FFE4 and $E4:FFE6 place (the
+ * next sprite's frames' start ends this one's). */
+static inline uint16_t menu_sprite_animation_frames_table(const GameState *g) { return rom_read16(g, 0xE4FFE4u); }
+static inline uint16_t menu_sprite_animation_times_table(const GameState *g) { return rom_read16(g, 0xE4FFE6u); }
+static inline uint16_t menu_sprite_table_word(const GameState *g, uint16_t at) { return rom_read16(g, MENU_SPRITE_BANK + at); }
+/* A sprite's colours: twelve colours (24 bytes) at the place the table
+ * $E4:FFE8 gives, a word a sprite; its second set $200 bytes on. */
+static inline uint16_t menu_sprite_colours_table(const GameState *g) { return rom_read16(g, 0xE4FFE8u); }
+static inline uint8_t menu_sprite_colour_byte(const GameState *g, uint16_t at) { return rom_read8(g, MENU_SPRITE_BANK | at); }
+
+/* The blocks a sprite's size class has ($C2:F562), and the bytes a frame of
+ * that many blocks takes in its frames ($C2:F755: 40 a block). */
+static inline uint8_t menu_sprite_blocks(const GameState *g, uint8_t size) { return rom_read8(g, 0xC2F562u + (size & 3u)); }
+static inline uint8_t menu_sprite_frame_bytes(const GameState *g, uint8_t blocks) { return rom_read8(g, 0xC2F755u + blocks); }
+
+/* A byte of a sprite's graphics, frames or animation lists, wherever its
+ * record's pointer puts it. */
+static inline uint8_t menu_sprite_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+
+/* The first tile of each of the opening's seven records' sprites ($C2:F548, a
+ * word each: tile and attributes), and of the eighth's ($C2:F556). */
+enum { MENU_OPENING_RECORDS = 7 };
+static inline uint16_t menu_opening_record_tile(const GameState *g, unsigned record)
+{
+    return (uint16_t)(rom_read8(g, 0xC2F548u + 2u * record) | rom_read8(g, 0xC2F549u + 2u * record) << 8);
+}
+static inline uint16_t menu_last_record_tile(const GameState *g) { return rom_read16(g, 0xC2F556u); }
+
+/* A byte of pixels mirrored left to right ($C0:FD00). */
+static inline uint8_t menu_mirrored_pixels(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
+
 /* ---- The menus' display ------------------------------------------------------------------- */
 
 /* The colors the menus' color math ramps step through ($C2:8771, sixteen

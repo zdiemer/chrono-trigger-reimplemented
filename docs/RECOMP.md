@@ -6380,11 +6380,8 @@ name place is copied into the menus' tables; the save code's list of what the
 party carries (`$FF:F813`) and each member's figures (`$C2:99B2`) are still
 the original's, called from the port.
 
-**What is left of the opening** is the characters' sprites (`$C2:F3CA`): each
-of the menus' eight records loaded with a character's sprite (`$C2:F422`,
-which decompresses its tiles) and started on its animation (`$C2:F69D`-
-`$C2:F870`, which the records' task runs every frame). They belong with
-`menu/sprites.c`'s record sprites and are the next chunk's (PLAN.md).
+**What was left of the opening** was the characters' sprites (`$C2:F3CA`),
+which the next chunk took (below).
 
 **Found by fuzzing**: the names' count on the text page, above; a number's
 leading zeros are shifted out of its digit cells as the original shifts them,
@@ -6411,6 +6408,84 @@ before the list took input, held B across its four presses, which the game
 reads as one: the list stayed open and the bot, waiting for the command
 menu, waited for good. `tools/movies/bot.py` now releases B between presses,
 and the three long routes pass in the shipping mode.
+
+### Phase 3, menus: the characters in the records
+
+The menus' third chunk: the characters the menus show, in the records the
+screens draw their sprites from (`menu/sprites.c`, "The characters the
+records show"). `python3 tools/burndown.py` for `$C2`: 22.8 KiB ported and 62%
+left after the second chunk, 23.6 KiB and 60% left after this one, 231 entries.
+
+**What a record shows.** A record ($40 bytes at `$7E:1800` on, the direct
+page its routines run on; nine of them, the ninth `$1A00` only marked empty)
+names a sprite of one of three sets, the playable characters' and the
+others'. Its load (`$C2:F422`) looks the sprite's assignment up in bank `$E4`:
+where its graphics and its frames are, its colours, its animations and its
+size (one, two, three or six blocks of 32 by 32 pixels). It puts the twelve
+colours in the record's sprite palette and marks the palette changed; and for
+all but the playable characters, whose graphics the ROM keeps as they are, it
+has the unpacker put the graphics at `$7E:B000` + `$800` a record, a call to
+the decompressor's port from the load's entry, the one call-out the chunk
+keeps. The opening (`$C2:F3CA`) loads the first seven records with the
+characters in their standing animation facing the viewer and marks the last
+two empty.
+
+**The animation** (`$C2:F69D`, and `$C2:F69B` a frame on, which the records'
+task runs every frame) is a list of frames for each of four facings, each
+frame held for a time; an animation's bit 7 has it loop from its loop frame
+rather than its start, and one with no frames is left past its end. A change
+of frame (`$C2:F75C`, registered so it is timed and fuzzed alone) copies the
+frame's sprites' offsets into the record and builds its tiles into the frame
+buffer at `$7E:8000` (a blank tile, a tile of the graphics, or one mirrored
+left to right through the ROM's table of reversed bytes), `$200` bytes a block
+past the blocks queued this frame, and queues them for VRAM: an even number of
+blocks in one upload, an odd number a block's two rows of tiles at a time. The
+records' task holds a record's next frame back once a frame's blocks reach its
+limit (`menu_record_block_limit`).
+
+**Kept for the original.** The frame's tile list, which the original copies
+over the save summary and reads back as it builds the tiles, is scaffolding:
+the port reads the frame's data in place. So are the block move's stub (its
+source bank), the multiplier the original looks the assignment and the frame
+up with, the upload record at `$7E:9A88` and the frame's loop counts in the
+menus' first cells. The effects check found the save screen's readers of the
+save summary meeting the tile list; the baseline gives the reason (the save
+screen copies the summary there afresh before it reads it), and the frame
+building's own entry, which takes the tiles where the original's animation
+leaves them, the same. Over the shipping-mode runs, an upload the original
+builds over the save summary is queued with its unused eighth byte, which
+the tile list left: nothing reads the queue's eighth bytes (baseline). The opening counts its records in the time played's
+hours cell (`menu_opening_records_loaded`), which the save screen's header
+then takes for a time it has drawn: written plainly.
+
+**Guards.** The frame buffer, reached through `wram.h` since its place is
+worked out, must end clear of the block move's stub (`$7E:9690`); a sprite
+has at most three blocks (six-block sprites' offsets would run past the
+record, and no menu shows one); a record's pointers name banks that are ROM
+or work RAM throughout; the facing is one of four; a looping animation's loop
+frame has a time; and the VRAM queue counts whole records. None refused a
+call over the library.
+
+**Shadow and fuzzing.** Over the 26 movies every call compared, none
+mismatching: `menu_load_record_sprites` 37, `menu_load_record_sprite` 262,
+`menu_animate_record` 576, `menu_step_record_animation` 317 (the frame
+building runs inside them as C, its time its own over 571 frames). Fuzzing
+found the VRAM queue's count
+unaligned (the queue's own entries refuse it; the records' guards now do too)
+and pointers into banks the I/O registers share (the tiles read open bus
+there), and the frame building's own entry, which copies with the stub the
+animation leaves, needs the stub in place (its guard asks it).
+
+**Timing.** Calibrated from the library. A frame's time follows its mix of
+blank, copied and mirrored tiles and where its graphics are, which the port
+charges at the block move's rate (a blank tile's stores, a copied tile's
+loop, a mirrored tile's turning round, estimated from the original's cycles)
+since it fills and copies them itself; that leaves a spread of about 11%, so
+the frame building and the two animation entries are timing exceptions for
+their stretches that end in vblank (`tools/timing_exceptions.txt`), writing
+work RAM and the VRAM queue only. The block move's own rate
+(`memory_move_stub`) was recalibrated: the animation's copies no longer go
+through it on the machine, which changed the calls it is measured on.
 
 ### Phase 3, field and events: the party on the map
 

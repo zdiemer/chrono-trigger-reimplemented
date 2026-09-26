@@ -537,10 +537,22 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
+  characters in the records"):
+  - the records' task (`$C2:F657`), which yields every frame, is the
+    original's, calling the animation's step and the records' drawing as
+    ports;
+  - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
+    on the machine) as a call-out; the unpacker as C on the game's state
+    would take the menus' loads off the machine;
+  - six-block sprites are left to the original by the guards (their sprites'
+    offsets run past the record into the next); no menu shows one;
+  - what sets `menu_record_buffer_half` (`$7E:0D72`: nothing in bank `$C2`
+    writes it) is not worked out;
+  - `$C2:F6F5`, an entry into the animation's step past its frame's advance
+    that nothing calls, is not ported;
 - **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
   typesetter, the graphics and the items"):
-  - the characters' sprites as the menus open (`$C2:F3CA`, `$C2:F422`) and
-    the records' animation (`$C2:F69D`-`$C2:F870`), still the original's;
   - the typesetter's `$12` followed by 2-7, which jumps into code in the
     original that isn't a handler, ends the call in the port as a pause does,
     setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
