@@ -182,6 +182,34 @@ void brancher(Snes *s)
         self.assertEqual(p.targets, {0xC08020})
         self.assertEqual(inlined, set())     # C0:8020 by its target, C0:8030 by its site
 
+    def test_a_bridge_that_runs_a_sibling_sets_no_stop(self):
+        # field_run sets PC to the sibling it runs as C under the call's frame:
+        # the call's target, read at the call, not a hand-back nor unreadable
+        bridge = """#include "port/machine.h"
+
+static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    m_push16(s, (uint16_t)(site + 2));
+    s->cpu.pc = (uint16_t)routine;
+    entry(s);
+    return true;
+}
+
+bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
+{
+    return run_entry(s, site, routine, dont_care, entry);
+}
+"""
+        port = PORT.replace("call(s, 0xC08003, 0xC08030);", "field_run(s, 0xC08003, 0xC08030, 0, other);")
+        root = tree(self, port)
+        (root / "game" / "field").mkdir()
+        (root / "game" / "field" / "bridge.c").write_text(bridge, encoding="utf-8")
+        ports = burndown.read_ports(root, self.an)
+        p = next(p for p in ports if p.name == "outer")
+        self.assertFalse(p.unreadable)
+        self.assertEqual(p.stops, set())
+        self.assertEqual(p.sites, {0xC08003})
+
 
 if __name__ == "__main__":
     unittest.main()

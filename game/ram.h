@@ -555,6 +555,11 @@
 /* Rate of a gradual fixed color change (event $F1's operand 2, written to both bytes) [2 bytes] */
 #define RAM_FIELD_FIXED_COLOR_RATE 0x7E0123u
 #define RAM_FIELD_FIXED_COLOR_RATE_DP 0x23u  /* page field */
+/* The menu a script asked for with event $C8 ($C0:3769), which the main loop opens ($C0:0CC7): 0
+ * the Start assignment's menu; $01-$7F the menus' mode 0 where it is odd, 6 where it is even;
+ * $80-$FF the mode its top two bits give (2 or 3), its low six bits the screen's argument */
+#define RAM_FIELD_SCRIPT_MENU 0x7E0125u
+#define RAM_FIELD_SCRIPT_MENU_DP 0x25u       /* page field */
 /* Where the dialog window opens, which picks the layout of the per-line effect tables: 0 no
  * window, 1 the top of the screen (a band centered on line 48), 2 the bottom (centered on line
  * 171) */

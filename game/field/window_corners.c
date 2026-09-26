@@ -6,6 +6,7 @@
  * after the picture (field/display.c's line interrupt), and each window's own
  * corners can be drawn on their own. */
 #include "field/display.h"
+#include "field/field.h"
 
 #include "field/bridge.h"
 #include "platform/video.h"
@@ -15,7 +16,7 @@
 
 /* A window's corner pair is two words at $1C02 + $40 * window and two at
  * $1C22 + $40 * window in VRAM. */
-enum { WINDOWS = 4, NO_WINDOW_SELECTED = 0x80 };
+enum { WINDOWS = 4, NO_WINDOW_SELECTED = FIELD_NO_WINDOW_MARKED };
 enum { CORNER_VRAM = 0x1C02, CORNER_TILE = 0x2902, SELECTED_TILE = 0x28FC, WINDOW_STRIDE = 0x40, SECOND_CORNER = 0x20 };
 
 typedef struct {

@@ -2,9 +2,11 @@
  * console starts. */
 #include "core/display.h"
 
+#include "charge.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
+#include "port/vars_ram.h"
 
 // $C0:0B4E
 /* Stop everything that shows or interrupts: the screen blank, the frame and
@@ -21,13 +23,20 @@ void display_blank_and_stop(Platform *pf)
 
 /* It masks the CPU's interrupts too and leaves the data bank 0; what it
  * leaves in A and the flags nobody reads (the entry's set). */
-void display_blank_and_stop_interrupts(Snes *s)
+static void go_dark(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     s->cpu.db = 0x00;
     display_blank_and_stop(m_platform(s));
+}
+
+void display_blank_and_stop_interrupts(Snes *s)
+{
+    go_dark(s);
     m_rts(s);
 }
+
+void display_go_dark(Snes *s) { TIMED_AS(state_of(s), DISPLAY_BLANK_AND_STOP_ENTRY, go_dark(s)); }
 
 // $FD:C036
 /* The register block at power-on, written through a direct page on it: forced

@@ -11,6 +11,11 @@ void display_blank_and_stop(Platform *pf);
 
 enum { DISPLAY_BLANK_AND_STOP_ENTRY = 0xC00B4E };
 void display_blank_and_stop_interrupts(Snes *s);
+
+/* The same, as a port runs it where the original calls it: the CPU's
+ * interrupts masked too and the data bank $00, as the routine leaves the
+ * machine, and timed as the routine. */
+void display_go_dark(Snes *s);
 void display_init_registers(Snes *s);
 
 #endif

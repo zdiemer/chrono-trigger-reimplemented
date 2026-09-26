@@ -17,15 +17,19 @@
  * it sets itself up again, brings back the characters of a party the menu
  * changed (field_bring_the_party_back), and fades in.
  *
- * The blanking and the interrupts' handlers are C (core/display.c,
- * field/interrupts.c). The frame wait, the menus, the field's setup and its
- * fade in are the original's routines, called out to from the original's own
- * calls; so are the line effects' builder, the Start assignment and the
- * party's return, which are ports, for the reasons beside their calls. */
+ * The ports it calls run as C: the blanking and the interrupts' handlers
+ * (core/display.c, field/interrupts.c) directly, and the line effects'
+ * builder, the Start assignment and the party's return through field_run,
+ * which runs each under the frame the original's call pushes and calls out
+ * where the entry's guard would turn the state away. The frame wait, the
+ * menus, the field's setup and its fade in are the original's routines,
+ * called out to from the original's own calls. */
 #include "field/menus.h"
 #include "field/field.h"
+#include "field/line_effects.h"
 #include "field/object.h"
 #include "field/party.h"
+#include "field/walk.h"
 
 #include "charge.h"
 #include "core/display.h"
@@ -131,16 +135,8 @@ enum {
     OBJECT_START = 0xC0597D,        /* runs the current object's start in its script */
 };
 
-/* Ports called as the original calls them, on purpose. The line effects'
- * builder leaves registers its entry works out, and the overflow among them
- * is read after the pause (field/line_effects.c); the Start assignment and the
- * party's return make call-outs of their own, which must be made under their
- * own return address, where shadow mode pairs them with the original's. */
-enum {
-    LINE_EFFECTS = 0xFDC2C1,        /* field_build_line_effect_tables */
-    PRESS_START = 0xC01985,         /* field_press_start */
-    BRING_THE_PARTY_BACK = 0xC01A03 /* field_bring_the_party_back */
-};
+/* Ports this file runs through field_run, by the routines they stand for. */
+enum { LINE_EFFECTS = 0xFDC2C1, PRESS_START = 0xC01985, BRING_THE_PARTY_BACK = 0xC01A03 };
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
@@ -159,20 +155,11 @@ static bool wait_frame(Snes *s, uint32_t site) { return call(s, site, FRAME_WAIT
 static bool rebuild_line_effects(Snes *s, uint32_t site)
 {
     m_sep(s, CPU_FLAG_X);
-    if (!bridge_call_long(s, site, LINE_EFFECTS, READS_NOTHING, on_the_field_page(s, true)))
+    if (!field_run_long(s, site, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables,
+                        on_the_field_page(s, true)))
         return false;
     m_rep(s, CPU_FLAG_X);
     return true;
-}
-
-/* The screen blanked and the interrupts stopped, as a mode does before it
- * changes what the screen shows (core/display.c); the CPU's interrupts masked
- * and the data bank $00, as the original's routine leaves the machine. */
-static void blank_the_screen(Snes *s)
-{
-    TIMED_AS(state_of(s), DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(m_platform(s)));
-    m_set_flag(s, CPU_FLAG_I, true);
-    s->cpu.db = 0x00;
 }
 
 /* The field's own interrupt handlers back after a menu had the machine. */
@@ -210,56 +197,168 @@ static bool pause(Snes *s)
 
 /* ---- Opening a menu --------------------------------------------------------------------------- */
 
-/* The menus' modes the field opens, by what A holds as they start. */
-typedef enum { MAIN_MENU = 1, START_MENU = 5 } FieldMenu;
+/* The menus' modes the field opens, by what A holds as they start: the main
+ * menu, the Start assignment's, and the four a script can ask for, named by
+ * their numbers until the menus' side names them. */
+typedef enum { MENU_MODE_0 = 0, MAIN_MENU = 1, MENU_MODE_2 = 2, MENU_MODE_3 = 3, START_MENU = 5, MENU_MODE_6 = 6 } FieldMenu;
 
-/* The two ways a menu is opened, each with its own copy of the calls. They
- * differ in the menu, in the X the menus are given (the Start assignment's 0,
- * the menu button's what keeping the field left), and in whether a menu a
- * script asked for counts as shown. */
+/* The two ways a menu is opened: the menu, whether the screen it opens on is
+ * given no argument (the menus' caller hands one in X: a shop's number, a party
+ * member; the main menu's is whatever keeping the field left there), and
+ * whether a menu a script asked for counts as shown. */
 typedef enum { OPENED_BY_MENU_BUTTON, OPENED_BY_START } MenuOpener;
 static const struct {
-    uint32_t mode, clears_x, answers_script;
-    uint32_t fade_effects, fade_wait, keep, menus, set_up, party, sprites, fade_in;
+    FieldMenu menu;
+    bool no_argument, answers_script;
 } openings[] = {
-    [OPENED_BY_MENU_BUTTON] = { MAIN_MENU, 0, 0, 0xC0194D, 0xC01953, 0xC0195B, 0xC01960, 0xC01975, 0xC01978,
-                                0xC0197B, 0xC0197E },
-    [OPENED_BY_START] = { START_MENU, 1, 1, 0xC019B6, 0xC019BC, 0xC019C4, 0xC019CE, 0xC019E3, 0xC019E6, 0xC019F9,
-                          0xC019FC },
+    [OPENED_BY_MENU_BUTTON] = { MAIN_MENU, false, false },
+    [OPENED_BY_START] = { START_MENU, true, true },
 };
 
-// $C0:193E (the menu button's), $C0:19A7 (the Start assignment's)
+/* Each opening's own copy of the original's calls, by where each is. */
+static const struct {
+    uint32_t fade_effects, fade_wait, keep, menus, set_up, party, sprites, fade_in;
+} opening_sites[] = {
+    [OPENED_BY_MENU_BUTTON] = { 0xC0194D, 0xC01953, 0xC0195B, 0xC01960, 0xC01975, 0xC01978, 0xC0197B, 0xC0197E },
+    [OPENED_BY_START] = { 0xC019B6, 0xC019BC, 0xC019C4, 0xC019CE, 0xC019E3, 0xC019E6, 0xC019F9, 0xC019FC },
+};
+
 /* The menus take the mode in A with its high byte clear, and N and Z as its
- * load leaves them (clear: the mode is positive and not 0), since their entry
- * keeps the flags. False where a call didn't come back as the field runs. */
+ * load leaves them (N clear, Z where the mode is 0), since their entry keeps
+ * the flags; X is the argument of the screen they open on. */
+static bool call_the_menus(Snes *s, uint32_t site, FieldMenu menu)
+{
+    s->cpu.a = (uint16_t)menu;
+    m_set_flag(s, CPU_FLAG_N, false);
+    m_set_flag(s, CPU_FLAG_Z, menu == MENU_MODE_0);
+    return bridge_call_long(s, site, MENUS, READS_THE_MODE, on_the_field_page(s, false));
+}
+
+// $C0:19C7 (the menu button's is $C0:1958)
+/* From the menus on: the field set up again and the party brought back, and
+ * faded in. False where a call didn't come back as the field runs. */
+static bool menu_and_back(Snes *s, MenuOpener opener)
+{
+    GameState *g = state_of(s);
+    if (openings[opener].no_argument)
+        s->cpu.x = 0;
+    if (!call_the_menus(s, opening_sites[opener].menus, openings[opener].menu))
+        return false;
+    display_go_dark(s);
+    take_the_interrupts_back(g);
+    if (!call(s, opening_sites[opener].set_up, SET_THE_FIELD_UP, READS_NOTHING) ||
+        !field_run(s, opening_sites[opener].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW,
+                   field_bring_the_party_back, on_the_field_page(s, false)))
+        return false;
+    if (openings[opener].answers_script)
+        script_menu_shown(g);
+    if (!call(s, opening_sites[opener].sprites, SPRITE_LISTS, READS_NOTHING) ||
+        !call(s, opening_sites[opener].fade_in, FADE_IN, READS_NOTHING))
+        return false;
+    start_play_clock(g);
+    return true;
+}
+
+// $C0:193E (the menu button's), $C0:19A7 (the Start assignment's)
 static bool open_menu(Snes *s, MenuOpener opener)
 {
     GameState *g = state_of(s);
     while (fade_out_step(g))
-        if (!rebuild_line_effects(s, openings[opener].fade_effects) || !wait_frame(s, openings[opener].fade_wait))
+        if (!rebuild_line_effects(s, opening_sites[opener].fade_effects) || !wait_frame(s, opening_sites[opener].fade_wait))
             return false;
-    blank_the_screen(s);
-    if (!call(s, openings[opener].keep, KEEP_THE_FIELD, READS_NOTHING))
+    display_go_dark(s);
+    if (!call(s, opening_sites[opener].keep, KEEP_THE_FIELD, READS_NOTHING))
         return false;
-    s->cpu.a = (uint16_t)openings[opener].mode;
-    if (openings[opener].clears_x)
-        s->cpu.x = 0;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, false);
-    if (!bridge_call_long(s, openings[opener].menus, MENUS, READS_THE_MODE, on_the_field_page(s, false)))
+    return menu_and_back(s, opener);
+}
+
+/* ---- The menus a script asks for (event $C8) --------------------------------------------------- */
+
+/* What the script asked for (field_script_menu): 0 the Start assignment's
+ * menu; $01-$7F the menus' mode 0 where it is odd, 6 where it is even; $80-$FF
+ * the mode its top two bits give, with the screen's argument in its low six. */
+typedef struct {
+    bool the_start_menu;
+    FieldMenu menu;
+    bool has_argument;
+    uint8_t argument;
+} ScriptMenu;
+
+enum { ARGUMENT_GIVEN = 0x80, ARGUMENT_BITS = 0x3F, MODE_SHIFT = 6, ODD = 0x01 };
+
+static ScriptMenu script_menu(const GameState *g)
+{
+    uint8_t asked = field_script_menu(g);
+    if (asked == 0)
+        return (ScriptMenu){ .the_start_menu = true, .menu = START_MENU };
+    if (asked & ARGUMENT_GIVEN)
+        return (ScriptMenu){ .menu = (FieldMenu)(asked >> MODE_SHIFT), .has_argument = true,
+                             .argument = (uint8_t)(asked & ARGUMENT_BITS) };
+    return (ScriptMenu){ .menu = (asked & ODD) ? MENU_MODE_0 : MENU_MODE_6 };
+}
+
+/* The fade out before a script's menu: a step a frame, the leader walking on
+ * each (the player's control taken from it, so it stands) and the palettes
+ * animating. The original keeps the player's control on the stack over the
+ * walk; the walk's own calls are paired with the original's by where the stack
+ * is, so the port keeps it there too. */
+enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1, SCRIPT_FADE_WAIT = 0xC00CE5,
+       WALK = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, READS_THE_WALK = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+static bool fade_out_walking(Snes *s)
+{
+    GameState *g = state_of(s);
+    for (;;) {
+        uint8_t brightness = field_brightness(g);
+        if (brightness == DARK || (brightness & BRIGHTNESS_SIGN))
+            return true;
+        set_field_brightness(g, (uint8_t)(brightness - 1));
+        uint8_t control = field_player_control(g);
+        m_push8(s, control);
+        hand_the_party_to_the_player(g, false);
+        if (!field_run(s, SCRIPT_FADE_WALK, WALK, READS_THE_WALK, field_walk_the_leader, on_the_field_page(s, false)))
+            return false;
+        set_field_player_control(g, m_pull8(s));
+        if (!bridge_call_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
+            !wait_frame(s, SCRIPT_FADE_WAIT))
+            return false;
+    }
+}
+
+enum { SCRIPT_KEEP = 0xC00CED, SCRIPT_MENUS = 0xC00D18, SCRIPT_SET_UP = 0xC00D2D, SCRIPT_SPRITES = 0xC00D30 };
+
+// $C0:0CC7
+/* The menu a script asked for: the field fades out as the leader walks on,
+ * keeps its places, and opens it; after it the field is set up again and the
+ * script's wait is over, and it fades back in. The Start assignment's menu goes
+ * on as the Start assignment's does. False where the port stopped: at a call
+ * that didn't come back as the field runs, or at the fade in, which the
+ * original jumps to and which returns to the main loop itself. */
+enum { FADE_IN_TAIL = 0xC02824, FADE_IN_READS = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+bool field_open_script_menu(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (!fade_out_walking(s))
         return false;
-    blank_the_screen(s);
+    display_go_dark(s);
+    if (!call(s, SCRIPT_KEEP, KEEP_THE_FIELD, READS_NOTHING))
+        return false;
+    ScriptMenu asked = script_menu(g);
+    if (asked.the_start_menu)
+        return menu_and_back(s, OPENED_BY_START);
+    if (asked.has_argument)
+        s->cpu.x = asked.argument;
+    if (!call_the_menus(s, SCRIPT_MENUS, asked.menu))
+        return false;
+    display_go_dark(s);
     take_the_interrupts_back(g);
-    if (!call(s, openings[opener].set_up, SET_THE_FIELD_UP, READS_NOTHING) ||
-        !call(s, openings[opener].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW))
+    if (!call(s, SCRIPT_SET_UP, SET_THE_FIELD_UP, READS_NOTHING) ||
+        !call(s, SCRIPT_SPRITES, SPRITE_LISTS, READS_NOTHING))
         return false;
-    if (openings[opener].answers_script)
-        script_menu_shown(g);
-    if (!call(s, openings[opener].sprites, SPRITE_LISTS, READS_NOTHING) ||
-        !call(s, openings[opener].fade_in, FADE_IN, READS_NOTHING))
-        return false;
-    start_play_clock(g);
-    return true;
+    script_menu_shown(g);
+    m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
+    return false;
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
@@ -275,7 +374,8 @@ void field_pause_and_menus(Snes *s)
     GameState *g = state_of(s);
     if (start_pauses(g) && !pause(s))
         return;
-    if (assigned_pressed(g, ASSIGNED_START) && !call(s, PRESS_START_CALL, PRESS_START, READS_NOTHING))
+    if (assigned_pressed(g, ASSIGNED_START) &&
+        !field_run(s, PRESS_START_CALL, PRESS_START, READS_NOTHING, field_press_start, on_the_field_page(s, false)))
         return;
     if (!assigned_pressed(g, ASSIGNED_MENU)) {
         if (dialog_choice_waiting(g)) {
@@ -331,12 +431,6 @@ static bool party_changed(const GameState *g)
     return false;
 }
 
-static void party_loaded(GameState *g)
-{
-    for (unsigned place = 0; place < PARTY_PLACES; place++)
-        set_field_party_as_loaded(g, place, party_members(g, place));
-}
-
 /* Each member back where the field kept it before the menu: its place on the
  * map, its sprites' priorities, and its place on the leader's trail. */
 static void put_party_back_where_kept(GameState *g)
@@ -372,7 +466,7 @@ void field_bring_the_party_back(Snes *s)
             if (!call(s, character_starts[i].site, OBJECT_START, READS_THE_OVERFLOW))
                 return;
         }
-        party_loaded(g);
+        party_taken_as_loaded(g);
         put_party_back_where_kept(g);
     }
     m_rts(s);

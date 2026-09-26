@@ -163,7 +163,9 @@ def read_ports(root: pathlib.Path, an) -> list:
             # a hand-back by setting PC (in the entry's bank, or one the
             # function sets PB to); where it can't be read, the port could stop
             # anywhere, and credits no callee
-            for f in (src.funcs[n] for n in names if n in src.funcs):
+            # (a bridge's own PC, as a helper that runs a sibling port under
+            # its call's frame sets it, is the call's target, not a hand-back)
+            for f in (src.funcs[n] for n in names if n in src.funcs and n not in dc.BRIDGES.get(path, ())):
                 body = src.text[f.start:f.end]
                 banks = {e.addr >> 16} | {int(b, 16) for b in re.findall(r"\bpb\s*=\s*0x([0-9A-Fa-f]{2})\b", body)}
                 for m in re.finditer(r"(?:\.|->)pc\s*=(?!=)\s*([^;]*);", body):

@@ -1483,7 +1483,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC0CB3A, .name = "field_read_animation_frame", .fn = field_read_animation_frame, NEEDS_M8_X8_BINARY,
       .cost_milli = 3914, .dont_care = DC_Y | DC_N | DC_Z, .guard = field_object_frames_in_bank },
     { .addr = 0xC00C76, .name = "field_handle_requests", .fn = field_handle_requests, NEEDS_M8_X16,
-      .cost_milli = 2911, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_requests_can_run },
+      .cost_milli = 2929, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_requests_can_run },
     { .addr = 0xC0ED15, .name = "field_redraw_after_picture", .fn = field_redraw_after_picture, NEEDS_M8_X16,
       .cost_milli = 7380, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_redraw_can_run },
     { .addr = 0xC00715, .name = "field_return_from_battle", .fn = field_return_from_battle, NEEDS_M8_X16_BINARY,

@@ -9,6 +9,7 @@
  * one is asked for, the port hands the rest of the turn to the original's
  * code at the place it reads the requests. */
 #include "field/field.h"
+#include "field/menus.h"
 #include "field/requests.h"
 #include "field/switches.h"
 
@@ -143,12 +144,15 @@ static bool answer_step_event(Snes *s)
 /* ---- The entry ------------------------------------------------------------------------------ */
 
 /* Where the original's code carries on with the requests the port leaves
- * it: the location change, the menus and a chest, where it reads the
- * requests first (A's high byte and the overflow as they came, which the
- * port leaves); the tile copy and the battle, where it reads them after the
- * chest (the overflow as the switch's redraw left it, field/leaves.c). */
-enum { THE_ORIGINALS_REQUESTS = 0xC00C8A, THE_ORIGINALS_LATER_REQUESTS = 0xC01770 };
-enum { FIRST_DEAD = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, LATER_DEAD = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+ * it: the location change, where it reads the fade's brightness (A's high
+ * byte and the overflow as they came, which the port leaves); a chest, where
+ * it tests the requests in A for the step event before it (the port puts them
+ * there); the tile copy and the battle, where it reads them after the chest
+ * (the overflow as the switch's redraw left it, field/leaves.c). */
+enum { THE_ORIGINALS_LOCATION_CHANGE = 0xC00C91, THE_ORIGINALS_CHEST = 0xC00D3E,
+       THE_ORIGINALS_LATER_REQUESTS = 0xC01770 };
+enum { FIRST_DEAD = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, CHEST_DEAD = DC_X | DC_Y | DC_N | DC_Z | DC_C,
+       LATER_DEAD = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 // $C0:0C76
 /* The field's page, 8-bit A and 16-bit index registers. */
@@ -160,8 +164,18 @@ void field_handle_requests(Snes *s)
         m_rts(s);
         return;
     }
-    if (asked(g, FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS | FIELD_REQUEST_OPEN_CHEST)) {
-        m_stop_at_own(s, THE_ORIGINALS_REQUESTS, FIRST_DEAD);
+    if (asked(g, FIELD_REQUEST_LOCATION_CHANGE)) {
+        m_stop_at_own(s, THE_ORIGINALS_LOCATION_CHANGE, FIRST_DEAD);
+        return;
+    }
+    if (!asked(g, FIELD_REQUEST_MENUS) && asked(g, FIELD_REQUEST_OPEN_CHEST)) {
+        m_set_a8(s, field_requests(g));
+        m_stop_at_own(s, THE_ORIGINALS_CHEST, CHEST_DEAD);
+        return;
+    }
+    if (asked(g, FIELD_REQUEST_MENUS)) {
+        if (field_open_script_menu(s))
+            m_rts(s);
         return;
     }
     if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(s))

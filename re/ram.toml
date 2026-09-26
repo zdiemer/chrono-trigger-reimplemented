@@ -1226,6 +1226,14 @@ meaning = "Byte offset of the current location's record in location_records ($F6
 source = "LDX $01FE at $C0:7477; game/core/palette.c, palette_load_animations $FD:E292"
 
 [[var]]
+name = "field_script_menu"
+addr = "7E:0125"
+page = "field"
+subsystem = "field"
+meaning = "The menu a script asked for with event $C8 ($C0:3769), which the main loop opens ($C0:0CC7): 0 the Start assignment's menu; $01-$7F the menus' mode 0 where it is odd, 6 where it is even; $80-$FF the mode its top two bits give (2 or 3), its low six bits the screen's argument"
+source = "game/field/menus.c, field_open_script_menu $C0:0CC7"
+
+[[var]]
 name = "dialog_window_position"
 addr = "7E:0126"
 page = "field"

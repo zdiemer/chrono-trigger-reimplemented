@@ -7585,6 +7585,74 @@ random states: 0 of 20,000 each; leaving one cell unwritten mismatched 997 of
 
 **The timing gate.** The row was calibrated over the library; no exception.
 
+### Phase 3, field and events: the menus a script asks for
+
+The eleventh chunk of bank `$C0`, and chunk 10's review.
+
+**Chunk 10's review, folded in.**
+- *Siblings through the machine for their guards* (rubric item 102).
+  `field_run` and `field_run_long` (field/bridge.c) run a sibling port as C
+  under the frame the original's call pushes, timed as its routine, where the
+  registry would run that entry for the state (`native_hand_entry`: its guard
+  and widths); elsewhere they make the call on the machine with the declared
+  set, as `bridge_call` does. tools/dontcare_check.py reads them as it reads
+  `bridge_call`. menus.c runs the line effects' builder, the Start assignment
+  and the party's return through them; the second enum and its stated reasons
+  are gone, and the header says what runs how.
+- The two openings are a game table (the menu, whether its screen is given no
+  argument, whether a script's menu counts as shown) and a parallel table of
+  their sites (rubric item 100).
+- field.h has one definition each of the line effects' slots (moved from
+  line_effects.c) and the ones the field keeps on (`FIELD_LINE_EFFECTS_KEPT_ON`,
+  built from them), no tint (`FIELD_NO_TINT`, from the platform's
+  `VID_LINE_FIXED_COLOR_ALL_CHANNELS`, which event/screen.c and
+  battle/screen_setup.c now take too), the starting color math (through the
+  new `vid_math_control`, the encoder beside `vid_color_math_decode`), no
+  window marked, and `MapLevel` with `FIRST_LEVEL` (moved from walk.c).
+- `party_taken_as_loaded` (party.h), used by the start and the party's
+  return; the start calls `count_as_on_the_move` and
+  `screen_counts_as_recentred`; its switches are written as bools through
+  named operations (`field_lock_pause`, `field_leader_meets_the_map`,
+  `field_line_interrupt_works`, `field_map_names_a_bg3_set`); the backdrop is
+  named; `field_sprite_data_table` returns the long address, with the RAM
+  map's count; `display_go_dark` is core/display.c's one blanking helper, the
+  entry's and menus.c's.
+
+**What it is** (field/menus.c, `field_open_script_menu` `$C0:0CC7`, from the
+main loop's requests). A script asks for a menu with event `$C8`, its byte
+kept in `field_script_menu` (`$25`): the field fades out a step a frame
+while the leader walks on without the player's control (the walk run as C
+through `field_run`, the control kept on the stack where the original keeps
+it, since the walk's own calls are paired by where the stack is), keeps its
+places, and opens the menu: a byte of 0 goes on as the Start assignment's
+menu does (`$C0:19C7`); $01-$7F opens mode 0 or 6 by its low bit; $80-$FF
+opens the mode in its top two bits with the screen's argument in its low six.
+After it the field is set up again, the script's wait is over
+(`FIELD_SCRIPT_MENU_SHOWN`), and the port stops at the fade in, which the
+original jumps to. The location change and a chest still go to the original
+(TODO.md). The port now hands them back where the original takes each up (the
+location change at its fade, `$C0:0C91`; a chest at the step event's test
+before it, `$C0:0D3E`, with the requests in A as the test reads them), not at
+the requests' first test, so the burndown credits the requests' dispatch and
+the script's menus: a stop the port makes on some paths stops the walk on all
+of them. The burndown also no longer counts `field_run`'s PC, the sibling it
+runs, as an unreadable hand-back (`tests/test_burndown.py`). `$C0` stands at 40.8 KiB ported, 31% left.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call of
+`field_handle_requests` matches (191,044, none interrupted or refused); the
+script's menus with an odd byte (mode 0) run in every movie, and with an
+argument in eight (the fair's, the shop's, the new game's among them); no
+movie asks for mode 6 or the Start assignment's menu, which fuzzing covers up
+to the menus' call. Fuzzed
+(seeds 1 and 2, 20,000 states each): up to the fade's first frame wait or the
+keeping of the field 0 of 20,000 each, and, dark already, compared at the
+menus' call 0 of 20,000 each; with the menus' Z left clear for mode 0,
+736 of 3,000 mismatched; a location change handed back 0 of 20,000 each, and
+the chest's hand-back without the requests in A mismatched 1,445 of 2,996. The chunk's other rows are unchanged.
+
+**The timing gate.** `field_handle_requests` was calibrated again over the
+library; no exception.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

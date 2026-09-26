@@ -4842,6 +4842,30 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=10", "--fill", "7E
 why = "a step onto each of the switches' bottom tiles (the plain variant has the tile copy and the battle after, which run past the budget)"
 
 [[routine]]
+name = "field_handle_requests"
+variant = "script-menu-fade"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=40,42,50,60", "--fill", "7E0119-7E0119=00,01,03,0F,80", "--fill", "7E0125-7E0125=00,01,02,7F,80,9F,C0,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C0011B"]
+why = "a script's menu asked for (with the chest, the step event or the tile copy asked too or not), each brightness kind, each kind of menu byte: compared up to the fade's first frame wait or, dark already, the keeping of the field"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "script-menu"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=40,42,50,60", "--fill", "7E0119-7E0119=00,80", "--fill", "7E0125-7E0125=00,01,02,7F,80,9F,C0,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C28000"]
+why = "as script-menu-fade, dark already: compared at the call of the menus (their mode, argument and flags), the keeping of the field run on the original's side and the port's"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "location-change"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=80-FF"]
+why = "a location change asked for, with any other request: handed to the original where it reads the fade's brightness"
+
+[[routine]]
 name = "field_redraw_after_picture"
 subsystem = "field"
 state = "field"
