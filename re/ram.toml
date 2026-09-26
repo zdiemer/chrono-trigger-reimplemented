@@ -13889,6 +13889,65 @@ meaning = "The sound effect a chest makes opening ($65 from the field's start)"
 source = "game/field/switches.c"
 
 [[var]]
+name = "dialog_speaker_high"
+addr = "7E:012F"
+page = "field"
+subsystem = "field"
+meaning = "The byte after dialog_speaker, which $C0:1FDD reads with it as a word (16-bit X): the field's start clears it ($C0:0BD8) and nothing else writes it"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_screen_job"
+addr = "7E:0139"
+page = "field"
+subsystem = "field"
+meaning = "The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_built_sprite_object"
+addr = "7E:01AE"
+page = "field"
+subsystem = "field"
+meaning = "The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables' first) takes the link's high byte, 0"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_sprite_data_tables"
+addr = "7E:01AF"
+page = "field"
+size = 3
+count = 4
+stride = 3
+index = "table"
+subsystem = "field"
+meaning = "Long pointers to the four tables in bank $E4 the commands that load an object's sprite read its entries from ($C0:448D-$C0:4830: the character loads at $C0:421E, events $81-$83); the field's start points them where the words at $E4:FFE0 say"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_map_has_no_bg3_set"
+addr = "7E:01BB"
+page = "field"
+subsystem = "field"
+meaning = "Set when the map names no tile set for BG3 ($FF, $C0:6E22): the setup loads none ($C0:0A14, $C0:0AD3) and the windows leave BG3 alone ($C0:A429)"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_battle_song"
+addr = "7E:01FA"
+page = "field"
+subsystem = "field"
+meaning = "The song a battle on the field plays as it starts ($C0:1BAB, which the battle's setup calls at $D1:F405), unless the event keeps the field's ($7E:2A1F bit 6); $45 from the field's start"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_bg3_map_size"
+addr = "7E:0BE9"
+subsystem = "field"
+meaning = "Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of its own; the scene program sets it ($7E:30E6) and the field's start clears it"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
 name = "field_switch_sound"
 addr = "7E:01FC"
 page = "field"

@@ -4913,6 +4913,13 @@ state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E2980-7E2982=00,01,02,80", "--fill", "7E0194-7E0196=00,01,02,80", "--fill", "7E018D-7E0193=80,80,00,02,04,10", "--fill", "7E0197-7E0197=00,02,80", "--fill", "7E0198-7E0198=00", "--fill", "7E0199-7E0199=04,06,80", "--fill", "7E019A-7E019A=00", "--fill", "7E019B-7E019B=08,0A,80", "--fill", "7E019C-7E019C=00", "--stop-at-call", "C0597D"]
 why = "the characters' objects some objects, compared up to the first start in a script (random scripts run past the budget)"
 
+[[routine]]
+name = "field_start"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page over a random state: the start writes what it writes whatever was there, reading only the location, the party, the play time and the ROM"
+
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
 # Two states: the menus proper (the field menu open, menus-field-menu) and the sprite-object

@@ -28,6 +28,7 @@
 #include "field/battle_return.h"
 #include "field/palettes.h"
 #include "field/menus.h"
+#include "field/start.h"
 #include "field/requests.h"
 #include "field/graphics.h"
 #include "field/layers.h"
@@ -1475,6 +1476,8 @@ const NativeEntry game_natives[] = {
       .cost_milli = 7380, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_redraw_can_run },
     { .addr = 0xC00715, .name = "field_return_from_battle", .fn = field_return_from_battle, NEEDS_M8_X16_BINARY,
       .cost_milli = 6200, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_battle_return_can_run },
+    { .addr = 0xC00B86, .name = "field_start", .fn = field_start, NEEDS_M8_X16, .cost_milli = 2784,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_low_bank },
     { .addr = 0xC018D9, .name = "field_pause_and_menus", .fn = field_pause_and_menus, NEEDS_M8_X16, .cost_milli = 2971,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC01985, .name = "field_press_start", .fn = field_press_start, NEEDS_M8_X16, .cost_milli = 4126,

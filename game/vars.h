@@ -756,6 +756,11 @@ void set_dialog_string_table(GameState *g, uint32_t v);
 uint8_t dialog_speaker(const GameState *g);
 void set_dialog_speaker(GameState *g, uint8_t v);
 
+/* The byte after dialog_speaker, which $C0:1FDD reads with it as a word (16-bit X): the field's
+ * start clears it ($C0:0BD8) and nothing else writes it */
+uint8_t dialog_speaker_high(const GameState *g);
+void set_dialog_speaker_high(GameState *g, uint8_t v);
+
 /* Dialog box position: 1 top of the screen, 2 bottom, 0 the default commands */
 uint8_t dialog_box_position(const GameState *g);
 void set_dialog_box_position(GameState *g, uint8_t v);
@@ -779,6 +784,11 @@ void set_field_fade_request(GameState *g, uint8_t v);
  * waits) */
 uint8_t field_screen_recentring(const GameState *g);
 void set_field_screen_recentring(GameState *g, uint8_t v);
+
+/* The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at
+ * $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself */
+uint8_t field_screen_job(const GameState *g);
+void set_field_screen_job(GameState *g, uint8_t v);
 
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 uint8_t field_window2_edge(const GameState *g);
@@ -983,6 +993,25 @@ enum { FIELD_TRAIL_POSITION_COUNT = 3 };   /* by party place */
 uint8_t field_trail_position(const GameState *g, unsigned i);
 void set_field_trail_position(GameState *g, unsigned i, uint8_t v);
 
+/* The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work
+ * RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative
+ * for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables'
+ * first) takes the link's high byte, 0 */
+uint8_t field_built_sprite_object(const GameState *g);
+void set_field_built_sprite_object(GameState *g, uint8_t v);
+
+enum { FIELD_SPRITE_DATA_TABLES_COUNT = 4 };   /* by table */
+/* Long pointers to the four tables in bank $E4 the commands that load an object's sprite read
+ * its entries from ($C0:448D-$C0:4830: the character loads at $C0:421E, events $81-$83); the
+ * field's start points them where the words at $E4:FFE0 say */
+uint32_t field_sprite_data_tables(const GameState *g, unsigned i);
+void set_field_sprite_data_tables(GameState *g, unsigned i, uint32_t v);
+
+/* Set when the map names no tile set for BG3 ($FF, $C0:6E22): the setup loads none ($C0:0A14,
+ * $C0:0AD3) and the windows leave BG3 alone ($C0:A429) */
+uint8_t field_map_has_no_bg3_set(const GameState *g);
+void set_field_map_has_no_bg3_set(GameState *g, uint8_t v);
+
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
@@ -1097,6 +1126,11 @@ void set_field_direction_work(GameState *g, uint32_t v);
 /* Index into the random byte table at $FE00, stepped before each use */
 uint8_t field_random_index(const GameState *g);
 void set_field_random_index(GameState *g, uint8_t v);
+
+/* The song a battle on the field plays as it starts ($C0:1BAB, which the battle's setup calls at
+ * $D1:F405), unless the event keeps the field's ($7E:2A1F bit 6); $45 from the field's start */
+uint8_t field_battle_song(const GameState *g);
+void set_field_battle_song(GameState *g, uint8_t v);
 
 /* The sound effect a chest makes opening ($65 from the field's start) */
 uint8_t field_chest_sound(const GameState *g);
@@ -1305,6 +1339,11 @@ void set_field_color_math_layers(GameState *g, uint8_t v);
  * field_color_math_layers when the color is cleared */
 uint8_t field_fixed_color_math_layers(const GameState *g);
 void set_field_fixed_color_math_layers(GameState *g, uint8_t v);
+
+/* Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of
+ * its own; the scene program sets it ($7E:30E6) and the field's start clears it */
+uint8_t field_bg3_map_size(const GameState *g);
+void set_field_bg3_map_size(GameState *g, uint8_t v);
 
 enum { FIELD_OBJECT_SPRITE_PRIORITY_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the

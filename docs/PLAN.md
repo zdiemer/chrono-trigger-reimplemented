@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 156 files, 117 of
-41,154 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 157 files, 117 of
+41,276 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -343,7 +343,7 @@ docstring says which way it is wrong). **47% of the code is still generated.**
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 39.3K | 18.0K | 39% | 227 |
-| field engine, events (`$C0`) | 59.4K | 40.4K | 9.2K | 32% | 287 |
+| field engine, events (`$C0`) | 59.4K | 40.7K | 9.2K | 32% | 288 |
 | menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 226 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **47% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **141.9K** | **41.2K** | **47%** | **1076** |
+| **total** | **268.5K** | **142.2K** | **41.2K** | **47%** | **1077** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -563,9 +563,15 @@ taken off it, and the party's frames held after a defeat.
 The ninth (RECOMP.md, "Phase 3, field and events: the pause and the menus
 opened from the field") took the pause, the menus' opening and the party
 brought back after a menu (`$C0:18D9`-`$C0:1AAB`), with the palette give-up
-chunk 8's review asked for (`$C0:734C`). `$C0` stands at 40.4 KiB ported,
-32% left; what is left is the requests `$C0:0C76` hands back and the
-field's start (`$C0:0B86`), then the routines these call out to.
+chunk 8's review asked for (`$C0:734C`).
+
+The tenth (RECOMP.md, "Phase 3, field and events: the field's start") took
+the field's start (`$C0:0B86`) and named the cells it sets. `$C0` stands at
+40.7 KiB ported, 32% left; what is left is the requests `$C0:0C76` hands back and
+the routines the ports call out to, among them the field's setup after a menu
+(`$C0:01A5`), the keeping of the field (`$C0:011B`), the fade in
+(`$C0:2824`), the sprite lists (`$C0:B192`) and a choice's buttons
+(`$C0:1ADF`).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

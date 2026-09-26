@@ -7464,6 +7464,31 @@ The tenth chunk of bank `$C0`, and chunk 9's review.
   Frog-before-Robo order can't be seen in play (each start writes its own
   object and character entry); `object_palette_links_in_the_tables`.
 
+**What it is** (field/start.c, `field_start` `$C0:0B86`). Before the field
+sets up its first map, after the title, a load or another mode, its state is
+put as a map's arrival expects it, in eight operations named by what they
+leave: the location also put aside; nothing under way (requests, status,
+locks, screen jobs, tile copies, transitions); a dark plain screen; no
+dialog; the party the player's; no objects in the party's places or standing
+for the characters; the sprite tables started from scratch
+(`sprites_hide_all_next_frame`, and the sprite loading's four tables from the
+words at `$E4:FFE0`, through field_data.h); the usual sounds; and the random
+numbers from the play time. It calls nothing. The cells the map hadn't named
+are named from their readers (a CPU-side watch over three movies for the
+readers, then the listing): `dialog_speaker_high` (`$2F`, which `$C0:1FDD`
+reads with the speaker as a word), `field_screen_job` (`$39`),
+`field_built_sprite_object` (`$AE`), `field_sprite_data_tables`
+(`$AF`-`$BA`), `field_map_has_no_bg3_set` (`$BB`), `field_battle_song`
+(`$FA`, which the battle's setup plays through `$C0:1BAB`) and
+`field_bg3_map_size` (`$7E:0BE9`).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches (243, none interrupted or refused). Fuzzed (seeds 1 and 2) over
+random states: 0 of 20,000 each; leaving one cell unwritten mismatched 997 of
+1,000.
+
+**The timing gate.** The row was calibrated over the library; no exception.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

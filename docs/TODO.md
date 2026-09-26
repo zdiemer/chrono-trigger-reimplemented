@@ -984,9 +984,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
-  - the field's start (`$C0:0B86`) is the original's; it sets some cells
-    the map has no names for yet (`$2F`, `$39`, `$AE`-`$BB`, `$FA`,
-    `$7E:2989`, `$7E:0BE9`), which their readers name first;
   - the pause and the menus (field/menus.c) call the original's frame wait,
     field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
     lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons
