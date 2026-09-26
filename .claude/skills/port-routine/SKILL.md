@@ -251,6 +251,20 @@ the example.
 1. **Scope the chunk** from the call graph: the routines named in the task, plus
    everything only they call. Stop where the call graph leaves the subsystem, and
    say in your report what you left at the edge and why.
+
+   **Take as much as you can hold, not as little as will pass.** Almost
+   everything a chunk costs is fixed -- this skill, CLAUDE.md's rules,
+   docs/PORTING.md, the subsystem's headers, the analysis behind the drafts --
+   and none of it gets cheaper for a smaller chunk. Two chunks of 6 KiB cost
+   close to twice one chunk of 12 KiB and produce the same code. So aim at the
+   top of the 8-12 KiB the plan sets (docs/PLAN.md, "Wave 2"), and take the whole
+   of a game concept -- every handler of a language, both halves of a screen,
+   the routine and its helpers -- rather than half of one and half of the next.
+
+   The limit is what you can hold in mind well enough to reimplement rather
+   than translate, and that is the only reason to stop short. Where a routine's
+   callees aren't C yet, keeping them generated behind a call-out is cheaper
+   than splitting the chunk around them.
 2. **Draft every routine of the chunk in one run.** The analysis is solved once
    and is nearly all the time, so four drafts cost the same 27 seconds as one:
    ```sh
@@ -283,7 +297,17 @@ the example.
 ```sh
 python3 tools/portstyle.py --subsystem <your subsystem>   # both bars, measured
 python3 tools/portstyle.py --check                        # the gate's ratchet
+python3 tools/portsmell.py --check                        # the rubric's mechanical items
 ```
+
+`portsmell.py` is the review rubric's decidable half, run by machine: quoted
+assembly, a "presumably", a call-out into one of your own registered ports, a
+`Trace *` out-parameter, an enum nothing takes as a type
+(`python3 tools/portsmell.py --list`). Every finding it reports is one a
+reviewer would otherwise report back to you a day later, so clear them before
+you report done -- and never by adding a line to
+`tools/portsmell_baseline.txt`, which is the record of what the backlog had, not
+a place to put new work.
 
 A new or rewritten file over **0.10** operations per line has transliterated the
 assembly. Fix it before reporting, not after. The report's "on machine" column
@@ -424,10 +448,15 @@ tight (±0.38%). Sequence the work so only the final code pays for a
 
 In the same commit as the work:
 
-- `docs/RECOMP.md`: a new "as built" section in the style of the ones before
-  yours — how the chunk was chosen, what it is, what shadow mode found, what
-  fuzzing found and what it cost to set up, any exception and why.
-- `docs/PORTING.md`: a row per entry, with the fuzz run recorded.
+- `docs/RECOMP.md`: a new "as built" section in the style of the **one** before
+  yours in the same stream — how the chunk was chosen, what it is, what shadow
+  mode found, what fuzzing found and what it cost to set up, any exception and
+  why. Then move that previous section to its file under `docs/history/`, in this
+  commit: the file keeps the mechanisms and one worked example per stream, and
+  the run of chunk sections lives beside it (docs/RECOMP.md, "What is here").
+- `docs/ports.tsv`: a row per entry — name, `$BB:AAAA`, and the validation in a
+  sentence, with the fuzz run recorded. It is tab-separated and appended to, not
+  a table to read (docs/PORTING.md, "Status").
 - `docs/PLAN.md`: refresh the burndown table and the Phase 3a table if you
   emptied backlog files.
 - `docs/TODO.md`: remove what you closed, add what you opened. **Delete finished

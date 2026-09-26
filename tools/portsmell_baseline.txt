@@ -1,0 +1,24 @@
+# What each port had when a rubric check was added (tools/portsmell.py).
+# --check fails on a finding in a file with no line here, and on more findings
+# than a line allows. Fewer is fine; a file that reaches zero loses its line, so
+# the list empties as the backlog is rewritten. A deliberate exception carries
+# its reason as a `#` comment on its line.
+
+game/battle/bridge.c                         pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/battle/display.c                        sibling-through-machine  2
+game/battle/frame.h                          admitted-ignorance       1
+game/battle/nmi.c                            sibling-through-machine  1
+game/battle/screen_gradient.c                admitted-ignorance       1
+game/battle/window.h                         enum-types-nothing       1
+game/core/input.h                            enum-types-nothing       1
+game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/field/display.c                         sibling-through-machine  1
+game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/menu/cursor.h                           enum-types-nothing       1
+game/menu/display.c                          sibling-through-machine  4
+game/menu/epoch.c                            enum-types-nothing       1
+game/menu/epoch.c                            sibling-through-machine  7
+game/scene/boot.c                            sibling-through-machine  1
+game/scene/frame.c                           sibling-through-machine  1
+re/ram.toml                                  stale-provenance         20

@@ -459,7 +459,14 @@ because the merge costs, not the porting, are what a new wave gets wrong.
 (battle, 83%) and `$C2` (menus, 83%) are about 160 KiB between them, far too
 much for one agent each, so each bank goes in chunks of roughly 8-12 KiB, taken
 in an order the burndown's `--uncovered` and the profile suggest, and one agent
-per bank at a time so each keeps its own directory. One thing found in wave 1
+per bank at a time so each keeps its own directory. **Aim at the top of that
+range.** What a chunk costs is mostly fixed -- the skill, the porting rules, the
+subsystem's headers, the analysis the drafts come from -- so two 6 KiB chunks
+cost nearly twice one of 12 KiB for the same code. The size to stop at is what an
+agent can hold well enough to reimplement rather than translate, not the smallest
+slice that will pass the gate. Each chunk's gate run still stands alone; the
+**review** is once per branch, on the accumulated diff of its chunks, before it
+merges (`.claude/skills/review-port/`, "One review per merge"). One thing found in wave 1
 belongs to a bank's own wave rather than to whoever finds it: the battle
 routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 

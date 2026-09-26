@@ -26,7 +26,9 @@ logs the shadow runs just wrote); and no port may transliterate the assembly
 where one didn't before (tools/portstyle.py, static, a ratchet against its
 baseline); and no port's logic may read what some port writes only as
 scaffolding where none did before (tools/effects_check.py, static and over the
-vblank check's shipping-mode runs, a ratchet against its baseline). Exit status
+vblank check's shipping-mode runs, a ratchet against its baseline); and no port
+may carry one of the review rubric's mechanical smells where one didn't before
+(tools/portsmell.py, static, a ratchet against its baseline). Exit status
 is 0 only when all of that holds.
 
 Each movie's frame count comes from its own `# frames N` header, and a movie
@@ -257,6 +259,14 @@ def check_portstyle(args, ctx):
     return rc == 0, "portstyle", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_portsmell(args, ctx):
+    """No port carries one of the review rubric's mechanical smells where one
+    didn't before (tools/portsmell.py, static, a ratchet against its baseline)."""
+    rc, lines = run_tool([sys.executable, str(ROOT / "tools/portsmell.py"), "--check"])
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "portsmell", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 def check_evidence(args, ctx):
     """With --evidence: the library runs the tools/v_readers.py dc-evidence
     notes cite, made again (tools/dc_evidence.py), so a note can't go stale.
@@ -279,6 +289,7 @@ CHECKS = (
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
+    ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),
     ("evidence", check_evidence, "the dc-evidence notes' library runs (only run with --evidence)"),
 )
 

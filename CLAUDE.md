@@ -49,6 +49,12 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   transliterated assembly, per subsystem and per file (`--files`, `--subsystem S`). `--check` is the
   gate's ratchet against `tools/portstyle_baseline.txt`, the files written before the bar existed:
   rewriting one to the bar deletes its line, and nothing may be added (docs/PLAN.md, "Phase 3a").
+- `python3 tools/portsmell.py`: the review rubric's mechanical items, checked by machine instead of
+  by a reader -- quoted assembly, an admitted "presumably", a call-out into one of our own registered
+  ports, a register carried out to a wrapper, an enum nothing takes as a type (`--list` for the
+  checks and the rubric items each stands for, `--files` per file). `--check` is the gate's ratchet
+  against `tools/portsmell_baseline.txt`. A port clears its findings before it is submitted, so a
+  review spends its reading on the items that need a reader (`.claude/skills/review-port/`).
 - `python3 -m tools.recomp.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
   stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
@@ -73,8 +79,10 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before
   (`tools/effects_check.py`, run by the suite, in the source and over the vblank check's shipping-mode
   runs with `ct_dev --scaffold-reads`, a ratchet on `tools/effects_baseline.txt`; docs/PORTING.md,
-  "Scaffolding"); and no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py --check`, run by the suite, static; docs/PLAN.md, "Phase 3a").
+  "Scaffolding"); no port transliterates the assembly where one didn't before
+  (`tools/portstyle.py --check`, run by the suite, static; docs/PLAN.md, "Phase 3a"); and no port
+  carries one of the review rubric's mechanical smells where one didn't before
+  (`tools/portsmell.py --check`, run by the suite, static).
   Two checks the suite doesn't run, so run them by hand when a change could move them:
   `ct_dev --native on --recomp only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
@@ -87,8 +95,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   it). See docs/PORTING.md, and `.claude/skills/port-routine/` for the workflow an agent follows
   (the bar with worked examples, the self-check, the worktree rules, the report). A subsystem merges
   only after a **qualitative review** by a reader who hasn't seen the author's report
-  (`.claude/skills/review-port/`): the gate and `portstyle.py` prove behaviour and syntax, and neither
-  can tell a hand reimplementation from a translation with good names.
+  (`.claude/skills/review-port/`): the gate, `portstyle.py` and `portsmell.py` prove behaviour,
+  syntax and the rubric's decidable items, and none of them can tell a hand reimplementation from a
+  translation with good names. **One review per merge, not per chunk**: the gate runs at every
+  commit, the review once on the accumulated diff of a branch's chunks, before it merges
+  (`.claude/skills/review-port/`, "One review per merge").
+- A port's row goes in docs/ports.tsv, a tab-separated ledger to `grep` (docs/PORTING.md, "Status").
+  A chunk's as-built section goes in docs/RECOMP.md; the section it replaces moves to
+  docs/history/ in the same commit (docs/RECOMP.md, "What is here").
 
 ## Rules
 
@@ -238,6 +252,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   RUNTIME.md, PORTING.md) say what was built and how it was measured,
   docs/TODO.md holds the open follow-ups, and docs/PLAN.md says what to do next
   and why the rest waits.
+- **A milestone doc is a document, not a log.** It holds the mechanisms, the
+  measurements and one worked example of each kind of work; the run of per-chunk
+  accounts behind them goes to docs/history/, and a ledger (a row per port, per
+  entry, per exception) goes to a file made to be `grep`ed -- docs/ports.tsv,
+  `tools/*_baseline.txt`, `tools/*_exceptions.txt`. Both are written for a reader
+  who arrives with no context, and every agent pays to read them again, so what
+  earns its place there is what is still true and still needed.
 - **Delete finished work from the plan and the follow-ups rather than marking it
   done.** A completed item leaves docs/PLAN.md and docs/TODO.md entirely; what
   it produced belongs in its milestone doc's "as built" section, which is where

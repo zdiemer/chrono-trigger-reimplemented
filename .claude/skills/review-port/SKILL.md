@@ -15,6 +15,17 @@ where the code still reads as a translation, not to confirm that it doesn't.
 
 ## How to review
 
+- **Run the mechanical items first, and don't read for them:**
+  ```sh
+  python3 tools/portsmell.py --files    # the rubric items a machine can settle
+  python3 tools/portsmell.py --list     # which items those are
+  ```
+  Eleven of the items below are decidable from the source -- quoted assembly, a
+  "presumably", a sibling port called through its ROM address, a `Trace *`
+  out-parameter, an enum nothing takes as a type -- and `tools/portsmell.py`
+  owns them. Its findings are yours to report, with the item's number, but they
+  are not yours to hunt for: the items it owns are one line each below, pointing
+  here. Spend the reading on the items that need a reader.
 - **Read every file of the subsystem in full.** Not excerpts, not a grep. The
   failures this review exists for only show in the reading.
 - **You are not given the author's report, and don't look for it** (RECOMP.md's
@@ -328,10 +339,10 @@ Each of these is a finding. Every example here comes from this repo.
    calls one operation of a concept (`object_loop_animation(obj, anim)`) that
    does those stores inside.
 2. **One function per ROM routine or per opcode**, where they differ only in how
-   an operand is encoded. `loop_animation`, `loop_animation_0` and
-   `loop_animation_1`, or `play_animation` and `play_animation_for`, are one
-   operation each. An interpreter that dispatches through the ROM's pointer
-   table and an emulated `JSR`, instead of a C table, is the usual cause.
+   an operand is encoded (`loop_animation`, `loop_animation_0`,
+   `loop_animation_1`): machine-checked, `portsmell.py twin-functions`. What it
+   can't see is the cause -- an interpreter dispatching through the ROM's
+   pointer table and an emulated `JSR` instead of a C table -- so read the table.
 3. **Positional or offset access to data that has meaning.** `operand(g, c, 1)`
    for "the animation"; a byte offset into a record; `at + 2`. A hand-written
    version decodes once into named, typed values.
@@ -365,16 +376,17 @@ Each of these is a finding. Every example here comes from this repo.
     a slot handle or a count with a unit. Types are part of the vocabulary.
 11. **The wrong level.** A file whose functions operate on tables and bytes when
     the game concept exists (or should) one level up.
-12. **The arithmetic unit emulated in the logic.** An add-with-carry or a
-    rotate-left written as C functions (`add_carry`, `rotate_left`, `adc`/`sbc`),
-    a divide done as 32 rounds of rotate-and-subtract, a multiply as partial
-    products with a chained carry. A hand-written version writes
+12. **The arithmetic unit emulated in the logic.** A hand-written version writes
     `quotient = n / d`, `product = a * b`, and any carry, overflow or leftover
-    the callers read is derived *in the wrapper* from those results. Where the
-    original's rounding really moves a pixel, that is one named function
+    the callers read is derived *in the wrapper* from those results. Named
+    emulations (`add_carry`, `rotate_left`, `adc`/`sbc`) are machine-checked,
+    `portsmell.py cpu-arithmetic`; an unnamed one -- a divide as 32 rounds of
+    rotate-and-subtract, a multiply as partial products with a chained carry, a
+    struct of `carry, overflow, x, y, bank` threaded through the logic -- is
+    yours to see, and rates its file **translation**. Where the original's
+    rounding really moves a pixel, that is one named function
     (`edge_rounding(...)`) with a comment saying what the player sees, not the
-    shape of the whole routine. A struct of `carry, overflow, x, y, bank` passed
-    through the logic is the CPU; name it that way in the finding.
+    shape of the whole routine.
 13. **Memory used as registers.** A loop counter or temporary kept in a RAM cell
     and read back (`set_scene_circle_count(g, x); ... x = scene_circle_count(g);`),
     or bytes shifted in place in scratch. CLAUDE.md requires writing the cells the
@@ -390,28 +402,31 @@ Each of these is a finding. Every example here comes from this repo.
     on the display side: build the state as one `VidScreen` and apply it
     (`vid_apply_screen`), or add the service call that would.
 15. **Assembly quoted in comments.** `/* STX $2102 : STZ $4374 : STA $420B */`
-    is the most blatant form of smell 8. Also a finding: a per-call array
-    spelling out the original's write order for a transfer the service already
-    models (`VID_STEP_*`, `VidSnesXfer`, a DMA channel or mode); the site's
-    order belongs in `runtime/platform/snes/encodings.c`, and the lint allows it
-    in `game/` only in the files it lists as not moved yet.
+    is the most blatant form of smell 8: machine-checked, `portsmell.py
+    asm-in-comments` (a quoted sequence, or a write to a hardware register; one
+    instruction named in prose is the provenance CLAUDE.md asks for). Still
+    yours: a per-call array spelling out the original's write order for a
+    transfer the service already models (`VID_STEP_*`, `VidSnesXfer`, a DMA
+    channel or mode); that order belongs in
+    `runtime/platform/snes/encodings.c`.
 16. **Stop-point fragments.** Entries that exist only because a routine is
     half-ported, named for the address or constant at the stop
     (`scene_set_vram_6400`, `scene_race_set_vram_0000_again`). Port the routine
     they're fragments of (`load_title_graphics`), or at least name each for what
     it holds.
-17. **Admitted ignorance.** "presumably", "a history of values, presumably",
-    "what reads the pair isn't ported". This always fails the one-sentence test
-    and is always a finding. Its fix has an owner: find the reader and name the
-    value, or record it in `docs/TODO.md`.
+17. **Admitted ignorance.** "presumably", "what reads the pair isn't ported":
+    always a finding, and machine-checked, `portsmell.py admitted-ignorance`. Its
+    fix has an owner -- find the reader and name the value, or record it in
+    `docs/TODO.md`.
 18. **One field, several private definitions.** The same bit defined in
     several files, under different names or meanings (`SCENE_FLAG_LINE_IRQ` and
     `SCENE_FLAG_TITLE_AGAIN`, both `0x80` of `scene_flags`). One definition, in
     the subsystem's header, named for everything it means.
 19. **Branch-shaped compares.** `!((uint16_t)(x - LIMIT) & 0x8000)` is a
-    BMI/BPL spelled out. Write the comparison the logic means (`(int16_t)(x -
-    LIMIT) < 0`, or `x < LIMIT` where the range allows it), with a comment only
-    where wraparound really changes the result.
+    BMI/BPL spelled out: machine-checked, `portsmell.py sign-bit-compare`. Write
+    the comparison the logic means (`(int16_t)(x - LIMIT) < 0`, or `x < LIMIT`
+    where the range allows it), with a comment only where wraparound really
+    changes the result.
 20. **Scaffolding as table data.** `ORIGINAL_EFFECT` compiles out *writes*, not
     *columns*. A language's row struct carrying the original's Y, scratch
     layout or flags (`.parse`, `.keeps = 0x80|n`, `.overflow`) is smell 9 even
@@ -421,16 +436,22 @@ Each of these is a finding. Every example here comes from this repo.
     disagree with the operation names for the same command (`reset_animation`
     and `stop_animating`), or a column holding ROM addresses that no code reads.
 22. **Calling a sibling port through its ROM address.** An emulated `JSR` into
-    your own subsystem's port, instead of a C call.
+    your own subsystem's port instead of a C call: machine-checked, `portsmell.py
+    sibling-through-machine`, which reads every call-out's target against
+    `game/registry.c` (item 61 is the same check from the call-out's side).
 23. **The scaffolding switch used as a value.** `return ORIGINAL_EFFECTS &&
     overflows16(...)`: the switch has leaked into what a function means.
+    Machine-checked, `portsmell.py scaffolding-as-value`.
 24. **Adapters that reorder positional arguments.** A dispatch table whose rows
     list operands in one order while the operation takes them in another
     (`(arg[2], arg[0], arg[1], arg[3])`). This is smell 3 moved into the
     interpreter; decode into a named struct.
 25. **Stale provenance.** `re/ram.toml` `source` lines and header declarations
-    naming files or functions that no longer exist.
-26. **Traces as out-parameters, with twin functions.** A public logic function
+    naming files or functions that no longer exist. The file half is
+    machine-checked, `portsmell.py stale-provenance`; a named *function* that is
+    gone is still yours.
+26. **Traces as out-parameters, with twin functions.** Machine-checked in its
+    named form, `portsmell.py register-out-params`. A public logic function
     that wraps a private one taking `SomethingTrace *` or `bool *x_for_wrapper`
     only so the entry wrapper can rebuild registers (`FrameTrace { plays_counted
     /* A */, started_over /* V */ }`). This is smell 6 moved into a parameter, and
@@ -468,7 +489,8 @@ Each of these is a finding. Every example here comes from this repo.
     or a small struct per operation family.
 33. **Constants that type nothing.** Enums declared so a comment can mention
     them (`IN_OTHERS_WAY`, `STOPPED_BY_*`) while the parameter stays `uint8_t`.
-    The type is the vocabulary.
+    The type is the vocabulary. Machine-checked, `portsmell.py
+    enum-types-nothing`, for an enum nothing takes as a type at all.
 34. **Emulating inputs no game state produces.** A bit-serial division kept
     "for a divisor of 0, or one with its top bit set, which no scene uses". The
     remedy is a guard that refuses those inputs, so the original runs them;
@@ -571,7 +593,8 @@ Each of these is a finding. Every example here comes from this repo.
     rotations, `FADE_TO_WHITE` standing for every fade) reads as if it cared
     which member. Give the coarser case its own type.
 
-61. **A call-out that is really a port.** Check every call-out's target
+61. **A call-out that is really a port.** Machine-checked with item 22,
+    `portsmell.py sibling-through-machine`, which reads every call-out's target
     against `game/registry.c`: a list headed "the original's routines" can
     quietly include the subsystem's own ports, called through the machine
     where C would do.
@@ -610,7 +633,9 @@ Each of these is a finding. Every example here comes from this repo.
 72. **Guards that know their entry by `s->cpu.pc`.** Scanning a table's ROM
     address column for the PC is handler identity by machine position, and
     makes routine columns in logic tables look necessary. Generate a guard
-    per entry with its kind as a constant.
+    per entry with its kind as a constant. Machine-checked, `portsmell.py
+    pc-identity`, which reads the PC but not the ports that *set* it (how an
+    idle loop's port says where the machine resumes).
 73. **A handler that calls the continuation.** A condition that itself
     "chooses the block's actions", as the original's `JSR` did, instead of
     returning a result the interpreter's loop acts on.
@@ -795,6 +820,23 @@ fresh review reads those files (and anything their fixes touched), not the
 whole subsystem again. The files that passed stand, and their remaining "mostly"
 findings are follow-ups. This keeps the loop convergent as the rubric grows;
 it never lets a file rated translation merge.
+
+**One review per merge, not per chunk.** A review's cost is mostly fixed: this
+rubric, the subsystem's files, and the reading that finds what the gate can't.
+Paying it per chunk pays it two or three times for the same subsystem. The gate
+runs per chunk, because behaviour has to hold at every commit; the review runs
+once on the accumulated diff, before the subsystem merges. So:
+
+- A chunk lands on its convert branch when the gate passes. No review yet.
+- Two or three chunks in, or when the stream's next chunk would touch files the
+  last ones wrote, review the branch whole: the files those chunks wrote or
+  rewrote, plus every file of the subsystem the per-file rating covers.
+- Review before merging to `main`, never after. A chunk whose review is still
+  owed is a chunk whose files can still be rewritten cheaply.
+
+Batching does not weaken the bar: it is the same reading of the same files, done
+when there is more to read. What it drops is re-reading the rubric and the
+subsystem's headers for each chunk in a run.
 
 ## What is legitimately machine-shaped
 

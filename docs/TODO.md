@@ -58,6 +58,23 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Phase 3a work in flight
 
+- **What `tools/portsmell.py` found when it was written** (its baseline,
+  `tools/portsmell_baseline.txt`, is the list; each line leaves it as the work
+  lands):
+  - 20 `source` lines in `re/ram.toml` cite files that no longer exist
+    (`game/battle/stats.c`, `math.c`, `gauges.c`): rubric item 25, a map fix.
+  - 17 call-outs reach one of our own registered ports through the machine
+    (`game/menu/epoch.c` 7, `game/menu/display.c` 4, `game/battle/display.c` 2,
+    one each in `battle/nmi.c`, `field/display.c`, `scene/boot.c`,
+    `scene/frame.c`): rubric items 22 and 61, each to become a C call behind a
+    helper that tests the guard (`event_call_bridge`'s shape).
+  - 4 enums nothing takes as a type (`MenuPage`, `AssignedSet`, `MenuSound`,
+    `DialStep`): rubric item 33, type the parameters that carry them.
+  - 2 comments that admit they don't know what they describe
+    (`game/battle/frame.h`, `game/battle/screen_gradient.c`): rubric item 17.
+  The four bridges' `s->cpu.pc` comparisons are on the baseline with a reason:
+  asking whether a call-out returned to its site is not entry identity.
+
 - **Scene's follow-ups from its targeted re-review** (merged with these
   accepted; `script.c`, `sprites.c` and `title.c` rated mostly):
   - `scene_script_wait_for_sound` (`script.c:725-748`) keeps the wait's
