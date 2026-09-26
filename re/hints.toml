@@ -689,10 +689,15 @@ count = 219
 # reaches (tools/disasm/battlescript.py): 13 of the 25 indices, which name all
 # four of its handlers, and $1F, which reads past the table (index * 2 with an
 # 8-bit ASL): the word at C1:79DF, entry 6 of the C1:79D3 table, C1:7639.
+# index_reach (tools/v_readers.py): whatever the byte, ASL A (8-bit) and TAX
+# make X at most $FE where A's high byte is clear, which the script loop's TDC
+# at C1:75C8 leaves it after every command (ct_dev --index-check shows it over
+# the library): 128 words, the rest the next tables' entries.
 [[jumptable]]
 at = "C1:75D1"
 count = 25
 derive = "battleanim.directions"
+index_reach = 128
 
 # C1:7633, table C1:79D3: A is a battle animation script operand (the "place"
 # operands of tools/disasm/battlescript.py's command table, passed at 18 sites),
@@ -700,10 +705,12 @@ derive = "battleanim.directions"
 # the table ends where the C1:7A63 table (C1:4328) begins. Derived from every
 # animation script the parse reaches: 67 of the 72 indices, and $80, which the
 # 8-bit ASL makes entry 0.
+# index_reach: as C1:75D1's, the same dispatch (C1:762E).
 [[jumptable]]
 at = "C1:7633"
 count = 72
 derive = "battleanim.places"
+index_reach = 128
 
 # C1:8333, table C1:B92D: X counts from 0 and the loop ends at 13
 # (C1:833C-8340): 13 entries. The words after them aren't handler addresses
@@ -719,22 +726,31 @@ count = 13
 # (C1:8CE7) begins. Derived: the condition bytes the four sites dispatch when
 # every enemy's script is read as the evaluators read it
 # (tools/disasm/battlescript.py), 26 of the 41, none above $26.
+# index_reach (tools/v_readers.py): each loads the byte into an 8-bit A, then
+# ASL A and TAX, so X is at most $FE where A's high byte is clear: a TDC comes
+# just before C1:874E's and C1:B006's load; C1:8769's and C1:B021's rely on the
+# one before the dispatch above them, which ct_dev --index-check shows holds
+# over the library. 128 words, the rest the following tables' entries.
 [[jumptable]]
 at = "C1:874E"
 count = 41
 derive = "enemyai.conditions"
+index_reach = 128
 [[jumptable]]
 at = "C1:8769"
 count = 41
 derive = "enemyai.conditions"
+index_reach = 128
 [[jumptable]]
 at = "C1:B006"
 count = 41
 derive = "enemyai.conditions"
+index_reach = 128
 [[jumptable]]
 at = "C1:B021"
 count = 41
 derive = "enemyai.conditions"
+index_reach = 128
 
 # C1:8CE7, table C1:B85F: Negative command bytes branch away (C1:8CE3); the
 # table ends where the C1:B88D table (C1:8D88) begins.

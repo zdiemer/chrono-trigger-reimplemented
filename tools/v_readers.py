@@ -13,10 +13,14 @@ A port that hands the original's code a call with V declared don't-care
 callee's entry on. The liveness analysis (tools/disasm/liveness.py) proves
 that where it can follow every transfer; its strict solve, which
 tools/dontcare_check.py holds call-outs to, keeps everything live at a jump
-table whose targets come from data. For the tables in BOUNDED this check
-follows instead every target the table's index can reach, argued from the
-dispatch alone (what the table can hold, not what the game's data picks), and
-solves liveness strictly otherwise: V is dead into a routine when that solve
+table whose targets come from data. For the tables with an `index_reach`
+hint (re/hints.toml) this check follows instead every target the table's
+index can reach, argued from the dispatch alone (what the table can hold, not
+what the game's data picks), and solves liveness strictly otherwise. The
+dispatch must be ASL A (8-bit), TAX, JSR or JMP (abs,X), with nothing jumping
+past the ASL (dispatch_findings), and A's high byte clear there, which the
+hint argues and `ct_dev --index-check` shows over the library
+(tools/dc_evidence.py runs it): V is dead into a routine when that solve
 has it so. For each routine named it says whether V is dead into it (and for
 each --after, whether V is dead after the routine returns, to any of its
 callers), and with
@@ -37,39 +41,85 @@ if str(ROOT) not in sys.path:
 
 from tools.disasm.liveness import V, Liveness  # noqa: E402
 
-# Jump tables whose targets the analysis takes from data (a `derive` hint in
-# re/hints.toml), bounded by their dispatch alone: dispatcher -> (table,
-# entries). Each dispatch doubles a byte with an 8-bit ASL and moves A to a
-# 16-bit X with its high byte clear, as the battle's code keeps it (a TDC
-# before the byte is loaded), so the index is 0-$FE: 128 words, whatever the
-# byte. The words past a table's own entries are the next tables' entries.
-BOUNDED = {
-    # the battle's animation scripts: a command's operand picks a direction
-    # ($C1:75CC) or a place ($C1:762E); the action's showing ($C1:BFA4) runs them
-    0xC175D1: (0xC179A1, 128),
-    0xC17633: (0xC179D3, 128),
-    # the enemies' scripts: a block's condition byte, read from the script in
-    # ROM, which nothing checks (the turn that follows an enemy's action,
-    # $C1:8461, goes on to the next enemy's conditions)
-    0xC1874E: (0xC1B80D, 128),
-    0xC18769: (0xC1B80D, 128),
-    0xC1B006: (0xC1B80D, 128),
-    0xC1B021: (0xC1B80D, 128),
-}
-
 V_BRANCHES = ("BVS", "BVC")
+
+# The dispatch an `index_reach` hint (re/hints.toml) must sit in: ASL A with an
+# 8-bit A, then TAX, then JSR or JMP (abs,X), with nothing jumping into the TAX
+# or the dispatch, so X is the byte doubled over A's high byte. That byte is
+# argued clear in the hint and checked over the library by ct_dev
+# --index-check (X at most $FE at the dispatch): with it, 128 words.
+DISPATCH_OPCODES = {0xFC: "JSR", 0x7C: "JMP"}
+ASL_A, TAX = 0x0A, 0xAA
+REACH_OF_A_DOUBLED_BYTE = 128
+
+
+def _transfers(an):
+    """Every address some instruction the analysis traced branches, jumps or
+    calls to (fallthrough aside), with a table's entries."""
+    from tools.disasm.cpu import BRANCHES, Mode
+    out = set()
+    for pc, variants in an.code.items():
+        for insn in variants.values():
+            if insn.name in BRANCHES:
+                out.add(insn.branch_target())
+            elif insn.name in ("JMP", "JSR") and insn.mode is Mode.ABS:
+                out.add((pc & 0xFF0000) | insn.operand)
+            elif insn.name in ("JML", "JSL") and insn.mode is Mode.LONG:
+                out.add(insn.operand)
+    for jt in an.tables.values():
+        if jt.count is None:
+            continue
+        for i in range(jt.count):
+            v = an.u16(jt.table + i * 2) if jt.kind != "long" else an.u24(jt.table + i * 3)
+            if v is not None:
+                out.add(v if jt.kind == "long" else (jt.dispatcher & 0xFF0000) | v)
+    return out
+
+
+def dispatch_findings(an) -> list:
+    """What doesn't hold of the dispatch each `index_reach` hint names."""
+    findings, transfers = [], None
+    for pc, reach in sorted(an.hints.index_reach.items()):
+        where = f"${pc >> 16:02X}:{pc & 0xFFFF:04X}"
+        raw = an.read(pc - 2, 3)
+        if raw is None:
+            findings.append(f"{where}: not in the ROM")
+            continue
+        asl, tax, op = raw
+        if op not in DISPATCH_OPCODES:
+            findings.append(f"{where}: not a JSR or JMP (abs,X)")
+            continue
+        if tax != TAX or asl != ASL_A:
+            findings.append(f"{where}: not ASL A, TAX before the dispatch")
+            continue
+        widths = [w for w in an.code.get(pc - 2, {})]
+        if not widths or any(w[0] is not True for w in widths):
+            findings.append(f"{where}: the ASL A isn't traced with an 8-bit A everywhere ({widths})")
+        if reach != REACH_OF_A_DOUBLED_BYTE:
+            findings.append(f"{where}: index_reach {reach}, where a doubled byte reaches {REACH_OF_A_DOUBLED_BYTE}")
+        if transfers is None:
+            transfers = _transfers(an)
+        for inside in (pc - 1, pc):
+            if inside in transfers:
+                findings.append(f"{where}: ${inside >> 16:02X}:{inside & 0xFFFF:04X} is jumped to, past the ASL")
+    return findings
 
 
 def bounded_targets(an) -> tuple:
-    """(dispatcher -> targets, findings): every word each BOUNDED table's index
-    can reach, as a routine in the table's bank. A word that isn't code the
-    analysis traced is a finding: liveness would have everything live there."""
-    out, findings = {}, []
-    for dispatcher, (table, entries) in BOUNDED.items():
+    """(dispatcher -> targets, findings): every word each `index_reach` table's
+    index can reach, as a routine in the table's bank. A word that isn't code
+    the analysis traced is a finding (liveness would have everything live
+    there), as is a dispatch that isn't the shape the bound is argued from."""
+    out, findings = {}, dispatch_findings(an)
+    for dispatcher, entries in sorted(an.hints.index_reach.items()):
+        jt = an.tables.get(dispatcher)
+        if jt is None:
+            findings.append(f"${dispatcher >> 16:02X}:{dispatcher & 0xFFFF:04X}: no table the analysis sized")
+            continue
         bank = dispatcher & 0xFF0000
         targets = []
         for i in range(entries):
-            word = an.u16(table + 2 * i)
+            word = an.u16(jt.table + 2 * i)
             if word is None:
                 findings.append(f"${dispatcher >> 16:02X}:{dispatcher & 0xFFFF:04X}: entry {i} isn't in the ROM")
                 continue
@@ -83,7 +133,7 @@ def bounded_targets(an) -> tuple:
 
 
 def solve(an, dynamic_calls: dict) -> tuple:
-    """(liveness solved strictly with the BOUNDED tables followed, findings)."""
+    """(liveness solved strictly with the `index_reach` tables followed, findings)."""
     bounded, findings = bounded_targets(an)
     lv = Liveness(an, dynamic_calls, strict=True, bounded=bounded)
     lv.solve()
@@ -142,6 +192,23 @@ def parse_addr(text: str) -> int:
     return int(bank, 16) << 16 | int(addr, 16)
 
 
+def analysis(rom_path: pathlib.Path, hints_path: pathlib.Path) -> tuple:
+    """(the analysis of the ROM, the call logs), with the coverage and call logs
+    tools/dontcare_check.py reads (traces/, where there are any)."""
+    from tools.dontcare_check import DEFAULT_CALLS, DEFAULT_COVERAGE, expand
+    from tools.disasm import coverage as coverage_mod
+    from tools.disasm import hints as hints_mod
+    from tools.disasm.analyze import Analyzer
+    from tools.disasm.memmap import Rom
+
+    coverage = expand(DEFAULT_COVERAGE, ROOT)
+    calls = expand(DEFAULT_CALLS, ROOT)
+    an = Analyzer(Rom(rom_path.read_bytes()), hints_mod.load(hints_path),
+                  coverage=coverage_mod.load(coverage) if coverage else None)
+    an.run()
+    return an, coverage_mod.load_calls(calls) if calls else {}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python3 tools/v_readers.py", description=__doc__.split("\n")[0])
     ap.add_argument("--rom", type=pathlib.Path, default=ROOT / "roms" / "ct-usa.sfc")
@@ -151,21 +218,11 @@ def main(argv=None) -> int:
     ap.add_argument("routines", nargs="*", help="BB:AAAA: V dead into it")
     args = ap.parse_args(argv)
 
-    from tools.dontcare_check import DEFAULT_CALLS, DEFAULT_COVERAGE, expand
-    from tools.disasm import coverage as coverage_mod
-    from tools.disasm import hints as hints_mod
-    from tools.disasm.analyze import Analyzer
-    from tools.disasm.memmap import Rom
-
     if not args.rom.exists():
         print(f"{args.rom}: not found (tools/rom.py stage <path>)", file=sys.stderr)
         return 2
-    coverage = expand(DEFAULT_COVERAGE, ROOT)
-    calls = expand(DEFAULT_CALLS, ROOT)
-    an = Analyzer(Rom(args.rom.read_bytes()), hints_mod.load(args.hints),
-                  coverage=coverage_mod.load(coverage) if coverage else None)
-    an.run()
-    lv, findings = solve(an, coverage_mod.load_calls(calls) if calls else {})
+    an, dynamic_calls = analysis(args.rom, args.hints)
+    lv, findings = solve(an, dynamic_calls)
     for f in findings:
         print(f)
     bad = 0
@@ -173,9 +230,9 @@ def main(argv=None) -> int:
         target = parse_addr(text)
         dead = v_dead_into(lv, target)
         bad += not dead
+        tables = ", ".join(f"${d >> 16:02X}:{d & 0xFFFF:04X}" for d in sorted(an.hints.index_reach))
         print(f"${target >> 16:02X}:{target & 0xFFFF:04X}: V {'dead' if dead else 'may be read'} "
-              f"into the routine (the tables at {', '.join(f'${d >> 16:02X}:{d & 0xFFFF:04X}' for d in BOUNDED)} "
-              "bounded by their dispatch)")
+              f"into the routine (the tables at {tables} bounded by their dispatch)")
         if args.list or not dead:
             for pc, why in readers(lv, [target]):
                 print(f"  ${pc >> 16:02X}:{pc & 0xFFFF:04X} {why}")

@@ -540,10 +540,10 @@ static bool start_showing(Snes *s)
 {
     /* the step takes A's high byte along, as the caller left it; the overflow
      * flag it saves with the flags across its frame waits is read by nothing
-     * after (tools/v_readers.py), so the effect worked out before hands it none
-     * (dc-evidence: tools/v_readers.py C1:BFA4: V dead; ct_dev --poison-return
-     * battle_work_out_enemy_tech battle_work_out_enemy_attack over the library:
-     * 158 returns scrambled, 0 differing) */
+     * after, so the effect worked out before hands it none (dc-evidence:
+     * tools/v_readers.py C1:BFA4: V dead, its tables' indexes at most $FE;
+     * ct_dev --poison-site C1AC57 --poison-set V over the library: 441
+     * calls with V inverted, 0 differing) */
     if (!battle_call(s, 0xC1AC57, 0xC1BFA4, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         return false;
     m_push16(s, 0xAC5C);

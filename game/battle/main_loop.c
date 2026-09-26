@@ -127,10 +127,12 @@ static bool step(Snes *s, uint32_t site, uint8_t number)
 {
     m_set_a8(s, number);
     /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after (dc-evidence: tools/v_readers.py C1:0003: V
-     * dead; ct_dev --poison-return battle_work_out_enemy_tech
-     * battle_work_out_enemy_attack over the library: 158 returns
-     * scrambled, 0 differing) */
+     * is read by nothing after. The static result, V dead into $C1:0003, is
+     * what carries every site; the run covers the ones the library reaches
+     * (dc-evidence: tools/v_readers.py C1:0003: V dead, its tables' indexes at
+     * most $FE; ct_dev --poison-site C1802D C18151 C18161 C18188 C1856D C1AC7E
+     * --poison-set V over the library: 356 calls with V inverted, 0
+     * differing) */
     return battle_call(s, site, BATTLE_STEP, READS_A);
 }
 
@@ -963,10 +965,9 @@ static bool after_action(Snes *s, bool skip_to_end)
             set_battle_reaction_targets(g, i, battle_action_targets(g, i));
         set_battle_last_actor(g, battle_actor(g));
         /* the overflow flag an enemy's action worked out leaves is read by
-         * nothing after (dc-evidence: tools/v_readers.py C1:B762: V dead;
-         * ct_dev --poison-return battle_work_out_enemy_tech
-         * battle_work_out_enemy_attack over the library: 158 returns
-         * scrambled, 0 differing) */
+         * nothing after (dc-evidence: tools/v_readers.py C1:B762: V dead, its
+         * tables' indexes at most $FE; ct_dev --poison-site C1863D --poison-set
+         * V over the library: 6440 calls with V inverted, 0 differing) */
         if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
             return false;
         uint8_t actor = battle_last_actor(g);

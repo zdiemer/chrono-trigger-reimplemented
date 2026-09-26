@@ -164,11 +164,24 @@ rest waits, is [PLAN.md](PLAN.md).
     the work and the enemy's turn, each the carry of what came just before a
     multiply that may be the last), the numbers each kind hands on in the
     direct page's cells (`EFFECT_ARG_1`-`_6`, $0E and $10), and the kinds'
-    constant carry and Y at their entry. Each goes when what reads it is a
-    port: the party's working out (`$C1:D523`, `$C1:D74F`, `$C1:BF46`) and the
-    showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    constant carry and Y at their entry. The adding up of the hits' numbers
+    reads the first set's last kind before it adds (`first_began`) only for
+    its carry's leave, and `take_next_target` exists only to leave the carry a
+    target after the first is taken with: both go with the carry cell. Each
+    goes when what reads it is a port: the party's working out (`$C1:D523`,
+    `$C1:D74F`, `$C1:BF46`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
+  - What the effect work still says or does that the original's shape put
+    there: `apply_modifier` ($C1:EB1C) multiplies the modifier's number by 3
+    and throws the product away (the original's record lookup, whose cells
+    only the multiply's scaffolding reads; find the reader or drop it);
+    `start_timer_for` (`effect_statuses.c`) tests the first status byte's
+    `$10` and others by number, which want names in `battle/combatant.h` once
+    what they are is worked out; "restarts its script" is still how
+    `menu_window.c` (the member who can't act) and `combatants.c` (the status
+    seen) name confusion, and `re/ram.toml`'s `battle_status_script_seen`
+    says so too: say confused.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
@@ -392,6 +405,23 @@ rest waits, is [PLAN.md](PLAN.md).
   (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
   runs before reading the gap as the checks' cost.
 ## Recompiler
+
+- **What the dc-evidence tooling doesn't check yet** (PORTING.md,
+  "Declarations liveness can't prove"; the audit of `tools/v_readers.py`):
+  - a registry entry's `.dont_care` is held only to the trusting solve (the
+    work-outs' `DC_V` among them): hold it to the strict one, with the same
+    notes allowed (and see "Stops and entries don't get the strict solve yet"
+    below);
+  - the library run masks the whole stack page (`$7E:0600-06FF`) where only
+    the bytes the scrambled registers were pushed to need it: mask those;
+  - a bounded table's targets are matched to the analysis's contexts by
+    address alone, not by the widths the dispatch enters them with;
+  - an interrupt handler reads the interrupted code's P from the stack, which
+    neither `tools/v_readers.py` nor the run looks for;
+  - A's high byte at a bounded dispatch is argued in the hint and shown by
+    `ct_dev --index-check`, not proven: tracking "A's high byte known zero" in
+    the analysis and requiring it at each `index_reach` dispatch would make it
+    static.
 
 - **Stops and entries don't get the strict solve yet.** The don't-care check
   holds call-outs to liveness that trusts no target set the machine picks at

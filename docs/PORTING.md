@@ -870,38 +870,53 @@ Fuzzing can't settle a declaration whose callee runs for frames: a call-out to
 a routine that waits on the next frame, again and again, runs past any budget
 from every state. Where the one register such a call leaves unproven is the
 overflow flag, the evidence is instead the flag followed as far as the
-dispatch can reach, and the whole library run with the flag scrambled where
-it comes from:
+dispatch can reach, and the whole library run with the flag inverted at the
+call itself:
 
 ```c
-/* dc-evidence: tools/v_readers.py BB:AAAA: V dead; ct_dev --poison-return
-   ENTRY... over the library: M returns scrambled, 0 differing */
+/* dc-evidence: tools/v_readers.py BB:AAAA: V dead, its tables' indexes at
+   most $FE; ct_dev --poison-site SITE... --poison-set V over the library:
+   M calls with V inverted, 0 differing */
 ```
 
 `tools/v_readers.py` solves liveness as strictly as the check does, but
-follows the jump tables the strict solve gives up on (their targets derived
-from data) to every word their dispatch can index, whatever the data picks:
-a byte doubled by an 8-bit `ASL` reaches 128 words, which past a table's own
-entries are the next tables'. Each must be code the analysis traced. It lists
-what reads V in the code the callee reaches: a `BVS` or `BVC`, or a `PHP`
-whose byte is taken back other than by `PLP` (liveness follows where it
-goes). `ct_dev --poison-return ENTRY` (with `--native on`) scrambles the
-registers and flags an entry declares don't-care each time it returns, as
-`--poison-dc` does at a call-out (`--poison-set` narrows them); the run is
-every movie in the shipping mode (`--native on --recomp on`) with the entries
-that hand the flag on named, each trace, the picture's hash included, the same
-as the movie's without the scrambling outside the stack's page (`--ignore
-'$7E:0600-06FF'`: a register pushed and pulled again lies there until
-something overwrites it, which is all a scrambled one leaves where nothing
-reads it). The check runs `tools/v_readers.py`'s solve itself:
-the note must name the call's target and have V dead into it there, the
-entries must be registered and declare V don't-care, and the run must have
-scrambled at least 100 returns with no trace differing. It speaks for V
-alone: any other register the strict solve leaves unproven still needs a
-fuzz note. The effect worked out for an enemy's action hands the action's
-showing (`$C1:BFA4`) an overflow flag it only saves and restores across its
-frame waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"),
-which is the case it was made for.
+follows each jump table the strict solve gives up on (its targets derived from
+data) that carries an `index_reach` hint in `re/hints.toml` to every word its
+dispatch can index, whatever the data picks. The hint is argued from the
+dispatch: `ASL A` with an 8-bit A, `TAX`, `JSR` or `JMP (abs,X)`, and nothing
+jumping past the `ASL`, which the tool checks against the analysis (and
+`tests/test_v_readers.py` against the ROM), and every word it reaches must be
+code the analysis traced. What the shape can't show is A's high byte, which
+`TAX` carries into X: the hint says why it is clear there, and `ct_dev
+--index-check BBAAAA` (on the interpreter alone, `--native off --recomp off`)
+records X at the dispatch over the library, which must never pass `$FE`. The
+tool lists what reads V in the code the callee reaches: a `BVS` or `BVC`, or a
+`PHP` whose byte is taken back other than by `PLP` (liveness follows where it
+goes). `ct_dev --poison-site BBAAAA` (with `--native on`) scrambles, at each
+call-out made from that site, what its don't-care set names, as `ct_fuzz
+--poison-dc` does, and `--poison-set V` narrows that to the flag; it counts the
+calls where V was inverted. The run is every movie in the shipping mode with
+and without it, each trace, the picture's hash included, the same outside the
+stack's page (`$7E:0600-06FF`: a register pushed and pulled again lies there
+until something overwrites it, which is all a scrambled one leaves where
+nothing reads it).
+
+The check runs `tools/v_readers.py`'s solve itself: the note must name the
+call's target and have V dead into it, every bounded dispatch must be of its
+shape and every word it reaches traced; the call's own site must be among the
+sites named, V in the set, at least 100 inversions and no trace differing. It
+speaks for V alone: any other register the strict solve leaves unproven still
+needs a fuzz note. A declaration made at several sites (a helper's parameter)
+names them all, and the static result is what carries a site no movie
+reaches; the note says so. `python3 tools/dc_evidence.py --ct-dev
+build/main/ct_dev` (or the suite with `--evidence`) makes both runs again, over every site the notes name and
+every bounded dispatch, and prints each note's count beside the run's: a note
+whose count no longer matches is stale, and it exits 1 on that, on a differing
+trace and on an index past `$FE`. The effect worked out for an enemy's action
+hands the action's showing (`$C1:BFA4`), the battle's step (`$C1:0003`) and
+what follows the action (`$C1:B762`) an overflow flag they only save and
+restore across their frame waits (RECOMP.md, "Phase 3, battle chunk 2: an
+effect worked out"), which is the case it was made for.
 
 ## Status
 

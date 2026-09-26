@@ -59,17 +59,21 @@ the set without one is a finding too (it would outlive what it stood for).
 Where the unproven part of a call-out's set is the overflow flag alone and
 fuzzing can't reach it (a callee that waits on frames past any budget), the
 note can instead name the static check that follows the callee's tables as far
-as their dispatch can reach, and a run of the library that scrambled the flag
-where it comes from:
+as their dispatch can reach, and a run of the library that inverted the flag at
+the call itself:
 
-    /* dc-evidence: tools/v_readers.py BB:AAAA: V dead; ct_dev --poison-return
-       ENTRY... over the library: M returns scrambled, 0 differing */
+    /* dc-evidence: tools/v_readers.py BB:AAAA: V dead, its tables' indexes at
+       most $FE; ct_dev --poison-site SITE... --poison-set V over the library:
+       M calls with V inverted, 0 differing */
 
 The check then runs tools/v_readers.py's solve itself: the callee must be the
-call's target and have V dead into it there; the entries must be registered and
-declare V don't-care themselves (their returns are where the run scrambled
-it), and the run must have scrambled at least MIN_SCRAMBLED returns with every
-trace the same as the unscrambled run's (docs/PORTING.md says how it is made).
+call's target and have V dead into it there, every `index_reach` dispatch must
+be the shape its bound is argued from and every word it reaches traced code;
+the call's own site must be among the sites named, V among the set, and the
+run must have inverted V at least MIN_SCRAMBLED times with every trace the same
+as the unscrambled run's. tools/dc_evidence.py makes the run, with ct_dev
+--index-check over the same library for the indexes, and says where a note's
+counts no longer hold (docs/PORTING.md, "Declarations liveness can't prove").
 
 The declarations are read from the source, not run: their arguments must be
 constants, or built from the parameters of the function they are in (every
@@ -138,9 +142,11 @@ EVIDENCE = re.compile(
 MIN_SCRAMBLED = 100
 # The other form: the overflow flag, by tools/v_readers.py and a library run.
 V_EVIDENCE = re.compile(
-    r"dc-evidence:\s*tools/v_readers\.py\s+(?P<target>[0-9A-Fa-f]{2}:[0-9A-Fa-f]{4}):\s*V\s+dead;"
-    r"\s*ct_dev\s+--poison-return\s+(?P<entries>\w+(?:\s+\w+)*)\s+over\s+the\s+library:"
-    r"\s*(?P<scrambled>\d+)\s+returns\s+scrambled,\s*(?P<differing>\d+)\s+differing\b")
+    r"dc-evidence:\s*tools/v_readers\.py\s+(?P<target>[0-9A-Fa-f]{2}:[0-9A-Fa-f]{4}):\s*V\s+dead,"
+    r"\s*its\s+tables'\s+indexes\s+at\s+most\s+\$FE;"
+    r"\s*ct_dev\s+--poison-site\s+(?P<sites>[0-9A-Fa-f]{6}(?:\s+[0-9A-Fa-f]{6})*)"
+    r"\s+--poison-set\s+(?P<set>[AXYNVZC]+)\s+over\s+the\s+library:"
+    r"\s*(?P<inverted>\d+)\s+calls\s+with\s+V\s+inverted,\s*(?P<differing>\d+)\s+differing\b")
 
 
 class Unreadable(Exception):
@@ -992,7 +998,7 @@ def site_dynamic(lv, site: int) -> str | None:
     return None
 
 
-def v_evidence_problem(m, d, target: int, unproven: int, entries: list, bounded) -> str | None:
+def v_evidence_problem(m, d, target: int, unproven: int, bounded) -> str | None:
     """Why a tools/v_readers.py note doesn't stand for the call d to target, or
     None. `bounded` gives tools/v_readers.py's solve (made once, when needed)."""
     from tools import v_readers
@@ -1001,21 +1007,20 @@ def v_evidence_problem(m, d, target: int, unproven: int, entries: list, bounded)
     named = int(m.group("target").replace(":", ""), 16)
     if named != target:
         return f"its dc-evidence names {fmt(named)}, not the call's target {fmt(target)}"
+    sites = {int(x, 16) for x in m.group("sites").split()}
+    if d.site not in sites:
+        return f"its dc-evidence run didn't poison the call's own site {fmt(d.site)}"
+    if "V" not in m.group("set"):
+        return "its dc-evidence run's --poison-set leaves V alone"
+    if int(m.group("differing")):
+        return f"its dc-evidence run had {m.group('differing')} trace(s) differing"
+    if int(m.group("inverted")) < MIN_SCRAMBLED:
+        return f"its dc-evidence run inverted V {m.group('inverted')} times, fewer than {MIN_SCRAMBLED}"
     lv, problems = bounded()
     if problems:
         return "tools/v_readers.py can't bound its tables: " + "; ".join(problems)
     if not v_readers.v_dead_into(lv, target):
         return f"tools/v_readers.py has V read into {fmt(target)}"
-    for name in m.group("entries").split():
-        e = next((e for e in entries if e.name == name), None)
-        if e is None:
-            return f"its dc-evidence names {name}, which isn't a registered entry"
-        if not dead_of_dc(e.dont_care) & _lv.V:
-            return f"its dc-evidence names {name}, whose don't-care set doesn't have V"
-    if int(m.group("differing")):
-        return f"its dc-evidence run had {m.group('differing')} trace(s) differing"
-    if int(m.group("scrambled")) < MIN_SCRAMBLED:
-        return f"its dc-evidence run scrambled {m.group('scrambled')} returns, fewer than {MIN_SCRAMBLED}"
     return None
 
 
@@ -1131,7 +1136,7 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
                     noted[(d.path, d.offset)] = True
                     vm = V_EVIDENCE.search(note)
                     if vm:
-                        problem = v_evidence_problem(vm, d, target, strict_bad, entries, bounded)
+                        problem = v_evidence_problem(vm, d, target, strict_bad, bounded)
                     else:
                         problem = evidence_problem(note, d, entries, reach, sources, fuzz_routines or set())
                     if problem is None:

@@ -257,6 +257,19 @@ def check_portstyle(args, ctx):
     return rc == 0, "portstyle", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_evidence(args, ctx):
+    """With --evidence: the library runs the tools/v_readers.py dc-evidence
+    notes cite, made again (tools/dc_evidence.py), so a note can't go stale.
+    Three more runs of every movie, so it is asked for rather than run always."""
+    if not args.evidence:
+        return True, "evidence", "not run (--evidence runs it)", []
+    cmd = [sys.executable, str(ROOT / "tools/dc_evidence.py"), "--ct-dev", str(ctx["binary"]),
+           "--rom", str(args.rom), "-j", str(max(1, min(ctx["jobs"], 2)))]
+    rc, lines = run_tool(cmd)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "evidence", summary, [] if rc == 0 else [l for l in lines if "same:" not in l][-40:]
+
+
 CHECKS = (
     # name, function, what --no-<name> skips
     ("trace", check_trace, "the --recomp only trace comparison"),
@@ -266,6 +279,7 @@ CHECKS = (
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
+    ("evidence", check_evidence, "the dc-evidence notes' library runs (only run with --evidence)"),
 )
 
 
@@ -282,6 +296,8 @@ def main():
     ap.add_argument("--trace-frames", type=int, default=7200)
     ap.add_argument("--long-routes", action="store_true",
                     help="run every route, the ending ones too (most of an hour), not only the fast one")
+    ap.add_argument("--evidence", action="store_true",
+                    help="make the library runs the dc-evidence notes cite again (tools/dc_evidence.py)")
     for name, _fn, what in CHECKS:
         ap.add_argument("--no-%s" % name, action="store_true", help="skip " + what)
     ap.add_argument("--no-trace-check", action="store_true", help=argparse.SUPPRESS)   # the old spelling
