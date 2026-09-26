@@ -438,7 +438,7 @@ static void run_command(GameState *g, Platform *pf, uint8_t command, const Opera
     case SWAP_AREAS: swap_areas(g, operand_place(o, 0), operand_place(o, 2), operand_size(o, 4)); break;
     case WINDOW:
         draw_window(g, operand_place(o, 2), o->bytes[0], o->bytes[1], operand_size(o, 4), parts & FRAME, parts & INSIDE);
-        if (parts == FRAME)
+        if (parts & FRAME)
             keep_inside_size(g, operand_size(o, 4));
         break;
     case STRING: draw_string(g, operand_word(o, 0), operand_place(o, 2), o->bytes[4]); break;
@@ -854,6 +854,7 @@ void menu_window_in_design(Snes *s)
     MenuWindowStyle style = slot_style(g, menu_save_slot_shown(g));
     set_menu_window_style(g, style);
     menu_draw_window_frame(g, at, size, style);
+    keep_inside_size(g, size);
     menu_fill_window_inside(g, at, size, style);
     menu_load_window_colours(g, style);
     ORIGINAL_EFFECT(leave_frame(g, at, size, style));

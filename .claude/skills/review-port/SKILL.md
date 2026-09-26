@@ -695,6 +695,14 @@ Each of these is a finding. Every example here comes from this repo.
     89 with a register (the work RAM port's address) in place of a cell. Pass
     the destination; leave the cursor's final place as scaffolding.
 
+93. **Flag notes interleaved with the logic's arithmetic.** A scaffolding
+    note of a flag beside each add, even compiled out, pins the logic to the
+    original's order of operations. The test: would reordering two
+    independent adds in a formula break the gate? If so, the flag is threaded
+    through the logic whatever the signatures say. The legitimate form is one
+    leaves helper that works the flag out from the final state
+    (`event/contact.c`).
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the
