@@ -7229,7 +7229,7 @@ The seventh chunk of bank `$C0`, and chunk 6's review.
   through `original_cell16`, and `$D9` is one named cell
   (`FIELD_LAST_WORKED_CELL`); the redraw after the picture is in display.c
   with `field_windows_need_refresh`; one `pressed_shape`; the chest kinds are
-  named (`ChestKind`). The switch sound keeps a site a switch: the call's
+  named (`ChestKind`, by where each is in the tile set). The switch sound keeps a site a switch: the call's
   return is where the port stops if the call comes back otherwise.
 - The mirrored copy takes a place in the build bank, like the straight
   copy, and its guard takes a port there alone, where the frame builders put
@@ -7241,6 +7241,27 @@ The seventh chunk of bank `$C0`, and chunk 6's review.
   hand-back where it declares what is dead there (a bare one is still a
   bridge giving up); `tests/test_burndown.py` covers both. `$C0` goes from
   5% left to 36%, and the total from 41% to 51%.
+
+**What it is** (field/frames.c, `field_put_drawn_frame` `$C0:CB0A` with its
+layouts `$C0:CDC8`, `$C0:D124`, `$C0:DD28`). The frame builder's twin, which
+the field's return from a battle calls for each of the party and the enemies
+it puts back ($C0:07EC, $C0:08A0, by `BRL` from their own code): it puts the
+frame the object's tiles already show straight onto its records, built, and
+draws nothing, since the tiles in VRAM are as the battle found them. It is
+the builder's frame sprites (the same plans, the `$68` split's too) going to
+the records instead of the frame's data (`sprites_set_record_sprite`). A
+registry address inside a routine is a block boundary for the generated
+code, so the entry takes the `BRL`s as calls; its return goes to its
+callers' own callers, which read none of the registers.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches (84, none interrupted or refused). Fuzzed (seeds 1 and 2, 20,000
+states each): each layout 0 of 20,000, the 12-sprite layout at `$68` 0 of
+20,000; the 4-sprite priority rule a line off mismatched 4 of 3,000.
+`$C0` stands at 39.4 KiB ported, 34% left.
+
+**The timing gate.** The new row, and the mirrored copy the review moved,
+were calibrated over the library; no exception.
 
 ## Risks
 

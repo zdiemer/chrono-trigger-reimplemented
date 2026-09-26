@@ -254,8 +254,11 @@ static void queue_upload(GameState *g, FieldObject obj, const FramePlan *plan)
     set_field_vram_queue_end(g, (uint8_t)(field_vram_queue_end(g) + QUEUE_ENTRY));
 }
 
-/* The frame's sprites into the frame's data. */
-static void frame_sprites(GameState *g, FieldObject obj, const FramePlan *plan, uint32_t description)
+/* The frame's sprites, into the frame's data the records are rebuilt from,
+ * or straight onto the records. */
+typedef enum { INTO_THE_FRAME_DATA, ONTO_THE_RECORDS } SpritesGo;
+
+static void frame_sprites(GameState *g, FieldObject obj, const FramePlan *plan, uint32_t description, SpritesGo where)
 {
     uint8_t tile = (uint8_t)object_sprite_tiles(g, obj);
     for (unsigned n = 0; n < plan->sprites; n++) {
@@ -265,7 +268,10 @@ static void frame_sprites(GameState *g, FieldObject obj, const FramePlan *plan, 
         bool upper = plan->lower_sprites == BY_OFFSET ? (y >= UPPER_OFFSET && y < 0) : n >= plan->lower_sprites;
         FrameSprite sprite = { sprite_offset(g, plan, description, n, AXIS_X), y, tile,
                                object_frame_attributes(g, obj, upper) };
-        sprites_set_frame_sprite(g, obj, n, sprite);
+        if (where == INTO_THE_FRAME_DATA)
+            sprites_set_frame_sprite(g, obj, n, sprite);
+        else
+            sprites_set_record_sprite(g, obj, n, sprite);
         tile = (uint8_t)(tile + NEXT_SPRITE_TILE);
     }
 }
@@ -333,9 +339,32 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     if (last + 1 < plan->parts)
         return FRAME_PART_DRAWN;
     queue_upload(g, obj, plan);
-    frame_sprites(g, obj, plan, description);
+    frame_sprites(g, obj, plan, description, INTO_THE_FRAME_DATA);
     ORIGINAL_EFFECT(leave_attributes(g, obj));
     return FRAME_DRAWN;
+}
+
+// $C0:CB0A (and its layouts' $C0:CDC8, $C0:D124, $C0:DD28)
+/* Put the frame the object's tiles show straight onto its records, built,
+ * with nothing drawn: where the field brings the party and the enemies back
+ * after a battle ($C0:07EC, $C0:08A0), whose tiles in VRAM are as they were.
+ * False where the object isn't drawn (hidden, out of view, or of the
+ * 24-sprite layout). */
+static bool put_drawn_frame_on_records(GameState *g, FieldObject obj)
+{
+    if (!object_can_be_seen(g, obj) || object_view(g, obj) == OUT_OF_VIEW)
+        return false;
+    SpriteLayout layout = object_sprite_layout(g, obj);
+    if (layout == LAYOUT_24)
+        return false;
+    const FramePlan *plan = plan_for(g, obj, layout);
+    uint8_t frame = object_frame_drawn(g, obj);
+    uint32_t description = frame_description(g, obj, plan, frame);
+    ORIGINAL_EFFECT(leave_description(g, plan, frame, description));
+    frame_sprites(g, obj, plan, description, ONTO_THE_RECORDS);
+    ORIGINAL_EFFECT(leave_attributes(g, obj));
+    object_mark_records_built(g, obj);
+    return true;
 }
 
 /* ---- For the derivations (field/parts.h, field/leaves.c) ------------------------------------ */
@@ -374,6 +403,16 @@ void field_draw_next_frame(Snes *s)
     FrameBuild outcome = draw_next_frame(g, obj);
     m_set_flag(s, CPU_FLAG_V, field_frame_build_overflow(g, obj, outcome, before));
     m_set_flag(s, CPU_FLAG_C, outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS);
+    m_rts(s);
+}
+
+// $C0:CB0A
+/* The current object (8-bit X). Nothing the original leaves in the
+ * registers is read after it (its callers' own callers read none). */
+void field_put_drawn_frame(Snes *s)
+{
+    GameState *g = state_of(s);
+    put_drawn_frame_on_records(g, (FieldObject)field_current_object_slot(s));
     m_rts(s);
 }
 
@@ -437,6 +476,21 @@ bool field_frames_can_draw(Snes *s)
               sprites_records_in_the_tables(g, obj, layout) &&
               (!goes_on || (uint32_t)field_object_frame_staging(g, obj) + MOST_AREA_BYTES <= BANK_BYTES) &&
               !(end & 1) && end / QUEUE_ENTRY + 1 < QUEUE_ENTRIES;
+    vars_peek(false);
+    return ok;
+}
+
+/* Its guard: the current object's descriptions in the ROM and its records
+ * inside their tables. */
+bool field_frames_can_put(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    bool ok = object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
+              sprites_records_in_the_tables(g, obj, object_sprite_layout(g, obj));
     vars_peek(false);
     return ok;
 }

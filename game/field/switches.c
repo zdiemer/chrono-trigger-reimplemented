@@ -190,7 +190,7 @@ void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step)
 /* A chest as the map shows it closed: the tile $FE, or $E0; open, the next
  * tile. The main loop's code that opens one is still the original's, which
  * leaves the chest's kind and its entries for the redraw. */
-static uint8_t closed_chest_tile(ChestKind kind) { return kind == CHEST_ON_TILE_FE ? 0xFE : 0xE0; }
+static uint8_t closed_chest_tile(ChestKind kind) { return kind == CHEST_AT_THE_SET_END ? 0xFE : 0xE0; }
 
 /* ---- Redrawing, after the picture ----------------------------------------------------------- */
 
@@ -238,7 +238,7 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
         return;
     }
     if (waiting & REDRAW_CHEST) {
-        ChestKind kind = field_chest_kind(g) == CHEST_ON_TILE_FE ? CHEST_ON_TILE_FE : CHEST_ON_TILE_E0;
+        ChestKind kind = field_chest_kind(g) == CHEST_AT_THE_SET_END ? CHEST_AT_THE_SET_END : CHEST_FIRST_OF_THE_CHANGING_TILES;
         vid_start_vram_uploads(pf, PF_AT(0xC0EFDC), VID_VRAM_WORD_PORT);
         for (unsigned k = 0; k < 4; k++)
             redraw_quarter(pf, g, (uint8_t)(closed_chest_tile(kind) + 1), field_chest_entries(g, k), k);

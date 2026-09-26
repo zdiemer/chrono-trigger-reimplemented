@@ -923,10 +923,7 @@ below. `python3 tools/timing_census.py` re-runs the census.
     areas' and claim nothing read so far.
 - **What the frame builder left** (RECOMP.md, "Phase 3, field and events:
   the frame builder"):
-  - the builder's immediate twin, `$C0:CB0A` with its layouts `$C0:CDC8`,
-    `$C0:D124` and `$C0:DD28`, is reached only by `BRL` from the battle's
-    return (`$C0:086E`, `$C0:0902`), so it goes with that routine; and
-    `$C0:E12A` (called from `$C0:0212` and `$C0:47E9`) is still the
+  - `$C0:E12A` (called from `$C0:0212` and `$C0:47E9`) is still the
     original's;
   - a 12-sprite object holding a frame is never drawn and stays at the
     queue's head, so the queue spends the rest of its lines on it every
@@ -948,6 +945,9 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
+  - the field's return from a battle (`$C0:0715`, `$C0:07EC`, `$C0:08A0`),
+    which puts the party and the enemies back and calls the frame builder's
+    twin (now `field_put_drawn_frame`) for each, is the original's;
   - the field's start (`$C0:0B86`), the pause and the menu opening
     (`$C0:18D9`, `$C0:1985`, `$C0:1A03`) are the original's; `$C0:0B86` sets
     some twenty cells the map has no names for yet (`$10`, `$11`, `$2F`,

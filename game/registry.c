@@ -1416,6 +1416,8 @@ const NativeEntry game_natives[] = {
       .cost_milli = 2911, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_requests_can_run },
     { .addr = 0xC0ED15, .name = "field_redraw_after_picture", .fn = field_redraw_after_picture, NEEDS_M8_X16,
       .cost_milli = 7380, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D, .guard = field_redraw_can_run },
+    { .addr = 0xC0CB0A, .name = "field_put_drawn_frame", .fn = field_put_drawn_frame, NEEDS_M8_X8_BINARY,
+      .cost_milli = 4047, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_frames_can_put },
     { .addr = 0xC0CAD9, .name = "field_draw_next_frame", .fn = field_draw_next_frame, NEEDS_M8_X8_BINARY,
       .cost_milli = 7969, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z, .guard = field_frames_can_draw },
 

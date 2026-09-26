@@ -20,9 +20,11 @@ typedef struct {
     unsigned step_column;
 } SwitchPress;
 
-/* The two chests a map's tile set has (field_chest_kind), by the tile each
- * is closed: $FE, or $E0. */
-typedef enum { CHEST_ON_TILE_FE = 0, CHEST_ON_TILE_E0 = 1 } ChestKind;
+/* The two chests a map's tile set has (field_chest_kind), by where each is
+ * in the set's last 32 tiles, the ones the field changes (switches, chests):
+ * the chest closed on the next-to-last tile ($FE), and the one on the first
+ * of them ($E0); open, each is the tile after. */
+typedef enum { CHEST_AT_THE_SET_END = 0, CHEST_FIRST_OF_THE_CHANGING_TILES = 1 } ChestKind;
 
 bool field_is_switch(const GameState *g, uint16_t step);
 uint16_t field_switch_upper_tile(uint16_t step);

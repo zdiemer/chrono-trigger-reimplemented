@@ -338,24 +338,24 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **41% of the code is still generated** (`$C0`'s figure overcounts; see below).
+docstring says which way it is wrong). **51% of the code is still generated.** The figures dropped with the tool's fix to count a port's hand-backs as the original's (RECOMP.md, "Phase 3, field and events: the drawn frame put on the records"): every subsystem whose ports stop early lost what it had been credited past its stops.
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 31.7K | 11.5K | 51% | 202 |
-| field engine, events (`$C0`) | 59.4K | 56.4K | 23.9K | 5% | 280 |
-| menus, text (`$C2`) | 59.3K | 22.8K | 6.9K | 62% | 226 |
-| scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
-| battle frame work (`$CD`) | 15.5K | 5.0K | 2.8K | 68% | 27 |
-| field graphics (`$FD`) | 15.3K | 8.7K | 0.6K | 43% | 52 |
-| battle sprites (`$CF`) | 6.8K | 6.7K | 0.4K | 2% | 44 |
+| battle (`$C1`, `$CE`) | 64.9K | 30.9K | 11.7K | 52% | 202 |
+| field engine, events (`$C0`) | 59.4K | 39.4K | 8.8K | 34% | 281 |
+| menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 226 |
+| scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
+| battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
+| field graphics (`$FD`) | 15.3K | 8.6K | 0.6K | 44% | 52 |
+| battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
-| scene engine (`$C3`) | 3.9K | 3.8K | 0.7K | 4% | 28 |
+| scene engine (`$C3`) | 3.9K | 3.3K | 0.6K | 16% | 28 |
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **157.4K** | **53.5K** | **41%** | **1042** |
+| **total** | **268.5K** | **132.2K** | **34.3K** | **51%** | **1043** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -545,10 +545,15 @@ loop's requests") took the main loop's `$C0:0C76` as far as the step
 event's floor switches, and the redraw of their tiles after the picture
 (`$C0:ED15`); the location change, the menus, a chest, the tile copy and
 the battle are handed to the original where it reads the requests. The
-burndown's `$C0` figure (56.4 KiB, 5% left) overcounts that stop's branches
-(RECOMP.md says how); what is left is those branches, the field's start
-(`$C0:0B86`), the pause and the menu opening (`$C0:18D9`-`$C0:1A6F`), and the
-frame builder's immediate twin.
+burndown no longer counts a port's hand-backs as its own (RECOMP.md, "the
+drawn frame put on the records").
+
+The seventh took the frame builder's twin, which puts the frame an object
+shows straight onto its records when the field comes back from a battle
+(`$C0:CB0A` and its layouts). `$C0` stands at 39.4 KiB ported, 34% left; what
+is left is the requests `$C0:0C76` hands back, the field's start
+(`$C0:0B86`), the battle's return that calls the twin (`$C0:0715`-`$C0:0904`),
+and the pause and the menu opening (`$C0:18D9`-`$C0:1A6F`).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

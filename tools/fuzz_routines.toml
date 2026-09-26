@@ -4848,6 +4848,21 @@ state = "field"
 args = ["--db", "00", "--fill", "7E015F-7E015F=00,02,10,12", "--fill", "7E0160-7E0160=00-02", "--fill", "7E0161-7E0161=00-01"]
 why = "the switch's and the chest's redraws waiting or not, each shape and each kind of chest; the entries and the marked window random"
 
+[[routine]]
+name = "field_put_drawn_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E1211-7E1211=00-03"]
+why = "the current object 8 as the battle's return sets it, each layout (the 24-sprite one draws nothing), its frame drawn and its tiles random, its descriptions in a ROM bank and its records inside their tables (the guard's)"
+
+[[routine]]
+name = "field_put_drawn_frame"
+variant = "split"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E1211-7E1211=02-02", "--fill", "7E0D10-7E0D10=68-68"]
+why = "the 12-sprite layout with its tiles at $68"
+
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
 # Two states: the menus proper (the field menu open, menus-field-menu) and the sprite-object
