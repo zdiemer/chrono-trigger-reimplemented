@@ -4784,6 +4784,12 @@
 #define RAM_BATTLE_TIMER_FLAGS 0x7EAFB6u
 #define RAM_BATTLE_TIMER_FLAGS_COUNT 13u
 #define RAM_BATTLE_TIMER_FLAGS_STRIDE 0x0Bu
+/* How many more times each combatant's status timer runs out before the status wears off (or,
+ * for magic regained, before it regains): counted down, and set back to 10 when it gets there
+ * [13 x $B bytes, by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot] */
+#define RAM_BATTLE_TIMER_RUNS_LEFT 0x7EB045u
+#define RAM_BATTLE_TIMER_RUNS_LEFT_COUNT 13u
+#define RAM_BATTLE_TIMER_RUNS_LEFT_STRIDE 0x0Bu
 /* How long each combatant's status timers run once a status starts them; the turn's are
  * battle_turn_wait [132 x $1 bytes, by timer kind (0-11) * 11 + battle slot] */
 #define RAM_BATTLE_TIMER_LENGTHS 0x7EB0D4u

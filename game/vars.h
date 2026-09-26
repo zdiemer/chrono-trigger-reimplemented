@@ -6827,6 +6827,14 @@ void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t 
 uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
+enum { BATTLE_TIMER_RUNS_LEFT_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
+/* How many more times each combatant's status timer runs out before the status wears off (or,
+ * for magic regained, before it regains): counted down, and set back to 10 when it gets there
+ * [11 bytes, one at a time] */
+enum { BATTLE_TIMER_RUNS_LEFT_BYTES = 11 };
+uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
 enum { BATTLE_TIMER_LENGTHS_COUNT = 132 };   /* by timer kind (0-11) * 11 + battle slot */
 /* How long each combatant's status timers run once a status starts them; the turn's are
  * battle_turn_wait */
