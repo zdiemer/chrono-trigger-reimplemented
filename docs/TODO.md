@@ -583,11 +583,24 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' fourth chunk left** (RECOMP.md, "Phase 3, menus: what
+  the menus' ports called most"):
+  - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
+    call-out (`m_jsr_dc`), not as C: run through `menu_run` it changed what
+    the vblank work's fuzzing could compare (415 of 500 to none), which
+    wants looking into before the input's two call-outs, the controller
+    read and the play time's tick, can be C too. The read can stop while the
+    console still reads the controller, so it needs the frame `input_update`
+    builds (`core/input.c`), which a shared helper there could give both;
+  - the records' task stops at its yield (`$C2:F696`) every frame and the
+    task scheduler (`$C2:821E`) is the original's, about 9% of what the
+    menus interpret: the tasks as fibers of their own (`runtime/port/fiber.h`)
+    would take it off the machine;
+  - a count of 0 tiles or rows in the recolouring helpers counts the whole
+    bank, as the original's 16-bit loop does; the guards turn those away,
+    and nothing in the library asks for one.
 - **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
   characters in the records"):
-  - the records' task (`$C2:F657`), which yields every frame, is the
-    original's, calling the animation's step and the records' drawing as
-    ports;
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
     on the machine) as a call-out; the unpacker as C on the game's state
     would take the menus' loads off the machine;

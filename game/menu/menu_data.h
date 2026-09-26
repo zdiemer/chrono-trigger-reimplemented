@@ -490,6 +490,29 @@ static inline uint16_t menu_last_record_tile(const GameState *g) { return rom_re
 /* A byte of pixels mirrored left to right ($C0:FD00). */
 static inline uint8_t menu_mirrored_pixels(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
 
+/* ---- The menus' input and portraits -------------------------------------------------------- */
+
+/* The frames held buttons wait before they repeat, by the pacing's phase
+ * ($C2:84D0: 0 quick, 1 before the first repeat). */
+static inline uint8_t menu_repeat_delay(const GameState *g, uint8_t phase) { return rom_read8(g, 0xC284D0u + phase); }
+
+/* A character's large portrait: the first of its 36 tiles ($FF:CE70, a byte
+ * a character), and where in bank $FF its sixteen colours are ($FF:CE78, a
+ * word each of the eight). */
+enum { MENU_PORTRAIT_BANK = 0xFF0000 };
+static inline uint8_t menu_large_portrait_first_tile(const GameState *g, uint8_t character)
+{
+    return rom_read8(g, 0xFFCE70u + character);
+}
+static inline uint16_t menu_large_portrait_colours(const GameState *g, unsigned slot)
+{
+    return rom_read16(g, 0xFFCE78u + 2u * slot);
+}
+static inline uint16_t menu_large_portrait_colour(const GameState *g, uint16_t colours, unsigned i)
+{
+    return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
+}
+
 /* ---- The menus' display ------------------------------------------------------------------- */
 
 /* The colors the menus' color math ramps step through ($C2:8771, sixteen

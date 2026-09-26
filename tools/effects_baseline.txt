@@ -217,6 +217,8 @@ game/menu/text.c two_digits_at $7E98C9 menu_save_summary
 game/menu/text.c two_digits_at $7E98CA menu_save_summary
 game/menu/text.c two_digits_at $7E98CB menu_save_summary
 game/menu/text.c two_digits_at $7E98CC menu_save_summary
+game/menu/tiles.c draw_large_portrait menu_scratch_portrait_tile menu_object_scratch # the portrait's attribute: both callers ($C2:A256, $C2:E457) store it in the cell's high byte just before the call
+game/menu/tiles.c draw_large_portrait menu_scratch_portrait_tile menu_scratch # the same
 game/menu/top_layer.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c move_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c wave menu_object_shadows_bg3_scroll_x menu_save_member_row

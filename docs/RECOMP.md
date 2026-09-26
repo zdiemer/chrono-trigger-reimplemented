@@ -6504,6 +6504,71 @@ two animation entries are vblank-tail timing exceptions
 (`memory_move_stub`) was recalibrated: the animation's copies no longer go
 through it on the machine, which changed the calls it is measured on.
 
+### Phase 3, menus: what the menus' ports called most
+
+The menus' fourth chunk, picked by value rather than by run: a profile of
+`--native on --recomp off --misses` over the menus' movies, the interpreted
+instructions summed by the function they are in, put five routines the
+existing ports call out to at the top once the task scheduler (`$C2:821E`
+and its neighbours, about 9%, left for fibers) is set aside. The window
+helpers at `$C2:EC38`-`$C2:ECDA` took about 12% together, the records'
+task (`$C2:F657`) 6.7% and the menus' per-frame input (`$C2:8473`) 4.9%.
+`python3 tools/burndown.py` for `$C2`: 22.3 KiB ported, 62% left and 231
+entries before; 22.6 KiB, 62% and 236 after.
+
+**The frame's input** (`menu/cursor.c`, "The frame's buttons"): the menus'
+vblank takes the controller, the second controller, a frame of play time,
+the held buttons' repeat pacing (a long wait before the first repeat, short
+ones after, back to the long wait when nothing but Start is held; a screen
+can ask for a frame of repeating every frame, `menu_fast_repeat`) and the
+going-back hold (the going-back assignment's buttons with Start sends every
+screen back from then on). The controller read and the tick stay call-outs:
+the read can stop while the console still reads the controller. The tick's
+return isn't held to a direct page: the original's leaves its clock page
+(`$0400`) and the port of it the caller's, and nothing reads the page before
+the input restores the caller's; a first version held it to the
+controller's page, so wherever the tick ran as the original's code (nearly
+every call, in shadow mode) the port stopped there and left the rest to the
+original, comparing everything; 6 calls a movie differed in A's high byte,
+which is dead there.
+
+**The records' task** (`menu/sprites.c`, "The records' task"): once a frame,
+each of the nine records that shows a sprite has its animation carried on
+where its frame's time has run out or another is asked for, unless the
+frame's uploads have reached their share, and is drawn unless hidden; then
+the task yields (`m_stop_at` `$C2:F696`). The byte after the uploads' count,
+which the original clears with it as a word, is written plainly: the
+sprite object mode's slots share it.
+
+**The tilemap touches** (`menu/tiles.c`): a character's large portrait (36
+tiles six by six, numbered on from its first in the menus' first cell, whose
+high byte the callers set to the attribute, and its sixteen colours loaded
+into the palette the attribute names after the tiles' count has carried into
+it); a stretch of a row pair given one attribute; and a block of rows given
+a palette and priority over their tiles' low bits, the drawing origin moving
+down as it goes (`$C2:ECC2`, the one row, inlined). The counts are an 8-bit
+tile count and a 16-bit row count counted down in 16-bit registers, so 0
+counts the whole bank; the guards turn those away with any stretch that
+would leave the bank. The row pair's callers go on with the count in A's
+high byte, which the entry leaves. The portrait's word increment of the
+palette's changed count (`$0D15`) carries into the next byte, which the
+guard keeps short of, as the window colours' does.
+
+**Shadow and fuzzing.** Over the 26 movies every call compared, none
+mismatching or refused: `menu_take_frame_input` 35,169 (every movie),
+`menu_run_record_task` 4,637 of 4,638 (one interrupted),
+`menu_draw_large_portrait` 235, `menu_recolour_rows` 1,314,
+`menu_set_row_pair_attribute` 2,776. Fuzzed from the `menus` state, seed 1,
+none mismatching: the input 2,000 of 2,000, the task 2,000 of 2,000, the
+portrait 1,893 of 2,000, the rows 1,890 and the row pair 1,987 (the rest
+refused). Fuzzing found the portrait's carry into `$0D16`. The menus' vblank
+work, which calls the input, is unchanged at 415 of 500 matched.
+
+**Timing.** Calibrated from the library. The task carries the animation's
+and the frame building's spread (mean error 1.2%, at most 10,872 clocks), so
+it is a vblank-tail exception as they are, writing work RAM and the VRAM
+queue only.
+
 ### Phase 3, field and events: the party on the map
 
 The first chunk of bank `$C0` in wave 2. PLAN.md's table of what event's

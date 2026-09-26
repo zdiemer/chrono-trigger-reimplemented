@@ -2290,6 +2290,11 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v);
  * byte; the portrait clears the high byte) */
 uint16_t menu_scratch_save_member(const GameState *g);
 void set_menu_scratch_save_member(GameState *g, uint16_t v);
+/* A character's large portrait ($C2:EC38): the tile word it lays next, its first tile in the low
+ * byte (the portrait writes it) over the attribute its caller gives in the high one; the
+ * portrait leaves it past the last tile, and takes the palette for the colours from it then */
+uint16_t menu_scratch_portrait_tile(const GameState *g);
+void set_menu_scratch_portrait_tile(GameState *g, uint16_t v);
 /* The same, its low byte alone: the rows' loop writes the character a byte wide */
 uint8_t menu_scratch_save_member_character(const GameState *g);
 void set_menu_scratch_save_member_character(GameState *g, uint8_t v);
@@ -2826,6 +2831,17 @@ void set_menu_palette_changed(GameState *g, uint8_t v);
 uint8_t menu_cursor_step_seen(const GameState *g);
 void set_menu_cursor_step_seen(GameState *g, uint8_t v);
 
+/* Nonzero asks the next frame's input for the fastest repeat of held buttons (a repeat every
+ * frame); the input takes it and clears it. A cursor held on Start counts it down */
+uint8_t menu_fast_repeat(const GameState *g);
+void set_menu_fast_repeat(GameState *g, uint8_t v);
+
+/* Which repeat delay held buttons have ($C2:84D0 by it): 1 while no button (but Start) is held,
+ * for the long wait before the first repeat, and 0 once the held buttons have been pressed or
+ * repeated, for the quick ones after */
+uint16_t menu_repeat_phase(const GameState *g);
+void set_menu_repeat_phase(GameState *g, uint16_t v);
+
 /* The buttons read this frame as the menus take them: bit 7 choose and bit 6 go back (the
  * player's first two assignments), bits 1 and 0 the seventh and eighth, repeating; none on a
  * step's first frame */
@@ -2863,6 +2879,11 @@ enum { MENU_PLACE_ITEMS_COUNT = 3 };   /* by which */
  * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF */
 uint16_t menu_place_items(const GameState *g, unsigned i);
 void set_menu_place_items(GameState *g, unsigned i, uint16_t v);
+
+/* The character whose large portrait (six tiles by six) the menus draw next, and whose colours
+ * they load with it */
+uint8_t menu_portrait_character(const GameState *g);
+void set_menu_portrait_character(GameState *g, uint8_t v);
 
 /* The tilemap word of the window style being drawn's first tile: its number, where the style's
  * twenty tiles start, and its attribute (palette and priority), which every tile of the window
@@ -2906,6 +2927,11 @@ void set_menu_record_buffer_half(GameState *g, uint8_t v);
 uint8_t menu_record_blocks_sent(const GameState *g);
 void set_menu_record_blocks_sent(GameState *g, uint8_t v);
 
+/* The byte after menu_record_blocks_sent, which the records' task clears with it (a word) every
+ * frame; the records read only the count, but the sprite object mode's slots share the byte */
+uint8_t menu_record_blocks_sent_high(const GameState *g);
+void set_menu_record_blocks_sent_high(GameState *g, uint8_t v);
+
 /* How many blocks of frame tiles the records' task sends a frame before it holds the rest back
  * (the screens set 1-7) */
 uint8_t menu_record_block_limit(const GameState *g);
@@ -2933,8 +2959,9 @@ enum { MENU_STORY_ITEMS_COUNT = 2 };   /* by which */
 uint16_t menu_story_items(const GameState *g, unsigned i);
 void set_menu_story_items(GameState *g, unsigned i, uint16_t v);
 
-/* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
- * the setup's clearing */
+/* Nonzero makes every frame's buttons read as going back: the menus' per-frame input sets it (to
+ * the buttons held) once the going-back assignment's buttons and Start are held together, and
+ * only a menu's setup clears it */
 uint8_t menu_cursor_always_back(const GameState *g);
 void set_menu_cursor_always_back(GameState *g, uint8_t v);
 

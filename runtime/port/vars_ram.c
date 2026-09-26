@@ -1757,6 +1757,8 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v) {
 
 uint16_t menu_scratch_save_member(const GameState *g) { return r16(g, 0x7E0000u); }
 void set_menu_scratch_save_member(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
+uint16_t menu_scratch_portrait_tile(const GameState *g) { return r16(g, 0x7E0000u); }
+void set_menu_scratch_portrait_tile(GameState *g, uint16_t v) { w16(g, 0x7E0000u, v); }
 uint8_t menu_scratch_save_member_character(const GameState *g) { return r8(g, 0x7E0000u); }
 void set_menu_scratch_save_member_character(GameState *g, uint8_t v) { w8(g, 0x7E0000u, v); }
 uint8_t menu_scratch_window_style_fourfold(const GameState *g) { return r8(g, 0x7E0000u); }
@@ -2015,6 +2017,10 @@ uint8_t menu_palette_changed(const GameState *g) { return r8(g, 0x7E0D15u); }
 void set_menu_palette_changed(GameState *g, uint8_t v) { w8(g, 0x7E0D15u, v); }
 uint8_t menu_cursor_step_seen(const GameState *g) { return r8(g, 0x7E0D17u); }
 void set_menu_cursor_step_seen(GameState *g, uint8_t v) { w8(g, 0x7E0D17u, v); }
+uint8_t menu_fast_repeat(const GameState *g) { return r8(g, 0x7E0D18u); }
+void set_menu_fast_repeat(GameState *g, uint8_t v) { w8(g, 0x7E0D18u, v); }
+uint16_t menu_repeat_phase(const GameState *g) { return r16(g, 0x7E0D19u); }
+void set_menu_repeat_phase(GameState *g, uint16_t v) { w16(g, 0x7E0D19u, v); }
 uint8_t menu_cursor_buttons(const GameState *g) { return r8(g, 0x7E0D1Du); }
 void set_menu_cursor_buttons(GameState *g, uint8_t v) { w8(g, 0x7E0D1Du, v); }
 uint8_t menu_cursor_direction(const GameState *g) { return r8(g, 0x7E0D1Eu); }
@@ -2031,6 +2037,8 @@ uint8_t menu_record_origin_y(const GameState *g) { return r8(g, 0x7E0D30u); }
 void set_menu_record_origin_y(GameState *g, uint8_t v) { w8(g, 0x7E0D30u, v); }
 uint16_t menu_place_items(const GameState *g, unsigned i) { IN_RANGE(g, 187, "menu_place_items", "count", i, 3u); return r16(g, 0x7E0D32u + (uint32_t)i * 0x02u); }
 void set_menu_place_items(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 187, "set_menu_place_items", "count", i, 3u); w16(g, 0x7E0D32u + (uint32_t)i * 0x02u, v); }
+uint8_t menu_portrait_character(const GameState *g) { return r8(g, 0x7E0D46u); }
+void set_menu_portrait_character(GameState *g, uint8_t v) { w8(g, 0x7E0D46u, v); }
 uint16_t menu_window_style(const GameState *g) { return r16(g, 0x7E0D47u); }
 void set_menu_window_style(GameState *g, uint16_t v) { w16(g, 0x7E0D47u, v); }
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot) { IN_RANGE(g, 188, "menu_save_slot_in_use", "count", slot, 4u); return r8(g, 0x7E0D49u + (uint32_t)slot * 0x01u); }
@@ -2045,6 +2053,8 @@ uint8_t menu_record_buffer_half(const GameState *g) { return r8(g, 0x7E0D72u); }
 void set_menu_record_buffer_half(GameState *g, uint8_t v) { w8(g, 0x7E0D72u, v); }
 uint8_t menu_record_blocks_sent(const GameState *g) { return r8(g, 0x7E0D73u); }
 void set_menu_record_blocks_sent(GameState *g, uint8_t v) { w8(g, 0x7E0D73u, v); }
+uint8_t menu_record_blocks_sent_high(const GameState *g) { return r8(g, 0x7E0D74u); }
+void set_menu_record_blocks_sent_high(GameState *g, uint8_t v) { w8(g, 0x7E0D74u, v); }
 uint8_t menu_record_block_limit(const GameState *g) { return r8(g, 0x7E0D75u); }
 void set_menu_record_block_limit(GameState *g, uint8_t v) { w8(g, 0x7E0D75u, v); }
 uint8_t menu_wait_frames(const GameState *g) { return r8(g, 0x7E0D76u); }

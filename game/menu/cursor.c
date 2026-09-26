@@ -16,9 +16,12 @@
  * frames. */
 #include "menu/cursor.h"
 
+#include "core/input.h"
 #include "menu/bridge.h"
+#include "menu/menu_data.h"
 #include "original_effects.h"
 #include "platform/audio.h"
+#include "platform/input.h"
 #include "port/native.h"
 #include "sound/sound.h"
 
@@ -165,6 +168,46 @@ void menu_read_cursor(GameState *g)
     set_menu_cursor_buttons(g, buttons);
 }
 
+/* ---- The frame's buttons, as the menus' vblank takes them ------------------------------------- */
+
+/* Held buttons repeat slowly at first and then quickly: the first repeat
+ * waits the long delay, the rest the short one. The pacing goes back to the
+ * long delay whenever nothing but Start is held, and to the short one once
+ * the held buttons have been pressed or repeated. A screen can ask for a
+ * frame of repeating every frame (menu_fast_repeat), which the input takes
+ * and clears. */
+enum { LONG_DELAY = 1 };
+
+static bool ask_fast_repeat(GameState *g)
+{
+    if (!menu_fast_repeat(g))
+        return false;
+    set_input_repeat_delay(g, 1);
+    set_input_repeat_countdown(g, 1);
+    return true;
+}
+
+static void pace_repeats(GameState *g)
+{
+    if (!(input_held(g) & (Buttons)~BUTTON_START))
+        set_menu_repeat_phase(g, LONG_DELAY);
+    else if (input_repeat(g) != 0) {
+        uint16_t phase = (uint16_t)(menu_repeat_phase(g) - 1);
+        set_menu_repeat_phase(g, (phase & 0x8000) ? 0 : phase);
+    }
+    set_input_repeat_delay(g, menu_repeat_delay(g, (uint8_t)menu_repeat_phase(g)));
+    set_menu_fast_repeat(g, 0);
+}
+
+/* Holding the going-back assignment's buttons and Start together sends every
+ * screen back from then on (menu_cursor_always_back). */
+static void note_back_and_start_held(GameState *g)
+{
+    uint8_t both = (uint8_t)(button_assignments(g, BACK_ASSIGNMENT) | BUTTON_START);
+    if (((uint8_t)input_held(g) & both) == both)
+        set_menu_cursor_always_back(g, both);
+}
+
 /* ---- The sounds --------------------------------------------------------------------------------- */
 
 /* A sound waits out three frames after one plays, and one asked for sooner is
@@ -252,6 +295,69 @@ void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
     if (!r.new_step)
         set_menu_scratch_cursor_button_bit(state_of(s), GO_BACK >> 1);
 }
+
+/* The menus' per-frame input calls the controller read and the play time's
+ * tick as the original does, the caller's data bank, page and flags saved
+ * around them, since the read can stop there while the console still reads
+ * the controller. The read comes back on its own page and data bank with 16-bit
+ * A and 8-bit index registers; the tick with 8-bit ones, on a page nothing
+ * reads before the frame's restore (the original's clock page, or where the
+ * port of the tick leaves it), so its return isn't held to one. */
+enum {
+    CONTROLLER_PAGE = 0x0000, CONTROLLER_BANK = 0x00,
+    READ_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
+    TICK_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    SECOND_CONTROLLER = 1,
+};
+
+static void save_the_callers_frame(Snes *s)
+{
+    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);   /* the index registers pass through 8 bits on the way */
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push8(s, s->cpu.db);
+    m_push16(s, s->cpu.d);
+    m_push8(s, s->cpu.p);
+}
+
+static void restore_the_callers_frame(Snes *s)
+{
+    s->cpu.p = m_pull8(s);
+    s->cpu.d = m_pull16(s);
+    s->cpu.db = m_pull8(s);
+}
+
+// $C2:8473
+/* The menus' input for the frame, from their vblank: the controller's
+ * buttons, the second controller's, a frame of play time, the repeat's
+ * pacing, and the going-back hold. */
+void menu_take_frame_input(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    bool fast = ask_fast_repeat(g);
+    /* the flags saved with the frame, which the controller read's stop leaves
+     * on the stack: those of the request's test, or of the repeat's setting */
+    ORIGINAL_EFFECT(menu_leave_load(s, fast ? 1 : 0));
+    save_the_callers_frame(s);
+    m_jsr_dc(s, 0xC28487, 0xC284EC, READ_IGNORES);
+    if (!menu_back(s, 0xC2848A, (MenuMachine){ false, true, CONTROLLER_PAGE, CONTROLLER_BANK }))
+        return;
+    set_second_controller(g, in_read(m_platform(s), PF_AT(0xC2848A), SECOND_CONTROLLER));
+    m_jsr_dc(s, 0xC28490, 0xC285AE, TICK_IGNORES);
+    if (!menu_back(s, 0xC28493, (MenuMachine){ true, true, m_direct_page(s), CONTROLLER_BANK }))
+        return;
+    restore_the_callers_frame(s);
+    pace_repeats(g);
+    note_back_and_start_held(g);
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+/* The input runs on the menus' vblank page, with a data bank that reaches
+ * low work RAM. */
+enum { MENUS_VBLANK_PAGE = 0x0D00 };
+
+bool menu_frame_input_is_takeable(Snes *s) { return m_direct_page(s) == MENUS_VBLANK_PAGE && m_bank_reaches_low_ram(s); }
 
 // $C2:E984
 void menu_read_cursor_input(Snes *s)

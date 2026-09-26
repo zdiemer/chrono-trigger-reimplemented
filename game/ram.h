@@ -1803,6 +1803,7 @@
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
+#define RAM_MENU_SCRATCH_PORTRAIT_TILE 0x7E0000u /* A character's large portrait ($C2:EC38): the tile word it lays next, its first tile in the low byte (the portrait writes it) over the attribute its caller gives in the high one; the portrait leaves it past the last tile, and takes the palette for the colours from it then */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER_CHARACTER 0x7E0000u /* The same, its low byte alone: the rows' loop writes the character a byte wide */
 #define RAM_MENU_SCRATCH_WINDOW_STYLE_FOURFOLD 0x7E0000u /* The window command lists: the window style's number times four, halfway to its tiles' first */
 #define RAM_MENU_SCRATCH_CURSOR_BUTTON_BIT 0x7E0000u /* The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last */
@@ -2136,6 +2137,13 @@
 #define RAM_MENU_PALETTE_CHANGED 0x7E0D15u
 /* The screen step the cursor last read the buttons in: a step's first frame reads none */
 #define RAM_MENU_CURSOR_STEP_SEEN 0x7E0D17u
+/* Nonzero asks the next frame's input for the fastest repeat of held buttons (a repeat every
+ * frame); the input takes it and clears it. A cursor held on Start counts it down */
+#define RAM_MENU_FAST_REPEAT 0x7E0D18u
+/* Which repeat delay held buttons have ($C2:84D0 by it): 1 while no button (but Start) is held,
+ * for the long wait before the first repeat, and 0 once the held buttons have been pressed or
+ * repeated, for the quick ones after [2 bytes] */
+#define RAM_MENU_REPEAT_PHASE 0x7E0D19u
 /* The buttons read this frame as the menus take them: bit 7 choose and bit 6 go back (the
  * player's first two assignments), bits 1 and 0 the seventh and eighth, repeating; none on a
  * step's first frame */
@@ -2160,6 +2168,9 @@
 #define RAM_MENU_PLACE_ITEMS 0x7E0D32u
 #define RAM_MENU_PLACE_ITEMS_COUNT 3u
 #define RAM_MENU_PLACE_ITEMS_STRIDE 0x02u
+/* The character whose large portrait (six tiles by six) the menus draw next, and whose colours
+ * they load with it */
+#define RAM_MENU_PORTRAIT_CHARACTER 0x7E0D46u
 /* The tilemap word of the window style being drawn's first tile: its number, where the style's
  * twenty tiles start, and its attribute (palette and priority), which every tile of the window
  * takes [2 bytes] */
@@ -2192,6 +2203,9 @@
  * menu_record_block_limit; each block's tiles are built at $7E:8000 + $200 a block (the frame
  * buffer, reached through wram.h since its place is worked out) */
 #define RAM_MENU_RECORD_BLOCKS_SENT 0x7E0D73u
+/* The byte after menu_record_blocks_sent, which the records' task clears with it (a word) every
+ * frame; the records read only the count, but the sprite object mode's slots share the byte */
+#define RAM_MENU_RECORD_BLOCKS_SENT_HIGH 0x7E0D74u
 /* How many blocks of frame tiles the records' task sends a frame before it holds the rest back
  * (the screens set 1-7) */
 #define RAM_MENU_RECORD_BLOCK_LIMIT 0x7E0D75u
@@ -2211,8 +2225,9 @@
 #define RAM_MENU_STORY_ITEMS 0x7E0D7Cu
 #define RAM_MENU_STORY_ITEMS_COUNT 2u
 #define RAM_MENU_STORY_ITEMS_STRIDE 0x02u
-/* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
- * the setup's clearing */
+/* Nonzero makes every frame's buttons read as going back: the menus' per-frame input sets it (to
+ * the buttons held) once the going-back assignment's buttons and Start are held together, and
+ * only a menu's setup clears it */
 #define RAM_MENU_CURSOR_ALWAYS_BACK 0x7E0D83u
 /* Nonzero while the load screen uses the slot header's place for something else ($C2:E841 loads
  * another graphic there and sets it, $C2:E6FC clears it): a slot is then drawn without its

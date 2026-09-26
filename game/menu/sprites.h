@@ -34,6 +34,8 @@ void menu_load_record_sprites(Snes *s);
 void menu_load_record_sprite(Snes *s);
 void menu_animate_record(Snes *s);
 void menu_step_record_animation(Snes *s);
+void menu_run_record_task(Snes *s);
+bool menu_record_task_is_runnable(Snes *s);
 void menu_show_record_frame(Snes *s);
 bool menu_record_frame_is_showable(Snes *s);
 bool menu_record_sprites_are_loadable(Snes *s);
