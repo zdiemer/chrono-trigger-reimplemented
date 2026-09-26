@@ -4117,6 +4117,16 @@
 #define RAM_BATTLE_COMBATANT_DOWN 0x7EA0A8u
 #define RAM_BATTLE_COMBATANT_DOWN_COUNT 11u
 #define RAM_BATTLE_COMBATANT_DOWN_STRIDE 0x01u
+/* An item a party member stole that the battle keeps apart from the inventory (one from $BC
+ * whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at
+ * $7E:1580 ($CF:FAE2) [3 x $8 bytes, by battle slot of a party member] */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM 0x7EA0B8u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_COUNT 3u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_STRIDE 0x08u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_ID 0x7EA0B8u /* Which item */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_DETAIL 0x7EA0B9u /* The item's byte of the table at $CC:1BB5 */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_KIND 0x7EA0BAu /* The low seven bits of the item's record's first byte ($CC:0ABC) */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_HELD 0x7EA0BBu /* How many are held: 1 */
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
@@ -4930,6 +4940,13 @@
 #define RAM_BATTLE_ACTION_POSE_KIND 0x7EAEE8u
 /* 4 as an enemy's attack starts ($C1:ACB0) */
 #define RAM_BATTLE_ATTACK_HITS 0x7EAEEBu
+/* The item the battle's inventory routines are adding or looking for [2 bytes] */
+#define RAM_BATTLE_INVENTORY_ITEM 0x7EAEF7u
+/* The first empty place of the inventory the battle's search for an item passed, where an item
+ * not held goes [2 bytes] */
+#define RAM_BATTLE_INVENTORY_FREE_PLACE 0x7EAEF9u
+/* Set once the battle's search for an item has passed an empty place of the inventory */
+#define RAM_BATTLE_INVENTORY_FREE_SEEN 0x7EAEFBu
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
  * three party slots out is a defeat [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_COMBATANT_FIGHTING 0x7EAEFFu
@@ -4985,10 +5002,11 @@
 #define RAM_BATTLE_TIMER_RUNS_LEFT_COUNT 13u
 #define RAM_BATTLE_TIMER_RUNS_LEFT_STRIDE 0x0Bu
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait [132 x $1 bytes, by timer kind (0-11) * 11 + battle slot] */
+ * battle_turn_wait [12 x $B bytes, by kind of timer (0-11, the timed statuses); a byte a battle
+ * slot] */
 #define RAM_BATTLE_TIMER_LENGTHS 0x7EB0D4u
-#define RAM_BATTLE_TIMER_LENGTHS_COUNT 132u
-#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x01u
+#define RAM_BATTLE_TIMER_LENGTHS_COUNT 12u
+#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x0Bu
 /* The combatant's turn wait: what its turn timer starts from again after it acts [11 x $1 bytes,
  * by battle slot] */
 #define RAM_BATTLE_TURN_WAIT 0x7EB158u
@@ -5147,6 +5165,9 @@
 #define RAM_BATTLE_DAMAGE_VARIANCE 0x7EB2BEu
 /* Set when the action's first target is an enemy: the enemies it hit react */
 #define RAM_BATTLE_ACTION_HIT_ENEMY 0x7EB2C0u
+/* The tech's members' record's offset among the records (the members' number times 3), where the
+ * party's working out finds them [2 bytes] */
+#define RAM_BATTLE_TECH_MEMBERS_PLACE 0x7EB2C1u
 /* The acting attack's or tech's record's offset among the records (its number times 11) [2
  * bytes] */
 #define RAM_BATTLE_ACTION_RECORD_PLACE 0x7EB2C3u
@@ -5162,6 +5183,8 @@
 /* $40 while the action can't miss (its record's first byte says so), whose effects then skip
  * their test of landing */
 #define RAM_BATTLE_EFFECT_SURE 0x7EB2CAu
+/* The battle slot of the member whose part of the party's tech is being worked out */
+#define RAM_BATTLE_TECH_PERFORMER 0x7EB2CBu
 /* The modifier the effect is worked out with, from the action's record (or, for a moment, the
  * weapon's) */
 #define RAM_BATTLE_EFFECT_MODIFIER 0x7EB2CCu
@@ -5176,6 +5199,11 @@
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
 /* The enemy's animation, kept while its reactions run and put back after */
 #define RAM_BATTLE_ANIMATION_KEPT 0x7EB2D5u
+/* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
+ * them: the member who chose it first [3 x $1 bytes, by the member's part in the tech] */
+#define RAM_BATTLE_TECH_MEMBERS 0x7EB2EAu
+#define RAM_BATTLE_TECH_MEMBERS_COUNT 3u
+#define RAM_BATTLE_TECH_MEMBERS_STRIDE 0x01u
 /* What a tech's second and third targets are (battle_combatant_fighting of each) [2 x $1 bytes,
  * by second or third] */
 #define RAM_BATTLE_ACTION_FURTHER_IDS 0x7EB2EBu
@@ -5219,10 +5247,16 @@
 #define RAM_BATTLE_ACTION_FOLLOW_UP 0x7EB3B8u
 /* Set when the action's first target is a party member: the party may counter ($FD:AC6E) */
 #define RAM_BATTLE_ACTION_HIT_PARTY 0x7EB3B9u
+/* The accessory each party member wears, kept as the battle starts ($FD:AE99): two of them cut
+ * what a tech's part costs in MP [3 x $1 bytes, by battle slot of a party member] */
+#define RAM_BATTLE_MEMBER_ACCESSORY 0x7EB3BAu
+#define RAM_BATTLE_MEMBER_ACCESSORY_COUNT 3u
+#define RAM_BATTLE_MEMBER_ACCESSORY_STRIDE 0x01u
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 #define RAM_BATTLE_SPARE_TURN_MEMBER 0x7EB3BEu
-/* How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to
- * take */
+/* How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an
+ * item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF
+ * nothing to take */
 #define RAM_BATTLE_STEAL_OUTCOME 0x7EB3BFu
 /* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
@@ -5233,6 +5267,13 @@
 /* The byte after battle_action_message, which the actions that set stats clear as they keep the
  * message as a word */
 #define RAM_BATTLE_ACTION_MESSAGE_HIGH 0x7EB3C8u
+/* $FF where a member of the party's tech can't take part in it (kept from techs, or short of the
+ * MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC) */
+#define RAM_BATTLE_TECH_BLOCKED 0x7EB3C8u
+/* Bit 7: the party member's action goes ahead even where a member of its tech can't take part,
+ * as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command
+ * ($C1:BA4E) */
+#define RAM_BATTLE_ACTION_GOES_AHEAD 0x7EB3C9u
 /* A reaction's kept place, while its conditions are tested [2 bytes] */
 #define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
 /* A second position in the battle's table of random numbers, which the critical hits' rolls take

@@ -181,6 +181,15 @@ static void tick_play_time(GameState *g)
         set_play_time_overflowed(g, 1);
 }
 
+bool input_take_frame(GameState *g, Platform *pf)
+{
+    if (read_controller(g, pf) != CONTROLLER_READ)
+        return false;
+    assign_buttons(g);
+    tick_play_time(g);
+    return true;
+}
+
 /* ---- The entries -------------------------------------------------------------------------------- */
 
 /* The controller's cells are on the direct page at $0000, which the controller

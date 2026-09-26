@@ -32,27 +32,15 @@ void effect_cure(GameState *g, bool revives)
     if (slot >= BATTLE_PARTY_SIZE)
         return;
     battle_stop_timer(g, BATTLE_TIMER_STOP, slot);
-    battle_stop_timer(g, BATTLE_TIMER_STATUS_11, slot);
-    battle_stop_timer(g, BATTLE_TIMER_STATUS_1, slot);
-    battle_stop_timer(g, BATTLE_TIMER_STATUS_2, slot);
-    battle_stop_timer(g, BATTLE_TIMER_STATUS_8, slot);
+    battle_stop_timer(g, BATTLE_TIMER_11, slot);
+    battle_stop_timer(g, BATTLE_TIMER_POISON, slot);
+    battle_stop_timer(g, BATTLE_TIMER_SLOW, slot);
+    battle_stop_timer(g, BATTLE_TIMER_HP_LOSS, slot);
     if (battle_member_revive_marks(g, slot) < REVIVE_MARKS)
         set_battle_member_revive_marks(g, slot, 0);
 }
 
 /* ---- Timers ------------------------------------------------------------------------------ */
-
-/* A status that lasts starts its timer at the target's length for it. */
-static void start_status_timer(GameState *g, BattleTimer timer, uint8_t slot, uint8_t length)
-{
-    set_battle_timer_counts_byte(g, timer, slot, length);
-    battle_restart_timer(g, timer, slot);
-}
-
-static uint8_t length_of(const GameState *g, BattleTimer timer, uint8_t slot)
-{
-    return battle_timer_lengths(g, (unsigned)timer * BATTLE_COMBATANTS + slot);
-}
 
 // $C1:E006
 /* The timer a status's first bit given starts, by the status byte and the
@@ -67,27 +55,27 @@ static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
     switch (which) {
     case 1:
         if (bits & STATUS_STOP) {
-            start_status_timer(g, BATTLE_TIMER_STOP, slot, length_of(g, BATTLE_TIMER_STOP, slot));
+            battle_start_timer(g, BATTLE_TIMER_STOP, slot, battle_timer_length(g, BATTLE_TIMER_STOP, slot));
         } else if (bits & STATUS_POISON) {
-            uint8_t length = length_of(g, BATTLE_TIMER_STATUS_1, slot), longer = effect_target_stat(g, STAT_HIT);
-            start_status_timer(g, BATTLE_TIMER_STATUS_1, slot, (uint8_t)(length + longer));
+            uint8_t length = battle_timer_length(g, BATTLE_TIMER_POISON, slot), longer = effect_target_stat(g, STAT_HIT);
+            battle_start_timer(g, BATTLE_TIMER_POISON, slot, (uint8_t)(length + longer));
         } else if (bits & STATUS_SLOW) {
-            start_status_timer(g, BATTLE_TIMER_STATUS_2, slot, length_of(g, BATTLE_TIMER_STATUS_2, slot));
+            battle_start_timer(g, BATTLE_TIMER_SLOW, slot, battle_timer_length(g, BATTLE_TIMER_SLOW, slot));
         } else if (bits & STATUS_LOSES_HP) {
-            start_status_timer(g, BATTLE_TIMER_STATUS_8, slot, length_of(g, BATTLE_TIMER_STATUS_8, slot));
+            battle_start_timer(g, BATTLE_TIMER_HP_LOSS, slot, battle_timer_length(g, BATTLE_TIMER_HP_LOSS, slot));
         }
         break;
     case 3:
         if (bits & STATUS3_HASTE)
-            start_status_timer(g, BATTLE_TIMER_STATUS_3, slot, length_of(g, BATTLE_TIMER_STATUS_3, slot));
+            battle_start_timer(g, BATTLE_TIMER_HASTE, slot, battle_timer_length(g, BATTLE_TIMER_HASTE, slot));
         else if (bits & STATUS3_EVADES_MUCH_BETTER)
-            start_status_timer(g, BATTLE_TIMER_STATUS_4, slot, length_of(g, BATTLE_TIMER_STATUS_4, slot));
+            battle_start_timer(g, BATTLE_TIMER_EVASION, slot, battle_timer_length(g, BATTLE_TIMER_EVASION, slot));
         break;
     case 4:
         if (bits & STATUS4_SHIELD)
-            start_status_timer(g, BATTLE_TIMER_STATUS_5, slot, length_of(g, BATTLE_TIMER_STATUS_5, slot));
+            battle_start_timer(g, BATTLE_TIMER_SHIELD, slot, battle_timer_length(g, BATTLE_TIMER_SHIELD, slot));
         else if (bits & STATUS4_REGAINS_MP)
-            start_status_timer(g, BATTLE_TIMER_STATUS_9, slot, length_of(g, BATTLE_TIMER_STATUS_9, slot));
+            battle_start_timer(g, BATTLE_TIMER_MP_REGAIN, slot, battle_timer_length(g, BATTLE_TIMER_MP_REGAIN, slot));
         break;
     default:
         break;

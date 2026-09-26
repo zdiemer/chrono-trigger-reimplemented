@@ -9,15 +9,17 @@
  * and what its two numbers mean for it, and applied by a switch over the
  * routines, each a function with its numbers named.
  *
- * Two of the original's routines the port leaves to it, and the entries turn
- * away an effect that has them (battle/effect_work.c): the clock's ($C1:EE27),
- * which reads the controller mid-work -- a read that waits on the console --
- * and the chance of a rare item (as a steal's own), whose steal is the
- * original's; and any routine past the table's 21, which no record has. */
+ * The clock's modifier runs the frame's input work again, the controller read
+ * and the play time's tick, before it reads the seconds: that is the one piece
+ * of an effect's work that reaches the host (the platform it is handed). A
+ * routine past the table's 21, which no record has, the entries turn away
+ * (battle/effect_work.c). */
 #include "battle/effect_parts.h"
 
 #include "battle/combatant.h"
 #include "battle/random.h"
+#include "charge.h"
+#include "core/input.h"
 
 enum { PERCENT = 100, MOST_DAMAGE = 9999 };
 
@@ -86,7 +88,12 @@ static Modifier decode(ModifierRecord r)
 bool effect_modifier_ported(const GameState *g, uint8_t modifier)
 {
     uint8_t routine = modifier_record(g, modifier).routine;
-    return routine < MODIFIER_ROUTINES && routine != MOD_BY_THE_CLOCK && routine != MOD_RARE_ITEM_CHANCE;
+    return routine < MODIFIER_ROUTINES;
+}
+
+bool effect_modifier_is_charm_chance(const GameState *g, uint8_t modifier)
+{
+    return modifier_record(g, modifier).routine == MOD_RARE_ITEM_CHANCE;
 }
 
 /* ---- The routines ---------------------------------------------------------------------------- */
@@ -129,6 +136,50 @@ static void for_the_fallen(GameState *g)
             out++;
     set_battle_party_out_count(g, out);
     set_amount(g, effect_times(g, (uint8_t)(out + 1), amount(g)));
+}
+
+// $C1:EE27
+/* The damage by the play time. The frame's input work runs again first (the
+ * controller read, the button assignments and the clock's tick, $C2:8002),
+ * then the last digit of the seconds -- over the long arithmetic's leftover
+ * high word as well, which the modifier's own multiply leaves clear -- scales
+ * it: 0 to about a tenth, 1 or 2 half, 3 or 4 as it is, 5 or 6 by half of the
+ * word the direct page's first cell holds added (the original loads that, not
+ * the damage: the game plays it so), 7 or 8 doubled, 9 trebled. Where the
+ * console is still reading the controller, or the reset buttons are held, the
+ * original waits or resets inside the work; the port goes on with the sets
+ * and the clock as they are (docs/TODO.md). */
+enum { DIGITS = 10 };
+
+static void by_the_clock(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC284D2, input_take_frame(g, pf));
+    uint16_t digit = effect_over(g, play_time_seconds(g), DIGITS).remainder;
+    uint16_t damage = amount(g);
+    if (digit == 0)
+        set_amount(g, effect_about_a_tenth(g, damage));
+    else if (digit < 3)
+        set_amount(g, (uint16_t)(damage >> 1));
+    else if (digit < 5)
+        return;
+    else if (digit < 7) {
+        uint16_t first = (uint16_t)(battle_low_scratch(g, BATTLE_CLOCK_READS) | battle_low_scratch(g, BATTLE_CLOCK_READS + 1) << 8);
+        set_amount(g, (uint16_t)((first >> 1) + damage));
+    } else if (digit < 9)
+        set_amount(g, (uint16_t)(damage << 1));
+    else
+        set_amount(g, (uint16_t)(damage * 3));
+}
+
+// $C1:EFC3
+/* The chance of an enemy's charm, which a steal takes where it comes: a
+ * percent drawn below the modifier's number. The original hands the outcome
+ * back in the direct page's third cell. */
+static bool charm_chance(GameState *g, uint8_t percent)
+{
+    bool comes = battle_random(g, 0, PERCENT) < percent;
+    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, comes ? 1 : 0));
+    return comes;
 }
 
 /* A status of the first status byte given the target. */
@@ -347,13 +398,14 @@ static void critical_bonus(GameState *g, bool to_most)
 
 /* ---- Applying them -------------------------------------------------------------------------- */
 
-static void apply(GameState *g, Modifier m)
+static void apply(GameState *g, Platform *pf, Modifier m)
 {
     switch (m.routine) {
     case MOD_CRITICAL_HIT: critical_hit(g, m.critical.times); break;
     case MOD_SCALED: scaled(g, m.scaled.times, m.scaled.over); break;
     case MOD_AGAINST_FAMILY: against_family(g, m.against_family.families, m.against_family.times); break;
     case MOD_FOR_THE_FALLEN: for_the_fallen(g); break;
+    case MOD_BY_THE_CLOCK: by_the_clock(g, pf); break;
     case MOD_RANDOM_STATUS: random_status(g); break;
     case MOD_STATUS_AGAINST_FAMILY:
         status_against_family(g, m.status_against_family.families, m.status_against_family.statuses);
@@ -367,6 +419,7 @@ static void apply(GameState *g, Modifier m)
         scaled(g, m.scaled.times, m.scaled.over);
         element(g);
         break;
+    case MOD_RARE_ITEM_CHANCE: charm_chance(g, m.chance.percent); break;
     case MOD_RESTORE_OR_CURE: restore_or_cure(g, m.restore_or_cure.what); break;
     case MOD_HALVE_HP: halve_hp(g, m.chance.percent); break;
     case MOD_TAKE_STAT_BITS: take_stat_bits(g, m.stat_bits.stat, m.stat_bits.bits); break;
@@ -375,7 +428,7 @@ static void apply(GameState *g, Modifier m)
     case MOD_DEATH: death(g, m.chance.percent); break;
     case MOD_CRITICAL_BONUS: critical_bonus(g, m.critical_bonus.to_most); break;
     case MOD_GIVE_STAT_BITS: give_stat_bits(g, m.stat_bits.stat, m.stat_bits.bits); break;
-    default: break; /* nothing; the clock's and the rare item's are turned away */
+    default: break; /* nothing */
     }
 }
 
@@ -383,7 +436,7 @@ static void apply(GameState *g, Modifier m)
 /* The modifier the action is worked out with (battle_effect_modifier). The
  * original hands the routine its numbers in the direct page, and finds the
  * record by a multiply. */
-static void apply_modifier(GameState *g)
+static Modifier take_modifier(GameState *g)
 {
     uint8_t number = battle_effect_modifier(g);
     effect_times(g, number, 3);
@@ -391,8 +444,12 @@ static void apply_modifier(GameState *g)
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_4, r.first));
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_5, r.second));
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_6, r.routine));
-    apply(g, decode(r));
+    return decode(r);
 }
+
+static void apply_modifier(GameState *g, Platform *pf) { apply(g, pf, take_modifier(g)); }
+
+bool effect_charm_comes(GameState *g) { return charm_chance(g, take_modifier(g).chance.percent); }
 
 // $C1:EA6F
 /* The action's modifier, where it has one, then the weapon's where the
@@ -400,19 +457,19 @@ static void apply_modifier(GameState *g)
  * after. */
 enum { WEAPON_MODIFIER_ON = 0x01 };
 
-void effect_apply_modifiers(GameState *g)
+void effect_apply_modifiers(GameState *g, Platform *pf)
 {
     uint8_t own = battle_effect_modifier(g);
     set_battle_action_modifier_kept(g, own);
     if (own != 0)
-        apply_modifier(g);
+        apply_modifier(g, pf);
     if (battle_effect_flags(g, 1) & EFFECT_WITH_WEAPON_MODIFIER) {
         uint8_t on = effect_actor_stat(g, STAT_WEAPON_MODIFIER_ON), weapons = effect_actor_stat(g, STAT_WEAPON_MODIFIER);
         ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_5, on));
         ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_6, weapons));
         set_battle_effect_modifier(g, weapons);
         if (on & WEAPON_MODIFIER_ON)
-            apply_modifier(g);
+            apply_modifier(g, pf);
     }
     set_battle_effect_modifier(g, battle_action_modifier_kept(g));
 }

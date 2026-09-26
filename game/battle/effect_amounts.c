@@ -76,6 +76,16 @@ static uint8_t number_place(GameState *g, uint8_t slot, bool tally_first)
     return (uint8_t)(set_place + slot_place);
 }
 
+/* Where the original keeps the actor's number's place (scaffolding). */
+enum { ACTOR_NUMBER_PLACE_CELL = 0x10 };
+
+/* A record made after a number's place is found is made with the carry of
+ * the place's add, which the multiply leaves in its cell (scaffolding). */
+static void leave_number_place_carry(GameState *g, uint8_t place, uint8_t slot)
+{
+    battle_leave_multiply_carry(g, place < (uint8_t)(slot * ENTRY_BYTES));
+}
+
 // $C1:E89F
 uint8_t effect_target_number(GameState *g)
 {
@@ -88,7 +98,7 @@ uint8_t effect_target_number(GameState *g)
 static uint8_t actor_number_place(GameState *g)
 {
     uint8_t place = number_place(g, actor(g), true);
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x10, place));
+    ORIGINAL_EFFECT(battle_leave_word(g, ACTOR_NUMBER_PLACE_CELL, place));
     return place;
 }
 
@@ -140,17 +150,15 @@ void effect_missed(GameState *g, uint8_t misses, bool dodged)
     set_number_kind(g, place, NUMBER_MISS);
     set_number_value(g, place, 0);
     effect_record_damage(g, effect_target(g), DAMAGE_MISSED);
-    /* made with the carry of the number's place's add */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, place < (uint8_t)(effect_target(g) * ENTRY_BYTES)));
+    ORIGINAL_EFFECT(leave_number_place_carry(g, place, effect_target(g)));
     if (mark)
         set_battle_action_extra(g, battle_action_extra(g) | ACTION_MISSED);
 }
 
 /* ---- What statuses do ------------------------------------------------------------------------ */
 
-// $C1:88C5, $C1:8A9F, $C1:8B10
-/* A status's timer's doing, recorded for the combatant as a hit's would be,
- * with its number where the showing puts it. */
+/* A status's timer's doing (battle/status_timers.c), recorded for the
+ * combatant as a hit's would be, with its number where the showing puts it. */
 static void status_amount(GameState *g, uint8_t slot, uint16_t amount, uint8_t number, uint8_t marks)
 {
     set_battle_effect_amount(g, amount);
@@ -158,8 +166,7 @@ static void status_amount(GameState *g, uint8_t slot, uint16_t amount, uint8_t n
     uint8_t place = effect_target_number(g);
     set_effect_number(g, place, amount, number);
     effect_record_damage(g, slot, marks);
-    /* made with the carry of the number's place's add */
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, place < (uint8_t)(slot * ENTRY_BYTES)));
+    ORIGINAL_EFFECT(leave_number_place_carry(g, place, slot));
 }
 
 void effect_show_status_damage(GameState *g, uint8_t slot, uint16_t damage)
@@ -186,7 +193,7 @@ enum { MOST_HEALED = 999, MOST_DAMAGE = 9999 };
 
 /* The amount healed or drained is kept in the direct page's first word, which
  * a modifier reads back ($C1:EE27): kept plainly. */
-static void keep_amount_worked(GameState *g, uint16_t v) { battle_keep_word(g, 0x00, v); }
+static void keep_amount_worked(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_CLOCK_READS, v); }
 
 /* One restoration: `base` times the multiple, where that isn't all of the
  * stat; with a random part up to `power` where the product isn't a whole
@@ -724,7 +731,7 @@ static void felled(GameState *g, uint8_t place)
     set_battle_candidate_count(g, 1);
 }
 
-void effect_apply_hit(GameState *g, HitAmounts hit)
+void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit)
 {
     set_effect_target_stat(g, STAT_STATUS_1, effect_target_stat(g, STAT_STATUS_1) & (uint8_t)~STATUSES_A_HIT_ENDS);
     uint16_t kept = (uint16_t)(0x100 - hit.defence);
@@ -733,7 +740,7 @@ void effect_apply_hit(GameState *g, HitAmounts hit)
     uint16_t amount = (uint16_t)(share + variance);
     set_battle_effect_amount(g, amount ? amount : 1);
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
-    effect_apply_modifiers(g);
+    effect_apply_modifiers(g, pf);
     uint8_t guards = (uint8_t)(effect_target_stat(g, STAT_STATUS_4) | effect_target_stat(g, STAT_KEPT_STATUS_4));
     effect_leave_last_worked_byte(g, guards);
     guarded_against(g, guards);
