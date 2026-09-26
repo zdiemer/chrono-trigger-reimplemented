@@ -697,7 +697,15 @@ static unsigned record_sprites(const GameState *g, unsigned record)
     return sprites != 0 ? sprites : 1;
 }
 
-static uint8_t next_record_tile(uint8_t tile) { return (uint8_t)(((tile | 0x10) + 2) & ~0x10); }
+/* The next sprite's first tile: two on along the upper row of tiles, and
+ * past the row between at a row's end, which holds their lower halves. */
+enum { SPRITE_ALONG = 2, LOWER_TILE_ROW = 0x10 };
+
+static uint8_t next_record_tile(uint8_t tile)
+{
+    uint8_t along = (uint8_t)(tile + SPRITE_ALONG);
+    return along & LOWER_TILE_ROW ? (uint8_t)(along + LOWER_TILE_ROW) : along;
+}
 
 /* The record's X on the screen: its place, 9 bits, from the origin. */
 static uint16_t record_x(const GameState *g, unsigned record)
@@ -914,10 +922,9 @@ enum { STUB_MOVE_TO_WORK_RAM = 0x7E54, STUB_RETURN = 0x6B };
  * place wraps within the bank, as the original's word does). */
 enum { HALF_ON = 0x80 };
 
-static uint32_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
+static uint16_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
 {
-    uint16_t offset = (uint16_t)(blocks_before * BLOCK_BYTES + (menu_record_buffer_half(g) & HALF_ON ? HALF_BLOCK : 0));
-    return FRAME_BUFFER + (uint32_t)offset;
+    return (uint16_t)(FRAME_BUFFER + blocks_before * BLOCK_BYTES + (menu_record_buffer_half(g) & HALF_ON ? HALF_BLOCK : 0));
 }
 
 /* Tiles are copied from the sprite's graphics, in the ROM or unpacked in work
@@ -948,7 +955,11 @@ static void put_tile(GameState *g, uint32_t graphics, FrameTile tile, uint16_t a
  * end (a row of tiles is $100 words; a block's lower row the next one). */
 enum { BLOCK_ALONG = 0x80, TILE_ROW = 0x100 };
 
-static uint16_t next_block_place(uint16_t upper_row) { return (uint16_t)((upper_row + TILE_ROW + BLOCK_ALONG) & ~TILE_ROW); }
+static uint16_t next_block_place(uint16_t upper_row)
+{
+    uint16_t along = (uint16_t)(upper_row + BLOCK_ALONG);
+    return along & TILE_ROW ? (uint16_t)(along + TILE_ROW) : along;
+}
 
 /* The upload of a frame's blocks: one run of them where they are an even
  * number (their tiles laid out as VRAM has them), and otherwise each block's
@@ -1000,7 +1011,7 @@ static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
 {
     uint32_t graphics = menu_record_graphics(g, record);
     uint8_t blocks = menu_record_sprite_count(g, record);
-    uint16_t buffer = (uint16_t)frame_buffer_for(g, menu_record_blocks_sent(g));
+    uint16_t buffer = frame_buffer_for(g, menu_record_blocks_sent(g));
     for (unsigned i = 0; i < t->count; i++) {
         FrameTile tile = decode_tile(t->tile[i]);
         uint16_t at = (uint16_t)(buffer + i * TILE_BYTES);
@@ -1021,9 +1032,11 @@ static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
  * the last upload it queued, in the record it built them in. */
 static bool any_mirrored(const FrameTiles *t)
 {
-    for (unsigned i = 0; i < t->count; i++)
-        if (!decode_tile(t->tile[i]).blank && decode_tile(t->tile[i]).mirrored)
+    for (unsigned i = 0; i < t->count; i++) {
+        FrameTile tile = decode_tile(t->tile[i]);
+        if (!tile.blank && tile.mirrored)
             return true;
+    }
     return false;
 }
 
@@ -1452,17 +1465,19 @@ static bool readable(uint32_t at) { return ((uint8_t)(at >> 16) & 0x7F) >= 0x40;
  * at most: the menus' sprites are one); the facing is one of the four. The
  * record's tiles start on an upper row of tiles in VRAM, where a frame's
  * blocks are laid out a row pair at a time. */
-enum { FRAME_BUFFER_END = 0x9690, TILE_ON_A_LOWER_ROW = 0x10 };
+enum { FRAME_BUFFER_END = 0x9690 };
 
 static bool blocks_fit(const GameState *g, uint8_t blocks, uint8_t blocks_before)
 {
-    return blocks >= 1 && blocks <= MOST_BLOCKS && frame_buffer_for(g, blocks_before) + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
+    uint16_t buffer = frame_buffer_for(g, blocks_before);
+    return blocks >= 1 && blocks <= MOST_BLOCKS && buffer >= FRAME_BUFFER
+           && (uint32_t)buffer + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
 }
 
 static bool frame_fits(const GameState *g, unsigned record)
 {
     return blocks_fit(g, menu_record_sprite_count(g, record), menu_record_blocks_sent(g))
-           && !(menu_record_tile(g, record) & TILE_ON_A_LOWER_ROW);
+           && !(menu_record_tile(g, record) & LOWER_TILE_ROW);
 }
 
 /* A looping animation's loop frame has a time, so that its end doesn't go
@@ -1476,9 +1491,9 @@ static bool animation_ends(const GameState *g, unsigned record)
 /* The VRAM queue counts whole records, as the queue's own entries ask. */
 static bool queue_is_whole(const GameState *g) { return menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0; }
 
-/* A facing's frames lie within the animations' bank: the ROM's sprites have
- * fewer than $4000 frames a facing (tests/test_menu_sprites.py), so four
- * facings' worth reaches no further. */
+/* A facing's frames: a sprite's load makes the count a 16-bit span over the
+ * four facings, under $4000, so three facings' worth added to an animation's
+ * first frame stays within a word; the records' own cells are kept so. */
 enum { MOST_FRAMES_A_FACING = 0x4000 };
 
 static bool record_is_animatable(const GameState *g, unsigned record)
@@ -1551,7 +1566,7 @@ static bool opening_records_fit(const GameState *g)
         if (set >= SPRITE_SETS)
             return false;
         uint8_t blocks = menu_sprite_blocks(g, read_assignment(g, assignment_place(g, set, (uint8_t)record)).size);
-        if (!blocks_fit(g, blocks, sent))
+        if (!blocks_fit(g, blocks, sent) || (menu_opening_record_tile(g, record) & LOWER_TILE_ROW))
             return false;
         sent = (uint8_t)(sent + blocks);
     }

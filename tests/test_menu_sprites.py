@@ -3,10 +3,11 @@
 A record's load divides the span of a sprite's animation frames by the four
 facings, and its animation adds up to three facings' worth to where the
 frames start; the port writes both as plain arithmetic, where the original's
-additions would take in a carry the division or the multiply left. Neither
-carries for any sprite the ROM has: every entry of the table of animations'
-places ($E4:FFE4, a word an entry, 256 entries for the assignment's byte)
-spans a multiple of four frames, fewer than $4000 a facing. Needs the ROM."""
+additions would take in a carry the division or the multiply left. The
+division's doesn't carry for any sprite the ROM has: every entry of the table
+of animations' places ($E4:FFE4, a word an entry, 256 entries for the
+assignment's byte) spans a multiple of four frames. (The multiply's can't:
+a facing's count is a 16-bit span over four, under $4000.) Needs the ROM."""
 import pathlib
 import unittest
 
@@ -16,7 +17,6 @@ ROM = ROOT / "roms" / "ct-usa.sfc"
 ANIMATIONS_TABLE = 0xE4FFE4
 ENTRIES = 256
 FACINGS = 4
-MOST_FRAMES_A_FACING = 0x4000
 
 
 def offset(address):
@@ -46,11 +46,6 @@ class TestAnimationSpans(unittest.TestCase):
         for entry, span in self.spans():
             with self.subTest(entry=entry):
                 self.assertEqual(span % FACINGS, 0)
-
-    def test_a_facing_has_fewer_than_the_bound(self):
-        for entry, span in self.spans():
-            with self.subTest(entry=entry):
-                self.assertLess(span // FACINGS, MOST_FRAMES_A_FACING)
 
 
 if __name__ == "__main__":

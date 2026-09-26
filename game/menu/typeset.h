@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/glyphs.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -20,6 +21,9 @@ enum {
     MENU_TEXT_TILE_KIND = 0x0F,
     MENU_TEXT_LINES_AT_THE_EDGE = 0x80,
 };
+
+/* The kind of tiles a layout sets its text in. */
+MenuTextTiles menu_text_tiles_of_layout(MenuTextLayout l);
 
 /* Start the string the text page names (menu_text: which string of which
  * table, the tiles, the layout), and set glyphs of it until it stops the call

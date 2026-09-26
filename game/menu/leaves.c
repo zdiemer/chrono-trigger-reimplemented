@@ -31,8 +31,9 @@ static uint16_t glyph_column(const GameState *g, uint16_t glyph)
 {
     uint8_t width = menu_glyph_width(g, menu_text_glyph_index(glyph));
     unsigned column = (uint8_t)(menu_text_reading_pen(g) - width) / 8u;
-    bool four_colour = (menu_text_layout(g) & MENU_TEXT_TILE_KIND) == MENU_TEXT_FOUR_COLOUR;
-    return four_colour ? menu_text_column_offset(g, column) : menu_text_column_offset_16_colour(g, column);
+    return menu_text_tiles_of_layout(menu_text_layout(g)) == MENU_TILES_4_COLOUR
+               ? menu_text_column_offset(g, column)
+               : menu_text_column_offset_16_colour(g, column);
 }
 
 void menu_text_hand_on(Snes *s, MenuIndexLeft left, uint16_t a)

@@ -56,7 +56,7 @@ enum { ARGUMENTS = 0x000200, DIGITS = 0x000240 };
 
 static MenuTextLayout layout(const GameState *g) { return menu_text_layout(g); }
 
-static MenuTextTiles tiles_of_layout(MenuTextLayout l)
+MenuTextTiles menu_text_tiles_of_layout(MenuTextLayout l)
 {
     return (l & MENU_TEXT_TILE_KIND) == MENU_TEXT_FOUR_COLOUR ? MENU_TILES_4_COLOUR : MENU_TILES_16_COLOUR;
 }
@@ -138,8 +138,8 @@ static void set_glyph(GameState *g, uint16_t glyph)
 {
     uint8_t pen = menu_text_reading_pen(g);
     ORIGINAL_EFFECT(set_menu_text_reading_glyph(g, glyph));
-    TIMED_AS(g, tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? 0xC25E36 : 0xC25F07,
-             menu_put_glyph(g, glyph, pen, menu_text_tiles(g), tiles_of_layout(layout(g))));
+    TIMED_AS(g, menu_text_tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? 0xC25E36 : 0xC25F07,
+             menu_put_glyph(g, glyph, pen, menu_text_tiles(g), menu_text_tiles_of_layout(layout(g))));
     set_menu_text_reading_pen(g, (uint8_t)(pen + menu_glyph_width(g, (uint8_t)(glyph - FIRST_GLYPH))));
     set_menu_text_line_glyphs(g, (uint8_t)(menu_text_line_glyphs(g) + 1));
 }
@@ -490,11 +490,7 @@ void menu_text_go_on(GameState *g) { set_glyphs(g, menu_text_budget(g)); }
  * edge. */
 enum { LABEL_GLYPHS_A_LINE = 0x20, NEW_LINE = FIRST_NEW_LINE, LABEL_LINE_BYTES = 0x400, TILES_BANK = 0x7E0000u };
 
-static uint32_t next_label_line(uint32_t at)
-{
-    uint8_t high = (uint8_t)((at >> 8) + (LABEL_LINE_BYTES >> 8));   /* the address's middle byte, stepped on its own */
-    return (at & 0xFF00FFu) | (uint32_t)high << 8;
-}
+static uint32_t next_label_line(uint32_t at) { return stepped(at, LABEL_LINE_BYTES); }
 
 uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles)
 {
@@ -682,7 +678,11 @@ static bool can_go_on(const GameState *g)
         return false;
     if (menu_text_stop(g) == STOP_FINISHED)
         return true;
-    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), menu_text_reading_insert_left(g)))
+    /* what is left of an insert: a byte a digit, and up to two bytes a glyph
+     * of any other insert (a glyph of the font's two-byte half) */
+    uint8_t left = menu_text_reading_insert_left(g);
+    uint16_t insert_bytes = source == FROM_DIGITS ? left : (uint16_t)(2 * left);
+    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), insert_bytes))
         return false;
     return stays_off_the_budget(g, menu_text_reading_at(g), menu_text_reading_arguments_at(g), false, 0);
 }
