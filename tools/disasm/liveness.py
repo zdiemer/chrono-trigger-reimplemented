@@ -1053,7 +1053,12 @@ class Liveness:
         if name in ("BRA", "BRL"):
             return live_at(insn.branch_target())
         if name == "JMP" and mode is Mode.ABS:
-            return live_at(bank | insn.operand)
+            target = bank | insn.operand
+            if target in an.hints.keeps:
+                # a tail jump into a task switch: the switch returns for this
+                # routine, as the call would to its caller (a `keeps` hint)
+                return self._call([target], IDENT)
+            return live_at(target)
         if name == "JML" and mode is Mode.LONG:
             return self._call([insn.operand], IDENT)
         if name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):

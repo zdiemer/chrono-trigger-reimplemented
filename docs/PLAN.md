@@ -170,15 +170,15 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 155 files, 117 of
-41,341 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 154 files, 117 of
+41,291 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 56 | 0 | 14,670 | 0.02 | 26% |
-| menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
+| menu | 0 | 26 | 0 | 9,792 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
 | field | 0 | 25 | 0 | 6,872 | 0.01 | 20% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
@@ -471,10 +471,7 @@ typesetter, the graphics and the items", and "Phase 3, menus: the
 characters in the records"): the load screen, the window command language
 every screen is drawn with, the cursor and the sounds, the typesetter the
 dialog and every screen set their text with, and the menus' opening, the
-characters in its records animated. Next are the screens themselves, first
-the two whose handlers the typesetter's register leaves stand for
-(`menu/leaves.c`: `$C2:C7AC`-`$C2:C7E0` and `$C2:E1ED`-`$C2:E236`), with
-the records' task (`$C2:F657`) their sprites run on.
+characters in its records animated. Next are the screens themselves.
 `python3 tools/burndown.py --uncovered C2` puts the
 largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
 (1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with

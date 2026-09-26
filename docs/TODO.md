@@ -611,14 +611,6 @@ rest waits, is [PLAN.md](PLAN.md).
     original that isn't a handler, ends the call in the port as a pause does,
     setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
     random ROM as text and reach it);
-  - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
-    and `$C2:D296` after it) is worked out in `menu/leaves.c` by reading the
-    string again from where the call began. Nothing reads it: the handlers
-    the analysis finds Y live in (`$C2:C7E0`, `$C2:E236`) only pass it on,
-    and it is live there because the analysis joins what follows every call
-    of `$C2:E984` up to the menus' return to their caller. A liveness that
-    tells the calls of a routine apart, or ports of those handlers and their
-    thread, drop it;
   - the typesetter's control codes as a C table with a column for where a
     name comes from, in place of `control_code`'s chain;
   - the glyphs by index (a glyph number and its width's index are the same
