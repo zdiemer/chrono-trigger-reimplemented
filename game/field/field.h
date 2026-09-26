@@ -85,9 +85,12 @@ enum {
 /* What the field has under way that scripts and the field's own routines
  * look at (field_mode_flags): the party gathering to its leader (event $DA:
  * event/party.c), an object being pushed until its push script is done
- * (event/contact.c), and a dialog the field opened itself rather than a
- * script (event/dialog.c). */
-enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20 };
+ * (event/contact.c), a dialog the field opened itself rather than a
+ * script (event/dialog.c), and palettes a script loaded itself, which keeps
+ * the objects out of the shared palette slots until the next map
+ * (field/palettes.c). */
+enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20,
+       FIELD_PALETTES_SET_BY_SCRIPT = 0x80 };
 
 static inline void field_mode_flag(GameState *g, uint8_t flag, bool on)
 {
@@ -96,6 +99,10 @@ static inline void field_mode_flag(GameState *g, uint8_t flag, bool on)
 }
 static inline bool field_party_gathering(const GameState *g) { return (field_mode_flags(g) & FIELD_PARTY_GATHERING) != 0; }
 static inline void set_field_party_gathering(GameState *g, bool on) { field_mode_flag(g, FIELD_PARTY_GATHERING, on); }
+static inline bool field_palettes_set_by_script(const GameState *g)
+{
+    return (field_mode_flags(g) & FIELD_PALETTES_SET_BY_SCRIPT) != 0;
+}
 static inline bool field_object_being_pushed(const GameState *g) { return (field_mode_flags(g) & FIELD_OBJECT_PUSHED) != 0; }
 static inline void mark_field_object_pushed(GameState *g) { field_mode_flag(g, FIELD_OBJECT_PUSHED, true); }
 static inline void forget_dialog_opened_by_the_field(GameState *g)

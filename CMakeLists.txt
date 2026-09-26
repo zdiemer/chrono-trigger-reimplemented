@@ -103,6 +103,8 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/animation.c
   game/field/battle_return.c
+  game/field/palettes.c
+  game/field/menus.c
   game/field/bridge.c
   game/field/display.c
   game/field/frame.c

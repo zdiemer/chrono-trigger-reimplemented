@@ -96,7 +96,10 @@ void object_make_current(GameState *g, FieldObject obj);
 void object_make_current_recognised(GameState *g, FieldObject obj);
 void object_recognise_current(GameState *g);
 /* Whether the byte after the link is clear, so that making an object current
- * leaves it recognised. */
+ * leaves it recognised: the frame put-back's layouts read the whole word
+ * under 16-bit index registers ($C0:CE57, $C0:D21C, $C0:DE91, $C0:E08C), so
+ * the put-back and the battle's return, which makes each object current by
+ * its link alone, take that byte clear. */
 bool object_making_current_recognises(const GameState *g);
 
 /* ---- Role (field/object.c) ------------------------------------------------------------ */
