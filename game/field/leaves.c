@@ -164,6 +164,42 @@ bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild 
     }
 }
 
+/* ---- The frame wait ($C0:EC60) ------------------------------------------------------------ */
+
+/* What the frame wait leaves in A: the idle count's high byte, as it counted
+ * the frame, and 0, the vblank's flag it waited on. The battle takes A as
+ * the wait before it leaves it (liveness has it read, $C1:0000). */
+uint16_t field_frame_wait_leaves_a(const GameState *g) { return (uint16_t)(field_idle_frames(g) & 0xFF00); }
+
+/* ---- The step event, before a chest ($C0:0D45-$C0:16DB) --------------------------------------- */
+
+/* A's high byte as the step event's code leaves it: a pressed switch's, the
+ * high byte of its last redraw entry, as the entries are worked out in 16
+ * bits; otherwise the remembering's, which leaves the step where it found or
+ * put it in the list, and the list's last tile where it found no room. */
+enum { STEPS_KEPT = FIELD_PRESSED_TILES_COUNT };
+
+uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed)
+{
+    if (pressed)
+        return (uint8_t)(field_switch_entries(g, field_switch_entry_count(g) - 1u) >> 8);
+    for (unsigned i = 0; i < STEPS_KEPT; i++)
+        if (field_pressed_tiles(g, i) == step)
+            return (uint8_t)(step >> 8);
+    return (uint8_t)(field_pressed_tiles(g, STEPS_KEPT - 1) >> 8);
+}
+
+/* ---- The chest ($C0:16EE) --------------------------------------------------------------------- */
+
+/* The overflow of the last sum an opened chest's entries were worked out
+ * with: the last entry's place in BG1's tile map plus the layer's base. */
+bool field_chest_redraw_overflow(const GameState *g)
+{
+    uint16_t base = field_layer_map_base(g, 0);
+    uint16_t last = field_chest_entries(g, 3);
+    return field_add_overflows16((uint16_t)(last - base), base);
+}
+
 /* ---- The switches ($C0:0D45-$C0:16DB) ----------------------------------------------------- */
 
 /* The overflow of the last sum the redraw's entries were worked out with:

@@ -17,8 +17,10 @@ void leader_walks(GameState *g);
  * which the recentring is under way. */
 bool screen_recentres(GameState *g);
 void screen_recentring_moved(GameState *g);
-/* No recentring under way. */
+/* No recentring under way; and one starting, before a tile copy. */
 void screen_counts_as_recentred(GameState *g);
+void screen_starts_recentring(GameState *g);
+bool screen_is_recentred(const GameState *g);
 
 /* A map's start, after the objects' openings ($C0:9DC3); and whether the
  * port can make it (the openings' entry hands it to the original where not:

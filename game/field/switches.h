@@ -27,6 +27,7 @@ typedef struct {
 typedef enum { CHEST_AT_THE_SET_END = 0, CHEST_FIRST_OF_THE_CHANGING_TILES = 1 } ChestKind;
 
 bool field_is_switch(const GameState *g, uint16_t step);
+bool field_switch_inside_the_map(const GameState *g, uint16_t step);
 uint16_t field_switch_upper_tile(uint16_t step);
 bool field_is_one_by_two_switch(const GameState *g, uint16_t step);
 /* A byte of the map's tables by the original's index, row << 8 | column
@@ -40,5 +41,11 @@ unsigned field_switch_entry_count(const GameState *g);
 unsigned field_switch_rows(SwitchShape shape);
 void field_redraw_changed_tiles(GameState *g, Platform *pf);
 void field_remember_step(GameState *g, uint16_t step);
+
+/* The chest the leader opened (field_opened_chest_tile), from the main
+ * loop's requests: its kind forgotten as the opening starts, and the chest
+ * shown open. */
+void field_chest_opening_starts(GameState *g);
+bool field_open_chest(GameState *g);
 
 #endif

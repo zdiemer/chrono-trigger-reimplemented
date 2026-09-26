@@ -184,6 +184,20 @@ static inline bool dialog_choice_waiting(const GameState *g) { return dialog_cho
 typedef enum { WINDOW_NONE, WINDOW_AT_TOP, WINDOW_AT_BOTTOM, WINDOW_POSITIONS } WindowPosition;
 static inline WindowPosition dialog_window_at(const GameState *g) { return (WindowPosition)dialog_window_position(g); }
 
+/* The picture a step darker (field_brightness): false once it is dark, a
+ * brightness with its top bit set counting as dark, as the original's signed
+ * test has it. The fades before a menu and a location change take a step a
+ * frame. */
+enum { FIELD_DARK = 0, FIELD_BRIGHTNESS_SIGN = 0x80 };
+static inline bool field_dims_a_step(GameState *g)
+{
+    uint8_t brightness = field_brightness(g);
+    if (brightness == FIELD_DARK || (brightness & FIELD_BRIGHTNESS_SIGN))
+        return false;
+    set_field_brightness(g, (uint8_t)(brightness - 1));
+    return true;
+}
+
 /* Scripts can lock the pause and the menus (field_pause_locked,
  * field_menus_locked), through the event engine's memory writes. */
 static inline bool field_pause_is_locked(const GameState *g) { return field_pause_locked(g) != 0; }

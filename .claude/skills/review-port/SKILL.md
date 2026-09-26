@@ -772,6 +772,16 @@ Each of these is a finding. Every example here comes from this repo.
      matches the carry only on the inputs that occur, it is the register:
      write the game test (`step < 0`).
 
+107. **A register derived right after a call-out that already leaves it.**
+     Before writing a register back after a call-out, check whether the
+     callee is still the original's; if it is, the machine already holds its
+     value and the derivation is a round trip (item 50).
+108. **An operation in game vocabulary observed only by shadow mode's compare
+     at the next call-out.** Something written just before a call and always
+     overwritten after it is scaffolding however it is named (item 87's
+     sibling): put it in `ORIGINAL_EFFECT`, or name the reader while the
+     call waits.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

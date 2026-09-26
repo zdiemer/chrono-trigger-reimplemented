@@ -102,24 +102,11 @@ static void move_dialog_window(GameState *g)
     set_dialog_window_position(g, (uint8_t)to);
 }
 
-/* The picture a step darker: false once it is dark (a brightness with its top
- * bit set counts as dark, as the original's signed test has it). */
-enum { DARK = 0, BRIGHTNESS_SIGN = 0x80 };
-
-static bool dim_a_step(GameState *g)
-{
-    uint8_t brightness = field_brightness(g);
-    if (brightness == DARK || (brightness & BRIGHTNESS_SIGN))
-        return false;
-    set_field_brightness(g, (uint8_t)(brightness - 1));
-    return true;
-}
-
 /* A step of the fade out before a menu, the clock stopped at every step. */
 static bool fade_out_step(GameState *g)
 {
     stop_play_clock(g);
-    return dim_a_step(g);
+    return field_dims_a_step(g);
 }
 
 /* A menu a script had asked for is taken as shown when the Start
@@ -319,12 +306,13 @@ enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1, SCRIPT_FADE
 static bool fade_out_walking(Snes *s)
 {
     GameState *g = state_of(s);
-    while (dim_a_step(g)) {
+    while (field_dims_a_step(g)) {
         uint8_t control = field_player_control(g);
         hand_the_party_to_the_player(g, false);
         if (!field_run_holding(s, SCRIPT_FADE_WALK, WALK, READS_THE_WALK, field_walk_the_leader,
                                on_the_field_page(s, false), control))
             return false;
+        /* the byte as it was: event $E3 sets it from its operand, any value */
         set_field_player_control(g, control);
         if (!bridge_call_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
             !wait_frame(s, SCRIPT_FADE_WAIT))
