@@ -938,6 +938,12 @@ enum { FIELD_PARTY_OBJECTS_HIGH_COUNT = 3 };   /* by party member * 2 */
 uint8_t field_party_objects_high(const GameState *g, unsigned member);
 void set_field_party_objects_high(GameState *g, unsigned member, uint8_t v);
 
+enum { FIELD_BATTLE_ENEMY_OBJECTS_COUNT = 8 };   /* by enemy record (battle_enemy_placement) */
+/* The field object each of the battle's enemies is, which the battle's start keeps ($C0:0557)
+ * and its end puts back ($C0:076B); negative for none */
+uint8_t field_battle_enemy_objects(const GameState *g, unsigned i);
+void set_field_battle_enemy_objects(GameState *g, unsigned i, uint8_t v);
+
 enum { FIELD_TRAIL_POSITION_COUNT = 3 };   /* by party place */
 /* Where each of the party is on the leader's trail (an entry of the field_trail_ tables): the
  * leader's newest footprint, and the footprint each member has got to */

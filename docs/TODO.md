@@ -349,7 +349,10 @@ rest waits, is [PLAN.md](PLAN.md).
   to 17. The fuzzer covers what shadow mode skips, except that
   `field_build_sprite_table` compares 0 fuzz states on either side (its draws run
   past the call-out budget), so it has shadow mode's uninterrupted calls and
-  nothing else. A fuzz setup that bounds its draws would close that.
+  nothing else. A fuzz setup that bounds its draws would close that; the
+  field's return from a battle, which calls it, is fuzzed only up to that call
+  for the same reason (what follows it is its own entry,
+  `field_hold_party_if_defeated`).
 
 - **What only the original's memory has, past the object tables.** The
   stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
@@ -945,9 +948,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
-  - the field's return from a battle (`$C0:0715`, `$C0:07EC`, `$C0:08A0`),
-    which puts the party and the enemies back and calls the frame builder's
-    twin (now `field_put_drawn_frame`) for each, is the original's;
   - the field's start (`$C0:0B86`), the pause and the menu opening
     (`$C0:18D9`, `$C0:1985`, `$C0:1A03`) are the original's; `$C0:0B86` sets
     some twenty cells the map has no names for yet (`$10`, `$11`, `$2F`,
