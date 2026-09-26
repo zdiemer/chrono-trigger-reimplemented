@@ -9990,7 +9990,7 @@ source = "game/battle/random.c battle_random $C1:AF22"
 name = "battle_random_limit"
 addr = "7E:B31E"
 subsystem = "battle"
-meaning = "The limit the battle's last random draw was asked for, left in its cell"
+meaning = "The limit the battle's last random draw was asked for, left in its cell; a party tech's stop after a miss reads it for tech $1B (game/battle/party_work.c stops_after_miss)"
 source = "game/battle/random.c battle_random $C1:AF22"
 
 [[var]]

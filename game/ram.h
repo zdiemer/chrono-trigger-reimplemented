@@ -5213,7 +5213,8 @@
 #define RAM_BATTLE_PARTY_MAX_HP_KEPT 0x7EB316u
 #define RAM_BATTLE_PARTY_MAX_HP_KEPT_COUNT 3u
 #define RAM_BATTLE_PARTY_MAX_HP_KEPT_STRIDE 0x02u
-/* The limit the battle's last random draw was asked for, left in its cell */
+/* The limit the battle's last random draw was asked for, left in its cell; a party tech's stop
+ * after a miss reads it for tech $1B (game/battle/party_work.c stops_after_miss) */
 #define RAM_BATTLE_RANDOM_LIMIT 0x7EB31Eu
 /* The demo battle bit of battle_setup_flags, set apart while the battle is set up and put back
  * after */
