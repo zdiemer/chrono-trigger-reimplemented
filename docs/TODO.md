@@ -592,10 +592,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
     call-out (`m_jsr_dc`), not as C: run through `menu_run` it changed what
     the vblank work's fuzzing could compare (415 of 500 to none), which
-    wants looking into before the input's two call-outs, the controller
-    read and the play time's tick, can be C too. The read can stop while the
-    console still reads the controller, so it needs the frame `input_update`
-    builds (`core/input.c`), which a shared helper there could give both;
+    wants looking into;
   - the records' task stops at its yield (`$C2:F696`) every frame and the
     task scheduler (`$C2:821E`) is the original's, about 9% of what the
     menus interpret: the tasks as fibers of their own (`runtime/port/fiber.h`)
@@ -603,6 +600,18 @@ rest waits, is [PLAN.md](PLAN.md).
   - a count of 0 tiles or rows in the recolouring helpers counts the whole
     bank, as the original's 16-bit loop does; the guards turn those away,
     and nothing in the library asks for one.
+  - from the chunk's review: `RUN_OUT` in `menu/sprites.c` stands for three
+    things (a sprite's absence, a hidden record, a frame's time run out);
+    the records' task and its guard each work out whether an animation moves
+    on, where one pure `animation_due()` would say it once (the countdown
+    its own statement), with the `0x0F` sprite count commented and the
+    orphaned comment above it placed; `recolour_rows` loops on the drawing
+    origin's cell where a local written once at the end would do; the
+    portrait's accessors take a slot where they could take the character,
+    with the guard refusing a character past the eighth; the menus' tilemap
+    helpers want one header (`menu/tiles.h` beside `menu/windows.c`'s) and
+    one `menu_note_palette_changed`; and the smaller notes on `cursor.c`,
+    `sprites.c` and `tiles.c`.
   - a bridge that falls back to the original (`menu_back` stopping at its
     return because the machine didn't come back as the port expected) is
     counted nowhere: the entry's calls still match, since the original runs

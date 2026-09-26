@@ -72,14 +72,12 @@ static Buttons advance_repeat(GameState *g, Buttons held_through)
     return held_through;
 }
 
-typedef enum { CONTROLLER_READ, CONTROLLER_NOT_READY, CONTROLLER_RESET } ControllerRead;
-
 // $C2:84EC
 /* Take this frame's buttons: held, pressed and repeating, remembering last
  * frame's held ones to tell which are new. Not yet, while the console is still
  * reading the controller; and the reset buttons, held alone, reset instead,
  * once the held buttons are taken. */
-static ControllerRead read_controller(GameState *g, Platform *pf)
+ControllerRead input_read_controller(GameState *g, Platform *pf)
 {
     if (!in_ready(pf, PF_AT(0xC284F9)))
         return CONTROLLER_NOT_READY;
@@ -169,7 +167,7 @@ static bool count_up(uint8_t *digit, uint8_t rolls_over_at)
 // $C2:85AE
 /* A frame of play time, unless the clock is stopped. Past 99:59:59 and its
  * last frame it runs round to zero and is marked as having done so. */
-static void tick_play_time(GameState *g)
+void input_tick_play_time(GameState *g)
 {
     if (play_time_stopped(g))
         return;
@@ -184,10 +182,10 @@ static void tick_play_time(GameState *g)
 
 bool input_take_frame(GameState *g, Platform *pf)
 {
-    if (read_controller(g, pf) != CONTROLLER_READ)
+    if (input_read_controller(g, pf) != CONTROLLER_READ)
         return false;
     assign_buttons(g);
-    tick_play_time(g);
+    input_tick_play_time(g);
     return true;
 }
 
@@ -208,9 +206,11 @@ static void on_controller_page(Snes *s)
 /* Where the controller read stops rather than returns: at the original's loop
  * on the console's status while its read is still under way ($C2:84F9, the
  * wait this port hands back; docs/TODO.md), which tests the status against an
- * 8-bit A of 1; or at the reset code, jumped to with 16-bit registers. */
-static void stop_reading(Snes *s, ControllerRead read)
+ * 8-bit A of 1; or at the reset code, jumped to with 16-bit registers. Either
+ * way on the controller's page. */
+void input_stop_reading(Snes *s, ControllerRead read)
 {
+    on_controller_page(s);
     if (read == CONTROLLER_NOT_READY) {
         m_sep(s, CPU_FLAG_M);
         m_set_a8(s, 0x01);
@@ -228,9 +228,9 @@ static void stop_reading(Snes *s, ControllerRead read)
 void input_read_joypad(Snes *s)
 {
     on_controller_page(s);
-    ControllerRead read = read_controller(state_of(s), m_platform(s));
+    ControllerRead read = input_read_controller(state_of(s), m_platform(s));
     if (read != CONTROLLER_READ) {
-        stop_reading(s, read);
+        input_stop_reading(s, read);
         return;
     }
     m_rep(s, CPU_FLAG_M);
@@ -251,7 +251,7 @@ void input_map_buttons(Snes *s)
 // $C2:85AE
 void play_time_tick(Snes *s)
 {
-    tick_play_time(state_of(s));
+    input_tick_play_time(state_of(s));
     m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_rts(s);
 }
@@ -296,14 +296,14 @@ void input_update(Snes *s)
 {
     GameState *g = state_of(s);
     ControllerRead read;
-    NATIVE_TIME_AS(s, 0xC284EC, read = read_controller(g, m_platform(s)));
+    NATIVE_TIME_AS(s, 0xC284EC, read = input_read_controller(g, m_platform(s)));
     if (read != CONTROLLER_READ) {
         enter_saved_frame(s);
-        stop_reading(s, read);
+        input_stop_reading(s, read);
         return;
     }
     NATIVE_TIME_AS(s, 0xC28545, assign_buttons(g));
-    NATIVE_TIME_AS(s, 0xC285AE, tick_play_time(g));
+    NATIVE_TIME_AS(s, 0xC285AE, input_tick_play_time(g));
     ORIGINAL_EFFECT(charge_as(g, 0xC284D2, SAVE_AND_RESTORE_ACCESSES));
     m_rts(s);
 }

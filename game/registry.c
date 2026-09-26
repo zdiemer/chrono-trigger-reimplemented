@@ -1652,7 +1652,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC282C1, .name = "menu_mode_return", .fn = menu_mode_return, NEEDS_M8_X16, .cost_milli = 3750, .dont_care = DC_A },
     { .addr = 0xC2832F, .name = "menu_mode_restart", .fn = menu_mode_restart, NEEDS_M8_X16, .cost_milli = 8750, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D },
     { .addr = 0xC28473, .name = "menu_take_frame_input", .fn = menu_take_frame_input, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 3286, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .p_value = 0, .cost_milli = 6827, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_frame_input_is_takeable },
     { .addr = 0xC2842A, .name = "menu_nmi_work", .fn = menu_nmi_work, NEEDS_M8_X16,
       .cost_milli = 3755, .dont_care = DC_C },

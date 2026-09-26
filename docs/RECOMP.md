@@ -6343,7 +6343,10 @@ save screen's slot rows end in a `JMP` into the menus' task yield
 (`$C2:CF5B` to `$C2:821E`), and the yield's `[[keeps]]` hint covered only
 calls to it, so the analysis followed the yield's own code in the handler
 and took its `PHY` for a read. Liveness now takes a jump into a routine with
-a `[[keeps]]` hint as a tail call with the hint's summary
+a `[[keeps]]` hint as a tail call with the hint's summary, where the jumping
+routine returns by `RTS` with nothing of its own on the stack, so that the
+switch's `RTS` is the routine's own (review asked for that condition; the
+screen handlers the dispatch enters, which return by `RTS` alone, count)
 (`tools/disasm/liveness.py`, tests/test_disasm.py, DISASSEMBLY.md), and X
 and Y after `$C2:57DF`, `$C2:5823`, `$C2:F90C` and `$C2:D296` are dead. Over
 the whole tree only ten declarations' accepted sets changed, all the menus'
@@ -6522,15 +6525,17 @@ the held buttons' repeat pacing (a long wait before the first repeat, short
 ones after, back to the long wait when nothing but Start is held; a screen
 can ask for a frame of repeating every frame, `menu_fast_repeat`) and the
 going-back hold (the going-back assignment's buttons with Start sends every
-screen back from then on). The controller read and the tick stay call-outs:
-the read can stop while the console still reads the controller. The tick's
-return isn't held to a direct page: the original's leaves its clock page
-(`$0400`) and the port of it the caller's, and nothing reads the page before
-the input restores the caller's; a first version held it to the
-controller's page, so wherever the tick ran as the original's code (nearly
-every call, in shadow mode) the port stopped there and left the rest to the
-original, comparing everything; 6 calls a movie differed in A's high byte,
-which is dead there.
+screen back from then on). The controller read and the play time's tick are
+the shared input's parts, called as C (`core/input.h`: the read, the tick,
+and where a read that didn't take the buttons stops); only where the console
+is still reading the controller, or the reset buttons are held, does the
+port build the stack the original has there and stop. A first version called
+the two ports as call-outs, the original's saves round them rebuilt, with a
+check after each that the machine came back as expected; the check after the
+tick held the tick's page to the controller's, which the tick run as the
+original's code leaves at its clock page (`$0400`), so the port handed the
+rest of nearly every call to the original, comparing everything, and 6 calls
+a movie differed in A's high byte, which is dead there.
 
 **The records' task** (`menu/sprites.c`, "The records' task"): once a frame,
 each of the nine records that shows a sprite has its animation carried on

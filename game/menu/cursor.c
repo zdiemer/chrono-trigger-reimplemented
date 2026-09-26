@@ -296,35 +296,26 @@ void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
         set_menu_scratch_cursor_button_bit(state_of(s), GO_BACK >> 1);
 }
 
-/* The menus' per-frame input calls the controller read and the play time's
- * tick as the original does, the caller's data bank, page and flags saved
- * around them, since the read can stop there while the console still reads
- * the controller. The read comes back on its own page and data bank with 16-bit
- * A and 8-bit index registers; the tick with 8-bit ones, on a page nothing
- * reads before the frame's restore (the original's clock page, or where the
- * port of the tick leaves it), so its return isn't held to one. */
-enum {
-    CONTROLLER_PAGE = 0x0000, CONTROLLER_BANK = 0x00,
-    READ_IGNORES = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
-    TICK_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-    SECOND_CONTROLLER = 1,
-};
+/* Where the controller read doesn't take the buttons, the port stops where
+ * the original does, with the stack the original's input has built by then:
+ * its caller's flags, data bank, page and flags again (as the fast repeat's
+ * test left them, the index registers passed through 8 bits on the way), and
+ * the return into the input from the read. */
+enum { RETURN_FROM_THE_READ = 0x8489 };
 
-static void save_the_callers_frame(Snes *s)
+static void enter_the_read(Snes *s, bool fast)
 {
-    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);   /* the index registers pass through 8 bits on the way */
+    menu_save_p(s);
+    menu_leave_load(s, fast ? 1 : 0);
+    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
     m_push8(s, s->cpu.db);
     m_push16(s, s->cpu.d);
     m_push8(s, s->cpu.p);
+    m_push16(s, RETURN_FROM_THE_READ);
 }
 
-static void restore_the_callers_frame(Snes *s)
-{
-    s->cpu.p = m_pull8(s);
-    s->cpu.d = m_pull16(s);
-    s->cpu.db = m_pull8(s);
-}
+enum { SECOND_CONTROLLER = 1 };
 
 // $C2:8473
 /* The menus' input for the frame, from their vblank: the controller's
@@ -333,23 +324,19 @@ static void restore_the_callers_frame(Snes *s)
 void menu_take_frame_input(Snes *s)
 {
     GameState *g = state_of(s);
-    menu_save_p(s);
+    Platform *pf = m_platform(s);
     bool fast = ask_fast_repeat(g);
-    /* the flags saved with the frame, which the controller read's stop leaves
-     * on the stack: those of the request's test, or of the repeat's setting */
-    ORIGINAL_EFFECT(menu_leave_load(s, fast ? 1 : 0));
-    save_the_callers_frame(s);
-    m_jsr_dc(s, 0xC28487, 0xC284EC, READ_IGNORES);
-    if (!menu_back(s, 0xC2848A, (MenuMachine){ false, true, CONTROLLER_PAGE, CONTROLLER_BANK }))
+    ControllerRead read;
+    NATIVE_TIME_AS(s, 0xC284EC, read = input_read_controller(g, pf));
+    if (read != CONTROLLER_READ) {
+        enter_the_read(s, fast);
+        input_stop_reading(s, read);
         return;
-    set_second_controller(g, in_read(m_platform(s), PF_AT(0xC2848A), SECOND_CONTROLLER));
-    m_jsr_dc(s, 0xC28490, 0xC285AE, TICK_IGNORES);
-    if (!menu_back(s, 0xC28493, (MenuMachine){ true, true, m_direct_page(s), CONTROLLER_BANK }))
-        return;
-    restore_the_callers_frame(s);
+    }
+    set_second_controller(g, in_read(pf, PF_AT(0xC2848A), SECOND_CONTROLLER));
+    NATIVE_TIME_AS(s, 0xC285AE, input_tick_play_time(g));
     pace_repeats(g);
     note_back_and_start_held(g);
-    menu_restore_p(s);
     m_rts(s);
 }
 
