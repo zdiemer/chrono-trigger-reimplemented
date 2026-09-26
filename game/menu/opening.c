@@ -21,6 +21,7 @@
 #include "menu/graphics.h"
 #include "menu/items.h"
 #include "menu/save_screen.h"
+#include "menu/sprites.h"
 #include "original_effects.h"
 #include "platform/audio.h"
 #include "port/native.h"
@@ -181,7 +182,7 @@ static bool open_the_menus(Snes *s)
         return false;
     TIMED_AS(g, 0xC2816A, menu_list_party(g));
     TIMED_AS(g, 0xC292F4, menu_unpack_settings(g));
-    if (!menu_call(s, 0xC28136, 0xC2F3CA, SETUP_IGNORES) || !menu_run(s, 0xC28139, 0xC29875, menu_build_items))
+    if (!menu_run(s, 0xC28136, 0xC2F3CA, menu_load_record_sprites) || !menu_run(s, 0xC28139, 0xC29875, menu_build_items))
         return false;
     m_stop_at(s, 0xC2813C, OPENING_ENDS);
     return true;
