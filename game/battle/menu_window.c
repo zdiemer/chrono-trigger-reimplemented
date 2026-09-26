@@ -910,15 +910,11 @@ static void find_combo_partners(GameState *g)
     }
 }
 
-/* A member can't take part while it is knocked out, or has a status that
- * keeps it from acting: no turns, stopped, the one that restarts its script,
- * or the fourth status byte's top one (the original's $FD:A8A5, which the
- * check calls for each). */
-static const Statuses CANT_JOIN = STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | 0x80000000u;
-
+/* A member can't take part while it can't act (combatant_cant_act: the
+ * original's $FD:A8A5, which the check calls for each). */
 static bool cant_join(GameState *g, unsigned member)
 {
-    bool out = combatant_knocked_out(g, member) || (combatant_statuses(g, member) & CANT_JOIN);
+    bool out = combatant_cant_act(g, member);
     ORIGINAL_EFFECT(set_battle_combo_member_out(g, out));
     return out;
 }

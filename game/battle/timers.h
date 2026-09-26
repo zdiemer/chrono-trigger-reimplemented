@@ -11,15 +11,17 @@
  * to each: the statuses' in battle/status_timers.c, the turn's in
  * battle/main_loop.c (battle_run_queued_scripts).
  *
- * A timer's slot is a battle slot, or, where the search took the order's
- * empty place for one, $FF: its timer then lies past its kind's row, in the
- * tables after, as the original's indexed accesses have it. */
+ * The search can take the order's empty place for a combatant: the timer it
+ * finds run out is then nobody's (TimerOwner), and the original, reading past
+ * the kind's row, sees to it as to any slot's; the port leaves nobody's to
+ * the original (docs/TODO.md). */
 #ifndef CT_GAME_BATTLE_TIMERS_H
 #define CT_GAME_BATTLE_TIMERS_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/combatant.h"
 #include "state.h"
 
 /* The kinds, by the status each times: stop, poison, slow, haste, evading
@@ -35,6 +37,11 @@ typedef enum {
     BATTLE_TIMER_KINDS
 } BattleTimer;
 
+/* The status each kind of timer times, as a bit of the combatant's statuses
+ * (battle/combatant.h), which it runs while the combatant has; none for
+ * kinds 6 and 7, and the turn. */
+Statuses battle_timed_status(BattleTimer kind);
+
 /* Start a combatant's timer running, stop it, or have it run while
  * `status_on` (the timer of a status the combatant has). */
 void battle_run_timer(GameState *g, BattleTimer timer, unsigned slot);
@@ -48,10 +55,14 @@ void battle_set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint
 uint8_t battle_timer_length(const GameState *g, BattleTimer timer, unsigned slot);
 bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot);
 
-/* The combatant whose timer of a kind the last search found run out: the one
- * before where the kind's search goes on in the order (the order's last where
- * it starts again at the top). */
-uint8_t battle_timer_found_run_out(const GameState *g, BattleTimer kind);
+/* Whose timer of a kind the last search found run out: the combatant before
+ * where the kind's search goes on in the order (the order's last where it
+ * starts again at the top), or nobody, where that is the order's empty place. */
+typedef struct {
+    bool nobody;
+    uint8_t slot;   /* a battle slot, where somebody's */
+} TimerOwner;
+TimerOwner battle_timer_found_run_out(const GameState *g, BattleTimer kind);
 
 /* A kind's run-out timer seen to: it is no longer due. */
 void battle_timer_seen_to(GameState *g, BattleTimer kind);

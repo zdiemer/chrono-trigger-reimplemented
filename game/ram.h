@@ -3030,6 +3030,10 @@
 #define RAM_BATTLE_WIDE_MATH_COUNT 12u
 #define RAM_BATTLE_WIDE_MATH_STRIDE 0x01u
 #define RAM_BATTLE_WIDE_MATH_DP 0x28u        /* page battle */
+/* The partners of the member whose action is carried out, kept while they are marked as taking
+ * part ($C1:B9DA); nothing reads it after */
+#define RAM_BATTLE_MEMBER_PARTNERS_KEPT 0x7E003Du
+#define RAM_BATTLE_MEMBER_PARTNERS_KEPT_DP 0x3Du /* page battle */
 /* Screen script pointer while a command runs: at the command's first operand; the channel moves
  * it one byte on after the handler returns [3 bytes] */
 #define RAM_BATTLE_SCREEN_SCRIPT 0x7E0040u
@@ -3531,7 +3535,10 @@
 #define RAM_BATTLE_MEMBER_ACTIONS_STRIDE 0x07u
 #define RAM_BATTLE_MEMBER_ACTIONS_STATE 0x7E93EEu /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen */
 #define RAM_BATTLE_MEMBER_ACTIONS_CHOICE_FLAGS 0x7E93EFu /* Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out */
+#define RAM_BATTLE_MEMBER_ACTIONS_TECH_AIM 0x7E93F0u /* How the chosen tech aims, from its menu record ($CC:1ACC, low six bits): the turn carries a tech out only where it is 1 or 3 ($C1:BB56) */
+#define RAM_BATTLE_MEMBER_ACTIONS_TARGET 0x7E93F1u /* The combatant the member chose to aim at */
 #define RAM_BATTLE_MEMBER_ACTIONS_PARTNERS 0x7E93F3u /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
+#define RAM_BATTLE_MEMBER_ACTIONS_WHAT 0x7E93F4u /* The tech's number, or the item's */
 /* The party members' names (five characters each), before conversion to tiles [3 x $5 bytes, by
  * party slot] */
 #define RAM_BATTLE_PARTY_NAMES 0x7E9403u
@@ -4117,6 +4124,12 @@
 #define RAM_BATTLE_COMBATANT_DOWN 0x7EA0A8u
 #define RAM_BATTLE_COMBATANT_DOWN_COUNT 11u
 #define RAM_BATTLE_COMBATANT_DOWN_STRIDE 0x01u
+/* Set where the member's steal took an item (either way it went), which the battle's end looks
+ * for to move the member's kept item on ($CF:FAE2) [3 x $1 bytes, by battle slot of a party
+ * member] */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING 0x7EA0B5u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING_COUNT 3u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING_STRIDE 0x01u
 /* An item a party member stole that the battle keeps apart from the inventory (one from $BC
  * whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at
  * $7E:1580 ($CF:FAE2) [3 x $8 bytes, by battle slot of a party member] */
@@ -4816,6 +4829,9 @@
 #define RAM_BATTLE_NUMBER_RECORDS_VALUE 0x7EAD9Cu /* The number */
 #define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette; 2, 4 and up rise the second way) */
 #define RAM_BATTLE_NUMBER_RECORDS_LAST_BYTE 0x7EAD9Fu /* The record's last byte, which the number display doesn't read; cleared with the rest */
+/* Cleared as a party member's action is carried out ($C1:BA37) and as a member's turn starts
+ * ($FD:AB30); nothing reads it */
+#define RAM_BATTLE_MEMBER_TURN_MARK 0x7EAE4Cu
 /* The effect's flags, from its record's eighth and ninth bytes: in the first, $10 and $20 skip a
  * hit's two tests (it can't be dodged, it can't miss), $04 a chance of a status, $02 a chance to
  * steal, $40 and $80 leave out the target's barrier or shield; in the second, $80 the attacker's
@@ -4840,11 +4856,14 @@
 #define RAM_BATTLE_TARGET_BITS_KEPT 0x7EAE58u
 /* The party member the loop's per-member checks are at (3 once they are done) */
 #define RAM_BATTLE_MEMBER_UPDATING 0x7EAE5Au
-/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one [11 x $1 bytes, by
- * battle slot] */
+/* What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and
+ * third slots' (the party's) are also battle_tech_mp_compared [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STEAL_MARKS 0x7EAE5Au
 #define RAM_BATTLE_STEAL_MARKS_COUNT 11u
 #define RAM_BATTLE_STEAL_MARKS_STRIDE 0x01u
+/* The MP of the last member whose MP the party tech's check compared with what their part costs,
+ * left over the second and third combatants' steal marks [2 bytes] */
+#define RAM_BATTLE_TECH_MP_COMPARED 0x7EAE5Bu
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
  * place of the one it replaces [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PLACES 0x7EAE6Du
@@ -4974,6 +4993,9 @@
 /* How many of the combatants a selection by status picked draw the enemies' aim (bit 7 in
  * battle_candidates) */
 #define RAM_BATTLE_CANDIDATES_DRAWING 0x7EAF21u
+/* Set while a party member's chosen action is carried out ($C1:B96A), cleared as it ends
+ * ($C1:BD6B); nothing reads it */
+#define RAM_BATTLE_MEMBER_TURN_RUNNING 0x7EAF22u
 /* Set by a party member's turn when a status of its picks its action for it */
 #define RAM_BATTLE_MEMBER_ACTS_FOR_ITSELF 0x7EAF23u
 /* What testing a block of an enemy's script came to: 0 its conditions held and its actions are
@@ -5271,10 +5293,10 @@
 /* $FF where a member of the party's tech can't take part in it (kept from techs, or short of the
  * MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC) */
 #define RAM_BATTLE_TECH_BLOCKED 0x7EB3C8u
-/* Bit 7: the party member's action goes ahead even where a member of its tech can't take part,
- * as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command
- * ($C1:BA4E) */
-#define RAM_BATTLE_ACTION_GOES_AHEAD 0x7EB3C9u
+/* What kind of action the party member carries out, its action record's choice
+ * (battle_member_actions.choice_flags, $C1:BA4E), or an attack where a status picks it
+ * ($FD:AB67, $FD:AB93): bit 7 an attack, which goes ahead where a tech would be short of MP */
+#define RAM_BATTLE_ACTION_CHOICE 0x7EB3C9u
 /* A reaction's kept place, while its conditions are tested [2 bytes] */
 #define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
 /* A second position in the battle's table of random numbers, which the critical hits' rolls take
@@ -5632,6 +5654,8 @@
 #define RAM_BATTLE_WAVE_EDGES_STRIDE 0x08u
 /* How the battle ended: 1 when the party was defeated, 0 when it won or ran away */
 #define RAM_BATTLE_RESULT 0x7F01ECu
+/* The item a battle message names (the steal's) */
+#define RAM_BATTLE_MESSAGE_ITEM 0x7F0200u
 
 /* ---- scene --------------------------------------------------------------------------------- */
 

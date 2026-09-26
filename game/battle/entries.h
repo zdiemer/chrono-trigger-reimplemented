@@ -250,6 +250,18 @@ void battle_effect_lose_condition_bit(Snes *s);
 bool battle_effect_lose_condition_bit_ready(Snes *s);
 void battle_note_enemy_tech(Snes *s);
 void battle_note_enemy_attack(Snes *s);
+/* battle/member_turn.c: a party member's chosen action carried out, its
+ * attack, the end of its turn, and the battle's step for a called-off
+ * action. */
+void battle_carry_out_member_action(Snes *s);
+bool battle_carry_out_member_action_ready(Snes *s);
+void battle_member_attacks(Snes *s);
+bool battle_member_attacks_ready(Snes *s);
+void battle_end_member_turn(Snes *s);
+bool battle_end_member_turn_ready(Snes *s);
+void battle_member_called_off_step(Snes *s);
+void battle_members_wait_after_tech(Snes *s);
+bool battle_members_wait_after_tech_ready(Snes *s);
 /* battle/party_work.c: a party member's tech, or its attack, worked out, and
  * the item it uses. battle/inventory.c: an item added to the inventory. */
 void battle_work_out_member_tech(Snes *s);
@@ -392,17 +404,29 @@ void battle_dispatch_expired_timers(Snes *s);
  * and the showing of a status's number, $C1:895B. */
 void battle_show_status_number(Snes *s);
 void battle_stop_timer_ran_out(Snes *s);
+bool battle_stop_timer_ran_out_ready(Snes *s);
 void battle_poison_timer_ran_out(Snes *s);
+bool battle_poison_timer_ran_out_ready(Snes *s);
 void battle_slow_timer_ran_out(Snes *s);
+bool battle_slow_timer_ran_out_ready(Snes *s);
 void battle_haste_timer_ran_out(Snes *s);
+bool battle_haste_timer_ran_out_ready(Snes *s);
 void battle_evasion_timer_ran_out(Snes *s);
+bool battle_evasion_timer_ran_out_ready(Snes *s);
 void battle_shield_timer_ran_out(Snes *s);
+bool battle_shield_timer_ran_out_ready(Snes *s);
 void battle_timer_6_ran_out(Snes *s);
+bool battle_timer_6_ran_out_ready(Snes *s);
 void battle_timer_7_ran_out(Snes *s);
+bool battle_timer_7_ran_out_ready(Snes *s);
 void battle_hp_loss_timer_ran_out(Snes *s);
+bool battle_hp_loss_timer_ran_out_ready(Snes *s);
 void battle_mp_regain_timer_ran_out(Snes *s);
+bool battle_mp_regain_timer_ran_out_ready(Snes *s);
 void battle_barrier_timer_ran_out(Snes *s);
+bool battle_barrier_timer_ran_out_ready(Snes *s);
 void battle_timer_11_ran_out(Snes *s);
+bool battle_timer_11_ran_out_ready(Snes *s);
 
 /* battle/effect_animation.c */
 void battle_animate_effects(Snes *s);

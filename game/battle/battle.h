@@ -90,9 +90,15 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     further target's selection, or before the tech anything an action or a
  *     condition kept there;
  *   - $00 is the word the clock's modifier adds half of to the damage where
- *     it means the damage (battle/effect_modifiers.c): whatever the healing's
- *     amount (battle/effect_amounts.c) or the party's working out's tech
- *     members (battle/party_work.c) left there last;
+ *     it means the damage (battle/effect_modifiers.c, battle_clock_word):
+ *     whatever its writers left there last -- the amount healed or drained
+ *     (battle/effect_amounts.c), the targets' marking (battle/targets.c), the
+ *     party tech's members' record and the used item's use byte's place
+ *     (battle/party_work.c), the steal's giving (battle/effect_steal.c), and
+ *     the member's turn, which clears it and then puts the used item's
+ *     number there (battle/member_turn.c);
+ *   - $06 is the item the last steal took (battle/effect_steal.c), which the
+ *     member's turn names in its message (battle/member_turn.c);
  *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
  *     candidate past the combatants (the stat test's doubled walk goes past
  *     the list, a candidate that is none) is read wherever the table of the
@@ -101,6 +107,7 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     before and while they read. */
 enum {
     BATTLE_CLOCK_READS = 0x00,
+    BATTLE_ITEM_TAKEN = 0x06,
     BATTLE_NUMBER_TESTED = 0x08,
     BATTLE_STAT_OFFSET_LOW = 0x0A,
     BATTLE_STAT_OFFSET_HIGH = 0x0B,
@@ -108,6 +115,11 @@ enum {
 };
 
 static inline void battle_keep_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+
+static inline uint16_t battle_clock_word(const GameState *g)
+{
+    return (uint16_t)(battle_low_scratch(g, BATTLE_CLOCK_READS) | battle_low_scratch(g, BATTLE_CLOCK_READS + 1) << 8);
+}
 static inline void battle_keep_word(GameState *g, unsigned at, uint16_t v) { battle_leave_word(g, at, v); }
 
 /* A word kept at $0A-$0B, whose high byte is the stat offset's. */
