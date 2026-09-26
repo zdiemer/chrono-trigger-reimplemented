@@ -8127,7 +8127,10 @@ the records' ranges, `$FD:B033`). The records are bank CC's, through
 `game/battle/inventory.c`, which had the adding of an item, has the rest of
 the inventory and the gold: whether an item is held (`$C1:CFE9`), one fewer
 (`$C1:D056`), whether the party has some gold, gold given up to 9,999,999 and
-taken (`$C1:D086`, `$C1:D0A2`, `$C1:D0ED`), and the request by number the rest
+taken (`$C1:D086`, `$C1:D0A2`, `$C1:D0ED`; the gold as one 24-bit number,
+and the giving's hold to the most kept as the original does it: a total of
+`$990000` or more has only its high byte brought down to `$98`, so the party
+can end below 9,999,999), and the request by number the rest
 of the game asks them through (`$C1:8003`: a chest, an event, a shop). And
 the battle's item list (`battle_item_list`, new in the map): built from the
 inventory's 256 places as the battle starts (`$C1:CDFF`), an empty place

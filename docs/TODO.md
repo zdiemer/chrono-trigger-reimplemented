@@ -390,6 +390,32 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+- **What battle's chunk 6 left** (RECOMP.md, "Phase 3, battle chunk 6"; its
+  review's follow-ups):
+  - one accessor for the other items' battle records (`$CC:0ABC`):
+    `equipment_data.h`'s `item_in_battle` and `effect_data.h`'s item-use
+    reader each read the record, and give its bit 7 two meanings;
+  - the equipment's second records decoded in `equipment_data.h`: the boost
+    and affinity bytes as a typed record, not a place and byte offsets
+    (`BOOST_BYTE`, `AFFINITY_BYTE`);
+  - the dead write of `TABLE_AT` (`STAT_SETUP_SPARE_TABLE`) in
+    `member_stats.c`: find what, if anything, reads `$0E` after the stats'
+    setup, and make it scaffolding or say why it is kept;
+  - the multiply's carry notes (`member_stats.c`, `tech_records.c`,
+    `item_record_place`) derived once, as one leave, and `member_turn.c`'s
+    `lengthened` returning its result rather than through an out-parameter;
+  - the MP cost cut's accessory constants shared between `party_work.c` and
+    `tech_records.c` (`QUARTERS_COST`), `multiply_out_tech_place` with
+    `fill_triple`'s multiply, and the tech records' layout (`TECH_RECORD_BYTES`,
+    the first double's and the triple's record) taken from the map;
+  - the gold's accessors named for what they are (`party_gold_low`/`_high`
+    as one 24-bit value in the map);
+  - battle.h's list of `$00`'s writers brought up to date with the setup's
+    (tech_records.c, member_stats.c, inventory.c's item list);
+  - `item_record_place`'s `none` parameter: the caller's place for an item
+    past the recorded ones is the original's leftover X; say so at the call,
+    or give the item no record.
+
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
   - a status's timer of nobody's: the search for run-out timers takes the

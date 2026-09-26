@@ -121,25 +121,32 @@ enum { MOST_GOLD_HIGH = 0x98, MOST_GOLD_LOW = 0x967F };
 
 static uint32_t gold(const GameState *g) { return (uint32_t)party_gold_high(g) << 16 | party_gold_low(g); }
 
+static void set_gold(GameState *g, uint32_t amount)
+{
+    set_party_gold_low(g, (uint16_t)amount);
+    set_party_gold_high(g, (uint8_t)(amount >> 16));
+}
+
 // $C1:D086
-/* The original asks the low word alone first: any high byte covers anything. */
 bool battle_gold_covers(GameState *g, uint16_t amount)
 {
     ORIGINAL_EFFECT(set_battle_inventory_item(g, amount));
-    return amount == 0 || party_gold_low(g) >= amount || party_gold_high(g) != 0;
+    return gold(g) >= amount;
 }
 
 // $C1:D0A2
-/* Past the most, the gold stops at it (where the high byte reached its most
- * and the low word its, as the original tests them). */
+/* The gold given, held to the most -- but the original holds the high byte
+ * and the low word to theirs apart, and so a total of $990000 or more has its
+ * high byte brought down to $98 and keeps its low word where that is within
+ * $967F: the party ends with less than the most, not at it (gold of
+ * 9,960,000 given 70,000 sums to $99:0BB0, 10,030,000, and is left
+ * $98:0BB0, 9,964,464). False where the gold was held to a most. */
 bool battle_give_gold(GameState *g, uint16_t amount)
 {
     ORIGINAL_EFFECT(set_battle_inventory_item(g, amount));
     if (amount == 0)
         return true;
-    uint32_t more = gold(g) + amount;
-    set_party_gold_low(g, (uint16_t)more);
-    set_party_gold_high(g, (uint8_t)(more >> 16));
+    set_gold(g, gold(g) + amount);
     if (party_gold_high(g) < MOST_GOLD_HIGH)
         return true;
     set_party_gold_high(g, MOST_GOLD_HIGH);
@@ -150,21 +157,18 @@ bool battle_give_gold(GameState *g, uint16_t amount)
 }
 
 // $C1:D0ED
-/* The original works the low word out in the free place's cell first
+/* The gold taken, where the party has it; nothing taken, and false, where it
+ * hasn't. The original works the low word out in the free place's cell first
  * (scaffolding). */
 bool battle_take_gold(GameState *g, uint16_t amount)
 {
     ORIGINAL_EFFECT(set_battle_inventory_item(g, amount));
     if (amount == 0)
         return true;
-    uint16_t low = (uint16_t)(party_gold_low(g) - amount);
-    ORIGINAL_EFFECT(set_battle_inventory_free_place(g, low));
-    if (party_gold_low(g) < amount) {
-        if (party_gold_high(g) == 0)
-            return false;
-        set_party_gold_high(g, (uint8_t)(party_gold_high(g) - 1));
-    }
-    set_party_gold_low(g, low);
+    ORIGINAL_EFFECT(set_battle_inventory_free_place(g, (uint16_t)(party_gold_low(g) - amount)));
+    if (gold(g) < amount)
+        return false;
+    set_gold(g, gold(g) - amount);
     return true;
 }
 
@@ -248,7 +252,9 @@ static void build_item_list(GameState *g)
 
 /* $C1:8003's requests, by number (A); the ones past these are other
  * routines of the battle's code's, the original's (the entry's guard). Each
- * hands back a byte: an item's count, or $FF for yes and 0 for no. */
+ * hands back a byte: whether an item is held, as the item itself or 0; how
+ * many are held after an item is added or taken (battle_inventory_add,
+ * battle_inventory_take); or for the gold $FF for yes and 0 for no. */
 typedef enum {
     REQUEST_HOLDS, REQUEST_ADD, REQUEST_TAKE, REQUEST_GOLD_COVERS, REQUEST_GIVE_GOLD, REQUEST_TAKE_GOLD, REQUESTS,
 } PartyRequest;
