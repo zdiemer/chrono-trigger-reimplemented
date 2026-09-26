@@ -19,7 +19,12 @@
  * what tells the records to wait for the whole frame. Each layout's plan --
  * which of the description's tiles each part draws where, what is sent to
  * VRAM and how the sprites' tiles follow each other there -- is a row of one
- * table (plans). */
+ * table (plans).
+ *
+ * When the field comes back from a battle it puts each of the party and the
+ * enemies back as they were: their tiles in VRAM still show the frame they
+ * had, so that frame's sprites go straight onto their records, through the
+ * same plans, with nothing drawn (object_put_drawn_frame_back). */
 #include "field/frames.h"
 #include "field/field.h"
 #include "field/field_data.h"
@@ -300,13 +305,21 @@ static ObjectFrame next_frame(GameState *g, FieldObject obj)
     return f;
 }
 
+/* Whether the object is on the screen as sprites: shown and in view. The
+ * 24-sprite layout's object is shown too, but its frames are its records, so
+ * nothing of its frame is drawn or put back. */
+static bool object_on_screen(const GameState *g, FieldObject obj)
+{
+    return object_can_be_seen(g, obj) && object_view(g, obj) != OUT_OF_VIEW;
+}
+
 // $C0:CAD9 (and its layouts' $C0:CBDC, $C0:CEF5, $C0:D4F7)
 /* Draw the object's next frame, or the next part of it. An object holding a
  * frame draws the 8-sprite layout's whole at once; one holding a 12-sprite
  * frame never draws it, and stays at the queue's head. */
 static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
 {
-    if (!object_can_be_seen(g, obj) || object_view(g, obj) == OUT_OF_VIEW)
+    if (!object_on_screen(g, obj))
         return FRAME_NOT_DUE;
     SpriteLayout layout = object_sprite_layout(g, obj);
     if (layout == LAYOUT_24)
@@ -348,15 +361,15 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
 /* Put the frame the object's tiles show straight onto its records, built,
  * with nothing drawn: where the field brings the party and the enemies back
  * after a battle ($C0:07EC, $C0:08A0), whose tiles in VRAM are as they were.
- * False where the object isn't drawn (hidden, out of view, or of the
- * 24-sprite layout). */
-static bool put_drawn_frame_on_records(GameState *g, FieldObject obj)
+ * An object off the screen gets nothing, and one of the 24-sprite layout
+ * keeps its records as they are. */
+void object_put_drawn_frame_back(GameState *g, FieldObject obj)
 {
-    if (!object_can_be_seen(g, obj) || object_view(g, obj) == OUT_OF_VIEW)
-        return false;
+    if (!object_on_screen(g, obj))
+        return;
     SpriteLayout layout = object_sprite_layout(g, obj);
     if (layout == LAYOUT_24)
-        return false;
+        return;
     const FramePlan *plan = plan_for(g, obj, layout);
     uint8_t frame = object_frame_drawn(g, obj);
     uint32_t description = frame_description(g, obj, plan, frame);
@@ -364,7 +377,6 @@ static bool put_drawn_frame_on_records(GameState *g, FieldObject obj)
     frame_sprites(g, obj, plan, description, ONTO_THE_RECORDS);
     ORIGINAL_EFFECT(leave_attributes(g, obj));
     object_mark_records_built(g, obj);
-    return true;
 }
 
 /* ---- For the derivations (field/parts.h, field/leaves.c) ------------------------------------ */
@@ -412,7 +424,7 @@ void field_draw_next_frame(Snes *s)
 void field_put_drawn_frame(Snes *s)
 {
     GameState *g = state_of(s);
-    put_drawn_frame_on_records(g, (FieldObject)field_current_object_slot(s));
+    object_put_drawn_frame_back(g, (FieldObject)field_current_object_slot(s));
     m_rts(s);
 }
 
@@ -480,17 +492,20 @@ bool field_frames_can_draw(Snes *s)
     return ok;
 }
 
-/* Its guard: the current object's descriptions in the ROM and its records
- * inside their tables. */
+/* Its guard: the object's descriptions in the ROM and its records inside
+ * their tables. */
+bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj)
+{
+    return object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
+           sprites_records_in_the_tables(g, obj, object_sprite_layout(g, obj));
+}
+
 bool field_frames_can_put(Snes *s)
 {
     if (!field_current_object_bank_zero(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    FieldObject obj = (FieldObject)field_current_object_slot(s);
-    bool ok = object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
-              sprites_records_in_the_tables(g, obj, object_sprite_layout(g, obj));
+    bool ok = object_drawn_frame_can_go_back(state_of(s), (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }

@@ -117,7 +117,7 @@ void field_copy_sprite_tile_flipped(Snes *s) { tile_copy_entry(s, true); }
  * would read what the bus last held; the set's address carries into the next
  * bank, the last bank's into bank $00), and the port's 32 bytes inside the
  * build bank, where the frame builder places it. */
-enum { PORT_BANK_BIT = 0x10000, BANK_END = 0x10000 };
+enum { BANK_END = 0x10000 };
 
 bool field_tile_copy_in_build_bank(Snes *s)
 {
@@ -131,5 +131,6 @@ bool field_tile_copy_in_build_bank(Snes *s)
     if (!field_bank_always_answers((uint8_t)(first >> 16)) || !field_bank_always_answers((uint8_t)(last >> 16)))
         return false;
     uint32_t port = s->bus.wram_port_addr;
-    return (port & PORT_BANK_BIT) && (port & 0xFFFF) + FIELD_TILE_BYTES <= BANK_END;
+    uint8_t bank = (uint8_t)(0x7E + (port >> 16));   /* the port's 17 bits reach banks $7E and $7F */
+    return bank == FIELD_BUILD_BANK && (port & 0xFFFF) + FIELD_TILE_BYTES <= BANK_END;
 }

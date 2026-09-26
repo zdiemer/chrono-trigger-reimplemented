@@ -124,10 +124,46 @@ class Burndown(unittest.TestCase):
         p, own, inlined = stopper(PORT.replace("0xC08104, 0", "0xC08103, 0"))
         self.assertEqual(p.stops, set())
         self.assertEqual(inlined, {0xC08020, 0xC08021, 0xC08030, 0xC08031})
-        # one there that declares what is dead hands back all the same
+        # one there that declares what is dead hands back all the same: none of
+        # the code from it on is credited
         p, own, inlined = stopper(PORT.replace("0xC08104, 0", "0xC08103, 0x0002"))
         self.assertEqual(p.stops, {0xC08103})
-        self.assertNotIn(0xC08103, own)
+        for pc in (0xC08103, 0xC08104, 0xC08105, 0xC08108):
+            self.assertNotIn(pc, own)
+
+    def test_a_callee_stopped_at_is_not_inlined(self):
+        # outer stops where its inlined helper starts: the helper is the original's
+        p, own, inlined = self.outer(PORT.replace("    other(s);\n", "    other(s);\n    m_stop_at(s, 0xC08020, 0);\n"))
+        self.assertIn(0xC08020, p.stops)
+        self.assertEqual(inlined, set())
+
+    def test_code_reached_around_a_stop_is_still_credited(self):
+        # C0:8200  BEQ +2 ; NOP ; NOP ; RTS   (a port that stops at the first NOP):
+        # the second NOP and the RTS are reached around the stop, by the branch
+        code = dict(CODE)
+        code[0xC08200] = bytes.fromhex("F001EAEA60")
+        h = Hints()
+        for addr in (0xC08000, 0xC08100, 0xC08200):
+            h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
+        an = Analyzer(FakeRom(code), h)
+        an.run()
+        registry = REGISTRY.replace("};\n", "    { .addr = 0xC08200, .name = \"brancher\", .fn = brancher },\n};\n")
+        port = PORT + """
+// $C0:8200
+void brancher(Snes *s)
+{
+    m_stop_at(s, 0xC08202, 0);
+}
+"""
+        root = tree(self, port)
+        (root / "game" / "registry.c").write_text(registry, encoding="utf-8")
+        ports = burndown.read_ports(root, an)
+        p = next(p for p in ports if p.name == "brancher")
+        own, _ = burndown.walk(an, p.addr, {q.addr for q in ports}, p)
+        self.assertEqual(p.stops, {0xC08202})
+        self.assertNotIn(0xC08202, own)
+        self.assertIn(0xC08203, own)
+        self.assertIn(0xC08204, own)
 
     def test_a_call_out_that_cant_be_read_credits_nothing(self):
         # the site and target come from somewhere the check can't follow
