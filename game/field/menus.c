@@ -17,13 +17,19 @@
  * it sets itself up again, brings back the characters of a party the menu
  * changed (field_bring_the_party_back), and fades in.
  *
+ * A script can ask for a menu too (event $C8), which the main loop's requests
+ * open here (field_open_script_menu): the field fades out as the leader walks
+ * on, and the menu it names opens as these do.
+ *
  * The ports it calls run as C: the blanking and the interrupts' handlers
  * (core/display.c, field/interrupts.c) directly, and the line effects'
- * builder, the Start assignment and the party's return through field_run,
- * which runs each under the frame the original's call pushes and calls out
- * where the entry's guard would turn the state away. The frame wait, the
- * menus, the field's setup and its fade in are the original's routines,
- * called out to from the original's own calls. */
+ * builder, the Start assignment, the party's return and the leader's walk
+ * through field_run, which runs each under the frame the original's call
+ * pushes and calls out where the entry's guard would turn the state away. The
+ * frame wait, the menus, the field's setup and its fade in are the original's
+ * routines, called out to from the original's own calls; so is the palette
+ * animation, through the original's jump at $FD:FFF7 to it
+ * (PALETTE_ANIMATION), which isn't an entry. */
 #include "field/menus.h"
 #include "field/field.h"
 #include "field/line_effects.h"
@@ -96,19 +102,24 @@ static void move_dialog_window(GameState *g)
     set_dialog_window_position(g, (uint8_t)to);
 }
 
-/* A step of the fade out before a menu: false once the picture is dark (a
- * brightness with its top bit set counts as dark, as the original's signed
- * test has it). The clock is stopped at every step. */
+/* The picture a step darker: false once it is dark (a brightness with its top
+ * bit set counts as dark, as the original's signed test has it). */
 enum { DARK = 0, BRIGHTNESS_SIGN = 0x80 };
 
-static bool fade_out_step(GameState *g)
+static bool dim_a_step(GameState *g)
 {
-    stop_play_clock(g);
     uint8_t brightness = field_brightness(g);
     if (brightness == DARK || (brightness & BRIGHTNESS_SIGN))
         return false;
     set_field_brightness(g, (uint8_t)(brightness - 1));
     return true;
+}
+
+/* A step of the fade out before a menu, the clock stopped at every step. */
+static bool fade_out_step(GameState *g)
+{
+    stop_play_clock(g);
+    return dim_a_step(g);
 }
 
 /* A menu a script had asked for is taken as shown when the Start
@@ -199,7 +210,9 @@ static bool pause(Snes *s)
 
 /* The menus' modes the field opens, by what A holds as they start: the main
  * menu, the Start assignment's, and the four a script can ask for, named by
- * their numbers until the menus' side names them. */
+ * their numbers until the menus' side names them (the menus turn each into a
+ * screen through $C2:808F: 0 into their mode 14, 2 into 12, 3 into 13, 6 into
+ * 11). */
 typedef enum { MENU_MODE_0 = 0, MAIN_MENU = 1, MENU_MODE_2 = 2, MENU_MODE_3 = 3, START_MENU = 5, MENU_MODE_6 = 6 } FieldMenu;
 
 /* The two ways a menu is opened: the menu, whether the screen it opens on is
@@ -234,7 +247,7 @@ static bool call_the_menus(Snes *s, uint32_t site, FieldMenu menu)
     return bridge_call_long(s, site, MENUS, READS_THE_MODE, on_the_field_page(s, false));
 }
 
-// $C0:19C7 (the menu button's is $C0:1958)
+// $C0:19C7 (the menu button's is $C0:195E)
 /* From the menus on: the field set up again and the party brought back, and
  * faded in. False where a call didn't come back as the field runs. */
 static bool menu_and_back(Snes *s, MenuOpener opener)
@@ -278,7 +291,6 @@ static bool open_menu(Snes *s, MenuOpener opener)
  * menu; $01-$7F the menus' mode 0 where it is odd, 6 where it is even; $80-$FF
  * the mode its top two bits give, with the screen's argument in its low six. */
 typedef struct {
-    bool the_start_menu;
     FieldMenu menu;
     bool has_argument;
     uint8_t argument;
@@ -290,7 +302,7 @@ static ScriptMenu script_menu(const GameState *g)
 {
     uint8_t asked = field_script_menu(g);
     if (asked == 0)
-        return (ScriptMenu){ .the_start_menu = true, .menu = START_MENU };
+        return (ScriptMenu){ .menu = START_MENU };
     if (asked & ARGUMENT_GIVEN)
         return (ScriptMenu){ .menu = (FieldMenu)(asked >> MODE_SHIFT), .has_argument = true,
                              .argument = (uint8_t)(asked & ARGUMENT_BITS) };
@@ -298,31 +310,27 @@ static ScriptMenu script_menu(const GameState *g)
 }
 
 /* The fade out before a script's menu: a step a frame, the leader walking on
- * each (the player's control taken from it, so it stands) and the palettes
- * animating. The original keeps the player's control on the stack over the
- * walk; the walk's own calls are paired with the original's by where the stack
- * is, so the port keeps it there too. */
+ * each without the player's control (so it stands) and the palettes
+ * animating. The original keeps the control on the stack over the walk, which
+ * the walk's own call-outs and stops see, as shadow mode compares them. */
 enum { SCRIPT_FADE_WALK = 0xC00CDB, SCRIPT_FADE_PALETTES = 0xC00CE1, SCRIPT_FADE_WAIT = 0xC00CE5,
        WALK = 0xC0881E, PALETTE_ANIMATION = 0xFDFFF7, READS_THE_WALK = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 static bool fade_out_walking(Snes *s)
 {
     GameState *g = state_of(s);
-    for (;;) {
-        uint8_t brightness = field_brightness(g);
-        if (brightness == DARK || (brightness & BRIGHTNESS_SIGN))
-            return true;
-        set_field_brightness(g, (uint8_t)(brightness - 1));
+    while (dim_a_step(g)) {
         uint8_t control = field_player_control(g);
-        m_push8(s, control);
         hand_the_party_to_the_player(g, false);
-        if (!field_run(s, SCRIPT_FADE_WALK, WALK, READS_THE_WALK, field_walk_the_leader, on_the_field_page(s, false)))
+        if (!field_run_holding(s, SCRIPT_FADE_WALK, WALK, READS_THE_WALK, field_walk_the_leader,
+                               on_the_field_page(s, false), control))
             return false;
-        set_field_player_control(g, m_pull8(s));
+        set_field_player_control(g, control);
         if (!bridge_call_long(s, SCRIPT_FADE_PALETTES, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
             !wait_frame(s, SCRIPT_FADE_WAIT))
             return false;
     }
+    return true;
 }
 
 enum { SCRIPT_KEEP = 0xC00CED, SCRIPT_MENUS = 0xC00D18, SCRIPT_SET_UP = 0xC00D2D, SCRIPT_SPRITES = 0xC00D30 };
@@ -345,7 +353,7 @@ bool field_open_script_menu(Snes *s)
     if (!call(s, SCRIPT_KEEP, KEEP_THE_FIELD, READS_NOTHING))
         return false;
     ScriptMenu asked = script_menu(g);
-    if (asked.the_start_menu)
+    if (asked.menu == START_MENU)
         return menu_and_back(s, OPENED_BY_START);
     if (asked.has_argument)
         s->cpu.x = asked.argument;

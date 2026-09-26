@@ -7725,6 +7725,56 @@ the chest's hand-back without the requests in A mismatched 1,445 of 2,996. The c
 **The timing gate.** `field_handle_requests` was calibrated again over the
 library; no exception.
 
+### Phase 3, field and events: the 24-sprite figure drawn whole
+
+The twelfth chunk of bank `$C0`, and chunk 11's review.
+
+**Chunk 11's review, folded in.**
+- The script menu's fade keeps the player's control in a local and runs the
+  walk through `field_run_holding` (field/bridge.c), which pads the call's
+  frame with the byte the original holds on the stack and drops it after, so
+  menus.c touches no stack. The reason, corrected: shadow mode compares the
+  stack pointer and page at the walk's own call-outs and stops.
+  tools/dontcare_check.py reads it as it reads `field_run`, and `run_entry`
+  carries battle's comment on the guard's fallback.
+- One `dim_a_step`, which the menus' fade (with the clock stopped) and the
+  script's share.
+- Comments: the menu button's tail is `$C0:195E`; `screen_counts_as_recentred`
+  sits above `$C0:885A`'s comment and the recentring uses it; menus.c's
+  header names the script's menus and the palette animation's jump at
+  `$FD:FFF7`; TODO.md names the stops `$C0:0C91`, `$C0:0D3E`, `$C0:1770`.
+- requests.c tests the script's menus before the chest; `table_of` takes a
+  `FieldLineSlot`; the `LINE_INTERRUPT_OFF`, `NO_WINDOW_SELECTED` aliases and
+  `ScriptMenu.the_start_menu` are gone. The menus' modes a script asks for
+  stay numbered: the menus turn them into their own modes 14, 12, 13 and 11
+  through `$C2:808F`, which the menus' side hasn't named either.
+- The line effects' fuzzing's accessor-out-of-range predates the chunks: the
+  same run on a build before chunk 11 reports it (TODO.md).
+
+**What it is** (field/frames.c, `field_draw_whole_figure` `$C0:E12A`). An
+object of the 24-sprite layout, a large figure a script loads, draws no frames
+through the frame queue: when it is loaded (`$C0:47E9`) and when the field is
+set up after a menu (`$C0:0212`), its one frame is drawn whole, its 96 tiles
+from its graphics set (field/graphics.c's copies, straight or mirrored) into
+the build place and sent at once to VRAM word `$0400` (a new site encoding,
+`$C0:E19A`), and its 24 sprites' records laid out from its description's
+offsets, eight sprites a row of tiles. It returns with 16-bit index registers
+whatever it came with, the overflow clear and Y at the description's last
+byte, which the callers read.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches (1, in `endings-bucket-lavos`, with its graphics set built in bank $7F; none interrupted or refused). Fuzzed (seeds 1 and 2): 0 of
+20,000 each with the set in the ROM, and with it built in bank $7F 0 of 1,296
+and 1,372 (the guard turns away the random descriptions whose tiles run past
+the bank or over the build place); the VRAM word, the sprites' attributes or their tiles' step off
+by one mismatched 500 of 500 each. Fuzzing found the cell the builder's start
+writes that this doesn't (the frame table's bank) and the Y the callers read;
+shadow mode found the library's one figure refused, its set built in bank $7F,
+which the guard now takes where the tiles are clear of the build place.
+
+**The timing gate.** The row was calibrated over the library; no exception.
+`$C0` stands at 41.8 KiB ported, 30% left.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

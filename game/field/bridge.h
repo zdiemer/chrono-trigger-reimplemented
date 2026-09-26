@@ -78,6 +78,13 @@ bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, voi
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m);
 
+/* field_run with a byte the original keeps on the stack over the call (a
+ * PHA before it, a PLA after): shadow mode compares the stack pointer at the
+ * sibling's call-outs and stops, so the port pads the frame with the byte
+ * too, and drops it after. The byte's meaning stays the caller's. */
+bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       BridgeMachine m, uint8_t held);
+
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the
  * same test, and the same stop. */

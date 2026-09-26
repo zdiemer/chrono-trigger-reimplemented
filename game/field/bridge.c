@@ -40,6 +40,9 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     m_push16(s, (uint16_t)(returns_to - 1));
     s->cpu.pb = (uint8_t)(routine >> 16);
     s->cpu.pc = (uint16_t)routine;
+    /* the sibling runs as C only where the runtime would run it there, its
+     * guard and preconditions holding; otherwise the call is a real one, and
+     * the runtime runs whatever the registry has for the state it meets */
     const NativeEntry *e = native_hand_entry(s);
     if (!e || e->fn != entry) {
         s->cpu.s = stack;
@@ -59,6 +62,16 @@ bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
                     BridgeMachine m)
 {
     return run_entry(s, site, routine, dont_care, entry, m, true);
+}
+
+bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       BridgeMachine m, uint8_t held)
+{
+    m_push8(s, held);
+    if (!field_run(s, site, routine, dont_care, entry, m))
+        return false;
+    (void)m_pull8(s);
+    return true;
 }
 
 unsigned field_current_object_slot(Snes *s)

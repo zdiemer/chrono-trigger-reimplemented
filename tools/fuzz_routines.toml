@@ -4944,6 +4944,21 @@ state = "field"
 args = ["--d", "0100", "--db", "00"]
 why = "the field's page over a random state: the start writes what it writes whatever was there, reading only the location, the party, the play time and the ROM"
 
+[[routine]]
+name = "field_draw_whole_figure"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=10-10", "--fill", "7E1210-7E1210=C0-FE", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02"]
+why = "the current object 8, in X too, its graphics set and description anywhere in the ROM (its tiles and offsets random, straight and mirrored), its records at the tables' start (the guard's)"
+
+[[routine]]
+name = "field_draw_whole_figure"
+variant = "built"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--range", "X=10-10", "--fill", "7E1210-7E1210=7F-7F", "--fill", "7E1290-7E1291=00-37", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02"]
+why = "the graphics set built in bank $7F (as the figures the game loads are); the random descriptions put most sets' tiles past the bank or over the build place, which the guard turns away, so about 1,300 states a seed compare"
+
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
 # Two states: the menus proper (the field menu open, menus-field-menu) and the sprite-object
