@@ -20,7 +20,6 @@
 #include "wram.h"
 
 /* A tile's offset in its graphics set. */
-static uint16_t tile_offset(uint16_t tile) { return (uint16_t)((tile & FIELD_TILE_NUMBER) * FIELD_TILE_BYTES); }
 
 /* The graphics set's bank, as the straight copy reads it: bank $7F where the
  * builder made the graphics, else the ROM's bank of sprite graphics it names
@@ -37,7 +36,7 @@ static uint8_t source_bank(uint8_t bank)
  * do. */
 static void copy_sprite_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
 {
-    uint16_t from = (uint16_t)(tile_offset(tile) + set.address);
+    uint16_t from = (uint16_t)(field_tile_offset(tile) + set.address);
     uint32_t source = (uint32_t)source_bank(set.bank) << 16;
     for (uint16_t k = 0; k < FIELD_TILE_BYTES; k += 2) {
         uint32_t at = source + k + from;
@@ -52,7 +51,7 @@ static void copy_sprite_tile(GameState *g, ObjectGraphics set, uint16_t tile, ui
  * build bank. */
 static void copy_sprite_tile_flipped(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to)
 {
-    uint16_t at = tile_offset(tile);
+    uint16_t at = field_tile_offset(tile);
     uint32_t graphics = (uint32_t)set.bank << 16 | set.address;
     for (uint16_t k = 0; k < FIELD_TILE_BYTES; k++) {
         uint8_t b = field_mirrored_byte(g, field_sprite_graphics_byte(g, graphics + (uint16_t)(at + k)));
@@ -126,7 +125,7 @@ bool field_tile_copy_in_build_bank(Snes *s)
     vars_peek(true);
     ObjectGraphics set = graphics_left(state_of(s));
     vars_peek(false);
-    uint32_t first = ((uint32_t)set.bank << 16 | set.address) + tile_offset(s->cpu.a);
+    uint32_t first = ((uint32_t)set.bank << 16) + field_set_tile_start(set, s->cpu.a);
     uint32_t last = first + FIELD_TILE_BYTES - 1;
     if (!field_bank_always_answers((uint8_t)(first >> 16)) || !field_bank_always_answers((uint8_t)(last >> 16)))
         return false;

@@ -90,6 +90,11 @@ bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild 
  * entry's sum with BG1's base that pressing one leaves, and A's high byte at
  * its sound (field/leaves.c). */
 bool field_switch_redraw_overflow(const GameState *g);
+bool field_chest_redraw_overflow(const GameState *g);
+/* A's high byte as a step event leaves it, which a chest's sound after it reads. */
+uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed);
+/* The frame wait's A, which the battle reads after it (field/requests.c). */
+uint16_t field_frame_wait_leaves_a(const GameState *g);
 uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step);
 
 /* The Start assignment's test of the story's progress (field/menus.c): the

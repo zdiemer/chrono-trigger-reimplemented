@@ -4830,8 +4830,8 @@ why = "the 12-sprite layout with its tiles half way along a row ($68), each of i
 name = "field_handle_requests"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=00-3F", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F"]
-why = "the field's page; any requests but the location change and the menus (which the port hands to the original at once), the brightness and tint changes as the state has them; the step on the map's rows"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=00-3F", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F", "--stop-at-call", "C000BF", "--stop-at-call", "C0024C"]
+why = "the field's page; any requests but the location change and the menus, the brightness and tint changes as the state has them; the step on the map's rows; compared up to a tile copy's frame work or a battle's setup, which run for frames"
 
 [[routine]]
 name = "field_handle_requests"
@@ -4862,8 +4862,32 @@ name = "field_handle_requests"
 variant = "location-change"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=80-FF"]
-why = "a location change asked for, with any other request: handed to the original where it reads the fade's brightness"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=80-FF", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0197-7E0197=00,02,04,80", "--fill", "7E0198-7E0198=00"]
+why = "a location change asked for, with any other request, dark or a step of the fade still to go: the party's place kept and the next taken, and the field's new start handed to the original (the leader an object or none, the guard's)"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "chest"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=02,03,22,23", "--fill", "7E015D-7E015D=00-3F", "--fill", "7E015E-7E015E=00-3F", "--fill", "[7E015D]+3000,1=FE,E0,10", "--stop-at-call", "C000BF", "--stop-at-call", "C0024C"]
+why = "a chest opened, of either kind or neither, with a tile copy or a battle asked too or not: compared up to the tile copy's frame work or the battle's setup; about half the states run the chest's sound past the call-out budget, as the switches' do"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "tile-copy"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=20,21", "--fill", "7E0138-7E0138=00-02", "--fill", "7E0145-7E0145=00-05", "--stop-at-call", "C000BF"]
+why = "a tile copy asked for (with a battle too or not): the recentring's start and first step, compared at the frame work; what follows runs for frames, which shadow mode compares"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "step-and-chest"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=12", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F", "--fill", "[7E015B]+3000,1=E6,EC,EE,FA,FC,10", "--fill", "7E015D-7E015D=00-3F", "--fill", "[7E015D]+3000,1=FE,E0,10"]
+why = "a step event (a switch of each shape, or none) and a chest asked for together: the chest's sound after the step event's, taking A's high byte as the step event leaves it; about half the states run a sound past the call-out budget"
 
 [[routine]]
 name = "field_redraw_after_picture"

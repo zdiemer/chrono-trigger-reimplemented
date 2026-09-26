@@ -1805,6 +1805,9 @@
 #define RAM_FIELD_AUTO_SCROLL_POSITION_STRIDE 0x04u
 #define RAM_FIELD_AUTO_SCROLL_POSITION_X 0x7F346Bu /* Horizontal */
 #define RAM_FIELD_AUTO_SCROLL_POSITION_Y 0x7F346Du /* Vertical */
+/* Where a 24-sprite figure's 96 tiles are drawn before they go to VRAM at once ($C0:E12A): the
+ * frame builder's four areas borrowed, and the $400 bytes after them [3072 bytes] */
+#define RAM_FIELD_FIGURE_TILES 0x7F3800u
 /* Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before
  * they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on) [4 x $200
  * bytes, by area: an object's new frame takes one for the 4-sprite layout, two side by side for

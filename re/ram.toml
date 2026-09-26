@@ -14297,6 +14297,15 @@ meaning = "The step events the leader has set off on this map (field_step_tile e
 source = "game/field/switches.c, remember_step ($C0:28C0)"
 
 [[var]]
+name = "field_figure_tiles"
+addr = "7F:3800"
+size = 0xC00
+reuses = "field_frame_staging"
+subsystem = "field"
+meaning = "Where a 24-sprite figure's 96 tiles are drawn before they go to VRAM at once ($C0:E12A): the frame builder's four areas borrowed, and the $400 bytes after them"
+source = "game/field/frames.c, object_draw_whole_figure $C0:E12A"
+
+[[var]]
 name = "field_frame_staging"
 addr = "7F:3800"
 size = 0x200

@@ -919,6 +919,8 @@ static uint8_t pixel_toward(uint8_t leader_on_screen, uint8_t middle)
 
 /* No recentring under way. */
 void screen_counts_as_recentred(GameState *g) { set_field_screen_recentring(g, RECENTRED); }
+void screen_starts_recentring(GameState *g) { set_field_screen_recentring(g, RECENTRE_STARTS); }
+bool screen_is_recentred(const GameState *g) { return field_screen_recentring(g) == RECENTRED; }
 
 // $C0:885A
 /* While a script has the screen scroll back onto the 16-pixel grid (before a

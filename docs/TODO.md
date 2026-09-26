@@ -1068,13 +1068,17 @@ below. `python3 tools/timing_census.py` re-runs the census.
     moments); no object the game makes does.
 - **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
-  - `$C0:0C76` hands the location change, a chest opened, the tile copy and
-    the battle to the original's code (`m_stop_at_own` at `$C0:0C91`,
-    `$C0:0D3E` and `$C0:1770`); the location change starts the field again on a fresh stack
-    (`TXS`, then `$C0:0000`), which a port can only hand back; a chest's
-    opening would need A's high byte and the overflow the original has at
-    `$C0:16DC`, which depend on the path into it, so it went with the stop
-    rather than into the logic;
+  - `$C0:0C76` hands the field's new start after a location change to the
+    original (`$C0:0CC0`: a fresh stack, then `$C0:0000`), and stops at the
+    frame wait or the field's turn the original jumps to at the tile copy's
+    and the battle's ends; the tile copy's and the battle's stretches span
+    frames, so shadow mode counts some of their calls interrupted and fuzzing
+    reaches them only up to their first long call-out (the frame work
+    `$C0:00BF`, the battle's setup `$C0:024C`, which run past its budget); a
+    fuzz state that bounds those would check the rest;
+  - a location change without a leader reads the leader's place past the
+    object tables in the original (the link `$80` as an index); the guard
+    hands it to the original;
   - a script's menu (field/menus.c, `field_open_script_menu`) ends by
     jumping to the fade in (`$C0:2824`), which returns to the main loop
     itself, so the port stops there; the menus' modes 0, 2, 3 and 6 it opens

@@ -171,7 +171,7 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **1 of 162 files, 117 of
-43,307 lines, is on the backlog**: `data/decompress.c`. What is still on the
+43,559 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -343,7 +343,7 @@ docstring says which way it is wrong). **46% of the code is still generated.**
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 41.2K | 18.6K | 37% | 237 |
-| field engine, events (`$C0`) | 59.4K | 41.8K | 9.2K | 30% | 289 |
+| field engine, events (`$C0`) | 59.4K | 44.8K | 9.3K | 25% | 289 |
 | menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **46% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **146.3K** | **41.9K** | **45%** | **1098** |
+| **total** | **268.5K** | **149.3K** | **42.0K** | **44%** | **1098** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -570,12 +570,16 @@ the field's start (`$C0:0B86`) and named the cells it sets. The eleventh
 (RECOMP.md, "Phase 3, field and events: the menus a script asks for") took the
 menus a script asks for from the main loop's requests (`$C0:0CC7`-`$C0:0D3D`).
 The twelfth (RECOMP.md, "Phase 3, field and events: the 24-sprite figure
-drawn whole") took the last of the frame builder's run (`$C0:E12A`). `$C0` stands at
-41.8 KiB ported, 30% left; what is left is the requests `$C0:0C76` hands back and
-the routines the ports call out to, among them the field's setup after a menu
-(`$C0:01A5`), the keeping of the field (`$C0:011B`), the fade in
-(`$C0:2824`), the sprite lists (`$C0:B192`) and a choice's buttons
-(`$C0:1ADF`).
+drawn whole") took the last of the frame builder's run (`$C0:E12A`). The
+thirteenth (RECOMP.md, "Phase 3, field and events: the main loop's requests
+answered") took every request the main loop answers: the location change, a
+chest, the tile copy and the battle (`$C0:0C8F`-`$C0:18D8`). `$C0` stands at
+44.8 KiB ported, 25% left; what is left is the routines the ports call out
+to: the screen effects' steps (`$C0:220E`), the event commands at
+`$C0:4186` and `$C0:3711`, the field's setup after a menu and a map (`$C0:01A5`,
+`$C0:038F`, `$C0:0000`), the keeping of the field (`$C0:011B`), the fade in
+(`$C0:2824`), the sprite lists (`$C0:B192`), the frame work (`$C0:00BF`)
+and a choice's buttons (`$C0:1ADF`).
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

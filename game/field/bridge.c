@@ -74,6 +74,18 @@ bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
     return true;
 }
 
+bool field_run_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       uint16_t page)
+{
+    uint16_t own = s->cpu.d;
+    m_push16(s, own);
+    s->cpu.d = page;
+    if (!field_run(s, site, routine, dont_care, entry, (BridgeMachine){ m_x8(s), page, s->cpu.db }))
+        return false;
+    s->cpu.d = m_pull16(s);
+    return true;
+}
+
 unsigned field_current_object_slot(Snes *s)
 {
     uint16_t object = field_current_object(state_of(s));

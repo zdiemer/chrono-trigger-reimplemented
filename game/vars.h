@@ -2297,6 +2297,12 @@ void set_field_auto_scroll_position_x(GameState *g, unsigned layer, uint16_t v);
 uint16_t field_auto_scroll_position_y(const GameState *g, unsigned layer);
 void set_field_auto_scroll_position_y(GameState *g, unsigned layer, uint16_t v);
 
+/* Where a 24-sprite figure's 96 tiles are drawn before they go to VRAM at once ($C0:E12A): the
+ * frame builder's four areas borrowed, and the $400 bytes after them [3072 bytes, one at a time] */
+enum { FIELD_FIGURE_TILES_BYTES = 3072 };
+uint8_t field_figure_tiles_byte(const GameState *g, unsigned at);
+void set_field_figure_tiles_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { FIELD_FRAME_STAGING_COUNT = 4 };   /* by area: an object's new frame takes one for the 4-sprite layout, two side by side for the 8, three for the 12 */
 /* Where the frame builder draws an object's new frame, 16 tiles ($20 bytes each) an area, before
  * they are sent to VRAM (the builder writes them through the WRAM port, $C0:CC0D on) [512 bytes,

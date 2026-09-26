@@ -85,6 +85,13 @@ bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
 bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                        BridgeMachine m, uint8_t held);
 
+/* field_run on another direct page, as the original calls a routine of the
+ * layers' page: its PHD keeps the field's page on the stack under the call,
+ * which the sibling's call-outs and stops see, so the port keeps it there
+ * too, and the page is the field's again after. */
+bool field_run_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                       uint16_t page);
+
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the
  * same test, and the same stop. */

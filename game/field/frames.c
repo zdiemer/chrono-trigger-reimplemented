@@ -145,10 +145,13 @@ static const FramePlan *plan_for(const GameState *g, FieldObject obj, SpriteLayo
     }
 }
 
-static uint8_t description_bytes(const FramePlan *plan)
+/* A frame's description for `sprites` sprites: their tiles' names, then their
+ * offsets. */
+static uint8_t description_bytes_for(unsigned sprites)
 {
-    return (uint8_t)(plan->sprites * (TILES_A_SPRITE * WORDS_A_TILE_NAME + OFFSET_BYTES));
+    return (uint8_t)(sprites * (TILES_A_SPRITE * WORDS_A_TILE_NAME + OFFSET_BYTES));
 }
+static uint8_t description_bytes(const FramePlan *plan) { return description_bytes_for(plan->sprites); }
 
 /* ---- A frame's description ------------------------------------------------------------------- */
 
@@ -166,9 +169,9 @@ static uint16_t tile_name(const GameState *g, uint32_t description, unsigned til
     return field_frame_tile_word(g, description + tile * WORDS_A_TILE_NAME);
 }
 
-static int8_t sprite_offset(const GameState *g, const FramePlan *plan, uint32_t description, unsigned n, Axis axis)
+static int8_t sprite_offset(const GameState *g, unsigned sprites, uint32_t description, unsigned n, Axis axis)
 {
-    unsigned offsets = (unsigned)plan->sprites * TILES_A_SPRITE * WORDS_A_TILE_NAME;
+    unsigned offsets = sprites * TILES_A_SPRITE * WORDS_A_TILE_NAME;
     return (int8_t)field_frame_offset_byte(g, description + offsets + n * OFFSET_BYTES + axis);
 }
 
@@ -176,11 +179,16 @@ static int8_t sprite_offset(const GameState *g, const FramePlan *plan, uint32_t 
 
 /* Drawing starts from cells the original's copies read: the graphics set,
  * the build place's bank, and the frame tables' bank the frame read reads. */
-static void leave_start(GameState *g, ObjectGraphics set)
+static void leave_drawing_from(GameState *g, ObjectGraphics set)
 {
     set_field_sprite_graphics_bank(g, set.bank);
     set_field_sprite_graphics_address(g, set.address);
     set_field_sprite_tile_bank(g, FIELD_BUILD_BANK);
+}
+
+static void leave_start(GameState *g, ObjectGraphics set)
+{
+    leave_drawing_from(g, set);
     set_field_frame_entry_bank(g, FIELD_FRAME_TABLES_BANK);
 }
 
@@ -198,12 +206,17 @@ static void leave_new_frame(GameState *g, uint8_t frame)
 }
 
 /* The description's place, found with the multiplier. */
+static void leave_description_place(GameState *g, uint32_t description)
+{
+    set_field_frame_description_address(g, (uint16_t)description);
+    set_field_frame_description_bank(g, (uint8_t)(description >> 16));
+}
+
 static void leave_description(GameState *g, const FramePlan *plan, uint8_t frame, uint32_t description)
 {
     hw_set_multiplicand(g, frame);
     (void)hw_multiply_by(g, description_bytes(plan));
-    set_field_frame_description_address(g, (uint16_t)description);
-    set_field_frame_description_bank(g, (uint8_t)(description >> 16));
+    leave_description_place(g, description);
 }
 
 /* After a run: its count run down to 0, the Y the last copy saved (the last
@@ -276,9 +289,9 @@ static void frame_sprites(GameState *g, FieldObject obj, const FramePlan *plan, 
     for (unsigned n = 0; n < plan->sprites; n++) {
         if (n == plan->row_break)
             tile = (uint8_t)(tile + NEXT_TILE_ROW);
-        int8_t y = sprite_offset(g, plan, description, n, AXIS_Y);
+        int8_t y = sprite_offset(g, plan->sprites, description, n, AXIS_Y);
         bool upper = plan->lower_sprites == BY_OFFSET ? (y >= UPPER_OFFSET && y < 0) : n >= plan->lower_sprites;
-        FrameSprite sprite = { sprite_offset(g, plan, description, n, AXIS_X), y, tile,
+        FrameSprite sprite = { sprite_offset(g, plan->sprites, description, n, AXIS_X), y, tile,
                                object_frame_attributes(g, obj, upper) };
         if (where == INTO_THE_FRAME_DATA)
             sprites_set_frame_sprite(g, obj, n, sprite);
@@ -366,59 +379,54 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
 
 /* ---- The 24-sprite figure ----------------------------------------------------------------- */
 
-/* The figure's 96 tiles, 24 sprites of four, drawn in bank $7F from the
- * build place and sent to VRAM at word $0400 (tile $40), where its sprites
- * show them: eight sprites a row of tiles, the rows 32 tiles apart. */
-enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_BUILD_PLACE = 0x3800,
-       FIGURE_VRAM = 0x0400, FIGURE_FIRST_TILE = 0x40, FIGURE_SPRITES_A_ROW = 8, FIGURE_ROW_TILES = 0x20,
-       SPRITE_TILE_STEP = 2, FIGURE_ATTRIBUTES = 0x22, FIGURE_FRAME = 0 };
+/* The figure's 96 tiles, 24 sprites of four, drawn in bank $7F where the
+ * frame builder draws (field_figure_tiles, its areas borrowed and the bytes
+ * after them) and sent to VRAM at once from tile $40, where its sprites show
+ * them: eight sprites a row of tiles, the rows two tile rows apart. The
+ * figure shows palette 1 at priority 2 whatever its object's palette is
+ * (field_object_palette, which the frames the queue draws take). */
+enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_FIRST_TILE = 0x40,
+       FIGURE_SPRITES_A_ROW = 8, FIGURE_PALETTE = 1, FIGURE_PRIORITY = 2, FIGURE_FRAME = 0 };
+enum { FIGURE_VRAM = FIGURE_FIRST_TILE * VRAM_WORDS_A_TILE, FIGURE_BYTES = FIGURE_TILES * TILE_BYTES };
+enum { ATTRIBUTE_PALETTE_SHIFT = 1, ATTRIBUTE_PRIORITY_SHIFT = 4 };
+
+static uint16_t figure_place(void) { return RAM_ABS(RAM_FIELD_FIGURE_TILES); }
 
 static FrameSprite figure_sprite(const GameState *g, uint32_t description, unsigned n)
 {
-    unsigned offsets = FIGURE_TILES * WORDS_A_TILE_NAME;
-    uint32_t at = description + offsets + n * OFFSET_BYTES;
-    return (FrameSprite){ (int8_t)field_frame_offset_byte(g, at + AXIS_X), (int8_t)field_frame_offset_byte(g, at + AXIS_Y),
-                          (uint8_t)(FIGURE_FIRST_TILE + (n / FIGURE_SPRITES_A_ROW) * FIGURE_ROW_TILES +
-                                    (n % FIGURE_SPRITES_A_ROW) * SPRITE_TILE_STEP),
-                          FIGURE_ATTRIBUTES };
+    return (FrameSprite){ sprite_offset(g, FIGURE_SPRITES, description, n, AXIS_X),
+                          sprite_offset(g, FIGURE_SPRITES, description, n, AXIS_Y),
+                          (uint8_t)(FIGURE_FIRST_TILE + (n / FIGURE_SPRITES_A_ROW) * 2 * NEXT_TILE_ROW +
+                                    (n % FIGURE_SPRITES_A_ROW) * NEXT_SPRITE_TILE),
+                          (uint8_t)(FIGURE_PRIORITY << ATTRIBUTE_PRIORITY_SHIFT | FIGURE_PALETTE << ATTRIBUTE_PALETTE_SHIFT) };
 }
 
-/* For the original's code and shadow mode: the cells its drawing leaves --
- * the set and the description it drew from, the count run down, the last
- * tile's place and the Y its copy saved -- and the work RAM port past the
- * last tile. */
-static void leave_figure(GameState *g, ObjectGraphics set, ObjectGraphics description)
+/* For the original's code and shadow mode: the set and the description it
+ * drew from, and the run of all its tiles, as a frame's drawing leaves them. */
+static void leave_figure(GameState *g, ObjectGraphics set, uint32_t description)
 {
-    set_field_sprite_graphics_bank(g, set.bank);
-    set_field_sprite_graphics_address(g, set.address);
-    set_field_sprite_tile_bank(g, FIELD_BUILD_BANK);
-    set_field_frame_description_address(g, description.address);
-    set_field_frame_description_bank(g, description.bank);
-    set_field_frame_tiles_left(g, 0);
-    uint16_t last_at = (uint16_t)(FIGURE_BUILD_PLACE + (FIGURE_TILES - 1) * TILE_BYTES);
-    original_cell16(g, FIELD_SAVED_Y_CELL, (uint16_t)((FIGURE_TILES - 1) * WORDS_A_TILE_NAME));
-    set_field_sprite_tile_offset(g, last_at);
-    hw_port_seek(g, (uint16_t)(last_at + TILE_BYTES), FIELD_BUILD_BANK & 1);
+    leave_drawing_from(g, set);
+    leave_description_place(g, description);
+    leave_run(g, (TileRun){ 0, FIGURE_TILES, 0 }, (uint16_t)(figure_place() + (FIGURE_TILES - 1) * TILE_BYTES));
 }
 
 // $C0:E12A
 /* Draw a 24-sprite figure's frame whole: its tiles from its graphics set as
  * its description names them, sent at once to its place in VRAM, and each
  * sprite's record laid out from the description's offsets. The figure shows
- * frame 0, from the build place. */
+ * frame 0, from the place it is drawn in. */
 void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj)
 {
-    ObjectGraphics set = object_graphics(g, obj), description = object_frame_descriptions(g, obj);
-    uint32_t from = (uint32_t)description.bank << 16 | description.address;
-    set_field_object_frame_staging(g, obj, FIGURE_BUILD_PLACE);
+    ObjectGraphics set = object_graphics(g, obj), d = object_frame_descriptions(g, obj);
+    uint32_t description = (uint32_t)d.bank << 16 | d.address;
+    set_field_object_frame_staging(g, obj, figure_place());
     object_set_frame_drawn(g, obj, FIGURE_FRAME);
     for (unsigned t = 0; t < FIGURE_TILES; t++)
-        field_draw_frame_tile(g, set, tile_name(g, from, t), (uint16_t)(FIGURE_BUILD_PLACE + t * TILE_BYTES));
+        field_draw_frame_tile(g, set, tile_name(g, description, t), (uint16_t)(figure_place() + t * TILE_BYTES));
     ORIGINAL_EFFECT(leave_figure(g, set, description));
-    vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME((uint32_t)FIELD_BUILD_BANK << 16 | FIGURE_BUILD_PLACE),
-                  FIGURE_TILES * TILE_BYTES, VID_VRAM_WORD_PORT);
+    vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME(RAM_FIELD_FIGURE_TILES), FIGURE_BYTES, VID_VRAM_WORD_PORT);
     for (unsigned n = 0; n < FIGURE_SPRITES; n++)
-        sprites_set_record_sprite(g, obj, n, figure_sprite(g, from, n));
+        sprites_set_record_sprite(g, obj, n, figure_sprite(g, description, n));
 }
 
 // $C0:CB0A (and its layouts' $C0:CDC8, $C0:D124, $C0:DD28)
@@ -489,8 +497,11 @@ void field_draw_next_frame(Snes *s)
 /* The current object, in X too. It returns with 16-bit index registers
  * whatever it came with, as the original does. Of what it leaves, two are
  * read after it: the overflow, which the last sum of the drawing (a tile's
- * place in the build bank, well below $8000) leaves clear, and Y, at the
- * description's last byte (the last sprite's Y offset). */
+ * place in the build bank, well below $8000) leaves clear, and which goes on
+ * round the main loop to the menus' entry, as the frame builder's does; and Y,
+ * at the description's last byte (the last sprite's Y offset), which the event
+ * engine's dispatch has live after the command that loads the figure
+ * ($C0:47E5) returns. */
 enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
 
 void field_draw_whole_figure(Snes *s)
@@ -548,7 +559,7 @@ static bool built_tiles_in_bank(const GameState *g, FieldObject obj, SpriteLayou
         return true;
     uint32_t description = frame_description(g, obj, plan, f.frame);
     for (unsigned t = 0; t < (unsigned)plan->sprites * TILES_A_SPRITE; t++) {
-        uint32_t end = graphics.address + (uint32_t)(tile_name(g, description, t) & FIELD_TILE_NUMBER) * TILE_BYTES + TILE_BYTES;
+        uint32_t end = field_set_tile_start(graphics, tile_name(g, description, t)) + TILE_BYTES;
         if (end > BANK_BYTES)
             return false;
     }
@@ -593,11 +604,10 @@ static bool figure_tiles_clear(const GameState *g, FieldObject obj)
 {
     ObjectGraphics set = object_graphics(g, obj), d = object_frame_descriptions(g, obj);
     uint32_t description = (uint32_t)d.bank << 16 | d.address;
+    uint32_t place = figure_place(), place_end = place + FIELD_FIGURE_TILES_BYTES;
     for (unsigned t = 0; t < FIGURE_TILES; t++) {
-        uint32_t start = set.address + (uint32_t)(tile_name(g, description, t) & FIELD_TILE_NUMBER) * TILE_BYTES;
-        uint32_t end = start + TILE_BYTES;
-        if (end > BANK_BYTES ||
-            !(end <= FIGURE_BUILD_PLACE || start >= FIGURE_BUILD_PLACE + (uint32_t)FIGURE_TILES * TILE_BYTES))
+        uint32_t start = field_set_tile_start(set, tile_name(g, description, t)), end = start + TILE_BYTES;
+        if (end > BANK_BYTES || !(end <= place || start >= place_end))
             return false;
     }
     return true;
