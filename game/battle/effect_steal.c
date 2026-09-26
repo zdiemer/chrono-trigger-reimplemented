@@ -31,12 +31,23 @@ enum {
     STEAL_OUTCOME_MISSED = 0xFE, STEAL_OUTCOME_NOTHING = 0xFF,
 };
 
-/* The original hands the outcome back in the direct page's first cell (the
- * chance's), and the item taken in $06, where the member's turn reads it to
- * show (scaffolding: that is the original's still). */
+/* The original hands the outcome back in the cell it took the chance in
+ * ($16), and the item taken in $06, where the member's turn reads it to show
+ * (scaffolding: that is the original's still). */
 enum { ITEM_TAKEN_CELL = 0x06, ENEMY_PLACE_CELL = 0x0C };
 
-static void leave_outcome(GameState *g, uint8_t v) { ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, v)); }
+/* How the steal came out, kept for the member's turn (battle_steal_outcome)
+ * and handed back: a miss and nothing to take as themselves; an item taken as
+ * its giving left it, and 0 handed back. */
+static StealOutcome came_out(GameState *g, StealOutcome outcome)
+{
+    uint8_t kept = outcome == STEAL_MISSED    ? STEAL_OUTCOME_MISSED
+                   : outcome == STEAL_NOTHING ? STEAL_OUTCOME_NOTHING
+                                              : battle_steal_outcome(g);
+    set_battle_steal_outcome(g, kept);
+    ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, outcome == STEAL_TOOK ? 0 : kept));
+    return outcome;
+}
 
 static uint8_t marks_of(const GameState *g, uint8_t slot)
 {
@@ -61,6 +72,16 @@ static void set_marks_of(GameState *g, uint8_t slot, uint8_t marks)
  * may read (battle.h). */
 enum { KEPT_ITEM_BYTES = 8, RECORD_PLACE_CELL = 0x02, THIEF_RECORD_CELL = 0x04 };
 
+/* One of an item kept for a party member until the battle ends, with the
+ * detail and kind its record gives it. */
+static void battle_member_keep_item(GameState *g, uint8_t member, uint8_t item, uint8_t detail, uint8_t kind)
+{
+    set_battle_member_kept_item_id(g, member, item);
+    set_battle_member_kept_item_detail(g, member, detail);
+    set_battle_member_kept_item_kind(g, member, kind);
+    set_battle_member_kept_item_held(g, member, 1);
+}
+
 static void give_stolen(GameState *g, uint8_t item)
 {
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
@@ -79,10 +100,7 @@ static void give_stolen(GameState *g, uint8_t item)
         ORIGINAL_EFFECT(battle_leave_word(g, RECORD_PLACE_CELL, (uint8_t)(past * ITEM_RECORD_BYTES)));
         uint8_t flags = item_record_flags(g, item);
         if (flags & ITEM_KEPT_APART) {
-            set_battle_member_kept_item_id(g, thief, item);
-            set_battle_member_kept_item_detail(g, thief, item_record_detail(g, item));
-            set_battle_member_kept_item_kind(g, thief, (uint8_t)(flags & ~ITEM_KEPT_APART));
-            set_battle_member_kept_item_held(g, thief, 1);
+            battle_member_keep_item(g, thief, item, item_record_detail(g, item), (uint8_t)(flags & ~ITEM_KEPT_APART));
             set_battle_steal_outcome(g, STEAL_ITEM_TAKEN | STEAL_KEPT_BY_MEMBER);
             return;
         }
@@ -94,14 +112,12 @@ static void give_stolen(GameState *g, uint8_t item)
 StealOutcome effect_steal(GameState *g, uint8_t chance)
 {
     set_battle_steal_outcome(g, STEAL_STARTED);
+    /* trebled in a byte: a chance over 85 runs round to a small one */
     if (effect_actor_stat(g, STAT_ACCESSORY) == THIEFS_ACCESSORY)
         chance = (uint8_t)(chance * 3);
     uint8_t drawn = battle_random(g, 0, 100);
-    if (drawn > chance) {
-        leave_outcome(g, STEAL_OUTCOME_MISSED);
-        set_battle_steal_outcome(g, STEAL_OUTCOME_MISSED);
-        return STEAL_MISSED;
-    }
+    if (drawn > chance)
+        return came_out(g, STEAL_MISSED);
     uint8_t target = battle_effect_target(g);
     ORIGINAL_EFFECT(battle_leave_word(g, ENEMY_PLACE_CELL, target));
     uint8_t enemy = combatant_id(g, target);
@@ -117,14 +133,10 @@ StealOutcome effect_steal(GameState *g, uint8_t chance)
         item = items.dropped;
     } else
         item = NO_ITEM;
-    if (item == NO_ITEM) {
-        leave_outcome(g, STEAL_OUTCOME_NOTHING);
-        set_battle_steal_outcome(g, STEAL_OUTCOME_NOTHING);
-        return STEAL_NOTHING;
-    }
+    if (item == NO_ITEM)
+        return came_out(g, STEAL_NOTHING);
     set_battle_steal_outcome(g, STEAL_ITEM_TAKEN);
     ORIGINAL_EFFECT(battle_leave_byte(g, ITEM_TAKEN_CELL, item));
     give_stolen(g, item);
-    leave_outcome(g, 0);
-    return STEAL_TOOK;
+    return came_out(g, STEAL_TOOK);
 }

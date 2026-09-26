@@ -9336,7 +9336,6 @@ size = 11
 count = 13
 stride = 11
 index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
-unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then the turn), a column per battle slot"
 source = "game/battle/timers.c battle_tick_timers $C1:8231, battle_dispatch_expired_timers $C1:8290; the kinds' handlers from the table at $C1:B92D"
@@ -9439,7 +9438,7 @@ name = "battle_character_slot"
 addr = "7E:B1BE"
 count = 7
 index = "character"
-unchecked = "the party's working out reads the slot of each part's member before it asks whether there is one, and so of the id $FF past the table (game/battle/party_work.c, $C1:D601)"
+unchecked = "a part of a party tech with no member: the original reads the slot of the id $FF past the table, and ends the tech where that byte is $FF too, which the port's guard asks (game/battle/party_work.c no_member_ends_the_tech, $C1:D601)"
 subsystem = "battle"
 meaning = "The battle slot each character fights in, as the timers' order is drawn"
 source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
@@ -14484,10 +14483,10 @@ addr = "7E:AE5A"
 count = 11
 index = "battle slot"
 reuses = "battle_member_updating"
-unchecked = "a steal reads the marks of the target the work is at, which a fuzzed list can put past the combatants (game/battle/effect_modifiers.c, $C1:EA29)"
+unchecked = "a steal reads the marks of the target the work is at, which a fuzzed list can put past the combatants (game/battle/effect_steal.c, $C1:EA29)"
 subsystem = "battle"
-meaning = "What an enemy still has to steal: bit 7 its rare item, bit 6 its common one"
-source = "game/battle/effect_modifiers.c ($C1:EA29)"
+meaning = "What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and third slots' (the party's) are also battle_tech_mp_compared"
+source = "game/battle/effect_steal.c ($C1:EA29)"
 
 [[var]]
 name = "battle_action_modifier_kept"
@@ -14511,6 +14510,15 @@ addr = "7E:B3BF"
 subsystem = "battle"
 meaning = "How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF nothing to take"
 source = "game/battle/effect_steal.c ($C1:E9D5, $FD:B655)"
+
+[[var]]
+name = "battle_tech_mp_compared"
+addr = "7E:AE5B"
+size = 2
+reuses = "battle_steal_marks"
+subsystem = "battle"
+meaning = "The MP of the last member whose MP the party tech's check compared with what their part costs, left over the second and third combatants' steal marks"
+source = "game/battle/party_work.c ($C1:D797)"
 
 [[var]]
 name = "battle_tech_members"
@@ -14617,7 +14625,6 @@ size = 11
 count = 13
 stride = 11
 index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
-unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "How many more times each combatant's status timer runs out before the status wears off (or, for magic regained, before it regains): counted down, and set back to 10 when it gets there"
 source = "game/battle/status_timers.c, the kinds' handlers ($C1:8876-$C1:8C08)"
@@ -14629,7 +14636,6 @@ size = 11
 count = 12
 stride = 11
 index = "kind of timer (0-11, the timed statuses); a byte a battle slot"
-unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "How long each combatant's status timers run once a status starts them; the turn's are battle_turn_wait"
 source = "game/battle/effect_statuses.c ($C1:E006)"

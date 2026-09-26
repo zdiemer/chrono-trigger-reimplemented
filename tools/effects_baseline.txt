@@ -47,8 +47,8 @@ game/battle/effect_paths.c cell battle_effect_cells[9] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[0] battle_effect_cells only
 game/battle/effect_paths.c cell_word battle_effect_cells[1] battle_effect_cells only
 game/battle/effect_work.c effect_kind_ported battle_low_scratch[27] battle_low_scratch # the entries' guard: a drain is turned away where the byte the original reads its stat's offset's high byte from isn't clear (the game leaves it clear)
-game/battle/effect_modifiers.c by_the_clock battle_low_scratch[0] battle_low_scratch # the clock's slip reads the direct page's first word where the damage is meant: a party tech's or item's work keeps that word plainly before any part runs (party_work.c, BATTLE_CLOCK_READS), and so do the healing and the steal's giving after; no enemy action's own modifier is the clock's
-game/battle/effect_modifiers.c by_the_clock battle_low_scratch[1] battle_low_scratch # as the first byte: the word is kept plainly by the party's work before any part runs
+game/battle/battle.h battle_clock_word battle_low_scratch[0] battle_low_scratch # the clock's slip reads the direct page's first word where the damage is meant: a party tech's or item's work keeps that word plainly before any part runs (party_work.c, BATTLE_CLOCK_READS), and so do the healing and the steal's giving after; no enemy action's own modifier is the clock's
+game/battle/battle.h battle_clock_word battle_low_scratch[1] battle_low_scratch # as the first byte: the word is kept plainly by the party's work before any part runs
 game/battle/effect_work.c hit_repeatedly battle_hits_left battle_hits_left # the repeated hits set their count themselves before they read it (the party's MP check leaves its member there as scaffolding, which this never reads)
 game/battle/enemy_scripts.c battle_enemy_find_reactions battle_enemy_turn battle_enemy_turn
 game/battle/enemy_scripts.c battle_enemy_find_script_place battle_enemy_turn battle_enemy_turn

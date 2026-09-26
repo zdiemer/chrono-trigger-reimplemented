@@ -4835,11 +4835,14 @@
 #define RAM_BATTLE_TARGET_BITS_KEPT 0x7EAE58u
 /* The party member the loop's per-member checks are at (3 once they are done) */
 #define RAM_BATTLE_MEMBER_UPDATING 0x7EAE5Au
-/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one [11 x $1 bytes, by
- * battle slot] */
+/* What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and
+ * third slots' (the party's) are also battle_tech_mp_compared [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STEAL_MARKS 0x7EAE5Au
 #define RAM_BATTLE_STEAL_MARKS_COUNT 11u
 #define RAM_BATTLE_STEAL_MARKS_STRIDE 0x01u
+/* The MP of the last member whose MP the party tech's check compared with what their part costs,
+ * left over the second and third combatants' steal marks [2 bytes] */
+#define RAM_BATTLE_TECH_MP_COMPARED 0x7EAE5Bu
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
  * place of the one it replaces [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PLACES 0x7EAE6Du

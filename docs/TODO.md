@@ -382,6 +382,22 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+- **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
+  battle chunk 5"). A build without the original's memory has to decide each:
+  - a status's timer of nobody's: the search for run-out timers takes the
+    order's empty place (`$FF`) for a combatant and reads its state past the
+    kind's row (`timers.c`, `has_run_out`, the one read); the handler for it
+    is the original's, which works past every table it touches, a real
+    timer's length among them (the entries' guards turn it away: the evading
+    much better's, 4 calls over the library, `gato-battle` and
+    `endings-telepod-lavos`);
+  - a party tech's part with no member: the original reads the slot of the
+    id `$FF` past the character slots (`$7E:B2BD`) and ends the tech only
+    where that byte is `$FF` (the guard asks, `no_member_ends_the_tech`);
+  - after a part that missed, the tech stops where bit 7 is set in the byte
+    of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
+    reads where the tech's record is meant (`party_work.c`,
+    `stops_after_miss`, through `wram_read8`).
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:

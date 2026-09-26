@@ -6853,14 +6853,21 @@ uint8_t battle_member_updating(const GameState *g);
 void set_battle_member_updating(GameState *g, uint8_t v);
 
 enum { BATTLE_STEAL_MARKS_COUNT = 11 };   /* by battle slot */
-/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one */
+/* What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and
+ * third slots' (the party's) are also battle_tech_mp_compared */
 uint8_t battle_steal_marks(const GameState *g, unsigned slot);
 void set_battle_steal_marks(GameState *g, unsigned slot, uint8_t v);
-/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one Unchecked, for
- * marked scaffolding only: a steal reads the marks of the target the work is at, which a fuzzed
- * list can put past the combatants (game/battle/effect_modifiers.c, $C1:EA29) */
+/* What an enemy still has to steal: bit 7 its charm, bit 6 the item it drops. The second and
+ * third slots' (the party's) are also battle_tech_mp_compared Unchecked, for marked scaffolding
+ * only: a steal reads the marks of the target the work is at, which a fuzzed list can put past
+ * the combatants (game/battle/effect_steal.c, $C1:EA29) */
 uint8_t battle_steal_marks_unchecked(const GameState *g, unsigned slot);
 void set_battle_steal_marks_unchecked(GameState *g, unsigned slot, uint8_t v);
+
+/* The MP of the last member whose MP the party tech's check compared with what their part costs,
+ * left over the second and third combatants' steal marks */
+uint16_t battle_tech_mp_compared(const GameState *g);
+void set_battle_tech_mp_compared(GameState *g, uint16_t v);
 
 enum { BATTLE_PLACES_COUNT = 11 };   /* by battle slot */
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
@@ -7108,13 +7115,6 @@ enum { BATTLE_TIMER_COUNTS_COUNT = 13 };   /* by kind of timer (0-11 the timed s
 enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
-/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
- * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, for marked
- * scaffolding only: a status's timer found run out at the order's empty place ($FF) is seen to
- * for that slot, past the kind's row, as the original's handlers do
- * (game/battle/status_timers.c) */
-uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at);
-void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_FLAGS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
 /* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
@@ -7138,13 +7138,6 @@ enum { BATTLE_TIMER_RUNS_LEFT_COUNT = 13 };   /* by kind of timer (0-11 the time
 enum { BATTLE_TIMER_RUNS_LEFT_BYTES = 11 };
 uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
-/* How many more times each combatant's status timer runs out before the status wears off (or,
- * for magic regained, before it regains): counted down, and set back to 10 when it gets there
- * [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's timer found run
- * out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the
- * original's handlers do (game/battle/status_timers.c) */
-uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at);
-void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed statuses); a byte a battle slot */
 /* How long each combatant's status timers run once a status starts them; the turn's are
@@ -7152,12 +7145,6 @@ enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed
 enum { BATTLE_TIMER_LENGTHS_BYTES = 11 };
 uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
-/* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's
- * timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's
- * row, as the original's handlers do (game/battle/status_timers.c) */
-uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at);
-void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */
@@ -7247,8 +7234,9 @@ enum { BATTLE_CHARACTER_SLOT_COUNT = 7 };   /* by character */
 uint8_t battle_character_slot(const GameState *g, unsigned i);
 void set_battle_character_slot(GameState *g, unsigned i, uint8_t v);
 /* The battle slot each character fights in, as the timers' order is drawn Unchecked, for marked
- * scaffolding only: the party's working out reads the slot of each part's member before it asks
- * whether there is one, and so of the id $FF past the table (game/battle/party_work.c, $C1:D601) */
+ * scaffolding only: a part of a party tech with no member: the original reads the slot of the id
+ * $FF past the table, and ends the tech where that byte is $FF too, which the port's guard asks
+ * (game/battle/party_work.c no_member_ends_the_tech, $C1:D601) */
 uint8_t battle_character_slot_unchecked(const GameState *g, unsigned i);
 void set_battle_character_slot_unchecked(GameState *g, unsigned i, uint8_t v);
 

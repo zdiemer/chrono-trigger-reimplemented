@@ -26,20 +26,17 @@
 #include "charge.h"
 #include "wram.h"
 
-/* The battle slot a character fights in; an id of none reads past the table,
- * as the original's does (a single tech's parts after the first are none, and
- * so is their member). */
+/* The battle slot a character fights in, none where it isn't in the battle.
+ * A part with no member ends the tech: the original reads the slot of the
+ * id of none past the table and ends where that byte is none too, which the
+ * entry's guard makes sure of (the only place the port reads it). */
 enum { NO_SLOT = 0xFF };
 
-static uint8_t slot_of(const GameState *g, uint8_t character)
-{
-    return character < BATTLE_CHARACTER_SLOT_COUNT ? battle_character_slot(g, character)
-                                                   : battle_character_slot_unchecked(g, character);
-}
+static uint8_t slot_of(const GameState *g, uint8_t character) { return battle_character_slot(g, character); }
 
-/* The original finds a tech's and an effect's record by multiplying, whose
- * cells the battle's next arithmetic takes up (battle/arith.h). */
-static void find_tech_record(GameState *g, uint8_t tech) { (void)effect_times(g, tech, PARTY_TECH_BYTES); }
+/* The original finds the tech's record by a multiply, whose cells the
+ * battle's next arithmetic takes up (battle/arith.h). */
+static void multiply_out_tech_place(GameState *g, uint8_t tech) { (void)effect_times(g, tech, PARTY_TECH_BYTES); }
 
 /* ---- Whether the members can take part ------------------------------------------------------- */
 
@@ -64,36 +61,36 @@ static uint16_t mp_of(const GameState *g, uint8_t slot)
     return (uint16_t)(combatant_stat_byte(g, slot, STAT_MP) | combatant_stat_byte(g, slot, STAT_MP + 1) << 8);
 }
 
-/* The check leaves each member's MP over the second and third combatants'
- * steal marks, the word the original compares with: a party member's marks,
- * which a steal reads only where it is aimed at the party. */
-static void leave_mp_compared(GameState *g, uint16_t mp)
-{
-    set_battle_steal_marks(g, 1, (uint8_t)mp);
-    set_battle_steal_marks(g, 2, (uint8_t)(mp >> 8));
-}
-
 /* A member can take part where nothing keeps them from techs and they have
  * the MP for their part: more MP than it costs, and not kept from techs by
  * their status; exactly as much, whatever their status (the original's
- * test, kept). The original keeps the member it is at in the cell the hits
- * repeated count, and the member's slot in the division's remainder: what
- * it leaves there is scaffolding. */
-enum { REMAINDER_CELL = 10 };
-
-static bool member_takes_part(GameState *g, uint8_t tech, const PartyTech *t, unsigned part, uint8_t slot)
+ * test, kept). */
+static bool member_takes_part(const GameState *g, const PartyTech *t, unsigned part, uint8_t slot)
 {
     if (battle_member_disabled(g, slot))
         return false;
-    ORIGINAL_EFFECT(set_battle_wide_math(g, REMAINDER_CELL, slot));
-    ORIGINAL_EFFECT(set_battle_wide_math(g, REMAINDER_CELL + 1, 0));
-    find_tech_record(g, tech);
     uint8_t cost = mp_cost_with(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
     uint16_t mp = mp_of(g, slot);
-    leave_mp_compared(g, mp);
-    if (cost != mp && (cost > mp || (combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_NO_TECHS)))
-        return false;
-    return true;
+    return cost == mp || (cost < mp && !(combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_NO_TECHS));
+}
+
+/* What the check leaves as it ends: the MP of the last member whose MP it
+ * compared, kept in the word the original compares with
+ * (battle_tech_mp_compared, which a steal aimed at the party reads as that
+ * member's marks), with the multiply the original found the MP's cost by; and
+ * as scaffolding, the part it stopped at in the cell the hits repeated count,
+ * and that member's slot in the division's remainder. */
+enum { WIDE_REMAINDER = 10, NOBODY_COMPARED = 0xFF };
+
+static void leave_check(GameState *g, uint8_t tech, unsigned stopped_at, uint8_t compared)
+{
+    ORIGINAL_EFFECT(set_battle_hits_left(g, (uint8_t)stopped_at));
+    if (compared == NOBODY_COMPARED)
+        return;
+    ORIGINAL_EFFECT(set_battle_wide_math(g, WIDE_REMAINDER, compared));
+    ORIGINAL_EFFECT(set_battle_wide_math(g, WIDE_REMAINDER + 1, 0));
+    multiply_out_tech_place(g, tech);
+    set_battle_tech_mp_compared(g, mp_of(g, compared));
 }
 
 // $C1:D74F
@@ -103,17 +100,21 @@ enum { ALL_TAKE_PART = 0x00, NOT_ALL_TAKE_PART = 0xFF };
 
 static bool members_can_take_part(GameState *g, uint8_t tech, const PartyTech *t)
 {
-    for (unsigned part = 0; part < TECH_MEMBERS; part++) {
-        ORIGINAL_EFFECT(set_battle_hits_left(g, (uint8_t)part));
+    unsigned part;
+    uint8_t compared = NOBODY_COMPARED;
+    bool all = true;
+    for (part = 0; part < TECH_MEMBERS && all; part++) {
         uint8_t member = battle_tech_members(g, part);
-        if (member != NO_MEMBER && !member_takes_part(g, tech, t, part, slot_of(g, member))) {
-            set_battle_tech_blocked(g, NOT_ALL_TAKE_PART);
-            return false;
-        }
+        if (member == NO_MEMBER)
+            continue;
+        uint8_t slot = slot_of(g, member);
+        if (!battle_member_disabled(g, slot))
+            compared = slot;
+        all = member_takes_part(g, t, part, slot);
     }
-    ORIGINAL_EFFECT(set_battle_hits_left(g, TECH_MEMBERS));
-    set_battle_tech_blocked(g, ALL_TAKE_PART);
-    return true;
+    leave_check(g, tech, all ? TECH_MEMBERS : part - 1, compared);
+    set_battle_tech_blocked(g, all ? ALL_TAKE_PART : NOT_ALL_TAKE_PART);
+    return all;
 }
 
 /* ---- Aiming a member's attack ---------------------------------------------------------------- */
@@ -170,36 +171,38 @@ static bool aim_at_an_enemy(GameState *g)
 /* The part's effect copied where the kinds read it; once its member is known
  * to be in the battle, its modifier and flags taken, with the tech's
  * can't-miss and can't-be-turned-away. */
-static void copy_effect(GameState *g, uint8_t effect)
+static EffectRecord copy_effect(GameState *g, uint8_t effect)
 {
     set_battle_effect_record_place(g, effect_times(g, effect, EFFECT_RECORD_BYTES));
+    uint8_t bytes[EFFECT_RECORD_BYTES];
+    party_effect_bytes(g, effect, bytes);
     for (unsigned n = 0; n < EFFECT_RECORD_BYTES; n++)
-        set_battle_effect_record(g, n, party_effect_byte(g, effect, n));
+        set_battle_effect_record(g, n, bytes[n]);
+    return party_effect_record(g, effect);
 }
 
-static void take_flags(GameState *g, uint8_t modifier, uint8_t sure)
+static void take_flags(GameState *g, const EffectRecord *e, uint8_t modifier, uint8_t sure)
 {
     set_battle_effect_modifier(g, modifier);
     // $C1:EB0E
-    set_battle_effect_flags(g, 0, (uint8_t)(battle_effect_record(g, 7) | sure));
-    set_battle_effect_flags(g, 1, battle_effect_record(g, 8));
+    set_battle_effect_flags(g, 0, (uint8_t)(e->flags | sure));
+    set_battle_effect_flags(g, 1, e->more_flags);
 }
 
 /* How the tech marks those it acts on, with its member's slot, and what it is,
  * for the action's showing and the enemies' scripts; an attack's showing is
- * its effect's own (the record's sixth byte, less one). A tech's further
- * members are its further targets for the showing: none past the first
- * missing, the rest left as they were. */
-enum { SHOWING_BYTE = 5 };
-
-static void note_the_part(GameState *g, const PartyTech *t, uint8_t tech, uint8_t actor, bool attack)
+ * numbered by its effect's damage formula, less one. A tech's further members
+ * are its further targets for the showing: none past the first missing, the
+ * rest left as they were. */
+static void note_the_part(GameState *g, const PartyTech *t, const EffectRecord *e, uint8_t tech, uint8_t actor,
+                          bool attack)
 {
     set_battle_action_actor_bits(g, (uint8_t)(t->marks | actor));
     set_battle_action_tech_hits(g, attack ? 0 : tech);
     set_battle_action_elements(g, t->elements);
     set_battle_action_step(g, 0);
     if (attack)
-        set_battle_action_what(g, (uint8_t)(battle_effect_record(g, SHOWING_BYTE) - 1));
+        set_battle_action_what(g, (uint8_t)(e->damage.formula - 1));
     for (unsigned further = 0; further < BATTLE_ACTION_FURTHER_TARGETS_COUNT; further++) {
         uint8_t member = battle_tech_members(g, 1 + further);
         set_battle_action_further_targets(g, further, member == NO_MEMBER ? NO_CANDIDATE : slot_of(g, member));
@@ -222,7 +225,7 @@ static void clear_part_marks(GameState *g)
 /* After a part that missed, the tech stops where a byte of work RAM has bit 7:
  * the original reads it by the tech's record's offset in the wrong bank, where
  * the record's last byte is meant, and so reads whatever the battle's work RAM
- * holds there. */
+ * holds there. Only the original's memory has that byte (docs/TODO.md). */
 enum { STOPS_AT_MISS = 0x80, MISREAD_BASE = 0x7EB1F5 };
 
 static bool stops_after_miss(const GameState *g, uint8_t tech)
@@ -235,21 +238,22 @@ static bool stops_after_miss(const GameState *g, uint8_t tech)
 static TechOutcome work_out_part(GameState *g, Platform *pf, const PartyTech *t, uint8_t tech, unsigned part,
                                  uint8_t sure)
 {
-    copy_effect(g, t->effects[part]);
-    uint8_t actor = slot_of(g, battle_tech_members(g, part));
+    EffectRecord e = copy_effect(g, t->effects[part]);
+    uint8_t member = battle_tech_members(g, part);
+    uint8_t actor = member == NO_MEMBER ? NO_SLOT : slot_of(g, member);
     if (actor == NO_SLOT)
         return TECH_MEMBER_ABSENT;
     ORIGINAL_EFFECT(set_battle_tech_performer(g, actor));
-    take_flags(g, t->modifiers[part], sure);
+    take_flags(g, &e, t->modifiers[part], sure);
     set_battle_actor(g, actor);
     if (actor < BATTLE_PARTY_SIZE) {
         bool attack = battle_action_type(g) != ACTION_TECH;
         if (attack && !aim_at_an_enemy(g))
             return TECH_NOTHING_TO_AIM_AT;
-        note_the_part(g, t, tech, actor, attack);
+        note_the_part(g, t, &e, tech, actor, attack);
     }
     clear_part_marks(g);
-    effect_run_kind(g, pf, (EffectKind)battle_effect_record(g, 0));
+    effect_run_kind(g, pf, (EffectKind)e.kind);
     set_battle_effect_tally(g, (uint8_t)(battle_effect_tally(g) + 1));
     return stops_after_miss(g, tech) ? TECH_STOPPED_AT_MISS : TECH_WORKED_OUT;
 }
@@ -325,13 +329,12 @@ static TechOutcome work_out_tech(GameState *g, Platform *pf)
 // $C1:BF46
 /* The original leaves where it found the item's use in the direct page's
  * first word, which the clock's modifier may read (battle.h). */
-enum { ITEM_USE_PLACE = 0x05CC };
 
 void effect_use_item(GameState *g, Platform *pf)
 {
     uint8_t item = battle_action_detail(g);
     uint8_t use = item_use(g, item);
-    battle_keep_word(g, BATTLE_CLOCK_READS, (uint16_t)(ITEM_USE_PLACE + (uint8_t)(item << 2)));
+    battle_keep_word(g, BATTLE_CLOCK_READS, item_use_place(item));
     if (use & ITEM_USE_RESTORES)
         effect_run_kind(g, pf, EFFECT_ITEM_RESTORE);
     else if (use & ITEM_USE_CURES)
@@ -361,10 +364,18 @@ static bool members_in_party(const GameState *g, const PartyTech *t)
 {
     for (unsigned part = 0; part < TECH_MEMBERS; part++) {
         uint8_t member = tech_member(g, t->members, part);
-        if (member != NO_MEMBER && slot_of(g, member) >= BATTLE_PARTY_SIZE)
+        if (member != NO_MEMBER && (member >= BATTLE_CHARACTER_SLOT_COUNT || slot_of(g, member) >= BATTLE_PARTY_SIZE))
             return false;
     }
     return true;
+}
+
+/* A part with no member: the original reads the slot of the id of none, the
+ * byte past the character slots, and ends the tech where it is none; any
+ * other it takes as the part's member's. */
+static bool no_member_ends_the_tech(const GameState *g)
+{
+    return battle_character_slot_unchecked(g, NO_MEMBER) == NO_SLOT;
 }
 
 static bool parts_ported(const GameState *g, const PartyTech *t)
@@ -374,12 +385,14 @@ static bool parts_ported(const GameState *g, const PartyTech *t)
         uint8_t effect = t->effects[part];
         if (effect & NO_PART)
             continue;
-        uint8_t actor = slot_of(g, tech_member(g, t->members, part));
+        uint8_t member = tech_member(g, t->members, part);
+        if (member == NO_MEMBER)
+            return no_member_ends_the_tech(g);
+        uint8_t actor = slot_of(g, member);
         if (actor == NO_SLOT)
             return true;
-        if (actor >= BATTLE_COMBATANTS
-            || !effect_kind_ported(g, actor, party_effect_byte(g, effect, 0), (uint8_t)(party_effect_byte(g, effect, 7) | sure),
-                                   party_effect_byte(g, effect, 8), t->modifiers[part]))
+        EffectRecord e = party_effect_record(g, effect);
+        if (!effect_kind_ported(g, actor, e.kind, (uint8_t)(e.flags | sure), e.more_flags, t->modifiers[part]))
             return false;
     }
     return true;
@@ -402,7 +415,9 @@ bool battle_work_out_member_tech_ready(Snes *s)
 }
 
 /* The work hands back A's high byte clear, and the carry set but where it
- * stopped at a miss: then the carry the part's kind left (battle/entries.h). */
+ * stopped at a miss: then the carry the part's kind left (battle/entries.h).
+ * The member's turn next finds the tech's MP cost by a multiply, which keeps
+ * the carry it comes in with in its second number's cell ($C1:BBFA). */
 void battle_work_out_member_tech(Snes *s)
 {
     GameState *g = state_of(s);

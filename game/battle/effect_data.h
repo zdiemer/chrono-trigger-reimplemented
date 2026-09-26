@@ -184,10 +184,19 @@ static inline uint8_t tech_member(const GameState *g, uint8_t members, unsigned 
     return rom_read8(g, 0xCC249Fu + (uint32_t)(members * TECH_MEMBERS) + part);
 }
 
-/* $CC:213F: a party effect's record, twelve bytes as the enemies' are. */
-static inline uint8_t party_effect_byte(const GameState *g, uint8_t effect, unsigned n)
+/* $CC:213F: a party effect's record, twelve bytes as the enemies' are: as the
+ * work copies it, and decoded for the kind it is. */
+static inline void party_effect_bytes(const GameState *g, uint8_t effect, uint8_t out[EFFECT_RECORD_BYTES])
 {
-    return rom_read8(g, 0xCC213Fu + (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
+    for (unsigned n = 0; n < EFFECT_RECORD_BYTES; n++)
+        out[n] = rom_read8(g, 0xCC213Fu + (uint32_t)(effect * EFFECT_RECORD_BYTES) + n);
+}
+
+static inline EffectRecord party_effect_record(const GameState *g, uint8_t effect)
+{
+    uint8_t bytes[EFFECT_RECORD_BYTES];
+    party_effect_bytes(g, effect, bytes);
+    return effect_record_decode(bytes, bytes[0]);
 }
 
 /* $CC:253B: what a part's effect costs its member in MP. */
@@ -205,9 +214,11 @@ typedef struct {
     uint8_t dropped, charm;
 } EnemyItems;
 
+enum { ENEMY_REWARD_BYTES = 7 };
+
 static inline EnemyItems enemy_items(const GameState *g, uint8_t enemy)
 {
-    uint32_t at = 0xCC5E00u + (uint32_t)(enemy * 7);
+    uint32_t at = 0xCC5E00u + (uint32_t)(enemy * ENEMY_REWARD_BYTES);
     return (EnemyItems){ rom_read8(g, at + 4), rom_read8(g, at + 5) };
 }
 
@@ -236,10 +247,14 @@ static inline uint8_t item_healing_byte(const GameState *g, uint8_t item, unsign
 }
 
 /* $CC:05CC: the byte before an item's healing, which says what using it in
- * battle does: restore, cure, or give a status (found as the healing is). */
+ * battle does: restore, cure, or give a status. Its place in the bank is found
+ * as the healing's is, by the item's number times four in a byte (so the
+ * items from 64 on read the first ones' again). */
 enum { ITEM_USE_RESTORES = 0x80, ITEM_USE_GIVES_STATUS = 0x40, ITEM_USE_CURES = 0x04 };
+enum { ITEM_RECORDS_BANK = 0xCC0000u, ITEM_RECORDS_PLACE = 0x05CC };
 
-static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_read8(g, 0xCC05CCu + (uint8_t)(item << 2)); }
+static inline uint16_t item_use_place(uint8_t item) { return (uint16_t)(ITEM_RECORDS_PLACE + (uint8_t)(item << 2)); }
+static inline uint8_t item_use(const GameState *g, uint8_t item) { return rom_read8(g, ITEM_RECORDS_BANK | item_use_place(item)); }
 
 /* $CC:0ABC and $CC:1BB5: the items from $BC on have a record of three bytes,
  * whose first byte's bit 7 says a party member who steals one keeps it apart

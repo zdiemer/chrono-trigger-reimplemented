@@ -7930,6 +7930,22 @@ steal's edges.
 member's tech 22,647, the item 21,593, the inventory's add 20,514; the steal
 kind, which no movie reaches, takes the hit's.
 
+**After the review.** A sentinel no longer flows through plain logic as a
+bare byte (rubric item 103). The search for run-out timers says whose timer
+it found as a `TimerOwner`, nobody where it took the order's empty place, and
+the handlers' guards leave nobody's to the original again (the evading much
+better's 4 calls over the library): the only read past the kinds' rows left
+is the search's own, in one place. A party tech's part with no member ends
+the tech in the logic; the byte the original reads for it past the character
+slots is asked in the guard alone. Both, and the tech's misread byte, are in
+docs/TODO.md's "What only the original's memory has, in the battle". The
+party's effects are records (`party_effect_record`, `.kind`, `.flags`, an
+attack's showing its `damage.formula`), the clock's word has a reader and its
+four writers listed (`battle_clock_word`, battle.h), the timed statuses' bits
+are one table (`battle_timed_status`, timers.c) that the combatants' timers
+and the handlers share, and the MP check writes what it leaves once, as it
+ends (`battle_tech_mp_compared`, the steal marks' second use).
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

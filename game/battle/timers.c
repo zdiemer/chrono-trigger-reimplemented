@@ -16,36 +16,44 @@
 
 enum { TIMER_RUNNING = 0x01, TIMER_RUN_OUT = 0x80, TIMER_STOPPED = 0 };
 
-/* A slot past the combatants (the order's empty place) reaches past the kind's
- * row, as the original's indexed accesses do (battle/timers.h). */
-static bool in_row(unsigned slot) { return slot < BATTLE_COMBATANTS; }
+/* The status bits the kinds time: the first status byte in the low byte, the
+ * fourth in the high (battle/combatant.h). Kind 11 follows the third byte's
+ * $02, whose meaning isn't worked out. */
+static const Statuses timed_status[BATTLE_TIMER_KINDS] = {
+    [BATTLE_TIMER_STOP] = STATUS_STOP,
+    [BATTLE_TIMER_POISON] = STATUS_POISON,
+    [BATTLE_TIMER_SLOW] = STATUS_SLOW,
+    [BATTLE_TIMER_HASTE] = (Statuses)STATUS3_HASTE << 16,
+    [BATTLE_TIMER_EVASION] = (Statuses)STATUS3_EVADES_MUCH_BETTER << 16,
+    [BATTLE_TIMER_SHIELD] = (Statuses)STATUS4_SHIELD << 24,
+    [BATTLE_TIMER_HP_LOSS] = STATUS_LOSES_HP,
+    [BATTLE_TIMER_MP_REGAIN] = (Statuses)STATUS4_REGAINS_MP << 24,
+    [BATTLE_TIMER_BARRIER] = (Statuses)STATUS4_BARRIER << 24,
+    [BATTLE_TIMER_11] = 0x00020000,
+};
+
+Statuses battle_timed_status(BattleTimer kind) { return timed_status[kind]; }
 
 static uint8_t timer_state(const GameState *g, BattleTimer timer, unsigned slot)
 {
-    return in_row(slot) ? battle_timer_flags_byte(g, timer, slot) : battle_timer_flags_byte_unchecked(g, timer, slot);
+    return battle_timer_flags_byte(g, timer, slot);
 }
 static void set_timer_state(GameState *g, BattleTimer timer, unsigned slot, uint8_t state)
 {
-    if (in_row(slot))
-        set_battle_timer_flags_byte(g, timer, slot, state);
-    else
-        set_battle_timer_flags_byte_unchecked(g, timer, slot, state);
+    set_battle_timer_flags_byte(g, timer, slot, state);
 }
 static uint8_t timer_count(const GameState *g, BattleTimer timer, unsigned slot)
 {
-    return in_row(slot) ? battle_timer_counts_byte(g, timer, slot) : battle_timer_counts_byte_unchecked(g, timer, slot);
+    return battle_timer_counts_byte(g, timer, slot);
 }
 static void set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
 {
-    if (in_row(slot))
-        set_battle_timer_counts_byte(g, timer, slot, count);
-    else
-        set_battle_timer_counts_byte_unchecked(g, timer, slot, count);
+    set_battle_timer_counts_byte(g, timer, slot, count);
 }
 
 uint8_t battle_timer_length(const GameState *g, BattleTimer timer, unsigned slot)
 {
-    return in_row(slot) ? battle_timer_lengths_byte(g, timer, slot) : battle_timer_lengths_byte_unchecked(g, timer, slot);
+    return battle_timer_lengths_byte(g, timer, slot);
 }
 
 void battle_set_timer_count(GameState *g, BattleTimer timer, unsigned slot, uint8_t count)
@@ -126,16 +134,23 @@ uint8_t battle_timer_order_at(const GameState *g, uint8_t place)
     return place < BATTLE_TIMER_ORDER_COUNT ? battle_timer_order(g, place) : battle_timer_order_unchecked(g, place);
 }
 
-uint8_t battle_timer_found_run_out(const GameState *g, BattleTimer kind)
+TimerOwner battle_timer_found_run_out(const GameState *g, BattleTimer kind)
 {
     uint8_t place = battle_timer_kind_cursors(g, kind);
     if (place == 0)
         place = battle_timer_order_length(g);
-    return battle_timer_order_at(g, (uint8_t)(place - 1));
+    uint8_t slot = battle_timer_order_at(g, (uint8_t)(place - 1));
+    return (TimerOwner){ slot >= BATTLE_COMBATANTS, slot };
 }
 
+/* Whether the timer at a place of the order has run out. The order's empty
+ * place names nobody, whose state the original reads past the kind's row:
+ * only the original's memory has it, and this is the one place the port
+ * reads it (docs/TODO.md). */
 static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
 {
+    if (slot < BATTLE_COMBATANTS)
+        return battle_timer_run_out(g, timer, slot);
     return (battle_timer_flags_byte_unchecked(g, timer, slot) & TIMER_RUN_OUT) != 0;
 }
 
