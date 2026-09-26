@@ -15,6 +15,7 @@
 #include "field/object.h"
 #include "field/party.h"
 #include "field/sprites.h"
+#include "field/walk.h"
 
 #include "field/bridge.h"
 #include "port/machine.h"
@@ -37,10 +38,10 @@ static void nothing_under_way(GameState *g)
 {
     set_field_requests(g, 0);
     set_field_effect_status(g, 0);
-    set_field_menus_locked(g, 0);
-    set_field_pause_locked(g, 0);
+    field_lock_menus(g, false);
+    field_lock_pause(g, false);
     set_field_mode_flags(g, 0);
-    set_field_screen_recentring(g, 0);
+    screen_counts_as_recentred(g);
     set_field_screen_job(g, 0);
     set_field_screen_shake(g, 0);
     set_field_tile_copy_maps(g, 0);
@@ -48,38 +49,31 @@ static void nothing_under_way(GameState *g)
     set_field_map_transition(g, 0);
     set_field_tiles_to_redraw(g, 0);
     set_field_animation_queue_front(g, 0);
-    set_field_idle_frames(g, 0);
+    count_as_on_the_move(g);
     set_field_input_latched(g, 0);
 }
 
-/* The screen dark and plain: no brightness, a black tint on every channel,
- * the per-line effects the field keeps on, the line interrupt working, the
- * effect tables' first set, color math as the field starts it, the windows
- * off and none of their corners marked, and the map's settings for BG3 its
- * own. */
-enum {
-    DARK = 0,
-    BLACK_ON_EVERY_CHANNEL = 0xE0,
-    FIELD_LINE_EFFECTS = 0x5F,
-    FIELD_COLOR_MATH = 0x02,
-    WINDOW_SHADOW_BYTES = 3,
-    NO_WINDOW_MARKED = 0x80,
-};
+/* The screen dark and plain: no brightness, no tint, the per-line effects the
+ * field keeps on, the line interrupt working, the effect tables' first set,
+ * color math as the field starts it, the windows off and none of their
+ * corners marked, the backdrop (the palette's first color) black, and BG3 as
+ * the map gives it. */
+enum { DARK = 0, WINDOW_SHADOW_BYTES = 3, BACKDROP = 0, BLACK = 0 };
 
 static void dark_plain_screen(GameState *g)
 {
     set_field_brightness(g, DARK);
-    set_field_fixed_color(g, BLACK_ON_EVERY_CHANNEL);
-    set_field_line_effect_enable(g, FIELD_LINE_EFFECTS);
-    set_field_irq_disabled(g, 0);
+    set_field_fixed_color(g, FIELD_NO_TINT);
+    set_field_line_effect_enable(g, FIELD_LINE_EFFECTS_KEPT_ON);
+    field_line_interrupt_works(g, true);
     set_field_display_flags(g, 0);
-    set_field_color_math_control(g, FIELD_COLOR_MATH);
+    set_field_color_math_control(g, field_starting_color_math());
     for (unsigned i = 0; i < WINDOW_SHADOW_BYTES; i++)
         set_field_window_shadows_byte(g, i, 0);
-    set_field_window_tile_slot(g, NO_WINDOW_MARKED);
-    set_field_map_has_no_bg3_set(g, 0);
+    set_field_window_tile_slot(g, FIELD_NO_WINDOW_MARKED);
+    field_map_names_a_bg3_set(g, true);
     set_field_bg3_map_size(g, 0);
-    set_palette_base(g, 0, 0);
+    set_palette_base(g, BACKDROP, BLACK);
 }
 
 /* No dialog: none open, no window, no choice, no string table. */
@@ -95,12 +89,12 @@ static void no_dialog(GameState *g)
 
 /* The player has the party, which walks into the map and its objects on the
  * first level, up against nothing; scripts run five commands a frame. */
-enum { COMMANDS_PER_TURN = 5, FIRST_LEVEL = 1 };
+enum { COMMANDS_PER_TURN = 5 };
 
 static void party_to_the_player(GameState *g)
 {
     hand_the_party_to_the_player(g, true);
-    set_field_leader_collides(g, 1);
+    field_leader_meets_the_map(g, true);
     set_field_leader_level(g, FIRST_LEVEL);
     leader_loses_contact(g);
     set_event_commands_per_turn(g, COMMANDS_PER_TURN);
@@ -116,8 +110,7 @@ static void no_objects_yet(GameState *g)
     for (unsigned character = 0; character < FIELD_CHARACTER_OBJECTS_COUNT; character++)
         set_field_character_objects(g, character, field_link_byte(field_no_link()));
     set_field_built_sprite_object(g, field_link_byte(field_no_link()));
-    for (unsigned place = 0; place < PARTY_PLACES; place++)
-        set_field_party_as_loaded(g, place, party_members(g, place));
+    party_taken_as_loaded(g);
 }
 
 /* The sprite tables' first frame hides everything it doesn't draw, and the
@@ -125,8 +118,8 @@ static void no_objects_yet(GameState *g)
 static void sprites_from_scratch(GameState *g)
 {
     sprites_hide_all_next_frame(g);
-    for (unsigned t = 0; t < FIELD_SPRITE_DATA_TABLES; t++)
-        set_field_sprite_data_tables(g, t, (uint32_t)FIELD_SPRITE_DATA_BANK << 16 | field_sprite_data_table(g, t));
+    for (unsigned t = 0; t < FIELD_SPRITE_DATA_TABLES_COUNT; t++)
+        set_field_sprite_data_tables(g, t, field_sprite_data_table(g, t));
 }
 
 /* The sounds the field makes: a switch pressed, a chest opened, and a

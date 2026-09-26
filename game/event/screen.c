@@ -53,8 +53,7 @@ EVENT_OPERATION(wait_for_screen, changes)
  * colour-math setting it applies with -- and its interrupt hands both on each
  * frame; so for now the tint is written in those terms here, the field's
  * vocabulary for it still to come (docs/TODO.md). */
-enum { CHANNELS = 0xE0, STRENGTH = 0x1F };
-enum { NO_TINT = CHANNELS };   /* every channel, no strength */
+enum { CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, STRENGTH = 0x1F };
 
 /* The colour-math setting a tint applies with: over every layer and the
  * sprites, added or taken away. */
@@ -77,8 +76,8 @@ static void take_target_channels(GameState *g)
 static EventFlow tint(GameState *g, uint8_t colour, TintMix mix, uint8_t rate)
 {
     if (colour == 0) {
-        set_field_fixed_color_target(g, NO_TINT);
-        set_field_fixed_color(g, NO_TINT);
+        set_field_fixed_color_target(g, FIELD_NO_TINT);
+        set_field_fixed_color(g, FIELD_NO_TINT);
         set_field_fixed_color_math_layers(g, field_color_math_layers(g));
         return next_command_after(2);
     }

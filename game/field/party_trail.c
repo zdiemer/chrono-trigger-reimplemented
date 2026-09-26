@@ -212,7 +212,7 @@ static void face_the_way(GameState *g, FieldObject obj, Pose p)
 }
 
 /* On the move, the party isn't standing about. */
-static void count_as_on_the_move(GameState *g) { set_field_idle_frames(g, 0); }
+void count_as_on_the_move(GameState *g) { set_field_idle_frames(g, 0); }
 
 /* The leader running with the pad but held where it is (against a wall, a
  * shut door) runs on the spot; not where a moving floor carries it. */

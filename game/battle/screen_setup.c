@@ -14,11 +14,13 @@
 #include "battle/screen.h"
 
 #include "original_effects.h"
+#include "platform/video.h"
 
 /* A color-math value: the channels it applies to in the top three bits and the
  * intensity in the low five. The tables step the intensity in 1/256ths of a
  * level, and each entry takes the whole part. */
-enum { ALL_CHANNELS = 0xE0, INTENSITY_FRACTION_BITS = 8, INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
+enum { ALL_CHANNELS = VID_LINE_FIXED_COLOR_ALL_CHANNELS, INTENSITY_FRACTION_BITS = 8,
+       INTENSITY_ONE = 1 << INTENSITY_FRACTION_BITS };
 
 static uint8_t color_math_value(uint16_t intensity) { return (uint8_t)(ALL_CHANNELS | intensity >> INTENSITY_FRACTION_BITS); }
 

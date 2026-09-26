@@ -54,17 +54,6 @@ enum {
 };
 
 /* The eight effects, in the order of their tables within a set. */
-enum {
-    SLOT_BG_MAPS,
-    SLOT_BG1_SCROLL,
-    SLOT_BG2_SCROLL,
-    SLOT_BG3_SCROLL,
-    SLOT_SCREENS,
-    SLOT_WINDOW1,
-    SLOT_COLOR_MATH,
-    SLOT_WINDOW2,
-    SLOTS,
-};
 
 /* A table being written: which one, and the offset of its next entry. */
 typedef struct {

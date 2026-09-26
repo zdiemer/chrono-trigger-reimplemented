@@ -1029,11 +1029,17 @@ below. `python3 tools/timing_census.py` re-runs the census.
     moments); no object the game makes does.
 - **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
-  - `$C0:0C76` hands the location change, the menus, a chest opened, the
-    tile copy and the battle to the original's code (`m_stop_at_own` at
-    `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
-    and the overflow the original has at `$C0:16DC`, which depend on the
-    path into it, so it went with the stop rather than into the logic;
+  - `$C0:0C76` hands the location change, a chest opened, the tile copy and
+    the battle to the original's code (`m_stop_at_own` at `$C0:0C8A` and
+    `$C0:1770`); the location change starts the field again on a fresh stack
+    (`TXS`, then `$C0:0000`), which a port can only hand back; a chest's
+    opening would need A's high byte and the overflow the original has at
+    `$C0:16DC`, which depend on the path into it, so it went with the stop
+    rather than into the logic;
+  - a script's menu (field/menus.c, `field_open_script_menu`) ends by
+    jumping to the fade in (`$C0:2824`), which returns to the main loop
+    itself, so the port stops there; the menus' modes 0, 2, 3 and 6 it opens
+    are named by their numbers until the menus' side names them;
   - the pause and the menus (field/menus.c) call the original's frame wait,
     field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
     lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons

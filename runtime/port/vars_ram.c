@@ -1129,6 +1129,8 @@ uint8_t field_fixed_color_target(const GameState *g) { return r8(g, 0x7E0122u); 
 void set_field_fixed_color_target(GameState *g, uint8_t v) { w8(g, 0x7E0122u, v); }
 uint16_t field_fixed_color_rate(const GameState *g) { return r16(g, 0x7E0123u); }
 void set_field_fixed_color_rate(GameState *g, uint16_t v) { w16(g, 0x7E0123u, v); }
+uint8_t field_script_menu(const GameState *g) { return r8(g, 0x7E0125u); }
+void set_field_script_menu(GameState *g, uint8_t v) { w8(g, 0x7E0125u, v); }
 uint8_t dialog_window_position(const GameState *g) { return r8(g, 0x7E0126u); }
 void set_dialog_window_position(GameState *g, uint8_t v) { w8(g, 0x7E0126u, v); }
 uint8_t dialog_window_state(const GameState *g) { return r8(g, 0x7E0127u); }

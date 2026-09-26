@@ -7,6 +7,10 @@
 #include "snes/system.h"
 
 void field_pause_and_menus(Snes *s);
+/* The menu a script asked for, from the main loop's requests
+ * (field/requests.c): true where it came back to the main loop's caller's
+ * state, false where it stopped. */
+bool field_open_script_menu(Snes *s);
 void field_press_start(Snes *s);
 void field_bring_the_party_back(Snes *s);
 bool field_party_can_come_back(Snes *s);

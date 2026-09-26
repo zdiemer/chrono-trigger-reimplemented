@@ -17,6 +17,8 @@ void leader_walks(GameState *g);
  * which the recentring is under way. */
 bool screen_recentres(GameState *g);
 void screen_recentring_moved(GameState *g);
+/* No recentring under way. */
+void screen_counts_as_recentred(GameState *g);
 
 /* A map's start, after the objects' openings ($C0:9DC3); and whether the
  * port can make it (the openings' entry hands it to the original where not:
