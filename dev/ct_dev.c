@@ -10,7 +10,8 @@
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
- *          [--sound-lockstep-level status|keys|dsp|state] [--scaffold-reads]
+ *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
+ *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--scaffold-reads]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
@@ -79,6 +80,18 @@
  * (dev/sound_state.h), to find where they part. It prints a summary, writes
  * each differing tick to out.txt, and a run that differs exits 1. It needs a
  * run from power-on.
+ * --sound-lockstep-audio exact|host also plays the C driver's writes into a
+ * second S-DSP over the same sound memory and compares its every sample with
+ * the original's (dev/sound_audio.h): exact lands each write where the
+ * original made the same one (a measurement: a difference doesn't fail the run); host
+ * lands a tick's writes where the tick starts, as ct_play's C driver does, to
+ * hear what that changes. --sound-lockstep-wav prefix writes both outputs as
+ * prefix-c.wav and prefix-original.wav.
+ * --sound-driver c plays the C sound driver in the SPC700's place, as ct_play
+ * --sound-driver c does (frontend/sound_host.h). The game's timing is then not
+ * the original's, so a movie drifts; it is for hearing the C driver over a
+ * movie (--wav) and for the host's own check: a run in which anything was
+ * uploaded where the echo was writing exits 1.
  * --shadow-details N describes up to N mismatches in the native report, and
  * apart from them up to N notes (abandoned comparisons, timing), mismatches
  * first (default 16 each, at most 256).
@@ -113,6 +126,8 @@
 #include "px_check.h"
 #include "range_report.h"
 #include "sound_lockstep.h"
+#include "sound_audio.h"
+#include "sound_host.h"
 #include "vid_check.h"
 #include "media.h"
 #include "movie.h"
@@ -421,12 +436,15 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
+    bool c_sound_driver = false;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
     const char *lockstep_path = NULL;
     bool want_vid_check = false, want_px_check = false, want_lockstep = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
+    int audio_timing = -1;
+    const char *audio_wav = NULL;
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
@@ -487,9 +505,20 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-every")) shot_every = strtol(v, NULL, 10);
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
+        else if (!strcmp(a, "--sound-driver")) c_sound_driver = !strcmp(v, "c");
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
         else if (!strcmp(a, "--sound-lockstep")) { lockstep_path = v; want_lockstep = true; }
+        else if (!strcmp(a, "--sound-lockstep-audio")) {
+            if (!strcmp(v, "exact")) audio_timing = SOUND_AUDIO_EXACT;
+            else if (!strcmp(v, "host")) audio_timing = SOUND_AUDIO_HOST;
+            else {
+                fprintf(stderr, "--sound-lockstep-audio must be exact or host\n");
+                return 2;
+            }
+            want_lockstep = true;
+        }
+        else if (!strcmp(a, "--sound-lockstep-wav")) audio_wav = v;
         else if (!strcmp(a, "--sound-lockstep-level")) {
             if (!strcmp(v, "status")) lockstep_level = SOUND_COMPARE_STATUS;
             else if (!strcmp(v, "keys")) lockstep_level = SOUND_COMPARE_KEYS;
@@ -733,6 +762,7 @@ int main(int argc, char **argv)
     }
 
     SpcWatch spc = { .snes = &snes };
+    SoundAudio *sound_audio = NULL;
     if (spc_coverage_path)
         spc.counts = calloc(0x10000, sizeof *spc.counts);
     if (dsp_log_path && !(spc.dsp_log = fopen(dsp_log_path, "w"))) {
@@ -745,6 +775,27 @@ int main(int argc, char **argv)
             return 2;
         }
         spc.lockstep = sound_lockstep_create(&snes, lockstep_level);
+        if (audio_timing >= 0) {
+            if (wav_path) {
+                fprintf(stderr, "--sound-lockstep-audio takes the S-DSP's output itself: use --sound-lockstep-wav, not --wav\n");
+                return 2;
+            }
+            sound_audio = sound_audio_create((SoundAudioTiming)audio_timing);
+            if (!sound_audio) {
+                fprintf(stderr, "out of memory\n");
+                return 1;
+            }
+            if (audio_wav) {
+                char c_path[1024], original_path[1024];
+                snprintf(c_path, sizeof c_path, "%s-c.wav", audio_wav);
+                snprintf(original_path, sizeof original_path, "%s-original.wav", audio_wav);
+                if (!sound_audio_wav(sound_audio, c_path, original_path)) {
+                    fprintf(stderr, "cannot open %s\n", c_path);
+                    return 1;
+                }
+            }
+            sound_lockstep_listen(spc.lockstep, sound_audio);
+        }
     }
     if (spc_coverage_path || dsp_log_path || spc.lockstep) {
         snes.apu.on_insn = spc_coverage_path || spc.lockstep ? on_spc_insn : NULL;
@@ -786,6 +837,18 @@ int main(int argc, char **argv)
         }
     }
 
+    SoundHost *sound_host = NULL;
+    if (c_sound_driver) {
+        if (load_state || zst_path || want_lockstep || spc_coverage_path || dsp_log_path) {
+            fprintf(stderr, "--sound-driver c runs from power-on, without the SPC700's hooks\n");
+            return 2;
+        }
+        sound_host = sound_host_attach(&snes);
+        if (!sound_host) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
     static ct_wav wav;
     static int16_t audio[DSP_OUT_FRAMES * 2];
     if (wav_path) {
@@ -807,7 +870,6 @@ int main(int argc, char **argv)
         }
         if (wav_path)
             ct_wav_write(&wav, audio, au_take_samples(m_platform(&snes), audio, DSP_OUT_FRAMES));
-
         if (trace) {
             for (int i = 0; i < 256; i++) {
                 cgram[i * 2] = snes.ppu.cgram[i] & 0xFF;
@@ -928,6 +990,18 @@ int main(int argc, char **argv)
     }
     if (spc.lockstep && !sound_lockstep_report(spc.lockstep, lockstep_path, stderr))
         rc = 1;
+    if (sound_audio) {
+        sound_audio_report(sound_audio, stderr);
+        sound_audio_destroy(sound_audio);
+    }
+    if (sound_host) {
+        unsigned long into_echo = sound_host_uploads_into_echo(sound_host);
+        fprintf(stderr, "sound host: %lu bytes uploaded where the echo was writing%s\n", into_echo,
+                into_echo ? "" : ": none");
+        if (into_echo)
+            rc = 1;
+        sound_host_detach(sound_host);
+    }
     sound_lockstep_destroy(spc.lockstep);
     free(spc.counts);
     free(cov.calls);

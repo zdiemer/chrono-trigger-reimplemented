@@ -10,7 +10,8 @@
  *   one track keys voice 0 on with the note's pitch and volume, shows the
  *   music playing, and lets the voice go when its track ends; a sound effect
  *   takes voice 7 and gives it back; a fade to silence stops the music; the
- *   same song started again is refused.
+ *   same song started again is refused; a song announced with a new echo
+ *   delay stops the echo writing and moves it before its data comes.
  *
  * Exits non-zero on failure.
  *
@@ -251,6 +252,20 @@ static void test_driver(void)
     CHECK(driver.fades[0].volume.steps_left == 1, "one step of the fade left: %u", driver.fades[0].volume.steps_left);
     tick(7);
     CHECK(driver.song.music_tracks == 0 && driver.last_song_started == 0xFF, "the fade to silence stops the music");
+
+    /* A song's command with a new echo delay, its data uploaded after: the
+     * echo stops writing and moves at the command, before the samples come,
+     * and the song plays only once started. */
+    driver.echo_waits = true;
+    CHECK(sound_announce_song(&driver, (SoundCommand){ 0x10, 1, 0xFF, 2 }), "the song is announced");
+    CHECK((regs[0x6C] & 0x20) && regs[0x7D] == 2 && regs[0x6D] == 0xE1,
+          "the echo stops writing and moves at the command: FLG %02X, delay %02X at %02X", regs[0x6C], regs[0x7D],
+          regs[0x6D]);
+    CHECK(driver.song.music_tracks == 0, "the song waits for its data");
+    sound_start_announced_song(&driver);
+    CHECK(driver.song.music_tracks == 0x01, "the song starts once its data is in");
+    sound_echo_ready(&driver);
+    CHECK(!(regs[0x6C] & 0x20), "the echo writes again once its buffer is ready: FLG %02X", regs[0x6C]);
     free(rom);
 }
 
