@@ -179,9 +179,25 @@ static inline PartyTech party_tech(const GameState *g, uint8_t tech)
  * them). */
 enum { TECH_MEMBERS = 3, NO_MEMBER = 0xFF };
 
+static inline uint8_t tech_member_at(const GameState *g, uint16_t place, unsigned part)
+{
+    return rom_read8(g, 0xCC249Fu + place + part);
+}
 static inline uint8_t tech_member(const GameState *g, uint8_t members, unsigned part)
 {
-    return rom_read8(g, 0xCC249Fu + (uint32_t)(members * TECH_MEMBERS) + part);
+    return tech_member_at(g, (uint16_t)(members * TECH_MEMBERS), part);
+}
+
+/* $CC:1ACB: two bytes a tech for its record in the member's tech list: a
+ * byte the menu copies (not worked out), and its flags' low six bits. */
+typedef struct {
+    uint8_t detail, flags;
+} TechMenuBytes;
+
+static inline TechMenuBytes tech_menu_bytes(const GameState *g, uint8_t tech)
+{
+    uint32_t at = 0xCC1ACBu + (uint32_t)(tech * 2);
+    return (TechMenuBytes){ rom_read8(g, at), (uint8_t)(rom_read8(g, at + 1) & 0x3F) };
 }
 
 /* $CC:213F: a party effect's record, twelve bytes as the enemies' are: as the

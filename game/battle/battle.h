@@ -105,6 +105,13 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
     set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
 }
 
+/* A word in the cells, as an entry takes an operand its caller hands it
+ * there. */
+static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
+{
+    return (uint16_t)(battle_low_scratch(g, at) | battle_low_scratch(g, at + 1) << 8);
+}
+
 /* Some of them carry a value on to a later reader that takes it as game
  * input, so the enemies' scripts, their turns and the selectors keep what
  * they write there plainly (battle_keep_*):

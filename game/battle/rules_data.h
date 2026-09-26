@@ -25,6 +25,13 @@ static inline uint16_t battle_member_record_place(const GameState *g, uint8_t me
 {
     return rom_read16(g, 0xFDA849u + (uint16_t)(member * 2));
 }
+/* Where each party member's tech records are in work RAM ($FD:A84F, a word a
+ * member), which the setup leaves in its cells as it builds them. */
+static inline uint16_t battle_member_tech_records_place(const GameState *g, uint8_t member)
+{
+    return rom_read16(g, 0xFDA84Fu + (uint16_t)(member * 2));
+}
+
 /* The word at a byte offset into the stat blocks' places, wherever it lands:
  * for the one selector that reads the table at a leftover offset
  * (battle/targets.c). */

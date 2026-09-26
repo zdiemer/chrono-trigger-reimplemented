@@ -539,12 +539,23 @@ class RamMap:
                 return False
             return f is not False
 
+        by_name = {v.name: v for v in self.vars}
+
+        def reused(v):
+            # the names v reuses, following a chain of them (a cell put to a
+            # third use reuses the second)
+            seen = set()
+            while v is not None and v.reuses is not None and v.reuses not in seen:
+                seen.add(v.reuses)
+                v = by_name.get(v.reuses)
+            return seen
+
         for i, (a_base, a) in enumerate(placed):
             a_end = a_base + a.span()
             for b_base, b in placed[i + 1:]:
                 if b_base >= a_end:
                     break
-                if a.subsystem != b.subsystem or a is b or b.name == a.reuses or a.name == b.reuses:
+                if a.subsystem != b.subsystem or a is b or b.name in reused(a) or a.name in reused(b):
                     continue
                 if any(claims(a, x, b) and claims(b, x, a)
                        for x in range(b_base, min(a_end, b_base + b.span()))):

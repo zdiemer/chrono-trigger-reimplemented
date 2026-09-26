@@ -331,6 +331,11 @@
 #define RAM_INVENTORY_COUNTS 0x7E2500u
 #define RAM_INVENTORY_COUNTS_COUNT 242u
 #define RAM_INVENTORY_COUNTS_STRIDE 0x01u
+/* Bit 7: the party has learned the triple tech [15 x $1 bytes, by triple tech, from the first
+ * ($66)] */
+#define RAM_PARTY_TRIPLE_TECHS_LEARNED 0x7E284Du
+#define RAM_PARTY_TRIPLE_TECHS_LEARNED_COUNT 15u
+#define RAM_PARTY_TRIPLE_TECHS_LEARNED_STRIDE 0x01u
 /* The three active party members as character ids, $80 for an empty slot [3 x $1 bytes, by party
  * slot] */
 #define RAM_PARTY_MEMBERS 0x7E2980u
@@ -369,6 +374,10 @@
 #define RAM_CHARACTER_NAMES 0x7E2C23u
 #define RAM_CHARACTER_NAMES_COUNT 7u
 #define RAM_CHARACTER_NAMES_STRIDE 0x06u
+/* The party's gold, a 24-bit number (at most 9,999,999 where the battle gives it) [3 bytes] */
+#define RAM_PARTY_GOLD 0x7E2C53u
+#define RAM_PARTY_GOLD_LOW 0x7E2C53u         /* Its low word */
+#define RAM_PARTY_GOLD_HIGH 0x7E2C55u        /* Its high byte */
 /* A summary of each save slot's game, which the load screen copies and draws [3 x $40 bytes, by
  * save slot] */
 #define RAM_SAVE_SLOT_SUMMARIES 0x7E7600u
@@ -3208,6 +3217,18 @@
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_ATTRIBUTES 0x7E11B3u /* Attributes */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_X_OFFSET 0x7E11B0u /* X from the object's position (cleared at the battle's start) */
 #define RAM_BATTLE_OBJECT_SPRITE_ENTRIES_Y_OFFSET 0x7E11B1u /* Y from the object's position (cleared at the battle's start) */
+/* The items the party can use in the battle, as the item menu lists them: built from the
+ * inventory as the battle starts ($C1:CDFF), and a stolen item's record added ($C1:F012) [256 x
+ * $5 bytes, by inventory place: an empty place, and each item used in battle, has a record; the
+ * others are left out and the rest move up] */
+#define RAM_BATTLE_ITEM_LIST 0x7E1580u
+#define RAM_BATTLE_ITEM_LIST_COUNT 256u
+#define RAM_BATTLE_ITEM_LIST_STRIDE 0x05u
+#define RAM_BATTLE_ITEM_LIST_ITEM 0x7E1580u  /* The item */
+#define RAM_BATTLE_ITEM_LIST_MENU_DETAIL 0x7E1581u /* The item's detail as the menu shows it ($CC:1BB5, a byte an item from $BC) */
+#define RAM_BATTLE_ITEM_LIST_FLAGS 0x7E1582u /* The item's battle record's first byte without its top bit (the bit that says it is used in battle; $CC:0ABC) */
+#define RAM_BATTLE_ITEM_LIST_HELD 0x7E1583u  /* How many the party holds */
+#define RAM_BATTLE_ITEM_LIST_SPARE 0x7E1584u /* Clear: only the list's clearing writes it (a weapon's record would have its element here, on a path the original never takes) */
 /* Seven-byte records of the techs the party members can use in battle, twenty a member (a
  * member's entries 0-7, 10-15 and 18 fill its tech list) [60 x $7 bytes, by party member * 20 +
  * the entry the member's tech list names (battle_tech_list)] */
@@ -3475,9 +3496,9 @@
 #define RAM_BATTLE_STATS_MAX_MP 0x7E5E36u    /* Maximum MP */
 #define RAM_BATTLE_STATS_CONDITION 0x7E5E4Au /* Bit 7 set while the combatant is knocked out ($5E4A for slot 0) */
 #define RAM_BATTLE_STATS_STATUS 0x7E5E4Bu    /* The combatant's four status bytes ($5E4B-$5E4E for slot 0), the first in the low byte: its timed statuses' bits, which its status timers follow, and the bits the pose table tests */
-#define RAM_BATTLE_STATS_CARRIED 0x7E5E56u   /* A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0) */
+#define RAM_BATTLE_STATS_CARRIED 0x7E5E56u   /* A party member's weapon ($5E56 for slot 0), whose records the setup adds to its stats (game/battle/member_stats.c); the battle carries it over from the member's record (battle_member_carried) when it ends */
 #define RAM_BATTLE_STATS_STATUS_KEPT 0x7E5E52u /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes' bits ($5E52-$5E53 for slot 0) */
-#define RAM_BATTLE_STATS_WORN_ITEM 0x7E5E57u /* An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen) */
+#define RAM_BATTLE_STATS_WORN_ITEM 0x7E5E57u /* The party member's accessory ($5E57 for slot 0; STAT_ACCESSORY): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen) */
 #define RAM_BATTLE_STATS_REVIVAL 0x7E5E4Fu   /* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F for slot 0; $C1:B30F) */
 #define RAM_BATTLE_STATS_STATUS_IGNORED 0x7E5E50u /* Statuses of the first status byte the combatant shrugs off: an enemy with confusion's bit here isn't made to attack anyone by it ($5E50 for slot 0; $C1:B4AA) */
 /* The battlefield grid as built at setup, from ROM rows and the $2A23/$2B23 cell bits [256 x $1
@@ -5001,6 +5022,10 @@
  * The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends
  * ($FD:B655) */
 #define RAM_BATTLE_ACTION_CAME_TO_NOTHING 0x7EAF23u
+/* Set where an item the battle's item list was offered isn't one used in battle, so it has no
+ * record there: the list's building ($C1:CDFF) leaves it as its last item did, and the steal's
+ * giving reads it to put such an item in the inventory instead ($C1:F016) */
+#define RAM_BATTLE_ITEM_NOT_LISTED 0x7EAF23u
 /* Set by a party member's turn when a status of its picks its action for it */
 #define RAM_BATTLE_MEMBER_ACTS_FOR_ITSELF 0x7EAF23u
 /* What testing a block of an enemy's script came to: 0 its conditions held and its actions are

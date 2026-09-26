@@ -120,7 +120,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
     `battle_number_marks`, `battle_slot_draw_bits` and the sprite drawers'
     page's unnamed bytes; `battle_enemy_rule`'s rules 1 and 2;
-    `battle_stats.worn_item` (named from one use); the rest of
+    the rest of
     `battle_fight_flags`; the script commands' per-combatant and per-effect
     cells (`battle_animation_wait_cells`, `battle_script_command_cells`,
     `battle_effect_command_cells`); the five window tile blocks the frame
@@ -405,7 +405,15 @@ rest waits, is [PLAN.md](PLAN.md).
   - after a part that missed, the tech stops where bit 7 is set in the byte
     of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
     reads where the tech's record is meant (`party_work.c`,
-    `stops_after_miss`, through `wram_read8`).
+    `stops_after_miss`, through `wram_read8`);
+  - from the setup (RECOMP.md, "Phase 3, battle chunk 6"): the search for a
+    member's triple tech reads the byte after the fifteen learned ones as it
+    ends (`tech_records.c`, `learned_byte`); a member wearing an item past
+    the recorded ones ($F2 on) has bank CC's first bytes, at twice its slot,
+    copied into its block as that item's record (`member_stats.c`,
+    `copy_equipment_records`); and the item list's building reads the
+    inventory's 256 places, the fourteen past its own included
+    (`inventory.c`).
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:
@@ -988,9 +996,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
     machine from the walk's entry, once their own rows can be calibrated
     without their own calls (they have no other callers);
   - a chest's gift goes to the party through the battle bank's inventory
-    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out: the
-    party's inventory as a module is the menus' or the battle's to write, and
-    the confirm button calls it once it is;
+    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out. The
+    service is C now (`battle/inventory.h`, RECOMP.md, "Phase 3, battle
+    chunk 6"): the confirm button can call `battle_inventory_add` and
+    `battle_give_gold` instead, timed as the service;
   - from chunk 2's review: `field_chests` is one variable of two words that
     mean different things (the game's list, the location's run); split it
     in the map, have the chest lookup take a chest's number, and name

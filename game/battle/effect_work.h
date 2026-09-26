@@ -57,6 +57,12 @@ TechOutcome effect_work_out_member_tech(GameState *g, Platform *pf);
  * accessory (by its battle slot). */
 uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned part, uint8_t slot);
 
+/* A cost cut by the accessory that halves it or quarters it, rounding up. */
+uint8_t effect_mp_cost_cut(uint8_t cost, uint8_t accessory);
+
+/* $C1:CB93: the tech's members taken from its record (battle_tech_members). */
+void effect_take_tech_members(GameState *g, uint8_t tech);
+
 void effect_use_item(GameState *g, Platform *pf);
 
 /* For the entries' guards: whether the port works out an effect of a kind

@@ -239,7 +239,8 @@ field's); within a subsystem the map rejects an overlap, unless one entry
 names the other with `reuses`: the same subsystem's bytes put to another use
 at another time (the field decompresses a map's data where the map's tile
 looks go once the data is unpacked, `field_tile_looks` over
-`field_map_data`). State every mode shares -- the party, inventory, story
+`field_map_data`); a third use names the second, and the chain covers the
+first. State every mode shares -- the party, inventory, story
 flags -- is `core`.
 
 One directory holds two such modes, so it has two tags. Bank `$C2` is the menus

@@ -227,6 +227,8 @@ add_library(ct_game STATIC
   game/battle/sprites.c
   game/battle/status.c
   game/battle/targets.c
+  game/battle/tech_records.c
+  game/battle/member_stats.c
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c

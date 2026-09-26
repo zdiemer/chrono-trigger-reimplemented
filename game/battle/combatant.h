@@ -97,6 +97,7 @@ typedef enum {
     STAT_MAX_HP = 0x05,          /* a word */
     STAT_MP = 0x07,              /* a word */
     STAT_MAX_MP = 0x09,          /* a word */
+    STAT_BASE_STATS = 0x0B,      /* seven: a party member's stats from STAT_POWER on, as it has them without its equipment */
     STAT_LEVEL = 0x12,
     STAT_KIND = 0x19,            /* the kinds of effect it turns away; bit 7, it can't be felled outright */
     STAT_FAMILY = 0x1A,          /* the families some modifiers single out */
@@ -110,11 +111,17 @@ typedef enum {
     STAT_STATUS_IGNORED = 0x23,  /* the first status byte's bits it shrugs off */
     STAT_KEPT_STATUS_3 = 0x25,   /* the third status byte's bits it keeps whatever happens */
     STAT_KEPT_STATUS_4 = 0x26,   /* the fourth status byte's bits it keeps whatever happens */
+    STAT_HELMET = 0x27,          /* a party member's helmet, armor and weapon */
+    STAT_ARMOR = 0x28,
+    STAT_WEAPON = 0x29,
     STAT_ACCESSORY = 0x2A,       /* a party member's accessory */
     STAT_POWER = 0x36,
     STAT_HIT = 0x37,
+    STAT_SPEED_RATING = 0x38,    /* at most 16 */
     STAT_MAGIC = 0x39,
     STAT_STAMINA = 0x3A,
+    STAT_EVADE = 0x3B,
+    STAT_MAGIC_DEFENCE = 0x3C,
     STAT_SPEED = 0x3D,
     STAT_ELEMENT_AFFINITY = 0x3F, /* four, an element each: bit 7 absorbs it, bit 6 two less, the rest the scale's divisor */
     STAT_WEAPON_ATTACK = 0x43,   /* a word */

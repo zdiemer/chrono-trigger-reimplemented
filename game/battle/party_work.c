@@ -47,7 +47,7 @@ enum { HALVES_MP_COST = 0xA2, QUARTERS_MP_COST = 0xA3 };
 static uint8_t halved_up(uint8_t cost) { return (uint8_t)((cost >> 1) + (cost & 1)); }
 
 // $C1:CBF6
-static uint8_t mp_cost_with(uint8_t cost, uint8_t accessory)
+uint8_t effect_mp_cost_cut(uint8_t cost, uint8_t accessory)
 {
     if (accessory == HALVES_MP_COST)
         return halved_up(cost);
@@ -59,7 +59,7 @@ static uint8_t mp_cost_with(uint8_t cost, uint8_t accessory)
 // $C1:CB48, $C1:CB61, $C1:CB7A
 uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned part, uint8_t slot)
 {
-    return mp_cost_with(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
+    return effect_mp_cost_cut(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
 }
 
 /* A member can take part where nothing keeps them from techs and they have
@@ -92,6 +92,21 @@ static void leave_check(GameState *g, uint8_t tech, unsigned stopped_at, uint8_t
     ORIGINAL_EFFECT(set_battle_wide_math(g, WIDE_REMAINDER + 1, 0));
     multiply_out_tech_place(g, tech);
     set_battle_tech_mp_compared(g, combatant_mp(g, compared));
+}
+
+// $C1:CB93
+/* The tech's members taken from its record, the members' record found as the
+ * original finds it: the tech's record by a multiply, whose product's low
+ * byte it then keeps the members' number in, times three in a byte. */
+enum { PRODUCT_LOW = 4 };
+
+void effect_take_tech_members(GameState *g, uint8_t tech)
+{
+    (void)effect_times(g, tech, PARTY_TECH_BYTES);
+    PartyTech t = party_tech(g, tech);
+    set_battle_wide_math(g, PRODUCT_LOW, t.members);
+    for (unsigned part = 0; part < TECH_MEMBERS; part++)
+        set_battle_tech_members(g, part, tech_member_at(g, (uint8_t)(t.members * TECH_MEMBERS), part));
 }
 
 // $C1:D74F

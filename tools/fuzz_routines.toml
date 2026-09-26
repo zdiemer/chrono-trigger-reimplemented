@@ -10504,3 +10504,175 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB2EB-7EB2EC=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB18C-7EB18C=00-7F"]
 iterations = 5000
 why = "a tech's members, characters in the party's slots or none past the first, and any tech; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_inventory_holds"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2400-7E25FF=00-FF", "--range", "Y=0000-00FF"]
+iterations = 5000
+why = "any item asked after in an inventory at random"
+
+[[routine]]
+name = "battle_inventory_take"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2400-7E25FF=00-FF", "--range", "Y=0000-00FF", "--fill", "7E2500-7E25FF=00,01,02,63"]
+iterations = 5000
+why = "any item taken from an inventory at random, its counts none, one, a few or the most"
+
+[[routine]]
+name = "battle_gold_covers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2C55-7E2C55=00,01,97,98,99,FF", "--range", "Y=0000-FFFF"]
+iterations = 5000
+why = "any amount asked after, the gold's high byte none, small, about the most or past it"
+
+[[routine]]
+name = "battle_give_gold"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2C55-7E2C55=00,01,97,98,99,FF", "--range", "Y=0000-FFFF"]
+iterations = 5000
+why = "any amount given, the gold's high byte none, small, about the most or past it"
+
+[[routine]]
+name = "battle_take_gold"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2C55-7E2C55=00,01,97,98,99,FF", "--range", "Y=0000-FFFF"]
+iterations = 5000
+why = "any amount taken, the gold's high byte none, small, about the most or past it"
+
+[[routine]]
+name = "battle_party_request"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0100", "--db", "00", "--range", "A=0000-0005", "--range", "Y=0000-00FF", "--fill", "7E2400-7E25FF=00-FF", "--fill", "7E2C55-7E2C55=00,01,97,98,99,FF"]
+iterations = 5000
+why = "each of the requests the port answers, from the field's page and data bank, with an item or a small amount; the inventory and the gold at random"
+
+[[routine]]
+name = "battle_party_request"
+variant = "gold"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0100", "--db", "00", "--range", "A=0003-0005", "--range", "Y=0000-FFFF", "--fill", "7E2C55-7E2C55=00,01,97,98,99,FF"]
+iterations = 5000
+why = "the gold's requests, with any amount"
+
+[[routine]]
+name = "battle_give_gold"
+variant = "most"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2C53-7E2C53=7D,7E,7F,80", "--fill", "7E2C54-7E2C54=96", "--fill", "7E2C55-7E2C55=97,98", "--range", "Y=0000-0003"]
+iterations = 5000
+why = "gold about its most, 9,999,999, and a small amount given"
+
+[[routine]]
+name = "battle_take_gold"
+variant = "borrow"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2C53-7E2C54=00,01,FF", "--fill", "7E2C55-7E2C55=00,01", "--range", "Y=0000-0003"]
+iterations = 5000
+why = "gold whose low word is about none, with a high byte or none, and a small amount taken"
+
+[[routine]]
+name = "battle_set_up_triple_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3BA-7EB3BC=00,A2,A3,A4,FF", "--fill", "7E0006-7E0006=00-02", "--fill", "7E0007-7E0007=00", "--fill", "7E284D-7E285C=00,80", "--fill", "7EB1BE-7EB1C4=00,01,02,FF,80", "--fill", "7EAEFF-7EAF01=00,01,02,FF"]
+iterations = 5000
+why = "a party member (in the fight or not) and the triple techs learned or not, the characters in the party's slots or none; the rest at random"
+
+[[routine]]
+name = "battle_set_double_tech_cost"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3BA-7EB3BC=00,A2,A3,A4,FF", "--fill", "7E0004-7E0005=80,1A,0C,1B,98", "--range", "A=0000-0006", "--range", "Y=0000-00FF", "--fill", "7EB1BE-7EB1C4=00,01,02,FF"]
+iterations = 5000
+why = "a member's records' place (a member's own, or not), a character and a cost; the accessories that cut it and others"
+
+[[routine]]
+name = "battle_set_triple_tech_cost"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3BA-7EB3BC=00,A2,A3,A4,FF", "--fill", "7E0004-7E0005=80,1A,0C,1B,98", "--range", "A=0000-0006", "--range", "Y=0000-00FF", "--fill", "7EB1BE-7EB1C4=00,01,02,FF"]
+iterations = 5000
+why = "as the double tech's"
+
+[[routine]]
+name = "battle_build_item_list"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2400-7E24FF=00,00,01,5A,BB,BC,BD,C0,C8,D0,E0,F0,F1,F2,FF", "--fill", "7E2500-7E25FF=00-FF"]
+iterations = 5000
+why = "an inventory of empty places, equipment and the other items, some past the recorded ones, with any counts"
+
+[[routine]]
+name = "battle_build_item_list"
+variant = "any"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2400-7E25FF=00-FF"]
+iterations = 5000
+why = "an inventory at random"
+
+[[routine]]
+name = "battle_list_item"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E0004-7E0005=0000,0005,000A,0271,04F6,04FB,0500,0003"]
+iterations = 5000
+why = "any item given a record at a record's place, the last one's included, or past the list or between two; the rest at random"
+
+[[routine]]
+name = "battle_pass_empty_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "an empty place passed with the cells at random"
+
+[[routine]]
+name = "battle_set_up_member_stats"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0002-7E0002=00-02", "--fill", "7E0003-7E0003=00", "--fill", "7EAEFF-7EAF01=00,01,FF", "--fill", "7E5E38-7E5E3E=00-FF", "--fill", "7E5E54-7E5E56=00-FF", "--fill", "7E5EB8-7E5EBE=00-FF", "--fill", "7E5ED4-7E5ED6=00-FF", "--fill", "7E5F38-7E5F3E=00-FF", "--fill", "7E5F54-7E5F56=00-FF"]
+iterations = 5000
+why = "each member, in the fight or out of it, with any stats and any weapon, armor and helmet"
+
+[[routine]]
+name = "battle_apply_stat_boost"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=5E2D,5EAD,5F2D", "--fill", "7E0008-7E0008=00-FF", "--fill", "7E0009-7E0009=06-0A", "--fill", "7E000E-7E000F=29D7", "--fill", "7E5E63-7E5E69=00-FF", "--fill", "7E5EE3-7E5EE9=00-FF", "--fill", "7E5F63-7E5F69=00-FF"]
+iterations = 5000
+why = "a member's block and any place among the equipment's second records, the stats at random so the caps and the byte's wrap are met"
+
+[[routine]]
+name = "battle_add_affinities"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=5E2D,5EAD,5F2D", "--fill", "7E0008-7E0008=00-FF", "--fill", "7E0009-7E0009=06-0A", "--fill", "7E5E6C-7E5E6F=00-FF", "--fill", "7E5EEC-7E5EEF=00-FF", "--fill", "7E5F6C-7E5F6F=00-FF"]
+iterations = 5000
+why = "a member's block and any place among the equipment's second records, the affinities at random so they come round"
+
+[[routine]]
+name = "battle_copy_equipment_records"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0006-7E0006=27,28,29,2A", "--fill", "7E0007-7E0007=00", "--fill", "7E0008-7E0008=43,48,4B,70", "--fill", "7E0009-7E0009=00", "--fill", "7E000A-7E000A=00-07", "--fill", "7E5E54-7E5E57=00-FF", "--fill", "7E5ED4-7E5ED7=00-FF", "--fill", "7E5F54-7E5F57=00-FF"]
+iterations = 5000
+why = "each piece's records copied, any number of bytes up to a few (none copies one), with the party's equipment at random"
+
+[[routine]]
+name = "battle_item_record_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "any item, in every range and past the recorded ones"
