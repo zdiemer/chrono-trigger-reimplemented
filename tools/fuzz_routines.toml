@@ -4888,14 +4888,14 @@ why = "the current object 8 with each palette slot, its sharers before and after
 name = "field_pause_and_menus"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C00B4E", "--stop-at-call", "C01ADF"]
-why = "Start, the Start assignment and X pressed or not, the pause and the menus locked or not, the player in control or not, a choice waiting or not, each brightness kind, a dialog window or none, the story before and past the Start menu's point (and either side of its overflow); compared up to the first frame wait, the blanking before a menu, or the choice's call, since the pause and the menus run for frames"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C0011B", "--stop-at-call", "C01ADF"]
+why = "Start, the Start assignment and X pressed or not, the pause and the menus locked or not, the player in control or not, a choice waiting or not, each brightness kind, a dialog window or none, the story before and past the Start menu's point (and either side of its overflow); compared up to the first frame wait, the keeping of the field before a menu, or the choice's call, since the pause and the menus run for frames"
 
 [[routine]]
 name = "field_press_start"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C00B4E", "--stop-at-call", "C01ADF"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C0011B", "--stop-at-call", "C01ADF"]
 why = "as field_pause_and_menus"
 
 [[routine]]

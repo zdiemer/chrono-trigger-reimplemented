@@ -420,7 +420,7 @@ static bool lose(Snes *s)
     if (!battle_call(s, 0xC18137, CLEAR_PARTY_STATUSES, READS_CARRY)
         || !battle_call(s, 0xC1813A, CLEAR_ENEMY_MARKS, READS_NOTHING))
         return false;
-    set_battle_result(g, BATTLE_DEFEATED);
+    battle_ends(g, BATTLE_DEFEATED);
     if (!battle_call(s, 0xC18143, PARTY_STANDS_DOWN, READS_OVERFLOW))
         return false;
     set_battle_defeat_showing(g, true);
@@ -442,7 +442,7 @@ static bool win(Snes *s)
     GameState *g = state_of(s);
     if (!battle_call(s, 0xC18176, CLEAR_ENEMY_MARKS, READS_NOTHING))
         return false;
-    set_battle_result(g, BATTLE_WON_OR_RAN);
+    battle_ends(g, BATTLE_WON_OR_RAN);
     set_battle_won(g, VICTORY_MARK);
     return battle_call(s, 0xC18183, CLEAR_PARTY_STATUSES, READS_CARRY) && step(s, 0xC18188, STEP_VICTORY)
            && leave_with_rewards(s);
@@ -455,7 +455,7 @@ enum { RAN_AWAY_MESSAGE = 8, RUN_AWAY_ACTION = 0x79 };
 static bool run_away(Snes *s)
 {
     GameState *g = state_of(s);
-    set_battle_result(g, BATTLE_WON_OR_RAN);
+    battle_ends(g, BATTLE_WON_OR_RAN);
     if (!battle_call_long(s, 0xC181FD, RUN_AWAY_MARKS, READS_NOTHING))
         return false;
     m_set_a8(s, RAN_AWAY_MESSAGE);

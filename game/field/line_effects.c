@@ -86,8 +86,6 @@ static void end_table(GameState *g, TableWriter t) { set_field_line_effect_table
 
 /* ---- Where the values are, as the tables point at them ----------------------------------- */
 
-/* Where the dialog window is, as dialog_window_position keeps it. */
-typedef enum { WINDOW_NONE, WINDOW_AT_TOP, WINDOW_AT_BOTTOM, WINDOW_POSITIONS } WindowPosition;
 enum { SCREENS_OUTSIDE, SCREENS_WINDOW_BODY, SCREENS_WINDOW_EDGE };
 enum { WAVE_LINES = 16, WAVE_SET_LINES = 2 * WAVE_LINES, WAVE_ENTRY = RAM_FIELD_LINE_WAVE_STRIDE };
 
@@ -537,7 +535,7 @@ static uint8_t set_to_build(const GameState *g) { return (field_display_flags(g)
  * where the dialog window is, and make it the one they read next. */
 static void build_line_effect_tables(GameState *g)
 {
-    build_for(g, set_to_build(g), (WindowPosition)dialog_window_position(g));
+    build_for(g, set_to_build(g), dialog_window_at(g));
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) ^ FIELD_SECOND_TABLE_SET));
 }
 
@@ -799,7 +797,7 @@ void field_build_line_effect_tables(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t set = set_to_build(g);
-    WindowPosition position = (WindowPosition)dialog_window_position(g);
+    WindowPosition position = dialog_window_at(g);
     build_line_effect_tables(g);
     leave(s, leaves_after_build(g, set, position, m_flag(s, CPU_FLAG_V)), 0x01);
     m_rtl(s);

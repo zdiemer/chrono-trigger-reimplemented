@@ -7431,6 +7431,39 @@ and the player's control ignored 163.
 **The timing gate.** The three rows were calibrated over the library; no
 exception.
 
+### Phase 3, field and events: the field's start
+
+The tenth chunk of bank `$C0`, and chunk 9's review.
+
+**Chunk 9's review, folded in.**
+- *Ports reached through the machine* (review rubric item 61). menus.c
+  blanks the screen and takes the interrupts back as C
+  (`display_blank_and_stop`, `field_take_the_vblank_interrupt`,
+  `field_take_the_line_interrupt`, each timed as its routine), setting the
+  CPU's interrupt mask and data bank the original's blanking leaves. Three
+  ports stay machine calls on purpose, said beside their addresses: the
+  line effects' builder, whose entry works out the registers it leaves (the
+  overflow among them is read after the pause), and the Start assignment and
+  the party's return, whose own call-outs must be made under their return
+  address, where shadow mode pairs them. The file header says which is which.
+  The menu path after the menus' return runs on the machine for frames, so
+  the fuzz rows stop before it (now at the field's keeping, `$C0:011B`);
+  shadow mode compares it (the blanking 549 calls and the handlers 335 over
+  the library, the menus opened in `menus-field-menu`).
+- *Shared vocabulary.* `WindowPosition` is field.h's, and the Start
+  assignment swaps the window between the top and the bottom (its guard takes
+  a window at one of the three places); `FIELD_SCRIPT_MENU_SHOWN` is
+  `field_effect_status` bit 6 (event `$C8` waits on it, `$C0:3757`);
+  `party_is_the_players`, `dialog_choice_waiting`, `field_pause_is_locked`,
+  `field_menus_are_locked`; `FIELD_START_MENU_FROM_STORY` in field.h.
+- The two openings are one `MenuOpener` and one table row each, with what
+  differs between them (the menu, the X it is given, whether a script's
+  menu counts as shown) in the row; `open_menu` says why N and Z are clear.
+- The kept priorities are two byte fields; `battle_how_it_ended` types the
+  result; the pause's display flags are named; the eight palette slots; the
+  Frog-before-Robo order can't be seen in play (each start writes its own
+  object and character entry); `object_palette_links_in_the_tables`.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

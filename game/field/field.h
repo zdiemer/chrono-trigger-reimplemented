@@ -80,6 +80,7 @@ enum {
     FIELD_FADING = 0x02,                    /* the brightness moves to its target */
     FIELD_TINTING = 0x08,                   /* the tint moves to its target */
     FIELD_TINT_CHANGES = 0x18,              /* what a tint with a rate sets running */
+    FIELD_SCRIPT_MENU_SHOWN = 0x40,         /* the menus a script asked for (event $C8) were shown */
 };
 
 /* What the field has under way that scripts and the field's own routines
@@ -136,6 +137,21 @@ static inline void leader_loses_contact(GameState *g) { set_field_leader_contact
  * none open, its text still showing, the player picking an answer, or one
  * picked. */
 enum { DIALOG_NO_CHOICES = 0, DIALOG_CHOICES_SHOWING = 1, DIALOG_CHOOSING = 2, DIALOG_CHOSEN = 3 };
+static inline bool dialog_choice_waiting(const GameState *g) { return dialog_choice_active(g) != DIALOG_NO_CHOICES; }
+
+/* dialog_window_position: where the dialog window opens, which the line
+ * effects lay out (field/line_effects.c) and the Start assignment moves
+ * (field/menus.c). */
+typedef enum { WINDOW_NONE, WINDOW_AT_TOP, WINDOW_AT_BOTTOM, WINDOW_POSITIONS } WindowPosition;
+static inline WindowPosition dialog_window_at(const GameState *g) { return (WindowPosition)dialog_window_position(g); }
+
+/* Scripts can lock the pause and the menus (field_pause_locked,
+ * field_menus_locked), through the event engine's memory writes. */
+static inline bool field_pause_is_locked(const GameState *g) { return field_pause_locked(g) != 0; }
+static inline bool field_menus_are_locked(const GameState *g) { return field_menus_locked(g) != 0; }
+
+/* The story's progress the Start assignment's menu waits for (field/menus.c). */
+enum { FIELD_START_MENU_FROM_STORY = 0x49 };
 
 /* The field's geometry. A map tile is 16 pixels; a layer's tile map entry,
  * an 8-pixel tile, is a quarter of one. Each layer's tile map is 64 entries
@@ -213,7 +229,11 @@ enum { FIELD_MAP_TWO_SCREENS_WIDE = 0x01 };
  * step a number (field/motion.c). */
 uint8_t field_draw_random(GameState *g);
 
-/* field/interrupts.c */
+/* field/interrupts.c: the interrupt stubs pointed at the field's vblank
+ * handler and its line interrupt. */
+void field_take_the_vblank_interrupt(GameState *g);
+void field_take_the_line_interrupt(GameState *g);
+enum { FIELD_INSTALL_NMI_ENTRY = 0xC00B64, FIELD_INSTALL_IRQ_ENTRY = 0xC00B75 };
 void field_install_nmi(Snes *s);
 void field_install_irq(Snes *s);
 

@@ -24,6 +24,8 @@ static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PA
 /* How the battle ended (battle_result), which the field reads when it puts
  * the party back (field/battle_return.c). */
 typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;
+static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
+static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
 
 /* A combatant's stat block (battle_stats) is $80 bytes. */
 enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };

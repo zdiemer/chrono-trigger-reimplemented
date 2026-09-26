@@ -1164,7 +1164,7 @@ name = "field_effect_status"
 addr = "7E:0118"
 page = "field"
 subsystem = "field"
-meaning = "Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running, bits 3-4 a fixed color change is running"
+meaning = "Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running, bits 3-4 a fixed color change is running, bit 6 the menus a script asked for (event $C8, field_requests bit 6) were shown, which the command waits on ($C0:3757) and the Start assignment's menu sets ($C0:19F7)"
 source = "game/event/screen.c fade $C0:3CD0, tint $C0:3D07, wait_for_screen; game/event/locations.c fight $C0:3A83"
 
 [[var]]
@@ -1590,13 +1590,20 @@ source = "game/field/menus.c, bring_the_party_back $C0:1A03"
 [[var]]
 name = "field_kept_party_priorities"
 addr = "7F:1D15"
-size = 2
 count = 3
 stride = 2
 index = "party place"
 subsystem = "field"
 meaning = "Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a menu is open"
 source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+  [[var.field]]
+  name = "lower"
+  offset = 0
+  meaning = "The priority of its lower half"
+  [[var.field]]
+  name = "upper"
+  offset = 1
+  meaning = "The priority of its upper half"
 
 [[var]]
 name = "field_kept_trail_positions"

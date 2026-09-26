@@ -11,7 +11,7 @@
  * line interrupts and the controller's automatic read off, and every transfer
  * and per-line effect stopped. A mode does it before it changes what the
  * screen shows. */
-static void blank_and_stop(Platform *pf)
+void display_blank_and_stop(Platform *pf)
 {
     vid_set_display(pf, PF_AT(0xC00B55), &(VidDisplay){ .blank = true });
     tm_enable_interrupts(pf, PF_AT(0xC00B5A), 0);
@@ -25,7 +25,7 @@ void display_blank_and_stop_interrupts(Snes *s)
 {
     m_set_flag(s, CPU_FLAG_I, true);
     s->cpu.db = 0x00;
-    blank_and_stop(m_platform(s));
+    display_blank_and_stop(m_platform(s));
     m_rts(s);
 }
 

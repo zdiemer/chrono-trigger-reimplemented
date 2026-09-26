@@ -674,7 +674,9 @@ uint8_t field_requests(const GameState *g);
 void set_field_requests(GameState *g, uint8_t v);
 
 /* Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running,
- * bits 3-4 a fixed color change is running */
+ * bits 3-4 a fixed color change is running, bit 6 the menus a script asked for (event $C8,
+ * field_requests bit 6) were shown, which the command waits on ($C0:3757) and the Start
+ * assignment's menu sets ($C0:19F7) */
 uint8_t field_effect_status(const GameState *g);
 void set_field_effect_status(GameState *g, uint8_t v);
 
@@ -2176,10 +2178,12 @@ uint16_t field_kept_party_y(const GameState *g, unsigned i);
 void set_field_kept_party_y(GameState *g, unsigned i, uint16_t v);
 
 enum { FIELD_KEPT_PARTY_PRIORITIES_COUNT = 3 };   /* by party place */
-/* Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a
- * menu is open */
-uint16_t field_kept_party_priorities(const GameState *g, unsigned i);
-void set_field_kept_party_priorities(GameState *g, unsigned i, uint16_t v);
+/* The priority of its lower half */
+uint8_t field_kept_party_priorities_lower(const GameState *g, unsigned i);
+void set_field_kept_party_priorities_lower(GameState *g, unsigned i, uint8_t v);
+/* The priority of its upper half */
+uint8_t field_kept_party_priorities_upper(const GameState *g, unsigned i);
+void set_field_kept_party_priorities_upper(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_KEPT_TRAIL_POSITIONS_COUNT = 3 };   /* by party place */
 /* Where each of the party was on the leader's trail (field_trail_position), kept while a menu is

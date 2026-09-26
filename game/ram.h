@@ -516,7 +516,9 @@
 #define RAM_FIELD_REQUESTS 0x7E0117u
 #define RAM_FIELD_REQUESTS_DP 0x17u          /* page field */
 /* Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running,
- * bits 3-4 a fixed color change is running */
+ * bits 3-4 a fixed color change is running, bit 6 the menus a script asked for (event $C8,
+ * field_requests bit 6) were shown, which the command waits on ($C0:3757) and the Start
+ * assignment's menu sets ($C0:19F7) */
 #define RAM_FIELD_EFFECT_STATUS 0x7E0118u
 #define RAM_FIELD_EFFECT_STATUS_DP 0x18u     /* page field */
 /* Brightness shadow the field NMI writes to the display every frame (0: forced blank) */
@@ -1721,6 +1723,8 @@
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES 0x7F1D15u
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES_COUNT 3u
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES_STRIDE 0x02u
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_LOWER 0x7F1D15u /* The priority of its lower half */
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_UPPER 0x7F1D16u /* The priority of its upper half */
 /* Where each of the party was on the leader's trail (field_trail_position), kept while a menu is
  * open [3 x $1 bytes, by party place] */
 #define RAM_FIELD_KEPT_TRAIL_POSITIONS 0x7F1D1Bu

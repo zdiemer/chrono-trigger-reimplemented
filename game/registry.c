@@ -1478,7 +1478,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC018D9, .name = "field_pause_and_menus", .fn = field_pause_and_menus, NEEDS_M8_X16, .cost_milli = 2971,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC01985, .name = "field_press_start", .fn = field_press_start, NEEDS_M8_X16, .cost_milli = 4126,
-      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_start_can_be_pressed },
     { .addr = 0xC01A03, .name = "field_bring_the_party_back", .fn = field_bring_the_party_back, NEEDS_M8_X16,
       .cost_milli = 2851, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_party_can_come_back },
     { .addr = 0xC0734C, .name = "field_give_up_palette", .fn = field_give_up_palette, NEEDS_M8_X8, .cost_milli = 3674,

@@ -72,7 +72,7 @@ void object_give_up_palette(GameState *g, FieldObject obj)
         set_sharer_after(g, field_linked_object(before), after);
 }
 
-bool object_palette_is_kept(const GameState *g, FieldObject obj)
+bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj)
 {
     FieldLink before = sharer_before(g, obj), after = sharer_after(g, obj);
     return palette_slot(g, obj) < PALETTE_SLOTS && (!field_link_is_object(before) || field_link_names_object(before)) &&
@@ -96,7 +96,7 @@ bool field_palette_can_be_given_up(Snes *s)
     if (!field_current_object_bank_zero(s))
         return false;
     vars_peek(true);
-    bool ok = object_palette_is_kept(state_of(s), (FieldObject)field_current_object_slot(s));
+    bool ok = object_palette_links_in_the_tables(state_of(s), (FieldObject)field_current_object_slot(s));
     vars_peek(false);
     return ok;
 }

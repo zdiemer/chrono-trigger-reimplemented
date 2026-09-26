@@ -1692,8 +1692,10 @@ uint16_t field_kept_party_x(const GameState *g, unsigned i) { IN_RANGE(g, 166, "
 void set_field_kept_party_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 166, "set_field_kept_party_x", "count", i, 3u); w16(g, 0x7F1D09u + (uint32_t)i * 0x02u, v); }
 uint16_t field_kept_party_y(const GameState *g, unsigned i) { IN_RANGE(g, 167, "field_kept_party_y", "count", i, 3u); return r16(g, 0x7F1D0Fu + (uint32_t)i * 0x02u); }
 void set_field_kept_party_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 167, "set_field_kept_party_y", "count", i, 3u); w16(g, 0x7F1D0Fu + (uint32_t)i * 0x02u, v); }
-uint16_t field_kept_party_priorities(const GameState *g, unsigned i) { IN_RANGE(g, 168, "field_kept_party_priorities", "count", i, 3u); return r16(g, 0x7F1D15u + (uint32_t)i * 0x02u); }
-void set_field_kept_party_priorities(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 168, "set_field_kept_party_priorities", "count", i, 3u); w16(g, 0x7F1D15u + (uint32_t)i * 0x02u, v); }
+uint8_t field_kept_party_priorities_lower(const GameState *g, unsigned i) { IN_RANGE(g, 168, "field_kept_party_priorities_lower", "count", i, 3u); return r8(g, 0x7F1D15u + (uint32_t)i * 0x02u); }
+void set_field_kept_party_priorities_lower(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 168, "set_field_kept_party_priorities_lower", "count", i, 3u); w8(g, 0x7F1D15u + (uint32_t)i * 0x02u, v); }
+uint8_t field_kept_party_priorities_upper(const GameState *g, unsigned i) { IN_RANGE(g, 168, "field_kept_party_priorities_upper", "count", i, 3u); return r8(g, 0x7F1D16u + (uint32_t)i * 0x02u); }
+void set_field_kept_party_priorities_upper(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 168, "set_field_kept_party_priorities_upper", "count", i, 3u); w8(g, 0x7F1D16u + (uint32_t)i * 0x02u, v); }
 uint8_t field_kept_trail_positions(const GameState *g, unsigned i) { IN_RANGE(g, 169, "field_kept_trail_positions", "count", i, 3u); return r8(g, 0x7F1D1Bu + (uint32_t)i * 0x01u); }
 void set_field_kept_trail_positions(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 169, "set_field_kept_trail_positions", "count", i, 3u); w8(g, 0x7F1D1Bu + (uint32_t)i * 0x01u, v); }
 uint16_t field_line_wave_h(const GameState *g, unsigned line) { IN_RANGE(g, 170, "field_line_wave_h", "count", line, 64u); return r16(g, 0x7F1D27u + (uint32_t)line * 0x04u); }
