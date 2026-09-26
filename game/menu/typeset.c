@@ -32,6 +32,7 @@
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/glyphs.h"
+#include "menu/leaves.h"
 #include "menu/menu_data.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -130,7 +131,7 @@ void menu_text_start(GameState *g)
 // $C2:5DC4
 /* Draw a glyph at the pen, and move the pen on by its width. The original
  * notes the glyph on the text page, where only what it leaves in its index
- * registers is worked out from it (the entries, below). */
+ * registers is worked out from it (menu/leaves.c). */
 enum { FIRST_GLYPH = 0xA0 };
 
 static void set_glyph(GameState *g, uint16_t glyph)
@@ -144,19 +145,11 @@ static void set_glyph(GameState *g, uint16_t glyph)
 }
 
 /* One glyph of the call's budget spent: true while some is left. A budget
- * of 0 is taken as 256 glyphs.
- *
- * The budget is counted down on the text page, glyph by glyph, rather than
- * in hand for the call: the page is text too. A name past the table of
- * names' places reads the page's own cells as its glyphs (insert_name_at),
- * and a label long enough to wrap its bank draws its lines over the page;
- * either then meets the budget as the count has left it. */
-static bool spend(GameState *g)
-{
-    uint8_t left = (uint8_t)(menu_text_budget(g) - 1);
-    set_menu_text_budget(g, left);
-    return left != 0;
-}
+ * of 0 is taken as 256 glyphs. A call keeps its budget in hand and leaves
+ * what is left on the text page as it stops; the guards keep away the texts
+ * that would read or draw over the page's budget meanwhile (a name past the
+ * table of names' places, a label whose lines wrap round onto the page). */
+static bool spend(uint8_t *budget) { return --*budget != 0; }
 
 static void out_of_budget(GameState *g) { set_menu_text_stop(g, STOP_BUDGET); }
 
@@ -176,14 +169,14 @@ static uint16_t insert_glyph(GameState *g, Source from)
 // $C2:5BF5, $C2:5C3E, $C2:5C77
 /* Set the insert's glyphs until it or the budget runs out. True if the
  * string goes on after it this call. */
-static bool set_insert(GameState *g)
+static bool set_insert(GameState *g, uint8_t *budget)
 {
     Source from = (Source)menu_text_reading_source(g);
     for (;;) {
         set_glyph(g, insert_glyph(g, from));
         uint8_t left = (uint8_t)(menu_text_reading_insert_left(g) - 1);
         set_menu_text_reading_insert_left(g, left);
-        bool more = spend(g);
+        bool more = spend(budget);
         if (left == 0)
             set_menu_text_reading_source(g, FROM_STRING);
         if (!more) {
@@ -234,7 +227,6 @@ static void insert_name_at(GameState *g, uint16_t place)
     set_menu_text_reading_insert_left(g, glyphs_before(g, at, NAME_END, NAME_GLYPHS));
 }
 
-static void insert_character_name(GameState *g, unsigned index) { insert_name_at(g, menu_character_name_place(g, index)); }
 
 /* An item's or a tech's name ($CC:0B5E, $CC:15C4, eleven bytes a name, an
  * icon first where it has one) up to its first space; an enemy's all eleven.
@@ -366,8 +358,37 @@ enum { NAMED_TECH = 0, NAMED_ENEMY = 1, NAMED_WORDS = 8, SECOND_WORDS = 0x1F };
 /* The Epoch's name is the eighth of the names the text page reaches. */
 enum { EPOCH_NAME = 7 };
 
+/* Whose name a party member's code names: the member's character, as the
+ * original doubles and halves it (dropping the top bit). */
+static uint8_t member_name(const GameState *g, uint8_t code)
+{
+    return (uint8_t)(party_members(g, code - CODE_MEMBER_1) * 2) / 2;
+}
+
+/* The codes that insert a character's name, and where the name is: the
+ * character the argument names ($11), one of the seven by the code, the
+ * party's leader, a member of the party, or the Epoch. */
+static bool names_a_character(uint8_t code)
+{
+    return code == CODE_CHARACTER || (code >= CODE_CRONO && code <= CODE_MAGUS) || code == CODE_LEADER
+           || (code >= CODE_MEMBER_1 && code <= CODE_MEMBER_3) || code == CODE_EPOCH;
+}
+
+static uint16_t character_name_place(const GameState *g, uint8_t code, uint8_t argument)
+{
+    if (code == CODE_CHARACTER)
+        return menu_character_name_place(g, argument);
+    if (code >= CODE_CRONO && code <= CODE_MAGUS)
+        return menu_character_name_place(g, (unsigned)(code - CODE_CRONO));
+    if (code == CODE_LEADER)
+        return MENU_FIRST_NAME;
+    if (code == CODE_EPOCH)
+        return (uint16_t)(MENU_FIRST_NAME + EPOCH_NAME * MENU_NAME_BYTES);
+    return menu_character_name_place(g, member_name(g, code));
+}
+
 /* What reading a control code does: true if the string goes on this call. */
-static bool control_code(GameState *g, uint8_t code)
+static bool control_code(GameState *g, uint8_t code, uint8_t *budget)
 {
     if (code == CODE_END || (code >= CODE_BREAKS_FROM && code <= CODE_BREAKS_TO)) {
         set_menu_text_stop(g, code);
@@ -382,20 +403,12 @@ static bool control_code(GameState *g, uint8_t code)
         return false;
     if (code >= CODE_NUMBER_BYTE && code <= CODE_NUMBER_LONG)
         insert_number(g, (uint8_t)(code - CODE_NUMBER_BYTE + 1));
-    else if (code == CODE_CHARACTER)
-        insert_character_name(g, (unsigned)next_argument(g, 1));
-    else if (code >= CODE_CRONO && code <= CODE_MAGUS)
-        insert_character_name(g, code - CODE_CRONO);
-    else if (code == CODE_LEADER)
-        insert_name_at(g, MENU_FIRST_NAME);
-    else if (code >= CODE_MEMBER_1 && code <= CODE_MEMBER_3)
-        insert_character_name(g, (uint8_t)(party_members(g, code - CODE_MEMBER_1) * 2) / 2);
+    else if (names_a_character(code))
+        insert_name_at(g, character_name_place(g, code, code == CODE_CHARACTER ? (uint8_t)next_argument(g, 1) : 0));
     else if (code == CODE_NADIA)
         insert(g, FROM_INSERT, MENU_MARLE_REAL_NAME, MARLE_REAL_NAME_GLYPHS);
     else if (code == CODE_ITEM)
         insert_item_name(g, (uint8_t)event_variables(g, 0));
-    else if (code == CODE_EPOCH)
-        insert_name_at(g, (uint16_t)(MENU_FIRST_NAME + EPOCH_NAME * MENU_NAME_BYTES));
     else {   /* CODE_NAMED */
         uint8_t what = next_string_byte(g);
         if (what >= NAMED_WORDS)
@@ -407,28 +420,28 @@ static bool control_code(GameState *g, uint8_t code)
         else
             return false;   /* 2-7, above */
     }
-    return set_insert(g);
+    return set_insert(g, budget);
 }
 
 // $C2:58B2
 /* Read the string on: glyphs set, words and codes acted on, until something
  * stops the call. */
-static void read_string(GameState *g)
+static void read_string(GameState *g, uint8_t *budget)
 {
     for (;;) {
         uint8_t b = next_string_byte(g);
         if (b >= FIRST_GLYPH || b == 1 || b == 2) {
             uint16_t glyph = b >= FIRST_GLYPH ? b : (uint16_t)(b << 8 | next_string_byte(g));
             set_glyph(g, glyph);
-            if (!spend(g)) {
+            if (!spend(budget)) {
                 out_of_budget(g);
                 return;
             }
         } else if (b >= FIRST_WORD) {
             insert_word(g, b, (uint16_t)(b - FIRST_WORD));
-            if (!set_insert(g))
+            if (!set_insert(g, budget))
                 return;
-        } else if (!control_code(g, b)) {
+        } else if (!control_code(g, b, budget)) {
             return;
         }
     }
@@ -455,14 +468,18 @@ static bool ready_to_go_on(GameState *g)
 }
 
 // $C2:5823
-/* Set glyphs until the string stops the call or its budget runs out. */
-void menu_text_go_on(GameState *g)
+/* Set up to `budget` glyphs, until the string stops the call; what is left
+ * of the budget is kept on the text page. */
+static void set_glyphs(GameState *g, uint8_t budget)
 {
     if (!ready_to_go_on(g))
         return;
-    if (menu_text_reading_source(g) == FROM_STRING || set_insert(g))
-        read_string(g);
+    if (menu_text_reading_source(g) == FROM_STRING || set_insert(g, &budget))
+        read_string(g, &budget);
+    set_menu_text_budget(g, budget);
 }
+
+void menu_text_go_on(GameState *g) { set_glyphs(g, menu_text_budget(g)); }
 
 /* ---- The menus' labels ----------------------------------------------------------------------- */
 
@@ -488,8 +505,7 @@ uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t 
     set_menu_text_tiles(g, at);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
     for (;;) {
-        set_menu_text_budget(g, LABEL_GLYPHS_A_LINE);
-        TIMED_AS(g, 0xC25823, menu_text_go_on(g));
+        TIMED_AS(g, 0xC25823, set_glyphs(g, LABEL_GLYPHS_A_LINE));
         if (menu_text_stop(g) != NEW_LINE)
             return menu_text_reading_pen(g);
         at = next_label_line(at);
@@ -497,108 +513,58 @@ uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t 
     }
 }
 
-/* ---- The entries ------------------------------------------------------------------------- */
+/* ---- Reading a string without setting it -------------------------------------------------- */
 
-/* What the start leaves in the registers: X the arguments' place, Y the
- * string's offset in its table. */
-static void leave_started(Snes *s)
+MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at)
 {
-    s->cpu.a = 0;
-    s->cpu.x = ARGUMENTS;
-    s->cpu.y = (uint16_t)(2u * menu_text_string(state_of(s)));
+    uint8_t b = menu_text_byte(g, at);
+    MenuTextPiece p = { MENU_TEXT_INSERT, b, 1, 0 };
+    if (b >= FIRST_GLYPH) {
+        p.kind = MENU_TEXT_GLYPH;
+    } else if (b == 1 || b == 2) {
+        p.kind = MENU_TEXT_GLYPH;
+        p.bytes = 2;
+    } else if (b >= FIRST_WORD) {
+        /* a word: an insert */
+    } else if (b == CODE_WAIT) {
+        p.kind = MENU_TEXT_STOP;
+        p.bytes = 2;
+    } else if (b == CODE_NAMED) {
+        uint8_t what = menu_text_byte(g, stepped(at, 1));
+        if (what > NAMED_ENEMY && what < NAMED_WORDS)
+            p.kind = MENU_TEXT_STOP;
+        else if (what < NAMED_WORDS)
+            p.arguments = 1;
+        p.bytes = 2;
+    } else if (b == CODE_END || b == CODE_PAUSE || (b >= CODE_BREAKS_FROM && b <= CODE_BREAKS_TO)) {
+        p.kind = MENU_TEXT_STOP;
+    } else if (b >= CODE_NUMBER_BYTE && b <= CODE_NUMBER_LONG) {
+        p.arguments = (uint8_t)(b - CODE_NUMBER_BYTE + 1);
+    } else if (b == CODE_CHARACTER) {
+        p.arguments = 1;
+    }
+    return p;
 }
+
+uint32_t menu_text_past(uint32_t at, MenuTextPiece piece) { return stepped(at, piece.bytes); }
+
+uint32_t menu_text_string_begins(const GameState *g) { return first_byte_of_string(g); }
+
+bool menu_text_has_ended(const GameState *g) { return menu_text_stop(g) == STOP_FINISHED; }
+
+bool menu_text_in_an_insert(const GameState *g) { return menu_text_reading_source(g) != FROM_STRING; }
+
+uint8_t menu_text_glyph_index(uint16_t glyph) { return (uint8_t)(glyph - FIRST_GLYPH); }
+
+
+/* ---- The entries ------------------------------------------------------------------------- */
 
 // $C2:57DF
 void menu_text_start_entry(Snes *s)
 {
     menu_text_start(state_of(s));
-    ORIGINAL_EFFECT(leave_started(s));
+    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_text_started_leaves(state_of(s)), 0));
     m_rtl(s);
-}
-
-/* What a call leaves in the index registers, which the menus' task yield
- * keeps for the next screen handler (two of them read Y). The original
- * leaves X and Y as its last steps do: a control code is read into Y and
- * dispatched on doubled in X; a glyph's drawing leaves Y at the offset of the
- * pen's tile column and X at the glyph's index among the widths; a call out
- * of budget in an insert dispatches on two facts, whether some of the insert
- * is left and whether some budget is, so it leaves X at 2 with some of the
- * insert left and at 0 without; a text already ended leaves X at 0 and Y as
- * it was.
- *
- * The port doesn't keep how a call ended. The wrapper reads it back from the
- * string: what the call read last, found by reading the string again from
- * where the call began to where it stopped. */
-typedef enum { READ_NOTHING, READ_A_GLYPH, READ_AN_INSERT, READ_A_CODE } LastRead;
-
-static LastRead last_read(const GameState *g, uint32_t from, uint32_t to, uint8_t *code)
-{
-    LastRead last = READ_NOTHING;
-    uint16_t left = (uint16_t)(to - from);
-    uint32_t at = from;
-    while (left != 0) {
-        uint8_t b = menu_text_byte(g, at);
-        uint16_t bytes = 1;
-        if (b >= FIRST_GLYPH) {
-            last = READ_A_GLYPH;
-        } else if (b == 1 || b == 2) {
-            last = READ_A_GLYPH;
-            bytes = 2;
-        } else if (b >= FIRST_WORD) {
-            last = READ_AN_INSERT;
-        } else if (b == CODE_WAIT) {
-            last = READ_A_CODE;
-            bytes = 2;
-        } else if (b == CODE_NAMED) {
-            uint8_t what = menu_text_byte(g, stepped(at, 1));
-            last = what >= NAMED_WORDS || what <= NAMED_ENEMY ? READ_AN_INSERT : READ_A_CODE;
-            bytes = 2;
-        } else if (b == CODE_END || b == CODE_PAUSE || (b >= CODE_BREAKS_FROM && b <= CODE_BREAKS_TO)) {
-            last = READ_A_CODE;
-        } else {
-            last = READ_AN_INSERT;
-        }
-        *code = b;
-        at = stepped(at, bytes);
-        left = bytes >= left ? 0 : (uint16_t)(left - bytes);
-    }
-    return last;
-}
-
-/* The offset of the tile column the last glyph was drawn in. */
-static uint16_t last_glyph_column(const GameState *g, uint16_t glyph)
-{
-    uint8_t width = menu_glyph_width(g, (uint8_t)(glyph - FIRST_GLYPH));
-    unsigned column = (uint8_t)(menu_text_reading_pen(g) - width) / 8u;
-    return tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? menu_text_column_offset(g, column)
-                                                            : menu_text_column_offset_16_colour(g, column);
-}
-
-static void leave_went_on(Snes *s, bool begun, uint32_t from)
-{
-    const GameState *g = state_of(s);
-    s->cpu.a = 0;
-    if (!begun) {
-        s->cpu.x = 0;
-        return;
-    }
-    uint8_t code = 0;
-    uint16_t glyph = menu_text_reading_glyph(g);
-    switch (last_read(g, from, menu_text_reading_at(g), &code)) {
-    case READ_A_CODE:
-        s->cpu.x = (uint16_t)(code * 2);
-        s->cpu.y = code;
-        break;
-    case READ_A_GLYPH:
-        s->cpu.x = (uint8_t)(glyph - FIRST_GLYPH);
-        s->cpu.y = last_glyph_column(g, glyph);
-        break;
-    case READ_AN_INSERT:
-    case READ_NOTHING:
-        s->cpu.x = menu_text_reading_source(g) != FROM_STRING ? 2 : 0;
-        s->cpu.y = last_glyph_column(g, glyph);
-        break;
-    }
 }
 
 // $C2:5823
@@ -606,19 +572,10 @@ void menu_text_go_on_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint32_t from = menu_text_reading_at(g);
-    bool begun = menu_text_stop(g) != STOP_FINISHED;
+    bool begun = !menu_text_has_ended(g);
     menu_text_go_on(g);
-    ORIGINAL_EFFECT(leave_went_on(s, begun, from));
+    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_text_went_on_leaves(g, begun, from), 0));
     m_rtl(s);
-}
-
-/* A label's setting leaves its last call's registers, and that call's stop
- * in A; its calls read the string from its first byte on. */
-void menu_leave_label_set(Snes *s)
-{
-    const GameState *g = state_of(s);
-    leave_went_on(s, true, first_byte_of_string(g));
-    s->cpu.a = menu_text_stop(g);
 }
 
 // $C2:F90C
@@ -626,7 +583,7 @@ void menu_set_label_entry(Snes *s)
 {
     GameState *g = state_of(s);
     (void)menu_set_label(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    ORIGINAL_EFFECT(menu_leave_label_set(s));
+    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_label_set_leaves(g), menu_text_stop(g)));
     m_rts(s);
 }
 
@@ -664,16 +621,77 @@ bool menu_text_is_startable(Snes *s)
     return ok;
 }
 
+/* A call keeps its budget in hand, where the original counts it down in its
+ * cell on the text page as it goes: the two part only for a text whose call
+ * reads that cell, as a string, an argument or an insert. The game's texts
+ * never do; one could through a name past the seven places of the table of
+ * names ($C2:5FD8, read through the table's neighbours from anywhere), more
+ * than 19 arguments' worth of bytes, or a pointer onto the page. So the
+ * guards read a text ahead to where its call (or a label's last line) would
+ * stop, and turn away a text that reads the budget's cell, whose label lines
+ * come round onto the page, or that doesn't stop within MOST_PIECES_AHEAD of
+ * its pieces. A label goes on past a new line, and past a pause, which leaves
+ * the stop it found. */
+enum { BUDGET_CELL = 0x0213, MOST_PIECES_AHEAD = 0x400 };
+
+/* Whether `bytes` bytes from `at` (stepping on within the bank) take in the
+ * budget's cell, in work RAM's bank or its low mirror in a system bank. */
+static bool reads_budget(uint32_t at, uint16_t bytes)
+{
+    uint8_t bank = (uint8_t)(at >> 16);
+    if (bank != 0x7E && (bank & 0x7F) >= 0x40)
+        return false;
+    return (uint16_t)(BUDGET_CELL - (uint16_t)at) < bytes;
+}
+
+static bool stays_off_the_budget(const GameState *g, uint32_t at, uint32_t arguments, bool label, uint32_t line)
+{
+    for (uint16_t n = 0; n < MOST_PIECES_AHEAD; n = (uint16_t)(n + 1)) {
+        MenuTextPiece p = menu_text_piece_at(g, at);
+        if (reads_budget(at, p.bytes) || reads_budget(arguments, p.arguments))
+            return false;
+        if (p.kind == MENU_TEXT_STOP) {
+            if (!label || (p.code != NEW_LINE && p.code != CODE_PAUSE))
+                return true;
+            line = next_label_line(line);
+            if (!tiles_are_writable(line))
+                return false;
+        } else if (names_a_character(p.code)) {
+            uint8_t argument = p.code == CODE_CHARACTER ? menu_text_byte(g, arguments) : 0;
+            if (reads_budget(MENU_NAMES_BANK | character_name_place(g, p.code, argument), NAME_GLYPHS))
+                return false;
+        }
+        arguments = stepped(arguments, p.arguments);
+        at = stepped(at, p.bytes);
+    }
+    return false;
+}
+
 /* Taking a text up: it is at one of the stops a call leaves, reading from
- * one of the four sources, both from memory; the arguments on the text page. */
+ * one of the four sources, both from memory; the arguments on the text page;
+ * and neither what is left of an insert nor what the call reads on takes in
+ * the budget's cell (above). */
 enum { MOST_STOP = 0x20 };
 
 static bool can_go_on(const GameState *g)
 {
     uint8_t source = menu_text_reading_source(g);
-    return menu_text_stop(g) <= MOST_STOP && source <= FROM_HEX_DIGITS && readable(menu_text_reading_at(g))
-           && (source == FROM_STRING || readable(menu_text_reading_insert(g)))
-           && readable(menu_text_reading_arguments_at(g)) && tiles_are_writable(menu_text_tiles(g));
+    if (!(menu_text_stop(g) <= MOST_STOP && source <= FROM_HEX_DIGITS && readable(menu_text_reading_at(g))
+          && (source == FROM_STRING || readable(menu_text_reading_insert(g)))
+          && readable(menu_text_reading_arguments_at(g)) && tiles_are_writable(menu_text_tiles(g))))
+        return false;
+    if (menu_text_stop(g) == STOP_FINISHED)
+        return true;
+    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), menu_text_reading_insert_left(g)))
+        return false;
+    return stays_off_the_budget(g, menu_text_reading_at(g), menu_text_reading_arguments_at(g), false, 0);
+}
+
+bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles)
+{
+    uint32_t line = TILES_BANK | tiles;
+    return readable(strings) && tiles_are_writable(line)
+           && stays_off_the_budget(g, string_begins(g, strings, string), ARGUMENTS, true, line);
 }
 
 bool menu_text_can_go_on(Snes *s)
@@ -688,7 +706,7 @@ bool menu_label_is_settable(Snes *s)
 {
     const GameState *g = state_of(s);
     vars_peek(true);
-    bool ok = readable(menu_text_strings(g)) && tiles_are_writable(TILES_BANK | menu_load_destination(g));
+    bool ok = menu_label_can_be_set(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
     vars_peek(false);
     return ok;
 }

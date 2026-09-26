@@ -12,7 +12,9 @@
  * marked in view or not by the screen itself. */
 #include "field/field.h"
 #include "field/object.h"
+#include "field/palettes.h"
 
+#include "charge.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
@@ -169,8 +171,9 @@ static bool bottom_overflows(const GameState *g, uint8_t by)
 
 /* An object coming into view is given a palette and a block of sprite records
  * by the original's routines, each by the object's role, and joins its row;
- * leaving, it gives back its slots in the frame builder, its palette and its
- * sprite records, and leaves its row. The field calls them in turn, going on
+ * leaving, it gives back its slots in the frame builder, its palette (as C,
+ * field/palettes.c) and its sprite records, and leaves its row. The field
+ * calls them in turn, going on
  * where each came back with the machine as it runs, and stopping at the
  * call's return otherwise. None of them reads the registers it is entered
  * with but the overflow. */
@@ -178,7 +181,6 @@ enum {
     GIVE_PALETTE = 0xC07170,          /* a palette slot (of the six at $0B80), its colors loaded */
     GIVE_SPRITE_RECORDS = 0xC06F9A,   /* a block of sprite records, for the roles that need one */
     FREE_FRAME_SLOTS = 0xC0EA42,      /* its slots among the frame builder's four */
-    FREE_PALETTE = 0xC0734C,
     FREE_SPRITE_RECORDS = 0xC07056,
 };
 enum { VIEW_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
@@ -197,6 +199,18 @@ static bool rows_step(Snes *s, uint32_t site, FieldObject obj, bool join)
     if (field_rows_step_as_c(s, obj, join))
         return true;
     return join ? call_out(s, site, FIELD_JOIN_ROW_ENTRY) : call_out(s, site, FIELD_LEAVE_ROW_ENTRY);
+}
+
+/* Its palette slot given up (field/palettes.c) as C, timed as the routine it
+ * is; where the slot or its sharers are ones the tables don't hold, the entry
+ * is called, and the original runs it. */
+static bool give_up_palette(Snes *s, uint32_t site, FieldObject obj)
+{
+    GameState *g = state_of(s);
+    if (!object_palette_is_kept(g, obj))
+        return call_out(s, site, FIELD_GIVE_UP_PALETTE_ENTRY);
+    TIMED_AS(g, FIELD_GIVE_UP_PALETTE_ENTRY, object_give_up_palette(g, obj));
+    return true;
 }
 
 bool field_view_changes(const GameState *g, unsigned obj)
@@ -228,7 +242,7 @@ bool field_update_visibility(Snes *s, FieldObject obj)
     }
     if (was_in_view) {
         object_set_in_view(g, obj, false);
-        if (!call_out(s, 0xC0A918, FREE_FRAME_SLOTS) || !call_out(s, 0xC0A91B, FREE_PALETTE) ||
+        if (!call_out(s, 0xC0A918, FREE_FRAME_SLOTS) || !give_up_palette(s, 0xC0A91B, obj) ||
             !call_out(s, 0xC0A91E, FREE_SPRITE_RECORDS) || !rows_step(s, 0xC0A921, obj, false))
             return false;
         after_leaving_view(g, obj);

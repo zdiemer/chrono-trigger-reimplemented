@@ -21,6 +21,10 @@ enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PAR
 
 static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
 
+/* How the battle ended (battle_result), which the field reads when it puts
+ * the party back (field/battle_return.c). */
+typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;
+
 /* A combatant's stat block (battle_stats) is $80 bytes. */
 enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
 

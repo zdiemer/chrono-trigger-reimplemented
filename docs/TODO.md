@@ -508,6 +508,13 @@ rest waits, is [PLAN.md](PLAN.md).
   needs shadow mode to check every active comparison at each step rather than
   the innermost: the enclosing one resumed by its callee's return while the
   nested one waits for a later instruction.
+- **Why a guard refused a real call isn't reported.** Shadow mode and the
+  calls log count refusals but don't say which condition refused or what the
+  state was; agents have added a print and rebuilt to find out (battle's
+  phantom timer slot, the menus' refusals). A `ct_dev --guard-details N` that
+  names the entry, the failing condition and the cells it read, for the first
+  N refusals, would save that; so would counting refusals per entry in the
+  shadow report.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
@@ -562,22 +569,49 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
+  characters in the records"):
+  - the records' task (`$C2:F657`), which yields every frame, is the
+    original's, calling the animation's step and the records' drawing as
+    ports;
+  - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
+    on the machine) as a call-out; the unpacker as C on the game's state
+    would take the menus' loads off the machine;
+  - six-block sprites are left to the original by the guards (their sprites'
+    offsets run past the record into the next); no menu shows one;
+  - what sets `menu_record_buffer_half` (`$7E:0D72`: nothing in bank `$C2`
+    writes it) is not worked out;
+  - `$C2:F6F5`, an entry into the animation's step past its frame's advance
+    that nothing calls, is not ported;
+  - the sprite tables' accessors in `menu_data.h` take byte places the port
+    works out (`a.graphics * 3 + table`); accessors that take the sprite's
+    numbers would keep the tables' layout in one place (review item 64), and
+    the long and short assignments' test is written twice (the place and the
+    size);
+  - `sprites.c` steps its pointers with `in_bank` in some places and `+` in
+    others, as the original's word and long adds do; a comment where each
+    is chosen would say why;
+  - the palette's changed count is bumped in place
+    (`set_menu_palette_changed(g, menu_palette_changed(g) + 1)`); a
+    `menu_note_palette_changed` would name it;
+  - `menu_record_animation_count` is a facing's frames, which its name
+    doesn't say;
+  - the save screen's chapter label builds its place and calls the label
+    setting inline in its entry and its guard; a helper would say it once;
 - **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
   typesetter, the graphics and the items"):
-  - the characters' sprites as the menus open (`$C2:F3CA`, `$C2:F422`) and
-    the records' animation (`$C2:F69D`-`$C2:F870`), still the original's;
   - the typesetter's `$12` followed by 2-7, which jumps into code in the
     original that isn't a handler, ends the call in the port as a pause does,
     setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
     random ROM as text and reach it);
   - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
-    and `$C2:D296` after it) is worked out in the wrappers by reading the
-    string again from where the call began, scaffolding that stands because
-    the menus' task yield (`$C2:CF5B` jumps to `$C2:821E`) keeps X and Y for
-    the next handler the menus' thread dispatches (`$C2:828E`), and two of
-    those, `$C2:C7E0` and `$C2:E236`, read Y (liveness, through
-    `$C2:E984`'s paths that leave Y alone). Porting those handlers, or
-    showing no path from the slot rows reaches them, drops it;
+    and `$C2:D296` after it) is worked out in `menu/leaves.c` by reading the
+    string again from where the call began. Nothing reads it: the handlers
+    the analysis finds Y live in (`$C2:C7E0`, `$C2:E236`) only pass it on,
+    and it is live there because the analysis joins what follows every call
+    of `$C2:E984` up to the menus' return to their caller. A liveness that
+    tells the calls of a routine apart, or ports of those handlers and their
+    thread, drop it;
   - the typesetter's control codes as a C table with a column for where a
     name comes from, in place of `control_code`'s chain;
   - the glyphs by index (a glyph number and its width's index are the same
@@ -780,6 +814,22 @@ rest waits, is [PLAN.md](PLAN.md).
     the effect table, leaves an effect or a set switch playing its bytes as
     addresses anywhere in sound memory, which the port doesn't keep; and a set
     switch under a track that has run on into the effects.
+  - **The house's "tinny" hi-hats** (SOUND.md, "What playing it found"). A
+    report from playing `--sound-driver c` that no movie reproduces: over
+    new-game the C driver plays the house's songs note for note as the
+    original does, from the same samples. If it recurs, record the session
+    (`ct_play --record` can't with the C driver: note the route and the songs
+    before) and compare sound memory with the original's at the scene; the
+    host's fault that overwrote samples is fixed, and a song keeps a block the
+    echo overwrote in the original too (battle-magus).
+  - **The sound lockstep's audio comparison as a check**
+    (`ct_dev --sound-lockstep-audio exact`, SOUND.md "What playing it found").
+    It isn't exact yet: from the intro on (80.7 s of every power-on movie) the
+    effect voices' levels part for a few hundred samples, and the long save
+    movies part further. Find which writes land at another sample (the pairing
+    of the C driver's writes with the original's is by register and value
+    within a tick; a command's writes and the flags' several writes are the
+    suspects), make it exact, then have a difference fail the run.
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,
@@ -977,11 +1027,15 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
-  - the field's start (`$C0:0B86`), the pause and the menu opening
-    (`$C0:18D9`, `$C0:1985`, `$C0:1A03`) are the original's; `$C0:0B86` sets
-    some twenty cells the map has no names for yet (`$10`, `$11`, `$2F`,
-    `$39`, `$8D`-`$96`, `$AE`-`$BB`, `$FA`, `$7E:2989`, `$7E:0BE9`), which
-    their readers name first;
+  - the field's start (`$C0:0B86`) is the original's; it sets some cells
+    the map has no names for yet (`$2F`, `$39`, `$AE`-`$BB`, `$FA`,
+    `$7E:2989`, `$7E:0BE9`), which their readers name first;
+  - the pause and the menus (field/menus.c) call the original's frame wait,
+    field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
+    lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons
+    (`$C0:1ADF`) and a character's start (`$C0:597D`); the Start
+    assignment's test leaves the overflow of its subtraction, which the
+    menus' entry and the next frame read (field/leaves.c);
   - the switch's sound is still the original's routine (`$C0:1B90`, which
     pans it on the leader by reading the objects' screen X with the party's
     first two places as one index word); the port calls it and hands it A's

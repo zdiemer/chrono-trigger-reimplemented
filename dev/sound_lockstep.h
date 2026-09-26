@@ -13,8 +13,11 @@
  *   $0371; the status it showed is read at $02E2);
  * - a command carried out ($0BAC, with the command in $8D-$90), wherever
  *   that is: in either batch, between ticks, or in the wait for the echo's
- *   buffer. A song's start is given once its upload is in ($0C08), after
- *   anything that upload loaded;
+ *   buffer. A song's command is announced there (sound_announce_song: the
+ *   music stops and the echo moves), and the song started once its upload
+ *   is in ($0C08), after anything that upload loaded; there the two are
+ *   compared as at a tick's start, since what the command did must be done
+ *   before the samples arrive;
  * - the echo writing again after a delay change ($1397): sound_echo_drained;
  *   and its buffer ready ($0CE5 for a song's, $134B for command $FC's):
  *   sound_echo_ready;
@@ -37,6 +40,7 @@
 
 #include <stdio.h>
 
+#include "sound_audio.h"
 #include "sound_compare.h"
 #include "snes/system.h"
 
@@ -44,6 +48,8 @@ typedef struct SoundLockstep SoundLockstep;
 
 SoundLockstep *sound_lockstep_create(Snes *s, SoundCompareLevel level);
 void sound_lockstep_destroy(SoundLockstep *l);
+/* Hear the C driver too, sample for sample (dev/sound_audio.h). */
+void sound_lockstep_listen(SoundLockstep *l, SoundAudio *audio);
 
 /* From the APU's hooks (Apu.on_insn and Apu.on_dsp_write). */
 void sound_lockstep_insn(SoundLockstep *l, const Apu *apu);

@@ -64,14 +64,14 @@ static void check_input_cells(GameState *g)
 
 static void check_menu_records(GameState *g)
 {
-    static const uint16_t declared[] = { 0x1800, 0x1840, 0x1880, 0x18C0, 0x1900, 0x1940, 0x1980, 0x19C0 };
+    static const uint16_t declared[] = { 0x1800, 0x1840, 0x1880, 0x18C0, 0x1900, 0x1940, 0x1980, 0x19C0, 0x1A00 };
     for (unsigned k = 0; k < MENU_RECORD_COUNT; k++) {
         unsigned record = 99;
         CHECK(menu_record_page_of(declared[k], &record) && record == k, "D $%04X is record %u", declared[k], k);
     }
     uint16_t last = 0;
     unsigned long before = refused("menu_record", &last);
-    static const uint16_t other[] = { 0x17C0, 0x1820, 0x1A00, 0x0000 };
+    static const uint16_t other[] = { 0x17C0, 0x1820, 0x1A40, 0x0000 };
     for (unsigned k = 0; k < sizeof other / sizeof other[0]; k++) {
         unsigned record;
         CHECK(!menu_record_page_of(other[k], &record), "D $%04X is no menu record", other[k]);

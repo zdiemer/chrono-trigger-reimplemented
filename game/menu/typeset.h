@@ -33,6 +33,36 @@ void menu_text_go_on(GameState *g);
  * line is, in pixels. */
 uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
 
+/* A string read without being set, a piece at a time, for the guards, which
+ * read ahead of a call, and the menus' leaves (menu/leaves.c), which read
+ * back over one: a glyph; what starts an insert (a word of the dictionary, a
+ * number, a name); or a code the setting stops a call at (the end, a wait, a
+ * break, a pause, and $12's choices that aren't a name or a word). `code` is
+ * the piece's first byte. */
+typedef enum { MENU_TEXT_GLYPH, MENU_TEXT_INSERT, MENU_TEXT_STOP } MenuTextPieceKind;
+typedef struct {
+    MenuTextPieceKind kind;
+    uint8_t code;
+    uint8_t bytes;
+    uint8_t arguments;   /* bytes it takes of the string's arguments */
+} MenuTextPiece;
+
+MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at);
+uint32_t menu_text_past(uint32_t at, MenuTextPiece piece);
+
+/* Where the text page's string begins; whether its text has ended; whether
+ * the setting is partway through an insert. */
+uint32_t menu_text_string_begins(const GameState *g);
+bool menu_text_has_ended(const GameState *g);
+bool menu_text_in_an_insert(const GameState *g);
+
+/* A glyph's index among the font's (its width's place). */
+uint8_t menu_text_glyph_index(uint16_t glyph);
+
+/* Whether a label can be set: from memory, into work RAM, with none of its
+ * names or lines on the text page (typeset.c's guards say why). */
+bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
+
 /* The entries, and their guards. */
 void menu_text_start_entry(Snes *s);
 void menu_text_go_on_entry(Snes *s);
@@ -40,9 +70,5 @@ void menu_set_label_entry(Snes *s);
 bool menu_text_is_startable(Snes *s);
 bool menu_text_can_go_on(Snes *s);
 bool menu_label_is_settable(Snes *s);
-
-/* What the label's setting leaves in the registers, for a port that sets a
- * label as C where the original's caller reads them after. */
-void menu_leave_label_set(Snes *s);
 
 #endif

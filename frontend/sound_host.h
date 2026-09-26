@@ -28,4 +28,10 @@ typedef struct SoundHost SoundHost;
 SoundHost *sound_host_attach(Snes *s);
 void sound_host_detach(SoundHost *h);
 
+/* Bytes uploaded where the S-DSP was writing its echo: the one thing the
+ * original never lets happen (it stops the echo writing, and moves its buffer,
+ * before a song's samples arrive), since the echo would overwrite them.
+ * Nonzero is a fault; ct_dev and ct_sound_fuzz check it. */
+unsigned long sound_host_uploads_into_echo(const SoundHost *h);
+
 #endif

@@ -4867,7 +4867,7 @@ why = "the 12-sprite layout with its tiles at $68"
 name = "field_return_from_battle"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7E01A3-7E01AA=80,12,14,16,18,1A,1C", "--fill", "7E016E-7E016E=00-00", "--fill", "7F01EC-7F01EC=00-02", "--fill", "7E1700-7E171D=00-00", "--fill", "7E1300-7E137F=C0-FF", "--fill", "7E1A93-7E1A9D=00,01,80", "--keep", "7E0E00-7E0EFF", "--fill", "7E29C6-7E29C6=00,01,02", "--fill", "7E29D2-7E29D2=00,01,02", "--fill", "7E29DE-7E29DE=00,01,02", "--fill", "7E29EA-7E29EA=00,01,02", "--fill", "7E29F6-7E29F6=00,01,02", "--fill", "7E2A02-7E2A02=00,01,02", "--fill", "7E2A0E-7E2A0E=00,01,02", "--fill", "7E2A1A-7E2A1A=00,01,02", "--stop-at-call", "C0B271"]
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7E01A3-7E01AA=80,12,14,16,18,1A,1C", "--fill", "7E016E-7E016E=00,00,00,01", "--fill", "7F01EC-7F01EC=00-02", "--fill", "7E1700-7E171D=00-00", "--fill", "7E1300-7E137F=C0-FF", "--fill", "7E1A93-7E1A9D=00,01,80", "--fill", "7E0B00-7E0B7F=80,FF,00,02,04,06,08,0C,12,20,7E", "--fill", "7E0F93-7E0F93=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F95-7E0F95=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F97-7E0F97=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F99-7E0F99=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F9B-7E0F9B=00,02,04,06,08,0A,0C,0E", "--fill", "7E0F9D-7E0F9D=00,02,04,06,08,0A,0C,0E", "--keep", "7E0E00-7E0EFF", "--fill", "7E29C6-7E29C6=00,01,02", "--fill", "7E29D2-7E29D2=00,01,02", "--fill", "7E29DE-7E29DE=00,01,02", "--fill", "7E29EA-7E29EA=00,01,02", "--fill", "7E29F6-7E29F6=00,01,02", "--fill", "7E2A02-7E2A02=00,01,02", "--fill", "7E2A0E-7E2A0E=00,01,02", "--fill", "7E2A1A-7E2A1A=00,01,02", "--stop-at-call", "C0B271"]
 why = "the field's page; the battle's enemies some of objects 9-14 or none, each taken away (kind 0) or kept, with a sprite or without, the party three of objects 0-6 or fewer; the current object's word clear above its link, every record at the start of the records and their descriptions in the ROM, the rows as the state has them (the guard's). Compared up to the sprite table's building: that routine's own call-outs can't finish on this state (its own row is skipped for the same reason), and field_hold_party_if_defeated fuzzes what follows it"
 
 [[routine]]
@@ -4876,6 +4876,42 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00,02,04,80", "--fill", "7E0198-7E0198=00-00", "--fill", "7E0199-7E0199=06,08,80", "--fill", "7E019A-7E019A=00-00", "--fill", "7E019B-7E019B=0A,0C,80", "--fill", "7E019C-7E019C=00-00", "--fill", "7F01EC-7F01EC=00-02"]
 why = "the party three of objects 0-6 or fewer, the battle won, lost or fled"
+
+[[routine]]
+name = "field_give_up_palette"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E0154-7E0154=00,80,7F", "--fill", "7E0F91-7E0F91=00,02,04,06,08,0A,0C,0E", "--fill", "7E0B00-7E0B7F=80,FF,00,02,04,06,08,0C,12,20,7E"]
+why = "the current object 8 with each palette slot, its sharers before and after it objects or none (either byte for none), and the palettes a script set or not"
+
+[[routine]]
+name = "field_pause_and_menus"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C00B4E", "--stop-at-call", "C01ADF"]
+why = "Start, the Start assignment and X pressed or not, the pause and the menus locked or not, the player in control or not, a choice waiting or not, each brightness kind, a dialog window or none, the story before and past the Start menu's point (and either side of its overflow); compared up to the first frame wait, the blanking before a menu, or the choice's call, since the pause and the menus run for frames"
+
+[[routine]]
+name = "field_press_start"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F0-7E00F0=00,01", "--fill", "7E00F6-7E00F6=00,01,40,41", "--fill", "7E0110-7E0111=00,00,01", "--fill", "7E011F-7E011F=00,01,01", "--fill", "7E0162-7E0162=00,00,01,02", "--fill", "7E0119-7E0119=00,01,0F,80", "--fill", "7E0126-7E0126=00,00,01,02", "--fill", "7F0000-7F0000=00,48,49,50,80,C8,C9,FF", "--stop-at-call", "C0EC60", "--stop-at-call", "C00B4E", "--stop-at-call", "C01ADF"]
+why = "as field_pause_and_menus"
+
+[[routine]]
+name = "field_bring_the_party_back"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E2980-7E2982=00,01,02,80", "--fill", "7E0194-7E0196=00,01,02,80", "--fill", "7E018D-7E0193=80", "--fill", "7E0197-7E0197=00,02,80", "--fill", "7E0198-7E0198=00", "--fill", "7E0199-7E0199=04,06,80", "--fill", "7E019A-7E019A=00", "--fill", "7E019B-7E019B=08,0A,80", "--fill", "7E019C-7E019C=00"]
+why = "the party changed or not by each place, its places objects or none, no character objects on the map: the party put back where it was kept"
+
+[[routine]]
+name = "field_bring_the_party_back"
+variant = "starts"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E2980-7E2982=00,01,02,80", "--fill", "7E0194-7E0196=00,01,02,80", "--fill", "7E018D-7E0193=80,80,00,02,04,10", "--fill", "7E0197-7E0197=00,02,80", "--fill", "7E0198-7E0198=00", "--fill", "7E0199-7E0199=04,06,80", "--fill", "7E019A-7E019A=00", "--fill", "7E019B-7E019B=08,0A,80", "--fill", "7E019C-7E019C=00", "--stop-at-call", "C0597D"]
+why = "the characters' objects some objects, compared up to the first start in a script (random scripts run past the budget)"
 
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #
@@ -6905,6 +6941,51 @@ state = "menus"
 args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=00-01"]
 iterations = 2000
 why = "on the first window record's page ($1800), which draws one sprite or none as the records the game draws do"
+
+[[routine]]
+name = "menu_load_record_sprites"
+at = "C2:F3CA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E1801-7E1801=00-02", "--fill", "7E1841-7E1841=00-02", "--fill", "7E1881-7E1881=00-02", "--fill", "7E18C1-7E18C1=00-02", "--fill", "7E1901-7E1901=00-02", "--fill", "7E1941-7E1941=00-02", "--fill", "7E1981-7E1981=00-02", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-03", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78"]
+iterations = 500
+why = "the opening on the menus' page, each of the seven records' sprites from any of the three sets (the playable characters' as they are, the others' unpacked), the frame buffer part filled"
+
+[[routine]]
+name = "menu_load_record_sprite"
+at = "C2:F422"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1840", "--db", "7E", "--fill", "7E1840-7E1840=00-FF", "--fill", "7E1841-7E1841=00-02"]
+iterations = 2000
+why = "the second record's page, any sprite of any set, the playable characters' and the others' (whose graphics it unpacks), none among them"
+
+[[routine]]
+name = "menu_animate_record"
+at = "C2:F69D"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E1803-7E1803=00-FF", "--fill", "7E1811-7E1812=00-FF", "--fill", "7E1813-7E1813=00-FF", "--fill", "7E1816-7E1816=00-03", "--fill", "7E1817-7E1817=00-03", "--fill", "7E1821-7E1821=00-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E180D", "--keep", "7E1814-7E1815", "--keep", "7E1819-7E1820"]
+iterations = 2000
+why = "the first record, its sprite as the state has it loaded, any animation asked for and shown, in any facing, any frame shown, the frame buffer part filled and the VRAM queue whole"
+
+[[routine]]
+name = "menu_show_record_frame"
+at = "C2:F75C"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E1806", "--keep", "7E1819-7E181A", "--fill", "7E9690-7E9690=54", "--fill", "7E9691-7E9691=7E", "--fill", "7E9693-7E9693=6B"]
+iterations = 2000
+why = "the first record, its graphics as the state has them loaded, a frame's tile list of any tiles (blank, copied, mirrored) over the save summary, the block move's stub as the animation leaves it, the frame buffer part filled and the VRAM queue whole"
+
+[[routine]]
+name = "menu_step_record_animation"
+at = "C2:F69B"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "1800", "--db", "7E", "--fill", "7E1802-7E1802=01-03", "--fill", "7E1803-7E1803=00-FF", "--fill", "7E1811-7E1812=00-FF", "--fill", "7E1813-7E1813=00-FF", "--fill", "7E1816-7E1816=00-03", "--fill", "7E1817-7E1817=00-03", "--fill", "7E1821-7E1821=00-03", "--fill", "7E0D72-7E0D72=00-FF", "--fill", "7E0D73-7E0D73=00-05", "--fill", "7E0D11-7E0D11=00,08,10,18,20,28,30,38,40,48,50,58,60,68,70,78", "--keep", "7E1804-7E180D", "--keep", "7E1814-7E1815", "--keep", "7E1819-7E1820"]
+iterations = 2000
+why = "as menu_animate_record, a frame on"
 
 [[routine]]
 name = "menu_wait_for_field_song_faded"

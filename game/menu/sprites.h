@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "menu/object.h"
+#include "snes/system.h"
 #include "state.h"
 
 /* Give an object one of the sprite scripts by its number, from its start. */
@@ -25,5 +26,18 @@ bool menu_given_sprite_script_is_well_formed(const GameState *g, uint8_t script)
 /* Whether the list the sprites are shown on is as the mode's start lays it
  * out: every link a node or a head, and a node free to show a group with. */
 bool menu_sprite_list_is_sound(const GameState *g);
+
+/* The menus' records' sprites (the characters on the load screen and the
+ * menus' screens): the opening's seven, a record's load, and its animation a
+ * frame on, or carried on; and their guards. */
+void menu_load_record_sprites(Snes *s);
+void menu_load_record_sprite(Snes *s);
+void menu_animate_record(Snes *s);
+void menu_step_record_animation(Snes *s);
+void menu_show_record_frame(Snes *s);
+bool menu_record_frame_is_showable(Snes *s);
+bool menu_record_sprites_are_loadable(Snes *s);
+bool menu_record_sprite_is_loadable(Snes *s);
+bool menu_record_is_animatable(Snes *s);
 
 #endif

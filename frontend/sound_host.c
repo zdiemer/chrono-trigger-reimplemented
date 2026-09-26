@@ -57,8 +57,6 @@ enum { OWN_PAGES_END = 0x1E, EFFECT_SET_PAGE = 0x2F, SONG_INSTRUMENT_TUNINGS = 0
  * loaded again; and the driver's entry, where the boot upload starts it. */
 enum { BOOT_ROM = 0xFFC0, BOOT_ROM_MAPPED = 0x80, DRIVER_ENTRY = 0x0200, DRIVER_RUNNING = 0x0299 };
 
-enum { ALL_VOICES = 0xFF };
-
 typedef enum {
     WAITING,          /* for a command, between ticks */
     REFUSING,         /* a song that plays already: until the CPU half moves on */
@@ -91,8 +89,12 @@ struct SoundHost {
     uint16_t at;
     MoveStep move_step;
     uint16_t move_from, move_to;
-    bool song_upload;
-    SoundCommand song;
+    bool song_upload;           /* a song's data is coming: the song starts at its end */
+    bool song_echo;             /* ... and its command changed the echo's delay */
+    uint8_t song_old_delay;
+    uint32_t song_echo_cycles;  /* the time since the command, which counts toward the echo's wait */
+
+    unsigned long uploads_into_echo;
 
     uint32_t wait_left;
     uint32_t fill_cycles;
@@ -193,6 +195,7 @@ static void boot(SoundHost *h)
     h->phase = WAITING;
     h->timer = 0;
     h->queued = 0;
+    h->song_upload = false;
     apu_of(h)->spc.pc = DRIVER_RUNNING;
     if (d->echo_draining) {
         h->phase = ECHO_DRAINING;
@@ -210,12 +213,12 @@ static void reload(SoundHost *h)
     apu_of(h)->control = BOOT_ROM_MAPPED;
     apu_of(h)->spc.pc = BOOT_ROM;
     h->phase = WAITING;
+    h->song_upload = false;
 }
 
-/* A command carried out. A change of the echo's delay makes the driver wait:
- * a song's, the old delay's time and then the new one's; command $FC's, the
- * old one's and then up to the new one's. */
-static void carry_out(SoundHost *h, SoundCommand c, bool song)
+/* A command carried out. A change of the echo's delay (command $FC) makes
+ * the driver wait, the old delay's time and then up to the new one's. */
+static void carry_out(SoundHost *h, SoundCommand c)
 {
     if (c.command == METER_OR_RELOAD && c.p1 == RELOAD) {
         reload(h);
@@ -232,10 +235,54 @@ static void carry_out(SoundHost *h, SoundCommand c, bool song)
     uint8_t new_delay = d->echo_delay;
     h->phase = ECHO_DRAINING;
     h->wait_left = old_delay * ECHO_STEP_CYCLES;
-    if (song)
-        h->fill_cycles = new_delay * ECHO_STEP_CYCLES;
-    else
-        h->fill_cycles = new_delay > old_delay ? (new_delay - old_delay) * ECHO_STEP_CYCLES : 0;
+    h->fill_cycles = new_delay > old_delay ? (new_delay - old_delay) * ECHO_STEP_CYCLES : 0;
+}
+
+/* ---- Songs ---------------------------------------------------------------------------------- */
+
+/* A song's command, before its data comes: the driver stops the music and,
+ * with a new echo delay, stops the echo writing and moves its buffer at once,
+ * out of the way of the samples about to arrive, as the original does (the
+ * old buffer can reach down over where they go). The echo's wait runs
+ * meanwhile, since the original counts the upload's time toward it; with no
+ * echo before, the echo writes again at once. */
+static void announce_song(SoundHost *h, SoundCommand c)
+{
+    SoundDriver *d = &h->driver;
+    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
+    bool was = quiet();
+    sound_announce_song(d, c);
+    h->song_upload = true;
+    h->song_echo = d->echo_draining;
+    h->song_old_delay = old_delay;
+    h->song_echo_cycles = 0;
+    if (h->song_echo && !old_delay)
+        sound_echo_drained(d);
+    vars_peek(was);
+}
+
+/* The song, once its data is in; then what is left of the echo's wait: the
+ * old delay's time from the command, and the new one's from the end of that
+ * (from the command, if there was no echo before). */
+static void start_song(SoundHost *h)
+{
+    SoundDriver *d = &h->driver;
+    h->song_upload = false;
+    bool was = quiet();
+    sound_start_announced_song(d);
+    vars_peek(was);
+    if (!h->song_echo)
+        return;
+    uint32_t elapsed = h->song_echo_cycles, fill = d->echo_delay * ECHO_STEP_CYCLES;
+    if (d->echo_draining) {
+        uint32_t drain = h->song_old_delay * ECHO_STEP_CYCLES;
+        h->phase = ECHO_DRAINING;
+        h->wait_left = drain > elapsed ? drain - elapsed : 0;
+        h->fill_cycles = fill;
+    } else {
+        h->phase = ECHO_FILLING;
+        h->wait_left = fill > elapsed ? fill - elapsed : 0;
+    }
 }
 
 /* ---- Uploads ------------------------------------------------------------------------------ */
@@ -250,10 +297,8 @@ static void end_upload(SoundHost *h)
 {
     h->phase = WAITING;
     h->took = COMMAND_CYCLES;
-    if (h->song_upload) {
-        h->song_upload = false;
-        carry_out(h, h->song, true);
-    }
+    if (h->song_upload)
+        start_song(h);
 }
 
 /* A header: where the data goes and how it comes, or the upload's end. The
@@ -313,6 +358,29 @@ static void move(SoundHost *h, uint16_t length)
         ram[(uint16_t)(to + i)] = ram[(uint16_t)(from + i)];
 }
 
+/* Whether the S-DSP is writing its echo over an address: its writes are on,
+ * and the address is in the buffer it writes now or the one its registers
+ * name (which it moves to when its offset next wraps). */
+enum { ECHO_WRITES_OFF = 0x20, ECHO_UNIT_BYTES = 0x800 };
+
+static bool in_echo(const Dsp *dsp, uint16_t at)
+{
+    if (dsp->regs[DSP_FLG] & ECHO_WRITES_OFF)
+        return false;
+    uint16_t now = (uint16_t)(dsp->echo_esa << 8), next = (uint16_t)(dsp->regs[DSP_ESA] << 8);
+    uint32_t now_length = dsp->echo_length ? dsp->echo_length : 4;
+    uint32_t next_length = (dsp->regs[DSP_EDL] & 0x0F) ? (dsp->regs[DSP_EDL] & 0x0F) * ECHO_UNIT_BYTES : 4;
+    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
+}
+
+static void upload_byte(SoundHost *h, uint8_t byte)
+{
+    Apu *a = apu_of(h);
+    if (in_echo(&a->dsp, h->at))
+        h->uploads_into_echo++;
+    a->ram[h->at++] = byte;
+}
+
 static void data(SoundHost *h, uint8_t counter)
 {
     Apu *a = apu_of(h);
@@ -321,7 +389,7 @@ static void data(SoundHost *h, uint8_t counter)
     case DATA:
     case DATA_TICKING:
         for (uint8_t i = 0; i < h->bytes; i++)
-            a->ram[h->at++] = a->cpu_in[1 + i];
+            upload_byte(h, a->cpu_in[1 + i]);
         break;
     case MOVE:
         if (h->move_step == MOVE_TO) {
@@ -366,7 +434,7 @@ static void run_queue(SoundHost *h)
     uint8_t n = h->queued;
     h->queued = 0;
     for (uint8_t i = 0; i < n && h->phase == part; i++)
-        carry_out(h, h->queue[i], false);
+        carry_out(h, h->queue[i]);
 }
 
 static void wait_for_echo(SoundHost *h, unsigned cycles)
@@ -411,7 +479,7 @@ static bool take_command(SoundHost *h)
         if (command == UPLOAD)
             begin_upload(h, command);
         else
-            carry_out(h, c, false);
+            carry_out(h, c);
         return true;
     }
     if (starts_song(command)) {
@@ -423,15 +491,13 @@ static bool take_command(SoundHost *h)
         }
         a->cpu_out[1] = c.p1;
         answer(h, command);
-        au_voices_key_off(&h->voices, ALL_VOICES);   /* the old song stops while the new one loads */
-        h->song_upload = true;
-        h->song = c;
+        announce_song(h, c);
         begin_upload(h, command);
         return true;
     }
     if (command == EFFECT_67 || command == EFFECT_45) {
         answer(h, command);
-        carry_out(h, c, false);
+        carry_out(h, c);
         return true;
     }
     if (command >= SONG_COMMANDS && command <= LAST_SONG_COMMAND)
@@ -465,6 +531,8 @@ static unsigned run_host(void *ctx, Apu *apu, unsigned cycles)
         boot(h);
     h->timer += cycles;
     h->took = 0;
+    if (h->song_upload && h->song_echo_cycles < UINT32_MAX - cycles)
+        h->song_echo_cycles += cycles;
     switch (h->phase) {
     case WAITING:
         if (tick_due(h))
@@ -521,6 +589,8 @@ SoundHost *sound_host_attach(Snes *s)
     s->apu.host_ctx = h;
     return h;
 }
+
+unsigned long sound_host_uploads_into_echo(const SoundHost *h) { return h->uploads_into_echo; }
 
 void sound_host_detach(SoundHost *h)
 {

@@ -33,7 +33,7 @@
 
 /* A menu record's own page: the $40-byte records the task at $C2:F657 runs with the direct page
  * on each, drawing their sprites. The instances: record. */
-enum { MENU_RECORD_COUNT = 8 };   /* by record */
+enum { MENU_RECORD_COUNT = 9 };   /* by record */
 
 /* ---- page kind scene_program --------------------------------------------------------------- */
 
@@ -669,6 +669,17 @@ void set_event_script_byte(GameState *g, unsigned at, uint8_t v);
 uint8_t field_irq_disabled(const GameState *g);
 void set_field_irq_disabled(GameState *g, uint8_t v);
 
+/* Nonzero keeps the menus from opening on the field (the main menu and the one the Start
+ * assignment opens, $C0:1939, $C0:19A2); the field's start clears it ($C0:0B92) and nothing in
+ * the field's code sets it, so scripts do, through the event engine's memory writes */
+uint8_t field_menus_locked(const GameState *g);
+void set_field_menus_locked(GameState *g, uint8_t v);
+
+/* Nonzero keeps Start from pausing the field ($C0:18E0); the field's start clears it ($C0:0B94),
+ * and scripts set it as they do field_menus_locked */
+uint8_t field_pause_locked(const GameState *g);
+void set_field_pause_locked(GameState *g, uint8_t v);
+
 /* Requests to the field main loop: bit 7 a location change (location_next), bit 0 a battle (set
  * with bit 5 by event $D8), bit 5 also a queued tile copy (event $E5) */
 uint8_t field_requests(const GameState *g);
@@ -682,6 +693,11 @@ void set_field_effect_status(GameState *g, uint8_t v);
 /* Brightness shadow the field NMI writes to the display every frame (0: forced blank) */
 uint8_t field_brightness(const GameState *g);
 void set_field_brightness(GameState *g, uint8_t v);
+
+/* The brightness the field had when it was paused, which the pause shows at half and puts back
+ * when it ends */
+uint8_t field_brightness_before_pause(const GameState *g);
+void set_field_brightness_before_pause(GameState *g, uint8_t v);
 
 /* Brightness a gradual change started by event $F0 moves toward */
 uint8_t field_brightness_target(const GameState *g);
@@ -834,7 +850,9 @@ uint8_t field_display_flags(const GameState *g);
 void set_field_display_flags(GameState *g, uint8_t v);
 
 /* Flags: bits 2-4 set by events $2A, $2B and $32; bit 5 cleared when an event opens a dialog
- * (and set when $C0:1F0E opens one) */
+ * (and set when $C0:1F0E opens one); bit 7 set when a script loads an object's palette itself
+ * (event $33, $C0:3711), after which objects neither take nor give up the shared palette slots
+ * ($C0:7170, $C0:734C) until the next map clears it ($C0:0BF2) */
 uint8_t field_mode_flags(const GameState *g);
 void set_field_mode_flags(GameState *g, uint8_t v);
 
@@ -937,6 +955,19 @@ enum { FIELD_SPRITE_RANGE_SPARE_COUNT = 3 };   /* by sprite range (0 priority bi
  * in the field reads it (field/scratch.h: kept for shadow mode) */
 uint16_t field_sprite_range_spare(const GameState *g, unsigned i);
 void set_field_sprite_range_spare(GameState *g, unsigned i, uint16_t v);
+
+enum { FIELD_CHARACTER_OBJECTS_COUNT = 7 };   /* by character (Crono 0, Marle 1, Lucca 2, Robo 3, Frog 4, Ayla 5, Magus 6) */
+/* The field object each playable character is on this map, a link, negative for none: the map's
+ * start clears them ($C0:0C26), the event commands that load a character set theirs
+ * ($C0:41E4-$C0:4214), and a menu that changes the party runs each one's start again ($C0:1A03) */
+uint8_t field_character_objects(const GameState *g, unsigned i);
+void set_field_character_objects(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_PARTY_AS_LOADED_COUNT = 3 };   /* by party place */
+/* The party (party_members) as the map's characters were last set up for it ($C0:0C34,
+ * $C0:1A5D): a menu that leaves the party otherwise has the characters' objects start again */
+uint8_t field_party_as_loaded(const GameState *g, unsigned i);
+void set_field_party_as_loaded(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_PARTY_OBJECTS_COUNT = 3 };   /* by party member * 2 */
 /* Object slot of each active party member, negative for none */
@@ -1214,6 +1245,25 @@ enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
 
+enum { FIELD_OBJECT_PALETTE_OLDER_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Of the objects sharing the object's sprite palette slot (the same colors), the one that took
+ * it before this one: a link, negative for none ($C0:7170 when it takes the slot, $C0:734C when
+ * it gives it up) */
+uint8_t field_object_palette_older(const GameState *g, unsigned slot);
+void set_field_object_palette_older(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_PALETTE_NEWER_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Of the objects sharing the object's sprite palette slot, the one that took it after this one:
+ * a link, negative for none */
+uint8_t field_object_palette_newer(const GameState *g, unsigned slot);
+void set_field_object_palette_newer(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_PALETTE_SLOT_NEWEST_COUNT = 8 };   /* by sprite palette slot */
+/* The object that took each sprite palette slot last, the newest of those sharing it: a link,
+ * negative when no object has the slot ($C0:7170, $C0:734C) */
+uint8_t field_palette_slot_newest(const GameState *g, unsigned slot);
+void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v);
+
 enum { FIELD_FRAME_STAGING_CLAIMS_COUNT = 8 };   /* by area of field_frame_staging (the last four entries are cleared with the first four and claim nothing read so far) */
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
@@ -1338,7 +1388,7 @@ void set_field_object_priority_mode(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_PALETTE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* The palette bits of the object's sprites' attributes, which the frame builder puts in each
- * sprite of a new frame */
+ * sprite of a new frame: the sprite palette slot the object has, doubled */
 uint8_t field_object_palette(const GameState *g, unsigned slot);
 void set_field_object_palette(GameState *g, unsigned slot, uint8_t v);
 
@@ -2126,6 +2176,29 @@ enum { FIELD_WINDOW_SHAPE_QUAD_BYTES = 15 };
 uint8_t field_window_shape_quad_byte(const GameState *g, unsigned at);
 void set_field_window_shape_quad_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { FIELD_KEPT_PARTY_X_COUNT = 3 };   /* by party place */
+/* Each party member's X on the map (field_object_x), kept while a menu is open ($C0:011B) and
+ * put back after it ($C0:1A72) */
+uint16_t field_kept_party_x(const GameState *g, unsigned i);
+void set_field_kept_party_x(GameState *g, unsigned i, uint16_t v);
+
+enum { FIELD_KEPT_PARTY_Y_COUNT = 3 };   /* by party place */
+/* Each party member's Y on the map (field_object_y), kept while a menu is open */
+uint16_t field_kept_party_y(const GameState *g, unsigned i);
+void set_field_kept_party_y(GameState *g, unsigned i, uint16_t v);
+
+enum { FIELD_KEPT_PARTY_PRIORITIES_COUNT = 3 };   /* by party place */
+/* Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a
+ * menu is open */
+uint16_t field_kept_party_priorities(const GameState *g, unsigned i);
+void set_field_kept_party_priorities(GameState *g, unsigned i, uint16_t v);
+
+enum { FIELD_KEPT_TRAIL_POSITIONS_COUNT = 3 };   /* by party place */
+/* Where each of the party was on the leader's trail (field_trail_position), kept while a menu is
+ * open */
+uint8_t field_kept_trail_positions(const GameState *g, unsigned i);
+void set_field_kept_trail_positions(GameState *g, unsigned i, uint8_t v);
+
 enum { FIELD_LINE_WAVE_COUNT = 64 };   /* by table set * 32 + line (the second 16 of each set repeat the first) */
 /* Horizontal */
 uint16_t field_line_wave_h(const GameState *g, unsigned line);
@@ -2296,6 +2369,25 @@ void set_menu_scratch_record_x(GameState *g, uint16_t v);
 /* A window record's sprites: the next sprite's tile past the record's first */
 uint16_t menu_scratch_record_tile(const GameState *g);
 void set_menu_scratch_record_tile(GameState *g, uint16_t v);
+/* A record's load ($C2:F422): its sprite's animations' number doubled, their place in the tables
+ * of animations */
+uint16_t menu_scratch_sprite_animations_entry(const GameState *g);
+void set_menu_scratch_sprite_animations_entry(GameState *g, uint16_t v);
+/* A record's frame ($C2:F75C): its blocks, counted down as they are queued when they are an odd
+ * number, which the loop leaves at 0 */
+uint8_t menu_scratch_frame_blocks_left(const GameState *g);
+void set_menu_scratch_frame_blocks_left(GameState *g, uint8_t v);
+/* A record's frame: the end of its tile list, a word a tile (its blocks times 32) */
+uint16_t menu_scratch_frame_tiles_end(const GameState *g);
+void set_menu_scratch_frame_tiles_end(GameState *g, uint16_t v);
+/* A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0 */
+uint16_t menu_scratch_frame_mirror_bytes(const GameState *g);
+void set_menu_scratch_frame_mirror_bytes(GameState *g, uint16_t v);
+
+/* The menus' opening counts the records it loads here, in the time played shown's hours, which
+ * the save screen's header then takes for a time it has drawn */
+uint8_t menu_opening_records_loaded(const GameState *g);
+void set_menu_opening_records_loaded(GameState *g, uint8_t v);
 
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes */
@@ -2814,6 +2906,23 @@ enum { MENU_MEMBER_PLACES_COUNT = 9 };   /* by member, as the menus list them */
 uint8_t menu_member_places(const GameState *g, unsigned member);
 void set_menu_member_places(GameState *g, unsigned member, uint8_t v);
 
+/* Bit 7 puts the records' frame tiles half a block ($100 bytes) further into their buffer;
+ * nothing in bank $C2 writes it */
+uint8_t menu_record_buffer_half(const GameState *g);
+void set_menu_record_buffer_half(GameState *g, uint8_t v);
+
+/* Blocks of the records' frame tiles (32 by 32 pixels, $200 bytes) queued for VRAM this frame:
+ * the records' task clears it every frame and holds back a record's next frame once it reaches
+ * menu_record_block_limit; each block's tiles are built at $7E:8000 + $200 a block (the frame
+ * buffer, reached through wram.h since its place is worked out) */
+uint8_t menu_record_blocks_sent(const GameState *g);
+void set_menu_record_blocks_sent(GameState *g, uint8_t v);
+
+/* How many blocks of frame tiles the records' task sends a frame before it holds the rest back
+ * (the screens set 1-7) */
+uint8_t menu_record_block_limit(const GameState *g);
+void set_menu_record_block_limit(GameState *g, uint8_t v);
+
 /* A frame countdown the vblank handler decrements until it reaches zero: the menus' sounds wait
  * on it, three frames after one plays */
 uint8_t menu_wait_frames(const GameState *g);
@@ -3248,11 +3357,36 @@ enum { MENU_SLOT_ROW_VALUES_BYTES = 33 };
 uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at);
 void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_RECORD_FRAME_TILE_LIST_COUNT = 96 };   /* by the tile's place in the frame */
+/* The tiles of the frame a record shows, a word each (bits 0-10 the tile in its graphics, 0 a
+ * blank tile, bit 14 mirrored), copied from the frame's data over the save summary; the record's
+ * sprite assignment's five bytes are copied there first as its load reads them
+ * (menu_save_summary) */
+uint16_t menu_record_frame_tile_list(const GameState *g, unsigned i);
+void set_menu_record_frame_tile_list(GameState *g, unsigned i, uint16_t v);
+
 /* The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member
  * records first [64 bytes, one at a time] */
 enum { MENU_SAVE_SUMMARY_BYTES = 64 };
 uint8_t menu_save_summary_byte(const GameState *g, unsigned at);
 void set_menu_save_summary_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The upload a record's frame queues: the VRAM word its tiles go to */
+uint16_t menu_record_upload_vram(const GameState *g);
+void set_menu_record_upload_vram(GameState *g, uint16_t v);
+
+/* The upload a record's frame queues: where in the frame buffer its tiles are */
+uint32_t menu_record_upload_source(const GameState *g);
+void set_menu_record_upload_source(GameState *g, uint32_t v);
+
+/* The upload a record's frame queues: how many bytes */
+uint16_t menu_record_upload_size(const GameState *g);
+void set_menu_record_upload_size(GameState *g, uint16_t v);
+
+/* The eighth byte of the upload record a record's frame queues, which the queue copies with it
+ * and nothing reads or writes here */
+uint8_t menu_record_upload_spare(const GameState *g);
+void set_menu_record_upload_spare(GameState *g, uint8_t v);
 
 /* The character record a status window draws ($C2:ED31's command lists read it): its first nine
  * bytes, the character in the first's low bits. Its fields aren't named yet [9 bytes, one at a
@@ -3393,9 +3527,42 @@ enum { MENU_GATE_TILES_COUNT = 2048 };   /* by byte */
 uint8_t menu_gate_tiles(const GameState *g, unsigned i);
 void set_menu_gate_tiles(GameState *g, unsigned i, uint8_t v);
 
+/* The sprite the record shows, its number in its set ($FF: none; the task passes the record by) */
+uint8_t menu_record_sprite(const GameState *g, unsigned record);
+void set_menu_record_sprite(GameState *g, unsigned record, uint8_t v);
+
+/* Which set of sprites the record's is from: 0 the playable characters' (their graphics as they
+ * are in the ROM), 1 and up the others' (their graphics packed, unpacked at the record's load);
+ * 2 and up take ten-byte assignments where the first two take five */
+uint8_t menu_record_sprite_set(const GameState *g, unsigned record);
+void set_menu_record_sprite_set(GameState *g, unsigned record, uint8_t v);
+
 /* Low nibble: how many sprites the record draws */
 uint8_t menu_record_sprite_count(const GameState *g, unsigned record);
 void set_menu_record_sprite_count(GameState *g, unsigned record, uint8_t v);
+
+/* The frame of its sprite's frames the record's tiles show ($FF: none yet) */
+uint8_t menu_record_frame_shown(const GameState *g, unsigned record);
+void set_menu_record_frame_shown(GameState *g, unsigned record, uint8_t v);
+
+/* Where the record's sprite's graphics are, 32 bytes a tile: in the ROM, or where its load
+ * unpacked them ($7E:B000 + $800 a record) */
+uint32_t menu_record_graphics(const GameState *g, unsigned record);
+void set_menu_record_graphics(GameState *g, unsigned record, uint32_t v);
+
+/* Where the record's sprite's frames are: each the tiles of its blocks (16 tile words a block)
+ * and its sprites' offsets (8 bytes a block) */
+uint32_t menu_record_frame_data(const GameState *g, unsigned record);
+void set_menu_record_frame_data(GameState *g, unsigned record, uint32_t v);
+
+/* Where in bank $E4 the record's sprite's animations' frames start: four frames an animation,
+ * the facings one after another */
+uint16_t menu_record_animation_frames_at(const GameState *g, unsigned record);
+void set_menu_record_animation_frames_at(GameState *g, unsigned record, uint16_t v);
+
+/* Where in bank $E4 the record's sprite's animations' frame times start: four an animation */
+uint16_t menu_record_animation_times_at(const GameState *g, unsigned record);
+void set_menu_record_animation_times_at(GameState *g, unsigned record, uint16_t v);
 
 /* The record's Y position */
 uint8_t menu_record_y(const GameState *g, unsigned record);
@@ -3405,9 +3572,51 @@ void set_menu_record_y(GameState *g, unsigned record, uint8_t v);
 uint16_t menu_record_x(const GameState *g, unsigned record);
 void set_menu_record_x(GameState *g, unsigned record, uint16_t v);
 
+/* The animation the record is asked to play: bits 0-6 its number, bit 7 that it loops from
+ * menu_record_loop_frame rather than from its start */
+uint8_t menu_record_animation(const GameState *g, unsigned record);
+void set_menu_record_animation(GameState *g, unsigned record, uint8_t v);
+
+/* The animation the record plays ($FF after a load: none), which a change of
+ * menu_record_animation starts afresh */
+uint8_t menu_record_animation_shown(const GameState *g, unsigned record);
+void set_menu_record_animation_shown(GameState *g, unsigned record, uint8_t v);
+
+/* Frames left of the record's current frame, counted down after it shows */
+uint8_t menu_record_frame_time(const GameState *g, unsigned record);
+void set_menu_record_frame_time(GameState *g, unsigned record, uint8_t v);
+
+/* How many animations the record's sprite has a facing (the length of a facing's list) */
+uint16_t menu_record_animation_count(const GameState *g, unsigned record);
+void set_menu_record_animation_count(GameState *g, unsigned record, uint16_t v);
+
+/* The record's place in its animation's frames ($FF: an empty animation) */
+uint8_t menu_record_frame(const GameState *g, unsigned record);
+void set_menu_record_frame(GameState *g, unsigned record, uint8_t v);
+
+/* The facing the record's animations are taken from: 0-3 */
+uint8_t menu_record_facing(const GameState *g, unsigned record);
+void set_menu_record_facing(GameState *g, unsigned record, uint8_t v);
+
+/* Nonzero while the record isn't drawn (bit 7: nor animated); a load clears it */
+uint8_t menu_record_hidden(const GameState *g, unsigned record);
+void set_menu_record_hidden(GameState *g, unsigned record, uint8_t v);
+
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more */
 uint16_t menu_record_tile(const GameState *g, unsigned record);
 void set_menu_record_tile(GameState *g, unsigned record, uint16_t v);
+
+/* Where the record's current animation's frames are, a byte each */
+uint32_t menu_record_frame_list(const GameState *g, unsigned record);
+void set_menu_record_frame_list(GameState *g, unsigned record, uint32_t v);
+
+/* Where the record's current animation's frame times are, a byte each (0 ends the animation) */
+uint32_t menu_record_frame_times(const GameState *g, unsigned record);
+void set_menu_record_frame_times(GameState *g, unsigned record, uint32_t v);
+
+/* The frame a looping animation goes back to at its end */
+uint8_t menu_record_loop_frame(const GameState *g, unsigned record);
+void set_menu_record_loop_frame(GameState *g, unsigned record, uint8_t v);
 
 /* Each sprite's offset across and down from the record's place, a signed byte each, up to the
  * record's end [30 bytes, one at a time] */

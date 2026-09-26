@@ -67,7 +67,8 @@ enum { SILENT_TRACK = 0x1DC1 };
 
 /* A song's two sets of tracks. */
 enum { FIRST_TRACK_SET = 0, SECOND_TRACK_SET = 1 };
-void start_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay, uint8_t track_set, bool save_first);
+bool announce_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay, bool save_first);
+void start_song(SoundDriver *d, uint8_t track_set);
 void start_effect(SoundDriver *d, uint8_t effect, uint8_t pan, AuVoiceSet pair);
 void stop_music(SoundDriver *d);
 void stop_effects(SoundDriver *d, AuVoiceSet pair);

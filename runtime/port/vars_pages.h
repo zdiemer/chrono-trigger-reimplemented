@@ -18,7 +18,7 @@
 
 #include "vars.h"
 
-/* menu_record: record 0-7 (D = $1800 + $40 each) */
+/* menu_record: record 0-8 (D = $1800 + $40 each) */
 bool menu_record_page_of(uint16_t d, unsigned *record);
 
 /* scene_program: own (D = $0000); channel 0-1 (D = $0A00 + $100 each) */

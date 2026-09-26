@@ -6338,23 +6338,32 @@ taking the label's table, string and tiles and giving back its width, and the
 load screen and the save screen call it as C, the chapter label leaving what
 it leaves in the registers.
 
-Three things the gate made the port keep. What a call leaves in X and Y is
-read after the label setting: the save screen's slot rows return into the
-menus' task yield, which keeps X and Y for the next screen handler, and two of
-those read Y. The logic doesn't keep how a call ended; the entries' wrappers
-work it out as scaffolding, reading the string again from where the call began
-to find what it read last (a glyph, an insert, or a control code), with the
-insert's source for whether some of it is left. A first version passed a small
-`Ending` back through the reading functions for this, and review rated it a
-translation: it told apart only what the original's registers do. A name past
-the pointer table's seven is read through the table's neighbours, which can
-put it on the text page itself: the original counts the name's glyphs with the
-insert already begun, pointer and source set, so the port does too (fuzzing
-found it: a party member with an id past the characters'). And the budget is
-counted down on the page glyph by glyph, not in hand: such a name reads the
-budget's cell as a glyph, and a label long enough to wrap its bank draws over
-it (fuzzing found a chapter label that differed when the budget was kept in
-a local).
+Three things the gate made the port keep. What a call leaves in X and Y the
+analysis has read after the label setting: the save screen's slot rows return
+into the menus' task yield, which keeps X and Y for the next screen handler,
+and two of those ($C2:C7E0, $C2:E236) start with Y live. Neither uses it:
+along every path Y is set before it is read, or saved and given back; the
+analysis joins what is read after every call of the cursor's input
+($C2:E984), which both call first and which leaves Y alone on some paths, as
+far as the menus' return to their caller, which it can't follow. So the
+registers are scaffolding (`menu/leaves.c`): the logic doesn't keep how a call
+ended, and the leaves read the string again from where the call began to find
+what it read last (a glyph, an insert, or a control code), with the insert's
+source for whether some of it is left; the entries hand them to the machine. A
+first version passed a small `Ending` back through the reading functions for
+this, and review rated it a translation: it told apart only what the
+original's registers do. A name past the pointer table's seven is read
+through the table's neighbours, which can put it on the text page itself: the
+original counts the name's glyphs with the insert already begun, pointer and
+source set, so the port does too (fuzzing found it: a party member with an id
+past the characters'). And a call keeps its budget in hand, where the
+original counts it down in its cell on the page: the two part only where a
+call reads that cell (as a string, an argument or an insert: such a name,
+more than 19 arguments' bytes, a pointer onto the page) or a label long
+enough to wrap its bank draws over it, so the guards read a text ahead,
+with the string's pieces and their arguments from the reader the leaves
+share, and turn those away (fuzzing found a chapter label that differed
+before they did).
 
 **The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
 every screen draws with, built in work RAM from the ROM's graphics and sent
@@ -6374,11 +6383,8 @@ name place is copied into the menus' tables; the save code's list of what the
 party carries (`$FF:F813`) and each member's figures (`$C2:99B2`) are still
 the original's, called from the port.
 
-**What is left of the opening** is the characters' sprites (`$C2:F3CA`): each
-of the menus' eight records loaded with a character's sprite (`$C2:F422`,
-which decompresses its tiles) and started on its animation (`$C2:F69D`-
-`$C2:F870`, which the records' task runs every frame). They belong with
-`menu/sprites.c`'s record sprites and are the next chunk's (PLAN.md).
+**What was left of the opening** was the characters' sprites (`$C2:F3CA`),
+which the next chunk took (below).
 
 **Found by fuzzing**: the names' count on the text page, above; a number's
 leading zeros are shifted out of its digit cells as the original shifts them,
@@ -6405,6 +6411,96 @@ before the list took input, held B across its four presses, which the game
 reads as one: the list stayed open and the bot, waiting for the command
 menu, waited for good. `tools/movies/bot.py` now releases B between presses,
 and the three long routes pass in the shipping mode.
+
+### Phase 3, menus: the characters in the records
+
+The menus' third chunk: the characters the menus show, in the records the
+screens draw their sprites from (`menu/sprites.c`, "The characters the
+records show"). `python3 tools/burndown.py` for `$C2` (as main's tree counts it
+after the battle's second chunk): 21.5 KiB ported and 64% left after the
+second chunk, 22.3 KiB and 62% left after this one, 231 entries.
+
+**What a record shows.** A record ($40 bytes at `$7E:1800` on, the direct
+page its routines run on; nine of them, the ninth `$1A00` only marked empty)
+names a sprite of one of three sets, the playable characters' and the
+others'. Its load (`$C2:F422`) looks the sprite's assignment up in bank `$E4`:
+where its graphics and its frames are, its colours, its animations and its
+size (one, two, three or six blocks of 32 by 32 pixels). It puts the twelve
+colours in the record's sprite palette and marks the palette changed; and for
+all but the playable characters, whose graphics the ROM keeps as they are, it
+has the unpacker put the graphics at `$7E:B000` + `$800` a record, a call to
+the decompressor's port from the load's entry, the one call-out the chunk
+keeps. The opening (`$C2:F3CA`) loads the first seven records with the
+characters in their standing animation facing the viewer and marks the last
+two empty.
+
+**The animation** (`$C2:F69D`, and `$C2:F69B` a frame on, which the records'
+task runs every frame) is a list of frames for each of four facings, each
+frame held for a time; an animation's bit 7 has it loop from its loop frame
+rather than its start, and one with no frames is left past its end. A change
+of frame (`$C2:F75C`, registered so it is timed and fuzzed alone) copies the
+frame's sprites' offsets into the record and builds its tiles into the frame
+buffer at `$7E:8000` (a blank tile, a tile of the graphics, or one mirrored
+left to right through the ROM's table of reversed bytes), `$200` bytes a block
+past the blocks queued this frame, and queues them for VRAM: an even number of
+blocks in one upload, an odd number a block's two rows of tiles at a time. The
+records' task holds a record's next frame back once a frame's blocks reach its
+limit (`menu_record_block_limit`).
+
+**Kept for the original.** The frame's tile list, which the original copies
+over the save summary and reads back as it builds the tiles, is scaffolding:
+the port reads the frame's data in place. So are the block move's stub (its
+source bank), the multiplier the original looks the assignment and the frame
+up with, the upload record at `$7E:9A88` and the frame's loop counts in the
+menus' first cells. The effects check found the save screen's readers of the
+save summary meeting the tile list; the baseline gives the reason (the save
+screen copies the summary there afresh before it reads it), and the frame
+building's own entry, which takes the tiles where the original's animation
+leaves them, the same. Over the shipping-mode runs, an upload the original
+builds over the save summary is queued with its unused eighth byte, which
+the tile list left: nothing reads the queue's eighth bytes (baseline). The opening counts its records in the time played's
+hours cell (`menu_opening_records_loaded`), which the save screen's header
+then takes for a time it has drawn: written plainly.
+
+**Guards.** The frame buffer, reached through `wram.h` since its place is
+worked out, must end clear of the block move's stub (`$7E:9690`); a sprite
+has at most three blocks (six-block sprites' offsets would run past the
+record, and no menu shows one); a record's pointers name banks that are ROM
+or work RAM throughout; the facing is one of four; a looping animation's loop
+frame has a time; the VRAM queue counts whole records; a record's tiles
+start on an upper row of tiles in VRAM, where its frame's blocks go a row
+pair at a time; a record's sprite is of one of the three sets; and a facing
+has fewer than `$4000` frames. None refused a call over the library.
+
+**Arithmetic.** The original's sums of an animation's place carry a flag
+from one add into the next (a facing's place is a multiply by three with its
+shift's carry; the times' place takes in what the division by four left).
+The port writes them as plain sums: they can't carry for any sprite the
+ROM's tables have (`tests/test_menu_sprites.py` reads every entry: every
+span of frames is whole facings, fewer than `$4000` a facing), and the
+guards keep the records' own cells within the same bounds. A review of the
+first version rated it a translation for writing the carries out.
+
+**Shadow and fuzzing.** Over the 26 movies every call compared, none
+mismatching: `menu_load_record_sprites` 37, `menu_load_record_sprite` 262,
+`menu_animate_record` 576, `menu_step_record_animation` 317 (the frame
+building runs inside them as C, its time its own over 571 frames). Fuzzing
+found the VRAM queue's count
+unaligned (the queue's own entries refuse it; the records' guards now do too)
+and pointers into banks the I/O registers share (the tiles read open bus
+there), and the frame building's own entry, which copies with the stub the
+animation leaves, needs the stub in place (its guard asks it).
+
+**Timing.** Calibrated from the library. The port fills and copies a
+frame's tiles itself and charges the bytes at the block move's rate; a
+mirrored tile it builds a byte at a time. A frame's time follows its mix of
+blank, copied and mirrored tiles, which that leaves to calibration (a first
+version charged per-tile cycle estimates, numbers review took out): a mean
+error of about 6-7% and at most 11,300 clocks, so the frame building and the
+two animation entries are vblank-tail timing exceptions
+(`tools/timing_exceptions.txt`), writing work RAM and the VRAM queue only. The block move's own rate
+(`memory_move_stub`) was recalibrated: the animation's copies no longer go
+through it on the machine, which changed the calls it is measured on.
 
 ### Phase 3, field and events: the party on the map
 
@@ -7352,6 +7448,83 @@ sound driver's saved flags (`$C7:0A39`'s `PHP`, taken back other than by
 `PLP`) and the menus' `BVC` at `$C2:F7D9`.
 
 **The timing gate.** The two rows were calibrated over the library; no
+exception.
+
+### Phase 3, field and events: the pause and the menus opened from the field
+
+The ninth chunk of bank `$C0`, and chunk 8's review.
+
+**Chunk 8's review, folded in.**
+- *The palette give-up is a port* (field/palettes.c, `field_give_up_palette`
+  `$C0:734C`). The field's eight sprite palette slots are shared by objects
+  with the same colors, each slot's sharers a list in the order they took it
+  (`field_object_palette_older`/`_newer` at `$0B00`/`$0B01`, the newest by
+  slot at `$0B80`), and an object giving its slot up leaves the list; while a
+  script has loaded palettes itself (`$0154` bit 7, event `$33`) objects keep
+  out of the slots. The battle's return and the view update
+  (field/object_view.c) run it as C, so the rebuilt JSR frame, the call-site
+  arithmetic and the `Snes *` in `bring_back_enemy` are gone, and so is the
+  view update's call-out. Fuzzed (seeds 1 and 2): 0 of 20,000 each; breaking
+  either branch mismatched 159 and 1,623 of 3,000. Over the 26 movies every
+  call matches (350, from the view update and the return).
+- The return's work is a `GameState` function (`put_back_after_battle`);
+  the entry keeps only the sprite table's bridge and the defeat's hold.
+- *The `$016E` guard, named.* The frame put-back's layouts read the current
+  object's whole word under 16-bit index registers (`$C0:CE57`, `$C0:D21C`,
+  `$C0:DE91`, `$C0:E08C`), so a byte after the link makes them draw another
+  object's tiles. The condition stays, with its readers named, and the
+  put-back's own guard (`field_frames_can_put`) takes it too; it refuses no
+  library call.
+- One `BattleResult` (battle/battle.h), which battle/main_loop.c sets and the
+  field reads; the party's places are `put_party_back`, with `PARTY_PLACES`
+  from field/party.h and the leader's place left to the guard; the taken-away
+  kind is named. The screen's corner stays in `field_own_tile` through its
+  accessor: `original_cell8` reaches the field page's scratch run
+  (`$C1`-`$E8`), and `$F0` is the direction routine's named tile.
+
+**What it is** (field/menus.c). Once a frame the field's main loop hands
+the buttons to `field_pause_and_menus` (`$C0:18D9`): Start pauses the field
+while the player has the party and no script has locked the pause (the
+picture at half its brightness, the play time clock stopped, until Start
+again); the Start assignment (`field_press_start`, `$C0:1985`) moves an open
+dialog window between the top of the screen and the bottom, or, with none
+open and the story's progress at `$49` or past, opens the menus at their mode
+5; X opens the main menu (mode 1); otherwise a waiting choice takes the
+buttons. A menu opens only while the player has the party, no choice waits and
+no script has locked the menus: the field fades out a step a frame, keeps the
+party's places, and calls the menus; after them it sets itself up again,
+brings back the characters of a party the menu changed
+(`field_bring_the_party_back`, `$C0:1A03`: each character's object starts
+again in its script, Frog's before Robo's as the original has them, and the
+party goes back where it was kept), and fades in. The Start assignment's menu
+also takes a menu a script asked for as shown. Most of the work is still the
+original's routines, called out to from their own calls (the frame wait, the
+menus, the field's setup and fade in); the two menus' call sequences are one
+function over a table of their sites. The RAM map names the pause's and the
+menus' locks (`$0110`, `$0111`), the brightness kept over the pause, the
+characters' objects (`$8D`-`$93`), the party as last loaded, and the party's
+places kept over a menu (`$7F:1D09`-`$7F:1D1D`).
+
+A's high byte and the overflow are read after both entries, so the port
+leaves A's high byte as the routines it called left it and declares only its
+low byte dead; the Start assignment's subtraction of the story's progress
+sets the overflow, which field/leaves.c works out (`field_story_test_overflow`:
+`tools/v_readers.py --after C0:1985` has it read).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches: `field_pause_and_menus` 191,044, `field_press_start` 1,
+`field_bring_the_party_back` 3, none interrupted or refused. Fuzzed (seeds 1
+and 2, 20,000 states each), compared up to the first frame wait, the blanking
+before a menu or a choice's call, since the pause and the menus run for
+frames: the buttons 0 of 19,450 and 19,424 (550 and 576 past the call-out
+budget, where the Start assignment's own calls run on), the Start assignment 0
+of 20,000 each, the party put back 0 of 20,000 each, and the characters'
+starts, compared up to the first, 0 of 20,000 each. The rows are sensitive: a
+pause at a quarter brightness mismatched 342 of 2,922, the menus unlocked 126
+and the story's overflow a step off 155 of 3,000, the trail left alone 2,945,
+and the player's control ignored 163.
+
+**The timing gate.** The three rows were calibrated over the library; no
 exception.
 
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
