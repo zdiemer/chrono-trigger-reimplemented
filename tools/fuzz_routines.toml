@@ -6980,6 +6980,24 @@ iterations = 2000
 why = "the object mode's page and data bank"
 
 [[routine]]
+name = "menu_take_frame_input"
+at = "C2:8473"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0D00", "--db", "00", "--fill", "7E0D18-7E0D18=00,00,00,01", "--fill", "7E0D19-7E0D19=00-02", "--fill", "7E0D1A-7E0D1A=00,00,00,FF", "--fill", "7E00F2-7E00F2=00,01,08,09,80", "--fill", "7E00F4-7E00F5=00,00,01,80"]
+iterations = 2000
+why = "on the menus' vblank page with an I/O data bank, as their vblank calls it: the repeat's pacing in any phase, a fast repeat asked or not, buttons held and repeating"
+
+[[routine]]
+name = "menu_run_record_task"
+at = "C2:F657"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--keep", "7E1800-7E1A3F", "--keep", "7E8000-7E9693", "--fill", "7E1811-7E1811=00-03", "--fill", "7E1851-7E1851=00-03", "--fill", "7E1813-7E1813=00-02", "--fill", "7E1853-7E1853=00-02", "--fill", "7E1818-7E1818=00,00,00,01,80", "--fill", "7E0D72-7E0D72=00,00,80", "--fill", "7E0D75-7E0D75=00-07", "--fill", "7E0D11-7E0D11=00,08,10,18,20"]
+iterations = 2000
+why = "a pass of the records' task over the records as the state has them loaded, the first two asked for any of the first animations with any frame time left, the first sometimes hidden, the frame's share of uploads anywhere from none to seven blocks"
+
+[[routine]]
 name = "menu_draw_record_sprites"
 at = "C2:F871"
 subsystem = "menu"
@@ -10411,6 +10429,33 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB18C-7EB18C=00-16", "--range", "A=0000-00FF"]
 iterations = 5000
 why = "an action the ROM has records for, with A's high byte clear as the turn leaves it; the direct page's byte a drain reads its stat's offset's high byte from clear, as the game leaves it; the rest of the battle's state at random"
+
+[[routine]]
+name = "menu_draw_large_portrait"
+at = "C2:EC38"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=00-FF", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-F0", "--fill", "7E0D46-7E0D46=00-FF", "--fill", "7E0D15-7E0D15=00-FF"]
+iterations = 2000
+why = "any character's portrait, from any first tile word (its attribute carrying the palette, the numbers carrying into it), anywhere in a tilemap buffer of bank $7E"
+
+[[routine]]
+name = "menu_recolour_rows"
+at = "C2:EC93"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0-FFFF", "--range", "X=0-10", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-E0"]
+iterations = 2000
+why = "blocks of up to sixteen rows (0 turned away) of any count of tiles given any palette and priority, anywhere in a tilemap buffer"
+
+[[routine]]
+name = "menu_set_row_pair_attribute"
+at = "C2:ECAC"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0-FFFF", "--fill", "7E0061-7E0061=00-FF", "--fill", "7E0062-7E0062=20-F0"]
+iterations = 2000
+why = "any count of tiles of a row pair given any attribute, anywhere in a tilemap buffer"
 
 [[routine]]
 name = "battle_work_out_member_tech"

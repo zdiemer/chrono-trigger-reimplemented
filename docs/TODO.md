@@ -587,11 +587,49 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' fourth chunk left** (RECOMP.md, "Phase 3, menus: what
+  the menus' ports called most"):
+  - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
+    call-out (`m_jsr_dc`), not as C: run through `menu_run` it changed what
+    the vblank work's fuzzing could compare (415 of 500 to none), which
+    wants looking into;
+  - the records' task stops at its yield (`$C2:F696`) every frame and the
+    task scheduler (`$C2:821E`) is the original's, about 9% of what the
+    menus interpret: the tasks as fibers of their own (`runtime/port/fiber.h`)
+    would take it off the machine;
+  - a count of 0 tiles or rows in the recolouring helpers counts the whole
+    bank, as the original's 16-bit loop does; the guards turn those away,
+    and nothing in the library asks for one.
+  - from the chunk's review: `RUN_OUT` in `menu/sprites.c` stands for three
+    things (a sprite's absence, a hidden record, a frame's time run out);
+    the records' task and its guard each work out whether an animation moves
+    on, where one pure `animation_due()` would say it once (the countdown
+    its own statement), with the `0x0F` sprite count commented and the
+    orphaned comment above it placed; `recolour_rows` loops on the drawing
+    origin's cell where a local written once at the end would do; the
+    portrait's accessors take a slot where they could take the character,
+    with the guard refusing a character past the eighth; the menus' tilemap
+    helpers want one header (`menu/tiles.h` beside `menu/windows.c`'s) and
+    one `menu_note_palette_changed`; and the smaller notes on `cursor.c`,
+    `sprites.c` and `tiles.c`.
+  - a bridge that falls back to the original (`menu_back` stopping at its
+    return because the machine didn't come back as the port expected) is
+    counted nowhere: the entry's calls still match, since the original runs
+    the rest, so a check that fails on almost every call looks like a clean
+    port. The per-frame input's check after the play time's tick held the
+    tick's page to the controller's and fell back on nearly every call until
+    a debug build showed it. A per-site count of those fallbacks in the
+    shadow report (native.c's entry stats) would show it at once;
+  - the `bucket_lavos` route's last fight (Lavos's core) took 311 tries and
+    about 2.5 hours in the chunk's `--long-routes` run, ending at frame
+    211,229, where two earlier runs won every fight at the first try and
+    ended by frame 154,652; its first fight also ended far later (frame
+    113,838 against 54,968 and 64,472). Shadow and trace identity were
+    clean, so it is likely timing reaching a harder battle state; whether
+    the menus' per-frame input (which runs in every mode) or the merged
+    main moved it is not worked out.
 - **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
   characters in the records"):
-  - the records' task (`$C2:F657`), which yields every frame, is the
-    original's, calling the animation's step and the records' drawing as
-    ports;
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
     on the machine) as a call-out; the unpacker as C on the game's state
     would take the menus' loads off the machine;
@@ -622,14 +660,6 @@ rest waits, is [PLAN.md](PLAN.md).
     original that isn't a handler, ends the call in the port as a pause does,
     setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
     random ROM as text and reach it);
-  - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
-    and `$C2:D296` after it) is worked out in `menu/leaves.c` by reading the
-    string again from where the call began. Nothing reads it: the handlers
-    the analysis finds Y live in (`$C2:C7E0`, `$C2:E236`) only pass it on,
-    and it is live there because the analysis joins what follows every call
-    of `$C2:E984` up to the menus' return to their caller. A liveness that
-    tells the calls of a routine apart, or ports of those handlers and their
-    thread, drop it;
   - the typesetter's control codes as a C table with a column for where a
     name comes from, in place of `control_code`'s chain;
   - the glyphs by index (a glyph number and its width's index are the same

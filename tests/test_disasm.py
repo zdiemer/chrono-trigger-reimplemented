@@ -422,6 +422,37 @@ class Analysis(unittest.TestCase):
         lv.solve()
         self.assertTrue(lv.live_at(0xC08000) & C)
 
+    def test_liveness_across_a_task_switch_entered_by_a_jump(self):
+        from tools.disasm.liveness import A, Y, Liveness
+        # C0:8000  JSR $8020 ; LDA $30 ; RTS: nothing reads Y after
+        # C0:8020  LDY #$05 ; JMP $8010: the switch returns for this routine
+        # C0:8010  PHY ; PHP ; LDA $40 ; TCS ; PLP ; PLY ; RTS (a task switch)
+        code = {0xC08000: bytes.fromhex("202080 A530 60".replace(" ", "")),
+                0xC08020: bytes.fromhex("A005 4C1080".replace(" ", "")),
+                0xC08010: bytes.fromhex("5A 08 A540 1B 28 7A 60".replace(" ", ""))}
+        h = Hints()
+        h.keeps[0xC08010] = (("X", "Y", "P", "D"), ("A",))
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        self.assertFalse(lv.live_at(0xC08022) & Y, "the kept Y is dead: nothing reads it after the switch")
+        self.assertTrue(lv.live_at(0xC08022) & A, "what the switch reads is live before the jump")
+
+    def test_a_jump_into_a_task_switch_after_a_push_is_followed(self):
+        from tools.disasm.liveness import Y, Liveness
+        # C0:8000  JSR $8020 ; LDA $30 ; RTS
+        # C0:8020  LDY #$05 ; PHY ; JMP $8010: the switch's RTS would pull the
+        #          pushed Y, not return for this routine, so its summary doesn't
+        #          hold and the switch's own code (its PHY reads Y) is followed
+        # C0:8010  PHY ; PHP ; LDA $40 ; TCS ; PLP ; PLY ; RTS (a task switch)
+        code = {0xC08000: bytes.fromhex("202080 A530 60".replace(" ", "")),
+                0xC08020: bytes.fromhex("A005 5A 4C1080".replace(" ", "")),
+                0xC08010: bytes.fromhex("5A 08 A540 1B 28 7A 60".replace(" ", ""))}
+        h = Hints()
+        h.keeps[0xC08010] = (("X", "Y", "P", "D"), ("A",))
+        lv = Liveness(self.run_an(code, 0xC08000, hints=h))
+        lv.solve()
+        self.assertTrue(lv.live_at(0xC08023) & Y, "past an unbalanced push the jump gets no summary")
+
     def test_keeps_hints_are_checked_against_the_code(self):
         from tools.disasm import keeps
         # C0:8000  JSR $8010 ; RTS

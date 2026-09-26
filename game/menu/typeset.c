@@ -32,7 +32,6 @@
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/glyphs.h"
-#include "menu/leaves.h"
 #include "menu/menu_data.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -130,8 +129,7 @@ void menu_text_start(GameState *g)
 
 // $C2:5DC4
 /* Draw a glyph at the pen, and move the pen on by its width. The original
- * notes the glyph on the text page, where only what it leaves in its index
- * registers is worked out from it (menu/leaves.c). */
+ * notes the glyph on the text page, where nothing reads it. */
 enum { FIRST_GLYPH = 0xA0 };
 
 static void set_glyph(GameState *g, uint16_t glyph)
@@ -490,11 +488,7 @@ void menu_text_go_on(GameState *g) { set_glyphs(g, menu_text_budget(g)); }
  * edge. */
 enum { LABEL_GLYPHS_A_LINE = 0x20, NEW_LINE = FIRST_NEW_LINE, LABEL_LINE_BYTES = 0x400, TILES_BANK = 0x7E0000u };
 
-static uint32_t next_label_line(uint32_t at)
-{
-    uint8_t high = (uint8_t)((at >> 8) + (LABEL_LINE_BYTES >> 8));   /* the address's middle byte, stepped on its own */
-    return (at & 0xFF00FFu) | (uint32_t)high << 8;
-}
+static uint32_t next_label_line(uint32_t at) { return stepped(at, LABEL_LINE_BYTES); }
 
 uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles)
 {
@@ -515,29 +509,43 @@ uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t 
 
 /* ---- Reading a string without setting it -------------------------------------------------- */
 
-MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at)
+/* A string read a piece at a time without being set, for the guards, which
+ * read ahead of a call: a glyph; what starts an insert (a word of the
+ * dictionary, a number, a name); or a code the setting stops a call at (the
+ * end, a wait, a break, a pause, and $12's choices that aren't a name or a
+ * word). `code` is the piece's first byte, `arguments` the bytes it takes of
+ * the string's arguments. */
+typedef enum { PIECE_GLYPH, PIECE_INSERT, PIECE_STOP } PieceKind;
+typedef struct {
+    PieceKind kind;
+    uint8_t code;
+    uint8_t bytes;
+    uint8_t arguments;
+} Piece;
+
+static Piece piece_at(const GameState *g, uint32_t at)
 {
     uint8_t b = menu_text_byte(g, at);
-    MenuTextPiece p = { MENU_TEXT_INSERT, b, 1, 0 };
+    Piece p = { PIECE_INSERT, b, 1, 0 };
     if (b >= FIRST_GLYPH) {
-        p.kind = MENU_TEXT_GLYPH;
+        p.kind = PIECE_GLYPH;
     } else if (b == 1 || b == 2) {
-        p.kind = MENU_TEXT_GLYPH;
+        p.kind = PIECE_GLYPH;
         p.bytes = 2;
     } else if (b >= FIRST_WORD) {
         /* a word: an insert */
     } else if (b == CODE_WAIT) {
-        p.kind = MENU_TEXT_STOP;
+        p.kind = PIECE_STOP;
         p.bytes = 2;
     } else if (b == CODE_NAMED) {
         uint8_t what = menu_text_byte(g, stepped(at, 1));
         if (what > NAMED_ENEMY && what < NAMED_WORDS)
-            p.kind = MENU_TEXT_STOP;
+            p.kind = PIECE_STOP;
         else if (what < NAMED_WORDS)
             p.arguments = 1;
         p.bytes = 2;
     } else if (b == CODE_END || b == CODE_PAUSE || (b >= CODE_BREAKS_FROM && b <= CODE_BREAKS_TO)) {
-        p.kind = MENU_TEXT_STOP;
+        p.kind = PIECE_STOP;
     } else if (b >= CODE_NUMBER_BYTE && b <= CODE_NUMBER_LONG) {
         p.arguments = (uint8_t)(b - CODE_NUMBER_BYTE + 1);
     } else if (b == CODE_CHARACTER) {
@@ -546,35 +554,25 @@ MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at)
     return p;
 }
 
-uint32_t menu_text_past(uint32_t at, MenuTextPiece piece) { return stepped(at, piece.bytes); }
-
-uint32_t menu_text_string_begins(const GameState *g) { return first_byte_of_string(g); }
-
-bool menu_text_has_ended(const GameState *g) { return menu_text_stop(g) == STOP_FINISHED; }
-
-bool menu_text_in_an_insert(const GameState *g) { return menu_text_reading_source(g) != FROM_STRING; }
-
-uint8_t menu_text_glyph_index(uint16_t glyph) { return (uint8_t)(glyph - FIRST_GLYPH); }
-
-
 /* ---- The entries ------------------------------------------------------------------------- */
+
+/* The start and a call come back with A clear, which their callers read;
+ * nothing reads what they leave in X and Y. */
+static void leave_a_clear(Snes *s) { s->cpu.a = 0; }
 
 // $C2:57DF
 void menu_text_start_entry(Snes *s)
 {
     menu_text_start(state_of(s));
-    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_text_started_leaves(state_of(s)), 0));
+    ORIGINAL_EFFECT(leave_a_clear(s));
     m_rtl(s);
 }
 
 // $C2:5823
 void menu_text_go_on_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    uint32_t from = menu_text_reading_at(g);
-    bool begun = !menu_text_has_ended(g);
-    menu_text_go_on(g);
-    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_text_went_on_leaves(g, begun, from), 0));
+    menu_text_go_on(state_of(s));
+    ORIGINAL_EFFECT(leave_a_clear(s));
     m_rtl(s);
 }
 
@@ -583,7 +581,6 @@ void menu_set_label_entry(Snes *s)
 {
     GameState *g = state_of(s);
     (void)menu_set_label(g, menu_text_strings(g), menu_text_string(g), menu_load_destination(g));
-    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_label_set_leaves(g), menu_text_stop(g)));
     m_rts(s);
 }
 
@@ -647,10 +644,10 @@ static bool reads_budget(uint32_t at, uint16_t bytes)
 static bool stays_off_the_budget(const GameState *g, uint32_t at, uint32_t arguments, bool label, uint32_t line)
 {
     for (uint16_t n = 0; n < MOST_PIECES_AHEAD; n = (uint16_t)(n + 1)) {
-        MenuTextPiece p = menu_text_piece_at(g, at);
+        Piece p = piece_at(g, at);
         if (reads_budget(at, p.bytes) || reads_budget(arguments, p.arguments))
             return false;
-        if (p.kind == MENU_TEXT_STOP) {
+        if (p.kind == PIECE_STOP) {
             if (!label || (p.code != NEW_LINE && p.code != CODE_PAUSE))
                 return true;
             line = next_label_line(line);
@@ -682,7 +679,11 @@ static bool can_go_on(const GameState *g)
         return false;
     if (menu_text_stop(g) == STOP_FINISHED)
         return true;
-    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), menu_text_reading_insert_left(g)))
+    /* what is left of an insert: a byte a digit, and up to two bytes a glyph
+     * of any other insert (a glyph of the font's two-byte half) */
+    uint8_t left = menu_text_reading_insert_left(g);
+    uint16_t insert_bytes = source == FROM_DIGITS ? left : (uint16_t)(2 * left);
+    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), insert_bytes))
         return false;
     return stays_off_the_budget(g, menu_text_reading_at(g), menu_text_reading_arguments_at(g), false, 0);
 }

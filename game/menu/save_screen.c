@@ -28,7 +28,6 @@
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
-#include "menu/leaves.h"
 #include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/vram.h"
@@ -601,9 +600,7 @@ enum { DESIGN_BITS = 0x07 };
 /* ---- The labels and summaries on the machine --------------------------------------------------- */
 
 /* Each of these runs as the original's JSR reaches it, saving P as it starts,
- * and leaves the flags the original's code has before its call to the next.
- * The chapter label leaves what the label's setting leaves in X and Y, which
- * the analysis has read after it (menu/leaves.c says where). */
+ * and leaves the flags the original's code has before its call to the next. */
 
 // $C2:D296
 /* A slot's chapter label (or the empty slot's, whichever its caller asked
@@ -617,7 +614,6 @@ void menu_draw_chapter_label(Snes *s)
     ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
     set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
-    ORIGINAL_EFFECT(menu_text_hand_on(s, menu_label_set_leaves(g), menu_text_stop(g)));
     menu_restore_p(s);
     m_rts(s);
 }

@@ -697,7 +697,15 @@ static unsigned record_sprites(const GameState *g, unsigned record)
     return sprites != 0 ? sprites : 1;
 }
 
-static uint8_t next_record_tile(uint8_t tile) { return (uint8_t)(((tile | 0x10) + 2) & ~0x10); }
+/* The next sprite's first tile: two on along the upper row of tiles, and
+ * past the row between at a row's end, which holds their lower halves. */
+enum { SPRITE_ALONG = 2, LOWER_TILE_ROW = 0x10 };
+
+static uint8_t next_record_tile(uint8_t tile)
+{
+    uint8_t along = (uint8_t)(tile + SPRITE_ALONG);
+    return along & LOWER_TILE_ROW ? (uint8_t)(along + LOWER_TILE_ROW) : along;
+}
 
 /* The record's X on the screen: its place, 9 bits, from the origin. */
 static uint16_t record_x(const GameState *g, unsigned record)
@@ -760,6 +768,8 @@ static void leave_record_drawn(GameState *g, unsigned record)
 enum { NO_SPRITE = 0xFF, NO_FRAME = 0xFF, NO_ANIMATION = 0xFF, ANIMATION_BITS = 0x7F, LOOPS = 0x80 };
 enum { SPRITE_TABLES_BANK = 0xE4, OTHER_COLOURS = 0x10, OTHER_COLOURS_OFFSET = 0x200 };
 enum { FRAMES_AN_ANIMATION = 4, FACINGS = 4 };
+/* The standing animation, which holds its frame. */
+enum { STANDING = 0 };
 
 typedef struct {
     uint8_t graphics, frames, colours, animations, size;
@@ -914,10 +924,9 @@ enum { STUB_MOVE_TO_WORK_RAM = 0x7E54, STUB_RETURN = 0x6B };
  * place wraps within the bank, as the original's word does). */
 enum { HALF_ON = 0x80 };
 
-static uint32_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
+static uint16_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
 {
-    uint16_t offset = (uint16_t)(blocks_before * BLOCK_BYTES + (menu_record_buffer_half(g) & HALF_ON ? HALF_BLOCK : 0));
-    return FRAME_BUFFER + (uint32_t)offset;
+    return (uint16_t)(FRAME_BUFFER + blocks_before * BLOCK_BYTES + (menu_record_buffer_half(g) & HALF_ON ? HALF_BLOCK : 0));
 }
 
 /* Tiles are copied from the sprite's graphics, in the ROM or unpacked in work
@@ -948,7 +957,11 @@ static void put_tile(GameState *g, uint32_t graphics, FrameTile tile, uint16_t a
  * end (a row of tiles is $100 words; a block's lower row the next one). */
 enum { BLOCK_ALONG = 0x80, TILE_ROW = 0x100 };
 
-static uint16_t next_block_place(uint16_t upper_row) { return (uint16_t)((upper_row + TILE_ROW + BLOCK_ALONG) & ~TILE_ROW); }
+static uint16_t next_block_place(uint16_t upper_row)
+{
+    uint16_t along = (uint16_t)(upper_row + BLOCK_ALONG);
+    return along & TILE_ROW ? (uint16_t)(along + TILE_ROW) : along;
+}
 
 /* The upload of a frame's blocks: one run of them where they are an even
  * number (their tiles laid out as VRAM has them), and otherwise each block's
@@ -1000,7 +1013,7 @@ static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
 {
     uint32_t graphics = menu_record_graphics(g, record);
     uint8_t blocks = menu_record_sprite_count(g, record);
-    uint16_t buffer = (uint16_t)frame_buffer_for(g, menu_record_blocks_sent(g));
+    uint16_t buffer = frame_buffer_for(g, menu_record_blocks_sent(g));
     for (unsigned i = 0; i < t->count; i++) {
         FrameTile tile = decode_tile(t->tile[i]);
         uint16_t at = (uint16_t)(buffer + i * TILE_BYTES);
@@ -1021,9 +1034,11 @@ static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
  * the last upload it queued, in the record it built them in. */
 static bool any_mirrored(const FrameTiles *t)
 {
-    for (unsigned i = 0; i < t->count; i++)
-        if (!decode_tile(t->tile[i]).blank && decode_tile(t->tile[i]).mirrored)
+    for (unsigned i = 0; i < t->count; i++) {
+        FrameTile tile = decode_tile(t->tile[i]);
+        if (!tile.blank && tile.mirrored)
             return true;
+    }
     return false;
 }
 
@@ -1153,6 +1168,53 @@ static void step_animation(GameState *g, unsigned record)
     animate_record(g, record);
 }
 
+/* ---- The records' task ---- */
+
+/* The records' task: a pass over the nine records every frame, then the
+ * frame's end. A record that shows a sprite and isn't put away carries on
+ * its animation where its frame's time has run out (or it is asked for
+ * another), unless the frame's uploads have reached their share; and one
+ * that isn't hidden is drawn. The standing animation (0) holds its frame. */
+enum { TASK_RECORDS = 9, RUN_OUT = 0x80 };
+
+static bool shows_a_sprite(const GameState *g, unsigned record)
+{
+    return !(menu_record_sprite(g, record) & RUN_OUT) && !(menu_record_hidden(g, record) & RUN_OUT);
+}
+
+/* Whether the record's animation moves on this frame: a new one asked for,
+ * or a frame of the shown one whose time runs out now. */
+static bool animation_moves_on(GameState *g, unsigned record)
+{
+    uint8_t animation = menu_record_animation(g, record);
+    if (animation == menu_record_animation_shown(g, record)) {
+        if (animation == STANDING)
+            return false;
+        uint8_t left = (uint8_t)(menu_record_frame_time(g, record) - 1);
+        set_menu_record_frame_time(g, record, left);
+        if (!(left & RUN_OUT))
+            return false;
+    }
+    return menu_record_blocks_sent(g) < menu_record_block_limit(g);
+}
+
+// $C2:F657
+static void run_the_records(GameState *g)
+{
+    set_menu_record_blocks_sent(g, 0);
+    set_menu_record_blocks_sent_high(g, 0);
+    for (unsigned record = 0; record < TASK_RECORDS; record++) {
+        if (!shows_a_sprite(g, record))
+            continue;
+        if (animation_moves_on(g, record))
+            TIMED_AS(g, 0xC2F69B, step_animation(g, record));
+        if (menu_record_hidden(g, record) == 0) {
+            TIMED_AS(g, 0xC2F871, draw_record_sprites(g, record));
+            ORIGINAL_EFFECT(leave_record_drawn(g, record));
+        }
+    }
+}
+
 /* ---- The records as the menus open ---- */
 
 // $C2:F3CA
@@ -1160,7 +1222,7 @@ static void step_animation(GameState *g, unsigned record)
  * their standing animation facing the viewer; the eighth and ninth show
  * nothing. The loop counts the records in the time played's cell, which the
  * save screen's header takes for a time it has already drawn. */
-enum { STANDING = 0, FACING_THE_VIEWER = 1, OPENING_RECORDS_SHOWING = MENU_OPENING_RECORDS, LAST_RECORD = 8 };
+enum { FACING_THE_VIEWER = 1, OPENING_RECORDS_SHOWING = MENU_OPENING_RECORDS, LAST_RECORD = 8 };
 
 static void set_up_opening_record(GameState *g, unsigned record, uint16_t tile)
 {
@@ -1402,6 +1464,21 @@ void menu_animate_record(Snes *s)
     m_rts(s);
 }
 
+/* The task stops at its yield ($C2:F696), which the original runs, with a
+ * 16-bit accumulator as its loop leaves it; the yield comes back to the
+ * task's start, which sets its page again. */
+enum { TASK_YIELD = 0xC2F696 };
+enum { YIELD_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
+
+// $C2:F657
+void menu_run_record_task(Snes *s)
+{
+    run_the_records(state_of(s));
+    m_rep(s, CPU_FLAG_M);
+    m_sep(s, CPU_FLAG_X);
+    m_stop_at(s, TASK_YIELD, YIELD_IGNORES);
+}
+
 // $C2:F69B
 void menu_step_record_animation(Snes *s)
 {
@@ -1452,17 +1529,19 @@ static bool readable(uint32_t at) { return ((uint8_t)(at >> 16) & 0x7F) >= 0x40;
  * at most: the menus' sprites are one); the facing is one of the four. The
  * record's tiles start on an upper row of tiles in VRAM, where a frame's
  * blocks are laid out a row pair at a time. */
-enum { FRAME_BUFFER_END = 0x9690, TILE_ON_A_LOWER_ROW = 0x10 };
+enum { FRAME_BUFFER_END = 0x9690 };
 
 static bool blocks_fit(const GameState *g, uint8_t blocks, uint8_t blocks_before)
 {
-    return blocks >= 1 && blocks <= MOST_BLOCKS && frame_buffer_for(g, blocks_before) + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
+    uint16_t buffer = frame_buffer_for(g, blocks_before);
+    return blocks >= 1 && blocks <= MOST_BLOCKS && buffer >= FRAME_BUFFER
+           && (uint32_t)buffer + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
 }
 
 static bool frame_fits(const GameState *g, unsigned record)
 {
     return blocks_fit(g, menu_record_sprite_count(g, record), menu_record_blocks_sent(g))
-           && !(menu_record_tile(g, record) & TILE_ON_A_LOWER_ROW);
+           && !(menu_record_tile(g, record) & LOWER_TILE_ROW);
 }
 
 /* A looping animation's loop frame has a time, so that its end doesn't go
@@ -1476,9 +1555,9 @@ static bool animation_ends(const GameState *g, unsigned record)
 /* The VRAM queue counts whole records, as the queue's own entries ask. */
 static bool queue_is_whole(const GameState *g) { return menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0; }
 
-/* A facing's frames lie within the animations' bank: the ROM's sprites have
- * fewer than $4000 frames a facing (tests/test_menu_sprites.py), so four
- * facings' worth reaches no further. */
+/* A facing's frames: a sprite's load makes the count a 16-bit span over the
+ * four facings, under $4000, so three facings' worth added to an animation's
+ * first frame stays within a word; the records' own cells are kept so. */
 enum { MOST_FRAMES_A_FACING = 0x4000 };
 
 static bool record_is_animatable(const GameState *g, unsigned record)
@@ -1527,6 +1606,47 @@ bool menu_record_frame_is_showable(Snes *s)
 }
 
 /* A record's sprite is of one of the three sets there are. */
+/* A pass of the records' task: every record it draws draws one sprite's
+ * worth (four sprites at most, as the menus' records do), and every record
+ * whose animation may move on this frame can be animated with the blocks
+ * the records before it could queue. */
+static bool task_pass_is_runnable(const GameState *g)
+{
+    if (!queue_is_whole(g))
+        return false;
+    uint8_t could_be_sent = 0;
+    for (unsigned record = 0; record < TASK_RECORDS; record++) {
+        if (!shows_a_sprite(g, record))
+            continue;
+        uint8_t animation = menu_record_animation(g, record);
+        bool may_move = animation != menu_record_animation_shown(g, record)
+                        || (animation != STANDING && ((uint8_t)(menu_record_frame_time(g, record) - 1) & RUN_OUT));
+        if (may_move) {
+            uint8_t blocks = menu_record_sprite_count(g, record);
+            if (!(menu_record_facing(g, record) < FACINGS && menu_record_animation_count(g, record) < MOST_FRAMES_A_FACING
+                  && blocks_fit(g, blocks, could_be_sent) && !(menu_record_tile(g, record) & LOWER_TILE_ROW)
+                  && readable(menu_record_frame_list(g, record)) && readable(menu_record_frame_times(g, record))
+                  && readable(menu_record_frame_data(g, record)) && readable(menu_record_graphics(g, record))
+                  && animation_ends(g, record)))
+                return false;
+            could_be_sent = (uint8_t)(could_be_sent + blocks);
+        }
+        if (menu_record_hidden(g, record) == 0 && (menu_record_sprite_count(g, record) & 0x0F) > 1)
+            return false;
+    }
+    return true;
+}
+
+bool menu_record_task_is_runnable(Snes *s)
+{
+    if (s->cpu.db != MENU_DATA_BANK)
+        return false;
+    vars_peek(true);
+    bool ok = task_pass_is_runnable(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
 bool menu_record_sprite_is_loadable(Snes *s)
 {
     unsigned record;
@@ -1551,7 +1671,7 @@ static bool opening_records_fit(const GameState *g)
         if (set >= SPRITE_SETS)
             return false;
         uint8_t blocks = menu_sprite_blocks(g, read_assignment(g, assignment_place(g, set, (uint8_t)record)).size);
-        if (!blocks_fit(g, blocks, sent))
+        if (!blocks_fit(g, blocks, sent) || (menu_opening_record_tile(g, record) & LOWER_TILE_ROW))
             return false;
         sent = (uint8_t)(sent + blocks);
     }

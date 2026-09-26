@@ -40,6 +40,21 @@ enum { RESET_BUTTONS = IN_BUTTON_L | IN_BUTTON_R | IN_BUTTON_SELECT | IN_BUTTON_
  * stop where the original waits for the read or resets (docs/TODO.md). */
 bool input_take_frame(GameState *g, Platform *pf);
 
+/* The frame's input work's parts, for work that runs them itself (the menus'
+ * per-frame input, $C2:8473, reads the controller and ticks the play time
+ * without the button assignments). The read takes this frame's buttons, or
+ * says why it didn't: the console is still reading the controller, or the
+ * reset buttons are held (whose held buttons it has taken). The tick advances
+ * the play time a frame unless the game has stopped the clock. */
+typedef enum { CONTROLLER_READ, CONTROLLER_NOT_READY, CONTROLLER_RESET } ControllerRead;
+ControllerRead input_read_controller(GameState *g, Platform *pf);
+void input_tick_play_time(GameState *g);
+
+/* Where a read that didn't take the buttons stops on the machine: at the
+ * original's wait for the console's read ($C2:84F9) or at the reset. The
+ * caller has built the stack the original has there. */
+void input_stop_reading(Snes *s, ControllerRead read);
+
 /* The registered entries (game/registry.c). */
 void input_update(Snes *s);
 void input_read_joypad(Snes *s);

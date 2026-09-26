@@ -852,6 +852,17 @@ class Liveness:
             return "RTS"
         return None
 
+    def _leaves_by_rts(self, key) -> bool:
+        """Whether a routine returns to its caller by RTS: entered only by JSR
+        and call tables, or, entered some other way (an indirect jump whose
+        dispatcher pushed the return), with RTS its only return."""
+        kind = self._returns_as(key)
+        if kind is not None:
+            return kind == "RTS"
+        exits = {insn.name for p in self.an.contexts[key].insns for _, insn in self._code(key, p)
+                 if insn.name in ("RTS", "RTL", "RTI")}
+        return exits == {"RTS"}
+
     def _depth_before(self, key, pc: int) -> int | None:
         """Bytes a context has pushed since its entry when it reaches pc, if
         that is one number on every path."""
@@ -1053,7 +1064,17 @@ class Liveness:
         if name in ("BRA", "BRL"):
             return live_at(insn.branch_target())
         if name == "JMP" and mode is Mode.ABS:
-            return live_at(bank | insn.operand)
+            target = bank | insn.operand
+            if (target in an.hints.keeps and self._depth_before(key, pc) == 0
+                    and self._leaves_by_rts(key)):
+                # a tail jump into a task switch: the switch returns for this
+                # routine, as the call would to its caller (a `keeps` hint).
+                # Only from a routine that returns by RTS (entered by JSR, or
+                # through a table whose routines all do) with nothing of its
+                # own on the stack, where the switch's RTS is the routine's
+                # own; anywhere else the switch's code is followed as it is.
+                return self._call([target], IDENT)
+            return live_at(target)
         if name == "JML" and mode is Mode.LONG:
             return self._call([insn.operand], IDENT)
         if name in ("JSR", "JSL") and mode in (Mode.ABS, Mode.LONG):

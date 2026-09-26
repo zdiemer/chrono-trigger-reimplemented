@@ -171,20 +171,20 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
 each subsystem's functions that take the machine. **1 of 162 files, 117 of
-43,114 lines, is on the backlog**: `data/decompress.c`. What is still on the
+43,307 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
 | battle | 0 | 60 | 0 | 15,740 | 0.02 | 27% |
-| menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
+| menu | 0 | 27 | 0 | 10,044 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
 | field | 0 | 29 | 0 | 7,555 | 0.01 | 21% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,047 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,983 | 0.00 | 0% |
-| **total** | **1** | **162** | **117** | **42,930** | **0.02** | **28%** |
+| **total** | **1** | **162** | **117** | **43,132** | **0.02** | **28%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -342,9 +342,9 @@ docstring says which way it is wrong). **46% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 39.3K | 18.0K | 39% | 227 |
+| battle (`$C1`, `$CE`) | 64.9K | 41.2K | 18.6K | 37% | 237 |
 | field engine, events (`$C0`) | 59.4K | 41.8K | 9.2K | 30% | 289 |
-| menus, text (`$C2`) | 59.3K | 22.3K | 6.9K | 62% | 231 |
+| menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
 | field graphics (`$FD`) | 15.3K | 8.9K | 0.8K | 42% | 54 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **46% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **146.0K** | **41.9K** | **46%** | **1093** |
+| **total** | **268.5K** | **146.3K** | **41.9K** | **45%** | **1098** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -467,14 +467,13 @@ routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
 two Mode 7 screens, which were also P2's last leftover; the object scripts'
 whole instruction set; and the map those scripts scroll and redraw. The menus
 proper have started (RECOMP.md, "Phase 3, menus", and "Phase 3, menus: the
-typesetter, the graphics and the items", and "Phase 3, menus: the
-characters in the records"): the load screen, the window command language
-every screen is drawn with, the cursor and the sounds, the typesetter the
-dialog and every screen set their text with, and the menus' opening, the
-characters in its records animated. Next are the screens themselves, first
-the two whose handlers the typesetter's register leaves stand for
-(`menu/leaves.c`: `$C2:C7AC`-`$C2:C7E0` and `$C2:E1ED`-`$C2:E236`), with
-the records' task (`$C2:F657`) their sprites run on.
+typesetter, the graphics and the items", "Phase 3, menus: the
+characters in the records", and "Phase 3, menus: what the menus' ports
+called most"): the load screen, the window command language every screen is
+drawn with, the cursor and the sounds, the typesetter the dialog and every
+screen set their text with, the menus' opening, the characters in its
+records animated, and the records' task, the frame's input and the tilemap
+touches the screens make most. Next are the screens themselves.
 `python3 tools/burndown.py --uncovered C2` puts the
 largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
 (1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with

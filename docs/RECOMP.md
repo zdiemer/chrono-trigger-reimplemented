@@ -6335,24 +6335,30 @@ now draws from parameters, into four- or sixteen-colour tiles, and its three
 entries take them from the page's cells as before; the menus' label setting
 (`$C2:F90C`), which sets a label a line of 32 glyphs at a time, is a port too,
 taking the label's table, string and tiles and giving back its width, and the
-load screen and the save screen call it as C, the chapter label leaving what
-it leaves in the registers.
+load screen and the save screen call it as C.
 
-Three things the gate made the port keep. What a call leaves in X and Y the
-analysis has read after the label setting: the save screen's slot rows return
-into the menus' task yield, which keeps X and Y for the next screen handler,
-and two of those ($C2:C7E0, $C2:E236) start with Y live. Neither uses it:
-along every path Y is set before it is read, or saved and given back; the
-analysis joins what is read after every call of the cursor's input
-($C2:E984), which both call first and which leaves Y alone on some paths, as
-far as the menus' return to their caller, which it can't follow. So the
-registers are scaffolding (`menu/leaves.c`): the logic doesn't keep how a call
-ended, and the leaves read the string again from where the call began to find
-what it read last (a glyph, an insert, or a control code), with the insert's
-source for whether some of it is left; the entries hand them to the machine. A
-first version passed a small `Ending` back through the reading functions for
-this, and review rated it a translation: it told apart only what the
-original's registers do. A name past the pointer table's seven is read
+What a call leaves in X and Y nothing reads, and the entries declare them
+dead. For a while the analysis had them read after the label setting: the
+save screen's slot rows end in a `JMP` into the menus' task yield
+(`$C2:CF5B` to `$C2:821E`), and the yield's `[[keeps]]` hint covered only
+calls to it, so the analysis followed the yield's own code in the handler
+and took its `PHY` for a read. Liveness now takes a jump into a routine with
+a `[[keeps]]` hint as a tail call with the hint's summary, where the jumping
+routine returns by `RTS` with nothing of its own on the stack, so that the
+switch's `RTS` is the routine's own (review asked for that condition; the
+screen handlers the dispatch enters, which return by `RTS` alone, count)
+(`tools/disasm/liveness.py`, tests/test_disasm.py, DISASSEMBLY.md), and X
+and Y after `$C2:57DF`, `$C2:5823`, `$C2:F90C` and `$C2:D296` are dead. Over
+the whole tree only ten declarations' accepted sets changed, all the menus'
+(the glyph drawer's three entries, the cursor's input, the slot rows', the
+label setting's, the chapter label's and the typesetter's two), each growing
+by X or Y. Before that the port worked the registers out as scaffolding: a
+first version passed a small `Ending` back through the reading functions,
+which review rated a translation (it told apart only what the original's
+registers do), and a second read the string again in `menu/leaves.c`, now
+gone.
+
+Two things the gate made the port keep. A name past the pointer table's seven is read
 through the table's neighbours, which can put it on the text page itself: the
 original counts the name's glyphs with the insert already begun, pointer and
 source set, so the port does too (fuzzing found it: a party member with an id
@@ -6361,8 +6367,7 @@ original counts it down in its cell on the page: the two part only where a
 call reads that cell (as a string, an argument or an insert: such a name,
 more than 19 arguments' bytes, a pointer onto the page) or a label long
 enough to wrap its bank draws over it, so the guards read a text ahead,
-with the string's pieces and their arguments from the reader the leaves
-share, and turn those away (fuzzing found a chapter label that differed
+a piece and its arguments at a time, and turn those away (fuzzing found a chapter label that differed
 before they did).
 
 **The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
@@ -6501,6 +6506,73 @@ two animation entries are vblank-tail timing exceptions
 (`tools/timing_exceptions.txt`), writing work RAM and the VRAM queue only. The block move's own rate
 (`memory_move_stub`) was recalibrated: the animation's copies no longer go
 through it on the machine, which changed the calls it is measured on.
+
+### Phase 3, menus: what the menus' ports called most
+
+The menus' fourth chunk, picked by value rather than by run: a profile of
+`--native on --recomp off --misses` over the menus' movies, the interpreted
+instructions summed by the function they are in, put five routines the
+existing ports call out to at the top once the task scheduler (`$C2:821E`
+and its neighbours, about 9%, left for fibers) is set aside. The window
+helpers at `$C2:EC38`-`$C2:ECDA` took about 12% together, the records'
+task (`$C2:F657`) 6.7% and the menus' per-frame input (`$C2:8473`) 4.9%.
+`python3 tools/burndown.py` for `$C2`: 22.3 KiB ported, 62% left and 231
+entries before; 22.6 KiB, 62% and 236 after.
+
+**The frame's input** (`menu/cursor.c`, "The frame's buttons"): the menus'
+vblank takes the controller, the second controller, a frame of play time,
+the held buttons' repeat pacing (a long wait before the first repeat, short
+ones after, back to the long wait when nothing but Start is held; a screen
+can ask for a frame of repeating every frame, `menu_fast_repeat`) and the
+going-back hold (the going-back assignment's buttons with Start sends every
+screen back from then on). The controller read and the play time's tick are
+the shared input's parts, called as C (`core/input.h`: the read, the tick,
+and where a read that didn't take the buttons stops); only where the console
+is still reading the controller, or the reset buttons are held, does the
+port build the stack the original has there and stop. A first version called
+the two ports as call-outs, the original's saves round them rebuilt, with a
+check after each that the machine came back as expected; the check after the
+tick held the tick's page to the controller's, which the tick run as the
+original's code leaves at its clock page (`$0400`), so the port handed the
+rest of nearly every call to the original, comparing everything, and 6 calls
+a movie differed in A's high byte, which is dead there.
+
+**The records' task** (`menu/sprites.c`, "The records' task"): once a frame,
+each of the nine records that shows a sprite has its animation carried on
+where its frame's time has run out or another is asked for, unless the
+frame's uploads have reached their share, and is drawn unless hidden; then
+the task yields (`m_stop_at` `$C2:F696`). The byte after the uploads' count,
+which the original clears with it as a word, is written plainly: the
+sprite object mode's slots share it.
+
+**The tilemap touches** (`menu/tiles.c`): a character's large portrait (36
+tiles six by six, numbered on from its first in the menus' first cell, whose
+high byte the callers set to the attribute, and its sixteen colours loaded
+into the palette the attribute names after the tiles' count has carried into
+it); a stretch of a row pair given one attribute; and a block of rows given
+a palette and priority over their tiles' low bits, the drawing origin moving
+down as it goes (`$C2:ECC2`, the one row, inlined). The counts are an 8-bit
+tile count and a 16-bit row count counted down in 16-bit registers, so 0
+counts the whole bank; the guards turn those away with any stretch that
+would leave the bank. The row pair's callers go on with the count in A's
+high byte, which the entry leaves. The portrait's word increment of the
+palette's changed count (`$0D15`) carries into the next byte, which the
+guard keeps short of, as the window colours' does.
+
+**Shadow and fuzzing.** Over the 26 movies every call compared, none
+mismatching or refused: `menu_take_frame_input` 35,169 (every movie),
+`menu_run_record_task` 4,637 of 4,638 (one interrupted),
+`menu_draw_large_portrait` 235, `menu_recolour_rows` 1,314,
+`menu_set_row_pair_attribute` 2,776. Fuzzed from the `menus` state, seed 1,
+none mismatching: the input 2,000 of 2,000, the task 2,000 of 2,000, the
+portrait 1,893 of 2,000, the rows 1,890 and the row pair 1,987 (the rest
+refused). Fuzzing found the portrait's carry into `$0D16`. The menus' vblank
+work, which calls the input, is unchanged at 415 of 500 matched.
+
+**Timing.** Calibrated from the library. The task carries the animation's
+and the frame building's spread (mean error 1.2%, at most 10,872 clocks), so
+it is a vblank-tail exception as they are, writing work RAM and the VRAM
+queue only.
 
 ### Phase 3, field and events: the party on the map
 

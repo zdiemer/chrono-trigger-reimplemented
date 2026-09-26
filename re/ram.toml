@@ -4966,6 +4966,11 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   size = 2
   meaning = "The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte)"
   [[var.field]]
+  name = "portrait_tile"
+  offset = 0
+  size = 2
+  meaning = "A character's large portrait ($C2:EC38): the tile word it lays next, its first tile in the low byte (the portrait writes it) over the attribute its caller gives in the high one; the portrait leaves it past the last tile, and takes the palette for the colours from it then"
+  [[var.field]]
   name = "save_member_character"
   offset = 0
   meaning = "The same, its low byte alone: the rows' loop writes the character a byte wide"
@@ -5503,8 +5508,30 @@ source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
 name = "menu_cursor_always_back"
 addr = "7E:0D83"
 subsystem = "menu"
-meaning = "Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but the setup's clearing"
+meaning = "Nonzero makes every frame's buttons read as going back: the menus' per-frame input sets it (to the buttons held) once the going-back assignment's buttons and Start are held together, and only a menu's setup clears it"
 source = "game/menu/cursor.c, menu_read_cursor $C2:E984"
+
+[[var]]
+name = "menu_fast_repeat"
+addr = "7E:0D18"
+subsystem = "menu"
+meaning = "Nonzero asks the next frame's input for the fastest repeat of held buttons (a repeat every frame); the input takes it and clears it. A cursor held on Start counts it down"
+source = "game/menu/cursor.c, the menus' per-frame input $C2:8473; the cursor's pushes $C2:EA5E"
+
+[[var]]
+name = "menu_repeat_phase"
+addr = "7E:0D19"
+size = 2
+subsystem = "menu"
+meaning = "Which repeat delay held buttons have ($C2:84D0 by it): 1 while no button (but Start) is held, for the long wait before the first repeat, and 0 once the held buttons have been pressed or repeated, for the quick ones after"
+source = "game/menu/cursor.c, the menus' per-frame input $C2:8473"
+
+[[var]]
+name = "menu_portrait_character"
+addr = "7E:0D46"
+subsystem = "menu"
+meaning = "The character whose large portrait (six tiles by six) the menus draw next, and whose colours they load with it"
+source = "game/menu/tiles.c, the portrait $C2:EC38"
 
 [[var]]
 name = "menu_queued_sounds"
@@ -5994,6 +6021,13 @@ addr = "7E:0D73"
 subsystem = "menu"
 meaning = "Blocks of the records' frame tiles (32 by 32 pixels, $200 bytes) queued for VRAM this frame: the records' task clears it every frame and holds back a record's next frame once it reaches menu_record_block_limit; each block's tiles are built at $7E:8000 + $200 a block (the frame buffer, reached through wram.h since its place is worked out)"
 source = "game/menu/sprites.c, menu_load_record_sprites $C2:F3CA, menu_load_record_sprite $C2:F422, menu_animate_record $C2:F69D, and the records' task $C2:F657"
+
+[[var]]
+name = "menu_record_blocks_sent_high"
+addr = "7E:0D74"
+subsystem = "menu"
+meaning = "The byte after menu_record_blocks_sent, which the records' task clears with it (a word) every frame; the records read only the count, but the sprite object mode's slots share the byte"
+source = "game/menu/sprites.c, the records' task $C2:F657"
 
 [[var]]
 name = "menu_record_buffer_half"

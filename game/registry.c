@@ -53,6 +53,7 @@
 #include "menu/opening.h"
 #include "menu/save_screen.h"
 #include "menu/sprites.h"
+#include "menu/tiles.h"
 #include "menu/sound.h"
 #include "menu/text.h"
 #include "menu/typeset.h"
@@ -1541,13 +1542,13 @@ const NativeEntry game_natives[] = {
       .p_value = 0, .cost_milli = 4019, .dont_care = DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_figures_are_findable },
     /* the typesetter (game/menu/typeset.c) and the menus' labels */
     { .addr = 0xC257DF, .name = "menu_text_start", .fn = menu_text_start_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 4215, .dont_care = DC_N | DC_Z,
+      .p_value = 0, .cost_milli = 4431, .dont_care = DC_X | DC_Y | DC_N | DC_Z,
       .guard = menu_text_is_startable },
     { .addr = 0xC25823, .name = "menu_text_go_on", .fn = menu_text_go_on_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 6787, .dont_care = DC_AL | DC_N | DC_Z | DC_C,
+      .p_value = 0, .cost_milli = 10284, .dont_care = DC_X | DC_Y | DC_AL | DC_N | DC_Z | DC_C,
       .guard = menu_text_can_go_on },
     { .addr = 0xC2F90C, .name = "menu_set_label", .fn = menu_set_label_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 43810, .dont_care = DC_N | DC_V | DC_Z | DC_C,
+      .p_value = 0, .cost_milli = 61759, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_label_is_settable },
     { .addr = 0xC25F07, .name = "menu_draw_glyph_16_colour", .fn = menu_draw_glyph_16_colour, NEEDS_M8_X16_BINARY,
       .guard = menu_glyph_16_colour_is_drawable, .cost_milli = 13586, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
@@ -1653,6 +1654,9 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2800E, .name = "menu_mode_start", .fn = menu_mode_start, NEEDS_M8_X16, .cost_milli = 5525, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D },
     { .addr = 0xC282C1, .name = "menu_mode_return", .fn = menu_mode_return, NEEDS_M8_X16, .cost_milli = 3750, .dont_care = DC_A },
     { .addr = 0xC2832F, .name = "menu_mode_restart", .fn = menu_mode_restart, NEEDS_M8_X16, .cost_milli = 8750, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D },
+    { .addr = 0xC28473, .name = "menu_take_frame_input", .fn = menu_take_frame_input, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 6827, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = menu_frame_input_is_takeable },
     { .addr = 0xC2842A, .name = "menu_nmi_work", .fn = menu_nmi_work, NEEDS_M8_X16,
       .cost_milli = 3755, .dont_care = DC_C },
     { .addr = 0xC285D6, .name = "menu_vblank_upload", .fn = menu_vblank_upload, NEEDS_M8_X16, .cost_milli = 4862, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = menu_vblank_work_runs },
@@ -1739,6 +1743,12 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2ED08, .name = "menu_window_colours", .fn = menu_window_colours, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4036, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_window_colours_are_loadable },
+    { .addr = 0xC2EC38, .name = "menu_draw_large_portrait", .fn = menu_draw_large_portrait, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 2882, .dont_care = DC_A | DC_X | DC_Y, .guard = menu_large_portrait_is_drawable },
+    { .addr = 0xC2EC93, .name = "menu_recolour_rows", .fn = menu_recolour_rows, .p_mask = CPU_FLAG_D, .p_value = 0,
+      .cost_milli = 10176, .dont_care = DC_X | DC_Y, .guard = menu_rows_are_colourable },
+    { .addr = 0xC2ECAC, .name = "menu_set_row_pair_attribute", .fn = menu_set_row_pair_attribute, .cost_milli = 7033,
+      .dont_care = DC_AL | DC_X | DC_Y, .guard = menu_row_pair_is_colourable },
     { .addr = 0xC2ECDB, .name = "menu_window_in_design", .fn = menu_window_in_design, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 8309, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_window_in_design_is_drawable },
@@ -1800,7 +1810,7 @@ const NativeEntry game_natives[] = {
       .p_value = 0, .cost_milli = 5813, .dont_care = DC_N | DC_Z | DC_C | DC_AL,
       .guard = menu_save_slots_are_showable },
     /* opening the menus (game/menu/opening.c) */
-    { .addr = 0xC28096, .name = "menu_open", .fn = menu_open, NEEDS_M8_X16_BINARY, .cost_milli = 15188,
+    { .addr = 0xC28096, .name = "menu_open", .fn = menu_open, NEEDS_M8_X16_BINARY, .cost_milli = 15044,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_opening_runs },
     { .addr = 0xC2816A, .name = "menu_list_party", .fn = menu_list_party_entry, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 9387, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_on_page_work_ram },
@@ -1812,18 +1822,18 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3477, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_save_slots_are_readable },
     { .addr = 0xC2D19F, .name = "menu_read_slot_summary", .fn = menu_read_slot_summary, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 1532, .dont_care = DC_A, .guard = menu_slot_summary_is_readable },
+      .p_value = 0, .cost_milli = 1581, .dont_care = DC_X | DC_Y | DC_A, .guard = menu_slot_summary_is_readable },
     { .addr = 0xC2D266, .name = "menu_read_design_and_chapter", .fn = menu_read_design_and_chapter,
       .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 1,
-      .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = menu_slot_summary_is_readable },
+      .dont_care = DC_X | DC_Y | DC_A | DC_N | DC_V | DC_Z | DC_C, .guard = menu_slot_summary_is_readable },
     { .addr = 0xC2D296, .name = "menu_draw_chapter_label", .fn = menu_draw_chapter_label, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 79794, .dont_care = DC_A | DC_N | DC_V | DC_Z | DC_C,
+      .p_value = 0, .cost_milli = 195260, .dont_care = DC_X | DC_Y | DC_A | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_chapter_label_is_drawable },
     { .addr = 0xC2D28D, .name = "menu_draw_empty_label", .fn = menu_draw_empty_label, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 17114, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_slot_labels_are_drawable },
     { .addr = 0xC2D2C4, .name = "menu_draw_slot_name", .fn = menu_draw_slot_name, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 6412, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .p_value = 0, .cost_milli = 5537, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_slot_labels_are_drawable },
     /* the load screen: its steps, its drawing and a slot's erasing (game/menu/load_screen.c) */
     { .addr = 0xC2E613, .name = "menu_open_load_screen", .fn = menu_open_load_screen, NEEDS_M8_X16_BINARY,
@@ -2224,6 +2234,8 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2F69D, .name = "menu_animate_record", .fn = menu_animate_record,
       .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X, .cost_milli = 6601,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_record_is_animatable },
+    { .addr = 0xC2F657, .name = "menu_run_record_task", .fn = menu_run_record_task, .cost_milli = 8783,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_record_task_is_runnable },
     { .addr = 0xC2F75C, .name = "menu_show_record_frame", .fn = menu_show_record_frame,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 10164,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_record_frame_is_showable },

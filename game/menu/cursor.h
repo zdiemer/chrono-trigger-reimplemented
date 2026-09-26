@@ -40,6 +40,8 @@ void menu_clear_sprite_table(Snes *s);
 void menu_reset_sprites(Snes *s);
 void menu_clear_sprites_for_cursor(Snes *s);
 void menu_read_cursor_input(Snes *s);
+void menu_take_frame_input(Snes *s);
+bool menu_frame_input_is_takeable(Snes *s);
 void menu_send_sound(Snes *s);
 void menu_send_sound_on_other_voices(Snes *s);
 void menu_play_cursor_sound(Snes *s);
