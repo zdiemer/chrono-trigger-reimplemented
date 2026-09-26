@@ -13,6 +13,7 @@
 #include "field/party.h"
 #include "field/object.h"
 #include "field/scratch.h"
+#include "field/switches.h"
 #include "vars.h"
 
 /* ---- The direction routine ($C0:ABA2) ------------------------------------------------------ */
@@ -119,6 +120,76 @@ bool field_frame_read_overflow(const GameState *g, FieldObject obj, bool took_a_
         return field_subtract_overflows16((uint16_t)(entry + frame_before), frame_before);
     uint16_t table = field_facing_frame_table(g, obj);
     return field_add_overflows16((uint16_t)(entry - table), table);
+}
+
+/* ---- The frame builder ($C0:CAD9) --------------------------------------------------------- */
+
+/* Its last sum's: where the frame read ended the build, the read's; where a
+ * part's copies did, their last step along the areas (a straight copy's own
+ * sum, or the step to a mirrored tile's place); where the frame was
+ * finished, the second stretch's place in the areas, or where the tiles skip
+ * a row, that skip. Its plain paths leave the overflow as it came. */
+enum { TILE_STEP = 32 };
+
+static bool copies_overflow(const GameState *g, FieldObject obj, unsigned part)
+{
+    FieldDrawnTile last = field_frame_part_last_tile(g, obj, part);
+    return field_add_overflows16(last.mirrored ? (uint16_t)(last.at - TILE_STEP) : last.at, TILE_STEP);
+}
+
+static bool finished_overflow(const GameState *g, FieldObject obj)
+{
+    FieldFrameSent sent = field_frame_sent(g, obj);
+    if (!sent.skips_a_row)
+        return field_add_overflows16(field_object_frame_staging(g, obj), sent.second_stretch);
+    return field_add_overflows8(sent.tile_before_the_skip, sent.row);
+}
+
+bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild outcome, FrameBuildBefore before)
+{
+    switch (outcome) {
+    case FRAME_NO_NEXT:
+        return field_frame_read_overflow(g, obj, false, before.animation_frame);
+    case FRAME_ALREADY_DRAWN:
+    case FRAME_NO_ROOM:
+        return object_holds_frame(g, obj) ? before.overflow
+                                          : field_frame_read_overflow(g, obj, true, before.animation_frame);
+    case FRAME_PART_DRAWN:
+        return copies_overflow(g, obj, object_records_state(g, obj).changed - 1u);
+    case FRAME_DRAWN:
+        return finished_overflow(g, obj);
+    default:
+        return before.overflow;
+    }
+}
+
+/* ---- The switches ($C0:0D45-$C0:16DB) ----------------------------------------------------- */
+
+/* The overflow of the last sum the redraw's entries were worked out with:
+ * the last entry's place in BG1's tile map plus the layer's base. */
+bool field_switch_redraw_overflow(const GameState *g)
+{
+    uint16_t base = field_layer_map_base(g, 0);
+    uint16_t last = field_switch_entries(g, field_switch_entry_count(g) - 1u);
+    return field_add_overflows16((uint16_t)(last - base), base);
+}
+
+/* A's high byte at the switch's sound, which the sound driver keeps and hands
+ * back: the original's last word-wide sum on its way round the switch's
+ * tiles. For the one-by-two switch, the upper tile moved on as a word, whose
+ * high byte is the tile to its right; for the others, the index of the tile
+ * a row up from where the original's walk round the tiles ended its last
+ * row (the two-by-two's other column, the two-by-three's own). */
+enum { MAP_ROW_STEP = 0x100 };
+uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step)
+{
+    if (p.shape == SWITCH_ONE_BY_TWO) {
+        uint16_t right_of_upper = (uint16_t)(step - MAP_ROW_STEP + 1);
+        return field_layer_maps(g, 0, (right_of_upper >> 8) & 0x3F, right_of_upper & 0x3F);
+    }
+    int along = p.shape == SWITCH_TWO_BY_TWO ? (p.step_column == 0 ? 1 : -1) : 0;
+    uint16_t last = (uint16_t)(step + along - (field_switch_rows(p.shape) - 1u) * MAP_ROW_STEP);
+    return (uint8_t)(last >> 8);
 }
 
 /* ---- The screen test (field/object.h, tile_well_on_screen) ------------------------------- */

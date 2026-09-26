@@ -170,8 +170,8 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 143 files, 117 of
-37,421 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 145 files, 117 of
+37,769 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
@@ -180,11 +180,11 @@ round the call-outs to the original's code:
 | battle | 0 | 44 | 0 | 9,443 | 0.02 | 31% |
 | menu | 0 | 18 | 0 | 6,486 | 0.04 | 34% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
-| field | 0 | 23 | 0 | 6,524 | 0.01 | 20% |
+| field | 0 | 25 | 0 | 6,872 | 0.01 | 20% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,039 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,950 | 0.00 | 0% |
-| **total** | **1** | **128** | **117** | **30,313** | **0.03** | **31%** |
+| **total** | **1** | **130** | **117** | **30,661** | **0.03** | **31%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -338,12 +338,12 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **51% of the code is still generated.**
+docstring says which way it is wrong). **42% of the code is still generated** (`$C0`'s figure overcounts; see below).
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 31.7K | 11.5K | 51% | 202 |
-| field engine, events (`$C0`) | 59.4K | 37.2K | 8.7K | 37% | 278 |
+| field engine, events (`$C0`) | 59.4K | 56.4K | 23.9K | 5% | 280 |
 | menus, text (`$C2`) | 59.3K | 21.5K | 6.9K | 64% | 214 |
 | scene program, RAM (`$7E`) | 24.9K | 2.8K | 0.0K | 89% | 54 |
 | battle frame work (`$CD`) | 15.5K | 5.0K | 2.8K | 68% | 27 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **51% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **132.8K** | **34.1K** | **51%** | **1028** |
+| **total** | **268.5K** | **156.2K** | **53.5K** | **42%** | **1030** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -535,8 +535,17 @@ VRAM and put in the frame's data, a part at a time for the larger layouts.
 `$C0` stands at 37.2 KiB ported, 37% left. What is left of the builder's run
 is its immediate twin (`$C0:CB0A` and its layouts `$C0:CDC8`, `$C0:D124`,
 `$C0:DD28`, reached by `BRL` from the battle's return at `$C0:086E` and
-`$C0:0902`, so only as part of that routine) and `$C0:E12A`; next by size is
-the field's main loop and map loading (`$C0:0B86`, 3878 bytes).
+`$C0:0902`, so only as part of that routine) and `$C0:E12A`.
+
+The sixth (RECOMP.md, "Phase 3, field and events: the switches and the main
+loop's requests") took the main loop's `$C0:0C76` as far as the step
+event's floor switches, and the redraw of their tiles after the picture
+(`$C0:ED15`); the location change, the menus, a chest, the tile copy and
+the battle are handed to the original where it reads the requests. The
+burndown's `$C0` figure (56.4 KiB, 5% left) overcounts that stop's branches
+(RECOMP.md says how); what is left is those branches, the field's start
+(`$C0:0B86`), the pause and the menu opening (`$C0:18D9`-`$C0:1A6F`), and the
+frame builder's immediate twin.
 
 **What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
 which converted the sound driver to this bar:

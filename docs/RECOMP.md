@@ -7022,6 +7022,79 @@ chunk 4's build every other field entry keeps its counts.
 **The timing gate.** The new row was calibrated over the library; no
 exception.
 
+### Phase 3, field and events: the switches and the main loop's requests
+
+The sixth chunk of bank `$C0`, and chunk 5's review.
+
+**Chunk 5's review, folded in.**
+- *The overflow past the frame queue* (the port-routine skill's third trap).
+  Liveness keeps it live round the main loop, but the only readers it
+  reaches are the menus' entry, which saves the flags (`$C2:8013`'s `PHP`)
+  and puts them back on leaving; banks `$C0` and `$FD` have no branch on
+  it. With no port call-out there to poison, it stays derived, from a
+  status of game conditions (`FrameBuild`, field/parts.h) in field/leaves.c,
+  outside the logic file.
+- *The copies take their set and place.* `field_draw_frame_tile(g, set,
+  tile, to)`; the work RAM port's final place and the cells only the
+  original's code reads (the set, the place, the frame tables' bank) are
+  scaffolding, and the copies' entries read them as their calling
+  convention (baseline lines with that reason).
+- *One frame read.* `object_take_next_frame` takes the tables' bank, which
+  the `$C0:CB3A` wrapper reads; its guard refuses a bank where an address
+  doesn't answer (`field_bank_always_answers`), so the read order no longer
+  matters and the twin is gone. The mirrored copy's guard does the same for
+  the tile's bytes, which fuzzing showed carry out of bank `$FF` into bank
+  `$00`'s open bus (38 of 9,944 before the guard).
+- The tile's constants live once in field/graphics.h; the 4-sprite
+  priority rule and the `$68` plan say what they are; `object_holds_frame`;
+  `sprite_offset` takes an `Axis`.
+
+**What it is** (field/requests.c, field/switches.c). The main loop's
+`$C0:0C76` moves the brightness and tint changes a step each frame, and
+answers the requests. The port answers a step event itself: the step is
+remembered on the map, and a floor switch stepped onto is pressed -- its
+tiles move on to the next in the tile set, in one of three shapes (a tile
+and the one above, two by two, two across by three down, `SwitchShapeTiles`,
+where the original has five near-copies), its sound is played, and the
+VRAM addresses of its tiles' entries in BG1's tile map are queued. The
+line interrupt's job after the picture (`$C0:ED15`) draws the queued looks
+(field_redraw_changed_tiles), a chest's as well, and refreshes the windows'
+corners. The location change, the menus, a chest's opening, the tile copy
+and the battle are handed to the original's code where it reads the
+requests (`m_stop_at_own` at `$C0:0C8A` and `$C0:1770`). A chest's opening
+went with the stop: at its sound the original has A's high byte and the
+overflow from the path into it, which only the path gives, so porting it
+means porting the path (TODO).
+
+**What it taught the map.** The redraws' flags (`field_tiles_to_redraw`,
+`$5F`), the switch's shape, the chest's kind, the two sounds, the entries'
+VRAM addresses (`$09B2`, `$09CA`), the steps remembered (`$7F:1CC8`), and
+the bytes after the screen's left and top edges (read as words).
+
+**What shadow mode and fuzzing found.** A chest's opening mismatched once
+(telepod-lavos): the sound driver's call came back through a path the
+original reaches with other registers; the chest went to the stop. The
+switch's sound reads A's high byte (the driver keeps it), which the port
+works out from the switch's tiles (field/leaves.c). Over the 26 movies every call of the three matches: the requests 191,044,
+the redraw after the picture 98,342, the frame builder 231,605; none
+interrupted or refused. Fuzzed (seeds 1 and 2, 20,000 states each):
+`field_handle_requests` 0 of 19,944 and 0 of 19,946 with any requests but
+those it hands on at once, and a step onto each switch's bottom tiles 0 of
+9,866 and 0 of 9,882 (the rest past the call-out budget); the redraw 0 of
+20,000 each. A deliberately wrong shape (one of the two-by-two's tiles off
+by one) mismatched 289 of 1,433 in the requests and 492 of 3,000 in the
+redraw. `python3 tools/burndown.py` now credits `$C0` with 56.4 KiB and 5%
+left, which is wrong the way its docstring warns: it walks
+`field_handle_requests`' region through the branches the port hands to the
+original at `$C0:0C8A` and `$C0:1770`, into the location change's reset to
+the main loop and everything that reaches. What the chunk made C is the
+step event's switches and the redraw, about 2.6 KiB.
+
+**The timing gate.** The new rows, and the two chunk 5's review moved (the
+mirrored copy, whose estimate no longer counts the port's writes through
+the port, and the builder), were calibrated over the library; no
+exception.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

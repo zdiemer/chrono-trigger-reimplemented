@@ -61,7 +61,7 @@ static const CornerSites marked_corners[WINDOWS][2] = {
  * their own; with no window selected (field_window_tile_slot past the four),
  * all their own, and the selection is cleared. The windows the refresh
  * writes with their own routines are written in the routines' order. */
-static void refresh_window_corners(GameState *g, Platform *pf)
+void field_refresh_corners(GameState *g, Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0xC0F069), VID_VRAM_WORD_PORT);
     unsigned selected = field_window_tile_slot(g);
@@ -89,7 +89,7 @@ void field_write_window_corners_3(Snes *s) { write_window_corners(m_platform(s),
 
 void field_refresh_window_corners(Snes *s)
 {
-    refresh_window_corners(state_of(s), m_platform(s));
+    field_refresh_corners(state_of(s), m_platform(s));
     m_rts(s);
 }
 

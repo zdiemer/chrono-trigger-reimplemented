@@ -111,14 +111,18 @@ game/battle/window.h battle_work16 battle_work[0] battle_work
 game/battle/window.h battle_work16 battle_work[1] battle_work
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
 game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
-game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high  # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
-game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
+game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
+game/event/party.c event_member_back_to_the_leader field_leader_contact field_leader_contact                  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
-game/field/field.h leader_contact field_leader_contact field_leader_contact  # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
-game/field/graphics.c copy_sprite_tile field_sprite_tile_offset event_target_pointer
-game/field/graphics.c graphics_set field_sprite_graphics_address event_source_pointer
-game/field/graphics.c graphics_set field_sprite_graphics_bank event_source_pointer
+game/field/animation.c field_read_animation_frame field_frame_entry_bank field_frame_entry only               # the entry's calling convention: every caller of the frame read sets the tables' bank first (the builders); the C builder passes it
+game/field/field.h leader_contact field_leader_contact field_leader_contact                                   # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
+game/field/graphics.c graphics_left field_sprite_graphics_address event_source_pointer only                   # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_address field_sprite_graphics only                  # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_bank event_source_pointer only                      # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c graphics_left field_sprite_graphics_bank field_sprite_graphics only                     # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
+game/field/graphics.c tile_copy_entry field_sprite_tile_offset event_target_pointer only                      # the entry's calling convention: the original's callers set it every call (the frame builders, $C0:CB0A still the original's); the C builder passes the place
+game/field/graphics.c tile_copy_entry field_sprite_tile_offset field_sprite_tile_offset only                  # the entry's calling convention: the original's callers set it every call (the frame builders, $C0:CB0A still the original's); the C builder passes the place
 game/field/line_effects.c keep_wave_line field_direction field_direction
 game/field/line_effects.c wave_line_kept field_direction field_direction
 game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile only
@@ -133,10 +137,14 @@ game/field/motion.c party_member_take_step field_object_accelerating field_objec
 game/field/object.c object_records_state field_object_sprite_state field_object_sprite_state
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
-game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch
-game/field/sprites.c range_next field_sprite_range_next event_scratch
+game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
+game/field/sprites.c hide_leftovers field_sprite_range_next field_sprite_range_next  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
+game/field/sprites.c range_next field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
+game/field/sprites.c range_next field_sprite_range_next field_sprite_range_next  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
 game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
+game/field/switches.c field_redraw_changed_tiles field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
+game/field/switches.c field_switch_entry_count field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
 game/menu/cursor.c move_cursor menu_cursor_index menu_object_sprite_script
 game/menu/cursor.c place_cursor menu_cursor_flip menu_object_sprite_group
 game/menu/cursor.c place_cursor menu_cursor_index menu_object_sprite_script

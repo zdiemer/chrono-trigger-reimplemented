@@ -85,6 +85,10 @@ static void set_one_off_animation(GameState *g, FieldObject obj, uint8_t animati
 /* The frame a script holds. */
 static void set_held_frame(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_static_frame(g, obj, frame); }
 uint8_t object_held_frame(const GameState *g, FieldObject obj) { return field_object_static_frame(g, obj); }
+bool object_holds_frame(const GameState *g, FieldObject obj)
+{
+    return object_animation_mode(g, obj) == ANIMATE_SHOW_FRAME;
+}
 
 /* A one-off's half passes left (above). The last half pass is the one-off
  * played out, holding its frame; none is no one-off. */
@@ -419,24 +423,18 @@ void object_animation_tick(GameState *g, FieldObject obj)
 
 /* ---- The frame it shows ------------------------------------------------------------------ */
 
-/* The object's frame table for its facing, in the bank the frame builder
- * names: a table a facing, in the facings' order. */
+/* The object's frame table for its facing, in the bank of frame tables the
+ * frame builder names (FIELD_FRAME_TABLES_BANK): a table a facing, in the
+ * facings' order. */
 static uint16_t facing_table_offset(const GameState *g, FieldObject obj)
 {
     uint16_t size = field_object_facing_table_size(g, obj);
     return (uint16_t)(object_facing(g, obj) * size + field_object_frame_table(g, obj));
 }
 
-static FieldFrameTable facing_frame_table_in(const GameState *g, FieldObject obj, uint8_t bank)
+static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj, uint8_t tables_bank)
 {
-    return (FieldFrameTable){ bank, facing_table_offset(g, obj) };
-}
-
-/* The bank read after the offset, as the original reads them. */
-static FieldFrameTable facing_frame_table(const GameState *g, FieldObject obj)
-{
-    uint16_t offset = facing_table_offset(g, obj);
-    return (FieldFrameTable){ field_frame_entry_bank(g), offset };
+    return (FieldFrameTable){ tables_bank, facing_table_offset(g, obj) };
 }
 
 /* What the object shows next, found without changing anything: the frame
@@ -453,20 +451,12 @@ typedef struct {
     uint16_t place;
 } NextFrame;
 
-/* The tables' bank, where the builder names it (THE_BUILDERS_BANK), else the
- * bank given. */
-enum { THE_BUILDERS_BANK = -1 };
-
-static NextFrame find_next_frame_in(const GameState *g, FieldObject obj, int bank)
+static NextFrame find_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank)
 {
     uint8_t frame = field_object_animation_frame(g, obj);
     bool one_off = object_animation_mode(g, obj) == ANIMATE_PLAY;
     uint8_t animation = current_animation(g, obj, ITS_FRAMES);
-    /* Looked up last, just before its frame is read, as the original does: a
-     * table pointing where nothing answers reads the last byte on the bus,
-     * the table's bank (fuzzing found it; no object the game makes does). */
-    FieldFrameTable table = bank == THE_BUILDERS_BANK ? facing_frame_table(g, obj)
-                                                      : facing_frame_table_in(g, obj, (uint8_t)bank);
+    FieldFrameTable table = facing_frame_table(g, obj, tables_bank);
     uint16_t place = field_animation_place(table.offset, animation, frame);
     uint8_t shown = field_animation_frame_number(g, table, place);
     if (shown != END_OF_FRAMES)
@@ -476,20 +466,15 @@ static NextFrame find_next_frame_in(const GameState *g, FieldObject obj, int ban
     return (NextFrame){ STARTING_OVER, 0, (uint16_t)(place - frame) };
 }
 
-static NextFrame find_next_frame(const GameState *g, FieldObject obj)
+/* The frame the object would take next, without taking it: for a guard that
+ * looks ahead at what the frame builder will draw. */
+ObjectFrame object_next_frame(const GameState *g, FieldObject obj, uint8_t tables_bank)
 {
-    return find_next_frame_in(g, obj, THE_BUILDERS_BANK);
-}
-
-/* The frame the object would take next from its tables in `bank`, without
- * taking it: for a guard that looks ahead at what the builder will draw. */
-ObjectFrame object_peek_next_frame(const GameState *g, FieldObject obj, uint8_t bank)
-{
-    NextFrame next = find_next_frame_in(g, obj, bank);
+    NextFrame next = find_next_frame(g, obj, tables_bank);
     switch (next.found) {
     case END_OF_A_ONE_OFF: return (ObjectFrame){ false, 0 };
     case STARTING_OVER:
-        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table_in(g, obj, bank), next.place) };
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, tables_bank), next.place) };
     default: return (ObjectFrame){ true, next.frame };
     }
 }
@@ -499,10 +484,10 @@ ObjectFrame object_peek_next_frame(const GameState *g, FieldObject obj, uint8_t 
  * reading the frame table from where it is (field_frame_entry_address, which
  * the builder keeps). At the end of a one-off's frames it counts half a pass
  * and there is no frame to draw; any other animation starts over. */
-ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
+ObjectFrame object_take_next_frame(GameState *g, FieldObject obj, uint8_t tables_bank)
 {
     ORIGINAL_EFFECT(leave_frame_sum_part(g, field_object_animation_frame(g, obj)));
-    NextFrame next = find_next_frame(g, obj);
+    NextFrame next = find_next_frame(g, obj, tables_bank);
     set_field_frame_entry_address(g, next.place);
     switch (next.found) {
     case END_OF_A_ONE_OFF: {
@@ -513,7 +498,7 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
     }
     case STARTING_OVER:
         set_field_object_animation_frame(g, obj, BEFORE_THE_FIRST_FRAME);
-        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj), next.place) };
+        return (ObjectFrame){ true, field_animation_frame_number(g, facing_frame_table(g, obj, tables_bank), next.place) };
     default:
         return (ObjectFrame){ true, next.frame };
     }
@@ -522,11 +507,11 @@ ObjectFrame object_take_next_frame(GameState *g, FieldObject obj)
 /* For the derivations (field/parts.h, field/leaves.c): the start of the
  * object's frame table for its facing, where its current animation's first
  * frame is in it, and whether it was put a frame before its first. */
-uint16_t field_facing_frame_table(const GameState *g, FieldObject obj) { return facing_frame_table(g, obj).offset; }
+uint16_t field_facing_frame_table(const GameState *g, FieldObject obj) { return facing_table_offset(g, obj); }
 
 uint16_t field_first_frame_place(const GameState *g, FieldObject obj)
 {
-    return field_animation_place(facing_frame_table(g, obj).offset, current_animation(g, obj, ITS_FRAMES), 0);
+    return field_animation_place(facing_table_offset(g, obj), current_animation(g, obj, ITS_FRAMES), 0);
 }
 
 bool field_frame_before_the_first(uint8_t frame) { return frame == BEFORE_THE_FIRST_FRAME; }
@@ -586,12 +571,17 @@ bool object_frame_tables_in_bank(const GameState *g, FieldObject obj)
            (object_facing(g, obj) != FACING_RIGHT || 3u * field_object_facing_table_size(g, obj) < BANK_SIZE);
 }
 
+/* The frame read's guard also takes only a bank of frame tables where every
+ * address answers (field_data.h): elsewhere a read takes what the bus last
+ * held, which the original's order of reads decides. The builder names
+ * FIELD_FRAME_TABLES_BANK. */
 bool field_object_frames_in_bank(Snes *s)
 {
     if (!field_object_x_low_bank(s))
         return false;
     vars_peek(true);
-    bool ok = object_frame_tables_in_bank(state_of(s), (FieldObject)field_object_in_x(s));
+    bool ok = object_frame_tables_in_bank(state_of(s), (FieldObject)field_object_in_x(s)) &&
+              field_bank_always_answers(field_frame_entry_bank(state_of(s)));
     vars_peek(false);
     return ok;
 }
@@ -613,7 +603,7 @@ void field_read_animation_frame(Snes *s)
     FieldObject obj = (FieldObject)field_object_in_x(s);
     uint8_t frame_before = field_object_animation_frame(g, obj);
     uint8_t half_passes_before = half_passes_left(g, obj);
-    ObjectFrame r = object_take_next_frame(g, obj);
+    ObjectFrame r = object_take_next_frame(g, obj, field_frame_entry_bank(g));
     uint16_t entry = field_frame_entry_address(g);
     uint8_t shown = r.has_frame ? r.frame : (uint8_t)(half_passes_before - 1);
     s->cpu.a = (uint16_t)((entry & 0xFF00) | shown);

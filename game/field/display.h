@@ -49,6 +49,7 @@ bool field_edge_runs_small(Snes *s);
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);
 
 /* field/window_corners.c */
+void field_refresh_corners(GameState *g, Platform *pf);
 void field_refresh_window_corners(Snes *s);
 void field_write_window_corners_0(Snes *s);
 void field_write_window_corners_1(Snes *s);

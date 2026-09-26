@@ -4039,15 +4039,15 @@ why = "the field's page and a bank reaching the work RAM port; the graphics set,
 name = "field_copy_sprite_tile_flipped"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00"]
-why = "the field's page and bank $00 (the mirror table); the port's cursor random, so the tile can land on the pointer it is read through"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01CF-7E01CF=C0-FE"]
+why = "the field's page and bank $00 (the mirror table); the graphics in the ROM's high banks but the last (the guard refuses a bank where an address doesn't answer, and a tile that carries past the last bank); the port's cursor random (the guard refuses a tile over the saved Y or the set's own pointer)"
 
 [[routine]]
 name = "field_read_animation_frame"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E1600-7E167F=00-03"]
-why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank random; the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E1600-7E167F=00-03", "--fill", "7E01D8-7E01D8=C0-FF"]
+why = "the field's page and data bank; the object in X random (the guard turns away odd ones), the frame table's bank one of the ROM's high banks (the guard refuses one where an address doesn't answer); the objects' facings one of the four (and their frame delays below 4, which share the rows), which the guard requires (field/object.h, object_facing_is_one)"
 
 [[routine]]
 name = "field_rasterize_quad"
@@ -4825,6 +4825,28 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", "7E016E-7E016E=00-00", "--fill", "7E1600-7E167F=00-03", "--fill", "7E1710-7E1710=00-00", "--fill", "7E1711-7E1711=00-02", "--fill", "7E1310-7E1310=C0-FF", "--fill", "7E0179-7E0179=00,02,04,06,08,0A,0C", "--fill", "7E1210-7E1210=D2,D3,D4,D5,7F", "--fill", "7E0BC0-7E0BC3=7F-8F", "--fill", "7E0F11-7E0F11=FF-FF", "--fill", "7E1110-7E1110=00-7F", "--fill", "7E1A91-7E1A91=01-01", "--fill", "7E0F10-7E0F10=80-80", "--fill", "7E0D91-7E0D91=38-39", "--fill", "7E1211-7E1211=02-02", "--fill", "7E1790-7E1790=00-02", "--fill", "7E1B10-7E1B10=00-03", "--fill", "7E0D10-7E0D10=68-68"]
 why = "the 12-sprite layout with its tiles half way along a row ($68), each of its three parts"
+
+[[routine]]
+name = "field_handle_requests"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=00-3F", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F"]
+why = "the field's page; any requests but the location change and the menus (which the port hands to the original at once), the brightness and tint changes as the state has them; the step on the map's rows"
+
+[[routine]]
+name = "field_handle_requests"
+variant = "switches"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=10", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F", "--fill", "[7E015B]+3000,1=E6,EC,EE,FA,FC", "--fill", "[7E015D]+3000,1=FE,E0"]
+why = "a step onto each of the switches' bottom tiles (the plain variant has the tile copy and the battle after, which run past the budget)"
+
+[[routine]]
+name = "field_redraw_after_picture"
+subsystem = "field"
+state = "field"
+args = ["--db", "00", "--fill", "7E015F-7E015F=00,02,10,12", "--fill", "7E0160-7E0160=00-02", "--fill", "7E0161-7E0161=00-01"]
+why = "the switch's and the chest's redraws waiting or not, each shape and each kind of chest; the entries and the marked window random"
 
 # ---- menu: bank C2 and the object commands of bank C6 ---------------------------------------------
 #

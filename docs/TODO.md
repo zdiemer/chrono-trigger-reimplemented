@@ -922,6 +922,22 @@ below. `python3 tools/timing_census.py` re-runs the census.
     names run past the bank (the copies would read low RAM through bank
     `$80`, the builder's own cells among it, which the port writes at other
     moments); no object the game makes does.
+- **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
+  events: the switches and the main loop's requests"):
+  - `$C0:0C76` hands the location change, the menus, a chest opened, the
+    tile copy and the battle to the original's code (`m_stop_at_own` at
+    `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
+    and the overflow the original has at `$C0:16DC`, which depend on the
+    path into it, so it went with the stop rather than into the logic;
+  - the field's start (`$C0:0B86`), the pause and the menu opening
+    (`$C0:18D9`, `$C0:1985`, `$C0:1A03`) are the original's; `$C0:0B86` sets
+    some twenty cells the map has no names for yet (`$10`, `$11`, `$2F`,
+    `$39`, `$8D`-`$96`, `$AE`-`$BB`, `$FA`, `$7E:2989`, `$7E:0BE9`), which
+    their readers name first;
+  - the switch's sound is still the original's routine (`$C0:1B90`, which
+    pans it on the leader by reading the objects' screen X with the party's
+    first two places as one index word); the port calls it and hands it A's
+    high byte as the original has it (field/leaves.c).
 - **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
   the map scrolling in"):
   - the rows BG1's and BG2's builders end with the second half of the map

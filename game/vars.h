@@ -847,6 +847,20 @@ void set_field_step_tile(GameState *g, uint16_t v);
 uint16_t field_opened_chest_tile(const GameState *g);
 void set_field_opened_chest_tile(GameState *g, uint16_t v);
 
+/* Map tiles whose new looks wait for the line interrupt's time after the picture ($C0:ED15): bit
+ * 1 an opened chest's (field_chest_entries), bit 4 a pressed switch's (field_switch_entries) */
+uint8_t field_tiles_to_redraw(const GameState *g);
+void set_field_tiles_to_redraw(GameState *g, uint8_t v);
+
+/* The shape of the switch pressed last: 0 a tile and the one above, 1 two by two, 2 two across
+ * by three down */
+uint8_t field_switch_shape(const GameState *g);
+void set_field_switch_shape(GameState *g, uint8_t v);
+
+/* The kind of chest opened last: 0 the map tile $FE, 1 the map tile $E0 */
+uint8_t field_chest_kind(const GameState *g);
+void set_field_chest_kind(GameState *g, uint8_t v);
+
 /* 1 while a dialog with choices runs */
 uint8_t dialog_choice_active(const GameState *g);
 void set_dialog_choice_active(GameState *g, uint8_t v);
@@ -1045,6 +1059,14 @@ void set_field_direction_work(GameState *g, uint32_t v);
 uint8_t field_random_index(const GameState *g);
 void set_field_random_index(GameState *g, uint8_t v);
 
+/* The sound effect a chest makes opening ($65 from the field's start) */
+uint8_t field_chest_sound(const GameState *g);
+void set_field_chest_sound(GameState *g, uint8_t v);
+
+/* The sound effect a switch makes pressed ($53 from the field's start) */
+uint8_t field_switch_sound(const GameState *g);
+void set_field_switch_sound(GameState *g, uint8_t v);
+
 /* Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a
  * location) */
 uint16_t location_record_offset(const GameState *g);
@@ -1152,6 +1174,16 @@ enum { FIELD_VRAM_QUEUE_USED_HIGH_COUNT = 8 };   /* by queue entry */
  * of the entries also writes; nothing reads it */
 uint8_t field_vram_queue_used_high(const GameState *g, unsigned i);
 void set_field_vram_queue_used_high(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_CHEST_ENTRIES_COUNT = 4 };   /* by the opened chest's four tile map entries (top left, top right, bottom left, bottom right) */
+/* VRAM addresses of BG1's tile map entries the opened chest's new look goes to */
+uint16_t field_chest_entries(const GameState *g, unsigned i);
+void set_field_chest_entries(GameState *g, unsigned i, uint16_t v);
+
+enum { FIELD_SWITCH_ENTRIES_COUNT = 24 };   /* by four for each of the pressed switch's tiles (top left, top right, bottom left, bottom right), up to six tiles */
+/* VRAM addresses of BG1's tile map entries the pressed switch's new looks go to */
+uint16_t field_switch_entries(const GameState *g, unsigned i);
+void set_field_switch_entries(GameState *g, unsigned i, uint16_t v);
 
 enum { FIELD_OBJECT_SCREEN_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
@@ -1569,6 +1601,12 @@ void set_field_chests(GameState *g, unsigned i, uint16_t v);
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 uint8_t field_screen_left(const GameState *g);
 void set_field_screen_left(GameState *g, uint8_t v);
+
+enum { FIELD_SCREEN_EDGES_HIGH_COUNT = 2 };   /* by 0 the left edge's, 1 the top edge's */
+/* The bytes after field_screen_left and field_screen_top, which the main loop's switches and
+ * chests read with them as words for their working copies of the screen's edges */
+uint8_t field_screen_edges_high(const GameState *g, unsigned i);
+void set_field_screen_edges_high(GameState *g, unsigned i, uint8_t v);
 
 /* The screen's right edge in 8-pixel tiles */
 uint8_t field_screen_right(const GameState *g);
@@ -2057,6 +2095,12 @@ enum { FIELD_WINDOW_EDGE_LINES_COPY_COUNT = 224 };   /* by line */
 /* field_window_edge_lines for table set 1 */
 uint16_t field_window_edge_lines_copy(const GameState *g, unsigned line);
 void set_field_window_edge_lines_copy(GameState *g, unsigned line, uint16_t v);
+
+enum { FIELD_PRESSED_TILES_COUNT = 16 };   /* by slot; negative: free */
+/* The step events the leader has set off on this map (field_step_tile each), kept as a list
+ * until it is full */
+uint16_t field_pressed_tiles(const GameState *g, unsigned slot);
+void set_field_pressed_tiles(GameState *g, unsigned slot, uint16_t v);
 
 /* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes, one at
  * a time] */

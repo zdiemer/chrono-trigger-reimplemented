@@ -16,6 +16,7 @@
 #include "field/layers.h"
 #include "field/object.h"
 #include "field/party.h"
+#include "field/switches.h"
 #include "state.h"
 
 enum { FIELD_QUARTER_TURN = 0x40, FIELD_DISTANCE_BITS = 0x1F };
@@ -47,6 +48,49 @@ uint16_t field_facing_frame_table(const GameState *g, FieldObject obj);
 uint16_t field_first_frame_place(const GameState *g, FieldObject obj);
 bool field_animation_rewound(const GameState *g, FieldObject obj);
 bool field_frame_before_the_first(uint8_t frame);
+
+/* The frame builder (field/frames.c): what drawing came to -- the object not
+ * drawn (hidden, out of view, or of the 24-sprite layout, whose frames are
+ * its records), no next frame to draw, the frame already drawn, no areas
+ * free for it, a 12-sprite object holding a frame (never drawn), a part drawn
+ * with more to come, or the frame whole -- and what it had before; where the
+ * last tile of a part of the object's frame went in bank $7F, and whether it
+ * was mirrored; and what a whole frame sends to VRAM: where the second
+ * stretch starts in the areas, and whether the sprites' tiles skip a row of
+ * VRAM's, from which tile and by how much. */
+typedef enum {
+    FRAME_NOT_DUE,
+    FRAME_NO_NEXT,
+    FRAME_ALREADY_DRAWN,
+    FRAME_NO_ROOM,
+    FRAME_WAITS,
+    FRAME_PART_DRAWN,
+    FRAME_DRAWN,
+} FrameBuild;
+typedef struct {
+    bool overflow;
+    uint8_t animation_frame;
+} FrameBuildBefore;
+typedef struct {
+    uint16_t at;
+    bool mirrored;
+} FieldDrawnTile;
+FieldDrawnTile field_frame_part_last_tile(const GameState *g, FieldObject obj, unsigned part);
+typedef struct {
+    uint16_t second_stretch;
+    bool skips_a_row;
+    uint8_t tile_before_the_skip, row;
+} FieldFrameSent;
+FieldFrameSent field_frame_sent(const GameState *g, FieldObject obj);
+/* The overflow the builder's entry hands on, worked out from those
+ * (field/leaves.c). */
+bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild outcome, FrameBuildBefore before);
+
+/* The main loop's switches (field/switches.c): the overflow of the last
+ * entry's sum with BG1's base that pressing one leaves, and A's high byte at
+ * its sound (field/leaves.c). */
+bool field_switch_redraw_overflow(const GameState *g);
+uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step);
 
 /* A footprint of the leader's trail (field/party_trail.c): how far it moved
  * that frame, how the pad walked it, its sprite's priorities and the ground

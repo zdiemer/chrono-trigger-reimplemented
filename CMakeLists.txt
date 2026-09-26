@@ -106,6 +106,7 @@ add_library(ct_game STATIC
   game/field/display.c
   game/field/frame.c
   game/field/frames.c
+  game/field/requests.c
   game/field/graphics.c
   game/field/interrupts.c
   game/field/layers.c
@@ -118,6 +119,7 @@ add_library(ct_game STATIC
   game/field/object_view.c
   game/field/party_trail.c
   game/field/streaming.c
+  game/field/switches.c
   game/field/window_corners.c
   game/field/scroll.c
   game/field/tile_copy.c

@@ -2599,6 +2599,17 @@ meaning = "The screen's left edge in 8-pixel tiles (with the fine scroll, the sc
 source = "game/field/object_view.c field_update_object_visibility $C0:A88D; game/field/object_update.c field_update_screen_position $C0:AB45"
 
 [[var]]
+name = "field_screen_edges_high"
+addr = "7E:1D0B"
+page = "field_layers"
+count = 2
+stride = 4
+index = "0 the left edge's, 1 the top edge's"
+subsystem = "field"
+meaning = "The bytes after field_screen_left and field_screen_top, which the main loop's switches and chests read with them as words for their working copies of the screen's edges"
+source = "game/field/switches.c"
+
+[[var]]
 name = "field_screen_right"
 addr = "7E:1D0C"
 page = "field_layers"
@@ -13420,6 +13431,68 @@ size = 1
 meaning = "Its bank"
 
 [[var]]
+name = "field_tiles_to_redraw"
+addr = "7E:015F"
+page = "field"
+subsystem = "field"
+meaning = "Map tiles whose new looks wait for the line interrupt's time after the picture ($C0:ED15): bit 1 an opened chest's (field_chest_entries), bit 4 a pressed switch's (field_switch_entries)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_shape"
+addr = "7E:0160"
+page = "field"
+subsystem = "field"
+meaning = "The shape of the switch pressed last: 0 a tile and the one above, 1 two by two, 2 two across by three down"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_kind"
+addr = "7E:0161"
+page = "field"
+subsystem = "field"
+meaning = "The kind of chest opened last: 0 the map tile $FE, 1 the map tile $E0"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_sound"
+addr = "7E:01FB"
+page = "field"
+subsystem = "field"
+meaning = "The sound effect a chest makes opening ($65 from the field's start)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_sound"
+addr = "7E:01FC"
+page = "field"
+subsystem = "field"
+meaning = "The sound effect a switch makes pressed ($53 from the field's start)"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_chest_entries"
+addr = "7E:09B2"
+size = 2
+count = 4
+stride = 2
+index = "the opened chest's four tile map entries (top left, top right, bottom left, bottom right)"
+subsystem = "field"
+meaning = "VRAM addresses of BG1's tile map entries the opened chest's new look goes to"
+source = "game/field/switches.c"
+
+[[var]]
+name = "field_switch_entries"
+addr = "7E:09CA"
+size = 2
+count = 24
+stride = 2
+index = "four for each of the pressed switch's tiles (top left, top right, bottom left, bottom right), up to six tiles"
+subsystem = "field"
+meaning = "VRAM addresses of BG1's tile map entries the pressed switch's new looks go to"
+source = "game/field/switches.c"
+
+[[var]]
 name = "field_vram_queue_end"
 addr = "7E:0179"
 subsystem = "field"
@@ -13435,6 +13508,17 @@ index = "queue entry"
 subsystem = "field"
 meaning = "The byte after each entry's field_vram_queue_used, which the frame builder's word-wide marking of the entries also writes; nothing reads it"
 source = "game/field/frames.c, queue_upload ($C0:CAD9)"
+
+[[var]]
+name = "field_pressed_tiles"
+addr = "7F:1CC8"
+size = 2
+count = 16
+stride = 2
+index = "slot; negative: free"
+subsystem = "field"
+meaning = "The step events the leader has set off on this map (field_step_tile each), kept as a list until it is full"
+source = "game/field/switches.c, remember_step ($C0:28C0)"
 
 [[var]]
 name = "field_frame_staging"

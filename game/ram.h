@@ -646,6 +646,17 @@
  * shows open (field_requests' opened chest) [2 bytes] */
 #define RAM_FIELD_OPENED_CHEST_TILE 0x7E015Du
 #define RAM_FIELD_OPENED_CHEST_TILE_DP 0x5Du /* page field */
+/* Map tiles whose new looks wait for the line interrupt's time after the picture ($C0:ED15): bit
+ * 1 an opened chest's (field_chest_entries), bit 4 a pressed switch's (field_switch_entries) */
+#define RAM_FIELD_TILES_TO_REDRAW 0x7E015Fu
+#define RAM_FIELD_TILES_TO_REDRAW_DP 0x5Fu   /* page field */
+/* The shape of the switch pressed last: 0 a tile and the one above, 1 two by two, 2 two across
+ * by three down */
+#define RAM_FIELD_SWITCH_SHAPE 0x7E0160u
+#define RAM_FIELD_SWITCH_SHAPE_DP 0x60u      /* page field */
+/* The kind of chest opened last: 0 the map tile $FE, 1 the map tile $E0 */
+#define RAM_FIELD_CHEST_KIND 0x7E0161u
+#define RAM_FIELD_CHEST_KIND_DP 0x61u        /* page field */
 /* 1 while a dialog with choices runs */
 #define RAM_DIALOG_CHOICE_ACTIVE 0x7E0162u
 #define RAM_DIALOG_CHOICE_ACTIVE_DP 0x62u    /* page field */
@@ -814,6 +825,12 @@
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */
+/* The sound effect a chest makes opening ($65 from the field's start) */
+#define RAM_FIELD_CHEST_SOUND 0x7E01FBu
+#define RAM_FIELD_CHEST_SOUND_DP 0xFBu       /* page field */
+/* The sound effect a switch makes pressed ($53 from the field's start) */
+#define RAM_FIELD_SWITCH_SOUND 0x7E01FCu
+#define RAM_FIELD_SWITCH_SOUND_DP 0xFCu      /* page field */
 /* Byte offset of the current location's record in location_records ($F6:0000, 14 bytes a
  * location) [2 bytes] */
 #define RAM_LOCATION_RECORD_OFFSET 0x7E01FEu
@@ -897,6 +914,17 @@
 #define RAM_FIELD_VRAM_QUEUE_USED_HIGH 0x7E09A1u
 #define RAM_FIELD_VRAM_QUEUE_USED_HIGH_COUNT 8u
 #define RAM_FIELD_VRAM_QUEUE_USED_HIGH_STRIDE 0x02u
+/* VRAM addresses of BG1's tile map entries the opened chest's new look goes to [4 x $2 bytes, by
+ * the opened chest's four tile map entries (top left, top right, bottom left, bottom right)] */
+#define RAM_FIELD_CHEST_ENTRIES 0x7E09B2u
+#define RAM_FIELD_CHEST_ENTRIES_COUNT 4u
+#define RAM_FIELD_CHEST_ENTRIES_STRIDE 0x02u
+/* VRAM addresses of BG1's tile map entries the pressed switch's new looks go to [24 x $2 bytes,
+ * by four for each of the pressed switch's tiles (top left, top right, bottom left, bottom
+ * right), up to six tiles] */
+#define RAM_FIELD_SWITCH_ENTRIES 0x7E09CAu
+#define RAM_FIELD_SWITCH_ENTRIES_COUNT 24u
+#define RAM_FIELD_SWITCH_ENTRIES_STRIDE 0x02u
 /* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
  * origin) [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_SCREEN_X 0x7E0A00u
@@ -1202,6 +1230,13 @@
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 #define RAM_FIELD_SCREEN_LEFT 0x7E1D0Au
 #define RAM_FIELD_SCREEN_LEFT_DP 0x0Au       /* page field_layers */
+/* The bytes after field_screen_left and field_screen_top, which the main loop's switches and
+ * chests read with them as words for their working copies of the screen's edges [2 x $4 bytes,
+ * by 0 the left edge's, 1 the top edge's] */
+#define RAM_FIELD_SCREEN_EDGES_HIGH 0x7E1D0Bu
+#define RAM_FIELD_SCREEN_EDGES_HIGH_COUNT 2u
+#define RAM_FIELD_SCREEN_EDGES_HIGH_STRIDE 0x04u
+#define RAM_FIELD_SCREEN_EDGES_HIGH_DP 0x0Bu /* page field_layers */
 /* The screen's right edge in 8-pixel tiles */
 #define RAM_FIELD_SCREEN_RIGHT 0x7E1D0Cu
 #define RAM_FIELD_SCREEN_RIGHT_DP 0x0Cu      /* page field_layers */
@@ -1609,6 +1644,11 @@
 #define RAM_FIELD_WINDOW_EDGE_LINES_COPY 0x7F1AC8u
 #define RAM_FIELD_WINDOW_EDGE_LINES_COPY_COUNT 224u
 #define RAM_FIELD_WINDOW_EDGE_LINES_COPY_STRIDE 0x02u
+/* The step events the leader has set off on this map (field_step_tile each), kept as a list
+ * until it is full [16 x $2 bytes, by slot; negative: free] */
+#define RAM_FIELD_PRESSED_TILES 0x7F1CC8u
+#define RAM_FIELD_PRESSED_TILES_COUNT 16u
+#define RAM_FIELD_PRESSED_TILES_STRIDE 0x02u
 /* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes] */
 #define RAM_FIELD_WINDOW_SHAPE_QUAD 0x7F1CEAu
 /* A wave's per-line scroll, 16 lines long, which a waving layer's scroll table points into [64 x
