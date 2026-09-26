@@ -8,8 +8,8 @@
  * -- how many times the game was saved, where the party is, its gold, the
  * time played, how many times the game had been finished -- and a label for
  * the chapter of the story it was saved in; one that doesn't gets the empty
- * slot's label. Every slot gets its name label. The labels are drawn with the
- * dialog's font by the menus' text loader ($C2:F90C, still the original's).
+ * slot's label. Every slot gets its name label. The labels are set in the
+ * dialog's font by the typesetter (typeset.c's menu_set_label, $C2:F90C).
  *
  * On the load screen the cursor skips the slots that hold no game, and shows
  * the summary of the one it is on: its header (the time played and the rest,
@@ -28,6 +28,7 @@
 #include "menu/menu_data.h"
 #include "menu/saves.h"
 #include "menu/text.h"
+#include "menu/typeset.h"
 #include "menu/windows.h"
 #include "menu/vram.h"
 #include "original_effects.h"
@@ -165,13 +166,14 @@ static uint8_t slot_era(const GameState *g)
  * $7E:5248 and the row below. */
 enum { ERA_LABEL_GRAPHIC = 0x5E00, ERA_LABEL_TILES = 0x5248, ERA_LABEL_FIRST_TILE = 1 };
 
-/* Ask the menus' graphics loader for an era's label. */
-static void request_era_label(GameState *g, uint8_t era)
+/* Set an era's label, and note it as the one the header shows; its width. */
+static uint8_t set_era_label(GameState *g, uint8_t era)
 {
     set_menu_save_slot_era(g, era);
-    set_menu_load_request_entry(g, era);
     set_menu_load_destination(g, ERA_LABEL_GRAPHIC);
-    set_menu_load_request_table(g, MENU_ERA_LABELS);
+    uint8_t width;
+    TIMED_AS(g, 0xC2F90C, width = menu_set_label(g, MENU_ERA_LABELS, era, ERA_LABEL_GRAPHIC));
+    return width;
 }
 
 /* How many tiles wide an era label of `width` pixels is. */
@@ -213,15 +215,9 @@ static void finish_header(GameState *g)
     queue_upload(g, MENU_UPLOAD_ERA_LABEL);
 }
 
-/* The bridge below runs on the menus' page with the data bank on work RAM's
- * ($7E), which the summary's copy leaves it on, and calls the menus' text
- * loader (still the original's) with the widths the original has there. The
- * original saves P when it starts, and its code after a call the port can't
- * go on from pulls it at its end, so the bridge saves it the same way: where
- * the loader comes back as the port doesn't expect, the port stops at the
- * call's return and the original goes on with its own frame. */
-enum { LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };   /* $C2:F90C */
-
+/* The header runs on the menus' page with the data bank on work RAM's ($7E),
+ * which the summary's copy leaves it on, and sets the era's label with the
+ * widths the original has there. */
 // $C2:D36C, from $C2:D39E
 /* The slot's header: its window with the time played, and the era label,
  * loaded when it isn't the one already there, drawn and queued. */
@@ -231,11 +227,8 @@ static bool draw_header(Snes *s)
     draw_header_window(g, m_platform(s));
     uint8_t era = slot_era(g);
     if (era != menu_save_slot_era(g)) {
-        request_era_label(g, era);
         menu_set_widths(s, true, false);
-        if (!menu_call(s, 0xC2D3DF, 0xC2F90C, LOADER_IGNORES))
-            return false;
-        set_menu_save_era_width(g, menu_loaded_graphic_width(g));
+        set_menu_save_era_width(g, set_era_label(g, era));
     }
     finish_header(g);
     return true;
@@ -253,11 +246,13 @@ static void draw_the_rows_portrait(GameState *g)
  * command list draws it from, and the portrait, one row of tilemap below the
  * other. The list draws at the drawing origin; the loop keeps its own place,
  * where the original reads it back from the origin's cell after each row. */
+/* The row's cells, which the portrait's own entry ($C2:D466) takes its row
+ * and member from. */
 static void note_member_row(GameState *g, unsigned row, uint8_t member)
 {
     set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + row * MEMBER_RECORD_BYTES));
     set_menu_save_member_row(g, (uint16_t)row);
-    set_menu_scratch_save_member(g, (uint16_t)((menu_scratch_save_member(g) & 0xFF00) | member));
+    set_menu_scratch_save_member_character(g, member);
 }
 
 static void draw_member_rows(GameState *g, Platform *pf)
@@ -266,7 +261,7 @@ static void draw_member_rows(GameState *g, Platform *pf)
     set_menu_draw_origin(g, origin);
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
         uint8_t member = menu_save_summary_byte(g, row * MEMBER_RECORD_BYTES);
-        ORIGINAL_EFFECT(note_member_row(g, row, member));
+        note_member_row(g, row, member);
         if (member_present(g, row)) {
             show_member(g, row);
             draw_list(g, pf, MEMBER_ROW_LIST);
@@ -275,8 +270,8 @@ static void draw_member_rows(GameState *g, Platform *pf)
             set_menu_draw_origin(g, origin);
         }
     }
-    ORIGINAL_EFFECT(set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + MEMBER_ROWS * MEMBER_RECORD_BYTES)));
-    ORIGINAL_EFFECT(set_menu_save_member_row(g, MEMBER_ROWS));
+    set_menu_scratch_save_member_record(g, (uint16_t)(SUMMARY_AT + MEMBER_ROWS * MEMBER_RECORD_BYTES));
+    set_menu_save_member_row(g, MEMBER_ROWS);
 }
 
 // $C2:D410
@@ -551,8 +546,8 @@ static void leave_summary_read(GameState *g, Platform *pf)
 
 /* ---- The labels --------------------------------------------------------------------------------- */
 
-/* The labels are drawn with the dialog's font by the menus' text loader
- * ($C2:F90C, the original's) from a table of strings: the slots' names
+/* The labels are set in the dialog's font by the typesetter's label setting
+ * (menu_set_label, $C2:F90C) from a table of strings: the slots' names
  * ($FF:D3FE, the first slot's $0E) into the graphic at $7E:6E10, $20 bytes a
  * slot, and the chapters' (the empty slot's the one after the last chapter,
  * $FF:D03E) into $7E:7000, $200 bytes a slot. */
@@ -562,11 +557,12 @@ enum { CHAPTER_LABELS = 0xFFD03E, EMPTY_SLOT_LABEL = MENU_CHAPTERS, CHAPTER_LABE
  * to VRAM $7000. */
 enum { UPLOAD_SLOT_LABELS = 0xD198 };
 
-static void request_label(GameState *g, uint32_t table, uint8_t entry, uint16_t at)
+/* Set a label of `table` into its place at `at`, noted as where the menus'
+ * graphic goes. */
+static void set_label_at(GameState *g, uint32_t table, uint8_t entry, uint16_t at)
 {
-    set_menu_load_request_entry(g, entry);
-    set_menu_load_request_table(g, table);
     set_menu_load_destination(g, at);
+    TIMED_AS(g, 0xC2F90C, (void)menu_set_label(g, table, entry, at));
 }
 
 // $C2:D306
@@ -603,13 +599,10 @@ enum { DESIGN_BITS = 0x07 };
 
 /* ---- The labels and summaries on the machine --------------------------------------------------- */
 
-/* Each of these runs as the original's JSR reaches it, saving P as it starts:
- * the text loader's call from the deepest of them is compared with every
- * frame on the stack under it, so each leaves the flags the original's code
- * has before its call to the next, and runs it as the JSR does. The text
- * loader runs with a 16-bit accumulator and index registers; what it doesn't
- * read (tools/dontcare_check.py checks it): */
-enum { TEXT_LOADER_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D };
+/* Each of these runs as the original's JSR reaches it, saving P as it starts,
+ * and leaves the flags the original's code has before its call to the next.
+ * The chapter label leaves what the label's setting leaves in X and Y, which
+ * is read after it (typeset.c says by whom). */
 
 // $C2:D296
 /* A slot's chapter label (or the empty slot's, whichever its caller asked
@@ -619,12 +612,11 @@ void menu_draw_chapter_label(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     uint16_t at = (uint16_t)(CHAPTER_LABELS_AT + (menu_save_slot_shown(g) & 3) * CHAPTER_LABEL_BYTES);
-    request_label(g, CHAPTER_LABELS, menu_load_request_entry(g), at);
     wram_fill8(g, 0x7E0000u | at, CHAPTER_LABEL_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, CHAPTER_LABEL_BYTES));
     menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2D2BF, 0xC2F90C, TEXT_LOADER_IGNORES))
-        return;
+    set_label_at(g, CHAPTER_LABELS, menu_text_string(g), at);
+    ORIGINAL_EFFECT(menu_leave_label_set(s));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -634,7 +626,7 @@ void menu_draw_chapter_label(Snes *s)
  * into $C2:D296). */
 void menu_draw_empty_label(Snes *s)
 {
-    set_menu_load_request_entry(state_of(s), EMPTY_SLOT_LABEL);
+    set_menu_text_string(state_of(s), EMPTY_SLOT_LABEL);
     menu_draw_chapter_label(s);
 }
 
@@ -646,12 +638,10 @@ void menu_draw_slot_name(Snes *s)
     menu_save_p(s);
     uint8_t slot = menu_save_slot_shown(g);
     uint16_t at = (uint16_t)(SLOT_NAMES_AT + slot * SLOT_NAME_BYTES);
-    request_label(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     ORIGINAL_EFFECT(hw_set_multiplicand(g, slot));
     ORIGINAL_EFFECT((void)hw_multiply_by(g, SLOT_NAME_BYTES));
     menu_set_widths(s, false, false);
-    if (!menu_call(s, 0xC2D2F0, 0xC2F90C, TEXT_LOADER_IGNORES))
-        return;
+    set_label_at(g, SLOT_NAMES, (uint8_t)(FIRST_SLOT_NAME + slot), at);
     /* a shift of 0 is taken as 256 moves */
     uint8_t moves = menu_slot_name_shift(g, slot);
     do
@@ -675,7 +665,7 @@ void menu_read_design_and_chapter(Snes *s)
     set_menu_save_slot_design(g, slot, (uint8_t)(saved_byte(pf, game, SAVED_SETTINGS_SECOND) & DESIGN_BITS));
     uint8_t progress = saved_byte(pf, game, SAVED_CHAPTER);
     uint8_t chapter = chapter_of(g, progress);
-    set_menu_load_request_entry(g, chapter);
+    set_menu_text_string(g, chapter);
     menu_set_widths(s, true, true);
     ORIGINAL_EFFECT(menu_leave_compare(s, progress, menu_chapter_start(g, chapter)));
     if (!menu_run(s, 0xC2D288, 0xC2D296, menu_draw_chapter_label))
@@ -744,7 +734,7 @@ void menu_read_save_slots(Snes *s)
             if (!menu_run(s, 0xC2D182, 0xC2D19F, menu_read_slot_summary))
                 return;
         } else {
-            set_menu_load_request_entry(g, EMPTY_SLOT_LABEL);
+            set_menu_text_string(g, EMPTY_SLOT_LABEL);
             if (!menu_run(s, 0xC2D17A, 0xC2D296, menu_draw_chapter_label))
                 return;
         }

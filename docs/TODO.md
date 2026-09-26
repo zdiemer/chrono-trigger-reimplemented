@@ -252,9 +252,6 @@ rest waits, is [PLAN.md](PLAN.md).
     `map.c`'s guards hand a buffer outside work RAM above low RAM, a plane
     whose top-left tile is off the map, or a queue without room for a
     scroll's strips to the original, none of which the library makes;
-  - the glyph drawer takes the font's addresses from the text engine
-    (`$C2:5DC4`, still the original's), so a font loaded from elsewhere needs
-    that engine ported first;
   - what the Epoch's review rated "mostly" (`menu/epoch.c`, `top_layer.c`):
     - the gate window's fill walks its edges through the `menu_gate_edge_*`
       cells, which nothing else reads, masking a 16-bit declaration down to
@@ -540,26 +537,48 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
+  typesetter, the graphics and the items"):
+  - the characters' sprites as the menus open (`$C2:F3CA`, `$C2:F422`) and
+    the records' animation (`$C2:F69D`-`$C2:F870`), still the original's;
+  - the typesetter's `$12` followed by 2-7, which jumps into code in the
+    original that isn't a handler, ends the call in the port as a pause does,
+    setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
+    random ROM as text and reach it);
+  - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
+    and `$C2:D296` after it) is worked out in the wrappers by reading the
+    string again from where the call began, scaffolding that stands because
+    the menus' task yield (`$C2:CF5B` jumps to `$C2:821E`) keeps X and Y for
+    the next handler the menus' thread dispatches (`$C2:828E`), and two of
+    those, `$C2:C7E0` and `$C2:E236`, read Y (liveness, through
+    `$C2:E984`'s paths that leave Y alone). Porting those handlers, or
+    showing no path from the slot rows reaches them, drops it;
+  - the typesetter's control codes as a C table with a column for where a
+    name comes from, in place of `control_code`'s chain;
+  - the glyphs by index (a glyph number and its width's index are the same
+    thing counted from `$A0`), rather than by the string's byte;
+  - `items.c`'s tables reached through record accessors, and the story's and
+    the place's notes (`menu_story_items`, `menu_place_items`) named for what
+    they say;
+  - `graphics.c`'s tile sets named by what they hold rather than where they
+    go;
+  - the save screen's `menu_scratch_save_member_*` fields renamed for what
+    they hold;
+  - the save code's list of what the party carries (`$FF:F813`) and each
+    member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which the
+    items' tables call, are the original's;
+  - what the three bytes at `$7E:2C53` the menus copy as they open are, and
+    the story's bits the item lists read (`menu_story_items`,
+    `menu_place_items`), is not worked out.
 - **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
-  - the opening's call-outs: the menus' graphics (`$C2:968D`, with
-    `$C2:960B`-`$C2:9678` and the design's graphics `$C2:C511`), the
-    characters' sprites (`$C2:F3CA`), the items and figures (`$C2:9875`),
-    the text loader (`$C2:F90C`) and the save code in bank `$FF` (the slot's
-    check `$FF:F9C4`, the load `$FF:FAED`), and the new game's state
-    (`$C2:956E`);
-  - the load screen's opening (`$C2:E613` and its drawing `$C2:E7C3`) is the
-    original's: its port broke the `beyond_time` route in the shipping mode,
-    which was the runtime's (a debt paid inside a vblank handler that moved
-    the stack; RECOMP.md, "The tooling pass after Phase 3's first chunks").
-    The port can come back as it was, `$C2:E613` stopping with `m_stop_at` at
-    the task yield `$C2:83B2` it jumps to; then the `beyond_time` route in the
-    shipping mode, fuzzing both entries (every library call is interrupted),
-    and calibration, maybe with a timing exception;
-  - `menu_erase_slot` (`$C2:E8B7`) is checked by neither: no movie erases a
-    slot, and `ct_fuzz` can't run past its wait for the next frame
-    (`$C2:821E`, a task switch). `ct_fuzz --stop-at-call C2821E` compares it up
-    to that call, which is most of it; a movie that erases a slot on the load
-    screen would check the rest, and `menu_answer_erase`'s "no" with it;
+  - the opening's and the load screen's call-outs into the save code in bank
+    `$FF` (the slot's check `$FF:F9C4`, the load `$FF:FAED`) and the new
+    game's state (`$C2:956E`);
+  - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
+    frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
+    none mismatching), and no movie erases a slot: a movie that erases one on
+    the load screen would check the rest, and `menu_answer_erase`'s "no" with
+    it;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
     `$D2C4`) only run inside `menu_open`'s stretch, so shadow mode compares
     them up to their first point and sets them aside there (`abandoned`); the

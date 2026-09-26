@@ -2,7 +2,24 @@
 #ifndef CT_GAME_MENU_DISPLAY_H
 #define CT_GAME_MENU_DISPLAY_H
 
+#include "platform/video.h"
 #include "snes/system.h"
+#include "state.h"
+
+/* Build the per-line colour math table the menus show from the next frame,
+ * from the records the screen left (menu_math_records), and put line-effect
+ * slot 0 on it. */
+void menu_build_math_table(GameState *g, Platform *pf);
+
+/* Send the queued VRAM uploads now, emptying the queue; send the working
+ * palette now if it has changed. */
+void menu_send_upload_queue(GameState *g, Platform *pf);
+void menu_send_palette(GameState *g, Platform *pf);
+
+/* Work RAM at $7E:`at`: `bytes` of it cleared, or filled from bank $FF's
+ * `from` (a transfer through the work RAM port; 0 bytes is 64 KiB). */
+void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
+void menu_copy_rom_to_memory(GameState *g, Platform *pf, uint16_t from, uint16_t at, uint16_t bytes);
 
 /* The mode at $C2:800E (the menus proper) */
 void menu_mode_start(Snes *s);

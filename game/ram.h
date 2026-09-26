@@ -1688,9 +1688,13 @@
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
+#define RAM_MENU_SCRATCH_SAVE_MEMBER_CHARACTER 0x7E0000u /* The same, its low byte alone: the rows' loop writes the character a byte wide */
 #define RAM_MENU_SCRATCH_WINDOW_STYLE_FOURFOLD 0x7E0000u /* The window command lists: the window style's number times four, halfway to its tiles' first */
 #define RAM_MENU_SCRATCH_CURSOR_BUTTON_BIT 0x7E0000u /* The cursor's buttons: the bit of menu_cursor_buttons the next assignment it looks at sets, which its loop leaves past the last */
 #define RAM_MENU_SCRATCH_ERASED_SLOT_ROWS 0x7E0000u /* The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic */
+#define RAM_MENU_SCRATCH_GRAPHICS_COUNT 0x7E0000u /* The menus' graphics ($C2:968D): the count of rows a tile's planes are built a pair at a time with, which the loops leave at 0 (the three-plane tiles' a word, the inking a byte) */
+#define RAM_MENU_SCRATCH_GRAPHICS_ROWS 0x7E0000u /* The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it */
+#define RAM_MENU_SCRATCH_GRAPHICS_TILES 0x7E0002u /* The menus' graphics: the three-plane tiles left to widen ($C2:960B), which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_SLOT_CHECK 0x7E0000u /* The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong */
 #define RAM_MENU_SCRATCH_LABEL_MOVES 0x7E0000u /* A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in its place */
 #define RAM_MENU_SCRATCH_WINDOW_COLUMNS_LEFT 0x7E0000u /* The window command lists: the columns a swapped rectangle's row had left, 0 once it is done */
@@ -1854,16 +1858,39 @@
  * loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the
  * object's own the first frame all the same [2 bytes] */
 #define RAM_MENU_WAVE_PHASE 0x7E01E2u
-/* What the graphics loader at $C2:57DF is to load, on its own direct page $0200 [9 bytes] */
-#define RAM_MENU_LOAD_REQUEST 0x7E020Cu
-#define RAM_MENU_LOAD_REQUEST_ENTRY 0x7E020Cu /* Which entry of the table below to load */
-#define RAM_MENU_LOAD_REQUEST_TABLE 0x7E020Du /* Long pointer to the table of streams */
-#define RAM_MENU_LOAD_REQUEST_DEST 0x7E0210u /* Long pointer to where it goes */
-#define RAM_MENU_LOAD_REQUEST_SIZE 0x7E0213u /* How much of it to take */
-#define RAM_MENU_LOAD_REQUEST_KIND 0x7E0214u /* Which of the loader's ways to read it */
-/* How wide, in pixels, the graphic the menus' loader last loaded is (the load screen draws that
- * many tiles, rounded up, of an era label) */
-#define RAM_MENU_LOADED_GRAPHIC_WIDTH 0x7E0234u
+/* What a string's numbers and names are read from, in order, on the text page: the caller puts
+ * them here before it starts the string [12 x $1 bytes, by byte] */
+#define RAM_MENU_TEXT_ARGUMENTS 0x7E0200u
+#define RAM_MENU_TEXT_ARGUMENTS_COUNT 12u
+#define RAM_MENU_TEXT_ARGUMENTS_STRIDE 0x01u
+/* A text being set in glyphs of the proportional font ($C2:57DF starts it, $C2:5823 sets the
+ * next few glyphs): which string, where its tiles go, and where the setting stopped, on the text
+ * page $0200. The dialog, the battle's messages and the menus' labels all use it [12 bytes] */
+#define RAM_MENU_TEXT 0x7E020Cu
+#define RAM_MENU_TEXT_STRING 0x7E020Cu       /* Which string of the table below to set */
+#define RAM_MENU_TEXT_STRINGS 0x7E020Du      /* Long pointer to the table of strings: a word each, within the table's bank */
+#define RAM_MENU_TEXT_TILES 0x7E0210u        /* Long pointer to the tiles the text is set in: the line's first tile row */
+#define RAM_MENU_TEXT_BUDGET 0x7E0213u       /* How many more glyphs the setting may draw before it stops; the caller sets it before each call */
+#define RAM_MENU_TEXT_LAYOUT 0x7E0214u       /* How the text is set: bit 7, lines start at the tiles' left edge; the low four bits 0 for four-colour tiles and any other for sixteen-colour ones, 2 for a line started a tile further left */
+#define RAM_MENU_TEXT_STOP 0x7E0215u         /* Why the setting stopped: 0 the string ended, 3 a wait (the frames in `wait`), 4-12 a line or page break the caller acts on (5-12 start the next line: odd ones at the margin, even ones indented), $10 the budget ran out */
+#define RAM_MENU_TEXT_WAIT 0x7E0216u         /* The frames a wait in the string asks for */
+#define RAM_MENU_TEXT_LINE_GLYPHS 0x7E0217u  /* How many glyphs the current line has */
+/* Where the setting of a text has got to, so a call can take it up where the last left off [16
+ * bytes] */
+#define RAM_MENU_TEXT_READING 0x7E0230u
+#define RAM_MENU_TEXT_READING_SOURCE 0x7E0230u /* What the next glyph comes from: 0 the string, 1 an inserted name or word, 2 a number's decimal digits, 3 its hex digits */
+#define RAM_MENU_TEXT_READING_AT 0x7E0231u   /* Long pointer to the string's next byte */
+#define RAM_MENU_TEXT_READING_PEN 0x7E0234u  /* The pen's X on the line, in pixels: where the next glyph starts. A label's width once it is set */
+#define RAM_MENU_TEXT_READING_GLYPH 0x7E0235u /* The glyph being drawn: $A0 up for the font's first 96, $1xx and $2xx for the two-byte ones */
+#define RAM_MENU_TEXT_READING_INSERT 0x7E0237u /* Long pointer to the next glyph of what is being inserted (a name, a word of the dictionary, a number's digits) */
+#define RAM_MENU_TEXT_READING_INSERT_LEFT 0x7E023Au /* How many glyphs of the insert are left */
+#define RAM_MENU_TEXT_READING_CODE 0x7E023Bu /* The dictionary code the insert came from */
+#define RAM_MENU_TEXT_READING_ARGUMENTS_AT 0x7E023Du /* Long pointer to the next of the string's arguments (menu_text_arguments) */
+/* A number's digits as the string shows them, the first first: decimal values 0-9, or hex digits
+ * as glyphs [8 x $1 bytes, by digit] */
+#define RAM_MENU_TEXT_DIGITS 0x7E0240u
+#define RAM_MENU_TEXT_DIGITS_COUNT 8u
+#define RAM_MENU_TEXT_DIGITS_STRIDE 0x01u
 /* Which byte of the glyph is being drawn, 0-23: its twelve lines, two bitplanes a line [2 bytes] */
 #define RAM_MENU_GLYPH_BYTE 0x7E0260u
 #define RAM_MENU_GLYPH_BYTE_DP 0x60u         /* page menu_glyph */
@@ -1876,12 +1903,24 @@
  * bytes] */
 #define RAM_MENU_GLYPH_SPILL 0x7E0263u
 #define RAM_MENU_GLYPH_SPILL_DP 0x63u        /* page menu_glyph */
+/* What converting a number to decimal leaves on the text page past the glyph drawer's cells: the
+ * last division's quotient as it was built, and the last cell of an eight-digit number.
+ * Scaffolding: nothing reads them [3 bytes] */
+#define RAM_MENU_NUMBER_CONVERSION 0x7E0265u
+#define RAM_MENU_NUMBER_CONVERSION_QUOTIENT 0x7E0265u /* The last division's quotient, with the byte after it */
+#define RAM_MENU_NUMBER_CONVERSION_LAST 0x7E0267u /* The units of an eight-digit number */
 /* The glyph drawer's count of line pairs left in the band of tiles it is drawing (4, then 8) */
 #define RAM_MENU_GLYPH_LINES_LEFT 0x7E0268u
 #define RAM_MENU_GLYPH_LINES_LEFT_DP 0x68u   /* page menu_glyph */
-/* How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7) */
+/* The number being shown's second byte, as it is read (its other bytes share cells with the
+ * glyph drawer). Scaffolding: nothing reads it after */
+#define RAM_MENU_NUMBER_SECOND_BYTE 0x7E0269u
+/* How many pixels into its tile the pen is, 0-7 (the pen's X, $34, AND 7) [2 bytes] */
 #define RAM_MENU_GLYPH_PEN_OFFSET 0x7E026Au
 #define RAM_MENU_GLYPH_PEN_OFFSET_DP 0x6Au   /* page menu_glyph */
+/* A step of working out where a glyph's right pixels are: half the glyph's number times 8.
+ * Scaffolding: nothing reads it after [2 bytes] */
+#define RAM_MENU_GLYPH_FONT_STEP 0x7E026Cu
 /* Which tile column of the text line the pen is in, doubled (the pen's X, $34, AND $F8, shifted
  * right twice): an index into the column table at $C2:5FE6 [2 bytes] */
 #define RAM_MENU_GLYPH_PEN_COLUMN 0x7E026Eu
@@ -1907,6 +1946,8 @@
 #define RAM_MENU_OBJECTS_FROZEN 0x7E0294u
 /* The location the Epoch is parked on, which the map view shows a marker for [2 bytes] */
 #define RAM_MENU_EPOCH_LOCATION 0x7E029Fu
+/* Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing) */
+#define RAM_MENU_TEXT_HEX 0x7E02A1u
 /* The song an object script last asked the sound driver for, kept beside the request itself */
 #define RAM_MENU_SONG_PLAYING 0x7E02AEu
 /* The location the time dial chose to travel to, or $FFFF where the player left it [2 bytes] */
@@ -1914,6 +1955,11 @@
 /* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
  * a word */
 #define RAM_MENU_CIRCLE_BANK_HIGH 0x7E0359u
+/* The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1
+ * armour, 2 helmets, 3 accessories, 4 the rest) [2 bytes] */
+#define RAM_MENU_ITEM_CATEGORY 0x7E04CCu
+/* The item last looked up: its place in its category [2 bytes] */
+#define RAM_MENU_ITEM_IN_CATEGORY 0x7E04CEu
 /* Where the party was when a map screen changed the location: the location number and the map
  * position, the same three values it also copies to location_previous [4 bytes] */
 #define RAM_MENU_SAVED_LOCATION 0x7E04FCu
@@ -1956,6 +2002,9 @@
 #define RAM_MENU_BRIGHTNESS_DP 0x10u         /* page menu_vblank */
 /* Bytes queued in the VRAM upload queue, 8 per entry; the vblank upload sends them and clears it */
 #define RAM_MENU_VRAM_QUEUE_BYTES 0x7E0D11u
+/* The byte after the queue's count, which the menus' graphics write as the count's high byte (a
+ * word store, $C2:96E8); nothing reads it */
+#define RAM_MENU_VRAM_QUEUE_BYTES_HIGH 0x7E0D12u
 /* Per-line effect slots to enable after the vblank uploads (bits 0-6); bit 7 asks the vblank for
  * the block move set up at $7E:9694 */
 #define RAM_MENU_LINE_EFFECTS 0x7E0D13u
@@ -1972,10 +2021,22 @@
 #define RAM_MENU_CURSOR_DIRECTION 0x7E0D1Eu
 /* Nonzero keeps the cursor where it is against the next push; the push clears it */
 #define RAM_MENU_CURSOR_HELD 0x7E0D1Fu
+/* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
+ * can use it [2 bytes] */
+#define RAM_MENU_ITEM_DATA_AT 0x7E0D28u
+/* Where the item last looked up has its figures in bank $CC ($C2:88D8): a weapon's attack,
+ * armour's defence [2 bytes] */
+#define RAM_MENU_ITEM_FIGURES_AT 0x7E0D2Au
 /* Added to each $1800 record's X position when its sprites are drawn [2 bytes] */
 #define RAM_MENU_RECORD_ORIGIN_X 0x7E0D2Eu
 /* Added to each $1800 record's Y position when its sprites are drawn */
 #define RAM_MENU_RECORD_ORIGIN_Y 0x7E0D30u
+/* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
+ * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF [3 x $2 bytes, by
+ * which] */
+#define RAM_MENU_PLACE_ITEMS 0x7E0D32u
+#define RAM_MENU_PLACE_ITEMS_COUNT 3u
+#define RAM_MENU_PLACE_ITEMS_STRIDE 0x02u
 /* The tilemap word of the window style being drawn's first tile: its number, where the style's
  * twenty tiles start, and its attribute (palette and priority), which every tile of the window
  * takes [2 bytes] */
@@ -2011,6 +2072,11 @@
 #define RAM_MENU_SAVE_SLOT_DESIGN 0x7E0D79u
 #define RAM_MENU_SAVE_SLOT_DESIGN_COUNT 3u
 #define RAM_MENU_SAVE_SLOT_DESIGN_STRIDE 0x01u
+/* $FFFF where the story allows something the item lists show, set as the menus open from bit 0
+ * ($0D7C) and bit 1, inverted ($0D7E), of the story byte at $7F:00BA [2 x $2 bytes, by which] */
+#define RAM_MENU_STORY_ITEMS 0x7E0D7Cu
+#define RAM_MENU_STORY_ITEMS_COUNT 2u
+#define RAM_MENU_STORY_ITEMS_STRIDE 0x02u
 /* Nonzero makes every frame's buttons read as going back; nothing the menus run writes it but
  * the setup's clearing */
 #define RAM_MENU_CURSOR_ALWAYS_BACK 0x7E0D83u
@@ -2140,6 +2206,19 @@
 /* Which half of each of the time dial's double-buffered per-line tables is being rebuilt: bit 0
  * the window, bit 1 the matrix, bit 2 its second pair */
 #define RAM_MENU_GATE_FLAGS 0x7E1BF5u
+/* The fourteen bytes after the inventory's items, which the menus' clean-up of the inventory
+ * ($C2:9988) takes as its places 242-255 [14 x $1 bytes, by place past the inventory] */
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS 0x7E24F2u
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS_COUNT 14u
+#define RAM_MENU_INVENTORY_PAST_THE_ITEMS_STRIDE 0x01u
+/* The fourteen bytes after the inventory's counts, which the clean-up takes as its places
+ * 242-255 [14 x $1 bytes, by place past the inventory] */
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS 0x7E25F2u
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS_COUNT 14u
+#define RAM_MENU_INVENTORY_COUNTS_PAST_THE_ITEMS_STRIDE 0x01u
+/* The three bytes after the characters' names (the Epoch's the last, at $7E:2C4D), which the
+ * menus copy as they open [3 bytes] */
+#define RAM_MENU_PAST_THE_NAMES 0x7E2C53u
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
@@ -2157,6 +2236,35 @@
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
+/* Each item's kind, its data's first byte's bits 1-4 [242 x $1 bytes, by item] */
+#define RAM_MENU_ITEM_KINDS 0x7E7700u
+#define RAM_MENU_ITEM_KINDS_COUNT 242u
+#define RAM_MENU_ITEM_KINDS_STRIDE 0x01u
+/* Each item's price, its data's second and third bytes [242 x $2 bytes, by item] */
+#define RAM_MENU_ITEM_PRICES 0x7E7800u
+#define RAM_MENU_ITEM_PRICES_COUNT 242u
+#define RAM_MENU_ITEM_PRICES_STRIDE 0x02u
+/* Each item's fourth data byte: for what can be equipped, a bit for each character who can
+ * (Crono bit 7); cleared for the items past the accessories [242 x $1 bytes, by item] */
+#define RAM_MENU_ITEM_USERS 0x7E7A00u
+#define RAM_MENU_ITEM_USERS_COUNT 242u
+#define RAM_MENU_ITEM_USERS_STRIDE 0x01u
+/* Each item's fifth data byte (how much a tonic heals); for accessories, the third byte of their
+ * figures where the second's bit 6 is set, else 0; cleared for the items past them [242 x $1
+ * bytes, by item] */
+#define RAM_MENU_ITEM_AMOUNTS 0x7E7B00u
+#define RAM_MENU_ITEM_AMOUNTS_COUNT 242u
+#define RAM_MENU_ITEM_AMOUNTS_STRIDE 0x01u
+/* The first byte of each weapon's, armour's and helmet's figures: its attack or defence [148 x
+ * $1 bytes, by item] */
+#define RAM_MENU_ITEM_POWERS 0x7E7C00u
+#define RAM_MENU_ITEM_POWERS_COUNT 148u
+#define RAM_MENU_ITEM_POWERS_STRIDE 0x01u
+/* Where each item's name starts in bank $CC, eleven bytes a name from $0B5E [242 x $2 bytes, by
+ * item] */
+#define RAM_MENU_ITEM_NAME_PLACES 0x7E7D00u
+#define RAM_MENU_ITEM_NAME_PLACES_COUNT 242u
+#define RAM_MENU_ITEM_NAME_PLACES_STRIDE 0x02u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */
 #define RAM_MENU_MAP_GRAPHICS 0x7E8621u
@@ -2259,6 +2367,9 @@
 #define RAM_MENU_BLANK_STRING 0x7E9B76u
 #define RAM_MENU_BLANK_STRING_COUNT 32u
 #define RAM_MENU_BLANK_STRING_STRIDE 0x01u
+/* A copy the menus take as they open of menu_past_the_names (what the three bytes are is not
+ * worked out) [3 bytes] */
+#define RAM_MENU_COPY_PAST_THE_NAMES 0x7E9D96u
 /* What the menus' per-line color math table is built from: each record a run of lines at one
  * color, or (a nonzero line count) a sixteen-step ramp through the ramp colors [40 x $2 bytes,
  * by record; a line count with bit 7 set ends the list] */
