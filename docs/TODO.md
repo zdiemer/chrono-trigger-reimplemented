@@ -828,6 +828,22 @@ rest waits, is [PLAN.md](PLAN.md).
     the effect table, leaves an effect or a set switch playing its bytes as
     addresses anywhere in sound memory, which the port doesn't keep; and a set
     switch under a track that has run on into the effects.
+  - **The house's "tinny" hi-hats** (SOUND.md, "What playing it found"). A
+    report from playing `--sound-driver c` that no movie reproduces: over
+    new-game the C driver plays the house's songs note for note as the
+    original does, from the same samples. If it recurs, record the session
+    (`ct_play --record` can't with the C driver: note the route and the songs
+    before) and compare sound memory with the original's at the scene; the
+    host's fault that overwrote samples is fixed, and a song keeps a block the
+    echo overwrote in the original too (battle-magus).
+  - **The sound lockstep's audio comparison as a check**
+    (`ct_dev --sound-lockstep-audio exact`, SOUND.md "What playing it found").
+    It isn't exact yet: from the intro on (80.7 s of every power-on movie) the
+    effect voices' levels part for a few hundred samples, and the long save
+    movies part further. Find which writes land at another sample (the pairing
+    of the C driver's writes with the original's is by register and value
+    within a tick; a command's writes and the flags' several writes are the
+    suspects), make it exact, then have a difference fail the run.
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,

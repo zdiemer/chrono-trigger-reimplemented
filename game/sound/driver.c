@@ -128,10 +128,22 @@ struct CommandRow {
 };
 
 // SPC $0BD8, $0BDB, $0BE0, $0BE3
-static void play_song(SoundDriver *d, const CommandRow *row, SoundCommand c)
+/* The song's command; its start follows once its data is in, which here is
+ * at once, the driver loading the song itself. */
+static bool announce(SoundDriver *d, const CommandRow *row, SoundCommand c)
 {
     uint8_t song = c.p1, volume = c.p2, echo_delay = c.p3;
-    start_song(d, song, volume, echo_delay, row->track_set, row->save_first);
+    if (!announce_song(d, song, volume, echo_delay, row->save_first))
+        return false;
+    d->announced_track_set = row->track_set;
+    d->song_announced = true;
+    return true;
+}
+
+static void play_song(SoundDriver *d, const CommandRow *row, SoundCommand c)
+{
+    if (announce(d, row, c))
+        sound_start_announced_song(d);
 }
 
 // SPC $0D45, $0D51
@@ -388,15 +400,37 @@ static const CommandRow commands[] = {
     { 0xFF, RUN(meter_or_reload) }, // SPC $12BD
 };
 
+static const CommandRow *command_row(uint8_t command)
+{
+    for (unsigned i = 0; i < sizeof commands / sizeof commands[0]; i++) {
+        if (commands[i].command == command)
+            return &commands[i];
+    }
+    return NULL;
+}
+
 // SPC $0BAC, $0DFB
 void sound_run_command(SoundDriver *d, SoundCommand c)
 {
-    for (unsigned i = 0; i < sizeof commands / sizeof commands[0]; i++) {
-        if (commands[i].command == c.command) {
-            commands[i].run(d, &commands[i], c);
-            return;
-        }
-    }
+    const CommandRow *row = command_row(c.command);
+    if (row)
+        row->run(d, row, c);
+}
+
+// SPC $0BAC
+bool sound_announce_song(SoundDriver *d, SoundCommand c)
+{
+    const CommandRow *row = command_row(c.command);
+    return row && row->run == play_song && announce(d, row, c);
+}
+
+// SPC $0C08
+void sound_start_announced_song(SoundDriver *d)
+{
+    if (!d->song_announced)
+        return;
+    d->song_announced = false;
+    start_song(d, d->announced_track_set);
 }
 
 // SPC $0892
@@ -533,6 +567,7 @@ static void forget_variables(SoundDriver *d)
     memset(d->meter_volume, 0, sizeof d->meter_volume);
     d->queued = 0;
     d->song_voices_waiting = false;
+    d->song_announced = d->song_echo_changed = false;
     d->echo_silences_waiting = 0;
     d->echo_draining = false;
     for (uint8_t which = 0; which < SOUND_FADES; which++) {
