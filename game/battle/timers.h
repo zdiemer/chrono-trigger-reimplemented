@@ -36,6 +36,14 @@ void battle_follow_status(GameState *g, BattleTimer timer, unsigned slot, bool s
 void battle_restart_timer(GameState *g, BattleTimer timer, unsigned slot);
 bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot);
 
+/* The combatant whose timer of a kind the last search found run out: the one
+ * before where the kind's search goes on in the order (the order's last where
+ * it starts again at the top). */
+uint8_t battle_timer_found_run_out(const GameState *g, BattleTimer kind);
+
+/* A kind's run-out timer seen to: it is no longer due. */
+void battle_timer_seen_to(GameState *g, BattleTimer kind);
+
 /* The combatant at a place in the order the timers are looked for in (a
  * place past the order reads on, as the original does: battle/timers.c). */
 uint8_t battle_timer_order_at(const GameState *g, uint8_t place);

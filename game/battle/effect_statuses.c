@@ -57,8 +57,10 @@ static uint8_t length_of(const GameState *g, BattleTimer timer, uint8_t slot)
 // $C1:E006
 /* The timer a status's first bit given starts, by the status byte and the
  * bit, the highest first: the first byte's stop, poison (its length made
- * longer by the target's hit stat), slow and $10; the third's $80 and $40;
- * the fourth's $40 and $20. The second byte's have none. */
+ * longer by the target's hit stat), slow and the HP lost; the third's haste
+ * and evading much better; the fourth's shield and the MP regained. The
+ * second byte's have none (battle/status_timers.c says what each does when
+ * it runs out). */
 static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
 {
     uint8_t slot = effect_target(g);
@@ -71,20 +73,20 @@ static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
             start_status_timer(g, BATTLE_TIMER_STATUS_1, slot, (uint8_t)(length + longer));
         } else if (bits & STATUS_SLOW) {
             start_status_timer(g, BATTLE_TIMER_STATUS_2, slot, length_of(g, BATTLE_TIMER_STATUS_2, slot));
-        } else if (bits & 0x10) {
+        } else if (bits & STATUS_LOSES_HP) {
             start_status_timer(g, BATTLE_TIMER_STATUS_8, slot, length_of(g, BATTLE_TIMER_STATUS_8, slot));
         }
         break;
     case 3:
-        if (bits & 0x80)
+        if (bits & STATUS3_HASTE)
             start_status_timer(g, BATTLE_TIMER_STATUS_3, slot, length_of(g, BATTLE_TIMER_STATUS_3, slot));
-        else if (bits & 0x40)
+        else if (bits & STATUS3_EVADES_MUCH_BETTER)
             start_status_timer(g, BATTLE_TIMER_STATUS_4, slot, length_of(g, BATTLE_TIMER_STATUS_4, slot));
         break;
     case 4:
-        if (bits & 0x40)
+        if (bits & STATUS4_SHIELD)
             start_status_timer(g, BATTLE_TIMER_STATUS_5, slot, length_of(g, BATTLE_TIMER_STATUS_5, slot));
-        else if (bits & 0x20)
+        else if (bits & STATUS4_REGAINS_MP)
             start_status_timer(g, BATTLE_TIMER_STATUS_9, slot, length_of(g, BATTLE_TIMER_STATUS_9, slot));
         break;
     default:

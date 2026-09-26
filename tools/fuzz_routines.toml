@@ -7246,7 +7246,103 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
-why = "on the battle's page; the kinds' handlers are call-outs"
+why = "on the battle's page; the kinds' handlers are C (battle/status_timers.c), their showing a call-out"
+
+[[routine]]
+name = "battle_stop_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_poison_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_slow_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_haste_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_evasion_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_shield_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_timer_6_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_timer_7_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_hp_loss_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_mp_regain_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_barrier_timer_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
+
+[[routine]]
+name = "battle_timer_11_ran_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00-0A", "--fill", "7EAEC7-7EAEC7=0B"]
+iterations = 5000
+why = "on the battle's page, for a combatant the search found: every kind's search one to eleven places on in an order of the eleven slots, as the search leaves them; the rest of the battle's state (the statuses, the timers, the runs left) at random"
 
 # -- the arithmetic and the menus' buttons (battle/arith.c, battle/buttons.c)
 

@@ -146,6 +146,39 @@ void effect_missed(GameState *g, uint8_t misses, bool dodged)
         set_battle_action_extra(g, battle_action_extra(g) | ACTION_MISSED);
 }
 
+/* ---- What statuses do ------------------------------------------------------------------------ */
+
+// $C1:88C5, $C1:8A9F, $C1:8B10
+/* A status's timer's doing, recorded for the combatant as a hit's would be,
+ * with its number where the showing puts it. */
+static void status_amount(GameState *g, uint8_t slot, uint16_t amount, uint8_t number, uint8_t marks)
+{
+    set_battle_effect_amount(g, amount);
+    set_battle_effect_target(g, slot);
+    uint8_t place = effect_target_number(g);
+    set_effect_number(g, place, amount, number);
+    effect_record_damage(g, slot, marks);
+    /* made with the carry of the number's place's add */
+    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, place < (uint8_t)(slot * ENTRY_BYTES)));
+}
+
+void effect_show_status_damage(GameState *g, uint8_t slot, uint16_t damage)
+{
+    status_amount(g, slot, damage, NUMBER_DAMAGE, DAMAGE_PLAIN);
+}
+
+void effect_show_magic_regained(GameState *g, uint8_t slot, uint16_t magic)
+{
+    status_amount(g, slot, magic, NUMBER_MP_RESTORED, DAMAGE_HEALS | DAMAGE_TO_MP);
+}
+
+void effect_record_status_damage(GameState *g, uint8_t slot, uint16_t damage)
+{
+    set_battle_effect_amount(g, damage);
+    set_battle_effect_target(g, slot);
+    effect_record_damage(g, slot, DAMAGE_PLAIN);
+}
+
 /* ---- Healing and draining ------------------------------------------------------------------ */
 
 /* Healing the party is at most 999; any damage at most 9999. */

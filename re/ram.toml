@@ -14209,6 +14209,17 @@ meaning = "How the last steal came out: 0 or counted up for an item taken, $FE a
 source = "game/battle/effect_modifiers.c ($C1:E9D5)"
 
 [[var]]
+name = "battle_timer_runs_left"
+addr = "7E:B045"
+size = 11
+count = 13
+stride = 11
+index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
+subsystem = "battle"
+meaning = "How many more times each combatant's status timer runs out before the status wears off (or, for magic regained, before it regains): counted down, and set back to 10 when it gets there"
+source = "game/battle/status_timers.c, the kinds' handlers ($C1:8876-$C1:8C08)"
+
+[[var]]
 name = "battle_timer_lengths"
 addr = "7E:B0D4"
 count = 132

@@ -47,6 +47,13 @@ void effect_note_enemy_action(GameState *g, ActionTable table);
  * past the original's table, or the clock's, is the original's. */
 bool effect_modifier_ported(const GameState *g, uint8_t modifier);
 
+/* What a status's timer does to a combatant (battle/status_timers.c), put
+ * where the action's showing shows it: poison's damage and the MP regained
+ * shown as numbers over it, and a point of HP lost recorded without one. */
+void effect_show_status_damage(GameState *g, uint8_t slot, uint16_t damage);
+void effect_show_magic_regained(GameState *g, uint8_t slot, uint16_t magic);
+void effect_record_status_damage(GameState *g, uint8_t slot, uint16_t damage);
+
 /* ---- The pieces the kinds share -------------------------------------------------------------- */
 
 /* The acting combatant's and the target's stat blocks, by offset, as the

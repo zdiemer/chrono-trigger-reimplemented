@@ -40,6 +40,9 @@ enum {
     STATUS_CONFUSED = 0x04,
     /* A party member with it can't use techs, nor join a combination tech. */
     STATUS_NO_TECHS = 0x08,
+    /* It loses a point of HP each time its own timer runs out, a timer that
+     * runs as long as a turn's wait, half as long hasted, twice slowed. */
+    STATUS_LOSES_HP = 0x10,
     /* Slow: its turns come half as fast, and it defends less well. */
     STATUS_SLOW = 0x20,
     /* Poisoned: its aim and its defence are lower, its hits weaker. */
@@ -70,6 +73,8 @@ enum {
     STATUS4_BARRIER = 0x04,
     /* Its hits do half as much again, the half rounded down first. */
     STATUS4_HITS_HALF_AGAIN_ROUNDED = 0x08,
+    /* It regains 5 MP every tenth time its own timer runs out. */
+    STATUS4_REGAINS_MP = 0x20,
     /* A shield: as the barrier, against the effects that pass the barrier. */
     STATUS4_SHIELD = 0x40,
     /* Its hits do half as much again. */

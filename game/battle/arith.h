@@ -71,6 +71,9 @@ BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uin
  * steps read back as they are: the quotient's (or the product's) low word,
  * and the first number. */
 uint16_t battle_wide_math_quotient(const GameState *g);
+/* The high byte of the second number's cell: what a caller that sets only
+ * the cell's low byte divides by above it (battle/status_timers.c's poison). */
+uint8_t battle_wide_math_second_high(const GameState *g);
 uint16_t battle_wide_math_first(const GameState *g);
 void battle_set_wide_math_quotient(GameState *g, uint16_t v);
 
