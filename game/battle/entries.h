@@ -250,6 +250,18 @@ void battle_effect_lose_condition_bit(Snes *s);
 bool battle_effect_lose_condition_bit_ready(Snes *s);
 void battle_note_enemy_tech(Snes *s);
 void battle_note_enemy_attack(Snes *s);
+/* battle/member_turn.c: a party member's chosen action carried out, its
+ * attack, the end of its turn, and the battle's step for a called-off
+ * action. */
+void battle_carry_out_member_action(Snes *s);
+bool battle_carry_out_member_action_ready(Snes *s);
+void battle_member_attacks(Snes *s);
+bool battle_member_attacks_ready(Snes *s);
+void battle_end_member_turn(Snes *s);
+bool battle_end_member_turn_ready(Snes *s);
+void battle_member_called_off_step(Snes *s);
+void battle_members_wait_after_tech(Snes *s);
+bool battle_members_wait_after_tech_ready(Snes *s);
 /* battle/party_work.c: a party member's tech, or its attack, worked out, and
  * the item it uses. battle/inventory.c: an item added to the inventory. */
 void battle_work_out_member_tech(Snes *s);

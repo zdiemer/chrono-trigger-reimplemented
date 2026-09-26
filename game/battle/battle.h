@@ -91,10 +91,14 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     condition kept there;
  *   - $00 is the word the clock's modifier adds half of to the damage where
  *     it means the damage (battle/effect_modifiers.c, battle_clock_word):
- *     whatever its four writers left there last -- the amount healed or
- *     drained (battle/effect_amounts.c), the party tech's members' record and
- *     the used item's use byte's place (battle/party_work.c), and the steal's
- *     giving, which clears it (battle/effect_steal.c);
+ *     whatever its writers left there last -- the amount healed or drained
+ *     (battle/effect_amounts.c), the targets' marking (battle/targets.c), the
+ *     party tech's members' record and the used item's use byte's place
+ *     (battle/party_work.c), the steal's giving (battle/effect_steal.c), and
+ *     the member's turn, which clears it and then puts the used item's
+ *     number there (battle/member_turn.c);
+ *   - $06 is the item the last steal took (battle/effect_steal.c), which the
+ *     member's turn names in its message (battle/member_turn.c);
  *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
  *     candidate past the combatants (the stat test's doubled walk goes past
  *     the list, a candidate that is none) is read wherever the table of the
@@ -103,6 +107,7 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     before and while they read. */
 enum {
     BATTLE_CLOCK_READS = 0x00,
+    BATTLE_ITEM_TAKEN = 0x06,
     BATTLE_NUMBER_TESTED = 0x08,
     BATTLE_STAT_OFFSET_LOW = 0x0A,
     BATTLE_STAT_OFFSET_HIGH = 0x0B,

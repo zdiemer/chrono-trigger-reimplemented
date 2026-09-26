@@ -5,8 +5,8 @@
  * of the party's table with a modifier (battle/effect_data.h). Before the
  * work each member must be able to take part: not kept from techs, and with
  * the MP their part costs (less for the two accessories that cut it). A tech
- * that can't be done does nothing, unless the member's action goes ahead
- * whatever (a status picked it). Then each part is worked out in turn by its
+ * that can't be done does nothing, unless it is a member's attack, which
+ * costs nothing. Then each part is worked out in turn by its
  * kind, as an enemy's effect is (battle/effect_work.c), with its member as the
  * actor, and the hits' numbers are added up as the tech says. A member's
  * attack is worked out this way too, as the character's attack tech; unlike a
@@ -56,6 +56,12 @@ static uint8_t mp_cost_with(uint8_t cost, uint8_t accessory)
     return cost;
 }
 
+// $C1:CB48, $C1:CB61, $C1:CB7A
+uint8_t effect_part_mp_cost(const GameState *g, const PartyTech *t, unsigned part, uint8_t slot)
+{
+    return mp_cost_with(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
+}
+
 static uint16_t mp_of(const GameState *g, uint8_t slot)
 {
     return (uint16_t)(combatant_stat_byte(g, slot, STAT_MP) | combatant_stat_byte(g, slot, STAT_MP + 1) << 8);
@@ -69,7 +75,7 @@ static bool member_takes_part(const GameState *g, const PartyTech *t, unsigned p
 {
     if (battle_member_disabled(g, slot))
         return false;
-    uint8_t cost = mp_cost_with(party_effect_mp_cost(g, t->effects[part]), battle_member_accessory(g, slot));
+    uint8_t cost = effect_part_mp_cost(g, t, part, slot);
     uint16_t mp = mp_of(g, slot);
     return cost == mp || (cost < mp && !(combatant_stat_byte(g, slot, STAT_STATUS_1) & STATUS_NO_TECHS));
 }
@@ -302,8 +308,9 @@ static TechOutcome work_out_parts(GameState *g, Platform *pf, const PartyTech *t
     return TECH_WORKED_OUT;
 }
 
-/* Bit 7 of battle_action_goes_ahead. */
-enum { GOES_AHEAD = 0x80 };
+/* An attack (bit 7 of battle_action_choice) goes ahead whatever the MP: it is
+ * worked out as the character's attack tech, which costs nothing. */
+enum { CHOSE_AN_ATTACK = 0x80 };
 
 // $C1:D523
 static TechOutcome work_out_tech(GameState *g, Platform *pf)
@@ -320,7 +327,7 @@ static TechOutcome work_out_tech(GameState *g, Platform *pf)
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         set_battle_tech_members(g, part, tech_member(g, t.members, part));
     TechOutcome outcome = TECH_CANT_BE_DONE;
-    if (members_can_take_part(g, tech, &t) || (battle_action_goes_ahead(g) & GOES_AHEAD))
+    if (members_can_take_part(g, tech, &t) || (battle_action_choice(g) & CHOSE_AN_ATTACK))
         outcome = work_out_parts(g, pf, &t, tech);
     clear_action_notes(g);
     return outcome;
@@ -358,8 +365,9 @@ TechOutcome effect_work_out_member_tech(GameState *g, Platform *pf)
  * (the check of whether they can take part reads the party's tables by
  * them), each part's kind as the port has it for the part's member (battle/
  * effect_work.c), targets that are combatants, and for an attack, a first
- * candidate that is one or none (the aim reads where it stands). The rest is
- * turned away to the original. */
+ * candidate that is one or none, standing in a place that is one (the aim
+ * reads where it stands, and takes whoever stands there). The rest is turned
+ * away to the original. */
 static bool members_in_party(const GameState *g, const PartyTech *t)
 {
     for (unsigned part = 0; part < TECH_MEMBERS; part++) {
@@ -401,15 +409,20 @@ static bool parts_ported(const GameState *g, const PartyTech *t)
 static bool aim_ported(const GameState *g)
 {
     uint8_t first = battle_candidates(g, 0);
-    return battle_action_type(g) == ACTION_TECH || first == NO_CANDIDATE || first < BATTLE_COMBATANTS;
+    return battle_action_type(g) == ACTION_TECH || first == NO_CANDIDATE
+           || (first < BATTLE_COMBATANTS && battle_places(g, first) < BATTLE_COMBATANTS);
+}
+
+bool effect_member_tech_ported(const GameState *g)
+{
+    PartyTech t = party_tech(g, battle_action_detail(g));
+    return effect_targets_named(g) && members_in_party(g, &t) && parts_ported(g, &t) && aim_ported(g);
 }
 
 bool battle_work_out_member_tech_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    PartyTech t = party_tech(g, battle_action_detail(g));
-    bool ready = effect_targets_named(g) && members_in_party(g, &t) && parts_ported(g, &t) && aim_ported(g);
+    bool ready = effect_member_tech_ported(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && ready;
 }
@@ -429,11 +442,12 @@ void battle_work_out_member_tech(Snes *s)
 
 /* An item's kinds are all the port's: the actor and the targets must be
  * combatants. */
+bool effect_item_use_ported(const GameState *g) { return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g); }
+
 bool battle_use_item_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g);
+    bool ready = effect_item_use_ported(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && ready;
 }

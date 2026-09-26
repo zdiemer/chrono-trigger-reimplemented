@@ -199,6 +199,22 @@ static inline EffectRecord party_effect_record(const GameState *g, uint8_t effec
     return effect_record_decode(bytes, bytes[0]);
 }
 
+/* $CC:2583: each character's attack, as the party tech it is worked out as. */
+static inline uint8_t character_attack_tech(const GameState *g, uint8_t character)
+{
+    return rom_read8(g, 0xCC2583u + character);
+}
+
+/* $CC:2BDC and $CC:2BEB: how much longer each member of a tech waits for its
+ * next turn after it, in tenths of its turn wait: the first two members'
+ * nibbles of the first table's byte, the third's the low nibble of the
+ * second's. */
+static inline uint8_t tech_wait_tenths(const GameState *g, uint8_t tech, unsigned part)
+{
+    uint8_t first = rom_read8(g, 0xCC2BDCu + tech), third = rom_read8(g, 0xCC2BEBu + tech);
+    return part == 0 ? (uint8_t)(first >> 4) : part == 1 ? (uint8_t)(first & 0x0F) : (uint8_t)(third & 0x0F);
+}
+
 /* $CC:253B: what a part's effect costs its member in MP. */
 static inline uint8_t party_effect_mp_cost(const GameState *g, uint8_t effect)
 {

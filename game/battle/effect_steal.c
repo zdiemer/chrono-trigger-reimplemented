@@ -32,9 +32,9 @@ enum {
 };
 
 /* The original hands the outcome back in the cell it took the chance in
- * ($16), and the item taken in $06, where the member's turn reads it to show
- * (scaffolding: that is the original's still). */
-enum { ITEM_TAKEN_CELL = 0x06, ENEMY_PLACE_CELL = 0x0C };
+ * ($16), and the item taken in $06, where the member's turn reads it to name
+ * in its message (battle.h, kept plainly). */
+enum { ENEMY_PLACE_CELL = 0x0C };
 
 /* How the steal came out, kept for the member's turn (battle_steal_outcome)
  * and handed back: a miss and nothing to take as themselves; an item taken as
@@ -136,7 +136,7 @@ StealOutcome effect_steal(GameState *g, uint8_t chance)
     if (item == NO_ITEM)
         return came_out(g, STEAL_NOTHING);
     set_battle_steal_outcome(g, STEAL_ITEM_TAKEN);
-    ORIGINAL_EFFECT(battle_leave_byte(g, ITEM_TAKEN_CELL, item));
+    battle_keep_byte(g, BATTLE_ITEM_TAKEN, item);
     give_stolen(g, item);
     return came_out(g, STEAL_TOOK);
 }

@@ -153,6 +153,10 @@ void set_combatant_stat_byte_by_place(GameState *g, uint8_t slot, uint16_t offse
 uint8_t combatant_stat_byte_by_wide_place(const GameState *g, uint8_t slot, uint16_t offset);
 uint16_t combatant_stat_word_by_wide_place(const GameState *g, uint8_t slot, uint16_t offset);
 bool combatant_knocked_out(const GameState *g, unsigned slot);
+/* $FD:A8A5: knocked out, or with a status that keeps it from acting: no
+ * turns, stopped, the one that restarts its script, or the fourth status
+ * byte's top one. */
+bool combatant_cant_act(const GameState *g, unsigned slot);
 bool combatant_in_fight(const GameState *g, unsigned slot);
 
 /* What a slot is fighting as (battle_combatant_fighting), what it is, and its

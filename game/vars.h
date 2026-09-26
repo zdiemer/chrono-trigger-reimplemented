@@ -4353,6 +4353,11 @@ enum { BATTLE_WIDE_MATH_COUNT = 12 };   /* by byte: the first number, a word ($2
 uint8_t battle_wide_math(const GameState *g, unsigned i);
 void set_battle_wide_math(GameState *g, unsigned i, uint8_t v);
 
+/* The partners of the member whose action is carried out, kept while they are marked as taking
+ * part ($C1:B9DA); nothing reads it after */
+uint8_t battle_member_partners_kept(const GameState *g);
+void set_battle_member_partners_kept(GameState *g, uint8_t v);
+
 /* Screen script pointer while a command runs: at the command's first operand; the channel moves
  * it one byte on after the handler returns */
 uint32_t battle_screen_script(const GameState *g);
@@ -5068,9 +5073,19 @@ void set_battle_member_actions_state(GameState *g, unsigned slot, uint8_t v);
  * isn't worked out */
 uint8_t battle_member_actions_choice_flags(const GameState *g, unsigned slot);
 void set_battle_member_actions_choice_flags(GameState *g, unsigned slot, uint8_t v);
+/* How the chosen tech aims, from its menu record ($CC:1ACC, low six bits): the turn carries a
+ * tech out only where it is 1 or 3 ($C1:BB56) */
+uint8_t battle_member_actions_tech_aim(const GameState *g, unsigned slot);
+void set_battle_member_actions_tech_aim(GameState *g, unsigned slot, uint8_t v);
+/* The combatant the member chose to aim at */
+uint8_t battle_member_actions_target(const GameState *g, unsigned slot);
+void set_battle_member_actions_target(GameState *g, unsigned slot, uint8_t v);
 /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
 uint8_t battle_member_actions_partners(const GameState *g, unsigned slot);
 void set_battle_member_actions_partners(GameState *g, unsigned slot, uint8_t v);
+/* The tech's number, or the item's */
+uint8_t battle_member_actions_what(const GameState *g, unsigned slot);
+void set_battle_member_actions_what(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_PARTY_NAMES_COUNT = 3 };   /* by party slot */
 /* The party members' names (five characters each), before conversion to tiles [5 bytes, one at a
@@ -5889,6 +5904,12 @@ enum { BATTLE_COMBATANT_DOWN_COUNT = 11 };   /* by battle slot */
  * passes over it (but for actions of kind 4), and its next pose clears it ($C1:308C) */
 uint8_t battle_combatant_down(const GameState *g, unsigned slot);
 void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_MEMBER_KEPT_ITEM_WAITING_COUNT = 3 };   /* by battle slot of a party member */
+/* Set where the member's steal took an item (either way it went), which the battle's end looks
+ * for to move the member's kept item on ($CF:FAE2) */
+uint8_t battle_member_kept_item_waiting(const GameState *g, unsigned slot);
+void set_battle_member_kept_item_waiting(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_MEMBER_KEPT_ITEM_COUNT = 3 };   /* by battle slot of a party member */
 /* Which item */
@@ -6817,6 +6838,11 @@ void set_battle_number_records_kind_unchecked(GameState *g, unsigned slot, uint8
 uint8_t battle_number_records_last_byte_unchecked(const GameState *g, unsigned slot);
 void set_battle_number_records_last_byte_unchecked(GameState *g, unsigned slot, uint8_t v);
 
+/* Cleared as a party member's action is carried out ($C1:BA37) and as a member's turn starts
+ * ($FD:AB30); nothing reads it */
+uint8_t battle_member_turn_mark(const GameState *g);
+void set_battle_member_turn_mark(GameState *g, uint8_t v);
+
 enum { BATTLE_EFFECT_FLAGS_COUNT = 2 };   /* by byte */
 /* The effect's flags, from its record's eighth and ninth bytes: in the first, $10 and $20 skip a
  * hit's two tests (it can't be dodged, it can't miss), $04 a chance of a status, $02 a chance to
@@ -7094,6 +7120,11 @@ void set_battle_candidates_turning(GameState *g, uint8_t v);
  * battle_candidates) */
 uint8_t battle_candidates_drawing(const GameState *g);
 void set_battle_candidates_drawing(GameState *g, uint8_t v);
+
+/* Set while a party member's chosen action is carried out ($C1:B96A), cleared as it ends
+ * ($C1:BD6B); nothing reads it */
+uint8_t battle_member_turn_running(const GameState *g);
+void set_battle_member_turn_running(GameState *g, uint8_t v);
 
 /* Set by a party member's turn when a status of its picks its action for it */
 uint8_t battle_member_acts_for_itself(const GameState *g);
@@ -7568,11 +7599,11 @@ void set_battle_action_message_high(GameState *g, uint8_t v);
 uint8_t battle_tech_blocked(const GameState *g);
 void set_battle_tech_blocked(GameState *g, uint8_t v);
 
-/* Bit 7: the party member's action goes ahead even where a member of its tech can't take part,
- * as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command
- * ($C1:BA4E) */
-uint8_t battle_action_goes_ahead(const GameState *g);
-void set_battle_action_goes_ahead(GameState *g, uint8_t v);
+/* What kind of action the party member carries out, its action record's choice
+ * (battle_member_actions.choice_flags, $C1:BA4E), or an attack where a status picks it
+ * ($FD:AB67, $FD:AB93): bit 7 an attack, which goes ahead where a tech would be short of MP */
+uint8_t battle_action_choice(const GameState *g);
+void set_battle_action_choice(GameState *g, uint8_t v);
 
 /* A reaction's kept place, while its conditions are tested */
 uint16_t battle_reaction_place_kept(const GameState *g);
@@ -8130,6 +8161,10 @@ void set_battle_wave_edges(GameState *g, unsigned line, uint16_t v);
 /* How the battle ended: 1 when the party was defeated, 0 when it won or ran away */
 uint8_t battle_result(const GameState *g);
 void set_battle_result(GameState *g, uint8_t v);
+
+/* The item a battle message names (the steal's) */
+uint8_t battle_message_item(const GameState *g);
+void set_battle_message_item(GameState *g, uint8_t v);
 
 /* ---- scene --------------------------------------------------------------------------------- */
 

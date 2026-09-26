@@ -115,6 +115,13 @@ bool combatant_knocked_out(const GameState *g, unsigned slot)
     return (battle_stats_condition(g, slot) & CONDITION_KNOCKED_OUT) != 0;
 }
 
+static const Statuses KEEP_FROM_ACTING = STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | 0x80000000u;
+
+bool combatant_cant_act(const GameState *g, unsigned slot)
+{
+    return combatant_knocked_out(g, slot) || (combatant_statuses(g, slot) & KEEP_FROM_ACTING);
+}
+
 bool combatant_in_fight(const GameState *g, unsigned slot) { return combatant_fighting_as(g, slot) != COMBATANT_NONE; }
 
 uint8_t combatant_fighting_as(const GameState *g, unsigned slot)
