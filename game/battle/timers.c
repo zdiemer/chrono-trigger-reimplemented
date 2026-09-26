@@ -10,6 +10,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/main_loop.h"
+#include "battle/status_timers.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -99,13 +100,28 @@ uint8_t battle_timer_order_at(const GameState *g, uint8_t place)
     return place < BATTLE_TIMER_ORDER_COUNT ? battle_timer_order(g, place) : battle_timer_order_unchecked(g, place);
 }
 
+uint8_t battle_timer_found_run_out(const GameState *g, BattleTimer kind)
+{
+    uint8_t place = battle_timer_kind_cursors(g, kind);
+    if (place == 0)
+        place = battle_timer_order_length(g);
+    return battle_timer_order_at(g, (uint8_t)(place - 1));
+}
+
 static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
 {
     return (battle_timer_flags_byte_unchecked(g, timer, slot) & TIMER_RUN_OUT) != 0;
 }
 
 /* The due bits run from kind 0 at bit 12 down to the turn at bit 0. */
+enum { DUE_BITS = 0x1FFF };
+
 static uint16_t due_bit(BattleTimer kind) { return (uint16_t)(1u << (BATTLE_TIMER_TURN - kind)); }
+
+void battle_timer_seen_to(GameState *g, BattleTimer kind)
+{
+    set_battle_timer_kinds_due(g, battle_timer_kinds_due(g) & (uint16_t)(DUE_BITS & ~due_bit(kind)));
+}
 
 /* What the search leaves in its cells: the kind after the last (a word), the
  * battle slot it looked at last, and the due bit shifted past kind 12. */
@@ -156,13 +172,6 @@ void battle_find_run_out_timers(GameState *g, bool look)
  * the kinds due, to the rest of the pass ($C1:8345). */
 enum { SEARCH = 0xC18290, REST_OF_PASS = 0xC18345, THE_HANDLERS_CALL = 0xC18333 };
 
-/* The timed statuses' handlers, as the original's table at $C1:B92D names
- * them, all still the original's; the turn's is the turn itself
- * (battle/main_loop.c, battle_run_queued_scripts at $C1:8461). */
-static const uint16_t kind_handlers[BATTLE_TIMER_TURN] = {
-    0x8876, 0x88C5, 0x8975, 0x89B9, 0x8A05, 0x8A51, 0x8A9D, 0x8A9E, 0x8A9F, 0x8B10, 0x8BB9, 0x8C08,
-};
-
 /* The main loop counts its passes; the search looks on the odd ones. */
 static bool pass_looks(const GameState *g) { return battle_loop_count(g) & 0x01; }
 
@@ -174,11 +183,12 @@ void battle_tick_timers(Snes *s)
 }
 
 /* Run each due kind's handler, as the original's loop calls them: the kind on
- * the stack under the call and its bit in its cell. The turn's handler is the
- * main loop's (battle/main_loop.c); where it is the original's (a turn that
- * names no combatant), it reads Y, which the search left at the last kind and
- * a handler before it leaves as it likes, and the overflow flag, which the
- * test of the due bits sets from their bit 14. */
+ * the stack under the call and its bit in its cell. The timed statuses'
+ * handlers are battle/status_timers.c's, run as the loop's JSR calls them; the
+ * turn's is the main loop's (battle/main_loop.c); where it is the original's
+ * (a turn that names no combatant), it reads Y, which the search left at the
+ * last kind and a handler before it leaves as it likes, and the overflow flag,
+ * which the test of the due bits sets from their bit 14. */
 enum { DUE_TEST_OVERFLOW = 0x4000 };
 
 static bool call_handler(Snes *s, BattleTimer kind)
@@ -186,7 +196,7 @@ static bool call_handler(Snes *s, BattleTimer kind)
     s->cpu.x = (uint16_t)(kind * 2);
     s->cpu.a = 0;
     if (kind != BATTLE_TIMER_TURN)
-        return battle_call(s, THE_HANDLERS_CALL, 0xC10000u | kind_handlers[kind], DC_A | DC_X | DC_Y | DC_FLAGS);
+        return battle_run(s, THE_HANDLERS_CALL, battle_status_timer_handler(kind), battle_status_timer_entries[kind]);
     m_set_flag(s, CPU_FLAG_V, battle_timer_kinds_due(state_of(s)) & DUE_TEST_OVERFLOW);
     return battle_take_turn(s, THE_HANDLERS_CALL);
 }

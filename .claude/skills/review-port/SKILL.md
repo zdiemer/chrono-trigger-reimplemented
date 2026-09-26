@@ -732,6 +732,17 @@ Each of these is a finding. Every example here comes from this repo.
     reproduces a 16-bit load spanning two variables (item 46's sibling). Read
     each in its own terms.
 
+100. **A dispatch column inside the game model.** A table that says what the
+     game does (a `TimerEffect` per status) with the ROM's routine addresses
+     in a column beside it makes the ROM's layout look like part of the
+     game. Keep routine and entry columns in a parallel dispatch table beside
+     the entries.
+101. **An inlined subroutine's frame, chosen by a game condition.** A bridge
+     that inlines a subroutine and pushes its caller's return address
+     (`m_push16(... POISON ? A : B)`) is acceptable in a bridge, but prefer
+     registering the inlined subroutine as its own entry so `battle_run` or
+     its sibling supplies the frame.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

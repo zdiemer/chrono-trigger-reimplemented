@@ -106,7 +106,8 @@ rest waits, is [PLAN.md](PLAN.md).
     to work out) and the clock modifier (`$C1:EE27`, whose controller read
     waits on the console); the party's own working out (`$C1:D523`,
     `$C1:D74F`, `$C1:BF46`), which runs the kinds' ports; a member that comes back once when knocked out
-    (from `$C1:B316`); the timers' kinds' handlers `$C1:8862`-`$C1:8C08`; the
+    (from `$C1:B316`); the action's showing a status's timer asks for
+    (`$C1:AC57` from `$C1:895B`) and the effect's start (`$C1:EC7F`); the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
     `$C1:3760`, the position modes `$C1:762E`; an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
@@ -176,12 +177,29 @@ rest waits, is [PLAN.md](PLAN.md).
     there: `apply_modifier` ($C1:EB1C) multiplies the modifier's number by 3
     and throws the product away (the original's record lookup, whose cells
     only the multiply's scaffolding reads; find the reader or drop it);
-    `start_timer_for` (`effect_statuses.c`) tests the first status byte's
-    `$10` and others by number, which want names in `battle/combatant.h` once
-    what they are is worked out; "restarts its script" is still how
+    "restarts its script" is still how
     `menu_window.c` (the member who can't act) and `combatants.c` (the status
     seen) name confusion, and `re/ram.toml`'s `battle_status_script_seen`
     says so too: say confused.
+  - The statuses' timers (RECOMP.md, "Phase 3, battle chunk 3"): the first
+    status byte's `$10` (a point of HP lost each time its timer runs out) and
+    the fourth's `$20` (5 MP back every tenth) are named for what the battle
+    does with them; what the player calls them is to work out. The slow's
+    timer wears off without taking the slow away, and the MP's timer halves
+    for kept haste alone: both the original's. Timers 6, 7 and 11 do nothing
+    when they run out, and no movie reaches the slow's, evading much better's
+    or the MP's; they were fuzzed only.
+  - A status's timer run out for no combatant: the search for run-out
+    timers reads past the order's last filled place, takes the empty
+    place's `$FF` as a slot whose timer (past the kind's row, in
+    `battle_timer_lengths`) has run out, and the original's handler then
+    works on that slot, writing past the timers' tables (into the lengths)
+    and a stat block far past the combatants'. The evading much better's
+    handler meets it four times over the library (`gato-battle`,
+    `endings-telepod-lavos`); its guard turns it away to the original. Port
+    it the way the absent party member was: what the game does with a timer
+    of nobody's, and the stray writes, which change a real timer's length,
+    kept as the game's.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;

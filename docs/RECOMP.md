@@ -7609,6 +7609,79 @@ from the same state, in the original's code too). The bot now releases between
 presses and waits for each to move the menu (`tools/movies/bot.py`), and every
 route reaches its outcome in the shipping mode.
 
+### Phase 3, battle chunk 3: the statuses' timers (`$C1:8876`-`$C1:8C08`)
+
+The third battle chunk was picked from what the enemy turn and the main loop
+still called out to for being whole on its own: the twelve handlers the main
+loop runs for a status's timer that has run out (the original's table at
+`$C1:B92D`), 914 bytes, whose callees were ports already (the damage and
+number records, the long division, the numbers' clearing) but for the
+action's showing and the effect's start. The party's working out
+(`$C1:D523`) was the other candidate the coordinator named; it brings the
+steal's item and the clock modifier's controller read with it, each a step
+of its own, and waits for chunk 4.
+
+`game/battle/status_timers.c` is the handlers as one module: a C table says
+what each kind of timer does when it runs out -- wears its status off on the
+tenth time (stop, haste, evading much better, the shield, the barrier; the
+slow's timer, which wears off without taking the slow away, as the
+original's does), poison hurts, a point of HP is lost, MP comes back on the
+tenth time, or nothing (three kinds) -- and which status bit it wears off.
+Each run the timer starts again, at its length, or paced like a turn (half
+as long hasted, twice slowed; the MP's timer asks only about kept haste: the
+original loads the status byte and drops it). What a status does is recorded
+where the action's showing finds it (`effect_show_status_damage`,
+`effect_show_magic_regained`, `effect_record_status_damage`, in
+`effect_amounts.c`, as a hit's is), and the handler's wrapper calls the
+showing (`$C1:AC57`, a sibling, with the frame of `$C1:895B`, which calls it,
+on the stack) or the effect's start (`$C1:EC7F`, the original's). The search
+(`battle/timers.c`) runs them as siblings, as the loop's `JSR` calls them;
+the combatant a handler works on is the one before where the kind's search
+goes on in the order (`battle_timer_found_run_out`), and seeing to it clears
+the kind's due bit (`battle_timer_seen_to`). New in the map: the runs left
+before a status wears off (`battle_timer_runs_left`, `$B045`), and two
+status bits named for what the battle does with them (the first byte's `$10`,
+a point of HP each run; the fourth's `$20`, 5 MP every tenth), which also
+names the bits `start_timer_for` (`effect_statuses.c`) tested by number.
+
+Two leftovers are kept, as the game plays them: poison divides the long
+arithmetic's leftover high word with the most HP, by a divisor whose high
+byte is what the last long arithmetic left in its cell (the original sets its
+low byte alone, `battle_wide_math_second_high`). And two things the original
+leaves are scaffolding: the stat block's place in `$10` (the handlers that
+act), and the carry the damage is recorded with, which the multiply leaves in
+its cell (a shown number's place's add, or the point of HP's pacing shift;
+finding the stat block's place clears it otherwise).
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the barrier's 214 calls (210 compared), the shield's 168 (166), the haste's
+112 (111), poison's 62 (51, the rest compared in the search that ran them),
+the point of HP's 165 (all compared in the search), the stop's 12. Shadow
+mode first found the `$10` the handlers leave. The evading much better's
+handler is called four times (`gato-battle`, `endings-telepod-lavos`) for no
+combatant: the search, reading past the order's last filled place, takes the
+empty place's `$FF` as a slot whose timer (past the kind's row, in the
+lengths' table) has run out, and the original's handler then writes past
+every table it touches. The guard turns those away to the original
+(docs/TODO.md). No movie reaches the slow's, the MP's or the three that do
+nothing. **Fuzzing**: every handler, seed 1, 5,000 states on `gato-battle`
+(`tools/fuzz_routines.toml`: each kind's search one to eleven places on in
+an order of the eleven slots), none mismatching; all compared but poison
+(3,767; its showing waits on frames past the budget) and the MP's (4,991).
+Fuzzing found the point of HP's recorded carry: the pacing's shift, or clear.
+The search that runs them (`battle_dispatch_expired_timers`), 5,000, none
+mismatching.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the
+handlers that wear off 4,853-5,116, poison 25,065, the point of HP 15,635;
+the three the movies don't reach take their siblings' (the slow's and the
+evading much better's the shield's, the MP's poison's); the three that do
+nothing keep the default. The overflow flag the showing is called with was
+already declared dead at its own site (`$C1:AC57`), so the handlers' showing
+needed no new evidence; `tools/suite.py --evidence` ran the notes' library
+runs again with the handlers in C, and every note's sites still made what
+they cite.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,
