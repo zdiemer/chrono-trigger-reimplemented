@@ -174,9 +174,10 @@ bool field_switch_redraw_overflow(const GameState *g)
     return field_add_overflows16((uint16_t)(last - base), base);
 }
 
-/* A's high byte at the switch's sound: the sound driver saves A on the stack
- * as it starts ($C7:0147's PHA) and takes it back, so the byte is left in the
- * stack below the caller's frame, which shadow mode compares. It is the
+/* A's high byte at the switch's sound: the sound driver saves the caller's
+ * registers on the stack as it starts ($C7:0147's PHA), and keeps that frame
+ * there while it waits on the sound CPU, so shadow mode compares it as the
+ * stack it is at those waits; liveness counts the PHA as a read. It is the
  * original's last word-wide value on its way round the switch's tiles: for
  * the one-by-two switch the upper tile moved on as a word, whose high byte
  * is the tile to its right; for the others, the index of the tile a row up

@@ -303,7 +303,8 @@ def walk(an, entry, owners, port=None):
         (inlined if inside else reached).update(range(pc, pc + insn.size))
         nexts, callees = successors(an, insn)
         for t in callees:
-            if port is None or port.idle or t in owners or port.calls_out(pc, t):
+            # a callee the port stops at the entry of is the original's to run
+            if port is None or port.idle or t in owners or t in stops or port.calls_out(pc, t):
                 continue
             queue.append((t, True))
         for nxt in nexts:

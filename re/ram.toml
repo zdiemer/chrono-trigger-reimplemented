@@ -13725,6 +13725,16 @@ size = 1
 meaning = "Its bank"
 
 [[var]]
+name = "field_battle_enemy_objects"
+addr = "7E:01A3"
+page = "field"
+count = 8
+index = "enemy record (battle_enemy_placement)"
+subsystem = "field"
+meaning = "The field object each of the battle's enemies is, which the battle's start keeps ($C0:0557) and its end puts back ($C0:076B); negative for none"
+source = "game/field/battle_return.c, field_return_from_battle ($C0:0715)"
+
+[[var]]
 name = "field_tiles_to_redraw"
 addr = "7E:015F"
 page = "field"

@@ -85,6 +85,11 @@ static void set_one_off_animation(GameState *g, FieldObject obj, uint8_t animati
 /* The frame a script holds. */
 static void set_held_frame(GameState *g, FieldObject obj, uint8_t frame) { set_field_object_static_frame(g, obj, frame); }
 uint8_t object_held_frame(const GameState *g, FieldObject obj) { return field_object_static_frame(g, obj); }
+void object_hold_frame(GameState *g, FieldObject obj, uint8_t frame)
+{
+    set_mode(g, obj, ANIMATE_SHOW_FRAME);
+    set_held_frame(g, obj, frame);
+}
 bool object_holds_frame(const GameState *g, FieldObject obj)
 {
     return object_animation_mode(g, obj) == ANIMATE_SHOW_FRAME;

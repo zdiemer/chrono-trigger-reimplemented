@@ -7281,6 +7281,79 @@ runs whatever the registry has there. The library's gate passes unchanged,
 with `battle_enemy_scripts_choose` recalibrated (8,036 to 7,902) for the
 plain writes it makes now.
 
+### Phase 3, field and events: the field put back after a battle
+
+The eighth chunk of bank `$C0`, and chunk 7's review.
+
+**Chunk 7's review, folded in.**
+- The switch sound's A-high comment gives the real reason the byte is
+  compared: the sound driver keeps its saved-register frame, A with it, on
+  the stack while it waits on the sound CPU, so shadow mode compares it as
+  the live stack it is there, and liveness counts `$C7:0147`'s `PHA` as a
+  read (not "a byte below S", which PORTING.md says is not compared).
+- `sound_sites` is indexed by the switch's shape and column with
+  designated rows, and `switch_number` is gone.
+- frames.c has one test for whether an object is drawn
+  (`object_on_screen`), shared by the builder and the put-back; the
+  24-sprite object is drawn, its frame is just not put back.
+  `object_put_drawn_frame_back` returns nothing, and the header says what the
+  after-battle put-back is.
+- `$D9` has one name (`FIELD_SCRATCH_CELLS`, with `FIELD_LAST_WORKED_CELL`
+  as the same cell by its use); the graphics port's guard asks whether the
+  bank is `FIELD_BUILD_BANK`.
+- `tests/test_burndown.py` asserts the code after a stop that declares a
+  dead set isn't credited, that code reached around a stop is, and that a
+  callee a port stops at is not inlined (the burndown now leaves those out).
+
+**What it is** (field/battle_return.c, `field_return_from_battle` `$C0:0715`
+with `$C0:076B`-`$C0:0904`). When a battle on the field ends, every enemy it
+took over goes back to its tile on the map, the one the battle kept from the
+screen's corner, into the rows the sprite table walks, showing the frame it
+showed (field/frames.c's put-back, the `BRL`s at `$C0:086E` and `$C0:0902`);
+an enemy the battle took away (its kept kind 0) is made unreachable and
+hidden, giving up its palette if it has none of its own sprite. The party's
+places follow (the first taken without looking, as the original does), the
+sprite table is built at once (`$C0:B271`, a call-out), and where the party
+was defeated each member holds the frame it shows. That last part is also an
+entry of its own, `field_hold_party_if_defeated` `$C0:072E`, the return from
+the sprite table's building, which is where the original goes on when the
+guard sends the return to it, and what fuzzing compares apart from the call.
+The battle's kept enemy objects (`$7E:01A3`) are named in the RAM map
+(`field_battle_enemy_objects`).
+
+**What shadow mode and fuzzing found.** Fuzzing found one guard: the
+original makes each object current by its link's byte alone and the frame
+put-back reads the whole word, so a byte after the link makes the put-back
+see no object; the guard takes a return whose current object's word is clear
+above the link (`object_making_current_recognises`), as every return in the
+library has it. Shadow mode found the other: the original gives up a
+taken-away enemy's palette from two subroutines down (`$C0:076B`, then
+`$C0:07EC`, which saves the enemy's place and object over the call), and
+shadow mode pairs a call by its stack pointer and compares that frame, so the
+port pushes the two return addresses and the saved bytes around the call-out
+(PORTING.md, "A callee's frame that is still on the stack"). The fuzzer
+compares the machines when both have returned, not at each call, so only `late-omen-battles`, where a
+battle takes away an enemy with no sprite of its own, showed it. Over the 26 movies every call matches
+(`field_return_from_battle` 25, none interrupted or refused;
+`field_hold_party_if_defeated` 25). Fuzzed (seeds 1 and 2, 20,000
+states each): the return 0 of 20,000 each, compared up to the sprite table's
+building (whose own call-outs can't finish on the fuzz state, TODO.md), with
+the enemies taken away or kept, with a sprite or without; the defeat's end 0
+of 20,000 each, won, lost or fled. The rows are sensitive: an enemy's kind
+read the other way mismatched 2,993 of 3,000, its sprite test 1,357, and the
+defeat test 1,915. `$C0` stands at 39.9 KiB ported, 33% left.
+
+**The frame builder's overflow, through battle's V check.**
+`tools/v_readers.py --after C0:CAD9` has V read after the builder returns,
+so its derivation (field/leaves.c) stays: the sprite table's building
+after the frame queue (`$C0:00D9`) leaves V as it is, the frame wait passes
+it on, and the next frame's pause and menu opening (`$C0:18D9`) reach the
+sound driver's saved flags (`$C7:0A39`'s `PHP`, taken back other than by
+`PLP`) and the menus' `BVC` at `$C2:F7D9`.
+
+**The timing gate.** The two rows were calibrated over the library; no
+exception.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

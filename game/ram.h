@@ -725,6 +725,13 @@
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_DP 0x98u /* page field */
+/* The field object each of the battle's enemies is, which the battle's start keeps ($C0:0557)
+ * and its end puts back ($C0:076B); negative for none [8 x $1 bytes, by enemy record
+ * (battle_enemy_placement)] */
+#define RAM_FIELD_BATTLE_ENEMY_OBJECTS 0x7E01A3u
+#define RAM_FIELD_BATTLE_ENEMY_OBJECTS_COUNT 8u
+#define RAM_FIELD_BATTLE_ENEMY_OBJECTS_STRIDE 0x01u
+#define RAM_FIELD_BATTLE_ENEMY_OBJECTS_DP 0xA3u /* page field */
 /* Where each of the party is on the leader's trail (an entry of the field_trail_ tables): the
  * leader's newest footprint, and the footprint each member has got to [3 x $1 bytes, by party
  * place] */

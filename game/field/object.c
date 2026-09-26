@@ -97,6 +97,15 @@ void object_set_unreachable(GameState *g, FieldObject obj, bool unreachable)
 
 void object_set_sprite(GameState *g, FieldObject obj, ObjectSprite sprite) { set_field_object_sprite_flag(g, obj, sprite); }
 
+void object_put_on_screen_as_kept(GameState *g, FieldObject obj, uint8_t x, uint8_t y)
+{
+    set_field_object_screen_x(g, obj, (uint16_t)((field_object_screen_x(g, obj) & 0xFF00) | x));
+    set_field_object_screen_y(g, obj, (uint16_t)((field_object_screen_y(g, obj) & 0xFF00) | y));
+}
+
+/* None is kept as a negative byte. */
+bool object_has_no_sprite(const GameState *g, FieldObject obj) { return (int8_t)field_object_sprite_flag(g, obj) < 0; }
+
 /* A sprite shown is kept as a positive byte; hidden and none are not. */
 bool object_can_be_seen(const GameState *g, FieldObject obj)
 {
@@ -419,3 +428,4 @@ void object_make_current_recognised(GameState *g, FieldObject obj)
     set_field_current_object(g, field_link_byte(field_link_to(obj)));
 }
 void object_recognise_current(GameState *g) { set_field_current_object(g, (uint16_t)(field_current_object(g) & 0x00FF)); }
+bool object_making_current_recognises(const GameState *g) { return (field_current_object(g) & 0xFF00) == 0; }
