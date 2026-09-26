@@ -758,6 +758,12 @@ Each of these is a finding. Every example here comes from this repo.
      one marked place (or the guard back), and a docs/TODO.md entry: native
      storage breaks it.
 
+104. **One decision through two bridge mechanisms in one file.** One sibling
+     run through `battle_run` (its guard, then a call-out, the turn carrying
+     on in C) and another's guard asked with the whole routine stopping where
+     it refuses. Use one: the helper that tests the guard and calls out
+     keeps the rest of the routine C either way.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

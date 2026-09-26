@@ -7442,7 +7442,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_poison_timer_ran_out"
@@ -7451,7 +7451,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_slow_timer_ran_out"
@@ -7460,7 +7460,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_haste_timer_ran_out"
@@ -7469,7 +7469,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_evasion_timer_ran_out"
@@ -7478,7 +7478,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_shield_timer_ran_out"
@@ -7487,7 +7487,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_timer_6_ran_out"
@@ -7496,7 +7496,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_timer_7_ran_out"
@@ -7505,7 +7505,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_hp_loss_timer_ran_out"
@@ -7514,7 +7514,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_mp_regain_timer_ran_out"
@@ -7523,7 +7523,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_barrier_timer_ran_out"
@@ -7532,7 +7532,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_timer_11_ran_out"
@@ -7541,7 +7541,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB179-7EB184=01-0B", "--fill", "7EB163-7EB16D=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAEC7-7EAEC7=01-0B"]
 iterations = 5000
-why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the handlers see to past the kinds' rows"
+why = "as the plain entry, with the order's places $FF too and its length any: the timer of nobody the search takes the order's empty place for, which the guards leave to the original, beside the timers of somebody the search finds among the empty places"
 
 [[routine]]
 name = "battle_show_status_number"
@@ -10416,7 +10416,7 @@ why = "an action the ROM has records for, with A's high byte clear as the turn l
 name = "battle_work_out_member_tech"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80"]
 iterations = 5000
 why = "a party tech or a member's attack the ROM has records for, its members in the party's slots, mostly able to take part, and targets each a combatant; the weapons' modifiers among the real ones, the clock's and the charm's included; the direct page's byte a drain reads its stat's offset's high byte from clear, as the game leaves it; the rest of the battle's state at random"
 
@@ -10425,7 +10425,7 @@ name = "battle_work_out_member_tech"
 variant = "steal"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18C-7EB18C=2D,51", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EA0D1-7EA0D3=00", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7E5E57-7E5F57:80=00,A5", "--fill", "7E2400-7E25FF=00-FF"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18C-7EB18C=2D,51", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EA0D1-7EA0D3=00", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7E5E57-7E5F57:80=00,A5", "--fill", "7E2400-7E25FF=00-FF"]
 iterations = 5000
 why = "the party's two steals, by their members in the party's slots, able to take part, from targets each a combatant, with and without the thief's accessory; the inventory at random, so that a steal adds to a held item, one held at most, or a new place; the rest of the battle's state at random"
 
@@ -10470,3 +10470,52 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "Y=0000-00FF", "--fill", "7E2400-7E24FF=01-FF", "--fill", "7E2500-7E25FF=00-FF"]
 iterations = 5000
 why = "any item into an inventory with no empty place"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40,C0,00,40", "--fill", "7E93EF-7E93FD:7=80,40,20,10,00,80,20", "--fill", "7E93F0-7E93FE:7=01,03,02", "--fill", "7E93F1-7E93FF:7=03,04,05,06,07,08,09,0A,00,01,02", "--fill", "7E93F3-7E9401:7=FF,FF,F0,F1,F2,10,12,20,21", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F4-7E9402:7=00-FF"]
+iterations = 5000
+why = "a party member whose action waits (and others' that may), with what it chose among attacks, items and techs, their aims and targets, partners in the party's places or none, and the characters in the party's slots; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_carry_out_member_action"
+variant = "techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7E93EE-7E93FC:7=40,C0,00,40", "--fill", "7E93EF-7E93FD:7=80,40,20,10,00,80,20", "--fill", "7E93F0-7E93FE:7=01,03,02", "--fill", "7E93F1-7E93FF:7=03,04,05,06,07,08,09,0A,00,01,02", "--fill", "7E93F3-7E9401:7=FF,FF,F0,F1,F2,10,12,20,21", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93EF-7E93FD:7=20", "--fill", "7E93F0-7E93FE:7=01,03", "--fill", "7E93F4-7E9402:7=00-7F", "--fill", "7EA0D1-7EA0D3=00"]
+iterations = 5000
+why = "as the plain entry, every choice a tech the turn carries out, by members able to"
+
+[[routine]]
+name = "battle_member_attacks"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EAD8E-7EAD8E=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A"]
+iterations = 5000
+why = "a party member attacking an enemy; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_end_member_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB3F4-7EB3F4=00-02", "--fill", "7E93F3-7E9401:7=FF,FF,F0,F1,F2,10,12,20,21"]
+iterations = 5000
+why = "a party member's turn ending, with partners in the party's places or none"
+
+[[routine]]
+name = "battle_member_called_off_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the battle's step for a called-off action, from any state"
+
+[[routine]]
+name = "battle_members_wait_after_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2EA-7EB2EA=00-06", "--fill", "7EB2EB-7EB2EC=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EB18C-7EB18C=00-7F"]
+iterations = 5000
+why = "a tech's members, characters in the party's slots or none past the first, and any tech; the rest of the battle's state at random"

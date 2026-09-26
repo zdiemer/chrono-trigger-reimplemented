@@ -93,9 +93,11 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, carrying
-    out an action `$C1:B967`, the rewards `$FD:B201`/`$C1:D0A2`/
-    `$C1:F93E`/`$FD:AD17`); from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
+    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, the
+    rewards `$FD:B201`/`$C1:D0A2`/`$C1:F93E`/`$FD:AD17`); from a member's
+    chosen action carried out (RECOMP.md, "Phase 3, battle chunk 5"), the
+    targeting `$C1:C1DD`, the calling off of a combination tech one of its
+    members can't act in `$FD:A93C` and the messages `$CD:0021`; from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
     the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
@@ -165,8 +167,8 @@ rest waits, is [PLAN.md](PLAN.md).
     reads the first set's last kind before it adds (`first_began`) only for
     its carry's leave, and `take_next_target` exists only to leave the carry a
     target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the member's turn (`$C1:BA33` on,
-    which reads the stolen item in `$06`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    goes when what reads it is a port: the targeting (`$C1:C1DD`) and the
+    showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -382,6 +384,22 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+- **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
+  battle chunk 4", after the review). A build without the original's memory has to decide each:
+  - a status's timer of nobody's: the search for run-out timers takes the
+    order's empty place (`$FF`) for a combatant and reads its state past the
+    kind's row (`timers.c`, `has_run_out`, the one read); the handler for it
+    is the original's, which works past every table it touches, a real
+    timer's length among them (the entries' guards turn it away: the evading
+    much better's, 4 calls over the library, `gato-battle` and
+    `endings-telepod-lavos`);
+  - a party tech's part with no member: the original reads the slot of the
+    id `$FF` past the character slots (`$7E:B2BD`) and ends the tech only
+    where that byte is `$FF` (the guard asks, `no_member_ends_the_tech`);
+  - after a part that missed, the tech stops where bit 7 is set in the byte
+    of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
+    reads where the tech's record is meant (`party_work.c`,
+    `stops_after_miss`, through `wram_read8`).
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:

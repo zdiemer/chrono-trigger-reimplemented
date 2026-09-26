@@ -8048,6 +8048,89 @@ steal's edges.
 member's tech 22,647, the item 21,593, the inventory's add 20,514; the steal
 kind, which no movie reaches, takes the hit's.
 
+**After the review.** A sentinel no longer flows through plain logic as a
+bare byte (rubric item 103). The search for run-out timers says whose timer
+it found as a `TimerOwner`, nobody where it took the order's empty place, and
+the handlers' guards leave nobody's to the original again (the evading much
+better's 4 calls over the library): the only read past the kinds' rows left
+is the search's own, in one place. A party tech's part with no member ends
+the tech in the logic; the byte the original reads for it past the character
+slots is asked in the guard alone. Both, and the tech's misread byte, are in
+docs/TODO.md's "What only the original's memory has, in the battle". The
+party's effects are records (`party_effect_record`, `.kind`, `.flags`, an
+attack's showing its `damage.formula`), the clock's word has a reader and its
+four writers listed (`battle_clock_word`, battle.h), the timed statuses' bits
+are one table (`battle_timed_status`, timers.c) that the combatants' timers
+and the handlers share, and the MP check writes what it leaves once, as it
+ends (`battle_tech_mp_compared`, the steal marks' second use).
+
+### Phase 3, battle chunk 5: a party member's action carried out (`$C1:B967`)
+
+The fifth battle chunk is what calls the party's working out: a party
+member's chosen action carried out when its turn comes (`$C1:B967`), the
+member's attack (`$C1:BFAA`), the waits after a tech (`$C1:BDB3`), the end of
+a member's turn (`$C1:BCE1`, which the main loop calls too for a member whose
+status picked its action) and the battle's step for a called-off action
+(`$C1:B961`).
+
+`game/battle/member_turn.c` carries the action out. The member is the first
+round the party, from the one the main loop names, whose action waits its
+turn; it and its combination tech's partners take part, and where any of
+them can't act (`combatant_cant_act`, now the combatants' own, which the
+combination check shares) the tech is called off for them all (the
+original's `$FD:A93C`, a call-out). Otherwise what the member chose decides:
+an attack, aimed at its choice and worked out as the character's attack tech
+(`$CC:2583`, `character_attack_tech`), then shown; an item, aimed by the
+original's targeting (`$C1:C1DD`, a call-out), worked out and shown; a tech
+the record aims as one the turn carries out, aimed likewise, worked out, its
+MP paid by each member (`$C1:CC71`: cut by the member's accessory, and any
+member past the second paying from the third's MP, as the original does),
+shown, and a steal's outcome told in a message (`$CD:0021`) naming the item,
+which the steal now keeps plainly in `$06` (`BATTLE_ITEM_TAKEN`). After a
+tech every member waits longer before its next turn, by tenths of its turn
+wait the tech gives each part (`tech_wait_tenths`, `$CC:2BDC`/`$CC:2BEB`); the
+original divides the first member's by an empty divisor cell, so it adds
+nothing, and sets only that member's full gauge (kept). The turn ends with
+the member's turn timer starting again and its record and its partners'
+cleared; a choice of only bit 4 (`CHOICE_HELD`, not worked out) leaves
+them. The showing (`$C1:AC57`) and the attack are siblings run with
+`battle_run`, as the original's `JSR`s call them.
+
+The targeting is a call-out mid-body, so the bridge asks after it what the
+port needs: where the targeting left more targets than the list holds, a
+target past the combatants, or (a tech it found nothing for) last tech's
+members that aren't the party's, which the waits index by, the port stops at
+the call's return; and before the item's, the tech's and the attack's
+working out it asks their entries' guards (`effect_item_use_ported`,
+`effect_member_tech_ported`) and stops at the call where they refuse. Over
+the library neither stop fires and no guard turns a real call away (counted
+with the guards and the stops instrumented). A member's attack aims anew at
+whoever stands in its target's place: the party work's guard now asks that
+the place is a combatant's as well.
+
+New in the map: the record's aim, target and what (`battle_member_actions`),
+the member's choice as the effect code keeps it (`battle_action_choice`,
+which was `battle_action_goes_ahead`: bit 7 is an attack), the partners kept
+while marked, two write-only flags, the kept item waiting its move, and the
+item a message names (`battle_message_item`, `$7F:0200`).
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the action carried out 542 calls (69 compared whole, the rest interrupted by
+the frame's interrupt, as the showing waits frames), the attack 131 (10;
+the rest compared in the action that ran them, or interrupted), the waits
+after a tech 363 (273), the turn's end 223 (218), the called-off step 7 (all).
+**Fuzzing**, seed 1, 5,000 states each, none mismatching: the action (4,910
+compared; the rest guarded or past the budget), with every choice a tech
+(4,921), the attack (2,050; the rest past the budget in the showing), the
+waits (all), the turn's end (all), the step (3,224). Fuzzing found the choice
+of bit 4 leaving the turn as it is, the turn's end indexing by A's high byte
+(its guard now asks it clear, as the main loop leaves it), the attack's
+stray place, and that the showing takes A's high byte along.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the action
+9,762, the attack 17,584, the waits 21,164, the turn's end 7,665, the step
+2,350.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

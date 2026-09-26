@@ -170,21 +170,21 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 161 files, 117 of
-42,623 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 162 files, 117 of
+43,114 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
-| battle | 0 | 59 | 0 | 15,249 | 0.02 | 26% |
+| battle | 0 | 60 | 0 | 15,740 | 0.02 | 27% |
 | menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
-| field | 0 | 28 | 0 | 7,414 | 0.01 | 21% |
+| field | 0 | 29 | 0 | 7,555 | 0.01 | 21% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,047 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,983 | 0.00 | 0% |
-| **total** | **1** | **160** | **117** | **42,298** | **0.02** | **28%** |
+| **total** | **1** | **162** | **117** | **42,930** | **0.02** | **28%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **46% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **145.0K** | **41.9K** | **46%** | **1088** |
+| **total** | **268.5K** | **146.0K** | **41.9K** | **46%** | **1093** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -485,21 +485,21 @@ at `$C6:FD00`, and without knowing what each stream holds their ports would be
 named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
 menus' map").
 
-`$C1`'s first four chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
-minds" and "Phase 3, battle chunk 2" to "chunk 4"): the enemies' scripts --
+`$C1`'s first five chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
+minds" and "Phase 3, battle chunk 2" to "chunk 5"): the enemies' scripts --
 the choosing, the conditions, the actions, the selectors -- the target search
 and the battlefield's questions, the random numbers, an enemy's turn to its
-end, the statuses' timers, and every action's effect worked out in C, the
+end, the statuses' timers, every action's effect worked out in C, the
 enemies' and the party's (the kinds, the damage formulas, the statuses, the
-modifiers, the steal and the inventory it gives to). What is left of the
-bank, by `python3 tools/burndown.py --uncovered C1` (65% of it covered), is
-the combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346
-bytes, `$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205`
-(2,140), the party's side of the showing (`$C1:CC0B` 1,018) and a party
-member's turn (`$C1:B961` 767, `$C1:BDB3`, `$C1:BCE1`). The member's turn is
-the next chunk: it is what calls the party's working out, and with it the
-direct page's cells the effect work leaves for the original (TODO.md) lose
-their last reader outside the showing.
+modifiers, the steal and the inventory it gives to), and a party member's
+chosen action carried out. What is left of the bank, by `python3
+tools/burndown.py --uncovered C1` (67% of it covered), is the combatants'
+animation commands and the enemy effects (`$C1:5CF1` 6,346 bytes, `$C1:4CF0`
+3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205` (2,140), the party's side
+of the showing (`$C1:CC0B` 1,018) and the battle's setup of its stats
+(`$C1:FA8B` 820). The party's side of the showing is the next chunk: with it
+a party action is C from the member's turn to its showing but for the
+targeting (`$C1:C1DD`), which the enemies' turn calls too.
 
 **`$C0`: the field and events.** The first chunk (RECOMP.md, "Phase 3, field
 and events: the party on the map") took the move and state commands off the

@@ -115,6 +115,13 @@ bool combatant_knocked_out(const GameState *g, unsigned slot)
     return (battle_stats_condition(g, slot) & CONDITION_KNOCKED_OUT) != 0;
 }
 
+static const Statuses KEEP_FROM_ACTING = STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | 0x80000000u;
+
+bool combatant_cant_act(const GameState *g, unsigned slot)
+{
+    return combatant_knocked_out(g, slot) || (combatant_statuses(g, slot) & KEEP_FROM_ACTING);
+}
+
 bool combatant_in_fight(const GameState *g, unsigned slot) { return combatant_fighting_as(g, slot) != COMBATANT_NONE; }
 
 uint8_t combatant_fighting_as(const GameState *g, unsigned slot)
@@ -155,19 +162,6 @@ void combatant_note_low_hp(GameState *g, unsigned slot)
 }
 
 /* ---- The statuses that run on timers ------------------------------------------------------ */
-
-/* Each timed status, and the bit of the combatant's statuses its timer
- * follows (kinds 6 and 7 time no status, and 12 is the turn). */
-static const struct {
-    BattleTimer timer;
-    Statuses status;
-} timed_statuses[] = {
-    { BATTLE_TIMER_BARRIER, 0x04000000 }, { BATTLE_TIMER_POISON, 0x00000040 },
-    { BATTLE_TIMER_HP_LOSS, 0x00000010 },  { BATTLE_TIMER_MP_REGAIN, 0x20000000 },
-    { BATTLE_TIMER_11, 0x00020000 }, { BATTLE_TIMER_SLOW, 0x00000020 },
-    { BATTLE_TIMER_SHIELD, 0x40000000 },  { BATTLE_TIMER_HASTE, 0x00800000 },
-    { BATTLE_TIMER_EVASION, 0x00400000 },  { BATTLE_TIMER_STOP, STATUS_STOP },
-};
 
 /* A combatant whose status bit restarts its script chooses afresh when the
  * bit comes or goes: its script forgets the block whose actions it was going
@@ -215,8 +209,9 @@ void combatant_follow_statuses(GameState *g, unsigned slot)
             if (!battle_slot_is_party(slot))
                 set_battle_enemy_animation(g, slot - BATTLE_FIRST_ENEMY, ENEMY_ANIMATION_IDLE);
         }
-        for (unsigned i = 0; i < sizeof timed_statuses / sizeof timed_statuses[0]; i++)
-            battle_follow_status(g, timed_statuses[i].timer, slot, (statuses & timed_statuses[i].status) != 0);
+        for (unsigned kind = 0; kind < BATTLE_TIMER_TURN; kind++)
+            if (battle_timed_status(kind))
+                battle_follow_status(g, kind, slot, (statuses & battle_timed_status(kind)) != 0);
     }
     if (battle_slot_is_party(slot)) {
         bool no_techs = !knocked_out && (statuses & STATUS_NO_TECHS);
