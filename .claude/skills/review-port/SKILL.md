@@ -764,6 +764,14 @@ Each of these is a finding. Every example here comes from this repo.
      it refuses. Use one: the helper that tests the guard and calls out
      keeps the rest of the routine C either way.
 
+105. **A scaffolding note run only on the original's path through a branch.**
+     `if (!(moves & X)) ORIGINAL_EFFECT(bit_test(...))` mirrors the original's
+     branch inside scaffolding (item 7 there); items 7 and 93 together.
+106. **A game-sounding bool that is really the carry of an unsigned add.**
+     `past_the_top = was + step > 0xFFFF` for a negative step. If the name
+     matches the carry only on the inputs that occur, it is the register:
+     write the game test (`step < 0`).
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the
