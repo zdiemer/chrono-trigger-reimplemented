@@ -179,7 +179,12 @@ call-out to still-generated code reads them, and liveness can't always prove
 a flag dead. The tempting answer -- carry the carry, V or Y through the
 formulas so the call-out sees the original's -- is the one that has failed
 review most often (battle's enemy scripts and its effects both went back for
-it). Don't thread a register through the logic. In this order:
+it). Don't thread a register through the logic. **Settle this before writing
+the chunk's logic, not after the review**: for every call-out and stop the
+chunk will keep, run `python3 tools/v_readers.py --after BB:AAAA` (and the
+liveness it reports for the other registers) and decide which of the steps
+below applies. A chunk whose flags can't be settled is narrowed then, not
+reworked later. In this order:
 
 1. **Find what the consumer does with it** and name that in the game's terms
    ("the running total passed 32767"); the wrapper derives it from the state
@@ -474,8 +479,19 @@ merge.
 
 ## Report
 
-What you ported (entries and bytes), the burndown and portstyle scores before
-and after, what shadow mode and fuzzing each found, any exception and why, what
-you left at the chunk's edge, and **where the workflow and the tools still
-hurt** — that last answer decides whether the next thing is another chunk or a
-tooling pass.
+Keep it short; the reviewer reads the code, not the report. Five parts:
+
+1. **Result**: the branch, the commit, and the gate's last line as printed
+   (`suite OK`, or the failing check).
+2. **What it does in the game**: a few lines, with the ROM ranges and the
+   entries added.
+3. **Numbers**: shadow calls compared and mismatched per new entry, fuzz
+   counts, burndown before and after, calibration changes, new exceptions.
+4. **Decisions for the coordinator**: anything accepted that a reviewer might
+   question (a kept register, a refused real call, a narrowed chunk, a
+   divergence), each with its reason in one line.
+5. **Where the workflow and the tools still hurt**: one line each. This
+   decides whether the next thing is another chunk or a tooling pass.
+
+Leave out what the diff shows (file lists, renames, doc edits) and anything
+the gate already proved.
