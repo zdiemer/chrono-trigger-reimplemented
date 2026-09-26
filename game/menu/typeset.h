@@ -6,7 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "menu/leaves.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -45,6 +44,7 @@ typedef struct {
     MenuTextPieceKind kind;
     uint8_t code;
     uint8_t bytes;
+    uint8_t arguments;   /* bytes it takes of the string's arguments */
 } MenuTextPiece;
 
 MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at);
@@ -56,10 +56,8 @@ uint32_t menu_text_string_begins(const GameState *g);
 bool menu_text_has_ended(const GameState *g);
 bool menu_text_in_an_insert(const GameState *g);
 
-/* A glyph's index among the font's (its width's place), and the offset of
- * the tile column it was drawn in, with the pen just past it. */
+/* A glyph's index among the font's (its width's place). */
 uint8_t menu_text_glyph_index(uint16_t glyph);
-uint16_t menu_text_glyph_column(const GameState *g, uint16_t glyph);
 
 /* Whether a label can be set: from memory, into work RAM, with none of its
  * names or lines on the text page (typeset.c's guards say why). */
@@ -72,11 +70,5 @@ void menu_set_label_entry(Snes *s);
 bool menu_text_is_startable(Snes *s);
 bool menu_text_can_go_on(Snes *s);
 bool menu_label_is_settable(Snes *s);
-
-/* The registers the typesetter's entries leave, worked out by menu/leaves.c,
- * handed to the machine with A: for a port that sets a label as C where the
- * original's caller returns what the setting left (the save screen's chapter
- * label). Scaffolding (ORIGINAL_EFFECT). */
-void menu_text_hand_on(Snes *s, MenuIndexLeft left, uint16_t a);
 
 #endif

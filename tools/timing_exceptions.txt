@@ -112,9 +112,6 @@ palette_lighten_all vblank-tail its colors' channels scaled in C and its scratch
 # whose mix of save RAM, cartridge and work RAM moves costs a little less per
 # byte than the dial's work RAM ones; the dial's other 946 calls move nothing.
 menu_epoch_time_dial_object vblank-tail its setup call's buffer moves charged at the block move's per-byte rate; 1.58% of vblank calls off by 1024 clocks or more, at most 4549 clocks, writing the buffers the next frame's HDMA reads
-menu_show_record_frame vblank-tail builds a menu record's frame's tiles into the frame buffer in work RAM and queues them for the next vblank, from the records' task; the original's time follows the frame's mix of blank, copied and mirrored tiles and where its graphics are (the ROM or unpacked in work RAM), which the estimate charges at the block move's rate from counts the port can't make exact: mean |error| 11.3% with no drift, at most 32018 clocks, writing RAM only
-menu_show_record_frame vblank-worst as for its vblank-tail
-menu_animate_record vblank-tail carries on a menu record's animation, and on a change of frame builds its tiles through menu_show_record_frame, whose spread it carries: mean |error| 10.3% with no drift, at most 32022 clocks, writing RAM only
-menu_animate_record vblank-worst as for its vblank-tail
-menu_step_record_animation vblank-tail as menu_animate_record, a frame on: mean |error| 12.4% with no drift, at most 31565 clocks, writing RAM only
-menu_step_record_animation vblank-worst as for its vblank-tail
+menu_show_record_frame vblank-tail builds a menu record's frame's tiles into the frame buffer in work RAM and queues them for the next vblank, from the records' task; it fills and copies the tiles itself, charged as the block move's bytes, and builds a mirrored tile a byte at a time, so the original's time for the frame's mix of blank, copied and mirrored tiles is left to calibration: mean |error| 6.9% with no drift, at most 10952 clocks, writing RAM only
+menu_animate_record vblank-tail carries on a menu record's animation, and on a change of frame builds its tiles through menu_show_record_frame, whose spread it carries: mean |error| 6.4% with no drift, at most 11292 clocks, writing RAM only
+menu_step_record_animation vblank-tail as menu_animate_record, a frame on: mean |error| 5.8% with no drift, at most 10785 clocks, writing RAM only

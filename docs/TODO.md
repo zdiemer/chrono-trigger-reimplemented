@@ -569,6 +569,21 @@ rest waits, is [PLAN.md](PLAN.md).
     writes it) is not worked out;
   - `$C2:F6F5`, an entry into the animation's step past its frame's advance
     that nothing calls, is not ported;
+  - the sprite tables' accessors in `menu_data.h` take byte places the port
+    works out (`a.graphics * 3 + table`); accessors that take the sprite's
+    numbers would keep the tables' layout in one place (review item 64), and
+    the long and short assignments' test is written twice (the place and the
+    size);
+  - `sprites.c` steps its pointers with `in_bank` in some places and `+` in
+    others, as the original's word and long adds do; a comment where each
+    is chosen would say why;
+  - the palette's changed count is bumped in place
+    (`set_menu_palette_changed(g, menu_palette_changed(g) + 1)`); a
+    `menu_note_palette_changed` would name it;
+  - `menu_record_animation_count` is a facing's frames, which its name
+    doesn't say;
+  - the save screen's chapter label builds its place and calls the label
+    setting inline in its entry and its guard; a helper would say it once;
 - **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
   typesetter, the graphics and the items"):
   - the typesetter's `$12` followed by 2-7, which jumps into code in the

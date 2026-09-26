@@ -227,7 +227,6 @@ static void insert_name_at(GameState *g, uint16_t place)
     set_menu_text_reading_insert_left(g, glyphs_before(g, at, NAME_END, NAME_GLYPHS));
 }
 
-static void insert_character_name(GameState *g, unsigned index) { insert_name_at(g, menu_character_name_place(g, index)); }
 
 /* An item's or a tech's name ($CC:0B5E, $CC:15C4, eleven bytes a name, an
  * icon first where it has one) up to its first space; an enemy's all eleven.
@@ -366,6 +365,28 @@ static uint8_t member_name(const GameState *g, uint8_t code)
     return (uint8_t)(party_members(g, code - CODE_MEMBER_1) * 2) / 2;
 }
 
+/* The codes that insert a character's name, and where the name is: the
+ * character the argument names ($11), one of the seven by the code, the
+ * party's leader, a member of the party, or the Epoch. */
+static bool names_a_character(uint8_t code)
+{
+    return code == CODE_CHARACTER || (code >= CODE_CRONO && code <= CODE_MAGUS) || code == CODE_LEADER
+           || (code >= CODE_MEMBER_1 && code <= CODE_MEMBER_3) || code == CODE_EPOCH;
+}
+
+static uint16_t character_name_place(const GameState *g, uint8_t code, uint8_t argument)
+{
+    if (code == CODE_CHARACTER)
+        return menu_character_name_place(g, argument);
+    if (code >= CODE_CRONO && code <= CODE_MAGUS)
+        return menu_character_name_place(g, (unsigned)(code - CODE_CRONO));
+    if (code == CODE_LEADER)
+        return MENU_FIRST_NAME;
+    if (code == CODE_EPOCH)
+        return (uint16_t)(MENU_FIRST_NAME + EPOCH_NAME * MENU_NAME_BYTES);
+    return menu_character_name_place(g, member_name(g, code));
+}
+
 /* What reading a control code does: true if the string goes on this call. */
 static bool control_code(GameState *g, uint8_t code, uint8_t *budget)
 {
@@ -382,20 +403,12 @@ static bool control_code(GameState *g, uint8_t code, uint8_t *budget)
         return false;
     if (code >= CODE_NUMBER_BYTE && code <= CODE_NUMBER_LONG)
         insert_number(g, (uint8_t)(code - CODE_NUMBER_BYTE + 1));
-    else if (code == CODE_CHARACTER)
-        insert_character_name(g, (unsigned)next_argument(g, 1));
-    else if (code >= CODE_CRONO && code <= CODE_MAGUS)
-        insert_character_name(g, code - CODE_CRONO);
-    else if (code == CODE_LEADER)
-        insert_name_at(g, MENU_FIRST_NAME);
-    else if (code >= CODE_MEMBER_1 && code <= CODE_MEMBER_3)
-        insert_character_name(g, member_name(g, code));
+    else if (names_a_character(code))
+        insert_name_at(g, character_name_place(g, code, code == CODE_CHARACTER ? (uint8_t)next_argument(g, 1) : 0));
     else if (code == CODE_NADIA)
         insert(g, FROM_INSERT, MENU_MARLE_REAL_NAME, MARLE_REAL_NAME_GLYPHS);
     else if (code == CODE_ITEM)
         insert_item_name(g, (uint8_t)event_variables(g, 0));
-    else if (code == CODE_EPOCH)
-        insert_name_at(g, (uint16_t)(MENU_FIRST_NAME + EPOCH_NAME * MENU_NAME_BYTES));
     else {   /* CODE_NAMED */
         uint8_t what = next_string_byte(g);
         if (what >= NAMED_WORDS)
@@ -505,7 +518,7 @@ uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t 
 MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at)
 {
     uint8_t b = menu_text_byte(g, at);
-    MenuTextPiece p = { MENU_TEXT_INSERT, b, 1 };
+    MenuTextPiece p = { MENU_TEXT_INSERT, b, 1, 0 };
     if (b >= FIRST_GLYPH) {
         p.kind = MENU_TEXT_GLYPH;
     } else if (b == 1 || b == 2) {
@@ -520,9 +533,15 @@ MenuTextPiece menu_text_piece_at(const GameState *g, uint32_t at)
         uint8_t what = menu_text_byte(g, stepped(at, 1));
         if (what > NAMED_ENEMY && what < NAMED_WORDS)
             p.kind = MENU_TEXT_STOP;
+        else if (what < NAMED_WORDS)
+            p.arguments = 1;
         p.bytes = 2;
     } else if (b == CODE_END || b == CODE_PAUSE || (b >= CODE_BREAKS_FROM && b <= CODE_BREAKS_TO)) {
         p.kind = MENU_TEXT_STOP;
+    } else if (b >= CODE_NUMBER_BYTE && b <= CODE_NUMBER_LONG) {
+        p.arguments = (uint8_t)(b - CODE_NUMBER_BYTE + 1);
+    } else if (b == CODE_CHARACTER) {
+        p.arguments = 1;
     }
     return p;
 }
@@ -537,23 +556,8 @@ bool menu_text_in_an_insert(const GameState *g) { return menu_text_reading_sourc
 
 uint8_t menu_text_glyph_index(uint16_t glyph) { return (uint8_t)(glyph - FIRST_GLYPH); }
 
-uint16_t menu_text_glyph_column(const GameState *g, uint16_t glyph)
-{
-    uint8_t width = menu_glyph_width(g, menu_text_glyph_index(glyph));
-    unsigned column = (uint8_t)(menu_text_reading_pen(g) - width) / 8u;
-    return tiles_of_layout(layout(g)) == MENU_TILES_4_COLOUR ? menu_text_column_offset(g, column)
-                                                            : menu_text_column_offset_16_colour(g, column);
-}
 
 /* ---- The entries ------------------------------------------------------------------------- */
-
-void menu_text_hand_on(Snes *s, MenuIndexLeft left, uint16_t a)
-{
-    s->cpu.a = a;
-    s->cpu.x = left.x;
-    if (left.y_set)
-        s->cpu.y = left.y;
-}
 
 // $C2:57DF
 void menu_text_start_entry(Snes *s)
@@ -617,53 +621,47 @@ bool menu_text_is_startable(Snes *s)
     return ok;
 }
 
-/* A call keeps its budget in hand, where the original counts it down on the
- * text page as it goes; the two part only for a text that reads or draws
- * over the page's budget before the call ends, which the game's never do: a
- * name past the seven places of the table of names ($C2:5FD8), read through
- * the table's neighbours from anywhere, the page included; and a label long
- * enough for its lines, $400 bytes apart and wrapping at the bank's end, to
- * come round onto the page. So the guards read a text ahead to where its call
- * (or a label's last line) would stop, and turn such a text away, and one
- * that doesn't stop within MOST_PIECES_AHEAD of its pieces too. A label goes
- * on past a new line, and past a pause, which leaves the stop it found. */
-enum { NAMES_IN_TABLE = 7, MOST_PIECES_AHEAD = 0x400 };
+/* A call keeps its budget in hand, where the original counts it down in its
+ * cell on the text page as it goes: the two part only for a text whose call
+ * reads that cell, as a string, an argument or an insert. The game's texts
+ * never do; one could through a name past the seven places of the table of
+ * names ($C2:5FD8, read through the table's neighbours from anywhere), more
+ * than 19 arguments' worth of bytes, or a pointer onto the page. So the
+ * guards read a text ahead to where its call (or a label's last line) would
+ * stop, and turn away a text that reads the budget's cell, whose label lines
+ * come round onto the page, or that doesn't stop within MOST_PIECES_AHEAD of
+ * its pieces. A label goes on past a new line, and past a pause, which leaves
+ * the stop it found. */
+enum { BUDGET_CELL = 0x0213, MOST_PIECES_AHEAD = 0x400 };
 
-static bool on_the_text_page(uint32_t at)
+/* Whether `bytes` bytes from `at` (stepping on within the bank) take in the
+ * budget's cell, in work RAM's bank or its low mirror in a system bank. */
+static bool reads_budget(uint32_t at, uint16_t bytes)
 {
     uint8_t bank = (uint8_t)(at >> 16);
-    uint16_t address = (uint16_t)at;
-    return (bank == 0x7E || (bank & 0x7F) < 0x40) && address >= TEXT_PAGE && address < TEXT_PAGE_END;
+    if (bank != 0x7E && (bank & 0x7F) >= 0x40)
+        return false;
+    return (uint16_t)(BUDGET_CELL - (uint16_t)at) < bytes;
 }
 
-static bool stays_off_the_page(const GameState *g, uint32_t at, uint32_t arguments, bool label, uint32_t line)
+static bool stays_off_the_budget(const GameState *g, uint32_t at, uint32_t arguments, bool label, uint32_t line)
 {
     for (uint16_t n = 0; n < MOST_PIECES_AHEAD; n = (uint16_t)(n + 1)) {
         MenuTextPiece p = menu_text_piece_at(g, at);
-        uint8_t c = p.code;
+        if (reads_budget(at, p.bytes) || reads_budget(arguments, p.arguments))
+            return false;
         if (p.kind == MENU_TEXT_STOP) {
-            if (!label || (c != NEW_LINE && c != CODE_PAUSE))
+            if (!label || (p.code != NEW_LINE && p.code != CODE_PAUSE))
                 return true;
             line = next_label_line(line);
             if (!tiles_are_writable(line))
                 return false;
-        } else if (p.kind == MENU_TEXT_INSERT && c < FIRST_WORD) {
-            uint8_t taken = 0;
-            if (c >= CODE_NUMBER_BYTE && c <= CODE_NUMBER_LONG) {
-                taken = (uint8_t)(c - CODE_NUMBER_BYTE + 1);
-            } else if (c == CODE_CHARACTER) {
-                if (menu_text_byte(g, arguments) >= NAMES_IN_TABLE)
-                    return false;
-                taken = 1;
-            } else if (c >= CODE_MEMBER_1 && c <= CODE_MEMBER_3) {
-                if (member_name(g, c) >= NAMES_IN_TABLE)
-                    return false;
-            } else if (c == CODE_NAMED) {
-                uint8_t what = menu_text_byte(g, stepped(at, 1));
-                taken = what == NAMED_TECH || what == NAMED_ENEMY ? 1 : 0;
-            }
-            arguments = stepped(arguments, taken);
+        } else if (names_a_character(p.code)) {
+            uint8_t argument = p.code == CODE_CHARACTER ? menu_text_byte(g, arguments) : 0;
+            if (reads_budget(MENU_NAMES_BANK | character_name_place(g, p.code, argument), NAME_GLYPHS))
+                return false;
         }
+        arguments = stepped(arguments, p.arguments);
         at = stepped(at, p.bytes);
     }
     return false;
@@ -671,8 +669,8 @@ static bool stays_off_the_page(const GameState *g, uint32_t at, uint32_t argumen
 
 /* Taking a text up: it is at one of the stops a call leaves, reading from
  * one of the four sources, both from memory; the arguments on the text page;
- * and neither what is left of an insert nor what the call reads on is on the
- * page's cells (above). */
+ * and neither what is left of an insert nor what the call reads on takes in
+ * the budget's cell (above). */
 enum { MOST_STOP = 0x20 };
 
 static bool can_go_on(const GameState *g)
@@ -684,16 +682,16 @@ static bool can_go_on(const GameState *g)
         return false;
     if (menu_text_stop(g) == STOP_FINISHED)
         return true;
-    if (source == FROM_INSERT && on_the_text_page(menu_text_reading_insert(g)))
+    if (source != FROM_STRING && reads_budget(menu_text_reading_insert(g), menu_text_reading_insert_left(g)))
         return false;
-    return stays_off_the_page(g, menu_text_reading_at(g), menu_text_reading_arguments_at(g), false, 0);
+    return stays_off_the_budget(g, menu_text_reading_at(g), menu_text_reading_arguments_at(g), false, 0);
 }
 
 bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles)
 {
     uint32_t line = TILES_BANK | tiles;
     return readable(strings) && tiles_are_writable(line)
-           && stays_off_the_page(g, string_begins(g, strings, string), ARGUMENTS, true, line);
+           && stays_off_the_budget(g, string_begins(g, strings, string), ARGUMENTS, true, line);
 }
 
 bool menu_text_can_go_on(Snes *s)

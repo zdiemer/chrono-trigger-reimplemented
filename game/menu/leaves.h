@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "snes/system.h"
 #include "state.h"
 
 /* What a routine leaves in the index registers; Y only where `y_set`, and
@@ -28,5 +29,11 @@ MenuIndexLeft menu_text_went_on_leaves(const GameState *g, bool begun, uint32_t 
 
 /* The label setting ($C2:F90C): its last call's X and Y. */
 MenuIndexLeft menu_label_set_leaves(const GameState *g);
+
+/* Hand what a routine leaves in the index registers to the machine, with A:
+ * the typesetter's entries, and a port that sets a label as C where the
+ * original's caller returns what the setting left (the save screen's chapter
+ * label). */
+void menu_text_hand_on(Snes *s, MenuIndexLeft left, uint16_t a);
 
 #endif

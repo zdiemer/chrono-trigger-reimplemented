@@ -759,7 +759,7 @@ static void leave_record_drawn(GameState *g, unsigned record)
  * frame's uploads out among the records (menu_record_block_limit). */
 enum { NO_SPRITE = 0xFF, NO_FRAME = 0xFF, NO_ANIMATION = 0xFF, ANIMATION_BITS = 0x7F, LOOPS = 0x80 };
 enum { SPRITE_TABLES_BANK = 0xE4, OTHER_COLOURS = 0x10, OTHER_COLOURS_OFFSET = 0x200 };
-enum { PLAYABLE_CHARACTERS = 0, LONG_ASSIGNMENTS_DOUBLED = 4, SHORT_ASSIGNMENT = 5, LONG_ASSIGNMENT = 10 };
+enum { FRAMES_AN_ANIMATION = 4, FACINGS = 4 };
 
 typedef struct {
     uint8_t graphics, frames, colours, animations, size;
@@ -768,13 +768,18 @@ typedef struct {
 /* A 24-bit address stepped on within its bank. */
 static uint32_t in_bank(uint32_t at, uint16_t by) { return (at & 0xFF0000u) | (uint16_t)(at + by); }
 
+/* The three sets of sprites: the playable characters' first, whose five-byte
+ * assignments name graphics the ROM keeps as they are; the others' graphics
+ * are packed, and the last set's assignments are ten bytes. */
+enum { PLAYABLE_CHARACTERS = 0, LONG_ASSIGNMENTS = 2, SPRITE_SETS = 3, SHORT_ASSIGNMENT = 5, LONG_ASSIGNMENT = 10 };
+
+static uint8_t assignment_bytes(uint8_t set) { return set >= LONG_ASSIGNMENTS ? LONG_ASSIGNMENT : SHORT_ASSIGNMENT; }
+
 /* The sprite's assignment: its set's place, the sprite's number times the
  * set's assignment size on (the original multiplies with the hardware). */
 static uint16_t assignment_place(const GameState *g, uint8_t set, uint8_t sprite)
 {
-    uint8_t doubled = (uint8_t)(set << 1);
-    uint8_t bytes = doubled >= LONG_ASSIGNMENTS_DOUBLED ? LONG_ASSIGNMENT : SHORT_ASSIGNMENT;
-    return (uint16_t)(menu_sprite_set_place(g, doubled) + sprite * bytes);
+    return (uint16_t)(menu_sprite_set_place(g, (uint8_t)(set << 1)) + sprite * assignment_bytes(set));
 }
 
 static void leave_multiplied(GameState *g, uint8_t a, uint8_t b)
@@ -792,13 +797,18 @@ static SpriteAssignment read_assignment(const GameState *g, uint16_t at)
 }
 
 /* The load keeps the assignment where the frames' tile lists go later, its
- * size byte down to the colour set's bit. */
-static void leave_assignment(GameState *g, SpriteAssignment a)
+ * size byte down to the colour set's bit, having looked it up with the
+ * multiplier; and leaves its animations' number doubled in the menus' first
+ * cells. */
+static void leave_assignment(GameState *g, uint8_t set, uint8_t sprite, SpriteAssignment a)
 {
+    leave_multiplied(g, sprite, assignment_bytes(set));
     set_menu_record_frame_tile_list(g, 0, (uint16_t)(a.graphics | a.frames << 8));
     set_menu_record_frame_tile_list(g, 1, (uint16_t)(a.colours | a.animations << 8));
     set_menu_record_frame_tile_list(g, 2, (uint16_t)(a.size & OTHER_COLOURS));
     charge_block_move(g, MENU_SPRITE_ASSIGNMENT_BYTES);
+    if (a.graphics != NO_SPRITE)
+        set_menu_scratch_sprite_animations_entry(g, (uint16_t)(a.animations * 2));
 }
 
 /* The record's sprite palette: twelve colours past its first, the palette
@@ -830,7 +840,9 @@ typedef struct {
 /* Load a record's sprite: shown, no animation and no frame yet, its
  * graphics, frames, animations and colours from its assignment. A sprite
  * whose assignment names no graphics keeps the rest as it was; one with no
- * animations keeps its colours. */
+ * animations keeps its colours. A sprite's animations' span of frames is a
+ * multiple of four (four facings), in every entry of the ROM's table
+ * (tests/test_menu_sprites.py). */
 static Unpacking load_record_sprite(GameState *g, unsigned record)
 {
     Unpacking none = { false, 0, 0 };
@@ -842,10 +854,8 @@ static Unpacking load_record_sprite(GameState *g, unsigned record)
     set_menu_record_frame_list(g, record, (uint32_t)SPRITE_TABLES_BANK << 16 | (uint16_t)menu_record_frame_list(g, record));
     set_menu_record_frame_times(g, record, (uint32_t)SPRITE_TABLES_BANK << 16 | (uint16_t)menu_record_frame_times(g, record));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
-    uint16_t at = assignment_place(g, set, sprite);
-    ORIGINAL_EFFECT(leave_multiplied(g, sprite, (uint8_t)(set << 1) >= LONG_ASSIGNMENTS_DOUBLED ? LONG_ASSIGNMENT : SHORT_ASSIGNMENT));
-    SpriteAssignment a = read_assignment(g, at);
-    ORIGINAL_EFFECT(leave_assignment(g, a));
+    SpriteAssignment a = read_assignment(g, assignment_place(g, set, sprite));
+    ORIGINAL_EFFECT(leave_assignment(g, set, sprite, a));
     set_menu_record_sprite_count(g, record, menu_sprite_blocks(g, a.size));
     if (a.graphics == NO_SPRITE)
         return none;
@@ -855,16 +865,14 @@ static Unpacking load_record_sprite(GameState *g, unsigned record)
     set_menu_record_frame_data(g, record, menu_sprite_place(g, (uint16_t)(a.frames * 3 + menu_sprite_frames_table(g))));
 
     uint16_t entry = (uint16_t)(a.animations * 2);
-    ORIGINAL_EFFECT(set_menu_scratch_sprite_animations_entry(g, entry));
     uint16_t frames_at = (uint16_t)(entry + menu_sprite_animation_frames_table(g));
     uint16_t first = menu_sprite_table_word(g, frames_at);
     set_menu_record_animation_frames_at(g, record, first);
-    uint16_t span = (uint16_t)(menu_sprite_table_word(g, (uint32_t)frames_at + 2u) - first);
+    uint16_t span = (uint16_t)(menu_sprite_table_word(g, (uint16_t)(frames_at + 2)) - first);
     if (span == 0)
         return none;
-    set_menu_record_animation_count(g, record, (uint16_t)(span >> 2));
-    /* the original's add takes in the carry its division by four left */
-    uint16_t times_at = (uint16_t)(entry + menu_sprite_animation_times_table(g) + ((span >> 1) & 1));
+    set_menu_record_animation_count(g, record, (uint16_t)(span / FACINGS));
+    uint16_t times_at = (uint16_t)(entry + menu_sprite_animation_times_table(g));
     set_menu_record_animation_times_at(g, record, menu_sprite_table_word(g, times_at));
 
     uint16_t colours = menu_sprite_table_word(g, (uint16_t)(a.colours * 2 + menu_sprite_colours_table(g)));
@@ -882,84 +890,85 @@ static Unpacking load_record_sprite(GameState *g, unsigned record)
 /* ---- A record's frame ---- */
 
 /* A frame's tiles are 16 a block, a word each: 0 a blank tile, otherwise a
- * tile of the sprite's graphics (bits 0-10), mirrored where bit 14 is set.
- * They are built in the frame buffer from $7E:8000, $200 bytes a block, in
- * the order the blocks are queued in a frame, and queued for VRAM from the
- * record's first tile on. */
+ * tile of the sprite's graphics (bits 0-10), mirrored left to right where bit
+ * 14 is set. They are built in the frame buffer from $7E:8000, $200 bytes a
+ * block, in the order the blocks are queued in a frame, and queued for VRAM
+ * from the record's first tile on. */
 enum { TILE_BYTES = 32, TILE_NUMBER = 0x7FF, MIRRORED = 0x4000, BLOCK_BYTES = 0x200, BLOCK_TILE_LIST = 32 };
 enum { FRAME_BUFFER = 0x8000, TILE_NUMBER_BITS = 0x1FF, SPRITE_TILES_VRAM = 0x4000, HALF_BLOCK = 0x100 };
+
+typedef struct {
+    bool blank;
+    uint16_t number;
+    bool mirrored;
+} FrameTile;
+
+static FrameTile decode_tile(uint16_t word) { return (FrameTile){ word == 0, (uint16_t)(word & TILE_NUMBER), (word & MIRRORED) != 0 }; }
 
 /* The block move the original copies a frame's pieces with: its stub, with
  * the bank it copies from. */
 enum { STUB_MOVE_TO_WORK_RAM = 0x7E54, STUB_RETURN = 0x6B };
 
-static void leave_stub_from(GameState *g, uint8_t bank)
+/* Where a frame's blocks go in the frame buffer: past the blocks queued this
+ * frame already, and half a block further where the buffer's half says (the
+ * place wraps within the bank, as the original's word does). */
+enum { HALF_ON = 0x80 };
+
+static uint32_t frame_buffer_for(const GameState *g, uint8_t blocks_before)
 {
-    set_menu_block_move_stub(g, (uint32_t)STUB_RETURN << 24 | (uint32_t)bank << 16 | STUB_MOVE_TO_WORK_RAM);
+    uint16_t offset = (uint16_t)(blocks_before * BLOCK_BYTES + (menu_record_buffer_half(g) & HALF_ON ? HALF_BLOCK : 0));
+    return FRAME_BUFFER + (uint32_t)offset;
 }
 
-/* Where this frame's blocks go in the frame buffer: past the blocks queued
- * this frame already (and half a block more where the buffer's half says). */
-static uint16_t frame_buffer_place(const GameState *g)
-{
-    uint16_t sent = (uint16_t)(menu_record_buffer_half(g) | menu_record_blocks_sent(g) << 8);
-    return (uint16_t)(FRAME_BUFFER + ((uint16_t)(sent << 1) & 0xFF00));
-}
-
-/* The original's time for a tile, as block-moved bytes (7 cycles each): a
- * blank tile's stores about 19, a copied one's loop about 9 past its 32
- * bytes, and a mirrored one's turning round about 131 more. */
-enum { BLANK_TILE_CHARGE = 19, TILE_LOOP_CHARGE = 9, MIRRORING_CHARGE = 131 };
-
+/* Tiles are copied from the sprite's graphics, in the ROM or unpacked in work
+ * RAM, and charged at the block move's rate for the bytes filled or copied. */
 static void put_blank_tile(GameState *g, uint16_t at)
 {
     wram_fill8(g, WORK_RAM_BANK | at, TILE_BYTES, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, BLANK_TILE_CHARGE));
+    ORIGINAL_EFFECT(charge_block_move(g, TILE_BYTES));
 }
 
-static void put_tile(GameState *g, uint32_t graphics, uint16_t tile, uint16_t at)
+static void put_tile(GameState *g, uint32_t graphics, FrameTile tile, uint16_t at)
 {
-    uint32_t from = in_bank(graphics, (uint16_t)((tile & TILE_NUMBER) * TILE_BYTES));
-    wram_copy(g, from, WORK_RAM_BANK | at, TILE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, TILE_BYTES + TILE_LOOP_CHARGE));
-    if (!(tile & MIRRORED))
+    uint32_t from = in_bank(graphics, (uint16_t)(tile.number * TILE_BYTES));
+    if (!tile.mirrored) {
+        wram_copy(g, from, WORK_RAM_BANK | at, TILE_BYTES);
+        ORIGINAL_EFFECT(charge_block_move(g, TILE_BYTES));
         return;
-    for (unsigned i = 0; i < TILE_BYTES; i++) {
-        uint32_t b = WORK_RAM_BANK | (uint16_t)(at + i);
-        wram_write8(g, b, menu_mirrored_pixels(g, wram_read8(g, b)));
     }
-    ORIGINAL_EFFECT(charge_block_move(g, MIRRORING_CHARGE));
+    uint8_t pixels[TILE_BYTES];
+    for (unsigned i = 0; i < TILE_BYTES; i++)
+        pixels[i] = menu_mirrored_pixels(g, menu_sprite_byte(g, in_bank(from, (uint16_t)i)));
+    for (unsigned i = 0; i < TILE_BYTES; i++)
+        wram_write8(g, WORK_RAM_BANK | (uint16_t)(at + i), pixels[i]);
 }
+
+/* The place in VRAM of a frame's next block: 8 tiles along the upper row of
+ * tiles the last started on, and round to the next pair of rows at a row's
+ * end (a row of tiles is $100 words; a block's lower row the next one). */
+enum { BLOCK_ALONG = 0x80, TILE_ROW = 0x100 };
+
+static uint16_t next_block_place(uint16_t upper_row) { return (uint16_t)((upper_row + TILE_ROW + BLOCK_ALONG) & ~TILE_ROW); }
 
 /* The upload of a frame's blocks: one run of them where they are an even
  * number (their tiles laid out as VRAM has them), and otherwise each block's
  * two rows of tiles on their own, its upper row where the block starts and
- * its lower a row of tiles ($100 words) on, the next block 8 tiles along. */
-static MenuUpload queue_frame(GameState *g, MenuUpload u, uint8_t blocks)
+ * its lower a row of tiles on. */
+static void queue_frame(GameState *g, uint16_t vram, uint32_t source, uint8_t blocks, uint8_t spare)
 {
     if (!(blocks & 1)) {
-        u.size = (uint16_t)((uint8_t)(blocks * 2) << 8);
+        MenuUpload u = { vram, source, (uint16_t)(blocks * BLOCK_BYTES), spare };
         TIMED_AS(g, 0xC2838E, menu_queue_upload(g, u));
-        return u;
+        return;
     }
-    for (uint8_t left = blocks;;) {
-        TIMED_AS(g, 0xC2838E, menu_queue_upload(g, u));
-        u.vram = (uint16_t)(u.vram + 0x100);
-        u.source = in_bank(u.source, 0x100);
-        TIMED_AS(g, 0xC2838E, menu_queue_upload(g, u));
-        if (--left == 0)
-            return u;
-        uint16_t along = (uint16_t)((u.vram & 0xFF) + 0x80);
-        u.vram = (uint16_t)((uint8_t)along | ((uint8_t)((u.vram >> 8) + (along >> 8)) & 0xFE) << 8);
-        u.source = in_bank(u.source, 0x100);
+    for (uint8_t block = 0; block < blocks; block++) {
+        MenuUpload upper = { vram, source, HALF_BLOCK, spare };
+        MenuUpload lower = { (uint16_t)(vram + TILE_ROW), in_bank(source, HALF_BLOCK), HALF_BLOCK, spare };
+        TIMED_AS(g, 0xC2838E, menu_queue_upload(g, upper));
+        TIMED_AS(g, 0xC2838E, menu_queue_upload(g, lower));
+        vram = next_block_place(vram);
+        source = in_bank(source, BLOCK_BYTES);
     }
-}
-
-static void leave_upload(GameState *g, MenuUpload u)
-{
-    set_menu_record_upload_vram(g, u.vram);
-    set_menu_record_upload_source(g, u.source);
-    set_menu_record_upload_size(g, u.size);
 }
 
 /* A frame's tiles: 16 a block, as many as the record's sprite has blocks (a
@@ -986,88 +995,87 @@ static FrameTiles frame_tiles_at(const GameState *g, uint32_t list, uint8_t bloc
 }
 
 // $C2:F75C
-/* Build the frame's tiles and queue them. */
+/* Build the frame's tiles into the frame buffer and queue them. */
 static void show_frame_tiles(GameState *g, unsigned record, const FrameTiles *t)
 {
     uint32_t graphics = menu_record_graphics(g, record);
     uint8_t blocks = menu_record_sprite_count(g, record);
-    uint16_t buffer = frame_buffer_place(g);
-    ORIGINAL_EFFECT(leave_stub_from(g, (uint8_t)(graphics >> 16)));
-    ORIGINAL_EFFECT(set_menu_scratch_frame_tiles_end(g, (uint16_t)((blocks & 0x0F) * BLOCK_TILE_LIST)));
-    uint16_t at = buffer;
-    bool mirrored = false;
+    uint16_t buffer = (uint16_t)frame_buffer_for(g, menu_record_blocks_sent(g));
     for (unsigned i = 0; i < t->count; i++) {
-        uint16_t tile = t->tile[i];
-        if (tile == 0)
+        FrameTile tile = decode_tile(t->tile[i]);
+        uint16_t at = (uint16_t)(buffer + i * TILE_BYTES);
+        if (tile.blank)
             put_blank_tile(g, at);
         else
             put_tile(g, graphics, tile, at);
-        mirrored |= tile != 0 && (tile & MIRRORED);
-        at = (uint16_t)(at + TILE_BYTES);
     }
-    if (mirrored)
-        ORIGINAL_EFFECT(set_menu_scratch_frame_mirror_bytes(g, 0));
-
-    MenuUpload u = { (uint16_t)(((menu_record_tile(g, record) & TILE_NUMBER_BITS) << 4) | SPRITE_TILES_VRAM),
-                     WORK_RAM_BANK | buffer, HALF_BLOCK, menu_record_upload_spare(g) };
-    ORIGINAL_EFFECT(set_menu_scratch_frame_blocks_left(g, blocks));
+    uint16_t vram = (uint16_t)(((menu_record_tile(g, record) & TILE_NUMBER_BITS) << 4) | SPRITE_TILES_VRAM);
     set_menu_record_blocks_sent(g, (uint8_t)(menu_record_blocks_sent(g) + blocks));
-    u = queue_frame(g, u, blocks);
-    if (blocks & 1)
-        ORIGINAL_EFFECT(set_menu_scratch_frame_blocks_left(g, 0));
-    ORIGINAL_EFFECT(leave_upload(g, u));
+    queue_frame(g, vram, WORK_RAM_BANK | buffer, blocks, menu_record_upload_spare(g));
+}
+
+/* What the original's frame building leaves: the block move's stub on the
+ * graphics' bank; in the menus' first cells, the tile list's end, the
+ * mirrored tile's byte count run out where it mirrored one, and its count of
+ * the blocks left to queue (out where it queued them a block at a time); and
+ * the last upload it queued, in the record it built them in. */
+static bool any_mirrored(const FrameTiles *t)
+{
+    for (unsigned i = 0; i < t->count; i++)
+        if (!decode_tile(t->tile[i]).blank && decode_tile(t->tile[i]).mirrored)
+            return true;
+    return false;
+}
+
+static void leave_frame_built(GameState *g, unsigned record, const FrameTiles *t)
+{
+    uint8_t blocks = menu_record_sprite_count(g, record);
+    uint8_t bank = (uint8_t)(menu_record_graphics(g, record) >> 16);
+    set_menu_block_move_stub(g, (uint32_t)STUB_RETURN << 24 | (uint32_t)bank << 16 | STUB_MOVE_TO_WORK_RAM);
+    set_menu_scratch_frame_tiles_end(g, (uint16_t)((blocks & 0x0F) * BLOCK_TILE_LIST));
+    if (any_mirrored(t))
+        set_menu_scratch_frame_mirror_bytes(g, 0);
+    set_menu_scratch_frame_blocks_left(g, (blocks & 1) ? 0 : blocks);
+    unsigned last = (uint8_t)(menu_vram_queue_bytes(g) - MENU_UPLOAD_BYTES) / MENU_UPLOAD_BYTES;
+    set_menu_record_upload_vram(g, menu_vram_queue_vram(g, last));
+    set_menu_record_upload_source(g, (uint32_t)menu_vram_queue_bank(g, last) << 16 | menu_vram_queue_source(g, last));
+    set_menu_record_upload_size(g, menu_vram_queue_size(g, last));
 }
 
 /* The original copies the frame's tile list over the save summary, where its
- * frame's building reads it back. */
-static void leave_tile_list(GameState *g, const FrameTiles *t)
+ * frame's building reads it back, having found the frame with the
+ * multiplier. */
+static void leave_frame_found(GameState *g, uint8_t frame, uint8_t frame_bytes, const FrameTiles *t)
 {
+    leave_multiplied(g, frame, frame_bytes);
     for (unsigned i = 0; i < t->count; i++)
         set_menu_record_frame_tile_list(g, i, t->tile[i]);
     charge_block_move(g, 2 * t->count);
 }
 
-/* Show a frame of the record's sprite: its tiles and its sprites' offsets
- * from the frame's data, the frame's tiles built and queued. */
+/* Show a frame of the record's sprite: its sprites' offsets from the frame's
+ * data, and its tiles built and queued. */
 static void show_frame(GameState *g, unsigned record, uint8_t frame)
 {
     uint8_t blocks = menu_record_sprite_count(g, record);
     uint8_t bytes = menu_sprite_frame_bytes(g, blocks);
-    uint32_t data = menu_record_frame_data(g, record);
+    uint32_t list = in_bank(menu_record_frame_data(g, record), (uint16_t)(frame * bytes));
     uint16_t list_bytes = (uint16_t)(blocks * BLOCK_TILE_LIST), offset_bytes = (uint16_t)(blocks * 8);
-    uint32_t list = in_bank(data, (uint16_t)(frame * bytes));
     uint32_t offsets = in_bank(list, list_bytes);
-    ORIGINAL_EFFECT(leave_multiplied(g, frame, bytes));
-    ORIGINAL_EFFECT(leave_stub_from(g, (uint8_t)(data >> 16)));
     for (uint16_t i = 0; i < offset_bytes; i++)
         set_menu_record_sprite_offsets_byte(g, record, i, menu_sprite_byte(g, in_bank(offsets, i)));
     ORIGINAL_EFFECT(charge_block_move(g, offset_bytes));
     FrameTiles tiles = frame_tiles_at(g, list, blocks);
-    ORIGINAL_EFFECT(leave_tile_list(g, &tiles));
+    ORIGINAL_EFFECT(leave_frame_found(g, frame, bytes, &tiles));
     TIMED_AS(g, 0xC2F75C, show_frame_tiles(g, record, &tiles));
+    ORIGINAL_EFFECT(leave_frame_built(g, record, &tiles));
 }
 
 /* ---- A record's animation ---- */
 
 /* An animation's frames for a facing: the sprite's animations one after
- * another, four frames each, the facings' lists one after another. The
- * original's add of the facing's place takes in the carry its doubling left
- * (for the fourth facing). */
-enum { FRAMES_AN_ANIMATION = 4, FACINGS = 4 };
-
-static uint16_t facing_place(uint8_t facing, uint16_t count)
-{
-    switch (facing) {
-    case 0:
-        return 0;
-    case 1:
-        return count;
-    case 2:
-        return (uint16_t)(count << 1);
-    default:
-        return (uint16_t)((count << 1) + count + (count >> 15));
-    }
-}
+ * another, four frames each, the facings' lists one after another, each
+ * `animation_count` frames long. */
 
 /* Start the animation the record is asked for from its first frame: where
  * its frames and their times are for the record's facing. */
@@ -1075,9 +1083,9 @@ static void start_animation(GameState *g, unsigned record, uint8_t animation)
 {
     set_menu_record_frame(g, record, 0);
     uint16_t first = (uint16_t)((animation & ANIMATION_BITS) * FRAMES_AN_ANIMATION);
-    uint32_t sum = (uint32_t)first + facing_place(menu_record_facing(g, record), menu_record_animation_count(g, record));
-    uint16_t frames = (uint16_t)(sum + menu_record_animation_frames_at(g, record) + (sum >> 16));
-    uint16_t times = (uint16_t)(first + menu_record_animation_times_at(g, record));
+    uint16_t facing = (uint16_t)(menu_record_facing(g, record) * menu_record_animation_count(g, record));
+    uint16_t frames = (uint16_t)(menu_record_animation_frames_at(g, record) + first + facing);
+    uint16_t times = (uint16_t)(menu_record_animation_times_at(g, record) + first);
     set_menu_record_frame_list(g, record, (menu_record_frame_list(g, record) & 0xFF0000u) | frames);
     set_menu_record_frame_times(g, record, (menu_record_frame_times(g, record) & 0xFF0000u) | times);
 }
@@ -1089,24 +1097,29 @@ static uint8_t frame_time(const GameState *g, unsigned record, uint8_t frame)
 
 /* The frame the animation is at, with its time: past the last (a time of 0)
  * a looping animation goes back to its loop frame and another to its start;
- * an animation with no frames at all is left past its end. False then. */
-static bool frame_to_show(GameState *g, unsigned record, uint8_t *time)
+ * an animation with no frames at all is left past its end, its frame before
+ * its first. False then. */
+enum { BEFORE_THE_FIRST_FRAME = 0xFF };
+
+static bool frame_to_show(GameState *g, unsigned record, uint8_t *frame, uint8_t *time)
 {
+    uint8_t at = menu_record_frame(g, record);
     for (;;) {
-        uint8_t frame = menu_record_frame(g, record);
-        uint8_t t = frame_time(g, record, frame);
+        uint8_t t = frame_time(g, record, at);
         if (t != 0) {
+            *frame = at;
             *time = t;
             return true;
         }
         if (menu_record_animation(g, record) & LOOPS)
-            set_menu_record_frame(g, record, menu_record_loop_frame(g, record));
-        else if (frame != 0)
-            set_menu_record_frame(g, record, 0);
+            at = menu_record_loop_frame(g, record);
+        else if (at != 0)
+            at = 0;
         else {
-            set_menu_record_frame(g, record, (uint8_t)(frame - 1));
+            set_menu_record_frame(g, record, BEFORE_THE_FIRST_FRAME);
             return false;
         }
+        set_menu_record_frame(g, record, at);
     }
 }
 
@@ -1121,11 +1134,10 @@ static void animate_record(GameState *g, unsigned record)
     set_menu_record_animation_shown(g, record, animation);
     if (changed)
         start_animation(g, record, animation);
-    uint8_t time;
-    if (!frame_to_show(g, record, &time))
+    uint8_t at, time;
+    if (!frame_to_show(g, record, &at, &time))
         return;
-    set_menu_record_frame_time(g, record, time);
-    uint8_t frame = menu_sprite_byte(g, menu_record_frame_list(g, record) + menu_record_frame(g, record));
+    uint8_t frame = menu_sprite_byte(g, menu_record_frame_list(g, record) + at);
     if (frame != menu_record_frame_shown(g, record)) {
         set_menu_record_frame_shown(g, record, frame);
         show_frame(g, record, frame);
@@ -1378,6 +1390,7 @@ void menu_show_record_frame(Snes *s)
     menu_save_p(s);
     FrameTiles tiles = frame_tiles_left(g, menu_record_sprite_count(g, record));
     show_frame_tiles(g, record, &tiles);
+    ORIGINAL_EFFECT(leave_frame_built(g, record, &tiles));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -1436,15 +1449,20 @@ static bool readable(uint32_t at) { return ((uint8_t)(at >> 16) & 0x7F) >= 0x40;
 
 /* A frame's blocks go in the frame buffer clear of the block move's stub
  * ($7E:9690), above them; its sprites' offsets fit the record (three blocks
- * at most: the menus' sprites are one); the facing is one of the four. */
-enum { FRAME_BUFFER_END = 0x9690 };
+ * at most: the menus' sprites are one); the facing is one of the four. The
+ * record's tiles start on an upper row of tiles in VRAM, where a frame's
+ * blocks are laid out a row pair at a time. */
+enum { FRAME_BUFFER_END = 0x9690, TILE_ON_A_LOWER_ROW = 0x10 };
 
-static bool frame_fits(const GameState *g, unsigned record, uint8_t blocks_before)
+static bool blocks_fit(const GameState *g, uint8_t blocks, uint8_t blocks_before)
 {
-    uint8_t blocks = menu_record_sprite_count(g, record);
-    uint16_t sent = (uint16_t)(menu_record_buffer_half(g) | blocks_before << 8);
-    uint32_t buffer = FRAME_BUFFER + ((uint16_t)(sent << 1) & 0xFF00);
-    return blocks >= 1 && blocks <= MOST_BLOCKS && buffer + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
+    return blocks >= 1 && blocks <= MOST_BLOCKS && frame_buffer_for(g, blocks_before) + (uint32_t)blocks * BLOCK_BYTES <= FRAME_BUFFER_END;
+}
+
+static bool frame_fits(const GameState *g, unsigned record)
+{
+    return blocks_fit(g, menu_record_sprite_count(g, record), menu_record_blocks_sent(g))
+           && !(menu_record_tile(g, record) & TILE_ON_A_LOWER_ROW);
 }
 
 /* A looping animation's loop frame has a time, so that its end doesn't go
@@ -1458,9 +1476,15 @@ static bool animation_ends(const GameState *g, unsigned record)
 /* The VRAM queue counts whole records, as the queue's own entries ask. */
 static bool queue_is_whole(const GameState *g) { return menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0; }
 
+/* A facing's frames lie within the animations' bank: the ROM's sprites have
+ * fewer than $4000 frames a facing (tests/test_menu_sprites.py), so four
+ * facings' worth reaches no further. */
+enum { MOST_FRAMES_A_FACING = 0x4000 };
+
 static bool record_is_animatable(const GameState *g, unsigned record)
 {
-    return queue_is_whole(g) && menu_record_facing(g, record) < FACINGS && frame_fits(g, record, menu_record_blocks_sent(g))
+    return queue_is_whole(g) && menu_record_facing(g, record) < FACINGS
+           && menu_record_animation_count(g, record) < MOST_FRAMES_A_FACING && frame_fits(g, record)
            && readable(menu_record_frame_list(g, record)) && readable(menu_record_frame_times(g, record))
            && readable(menu_record_frame_data(g, record)) && readable(menu_record_graphics(g, record))
            && animation_ends(g, record);
@@ -1497,31 +1521,37 @@ bool menu_record_frame_is_showable(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = stub_in_place(g) && queue_is_whole(g) && frame_fits(g, record, menu_record_blocks_sent(g))
-              && readable(menu_record_graphics(g, record));
+    bool ok = stub_in_place(g) && queue_is_whole(g) && frame_fits(g, record) && readable(menu_record_graphics(g, record));
     vars_peek(false);
     return ok;
 }
 
+/* A record's sprite is of one of the three sets there are. */
 bool menu_record_sprite_is_loadable(Snes *s)
 {
     unsigned record;
-    return menu_record_page_of(m_direct_page(s), &record);
+    if (!menu_record_page_of(m_direct_page(s), &record))
+        return false;
+    vars_peek(true);
+    bool ok = menu_record_sprite_set(state_of(s), record) < SPRITE_SETS;
+    vars_peek(false);
+    return ok;
 }
 
-/* The opening's records: each sprite's size one whose frames fit, the frame
- * buffer taking them all, since the first frame of each shows. */
+/* The opening's records: each sprite of one of the three sets, and of a size
+ * whose frames fit, the frame buffer taking them all, since the first frame
+ * of each shows. */
 static bool opening_records_fit(const GameState *g)
 {
     if (!queue_is_whole(g))
         return false;
     uint8_t sent = menu_record_blocks_sent(g);
     for (unsigned record = 0; record < OPENING_RECORDS_SHOWING; record++) {
-        uint16_t at = assignment_place(g, menu_record_sprite_set(g, record), (uint8_t)record);
-        uint8_t blocks = menu_sprite_blocks(g, read_assignment(g, at).size);
-        uint16_t half_and_sent = (uint16_t)(menu_record_buffer_half(g) | sent << 8);
-        uint32_t buffer = FRAME_BUFFER + ((uint16_t)(half_and_sent << 1) & 0xFF00);
-        if (blocks > MOST_BLOCKS || buffer + (uint32_t)blocks * BLOCK_BYTES > FRAME_BUFFER_END)
+        uint8_t set = menu_record_sprite_set(g, record);
+        if (set >= SPRITE_SETS)
+            return false;
+        uint8_t blocks = menu_sprite_blocks(g, read_assignment(g, assignment_place(g, set, (uint8_t)record)).size);
+        if (!blocks_fit(g, blocks, sent))
             return false;
         sent = (uint8_t)(sent + blocks);
     }

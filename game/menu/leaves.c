@@ -20,8 +20,28 @@
  * here, and a port of those handlers' callers drops it. */
 #include "menu/leaves.h"
 
+#include "menu/menu_data.h"
 #include "menu/typeset.h"
+#include "port/machine.h"
 #include "vars.h"
+
+/* The offset of the tile column a glyph was drawn in, with the pen just past
+ * it, in the layout's kind of tiles. */
+static uint16_t glyph_column(const GameState *g, uint16_t glyph)
+{
+    uint8_t width = menu_glyph_width(g, menu_text_glyph_index(glyph));
+    unsigned column = (uint8_t)(menu_text_reading_pen(g) - width) / 8u;
+    bool four_colour = (menu_text_layout(g) & MENU_TEXT_TILE_KIND) == MENU_TEXT_FOUR_COLOUR;
+    return four_colour ? menu_text_column_offset(g, column) : menu_text_column_offset_16_colour(g, column);
+}
+
+void menu_text_hand_on(Snes *s, MenuIndexLeft left, uint16_t a)
+{
+    s->cpu.a = a;
+    s->cpu.x = left.x;
+    if (left.y_set)
+        s->cpu.y = left.y;
+}
 
 /* The typesetter's arguments begin the text page. */
 enum { ARGUMENTS = 0x0200 };
@@ -60,11 +80,11 @@ MenuIndexLeft menu_text_went_on_leaves(const GameState *g, bool begun, uint32_t 
     if (!begun)
         return (MenuIndexLeft){ 0, 0, false };
     uint16_t glyph = menu_text_reading_glyph(g);
-    MenuTextPiece last = { MENU_TEXT_INSERT, 0, 0 };
+    MenuTextPiece last = { MENU_TEXT_INSERT, 0, 0, 0 };
     bool read = last_piece(g, from, menu_text_reading_at(g), &last);
     if (read && last.kind == MENU_TEXT_STOP)
         return (MenuIndexLeft){ (uint16_t)(last.code * 2), last.code, true };
-    uint16_t column = menu_text_glyph_column(g, glyph);
+    uint16_t column = glyph_column(g, glyph);
     if (read && last.kind == MENU_TEXT_GLYPH)
         return (MenuIndexLeft){ menu_text_glyph_index(glyph), column, true };
     return (MenuIndexLeft){ (uint16_t)(menu_text_in_an_insert(g) ? 2 : 0), column, true };

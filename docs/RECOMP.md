@@ -6357,10 +6357,13 @@ through the table's neighbours, which can put it on the text page itself: the
 original counts the name's glyphs with the insert already begun, pointer and
 source set, so the port does too (fuzzing found it: a party member with an id
 past the characters'). And a call keeps its budget in hand, where the
-original counts it down on the page: the two part only where such a name
-reads the budget's cell, or a label long enough to wrap its bank draws over
-it, so the guards read a text ahead and turn those away (fuzzing found a
-chapter label that differed before they did).
+original counts it down in its cell on the page: the two part only where a
+call reads that cell (as a string, an argument or an insert: such a name,
+more than 19 arguments' bytes, a pointer onto the page) or a label long
+enough to wrap its bank draws over it, so the guards read a text ahead,
+with the string's pieces and their arguments from the reader the leaves
+share, and turn those away (fuzzing found a chapter label that differed
+before they did).
 
 **The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
 every screen draws with, built in work RAM from the ROM's graphics and sent
@@ -6464,8 +6467,19 @@ worked out, must end clear of the block move's stub (`$7E:9690`); a sprite
 has at most three blocks (six-block sprites' offsets would run past the
 record, and no menu shows one); a record's pointers name banks that are ROM
 or work RAM throughout; the facing is one of four; a looping animation's loop
-frame has a time; and the VRAM queue counts whole records. None refused a
-call over the library.
+frame has a time; the VRAM queue counts whole records; a record's tiles
+start on an upper row of tiles in VRAM, where its frame's blocks go a row
+pair at a time; a record's sprite is of one of the three sets; and a facing
+has fewer than `$4000` frames. None refused a call over the library.
+
+**Arithmetic.** The original's sums of an animation's place carry a flag
+from one add into the next (a facing's place is a multiply by three with its
+shift's carry; the times' place takes in what the division by four left).
+The port writes them as plain sums: they can't carry for any sprite the
+ROM's tables have (`tests/test_menu_sprites.py` reads every entry: every
+span of frames is whole facings, fewer than `$4000` a facing), and the
+guards keep the records' own cells within the same bounds. A review of the
+first version rated it a translation for writing the carries out.
 
 **Shadow and fuzzing.** Over the 26 movies every call compared, none
 mismatching: `menu_load_record_sprites` 37, `menu_load_record_sprite` 262,
@@ -6477,14 +6491,14 @@ and pointers into banks the I/O registers share (the tiles read open bus
 there), and the frame building's own entry, which copies with the stub the
 animation leaves, needs the stub in place (its guard asks it).
 
-**Timing.** Calibrated from the library. A frame's time follows its mix of
-blank, copied and mirrored tiles and where its graphics are, which the port
-charges at the block move's rate (a blank tile's stores, a copied tile's
-loop, a mirrored tile's turning round, estimated from the original's cycles)
-since it fills and copies them itself; that leaves a spread of about 11%, so
-the frame building and the two animation entries are timing exceptions for
-their stretches that end in vblank (`tools/timing_exceptions.txt`), writing
-work RAM and the VRAM queue only. The block move's own rate
+**Timing.** Calibrated from the library. The port fills and copies a
+frame's tiles itself and charges the bytes at the block move's rate; a
+mirrored tile it builds a byte at a time. A frame's time follows its mix of
+blank, copied and mirrored tiles, which that leaves to calibration (a first
+version charged per-tile cycle estimates, numbers review took out): a mean
+error of about 6-7% and at most 11,300 clocks, so the frame building and the
+two animation entries are vblank-tail timing exceptions
+(`tools/timing_exceptions.txt`), writing work RAM and the VRAM queue only. The block move's own rate
 (`memory_move_stub`) was recalibrated: the animation's copies no longer go
 through it on the machine, which changed the calls it is measured on.
 
