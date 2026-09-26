@@ -7,10 +7,49 @@
 #include <stdint.h>
 
 #include "field/object.h"
+#include "platform/video.h"
 #include "ram.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
+
+/* The field's eight per-line effects, by the slot each runs in
+ * (field/line_effects.c), and the ones it keeps on: all but the two windows'
+ * edges. */
+typedef enum {
+    SLOT_BG_MAPS,
+    SLOT_BG1_SCROLL,
+    SLOT_BG2_SCROLL,
+    SLOT_BG3_SCROLL,
+    SLOT_SCREENS,
+    SLOT_WINDOW1,
+    SLOT_COLOR_MATH,
+    SLOT_WINDOW2,
+    SLOTS,
+} FieldLineSlot;
+enum {
+    FIELD_LINE_EFFECTS_KEPT_ON = 1 << SLOT_BG_MAPS | 1 << SLOT_BG1_SCROLL | 1 << SLOT_BG2_SCROLL |
+                                 1 << SLOT_BG3_SCROLL | 1 << SLOT_SCREENS | 1 << SLOT_COLOR_MATH,
+};
+
+/* The field's tint (field_fixed_color): no tint is every channel at no
+ * strength, as the hardware's one-byte form keeps it. */
+enum { FIELD_NO_TINT = VID_LINE_FIXED_COLOR_ALL_CHANNELS };
+
+/* Color math as the field starts it (field_color_math_control): the sub
+ * screen added, never clipped or kept off. */
+static inline uint8_t field_starting_color_math(void)
+{
+    return vid_math_control(&(VidColorMath){ .clip_black = VID_REGION_NEVER, .prevent_math = VID_REGION_NEVER,
+                                             .sub_screen = true });
+}
+
+/* The window whose corners are marked (field_window_tile_slot), or none. */
+enum { FIELD_NO_WINDOW_MARKED = 0x80 };
+
+/* The map's levels, as a tile's part gives one; the party starts on the
+ * first. */
+typedef enum { NO_LEVEL = 0, FIRST_LEVEL = 1, STAIRS = 3 } MapLevel;
 
 /* field_display_flags, which the line effects' builders, the vblank handler
  * and the line interrupt share. */
@@ -149,6 +188,21 @@ static inline WindowPosition dialog_window_at(const GameState *g) { return (Wind
  * field_menus_locked), through the event engine's memory writes. */
 static inline bool field_pause_is_locked(const GameState *g) { return field_pause_locked(g) != 0; }
 static inline bool field_menus_are_locked(const GameState *g) { return field_menus_locked(g) != 0; }
+static inline void field_lock_pause(GameState *g, bool locked) { set_field_pause_locked(g, locked ? 1 : 0); }
+static inline void field_lock_menus(GameState *g, bool locked) { set_field_menus_locked(g, locked ? 1 : 0); }
+
+/* Whether the map and its objects stop the leader's walk (field_leader_collides). */
+static inline void field_leader_meets_the_map(GameState *g, bool meets) { set_field_leader_collides(g, meets ? 1 : 0); }
+
+/* Whether the field's line interrupt does its work (field_irq_disabled). */
+enum { FIELD_LINE_INTERRUPT_OFF = 0x80 };
+static inline void field_line_interrupt_works(GameState *g, bool works)
+{
+    set_field_irq_disabled(g, works ? 0 : FIELD_LINE_INTERRUPT_OFF);
+}
+
+/* Whether the map names a tile set for BG3 (field_map_has_no_bg3_set). */
+static inline void field_map_names_a_bg3_set(GameState *g, bool names) { set_field_map_has_no_bg3_set(g, names ? 0 : 1); }
 
 /* The story's progress the Start assignment's menu waits for (field/menus.c). */
 enum { FIELD_START_MENU_FROM_STORY = 0x49 };

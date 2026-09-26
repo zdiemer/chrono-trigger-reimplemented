@@ -93,9 +93,11 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, carrying
-    out an action `$C1:B967`, the rewards `$FD:B201`/`$C1:D0A2`/
-    `$C1:F93E`/`$FD:AD17`); from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
+    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, the
+    rewards `$FD:B201`/`$C1:D0A2`/`$C1:F93E`/`$FD:AD17`); from a member's
+    chosen action carried out (RECOMP.md, "Phase 3, battle chunk 5"), the
+    targeting `$C1:C1DD`, the calling off of a combination tech one of its
+    members can't act in `$FD:A93C` and the messages `$CD:0021`; from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
     the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
@@ -165,8 +167,8 @@ rest waits, is [PLAN.md](PLAN.md).
     reads the first set's last kind before it adds (`first_began`) only for
     its carry's leave, and `take_next_target` exists only to leave the carry a
     target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the member's turn (`$C1:BA33` on,
-    which reads the stolen item in `$06`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    goes when what reads it is a port: the targeting (`$C1:C1DD`) and the
+    showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -382,6 +384,22 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+- **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
+  battle chunk 4", after the review). A build without the original's memory has to decide each:
+  - a status's timer of nobody's: the search for run-out timers takes the
+    order's empty place (`$FF`) for a combatant and reads its state past the
+    kind's row (`timers.c`, `has_run_out`, the one read); the handler for it
+    is the original's, which works past every table it touches, a real
+    timer's length among them (the entries' guards turn it away: the evading
+    much better's, 4 calls over the library, `gato-battle` and
+    `endings-telepod-lavos`);
+  - a party tech's part with no member: the original reads the slot of the
+    id `$FF` past the character slots (`$7E:B2BD`) and ends the tech only
+    where that byte is `$FF` (the guard asks, `no_member_ends_the_tech`);
+  - after a part that missed, the tech stops where bit 7 is set in the byte
+    of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
+    reads where the tech's record is meant (`party_work.c`,
+    `stops_after_miss`, through `wram_read8`).
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:
@@ -585,6 +603,22 @@ rest waits, is [PLAN.md](PLAN.md).
   - a count of 0 tiles or rows in the recolouring helpers counts the whole
     bank, as the original's 16-bit loop does; the guards turn those away,
     and nothing in the library asks for one.
+  - a bridge that falls back to the original (`menu_back` stopping at its
+    return because the machine didn't come back as the port expected) is
+    counted nowhere: the entry's calls still match, since the original runs
+    the rest, so a check that fails on almost every call looks like a clean
+    port. The per-frame input's check after the play time's tick held the
+    tick's page to the controller's and fell back on nearly every call until
+    a debug build showed it. A per-site count of those fallbacks in the
+    shadow report (native.c's entry stats) would show it at once;
+  - the `bucket_lavos` route's last fight (Lavos's core) took 311 tries and
+    about 2.5 hours in the chunk's `--long-routes` run, ending at frame
+    211,229, where two earlier runs won every fight at the first try and
+    ended by frame 154,652; its first fight also ended far later (frame
+    113,838 against 54,968 and 64,472). Shadow and trace identity were
+    clean, so it is likely timing reaching a harder battle state; whether
+    the menus' per-frame input (which runs in every mode) or the merged
+    main moved it is not worked out.
 - **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
   characters in the records"):
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
@@ -1027,11 +1061,17 @@ below. `python3 tools/timing_census.py` re-runs the census.
     moments); no object the game makes does.
 - **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
-  - `$C0:0C76` hands the location change, the menus, a chest opened, the
-    tile copy and the battle to the original's code (`m_stop_at_own` at
-    `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
-    and the overflow the original has at `$C0:16DC`, which depend on the
-    path into it, so it went with the stop rather than into the logic;
+  - `$C0:0C76` hands the location change, a chest opened, the tile copy and
+    the battle to the original's code (`m_stop_at_own` at `$C0:0C8A` and
+    `$C0:1770`); the location change starts the field again on a fresh stack
+    (`TXS`, then `$C0:0000`), which a port can only hand back; a chest's
+    opening would need A's high byte and the overflow the original has at
+    `$C0:16DC`, which depend on the path into it, so it went with the stop
+    rather than into the logic;
+  - a script's menu (field/menus.c, `field_open_script_menu`) ends by
+    jumping to the fade in (`$C0:2824`), which returns to the main loop
+    itself, so the port stops there; the menus' modes 0, 2, 3 and 6 it opens
+    are named by their numbers until the menus' side names them;
   - the pause and the menus (field/menus.c) call the original's frame wait,
     field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
     lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons

@@ -72,6 +72,17 @@ void party_trail_regroup(GameState *g);
  * footprint, with nothing behind it (field/walk.c). */
 void party_trail_start(GameState *g);
 
+/* The party counted as on the move: not standing about (field_idle_frames). */
+void count_as_on_the_move(GameState *g);
+
+/* The party as it is now taken as the one the map's characters were set up
+ * for (field_party_as_loaded): the field's start, and a menu that changed it. */
+static inline void party_taken_as_loaded(GameState *g)
+{
+    for (unsigned place = 0; place < PARTY_PLACES; place++)
+        set_field_party_as_loaded(g, place, party_members(g, place));
+}
+
 /* After a battle the members catch the trail up at the leader's newest
  * footprint, the way behind it as it was (event/party.c). */
 void party_trail_catch_up(GameState *g);

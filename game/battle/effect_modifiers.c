@@ -163,8 +163,7 @@ static void by_the_clock(GameState *g, Platform *pf)
     else if (digit < 5)
         return;
     else if (digit < 7) {
-        uint16_t first = (uint16_t)(battle_low_scratch(g, BATTLE_CLOCK_READS) | battle_low_scratch(g, BATTLE_CLOCK_READS + 1) << 8);
-        set_amount(g, (uint16_t)((first >> 1) + damage));
+        set_amount(g, (uint16_t)((battle_clock_word(g) >> 1) + damage));
     } else if (digit < 9)
         set_amount(g, (uint16_t)(damage << 1));
     else

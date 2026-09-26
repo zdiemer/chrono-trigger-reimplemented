@@ -7652,6 +7652,74 @@ random states: 0 of 20,000 each; leaving one cell unwritten mismatched 997 of
 
 **The timing gate.** The row was calibrated over the library; no exception.
 
+### Phase 3, field and events: the menus a script asks for
+
+The eleventh chunk of bank `$C0`, and chunk 10's review.
+
+**Chunk 10's review, folded in.**
+- *Siblings through the machine for their guards* (rubric item 102).
+  `field_run` and `field_run_long` (field/bridge.c) run a sibling port as C
+  under the frame the original's call pushes, timed as its routine, where the
+  registry would run that entry for the state (`native_hand_entry`: its guard
+  and widths); elsewhere they make the call on the machine with the declared
+  set, as `bridge_call` does. tools/dontcare_check.py reads them as it reads
+  `bridge_call`. menus.c runs the line effects' builder, the Start assignment
+  and the party's return through them; the second enum and its stated reasons
+  are gone, and the header says what runs how.
+- The two openings are a game table (the menu, whether its screen is given no
+  argument, whether a script's menu counts as shown) and a parallel table of
+  their sites (rubric item 100).
+- field.h has one definition each of the line effects' slots (moved from
+  line_effects.c) and the ones the field keeps on (`FIELD_LINE_EFFECTS_KEPT_ON`,
+  built from them), no tint (`FIELD_NO_TINT`, from the platform's
+  `VID_LINE_FIXED_COLOR_ALL_CHANNELS`, which event/screen.c and
+  battle/screen_setup.c now take too), the starting color math (through the
+  new `vid_math_control`, the encoder beside `vid_color_math_decode`), no
+  window marked, and `MapLevel` with `FIRST_LEVEL` (moved from walk.c).
+- `party_taken_as_loaded` (party.h), used by the start and the party's
+  return; the start calls `count_as_on_the_move` and
+  `screen_counts_as_recentred`; its switches are written as bools through
+  named operations (`field_lock_pause`, `field_leader_meets_the_map`,
+  `field_line_interrupt_works`, `field_map_names_a_bg3_set`); the backdrop is
+  named; `field_sprite_data_table` returns the long address, with the RAM
+  map's count; `display_go_dark` is core/display.c's one blanking helper, the
+  entry's and menus.c's.
+
+**What it is** (field/menus.c, `field_open_script_menu` `$C0:0CC7`, from the
+main loop's requests). A script asks for a menu with event `$C8`, its byte
+kept in `field_script_menu` (`$25`): the field fades out a step a frame
+while the leader walks on without the player's control (the walk run as C
+through `field_run`, the control kept on the stack where the original keeps
+it, since the walk's own calls are paired by where the stack is), keeps its
+places, and opens the menu: a byte of 0 goes on as the Start assignment's
+menu does (`$C0:19C7`); $01-$7F opens mode 0 or 6 by its low bit; $80-$FF
+opens the mode in its top two bits with the screen's argument in its low six.
+After it the field is set up again, the script's wait is over
+(`FIELD_SCRIPT_MENU_SHOWN`), and the port stops at the fade in, which the
+original jumps to. The location change and a chest still go to the original
+(TODO.md). The port now hands them back where the original takes each up (the
+location change at its fade, `$C0:0C91`; a chest at the step event's test
+before it, `$C0:0D3E`, with the requests in A as the test reads them), not at
+the requests' first test, so the burndown credits the requests' dispatch and
+the script's menus: a stop the port makes on some paths stops the walk on all
+of them. The burndown also no longer counts `field_run`'s PC, the sibling it
+runs, as an unreadable hand-back (`tests/test_burndown.py`). `$C0` stands at 40.8 KiB ported, 31% left.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call of
+`field_handle_requests` matches (191,044, none interrupted or refused); the
+script's menus with an odd byte (mode 0) run in every movie, and with an
+argument in eight (the fair's, the shop's, the new game's among them); no
+movie asks for mode 6 or the Start assignment's menu, which fuzzing covers up
+to the menus' call. Fuzzed
+(seeds 1 and 2, 20,000 states each): up to the fade's first frame wait or the
+keeping of the field 0 of 20,000 each, and, dark already, compared at the
+menus' call 0 of 20,000 each; with the menus' Z left clear for mode 0,
+736 of 3,000 mismatched; a location change handed back 0 of 20,000 each, and
+the chest's hand-back without the requests in A mismatched 1,445 of 2,996. The chunk's other rows are unchanged.
+
+**The timing gate.** `field_handle_requests` was calibrated again over the
+library; no exception.
+
 ### Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out
@@ -7996,6 +8064,89 @@ steal's edges.
 **Timing.** Calibrated from the shadow runs, battle's rows only: the
 member's tech 22,647, the item 21,593, the inventory's add 20,514; the steal
 kind, which no movie reaches, takes the hit's.
+
+**After the review.** A sentinel no longer flows through plain logic as a
+bare byte (rubric item 103). The search for run-out timers says whose timer
+it found as a `TimerOwner`, nobody where it took the order's empty place, and
+the handlers' guards leave nobody's to the original again (the evading much
+better's 4 calls over the library): the only read past the kinds' rows left
+is the search's own, in one place. A party tech's part with no member ends
+the tech in the logic; the byte the original reads for it past the character
+slots is asked in the guard alone. Both, and the tech's misread byte, are in
+docs/TODO.md's "What only the original's memory has, in the battle". The
+party's effects are records (`party_effect_record`, `.kind`, `.flags`, an
+attack's showing its `damage.formula`), the clock's word has a reader and its
+four writers listed (`battle_clock_word`, battle.h), the timed statuses' bits
+are one table (`battle_timed_status`, timers.c) that the combatants' timers
+and the handlers share, and the MP check writes what it leaves once, as it
+ends (`battle_tech_mp_compared`, the steal marks' second use).
+
+### Phase 3, battle chunk 5: a party member's action carried out (`$C1:B967`)
+
+The fifth battle chunk is what calls the party's working out: a party
+member's chosen action carried out when its turn comes (`$C1:B967`), the
+member's attack (`$C1:BFAA`), the waits after a tech (`$C1:BDB3`), the end of
+a member's turn (`$C1:BCE1`, which the main loop calls too for a member whose
+status picked its action) and the battle's step for a called-off action
+(`$C1:B961`).
+
+`game/battle/member_turn.c` carries the action out. The member is the first
+round the party, from the one the main loop names, whose action waits its
+turn; it and its combination tech's partners take part, and where any of
+them can't act (`combatant_cant_act`, now the combatants' own, which the
+combination check shares) the tech is called off for them all (the
+original's `$FD:A93C`, a call-out). Otherwise what the member chose decides:
+an attack, aimed at its choice and worked out as the character's attack tech
+(`$CC:2583`, `character_attack_tech`), then shown; an item, aimed by the
+original's targeting (`$C1:C1DD`, a call-out), worked out and shown; a tech
+the record aims as one the turn carries out, aimed likewise, worked out, its
+MP paid by each member (`$C1:CC71`: cut by the member's accessory, and any
+member past the second paying from the third's MP, as the original does),
+shown, and a steal's outcome told in a message (`$CD:0021`) naming the item,
+which the steal now keeps plainly in `$06` (`BATTLE_ITEM_TAKEN`). After a
+tech every member waits longer before its next turn, by tenths of its turn
+wait the tech gives each part (`tech_wait_tenths`, `$CC:2BDC`/`$CC:2BEB`); the
+original divides the first member's by an empty divisor cell, so it adds
+nothing, and sets only that member's full gauge (kept). The turn ends with
+the member's turn timer starting again and its record and its partners'
+cleared; a choice of only bit 4 (`CHOICE_HELD`, not worked out) leaves
+them. The showing (`$C1:AC57`) and the attack are siblings run with
+`battle_run`, as the original's `JSR`s call them.
+
+The targeting is a call-out mid-body, so the bridge asks after it what the
+port needs: where the targeting left more targets than the list holds, a
+target past the combatants, or (a tech it found nothing for) last tech's
+members that aren't the party's, which the waits index by, the port stops at
+the call's return; and before the item's, the tech's and the attack's
+working out it asks their entries' guards (`effect_item_use_ported`,
+`effect_member_tech_ported`) and stops at the call where they refuse. Over
+the library neither stop fires and no guard turns a real call away (counted
+with the guards and the stops instrumented). A member's attack aims anew at
+whoever stands in its target's place: the party work's guard now asks that
+the place is a combatant's as well.
+
+New in the map: the record's aim, target and what (`battle_member_actions`),
+the member's choice as the effect code keeps it (`battle_action_choice`,
+which was `battle_action_goes_ahead`: bit 7 is an attack), the partners kept
+while marked, two write-only flags, the kept item waiting its move, and the
+item a message names (`battle_message_item`, `$7F:0200`).
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the action carried out 542 calls (69 compared whole, the rest interrupted by
+the frame's interrupt, as the showing waits frames), the attack 131 (10;
+the rest compared in the action that ran them, or interrupted), the waits
+after a tech 363 (273), the turn's end 223 (218), the called-off step 7 (all).
+**Fuzzing**, seed 1, 5,000 states each, none mismatching: the action (4,910
+compared; the rest guarded or past the budget), with every choice a tech
+(4,921), the attack (2,050; the rest past the budget in the showing), the
+waits (all), the turn's end (all), the step (3,224). Fuzzing found the choice
+of bit 4 leaving the turn as it is, the turn's end indexing by A's high byte
+(its guard now asks it clear, as the main loop leaves it), the attack's
+stray place, and that the showing takes A's high byte along.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the action
+9,762, the attack 17,584, the waits 21,164, the turn's end 7,665, the step
+2,350.
 
 ## Risks
 

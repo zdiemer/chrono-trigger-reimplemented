@@ -45,7 +45,10 @@ static uint8_t draw(GameState *g, Position p, uint8_t lowest, uint8_t limit)
     ORIGINAL_EFFECT(set_battle_random_lowest(g, lowest));
     if (lowest == NO_DRAW)
         return limit;
-    ORIGINAL_EFFECT(set_battle_random_limit(g, limit));
+    /* the limit is kept plainly: a party tech's test of whether it stops after
+     * a miss reads a byte of work RAM by the tech's number (battle/
+     * party_work.c, stops_after_miss), and for tech $1B that byte is this */
+    set_battle_random_limit(g, limit);
     if (battle_is_demo(g))
         return lowest;
     if (limit == 0 || limit == lowest)

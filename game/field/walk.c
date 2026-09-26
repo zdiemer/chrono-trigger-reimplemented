@@ -122,8 +122,6 @@ static MapPlace place_of(const GameState *g, MapPoint p)
     return map_place_at(index);
 }
 
-/* The map's levels, as a tile's part gives one. */
-typedef enum { NO_LEVEL = 0, STAIRS = 3 } MapLevel;
 
 /* What the map says of a point: the level of the tile's part it is on,
  * whether that part is a crossing, whether the tile is a climb, and the
@@ -924,6 +922,8 @@ static uint8_t pixel_toward(uint8_t leader_on_screen, uint8_t middle)
  * tile copy), the party holds still and the screen moves a pixel a frame on
  * each axis where it is off the grid, toward the leader, until it is on it.
  * True where the screen moves this frame. */
+void screen_counts_as_recentred(GameState *g) { set_field_screen_recentring(g, RECENTRED); }
+
 bool screen_recentres(GameState *g)
 {
     FieldObject leader = field_linked_object(party_member_link(g, PARTY_LEADER));
@@ -972,7 +972,6 @@ void screen_recentring_moved(GameState *g)
 
 /* ---- A map's start ------------------------------------------------------------------------------- */
 
-enum { FIRST_LEVEL = 1 };
 
 MapPlace field_start_place(const GameState *g)
 {

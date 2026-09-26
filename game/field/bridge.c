@@ -2,6 +2,7 @@
  * bridges share (field/bridge.h). */
 #include "field/bridge.h"
 
+#include "port/native.h"
 #include "vars.h"
 
 static bool came_back(const Snes *s, BridgeMachine m)
@@ -27,6 +28,37 @@ bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
 {
     m_jsl_dc(s, site, routine, dont_care);
     return bridge_back(s, site + JSL_SIZE, m);
+}
+
+static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                      BridgeMachine m, bool long_call)
+{
+    uint16_t stack = s->cpu.s;
+    uint32_t returns_to = site + (long_call ? JSL_SIZE : JSR_SIZE);
+    if (long_call)
+        m_push8(s, (uint8_t)(site >> 16));
+    m_push16(s, (uint16_t)(returns_to - 1));
+    s->cpu.pb = (uint8_t)(routine >> 16);
+    s->cpu.pc = (uint16_t)routine;
+    const NativeEntry *e = native_hand_entry(s);
+    if (!e || e->fn != entry) {
+        s->cpu.s = stack;
+        return long_call ? bridge_call_long(s, site, routine, dont_care, m) : bridge_call(s, site, routine, dont_care, m);
+    }
+    NATIVE_TIME_AS(s, routine, entry(s));
+    bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    return returned && bridge_back(s, returns_to, m);
+}
+
+bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m)
+{
+    return run_entry(s, site, routine, dont_care, entry, m, false);
+}
+
+bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                    BridgeMachine m)
+{
+    return run_entry(s, site, routine, dont_care, entry, m, true);
 }
 
 unsigned field_current_object_slot(Snes *s)

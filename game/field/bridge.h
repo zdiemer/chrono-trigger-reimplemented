@@ -68,6 +68,16 @@ enum { JSR_SIZE = 3, JSL_SIZE = 4 };
 bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
 bool bridge_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
 
+/* Call a sibling port from the JSR (JSL) at `site` as C: under the return
+ * address the call pushes, where the sibling's own call-outs need it, timed as
+ * its routine; where the registry wouldn't run `entry` for the state (its
+ * guard or its widths turn it away), the call is made on the machine with the
+ * don't-care set, and the runtime runs whatever it has there. True if it came
+ * back as `m`, as bridge_call. */
+bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m);
+bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                    BridgeMachine m);
+
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the
  * same test, and the same stop. */

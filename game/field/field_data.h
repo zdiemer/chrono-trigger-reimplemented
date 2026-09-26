@@ -13,12 +13,11 @@
 #include "rom.h"
 #include "state.h"
 
-/* Where the four tables of the objects' sprite data are, in bank $E4: a word
- * each at $E4:FFE0 (field_sprite_data_tables). */
-enum { FIELD_SPRITE_DATA_BANK = 0xE4, FIELD_SPRITE_DATA_TABLES = 4 };
-static inline uint16_t field_sprite_data_table(const GameState *g, unsigned table)
+/* Where each of the tables of the objects' sprite data is (field_sprite_data_tables),
+ * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
+static inline uint32_t field_sprite_data_table(const GameState *g, unsigned table)
 {
-    return rom_read16(g, 0xE4FFE0u + 2u * table);
+    return 0xE40000u | rom_read16(g, 0xE4FFE0u + 2u * table);
 }
 
 /* The wave a waving layer's scroll follows: signed 16-bit horizontal offsets,

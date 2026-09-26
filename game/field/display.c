@@ -242,7 +242,7 @@ static void fill_memory(const GameState *g, Platform *pf)
 
 /* A line interrupt the field takes: it isn't turned off, and the line one is
  * what came. Acknowledging it is part of asking. */
-enum { LINE_INTERRUPT_OFF = 0x80 };   /* field_irq_disabled */
+enum { LINE_INTERRUPT_OFF = FIELD_LINE_INTERRUPT_OFF };   /* field_irq_disabled */
 
 static bool line_interrupt_for_field(const GameState *g, Platform *pf)
 {

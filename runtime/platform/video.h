@@ -142,7 +142,7 @@ static inline void vid_color_math_decode(VidColorMath *m, uint32_t field, uint8_
 }
 
 /* Channels of the fixed color a vid_set_fixed_color call sets. */
-enum { VID_RED = 1, VID_GREEN = 2, VID_BLUE = 4 };
+enum { VID_RED = 1, VID_GREEN = 2, VID_BLUE = 4, VID_ALL_CHANNELS = VID_RED | VID_GREEN | VID_BLUE };
 
 /* A background layer's placement in video memory and its scroll. */
 typedef struct {
@@ -416,6 +416,13 @@ static inline uint8_t vid_line_math_layers(const VidColorMath *m)      /* VID_LI
 {
     return (uint8_t)((m->subtract ? 0x80 : 0) | (m->half ? 0x40 : 0) | (m->layers & 0x3F));
 }
+static inline uint8_t vid_math_control(const VidColorMath *m)          /* vid_color_math_decode's VID_MATH_CONTROL */
+{
+    return (uint8_t)((unsigned)m->clip_black << 6 | ((unsigned)m->prevent_math & 3) << 4 | (m->snes_extra & 0x0C) |
+                     (m->sub_screen ? 0x02 : 0) | (m->direct ? 0x01 : 0));
+}
+/* The channels' bits of VID_LINE_FIXED_COLOR's byte, all of them set. */
+enum { VID_LINE_FIXED_COLOR_ALL_CHANNELS = VID_ALL_CHANNELS << 5 };
 static inline uint8_t vid_line_fixed_color(uint8_t channels, uint8_t intensity)   /* VID_LINE_FIXED_COLOR */
 {
     return (uint8_t)((channels & 7) << 5 | (intensity & 0x1F));
