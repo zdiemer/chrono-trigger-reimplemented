@@ -12,6 +12,7 @@
 #include "battle/battle.h"
 #include "battle/effect_work.h"
 #include "original_effects.h"
+#include "platform/platform.h"
 #include "state.h"
 #include "vars.h"
 
@@ -109,13 +110,14 @@ bool effect_turned_away(GameState *g, uint8_t kinds);
 bool effect_lands(GameState *g, uint8_t aim_stat, uint8_t evasion_stat);
 
 /* $C1:E0F5, $C1:E65F, $C1:DCAD: a hit's damage by its formula, the target's
- * defence off it, and applied (the modifiers with it). */
+ * defence off it, and applied (the modifiers with it, which may run the
+ * frame's input work on `pf`). */
 typedef struct {
     uint16_t damage;
     uint8_t defence;
 } HitAmounts;
 HitAmounts effect_hit_amounts(GameState *g, const EffectRecord *e);
-void effect_apply_hit(GameState *g, HitAmounts hit);
+void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit);
 
 /* $C1:E63B: a hit wakes the target and brings it to its senses, and its turn
  * wait starts again. $C1:BD6F: a combatant's turn wait as it starts again. */
@@ -135,10 +137,21 @@ Inflicted effect_inflict_status(GameState *g, uint16_t which, uint8_t bits);
 /* $C1:E976: a hit's chance (a percent) of statuses of the first status byte. */
 void effect_status_chance(GameState *g, uint8_t chance, uint8_t bits);
 
+/* ---- Stealing (battle/effect_steal.c) ---------------------------------------------------- */
+
+/* $C1:E9D5: the actor steals from the target, with a percent's chance: it
+ * takes an item, misses, or finds nothing left to take. */
+typedef enum { STEAL_TOOK, STEAL_MISSED, STEAL_NOTHING } StealOutcome;
+StealOutcome effect_steal(GameState *g, uint8_t chance);
+
 /* ---- Modifiers (battle/effect_modifiers.c) ------------------------------------------------ */
 
 /* $C1:EA6F: the action's modifier applied to the hit's damage, then the
  * attacker's weapon's where the effect says so. */
-void effect_apply_modifiers(GameState *g);
+void effect_apply_modifiers(GameState *g, Platform *pf);
+
+/* $C1:EB1C with the steal's modifier, a charm's chance ($C1:EFC3): whether
+ * the steal takes the enemy's charm, where it has one. */
+bool effect_charm_comes(GameState *g);
 
 #endif

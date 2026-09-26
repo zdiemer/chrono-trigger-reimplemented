@@ -433,11 +433,23 @@ enum { INVENTORY_ITEMS_COUNT = 242 };   /* by inventory position */
  * that can't be used in battle skipped */
 uint8_t inventory_items(const GameState *g, unsigned i);
 void set_inventory_items(GameState *g, unsigned i, uint8_t v);
+/* The inventory's item ids, one per position; the battle item list is this list with the items
+ * that can't be used in battle skipped Unchecked, for marked scaffolding only: the battle's
+ * search of the inventory for an item runs over 256 places, the fourteen past the inventory's
+ * own too, as the original's does (game/battle/inventory.c, $C1:D016) */
+uint8_t inventory_items_unchecked(const GameState *g, unsigned i);
+void set_inventory_items_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { INVENTORY_COUNTS_COUNT = 242 };   /* by inventory position */
 /* How many of the item at the same position of inventory_items the party holds */
 uint8_t inventory_counts(const GameState *g, unsigned i);
 void set_inventory_counts(GameState *g, unsigned i, uint8_t v);
+/* How many of the item at the same position of inventory_items the party holds Unchecked, for
+ * marked scaffolding only: the battle's search of the inventory for an item runs over 256
+ * places, the fourteen past the inventory's own too, as the original's does
+ * (game/battle/inventory.c, $C1:D016) */
+uint8_t inventory_counts_unchecked(const GameState *g, unsigned i);
+void set_inventory_counts_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { PARTY_MEMBERS_COUNT = 3 };   /* by party slot */
 /* The three active party members as character ids, $80 for an empty slot */
@@ -5878,6 +5890,20 @@ enum { BATTLE_COMBATANT_DOWN_COUNT = 11 };   /* by battle slot */
 uint8_t battle_combatant_down(const GameState *g, unsigned slot);
 void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_MEMBER_KEPT_ITEM_COUNT = 3 };   /* by battle slot of a party member */
+/* Which item */
+uint8_t battle_member_kept_item_id(const GameState *g, unsigned slot);
+void set_battle_member_kept_item_id(GameState *g, unsigned slot, uint8_t v);
+/* The item's byte of the table at $CC:1BB5 */
+uint8_t battle_member_kept_item_detail(const GameState *g, unsigned slot);
+void set_battle_member_kept_item_detail(GameState *g, unsigned slot, uint8_t v);
+/* The low seven bits of the item's record's first byte ($CC:0ABC) */
+uint8_t battle_member_kept_item_kind(const GameState *g, unsigned slot);
+void set_battle_member_kept_item_kind(GameState *g, unsigned slot, uint8_t v);
+/* How many are held: 1 */
+uint8_t battle_member_kept_item_held(const GameState *g, unsigned slot);
+void set_battle_member_kept_item_held(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_MEMBER_DISABLED_COUNT = 3 };   /* by party slot */
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed */
@@ -6999,6 +7025,19 @@ void set_battle_action_pose_kind(GameState *g, uint8_t v);
 uint8_t battle_attack_hits(const GameState *g);
 void set_battle_attack_hits(GameState *g, uint8_t v);
 
+/* The item the battle's inventory routines are adding or looking for */
+uint16_t battle_inventory_item(const GameState *g);
+void set_battle_inventory_item(GameState *g, uint16_t v);
+
+/* The first empty place of the inventory the battle's search for an item passed, where an item
+ * not held goes */
+uint16_t battle_inventory_free_place(const GameState *g);
+void set_battle_inventory_free_place(GameState *g, uint16_t v);
+
+/* Set once the battle's search for an item has passed an empty place of the inventory */
+uint8_t battle_inventory_free_seen(const GameState *g);
+void set_battle_inventory_free_seen(GameState *g, uint8_t v);
+
 enum { BATTLE_COMBATANT_FIGHTING_COUNT = 11 };   /* by battle slot */
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
  * three party slots out is a defeat */
@@ -7069,6 +7108,13 @@ enum { BATTLE_TIMER_COUNTS_COUNT = 13 };   /* by kind of timer (0-11 the timed s
 enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
+ * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, for marked
+ * scaffolding only: a status's timer found run out at the order's empty place ($FF) is seen to
+ * for that slot, past the kind's row, as the original's handlers do
+ * (game/battle/status_timers.c) */
+uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_FLAGS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
 /* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
@@ -7092,12 +7138,26 @@ enum { BATTLE_TIMER_RUNS_LEFT_COUNT = 13 };   /* by kind of timer (0-11 the time
 enum { BATTLE_TIMER_RUNS_LEFT_BYTES = 11 };
 uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How many more times each combatant's status timer runs out before the status wears off (or,
+ * for magic regained, before it regains): counted down, and set back to 10 when it gets there
+ * [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's timer found run
+ * out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the
+ * original's handlers do (game/battle/status_timers.c) */
+uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
-enum { BATTLE_TIMER_LENGTHS_COUNT = 132 };   /* by timer kind (0-11) * 11 + battle slot */
+enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed statuses); a byte a battle slot */
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait */
-uint8_t battle_timer_lengths(const GameState *g, unsigned i);
-void set_battle_timer_lengths(GameState *g, unsigned i, uint8_t v);
+ * battle_turn_wait [11 bytes, one at a time] */
+enum { BATTLE_TIMER_LENGTHS_BYTES = 11 };
+uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How long each combatant's status timers run once a status starts them; the turn's are
+ * battle_turn_wait [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's
+ * timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's
+ * row, as the original's handlers do (game/battle/status_timers.c) */
+uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */
@@ -7186,6 +7246,11 @@ enum { BATTLE_CHARACTER_SLOT_COUNT = 7 };   /* by character */
 /* The battle slot each character fights in, as the timers' order is drawn */
 uint8_t battle_character_slot(const GameState *g, unsigned i);
 void set_battle_character_slot(GameState *g, unsigned i, uint8_t v);
+/* The battle slot each character fights in, as the timers' order is drawn Unchecked, for marked
+ * scaffolding only: the party's working out reads the slot of each part's member before it asks
+ * whether there is one, and so of the id $FF past the table (game/battle/party_work.c, $C1:D601) */
+uint8_t battle_character_slot_unchecked(const GameState *g, unsigned i);
+void set_battle_character_slot_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* How far a block's two conditions have got: 1 while the first is tested, $80 once it held (on
  * the target battle_condition_target keeps) and the second is tested, 0 for a block of one
@@ -7337,6 +7402,11 @@ void set_battle_damage_variance(GameState *g, uint8_t v);
 uint8_t battle_action_hit_enemy(const GameState *g);
 void set_battle_action_hit_enemy(GameState *g, uint8_t v);
 
+/* The tech's members' record's offset among the records (the members' number times 3), where the
+ * party's working out finds them */
+uint16_t battle_tech_members_place(const GameState *g);
+void set_battle_tech_members_place(GameState *g, uint16_t v);
+
 /* The acting attack's or tech's record's offset among the records (its number times 11) */
 uint16_t battle_action_record_place(const GameState *g);
 void set_battle_action_record_place(GameState *g, uint16_t v);
@@ -7363,6 +7433,10 @@ void set_battle_effects_worked(GameState *g, uint8_t v);
 uint8_t battle_effect_sure(const GameState *g);
 void set_battle_effect_sure(GameState *g, uint8_t v);
 
+/* The battle slot of the member whose part of the party's tech is being worked out */
+uint8_t battle_tech_performer(const GameState *g);
+void set_battle_tech_performer(GameState *g, uint8_t v);
+
 /* The modifier the effect is worked out with, from the action's record (or, for a moment, the
  * weapon's) */
 uint8_t battle_effect_modifier(const GameState *g);
@@ -7384,6 +7458,12 @@ void set_battle_combatant_updating(GameState *g, uint8_t v);
 /* The enemy's animation, kept while its reactions run and put back after */
 uint8_t battle_animation_kept(const GameState *g);
 void set_battle_animation_kept(GameState *g, uint8_t v);
+
+enum { BATTLE_TECH_MEMBERS_COUNT = 3 };   /* by the member's part in the tech */
+/* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
+ * them: the member who chose it first */
+uint8_t battle_tech_members(const GameState *g, unsigned member);
+void set_battle_tech_members(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_ACTION_FURTHER_IDS_COUNT = 2 };   /* by second or third */
 /* What a tech's second and third targets are (battle_combatant_fighting of each) */
@@ -7462,12 +7542,19 @@ void set_battle_action_follow_up(GameState *g, uint8_t v);
 uint8_t battle_action_hit_party(const GameState *g);
 void set_battle_action_hit_party(GameState *g, uint8_t v);
 
+enum { BATTLE_MEMBER_ACCESSORY_COUNT = 3 };   /* by battle slot of a party member */
+/* The accessory each party member wears, kept as the battle starts ($FD:AE99): two of them cut
+ * what a tech's part costs in MP */
+uint8_t battle_member_accessory(const GameState *g, unsigned slot);
+void set_battle_member_accessory(GameState *g, unsigned slot, uint8_t v);
+
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 uint8_t battle_spare_turn_member(const GameState *g);
 void set_battle_spare_turn_member(GameState *g, uint8_t v);
 
-/* How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to
- * take */
+/* How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an
+ * item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF
+ * nothing to take */
 uint8_t battle_steal_outcome(const GameState *g);
 void set_battle_steal_outcome(GameState *g, uint8_t v);
 
@@ -7487,6 +7574,17 @@ void set_battle_action_message(GameState *g, uint8_t v);
  * message as a word */
 uint8_t battle_action_message_high(const GameState *g);
 void set_battle_action_message_high(GameState *g, uint8_t v);
+
+/* $FF where a member of the party's tech can't take part in it (kept from techs, or short of the
+ * MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC) */
+uint8_t battle_tech_blocked(const GameState *g);
+void set_battle_tech_blocked(GameState *g, uint8_t v);
+
+/* Bit 7: the party member's action goes ahead even where a member of its tech can't take part,
+ * as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command
+ * ($C1:BA4E) */
+uint8_t battle_action_goes_ahead(const GameState *g);
+void set_battle_action_goes_ahead(GameState *g, uint8_t v);
 
 /* A reaction's kept place, while its conditions are tested */
 uint16_t battle_reaction_place_kept(const GameState *g);

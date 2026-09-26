@@ -750,6 +750,14 @@ Each of these is a finding. Every example here comes from this repo.
      palette give-up), under a pushed frame where the sibling's call-outs
      need one.
 
+103. **A sentinel the port handles by reaching past the tables in plain
+     logic.** A guard dropped so that a "nobody" (`$FF`, one past the list)
+     flows through as a bare byte and reads or writes stray cells identically
+     in both builds. It isn't item 81's build divergence, so it is easy to
+     argue away, but it still needs a typed "nobody", the stray effects in
+     one marked place (or the guard back), and a docs/TODO.md entry: native
+     storage breaks it.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

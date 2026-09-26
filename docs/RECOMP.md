@@ -7817,6 +7817,119 @@ needed no new evidence; `tools/suite.py --evidence` ran the notes' library
 runs again with the handlers in C, and every note's sites still made what
 they cite.
 
+**After the review.** The review passed the module ("mostly") and asked for
+one vocabulary. The timers are named by the status each times (`timers.h`;
+kinds 6, 7 and 11 keep neutral names, docs/TODO.md), and starting one, its
+count and its length are operations of `timers.c` (`battle_start_timer`,
+`battle_set_timer_count`, `battle_timer_length`), which `effect_statuses.c`
+calls too; `battle_timer_lengths` is two-dimensional in the map, kind by
+slot, as the counts are. The handlers' table says what each kind does, which
+status it follows and whether wearing off clears it (the slow's doesn't), and
+the search dispatches through a table of the handlers beside it rather than
+a switch (rubric item 100). The number's showing, `$C1:895B`, is an entry
+of its own, run from poison's and the MP's handlers with `battle_run`, as the
+original's `JSR` calls it (item 101): 12 calls over the library, the rest
+compared in the handler that ran them. The empty place of the order is
+ported the way the absent party member was: a timer's slot of `$FF` reaches
+past its kind's row through the unchecked accessors (`battle_timer_counts`,
+`battle_timer_runs_left`, `battle_timer_lengths` declare why), so the
+evading much better's four calls for nobody run in C and are compared, none
+mismatching, and the guard turns away nothing real. Fuzzed again, every
+handler with the order's last place empty as well (`variant = "nobody"`),
+none mismatching.
+
+### Phase 3, battle chunk 4: the party's working out (`$C1:BF79`, `$C1:D523`)
+
+The fourth battle chunk is the party's side of an action's effect: a party
+member's tech or attack worked out (`$C1:BF79`, which runs `$C1:D523` and the
+check of whether the members can take part, `$C1:D74F`), the item a member
+uses (`$C1:BF46`), and the two pieces the effect work turned away until now,
+the steal and the clock's modifier. With it every action's effect is C from
+the member's or the enemy's turn to its showing.
+
+`game/battle/party_work.c` works a party tech out as the game has it. A tech's
+record (`PartyTech`, `battle/effect_data.h`) names its members and has a part
+for each, an effect of the party's table with a modifier. Each member must be
+able to take part: not kept from techs, with the MP their part costs, halved
+or quartered by the two accessories that cut it (`battle_member_accessory`,
+new in the map, kept as the battle starts). A tech that can't be done does
+nothing unless the member's action goes ahead whatever
+(`battle_action_goes_ahead`, bit 7, where a status picked it); what the check
+found is kept for the member's turn (`battle_tech_blocked`). Each part then
+runs its kind as the enemy's effect does (`effect_run_kind`), its member the
+actor; a member's attack, worked out as the character's attack tech, aims
+anew at an enemy still in the fight where its own is out, and ends the work
+where there is none. The hits' numbers are added up as the tech says. The
+work returns how it came out (`TechOutcome`): every part, can't be done,
+stopped at a miss, nothing to aim at, a member in no slot; the entry derives
+the carry it hands back from it. The item a member uses is one kind's work,
+chosen by the item's use byte.
+
+`game/battle/effect_steal.c` is the steal (`$C1:E9D5`): its chance tripled by
+the thief's accessory, then the steal's modifier -- a charm's chance
+(`$C1:EFC3`, both of the party's steals have one) -- picks the enemy's charm
+where it still has it, or else the item it drops; the enemy's marks say
+which it still has. What it takes goes to the party (`$FD:B655`): most items
+to the inventory, and the few whose item record says so kept apart for the
+thief (`battle_member_kept_item`, `$A0B8`, which the battle's end moves on).
+The steal kind (`$C1:D3BF`) is an entry beside the other kinds.
+`game/battle/inventory.c` is the battle's add to the inventory (`$C1:D005`),
+which the rewards and the field's chests reach as well: one more of a held
+item up to 99, else the first empty place, over 256 places as the original
+searches (the inventory's own 242 and the fourteen bytes after, which the
+map's inventory declares `unchecked`); a full inventory puts the item in the
+first place, over what is there, as the original's does.
+
+The clock's modifier (`$C1:EE27`) runs the frame's input work again mid-work
+(the controller read, the button assignments and the play time's tick,
+`$C2:8002`), then scales the damage by the last digit of the seconds. That is
+the one piece of an effect's work that reaches the host, so the effect work
+takes the platform (`effect_run_kind(g, pf, kind)`), and core's input has
+`input_take_frame` for it (additive): where the console is still reading the
+controller or the reset buttons are held, the port goes on where the
+original would wait or reset (docs/TODO.md). The modifier's 5-6 band adds
+half of the word in the direct page's first cell, where the damage is meant:
+kept, and the cell's writers before it (the healing's amount, the tech's
+members, the item's use, the steal's giving) keep it plainly
+(`BATTLE_CLOCK_READS`, battle.h).
+
+Two of the original's slips are kept. After a part that missed, the tech
+stops where bit 7 is set in a byte the original reads from work RAM by the
+tech's record's offset (`$7E:B1F5` plus eleven times the tech, through
+`wram_read8`), where no table is. And a member can take part with exactly
+the MP their part costs whatever their status. The MP check leaves each
+member's MP over the second and third combatants' steal marks, the word the
+original compares with; that is written plainly, since a steal reads the
+marks of whatever it aims at.
+
+New in the map: the tech's members (`battle_tech_members`, which the enemies'
+further targets' ids share), the members' record's place and the part's
+member (scaffolding), the accessories, the tech's check and its going ahead,
+the kept items, the inventory search's cells (scaffolding), and why the
+battle's character slots are read for an id of none. The battle's shared
+flag at `$AF23` (`battle_member_acts_for_itself`) is also where the work says
+an attack had nothing to aim at, and the steal's giving clears it.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching, no
+guard turning a real call away (counted with the guards instrumented over the
+library): the member's tech or attack 494 calls (53 compared whole, the rest
+interrupted by the frame's interrupt, which is why the fuzzing below matters),
+the items used 94 (51), the inventory's add 16 (all). No movie steals; the
+kinds run inside the party's work, no longer as calls of their own. **Fuzzing**, seed 1, 5,000
+states each, none mismatching: the member's tech (4,817 compared; the rest
+turned away by its guard), the
+party's two steals with and without the thief's accessory and the inventory
+at random (all), the item used (all), the steal kind (all), a hit with the
+clock's and the charm's modifiers (2,492; the rest turned away, the random flags
+making them hits that steal as well),
+the inventory's add, at random and full (all). A mutation (the steal landing
+on a draw equal to its chance) mismatched 2 of 500, so the runs see the
+steal's edges.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the
+member's tech 22,647, the item 21,593, the inventory's add 20,514; the steal
+kind, which no movie reaches, takes the hit's.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

@@ -102,6 +102,7 @@ typedef enum {
     STAT_STATUS_IGNORED = 0x23,  /* the first status byte's bits it shrugs off */
     STAT_KEPT_STATUS_3 = 0x25,   /* the third status byte's bits it keeps whatever happens */
     STAT_KEPT_STATUS_4 = 0x26,   /* the fourth status byte's bits it keeps whatever happens */
+    STAT_ACCESSORY = 0x2A,       /* a party member's accessory */
     STAT_POWER = 0x36,
     STAT_HIT = 0x37,
     STAT_MAGIC = 0x39,
