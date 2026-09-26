@@ -137,6 +137,7 @@ uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 
 uint16_t battle_wide_math_quotient(const GameState *g) { return wide_word(g, RESULT_LOW); }
 uint16_t battle_wide_math_first(const GameState *g) { return wide_word(g, FIRST); }
+uint8_t battle_wide_math_second_high(const GameState *g) { return battle_wide_math(g, SECOND + 1); }
 void battle_set_wide_math_quotient(GameState *g, uint16_t v) { set_wide_word(g, RESULT_LOW, v); }
 
 // $C1:C92A
