@@ -137,14 +137,9 @@ game/field/motion.c party_member_take_step field_object_accelerating field_objec
 game/field/object.c object_records_state field_object_sprite_state field_object_sprite_state
 game/field/object.c object_sprite_priorities field_object_sprite_priority field_object_sprite_priority
 game/field/object_view.c object_view field_object_in_view field_object_in_view
-game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
-game/field/sprites.c hide_leftovers field_sprite_range_next field_sprite_range_next  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
-game/field/sprites.c range_next field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
-game/field/sprites.c range_next field_sprite_range_next field_sprite_range_next  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the switches leave the screen's edges there in between
 game/field/sprites.c record_byte field_sprite_records_byte field_sprite_records
 game/field/sprites.c stray_fifth_y_offset field_sprite_records_byte field_sprite_records
-game/field/switches.c field_redraw_changed_tiles field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
-game/field/switches.c field_switch_entry_count field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
+game/field/switches.c pressed_shape field_switch_shape field_switch_shape  # the switch's redraw is queued (field_queue_switch_redraw) after its sound, and that writes the shape plainly
 game/menu/cursor.c move_cursor menu_cursor_index menu_object_sprite_script
 game/menu/cursor.c place_cursor menu_cursor_flip menu_object_sprite_group
 game/menu/cursor.c place_cursor menu_cursor_index menu_object_sprite_script
@@ -286,3 +281,5 @@ run menu_object_wave_hdma menu_wave_phase                                       
 run scene_draw_circle_jump scene_circle_center_x                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
 run scene_draw_circle_jump scene_circle_center_y                                                              # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
 run scene_draw_circle_jump scene_circle_radius                                                                # reads the low byte its callers write; the scaffolding writes that byte back unchanged and clears the high byte
+game/field/sprites.c hide_leftovers field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between
+game/field/sprites.c range_next field_sprite_range_next event_scratch  # the sprite table's building starts every range's cursor afresh each frame (start_ranges) before it reads one; the page's scratch uses of those cells (the switches' screen edges, event's leaves) come in between

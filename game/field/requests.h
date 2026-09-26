@@ -11,7 +11,5 @@
 void field_step_screen_changes(GameState *g);
 void field_handle_requests(Snes *s);
 bool field_requests_can_run(Snes *s);
-void field_redraw_after_picture(Snes *s);
-bool field_redraw_can_run(Snes *s);
 
 #endif

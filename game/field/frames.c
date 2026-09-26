@@ -173,11 +173,10 @@ static void leave_start(GameState *g, ObjectGraphics set)
 }
 
 /* A finished frame's sprites' attributes before their priority: the palette
- * and the tiles' page ($D9). */
-enum { ATTRIBUTES_CELL = 0xD9 };
+ * and the tiles' page. */
 static void leave_attributes(GameState *g, FieldObject obj)
 {
-    original_cell8(g, ATTRIBUTES_CELL, (uint8_t)(field_object_palette(g, obj) | object_sprite_tiles(g, obj) >> 8));
+    original_cell8(g, FIELD_LAST_WORKED_CELL, (uint8_t)(field_object_palette(g, obj) | object_sprite_tiles(g, obj) >> 8));
 }
 
 /* The new frame's number, which the claim is made with ($EE's low byte). */

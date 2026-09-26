@@ -99,7 +99,9 @@ static void answered(GameState *g, uint8_t request) { set_field_requests(g, (uin
  * three after; nothing reads it in between, but the call is compared, so the
  * shape is noted first where the original does. */
 enum { SWITCH_SOUND = 0xC01B90, SOUND_READS_NOTHING = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-/* By the switch, the shapes' columns in turn. */
+/* By the switch, the shapes' columns in turn: each calls from its own
+ * place, which is also where the port stops if the call comes back other
+ * than it went. */
 static const uint32_t sound_sites[] = { 0xC00D92, 0xC00E8F, 0xC01040, 0xC01212, 0xC0149D };
 static unsigned switch_number(SwitchPress p)
 {
@@ -169,8 +171,10 @@ void field_handle_requests(Snes *s)
 
 /* The guard: on the field's page with the data bank $00, and the switch a
  * step event names inside the map's rows (a switch reaches up to two rows
- * above the tile stepped on). */
-enum { MAP_ROWS = 64, SWITCH_ROWS_ABOVE = 2 };
+ * above the tile stepped on), and not a one-by-two switch whose upper tile
+ * is the tile set's last (moving it on would carry into the next tile, as
+ * the original moves it, a word at a time). */
+enum { MAP_ROWS = 64, SWITCH_ROWS_ABOVE = 2, LAST_TILE = 0xFF };
 
 bool field_requests_can_run(Snes *s)
 {
@@ -183,29 +187,9 @@ bool field_requests_can_run(Snes *s)
     if ((requests & FIELD_REQUEST_STEP_EVENT) &&
         !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS | FIELD_REQUEST_OPEN_CHEST))) {
         uint16_t step = field_step_tile(g);
-        ok = (step >> 8) < MAP_ROWS && ((step >> 8) >= SWITCH_ROWS_ABOVE || !field_is_switch(g, step));
+        ok = (step >> 8) < MAP_ROWS && ((step >> 8) >= SWITCH_ROWS_ABOVE || !field_is_switch(g, step)) &&
+             !(field_is_one_by_two_switch(g, step) && field_map_byte(g, field_switch_upper_tile(step)) == LAST_TILE);
     }
     vars_peek(false);
     return ok;
-}
-
-/* ---- After the picture ---------------------------------------------------------------------- */
-
-// $C0:ED15
-/* The line interrupt's job in the time after the picture, on the frames it
- * isn't bank $FD's: the windows' corners, while a window is marked, and the
- * looks of a switch pressed or a chest opened. */
-enum { NO_MARKED_WINDOW = 0x80 };
-
-/* Its guard: the data bank $00, on whatever page the interrupt has (it
- * reaches its cells as the field's page does, and sets that page itself). */
-bool field_redraw_can_run(Snes *s) { return m_bank_is_zero(s); }
-void field_redraw_after_picture(Snes *s)
-{
-    GameState *g = state_of(s);
-    Platform *pf = m_platform(s);
-    if (field_window_tile_slot(g) < NO_MARKED_WINDOW)
-        TIMED_AS(g, 0xC0F05E, field_refresh_corners(g, pf));
-    field_redraw_changed_tiles(g, pf);
-    m_rts(s);
 }

@@ -4040,7 +4040,7 @@ name = "field_copy_sprite_tile_flipped"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E01CF-7E01CF=C0-FE"]
-why = "the field's page and bank $00 (the mirror table); the graphics in the ROM's high banks but the last (the guard refuses a bank where an address doesn't answer, and a tile that carries past the last bank); the port's cursor random (the guard refuses a tile over the saved Y or the set's own pointer)"
+why = "the field's page and bank $00 (the mirror table); the graphics in the ROM's high banks but the last (the guard refuses a bank where an address doesn't answer, and a tile that carries past the last bank); the port's cursor is the saved state's, in bank $7E where the sprite table's building leaves it every frame, which the guard now refuses (it takes the build bank alone, where the frame builders place it): this row compares nothing, and the copy is fuzzed through field_draw_next_frame, whose mirrored tiles it draws"
 
 [[routine]]
 name = "field_read_animation_frame"

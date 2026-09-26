@@ -56,6 +56,8 @@ static const CornerSites marked_corners[WINDOWS][2] = {
     { { 0xC0F0B7, 0xC0F0BC, 0xC0F0BF }, { 0xC0F0C4, 0xC0F0C9, 0xC0F0CC } },
 };
 
+bool field_windows_need_refresh(const GameState *g) { return field_window_tile_slot(g) < NO_WINDOW_SELECTED; }
+
 // $C0:F05E
 /* Refresh the four windows' corners: the selected window's marked, the rest
  * their own; with no window selected (field_window_tile_slot past the four),

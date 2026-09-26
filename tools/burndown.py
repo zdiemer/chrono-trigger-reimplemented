@@ -26,26 +26,28 @@ registered entry. The original makes that call during the port's call and the
 port doesn't, so the port does the callee's work itself (shadow mode compares
 the machine at every call-out and at the return, so a call it neither makes nor
 does would show). Local helpers, `JSR (abs,X)` handlers and routines one bank
-inlines from another are credited to the port that inlines them. Where the
-port may already have handed back to the original (past an `m_stop_at` or
-`m_stop_dont_care` it declares, or a PC it sets, read as the declarations
-are), a call isn't taken to be inlined, since the original may be the one
-making it; a stop where a call returns doesn't count, being where a port gives
-up after a call-out that came back with other widths. A port with a call-out,
+inlines from another are credited to the port that inlines them. A stop where a call returns, declaring nothing dead there, doesn't count as
+a stop (below), being where a port gives up after a call-out that came back
+with other widths. A port with a call-out,
 or a PC it sets, that the check can't read credits no callee: any of them
 might be the one it calls. A site that reads as something other than a call
 is a misreading and counts as unreadable. The bytes credited this way alone
 are the `inlined` column.
 
+**Stops.** A place the port hands back at (an `m_stop_at` or
+`m_stop_dont_care` it declares, or a PC it sets) is the original's: the walk
+doesn't go on from it, so what the original runs from there -- a request the
+port leaves it, down to a reset into the main loop -- isn't credited, unless
+the port reaches the same code another way.
+
 **Read it as an estimate.** It is still wrong in both directions:
 
-- *Over-counts* where a port stops early. A port that ends at a call-out or
-  at a loop head (the sound driver's wait loops, the battle main loop's
-  entries, a mode's start that hands back where it switches stacks) is
-  credited with the routine's code after it that the original runs; as are a
-  precondition or guard that turns calls away, and a path the port gives up
-  on by calling out to the original's loop from its own entry's call (the
-  scene sequence interpreter does, for commands no script has).
+- *Over-counts* where a port ends at a call-out whose return it doesn't
+  declare a stop at, where a precondition or guard turns calls away, and a
+  path the port gives up on by calling out to the original's loop from its
+  own entry's call (the scene sequence interpreter does, for commands no
+  script has); and code the port reaches another way than through its stop
+  but only runs on paths that don't stop.
 - *Under-counts* where a port inlines a callee it calls out to on some other
   path (the site or the target is named, so the callee isn't credited), a
   callee called after a stop the port only makes on some paths, all the
@@ -174,13 +176,17 @@ def read_ports(root: pathlib.Path, an) -> list:
                         continue
                     port.stops |= {b << 16 | v for b in banks for v in pcs}
             ev.only_callers = saved
+        declared = set()
         for d in decls:
             if d.kind == "stop" and (d.path, d.func) in reach:
                 port.stops.add(d.at)
-        # a stop where a call returns is where the port gives up after a call-out
-        # that came back other than expected (with other widths): it goes on there
-        # otherwise, so the code after it is still its own
-        port.stops = {at for at in port.stops if not returns_to(at)}
+                if d.dont_care:
+                    declared.add(d.at)
+        # a stop where a call returns, declaring nothing dead, is where the port
+        # gives up after a call-out that came back other than expected (with
+        # other widths): it goes on there otherwise, so the code after it is
+        # still its own. One that declares what is dead there hands back.
+        port.stops = {at for at in port.stops if at in declared or not returns_to(at)}
     return ports
 
 
@@ -279,31 +285,34 @@ def successors(an, insn):
 def walk(an, entry, owners, port=None):
     """Bytes of code the port at `entry` covers: (the routine's own, the
     callees' it inlines). Without a port (nothing known about its source),
-    calls aren't followed. Past a place where the port may hand back, its own
-    code is still counted (a port often hands back only on some paths) but no
-    callee is taken to be inlined."""
+    calls aren't followed. A place where the port hands back is the
+    original's: the walk doesn't go on from it, so the code reached only
+    through it isn't credited (code the port also reaches another way still
+    is)."""
     seen, reached, inlined = set(), set(), set()
     stops = port.stops if port is not None else set()
-    queue = [(entry, False, False)]
+    queue = [(entry, False)]
     while queue:
-        pc, inside, past = queue.pop()    # inside: in a callee the port inlines; past: after a stop
-        if (pc, inside, past) in seen:
+        pc, inside = queue.pop()    # inside: in a callee the port inlines
+        if (pc, inside) in seen:
             continue
-        seen.add((pc, inside, past))
+        seen.add((pc, inside))
         insn = insn_at(an, pc)
         if insn is None:
             continue
         (inlined if inside else reached).update(range(pc, pc + insn.size))
         nexts, callees = successors(an, insn)
         for t in callees:
-            if port is None or port.idle or past or t in owners or port.calls_out(pc, t):
+            if port is None or port.idle or t in owners or port.calls_out(pc, t):
                 continue
-            queue.append((t, True, False))
+            queue.append((t, True))
         for nxt in nexts:
             # another port owns its own region, and its own walk will count it
             if nxt != entry and nxt in owners:
                 continue
-            queue.append((nxt, inside, past or nxt in stops))
+            if nxt in stops:
+                continue
+            queue.append((nxt, inside))
     return reached, inlined
 
 

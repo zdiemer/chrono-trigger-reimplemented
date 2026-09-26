@@ -7210,6 +7210,38 @@ mirrored copy, whose estimate no longer counts the port's writes through
 the port, and the builder), were calibrated over the library; no
 exception.
 
+### Phase 3, field and events: the drawn frame put on the records
+
+The seventh chunk of bank `$C0`, and chunk 6's review.
+
+**Chunk 6's review, folded in.**
+- *The switch sound's A-high byte* (the port-routine skill's third trap). Its
+  reader is named: the sound driver saves A on the stack as it starts
+  (`$C7:0147`'s `PHA`), so the byte stays in the stack below the caller's
+  frame, which shadow mode compares. Liveness has the driver read it, so it
+  can't be declared dead; the derivation stays in field/leaves.c and reads
+  the map through switches.c's own decoding (`field_map_byte`), where it had
+  read column 63 as BG1's (review rubric item 94).
+- *Origin tags* (item 95): `redraw_quarter` takes no site; each branch tags
+  its uploads' start with a literal.
+- The guard refuses a one-by-two switch whose upper tile is the tile set's
+  last, and the word-wide move is gone; `leave_entries` leaves its cells
+  through `original_cell16`, and `$D9` is one named cell
+  (`FIELD_LAST_WORKED_CELL`); the redraw after the picture is in display.c
+  with `field_windows_need_refresh`; one `pressed_shape`; the chest kinds are
+  named (`ChestKind`). The switch sound keeps a site a switch: the call's
+  return is where the port stops if the call comes back otherwise.
+- The mirrored copy takes a place in the build bank, like the straight
+  copy, and its guard takes a port there alone, where the frame builders put
+  it. The fuzzer can't set the port (its saved states have it in bank `$7E`,
+  where the sprite table's building leaves it), so the entry's row compares
+  nothing; the copy is fuzzed through `field_draw_next_frame`.
+- *The burndown's overcount.* `tools/burndown.py` no longer walks on from a
+  place a port hands back at, and a stop at a call's return counts as a
+  hand-back where it declares what is dead there (a bare one is still a
+  bridge giving up); `tests/test_burndown.py` covers both. `$C0` goes from
+  5% left to 36%, and the total from 41% to 51%.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

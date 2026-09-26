@@ -36,7 +36,7 @@
  * by moving the index, as the original does. */
 enum { MAP_ROW = 0x100, TABLE_COLUMNS = 0x40, PROPERTIES_TABLE = 3 };
 
-static uint8_t map_byte(const GameState *g, uint16_t at)
+uint8_t field_map_byte(const GameState *g, uint16_t at)
 {
     unsigned row = at >> 8, table = (at >> 6) & 3, column = at & (TABLE_COLUMNS - 1);
     return table == PROPERTIES_TABLE ? field_tile_properties(g, row, column) : field_layer_maps(g, table, row, column);
@@ -52,7 +52,7 @@ static void set_map_byte(GameState *g, uint16_t at, uint8_t v)
 }
 
 /* A tile moved on to the next in the tile set. */
-static void next_tile(GameState *g, uint16_t at) { set_map_byte(g, at, (uint8_t)(map_byte(g, at) + 1)); }
+static void next_tile(GameState *g, uint16_t at) { set_map_byte(g, at, (uint8_t)(field_map_byte(g, at) + 1)); }
 
 /* ---- The switches -------------------------------------------------------------------------- */
 
@@ -89,7 +89,14 @@ bool field_is_switch(const GameState *g, uint16_t step)
 {
     SwitchShape shape;
     unsigned column;
-    return switch_of(map_byte(g, step), &shape, &column);
+    return switch_of(field_map_byte(g, step), &shape, &column);
+}
+
+bool field_is_one_by_two_switch(const GameState *g, uint16_t step)
+{
+    SwitchShape shape;
+    unsigned column;
+    return switch_of(field_map_byte(g, step), &shape, &column) && shape == SWITCH_ONE_BY_TWO;
 }
 
 /* The index of a switch's tile, from the stepped-on tile's. */
@@ -98,29 +105,24 @@ static uint16_t switch_tile_at(uint16_t step, unsigned step_column, unsigned col
     return (uint16_t)(step + column - step_column - up * MAP_ROW);
 }
 
+/* The one-by-two switch's upper tile, as the guard asks. */
+uint16_t field_switch_upper_tile(uint16_t step) { return switch_tile_at(step, 0, 0, 1); }
+
 // $C0:0D45-$C0:16DB (the step event's switches)
 /* Press the switch the leader stepped on, if the tile is one: its tiles move
- * on in the map. The one-by-two switch's upper tile is moved on as a word
- * with the tile to its right, as the original does (a carry past $FF would
- * reach that tile). */
+ * on in the map. (The original moves the one-by-two switch's upper tile on
+ * as a word with the tile to its right, which only a tile of $FF would carry
+ * into; the guard refuses one.) */
 SwitchPress field_press_switch(GameState *g, uint16_t step)
 {
     SwitchPress p = { false, SWITCH_ONE_BY_TWO, 0 };
-    if (!switch_of(map_byte(g, step), &p.shape, &p.step_column))
+    if (!switch_of(field_map_byte(g, step), &p.shape, &p.step_column))
         return p;
     p.pressed = true;
     const SwitchShapeTiles *s = &shapes[p.shape];
     for (unsigned c = 0; c < s->columns; c++)
         for (unsigned up = 0; up < s->rows; up++) {
-            uint16_t at = switch_tile_at(step, p.step_column, c, up);
-            if (p.shape == SWITCH_ONE_BY_TWO && up == 1) {
-                uint16_t word = (uint16_t)(map_byte(g, (uint16_t)(at + 1)) << 8 | map_byte(g, at));
-                word++;
-                set_map_byte(g, at, (uint8_t)word);
-                set_map_byte(g, (uint16_t)(at + 1), (uint8_t)(word >> 8));
-            } else {
-                next_tile(g, at);
-            }
+            next_tile(g, switch_tile_at(step, p.step_column, c, up));
         }
     return p;
 }
@@ -149,15 +151,15 @@ static TileEntries tile_entries(const GameState *g, int column, int row)
 }
 
 /* For the original's code and shadow mode: working out the entries leaves
- * the screen's edges as words in two of the sprite table's cursors (their
- * cells are scratch here), and the last entry's row times 32 ($D9). */
-enum { ROW_TIMES_CELL = 0xD9, ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
+ * the screen's edges as words in two of the page's scratch cells, and the
+ * last entry's row times 32. */
+enum { LEFT_EDGE_CELL = 0xDB, TOP_EDGE_CELL = 0xDD, ENTRIES_A_ROW = FIELD_TILE_MAP_HALF_COLUMNS };
 static void leave_entries(GameState *g, int last_row)
 {
-    set_field_sprite_range_next(g, 0, (uint16_t)(field_screen_edges_high(g, 0) << 8 | field_screen_left(g)));
-    set_field_sprite_range_next(g, 1, (uint16_t)(field_screen_edges_high(g, 1) << 8 | field_screen_top(g)));
+    original_cell16(g, LEFT_EDGE_CELL, (uint16_t)(field_screen_edges_high(g, 0) << 8 | field_screen_left(g)));
+    original_cell16(g, TOP_EDGE_CELL, (uint16_t)(field_screen_edges_high(g, 1) << 8 | field_screen_top(g)));
     uint16_t y = (uint16_t)((ENTRIES_A_TILE * last_row - field_screen_top(g) + field_layer_position_y(g, BG1) + 1) & ROW_BITS);
-    original_cell16(g, ROW_TIMES_CELL, (uint16_t)(y * ENTRIES_A_ROW));
+    original_cell16(g, FIELD_LAST_WORKED_CELL, (uint16_t)(y * ENTRIES_A_ROW));
 }
 
 enum { REDRAW_CHEST = 0x02, REDRAW_SWITCH = 0x10 };
@@ -188,7 +190,7 @@ void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step)
 /* A chest as the map shows it closed: the tile $FE, or $E0; open, the next
  * tile. The main loop's code that opens one is still the original's, which
  * leaves the chest's kind and its entries for the redraw. */
-enum { CHEST_TILE = 0xFE, OTHER_CHEST_TILE = 0xE0 };
+static uint8_t closed_chest_tile(ChestKind kind) { return kind == CHEST_ON_TILE_FE ? 0xFE : 0xE0; }
 
 /* ---- Redrawing, after the picture ----------------------------------------------------------- */
 
@@ -196,27 +198,26 @@ enum { CHEST_TILE = 0xFE, OTHER_CHEST_TILE = 0xE0 };
  * (field_tile_looks), where the tile set puts its switches and chests. */
 enum { UPPER_LOOKS = 0x100 };
 
-typedef struct {
-    uint32_t port, address, write;   /* the original's sites: the port's setting, the first entry's two writes */
-} RedrawSites;
+/* The shape pressed last; a shape past the three redraws as the largest,
+ * as the original's does. */
+static const SwitchShapeTiles *pressed_shape(const GameState *g)
+{
+    unsigned shape = field_switch_shape(g);
+    return &shapes[shape < SHAPES ? shape : SWITCH_TWO_BY_THREE];
+}
 
-enum { NEXT_ENTRY_SITE = 13 };
-
-static void redraw_tile(Platform *pf, const GameState *g, uint8_t tile, uint16_t entry, unsigned k, RedrawSites at,
-                        unsigned n)
+/* A tile's quarter-look, `k` (top left, top right, bottom left, bottom
+ * right), written to its entry. */
+static void redraw_quarter(Platform *pf, const GameState *g, uint8_t tile, uint16_t entry, unsigned k)
 {
     unsigned look = UPPER_LOOKS | tile;
     uint16_t word = k == 0 ? field_tile_looks_top_left(g, look)
                   : k == 1 ? field_tile_looks_top_right(g, look)
                   : k == 2 ? field_tile_looks_bottom_left(g, look)
                            : field_tile_looks_bottom_right(g, look);
-    vid_set_vram_address(pf, PF_AT(at.address + n * NEXT_ENTRY_SITE), entry);
-    vid_write_vram(pf, PF_AT(at.write + n * NEXT_ENTRY_SITE), word);
+    vid_set_vram_address(pf, PF_AT(0xC0ED24), entry);
+    vid_write_vram(pf, PF_AT(0xC0ED24), word);
 }
-
-static const RedrawSites switch_sites[SHAPES] = {
-    { 0xC0ED33, 0xC0ED3B, 0xC0ED42 }, { 0xC0EDAF, 0xC0EDB7, 0xC0EDBE }, { 0xC0EE8D, 0xC0EE95, 0xC0EE9C } };
-static const RedrawSites chest_sites[2] = { { 0xC0EFDC, 0xC0EFE4, 0xC0EFEB }, { 0xC0F01E, 0xC0F026, 0xC0F02D } };
 
 // $C0:ED24-$C0:F05D
 /* Draw the looks a switch pressed or a chest opened since the last time:
@@ -227,24 +228,20 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
 {
     uint8_t waiting = field_tiles_to_redraw(g);
     if (waiting & REDRAW_SWITCH) {
-        unsigned shape = field_switch_shape(g);
-        const SwitchShapeTiles *s = &shapes[shape < SHAPES ? shape : SWITCH_TWO_BY_THREE];
-        RedrawSites at = switch_sites[shape < SHAPES ? shape : SWITCH_TWO_BY_THREE];
-        vid_start_vram_uploads(pf, PF_AT(at.port), VID_VRAM_WORD_PORT);
+        const SwitchShapeTiles *s = pressed_shape(g);
+        vid_start_vram_uploads(pf, PF_AT(0xC0ED33), VID_VRAM_WORD_PORT);
         unsigned n = 0;
         for (unsigned t = 0; t < (unsigned)s->columns * s->rows; t++)
             for (unsigned k = 0; k < 4; k++, n++)
-                redraw_tile(pf, g, (uint8_t)(s->tiles[t] + 1), field_switch_entries(g, n), k, at, n);
+                redraw_quarter(pf, g, (uint8_t)(s->tiles[t] + 1), field_switch_entries(g, n), k);
         set_field_tiles_to_redraw(g, (uint8_t)(waiting & ~REDRAW_SWITCH));
         return;
     }
     if (waiting & REDRAW_CHEST) {
-        bool first_kind = field_chest_kind(g) == CHEST_OF_THE_FIRST_KIND;
-        RedrawSites at = chest_sites[first_kind ? 0 : 1];
-        vid_start_vram_uploads(pf, PF_AT(at.port), VID_VRAM_WORD_PORT);
-        uint8_t open = (uint8_t)((first_kind ? CHEST_TILE : OTHER_CHEST_TILE) + 1);
+        ChestKind kind = field_chest_kind(g) == CHEST_ON_TILE_FE ? CHEST_ON_TILE_FE : CHEST_ON_TILE_E0;
+        vid_start_vram_uploads(pf, PF_AT(0xC0EFDC), VID_VRAM_WORD_PORT);
         for (unsigned k = 0; k < 4; k++)
-            redraw_tile(pf, g, open, field_chest_entries(g, k), k, at, k);
+            redraw_quarter(pf, g, (uint8_t)(closed_chest_tile(kind) + 1), field_chest_entries(g, k), k);
         set_field_tiles_to_redraw(g, (uint8_t)(waiting & ~REDRAW_CHEST));
     }
 }
@@ -270,8 +267,7 @@ void field_remember_step(GameState *g, uint16_t step)
 
 unsigned field_switch_entry_count(const GameState *g)
 {
-    unsigned shape = field_switch_shape(g);
-    const SwitchShapeTiles *s = &shapes[shape < SHAPES ? shape : SWITCH_TWO_BY_THREE];
+    const SwitchShapeTiles *s = pressed_shape(g);
     return (unsigned)s->columns * s->rows * 4u;
 }
 

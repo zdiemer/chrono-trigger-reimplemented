@@ -20,10 +20,16 @@ typedef struct {
     unsigned step_column;
 } SwitchPress;
 
-/* The two kinds of chest (field_chest_kind). */
-enum { CHEST_OF_THE_FIRST_KIND = 0, CHEST_OF_THE_OTHER_KIND = 1 };
+/* The two chests a map's tile set has (field_chest_kind), by the tile each
+ * is closed: $FE, or $E0. */
+typedef enum { CHEST_ON_TILE_FE = 0, CHEST_ON_TILE_E0 = 1 } ChestKind;
 
 bool field_is_switch(const GameState *g, uint16_t step);
+uint16_t field_switch_upper_tile(uint16_t step);
+bool field_is_one_by_two_switch(const GameState *g, uint16_t step);
+/* A byte of the map's tables by the original's index, row << 8 | column
+ * (which runs on past a layer's 64 columns into the row's next table). */
+uint8_t field_map_byte(const GameState *g, uint16_t at);
 SwitchPress field_press_switch(GameState *g, uint16_t step);
 void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step);
 /* For what the original leaves (field/leaves.c): how many entries the

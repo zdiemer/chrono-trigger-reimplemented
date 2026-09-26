@@ -21,6 +21,6 @@ enum { FIELD_TILE_MIRRORED = 0x4000, FIELD_TILE_NUMBER = 0x07FF, FIELD_TILE_BYTE
 void field_draw_frame_tile(GameState *g, ObjectGraphics set, uint16_t tile, uint16_t to);
 void field_copy_sprite_tile(Snes *s);
 void field_copy_sprite_tile_flipped(Snes *s);
-bool field_tile_copy_keeps_saved_y(Snes *s);
+bool field_tile_copy_in_build_bank(Snes *s);
 
 #endif

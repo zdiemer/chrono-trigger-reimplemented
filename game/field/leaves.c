@@ -174,19 +174,19 @@ bool field_switch_redraw_overflow(const GameState *g)
     return field_add_overflows16((uint16_t)(last - base), base);
 }
 
-/* A's high byte at the switch's sound, which the sound driver keeps and hands
- * back: the original's last word-wide sum on its way round the switch's
- * tiles. For the one-by-two switch, the upper tile moved on as a word, whose
- * high byte is the tile to its right; for the others, the index of the tile
- * a row up from where the original's walk round the tiles ended its last
- * row (the two-by-two's other column, the two-by-three's own). */
+/* A's high byte at the switch's sound: the sound driver saves A on the stack
+ * as it starts ($C7:0147's PHA) and takes it back, so the byte is left in the
+ * stack below the caller's frame, which shadow mode compares. It is the
+ * original's last word-wide value on its way round the switch's tiles: for
+ * the one-by-two switch the upper tile moved on as a word, whose high byte
+ * is the tile to its right; for the others, the index of the tile a row up
+ * from where the original's walk round the tiles ended its last row (the
+ * two-by-two's other column, the two-by-three's own). */
 enum { MAP_ROW_STEP = 0x100 };
 uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step)
 {
-    if (p.shape == SWITCH_ONE_BY_TWO) {
-        uint16_t right_of_upper = (uint16_t)(step - MAP_ROW_STEP + 1);
-        return field_layer_maps(g, 0, (right_of_upper >> 8) & 0x3F, right_of_upper & 0x3F);
-    }
+    if (p.shape == SWITCH_ONE_BY_TWO)
+        return field_map_byte(g, (uint16_t)(field_switch_upper_tile(step) + 1));
     int along = p.shape == SWITCH_TWO_BY_TWO ? (p.step_column == 0 ? 1 : -1) : 0;
     uint16_t last = (uint16_t)(step + along - (field_switch_rows(p.shape) - 1u) * MAP_ROW_STEP);
     return (uint8_t)(last >> 8);
