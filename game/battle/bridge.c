@@ -60,6 +60,8 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Sn
     }
     NATIVE_TIME_AS(s, routine, entry(s));
     bool returned = s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    if (returned)
+        native_entry_returned(s, e);
     return returned && battle_back(s, returns_to, page, data_bank(s));
 }
 

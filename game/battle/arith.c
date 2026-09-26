@@ -5,7 +5,6 @@
 
 #include "battle/bridge.h"
 #include "battle/entries.h"
-#include "battle/overflow.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -128,29 +127,11 @@ static void leave_word_product(GameState *g, uint16_t a, uint32_t product)
 
 void battle_leave_multiply_carry(GameState *g, bool carry) { set_battle_wide_math(g, SECOND, carry); }
 
-/* The overflow its adds leave (battle/overflow.h): the last add's, the first
- * number added into the product's high word for each bit of the second; with
- * no bit set, none. */
-static void leave_multiply_overflow(uint16_t a, uint16_t b)
-{
-    uint16_t high = 0;
-    for (unsigned bit = 0; bit < 16; bit++) {
-        bool carry = false;
-        if (b & (1u << bit)) {
-            battle_leave_add_overflow16(a, high);
-            carry = (uint32_t)a + high > 0xFFFF;
-            high = (uint16_t)(a + high);
-        }
-        high = (uint16_t)(carry << 15 | high >> 1);
-    }
-}
-
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b)
 {
     uint32_t product = multiply_words(a, b);
     keep_high_word_left(g, (uint16_t)(product >> 16));
     leave_word_product(g, a, product);
-    ORIGINAL_EFFECT(leave_multiply_overflow(a, b));
     return product;
 }
 

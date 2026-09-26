@@ -1,8 +1,6 @@
 /* Battle: the battle's random numbers (battle/random.h). */
 #include "battle/random.h"
 
-#include "battle/overflow.h"
-
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
@@ -53,12 +51,9 @@ static uint8_t draw(GameState *g, Position p, uint8_t lowest, uint8_t limit)
     if (limit == 0 || limit == lowest)
         return limit;
     uint8_t width = (uint8_t)(limit - lowest), number = battle_random_number(g, position(g, p));
-    ORIGINAL_EFFECT(battle_leave_overflow(battle_add_overflows8(limit, (uint8_t)~lowest, true)));
     if (width == WHOLE_TABLE)
         return number;
-    uint8_t within = over_range(g, number, width);
-    ORIGINAL_EFFECT(battle_leave_add_overflow8(within, lowest));
-    uint8_t drawn = (uint8_t)(lowest + within);
+    uint8_t drawn = (uint8_t)(lowest + over_range(g, number, width));
     step_position(g, p);
     return drawn;
 }

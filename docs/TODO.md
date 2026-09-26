@@ -157,15 +157,18 @@ rest waits, is [PLAN.md](PLAN.md).
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
-  - What an effect's working out still hands the machine as scaffolding
-    (RECOMP.md, "Phase 3, battle chunk 2"): the overflow flag of its last add,
-    which the action's showing (`$C1:BFA4`) saves with the flags across its
-    frame waits and nothing in the battle's banks tests (`battle/overflow.h`,
-    noted in the arithmetic, taken by the work-out's entry); it goes when the
-    showing's step is a port, or when a fuzz run of the showing can finish
-    (it waits on frames). The entries turn away a drain where `$1B` isn't
-    clear, the byte the original reads its stat's offset's high byte from;
-    the party's code before it is where to show the game always leaves it so.
+  - What an effect's working out still leaves the machine as scaffolding
+    (RECOMP.md, "Phase 3, battle chunk 2"), for the party's code and the
+    showing, which are the original's: the carry the long multiply keeps in
+    its second number's cell (`battle_leave_multiply_carry`, at eight places in
+    the work and the enemy's turn, each the carry of what came just before a
+    multiply that may be the last), the numbers each kind hands on in the
+    direct page's cells (`EFFECT_ARG_1`-`_6`, $0E and $10), and the kinds'
+    constant carry and Y at their entry. Each goes when what reads it is a
+    port: the party's working out (`$C1:D523`, `$C1:D74F`, `$C1:BF46`) and the
+    showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    byte the original reads its stat's offset's high byte from; the party's
+    code before it is where to show the game always leaves it so.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;

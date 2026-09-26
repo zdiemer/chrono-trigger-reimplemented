@@ -401,6 +401,18 @@ extern void (*native_call_timeout_hook)(void);
 extern bool (*native_call_poison)(uint32_t site, uint32_t target, uint64_t *bits);
 void native_call_poison_reset(void);
 
+/* For ct_dev --poison-return: when a hand port's entry returns in the shipping
+ * mode and this hook says so (it picks entries by name), the registers and
+ * flags its don't-care set names (or as many of them as the hook leaves in
+ * `set`) are scrambled, as native_call_poison does, before the original's code
+ * goes on. A declaration that holds leaves the run
+ * as it was; one that doesn't changes what the original's code does next,
+ * which a trace against --native off shows. Entries run inline by a port that
+ * stands in for their caller are poisoned where the port hands them back
+ * (native_entry_returned). NULL by default. */
+extern bool (*native_return_poison)(const NativeEntry *e, uint64_t *bits, uint16_t *set);
+void native_entry_returned(Snes *s, const NativeEntry *e);
+
 /* Synchronous call-outs, for ct_fuzz --stop-at-call: called with the machine
  * at the callee's entry (the return address pushed); a tool that wants the
  * comparison to end there (a call that yields to another task, which never

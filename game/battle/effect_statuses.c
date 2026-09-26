@@ -68,7 +68,6 @@ static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
             start_status_timer(g, BATTLE_TIMER_STOP, slot, length_of(g, BATTLE_TIMER_STOP, slot));
         } else if (bits & STATUS_POISON) {
             uint8_t length = length_of(g, BATTLE_TIMER_STATUS_1, slot), longer = effect_target_stat(g, STAT_HIT);
-            ORIGINAL_EFFECT(battle_leave_add_overflow8(length, longer));
             start_status_timer(g, BATTLE_TIMER_STATUS_1, slot, (uint8_t)(length + longer));
         } else if (bits & STATUS_SLOW) {
             start_status_timer(g, BATTLE_TIMER_STATUS_2, slot, length_of(g, BATTLE_TIMER_STATUS_2, slot));
@@ -123,10 +122,6 @@ Inflicted effect_inflict_status(GameState *g, uint16_t which, uint8_t bits)
     uint8_t kind = (uint8_t)which;
     if (kind == NO_STATUS_BYTE)
         return NOTHING_INFLICTED;
-    /* the byte is found by adding its number to the stat block's offset,
-     * which never overflows */
-    if (kind <= LAST_STATUS_BYTE)
-        ORIGINAL_EFFECT(battle_leave_overflow(false));
     Inflicted outcome = INFLICTED;
     if (kind <= SHRUGS_OFF_BYTES) {
         if (effect_target_stat(g, (uint16_t)(STAT_SHRUGS_OFF + which)) & bits) {

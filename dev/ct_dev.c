@@ -11,7 +11,7 @@
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--scaffold-reads]
- *          [--as-port BBAAAA[,BBAAAA...]]
+ *          [--as-port BBAAAA[,BBAAAA...]] [--poison-return name]... [--poison-set AXYNVZC]
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
  * --px-check); otherwise each line computes just the sprite flags the game can
@@ -89,6 +89,15 @@
  * hand port would run: all at once with time stopped, its time owed after
  * (dev/as_port.h). For trying what the shipping mode does with a port of a
  * routine before writing it, a routine that spans frames above all.
+ * --poison-return name (with --native on) scrambles, each time the hand port
+ * `name` returns, the registers and flags its don't-care set names
+ * (native_return_poison): a declaration that holds leaves the run's trace as
+ * it is without the scrambling; one the original's code after it reads changes
+ * it. It prints
+ * how many returns it scrambled. --poison-set AXYNVZC (any of those letters)
+ * scrambles only those of the set. The evidence for a declaration liveness
+ * can't prove over the library (docs/PORTING.md, "Declarations liveness can't
+ * prove").
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -348,6 +357,30 @@ static void report_page_refusals(void)
                     (unsigned)r[i].last_d);
 }
 
+/* --poison-return: the entries named, and how many returns were scrambled. */
+static const char *poison_names[16];
+static int npoison_names;
+static unsigned long poisoned_returns;
+static uint64_t poison_state = 0x9E3779B97F4A7C15ull;
+
+static uint16_t poison_set = 0xFFFF;
+
+static bool poison_return(const NativeEntry *e, uint64_t *bits, uint16_t *set)
+{
+    for (int i = 0; i < npoison_names; i++) {
+        if (!strcmp(e->name, poison_names[i])) {
+            *set &= poison_set;
+            poison_state ^= poison_state << 13;
+            poison_state ^= poison_state >> 7;
+            poison_state ^= poison_state << 17;
+            *bits = poison_state;
+            poisoned_returns++;
+            return true;
+        }
+    }
+    return false;
+}
+
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
@@ -441,6 +474,22 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--exclude") && nexcludes < 64) excludes[nexcludes++] = v;
         else if (!strcmp(a, "--include") && nincludes < 64) includes[nincludes++] = v;
         else if (!strcmp(a, "--as-port")) as_ports = v;
+        else if (!strcmp(a, "--poison-return") && npoison_names < 16) poison_names[npoison_names++] = v;
+        else if (!strcmp(a, "--poison-set")) {
+            poison_set = 0;
+            for (const char *c = v; *c; c++) {
+                switch (*c) {
+                case 'A': poison_set |= DC_A; break;
+                case 'X': poison_set |= DC_X; break;
+                case 'Y': poison_set |= DC_Y; break;
+                case 'N': poison_set |= DC_N; break;
+                case 'V': poison_set |= DC_V; break;
+                case 'Z': poison_set |= DC_Z; break;
+                case 'C': poison_set |= DC_C; break;
+                default: break;
+                }
+            }
+        }
         else if (!strcmp(a, "--shadow-details")) shadow_details = (int)strtol(v, NULL, 10);
         else if (!strcmp(a, "--port-timing")) {
             if (!strcmp(v, "estimate")) port_timing = PORT_TIMING_ESTIMATE;
@@ -507,7 +556,8 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]]\n");
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--poison-return name]... [--poison-set AXYNVZC]\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -671,6 +721,13 @@ int main(int argc, char **argv)
     };
     static uint8_t wram_written[SNES_WRAM_SIZE];
     snes.bus.wram_written = wram_written;
+    if (npoison_names) {
+        if (native_mode != NATIVE_ON) {
+            fprintf(stderr, "--poison-return needs --native on (shadow mode runs ports on a copy)\n");
+            return 2;
+        }
+        native_return_poison = poison_return;
+    }
     if (scaffold_reads) {
         if (native_mode != NATIVE_ON) {
             fprintf(stderr, "--scaffold-reads needs --native on (shadow mode runs ports on a copy)\n");
@@ -758,6 +815,8 @@ int main(int argc, char **argv)
     range_report(stderr);
     if (scaffold_reads)
         scaffold_reads_report(stderr);
+    if (npoison_names)
+        fprintf(stderr, "poison-return: %lu returns scrambled\n", poisoned_returns);
     au_direct_report(stderr);
     if (insn_stats) {
         uint64_t generated = native_generated_instructions();

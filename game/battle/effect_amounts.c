@@ -31,10 +31,6 @@ uint16_t effect_target_stat_word(const GameState *g, uint16_t offset)
 }
 void set_effect_target_stat(GameState *g, uint16_t offset, uint8_t v) { set_combatant_stat_byte(g, effect_target(g), offset, v); }
 
-/* A stat's place in the stat blocks, the block's offset and the stat's, which
- * the original adds up (never overflowing) to reach it. */
-static void reached_stat(void) { ORIGINAL_EFFECT(battle_leave_overflow(false)); }
-
 /* ---- Where the numbers go ----------------------------------------------------------------- */
 
 uint8_t effect_listed_target(const GameState *g)
@@ -57,7 +53,6 @@ void effect_record_damage(GameState *g, uint8_t slot, uint8_t marks)
     if (marks & DAMAGE_HEALS)
         set_battle_effect_amount(g, (uint16_t)-battle_effect_amount(g));
     uint8_t set_place = (uint8_t)effect_times(g, battle_damage_hit(g), SET_BYTES);
-    ORIGINAL_EFFECT(battle_leave_add_overflow8((uint8_t)(slot * ENTRY_BYTES), set_place));
     unsigned entry = (uint8_t)(slot * ENTRY_BYTES + set_place) / ENTRY_BYTES;
     if (entry < BATTLE_DAMAGE_COUNT) {
         set_battle_damage_amount(g, entry, battle_effect_amount(g));
@@ -78,7 +73,6 @@ static uint8_t number_place(GameState *g, uint8_t slot, bool tally_first)
     uint8_t set_place = tally_first ? (uint8_t)effect_times(g, battle_effect_tally(g), SET_BYTES)
                                     : (uint8_t)effect_times(g, SET_BYTES, battle_effect_tally(g));
     uint8_t slot_place = (uint8_t)(slot * ENTRY_BYTES);
-    ORIGINAL_EFFECT(battle_leave_add_overflow8(set_place, slot_place));
     return (uint8_t)(set_place + slot_place);
 }
 
@@ -173,7 +167,6 @@ static uint16_t restoration(GameState *g, uint8_t power, uint16_t base, uint8_t 
     if ((uint8_t)effect_over(g, product, whole).remainder == 0)
         return product;
     uint8_t drawn = battle_random(g, 0, power);
-    ORIGINAL_EFFECT(battle_leave_add_overflow16(drawn, product));
     return (uint16_t)(product + drawn);
 }
 
@@ -218,14 +211,11 @@ enum { MOST_OFFSET = 2 };
 
 void effect_drain(GameState *g, Drain what, uint8_t share)
 {
-    reached_stat();
     uint16_t most = effect_target_stat_word(g, (uint16_t)(what + MOST_OFFSET));
     uint16_t base = effect_over(g, effect_times(g, most, share), 0x14).quotient;
     ORIGINAL_EFFECT(leave_working_word(g, base));
     uint8_t limit = (uint8_t)(effect_over(g, base, 0x0A).quotient + 3);
-    ORIGINAL_EFFECT(battle_leave_add_overflow8((uint8_t)(limit - 3), 3));
     uint8_t drawn = battle_random(g, 0, limit);
-    ORIGINAL_EFFECT(battle_leave_add_overflow16(drawn, base));
     uint16_t amount = (uint16_t)(drawn + base);
     if (amount == 0)
         amount = 1;
@@ -319,7 +309,7 @@ static uint16_t twentieths_and_one(GameState *g, uint8_t v, uint8_t times)
 static uint16_t aim_of(GameState *g, uint8_t aim)
 {
     uint8_t statuses = effect_actor_stat(g, STAT_STATUS_1);
-    if (statuses & (STATUS_BLIND | STATUS_RESTARTS_SCRIPT))
+    if (statuses & (STATUS_BLIND | STATUS_CONFUSED))
         return twentieths_and_one(g, aim, 5);
     if (statuses & STATUS_POISON)
         return twentieths_and_one(g, aim, 0x0F);
@@ -356,9 +346,9 @@ static uint16_t evasion_of(GameState *g, uint16_t evasion)
     } else {
         uint8_t statuses = effect_target_stat(g, STAT_STATUS_1);
         effect_leave_last_worked_byte(g, statuses);
-        if (statuses & (STATUS_STOP | STATUS_NO_TURNS)) {
+        if (statuses & (STATUS_STOP | STATUS_ASLEEP)) {
             evasion = twentieths_and_one(g, (uint8_t)evasion, 4);
-        } else if (statuses & (STATUS_BLIND | STATUS_RESTARTS_SCRIPT)) {
+        } else if (statuses & (STATUS_BLIND | STATUS_CONFUSED)) {
             evasion = twentieths_and_one(g, (uint8_t)evasion, 0x0A);
         } else {
             if (statuses & STATUS_SLOW)
@@ -369,11 +359,9 @@ static uint16_t evasion_of(GameState *g, uint16_t evasion)
     }
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, evasion));
     uint8_t own = effect_actor_stat(g, STAT_LEVEL), theirs = effect_target_stat(g, STAT_LEVEL);
-    ORIGINAL_EFFECT(battle_leave_overflow(battle_add_overflows8(own, (uint8_t)~theirs, true)));
     if (own < theirs)
         return evasion;
     uint8_t bonus = level_bonus(g, (uint8_t)(own - theirs));
-    ORIGINAL_EFFECT(battle_leave_add_overflow8(bonus, (uint8_t)evasion));
     if (bonus + (uint8_t)evasion > 0xFF) {
         evasion = (uint16_t)((evasion & 0xFF00) | 0xFF);
         ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_2, 0xFF));
@@ -389,7 +377,6 @@ enum { SURE_AIM = 0x63, SURE_EVASION = 0x64, PERCENT = 100 };
 
 bool effect_lands(GameState *g, uint8_t aim_stat, uint8_t evasion_stat)
 {
-    reached_stat();
     uint8_t aim = effect_actor_stat(g, aim_stat), evade = effect_target_stat(g, evasion_stat);
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, aim));
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, evade));
@@ -446,22 +433,13 @@ uint16_t effect_about_a_tenth(GameState *g, uint16_t v)
 /* The random part of the damage, up to one or two past a share (a byte). */
 static void draw_variance(GameState *g, uint8_t share, uint8_t past)
 {
-    ORIGINAL_EFFECT(battle_leave_add_overflow8(share, past));
     set_battle_damage_variance(g, battle_random(g, 0, (uint8_t)(share + past)));
 }
 
-/* The power times a sum of the attacker's stats, over a divisor: the power
- * first multiplied by one, the way round each formula does it. */
+/* The power times a sum of the attacker's stats, over a divisor. */
 static uint16_t powered(GameState *g, uint8_t power, uint16_t sum, uint8_t divisor)
 {
-    uint16_t once = effect_times(g, power, 1);
-    return effect_over(g, effect_times(g, once, sum), divisor).quotient;
-}
-
-static uint16_t powered_once(GameState *g, uint8_t power, uint16_t sum, uint8_t divisor)
-{
-    uint16_t once = effect_times(g, 1, power);
-    return effect_over(g, effect_times(g, once, sum), divisor).quotient;
+    return effect_over(g, effect_times(g, power, sum), divisor).quotient;
 }
 
 /* A formula's parts, each the attacker's stat times its weight, added up. */
@@ -502,7 +480,7 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         battle_keep_stat_offset_word(g, level_part);
         uint16_t sum = (uint16_t)(weighted(g, STAT_MAGIC, 0x0C) + level_part);
         battle_keep_stat_offset_word(g, sum);
-        uint16_t damage = powered_once(g, power, sum, 0x0F);
+        uint16_t damage = powered(g, power, sum, 0x0F);
         draw_variance(g, about_three_tenths(g, effect_actor_stat(g, STAT_MAGIC)), 1);
         return damage;
     }
@@ -531,8 +509,7 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
     }
     case 6: {
         /* the HP the attacker has lost */
-        uint16_t hit = weighted(g, STAT_HIT, 1);
-        uint16_t powered_hit = effect_times(g, hit, power);
+        uint16_t powered_hit = effect_times(g, effect_actor_stat(g, STAT_HIT), power);
         uint16_t missing = (uint16_t)(effect_actor_stat_word(g, STAT_MAX_HP) - effect_actor_stat_word(g, STAT_HP));
         battle_keep_stat_offset_word(g, missing);
         uint16_t damage = effect_over(g, effect_times(g, missing, powered_hit), 0x8C).quotient;
@@ -578,7 +555,6 @@ static uint16_t damage_worked_out(GameState *g, uint8_t kind, uint8_t power)
     uint16_t damage = kind == FORMULA_LEFT_AS_IT_IS ? battle_wide_math_quotient(g) : formula(g, kind, power);
     uint8_t strength = (uint8_t)(effect_actor_stat(g, STAT_STATUS_4) | effect_actor_stat(g, STAT_KEPT_STATUS_4));
     if (strength & STATUS4_HITS_HALF_AGAIN) {
-        ORIGINAL_EFFECT(battle_leave_add_overflow16((uint16_t)(damage >> 1), damage));
         damage = (uint16_t)((damage >> 1) + damage);
         battle_set_wide_math_quotient(g, damage);
     } else {
@@ -591,7 +567,7 @@ static uint16_t damage_worked_out(GameState *g, uint8_t kind, uint8_t power)
             damage = effect_over(g, effect_times(g, damage, 8), 0x0A).quotient;
         if (own & STATUS_SLOW)
             damage = effect_over(g, effect_times(g, damage, 8), 0x0A).quotient;
-        if (own & STATUS_RESTARTS_SCRIPT)
+        if (own & STATUS_CONFUSED)
             damage = effect_over(g, damage, 4).quotient;
     }
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, damage));
@@ -609,21 +585,19 @@ static uint8_t defence_of(GameState *g, uint8_t named, uint8_t quarters)
 {
     uint16_t defence = named;
     if (named == DEFENCE_STAT) {
-        reached_stat();
         defence = effect_target_stat(g, named);
     } else if (named == DEFENCE_STAT_TIMES) {
-        reached_stat();
         defence = effect_over(g, effect_times(g, effect_target_stat(g, named), 5), 2).quotient;
     }
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_2, defence));
     uint8_t statuses = effect_target_stat(g, STAT_STATUS_1);
     effect_leave_last_worked_byte(g, statuses);
-    if (statuses & (STATUS_STOP | STATUS_NO_TURNS)) {
+    if (statuses & (STATUS_STOP | STATUS_ASLEEP)) {
         defence = effect_over(g, effect_times(g, (uint8_t)defence, 0x10), 0x14).quotient;
     } else {
         if (statuses & STATUS_POISON)
             defence = effect_over(g, effect_times(g, (uint8_t)defence, 0x12), 0x14).quotient;
-        if (statuses & (STATUS_BLIND | STATUS_RESTARTS_SCRIPT))
+        if (statuses & (STATUS_BLIND | STATUS_CONFUSED))
             defence = effect_over(g, effect_times(g, (uint8_t)defence, 0x12), 0x14).quotient;
         if (statuses & STATUS_SLOW)
             defence = effect_over(g, effect_times(g, (uint8_t)defence, 0x12), 0x14).quotient;
@@ -721,10 +695,8 @@ void effect_apply_hit(GameState *g, HitAmounts hit)
 {
     set_effect_target_stat(g, STAT_STATUS_1, effect_target_stat(g, STAT_STATUS_1) & (uint8_t)~STATUSES_A_HIT_ENDS);
     uint16_t kept = (uint16_t)(0x100 - hit.defence);
-    ORIGINAL_EFFECT(battle_leave_overflow(battle_add_overflows16(0x100, (uint16_t)~hit.defence, true)));
     uint16_t share = effect_over(g, effect_times(g, kept, hit.damage), 0x100).quotient;
     uint8_t variance = battle_damage_variance(g);
-    ORIGINAL_EFFECT(battle_leave_add_overflow16(variance, share));
     uint16_t amount = (uint16_t)(share + variance);
     set_battle_effect_amount(g, amount ? amount : 1);
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
@@ -755,6 +727,5 @@ void effect_apply_hit(GameState *g, HitAmounts hit)
         set_number_kind(g, place, NUMBER_DAMAGE);
     }
     set_number_value(g, place, battle_effect_amount(g));
-    ORIGINAL_EFFECT(battle_leave_add_overflow16(battle_effect_amount(g), battle_effect_total(g)));
     set_battle_effect_total(g, (uint16_t)(battle_effect_total(g) + battle_effect_amount(g)));
 }

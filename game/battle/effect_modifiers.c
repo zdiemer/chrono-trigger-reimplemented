@@ -148,9 +148,9 @@ static void random_status(GameState *g)
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, PERCENT));
     uint8_t drawn = battle_random(g, 0, PERCENT + 1);
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, drawn));
-    uint8_t bits = drawn < 0x28   ? STATUS_RESTARTS_SCRIPT
+    uint8_t bits = drawn < 0x28   ? STATUS_CONFUSED
                    : drawn < 0x41 ? STATUS_STOP
-                   : drawn < 0x5A ? STATUS_NO_TURNS
+                   : drawn < 0x5A ? STATUS_ASLEEP
                    : drawn < 0x64 ? STATUS_POISON
                                   : drawn;
     give_status(g, bits);
@@ -257,13 +257,11 @@ static void halve_hp(GameState *g, uint8_t percent)
 static void take_stat_bits(GameState *g, uint8_t stat, uint8_t bits)
 {
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_5, (uint8_t)~bits));
-    ORIGINAL_EFFECT(battle_leave_overflow(false));
     set_effect_target_stat(g, stat, effect_target_stat(g, stat) & (uint8_t)~bits);
 }
 
 static void give_stat_bits(GameState *g, uint8_t stat, uint8_t bits)
 {
-    ORIGINAL_EFFECT(battle_leave_overflow(false));
     set_effect_target_stat(g, stat, effect_target_stat(g, stat) | bits);
 }
 
@@ -330,9 +328,6 @@ static void death(GameState *g, uint8_t percent)
         set_battle_action_extra(g, battle_action_extra(g) | ACTION_MISSED);
         return;
     }
-    /* the original finds the next by testing the others' bits, which leaves
-     * the overflow flag their bit 14 */
-    ORIGINAL_EFFECT(battle_leave_overflow((others & 0x4000) != 0));
     for (uint16_t bit = 0x8000; bit != 0; bit >>= 1)
         if (others & bit) {
             set_battle_action_target_bits(g, bit);

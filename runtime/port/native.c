@@ -1094,6 +1094,8 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->segment_part_overflows = j->part_overflows;
     }
     if (j->state == JOB_DONE) {
+        if (rt->mode == NATIVE_ON && j->returned)
+            native_entry_returned(m, a->entry);
         a->ret_dont_care = j->stop_dont_care;
         a->ret_at = j->stop_at;
         a->ret_own = j->stop_own;
@@ -2227,6 +2229,16 @@ static void scramble(Cpu *c, uint16_t dont_care, uint64_t bits)
         c->db ^= k[5];
     c->p ^= (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
+}
+
+bool (*native_return_poison)(const NativeEntry *e, uint64_t *bits, uint16_t *set);
+
+void native_entry_returned(Snes *s, const NativeEntry *e)
+{
+    uint64_t bits;
+    uint16_t set = e ? e->dont_care : 0;
+    if (set && native_return_poison && native_return_poison(e, &bits, &set))
+        scramble(&s->cpu, (uint16_t)(set & e->dont_care), bits);
 }
 
 /* After a scrambled call: what the callee left alone is the caller's own

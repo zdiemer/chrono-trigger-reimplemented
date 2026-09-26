@@ -866,6 +866,43 @@ reach it) and mismatched none. A note on a declaration liveness proves without
 one is a finding too. `grep -rn "dc-evidence:" game/` lists every declaration
 that rests on fuzzing rather than on the analysis.
 
+Fuzzing can't settle a declaration whose callee runs for frames: a call-out to
+a routine that waits on the next frame, again and again, runs past any budget
+from every state. Where the one register such a call leaves unproven is the
+overflow flag, the evidence is instead the flag followed as far as the
+dispatch can reach, and the whole library run with the flag scrambled where
+it comes from:
+
+```c
+/* dc-evidence: tools/v_readers.py BB:AAAA: V dead; ct_dev --poison-return
+   ENTRY... over the library: M returns scrambled, 0 differing */
+```
+
+`tools/v_readers.py` solves liveness as strictly as the check does, but
+follows the jump tables the strict solve gives up on (their targets derived
+from data) to every word their dispatch can index, whatever the data picks:
+a byte doubled by an 8-bit `ASL` reaches 128 words, which past a table's own
+entries are the next tables'. Each must be code the analysis traced. It lists
+what reads V in the code the callee reaches: a `BVS` or `BVC`, or a `PHP`
+whose byte is taken back other than by `PLP` (liveness follows where it
+goes). `ct_dev --poison-return ENTRY` (with `--native on`) scrambles the
+registers and flags an entry declares don't-care each time it returns, as
+`--poison-dc` does at a call-out (`--poison-set` narrows them); the run is
+every movie in the shipping mode (`--native on --recomp on`) with the entries
+that hand the flag on named, each trace, the picture's hash included, the same
+as the movie's without the scrambling outside the stack's page (`--ignore
+'$7E:0600-06FF'`: a register pushed and pulled again lies there until
+something overwrites it, which is all a scrambled one leaves where nothing
+reads it). The check runs `tools/v_readers.py`'s solve itself:
+the note must name the call's target and have V dead into it there, the
+entries must be registered and declare V don't-care, and the run must have
+scrambled at least 100 returns with no trace differing. It speaks for V
+alone: any other register the strict solve leaves unproven still needs a
+fuzz note. The effect worked out for an enemy's action hands the action's
+showing (`$C1:BFA4`) an overflow flag it only saves and restores across its
+frame waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"),
+which is the case it was made for.
+
 ## Status
 
 | Routine | Address | Calls in new-game movie |

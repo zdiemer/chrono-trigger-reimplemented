@@ -6936,20 +6936,38 @@ carry, and the few callers in the work whose carry is set and whose multiply
 is the last before the work returns say so in `ORIGINAL_EFFECT`
 (`battle_leave_multiply_carry`). The kinds hand the party's code back the
 carry of their last note (set), A's high byte clear and Y past the note's
-bytes: the entry wrapper sets them. And the work hands the overflow flag of
-its last add on to the action's showing (`$C1:BFA4`), which saves it with the
-flags across its frame waits. Nothing in the battle's banks branches on the
-overflow flag (the menus' are the only such tests in the ROM), but the
-showing runs animation commands through a table (`$C1:75D1`) the liveness
-analysis can't follow, a fuzz run of the showing can't finish (it waits on
-frames past any budget, and a `--poison-site` run over random states reaches
-code from garbage tables that does read it), and the consumer is the battle
-step, far past this chunk: so none of the ways to drop it applies, and the
-flag is the scaffolding `original_effects.h` names, a flag the original's
-callers can't be shown to ignore. The arithmetic that sets it notes it inside
-`ORIGINAL_EFFECT` (`battle/overflow.h`, as event's `leaves.h` does for the
-field's), and the work-out's entry takes the last note; the logic never reads
-it.
+bytes: the entry wrapper sets them. The hits' numbers added up leave the carry
+of the compare that chose the last kind to move, worked out once after the
+adding from the two records' kinds (`leave_last_compare`), and a target after
+the first is taken with the carry the note before it leaves
+(`take_next_target`).
+
+**The overflow flag, declared dead.** The original's adds leave the processor's
+overflow flag as their last result had it, and the effect worked out for an
+enemy hands it on to the action's showing (`$C1:BFA4`), the battle's step
+(`$C1:0003`) and what follows the action (`$C1:B762`), which save it with the
+flags across their frame waits. Nothing tests it: there is no `BVS` or `BVC`
+in the battle's banks (the menus' are the ROM's only ones), and the one `PHP`
+the code after reaches whose byte isn't put back by `PLP` (the sound driver's,
+`$C7:0A39`) throws it away. The liveness analysis agrees where it can follow
+the code, and the work-outs declare V don't-care (`DC_V`) on that; but the
+strict solve the call-outs are held to gives up at the jump tables the
+animation scripts (`$C1:75D1`, `$C1:7633`) and the enemies' scripts
+(`$C1:874E` and three more) dispatch through, whose targets come from data,
+and a fuzz run can't settle it (the showing waits on frames past any budget).
+Two new pieces of evidence do. `tools/v_readers.py` solves liveness as
+strictly, but follows each of those tables to every word its dispatch can
+index (a byte doubled by an 8-bit `ASL`: 128 words, each code the analysis
+traced), and has V dead into all three callees and after the work-outs and
+the enemy's turn return. `ct_dev --poison-return` scrambles what an entry
+declares don't-care each time it returns in the shipping mode; the library
+with the two work-outs' whole sets scrambled (A, X, Y and the four flags;
+158 returns) traces the same as without, every movie, but for the stack's
+page, where the scrambled registers the showing pushes lie after it pulls
+them. The three
+call-outs declare V don't-care with a `dc-evidence:` note naming both, which
+`tools/dontcare_check.py` now reads (PORTING.md, "Declarations liveness can't
+prove"); the work computes no overflow.
 
 **What it found.** The drain reads its stat's offset as a word from the cell
 its kind is handed in; a modifier that fells its target outright marks it by
@@ -6958,7 +6976,10 @@ the enemies' (`battle_beaten_marks_low`) or on "any enemy beaten"; about a
 tenth (`$C1:C1B2`) is three subtractions, not four; formula 8 works nothing
 out and takes whatever the quotient cell holds; a number's place is a byte,
 so from the fourth hit of an effect that hits repeatedly a set of numbers
-reaches past the records into the effect's own flags, as the original's does.
+reaches past the records into the effect's own flags, as the original's does;
+and once one of those hits lands, the rest are made sure by setting the
+effect's flags to "can't miss" alone, so they lose the status chance and the
+barrier and shield passes the first had.
 
 **Validation.** The library's 26 movies in shadow mode, none mismatching:
 the enemies' work-outs 347 techs and 23 attacks (175 and 9 compared whole,
@@ -6982,7 +7003,7 @@ goes (not the record's), and a set of numbers from the fourth repeated hit on
 reaching the effect's flags.
 
 **Timing.** Calibrated from the shadow runs, battle's rows only (the kinds
-22,582-43,708, the work-outs 14,240 and 16,471, the notes 21,091,
+22,770-45,350, the work-outs 14,758 and 16,958, the notes 21,091,
 `battle_multiply_16x16` 29,285, the enemy's attack's turn 8,519); every entry
 within the limits with no exception added. `tools/timing_gate.py` takes an
 entry some report measured no stretch of (all interrupted) without failing.

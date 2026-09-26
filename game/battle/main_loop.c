@@ -126,7 +126,12 @@ static void set_step_member(GameState *g, uint8_t member) { set_battle_effect_sp
 static bool step(Snes *s, uint32_t site, uint8_t number)
 {
     m_set_a8(s, number);
-    return battle_call(s, site, BATTLE_STEP, READS_A_AND_OVERFLOW);
+    /* the overflow flag the step saves with the flags across its frame waits
+     * is read by nothing after (dc-evidence: tools/v_readers.py C1:0003: V
+     * dead; ct_dev --poison-return battle_work_out_enemy_tech
+     * battle_work_out_enemy_attack over the library: 158 returns
+     * scrambled, 0 differing) */
+    return battle_call(s, site, BATTLE_STEP, READS_A);
 }
 
 /* The party member the loop is working on, where the original's code it
@@ -898,7 +903,7 @@ static bool actor_silenced(const GameState *g, uint8_t actor)
     if (battle_slot_is_party(actor))
         return false;
     uint32_t status = battle_names_combatant(actor) ? battle_stats_status(g, actor) : battle_stats_status_unchecked(g, actor);
-    return (status & STATUS_RESTARTS_SCRIPT) != 0;
+    return (status & STATUS_CONFUSED) != 0;
 }
 
 /* Each enemy the action hit, in the order of the action's targets, reacts;
@@ -957,7 +962,12 @@ static bool after_action(Snes *s, bool skip_to_end)
         for (unsigned i = 0; i < BATTLE_COMBATANTS; i++)
             set_battle_reaction_targets(g, i, battle_action_targets(g, i));
         set_battle_last_actor(g, battle_actor(g));
-        if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_OVERFLOW))
+        /* the overflow flag an enemy's action worked out leaves is read by
+         * nothing after (dc-evidence: tools/v_readers.py C1:B762: V dead;
+         * ct_dev --poison-return battle_work_out_enemy_tech
+         * battle_work_out_enemy_attack over the library: 158 returns
+         * scrambled, 0 differing) */
+        if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
             return false;
         uint8_t actor = battle_last_actor(g);
         if (!follow_up(s, actor))

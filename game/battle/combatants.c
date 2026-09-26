@@ -210,7 +210,7 @@ void combatant_follow_statuses(GameState *g, unsigned slot)
     Statuses statuses = combatant_statuses(g, slot);
     bool knocked_out = combatant_knocked_out(g, slot);
     if (!knocked_out) {
-        if (statuses & STATUS_NO_TURNS) {
+        if (statuses & STATUS_ASLEEP) {
             battle_stop_timer(g, BATTLE_TIMER_TURN, slot);
             if (!battle_slot_is_party(slot))
                 set_battle_enemy_animation(g, slot - BATTLE_FIRST_ENEMY, ENEMY_ANIMATION_IDLE);
@@ -224,10 +224,10 @@ void combatant_follow_statuses(GameState *g, unsigned slot)
         if (no_techs)
             return;
     }
-    bool restarts = (battle_stats_status(g, slot) & STATUS_RESTARTS_SCRIPT) != 0;
+    bool restarts = (battle_stats_status(g, slot) & STATUS_CONFUSED) != 0;
     uint8_t seen = battle_status_script_seen(g, slot);
-    if (restarts ? seen != STATUS_RESTARTS_SCRIPT : (seen & STATUS_RESTARTS_SCRIPT) != 0) {
-        set_battle_status_script_seen(g, slot, restarts ? STATUS_RESTARTS_SCRIPT : 0);
+    if (restarts ? seen != STATUS_CONFUSED : (seen & STATUS_CONFUSED) != 0) {
+        set_battle_status_script_seen(g, slot, restarts ? STATUS_CONFUSED : 0);
         restart_script(g, slot);
     }
     if (battle_stats_status(g, slot) & STATUS_STOP)

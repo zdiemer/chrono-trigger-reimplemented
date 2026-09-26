@@ -34,10 +34,10 @@ enum {
     STATUS_BLIND = 0x01,
     /* Asleep: it gets no turns while it has this, its turn timer stopped; a
      * hit wakes it. */
-    STATUS_NO_TURNS = 0x02,
+    STATUS_ASLEEP = 0x02,
     /* Confused: its enemy's script starts over when this comes or goes; a hit
      * brings it to its senses, and it is easier to hit. */
-    STATUS_RESTARTS_SCRIPT = 0x04,
+    STATUS_CONFUSED = 0x04,
     /* A party member with it can't use techs, nor join a combination tech. */
     STATUS_NO_TECHS = 0x08,
     /* Slow: its turns come half as fast, and it defends less well. */
@@ -50,7 +50,7 @@ enum {
 };
 
 /* A hit wakes the target and brings it to its senses. */
-enum { STATUSES_A_HIT_ENDS = STATUS_NO_TURNS | STATUS_RESTARTS_SCRIPT };
+enum { STATUSES_A_HIT_ENDS = STATUS_ASLEEP | STATUS_CONFUSED };
 
 /* The third status byte (with the kept ones, STAT_KEPT_STATUS_3): */
 enum {

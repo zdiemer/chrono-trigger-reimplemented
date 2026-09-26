@@ -427,5 +427,95 @@ class DynamicTargets(unittest.TestCase):
         self.assertFalse([f for f in found if "trusting" in f])
 
 
+V_NOTE = ("dc-evidence: tools/v_readers.py %s: V dead; ct_dev --poison-return %s over the library: "
+          "%d returns scrambled, 0 differing")
+
+PORT_V = """
+void dispatch(Snes *s)
+{
+    /* %(v)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_V);
+
+    /* %(v_a)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_A | DC_V);
+
+    /* %(v_other)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_V);
+
+    /* %(v_unregistered)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_V);
+
+    /* %(v_few)s */
+    m_jsr_dc(s, 0xC08080, 0xC08088, DC_V);
+}
+
+void elsewhere(Snes *s) { m_rts(s); }
+""" % {"v": V_NOTE % ("C0:8088", "dispatch", 500), "v_a": V_NOTE % ("C0:8088", "dispatch", 500),
+       "v_other": V_NOTE % ("C0:8000", "dispatch", 500), "v_unregistered": V_NOTE % ("C0:8088", "nobody", 500),
+       "v_few": V_NOTE % ("C0:8088", "dispatch", 12)}
+
+REGISTRY_V = """
+const NativeEntry game_natives[] = {
+    { .addr = 0xC08080, .name = "dispatch", .fn = dispatch, .dont_care = DC_V },
+    { .addr = 0xC08000, .name = "elsewhere", .fn = elsewhere },
+};
+"""
+
+
+class OverflowEvidence(unittest.TestCase):
+    """The other form of note: tools/v_readers.py's bounded solve and a library
+    run with the flag scrambled at the entries' returns. The fake dispatch
+    jumps through a pointer in RAM, which no bound reaches, so the bounded solve
+    has V read there too and no note of this form can stand; the other checks
+    of the note are made before it."""
+
+    @classmethod
+    def setUpClass(cls):
+        from tools import v_readers
+        h = Hints()
+        for addr in (0xC08000, 0xC08080):
+            h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
+        h.indirect[0xC0808A] = [0xC08058]
+        rom = FakeRom(CODE_DYNAMIC)
+        an = Analyzer(rom, h)
+        an.run()
+        lv, strict = Liveness(an), Liveness(an, strict=True)
+        lv.solve()
+        strict.solve()
+        saved, v_readers.BOUNDED = v_readers.BOUNDED, {}
+        try:
+            sources = [dc.Source("game/registry.c", REGISTRY_V), dc.Source("game/port.c", PORT_V)]
+            found, cls.rows, _ = dc.run_sources(sources, [dc.Source("runtime/port/native.h", NATIVE_H)], lv,
+                                                lambda addr: rom.data[bus_to_offset(addr)], strict=strict,
+                                                fuzz_routines={("dispatch", "")})
+        finally:
+            v_readers.BOUNDED = saved
+        cls.found = [f.text() for f in found]
+
+    def at(self, line):
+        return [f for f in self.found if f.startswith("game/port.c:%d:" % line)]
+
+    def test_the_note_is_read(self):
+        (f,) = self.at(5)
+        self.assertIn("tools/v_readers.py has V read into $C0:8088", f)
+
+    def test_it_speaks_for_v_alone(self):
+        (f,) = self.at(8)
+        self.assertIn("speaks for V alone, not A AH", f)
+
+    def test_it_must_name_the_target(self):
+        (f,) = self.at(11)
+        self.assertIn("names $C0:8000, not the call's target $C0:8088", f)
+
+    def test_the_solve_is_checked_first(self):
+        (f,) = self.at(14)
+        self.assertIn("V read into", f)   # the solve is checked before the entries
+        self.assertTrue(dc.V_EVIDENCE.search(V_NOTE % ("C0:8088", "a b", 3)))
+
+    def test_counts_are_read(self):
+        m = dc.V_EVIDENCE.search(V_NOTE % ("C0:8088", "one two", 12))
+        self.assertEqual((m.group("entries"), m.group("scrambled"), m.group("differing")), ("one two", "12", "0"))
+
+
 if __name__ == "__main__":
     unittest.main()

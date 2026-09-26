@@ -11,7 +11,6 @@
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/effect_work.h"
-#include "battle/overflow.h"
 #include "original_effects.h"
 #include "state.h"
 #include "vars.h"

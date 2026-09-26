@@ -56,6 +56,21 @@ the declaration, the run must have compared states and scrambled at least
 MIN_SCRAMBLED call-outs, and found 0 mismatched. A note where liveness proves
 the set without one is a finding too (it would outlive what it stood for).
 
+Where the unproven part of a call-out's set is the overflow flag alone and
+fuzzing can't reach it (a callee that waits on frames past any budget), the
+note can instead name the static check that follows the callee's tables as far
+as their dispatch can reach, and a run of the library that scrambled the flag
+where it comes from:
+
+    /* dc-evidence: tools/v_readers.py BB:AAAA: V dead; ct_dev --poison-return
+       ENTRY... over the library: M returns scrambled, 0 differing */
+
+The check then runs tools/v_readers.py's solve itself: the callee must be the
+call's target and have V dead into it there; the entries must be registered and
+declare V don't-care themselves (their returns are where the run scrambled
+it), and the run must have scrambled at least MIN_SCRAMBLED returns with every
+trace the same as the unscrambled run's (docs/PORTING.md says how it is made).
+
 The declarations are read from the source, not run: their arguments must be
 constants, or built from the parameters of the function they are in (every
 call of it in the same file is followed), its locals, and the rows of a table
@@ -121,6 +136,11 @@ EVIDENCE = re.compile(
 # The fewest call-outs a run must have scrambled to count: a run whose states
 # mostly stop before the call (a callee past the budget) says little.
 MIN_SCRAMBLED = 100
+# The other form: the overflow flag, by tools/v_readers.py and a library run.
+V_EVIDENCE = re.compile(
+    r"dc-evidence:\s*tools/v_readers\.py\s+(?P<target>[0-9A-Fa-f]{2}:[0-9A-Fa-f]{4}):\s*V\s+dead;"
+    r"\s*ct_dev\s+--poison-return\s+(?P<entries>\w+(?:\s+\w+)*)\s+over\s+the\s+library:"
+    r"\s*(?P<scrambled>\d+)\s+returns\s+scrambled,\s*(?P<differing>\d+)\s+differing\b")
 
 
 class Unreadable(Exception):
@@ -972,6 +992,33 @@ def site_dynamic(lv, site: int) -> str | None:
     return None
 
 
+def v_evidence_problem(m, d, target: int, unproven: int, entries: list, bounded) -> str | None:
+    """Why a tools/v_readers.py note doesn't stand for the call d to target, or
+    None. `bounded` gives tools/v_readers.py's solve (made once, when needed)."""
+    from tools import v_readers
+    if unproven & ~_lv.V:
+        return f"its dc-evidence is tools/v_readers.py's, which speaks for V alone, not {describe(unproven & ~_lv.V)}"
+    named = int(m.group("target").replace(":", ""), 16)
+    if named != target:
+        return f"its dc-evidence names {fmt(named)}, not the call's target {fmt(target)}"
+    lv, problems = bounded()
+    if problems:
+        return "tools/v_readers.py can't bound its tables: " + "; ".join(problems)
+    if not v_readers.v_dead_into(lv, target):
+        return f"tools/v_readers.py has V read into {fmt(target)}"
+    for name in m.group("entries").split():
+        e = next((e for e in entries if e.name == name), None)
+        if e is None:
+            return f"its dc-evidence names {name}, which isn't a registered entry"
+        if not dead_of_dc(e.dont_care) & _lv.V:
+            return f"its dc-evidence names {name}, whose don't-care set doesn't have V"
+    if int(m.group("differing")):
+        return f"its dc-evidence run had {m.group('differing')} trace(s) differing"
+    if int(m.group("scrambled")) < MIN_SCRAMBLED:
+        return f"its dc-evidence run scrambled {m.group('scrambled')} returns, fewer than {MIN_SCRAMBLED}"
+    return None
+
+
 def evidence_problem(note, d, entries: list, reach: dict, sources: list, fuzz_routines: set) -> str | None:
     """Why a dc-evidence note doesn't stand for the declaration d, or None."""
     m = EVIDENCE.search(note)
@@ -1012,6 +1059,14 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
         reach[e.name] = reaching(sources, e.fn)
     by_source = {src.path: src for src in sources}
     noted = {}          # (path, offset) -> whether some value of the declaration needed its note
+    solved = {}
+
+    def bounded():
+        """tools/v_readers.py's solve, made the first time a note names it."""
+        if "lv" not in solved:
+            from tools import v_readers
+            solved["lv"] = v_readers.solve(lv.an, getattr(lv, "dynamic_calls", {}))
+        return solved["lv"]
 
     def entry_ok(e, point_live, where, what):
         bad = excess(e.dont_care, point_live)
@@ -1074,9 +1129,14 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
                             f"without that, {describe(strict_bad)} may be read")
                 if has_note:
                     noted[(d.path, d.offset)] = True
-                    problem = evidence_problem(note, d, entries, reach, sources, fuzz_routines or set())
+                    vm = V_EVIDENCE.search(note)
+                    if vm:
+                        problem = v_evidence_problem(vm, d, target, strict_bad, entries, bounded)
+                    else:
+                        problem = evidence_problem(note, d, entries, reach, sources, fuzz_routines or set())
                     if problem is None:
-                        rows.append(row + f"ok by fuzz evidence ({unproven})")
+                        rows.append(row + f"ok by {'tools/v_readers.py and a library run' if vm else 'fuzz evidence'} "
+                                          f"({unproven})")
                         continue
                     rows.append(row + "unproven: " + problem)
                     findings.append(Finding(where, f"the call from {fmt(d.site)} to {fmt(target)} declares "

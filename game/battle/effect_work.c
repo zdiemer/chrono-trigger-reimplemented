@@ -55,6 +55,15 @@ static void take_target(GameState *g)
     set_battle_effect_target_block(g, effect_times(g, STAT_BLOCK_BYTES, target));
 }
 
+/* A target after the first: the original takes it with the carry the note
+ * before leaves (set), which the multiply keeps in its cell (scaffolding: the
+ * last target's shows, where its work multiplies nothing). */
+static void take_next_target(GameState *g)
+{
+    take_target(g);
+    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
+}
+
 /* The next target, counting the targets left down in a byte: false once none
  * is. */
 static bool another_target(GameState *g)
@@ -81,22 +90,20 @@ static void note_acted_on(GameState *g)
         set_battle_chosen_actions_unchecked(g, slot, acted);
 }
 
-/* A kind's work on each of the action's targets in turn, noted after each.
- * (The original takes each target after the first with the carry the note
- * leaves, set, which the multiply leaves in its cell.) */
+/* A kind's work on each of the action's targets in turn, noted after each. */
 typedef void TargetWork(GameState *g, const EffectRecord *e);
 
 static void each_target(GameState *g, const EffectRecord *e, TargetWork *work)
 {
     take_actor(g);
-    bool first = true;
-    do {
-        take_target(g);
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, !first));
+    take_target(g);
+    for (;;) {
         work(g, e);
         note_acted_on(g);
-        first = false;
-    } while (another_target(g));
+        if (!another_target(g))
+            return;
+        take_next_target(g);
+    }
 }
 
 /* ---- The numbers the kinds take ------------------------------------------------------------ */
@@ -192,7 +199,6 @@ static bool status_lands(GameState *g, const EffectRecord *e)
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_3, base));
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_4, divisor));
     uint8_t part = (uint8_t)effect_over(g, effect_actor_stat(g, STAT_MAGIC), divisor).quotient;
-    ORIGINAL_EFFECT(battle_leave_add_overflow8(part, base));
     uint8_t chance = (uint8_t)(part + base);
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_1, chance));
     if (battle_random(g, 0, PERCENT) <= chance)
@@ -246,9 +252,8 @@ enum { STOPS_AT_FIRST = 0x02 };
 static void hit(GameState *g, const EffectRecord *e)
 {
     take_actor(g);
-    for (bool first = true;; first = false) {
-        take_target(g);
-        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, !first));
+    take_target(g);
+    for (;;) {
         hit_target(g, e);
         note_acted_on(g);
         if (battle_action_state(g) & STOPS_AT_FIRST)
@@ -257,6 +262,7 @@ static void hit(GameState *g, const EffectRecord *e)
         set_battle_action_target_count(g, left < 0 ? 0 : (uint8_t)left);
         if (left <= 0)
             return;
+        take_next_target(g);
     }
 }
 
@@ -306,7 +312,11 @@ static void restore_showing_hp(GameState *g, const EffectRecord *e)
 // $C1:D431
 /* Hit the targets again and again, the record's number of times: once one
  * hit lands the rest can't miss. Each hit's numbers are a set of their own;
- * the damage of them all is recorded for the last target. */
+ * the damage of them all is recorded for the last target. The original makes
+ * the rest sure by setting the effect's flags to "can't miss" alone, so they
+ * lose the rest of what the flags gave the first hit (the status chance,
+ * passing a barrier or a shield, not being turned away): the game plays it so,
+ * and so does the port. */
 static void hit_repeatedly(GameState *g, const EffectRecord *e)
 {
     leave_record_numbers(g);
@@ -454,32 +464,39 @@ static void set_number_value(GameState *g, unsigned record, uint16_t v)
  * one before is a miss, or it has none. */
 static void add_number_into(GameState *g, unsigned from, unsigned to)
 {
-    ORIGINAL_EFFECT(battle_leave_add_overflow16(number_value(g, from), number_value(g, to)));
     set_number_value(g, to, (uint16_t)(number_value(g, to) + number_value(g, from)));
     uint16_t kind = number_kind_word(g, from), before = number_kind_word(g, to);
     if (kind != NO_NUMBER && (kind == NUMBER_MISS || before != NUMBER_MISS))
         set_number_kind_word(g, to, kind);
 }
 
-/* What the original's compares leave as they choose, which its next set's
- * multiply takes in its carry (scaffolding: the last one's shows). */
-static bool compares_leave_carry(const GameState *g, unsigned from, unsigned to)
+/* The record of an enemy's number in a set. */
+enum { LAST_ENEMY_PLACE = SET_BYTES - RECORD_BYTES };
+
+static unsigned number_record(uint8_t set, uint8_t place) { return (unsigned)(set * SET_BYTES + place) / RECORD_BYTES; }
+
+/* What the original leaves in the multiply's cell after adding the hits up
+ * (scaffolding): the carry of the compare that chose the last kind to move,
+ * the second set's into the first at the last enemy's place, which its last
+ * multiply takes. The compare is set where the second set's number was none or
+ * a miss, or the first's was a miss or past the kinds: the one the second set
+ * ends with, and the one the first began with. */
+static void leave_last_compare(GameState *g, uint8_t sets, uint16_t first_began)
 {
-    uint16_t kind = number_kind_word(g, from), before = number_kind_word(g, to);
-    return kind == NO_NUMBER || kind == NUMBER_MISS || before >= NUMBER_MISS;
+    uint16_t second = number_kind_word(g, number_record(2, LAST_ENEMY_PLACE));
+    bool carry = sets > 1 && (second == NO_NUMBER || second == NUMBER_MISS || first_began >= NUMBER_MISS);
+    battle_leave_multiply_carry(g, carry);
 }
 
 static void add_up_hits(GameState *g, uint8_t sets)
 {
-    bool compared = false, carry_into_last = false;
+    uint16_t first_began = number_kind_word(g, number_record(1, LAST_ENEMY_PLACE));
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         for (uint8_t set = sets; set != 0; set--) {
-            ORIGINAL_EFFECT(carry_into_last = set != sets && compared);
             unsigned from = (effect_times(g, set, SET_BYTES) + place) / RECORD_BYTES, to = from - SET_BYTES / RECORD_BYTES;
-            ORIGINAL_EFFECT(compared = compares_leave_carry(g, from, to));
             add_number_into(g, from, to);
         }
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, carry_into_last));
+    ORIGINAL_EFFECT(leave_last_compare(g, sets, first_began));
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
         if (number_value(g, place / RECORD_BYTES) >= MOST_SHOWN)
             set_number_value(g, place / RECORD_BYTES, MOST_SHOWN);
@@ -504,7 +521,6 @@ static ActionRecord start_work(GameState *g, ActionTable table)
         set_battle_effect_sure(g, ACTION_SURE);
     set_battle_effect_target_count(g, battle_action_target_count(g));
     set_battle_effect_number(g, action.effect);
-    ORIGINAL_EFFECT(battle_leave_overflow(false)); /* the record's place added up */
     return action;
 }
 
@@ -627,13 +643,9 @@ static bool work_out_ready(Snes *s, ActionTable table)
 bool battle_work_out_enemy_tech_ready(Snes *s) { return work_out_ready(s, ENEMY_TECHS); }
 bool battle_work_out_enemy_attack_ready(Snes *s) { return work_out_ready(s, ENEMY_ATTACKS); }
 
-/* The work hands the overflow of its last add on to the action's showing
- * (battle/overflow.h). */
 static void work_out_entry(Snes *s, ActionTable table)
 {
-    ORIGINAL_EFFECT(battle_forget_overflow());
     effect_work_out_enemy_action(state_of(s), table);
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, battle_overflow_left(m_flag(s, CPU_FLAG_V))));
     m_rts(s);
 }
 
