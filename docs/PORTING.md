@@ -866,6 +866,71 @@ reach it) and mismatched none. A note on a declaration liveness proves without
 one is a finding too. `grep -rn "dc-evidence:" game/` lists every declaration
 that rests on fuzzing rather than on the analysis.
 
+Fuzzing can't settle a declaration whose callee runs for frames: a call-out to
+a routine that waits on the next frame, again and again, runs past any budget
+from every state. Where the one register such a call leaves unproven is the
+overflow flag, the evidence is instead the flag followed as far as the
+dispatch can reach, and the whole library run with the flag inverted at each
+site of the declaration:
+
+```c
+/* dc-evidence: tools/v_readers.py BB:AAAA: V dead, its tables' indexes at
+   most $FE (what that rests on); ct_dev --poison-set V at each site over the
+   library, calls with V inverted: BBAAAA N, BBAAAA N; 0 differing[; a site
+   under 100 rests on the static result] */
+```
+
+`tools/v_readers.py` solves liveness as strictly as the check does, but
+follows each jump table the strict solve gives up on (its targets derived from
+data) that carries an `index_reach` hint in `re/hints.toml` to every word its
+dispatch can index, whatever the data picks. The hint is argued from the
+dispatch, and the tool checks each part against the analysis (and
+`tests/test_v_readers.py` against the ROM): `ASL A` with an 8-bit A, `TAX`,
+`JSR` or `JMP (abs,X)`, nothing jumping past the `ASL`, 128 words for a doubled
+byte, every word code the analysis traced, and A's high byte, which `TAX`
+carries into X, known clear at the `ASL` (`tools/disasm/high_byte.py` follows
+it through every path and call the analysis traced: a `TDC` clears it on the
+battle's direct page `$0000`, which the note's parenthesis says it rests on,
+and a 16-bit load or transfer, an `XBA` or a callee that returns with it
+unknown make it unknown). A hint that fails any of these is a finding, and the
+tool lists why. `ct_dev --index-check BBAAAA` (on the interpreter alone,
+`--native off --recomp off`) also records X at each dispatch over the library,
+which must never pass `$FE`. The tool lists what reads V in the code the
+callee reaches: a `BVS` or `BVC`, or a `PHP` whose byte is taken back other
+than by `PLP` (liveness follows where it goes). `ct_dev --poison-site BBAAAA`
+(with `--native on`) scrambles, at each call-out made from that site, what its
+don't-care set names, as `ct_fuzz --poison-dc` does, and `--poison-set V`
+narrows that to the flag; it counts, per site, the calls where V was inverted.
+The run is every movie in the shipping mode with and without it, each trace,
+the picture's hash included, the same outside the stack's page
+(`$7E:0600-06FF`: a register pushed and pulled again lies there until
+something overwrites it, which is all a scrambled one leaves where nothing
+reads it).
+
+The check runs `tools/v_readers.py`'s solve itself: the note must name the
+call's target and have V dead into it, and every bounded dispatch must pass
+the checks above; the call's own site must be among the sites the note counts,
+V in the set and no trace differing; and the call's own site must have had V
+inverted at least 100 times. A declaration made at several sites (a helper's
+parameter) counts them all, and one the library reaches fewer than 100 times
+rests on the static result alone: the note says so ("a site under 100 rests on
+the static result"), and then some other site of the note must have made 100.
+It speaks for V alone: any other register the strict solve leaves unproven
+still needs a fuzz note. `python3 tools/dc_evidence.py --ct-dev
+build/main/ct_dev` (or the suite with `--evidence`) makes both runs and the
+index check again, over every site the notes name and every bounded dispatch,
+prints each site's cited count beside the run's, and exits 1 on a differing
+trace, an index past `$FE`, a bounded dispatch the library never ran
+(unexercised), or a site under 100 its note doesn't rest on the static result.
+**Whoever merges a change that touches `game/battle/`, `runtime/port/`, an
+`index_reach` hint or a dc-evidence note runs `tools/suite.py --evidence`
+first**: the notes' counts are the library's, and a change there can move them.
+The effect worked out for an enemy's action hands the action's showing
+(`$C1:BFA4`), the battle's step (`$C1:0003`) and what follows the action
+(`$C1:B762`) an overflow flag they only save and restore across their frame
+waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"), which is
+the case it was made for.
+
 ## Status
 
 | Routine | Address | Calls in new-game movie |
@@ -944,7 +1009,8 @@ that rests on fuzzing rather than on the analysis.
 | Enemy scripts' choosing (`battle/enemy_scripts.c`, RECOMP.md "Phase 3, wave 2: the enemies' minds"): `battle_enemy_scripts_choose` `$C1:8C09`, `battle_enemy_script_choose` `$C1:AFD2`, `battle_enemy_condition_held` `$C1:8C3E`, `battle_enemy_choose_actions` `$C1:8C63`, `battle_enemy_find_reactions` `$C1:B488`, `battle_enemy_find_script_place` `$C1:B4AA` | | every enemy with nothing chosen looks through its script's turn section for a block whose conditions hold and chooses that block's next action (the draw among four included); the reactions' section is found the same way (a status may put the attack-the-nearest or attack-anyone script in its place). C on the game's state; the conditions and the actions' choosing are C tables timed as the original's routines. Calls over the 26 movies, none mismatching or refused: 4,653, 1,183, 1,760, 1,760, 699, 3,108 (388, 171, 122, 121, 27, 77 interrupted). Fuzzed on the `gato-battle` state, seed 1, none mismatching: 5,000 of 5,000, 19,815, 18,972, 16,949, 19,840 and 19,840 of 20,000 (the rest turned away: an action kept that isn't one, a member that would come back, a pair of conditions under way into the one enemy's choosing) |
 | Enemy scripts' conditions (`battle/enemy_conditions.c`): the 33 routines of the 41 condition kinds, `battle_condition_always` `$C1:8EA7` to `battle_condition_turn_wait` `$C1:97D5` (`$16` and `$19` hold as `$00` does; `$23`-`$28` test as `$18` does) | | a condition picks candidates by a selector, marks those it holds for and takes one as the block's target, or asks about the battle; the table row names each kind's test and its routine. Fifteen of the 33 are reached over the library (`always` 845, `stat_is` 853, `enemy_present` 526, `enemies_at_most` 490, `was_beaten` 235, ...), none mismatching or refused. Fuzzed 20,000 states each, none mismatching, 12,859-15,701 compared: the guard, which knows its entry by the machine's PC, turns away a selector or an action after it that isn't the tables' (the original dispatches those past its tables) |
 | Enemy scripts' actions, choosing (`battle/enemy_actions.c`): `battle_enemy_choose_pose` `$C1:9810`, `battle_enemy_choose_aim` `$C1:983A`, `battle_enemy_draw_one_of_four` `$C1:98C5`, `battle_enemy_forgive_block` `$C1:9962`, `battle_enemy_note_number` `$C1:9967`, `battle_enemy_need_beaten` `$C1:9981`, `battle_enemy_record_action` `$C1:ACF2`, `battle_enemy_note_actor_bits` `$C1:AC89`, `battle_enemy_pose_kind` `$C1:ACCE` | | whom an action will act on and how the enemy shows it; the draw doesn't return but goes on with the choosing's loop at `$C1:8C90`. Calls: 876, 633, 96, 2, 0, 14, 372, 370, 466, none mismatching. Fuzzed 20,000 each, none mismatching (17,037-20,000 compared) |
-| An enemy's turn (`battle/enemy_turn.c`): `battle_enemy_takes_turn` `$C1:8CF9`, the actions' turns `battle_enemy_pose_turn` `$C1:99B8` to `battle_enemy_call_in_turn` `$C1:A396` (19 entries, `battle_enemy_no_turn` `$C1:9B46` for the kinds that have none), `battle_enemy_tech_body` `$C1:9A3D`, `battle_start_action_showing` `$C1:AC57` | | the machine's side of the enemies: the action carried out from a C table of its turns, run as the dispatch's JSR runs them, with the original's code still called for the effect's working out, the attacks' and techs' setting up and targeting, an enemy's coming in, the calling in, the message and the showing. Calls: the turn 1,134 (527 compared on its own, 481 inside the timers' dispatch or the reactions); the action turns inside it (624 poses compared, the rest inside the turn); none mismatching or refused. Fuzzed, none mismatching: the turn, the tech's turn and body and the showing 5,000 each (3,425-4,248 compared), the others 20,000 each (8,346-19,924 compared, a message or a tech's setting up running past the call-out budget) |
+| An enemy's turn (`battle/enemy_turn.c`): `battle_enemy_takes_turn` `$C1:8CF9`, the actions' turns `battle_enemy_pose_turn` `$C1:99B8` to `battle_enemy_call_in_turn` `$C1:A396` (19 entries, `battle_enemy_no_turn` `$C1:9B46` for the kinds that have none), `battle_enemy_tech_body` `$C1:9A3D`, `battle_start_action_showing` `$C1:AC57` | | the machine's side of the enemies: the action carried out from a C table of its turns, run as the dispatch's JSR runs them, with the original's code still called for the tech's targeting, an enemy's coming in, the calling in, the message and the showing (the effect's working out and the action's notes are C since chunk 2, below). Calls: the turn 1,134 (527 compared on its own, 481 inside the timers' dispatch or the reactions); the action turns inside it (624 poses compared, the rest inside the turn); none mismatching or refused. Fuzzed, none mismatching: the turn, the tech's turn and body and the showing 5,000 each (3,425-4,248 compared), the others 20,000 each (8,346-19,924 compared, a message or a tech's setting up running past the call-out budget) |
+| An effect worked out (`battle/effect_work.c`, `effect_amounts.c`, `effect_statuses.c`, `effect_modifiers.c`): `battle_work_out_enemy_tech` `$C1:D7C4`, `battle_work_out_enemy_attack` `$C1:D8D1`, the kinds `battle_effect_restore` `$C1:D221` to `battle_effect_lose_condition_bit` `$C1:D4F3` (11 entries, the steal left to the original), `battle_note_enemy_tech` `$FD:AAD2`, `battle_note_enemy_attack` `$FD:AB01` | | an enemy's attack's or tech's effect on its targets, its record decoded and its kind run by a switch, the formulas, statuses and modifiers in C with no call to the original's code; the entries turn away a steal, the clock modifier, a routine or kind past its table and a drain with `$1B` set (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"). Calls: the work-outs 347 techs and 23 attacks (184 compared whole, the rest interrupted), the kinds through the party's code 765 hits, 60 restorations, 86 items' restorations, 39 statuses, 26 drains, a few cures (391 compared, 32 hits turned away: the party's steals and clock); none mismatching or refused. Fuzzed, seed 1, 5,000 states each, none mismatching, all compared but the hits (2,508) and the repeated hits (2,546), whose other states are steals turned away |
 | Selectors and target lists (`battle/targets.c`): `battle_select_party` `$C1:A3F7`, the 56 selectors `battle_select_nobody` `$C1:A3F6` to `battle_select_other_enemy_at_random` `$C1:ABC9`, `battle_select_from_script` `$C1:AC14`, `battle_select_by` `$C1:AC2C`, `battle_clear_candidates_entry` `$C1:AC46`, `battle_mark_first_target_entry` `$C1:AD09`, `battle_mark_other_targets_entry` `$C1:AD35` | | whom a script aims at: the candidates each selector picks (by side, status, place, HP, at random or by slot), the choosing among several by the enemies' order and their aim, and the target bits for the effect code. Calls over the library: `select_from_script` and `select_by` 2,658 each, `select_itself` 1,091, `select_nearest_member` 681, `select_random_member` 624, the clear 7,287, the marks 1,467 and 810, none mismatching or refused. Fuzzed 20,000 each, none mismatching (18,711-20,000 compared; `select_by` 8,836, the selector in A outside the table turned away) |
 | Where the combatants stand (`battle/positions.c`): `battle_search_for_target` `$C1:2986` and its 15 kinds `$C1:29B2`-`$C1:2CF3`, the reach tests `battle_within_long_reach` `$C1:2AE3`, `_search_reach` `$C1:2AEF`, `_far_reach` `$C1:2AFB`, `battle_touching` `$C1:2B13`, `battle_within_near_reach` `$C1:2B1F`, `battle_grid_stops_combatant` `$C1:2926`, `battle_box_meets_another` `$C1:28B0`, `battle_direction_between` `$C1:0222`, `battle_distance_along` `$C1:01F9` | | the battlefield's questions: nearest and farthest, within reach, level, below, to the right, halves and edges, a walk toward a target, the grid and the other boxes in the way; the direction between two points and the distance along an angle. The party's facing asks them as C now (`animation.c`). Calls: the search 4,782, nearest other enemy 4,098, within reach 8,614, the direction 10,562, the distance 4,250, none mismatching or refused. Fuzzed 20,000 each, none mismatching (19,996-20,000 compared) |
 | Random numbers (`battle/random.c`): `battle_draw_random` `$C1:AF22`, `battle_draw_random_other` `$C1:AF79`; the beaten enemies' finish `battle_finish_beaten_enemies` `$C1:AC5E` (`battle/main_loop.c`) | | a number from the battle's table between two bounds, from its own position or the other; the enemies an action beat counted, and the battle's step that shows them. Calls: 3,943, 105 and 4,623, none mismatching. Fuzzed 20,000 each for the draws, and the finish 5,000 without an enemy beaten and 5,000 in a demo battle (its step waits for frames), none mismatching |

@@ -427,5 +427,254 @@ class DynamicTargets(unittest.TestCase):
         self.assertFalse([f for f in found if "trusting" in f])
 
 
+def v_note(target, counts, set_="V", differing=0, static=False):
+    return ("dc-evidence: tools/v_readers.py %s: V dead, its tables' indexes at most $FE (on the page $0000); "
+            "ct_dev --poison-set %s at each site over the library, calls with V inverted: %s; %d differing%s"
+            % (target, set_, ", ".join("%s %d" % sc for sc in counts), differing,
+               "; a site under 100 rests on the static result" if static else ""))
+
+
+# A table the analysis takes from data, and the dispatch its bound is argued from:
+# C0:8100  TDC : LDA $10 : ASL A : TAX : JSR ($8200,X) : RTS    (the table's index a doubled byte)
+# C0:8200  128 words: C0:8300 (what the data picks), then C0:8310 (and one more at entry 100)
+# C0:8300  RTS    C0:8310  RTS    C0:8320  BVS +0 : RTS (reads V)    C0:8330  RTS (never traced)
+# C0:8400  JSR $8100 : RTS    C0:8404  JSR $8100 : RTS         (the calls the declarations stand for)
+# C0:8500  JMP $8104                                            (only with past_the_asl: into the TAX)
+DISPATCH = 0xC08105
+
+
+def v_code(entry_100=0x8310, shape="7BA5100AAAFC008260", past_the_asl=False):
+    words = [0x8300] + [0x8310] * 127
+    words[100] = entry_100
+    code = {
+        0xC08100: bytes.fromhex(shape),
+        0xC08200: b"".join(w.to_bytes(2, "little") for w in words),
+        0xC08300: bytes.fromhex("60"),
+        0xC08310: bytes.fromhex("60"),
+        0xC08320: bytes.fromhex("700060"),
+        0xC08330: bytes.fromhex("60"),
+        0xC08400: bytes.fromhex("20008160"),
+        0xC08404: bytes.fromhex("20008160"),
+    }
+    if past_the_asl:
+        code[0xC08500] = bytes.fromhex("4C0481")
+    return code
+
+
+def v_analysis(m8=True, reach=128, past_the_asl=False, **code):
+    from tools.disasm import derive
+    from tools.disasm.hints import TableHint
+    h = Hints()
+    entries = [0xC08100, 0xC08310, 0xC08320, 0xC08400, 0xC08404] + ([0xC08500] if past_the_asl else [])
+    for addr in entries:
+        h.entries.append(type("E", (), {"addr": addr, "m": m8, "x": False, "kind": "test"})())
+    h.tables[DISPATCH] = TableHint(1, "abs", None, [])
+    h.derive[DISPATCH] = "fakev.part"
+    h.index_reach[DISPATCH] = reach
+    saved = dict(derive.DERIVERS)
+    derive.DERIVERS["fakev"] = lambda an, fl: derive.Derivation(targets={"part": {0xC08300}})
+    try:
+        rom = FakeRom(v_code(past_the_asl=past_the_asl, **code))
+        an = Analyzer(rom, h)
+        an.run()
+    finally:
+        derive.DERIVERS.clear()
+        derive.DERIVERS.update(saved)
+    return an, rom
+
+
+REGISTRY_V = """
+const NativeEntry game_natives[] = {
+    { .addr = 0xC08400, .name = "calls_it", .fn = calls_it },
+};
+"""
+
+
+def v_port(notes):
+    """One declaration per note, each from the site the note's tuple names."""
+    body = "".join("\n    /* %s */\n    m_jsr_dc(s, 0x%06X, 0xC08100, %s);\n" % (note, site, dc)
+                   for note, dc, site in notes)
+    return "void calls_it(Snes *s)\n{%s}\n" % body
+
+
+def v_findings(notes, **code):
+    an, rom = v_analysis(**code)
+    lv, strict = Liveness(an), Liveness(an, strict=True)
+    lv.solve()
+    strict.solve()
+    sources = [dc.Source("game/registry.c", REGISTRY_V),
+               dc.Source("game/port.c", v_port([n if len(n) == 3 else n + (0xC08400,) for n in notes]))]
+    found, rows, _ = dc.run_sources(sources, [dc.Source("runtime/port/native.h", NATIVE_H)], lv,
+                                    lambda addr: rom.data[bus_to_offset(addr)], strict=strict)
+    return [f.text() for f in found], rows
+
+
+GOOD = v_note("C0:8100", [("C08400", 500)])
+
+
+class OverflowEvidence(unittest.TestCase):
+    """The other form of note: tools/v_readers.py's solve with the table bounded
+    by its dispatch, and a library run that inverted V at each site. One
+    passing case, and one failing case per thing the check asks of it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.found, cls.rows = v_findings([
+            (GOOD, "DC_V"),                                                          # line 4
+            (v_note("C0:8100", [("C08403", 500)]), "DC_V"),                          # 7: another site
+            (v_note("C0:8100", [("C08400", 500)], set_="NZC"), "DC_V"),              # 10: V not poisoned
+            (v_note("C0:8100", [("C08400", 99)]), "DC_V"),                           # 13: too few
+            (v_note("C0:8100", [("C08400", 500)], differing=1), "DC_V"),             # 16: a trace differs
+            (GOOD, "DC_Y | DC_V"),                                                   # 19: more than V
+            (v_note("C0:8300", [("C08400", 500)]), "DC_V"),                          # 22: another target
+            ("no evidence", "DC_V"),                                                 # 25: no note at all
+            # a site the library rarely reaches, resting on the static result with another made
+            (v_note("C0:8100", [("C08400", 3), ("C08404", 500)], static=True), "DC_V"),        # 28
+            # the same without saying so
+            (v_note("C0:8100", [("C08400", 3), ("C08404", 500)]), "DC_V"),                     # 31
+            # resting on the static result, but no site made 100
+            (v_note("C0:8100", [("C08400", 3), ("C08404", 99)], static=True), "DC_V"),         # 34
+        ])
+
+    def at(self, line):
+        return [f for f in self.found if f.startswith("game/port.c:%d:" % line)]
+
+    def test_without_the_bound_v_is_unproven(self):
+        # with no note, the strict solve's giving up at the derived table is the finding
+        (f,) = self.at(25)
+        self.assertIn("only by trusting a target set decided at run time", f)
+        self.assertIn("its table is filled out from data", f)
+        self.assertIn("V may be read", f)
+
+    def test_the_good_note_passes(self):
+        self.assertEqual(self.at(4), [])
+        self.assertTrue(any(r.startswith("game/port.c:4:") and "ok by tools/v_readers.py" in r for r in self.rows))
+
+    def test_it_must_name_the_calls_own_site(self):
+        (f,) = self.at(7)
+        self.assertIn("didn't poison the call's own site $C0:8400", f)
+
+    def test_it_must_have_poisoned_v(self):
+        (f,) = self.at(10)
+        self.assertIn("--poison-set leaves V alone", f)
+
+    def test_it_must_have_inverted_enough(self):
+        (f,) = self.at(13)
+        self.assertIn("inverted V 99 times at $C0:8400, fewer than 100", f)
+
+    def test_no_trace_may_differ(self):
+        (f,) = self.at(16)
+        self.assertIn("1 trace(s) differing", f)
+
+    def test_it_speaks_for_v_alone(self):
+        (f,) = self.at(19)
+        self.assertIn("speaks for V alone, not Y", f)
+
+    def test_it_must_name_the_target(self):
+        (f,) = self.at(22)
+        self.assertIn("names $C0:8300, not the call's target $C0:8100", f)
+
+    def test_a_rare_site_on_the_static_result(self):
+        self.assertEqual(self.at(28), [])
+        (f,) = self.at(31)
+        self.assertIn("doesn't rest that site on the static result", f)
+        (f,) = self.at(34)
+        self.assertIn("inverted V at no site of the note 100 times", f)
+
+    def test_a_reader_the_bound_reaches(self):
+        found, _ = v_findings([(GOOD, "DC_V")], entry_100=0x8320)
+        (f,) = found
+        self.assertIn("tools/v_readers.py has V read into $C0:8100", f)
+
+    def test_a_word_that_is_not_traced_code(self):
+        found, _ = v_findings([(GOOD, "DC_V")], entry_100=0x8330)
+        (f,) = found
+        self.assertIn("entry 100 ($C0:8330) isn't code the analysis traced", f)
+
+    def test_a_dispatch_of_another_shape(self):
+        found, _ = v_findings([(GOOD, "DC_V")], shape="7BA510EAAAFC008260")    # NOP for the ASL
+        (f,) = found
+        self.assertIn("not ASL A, TAX before the dispatch", f)
+
+    def test_an_asl_on_a_16_bit_a(self):
+        found, _ = v_findings([(GOOD, "DC_V")], m8=False)
+        (f,) = found
+        self.assertIn("the ASL A isn't traced with an 8-bit A everywhere", f)
+
+    def test_a_jump_past_the_asl(self):
+        found, _ = v_findings([(GOOD, "DC_V")], past_the_asl=True)
+        (f,) = found
+        self.assertIn("$C0:8104 is jumped to, past the ASL", f)
+
+    def test_a_reach_other_than_a_doubled_byte(self):
+        found, _ = v_findings([(GOOD, "DC_V")], reach=64)
+        (f,) = found
+        self.assertIn("index_reach 64, where a doubled byte reaches 128", f)
+
+    def test_a_high_byte_nothing_clears(self):
+        found, _ = v_findings([(GOOD, "DC_V")], shape="EAA5100AAAFC008260")    # NOP for the TDC
+        (f,) = found
+        self.assertIn("A's high byte isn't known clear at the ASL", f)
+        self.assertIn("$C0:8100 is entered as test", f)
+
+    def test_bounded_replaces_the_derived_targets(self):
+        an, _ = v_analysis()
+        jt = an.tables[DISPATCH]
+        self.assertIn(0xC08300, Liveness(an)._table_targets(jt))
+        self.assertEqual(Liveness(an, strict=True, bounded={DISPATCH: [0xC08310]})._table_targets(jt), [0xC08310])
+        self.assertIsNone(Liveness(an, strict=True, bounded={DISPATCH: [0xC08310]}).dynamic_sites(0xC08100).get(DISPATCH))
+
+    def test_the_bound_follows_every_word(self):
+        from tools import v_readers
+        an, _ = v_analysis(entry_100=0x8320)
+        targets, problems = v_readers.bounded_targets(an)
+        self.assertEqual(problems, [])
+        self.assertEqual(sorted(targets[DISPATCH]), [0xC08300, 0xC08310, 0xC08320])
+
+    def test_counts_are_read(self):
+        m = dc.V_EVIDENCE.search(v_note("C0:8100", [("C08400", 12), ("C18400", 7)], static=True))
+        self.assertEqual(dc.v_evidence_counts(m), {0xC08400: 12, 0xC18400: 7})
+        self.assertTrue(m.group("static"))
+
+
+class HighByteAnalysis(unittest.TestCase):
+    """tools/disasm/high_byte.py on small routines: what clears A's high byte
+    and what makes it unknown, and a call carrying it through its callee."""
+
+    def run_code(self, code, at, entries):
+        from tools.disasm.high_byte import HighByte
+        h = Hints()
+        for addr, m8 in entries:
+            h.entries.append(type("E", (), {"addr": addr, "m": m8, "x": False, "kind": "test"})())
+        an = Analyzer(FakeRom(code), h)
+        an.run()
+        lv = Liveness(an)
+        lv.solve()
+        hb = HighByte(an, lv, d_high_zero=True)
+        hb.solve()
+        return hb.at(at)
+
+    def test_tdc_clears_it(self):
+        # C0:8000 TDC : LDA $10 (8-bit) : NOP : RTS
+        self.assertEqual(self.run_code({0xC08000: bytes.fromhex("7BA510EA60")}, 0xC08003, [(0xC08000, True)])[0], "Z")
+
+    def test_xba_and_16_bit_loads(self):
+        # C0:8000 TDC : XBA : NOP : RTS -- the swap brings A's low byte up
+        self.assertEqual(self.run_code({0xC08000: bytes.fromhex("7BEBEA60")}, 0xC08002, [(0xC08000, True)])[0], "U")
+        # C0:8000 (16-bit A) LDA #$0012 : NOP : LDA $10 : NOP : RTS
+        code = {0xC08000: bytes.fromhex("A91200EAA510EA60")}
+        self.assertEqual(self.run_code(code, 0xC08003, [(0xC08000, False)])[0], "Z")
+        self.assertEqual(self.run_code(code, 0xC08006, [(0xC08000, False)])[0], "U")
+
+    def test_a_call_carries_it_through(self):
+        # C0:8000 TDC : JSR $8010 : NOP : RTS     C0:8010 NOP : RTS (leaves B alone)
+        # C0:8020 TDC : JSR $8030 : NOP : RTS     C0:8030 XBA : RTS (doesn't)
+        code = {0xC08000: bytes.fromhex("7B201080EA60"), 0xC08010: bytes.fromhex("EA60"),
+                0xC08020: bytes.fromhex("7B203080EA60"), 0xC08030: bytes.fromhex("EB60")}
+        entries = [(0xC08000, True), (0xC08020, True)]
+        self.assertEqual(self.run_code(code, 0xC08004, entries)[0], "Z")
+        self.assertEqual(self.run_code(code, 0xC08024, entries)[0], "U")
+
+
 if __name__ == "__main__":
     unittest.main()

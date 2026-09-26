@@ -228,7 +228,7 @@ static bool members_turn_to_face(GameState *g, unsigned member)
 /* A member knocked out, or that gets no turns, stays facing as it is. */
 static bool member_can_turn(const GameState *g, unsigned member)
 {
-    return !combatant_knocked_out(g, member) && !(combatant_statuses(g, member) & STATUS_NO_TURNS);
+    return !combatant_knocked_out(g, member) && !(combatant_statuses(g, member) & STATUS_ASLEEP);
 }
 
 /* The member's nearest enemy, by the battlefield's search (battle/positions.h),
