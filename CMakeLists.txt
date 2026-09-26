@@ -190,7 +190,10 @@ add_library(ct_game STATIC
   game/battle/effect_paths.c
   game/battle/effect_statuses.c
   game/battle/status_timers.c
+  game/battle/effect_steal.c
   game/battle/effect_work.c
+  game/battle/inventory.c
+  game/battle/party_work.c
   game/battle/frame.c
   game/battle/main_loop.c
   game/battle/menu_window.c

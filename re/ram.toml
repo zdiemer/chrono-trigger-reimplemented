@@ -9083,6 +9083,7 @@ name = "battle_character_slot"
 addr = "7E:B1BE"
 count = 7
 index = "character"
+unchecked = "the party's working out reads the slot of each part's member before it asks whether there is one, and so of the id $FF past the table (game/battle/party_work.c, $C1:D601)"
 subsystem = "battle"
 meaning = "The battle slot each character fights in, as the timers' order is drawn"
 source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
@@ -13317,6 +13318,7 @@ name = "inventory_items"
 addr = "7E:2400"
 count = 0xF2
 index = "inventory position"
+unchecked = "the battle's search of the inventory for an item runs over 256 places, the fourteen past the inventory's own too, as the original's does (game/battle/inventory.c, $C1:D016)"
 subsystem = "core"
 meaning = "The inventory's item ids, one per position; the battle item list is this list with the items that can't be used in battle skipped"
 source = "tools/movies/addresses.py INVENTORY_ITEMS, INVENTORY_SIZE (read in a battle and matched against the item menu)"
@@ -13326,6 +13328,7 @@ name = "inventory_counts"
 addr = "7E:2500"
 count = 0xF2
 index = "inventory position"
+unchecked = "the battle's search of the inventory for an item runs over 256 places, the fourteen past the inventory's own too, as the original's does (game/battle/inventory.c, $C1:D016)"
 subsystem = "core"
 meaning = "How many of the item at the same position of inventory_items the party holds"
 source = "tools/movies/addresses.py INVENTORY_COUNTS"
@@ -14091,8 +14094,106 @@ source = "game/battle/effect_work.c ($C1:D7CA); game/battle/effect_amounts.c ($C
 name = "battle_steal_outcome"
 addr = "7E:B3BF"
 subsystem = "battle"
-meaning = "How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to take"
-source = "game/battle/effect_modifiers.c ($C1:E9D5)"
+meaning = "How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF nothing to take"
+source = "game/battle/effect_steal.c ($C1:E9D5, $FD:B655)"
+
+[[var]]
+name = "battle_tech_members"
+addr = "7E:B2EA"
+count = 3
+index = "the member's part in the tech"
+reuses = "battle_action_further_ids"
+subsystem = "battle"
+meaning = "The characters who perform the party's tech, from its record's members ($CC:249F), $FF past them: the member who chose it first"
+source = "game/battle/party_work.c ($C1:D55B)"
+
+[[var]]
+name = "battle_tech_members_place"
+addr = "7E:B2C1"
+size = 2
+subsystem = "battle"
+meaning = "The tech's members' record's offset among the records (the members' number times 3), where the party's working out finds them"
+source = "game/battle/party_work.c ($C1:D555)"
+
+[[var]]
+name = "battle_tech_performer"
+addr = "7E:B2CB"
+subsystem = "battle"
+meaning = "The battle slot of the member whose part of the party's tech is being worked out"
+source = "game/battle/party_work.c ($C1:D60F)"
+
+[[var]]
+name = "battle_tech_blocked"
+addr = "7E:B3C8"
+reuses = "battle_action_message_high"
+subsystem = "battle"
+meaning = "$FF where a member of the party's tech can't take part in it (kept from techs, or short of the MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC)"
+source = "game/battle/party_work.c ($C1:D74F)"
+
+[[var]]
+name = "battle_action_goes_ahead"
+addr = "7E:B3C9"
+subsystem = "battle"
+meaning = "Bit 7: the party member's action goes ahead even where a member of its tech can't take part, as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command ($C1:BA4E)"
+source = "game/battle/party_work.c ($C1:D57A)"
+
+[[var]]
+name = "battle_member_accessory"
+addr = "7E:B3BA"
+count = 3
+index = "battle slot of a party member"
+subsystem = "battle"
+meaning = "The accessory each party member wears, kept as the battle starts ($FD:AE99): two of them cut what a tech's part costs in MP"
+source = "game/battle/party_work.c ($C1:D789)"
+
+[[var]]
+name = "battle_member_kept_item"
+addr = "7E:A0B8"
+count = 3
+stride = 8
+index = "battle slot of a party member"
+subsystem = "battle"
+meaning = "An item a party member stole that the battle keeps apart from the inventory (one from $BC whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at $7E:1580 ($CF:FAE2)"
+source = "game/battle/effect_steal.c ($FD:B6EA)"
+  [[var.field]]
+  name = "id"
+  offset = 0
+  meaning = "Which item"
+  [[var.field]]
+  name = "detail"
+  offset = 1
+  meaning = "The item's byte of the table at $CC:1BB5"
+  [[var.field]]
+  name = "kind"
+  offset = 2
+  meaning = "The low seven bits of the item's record's first byte ($CC:0ABC)"
+  [[var.field]]
+  name = "held"
+  offset = 3
+  meaning = "How many are held: 1"
+
+[[var]]
+name = "battle_inventory_item"
+addr = "7E:AEF7"
+size = 2
+subsystem = "battle"
+meaning = "The item the battle's inventory routines are adding or looking for"
+source = "game/battle/inventory.c ($C1:D005)"
+
+[[var]]
+name = "battle_inventory_free_place"
+addr = "7E:AEF9"
+size = 2
+subsystem = "battle"
+meaning = "The first empty place of the inventory the battle's search for an item passed, where an item not held goes"
+source = "game/battle/inventory.c ($C1:D010)"
+
+[[var]]
+name = "battle_inventory_free_seen"
+addr = "7E:AEFB"
+subsystem = "battle"
+meaning = "Set once the battle's search for an item has passed an empty place of the inventory"
+source = "game/battle/inventory.c ($C1:D023)"
 
 [[var]]
 name = "battle_timer_runs_left"

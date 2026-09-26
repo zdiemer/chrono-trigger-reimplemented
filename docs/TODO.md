@@ -100,12 +100,8 @@ rest waits, is [PLAN.md](PLAN.md).
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
-    original (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"):
-    stealing (`$C1:D3BF`, `$C1:E9D5` and the item's giving `$FD:B655`, into
-    the party's inventory or its battle records at `$A0B8`, whose meaning is
-    to work out) and the clock modifier (`$C1:EE27`, whose controller read
-    waits on the console); the party's own working out (`$C1:D523`,
-    `$C1:D74F`, `$C1:BF46`), which runs the kinds' ports; a member that comes back once when knocked out
+    original (RECOMP.md, "Phase 3, battle chunk 4: the party's working
+    out"): a hit that steals as well (no record has one); a member that comes back once when knocked out
     (from `$C1:B316`); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
@@ -169,8 +165,8 @@ rest waits, is [PLAN.md](PLAN.md).
     reads the first set's last kind before it adds (`first_began`) only for
     its carry's leave, and `take_next_target` exists only to leave the carry a
     target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the party's working out (`$C1:D523`,
-    `$C1:D74F`, `$C1:BF46`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    goes when what reads it is a port: the member's turn (`$C1:BA33` on,
+    which reads the stolen item in `$06`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -883,6 +879,13 @@ below. `python3 tools/timing_census.py` re-runs the census.
   runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
+- **The clock's controller read inside the effect work** (RECOMP.md, "Phase 3,
+  battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
+  work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
+  stop where the original waits for the console's controller read
+  (`$C2:84F9`) or resets for the reset buttons: it goes on with the sets and
+  the play time as they are. No movie reaches either; both want the input
+  frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
   onto the field's objects"): 12 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`), the

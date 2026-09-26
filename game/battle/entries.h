@@ -229,6 +229,13 @@ void battle_effect_hit(Snes *s);
 bool battle_effect_hit_ready(Snes *s);
 void battle_effect_drain(Snes *s);
 bool battle_effect_drain_ready(Snes *s);
+void battle_effect_steal(Snes *s);
+bool battle_effect_steal_ready(Snes *s);
+/* The carry a kind's work hands back: set after the note of what acted on the
+ * target, clear after the restoring that shows the actor's HP, the losing of
+ * a condition's bit and the kinds that do nothing (whose jump shifts the
+ * kind's number, clearing it). */
+bool battle_kind_leaves_carry(uint8_t kind);
 void battle_effect_restore_showing_hp(Snes *s);
 bool battle_effect_restore_showing_hp_ready(Snes *s);
 void battle_effect_hit_repeatedly(Snes *s);
@@ -243,6 +250,14 @@ void battle_effect_lose_condition_bit(Snes *s);
 bool battle_effect_lose_condition_bit_ready(Snes *s);
 void battle_note_enemy_tech(Snes *s);
 void battle_note_enemy_attack(Snes *s);
+/* battle/party_work.c: a party member's tech, or its attack, worked out, and
+ * the item it uses. battle/inventory.c: an item added to the inventory. */
+void battle_work_out_member_tech(Snes *s);
+bool battle_work_out_member_tech_ready(Snes *s);
+void battle_use_item(Snes *s);
+bool battle_use_item_ready(Snes *s);
+void battle_add_to_inventory(Snes *s);
+bool battle_add_to_inventory_ready(Snes *s);
 void battle_enemy_pose_turn(Snes *s);
 bool battle_enemy_pose_turn_ready(Snes *s);
 void battle_enemy_attack_turn(Snes *s);

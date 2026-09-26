@@ -10284,3 +10284,62 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB18C-7EB18C=00-16", "--range", "A=0000-00FF"]
 iterations = 5000
 why = "an action the ROM has records for, with A's high byte clear as the turn leaves it; the direct page's byte a drain reads its stat's offset's high byte from clear, as the game leaves it; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_work_out_member_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7E5E73-7E6373:80=00,01,02,03,08,09,0A,0B,0C,0D,0E,0F,10,11,12,13,14,15,16,18,19,1E,23,24,25,26,27,28,29,2E,2F,63", "--fill", "7EB18C-7EB18C=00-7F", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EA0D1-7EA0D3=00,00,00,01", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80"]
+iterations = 5000
+why = "a party tech or a member's attack the ROM has records for, its members in the party's slots, mostly able to take part, and targets each a combatant; the weapons' modifiers among the real ones, the clock's and the charm's included; the direct page's byte a drain reads its stat's offset's high byte from clear, as the game leaves it; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_work_out_member_tech"
+variant = "steal"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18C-7EB18C=2D,51", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EA0D1-7EA0D3=00", "--fill", "7EAE92-7EAE92=01,02", "--fill", "7EAECC-7EAECC=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB3C9-7EB3C9=00,80", "--fill", "7E5E57-7E5F57:80=00,A5", "--fill", "7E2400-7E25FF=00-FF"]
+iterations = 5000
+why = "the party's two steals, by their members in the party's slots, able to take part, from targets each a combatant, with and without the thief's accessory; the inventory at random, so that a steal adds to a held item, one held at most, or a new place; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_use_item"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 5000
+why = "an actor and a count of targets, each a combatant, and any item; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_effect_steal"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EB2CC-7EB2CC=0F,10", "--fill", "7E5E57-7E5F57:80=00,A5", "--fill", "7E2400-7E25FF=00-FF"]
+iterations = 5000
+why = "a party member stealing from targets each a combatant, with either charm chance the party's steals have, with and without the thief's accessory; the inventory at random; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_effect_hit"
+variant = "clock"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD8D-7EAD8D=01-0B", "--fill", "7EAD8E-7EAD98=00-0A", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EAD9B-7EAD9B=00-03", "--fill", "7EB2C7-7EB2C7=00-02", "--fill", "7EB2CC-7EB2CC=02,0F,10,63", "--fill", "7E5E73-7E6373:80=02,63", "--fill", "7E5E74-7E6374:80=01"]
+iterations = 5000
+why = "a hit with the modifiers the port took on last: the clock's (the action's and the weapon's, switched on) and the charm's chance; as the plain hit's otherwise"
+
+[[routine]]
+name = "battle_add_to_inventory"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "Y=0000-00FF", "--fill", "7E2400-7E25FF=00-FF"]
+iterations = 5000
+why = "any item into an inventory at random: held, held 99 times, or not held with or without an empty place"
+
+[[routine]]
+name = "battle_add_to_inventory"
+variant = "full"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "Y=0000-00FF", "--fill", "7E2400-7E24FF=01-FF", "--fill", "7E2500-7E25FF=00-FF"]
+iterations = 5000
+why = "any item into an inventory with no empty place"

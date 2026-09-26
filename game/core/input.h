@@ -6,6 +6,7 @@
 
 #include "platform/input.h"
 #include "snes/system.h"
+#include "state.h"
 
 /* A set of buttons in the game's own order, the order of the words it keeps
  * them in (input_held and the rest): the face and shoulder buttons in the low
@@ -30,6 +31,14 @@ enum { ASSIGNED_CONFIRM = BUTTON_A, ASSIGNED_DASH = BUTTON_SELECT };
 /* The buttons (PadBits) that, held together and alone, reset the console, from any mode that
  * reads the controller (the scenes check them too, scene/frame.c). */
 enum { RESET_BUTTONS = IN_BUTTON_L | IN_BUTTON_R | IN_BUTTON_SELECT | IN_BUTTON_START };
+
+/* The frame's input work run again from inside other work, as the battle's
+ * clock modifier runs it ($C2:8002 from $C1:EE27): the controller read, the
+ * button assignments and the play time's tick. False, with nothing taken,
+ * where the console is still reading the controller; where the reset buttons
+ * are held the held buttons are taken and it is false too. Other work can't
+ * stop where the original waits for the read or resets (docs/TODO.md). */
+bool input_take_frame(GameState *g, Platform *pf);
 
 /* The registered entries (game/registry.c). */
 void input_update(Snes *s);

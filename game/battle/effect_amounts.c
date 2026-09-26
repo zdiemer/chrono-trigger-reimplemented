@@ -193,7 +193,7 @@ enum { MOST_HEALED = 999, MOST_DAMAGE = 9999 };
 
 /* The amount healed or drained is kept in the direct page's first word, which
  * a modifier reads back ($C1:EE27): kept plainly. */
-static void keep_amount_worked(GameState *g, uint16_t v) { battle_keep_word(g, 0x00, v); }
+static void keep_amount_worked(GameState *g, uint16_t v) { battle_keep_word(g, BATTLE_CLOCK_READS, v); }
 
 /* One restoration: `base` times the multiple, where that isn't all of the
  * stat; with a random part up to `power` where the product isn't a whole
@@ -731,7 +731,7 @@ static void felled(GameState *g, uint8_t place)
     set_battle_candidate_count(g, 1);
 }
 
-void effect_apply_hit(GameState *g, HitAmounts hit)
+void effect_apply_hit(GameState *g, Platform *pf, HitAmounts hit)
 {
     set_effect_target_stat(g, STAT_STATUS_1, effect_target_stat(g, STAT_STATUS_1) & (uint8_t)~STATUSES_A_HIT_ENDS);
     uint16_t kept = (uint16_t)(0x100 - hit.defence);
@@ -740,7 +740,7 @@ void effect_apply_hit(GameState *g, HitAmounts hit)
     uint16_t amount = (uint16_t)(share + variance);
     set_battle_effect_amount(g, amount ? amount : 1);
     ORIGINAL_EFFECT(battle_leave_word(g, EFFECT_ARG_1, 0));
-    effect_apply_modifiers(g);
+    effect_apply_modifiers(g, pf);
     uint8_t guards = (uint8_t)(effect_target_stat(g, STAT_STATUS_4) | effect_target_stat(g, STAT_KEPT_STATUS_4));
     effect_leave_last_worked_byte(g, guards);
     guarded_against(g, guards);
