@@ -63,7 +63,12 @@ enum {
     STATUS3_EVADES_MUCH_BETTER = 0x40,
     /* Haste: its turns come twice as fast. */
     STATUS3_HASTE = 0x80,
+    /* Timer 11 follows it (battle/timers.h); its meaning isn't worked out. */
+    STATUS3_TIMER_11 = 0x02,
 };
+
+/* Where the third and fourth status bytes sit in Statuses. */
+enum { STATUS_BYTE_3_SHIFT = 16, STATUS_BYTE_4_SHIFT = 24 };
 
 /* The fourth status byte (with the kept ones, STAT_KEPT_STATUS_4): */
 enum {
@@ -77,6 +82,9 @@ enum {
     STATUS4_REGAINS_MP = 0x20,
     /* A shield: as the barrier, against the effects that pass the barrier. */
     STATUS4_SHIELD = 0x40,
+    /* The top bit keeps the combatant from acting (combatant_cant_act) and
+     * from joining a combination tech, beside what its hits do below. */
+    STATUS4_KEEPS_FROM_ACTING = 0x80,
     /* Its hits do half as much again. */
     STATUS4_HITS_HALF_AGAIN = 0x80,
 };
@@ -89,6 +97,7 @@ typedef enum {
     STAT_MAX_HP = 0x05,          /* a word */
     STAT_MP = 0x07,              /* a word */
     STAT_MAX_MP = 0x09,          /* a word */
+    STAT_BASE_STATS = 0x0B,      /* seven: a party member's stats from STAT_POWER on, as it has them without its equipment */
     STAT_LEVEL = 0x12,
     STAT_KIND = 0x19,            /* the kinds of effect it turns away; bit 7, it can't be felled outright */
     STAT_FAMILY = 0x1A,          /* the families some modifiers single out */
@@ -102,11 +111,17 @@ typedef enum {
     STAT_STATUS_IGNORED = 0x23,  /* the first status byte's bits it shrugs off */
     STAT_KEPT_STATUS_3 = 0x25,   /* the third status byte's bits it keeps whatever happens */
     STAT_KEPT_STATUS_4 = 0x26,   /* the fourth status byte's bits it keeps whatever happens */
+    STAT_HELMET = 0x27,          /* a party member's helmet, armor and weapon */
+    STAT_ARMOR = 0x28,
+    STAT_WEAPON = 0x29,
     STAT_ACCESSORY = 0x2A,       /* a party member's accessory */
     STAT_POWER = 0x36,
     STAT_HIT = 0x37,
+    STAT_SPEED_RATING = 0x38,    /* at most 16 */
     STAT_MAGIC = 0x39,
     STAT_STAMINA = 0x3A,
+    STAT_EVADE = 0x3B,
+    STAT_MAGIC_DEFENCE = 0x3C,
     STAT_SPEED = 0x3D,
     STAT_ELEMENT_AFFINITY = 0x3F, /* four, an element each: bit 7 absorbs it, bit 6 two less, the rest the scale's divisor */
     STAT_WEAPON_ATTACK = 0x43,   /* a word */
@@ -157,6 +172,14 @@ bool combatant_knocked_out(const GameState *g, unsigned slot);
  * turns, stopped, the one that restarts its script, or the fourth status
  * byte's top one. */
 bool combatant_cant_act(const GameState *g, unsigned slot);
+
+/* A combatant's MP, a word in its stat block. */
+uint16_t combatant_mp(const GameState *g, unsigned slot);
+void set_combatant_mp(GameState *g, unsigned slot, uint16_t mp);
+
+/* The statuses taken off the combatant (their own bits, not the ones it keeps
+ * whatever happens). */
+void combatant_lose_statuses(GameState *g, unsigned slot, Statuses statuses);
 bool combatant_in_fight(const GameState *g, unsigned slot);
 
 /* What a slot is fighting as (battle_combatant_fighting), what it is, and its

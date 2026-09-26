@@ -140,9 +140,25 @@ void effect_status_chance(GameState *g, uint8_t chance, uint8_t bits);
 /* ---- Stealing (battle/effect_steal.c) ---------------------------------------------------- */
 
 /* $C1:E9D5: the actor steals from the target, with a percent's chance: it
- * takes an item, misses, or finds nothing left to take. */
-typedef enum { STEAL_TOOK, STEAL_MISSED, STEAL_NOTHING } StealOutcome;
+ * takes an item, misses, or finds nothing left to take. How the last steal of
+ * an action came out is kept for the member's turn to tell (battle_steal_outcome):
+ * nothing tried yet, an item taken (with bit 1 where the member keeps it), a
+ * miss, or nothing to take. */
+typedef enum { STEAL_TOOK, STEAL_MISSED, STEAL_NOTHING, STEAL_NOT_TRIED } StealOutcome;
+enum {
+    STEAL_OUTCOME_NOT_TRIED = 0x00, STEAL_OUTCOME_TOOK = 0x01, STEAL_OUTCOME_KEPT_BY_MEMBER = 0x02,
+    STEAL_OUTCOME_MISSED = 0xFE, STEAL_OUTCOME_NOTHING = 0xFF,
+};
 StealOutcome effect_steal(GameState *g, uint8_t chance);
+
+static inline StealOutcome effect_last_steal(const GameState *g)
+{
+    uint8_t kept = battle_steal_outcome(g);
+    return kept == STEAL_OUTCOME_NOT_TRIED ? STEAL_NOT_TRIED
+           : kept == STEAL_OUTCOME_MISSED  ? STEAL_MISSED
+           : kept == STEAL_OUTCOME_NOTHING ? STEAL_NOTHING
+                                           : STEAL_TOOK;
+}
 
 /* ---- Modifiers (battle/effect_modifiers.c) ------------------------------------------------ */
 

@@ -23,13 +23,6 @@ enum { THIEFS_ACCESSORY = 0xA5 };
  * drops. */
 enum { HAS_CHARM = 0x80, HAS_DROPPED = 0x40 };
 
-/* How the steal came out (battle_steal_outcome): nothing yet as it starts, an
- * item taken, with bit 1 as well where the member keeps it; a miss, or
- * nothing to take. */
-enum {
-    STEAL_STARTED = 0x00, STEAL_ITEM_TAKEN = 0x01, STEAL_KEPT_BY_MEMBER = 0x02,
-    STEAL_OUTCOME_MISSED = 0xFE, STEAL_OUTCOME_NOTHING = 0xFF,
-};
 
 /* The original hands the outcome back in the cell it took the chance in
  * ($16), and the item taken in $06, where the member's turn reads it to name
@@ -65,7 +58,7 @@ static void set_marks_of(GameState *g, uint8_t slot, uint8_t marks)
 /* The stolen item goes to the party: an item from $BC on that its record
  * marks so, to the thief, kept apart until the battle ends; any other to the
  * inventory. The giving clears the flag the battle's code shares
- * (battle_member_acts_for_itself), which the member's turn reads after. The
+ * (battle_action_came_to_nothing), which the member's turn reads after. The
  * original works in the direct page's cells as it goes: the thief's record
  * by a multiply, the item's record's place, which the scripts' stat test may
  * read after ($08 and $0A, kept plainly), and $00, which the clock's modifier
@@ -93,7 +86,7 @@ static void give_stolen(GameState *g, uint8_t item)
     /* entered with the carry the item's test left, set */
     ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
     ORIGINAL_EFFECT(battle_leave_word(g, THIEF_RECORD_CELL, record));
-    set_battle_member_acts_for_itself(g, 0);
+    set_battle_action_came_to_nothing(g, 0);
     if (item >= FIRST_RECORDED_ITEM) {
         uint8_t past = (uint8_t)(item - FIRST_RECORDED_ITEM);
         battle_keep_stat_offset_word(g, past);
@@ -101,7 +94,7 @@ static void give_stolen(GameState *g, uint8_t item)
         uint8_t flags = item_record_flags(g, item);
         if (flags & ITEM_KEPT_APART) {
             battle_member_keep_item(g, thief, item, item_record_detail(g, item), (uint8_t)(flags & ~ITEM_KEPT_APART));
-            set_battle_steal_outcome(g, STEAL_ITEM_TAKEN | STEAL_KEPT_BY_MEMBER);
+            set_battle_steal_outcome(g, STEAL_OUTCOME_TOOK | STEAL_OUTCOME_KEPT_BY_MEMBER);
             return;
         }
     }
@@ -111,7 +104,7 @@ static void give_stolen(GameState *g, uint8_t item)
 // $C1:E9D5
 StealOutcome effect_steal(GameState *g, uint8_t chance)
 {
-    set_battle_steal_outcome(g, STEAL_STARTED);
+    set_battle_steal_outcome(g, STEAL_OUTCOME_NOT_TRIED);
     /* trebled in a byte: a chance over 85 runs round to a small one */
     if (effect_actor_stat(g, STAT_ACCESSORY) == THIEFS_ACCESSORY)
         chance = (uint8_t)(chance * 3);
@@ -135,8 +128,8 @@ StealOutcome effect_steal(GameState *g, uint8_t chance)
         item = NO_ITEM;
     if (item == NO_ITEM)
         return came_out(g, STEAL_NOTHING);
-    set_battle_steal_outcome(g, STEAL_ITEM_TAKEN);
-    battle_keep_byte(g, BATTLE_ITEM_TAKEN, item);
+    set_battle_steal_outcome(g, STEAL_OUTCOME_TOOK);
+    battle_keep_byte(g, BATTLE_MEMBER_CELL, item);
     give_stolen(g, item);
     return came_out(g, STEAL_TOOK);
 }

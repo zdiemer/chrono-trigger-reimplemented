@@ -451,6 +451,16 @@ void set_inventory_counts(GameState *g, unsigned i, uint8_t v);
 uint8_t inventory_counts_unchecked(const GameState *g, unsigned i);
 void set_inventory_counts_unchecked(GameState *g, unsigned i, uint8_t v);
 
+enum { PARTY_TRIPLE_TECHS_LEARNED_COUNT = 15 };   /* by triple tech, from the first ($66) */
+/* Bit 7: the party has learned the triple tech */
+uint8_t party_triple_techs_learned(const GameState *g, unsigned i);
+void set_party_triple_techs_learned(GameState *g, unsigned i, uint8_t v);
+/* Bit 7: the party has learned the triple tech Unchecked, for marked scaffolding only: the
+ * battle's search for a member's triple tech reads the byte after the last as it ends
+ * (game/battle/tech_records.c, $C1:CDEE) */
+uint8_t party_triple_techs_learned_unchecked(const GameState *g, unsigned i);
+void set_party_triple_techs_learned_unchecked(GameState *g, unsigned i, uint8_t v);
+
 enum { PARTY_MEMBERS_COUNT = 3 };   /* by party slot */
 /* The three active party members as character ids, $80 for an empty slot */
 uint8_t party_members(const GameState *g, unsigned slot);
@@ -497,6 +507,13 @@ enum { CHARACTER_NAMES_COUNT = 7 };   /* by character */
 enum { CHARACTER_NAMES_BYTES = 5 };
 uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at);
 void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+/* Its low word */
+uint16_t party_gold_low(const GameState *g);
+void set_party_gold_low(GameState *g, uint16_t v);
+/* Its high byte */
+uint8_t party_gold_high(const GameState *g);
+void set_party_gold_high(GameState *g, uint8_t v);
 
 enum { SAVE_SLOT_SUMMARIES_COUNT = 3 };   /* by save slot */
 /* Three $10-byte party member records, the first byte the member (negative: empty) [48 bytes,
@@ -4582,6 +4599,25 @@ void set_battle_object_sprite_entries_x_offset(GameState *g, unsigned slot, uint
 uint8_t battle_object_sprite_entries_y_offset(const GameState *g, unsigned slot);
 void set_battle_object_sprite_entries_y_offset(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_ITEM_LIST_COUNT = 256 };   /* by inventory place: an empty place, and each item used in battle, has a record; the others are left out and the rest move up */
+/* The item */
+uint8_t battle_item_list_item(const GameState *g, unsigned i);
+void set_battle_item_list_item(GameState *g, unsigned i, uint8_t v);
+/* The item's detail as the menu shows it ($CC:1BB5, a byte an item from $BC) */
+uint8_t battle_item_list_menu_detail(const GameState *g, unsigned i);
+void set_battle_item_list_menu_detail(GameState *g, unsigned i, uint8_t v);
+/* The item's battle record's first byte without its top bit (the bit that says it is used in
+ * battle; $CC:0ABC) */
+uint8_t battle_item_list_flags(const GameState *g, unsigned i);
+void set_battle_item_list_flags(GameState *g, unsigned i, uint8_t v);
+/* How many the party holds */
+uint8_t battle_item_list_held(const GameState *g, unsigned i);
+void set_battle_item_list_held(GameState *g, unsigned i, uint8_t v);
+/* Clear: only the list's clearing writes it (a weapon's record would have its element here, on a
+ * path the original never takes) */
+uint8_t battle_item_list_spare(const GameState *g, unsigned i);
+void set_battle_item_list_spare(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_TECH_RECORDS_COUNT = 60 };   /* by party member * 20 + the entry the member's tech list names (battle_tech_list) */
 /* Tech id ($FF: none); what the member's tech list shows */
 uint8_t battle_tech_records_id(const GameState *g, unsigned member);
@@ -4950,16 +4986,17 @@ void set_battle_stats_condition(GameState *g, unsigned slot, uint8_t v);
  * timed statuses' bits, which its status timers follow, and the bits the pose table tests */
 uint32_t battle_stats_status(const GameState *g, unsigned slot);
 void set_battle_stats_status(GameState *g, unsigned slot, uint32_t v);
-/* A byte the battle carries over from the member's record (battle_member_carried) when it ends
- * ($5E56 for slot 0) */
+/* A party member's weapon ($5E56 for slot 0), whose records the setup adds to its stats
+ * (game/battle/member_stats.c); the battle carries it over from the member's record
+ * (battle_member_carried) when it ends */
 uint8_t battle_stats_carried(const GameState *g, unsigned slot);
 void set_battle_stats_carried(GameState *g, unsigned slot, uint8_t v);
 /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes'
  * bits ($5E52-$5E53 for slot 0) */
 uint16_t battle_stats_status_kept(const GameState *g, unsigned slot);
 void set_battle_stats_status_kept(GameState *g, unsigned slot, uint16_t v);
-/* An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP
- * (battle_enemy_hp_seen) */
+/* The party member's accessory ($5E57 for slot 0; STAT_ACCESSORY): $A4 and $B8 let the party see
+ * an enemy's HP (battle_enemy_hp_seen) */
 uint8_t battle_stats_worn_item(const GameState *g, unsigned slot);
 void set_battle_stats_worn_item(GameState *g, unsigned slot, uint8_t v);
 /* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F
@@ -5009,9 +5046,11 @@ void set_battle_stats_condition_unchecked(GameState *g, unsigned slot, uint8_t v
  * acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
 uint32_t battle_stats_status_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_status_unchecked(GameState *g, unsigned slot, uint32_t v);
-/* A byte the battle carries over from the member's record (battle_member_carried) when it ends
- * ($5E56 for slot 0) Unchecked, for marked scaffolding only: the turn's end reads the status of
- * the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c, $C1:8667) */
+/* A party member's weapon ($5E56 for slot 0), whose records the setup adds to its stats
+ * (game/battle/member_stats.c); the battle carries it over from the member's record
+ * (battle_member_carried) when it ends Unchecked, for marked scaffolding only: the turn's end
+ * reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_carried_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_carried_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Statuses the combatant keeps whatever happens, ORed with the third and fourth status bytes'
@@ -5020,10 +5059,10 @@ void set_battle_stats_carried_unchecked(GameState *g, unsigned slot, uint8_t v);
  * $C1:8667) */
 uint16_t battle_stats_status_kept_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_status_kept_unchecked(GameState *g, unsigned slot, uint16_t v);
-/* An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP
- * (battle_enemy_hp_seen) Unchecked, for marked scaffolding only: the turn's end reads the status
- * of the combatant that acted, whatever the actor's cell holds (game/battle/main_loop.c,
- * $C1:8667) */
+/* The party member's accessory ($5E57 for slot 0; STAT_ACCESSORY): $A4 and $B8 let the party see
+ * an enemy's HP (battle_enemy_hp_seen) Unchecked, for marked scaffolding only: the turn's end
+ * reads the status of the combatant that acted, whatever the actor's cell holds
+ * (game/battle/main_loop.c, $C1:8667) */
 uint8_t battle_stats_worn_item_unchecked(const GameState *g, unsigned slot);
 void set_battle_stats_worn_item_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Bit 7 set while the combatant comes back once when it is knocked out, which uses it up ($5E4F
@@ -7159,6 +7198,19 @@ void set_battle_candidates_drawing(GameState *g, uint8_t v);
 uint8_t battle_member_turn_running(const GameState *g);
 void set_battle_member_turn_running(GameState *g, uint8_t v);
 
+/* Set where a party member's action came to nothing: its targeting found no target ($C1:C1DD),
+ * or its attack no enemy left in the fight ($C1:D656); the member's turn then skips the rest.
+ * The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends
+ * ($FD:B655) */
+uint8_t battle_action_came_to_nothing(const GameState *g);
+void set_battle_action_came_to_nothing(GameState *g, uint8_t v);
+
+/* Set where an item the battle's item list was offered isn't one used in battle, so it has no
+ * record there: the list's building ($C1:CDFF) leaves it as its last item did, and the steal's
+ * giving reads it to put such an item in the inventory instead ($C1:F016) */
+uint8_t battle_item_not_listed(const GameState *g);
+void set_battle_item_not_listed(GameState *g, uint8_t v);
+
 /* Set by a party member's turn when a status of its picks its action for it */
 uint8_t battle_member_acts_for_itself(const GameState *g);
 void set_battle_member_acts_for_itself(GameState *g, uint8_t v);
@@ -7655,6 +7707,12 @@ enum { BATTLE_COMBO_CALLED_OFF_COUNT = 3 };   /* by party slot */
 uint8_t battle_combo_called_off(const GameState *g, unsigned slot);
 void set_battle_combo_called_off(GameState *g, unsigned slot, uint8_t v);
 
+enum { BATTLE_MEMBERS_TAKING_PART_COUNT = 3 };   /* by party slot */
+/* Set for the members taking part in the action carried out (the member and its combination
+ * tech's partners), whose queued actions the calling off drops where one can't act ($FD:A93C) */
+uint8_t battle_members_taking_part(const GameState *g, unsigned slot);
+void set_battle_members_taking_part(GameState *g, unsigned slot, uint8_t v);
+
 /* Where $FD:A8A5 leaves whether the member it was asked about can't act now (knocked out, or a
  * status that keeps it from combination techs); the combination check reads it after each call */
 uint8_t battle_combo_member_out(const GameState *g);
@@ -7669,6 +7727,11 @@ void set_battle_combo_pairs(GameState *g, unsigned member, uint8_t v);
 /* The party member whose status picks its action */
 uint8_t battle_acting_for_itself(const GameState *g);
 void set_battle_acting_for_itself(GameState *g, uint8_t v);
+
+/* The party member whose chosen action is carried out, whose record the turn clears as it ends
+ * ($C1:B9C4, $C1:BCF9) */
+uint8_t battle_turn_member(const GameState *g);
+void set_battle_turn_member(GameState *g, uint8_t v);
 
 enum { BATTLE_MESSAGE_TILES_COUNT = 2 };   /* by half (the first goes to VRAM $5800 on odd frames, the second to $5980 on even ones) */
 /* A battle message's text, drawn as tiles, in two halves the vblank sends to VRAM in turn while

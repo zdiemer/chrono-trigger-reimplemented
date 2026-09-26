@@ -247,7 +247,6 @@ static void hit_target(GameState *g, Platform *pf, const EffectRecord *e)
 /* The action hits each of its targets in turn, unless it stops at its first
  * (battle_action_state bit 1, an enemy's attack). The count of targets left
  * is kept from going below 0. */
-enum { STOPS_AT_FIRST = 0x02 };
 
 static void hit(GameState *g, Platform *pf, const EffectRecord *e)
 {
@@ -256,7 +255,7 @@ static void hit(GameState *g, Platform *pf, const EffectRecord *e)
     for (;;) {
         hit_target(g, pf, e);
         note_acted_on(g);
-        if (battle_action_state(g) & STOPS_AT_FIRST)
+        if (battle_action_state(g) & ACTION_STOPS_AT_FIRST)
             return;
         int8_t left = (int8_t)(battle_action_target_count(g) - 1);
         set_battle_action_target_count(g, left < 0 ? 0 : (uint8_t)left);

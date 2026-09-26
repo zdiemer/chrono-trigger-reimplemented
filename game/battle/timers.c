@@ -23,13 +23,13 @@ static const Statuses timed_status[BATTLE_TIMER_KINDS] = {
     [BATTLE_TIMER_STOP] = STATUS_STOP,
     [BATTLE_TIMER_POISON] = STATUS_POISON,
     [BATTLE_TIMER_SLOW] = STATUS_SLOW,
-    [BATTLE_TIMER_HASTE] = (Statuses)STATUS3_HASTE << 16,
-    [BATTLE_TIMER_EVASION] = (Statuses)STATUS3_EVADES_MUCH_BETTER << 16,
-    [BATTLE_TIMER_SHIELD] = (Statuses)STATUS4_SHIELD << 24,
+    [BATTLE_TIMER_HASTE] = (Statuses)STATUS3_HASTE << STATUS_BYTE_3_SHIFT,
+    [BATTLE_TIMER_EVASION] = (Statuses)STATUS3_EVADES_MUCH_BETTER << STATUS_BYTE_3_SHIFT,
+    [BATTLE_TIMER_SHIELD] = (Statuses)STATUS4_SHIELD << STATUS_BYTE_4_SHIFT,
     [BATTLE_TIMER_HP_LOSS] = STATUS_LOSES_HP,
-    [BATTLE_TIMER_MP_REGAIN] = (Statuses)STATUS4_REGAINS_MP << 24,
-    [BATTLE_TIMER_BARRIER] = (Statuses)STATUS4_BARRIER << 24,
-    [BATTLE_TIMER_11] = 0x00020000,
+    [BATTLE_TIMER_MP_REGAIN] = (Statuses)STATUS4_REGAINS_MP << STATUS_BYTE_4_SHIFT,
+    [BATTLE_TIMER_BARRIER] = (Statuses)STATUS4_BARRIER << STATUS_BYTE_4_SHIFT,
+    [BATTLE_TIMER_11] = (Statuses)STATUS3_TIMER_11 << STATUS_BYTE_3_SHIFT,
 };
 
 Statuses battle_timed_status(BattleTimer kind) { return timed_status[kind]; }
@@ -83,6 +83,11 @@ void battle_follow_status(GameState *g, BattleTimer timer, unsigned slot, bool s
 }
 
 void battle_restart_timer(GameState *g, BattleTimer timer, unsigned slot) { set_timer_state(g, timer, slot, TIMER_RUNNING); }
+
+bool battle_timer_running(const GameState *g, BattleTimer timer, unsigned slot)
+{
+    return timer_state(g, timer, slot) != TIMER_STOPPED;
+}
 
 bool battle_timer_run_out(const GameState *g, BattleTimer timer, unsigned slot)
 {

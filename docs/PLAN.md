@@ -170,21 +170,21 @@ actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
 `python3 tools/portstyle.py` measures both. The style score counts operations
 on the emulated registers per line (not memory access, call-outs or hand-backs:
 the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 162 files, 117 of
-43,307 lines, is on the backlog**: `data/decompress.c`. What is still on the
+each subsystem's functions that take the machine. **1 of 164 files, 117 of
+43,824 lines, is on the backlog**: `data/decompress.c`. What is still on the
 machine is, outside core, the entries' wrappers, the guards and the bridges
 round the call-outs to the original's code:
 
 | Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
 |---|--:|--:|--:|--:|--:|--:|
-| battle | 0 | 60 | 0 | 15,740 | 0.02 | 27% |
-| menu | 0 | 27 | 0 | 10,044 | 0.03 | 33% |
+| battle | 0 | 62 | 0 | 16,256 | 0.02 | 27% |
+| menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
 | event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
 | field | 0 | 29 | 0 | 7,555 | 0.01 | 21% |
 | scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
 | core, data, attract | 1 | 8 | 117 | 2,047 | 0.06 | 70% |
 | sound | 0 | 4 | 0 | 1,983 | 0.00 | 0% |
-| **total** | **1** | **162** | **117** | **43,132** | **0.02** | **28%** |
+| **total** | **1** | **164** | **117** | **43,446** | **0.02** | **28%** |
 
 Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
 guards and the bridges around their call-outs, and nothing else, counted by
@@ -338,16 +338,16 @@ toward the entry wrappers alone.
 Comes after 3a, on a tree where every existing port reads as source.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **45% of the code is still generated.**
+docstring says which way it is wrong). **None of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 41.2K | 18.6K | 37% | 237 |
+| battle (`$C1`, `$CE`) | 64.9K | 42.7K | 18.7K | 34% | 250 |
 | field engine, events (`$C0`) | 59.4K | 41.8K | 9.2K | 30% | 289 |
 | menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
-| field graphics (`$FD`) | 15.3K | 8.9K | 0.8K | 42% | 54 |
+| field graphics (`$FD`) | 15.3K | 9.4K | 0.8K | 39% | 58 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
@@ -355,7 +355,7 @@ docstring says which way it is wrong). **45% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **146.3K** | **41.9K** | **45%** | **1098** |
+| **total** | **268.5K** | **148.3K** | **42.0K** | **45%** | **1115** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -484,21 +484,26 @@ at `$C6:FD00`, and without knowing what each stream holds their ports would be
 named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
 menus' map").
 
-`$C1`'s first five chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
-minds" and "Phase 3, battle chunk 2" to "chunk 5"): the enemies' scripts --
+`$C1`'s first six chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
+minds" and "Phase 3, battle chunk 2" to "chunk 6"): the enemies' scripts --
 the choosing, the conditions, the actions, the selectors -- the target search
 and the battlefield's questions, the random numbers, an enemy's turn to its
 end, the statuses' timers, every action's effect worked out in C, the
 enemies' and the party's (the kinds, the damage formulas, the statuses, the
-modifiers, the steal and the inventory it gives to), and a party member's
-chosen action carried out. What is left of the bank, by `python3
-tools/burndown.py --uncovered C1` (67% of it covered), is the combatants'
-animation commands and the enemy effects (`$C1:5CF1` 6,346 bytes, `$C1:4CF0`
-3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205` (2,140), the party's side
-of the showing (`$C1:CC0B` 1,018) and the battle's setup of its stats
-(`$C1:FA8B` 820). The party's side of the showing is the next chunk: with it
-a party action is C from the member's turn to its showing but for the
-targeting (`$C1:C1DD`), which the enemies' turn calls too.
+modifiers, the steal and the inventory it gives to), a party member's chosen
+action carried out, and the setup's party helpers: the combination techs'
+costs and the triple tech in the members' tech records, the battle's item
+list, the members' stats with their equipment, and the inventory and gold
+with the service the rest of the game asks them through (`$C1:8003`). The
+run chunk 5 named "the party's side of the showing" (`$C1:CC0B`) was these
+helpers; the showing itself (`$C1:AC57`) was already C. What is left of the
+bank, by `python3 tools/burndown.py --uncovered C1` (70% of it covered), is
+the combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346
+bytes, `$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205`
+(2,140), the battle's setup (`$C1:FA8B` 820) and the members' tech records
+(`$C1:C96A` 478, with `$C1:CA1A`). The setup and the tech records are the
+next chunk: every helper they call is C now, so with them the battle's start
+is C from the party's records to its item list.
 
 **`$C0`: the field and events.** The first chunk (RECOMP.md, "Phase 3, field
 and events: the party on the map") took the move and state commands off the

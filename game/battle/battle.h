@@ -40,6 +40,34 @@ enum {
 
 static inline bool battle_is_demo(const GameState *g) { return (battle_setup_flags(g) & BATTLE_SETUP_DEMO) != 0; }
 
+/* The battle's steps ($C1:0003), each a stretch of the battle's own frame
+ * work the main loop and the turns ask for by number (A). */
+typedef enum {
+    BATTLE_STEP_SET_UP = 0,           /* set the battle up */
+    BATTLE_STEP_OPEN_MENU = 1,        /* a party member's turn: its command menu opens */
+    BATTLE_STEP_CALLED_OFF = 2,       /* a member's queued action called off */
+    BATTLE_STEP_NEXT_FRAME = 3,       /* the frame's work, and a wait for the next */
+    BATTLE_STEP_SHOW_ACTION = 4,      /* an action's showing starts */
+    BATTLE_STEP_ENEMIES_BEATEN = 6,   /* the enemies beaten, seen to */
+    BATTLE_STEP_VICTORY = 8,          /* the party's victory */
+    BATTLE_STEP_DEFEAT = 9,           /* the party's defeat */
+} BattleStep;
+
+/* A party member's action record (battle_member_actions). Its choice: the
+ * first set of these bits decides what the member does; bit 4, whose meaning
+ * isn't worked out (docs/TODO.md), is dropped when the member is knocked out,
+ * and a choice of it alone leaves the member's turn as it is. Its partners:
+ * a partner's party slot in each nibble, $F for none, and $FF for no
+ * partners at all. */
+enum { CHOSE_AN_ATTACK = 0x80, CHOSE_AN_ITEM = 0x40, CHOSE_A_TECH = 0x20, CHOICE_HELD = 0x10 };
+enum { NO_PARTNER = 0x0F, NO_PARTNERS = 0xFF };
+
+static inline uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
+static inline uint8_t second_partner(uint8_t partners) { return (uint8_t)(partners >> 4); }
+
+/* The action stops at its first target (battle_action_state): an attack. */
+enum { ACTION_STOPS_AT_FIRST = 0x02 };
+
 /* Between actions (battle/damage.c): the action's damage table cleared, and
  * the numbers shown over the combatants it hit. */
 void battle_clear_damage_table(GameState *g);
@@ -77,6 +105,13 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
     set_battle_low_scratch(g, at + 1, (uint8_t)(v >> 8));
 }
 
+/* A word in the cells, as an entry takes an operand its caller hands it
+ * there. */
+static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
+{
+    return (uint16_t)(battle_low_scratch(g, at) | battle_low_scratch(g, at + 1) << 8);
+}
+
 /* Some of them carry a value on to a later reader that takes it as game
  * input, so the enemies' scripts, their turns and the selectors keep what
  * they write there plainly (battle_keep_*):
@@ -97,8 +132,11 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     (battle/party_work.c), the steal's giving (battle/effect_steal.c), and
  *     the member's turn, which clears it and then puts the used item's
  *     number there (battle/member_turn.c);
- *   - $06 is the item the last steal took (battle/effect_steal.c), which the
- *     member's turn names in its message (battle/member_turn.c);
+ *   - $06 holds the place of the member's action record as its turn or its
+ *     update reaches it (battle/member_turn.c, battle/combatants.c: for the
+ *     original's code), and after a steal the item it took
+ *     (battle/effect_steal.c), which the member's turn names in its message
+ *     (battle_item_taken);
  *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
  *     candidate past the combatants (the stat test's doubled walk goes past
  *     the list, a candidate that is none) is read wherever the table of the
@@ -107,7 +145,7 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     before and while they read. */
 enum {
     BATTLE_CLOCK_READS = 0x00,
-    BATTLE_ITEM_TAKEN = 0x06,
+    BATTLE_MEMBER_CELL = 0x06,
     BATTLE_NUMBER_TESTED = 0x08,
     BATTLE_STAT_OFFSET_LOW = 0x0A,
     BATTLE_STAT_OFFSET_HIGH = 0x0B,
@@ -115,6 +153,8 @@ enum {
 };
 
 static inline void battle_keep_byte(GameState *g, unsigned at, uint8_t v) { set_battle_low_scratch(g, at, v); }
+
+static inline uint8_t battle_item_taken(const GameState *g) { return battle_low_scratch(g, BATTLE_MEMBER_CELL); }
 
 static inline uint16_t battle_clock_word(const GameState *g)
 {

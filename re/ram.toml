@@ -8702,7 +8702,7 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   [[var.field]]
   name = "carried"
   offset = 0x29
-  meaning = "A byte the battle carries over from the member's record (battle_member_carried) when it ends ($5E56 for slot 0)"
+  meaning = "A party member's weapon ($5E56 for slot 0), whose records the setup adds to its stats (game/battle/member_stats.c); the battle carries it over from the member's record (battle_member_carried) when it ends"
   [[var.field]]
   name = "status_kept"
   offset = 0x25
@@ -8711,7 +8711,7 @@ source = "tools/movies/addresses.py BATTLE_STATS; game/battle/stats.c header, ba
   [[var.field]]
   name = "worn_item"
   offset = 0x2A
-  meaning = "An item the party member wears ($5E57 for slot 0): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen)"
+  meaning = "The party member's accessory ($5E57 for slot 0; STAT_ACCESSORY): $A4 and $B8 let the party see an enemy's HP (battle_enemy_hp_seen)"
   [[var.field]]
   name = "revival"
   offset = 0x22
@@ -13743,6 +13743,33 @@ meaning = "How many of the item at the same position of inventory_items the part
 source = "tools/movies/addresses.py INVENTORY_COUNTS"
 
 [[var]]
+name = "party_triple_techs_learned"
+addr = "7E:284D"
+count = 15
+index = "triple tech, from the first ($66)"
+unchecked = "the battle's search for a member's triple tech reads the byte after the last as it ends (game/battle/tech_records.c, $C1:CDEE)"
+subsystem = "core"
+meaning = "Bit 7: the party has learned the triple tech"
+source = "game/battle/tech_records.c ($C1:CD08)"
+
+[[var]]
+name = "party_gold"
+addr = "7E:2C53"
+stride = 3
+subsystem = "core"
+meaning = "The party's gold, a 24-bit number (at most 9,999,999 where the battle gives it)"
+source = "game/battle/inventory.c ($C1:D086, $C1:D0A2, $C1:D0ED)"
+  [[var.field]]
+  name = "low"
+  offset = 0
+  size = 2
+  meaning = "Its low word"
+  [[var.field]]
+  name = "high"
+  offset = 2
+  meaning = "Its high byte"
+
+[[var]]
 name = "world_position"
 addr = "7E:0283"
 stride = 4
@@ -14564,6 +14591,70 @@ addr = "7E:B3BF"
 subsystem = "battle"
 meaning = "How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF nothing to take"
 source = "game/battle/effect_steal.c ($C1:E9D5, $FD:B655)"
+
+[[var]]
+name = "battle_action_came_to_nothing"
+addr = "7E:AF23"
+reuses = "battle_member_acts_for_itself"
+subsystem = "battle"
+meaning = "Set where a party member's action came to nothing: its targeting found no target ($C1:C1DD), or its attack no enemy left in the fight ($C1:D656); the member's turn then skips the rest. The party's working out clears it as it starts ($C1:BF79), and the steal's giving as it ends ($FD:B655)"
+source = "game/battle/member_turn.c, game/battle/party_work.c"
+
+[[var]]
+name = "battle_item_not_listed"
+addr = "7E:AF23"
+reuses = "battle_action_came_to_nothing"
+subsystem = "battle"
+meaning = "Set where an item the battle's item list was offered isn't one used in battle, so it has no record there: the list's building ($C1:CDFF) leaves it as its last item did, and the steal's giving reads it to put such an item in the inventory instead ($C1:F016)"
+source = "game/battle/inventory.c ($FD:AF80)"
+
+[[var]]
+name = "battle_item_list"
+addr = "7E:1580"
+count = 0x100
+stride = 5
+index = "inventory place: an empty place, and each item used in battle, has a record; the others are left out and the rest move up"
+subsystem = "battle"
+meaning = "The items the party can use in the battle, as the item menu lists them: built from the inventory as the battle starts ($C1:CDFF), and a stolen item's record added ($C1:F012)"
+source = "game/battle/inventory.c ($C1:CDFF, $FD:AF80)"
+  [[var.field]]
+  name = "item"
+  offset = 0
+  meaning = "The item"
+  [[var.field]]
+  name = "menu_detail"
+  offset = 1
+  meaning = "The item's detail as the menu shows it ($CC:1BB5, a byte an item from $BC)"
+  [[var.field]]
+  name = "flags"
+  offset = 2
+  meaning = "The item's battle record's first byte without its top bit (the bit that says it is used in battle; $CC:0ABC)"
+  [[var.field]]
+  name = "held"
+  offset = 3
+  meaning = "How many the party holds"
+  [[var.field]]
+  name = "spare"
+  offset = 4
+  meaning = "Clear: only the list's clearing writes it (a weapon's record would have its element here, on a path the original never takes)"
+
+[[var]]
+name = "battle_turn_member"
+addr = "7E:B3F4"
+reuses = "battle_acting_for_itself"
+subsystem = "battle"
+meaning = "The party member whose chosen action is carried out, whose record the turn clears as it ends ($C1:B9C4, $C1:BCF9)"
+source = "game/battle/member_turn.c"
+
+[[var]]
+name = "battle_members_taking_part"
+addr = "7E:B3E7"
+count = 3
+index = "party slot"
+reuses = "battle_combo_called_off"
+subsystem = "battle"
+meaning = "Set for the members taking part in the action carried out (the member and its combination tech's partners), whose queued actions the calling off drops where one can't act ($FD:A93C)"
+source = "game/battle/member_turn.c ($C1:B9B7)"
 
 [[var]]
 name = "battle_member_partners_kept"

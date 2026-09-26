@@ -120,7 +120,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
     `battle_number_marks`, `battle_slot_draw_bits` and the sprite drawers'
     page's unnamed bytes; `battle_enemy_rule`'s rules 1 and 2;
-    `battle_stats.worn_item` (named from one use); the rest of
+    the rest of
     `battle_fight_flags`; the script commands' per-combatant and per-effect
     cells (`battle_animation_wait_cells`, `battle_script_command_cells`,
     `battle_effect_command_cells`); the five window tile blocks the frame
@@ -179,6 +179,12 @@ rest waits, is [PLAN.md](PLAN.md).
     `menu_window.c` (the member who can't act) and `combatants.c` (the status
     seen) name confusion, and `re/ram.toml`'s `battle_status_script_seen`
     says so too: say confused.
+  - Bit 4 of a party member's action record's choice (`CHOICE_HELD`,
+    battle.h): a knocked-out member's choice loses it (`combatants.c`), and a
+    choice of it alone leaves the member's turn as it is, its timer and record
+    untouched (`member_turn.c`, RECOMP.md, "Phase 3, battle chunk 5"). Which
+    menu command sets it, and what the player sees, is to work out; name it
+    then.
   - The statuses' timers (RECOMP.md, "Phase 3, battle chunk 3"): the first
     status byte's `$10` (a point of HP lost each time its timer runs out) and
     the fourth's `$20` (5 MP back every tenth) are named for what the battle
@@ -384,6 +390,32 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+- **What battle's chunk 6 left** (RECOMP.md, "Phase 3, battle chunk 6"; its
+  review's follow-ups):
+  - one accessor for the other items' battle records (`$CC:0ABC`):
+    `equipment_data.h`'s `item_in_battle` and `effect_data.h`'s item-use
+    reader each read the record, and give its bit 7 two meanings;
+  - the equipment's second records decoded in `equipment_data.h`: the boost
+    and affinity bytes as a typed record, not a place and byte offsets
+    (`BOOST_BYTE`, `AFFINITY_BYTE`);
+  - the dead write of `TABLE_AT` (`STAT_SETUP_SPARE_TABLE`) in
+    `member_stats.c`: find what, if anything, reads `$0E` after the stats'
+    setup, and make it scaffolding or say why it is kept;
+  - the multiply's carry notes (`member_stats.c`, `tech_records.c`,
+    `item_record_place`) derived once, as one leave, and `member_turn.c`'s
+    `lengthened` returning its result rather than through an out-parameter;
+  - the MP cost cut's accessory constants shared between `party_work.c` and
+    `tech_records.c` (`QUARTERS_COST`), `multiply_out_tech_place` with
+    `fill_triple`'s multiply, and the tech records' layout (`TECH_RECORD_BYTES`,
+    the first double's and the triple's record) taken from the map;
+  - the gold's accessors named for what they are (`party_gold_low`/`_high`
+    as one 24-bit value in the map);
+  - battle.h's list of `$00`'s writers brought up to date with the setup's
+    (tech_records.c, member_stats.c, inventory.c's item list);
+  - `item_record_place`'s `none` parameter: the caller's place for an item
+    past the recorded ones is the original's leftover X; say so at the call,
+    or give the item no record.
+
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
   - a status's timer of nobody's: the search for run-out timers takes the
@@ -399,7 +431,15 @@ rest waits, is [PLAN.md](PLAN.md).
   - after a part that missed, the tech stops where bit 7 is set in the byte
     of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
     reads where the tech's record is meant (`party_work.c`,
-    `stops_after_miss`, through `wram_read8`).
+    `stops_after_miss`, through `wram_read8`);
+  - from the setup (RECOMP.md, "Phase 3, battle chunk 6"): the search for a
+    member's triple tech reads the byte after the fifteen learned ones as it
+    ends (`tech_records.c`, `learned_byte`); a member wearing an item past
+    the recorded ones ($F2 on) has bank CC's first bytes, at twice its slot,
+    copied into its block as that item's record (`member_stats.c`,
+    `copy_equipment_records`); and the item list's building reads the
+    inventory's 256 places, the fourteen past its own included
+    (`inventory.c`).
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:
@@ -1012,9 +1052,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
     machine from the walk's entry, once their own rows can be calibrated
     without their own calls (they have no other callers);
   - a chest's gift goes to the party through the battle bank's inventory
-    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out: the
-    party's inventory as a module is the menus' or the battle's to write, and
-    the confirm button calls it once it is;
+    service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out. The
+    service is C now (`battle/inventory.h`, RECOMP.md, "Phase 3, battle
+    chunk 6"): the confirm button can call `battle_inventory_add` and
+    `battle_give_gold` instead, timed as the service;
   - from chunk 2's review: `field_chests` is one variable of two words that
     mean different things (the game's list, the location's run); split it
     in the map, have the chest lookup take a chest's number, and name

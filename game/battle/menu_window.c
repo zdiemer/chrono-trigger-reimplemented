@@ -53,12 +53,7 @@ void menu_put_cursor(GameState *g, WindowCell cell)
 /* ---- Partners ------------------------------------------------------------------------ */
 
 /* A combination tech's partners, and those a member's action chose, are a
- * party slot in each half of a byte: the second $F where there is none (and
- * the whole byte $FF for a tech of one). */
-enum { NO_PARTNER = 0x0F };
-
-static uint8_t first_partner(uint8_t partners) { return partners & 0x0F; }
-static uint8_t second_partner(uint8_t partners) { return partners >> 4; }
+ * party slot in each half of a byte (battle.h, first_partner). */
 static bool has_second_partner(uint8_t partners) { return second_partner(partners) != NO_PARTNER; }
 
 /* ---- Which techs can be used now -------------------------------------------------------- */
@@ -602,7 +597,7 @@ static void place_combo_cursors(GameState *g)
 
 /* The single techs' ids are below the combination techs', and a tech with no
  * partners is the member's own too. */
-enum { FIRST_COMBINATION_TECH = 0x39, NO_PARTNERS = 0xFF };
+enum { FIRST_COMBINATION_TECH = 0x39 };
 
 static bool combination_tech_selected(const GameState *g)
 {
