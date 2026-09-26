@@ -376,25 +376,40 @@ static void begin_song(SoundDriver *d, uint8_t track_set)
     d->volume_changed = 0;
 }
 
-// SPC $0BE6, $0D29
-void start_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay, uint8_t track_set, bool save_first)
+// SPC $0D29, $0BD8-$0C05
+/* A song's command comes before its data: the song playing is saved if the
+ * command asks, the music stops, and a new echo delay moves the echo's buffer
+ * at once, with its writes stopped, since the song's samples are loaded next
+ * and may lie where the old, longer buffer was. The song the driver started
+ * last is refused (false). */
+bool announce_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_delay, bool save_first)
 {
     bool again = song == d->last_song_started;
     d->last_song_started = song;
     if (again)
-        return;
+        return false;
     if (save_first)
         save_song(d);
     au_voices_key_off(d->voices, ALL_VOICES);
     d->song_id = song;
     d->song.volume = volume;
     echo_delay &= 0x0F;
-    bool echo_changed = echo_delay != d->echo_delay;
-    if (echo_changed) {
+    d->song_echo_changed = echo_delay != d->echo_delay;
+    if (d->song_echo_changed) {
         d->echo_delay = echo_delay;
         change_echo_delay(d, echo_delay);
     }
-    load_song(d, song);
+    return true;
+}
+
+// SPC $0C08
+/* The song announced, once its data is in: its tracks start from their
+ * beginnings, or from where it was saved. */
+void start_song(SoundDriver *d, uint8_t track_set)
+{
+    bool echo_changed = d->song_echo_changed;
+    d->song_echo_changed = false;
+    load_song(d, d->song_id);
 
     d->effect_voices = 0;
     d->stepping_every_tick = false;

@@ -8,6 +8,7 @@
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "sound/sound.h"
+#include "sound_audio.h"
 #include "sound_state.h"
 
 /* The original's program, where it is watched (see the header). */
@@ -46,11 +47,11 @@ struct SoundLockstep {
     uint8_t levels[8];         /* the voices' output levels the original's meter read this tick */
     unsigned levels_read, levels_given;
     SoundSide original, port;
+    SoundAudio *audio;         /* the C driver heard beside the original, or NULL */
 
     bool booted, ever_booted;
     TickPart part;
-    bool song_open;            /* a song's start: carried out once its upload is in */
-    SoundCommand song;
+    bool song_open;            /* a song's command came: it starts once its upload is in */
 
     unsigned long long ticks, loading_ticks, commands, loads, differing_ticks;
     bool diverged;
@@ -83,6 +84,8 @@ static void write_register(void *ctx, uint8_t reg, uint8_t value)
     SoundLockstep *l = ctx;
     reg &= 0x7F;
     l->regs[reg] = value;
+    if (l->audio)
+        sound_audio_write(l->audio, &l->snes->apu, reg, value);
     if (reg == KON || reg == KOFF)
         sound_side_key_write(&l->port, reg, value);
 }
@@ -106,6 +109,8 @@ SoundLockstep *sound_lockstep_create(Snes *s, SoundCompareLevel level)
 
 void sound_lockstep_destroy(SoundLockstep *l) { free(l); }
 
+void sound_lockstep_listen(SoundLockstep *l, SoundAudio *audio) { l->audio = audio; }
+
 /* ---- Running the C driver ---------------------------------------------------------------- */
 
 /* The C driver reads the cartridge through the game's accessors, which must
@@ -119,7 +124,7 @@ static bool quiet_begin(void)
 
 static void quiet_end(bool was) { vars_peek(was); }
 
-typedef enum { RUN_COMMAND, LOAD_EFFECTS, LOAD_INSTRUMENT, ECHO_DRAINED, ECHO_READY, TICK_BEGIN, TICK_VOICES, TICK_END, LOADING } Step;
+typedef enum { RUN_COMMAND, ANNOUNCE_SONG, START_SONG, LOAD_EFFECTS, LOAD_INSTRUMENT, ECHO_DRAINED, ECHO_READY, TICK_BEGIN, TICK_VOICES, TICK_END, LOADING } Step;
 
 static void drive(SoundLockstep *l, Step step, SoundCommand c, uint16_t value)
 {
@@ -128,6 +133,12 @@ static void drive(SoundLockstep *l, Step step, SoundCommand c, uint16_t value)
     switch (step) {
     case RUN_COMMAND:
         sound_run_command(d, c);
+        break;
+    case ANNOUNCE_SONG:
+        sound_announce_song(d, c);
+        break;
+    case START_SONG:
+        sound_start_announced_song(d);
         break;
     case LOAD_EFFECTS:
         sound_load_effects(d, (uint8_t)value);
@@ -176,6 +187,8 @@ static void close_tick(SoundLockstep *l)
 {
     tick_to(l, BEGUN);
     l->part = NO_TICK;
+    if (l->audio)
+        sound_audio_in_tick(l->audio, false);
 }
 
 /* ---- Comparing ---------------------------------------------------------------------------- */
@@ -232,6 +245,8 @@ static void boot(SoundLockstep *l, const Apu *apu)
         l->ever_booted = true;
     }
     close_tick(l);
+    if (l->audio)
+        sound_audio_boot(l->audio, &l->snes->apu);
     bool was = quiet_begin();
     sound_boot(&l->driver, state_of(l->snes), &l->voices);
     quiet_end(was);
@@ -246,9 +261,15 @@ static void begin_tick(SoundLockstep *l, bool loading)
 {
     close_tick(l);
     compare(l);
+    if (l->audio) {
+        sound_audio_tick(l->audio, &l->snes->apu);
+        sound_audio_in_tick(l->audio, true);
+    }
     if (loading) {
         l->loading_ticks++;
         drive(l, LOADING, (SoundCommand){ 0 }, 0);
+        if (l->audio)
+            sound_audio_in_tick(l->audio, false);
         return;
     }
     l->ticks++;
@@ -265,7 +286,7 @@ static void command(SoundLockstep *l, const Apu *apu)
     l->commands++;
     if (song_start(c.command)) {
         l->song_open = true;
-        l->song = c;
+        drive(l, ANNOUNCE_SONG, c, 0);
         return;
     }
     drive(l, RUN_COMMAND, c, 0);
@@ -294,6 +315,8 @@ static void upload_header(SoundLockstep *l, const Apu *apu)
 void sound_lockstep_insn(SoundLockstep *l, const Apu *apu)
 {
     uint16_t pc = apu->spc.pc;
+    if (l->audio)
+        sound_audio_watch(l->audio, &l->snes->apu);
     if (pc == BOOT) {
         boot(l, apu);
         return;
@@ -329,8 +352,11 @@ void sound_lockstep_insn(SoundLockstep *l, const Apu *apu)
         command(l, apu);
         break;
     case SONG_UPLOADED:
+        /* what the song's command did before its data came: the music
+         * stopped and the echo moved out of the samples' way */
+        compare(l);
         if (l->song_open)
-            drive(l, RUN_COMMAND, l->song, 0);
+            drive(l, START_SONG, (SoundCommand){ 0 }, 0);
         l->song_open = false;
         break;
     case ECHO_WRITES_AGAIN:
@@ -353,8 +379,9 @@ void sound_lockstep_insn(SoundLockstep *l, const Apu *apu)
 
 void sound_lockstep_dsp_write(SoundLockstep *l, const Apu *apu, uint8_t reg, uint8_t value)
 {
-    (void)apu;
     reg &= 0x7F;
+    if (l->audio)
+        sound_audio_original_write(l->audio, apu, reg, value);
     if (l->booted && (reg == KON || reg == KOFF))
         sound_side_key_write(&l->original, reg, value);
 }

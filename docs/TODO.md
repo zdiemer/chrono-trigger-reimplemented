@@ -522,6 +522,13 @@ rest waits, is [PLAN.md](PLAN.md).
   needs shadow mode to check every active comparison at each step rather than
   the innermost: the enclosing one resumed by its callee's return while the
   nested one waits for a later instruction.
+- **Why a guard refused a real call isn't reported.** Shadow mode and the
+  calls log count refusals but don't say which condition refused or what the
+  state was; agents have added a print and rebuilt to find out (battle's
+  phantom timer slot, the menus' refusals). A `ct_dev --guard-details N` that
+  names the entry, the failing condition and the cells it read, for the first
+  N refusals, would save that; so would counting refusals per entry in the
+  shadow report.
 - **`fuzz_compare.py` doesn't scramble.** A rewrite's before-and-after
   comparison runs without `--poison-dc`, so a declaration the rewrite widened
   shows only if the port also stopped passing the original's value. Passing the
@@ -813,6 +820,22 @@ rest waits, is [PLAN.md](PLAN.md).
     the effect table, leaves an effect or a set switch playing its bytes as
     addresses anywhere in sound memory, which the port doesn't keep; and a set
     switch under a track that has run on into the effects.
+  - **The house's "tinny" hi-hats** (SOUND.md, "What playing it found"). A
+    report from playing `--sound-driver c` that no movie reproduces: over
+    new-game the C driver plays the house's songs note for note as the
+    original does, from the same samples. If it recurs, record the session
+    (`ct_play --record` can't with the C driver: note the route and the songs
+    before) and compare sound memory with the original's at the scene; the
+    host's fault that overwrote samples is fixed, and a song keeps a block the
+    echo overwrote in the original too (battle-magus).
+  - **The sound lockstep's audio comparison as a check**
+    (`ct_dev --sound-lockstep-audio exact`, SOUND.md "What playing it found").
+    It isn't exact yet: from the intro on (80.7 s of every power-on movie) the
+    effect voices' levels part for a few hundred samples, and the long save
+    movies part further. Find which writes land at another sample (the pairing
+    of the C driver's writes with the original's is by register and value
+    within a tick; a command's writes and the flags' several writes are the
+    suspects), make it exact, then have a difference fail the run.
   - **Sound driver follow-ups after its review.** The qualitative review of
     `game/sound/` rated no file a translation (`driver.h` hand-written, the
     rest mostly), so it merged with these as follow-ups rather than blockers,
@@ -1003,11 +1026,15 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
-  - the field's start (`$C0:0B86`), the pause and the menu opening
-    (`$C0:18D9`, `$C0:1985`, `$C0:1A03`) are the original's; `$C0:0B86` sets
-    some twenty cells the map has no names for yet (`$10`, `$11`, `$2F`,
-    `$39`, `$8D`-`$96`, `$AE`-`$BB`, `$FA`, `$7E:2989`, `$7E:0BE9`), which
-    their readers name first;
+  - the field's start (`$C0:0B86`) is the original's; it sets some cells
+    the map has no names for yet (`$2F`, `$39`, `$AE`-`$BB`, `$FA`,
+    `$7E:2989`, `$7E:0BE9`), which their readers name first;
+  - the pause and the menus (field/menus.c) call the original's frame wait,
+    field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
+    lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons
+    (`$C0:1ADF`) and a character's start (`$C0:597D`); the Start
+    assignment's test leaves the overflow of its subtraction, which the
+    menus' entry and the next frame read (field/leaves.c);
   - the switch's sound is still the original's routine (`$C0:1B90`, which
     pans it on the leader by reading the objects' screen X with the party's
     first two places as one index word); the port calls it and hands it A's

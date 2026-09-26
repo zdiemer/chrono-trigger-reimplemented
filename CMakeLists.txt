@@ -103,6 +103,8 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/animation.c
   game/field/battle_return.c
+  game/field/palettes.c
+  game/field/menus.c
   game/field/bridge.c
   game/field/display.c
   game/field/frame.c
@@ -250,7 +252,8 @@ add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/med
 target_include_directories(ct_trace PUBLIC oracle/src)
 
 add_executable(ct_dev dev/ct_dev.c dev/as_port.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/range_report.c
-  dev/sound_compare.c dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c)
+  dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c frontend/natives.c
+  frontend/sound_host.c)
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_recomp ct_runtime ct_trace)
 
@@ -259,10 +262,10 @@ target_link_libraries(ct_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
 
 # The C sound driver against the original on random command streams
 # (docs/SOUND.md, "Validating the port").
-add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/sound_lockstep.c dev/sound_compare.c dev/sound_state.c
+add_executable(ct_sound_fuzz dev/ct_sound_fuzz.c dev/sound_audio.c dev/sound_lockstep.c dev/sound_compare.c dev/sound_state.c
   frontend/sound_host.c)
 target_include_directories(ct_sound_fuzz PRIVATE frontend)
-target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime)
+target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime ct_trace)
 
 # The machine as a scriptable server, for authoring input movies from game state
 # and testing the shipping mode with the routes that do (tools/movies,

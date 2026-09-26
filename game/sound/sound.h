@@ -177,6 +177,9 @@ typedef struct {
 
     SoundSong song, saved;
     uint8_t song_id, saved_song_id, last_song_started;
+    bool song_announced;               /* a song's command came, and its data is awaited */
+    uint8_t announced_track_set;
+    bool song_echo_changed;            /* ... with a new echo delay */
     uint8_t echo_delay;
     AuVoiceSet effect_voices;          /* the voices the effects have taken */
     AuVoiceSet echo_voices, noise_voices, pitch_modulation_voices;
@@ -212,6 +215,14 @@ void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices);
 /* A command from the game ($10 play a song, $18 an effect, $80-$83 fades,
  * ... docs/SOUND.md, "Commands from the CPU"), carried out now. */
 void sound_run_command(SoundDriver *d, SoundCommand c);
+/* A song's start in its two parts, for a host that uploads the song's data
+ * between them as the original's CPU half does: the command as it comes (the
+ * music stops, and a new echo delay moves the echo's buffer out of the way of
+ * the samples about to arrive; false if the song is refused as the one
+ * playing), and the start once the data is in. sound_run_command does both
+ * at once. */
+bool sound_announce_song(SoundDriver *d, SoundCommand c);
+void sound_start_announced_song(SoundDriver *d);
 /* A command that arrives while a tick runs: it waits for the tick's next
  * point that takes commands. */
 void sound_queue_command(SoundDriver *d, SoundCommand c);
