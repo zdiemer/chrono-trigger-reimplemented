@@ -132,6 +132,7 @@ add_library(ct_game STATIC
   game/menu/glyphs.c
   game/menu/graphics.c
   game/menu/items.c
+  game/menu/leaves.c
   game/menu/line_effects.c
   game/menu/load_screen.c
   game/menu/map.c

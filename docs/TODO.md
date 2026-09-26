@@ -546,13 +546,13 @@ rest waits, is [PLAN.md](PLAN.md).
     setting nothing: no string has it (6 or 7 of 20,000 fuzzed states read
     random ROM as text and reach it);
   - what the typesetter's entries leave in X and Y (`$C2:5823`, `$C2:F90C`,
-    and `$C2:D296` after it) is worked out in the wrappers by reading the
-    string again from where the call began, scaffolding that stands because
-    the menus' task yield (`$C2:CF5B` jumps to `$C2:821E`) keeps X and Y for
-    the next handler the menus' thread dispatches (`$C2:828E`), and two of
-    those, `$C2:C7E0` and `$C2:E236`, read Y (liveness, through
-    `$C2:E984`'s paths that leave Y alone). Porting those handlers, or
-    showing no path from the slot rows reaches them, drops it;
+    and `$C2:D296` after it) is worked out in `menu/leaves.c` by reading the
+    string again from where the call began. Nothing reads it: the handlers
+    the analysis finds Y live in (`$C2:C7E0`, `$C2:E236`) only pass it on,
+    and it is live there because the analysis joins what follows every call
+    of `$C2:E984` up to the menus' return to their caller. A liveness that
+    tells the calls of a routine apart, or ports of those handlers and their
+    thread, drop it;
   - the typesetter's control codes as a C table with a column for where a
     name comes from, in place of `control_code`'s chain;
   - the glyphs by index (a glyph number and its width's index are the same

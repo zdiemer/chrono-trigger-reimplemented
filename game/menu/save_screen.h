@@ -24,6 +24,7 @@ void menu_show_save_slot(Snes *s);
 bool menu_slot_rows_effect_is_loadable(Snes *s);
 bool menu_save_slots_are_readable(Snes *s);
 bool menu_slot_labels_are_drawable(Snes *s);
+bool menu_chapter_label_is_drawable(Snes *s);
 bool menu_slot_summary_is_readable(Snes *s);
 bool menu_portrait_is_drawable(Snes *s);
 bool menu_save_slot_is_drawable(Snes *s);

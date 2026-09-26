@@ -6338,23 +6338,29 @@ taking the label's table, string and tiles and giving back its width, and the
 load screen and the save screen call it as C, the chapter label leaving what
 it leaves in the registers.
 
-Three things the gate made the port keep. What a call leaves in X and Y is
-read after the label setting: the save screen's slot rows return into the
-menus' task yield, which keeps X and Y for the next screen handler, and two of
-those read Y. The logic doesn't keep how a call ended; the entries' wrappers
-work it out as scaffolding, reading the string again from where the call began
-to find what it read last (a glyph, an insert, or a control code), with the
-insert's source for whether some of it is left. A first version passed a small
-`Ending` back through the reading functions for this, and review rated it a
-translation: it told apart only what the original's registers do. A name past
-the pointer table's seven is read through the table's neighbours, which can
-put it on the text page itself: the original counts the name's glyphs with the
-insert already begun, pointer and source set, so the port does too (fuzzing
-found it: a party member with an id past the characters'). And the budget is
-counted down on the page glyph by glyph, not in hand: such a name reads the
-budget's cell as a glyph, and a label long enough to wrap its bank draws over
-it (fuzzing found a chapter label that differed when the budget was kept in
-a local).
+Three things the gate made the port keep. What a call leaves in X and Y the
+analysis has read after the label setting: the save screen's slot rows return
+into the menus' task yield, which keeps X and Y for the next screen handler,
+and two of those ($C2:C7E0, $C2:E236) start with Y live. Neither uses it:
+along every path Y is set before it is read, or saved and given back; the
+analysis joins what is read after every call of the cursor's input
+($C2:E984), which both call first and which leaves Y alone on some paths, as
+far as the menus' return to their caller, which it can't follow. So the
+registers are scaffolding (`menu/leaves.c`): the logic doesn't keep how a call
+ended, and the leaves read the string again from where the call began to find
+what it read last (a glyph, an insert, or a control code), with the insert's
+source for whether some of it is left; the entries hand them to the machine. A
+first version passed a small `Ending` back through the reading functions for
+this, and review rated it a translation: it told apart only what the
+original's registers do. A name past the pointer table's seven is read
+through the table's neighbours, which can put it on the text page itself: the
+original counts the name's glyphs with the insert already begun, pointer and
+source set, so the port does too (fuzzing found it: a party member with an id
+past the characters'). And a call keeps its budget in hand, where the
+original counts it down on the page: the two part only where such a name
+reads the budget's cell, or a label long enough to wrap its bank draws over
+it, so the guards read a text ahead and turn those away (fuzzing found a
+chapter label that differed before they did).
 
 **The graphics** (`menu/graphics.c`, `$C2:968D`, `$C2:C511`). The tile sets
 every screen draws with, built in work RAM from the ROM's graphics and sent
