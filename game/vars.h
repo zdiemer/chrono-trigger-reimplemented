@@ -4051,11 +4051,12 @@ void set_menu_world_map_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_
 
 /* ---- battle -------------------------------------------------------------------------------- */
 
-enum { BATTLE_LOW_SCRATCH_COUNT = 32 };   /* by byte ($00-$1F) */
-/* Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and
- * product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge
- * slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top
- * line ($0F) and the corners sorted by line (X, Y at $12-$19) */
+enum { BATTLE_LOW_SCRATCH_COUNT = 34 };   /* by byte ($00-$21) */
+/* Direct-page scratch the battle's routines share at $00-$21 (the effect code hands its numbers
+ * over in $16-$21): the multiply's operands and product ($00 by $02-$03 into $04-$06), and the
+ * window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and
+ * start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at
+ * $12-$19) */
 uint8_t battle_low_scratch(const GameState *g, unsigned i);
 void set_battle_low_scratch(GameState *g, unsigned i, uint8_t v);
 
@@ -4092,6 +4093,11 @@ void set_battle_wide_math(GameState *g, unsigned i, uint8_t v);
  * it one byte on after the handler returns */
 uint32_t battle_screen_script(const GameState *g);
 void set_battle_screen_script(GameState *g, uint32_t v);
+
+/* $80 once the target shrugged off a status of its first status byte the effect gave it; the
+ * screen script's pointer has the byte at other times */
+uint8_t battle_shrugged_off_mark(const GameState *g);
+void set_battle_shrugged_off_mark(GameState *g, uint8_t v);
 
 /* Offset of the screen script channel whose command runs (0 or $10) */
 uint16_t battle_screen_channel(const GameState *g);
@@ -4600,6 +4606,12 @@ enum { BATTLE_ENEMY_ANIMATION_COUNT = 8 };   /* by enemy (battle slot - 3) */
  * only from a few of them */
 uint8_t battle_enemy_animation(const GameState *g, unsigned i);
 void set_battle_enemy_animation(GameState *g, unsigned i, uint8_t v);
+/* The animation the enemy shows (its frame list is loaded for it,
+ * battle_enemy_animation_loaded); a status sets it to 0 or 4, and an enemy may start its turn
+ * only from a few of them Unchecked, for marked scaffolding only: a hit beats the target it
+ * names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c, $C1:DE0A) */
+uint8_t battle_enemy_animation_unchecked(const GameState *g, unsigned i);
+void set_battle_enemy_animation_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ENEMY_TARGET_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* The battle slot of the combatant the enemy's chosen action is aimed at, which its attack takes
@@ -6470,6 +6482,10 @@ enum { BATTLE_ENEMY_NAME_TILES_COUNT = 72 };   /* by enemy kind * 24 + byte (two
 uint8_t battle_enemy_name_tiles(const GameState *g, unsigned i);
 void set_battle_enemy_name_tiles(GameState *g, unsigned i, uint8_t v);
 
+/* The amount the effect is working out on its target: damage, or negated, what it heals */
+uint16_t battle_effect_amount(const GameState *g);
+void set_battle_effect_amount(GameState *g, uint16_t v);
+
 /* How many targets battle_action_targets holds */
 uint8_t battle_action_target_count(const GameState *g);
 void set_battle_action_target_count(GameState *g, uint8_t v);
@@ -6478,6 +6494,16 @@ enum { BATTLE_ACTION_TARGETS_COUNT = 11 };   /* by place */
 /* The action's targets ($FF past them) */
 uint8_t battle_action_targets(const GameState *g, unsigned i);
 void set_battle_action_targets(GameState *g, unsigned i, uint8_t v);
+/* The action's targets ($FF past them) Unchecked, for marked scaffolding only: the effect code
+ * reads the target at the count less one in a byte, which is 255 past a count of 0
+ * (game/battle/effect_amounts.c) */
+uint8_t battle_action_targets_unchecked(const GameState *g, unsigned i);
+void set_battle_action_targets_unchecked(GameState *g, unsigned i, uint8_t v);
+
+/* How many party members are out of the fight, as the modifier that hits harder for each counts
+ * them */
+uint8_t battle_party_out_count(const GameState *g);
+void set_battle_party_out_count(GameState *g, uint8_t v);
 
 /* A count the action's effect routines keep ($C1:D386), cleared with the numbers shown over the
  * combatants */
@@ -6495,20 +6521,68 @@ void set_battle_number_records_kind(GameState *g, unsigned slot, uint8_t v);
 /* The record's last byte, which the number display doesn't read; cleared with the rest */
 uint8_t battle_number_records_last_byte(const GameState *g, unsigned slot);
 void set_battle_number_records_last_byte(GameState *g, unsigned slot, uint8_t v);
+/* The number Unchecked, for marked scaffolding only: the effect code adds up up to seven sets of
+ * numbers and reads a record by a slot past the combatants (game/battle/effect_work.c, $C1:EB68;
+ * effect_amounts.c, $C1:E89F) */
+uint16_t battle_number_records_value_unchecked(const GameState *g, unsigned slot);
+void set_battle_number_records_value_unchecked(GameState *g, unsigned slot, uint16_t v);
+/* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette;
+ * 2, 4 and up rise the second way) Unchecked, for marked scaffolding only: the effect code adds
+ * up up to seven sets of numbers and reads a record by a slot past the combatants
+ * (game/battle/effect_work.c, $C1:EB68; effect_amounts.c, $C1:E89F) */
+uint8_t battle_number_records_kind_unchecked(const GameState *g, unsigned slot);
+void set_battle_number_records_kind_unchecked(GameState *g, unsigned slot, uint8_t v);
+/* The record's last byte, which the number display doesn't read; cleared with the rest
+ * Unchecked, for marked scaffolding only: the effect code adds up up to seven sets of numbers
+ * and reads a record by a slot past the combatants (game/battle/effect_work.c, $C1:EB68;
+ * effect_amounts.c, $C1:E89F) */
+uint8_t battle_number_records_last_byte_unchecked(const GameState *g, unsigned slot);
+void set_battle_number_records_last_byte_unchecked(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_HIT_COUNTS_COUNT = 2 };   /* by byte */
-/* Two bytes the effect's working out starts at 0 before an enemy's action */
-uint8_t battle_hit_counts(const GameState *g, unsigned i);
-void set_battle_hit_counts(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_EFFECT_FLAGS_COUNT = 2 };   /* by byte */
+/* The effect's flags, from its record's eighth and ninth bytes: in the first, $10 and $20 skip a
+ * hit's two tests (it can't be dodged, it can't miss), $04 a chance of a status, $02 a chance to
+ * steal, $40 and $80 leave out the target's barrier or shield; in the second, $80 the attacker's
+ * weapon's modifier as well, and the low two bits a quarter-step scale of the defence. An
+ * enemy's turn starts them at 0 */
+uint8_t battle_effect_flags(const GameState *g, unsigned i);
+void set_battle_effect_flags(GameState *g, unsigned i, uint8_t v);
+
+/* A byte the effect's working out clears before each effect and after a hit's test of landing */
+uint8_t battle_effect_hit_test(const GameState *g);
+void set_battle_effect_hit_test(GameState *g, uint8_t v);
+
+enum { BATTLE_MEMBER_REVIVE_MARKS_COUNT = 3 };   /* by party member */
+/* A party member's mark below 3 is cleared as it is revived or cured */
+uint8_t battle_member_revive_marks(const GameState *g, unsigned member);
+void set_battle_member_revive_marks(GameState *g, unsigned member, uint8_t v);
 
 /* Bit 3 set when the enemies an action hits don't react to it; cleared as an enemy's action on
  * an enemy ends */
 uint8_t battle_action_quiet(const GameState *g);
 void set_battle_action_quiet(GameState *g, uint8_t v);
 
+/* The effect's modifier, kept across a hit of an effect that hits several times */
+uint8_t battle_effect_modifier_kept(const GameState *g);
+void set_battle_effect_modifier_kept(GameState *g, uint8_t v);
+
+/* The action's targets as bits, kept as the death modifier takes one out of them */
+uint16_t battle_target_bits_kept(const GameState *g);
+void set_battle_target_bits_kept(GameState *g, uint16_t v);
+
 /* The party member the loop's per-member checks are at (3 once they are done) */
 uint8_t battle_member_updating(const GameState *g);
 void set_battle_member_updating(GameState *g, uint8_t v);
+
+enum { BATTLE_STEAL_MARKS_COUNT = 11 };   /* by battle slot */
+/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one */
+uint8_t battle_steal_marks(const GameState *g, unsigned slot);
+void set_battle_steal_marks(GameState *g, unsigned slot, uint8_t v);
+/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one Unchecked, for
+ * marked scaffolding only: a steal reads the marks of the target the work is at, which a fuzzed
+ * list can put past the combatants (game/battle/effect_modifiers.c, $C1:EA29) */
+uint8_t battle_steal_marks_unchecked(const GameState *g, unsigned slot);
+void set_battle_steal_marks_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_PLACES_COUNT = 11 };   /* by battle slot */
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
@@ -6516,11 +6590,19 @@ enum { BATTLE_PLACES_COUNT = 11 };   /* by battle slot */
 uint8_t battle_places(const GameState *g, unsigned slot);
 void set_battle_places(GameState *g, unsigned slot, uint8_t v);
 
+/* The action's modifier, kept while the weapon's is applied */
+uint8_t battle_action_modifier_kept(const GameState *g);
+void set_battle_action_modifier_kept(GameState *g, uint8_t v);
+
 enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script */
 uint8_t battle_status_script_seen(const GameState *g, unsigned slot);
 void set_battle_status_script_seen(GameState *g, unsigned slot, uint8_t v);
+
+/* The damage the action's effects have done, added up */
+uint16_t battle_effect_total(const GameState *g);
+void set_battle_effect_total(GameState *g, uint16_t v);
 
 enum { BATTLE_ENEMY_BEATEN_COUNTED_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set once an enemy's being beaten has been seen to, so that it isn't beaten again; cleared as
@@ -6567,6 +6649,13 @@ void set_battle_action_other_targets(GameState *g, uint16_t v);
 uint8_t battle_action_flags(const GameState *g);
 void set_battle_action_flags(GameState *g, uint8_t v);
 
+enum { BATTLE_BEATEN_MARKS_LOW_COUNT = 2 };   /* by battle slot (0-1) */
+/* Where the modifier that beats its target outright marks a party member in the first two slots
+ * as beaten: it marks by battle slot from here, so the third member's mark is
+ * battle_enemy_beaten_any and an enemy's is battle_enemy_beaten */
+uint8_t battle_beaten_marks_low(const GameState *g, unsigned slot);
+void set_battle_beaten_marks_low(GameState *g, unsigned slot, uint8_t v);
+
 /* Set when an enemy was beaten by the action */
 uint8_t battle_enemy_beaten_any(const GameState *g);
 void set_battle_enemy_beaten_any(GameState *g, uint8_t v);
@@ -6575,6 +6664,11 @@ enum { BATTLE_ENEMY_BEATEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set for each enemy the action beat */
 uint8_t battle_enemy_beaten(const GameState *g, unsigned i);
 void set_battle_enemy_beaten(GameState *g, unsigned i, uint8_t v);
+/* Set for each enemy the action beat Unchecked, for marked scaffolding only: a hit beats the
+ * target it names, which a fuzzed list can put past the enemies (game/battle/effect_amounts.c,
+ * $C1:DE0A) */
+uint8_t battle_enemy_beaten_unchecked(const GameState *g, unsigned i);
+void set_battle_enemy_beaten_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* The enemy's foe, kept while a reaction names the actor instead */
 uint8_t battle_foe_kept(const GameState *g);
@@ -6637,6 +6731,12 @@ void set_battle_action_number(GameState *g, uint8_t v);
 /* The pose an enemy announces its chosen action with */
 uint8_t battle_action_pose(const GameState *g);
 void set_battle_action_pose(GameState *g, uint8_t v);
+
+enum { BATTLE_EFFECT_RECORD_COUNT = 12 };   /* by byte of the effect's record */
+/* The effect being worked out, copied from its record ($CC:7AC9, $CC:89C6): its kind, then the
+ * numbers the kind takes */
+uint8_t battle_effect_record(const GameState *g, unsigned i);
+void set_battle_effect_record(GameState *g, unsigned i, uint8_t v);
 
 /* Low four bits from the pose an enemy's action is announced with: 4 for poses 1 and 2, $D for 3
  * and 4, 0 for the rest ($C1:ACCE); the high four bits are kept */
@@ -6733,6 +6833,12 @@ void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t 
 uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
+enum { BATTLE_TIMER_LENGTHS_COUNT = 132 };   /* by timer kind (0-11) * 11 + battle slot */
+/* How long each combatant's status timers run once a status starts them; the turn's are
+ * battle_turn_wait */
+uint8_t battle_timer_lengths(const GameState *g, unsigned i);
+void set_battle_timer_lengths(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */
 uint8_t battle_turn_wait(const GameState *g, unsigned slot);
@@ -6797,6 +6903,11 @@ void set_battle_action_actor_bits(GameState *g, uint8_t v);
 uint8_t battle_action_tech_hits(const GameState *g);
 void set_battle_action_tech_hits(GameState *g, uint8_t v);
 
+/* The elements of the acting enemy's attack or tech (its record's third byte), which the element
+ * modifier reads and the targets note as what acted on them */
+uint8_t battle_action_elements(const GameState *g);
+void set_battle_action_elements(GameState *g, uint8_t v);
+
 /* A byte an enemy's attack or tech starts at 0 ($C1:AC89) */
 uint8_t battle_action_step(const GameState *g);
 void set_battle_action_step(GameState *g, uint8_t v);
@@ -6842,9 +6953,39 @@ enum { BATTLE_ENEMY_BLOCK_ACTIONS_COUNT = 8 };   /* by enemy (battle slot - 3) *
 uint16_t battle_enemy_block_actions(const GameState *g, unsigned i);
 void set_battle_enemy_block_actions(GameState *g, unsigned i, uint16_t v);
 
+/* The acting combatant's stat block's offset among the blocks (its battle slot times $80) */
+uint16_t battle_effect_actor_block(const GameState *g);
+void set_battle_effect_actor_block(GameState *g, uint16_t v);
+
+/* The target's stat block's offset among the blocks (its battle slot times $80) */
+uint16_t battle_effect_target_block(const GameState *g);
+void set_battle_effect_target_block(GameState *g, uint16_t v);
+
+/* A stat block's offset two of the damage formulas read a stat of (kinds 7 and 8), which the
+ * party's code leaves; not worked out */
+uint16_t battle_effect_other_block(const GameState *g);
+void set_battle_effect_other_block(GameState *g, uint16_t v);
+
 /* Bit 1 set while an enemy's attack is carried out; its techs clear it */
 uint8_t battle_action_state(const GameState *g);
 void set_battle_action_state(GameState *g, uint8_t v);
+
+/* The battle slot of the target the effect is being worked out on */
+uint8_t battle_effect_target(const GameState *g);
+void set_battle_effect_target(GameState *g, uint8_t v);
+
+/* $80 once the effect missed its target, 0 once it landed */
+uint8_t battle_effect_missed(const GameState *g);
+void set_battle_effect_missed(GameState *g, uint8_t v);
+
+/* How the next entry of the damage table is marked, as its caller gives it: $80 a heal (the
+ * amount is negated), $40 MP, $20 a miss */
+uint8_t battle_damage_flags_given(const GameState *g);
+void set_battle_damage_flags_given(GameState *g, uint8_t v);
+
+/* The marks of the damage table's last entry */
+uint8_t battle_damage_flags_kept(const GameState *g);
+void set_battle_damage_flags_kept(GameState *g, uint8_t v);
 
 /* The kind of the condition being tested (its number in the scripts) */
 uint8_t battle_condition_kind(const GameState *g);
@@ -6890,6 +7031,18 @@ void set_battle_enemy_actions_block(GameState *g, unsigned i, uint8_t v);
 uint16_t battle_script_actions_place(const GameState *g);
 void set_battle_script_actions_place(GameState *g, uint16_t v);
 
+enum { BATTLE_EFFECT_GIVEN_STATUS_COUNT = 11 };   /* by battle slot */
+/* The status the attacker's weapon adds to each target its hit's status chance took (the
+ * weapon's stat byte $46), cleared for each effect */
+uint8_t battle_effect_given_status(const GameState *g, unsigned slot);
+void set_battle_effect_given_status(GameState *g, unsigned slot, uint8_t v);
+/* The status the attacker's weapon adds to each target its hit's status chance took (the
+ * weapon's stat byte $46), cleared for each effect Unchecked, for marked scaffolding only: the
+ * weapon's status is noted for the target the work is at, which a fuzzed list can put past the
+ * combatants (game/battle/effect_statuses.c, $C1:E99F) */
+uint8_t battle_effect_given_status_unchecked(const GameState *g, unsigned slot);
+void set_battle_effect_given_status_unchecked(GameState *g, unsigned slot, uint8_t v);
+
 /* The gold the battle gives */
 uint16_t battle_gold_won(const GameState *g);
 void set_battle_gold_won(GameState *g, uint16_t v);
@@ -6916,14 +7069,53 @@ enum { BATTLE_ENEMY_ACTION_CHOSEN_COUNT = 8 };   /* by enemy (battle slot - 3) *
 uint8_t battle_enemy_action_chosen(const GameState *g, unsigned i);
 void set_battle_enemy_action_chosen(GameState *g, unsigned i, uint8_t v);
 
+/* The random part a damage formula adds to its hit, drawn with the formula */
+uint8_t battle_damage_variance(const GameState *g);
+void set_battle_damage_variance(GameState *g, uint8_t v);
+
 /* Set when the action's first target is an enemy: the enemies it hit react */
 uint8_t battle_action_hit_enemy(const GameState *g);
 void set_battle_action_hit_enemy(GameState *g, uint8_t v);
+
+/* The acting attack's or tech's record's offset among the records (its number times 11) */
+uint16_t battle_action_record_place(const GameState *g);
+void set_battle_action_record_place(GameState *g, uint16_t v);
+
+/* The effect's record's offset among the effects (its number times 12) */
+uint16_t battle_effect_record_place(const GameState *g);
+void set_battle_effect_record_place(GameState *g, uint16_t v);
 
 /* Which of the damage table's three hits the action is counting ($C1:EC12); back to the first
  * each pass */
 uint8_t battle_damage_hit(const GameState *g);
 void set_battle_damage_hit(GameState *g, uint8_t v);
+
+/* The number of the effect being worked out */
+uint8_t battle_effect_number(const GameState *g);
+void set_battle_effect_number(GameState *g, uint8_t v);
+
+/* How many of the action's effects have been worked out */
+uint8_t battle_effects_worked(const GameState *g);
+void set_battle_effects_worked(GameState *g, uint8_t v);
+
+/* $40 while the action can't miss (its record's first byte says so), whose effects then skip
+ * their test of landing */
+uint8_t battle_effect_sure(const GameState *g);
+void set_battle_effect_sure(GameState *g, uint8_t v);
+
+/* The modifier the effect is worked out with, from the action's record (or, for a moment, the
+ * weapon's) */
+uint8_t battle_effect_modifier(const GameState *g);
+void set_battle_effect_modifier(GameState *g, uint8_t v);
+
+enum { BATTLE_ELEMENT_RESISTED_COUNT = 3 };   /* by 0: the element (0-3), 1: the target's resistance to it, 2: the scale over it (4) */
+/* The element modifier's working: the damage times the scale over the resistance */
+uint8_t battle_element_resisted(const GameState *g, unsigned i);
+void set_battle_element_resisted(GameState *g, unsigned i, uint8_t v);
+
+/* How many hits an effect that hits several times has left */
+uint8_t battle_hits_left(const GameState *g);
+void set_battle_hits_left(GameState *g, uint8_t v);
 
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 uint8_t battle_combatant_updating(const GameState *g);
@@ -6937,6 +7129,10 @@ enum { BATTLE_ACTION_FURTHER_IDS_COUNT = 2 };   /* by second or third */
 /* What a tech's second and third targets are (battle_combatant_fighting of each) */
 uint8_t battle_action_further_ids(const GameState *g, unsigned i);
 void set_battle_action_further_ids(GameState *g, unsigned i, uint8_t v);
+
+/* How many targets the action has, kept while the effect's loop counts them down */
+uint8_t battle_effect_target_count(const GameState *g);
+void set_battle_effect_target_count(GameState *g, uint8_t v);
 
 /* The place among the action's targets the reactions are at */
 uint8_t battle_reaction_entry(const GameState *g);
@@ -6973,6 +7169,20 @@ void set_battle_damage_kind(GameState *g, unsigned i, uint8_t v);
  * hits */
 uint8_t battle_damage_flags(const GameState *g, unsigned i);
 void set_battle_damage_flags(GameState *g, unsigned i, uint8_t v);
+/* The HP it takes (subtracted from the combatant's HP at $C1:EC7F) Unchecked, for marked
+ * scaffolding only: the effect code records a hit past the third, or for a slot past the
+ * combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+uint16_t battle_damage_amount_unchecked(const GameState *g, unsigned i);
+void set_battle_damage_amount_unchecked(GameState *g, unsigned i, uint16_t v);
+/* A byte of the hit's kind Unchecked, for marked scaffolding only: the effect code records a hit
+ * past the third, or for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+uint8_t battle_damage_kind_unchecked(const GameState *g, unsigned i);
+void set_battle_damage_kind_unchecked(GameState *g, unsigned i, uint8_t v);
+/* The hit's flags: bit 7 it heals, bit 6 it doesn't take HP, bit 5 it clears the combatant's
+ * hits Unchecked, for marked scaffolding only: the effect code records a hit past the third, or
+ * for a slot past the combatants (game/battle/effect_amounts.c, $C1:EBF8) */
+uint8_t battle_damage_flags_unchecked(const GameState *g, unsigned i);
+void set_battle_damage_flags_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_REACTION_TARGETS_COUNT = 11 };   /* by place */
 /* The action's targets, as the reactions go through them */
@@ -6995,6 +7205,11 @@ void set_battle_action_hit_party(GameState *g, uint8_t v);
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 uint8_t battle_spare_turn_member(const GameState *g);
 void set_battle_spare_turn_member(GameState *g, uint8_t v);
+
+/* How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to
+ * take */
+uint8_t battle_steal_outcome(const GameState *g);
+void set_battle_steal_outcome(GameState *g, uint8_t v);
 
 /* The battle slot of the timer the count-down pass is at */
 uint16_t battle_timer_tick_slot(const GameState *g);

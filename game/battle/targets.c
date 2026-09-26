@@ -448,7 +448,7 @@ static const SelectorRow selectors[SELECTORS] = {
     WITH(PICK_MEMBERS_WITH, STAT_STATUS_4, 0x04),     // $11 $C1:A603
     WITH(PICK_MEMBERS_WITH, STAT_STATUS_4, 0x40),     // $12 $C1:A633
     WITH(PICK_MEMBERS_WITH, STAT_STATUS_3, 0x10),     // $13 $C1:A663
-    WITH(PICK_MEMBERS_WITH, STAT_OTHER, 0x08),        // $14 $C1:A693
+    WITH(PICK_MEMBERS_WITH, STAT_ELEMENTS, 0x08),        // $14 $C1:A693
     { PICK_OTHER_ENEMIES, { 0, 0 }, 0 },              // $15 $C1:A6C3
     { PICK_ENEMIES, { 0, 0 }, 0 },                    // $16 $C1:A6ED
     { PICK_NEAREST_OTHER_ENEMY, { 0, 0 }, 0 },        // $17 $C1:A709
@@ -465,7 +465,7 @@ static const SelectorRow selectors[SELECTORS] = {
     WITH(PICK_OTHER_ENEMIES_WITH, STAT_STATUS_1, 0x04),     // $22 $C1:A971
     WITH(PICK_OTHER_ENEMIES_WITH, STAT_STATUS_4, 0x40),     // $23 $C1:A9AD
     WITH(PICK_OTHER_ENEMIES_WITH, STAT_CONDITION, 0x02),    // $24 $C1:A9E9
-    WITH(PICK_OTHER_ENEMIES_WITH, STAT_FLAGS, 0x01),        // $25 $C1:AA25
+    WITH(PICK_OTHER_ENEMIES_WITH, STAT_KIND, 0x01),        // $25 $C1:AA25
     { PICK_WEAKEST_OTHER_ENEMY, { 0, 0 }, 0 },              // $26 $C1:AA61
     SLOT(3), SLOT(4), SLOT(5), SLOT(6), SLOT(7), SLOT(8), SLOT(9), SLOT(10), // $27-$2E $C1:AAAB-$AAF8
     { PICK_RESERVE_ENEMY, { 0, 0 }, 0 },                     // $2F $C1:AB03
@@ -593,6 +593,9 @@ bool battle_take_marked_candidate(GameState *g)
 
 static uint16_t slot_bit(uint8_t slot) { return slot < 16 ? (uint16_t)(0x8000u >> slot) : 0; }
 
+/* The marking works the bits out by shifting in the direct page's first word. */
+enum { SHIFT_CELL = 0x00 };
+
 // $C1:AD09
 void battle_mark_first_target(GameState *g)
 {
@@ -601,7 +604,9 @@ void battle_mark_first_target(GameState *g)
     if (battle_candidate_count(g) == 0 || first == NO_CANDIDATE)
         return;
     set_battle_action_target_bits(g, slot_bit(first));
-    ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
+    /* the shift's cell is left clear: the clock modifier reads it later
+     * (battle/effect_modifiers.c), so it is kept plainly */
+    battle_keep_word(g, SHIFT_CELL, 0);
 }
 
 // $C1:AD35
@@ -616,7 +621,7 @@ void battle_mark_other_targets(GameState *g)
         bits |= slot_bit(battle_candidates(g, place));
     set_battle_action_other_targets(g, bits);
     if (count >= 2)
-        ORIGINAL_EFFECT(battle_leave_word(g, 0x00, 0));
+        battle_keep_word(g, SHIFT_CELL, 0);
     ORIGINAL_EFFECT(battle_leave_byte(g, 0x02, 0));
 }
 

@@ -914,7 +914,7 @@ static void find_combo_partners(GameState *g)
  * keeps it from acting: no turns, stopped, the one that restarts its script,
  * or the fourth status byte's top one (the original's $FD:A8A5, which the
  * check calls for each). */
-static const Statuses CANT_JOIN = STATUS_NO_TURNS | STATUS_RESTARTS_SCRIPT | STATUS_STOP | 0x80000000u;
+static const Statuses CANT_JOIN = STATUS_ASLEEP | STATUS_CONFUSED | STATUS_STOP | 0x80000000u;
 
 static bool cant_join(GameState *g, unsigned member)
 {

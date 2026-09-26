@@ -96,11 +96,16 @@ rest waits, is [PLAN.md](PLAN.md).
     (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, carrying
     out an action `$C1:B967`, the rewards `$FD:B201`/`$C1:D0A2`/
     `$C1:F93E`/`$FD:AD17`); from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
-    the enemies' minds"), the effects' working out `$C1:D7C4`/`$C1:D8D1`,
-    the attack's and the tech's setting up `$FD:AB01`/`$FD:AAD2`, the tech's
-    targeting `$C1:C1DD`, an enemy's coming in `$FD:B438`, the calling in
+    the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
+    coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
-    `$C1:BFA4`/`$C1:EC7F`; a member that comes back once when knocked out
+    `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
+    original (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"):
+    stealing (`$C1:D3BF`, `$C1:E9D5` and the item's giving `$FD:B655`, into
+    the party's inventory or its battle records at `$A0B8`, whose meaning is
+    to work out) and the clock modifier (`$C1:EE27`, whose controller read
+    waits on the console); the party's own working out (`$C1:D523`,
+    `$C1:D74F`, `$C1:BF46`), which runs the kinds' ports; a member that comes back once when knocked out
     (from `$C1:B316`); the timers' kinds' handlers `$C1:8862`-`$C1:8C08`; the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
     `$C1:3760`, the position modes `$C1:762E`; an effect's next
@@ -152,6 +157,31 @@ rest waits, is [PLAN.md](PLAN.md).
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
+  - What an effect's working out still leaves the machine as scaffolding
+    (RECOMP.md, "Phase 3, battle chunk 2"), for the party's code and the
+    showing, which are the original's: the carry the long multiply keeps in
+    its second number's cell (`battle_leave_multiply_carry`, at eight places in
+    the work and the enemy's turn, each the carry of what came just before a
+    multiply that may be the last), the numbers each kind hands on in the
+    direct page's cells (`EFFECT_ARG_1`-`_6`, $0E and $10), and the kinds'
+    constant carry and Y at their entry. The adding up of the hits' numbers
+    reads the first set's last kind before it adds (`first_began`) only for
+    its carry's leave, and `take_next_target` exists only to leave the carry a
+    target after the first is taken with: both go with the carry cell. Each
+    goes when what reads it is a port: the party's working out (`$C1:D523`,
+    `$C1:D74F`, `$C1:BF46`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    byte the original reads its stat's offset's high byte from; the party's
+    code before it is where to show the game always leaves it so.
+  - What the effect work still says or does that the original's shape put
+    there: `apply_modifier` ($C1:EB1C) multiplies the modifier's number by 3
+    and throws the product away (the original's record lookup, whose cells
+    only the multiply's scaffolding reads; find the reader or drop it);
+    `start_timer_for` (`effect_statuses.c`) tests the first status byte's
+    `$10` and others by number, which want names in `battle/combatant.h` once
+    what they are is worked out; "restarts its script" is still how
+    `menu_window.c` (the member who can't act) and `combatants.c` (the status
+    seen) name confusion, and `re/ram.toml`'s `battle_status_script_seen`
+    says so too: say confused.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
@@ -183,13 +213,6 @@ rest waits, is [PLAN.md](PLAN.md).
       effect sprite record by `from + 2`), and inline ROM reads in
       `main_loop.c` and `scripts.c`: index-taking accessors returning records;
     - `x + 1` written to cells that mean a bool or a load step;
-    - `battle_run` (`battle/bridge.c`) calls a sibling port's function
-      directly, skipping its entry's precondition and guard, so a state the
-      sibling's guard would hand to the original runs the port anyway: with
-      PC set to the routine and the return address pushed, ask
-      `native_hand_entry(s)` (which checks both) and run its function only
-      when it is that sibling's entry, and otherwise make the call-out
-      (`battle_call`) so the original runs;
     - `NATIVE_TIME_AS` takes a `Snes *`, so the draw pass, `step_movers` and
       `step_enemy_group` take one only to name their parts' time: a charge
       hook reachable from `GameState` (a runtime change);
@@ -199,19 +222,6 @@ rest waits, is [PLAN.md](PLAN.md).
       ...), `battle_target_display`'s fields, and the stale `source` lines
       naming functions that no longer exist (`battle_run_queued_scripts`
       and about fifty others);
-    - `battle_run` (`game/battle/bridge.c`) runs a sibling entry as C without
-      its guard, so a sibling whose guard would turn the state away (a
-      fuzzed place, a turn naming no combatant) runs anyway, and callers
-      guard by hand where it matters (`battle_take_turn`). The fix: give
-      `battle_run`/`battle_run_long` the entry's guard (every sibling the
-      battle runs has one: the per-entry `_ready` guards of the scripts'
-      commands, `battle_on_page` and the rest) and, where it refuses, make
-      the JSR as a real call-out (`m_jsr_dc`/`m_jsl_dc` at the same site, no
-      don't-care), which shadow mode pairs with the original's call as it
-      does any other and which the runtime then runs through the registry,
-      guard and all. Twenty-four call sites change; a registry lookup of a
-      guard by address (`runtime/port/native.h` has none) would spare them
-      naming it, but is a runtime change;
     - from the enemies' minds' review (RECOMP.md, "Phase 3, wave 2: the
       enemies' minds"): `enemy_turn.c` runs the actions' turns, which are C,
       as sibling entries through `battle_run` and the dispatch's registers,
@@ -396,6 +406,31 @@ rest waits, is [PLAN.md](PLAN.md).
   runs before reading the gap as the checks' cost.
 ## Recompiler
 
+- **What the dc-evidence tooling doesn't check yet** (PORTING.md,
+  "Declarations liveness can't prove"; the audit of `tools/v_readers.py`):
+  - a registry entry's `.dont_care` is held only to the trusting solve (the
+    work-outs' `DC_V` among them): hold it to the strict one, with the same
+    notes allowed (and see "Stops and entries don't get the strict solve yet"
+    below);
+  - the library run masks the whole stack page (`$7E:0600-06FF`) where only
+    the bytes the scrambled registers were pushed to need it: mask those;
+  - a bounded table's targets are matched to the analysis's contexts by
+    address alone, not by the widths the dispatch enters them with;
+  - an interrupt handler reads the interrupted code's P from the stack, which
+    neither `tools/v_readers.py` nor the run looks for;
+  - `tools/disasm/high_byte.py` takes a `TDC` to clear A's high byte, which
+    rests on D's high byte being zero there (the battle's direct page
+    `$0000`); following D itself through the program (it is unknown at every
+    vector, and `PHD`/`PLD` only pair within a routine) would make that static
+    too. `ct_dev --index-check` shows it over the library meanwhile.
+  - The enemies' condition dispatches after the first (`$C1:8769`,
+    `$C1:B021`) have no `index_reach`: A's high byte there is whatever the
+    dispatch above them returns with, and 44 of the routines its 128 words
+    reach return with it unknown (`$C1:925D` ... `$C1:AA25`;
+    `tools/v_readers.py`'s `high_byte_findings` lists them). The evidence
+    doesn't need them today; a later note that does will want those routines'
+    returns shown to clear it, or a guard at the dispatch.
+
 - **Stops and entries don't get the strict solve yet.** The don't-care check
   holds call-outs to liveness that trusts no target set the machine picks at
   run time (RECOMP.md, "Call-outs into targets the machine picks"), but not a
@@ -432,23 +467,6 @@ rest waits, is [PLAN.md](PLAN.md).
   first chunks"). Each is a value the native build reads stale unless shown
   otherwise; answering one deletes its line. What the library's shipping-mode
   runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
-  - battle: the long arithmetic's cells are read as game state after only
-    scaffolding wrote them, the case the first chunk's `battle_long_high_word`
-    answered for one cell: `battle_divide` reads `battle_wide_math`
-    (`$2A`-`$2F`) its own or `battle_multiply_16x16`'s scaffolding left (the
-    original's callers divide what the last multiply or divide left there),
-    `battle_multiply_16x16` reads `$2B` so, and the random draws
-    (`battle_draw_random`, `battle_draw_random_other`) read `$2C`-`$2D` that
-    `battle_multiply_16x16`'s scaffolding left; the reach tests
-    (`battle_touching`, `battle_within_long_reach`, `_near_reach`,
-    `_search_reach`) read `battle_product` (`$AF`-`$B0`) their own scaffolding
-    wrote; `battle_direction_between` reads `battle_direction_cells`
-    (`$D5`-`$D6`) likewise (twice, `endings-bucket-lavos`);
-    `battle_enemy_find_reactions` reads `battle_enemy_turn` (`$B252`) after
-    `battle_dispatch_expired_timers`' scaffolding; and
-    `battle_set_screen_effect` reads `battle_scratch` `$55`-`$57`, last
-    written by `battle_build_fade_tables`' and `battle_decode_tile_row`'s
-    scaffolding;
   - field and event: `field_current_object`'s high byte (`$016E`), which only
     scaffolding clears (`event/engine.c`'s `leave_current_as_a_word`,
     `field/sprites.c`'s `leave_current_object_as_byte`), is read as part of the
@@ -461,7 +479,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `menu_wave_phase` (`$01E2`) once after `event_run_object_script`'s
     scaffolding wrote that byte (`menus-end-of-time`), which may be a field
     cell over the same byte rather than the menus' own.
-  The source check's findings on main are broader (battle 101, field 29,
+  The source check's findings on main are broader (battle 87, field 29,
   event 3, menu 103, scene 15, core 1, by element, after the battle's and the
   menus' first chunks; `python3 tools/effects_check.py`): most
   are the entry wrappers reading the operands the original's callers hand

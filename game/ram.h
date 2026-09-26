@@ -2808,12 +2808,13 @@
 
 /* ---- battle -------------------------------------------------------------------------------- */
 
-/* Direct-page scratch the battle's routines share at $00-$1F: the multiply's operands and
- * product ($00 by $02-$03 into $04-$06), and the window quadrilateral rasterizer's four edge
- * slopes (8.8, words at $03-$09), a slope's end and start column and lines ($0B-$0D), the top
- * line ($0F) and the corners sorted by line (X, Y at $12-$19) [32 x $1 bytes, by byte ($00-$1F)] */
+/* Direct-page scratch the battle's routines share at $00-$21 (the effect code hands its numbers
+ * over in $16-$21): the multiply's operands and product ($00 by $02-$03 into $04-$06), and the
+ * window quadrilateral rasterizer's four edge slopes (8.8, words at $03-$09), a slope's end and
+ * start column and lines ($0B-$0D), the top line ($0F) and the corners sorted by line (X, Y at
+ * $12-$19) [34 x $1 bytes, by byte ($00-$21)] */
 #define RAM_BATTLE_LOW_SCRATCH 0x7E0000u
-#define RAM_BATTLE_LOW_SCRATCH_COUNT 32u
+#define RAM_BATTLE_LOW_SCRATCH_COUNT 34u
 #define RAM_BATTLE_LOW_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_LOW_SCRATCH_DP 0x00u      /* page battle */
 /* The battle slot whose turn it is (a word) [2 bytes] */
@@ -2846,6 +2847,10 @@
  * it one byte on after the handler returns [3 bytes] */
 #define RAM_BATTLE_SCREEN_SCRIPT 0x7E0040u
 #define RAM_BATTLE_SCREEN_SCRIPT_DP 0x40u    /* page battle */
+/* $80 once the target shrugged off a status of its first status byte the effect gave it; the
+ * screen script's pointer has the byte at other times */
+#define RAM_BATTLE_SHRUGGED_OFF_MARK 0x7E0040u
+#define RAM_BATTLE_SHRUGGED_OFF_MARK_DP 0x40u /* page battle */
 /* Offset of the screen script channel whose command runs (0 or $10) [2 bytes] */
 #define RAM_BATTLE_SCREEN_CHANNEL 0x7E0043u
 #define RAM_BATTLE_SCREEN_CHANNEL_DP 0x43u   /* page battle */
@@ -4590,12 +4595,18 @@
 #define RAM_BATTLE_ENEMY_NAME_TILES 0x7EACBCu
 #define RAM_BATTLE_ENEMY_NAME_TILES_COUNT 72u
 #define RAM_BATTLE_ENEMY_NAME_TILES_STRIDE 0x01u
+/* The amount the effect is working out on its target: damage, or negated, what it heals [2
+ * bytes] */
+#define RAM_BATTLE_EFFECT_AMOUNT 0x7EAD89u
 /* How many targets battle_action_targets holds */
 #define RAM_BATTLE_ACTION_TARGET_COUNT 0x7EAD8Du
 /* The action's targets ($FF past them) [11 x $1 bytes, by place] */
 #define RAM_BATTLE_ACTION_TARGETS 0x7EAD8Eu
 #define RAM_BATTLE_ACTION_TARGETS_COUNT 11u
 #define RAM_BATTLE_ACTION_TARGETS_STRIDE 0x01u
+/* How many party members are out of the fight, as the modifier that hits harder for each counts
+ * them */
+#define RAM_BATTLE_PARTY_OUT_COUNT 0x7EAD9Au
 /* A count the action's effect routines keep ($C1:D386), cleared with the numbers shown over the
  * combatants */
 #define RAM_BATTLE_EFFECT_TALLY 0x7EAD9Bu
@@ -4608,26 +4619,49 @@
 #define RAM_BATTLE_NUMBER_RECORDS_VALUE 0x7EAD9Cu /* The number */
 #define RAM_BATTLE_NUMBER_RECORDS_KIND 0x7EAD9Eu /* How it shows: 0 not at all, 5 as a miss, otherwise as a number (1 and 2 in the second palette; 2, 4 and up rise the second way) */
 #define RAM_BATTLE_NUMBER_RECORDS_LAST_BYTE 0x7EAD9Fu /* The record's last byte, which the number display doesn't read; cleared with the rest */
-/* Two bytes the effect's working out starts at 0 before an enemy's action [2 x $1 bytes, by
- * byte] */
-#define RAM_BATTLE_HIT_COUNTS 0x7EAE4Du
-#define RAM_BATTLE_HIT_COUNTS_COUNT 2u
-#define RAM_BATTLE_HIT_COUNTS_STRIDE 0x01u
+/* The effect's flags, from its record's eighth and ninth bytes: in the first, $10 and $20 skip a
+ * hit's two tests (it can't be dodged, it can't miss), $04 a chance of a status, $02 a chance to
+ * steal, $40 and $80 leave out the target's barrier or shield; in the second, $80 the attacker's
+ * weapon's modifier as well, and the low two bits a quarter-step scale of the defence. An
+ * enemy's turn starts them at 0 [2 x $1 bytes, by byte] */
+#define RAM_BATTLE_EFFECT_FLAGS 0x7EAE4Du
+#define RAM_BATTLE_EFFECT_FLAGS_COUNT 2u
+#define RAM_BATTLE_EFFECT_FLAGS_STRIDE 0x01u
+/* A byte the effect's working out clears before each effect and after a hit's test of landing */
+#define RAM_BATTLE_EFFECT_HIT_TEST 0x7EAE4Fu
+/* A party member's mark below 3 is cleared as it is revived or cured [3 x $1 bytes, by party
+ * member] */
+#define RAM_BATTLE_MEMBER_REVIVE_MARKS 0x7EAE51u
+#define RAM_BATTLE_MEMBER_REVIVE_MARKS_COUNT 3u
+#define RAM_BATTLE_MEMBER_REVIVE_MARKS_STRIDE 0x01u
 /* Bit 3 set when the enemies an action hits don't react to it; cleared as an enemy's action on
  * an enemy ends */
 #define RAM_BATTLE_ACTION_QUIET 0x7EAE55u
+/* The effect's modifier, kept across a hit of an effect that hits several times */
+#define RAM_BATTLE_EFFECT_MODIFIER_KEPT 0x7EAE57u
+/* The action's targets as bits, kept as the death modifier takes one out of them [2 bytes] */
+#define RAM_BATTLE_TARGET_BITS_KEPT 0x7EAE58u
 /* The party member the loop's per-member checks are at (3 once they are done) */
 #define RAM_BATTLE_MEMBER_UPDATING 0x7EAE5Au
+/* What an enemy still has to steal: bit 7 its rare item, bit 6 its common one [11 x $1 bytes, by
+ * battle slot] */
+#define RAM_BATTLE_STEAL_MARKS 0x7EAE5Au
+#define RAM_BATTLE_STEAL_MARKS_COUNT 11u
+#define RAM_BATTLE_STEAL_MARKS_STRIDE 0x01u
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
  * place of the one it replaces [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PLACES 0x7EAE6Du
 #define RAM_BATTLE_PLACES_COUNT 11u
 #define RAM_BATTLE_PLACES_STRIDE 0x01u
+/* The action's modifier, kept while the weapon's is applied */
+#define RAM_BATTLE_ACTION_MODIFIER_KEPT 0x7EAE78u
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN_COUNT 11u
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN_STRIDE 0x01u
+/* The damage the action's effects have done, added up [2 bytes] */
+#define RAM_BATTLE_EFFECT_TOTAL 0x7EAE7Bu
 /* Set once an enemy's being beaten has been seen to, so that it isn't beaten again; cleared as
  * an enemy is brought in [8 x $1 bytes, by enemy (battle slot - 3)] */
 #define RAM_BATTLE_ENEMY_BEATEN_COUNTED 0x7EAE85u
@@ -4655,6 +4689,13 @@
 /* Flags of the action the effect code carries out, cleared as an enemy's turn starts; bit 7 a
  * critical hit */
 #define RAM_BATTLE_ACTION_FLAGS 0x7EAE9Bu
+/* Where the modifier that beats its target outright marks a party member in the first two slots
+ * as beaten: it marks by battle slot from here, so the third member's mark is
+ * battle_enemy_beaten_any and an enemy's is battle_enemy_beaten [2 x $1 bytes, by battle slot
+ * (0-1)] */
+#define RAM_BATTLE_BEATEN_MARKS_LOW 0x7EAEB0u
+#define RAM_BATTLE_BEATEN_MARKS_LOW_COUNT 2u
+#define RAM_BATTLE_BEATEN_MARKS_LOW_STRIDE 0x01u
 /* Set when an enemy was beaten by the action */
 #define RAM_BATTLE_ENEMY_BEATEN_ANY 0x7EAEB2u
 /* Set for each enemy the action beat [8 x $1 bytes, by enemy (battle slot - 3)] */
@@ -4692,6 +4733,11 @@
 #define RAM_BATTLE_ACTION_NUMBER 0x7EAEE4u
 /* The pose an enemy announces its chosen action with */
 #define RAM_BATTLE_ACTION_POSE 0x7EAEE5u
+/* The effect being worked out, copied from its record ($CC:7AC9, $CC:89C6): its kind, then the
+ * numbers the kind takes [12 x $1 bytes, by byte of the effect's record] */
+#define RAM_BATTLE_EFFECT_RECORD 0x7EAEE6u
+#define RAM_BATTLE_EFFECT_RECORD_COUNT 12u
+#define RAM_BATTLE_EFFECT_RECORD_STRIDE 0x01u
 /* Low four bits from the pose an enemy's action is announced with: 4 for poses 1 and 2, $D for 3
  * and 4, 0 for the rest ($C1:ACCE); the high four bits are kept */
 #define RAM_BATTLE_ACTION_POSE_KIND 0x7EAEE8u
@@ -4745,6 +4791,11 @@
 #define RAM_BATTLE_TIMER_FLAGS 0x7EAFB6u
 #define RAM_BATTLE_TIMER_FLAGS_COUNT 13u
 #define RAM_BATTLE_TIMER_FLAGS_STRIDE 0x0Bu
+/* How long each combatant's status timers run once a status starts them; the turn's are
+ * battle_turn_wait [132 x $1 bytes, by timer kind (0-11) * 11 + battle slot] */
+#define RAM_BATTLE_TIMER_LENGTHS 0x7EB0D4u
+#define RAM_BATTLE_TIMER_LENGTHS_COUNT 132u
+#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x01u
 /* The combatant's turn wait: what its turn timer starts from again after it acts [11 x $1 bytes,
  * by battle slot] */
 #define RAM_BATTLE_TURN_WAIT 0x7EB158u
@@ -4786,6 +4837,9 @@
 /* 0 for an enemy's attack; for its tech, what the tech's targeting ($C1:C1DD) left in the direct
  * page's $0E ($C1:AC89) */
 #define RAM_BATTLE_ACTION_TECH_HITS 0x7EB18Fu
+/* The elements of the acting enemy's attack or tech (its record's third byte), which the element
+ * modifier reads and the targets note as what acted on them */
+#define RAM_BATTLE_ACTION_ELEMENTS 0x7EB190u
 /* A byte an enemy's attack or tech starts at 0 ($C1:AC89) */
 #define RAM_BATTLE_ACTION_STEP 0x7EB191u
 /* Each combatant's chosen action (four bytes), forgotten once it is carried out [11 x $4 bytes,
@@ -4818,8 +4872,25 @@
 #define RAM_BATTLE_ENEMY_BLOCK_ACTIONS 0x7EB1E4u
 #define RAM_BATTLE_ENEMY_BLOCK_ACTIONS_COUNT 8u
 #define RAM_BATTLE_ENEMY_BLOCK_ACTIONS_STRIDE 0x02u
+/* The acting combatant's stat block's offset among the blocks (its battle slot times $80) [2
+ * bytes] */
+#define RAM_BATTLE_EFFECT_ACTOR_BLOCK 0x7EB1F4u
+/* The target's stat block's offset among the blocks (its battle slot times $80) [2 bytes] */
+#define RAM_BATTLE_EFFECT_TARGET_BLOCK 0x7EB1F6u
+/* A stat block's offset two of the damage formulas read a stat of (kinds 7 and 8), which the
+ * party's code leaves; not worked out [2 bytes] */
+#define RAM_BATTLE_EFFECT_OTHER_BLOCK 0x7EB1F8u
 /* Bit 1 set while an enemy's attack is carried out; its techs clear it */
 #define RAM_BATTLE_ACTION_STATE 0x7EB1FCu
+/* The battle slot of the target the effect is being worked out on */
+#define RAM_BATTLE_EFFECT_TARGET 0x7EB1FDu
+/* $80 once the effect missed its target, 0 once it landed */
+#define RAM_BATTLE_EFFECT_MISSED 0x7EB200u
+/* How the next entry of the damage table is marked, as its caller gives it: $80 a heal (the
+ * amount is negated), $40 MP, $20 a miss */
+#define RAM_BATTLE_DAMAGE_FLAGS_GIVEN 0x7EB202u
+/* The marks of the damage table's last entry */
+#define RAM_BATTLE_DAMAGE_FLAGS_KEPT 0x7EB203u
 /* The kind of the condition being tested (its number in the scripts) */
 #define RAM_BATTLE_CONDITION_KIND 0x7EB239u
 /* The enemies in the order drawn at the start ($FF past them) [8 x $1 bytes, by place] */
@@ -4855,6 +4926,11 @@
  * reactions are looked at, where they start); an enemy's turn keeps the place of the action it
  * carried out here [2 bytes] */
 #define RAM_BATTLE_SCRIPT_ACTIONS_PLACE 0x7EB273u
+/* The status the attacker's weapon adds to each target its hit's status chance took (the
+ * weapon's stat byte $46), cleared for each effect [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_EFFECT_GIVEN_STATUS 0x7EB29Au
+#define RAM_BATTLE_EFFECT_GIVEN_STATUS_COUNT 11u
+#define RAM_BATTLE_EFFECT_GIVEN_STATUS_STRIDE 0x01u
 /* The gold the battle gives [2 bytes] */
 #define RAM_BATTLE_GOLD_WON 0x7EB2A5u
 /* The items the battle gives (0: none) [6 x $1 bytes, by item] */
@@ -4874,11 +4950,35 @@
 #define RAM_BATTLE_ENEMY_ACTION_CHOSEN 0x7EB2B6u
 #define RAM_BATTLE_ENEMY_ACTION_CHOSEN_COUNT 8u
 #define RAM_BATTLE_ENEMY_ACTION_CHOSEN_STRIDE 0x01u
+/* The random part a damage formula adds to its hit, drawn with the formula */
+#define RAM_BATTLE_DAMAGE_VARIANCE 0x7EB2BEu
 /* Set when the action's first target is an enemy: the enemies it hit react */
 #define RAM_BATTLE_ACTION_HIT_ENEMY 0x7EB2C0u
+/* The acting attack's or tech's record's offset among the records (its number times 11) [2
+ * bytes] */
+#define RAM_BATTLE_ACTION_RECORD_PLACE 0x7EB2C3u
+/* The effect's record's offset among the effects (its number times 12) [2 bytes] */
+#define RAM_BATTLE_EFFECT_RECORD_PLACE 0x7EB2C5u
 /* Which of the damage table's three hits the action is counting ($C1:EC12); back to the first
  * each pass */
 #define RAM_BATTLE_DAMAGE_HIT 0x7EB2C7u
+/* The number of the effect being worked out */
+#define RAM_BATTLE_EFFECT_NUMBER 0x7EB2C8u
+/* How many of the action's effects have been worked out */
+#define RAM_BATTLE_EFFECTS_WORKED 0x7EB2C9u
+/* $40 while the action can't miss (its record's first byte says so), whose effects then skip
+ * their test of landing */
+#define RAM_BATTLE_EFFECT_SURE 0x7EB2CAu
+/* The modifier the effect is worked out with, from the action's record (or, for a moment, the
+ * weapon's) */
+#define RAM_BATTLE_EFFECT_MODIFIER 0x7EB2CCu
+/* The element modifier's working: the damage times the scale over the resistance [3 x $1 bytes,
+ * by 0: the element (0-3), 1: the target's resistance to it, 2: the scale over it (4)] */
+#define RAM_BATTLE_ELEMENT_RESISTED 0x7EB2CDu
+#define RAM_BATTLE_ELEMENT_RESISTED_COUNT 3u
+#define RAM_BATTLE_ELEMENT_RESISTED_STRIDE 0x01u
+/* How many hits an effect that hits several times has left */
+#define RAM_BATTLE_HITS_LEFT 0x7EB2D0u
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
 /* The enemy's animation, kept while its reactions run and put back after */
@@ -4888,6 +4988,8 @@
 #define RAM_BATTLE_ACTION_FURTHER_IDS 0x7EB2EBu
 #define RAM_BATTLE_ACTION_FURTHER_IDS_COUNT 2u
 #define RAM_BATTLE_ACTION_FURTHER_IDS_STRIDE 0x01u
+/* How many targets the action has, kept while the effect's loop counts them down */
+#define RAM_BATTLE_EFFECT_TARGET_COUNT 0x7EB2EDu
 /* The place among the action's targets the reactions are at */
 #define RAM_BATTLE_REACTION_ENTRY 0x7EB315u
 /* The party's maximum HP as the battle began, put back when it ends [3 x $2 bytes, by party
@@ -4926,6 +5028,9 @@
 #define RAM_BATTLE_ACTION_HIT_PARTY 0x7EB3B9u
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 #define RAM_BATTLE_SPARE_TURN_MEMBER 0x7EB3BEu
+/* How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to
+ * take */
+#define RAM_BATTLE_STEAL_OUTCOME 0x7EB3BFu
 /* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through [2 bytes] */

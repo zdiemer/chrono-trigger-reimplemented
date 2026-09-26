@@ -2229,6 +2229,8 @@ static void scramble(Cpu *c, uint16_t dont_care, uint64_t bits)
                       (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
 }
 
+bool (*native_site_poison)(uint32_t site, uint32_t target, uint64_t *bits, uint16_t *set);
+
 /* After a scrambled call: what the callee left alone is the caller's own
  * again, as shadow mode and the shipping mode have it. The callee ran twice
  * from the same machine, with the caller's values (clean) and scrambled. Left
@@ -2285,6 +2287,11 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     }
     s->cpu.pb = target >> 16;
     s->cpu.pc = target & 0xFFFF;
+
+    uint64_t poison_bits;
+    uint16_t poison_set = dont_care;
+    if (dont_care && native_site_poison && native_site_poison(site, target, &poison_bits, &poison_set))
+        scramble(&s->cpu, (uint16_t)(poison_set & dont_care), poison_bits);
 
     Job *j = current_job;
     if (j && j->m == s) {

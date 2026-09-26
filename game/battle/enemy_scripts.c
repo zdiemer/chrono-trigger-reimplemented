@@ -56,7 +56,14 @@ ScriptChoosing enemy_choosing(const GameState *g, uint8_t enemy)
     return c;
 }
 
-void enemy_leave_choosing(GameState *g, const ScriptChoosing *c) { ORIGINAL_EFFECT(write_choosing(g, c)); }
+/* The enemy at work is read by the original's search for reactions after the
+ * choosing of them all has left it past the last ($C1:B488's caller), so it
+ * is kept plainly; the rest is scaffolding. */
+void enemy_leave_choosing(GameState *g, const ScriptChoosing *c)
+{
+    ORIGINAL_EFFECT(write_choosing(g, c));
+    set_battle_enemy_turn(g, c->enemy);
+}
 void enemy_hand_back_choosing(GameState *g, const ScriptChoosing *c) { write_choosing(g, c); }
 
 /* ---- Reading a script ---------------------------------------------------------------------- */

@@ -339,13 +339,20 @@ def _pull_dest(name: str, widths) -> tuple:
 
 
 class Liveness:
-    def __init__(self, an: Analyzer, dynamic_calls: dict[int, set] | None = None, strict: bool = False):
+    def __init__(self, an: Analyzer, dynamic_calls: dict[int, set] | None = None, strict: bool = False,
+                 bounded: dict[int, list] | None = None):
         """dynamic_calls: target -> call sites observed at runtime (ct_dev --calls).
         strict: a transfer whose targets are read from memory at run time or
         derived from data (dynamic_transfer) keeps everything live, instead
-        of taking the target set the analysis follows as complete."""
+        of taking the target set the analysis follows as complete.
+        bounded: dispatcher -> targets, for a jump table whose targets strict
+        mode would otherwise give up on: every target its index can reach,
+        argued from the dispatch rather than from the data it runs on
+        (tools/v_readers.py). The table is followed to exactly those."""
         self.an = an
         self.strict = strict
+        self.bounded = dict(bounded or {})
+        self.dynamic_calls = dynamic_calls or {}
         self.live_in: dict[tuple, dict[int, int]] = {}     # ctx key -> pc -> live-in mask
         self.func_live_in: dict[int, int] = defaultdict(int)
         self.ret_live: dict[int, int] = defaultdict(int)
@@ -474,7 +481,7 @@ class Liveness:
             for key in self._entries_at(entry):
                 for pc in an.contexts[key].insns:
                     for _, insn in self._code(key, pc):
-                        why = self.dynamic_transfer(pc, insn)
+                        why = None if pc in self.bounded else self.dynamic_transfer(pc, insn)
                         if why is not None:
                             out.setdefault(pc, why)
                         work += [t for t in self._callees(pc, insn) if t is not None]
@@ -1021,7 +1028,7 @@ class Liveness:
 
         if name in SUSPICIOUS or name == "STP":
             return ALL
-        if self.strict and self.dynamic_transfer(pc, insn) is not None:
+        if self.strict and pc not in self.bounded and self.dynamic_transfer(pc, insn) is not None:
             return ALL
         if name == "RTI":
             return ALL & ~FLAGS     # the interrupted code's registers; its P comes off the stack
@@ -1090,7 +1097,10 @@ class Liveness:
 
     def _table_targets(self, jt) -> list:
         """Every target the analysis follows from a sized table: its entries,
-        a hint's extra targets and the ones derived from data."""
+        a hint's extra targets and the ones derived from data (or the bound
+        given for it)."""
+        if jt.dispatcher in self.bounded:
+            return list(self.bounded[jt.dispatcher])
         bank = jt.dispatcher & 0xFF0000
         out = []
         for i in range(jt.count):
