@@ -8,8 +8,8 @@
  * numbers shown over the combatants adds the hits' up where the action says so.
  *
  * The kinds' pieces are battle/effect_amounts.c (healing, draining, a hit's
- * landing and damage), battle/effect_statuses.c and battle/effect_modifiers.c.
- * The entries and their guards are at the end. */
+ * landing and damage), battle/effect_statuses.c, battle/effect_modifiers.c
+ * and battle/effect_steal.c. The entries and their guards are at the end. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
@@ -224,8 +224,8 @@ static void inflict(GameState *g, const EffectRecord *e) { each_target(g, e, inf
 // $C1:D2DE
 /* A hit on one target: turned away by its kind, or missing it, unless the
  * effect says it can't be; its damage worked out and applied; then its chance
- * of a status. (A hit that steals is the original's.) */
-static void hit_target(GameState *g, const EffectRecord *e)
+ * of a status. (A hit that steals as well the entries turn away.) */
+static void hit_target(GameState *g, Platform *pf, const EffectRecord *e)
 {
     if (!(effect_flags(g) & EFFECT_CANT_BE_TURNED_AWAY) && effect_turned_away(g, e->kinds_turned_away)) {
         miss(g, e, true);
@@ -236,7 +236,7 @@ static void hit_target(GameState *g, const EffectRecord *e)
         return;
     }
     leave_numbers(g, e->damage.formula, e->damage.defence_stat);
-    effect_apply_hit(g, effect_hit_amounts(g, e));
+    effect_apply_hit(g, pf, effect_hit_amounts(g, e));
     if (effect_flags(g) & EFFECT_GIVES_STATUS) {
         leave_record_numbers(g);
         effect_status_chance(g, e->hit.chance, e->hit.statuses);
@@ -249,12 +249,12 @@ static void hit_target(GameState *g, const EffectRecord *e)
  * is kept from going below 0. */
 enum { STOPS_AT_FIRST = 0x02 };
 
-static void hit(GameState *g, const EffectRecord *e)
+static void hit(GameState *g, Platform *pf, const EffectRecord *e)
 {
     take_actor(g);
     take_target(g);
     for (;;) {
-        hit_target(g, e);
+        hit_target(g, pf, e);
         note_acted_on(g);
         if (battle_action_state(g) & STOPS_AT_FIRST)
             return;
@@ -309,6 +309,24 @@ static void restore_showing_hp(GameState *g, const EffectRecord *e)
     set_missed(g, false);
 }
 
+// $C1:D3BF
+/* Steal from the target (the action's last listed, the one alone): a miss
+ * shows as the attacker's miss, and nothing to take as a miss without a
+ * number. */
+static void steal(GameState *g, const EffectRecord *e)
+{
+    take_actor(g);
+    take_target(g);
+    leave_record_numbers(g);
+    StealOutcome outcome = effect_steal(g, e->steal.chance);
+    if (outcome == STEAL_MISSED)
+        miss(g, e, false);
+    else if (outcome == STEAL_NOTHING)
+        set_missed(g, true);
+    note_acted_on(g);
+    set_missed(g, false);
+}
+
 // $C1:D431
 /* Hit the targets again and again, the record's number of times: once one
  * hit lands the rest can't miss. Each hit's numbers are a set of their own;
@@ -317,7 +335,7 @@ static void restore_showing_hp(GameState *g, const EffectRecord *e)
  * lose the rest of what the flags gave the first hit (the status chance,
  * passing a barrier or a shield, not being turned away): the game plays it so,
  * and so does the port. */
-static void hit_repeatedly(GameState *g, const EffectRecord *e)
+static void hit_repeatedly(GameState *g, Platform *pf, const EffectRecord *e)
 {
     leave_record_numbers(g);
     set_battle_hits_left(g, e->repeated.hits);
@@ -330,7 +348,7 @@ static void hit_repeatedly(GameState *g, const EffectRecord *e)
             set_battle_effect_flags(g, 0, EFFECT_CANT_MISS);
         set_battle_action_target_count(g, battle_effect_target_count(g));
         set_battle_effect_modifier_kept(g, battle_effect_modifier(g));
-        TIMED_AS(g, 0xC1D2DE, hit(g, e));
+        TIMED_AS(g, 0xC1D2DE, hit(g, pf, e));
         set_battle_effect_modifier(g, battle_effect_modifier_kept(g));
         set_battle_effect_tally(g, (uint8_t)(battle_effect_tally(g) + 1));
         set_battle_hits_left(g, (uint8_t)(battle_hits_left(g) - 1));
@@ -402,18 +420,19 @@ static void lose_condition_bit(GameState *g)
 
 // $C1:D9D7
 /* The kinds, each timed as its own routine. Those from 9 to $28 and 4 do
- * nothing; the steal is the original's. */
-void effect_run_kind(GameState *g, EffectKind kind)
+ * nothing. */
+void effect_run_kind(GameState *g, Platform *pf, EffectKind kind)
 {
     EffectRecord e = effect_in_work(g, kind);
     switch (kind) {
     case EFFECT_RESTORE: TIMED_AS(g, 0xC1D221, restore(g, &e)); break;
     case EFFECT_CURE: TIMED_AS(g, 0xC1D23E, cure(g, &e)); break;
     case EFFECT_INFLICT: TIMED_AS(g, 0xC1D267, inflict(g, &e)); break;
-    case EFFECT_HIT: TIMED_AS(g, 0xC1D2DE, hit(g, &e)); break;
+    case EFFECT_HIT: TIMED_AS(g, 0xC1D2DE, hit(g, pf, &e)); break;
     case EFFECT_DRAIN: TIMED_AS(g, 0xC1D371, drain(g, &e)); break;
+    case EFFECT_STEAL: TIMED_AS(g, 0xC1D3BF, steal(g, &e)); break;
     case EFFECT_RESTORE_SHOWING_HP: TIMED_AS(g, 0xC1D3F4, restore_showing_hp(g, &e)); break;
-    case EFFECT_HIT_REPEATEDLY: TIMED_AS(g, 0xC1D431, hit_repeatedly(g, &e)); break;
+    case EFFECT_HIT_REPEATEDLY: TIMED_AS(g, 0xC1D431, hit_repeatedly(g, pf, &e)); break;
     case EFFECT_ITEM_RESTORE: TIMED_AS(g, 0xC1D490, item_restore(g, &e)); break;
     case EFFECT_ITEM_CURE: TIMED_AS(g, 0xC1D4AD, item_cure(g, &e)); break;
     case EFFECT_ITEM_STATUS: TIMED_AS(g, 0xC1D4D6, item_status(g, &e)); break;
@@ -488,7 +507,7 @@ static void leave_last_compare(GameState *g, uint8_t sets, uint16_t first_began)
     battle_leave_multiply_carry(g, carry);
 }
 
-static void add_up_hits(GameState *g, uint8_t sets)
+void effect_add_up_hits(GameState *g, uint8_t sets)
 {
     uint16_t first_began = number_kind_word(g, number_record(1, LAST_ENEMY_PLACE));
     for (uint8_t place = FIRST_ENEMY_PLACE; place < SET_BYTES; place = (uint8_t)(place + RECORD_BYTES))
@@ -549,12 +568,12 @@ static void take_effect(GameState *g, ActionTable table, const ActionRecord *act
         set_battle_effect_given_status(g, slot, 0);
 }
 
-void effect_work_out_enemy_action(GameState *g, ActionTable table)
+void effect_work_out_enemy_action(GameState *g, Platform *pf, ActionTable table)
 {
     ActionRecord action = start_work(g, table);
     if (action.effect != NO_EFFECT) {
         take_effect(g, table, &action);
-        effect_run_kind(g, (EffectKind)battle_effect_record(g, 0));
+        effect_run_kind(g, pf, (EffectKind)battle_effect_record(g, 0));
         if ((battle_effect_missed(g) & MISSED) && (action.flags & ACTION_STOPS_AT_MISS))
             goto noted;
     }
@@ -563,7 +582,7 @@ void effect_work_out_enemy_action(GameState *g, ActionTable table)
     uint8_t added = action.flags & ACTION_HITS_ADDED;
     ORIGINAL_EFFECT(battle_leave_byte(g, EFFECT_ARG_3, added));
     if (added)
-        add_up_hits(g, added);
+        effect_add_up_hits(g, added);
 noted:
     set_battle_action_actor_bits(g, 0);
     set_battle_action_tech_hits(g, 0);
@@ -584,51 +603,60 @@ void effect_note_enemy_action(GameState *g, ActionTable table)
 
 /* ---- The entries --------------------------------------------------------------------------- */
 
-/* What the port works out: a kind in the table but the steal, a hit that
- * doesn't steal, modifiers the port has (battle/effect_modifiers.c), and a
- * drain whose stat offset's high byte is clear -- the original reads the
- * offset as a word from the cell it hands the drain's kind over in, whose
- * high byte ($1B) nothing in the effect code sets and the game leaves clear.
- * The rest is turned away to the original. */
+/* What the port works out: a kind in the table; a hit that doesn't steal as
+ * well (no record has one: its chance would be whatever the hit's work left
+ * in the direct page's first cell), with modifiers the port has
+ * (battle/effect_modifiers.c); a steal by a party member, whose modifier is
+ * a charm's chance (as both of the party's steals are: another routine would
+ * leave the charm to what it leaves in the direct page); and a drain whose
+ * stat offset's high byte is clear -- the original reads the offset as a
+ * word from the cell it hands the drain's kind over in, whose high byte
+ * ($1B) nothing in the effect code sets and the game leaves clear. The rest
+ * is turned away to the original. */
 enum { DRAIN_KIND_HIGH = EFFECT_ARG_3 + 1, WEAPON_MODIFIER_ON = 0x01 };
 
-static bool modifiers_ported(const GameState *g, uint8_t own, uint8_t more_flags)
+static bool modifiers_ported(const GameState *g, uint8_t actor, uint8_t own, uint8_t more_flags)
 {
     if (own != 0 && !effect_modifier_ported(g, own))
         return false;
-    if (!(more_flags & EFFECT_WITH_WEAPON_MODIFIER) || !(effect_actor_stat(g, STAT_WEAPON_MODIFIER_ON) & WEAPON_MODIFIER_ON))
+    if (!(more_flags & EFFECT_WITH_WEAPON_MODIFIER)
+        || !(combatant_stat_byte(g, actor, STAT_WEAPON_MODIFIER_ON) & WEAPON_MODIFIER_ON))
         return true;
-    return effect_modifier_ported(g, effect_actor_stat(g, STAT_WEAPON_MODIFIER));
+    return effect_modifier_ported(g, combatant_stat_byte(g, actor, STAT_WEAPON_MODIFIER));
 }
 
-static bool kind_ported(const GameState *g, uint8_t kind, uint8_t flags, uint8_t more_flags, uint8_t modifier)
+bool effect_kind_ported(const GameState *g, uint8_t actor, uint8_t kind, uint8_t flags, uint8_t more_flags,
+                        uint8_t modifier)
 {
     switch (kind) {
-    case EFFECT_STEAL: return false;
+    case EFFECT_STEAL: return actor < BATTLE_PARTY_SIZE && effect_modifier_is_charm_chance(g, modifier);
     case EFFECT_HIT:
-    case EFFECT_HIT_REPEATEDLY: return !(flags & EFFECT_STEALS) && modifiers_ported(g, modifier, more_flags);
+    case EFFECT_HIT_REPEATEDLY: return !(flags & EFFECT_STEALS) && modifiers_ported(g, actor, modifier, more_flags);
     case EFFECT_DRAIN: return battle_low_scratch(g, DRAIN_KIND_HIGH) == 0;
     default: return kind < EFFECT_KINDS;
     }
 }
 
-/* The actor and the targets listed are combatants, one to eleven of them. */
-static bool combatants_named(const GameState *g)
+/* The targets listed are combatants, one to eleven of them. */
+bool effect_targets_named(const GameState *g)
 {
     uint8_t count = battle_action_target_count(g);
-    bool named = battle_actor(g) < BATTLE_COMBATANTS && count != 0 && count <= BATTLE_ACTION_TARGETS_COUNT;
+    bool named = count != 0 && count <= BATTLE_ACTION_TARGETS_COUNT;
     for (uint8_t place = 0; named && place < count; place++)
         named = battle_action_targets(g, place) < BATTLE_COMBATANTS;
     return named;
 }
+
+static bool combatants_named(const GameState *g) { return battle_actor(g) < BATTLE_COMBATANTS && effect_targets_named(g); }
 
 static bool action_ported(const GameState *g, ActionTable table)
 {
     ActionRecord action = action_record(g, table, battle_action_detail(g));
     if (action.effect == NO_EFFECT)
         return true;
-    return kind_ported(g, effect_record_byte(g, table, action.effect, 0), effect_record_byte(g, table, action.effect, 7),
-                       effect_record_byte(g, table, action.effect, 8), action.modifier);
+    return effect_kind_ported(g, battle_actor(g), effect_record_byte(g, table, action.effect, 0),
+                              effect_record_byte(g, table, action.effect, 7), effect_record_byte(g, table, action.effect, 8),
+                              action.modifier);
 }
 
 static bool work_out_ready(Snes *s, ActionTable table)
@@ -645,7 +673,7 @@ bool battle_work_out_enemy_attack_ready(Snes *s) { return work_out_ready(s, ENEM
 
 static void work_out_entry(Snes *s, ActionTable table)
 {
-    effect_work_out_enemy_action(state_of(s), table);
+    effect_work_out_enemy_action(state_of(s), m_platform(s), table);
     m_rts(s);
 }
 
@@ -659,7 +687,8 @@ static bool kind_ready(Snes *s, EffectKind kind)
     vars_peek(true);
     const GameState *g = state_of(s);
     bool ready = combatants_named(g)
-                 && kind_ported(g, kind, battle_effect_flags(g, 0), battle_effect_flags(g, 1), battle_effect_modifier(g));
+                 && effect_kind_ported(g, battle_actor(g), kind, battle_effect_flags(g, 0), battle_effect_flags(g, 1),
+                                       battle_effect_modifier(g));
     vars_peek(false);
     return battle_on_page(s) && ready;
 }
@@ -669,13 +698,30 @@ static bool kind_ready(Snes *s, EffectKind kind)
  * one; the one that loses a condition's bit, the carry of its multiply
  * (clear), and takes its target with the carry its caller had. A hit leaves Y
  * past the note's bytes, which the party's code reads. */
+bool battle_kind_leaves_carry(uint8_t kind)
+{
+    switch (kind) {
+    case EFFECT_RESTORE:
+    case EFFECT_CURE:
+    case EFFECT_INFLICT:
+    case EFFECT_HIT:
+    case EFFECT_DRAIN:
+    case EFFECT_STEAL:
+    case EFFECT_HIT_REPEATEDLY:
+    case EFFECT_ITEM_RESTORE:
+    case EFFECT_ITEM_CURE:
+    case EFFECT_ITEM_STATUS: return true;
+    default: return false;
+    }
+}
+
 static void kind_entry(Snes *s, EffectKind kind)
 {
     bool carry_in = m_flag(s, CPU_FLAG_C);
-    effect_run_kind(state_of(s), kind);
+    effect_run_kind(state_of(s), m_platform(s), kind);
     if (kind == EFFECT_LOSE_CONDITION_BIT)
         ORIGINAL_EFFECT(battle_leave_multiply_carry(state_of(s), carry_in));
-    m_set_flag(s, CPU_FLAG_C, kind != EFFECT_RESTORE_SHOWING_HP && kind != EFFECT_LOSE_CONDITION_BIT);
+    m_set_flag(s, CPU_FLAG_C, battle_kind_leaves_carry(kind));
     s->cpu.a &= 0x00FF;
     s->cpu.y = NOTE_BYTES;
     m_rts(s);
@@ -689,6 +735,7 @@ KIND_ENTRY(battle_effect_cure, EFFECT_CURE)
 KIND_ENTRY(battle_effect_inflict, EFFECT_INFLICT)
 KIND_ENTRY(battle_effect_hit, EFFECT_HIT)
 KIND_ENTRY(battle_effect_drain, EFFECT_DRAIN)
+KIND_ENTRY(battle_effect_steal, EFFECT_STEAL)
 KIND_ENTRY(battle_effect_restore_showing_hp, EFFECT_RESTORE_SHOWING_HP)
 KIND_ENTRY(battle_effect_hit_repeatedly, EFFECT_HIT_REPEATEDLY)
 KIND_ENTRY(battle_effect_item_restore, EFFECT_ITEM_RESTORE)

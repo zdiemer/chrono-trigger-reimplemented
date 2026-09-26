@@ -151,7 +151,7 @@ static void put_back_after_battle(GameState *g)
  * lies beaten on the field. */
 static void party_hold_frames_if_defeated(GameState *g)
 {
-    if (battle_result(g) != BATTLE_DEFEATED)
+    if (battle_how_it_ended(g) != BATTLE_DEFEATED)
         return;
     for (unsigned place = 0; place < PARTY_PLACES; place++) {
         FieldLink link = party_member_link(g, place);
@@ -215,7 +215,7 @@ bool field_battle_return_can_run(Snes *s)
         FieldLink link = field_link_stored(field_battle_enemy_objects(g, enemy));
         ok = !field_link_is_object(link) || can_bring_back(g, field_linked_object(link));
         if (ok && field_link_is_object(link) && taken_away(g, enemy) && object_has_no_sprite(g, field_linked_object(link)))
-            ok = object_palette_is_kept(g, field_linked_object(link));
+            ok = object_palette_links_in_the_tables(g, field_linked_object(link));
     }
     vars_peek(false);
     return ok;

@@ -10,5 +10,6 @@ void field_pause_and_menus(Snes *s);
 void field_press_start(Snes *s);
 void field_bring_the_party_back(Snes *s);
 bool field_party_can_come_back(Snes *s);
+bool field_start_can_be_pressed(Snes *s);
 
 #endif

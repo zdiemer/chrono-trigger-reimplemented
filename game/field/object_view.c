@@ -178,7 +178,7 @@ static bool bottom_overflows(const GameState *g, uint8_t by)
  * call's return otherwise. None of them reads the registers it is entered
  * with but the overflow. */
 enum {
-    GIVE_PALETTE = 0xC07170,          /* a palette slot (of the six at $0B80), its colors loaded */
+    GIVE_PALETTE = 0xC07170,          /* a palette slot (of the eight at $0B80), its colors loaded */
     GIVE_SPRITE_RECORDS = 0xC06F9A,   /* a block of sprite records, for the roles that need one */
     FREE_FRAME_SLOTS = 0xC0EA42,      /* its slots among the frame builder's four */
     FREE_SPRITE_RECORDS = 0xC07056,
@@ -207,7 +207,7 @@ static bool rows_step(Snes *s, uint32_t site, FieldObject obj, bool join)
 static bool give_up_palette(Snes *s, uint32_t site, FieldObject obj)
 {
     GameState *g = state_of(s);
-    if (!object_palette_is_kept(g, obj))
+    if (!object_palette_links_in_the_tables(g, obj))
         return call_out(s, site, FIELD_GIVE_UP_PALETTE_ENTRY);
     TIMED_AS(g, FIELD_GIVE_UP_PALETTE_ENTRY, object_give_up_palette(g, obj));
     return true;

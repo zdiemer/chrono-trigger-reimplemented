@@ -13,8 +13,9 @@
  * script has set the palettes itself. */
 void object_give_up_palette(GameState *g, FieldObject obj);
 
-/* Whether the object's slot and its sharers are ones the tables hold. */
-bool object_palette_is_kept(const GameState *g, FieldObject obj);
+/* Whether the object's palette slot and the sharers it links to are ones the
+ * tables hold. */
+bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj);
 
 void field_give_up_palette(Snes *s);
 bool field_palette_can_be_given_up(Snes *s);

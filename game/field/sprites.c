@@ -155,6 +155,15 @@ static void hide_leftovers(GameState *g)
     }
 }
 
+/* A fresh start (the field's): each range taken as having used all its
+ * entries last frame, so the first table built hides every entry it doesn't
+ * fill. */
+void sprites_hide_all_next_frame(GameState *g)
+{
+    for (unsigned r = 0; r < RANGES; r++)
+        set_field_sprite_range_end(g, r, (uint16_t)(range_limit[r] + FIELD_SPRITE_TABLE_ADDRESS));
+}
+
 /* ---- The records' storage ----------------------------------------------------------------- */
 
 /* One of an object's sprites as its records keep it (field_sprite_records, 8

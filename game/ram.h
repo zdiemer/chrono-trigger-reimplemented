@@ -516,7 +516,9 @@
 #define RAM_FIELD_REQUESTS 0x7E0117u
 #define RAM_FIELD_REQUESTS_DP 0x17u          /* page field */
 /* Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running,
- * bits 3-4 a fixed color change is running */
+ * bits 3-4 a fixed color change is running, bit 6 the menus a script asked for (event $C8,
+ * field_requests bit 6) were shown, which the command waits on ($C0:3757) and the Start
+ * assignment's menu sets ($C0:19F7) */
 #define RAM_FIELD_EFFECT_STATUS 0x7E0118u
 #define RAM_FIELD_EFFECT_STATUS_DP 0x18u     /* page field */
 /* Brightness shadow the field NMI writes to the display every frame (0: forced blank) */
@@ -578,6 +580,10 @@
 /* Object slot of the object whose script opened the dialog */
 #define RAM_DIALOG_SPEAKER 0x7E012Eu
 #define RAM_DIALOG_SPEAKER_DP 0x2Eu          /* page field */
+/* The byte after dialog_speaker, which $C0:1FDD reads with it as a word (16-bit X): the field's
+ * start clears it ($C0:0BD8) and nothing else writes it */
+#define RAM_DIALOG_SPEAKER_HIGH 0x7E012Fu
+#define RAM_DIALOG_SPEAKER_HIGH_DP 0x2Fu     /* page field */
 /* Dialog box position: 1 top of the screen, 2 bottom, 0 the default commands */
 #define RAM_DIALOG_BOX_POSITION 0x7E0130u
 #define RAM_DIALOG_BOX_POSITION_DP 0x30u     /* page field */
@@ -597,6 +603,10 @@
  * waits) */
 #define RAM_FIELD_SCREEN_RECENTRING 0x7E0138u
 #define RAM_FIELD_SCREEN_RECENTRING_DP 0x38u /* page field */
+/* The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at
+ * $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself */
+#define RAM_FIELD_SCREEN_JOB 0x7E0139u
+#define RAM_FIELD_SCREEN_JOB_DP 0x39u        /* page field */
 /* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
 #define RAM_FIELD_WINDOW2_EDGE 0x7E013Cu
 #define RAM_FIELD_WINDOW2_EDGE_DP 0x3Cu      /* page field */
@@ -769,6 +779,23 @@
 #define RAM_FIELD_TRAIL_POSITION_COUNT 3u
 #define RAM_FIELD_TRAIL_POSITION_STRIDE 0x01u
 #define RAM_FIELD_TRAIL_POSITION_DP 0xABu    /* page field */
+/* The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work
+ * RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative
+ * for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables'
+ * first) takes the link's high byte, 0 */
+#define RAM_FIELD_BUILT_SPRITE_OBJECT 0x7E01AEu
+#define RAM_FIELD_BUILT_SPRITE_OBJECT_DP 0xAEu /* page field */
+/* Long pointers to the four tables in bank $E4 the commands that load an object's sprite read
+ * its entries from ($C0:448D-$C0:4830: the character loads at $C0:421E, events $81-$83); the
+ * field's start points them where the words at $E4:FFE0 say [4 x $3 bytes, by table] */
+#define RAM_FIELD_SPRITE_DATA_TABLES 0x7E01AFu
+#define RAM_FIELD_SPRITE_DATA_TABLES_COUNT 4u
+#define RAM_FIELD_SPRITE_DATA_TABLES_STRIDE 0x03u
+#define RAM_FIELD_SPRITE_DATA_TABLES_DP 0xAFu /* page field */
+/* Set when the map names no tile set for BG3 ($FF, $C0:6E22): the setup loads none ($C0:0A14,
+ * $C0:0AD3) and the windows leave BG3 alone ($C0:A429) */
+#define RAM_FIELD_MAP_HAS_NO_BG3_SET 0x7E01BBu
+#define RAM_FIELD_MAP_HAS_NO_BG3_SET_DP 0xBBu /* page field */
 /* While set the screen shakes: the layer scroll ($C0:91AC) offsets it by the play time's frames,
  * except against the map's left or top edge. Set by event $F4 (zero also clears
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
@@ -862,6 +889,10 @@
 /* Index into the random byte table at $FE00, stepped before each use */
 #define RAM_FIELD_RANDOM_INDEX 0x7E01F8u
 #define RAM_FIELD_RANDOM_INDEX_DP 0xF8u      /* page field */
+/* The song a battle on the field plays as it starts ($C0:1BAB, which the battle's setup calls at
+ * $D1:F405), unless the event keeps the field's ($7E:2A1F bit 6); $45 from the field's start */
+#define RAM_FIELD_BATTLE_SONG 0x7E01FAu
+#define RAM_FIELD_BATTLE_SONG_DP 0xFAu       /* page field */
 /* The sound effect a chest makes opening ($65 from the field's start) */
 #define RAM_FIELD_CHEST_SOUND 0x7E01FBu
 #define RAM_FIELD_CHEST_SOUND_DP 0xFBu       /* page field */
@@ -1022,6 +1053,9 @@
 /* Color math layers for event $F1's fixed color: $17 add, $97 subtract, back to
  * field_color_math_layers when the color is cleared */
 #define RAM_FIELD_FIXED_COLOR_MATH_LAYERS 0x7E0BE0u
+/* Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of
+ * its own; the scene program sets it ($7E:30E6) and the field's start clears it */
+#define RAM_FIELD_BG3_MAP_SIZE 0x7E0BE9u
 /* Two sprite priority bytes ($20/$30, bits 4-5): +0 from the map's $7E:7040 attribute or the
  * priority mode's bits 0-1, +1 from $7E:7000 or bits 4-5 [64 x $2 bytes, by object slot (X =
  * slot * 2)] */
@@ -1721,6 +1755,8 @@
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES 0x7F1D15u
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES_COUNT 3u
 #define RAM_FIELD_KEPT_PARTY_PRIORITIES_STRIDE 0x02u
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_LOWER 0x7F1D15u /* The priority of its lower half */
+#define RAM_FIELD_KEPT_PARTY_PRIORITIES_UPPER 0x7F1D16u /* The priority of its upper half */
 /* Where each of the party was on the leader's trail (field_trail_position), kept while a menu is
  * open [3 x $1 bytes, by party place] */
 #define RAM_FIELD_KEPT_TRAIL_POSITIONS 0x7F1D1Bu
@@ -4091,6 +4127,16 @@
 #define RAM_BATTLE_COMBATANT_DOWN 0x7EA0A8u
 #define RAM_BATTLE_COMBATANT_DOWN_COUNT 11u
 #define RAM_BATTLE_COMBATANT_DOWN_STRIDE 0x01u
+/* An item a party member stole that the battle keeps apart from the inventory (one from $BC
+ * whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at
+ * $7E:1580 ($CF:FAE2) [3 x $8 bytes, by battle slot of a party member] */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM 0x7EA0B8u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_COUNT 3u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_STRIDE 0x08u
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_ID 0x7EA0B8u /* Which item */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_DETAIL 0x7EA0B9u /* The item's byte of the table at $CC:1BB5 */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_KIND 0x7EA0BAu /* The low seven bits of the item's record's first byte ($CC:0ABC) */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_HELD 0x7EA0BBu /* How many are held: 1 */
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
@@ -4904,6 +4950,13 @@
 #define RAM_BATTLE_ACTION_POSE_KIND 0x7EAEE8u
 /* 4 as an enemy's attack starts ($C1:ACB0) */
 #define RAM_BATTLE_ATTACK_HITS 0x7EAEEBu
+/* The item the battle's inventory routines are adding or looking for [2 bytes] */
+#define RAM_BATTLE_INVENTORY_ITEM 0x7EAEF7u
+/* The first empty place of the inventory the battle's search for an item passed, where an item
+ * not held goes [2 bytes] */
+#define RAM_BATTLE_INVENTORY_FREE_PLACE 0x7EAEF9u
+/* Set once the battle's search for an item has passed an empty place of the inventory */
+#define RAM_BATTLE_INVENTORY_FREE_SEEN 0x7EAEFBu
 /* The combatant's id (battle_combatant_id) while it is in the fight, $FF once it is out; all
  * three party slots out is a defeat [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_COMBATANT_FIGHTING 0x7EAEFFu
@@ -4959,10 +5012,11 @@
 #define RAM_BATTLE_TIMER_RUNS_LEFT_COUNT 13u
 #define RAM_BATTLE_TIMER_RUNS_LEFT_STRIDE 0x0Bu
 /* How long each combatant's status timers run once a status starts them; the turn's are
- * battle_turn_wait [132 x $1 bytes, by timer kind (0-11) * 11 + battle slot] */
+ * battle_turn_wait [12 x $B bytes, by kind of timer (0-11, the timed statuses); a byte a battle
+ * slot] */
 #define RAM_BATTLE_TIMER_LENGTHS 0x7EB0D4u
-#define RAM_BATTLE_TIMER_LENGTHS_COUNT 132u
-#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x01u
+#define RAM_BATTLE_TIMER_LENGTHS_COUNT 12u
+#define RAM_BATTLE_TIMER_LENGTHS_STRIDE 0x0Bu
 /* The combatant's turn wait: what its turn timer starts from again after it acts [11 x $1 bytes,
  * by battle slot] */
 #define RAM_BATTLE_TURN_WAIT 0x7EB158u
@@ -5121,6 +5175,9 @@
 #define RAM_BATTLE_DAMAGE_VARIANCE 0x7EB2BEu
 /* Set when the action's first target is an enemy: the enemies it hit react */
 #define RAM_BATTLE_ACTION_HIT_ENEMY 0x7EB2C0u
+/* The tech's members' record's offset among the records (the members' number times 3), where the
+ * party's working out finds them [2 bytes] */
+#define RAM_BATTLE_TECH_MEMBERS_PLACE 0x7EB2C1u
 /* The acting attack's or tech's record's offset among the records (its number times 11) [2
  * bytes] */
 #define RAM_BATTLE_ACTION_RECORD_PLACE 0x7EB2C3u
@@ -5136,6 +5193,8 @@
 /* $40 while the action can't miss (its record's first byte says so), whose effects then skip
  * their test of landing */
 #define RAM_BATTLE_EFFECT_SURE 0x7EB2CAu
+/* The battle slot of the member whose part of the party's tech is being worked out */
+#define RAM_BATTLE_TECH_PERFORMER 0x7EB2CBu
 /* The modifier the effect is worked out with, from the action's record (or, for a moment, the
  * weapon's) */
 #define RAM_BATTLE_EFFECT_MODIFIER 0x7EB2CCu
@@ -5150,6 +5209,11 @@
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
 /* The enemy's animation, kept while its reactions run and put back after */
 #define RAM_BATTLE_ANIMATION_KEPT 0x7EB2D5u
+/* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
+ * them: the member who chose it first [3 x $1 bytes, by the member's part in the tech] */
+#define RAM_BATTLE_TECH_MEMBERS 0x7EB2EAu
+#define RAM_BATTLE_TECH_MEMBERS_COUNT 3u
+#define RAM_BATTLE_TECH_MEMBERS_STRIDE 0x01u
 /* What a tech's second and third targets are (battle_combatant_fighting of each) [2 x $1 bytes,
  * by second or third] */
 #define RAM_BATTLE_ACTION_FURTHER_IDS 0x7EB2EBu
@@ -5193,10 +5257,16 @@
 #define RAM_BATTLE_ACTION_FOLLOW_UP 0x7EB3B8u
 /* Set when the action's first target is a party member: the party may counter ($FD:AC6E) */
 #define RAM_BATTLE_ACTION_HIT_PARTY 0x7EB3B9u
+/* The accessory each party member wears, kept as the battle starts ($FD:AE99): two of them cut
+ * what a tech's part costs in MP [3 x $1 bytes, by battle slot of a party member] */
+#define RAM_BATTLE_MEMBER_ACCESSORY 0x7EB3BAu
+#define RAM_BATTLE_MEMBER_ACCESSORY_COUNT 3u
+#define RAM_BATTLE_MEMBER_ACCESSORY_STRIDE 0x01u
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 #define RAM_BATTLE_SPARE_TURN_MEMBER 0x7EB3BEu
-/* How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to
- * take */
+/* How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an
+ * item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF
+ * nothing to take */
 #define RAM_BATTLE_STEAL_OUTCOME 0x7EB3BFu
 /* The battle slot of the timer the count-down pass is at [2 bytes] */
 #define RAM_BATTLE_TIMER_TICK_SLOT 0x7EB3C0u
@@ -5207,6 +5277,13 @@
 /* The byte after battle_action_message, which the actions that set stats clear as they keep the
  * message as a word */
 #define RAM_BATTLE_ACTION_MESSAGE_HIGH 0x7EB3C8u
+/* $FF where a member of the party's tech can't take part in it (kept from techs, or short of the
+ * MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC) */
+#define RAM_BATTLE_TECH_BLOCKED 0x7EB3C8u
+/* Bit 7: the party member's action goes ahead even where a member of its tech can't take part,
+ * as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command
+ * ($C1:BA4E) */
+#define RAM_BATTLE_ACTION_GOES_AHEAD 0x7EB3C9u
 /* A reaction's kept place, while its conditions are tested [2 bytes] */
 #define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
 /* A second position in the battle's table of random numbers, which the critical hits' rolls take

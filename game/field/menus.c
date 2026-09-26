@@ -17,14 +17,18 @@
  * it sets itself up again, brings back the characters of a party the menu
  * changed (field_bring_the_party_back), and fades in.
  *
- * Nearly all of it is the original's routines still: the frame wait, the
- * menus, the field's setup and its fade in are called out to, each from the
- * original's own call. */
+ * The blanking and the interrupts' handlers are C (core/display.c,
+ * field/interrupts.c). The frame wait, the menus, the field's setup and its
+ * fade in are the original's routines, called out to from the original's own
+ * calls; so are the line effects' builder, the Start assignment and the
+ * party's return, which are ports, for the reasons beside their calls. */
 #include "field/menus.h"
 #include "field/field.h"
 #include "field/object.h"
 #include "field/party.h"
 
+#include "charge.h"
+#include "core/display.h"
 #include "core/input.h"
 #include "event/variables.h"
 #include "field/bridge.h"
@@ -52,7 +56,7 @@ static bool assigned_pressed(const GameState *g, Buttons button)
 
 static bool start_pauses(const GameState *g)
 {
-    return start_pressed(g) && field_pause_locked(g) == 0 && field_player_control(g) != 0;
+    return start_pressed(g) && !field_pause_is_locked(g) && party_is_the_players(g);
 }
 
 /* Paused, the picture shows at half its brightness. */
@@ -73,19 +77,19 @@ static void end_pause(GameState *g)
 
 static bool menus_may_open(const GameState *g)
 {
-    return field_player_control(g) != 0 && dialog_choice_active(g) == 0 && field_menus_locked(g) == 0;
+    return party_is_the_players(g) && !dialog_choice_waiting(g) && !field_menus_are_locked(g);
 }
 
-/* The Start assignment's menu waits on the story's progress. */
+/* The Start assignment's menu waits on the story's progress (field.h). */
 static bool start_opens_menu(const GameState *g) { return story_progress(g) >= FIELD_START_MENU_FROM_STORY; }
 
-/* An open dialog window's two places: the top of the screen and the bottom. */
-enum { DIALOG_WINDOW_NONE = 0, DIALOG_WINDOW_SIDES = 0x03 };
-
-static bool dialog_window_open(const GameState *g) { return dialog_window_position(g) != DIALOG_WINDOW_NONE; }
+/* An open dialog window goes from the top of the screen to the bottom, or
+ * back. */
+static bool dialog_window_open(const GameState *g) { return dialog_window_at(g) != WINDOW_NONE; }
 static void move_dialog_window(GameState *g)
 {
-    set_dialog_window_position(g, (uint8_t)(dialog_window_position(g) ^ DIALOG_WINDOW_SIDES));
+    WindowPosition to = dialog_window_at(g) == WINDOW_AT_TOP ? WINDOW_AT_BOTTOM : WINDOW_AT_TOP;
+    set_dialog_window_position(g, (uint8_t)to);
 }
 
 /* A step of the fade out before a menu: false once the picture is dark (a
@@ -105,8 +109,6 @@ static bool fade_out_step(GameState *g)
 
 /* A menu a script had asked for is taken as shown when the Start
  * assignment's menu opens, and the script waiting on it goes on. */
-enum { FIELD_SCRIPT_MENU_SHOWN = 0x40 };
-
 static void script_menu_shown(GameState *g)
 {
     if (!field_requested(g, FIELD_REQUEST_MENUS))
@@ -115,23 +117,29 @@ static void script_menu_shown(GameState *g)
     set_field_effect_status(g, (uint8_t)(field_effect_status(g) | FIELD_SCRIPT_MENU_SHOWN));
 }
 
-/* ---- Calling the original's routines ---------------------------------------------------------- */
+/* ---- The routines it calls on the machine ---------------------------------------------------- */
 
+/* The original's routines. */
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    LINE_EFFECTS = 0xFDC2C1,        /* builds the per-line effect tables, the brightness among them */
-    BLANK = 0xC00B4E,               /* blanks the screen and stops the interrupts */
     KEEP_THE_FIELD = 0xC0011B,      /* keeps the party's places and the field's state for after the menu */
     MENUS = 0xC28000,               /* the menus, at the mode in A */
-    INSTALL_NMI = 0xC00B64,
-    INSTALL_IRQ = 0xC00B75,
     SET_THE_FIELD_UP = 0xC001A5,    /* the field's graphics, objects and display again */
-    BRING_THE_PARTY_BACK = 0xC01A03,
     SPRITE_LISTS = 0xC0B192,
     FADE_IN = 0xC02824,
     CHOICE = 0xC01ADF,              /* a dialog's choice taking the buttons */
-    PRESS_START = 0xC01985,
     OBJECT_START = 0xC0597D,        /* runs the current object's start in its script */
+};
+
+/* Ports called as the original calls them, on purpose. The line effects'
+ * builder leaves registers its entry works out, and the overflow among them
+ * is read after the pause (field/line_effects.c); the Start assignment and the
+ * party's return make call-outs of their own, which must be made under their
+ * own return address, where shadow mode pairs them with the original's. */
+enum {
+    LINE_EFFECTS = 0xFDC2C1,        /* field_build_line_effect_tables */
+    PRESS_START = 0xC01985,         /* field_press_start */
+    BRING_THE_PARTY_BACK = 0xC01A03 /* field_bring_the_party_back */
 };
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
@@ -157,6 +165,23 @@ static bool rebuild_line_effects(Snes *s, uint32_t site)
     return true;
 }
 
+/* The screen blanked and the interrupts stopped, as a mode does before it
+ * changes what the screen shows (core/display.c); the CPU's interrupts masked
+ * and the data bank $00, as the original's routine leaves the machine. */
+static void blank_the_screen(Snes *s)
+{
+    TIMED_AS(state_of(s), DISPLAY_BLANK_AND_STOP_ENTRY, display_blank_and_stop(m_platform(s)));
+    m_set_flag(s, CPU_FLAG_I, true);
+    s->cpu.db = 0x00;
+}
+
+/* The field's own interrupt handlers back after a menu had the machine. */
+static void take_the_interrupts_back(GameState *g)
+{
+    TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
+    TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
+}
+
 /* ---- The pause -------------------------------------------------------------------------------- */
 
 enum { PAUSE_WAIT = 0xC018F4, PAUSE_LINE_EFFECTS = 0xC01905 };
@@ -164,6 +189,7 @@ enum { PAUSE_WAIT = 0xC018F4, PAUSE_LINE_EFFECTS = 0xC01905 };
 // $C0:18E8
 /* Every frame of the pause the effect tables are built again at half the
  * brightness, and read from their first set. */
+enum { DISPLAY_FIRST_SET = 0 };   /* field_display_flags: the first set, no setup */
 static bool pause(Snes *s)
 {
     GameState *g = state_of(s);
@@ -176,7 +202,7 @@ static bool pause(Snes *s)
         show_paused(g);
         if (!rebuild_line_effects(s, PAUSE_LINE_EFFECTS))
             return false;
-        set_field_display_flags(g, 0);
+        set_field_display_flags(g, DISPLAY_FIRST_SET);
     }
     end_pause(g);
     return true;
@@ -187,47 +213,50 @@ static bool pause(Snes *s)
 /* The menus' modes the field opens, by what A holds as they start. */
 typedef enum { MAIN_MENU = 1, START_MENU = 5 } FieldMenu;
 
-/* Each menu is opened by its own copy of the same calls. */
-enum { OPENED_BY_MENU_BUTTON, OPENED_BY_START };
+/* The two ways a menu is opened, each with its own copy of the calls. They
+ * differ in the menu, in the X the menus are given (the Start assignment's 0,
+ * the menu button's what keeping the field left), and in whether a menu a
+ * script asked for counts as shown. */
+typedef enum { OPENED_BY_MENU_BUTTON, OPENED_BY_START } MenuOpener;
 static const struct {
-    uint32_t fade_effects, fade_wait, blank, keep, menus, blank_again, nmi, irq, set_up, party, sprites, fade_in;
-} menu_sites[] = {
-    [OPENED_BY_MENU_BUTTON] = { 0xC0194D, 0xC01953, 0xC01958, 0xC0195B, 0xC01960, 0xC01964, 0xC01967, 0xC0196A,
-                                0xC01975, 0xC01978, 0xC0197B, 0xC0197E },
-    [OPENED_BY_START] = { 0xC019B6, 0xC019BC, 0xC019C1, 0xC019C4, 0xC019CE, 0xC019D2, 0xC019D5, 0xC019D8,
-                          0xC019E3, 0xC019E6, 0xC019F9, 0xC019FC },
+    uint32_t mode, clears_x, answers_script;
+    uint32_t fade_effects, fade_wait, keep, menus, set_up, party, sprites, fade_in;
+} openings[] = {
+    [OPENED_BY_MENU_BUTTON] = { MAIN_MENU, 0, 0, 0xC0194D, 0xC01953, 0xC0195B, 0xC01960, 0xC01975, 0xC01978,
+                                0xC0197B, 0xC0197E },
+    [OPENED_BY_START] = { START_MENU, 1, 1, 0xC019B6, 0xC019BC, 0xC019C4, 0xC019CE, 0xC019E3, 0xC019E6, 0xC019F9,
+                          0xC019FC },
 };
 
 // $C0:193E (the menu button's), $C0:19A7 (the Start assignment's)
-/* The menus take the mode in A with its high byte clear, and the Start
- * assignment's an X of 0; the main menu's X is what keeping the field left.
- * False where a call didn't come back as the field runs. */
-static bool open_menu(Snes *s, unsigned opener)
+/* The menus take the mode in A with its high byte clear, and N and Z as its
+ * load leaves them (clear: the mode is positive and not 0), since their entry
+ * keeps the flags. False where a call didn't come back as the field runs. */
+static bool open_menu(Snes *s, MenuOpener opener)
 {
     GameState *g = state_of(s);
     while (fade_out_step(g))
-        if (!rebuild_line_effects(s, menu_sites[opener].fade_effects) || !wait_frame(s, menu_sites[opener].fade_wait))
+        if (!rebuild_line_effects(s, openings[opener].fade_effects) || !wait_frame(s, openings[opener].fade_wait))
             return false;
-    if (!call(s, menu_sites[opener].blank, BLANK, READS_NOTHING) ||
-        !call(s, menu_sites[opener].keep, KEEP_THE_FIELD, READS_NOTHING))
+    blank_the_screen(s);
+    if (!call(s, openings[opener].keep, KEEP_THE_FIELD, READS_NOTHING))
         return false;
-    s->cpu.a = opener == OPENED_BY_START ? START_MENU : MAIN_MENU;
-    if (opener == OPENED_BY_START)
+    s->cpu.a = (uint16_t)openings[opener].mode;
+    if (openings[opener].clears_x)
         s->cpu.x = 0;
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
-    if (!bridge_call_long(s, menu_sites[opener].menus, MENUS, READS_THE_MODE, on_the_field_page(s, false)))
+    if (!bridge_call_long(s, openings[opener].menus, MENUS, READS_THE_MODE, on_the_field_page(s, false)))
         return false;
-    if (!call(s, menu_sites[opener].blank_again, BLANK, READS_NOTHING) ||
-        !call(s, menu_sites[opener].nmi, INSTALL_NMI, READS_NOTHING) ||
-        !call(s, menu_sites[opener].irq, INSTALL_IRQ, READS_NOTHING) ||
-        !call(s, menu_sites[opener].set_up, SET_THE_FIELD_UP, READS_NOTHING) ||
-        !call(s, menu_sites[opener].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW))
+    blank_the_screen(s);
+    take_the_interrupts_back(g);
+    if (!call(s, openings[opener].set_up, SET_THE_FIELD_UP, READS_NOTHING) ||
+        !call(s, openings[opener].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW))
         return false;
-    if (opener == OPENED_BY_START)
+    if (openings[opener].answers_script)
         script_menu_shown(g);
-    if (!call(s, menu_sites[opener].sprites, SPRITE_LISTS, READS_NOTHING) ||
-        !call(s, menu_sites[opener].fade_in, FADE_IN, READS_NOTHING))
+    if (!call(s, openings[opener].sprites, SPRITE_LISTS, READS_NOTHING) ||
+        !call(s, openings[opener].fade_in, FADE_IN, READS_NOTHING))
         return false;
     start_play_clock(g);
     return true;
@@ -249,9 +278,8 @@ void field_pause_and_menus(Snes *s)
     if (assigned_pressed(g, ASSIGNED_START) && !call(s, PRESS_START_CALL, PRESS_START, READS_NOTHING))
         return;
     if (!assigned_pressed(g, ASSIGNED_MENU)) {
-        uint8_t choice = dialog_choice_active(g);
-        if (choice != 0) {
-            m_set_a8(s, choice);
+        if (dialog_choice_waiting(g)) {
+            m_set_a8(s, dialog_choice_active(g));
             if (!call(s, CHOICE_CALL, CHOICE, READS_THE_CHOICE))
                 return;
         }
@@ -281,7 +309,11 @@ void field_press_start(Snes *s)
 /* ---- The party after a menu ------------------------------------------------------------------- */
 
 /* The characters' objects start again in this order, each from its own call:
- * the original runs Frog's (character 4) before Robo's (character 3). */
+ * the original runs Frog's (character 4) before Robo's (character 3). It
+ * can't be seen in play: a start runs its character's object script to its
+ * first return, the command that loads the character ($C0:41E4-$C0:4214),
+ * which writes that object's cells and its character's entry and nothing the
+ * next start reads. */
 enum { CHARACTERS = FIELD_CHARACTER_OBJECTS_COUNT };
 static const struct {
     uint8_t character;
@@ -315,8 +347,8 @@ static void put_party_back_where_kept(GameState *g)
             continue;
         FieldObject member = field_linked_object(link);
         object_place(g, member, (FieldPosition){ field_kept_party_x(g, place), field_kept_party_y(g, place) });
-        uint16_t priorities = field_kept_party_priorities(g, place);
-        object_take_sprite_priorities(g, member, (SpritePriorities){ (uint8_t)priorities, (uint8_t)(priorities >> 8) });
+        object_take_sprite_priorities(g, member, (SpritePriorities){ field_kept_party_priorities_lower(g, place),
+                                                                    field_kept_party_priorities_upper(g, place) });
     }
     for (unsigned place = 0; place < PARTY_PLACES; place++)
         set_field_trail_position(g, place, field_kept_trail_positions(g, place));
@@ -359,6 +391,19 @@ bool field_party_can_come_back(Snes *s)
         FieldLink link = party_member_link(g, place);
         ok = !field_link_is_object(link) || field_link_names_object(link);
     }
+    vars_peek(false);
+    return ok;
+}
+
+/* The Start assignment's guard: the field's page with the data bank $00, and
+ * the dialog window at the top, the bottom or shut (the swap takes no other
+ * place). */
+bool field_start_can_be_pressed(Snes *s)
+{
+    if (!field_on_page_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool ok = dialog_window_at(state_of(s)) < WINDOW_POSITIONS;
     vars_peek(false);
     return ok;
 }

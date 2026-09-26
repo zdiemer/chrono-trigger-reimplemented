@@ -743,6 +743,21 @@ Each of these is a finding. Every example here comes from this repo.
      registering the inlined subroutine as its own entry so `battle_run` or
      its sibling supplies the frame.
 
+102. **A sibling port reached through the machine only so its guard runs.**
+     The code gives another reason; the real one is that a C call would skip
+     the entry's guard. Call it as C behind a helper that tests the guard
+     itself and calls out where it refuses (`event_call_bridge`, the field's
+     palette give-up), under a pushed frame where the sibling's call-outs
+     need one.
+
+103. **A sentinel the port handles by reaching past the tables in plain
+     logic.** A guard dropped so that a "nobody" (`$FF`, one past the list)
+     flows through as a bare byte and reads or writes stray cells identically
+     in both builds. It isn't item 81's build divergence, so it is easy to
+     argue away, but it still needs a typed "nobody", the stray effects in
+     one marked place (or the guard back), and a docs/TODO.md entry: native
+     storage breaks it.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

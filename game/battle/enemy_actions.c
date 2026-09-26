@@ -678,7 +678,7 @@ void enemy_change_ends(GameState *g)
 /* How much of its maximum HP an enemy brought back has, by the action's
  * first operand: half, a quarter, or 1; any other, what it had. The second is
  * the effect code's tech number, the third the message. */
-enum { BACK_AT_HALF = 1, BACK_AT_QUARTER = 2, BACK_AT_ONE = 3, SHOWN_AS_TECH = 2 };
+enum { BACK_AT_HALF = 1, BACK_AT_QUARTER = 2, BACK_AT_ONE = 3 };
 
 uint8_t enemy_next_to_bring_back(const GameState *g, uint8_t enemy)
 {
@@ -730,7 +730,7 @@ void enemy_bring_back_ends(GameState *g, ScriptPlace at, uint8_t count)
 {
     set_battle_candidate_count(g, count);
     set_battle_action_actor(g, actor(g));
-    set_battle_action_type(g, SHOWN_AS_TECH);
+    set_battle_action_type(g, ACTION_TECH);
     set_battle_action_what(g, byte_at(g, at, 2));
     set_battle_action_extra(g, 0);
     battle_mark_first_target(g);

@@ -95,7 +95,6 @@ uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t st
 /* The Start assignment's test of the story's progress (field/menus.c): the
  * overflow of its subtraction, which the menus' entry and the field's main
  * loop read after it (field/leaves.c). */
-enum { FIELD_START_MENU_FROM_STORY = 0x49 };   /* the progress the menu waits for */
 bool field_story_test_overflow(const GameState *g);
 
 /* A footprint of the leader's trail (field/party_trail.c): how far it moved

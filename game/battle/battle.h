@@ -24,6 +24,8 @@ static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PA
 /* How the battle ended (battle_result), which the field reads when it puts
  * the party back (field/battle_return.c). */
 typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;
+static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
+static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
 
 /* A combatant's stat block (battle_stats) is $80 bytes. */
 enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
@@ -87,6 +89,10 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     which is whatever was last left there: the tech's number, the end of a
  *     further target's selection, or before the tech anything an action or a
  *     condition kept there;
+ *   - $00 is the word the clock's modifier adds half of to the damage where
+ *     it means the damage (battle/effect_modifiers.c): whatever the healing's
+ *     amount (battle/effect_amounts.c) or the party's working out's tech
+ *     members (battle/party_work.c) left there last;
  *   - $08 (a number a condition tests), $0A and $0E are read as stats: a
  *     candidate past the combatants (the stat test's doubled walk goes past
  *     the list, a candidate that is none) is read wherever the table of the
@@ -94,6 +100,7 @@ static inline void battle_leave_word(GameState *g, unsigned at, uint16_t v)
  *     conditions that read candidates' stats keep what they write there
  *     before and while they read. */
 enum {
+    BATTLE_CLOCK_READS = 0x00,
     BATTLE_NUMBER_TESTED = 0x08,
     BATTLE_STAT_OFFSET_LOW = 0x0A,
     BATTLE_STAT_OFFSET_HIGH = 0x0B,

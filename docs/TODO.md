@@ -100,14 +100,10 @@ rest waits, is [PLAN.md](PLAN.md).
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
-    original (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"):
-    stealing (`$C1:D3BF`, `$C1:E9D5` and the item's giving `$FD:B655`, into
-    the party's inventory or its battle records at `$A0B8`, whose meaning is
-    to work out) and the clock modifier (`$C1:EE27`, whose controller read
-    waits on the console); the party's own working out (`$C1:D523`,
-    `$C1:D74F`, `$C1:BF46`), which runs the kinds' ports; a member that comes back once when knocked out
-    (from `$C1:B316`); the action's showing a status's timer asks for
-    (`$C1:AC57` from `$C1:895B`) and the effect's start (`$C1:EC7F`); the
+    original (RECOMP.md, "Phase 3, battle chunk 4: the party's working
+    out"): a hit that steals as well (no record has one); a member that comes back once when knocked out
+    (from `$C1:B316`); the effect's start a status's timer asks for
+    (`$C1:EC7F`); the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
     `$C1:3760`, the position modes `$C1:762E`; an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
@@ -169,8 +165,8 @@ rest waits, is [PLAN.md](PLAN.md).
     reads the first set's last kind before it adds (`first_began`) only for
     its carry's leave, and `take_next_target` exists only to leave the carry a
     target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the party's working out (`$C1:D523`,
-    `$C1:D74F`, `$C1:BF46`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    goes when what reads it is a port: the member's turn (`$C1:BA33` on,
+    which reads the stolen item in `$06`) and the showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -184,22 +180,13 @@ rest waits, is [PLAN.md](PLAN.md).
   - The statuses' timers (RECOMP.md, "Phase 3, battle chunk 3"): the first
     status byte's `$10` (a point of HP lost each time its timer runs out) and
     the fourth's `$20` (5 MP back every tenth) are named for what the battle
-    does with them; what the player calls them is to work out. The slow's
-    timer wears off without taking the slow away, and the MP's timer halves
-    for kept haste alone: both the original's. Timers 6, 7 and 11 do nothing
-    when they run out, and no movie reaches the slow's, evading much better's
-    or the MP's; they were fuzzed only.
-  - A status's timer run out for no combatant: the search for run-out
-    timers reads past the order's last filled place, takes the empty
-    place's `$FF` as a slot whose timer (past the kind's row, in
-    `battle_timer_lengths`) has run out, and the original's handler then
-    works on that slot, writing past the timers' tables (into the lengths)
-    and a stat block far past the combatants'. The evading much better's
-    handler meets it four times over the library (`gato-battle`,
-    `endings-telepod-lavos`); its guard turns it away to the original. Port
-    it the way the absent party member was: what the game does with a timer
-    of nobody's, and the stray writes, which change a real timer's length,
-    kept as the game's.
+    does with them; what the player calls them is to work out. Timer kinds 6,
+    7 and 11 keep neutral names (`BATTLE_TIMER_6`, `_7`, `_11`): 6 and 7 time
+    no status the battle sets, 11 follows the third status byte's `$02`, and
+    none does anything when it runs out; name them once what they are is
+    known. The slow's timer wears off without taking the slow away, and the
+    MP's timer halves for kept haste alone: both the original's. No movie
+    reaches the slow's or the MP's; they were fuzzed only.
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
@@ -221,7 +208,6 @@ rest waits, is [PLAN.md](PLAN.md).
     - entry and map names that disagree with the operations
       (`battle_step_orbits`/`step_drifts`, `battle_screen_wipe_from_left`/
       `wipe_diagonally`, the mover tables as `battle_effect_*`, and others);
-      the timers named by number (`BATTLE_TIMER_STATUS_1..11`);
     - the cursor bridges in `menu_window.c` keep the target's side in a
       variable named `carry` and their call-out-free logic in the `Snes *`
       body: derive the carry in `window_leaves.c`; the tech rules and the
@@ -948,6 +934,13 @@ below. `python3 tools/timing_census.py` re-runs the census.
   runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
   deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
   battle's `$C1:007E` 20).
+- **The clock's controller read inside the effect work** (RECOMP.md, "Phase 3,
+  battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
+  work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
+  stop where the original waits for the console's controller read
+  (`$C2:84F9`) or resets for the reset buttons: it goes on with the sets and
+  the play time as they are. No movie reaches either; both want the input
+  frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
   onto the field's objects"): 12 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`), the
@@ -1039,9 +1032,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
     `$C0:0C8A` and `$C0:1770`); a chest's opening would need A's high byte
     and the overflow the original has at `$C0:16DC`, which depend on the
     path into it, so it went with the stop rather than into the logic;
-  - the field's start (`$C0:0B86`) is the original's; it sets some cells
-    the map has no names for yet (`$2F`, `$39`, `$AE`-`$BB`, `$FA`,
-    `$7E:2989`, `$7E:0BE9`), which their readers name first;
   - the pause and the menus (field/menus.c) call the original's frame wait,
     field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
     lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons

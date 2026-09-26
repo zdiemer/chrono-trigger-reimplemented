@@ -1164,7 +1164,7 @@ name = "field_effect_status"
 addr = "7E:0118"
 page = "field"
 subsystem = "field"
-meaning = "Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running, bits 3-4 a fixed color change is running"
+meaning = "Status bits: bit 0 the battle event $D8 started is over, bit 1 a brightness change is running, bits 3-4 a fixed color change is running, bit 6 the menus a script asked for (event $C8, field_requests bit 6) were shown, which the command waits on ($C0:3757) and the Start assignment's menu sets ($C0:19F7)"
 source = "game/event/screen.c fade $C0:3CD0, tint $C0:3D07, wait_for_screen; game/event/locations.c fight $C0:3A83"
 
 [[var]]
@@ -1590,13 +1590,20 @@ source = "game/field/menus.c, bring_the_party_back $C0:1A03"
 [[var]]
 name = "field_kept_party_priorities"
 addr = "7F:1D15"
-size = 2
 count = 3
 stride = 2
 index = "party place"
 subsystem = "field"
 meaning = "Each party member's two sprite priority bytes (field_object_sprite_priority), kept while a menu is open"
 source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+  [[var.field]]
+  name = "lower"
+  offset = 0
+  meaning = "The priority of its lower half"
+  [[var.field]]
+  name = "upper"
+  offset = 1
+  meaning = "The priority of its upper half"
 
 [[var]]
 name = "field_kept_trail_positions"
@@ -9363,6 +9370,7 @@ size = 11
 count = 13
 stride = 11
 index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
+unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then the turn), a column per battle slot"
 source = "game/battle/timers.c battle_tick_timers $C1:8231, battle_dispatch_expired_timers $C1:8290; the kinds' handlers from the table at $C1:B92D"
@@ -9465,6 +9473,7 @@ name = "battle_character_slot"
 addr = "7E:B1BE"
 count = 7
 index = "character"
+unchecked = "the party's working out reads the slot of each part's member before it asks whether there is one, and so of the id $FF past the table (game/battle/party_work.c, $C1:D601)"
 subsystem = "battle"
 meaning = "The battle slot each character fights in, as the timers' order is drawn"
 source = "game/battle/main_loop.c battle_main_loop_start $C1:8000"
@@ -13699,6 +13708,7 @@ name = "inventory_items"
 addr = "7E:2400"
 count = 0xF2
 index = "inventory position"
+unchecked = "the battle's search of the inventory for an item runs over 256 places, the fourteen past the inventory's own too, as the original's does (game/battle/inventory.c, $C1:D016)"
 subsystem = "core"
 meaning = "The inventory's item ids, one per position; the battle item list is this list with the items that can't be used in battle skipped"
 source = "tools/movies/addresses.py INVENTORY_ITEMS, INVENTORY_SIZE (read in a battle and matched against the item menu)"
@@ -13708,6 +13718,7 @@ name = "inventory_counts"
 addr = "7E:2500"
 count = 0xF2
 index = "inventory position"
+unchecked = "the battle's search of the inventory for an item runs over 256 places, the fourteen past the inventory's own too, as the original's does (game/battle/inventory.c, $C1:D016)"
 subsystem = "core"
 meaning = "How many of the item at the same position of inventory_items the party holds"
 source = "tools/movies/addresses.py INVENTORY_COUNTS"
@@ -14150,6 +14161,65 @@ meaning = "The sound effect a chest makes opening ($65 from the field's start)"
 source = "game/field/switches.c"
 
 [[var]]
+name = "dialog_speaker_high"
+addr = "7E:012F"
+page = "field"
+subsystem = "field"
+meaning = "The byte after dialog_speaker, which $C0:1FDD reads with it as a word (16-bit X): the field's start clears it ($C0:0BD8) and nothing else writes it"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_screen_job"
+addr = "7E:0139"
+page = "field"
+subsystem = "field"
+meaning = "The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_built_sprite_object"
+addr = "7E:01AE"
+page = "field"
+subsystem = "field"
+meaning = "The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables' first) takes the link's high byte, 0"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_sprite_data_tables"
+addr = "7E:01AF"
+page = "field"
+size = 3
+count = 4
+stride = 3
+index = "table"
+subsystem = "field"
+meaning = "Long pointers to the four tables in bank $E4 the commands that load an object's sprite read its entries from ($C0:448D-$C0:4830: the character loads at $C0:421E, events $81-$83); the field's start points them where the words at $E4:FFE0 say"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_map_has_no_bg3_set"
+addr = "7E:01BB"
+page = "field"
+subsystem = "field"
+meaning = "Set when the map names no tile set for BG3 ($FF, $C0:6E22): the setup loads none ($C0:0A14, $C0:0AD3) and the windows leave BG3 alone ($C0:A429)"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_battle_song"
+addr = "7E:01FA"
+page = "field"
+subsystem = "field"
+meaning = "The song a battle on the field plays as it starts ($C0:1BAB, which the battle's setup calls at $D1:F405), unless the event keeps the field's ($7E:2A1F bit 6); $45 from the field's start"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_bg3_map_size"
+addr = "7E:0BE9"
+subsystem = "field"
+meaning = "Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of its own; the scene program sets it ($7E:30E6) and the field's start clears it"
+source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
 name = "field_switch_sound"
 addr = "7E:01FC"
 page = "field"
@@ -14473,8 +14543,106 @@ source = "game/battle/effect_work.c ($C1:D7CA); game/battle/effect_amounts.c ($C
 name = "battle_steal_outcome"
 addr = "7E:B3BF"
 subsystem = "battle"
-meaning = "How the last steal came out: 0 or counted up for an item taken, $FE a miss, $FF nothing to take"
-source = "game/battle/effect_modifiers.c ($C1:E9D5)"
+meaning = "How the last steal came out, which the member's turn shows ($C1:BC21): 0 nothing tried, 1 an item taken to the inventory, 3 one kept for the party member ($FD:B710), $FE a miss, $FF nothing to take"
+source = "game/battle/effect_steal.c ($C1:E9D5, $FD:B655)"
+
+[[var]]
+name = "battle_tech_members"
+addr = "7E:B2EA"
+count = 3
+index = "the member's part in the tech"
+reuses = "battle_action_further_ids"
+subsystem = "battle"
+meaning = "The characters who perform the party's tech, from its record's members ($CC:249F), $FF past them: the member who chose it first"
+source = "game/battle/party_work.c ($C1:D55B)"
+
+[[var]]
+name = "battle_tech_members_place"
+addr = "7E:B2C1"
+size = 2
+subsystem = "battle"
+meaning = "The tech's members' record's offset among the records (the members' number times 3), where the party's working out finds them"
+source = "game/battle/party_work.c ($C1:D555)"
+
+[[var]]
+name = "battle_tech_performer"
+addr = "7E:B2CB"
+subsystem = "battle"
+meaning = "The battle slot of the member whose part of the party's tech is being worked out"
+source = "game/battle/party_work.c ($C1:D60F)"
+
+[[var]]
+name = "battle_tech_blocked"
+addr = "7E:B3C8"
+reuses = "battle_action_message_high"
+subsystem = "battle"
+meaning = "$FF where a member of the party's tech can't take part in it (kept from techs, or short of the MP for their part), 0 where all can; the member's turn then does nothing ($C1:BBDC)"
+source = "game/battle/party_work.c ($C1:D74F)"
+
+[[var]]
+name = "battle_action_goes_ahead"
+addr = "7E:B3C9"
+subsystem = "battle"
+meaning = "Bit 7: the party member's action goes ahead even where a member of its tech can't take part, as where a status picks the action ($FD:AB67, $FD:AB93); otherwise from the member's command ($C1:BA4E)"
+source = "game/battle/party_work.c ($C1:D57A)"
+
+[[var]]
+name = "battle_member_accessory"
+addr = "7E:B3BA"
+count = 3
+index = "battle slot of a party member"
+subsystem = "battle"
+meaning = "The accessory each party member wears, kept as the battle starts ($FD:AE99): two of them cut what a tech's part costs in MP"
+source = "game/battle/party_work.c ($C1:D789)"
+
+[[var]]
+name = "battle_member_kept_item"
+addr = "7E:A0B8"
+count = 3
+stride = 8
+index = "battle slot of a party member"
+subsystem = "battle"
+meaning = "An item a party member stole that the battle keeps apart from the inventory (one from $BC whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at $7E:1580 ($CF:FAE2)"
+source = "game/battle/effect_steal.c ($FD:B6EA)"
+  [[var.field]]
+  name = "id"
+  offset = 0
+  meaning = "Which item"
+  [[var.field]]
+  name = "detail"
+  offset = 1
+  meaning = "The item's byte of the table at $CC:1BB5"
+  [[var.field]]
+  name = "kind"
+  offset = 2
+  meaning = "The low seven bits of the item's record's first byte ($CC:0ABC)"
+  [[var.field]]
+  name = "held"
+  offset = 3
+  meaning = "How many are held: 1"
+
+[[var]]
+name = "battle_inventory_item"
+addr = "7E:AEF7"
+size = 2
+subsystem = "battle"
+meaning = "The item the battle's inventory routines are adding or looking for"
+source = "game/battle/inventory.c ($C1:D005)"
+
+[[var]]
+name = "battle_inventory_free_place"
+addr = "7E:AEF9"
+size = 2
+subsystem = "battle"
+meaning = "The first empty place of the inventory the battle's search for an item passed, where an item not held goes"
+source = "game/battle/inventory.c ($C1:D010)"
+
+[[var]]
+name = "battle_inventory_free_seen"
+addr = "7E:AEFB"
+subsystem = "battle"
+meaning = "Set once the battle's search for an item has passed an empty place of the inventory"
+source = "game/battle/inventory.c ($C1:D023)"
 
 [[var]]
 name = "battle_timer_runs_left"
@@ -14483,6 +14651,7 @@ size = 11
 count = 13
 stride = 11
 index = "kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot"
+unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "How many more times each combatant's status timer runs out before the status wears off (or, for magic regained, before it regains): counted down, and set back to 10 when it gets there"
 source = "game/battle/status_timers.c, the kinds' handlers ($C1:8876-$C1:8C08)"
@@ -14490,8 +14659,11 @@ source = "game/battle/status_timers.c, the kinds' handlers ($C1:8876-$C1:8C08)"
 [[var]]
 name = "battle_timer_lengths"
 addr = "7E:B0D4"
-count = 132
-index = "timer kind (0-11) * 11 + battle slot"
+size = 11
+count = 12
+stride = 11
+index = "kind of timer (0-11, the timed statuses); a byte a battle slot"
+unchecked = "a status's timer found run out at the order's empty place ($FF) is seen to for that slot, past the kind's row, as the original's handlers do (game/battle/status_timers.c)"
 subsystem = "battle"
 meaning = "How long each combatant's status timers run once a status starts them; the turn's are battle_turn_wait"
 source = "game/battle/effect_statuses.c ($C1:E006)"
