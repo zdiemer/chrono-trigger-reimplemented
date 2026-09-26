@@ -7502,7 +7502,8 @@ enum { BATTLE_PARTY_MAX_HP_KEPT_COUNT = 3 };   /* by party member */
 uint16_t battle_party_max_hp_kept(const GameState *g, unsigned member);
 void set_battle_party_max_hp_kept(GameState *g, unsigned member, uint16_t v);
 
-/* The limit the battle's last random draw was asked for, left in its cell */
+/* The limit the battle's last random draw was asked for, left in its cell; a party tech's stop
+ * after a miss reads it for tech $1B (game/battle/party_work.c stops_after_miss) */
 uint8_t battle_random_limit(const GameState *g);
 void set_battle_random_limit(GameState *g, uint8_t v);
 
