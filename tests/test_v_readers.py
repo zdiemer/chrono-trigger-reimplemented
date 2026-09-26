@@ -2,8 +2,9 @@
 hint the liveness analysis leans on is tied to the disassembly by a test).
 
 Each must sit on the dispatch its bound is argued from -- ASL A with an 8-bit
-A, TAX, JSR or JMP (abs,X), nothing jumping past the ASL -- and every word it
-reaches must be code the analysis traced (tools/v_readers.py). Skipped without
+A, TAX, JSR or JMP (abs,X), nothing jumping past the ASL, A's high byte known
+clear at the ASL -- and every word it reaches must be code the analysis traced
+(tools/v_readers.py). Skipped without
 the ROM; tests/test_dontcare_check.py exercises the same checks on a fake one."""
 import unittest
 
@@ -16,13 +17,18 @@ ROM = v_readers.ROOT / "roms" / "ct-usa.sfc"
 class IndexReachHints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.an, _ = v_readers.analysis(ROM, v_readers.ROOT / "re" / "hints.toml")
+        cls.an, dynamic_calls = v_readers.analysis(ROM, v_readers.ROOT / "re" / "hints.toml")
+        cls.lv, cls.findings = v_readers.solve(cls.an, dynamic_calls)
 
     def test_there_are_hints(self):
         self.assertTrue(self.an.hints.index_reach)
 
     def test_each_sits_on_its_dispatch(self):
         self.assertEqual(v_readers.dispatch_findings(self.an), [])
+
+    def test_the_high_byte_is_known_clear(self):
+        self.assertEqual(v_readers.high_byte_findings(self.an, self.lv), [])
+        self.assertEqual(self.findings, [])
 
     def test_every_word_reached_is_traced_code(self):
         targets, problems = v_readers.bounded_targets(self.an)

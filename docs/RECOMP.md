@@ -6953,32 +6953,34 @@ the code after reaches whose byte isn't put back by `PLP` (the sound driver's,
 the code, and the work-outs declare V don't-care (`DC_V`) on that; but the
 strict solve the call-outs are held to gives up at the jump tables the
 animation scripts (`$C1:75D1`, `$C1:7633`) and the enemies' scripts
-(`$C1:874E` and three more) dispatch through, whose targets come from data,
-and a fuzz run can't settle it (the showing waits on frames past any budget).
-Two new pieces of evidence do. `tools/v_readers.py` solves liveness as
-strictly, but follows each of those tables to every word its dispatch can
-index: each is `ASL A` on an 8-bit A, `TAX` and the dispatch, which the tool
-checks (and `tests/test_v_readers.py` against the ROM), so where A's high byte
-is clear X is at most `$FE`, 128 words, each code the analysis traced. The
-bound is an `index_reach` hint on each table in `re/hints.toml`; the clear high
-byte isn't something the analysis can see (a `TDC` comes just before only
-`$C1:874E`'s and `$C1:B006`'s load; `$C1:8769` and `$C1:B021` rely on the one
-before the dispatch above them, and the animation tables on the script loop's
-at `$C1:75C8`), so `ct_dev --index-check` records X at the six dispatches over
-the library on the interpreter alone: never past `$FE` (135,811 runs, the largest X `$7E`; `$C1:B021` is
-never reached and `$C1:8769` once). With
-the bound, V is dead into all three callees and after the work-outs and the
-enemy's turn return. `ct_dev --poison-site` inverts V at a call-out's own site
-in the shipping mode; the library with it at the three declarations' sites
-(the step's six, the showing's and what follows the action's) traces the same
-as without in every movie, the picture included, but for the stack's page,
-where the inverted flag the callees push lies after they pull it
-(7,237 calls with V inverted: 441 into the showing, 356 into the step and
-6,440 into what follows the action). The three call-outs declare V don't-care
-with a `dc-evidence:` note naming both, which `tools/dontcare_check.py` reads
-and re-checks (PORTING.md, "Declarations liveness can't prove");
-`tools/dc_evidence.py` makes the runs again and says where a note's count has
-gone stale. The work computes no overflow.
+(`$C1:874E`, `$C1:B006`) dispatch through, whose targets come from data, and a
+fuzz run can't settle it (the showing waits on frames past any budget). Two
+new pieces of evidence do. `tools/v_readers.py` solves liveness as strictly,
+but follows each of those four tables to every word its dispatch can index:
+each is `ASL A` on an 8-bit A, `TAX` and the dispatch, with nothing jumping
+past the `ASL`, so where A's high byte is clear X is at most `$FE`, 128 words,
+each code the analysis traced. The bound is an `index_reach` hint on each
+table in `re/hints.toml`, and the tool checks every part of it, A's high byte
+too: `tools/disasm/high_byte.py` follows it through every path and call the
+analysis traced, and has it clear at all four `ASL`s, resting only on D's
+high byte being zero at the `TDC`s that clear it (the battle's direct page is
+`$0000`). `tests/test_v_readers.py` holds the hints to the ROM. The two
+condition dispatches after the first (`$C1:8769`, `$C1:B021`) carry no bound:
+44 of the routines the first's words reach return with A's high byte unknown,
+and V is dead into the three callees without them. `ct_dev --index-check`
+records X at the four dispatches over the library on the interpreter alone:
+never past `$FE` (135,810 runs, the largest X `$7E`). With the bound, V is dead
+into all three callees. `ct_dev --poison-site` inverts V at a call-out's own
+site in the shipping mode; the library with it at the three declarations'
+sites traces the same as without in every movie, the picture included, but
+for the stack's page, where the inverted flag the callees push lies after they
+pull it. Per site: 441 calls into the showing, 6,440 into what follows the
+action, and of the step's six sites 285 from the menu's (`$C1:856D`) and 4 to
+32 from the other five, which rest on the static result alone. The three
+call-outs declare V don't-care with a `dc-evidence:` note naming both and the
+per-site counts, which `tools/dontcare_check.py` reads and re-checks
+(PORTING.md, "Declarations liveness can't prove"); `tools/dc_evidence.py`
+makes the runs again. The work computes no overflow.
 
 **What it found.** The drain reads its stat's offset as a word from the cell
 its kind is handed in; a modifier that fells its target outright marks it by

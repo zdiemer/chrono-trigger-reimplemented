@@ -18,9 +18,11 @@ hint (re/hints.toml) this check follows instead every target the table's
 index can reach, argued from the dispatch alone (what the table can hold, not
 what the game's data picks), and solves liveness strictly otherwise. The
 dispatch must be ASL A (8-bit), TAX, JSR or JMP (abs,X), with nothing jumping
-past the ASL (dispatch_findings), and A's high byte clear there, which the
-hint argues and `ct_dev --index-check` shows over the library
-(tools/dc_evidence.py runs it): V is dead into a routine when that solve
+past the ASL (dispatch_findings), and A's high byte known clear at the ASL
+(high_byte_findings, tools/disasm/high_byte.py: every path to it clears it,
+a TDC on the battle's direct page $0000 or a 16-bit load of a small number,
+and nothing after sets it), which `ct_dev --index-check` also shows over the
+library (tools/dc_evidence.py runs it): V is dead into a routine when that solve
 has it so. For each routine named it says whether V is dead into it (and for
 each --after, whether V is dead after the routine returns, to any of its
 callers), and with
@@ -132,12 +134,34 @@ def bounded_targets(an) -> tuple:
     return out, findings
 
 
+def high_byte_findings(an, lv) -> list:
+    """Each `index_reach` dispatch whose A high byte the analysis can't show
+    clear at the ASL (tools/disasm/high_byte.py), with why: the byte TAX
+    carries into X, so the bound holds only where it is. A TDC is taken to
+    clear it (D's high byte is zero there: the battle's direct page is $0000,
+    which its ports' guards check), and `ct_dev --index-check` backs that over
+    the library."""
+    from tools.disasm.high_byte import HighByte, Z
+    hb = HighByte(an, lv, d_high_zero=True)
+    hb.solve()
+    out = []
+    for pc in sorted(an.hints.index_reach):
+        v = hb.at(pc - 2)
+        if v is None or v[0] != Z:
+            why = hb.why_not(pc - 2) if v is not None else ["nothing the analysis traced reaches it"]
+            out.append(f"${pc >> 16:02X}:{pc & 0xFFFF:04X}: A's high byte isn't known clear at the ASL: "
+                       + "; ".join(why))
+    return out
+
+
 def solve(an, dynamic_calls: dict) -> tuple:
-    """(liveness solved strictly with the `index_reach` tables followed, findings)."""
+    """(liveness solved strictly with the `index_reach` tables followed, findings):
+    the findings say where a bound isn't what its hint argues (the dispatch's
+    shape, A's high byte, a word that isn't traced code)."""
     bounded, findings = bounded_targets(an)
     lv = Liveness(an, dynamic_calls, strict=True, bounded=bounded)
     lv.solve()
-    return lv, findings
+    return lv, findings + high_byte_findings(an, lv)
 
 
 def v_dead_into(lv, target: int) -> bool:

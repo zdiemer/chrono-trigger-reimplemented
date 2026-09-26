@@ -418,10 +418,18 @@ rest waits, is [PLAN.md](PLAN.md).
     address alone, not by the widths the dispatch enters them with;
   - an interrupt handler reads the interrupted code's P from the stack, which
     neither `tools/v_readers.py` nor the run looks for;
-  - A's high byte at a bounded dispatch is argued in the hint and shown by
-    `ct_dev --index-check`, not proven: tracking "A's high byte known zero" in
-    the analysis and requiring it at each `index_reach` dispatch would make it
-    static.
+  - `tools/disasm/high_byte.py` takes a `TDC` to clear A's high byte, which
+    rests on D's high byte being zero there (the battle's direct page
+    `$0000`); following D itself through the program (it is unknown at every
+    vector, and `PHD`/`PLD` only pair within a routine) would make that static
+    too. `ct_dev --index-check` shows it over the library meanwhile.
+  - The enemies' condition dispatches after the first (`$C1:8769`,
+    `$C1:B021`) have no `index_reach`: A's high byte there is whatever the
+    dispatch above them returns with, and 44 of the routines its 128 words
+    reach return with it unknown (`$C1:925D` ... `$C1:AA25`;
+    `tools/v_readers.py`'s `high_byte_findings` lists them). The evidence
+    doesn't need them today; a later note that does will want those routines'
+    returns shown to clear it, or a guard at the dispatch.
 
 - **Stops and entries don't get the strict solve yet.** The don't-care check
   holds call-outs to liveness that trusts no target set the machine picks at

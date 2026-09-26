@@ -690,9 +690,12 @@ count = 219
 # four of its handlers, and $1F, which reads past the table (index * 2 with an
 # 8-bit ASL): the word at C1:79DF, entry 6 of the C1:79D3 table, C1:7639.
 # index_reach (tools/v_readers.py): whatever the byte, ASL A (8-bit) and TAX
-# make X at most $FE where A's high byte is clear, which the script loop's TDC
-# at C1:75C8 leaves it after every command (ct_dev --index-check shows it over
-# the library): 128 words, the rest the next tables' entries.
+# make X at most $FE where A's high byte is clear: 128 words, the rest the next
+# tables' entries. The high byte is clear at the ASL on every path the analysis
+# traced (tools/disasm/high_byte.py, through the three callers C1:6001,
+# C1:6024 and C1:6048); that rests on D's high byte being zero at the TDCs that
+# clear it (the battle's direct page is $0000), and ct_dev --index-check shows
+# X at most $FE there over the library.
 [[jumptable]]
 at = "C1:75D1"
 count = 25
@@ -705,7 +708,8 @@ index_reach = 128
 # the table ends where the C1:7A63 table (C1:4328) begins. Derived from every
 # animation script the parse reaches: 67 of the 72 indices, and $80, which the
 # 8-bit ASL makes entry 0.
-# index_reach: as C1:75D1's, the same dispatch (C1:762E).
+# index_reach: as C1:75D1's, the same dispatch (C1:762E), every caller's B
+# clear by the same analysis on the same TDCs.
 [[jumptable]]
 at = "C1:7633"
 count = 72
@@ -726,11 +730,17 @@ count = 13
 # (C1:8CE7) begins. Derived: the condition bytes the four sites dispatch when
 # every enemy's script is read as the evaluators read it
 # (tools/disasm/battlescript.py), 26 of the 41, none above $26.
-# index_reach (tools/v_readers.py): each loads the byte into an 8-bit A, then
-# ASL A and TAX, so X is at most $FE where A's high byte is clear: a TDC comes
-# just before C1:874E's and C1:B006's load; C1:8769's and C1:B021's rely on the
-# one before the dispatch above them, which ct_dev --index-check shows holds
-# over the library. 128 words, the rest the following tables' entries.
+# index_reach (tools/v_readers.py) on C1:874E and C1:B006: each loads the byte
+# into an 8-bit A, then ASL A and TAX, so X is at most $FE where A's high byte
+# is clear: 128 words, the rest the following tables' entries. A TDC comes just
+# before each load (C1:8746, C1:AFF9) with nothing between that sets the high
+# byte (tools/disasm/high_byte.py), resting on D's high byte being zero there
+# (the battle's direct page is $0000); ct_dev --index-check also shows it.
+# C1:8769 and C1:B021 have none: they follow the dispatch above them, and 44 of
+# the routines its 128 words reach return with A's high byte unknown (C1:925D,
+# C1:92A3, C1:9314 ... C1:AA25; tools/v_readers.py's high_byte_findings lists
+# them), and the evidence doesn't need them: V is dead into the showing, the
+# step and what follows an action with the two left to the strict solve.
 [[jumptable]]
 at = "C1:874E"
 count = 41
@@ -740,7 +750,6 @@ index_reach = 128
 at = "C1:8769"
 count = 41
 derive = "enemyai.conditions"
-index_reach = 128
 [[jumptable]]
 at = "C1:B006"
 count = 41
@@ -750,7 +759,6 @@ index_reach = 128
 at = "C1:B021"
 count = 41
 derive = "enemyai.conditions"
-index_reach = 128
 
 # C1:8CE7, table C1:B85F: Negative command bytes branch away (C1:8CE3); the
 # table ends where the C1:B88D table (C1:8D88) begins.

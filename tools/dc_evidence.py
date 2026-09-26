@@ -16,9 +16,11 @@ time someone made them. This makes them again:
   `ct_dev --index-check` at every dispatch an `index_reach` hint bounds
   (re/hints.toml), whose X must never be past $FE.
 
-It prints each note with the count it cites and the count the run made, and
-exits 1 where a trace differs, an index is past $FE, or a note's count isn't
-what the run made (a stale note: update it to the count printed).
+It prints each note's sites with the count it cites and the count the run made,
+and exits 1 where a trace differs, an index is past $FE, a bounded dispatch
+never ran (unexercised: the run shows nothing for it), or a site had V inverted
+fewer than 100 times, unless the note rests such sites on the static result
+and another of its sites made 100 (update a note's counts to the ones printed).
 """
 
 import argparse
@@ -34,7 +36,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.dontcare_check import V_EVIDENCE  # noqa: E402
+from tools.dontcare_check import MIN_SCRAMBLED, V_EVIDENCE, v_evidence_counts  # noqa: E402
 from tools.suite import collect  # noqa: E402
 
 STACK_PAGE = "$7E:0600-06FF"
@@ -43,14 +45,15 @@ INDEX = re.compile(r"^index-check: ([0-9A-F]{6}) runs (\d+), largest X \$([0-9A-
 
 
 def notes(root: pathlib.Path) -> list:
-    """(file, target, sites, cited count) of every tools/v_readers.py note in game/."""
+    """(file, target, site -> cited count, whether the note rests a site under
+    MIN_SCRAMBLED on the static result) of every tools/v_readers.py note in game/."""
     out = []
-    for path in sorted((root / "game").rglob("*.c")):
+    for path in sorted((root / "game").rglob("*.[ch]")):
         text = path.read_text(encoding="utf-8")
         flat = " ".join(re.sub(r"/\*|\*/|//|^\s*\*|\s\*\s", " ", text, flags=re.M).split())
         for m in V_EVIDENCE.finditer(flat):
-            out.append((path.relative_to(root).as_posix(), m.group("target"),
-                        [int(x, 16) for x in m.group("sites").split()], int(m.group("inverted"))))
+            out.append((path.relative_to(root).as_posix(), m.group("target"), v_evidence_counts(m),
+                        bool(m.group("static"))))
     return out
 
 
@@ -97,7 +100,7 @@ def main(argv=None) -> int:
     if not found:
         print("no tools/v_readers.py dc-evidence notes in game/")
         return 0
-    sites = sorted({s for _, _, ss, _ in found for s in ss})
+    sites = sorted({s for _, _, counts, _ in found for s in counts})
     dispatches = index_sites(ROOT)
     out = args.out or pathlib.Path(tempfile.mkdtemp(prefix="dc_evidence-"))
     out.mkdir(parents=True, exist_ok=True)
@@ -121,14 +124,18 @@ def main(argv=None) -> int:
             print(f"{name}: {'same' if same else 'DIFFERS'}{' (a run failed: ' + ', '.join(failed) + ')' if failed else ''}"
                   f": {tail}", flush=True)
     for d, (runs, largest, over) in sorted(index.items()):
-        print(f"index ${d >> 16:02X}:{d & 0xFFFF:04X}: {runs} runs, largest X ${largest:04X}, past $FE {over}")
-        bad += over != 0
-    for path, target, ss, cited in found:
-        made = sum(inverted.get(s, 0) for s in ss)
-        stale = made != cited
-        bad += stale and not args.movies
-        print(f"{path}: {target}: cites {cited} calls with V inverted, the run made {made}"
-              + ("  <-- stale" if stale else ""))
+        unexercised = runs == 0
+        print(f"index ${d >> 16:02X}:{d & 0xFFFF:04X}: {runs} runs, largest X ${largest:04X}, past $FE {over}"
+              + ("  <-- unexercised" if unexercised else "") + ("  <-- past $FE" if over else ""))
+        bad += over != 0 or (unexercised and not args.movies)
+    for path, target, counts, static in found:
+        made = {s: inverted.get(s, 0) for s in counts}
+        short = [s for s, n in made.items() if n < MIN_SCRAMBLED]
+        ok = not short or (static and any(n >= MIN_SCRAMBLED for n in made.values()))
+        bad += not ok and not args.movies
+        print(f"{path}: {target}: " + ", ".join(f"{s:06X} cites {counts[s]}, made {made[s]}" for s in counts)
+              + ("" if ok else f"  <-- under {MIN_SCRAMBLED} at " + ", ".join(f"{s:06X}" for s in short)
+                 + ("" if static else " (and the note doesn't rest them on the static result)")))
     if not args.out:
         shutil.rmtree(out, ignore_errors=True)
     print("dc_evidence: " + ("OK" if not bad else f"{bad} problem(s)"))

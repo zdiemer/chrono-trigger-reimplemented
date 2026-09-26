@@ -128,11 +128,14 @@ static bool step(Snes *s, uint32_t site, uint8_t number)
     m_set_a8(s, number);
     /* the overflow flag the step saves with the flags across its frame waits
      * is read by nothing after. The static result, V dead into $C1:0003, is
-     * what carries every site; the run covers the ones the library reaches
-     * (dc-evidence: tools/v_readers.py C1:0003: V dead, its tables' indexes at
-     * most $FE; ct_dev --poison-site C1802D C18151 C18161 C18188 C1856D C1AC7E
-     * --poison-set V over the library: 356 calls with V inverted, 0
-     * differing) */
+     * the proof at every site; the run exercises the menu's ($C1:856D), and
+     * the other five, which the library reaches fewer than 100 times, rest on
+     * the static result alone (dc-evidence:
+     * tools/v_readers.py C1:0003: V dead, its tables' indexes at most $FE (A's
+     * high byte known clear, on the battle's direct page $0000); ct_dev
+     * --poison-set V at each site over the library, calls with V inverted:
+     * C1802D 20, C18151 32, C18161 4, C18188 11, C1856D 285,
+     * C1AC7E 4; 0 differing; a site under 100 rests on the static result) */
     return battle_call(s, site, BATTLE_STEP, READS_A);
 }
 
@@ -966,8 +969,9 @@ static bool after_action(Snes *s, bool skip_to_end)
         set_battle_last_actor(g, battle_actor(g));
         /* the overflow flag an enemy's action worked out leaves is read by
          * nothing after (dc-evidence: tools/v_readers.py C1:B762: V dead, its
-         * tables' indexes at most $FE; ct_dev --poison-site C1863D --poison-set
-         * V over the library: 6440 calls with V inverted, 0 differing) */
+         * tables' indexes at most $FE (A's high byte known clear, on the
+         * battle's direct page $0000); ct_dev --poison-set V at each site over
+         * the library, calls with V inverted: C1863D 6440; 0 differing) */
         if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
             return false;
         uint8_t actor = battle_last_actor(g);

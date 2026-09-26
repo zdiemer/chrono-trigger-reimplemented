@@ -63,15 +63,18 @@ as their dispatch can reach, and a run of the library that inverted the flag at
 the call itself:
 
     /* dc-evidence: tools/v_readers.py BB:AAAA: V dead, its tables' indexes at
-       most $FE; ct_dev --poison-site SITE... --poison-set V over the library:
-       M calls with V inverted, 0 differing */
+       most $FE; ct_dev --poison-set V at each site over the library, calls with
+       V inverted: BBAAAA N, BBAAAA N; 0 differing[; a site under 100 rests on
+       the static result] */
 
 The check then runs tools/v_readers.py's solve itself: the callee must be the
 call's target and have V dead into it there, every `index_reach` dispatch must
-be the shape its bound is argued from and every word it reaches traced code;
-the call's own site must be among the sites named, V among the set, and the
-run must have inverted V at least MIN_SCRAMBLED times with every trace the same
-as the unscrambled run's. tools/dc_evidence.py makes the run, with ct_dev
+be the shape its bound is argued from, with A's high byte known clear at it,
+and every word it reaches traced code; the call's own site must be among the
+sites the note counts, V among the set, every trace the same as the
+unscrambled run's, and the call's own site must have had V inverted at least
+MIN_SCRAMBLED times -- or, where the note says a site under that rests on the
+static result, some site of the note must have. tools/dc_evidence.py makes the run, with ct_dev
 --index-check over the same library for the indexes, and says where a note's
 counts no longer hold (docs/PORTING.md, "Declarations liveness can't prove").
 
@@ -143,10 +146,20 @@ MIN_SCRAMBLED = 100
 # The other form: the overflow flag, by tools/v_readers.py and a library run.
 V_EVIDENCE = re.compile(
     r"dc-evidence:\s*tools/v_readers\.py\s+(?P<target>[0-9A-Fa-f]{2}:[0-9A-Fa-f]{4}):\s*V\s+dead,"
-    r"\s*its\s+tables'\s+indexes\s+at\s+most\s+\$FE;"
-    r"\s*ct_dev\s+--poison-site\s+(?P<sites>[0-9A-Fa-f]{6}(?:\s+[0-9A-Fa-f]{6})*)"
-    r"\s+--poison-set\s+(?P<set>[AXYNVZC]+)\s+over\s+the\s+library:"
-    r"\s*(?P<inverted>\d+)\s+calls\s+with\s+V\s+inverted,\s*(?P<differing>\d+)\s+differing\b")
+    r"\s*its\s+tables'\s+indexes\s+at\s+most\s+\$FE(?:\s*\([^)]*\))?;"
+    r"\s*ct_dev\s+--poison-set\s+(?P<set>[AXYNVZC]+)\s+at\s+each\s+site\s+over\s+the\s+library,"
+    r"\s*calls\s+with\s+V\s+inverted:\s*(?P<counts>[0-9A-Fa-f]{6}\s+\d+(?:\s*,\s*[0-9A-Fa-f]{6}\s+\d+)*);"
+    r"\s*(?P<differing>\d+)\s+differing"
+    r"(?P<static>;\s*a\s+site\s+under\s+100\s+rests\s+on\s+the\s+static\s+result)?")
+
+
+def v_evidence_counts(m) -> dict:
+    """site -> calls with V inverted, from a tools/v_readers.py note."""
+    out = {}
+    for part in m.group("counts").split(","):
+        site, count = part.split()
+        out[int(site, 16)] = int(count)
+    return out
 
 
 class Unreadable(Exception):
@@ -1007,15 +1020,19 @@ def v_evidence_problem(m, d, target: int, unproven: int, bounded) -> str | None:
     named = int(m.group("target").replace(":", ""), 16)
     if named != target:
         return f"its dc-evidence names {fmt(named)}, not the call's target {fmt(target)}"
-    sites = {int(x, 16) for x in m.group("sites").split()}
-    if d.site not in sites:
+    counts = v_evidence_counts(m)
+    if d.site not in counts:
         return f"its dc-evidence run didn't poison the call's own site {fmt(d.site)}"
     if "V" not in m.group("set"):
         return "its dc-evidence run's --poison-set leaves V alone"
     if int(m.group("differing")):
         return f"its dc-evidence run had {m.group('differing')} trace(s) differing"
-    if int(m.group("inverted")) < MIN_SCRAMBLED:
-        return f"its dc-evidence run inverted V {m.group('inverted')} times, fewer than {MIN_SCRAMBLED}"
+    if counts[d.site] < MIN_SCRAMBLED:
+        if not m.group("static"):
+            return (f"its dc-evidence run inverted V {counts[d.site]} times at {fmt(d.site)}, fewer than "
+                    f"{MIN_SCRAMBLED}, and the note doesn't rest that site on the static result")
+        if max(counts.values()) < MIN_SCRAMBLED:
+            return f"its dc-evidence run inverted V at no site of the note {MIN_SCRAMBLED} times"
     lv, problems = bounded()
     if problems:
         return "tools/v_readers.py can't bound its tables: " + "; ".join(problems)
