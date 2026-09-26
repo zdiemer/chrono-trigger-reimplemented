@@ -60,6 +60,7 @@ static const PfSnesEncoding encodings[] = {
     /* ---- The field ---- */
     { 0xC0ECA5, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the sprite table */
     { 0xC0B1BC, 0, 0, 7, WORDS, STEPS(D, C, SB), 0x7F0000 },   /* the VRAM queue: its channel, from bank $7F */
+    { 0xC0E19A, 0, 0, 7, WORDS, STEPS(P, D, C, SB, TL, TH, SL, SH, ZL, ZH, GO), 0 },   /* a 24-sprite figure's tiles */
     { 0xC0B1D7, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, ZL, ZH, GO), 0 },
     { 0xC0B1EB, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, ZL, ZH, GO), 0 },
     /* the layers' edge runs, $C0:8445-$C0:87BF, a part each */

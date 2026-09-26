@@ -917,13 +917,14 @@ static uint8_t pixel_toward(uint8_t leader_on_screen, uint8_t middle)
     return leader_on_screen >= middle ? A_PIXEL_FORWARD : A_PIXEL_BACK;
 }
 
+/* No recentring under way. */
+void screen_counts_as_recentred(GameState *g) { set_field_screen_recentring(g, RECENTRED); }
+
 // $C0:885A
 /* While a script has the screen scroll back onto the 16-pixel grid (before a
  * tile copy), the party holds still and the screen moves a pixel a frame on
  * each axis where it is off the grid, toward the leader, until it is on it.
  * True where the screen moves this frame. */
-void screen_counts_as_recentred(GameState *g) { set_field_screen_recentring(g, RECENTRED); }
-
 bool screen_recentres(GameState *g)
 {
     FieldObject leader = field_linked_object(party_member_link(g, PARTY_LEADER));
@@ -938,7 +939,7 @@ bool screen_recentres(GameState *g)
                                      off_x == 0 ? 0 : pixel_toward(leader_on_screen(g, leader, AXIS_X), SCREEN_MIDDLE_X));
         set_field_screen_scroll_step(g, AXIS_Y, 0);
         if (off_x == 0 && off_y == 0) {
-            set_field_screen_recentring(g, RECENTRED);
+            screen_counts_as_recentred(g);
             return false;
         }
         if (off_y != 0)
@@ -952,13 +953,13 @@ bool screen_recentres(GameState *g)
         if (off_y == 0) {
             set_field_screen_scroll_step(g, AXIS_Y, 0);
             if (off_x == 0) {
-                set_field_screen_recentring(g, RECENTRED);
+                screen_counts_as_recentred(g);
                 return false;
             }
         }
         return true;
     default:
-        set_field_screen_recentring(g, RECENTRED);
+        screen_counts_as_recentred(g);
         return false;
     }
 }

@@ -24,7 +24,13 @@
  * When the field comes back from a battle it puts each of the party and the
  * enemies back as they were: their tiles in VRAM still show the frame they
  * had, so that frame's sprites go straight onto their records, through the
- * same plans, with nothing drawn (object_put_drawn_frame_back). */
+ * same plans, with nothing drawn (object_put_drawn_frame_back).
+ *
+ * An object of the 24-sprite layout (a large figure a script loads) draws no
+ * frames through the queue: its one frame is drawn whole when it is loaded,
+ * and again when the field is set up after a menu, straight into its own
+ * place in VRAM, with its sprites' records laid out once
+ * (object_draw_whole_figure). */
 #include "field/frames.h"
 #include "field/field.h"
 #include "field/field_data.h"
@@ -32,6 +38,7 @@
 #include "field/object.h"
 #include "field/parts.h"
 #include "field/sprites.h"
+#include "platform/video.h"
 
 #include "charge.h"
 #include "cpu_io.h"
@@ -357,6 +364,63 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
     return FRAME_DRAWN;
 }
 
+/* ---- The 24-sprite figure ----------------------------------------------------------------- */
+
+/* The figure's 96 tiles, 24 sprites of four, drawn in bank $7F from the
+ * build place and sent to VRAM at word $0400 (tile $40), where its sprites
+ * show them: eight sprites a row of tiles, the rows 32 tiles apart. */
+enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_BUILD_PLACE = 0x3800,
+       FIGURE_VRAM = 0x0400, FIGURE_FIRST_TILE = 0x40, FIGURE_SPRITES_A_ROW = 8, FIGURE_ROW_TILES = 0x20,
+       SPRITE_TILE_STEP = 2, FIGURE_ATTRIBUTES = 0x22, FIGURE_FRAME = 0 };
+
+static FrameSprite figure_sprite(const GameState *g, uint32_t description, unsigned n)
+{
+    unsigned offsets = FIGURE_TILES * WORDS_A_TILE_NAME;
+    uint32_t at = description + offsets + n * OFFSET_BYTES;
+    return (FrameSprite){ (int8_t)field_frame_offset_byte(g, at + AXIS_X), (int8_t)field_frame_offset_byte(g, at + AXIS_Y),
+                          (uint8_t)(FIGURE_FIRST_TILE + (n / FIGURE_SPRITES_A_ROW) * FIGURE_ROW_TILES +
+                                    (n % FIGURE_SPRITES_A_ROW) * SPRITE_TILE_STEP),
+                          FIGURE_ATTRIBUTES };
+}
+
+/* For the original's code and shadow mode: the cells its drawing leaves --
+ * the set and the description it drew from, the count run down, the last
+ * tile's place and the Y its copy saved -- and the work RAM port past the
+ * last tile. */
+static void leave_figure(GameState *g, ObjectGraphics set, ObjectGraphics description)
+{
+    set_field_sprite_graphics_bank(g, set.bank);
+    set_field_sprite_graphics_address(g, set.address);
+    set_field_sprite_tile_bank(g, FIELD_BUILD_BANK);
+    set_field_frame_description_address(g, description.address);
+    set_field_frame_description_bank(g, description.bank);
+    set_field_frame_tiles_left(g, 0);
+    uint16_t last_at = (uint16_t)(FIGURE_BUILD_PLACE + (FIGURE_TILES - 1) * TILE_BYTES);
+    original_cell16(g, FIELD_SAVED_Y_CELL, (uint16_t)((FIGURE_TILES - 1) * WORDS_A_TILE_NAME));
+    set_field_sprite_tile_offset(g, last_at);
+    hw_port_seek(g, (uint16_t)(last_at + TILE_BYTES), FIELD_BUILD_BANK & 1);
+}
+
+// $C0:E12A
+/* Draw a 24-sprite figure's frame whole: its tiles from its graphics set as
+ * its description names them, sent at once to its place in VRAM, and each
+ * sprite's record laid out from the description's offsets. The figure shows
+ * frame 0, from the build place. */
+void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj)
+{
+    ObjectGraphics set = object_graphics(g, obj), description = object_frame_descriptions(g, obj);
+    uint32_t from = (uint32_t)description.bank << 16 | description.address;
+    set_field_object_frame_staging(g, obj, FIGURE_BUILD_PLACE);
+    object_set_frame_drawn(g, obj, FIGURE_FRAME);
+    for (unsigned t = 0; t < FIGURE_TILES; t++)
+        field_draw_frame_tile(g, set, tile_name(g, from, t), (uint16_t)(FIGURE_BUILD_PLACE + t * TILE_BYTES));
+    ORIGINAL_EFFECT(leave_figure(g, set, description));
+    vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME((uint32_t)FIELD_BUILD_BANK << 16 | FIGURE_BUILD_PLACE),
+                  FIGURE_TILES * TILE_BYTES, VID_VRAM_WORD_PORT);
+    for (unsigned n = 0; n < FIGURE_SPRITES; n++)
+        sprites_set_record_sprite(g, obj, n, figure_sprite(g, from, n));
+}
+
 // $C0:CB0A (and its layouts' $C0:CDC8, $C0:D124, $C0:DD28)
 /* Put the frame the object's tiles show straight onto its records, built,
  * with nothing drawn: where the field brings the party and the enemies back
@@ -418,6 +482,23 @@ void field_draw_next_frame(Snes *s)
     FrameBuild outcome = draw_next_frame(g, obj);
     m_set_flag(s, CPU_FLAG_V, field_frame_build_overflow(g, obj, outcome, before));
     m_set_flag(s, CPU_FLAG_C, outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS);
+    m_rts(s);
+}
+
+// $C0:E12A
+/* The current object, in X too. It returns with 16-bit index registers
+ * whatever it came with, as the original does. Of what it leaves, two are
+ * read after it: the overflow, which the last sum of the drawing (a tile's
+ * place in the build bank, well below $8000) leaves clear, and Y, at the
+ * description's last byte (the last sprite's Y offset). */
+enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
+
+void field_draw_whole_figure(Snes *s)
+{
+    object_draw_whole_figure(state_of(s), m_platform(s), (FieldObject)field_current_object_slot(s));
+    m_rep(s, CPU_FLAG_X);
+    m_set_flag(s, CPU_FLAG_V, false);
+    s->cpu.y = FIGURE_Y_AFTER;
     m_rts(s);
 }
 
@@ -501,6 +582,41 @@ bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj)
 {
     return object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
            sprites_records_in_the_tables(g, obj, object_sprite_layout(g, obj));
+}
+
+/* The figure's guard: the current object on the field's page with the data
+ * bank $00, the same object in X, its description in the ROM, its records
+ * inside their tables, and its graphics set in the ROM or built in bank $7F
+ * (as the figures the game loads are), each tile there inside the bank and
+ * clear of the build place the figure is drawn into. */
+static bool figure_tiles_clear(const GameState *g, FieldObject obj)
+{
+    ObjectGraphics set = object_graphics(g, obj), d = object_frame_descriptions(g, obj);
+    uint32_t description = (uint32_t)d.bank << 16 | d.address;
+    for (unsigned t = 0; t < FIGURE_TILES; t++) {
+        uint32_t start = set.address + (uint32_t)(tile_name(g, description, t) & FIELD_TILE_NUMBER) * TILE_BYTES;
+        uint32_t end = start + TILE_BYTES;
+        if (end > BANK_BYTES ||
+            !(end <= FIGURE_BUILD_PLACE || start >= FIGURE_BUILD_PLACE + (uint32_t)FIGURE_TILES * TILE_BYTES))
+            return false;
+    }
+    return true;
+}
+
+bool field_figure_can_be_drawn(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    uint8_t graphics = object_graphics(g, obj).bank;
+    bool ok = (s->cpu.x >> 1) == obj && !(s->cpu.x & 1) && object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
+              sprites_records_in_the_tables(g, obj, LAYOUT_24) &&
+              ((graphics >= FIRST_ROM_BANK && graphics != LAST_BANK) ||
+               (graphics == FIELD_BUILD_BANK && figure_tiles_clear(g, obj)));
+    vars_peek(false);
+    return ok;
 }
 
 bool field_frames_can_put(Snes *s)

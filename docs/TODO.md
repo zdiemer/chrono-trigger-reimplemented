@@ -1005,8 +1005,6 @@ below. `python3 tools/timing_census.py` re-runs the census.
     areas' and claim nothing read so far.
 - **What the frame builder left** (RECOMP.md, "Phase 3, field and events:
   the frame builder"):
-  - `$C0:E12A` (called from `$C0:0212` and `$C0:47E9`) is still the
-    original's;
   - a 12-sprite object holding a frame is never drawn and stays at the
     queue's head, so the queue spends the rest of its lines on it every
     frame; the port keeps that, and a native build without the scanline
@@ -1023,8 +1021,8 @@ below. `python3 tools/timing_census.py` re-runs the census.
 - **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
   - `$C0:0C76` hands the location change, a chest opened, the tile copy and
-    the battle to the original's code (`m_stop_at_own` at `$C0:0C8A` and
-    `$C0:1770`); the location change starts the field again on a fresh stack
+    the battle to the original's code (`m_stop_at_own` at `$C0:0C91`,
+    `$C0:0D3E` and `$C0:1770`); the location change starts the field again on a fresh stack
     (`TXS`, then `$C0:0000`), which a port can only hand back; a chest's
     opening would need A's high byte and the overflow the original has at
     `$C0:16DC`, which depend on the path into it, so it went with the stop
@@ -1043,6 +1041,14 @@ below. `python3 tools/timing_census.py` re-runs the census.
     pans it on the leader by reading the objects' screen X with the party's
     first two places as one index word); the port calls it and hands it A's
     high byte as the original has it (field/leaves.c).
+- **The line effects' tables past their size on fuzzed states.** Fuzzing
+  `field_build_line_effect_tables` and the window and wave builders over
+  random states reports the accessor out of range: a table built for a random
+  window or wave runs past its $57 bytes (`field_line_effect_tables`) into the
+  next, from byte $57 on. It predates the Phase 3 chunks (the same run of
+  chunk 10's build reports it) and matches the original, which writes there
+  too; no movie builds such a table. Bound the rows' window and wave cells
+  to what the game sets, or find what keeps a table within its size.
 - **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
   the map scrolling in"):
   - the rows BG1's and BG2's builders end with the second half of the map

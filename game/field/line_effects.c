@@ -61,7 +61,7 @@ typedef struct {
     uint16_t next;
 } TableWriter;
 
-static TableWriter table_of(uint8_t set, uint8_t slot) { return (TableWriter){ (unsigned)(set * SLOTS + slot), 0 }; }
+static TableWriter table_of(uint8_t set, FieldLineSlot slot) { return (TableWriter){ (unsigned)(set * SLOTS + slot), 0 }; }
 
 static void put(GameState *g, TableWriter *t, uint8_t lines, uint16_t values)
 {

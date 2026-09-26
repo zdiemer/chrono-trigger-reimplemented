@@ -168,14 +168,14 @@ void field_handle_requests(Snes *s)
         m_stop_at_own(s, THE_ORIGINALS_LOCATION_CHANGE, FIRST_DEAD);
         return;
     }
-    if (!asked(g, FIELD_REQUEST_MENUS) && asked(g, FIELD_REQUEST_OPEN_CHEST)) {
-        m_set_a8(s, field_requests(g));
-        m_stop_at_own(s, THE_ORIGINALS_CHEST, CHEST_DEAD);
-        return;
-    }
     if (asked(g, FIELD_REQUEST_MENUS)) {
         if (field_open_script_menu(s))
             m_rts(s);
+        return;
+    }
+    if (asked(g, FIELD_REQUEST_OPEN_CHEST)) {
+        m_set_a8(s, field_requests(g));
+        m_stop_at_own(s, THE_ORIGINALS_CHEST, CHEST_DEAD);
         return;
     }
     if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(s))

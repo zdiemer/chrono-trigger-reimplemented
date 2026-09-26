@@ -16,7 +16,7 @@
 
 /* A window's corner pair is two words at $1C02 + $40 * window and two at
  * $1C22 + $40 * window in VRAM. */
-enum { WINDOWS = 4, NO_WINDOW_SELECTED = FIELD_NO_WINDOW_MARKED };
+enum { WINDOWS = 4 };
 enum { CORNER_VRAM = 0x1C02, CORNER_TILE = 0x2902, SELECTED_TILE = 0x28FC, WINDOW_STRIDE = 0x40, SECOND_CORNER = 0x20 };
 
 typedef struct {
@@ -57,7 +57,7 @@ static const CornerSites marked_corners[WINDOWS][2] = {
     { { 0xC0F0B7, 0xC0F0BC, 0xC0F0BF }, { 0xC0F0C4, 0xC0F0C9, 0xC0F0CC } },
 };
 
-bool field_windows_need_refresh(const GameState *g) { return field_window_tile_slot(g) < NO_WINDOW_SELECTED; }
+bool field_windows_need_refresh(const GameState *g) { return field_window_tile_slot(g) < FIELD_NO_WINDOW_MARKED; }
 
 // $C0:F05E
 /* Refresh the four windows' corners: the selected window's marked, the rest
@@ -74,7 +74,7 @@ void field_refresh_corners(GameState *g, Platform *pf)
     if (selected < WINDOWS)
         write_window_corners(pf, selected, true, marked_corners[selected]);
     else
-        set_field_window_tile_slot(g, NO_WINDOW_SELECTED);
+        set_field_window_tile_slot(g, FIELD_NO_WINDOW_MARKED);
 }
 
 /* ---- Where it meets the original ------------------------------------------------------- */
