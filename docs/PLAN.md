@@ -54,10 +54,10 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 70% left | 0% |
-| Ports that read as source (`portstyle.py`) | 0.27 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 79% take a `Snes *` | entry wrappers only |
-| ROM reads by address | 117, in 22 files | 0, all through accessors |
+| ROM code reimplemented (`burndown.py`) | 44% left | 0% |
+| Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
+| Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
+| ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
 | SPC700 sound driver | reimplemented in C, identical to the original tick for tick (SOUND.md); the original still plays by default | the original deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
@@ -143,199 +143,66 @@ Nothing lands without it, and it is the same gate for every phase:
 - every don't-care declaration in `game/` is one liveness agrees with
   (`tools/dontcare_check.py`; RECOMP.md, "Before the bulk");
 - no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py`, a ratchet against its baseline; "Phase 3a" below);
+  (`tools/portstyle.py`, a ratchet against its baseline);
+- no port's logic reads what some port writes only as scaffolding where
+  none did before (`tools/effects_check.py`, a ratchet against its baseline;
+  PORTING.md, "Scaffolding");
+- no port carries one of the review rubric's mechanical smells where one
+  didn't before (`tools/portsmell.py`, a ratchet against its baseline);
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
 
-## Phase 3a: the transcription backlog
+## Phase 3a: what is left of the transcription backlog
 
-**This comes before converting any more generated code.** The ports written
-before the reimplementation bar existed are not decompilation: they move
-emulated registers about, spell the game's variables as addresses and follow
-the original's basic blocks. They pass the gate, so nothing is broken, and that
-is the trap -- the burndown counts them as ported, so the number that paces
-Phase 3 measures the distance to *native execution* while the goal is a
-*readable decompilation*. Every bank converted on top of them widens the gap.
+The rewrite of the ports written before the reimplementation bar is done:
+scene, event, field, menu, battle, core and sound are all at the bar and
+merged (docs/history/recomp-phase3a.md has each subsystem's account).
+**1 of 164 files, 117 of 44,076 lines, is left on the backlog**: `data/decompress.c`,
+the one line in `tools/portstyle_baseline.txt`. What is still on the machine
+is, outside core, the entries' wrappers, the guards and the bridges round the
+call-outs to the original's code:
 
-There is a second failure, independent of the first and deeper: **98% of the
-functions in `game/` take a `Snes *`**. They can only run on an emulated SNES,
-whatever they look like inside. `game/battle/effect_paths.c` is the proof that
-the two are different problems -- it scores 0.03, among the best in the tree,
-and every one of its functions is on the machine. Nothing in a GBA, browser or
-SNES-ROM build has a 128 KiB work RAM at `$7E` to index, so this is what
-actually blocks Phase 4, and it is why 3a rewrites for both at once: touching
-62 files twice would be waste.
+| Subsystem | Lines | Style | On the machine |
+|---|--:|--:|--:|
+| battle | 16,259 | 0.02 | 27% |
+| menu | 10,035 | 0.03 | 33% |
+| field | 7,983 | 0.01 | 22% |
+| event | 3,270 | 0.01 | 12% |
+| scene | 2,492 | 0.04 | 45% |
+| core, data, attract | 2,054 | 0.06 | 70% |
+| sound | 1,983 | 0.00 | 0% |
+| **total** | **44,076** | **0.02** | **28%** |
 
-`python3 tools/portstyle.py` measures both. The style score counts operations
-on the emulated registers per line (not memory access, call-outs or hand-backs:
-the failure mode, not talking to the machine at all). Beside it is the share of
-each subsystem's functions that take the machine. **1 of 164 files, 117 of
-44,076 lines, is on the backlog**: `data/decompress.c`. What is still on the
-machine is, outside core, the entries' wrappers, the guards and the bridges
-round the call-outs to the original's code:
+What the phase settled, and what still holds for every port:
 
-| Subsystem | Files on the backlog | of | Lines | of | Style | On the machine |
-|---|--:|--:|--:|--:|--:|--:|
-| battle | 0 | 62 | 0 | 16,256 | 0.02 | 27% |
-| menu | 0 | 27 | 0 | 9,842 | 0.03 | 33% |
-| event | 0 | 21 | 0 | 3,271 | 0.01 | 12% |
-| field | 0 | 29 | 0 | 7,555 | 0.01 | 21% |
-| scene | 0 | 13 | 0 | 2,492 | 0.04 | 45% |
-| core, data, attract | 1 | 8 | 117 | 2,047 | 0.06 | 70% |
-| sound | 0 | 4 | 0 | 1,983 | 0.00 | 0% |
-| **total** | **1** | **164** | **117** | **43,446** | **0.02** | **28%** |
-
-Scene's 45%, event's 11% and field's 24% are their entries' wrappers, their
-guards and the bridges around their call-outs, and nothing else, counted by
-name (`portstyle.py`'s own column misses one-line definitions and
-macro-generated entries; RECOMP.md's "Phase 3a" sections for the three list
-what is neither an entry nor a guard, and why). Event's moves call the field's
-motion as C now (RECOMP.md, "Phase 3a: event onto the field's objects"); its
-bridges left are the commands whose callees are still the original's (the
-sound driver, the menus' party routines and the location change).
-
-### What decoupling means here, and what it must not break
-
-The validation gate is byte-level: `native.c` refreshes a machine copy and
-compares every written page of work RAM after **every call**, millions per
-movie. That comparison is why a port is proven rather than believed. A port
-that keeps the party's HP in a C struct instead of at `$7E:5E30 + slot * $80`
-has nothing left to compare -- and 70% of the ROM is still generated code
-reading and writing those same bytes. **Decoupling the storage now would delete
-the oracle.**
-
-So the source is decoupled now and the storage is swapped per subsystem, later:
-
-1. **The port sees only abstraction.** Typed accessors with the game's own
-   names and no addresses, plain C parameters and results, and no `Snes *` and
-   no `m_*` outside a thin wrapper at each registered entry, which is where the
-   original's registers, flags and direct page are translated. CLAUDE.md's
-   65816 rule already asks for exactly this shape; nothing measured it.
-2. **The accessors are RAM-backed while a subsystem is still half-generated**,
-   so shadow mode keeps comparing bytes and nothing is lost. The seam is the
-   one the platform services already use: an interface `game/` includes, and a
-   backend under `runtime/` that satisfies it.
-3. **The storage swaps once a subsystem is fully ported** and no generated code
-   touches its state, in one change behind unchanged accessors. That
-   subsystem's validation moves from byte diffs to the routes and the gameplay
-   tests at the same time, deliberately and in its own commit.
-
-`re/ram.toml` is already the schema this needs: 800 variables carrying `count`,
-`stride`, `index` and named `field`s. `tools/ram_map.py` emits
-`#define RAM_FOO 0x7E5E30` from it today; emitting typed accessors and record
-structs instead is a tooling change, not a rewrite, and it comes first.
-
-**What can't be decoupled yet, and why that's fine.** A routine that calls out
-to still-generated code mid-body needs the machine to make that call, so it
-keeps a machine-aware wrapper around a decoupled core until its callees are
-ported. That is rarer than it sounds: 138 call-outs across all of `game/`, and
-38 of 87 files have none. Decouple leaves first.
-
-The bar is CLAUDE.md's "Writing a port from generated code", and PORTING.md's
-"Writing a port" opens with what it looks like when it's met and when it isn't.
-The substance of it: a reimplementation may diverge from the original's shape,
-because only observable behaviour has to match, and the way to get there is to
-write the vocabulary a routine needs -- named operations, named resources, a
-service call where it touches the host -- instead of working without one.
-
-The accessors a rewrite calls are generated from `re/ram.toml`:
-`python3 tools/ram_map.py accessors` writes `game/vars.h`, the game's variables
-as values with no layout in sight, and `runtime/port/vars_ram.c`, the backing
-that keeps them in emulated work RAM (docs/DISASSEMBLY.md, "The RAM map").
-`game/scene/circle.c` is the pilot that proved the shape, and the rest of
-`game/scene/` the first subsystem done to it (RECOMP.md, "Phase 3a: the scene
-subsystem off the machine"). What that added for the subsystems after it:
-`game/cpu_io.h` for the multiplier, divider and work RAM port;
-`game/rom.h` for the `*_data.h` accessors; the page guards in
-`runtime/port/machine.h`; page kinds in the map, for cells on a page the
-caller chooses (below); and
-`tools/fuzz_compare.py`, which fuzzes a rewrite and the port it replaces side by
-side from constraints kept in `tools/fuzz_routines.toml`, where each subsystem
-adds its entries. The rewrite's first step is the largest don't-care set
-`tools/dontcare_check.py --list` accepts for every entry: that is what takes the
-register traffic out of the wrappers rather than moving it.
-
-**How it is run.** Per subsystem, by the wave protocol below, each subsystem's
-files taken together so shared helpers get written once. A rewrite is cheaper
-than a fresh port and much better checked: the behaviour is already under the
-gate, so shadow mode compares the rewrite against the original call for call
-over the whole library, and the entry keeps its fuzzing. Rewriting a file to
-the bar means deleting its line from `tools/portstyle_baseline.txt`; the gate
-holds every other file where it is, so the list only shrinks. `menu` is
-rewritten (RECOMP.md, "Phase 3a: the menus off the machine" and "Phase 3a:
-the menus' follow-ups and the Epoch"), and `battle` is rewritten whole
-(RECOMP.md, "Phase 3a: the battle off the machine"), waiting for its
-qualitative review before it merges.
-
-**The bar grew after event, and event is being brought up to it.** Reading
-event's rewrite, it still read as a translation: the accessors had taken the
-addresses out and left the original's structure in, with one function per ROM
-routine, the same sequence of per-byte stores, and positional operands. So
-CLAUDE.md and the port-routine skill now also require three things:
-- the game's concepts modelled above the accessors, which are storage, not
-  vocabulary;
-- interpreters that dispatch through a C table, where each opcode family is one
-  operation, rather than through the ROM's pointer table and an emulated `JSR`;
-- comments that say what a function is for in the game's terms.
-
-Event and field are at that bar, event's commands on the field's object
-module (`field/object.h`, the only way to an object's state) and the RAM map's
-object tables named by concept rather than by the bytes beside them
-(RECOMP.md, "Phase 3a: event onto the field's objects"). `tools/ram_map.py`
-rejects a stuttering name and `check` lists the names still shaped like
-addresses, so the rest of the map can be brought to it as `menu` and `battle`
-are rewritten.
-
-**Scene has been reworked to the review's bar, and waits for a scoped re-review.**
-The first qualitative review rated three of its files translation (the
-arithmetic unit emulated, loop state in RAM cells, a CPU-shaped struct through
-the scaler); the second, of the first rework, still two (the scaler's carry
-chain, and arithmetic kept for inputs no scene gives it); the third, the
-script's and the sprites' records of the registers they leave, written from
-inside the operations. The rework now
-(RECOMP.md, "Phase 3a: scene reworked to the review") has the arithmetic in C,
-with guards for what the game never gives it and named inputs for what it does;
-no carry chain, the two nudges the player sees named and the wrapping sums
-guarded; loop state in locals with the cells' final values as scaffolding;
-time charged rather than kept in the logic's shape, through a mechanism every
-subsystem can use (`game/charge.h`); the sequence scripts as rows whose
-handlers take named parameters; the display state in the video service's
-vocabulary; and the subsystem's concepts in its header and map. The files are
-grouped by the game: the title screen, the race, the script, the frame, the
-screen, and the shared pieces. What the script and the sprites leave for the
-original is now the bridges', worked out after the call from what the command
-changed, with the reader of each flag named. It closes when a re-review of
-`script.c` and `sprites.c` passes them; the accepted follow-ups are in TODO.md.
-
-**Cells on a page the caller chooses** have a generated shape: a page kind in
-`re/ram.toml` lists the pages its code runs on, as measured over the library
-(`ct_dev --page-report`), and its variables' accessors take which of them a
-port means, never a D (DISASSEMBLY.md, "The accessors"; RECOMP.md, "Page
-kinds"). It covers the three sets of such cells the map knew: the cells the
-scene program's shared routines take their values in, on its own page or a
-sequence channel's (`scene_program`, whose uses are the fields of
-`scene_call`); the menus' `menu_record` page, for `menu`'s rewrite of
-`objects.c`; and the controller input cells, which measurement put on one page,
-D = `$0000`, so they are ordinary accessors for `core/input.c` and whatever
-reads them. The event engine and its objects run on the fixed field page
-(`$0100`), which ordinary accessors cover, and its input conditions
-(`event/input.c`) read the input cells.
-
-A rewrite that hits something the accessors can't say is a finding to report,
-not something to work around: a buffer the game locates at run time reaches
-work RAM by address through `game/wram.h`, and every use of it is a variable
-waiting for a name in the map.
-
-What this phase does **not** do is add ports or coverage. The burndown's
-percentage stands still while it runs, which is the point: it was already
-counting this work as done. What moves instead are portstyle's two numbers:
-0.27 operations per line toward zero, and 79% of functions on the machine
-toward the entry wrappers alone.
+- **The source is decoupled now; the storage is swapped per subsystem,
+  later.** The gate compares every written page of work RAM after every call,
+  and much of the ROM is still the original's code reading those bytes, so
+  decoupling the storage now would delete the oracle. Ports see only typed
+  accessors (`game/vars.h`, generated from `re/ram.toml` with
+  `python3 tools/ram_map.py accessors`), plain C parameters and results, and
+  no `Snes *` or `m_*` outside a thin wrapper at each registered entry. The
+  accessors are RAM-backed (`runtime/port/vars_ram.c`) until a subsystem is
+  fully ported, when its storage moves behind unchanged accessors ("Retiring
+  the gate, deliberately", above).
+- **A routine that calls out to still-generated code mid-body** keeps a
+  machine-aware wrapper around a decoupled core until its callees are ports.
+- **The bar is CLAUDE.md's "Writing a port from generated code"**, with
+  PORTING.md's "Writing a port" as its worked examples: the game's concepts
+  modelled above the accessors, interpreters dispatching through a C table,
+  comments in the game's terms. `tools/fuzz_compare.py` fuzzes a rewrite
+  against the port it replaces.
+- **A rewrite that hits something the accessors can't say is a finding**: a
+  buffer the game locates at run time reaches work RAM by address through
+  `game/wram.h`, and every such use (138 in 31 files) is a variable waiting for
+  a name in the map. Cells on a page the caller chooses have page kinds
+  (DISASSEMBLY.md, "The accessors").
 
 ## Phase 3: M5 in bulk
 
-Comes after 3a, on a tree where every existing port reads as source.
+Phase 3a has brought every existing port but one to the bar, so a conversion
+here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
 docstring says which way it is wrong). **None of the code is still generated.**
@@ -365,26 +232,24 @@ call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
 analysis", has what each of those moved): helpers no longer need a registry
 entry of their own to count. `$CC` is the
 one subsystem near done. `$C3` (the scene engine) is done but for code the
-beam's counters decide and one routine nothing reaches (PORTING.md's row; the
+beam's counters decide and one routine nothing reaches (its row in
+docs/ports.tsv; the
 edge sequence the field's rasterizer inlines is credited to it); `$C6` has its small object
 routines and irises, and its Mode 7 map and perspective effects, table
 builders and orbit routines are left, none of which a movie reaches.
 
 Subsystem by subsystem, each through the gate, cheapest and best understood
 first. `--uncovered BANK` lists the largest unported runs, which is how to pick
-the next routine. Phase 3a has already brought a subsystem's existing ports to
-the bar, so a conversion here only has to hold them there, which the gate's
-ratchet does. The same goes for the script formats' numbered
+the next routine. The same goes for the script formats' numbered
 commands (`cmd_6C`, `if_0A`): porting a command's handler is when
 it gets a real name in `tools/disasm/eventscript.py` or `battlescript.py`, since
 that's when someone has read what it does.
 
-Naming is part of that bar. The RAM map (`re/ram.toml`, docs/DISASSEMBLY.md)
-names 91% of the work RAM addresses `game/` spells as literals (422 of 466),
-so a subsystem's
-ports switch to `game/ram.h`'s names the way `game/battle/setup.c` did
-(DISASSEMBLY.md, "The RAM map"), and each routine converted adds what it learns
-about the rest. `python3 tools/ram_map.py coverage --open --subsystem S` lists
+Naming is part of that bar. Ports reach work RAM through `game/vars.h`'s
+accessors, generated from the RAM map (`re/ram.toml`, DISASSEMBLY.md, "The RAM
+map"), and each routine converted adds what it learns to the map. It names 74%
+of the work RAM addresses `game/` still spells as literals or `RAM_` names (112
+of 152, `python3 tools/ram_map.py coverage`). `python3 tools/ram_map.py coverage --open --subsystem S` lists
 what is still unnamed; what it can't show is direct-page scratch and the
 absolute operands of `$2000` and up, which a porter names while reading the
 routine.
@@ -392,18 +257,17 @@ routine.
 The per-port bar, for new ports and existing ones brought up to it: every call
 matches in shadow mode over the movie library; the port is **fuzzed** with
 `ct_fuzz`, including the paths the movies don't reach, with the run recorded
-in its PORTING.md row (a generated block is right on every path by
+in its docs/ports.tsv row (a generated block is right on every path by
 construction, a hand port only on the paths something exercised); its
 `cost_milli` is the calibrated value and its estimate error is within the
 timing gate's threshold; and it reads as source, with no cycle costs
 carried.
 
-It also includes **laying the asset seam**, which is cheap here and expensive
-later. Only about 150 places in `game/` read ROM data by address; a subsystem's
-share of them is a handful. Routing those through a named accessor for the
-resource, rather than `m_read8(s, 0xD15E10 + c->x)`, costs nothing now, reads
-better either way, and is what lets Phase 4 point the same call at an extracted
-file or a GBA-format conversion without revisiting the ports. Where a resource
+It also **holds the asset seam**: every port but one read (`$C1:7A6B` in
+`battle/scripts.c`) reaches ROM data through a named accessor for the resource
+(`*_data.h`), never `m_read8(s, 0xD15E10 + c->x)`, and a new port keeps it that
+way. That is what lets Phase 4a point the same call at an extracted file or a
+GBA-format conversion without revisiting the ports. Where a resource
 already has a type from MD2 (MATCHING.md), name the accessor after it. The order should follow what the profile says runs most and
 what the existing ports already surround, so each conversion has neighbours to
 check it against. How to write the ports themselves is in CLAUDE.md, "Writing a
@@ -455,192 +319,64 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   wave or a tooling pass. Wave 1's review produced the tooling pass recorded in
   RECOMP.md, which cut the cost every later port pays.
 
-**Wave 2: the three big banks.** `$C0` (field and events, 68% left), `$C1`
-(battle, 83%) and `$C2` (menus, 83%) are about 160 KiB between them, far too
-much for one agent each, so each bank goes in chunks of roughly 8-12 KiB, taken
-in an order the burndown's `--uncovered` and the profile suggest, and one agent
-per bank at a time so each keeps its own directory. **Aim at the top of that
-range.** What a chunk costs is mostly fixed -- the skill, the porting rules, the
-subsystem's headers, the analysis the drafts come from -- so two 6 KiB chunks
-cost nearly twice one of 12 KiB for the same code. The size to stop at is what an
-agent can hold well enough to reimplement rather than translate, not the smallest
-slice that will pass the gate. Each chunk's gate run still stands alone; the
-**review** is once per branch, on the accumulated diff of its chunks, before it
-merges (`.claude/skills/review-port/`, "One review per merge"). One thing found in wave 1
-belongs to a bank's own wave rather than to whoever finds it: the battle
-routines that live in `$FD:A8A5`-`$B7EB` but are called from `$C1`.
+**Wave 2: the three big banks**, `$C0`, `$C1` and `$C2`, in chunks of
+roughly 8-12 KiB, taken in an order the burndown's `--uncovered` and the
+profile suggest, and one agent per bank at a time so each keeps its own
+directory. **Aim at the top of that range.** What a chunk costs is mostly
+fixed -- the skill, the porting rules, the subsystem's headers, the analysis
+the drafts come from -- so two 6 KiB chunks cost nearly twice one of 12 KiB for
+the same code. The size to stop at is what an agent can hold well enough to
+reimplement rather than translate, not the smallest slice that will pass the
+gate. Each chunk's gate run stands alone; the **review** is once per branch, on
+the accumulated diff of its chunks, before it merges
+(`.claude/skills/review-port/`, "One review per merge"). The per-chunk
+accounts are in docs/history/recomp-waves.md and recomp-chunks.md, the latest
+in RECOMP.md.
 
-`$C2`'s first three chunks are in (RECOMP.md, "Phase 3, wave 2"): the Epoch's
-two Mode 7 screens, which were also P2's last leftover; the object scripts'
-whole instruction set; and the map those scripts scroll and redraw. The menus
-proper have started (RECOMP.md, "Phase 3, menus", and "Phase 3, menus: the
-typesetter, the graphics and the items", "Phase 3, menus: the
-characters in the records", and "Phase 3, menus: what the menus' ports
-called most"): the load screen, the window command language every screen is
-drawn with, the cursor and the sounds, the typesetter the dialog and every
-screen set their text with, the menus' opening, the characters in its
-records animated, and the records' task, the frame's input and the tilemap
-touches the screens make most. Next are the screens themselves.
-`python3 tools/burndown.py --uncovered C2` puts the
-largest runs left at `$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8`
-(1441) and `$C2:2826` (1313). `$C2:27DE` is the run to take with
-`menu/display.c`'s loader half rather than on its own, and only once the
-streams it decompresses are typed: it is the object mode's screen setup, about
-fifteen routines that each load one stream named by a byte of the scene record
-at `$C6:FD00`, and without knowing what each stream holds their ports would be
-named after their destination addresses (RECOMP.md, "Phase 3, wave 2: the
-menus' map").
+**`$C1`: the battle, next.** Six chunks are in: the enemies' scripts, the
+target search, the random numbers, an enemy's turn, the statuses' timers,
+every action's effect, a party member's action carried out, and the setup's
+party helpers with the inventory and gold service (`$C1:8003`). **The next
+chunk is the battle's setup (`$C1:FA8B`, 820 bytes) and the members' tech
+records (`$C1:C96A`, 478, with `$C1:CA1A`)**: every helper they call is C now,
+so with them the battle's start is C from the party's records to its item
+list. After that, by `python3 tools/burndown.py --uncovered C1`, the
+combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346 bytes,
+`$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981) and `$C1:F205` (2,140).
+The battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls (4.2 KiB) belong
+with this bank's chunks, not `$FD`'s.
 
-`$C1`'s first six chunks are in (RECOMP.md, "Phase 3, wave 2: the enemies'
-minds" and "Phase 3, battle chunk 2" to "chunk 6"): the enemies' scripts --
-the choosing, the conditions, the actions, the selectors -- the target search
-and the battlefield's questions, the random numbers, an enemy's turn to its
-end, the statuses' timers, every action's effect worked out in C, the
-enemies' and the party's (the kinds, the damage formulas, the statuses, the
-modifiers, the steal and the inventory it gives to), a party member's chosen
-action carried out, and the setup's party helpers: the combination techs'
-costs and the triple tech in the members' tech records, the battle's item
-list, the members' stats with their equipment, and the inventory and gold
-with the service the rest of the game asks them through (`$C1:8003`). The
-run chunk 5 named "the party's side of the showing" (`$C1:CC0B`) was these
-helpers; the showing itself (`$C1:AC57`) was already C. What is left of the
-bank, by `python3 tools/burndown.py --uncovered C1` (70% of it covered), is
-the combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346
-bytes, `$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981), `$C1:F205`
-(2,140), the battle's setup (`$C1:FA8B` 820) and the members' tech records
-(`$C1:C96A` 478, with `$C1:CA1A`). The setup and the tech records are the
-next chunk: every helper they call is C now, so with them the battle's start
-is C from the party's records to its item list.
+**`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
+instruction set and the map they scroll, the load screen, the window command
+language, the cursor and sounds, the typesetter, the menus' opening, the
+characters in the records, the records' task, the frame's input and the
+tilemap touches. Next are the screens themselves: the largest runs left are
+`$C2:9C31` (1685 bytes), `$C2:B520` (1530), `$C2:42F8` (1441), `$C2:2826`
+(1313), `$C2:D52B` (1290) and `$C2:3B8C` (1116). `$C2:27DE` goes with
+`menu/display.c`'s loader half, and only once the streams it decompresses are
+typed: it is the object mode's screen setup, about fifteen routines that each
+load one stream named by a byte of the scene record at `$C6:FD00`, and without
+knowing what each stream holds their ports would be named after their
+destination addresses.
 
-**`$C0`: the field and events.** The first chunk (RECOMP.md, "Phase 3, field
-and events: the party on the map") took the move and state commands off the
-machine: the party's step every frame (`$B0`, `$AF`) is an operation over a
-module of the party's own (`field/party.h`: the leader's trail and the members
-following it), and the leader's talk and touch, the push, the party's
-regrouping (`$D9`, `$DA`) and the map's tile copy (`$E4` and the main loop's)
-are ports. What event's bridges still call in the original is the menus' party
-routines (`$C2:8004`, through their dispatcher, for `$D5`, `$F8`-`$FA`), which
-go with `$C2`, and the location change from `$C0:3B71`.
+**`$C0`: the field and events**, 25% left after thirteen chunks, and all of
+it routines the ports call out to: the screen effects' steps (`$C0:220E`), the
+event commands at `$C0:4186` and `$C0:3711`, the field's setup after a menu
+and a map (`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
+(`$C0:011B`), the fade in (`$C0:2824`), the sprite lists (`$C0:B192`), the
+frame work (`$C0:00BF`) and a choice's buttons (`$C0:1ADF`). Event's bridges
+still call the menus' party routines (`$C2:8004`), which go with `$C2`.
 
-The second chunk (RECOMP.md, "Phase 3, field and events: the leader's walk
-and the confirm button") took what feeds the trail: the leader's walk every
-frame (`$C0:881E`) with the collision against the map's levels and objects,
-the exits, step events and moving floors, the screen following the leader and
-recentring on the grid; the trail's start at a map's setup (`$C0:9DC3`) and
-the party's gathering after a battle (`$C0:034B`); and the confirm button
-(`$C0:1AAC`): the search for the object before the leader, the talk, and the
-chests.
+**What `$FD` has left** after wave 1 (docs/history/recomp-waves.md, "Phase 3,
+wave 1: bank `$FD`"): the time-gate tunnel scenes event `$FF` starts with
+`$DF` = `$80`-`$83` (`$FD:DA00`-`$DD95`, their interrupt handlers
+`$FD:DE15`/`$DE87` and helpers `$FD:EAA6`-`$F2xx`, 2.6 KiB), which draw through
+the PPU directly and want the video service; and the location's tile animation
+loader `$FD:DE98`, blocked on the work RAM port writes through `$217F`
+(TODO.md, "P1 leftovers").
 
-The third chunk (RECOMP.md, "Phase 3, field and events: the map scrolling
-in") took the other half of the camera: each layer's move a pixel at a time
-and the rows and columns of the map that come into view as it scrolls
-(`$C0:93E1` and the builders it calls, `$C0:8243`-`$C0:8444`), the layers
-drawn at a map's load (`$C0:75E9`, `$C0:78EC`, `$C0:7CB5`), and the 20 walk
-calls the guard refused (a map object count of 64-127).
-
-The fourth (RECOMP.md, "Phase 3, field and events: the larger sprite
-layouts") took the run the existing ports called out to most: the 8-, 12-
-and 24-sprite layouts' placing and rebuilding (`$C0:BA65`-`$C0:C739`), and
-the spare sprite tile areas a new frame is drawn into, claimed and freed
-(`$C0:E935`-`$C0:EA41`); the sprite table's building draws every object as C
-now.
-
-The fifth (RECOMP.md, "Phase 3, field and events: the frame builder") took
-the frame builder the frame queue runs (`$C0:CAD9` with its three layouts,
-`$C0:CBDC`-`$C0:D123`, `$C0:D28A`-`$C0:D4F6` in part and `$C0:D4F7`-
-`$C0:DD27`): a new frame's tiles drawn into the staging areas, queued for
-VRAM and put in the frame's data, a part at a time for the larger layouts.
-`$C0` stands at 37.2 KiB ported, 37% left. What is left of the builder's run
-is its immediate twin (`$C0:CB0A` and its layouts `$C0:CDC8`, `$C0:D124`,
-`$C0:DD28`, reached by `BRL` from the battle's return at `$C0:086E` and
-`$C0:0902`, so only as part of that routine) and `$C0:E12A`.
-
-The sixth (RECOMP.md, "Phase 3, field and events: the switches and the main
-loop's requests") took the main loop's `$C0:0C76` as far as the step
-event's floor switches, and the redraw of their tiles after the picture
-(`$C0:ED15`); the location change, the menus, a chest, the tile copy and
-the battle are handed to the original where it reads the requests. The
-burndown no longer counts a port's hand-backs as its own (RECOMP.md, "the
-drawn frame put on the records").
-
-The seventh took the frame builder's twin, which puts the frame an object
-shows straight onto its records when the field comes back from a battle
-(`$C0:CB0A` and its layouts).
-
-The eighth (RECOMP.md, "Phase 3, field and events: the field put back after
-a battle") took the return that calls the twin (`$C0:0715`-`$C0:0904`): the
-party and the enemies put back on the map, the enemies the battle took away
-taken off it, and the party's frames held after a defeat.
-
-The ninth (RECOMP.md, "Phase 3, field and events: the pause and the menus
-opened from the field") took the pause, the menus' opening and the party
-brought back after a menu (`$C0:18D9`-`$C0:1AAB`), with the palette give-up
-chunk 8's review asked for (`$C0:734C`).
-
-The tenth (RECOMP.md, "Phase 3, field and events: the field's start") took
-the field's start (`$C0:0B86`) and named the cells it sets. The eleventh
-(RECOMP.md, "Phase 3, field and events: the menus a script asks for") took the
-menus a script asks for from the main loop's requests (`$C0:0CC7`-`$C0:0D3D`).
-The twelfth (RECOMP.md, "Phase 3, field and events: the 24-sprite figure
-drawn whole") took the last of the frame builder's run (`$C0:E12A`). The
-thirteenth (RECOMP.md, "Phase 3, field and events: the main loop's requests
-answered") took every request the main loop answers: the location change, a
-chest, the tile copy and the battle (`$C0:0C8F`-`$C0:18D8`). `$C0` stands at
-44.8 KiB ported, 25% left; what is left is the routines the ports call out
-to: the screen effects' steps (`$C0:220E`), the event commands at
-`$C0:4186` and `$C0:3711`, the field's setup after a menu and a map (`$C0:01A5`,
-`$C0:038F`, `$C0:0000`), the keeping of the field (`$C0:011B`), the fade in
-(`$C0:2824`), the sprite lists (`$C0:B192`), the frame work (`$C0:00BF`)
-and a choice's buttons (`$C0:1ADF`).
-
-**What the pilot taught** ([RECOMP.md](RECOMP.md), "The $C7 pilot"),
-which converted the sound driver to this bar:
-
-- **The bar is reachable, and the logic ends up with no emulated registers**,
-  but only after the gate stopped comparing what the original itself
-  overwrites before reading: popped stack bytes, what a port declares dead where
-  it stops, A's high byte on its own (PORTING.md, Modes). Every subsystem has
-  `PHP`/`PLP` subroutines, so that was decided once, for all of them.
-- **Cost.** 2.6 KiB of 65816 became 1550 lines of C in about a working day
-  including validation, of which the one-time decision above was the largest
-  part. Code like it, with its services already in place, should go at 2-3 KiB
-  a day; code that needs new service calls, or RAM nobody has named, slower.
-  Machine time is what paces it: a library shadow run is 6 minutes, fuzzing a
-  subsystem minutes, the full gate with every route most of an hour.
-- **The draft is a reference more than a starting text**: its header, names
-  and control flow carried over, its text almost none of it (0-7% of the
-  port's lines). The draft tool's fixes the pilot asked for are in (RECOMP.md,
-  "Before the bulk"): drafts carry far fewer flags and stubs, name their
-  hand-backs' dead registers, and keep D across call-outs.
-- **Declarations are checked.** Every don't-care set a port declares is
-  verified against liveness where shadow mode applies it
-  (`tools/dontcare_check.py`, in the gate), so leaving a register out of the
-  comparison is a claim the check holds a port to.
-- **Fuzzing earns its place**: it found three bugs no movie reaches, where the
-  port had tidied an index or a width the original doesn't.
-- **Existing ports in the early style** can be brought over the same way; the
-  sound driver's 1066 emulated-register operations went to 86, all in its
-  entries and stubs.
-
-**What `$FD` has left** after wave 1 (RECOMP.md, "Phase 3, wave 1"): the
-time-gate tunnel scenes event `$FF` starts with `$DF` = `$80`-`$83`
-(`$FD:DA00`-`$DD95`, their interrupt handlers `$FD:DE15`/`$DE87` and helpers
-`$FD:EAA6`-`$F2xx`, 2.6 KiB), which draw through the PPU directly and want the
-video service; the location's tile animation loader `$FD:DE98`, blocked on the
-work RAM port writes through `$217F` (TODO.md, "P1 leftovers"); and 4.2 KiB of
-battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls, which belong with the
-battle's conversion.
-
-**Two things the backlog does *not* need**, worth knowing before scoping Phase
-3a: the platform lint already covers all of `game/` bar three documented files,
-so hardware access is behind the services everywhere, and no screen geometry is
-baked in that widescreen would have to undo. The rewrite is readability, not
-portability.
-
-This is the long haul. It is worth re-reading the burndown after the first two
-subsystems and deciding whether the workflow needs another pass before
-continuing; RECOMP.md's "What drafts don't do yet" lists where the draft tool
-falls short, starting with D and DB where only interrupts reach.
+RECOMP.md's "What drafts don't do yet" lists where the draft tool still falls
+short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
@@ -692,12 +428,13 @@ the audit that found them.
   to those. The work is the backend, the calls, and the rewrites TODO.md lists
   under "Timing without a beam"; the main thread runs as one coroutine.
 
-**The asset seam comes forward to here** from where it sat behind everything.
-It is 117 ROM reads by literal address across 22 files -- days, not weeks --
-and until it is done every port reads a mapped 4 MiB ROM image, which a GBA
-cannot map at all (target 2) and which makes "load from a user's own ROM into a
-data directory" impossible (TODO.md, "Platform"). Route each through a named
-accessor for the resource, as `sound_data.h` and `scene_data.h` already do.
+**The asset seam's other half comes forward to here.** The ports reach ROM
+data through named accessors (`*_data.h`) now, all but `battle/scripts.c`'s
+one read, which goes first. But the accessors themselves still read a mapped
+4 MiB ROM image by address, which a GBA cannot map at all (target 2) and which
+makes "load from a user's own ROM into a data directory" impossible (TODO.md,
+"Platform"). So what is left is their backing: each resource extracted from
+the user's ROM once and loaded, behind the same accessors.
 The pipeline half -- a layout meant to be read rather than reassembled, the
 scripts as text -- follows in Phase 5 with MD3.
 
