@@ -139,7 +139,7 @@ static bool tech_usable(GameState *g, unsigned member, unsigned record)
     if (battle_member_disabled(g, member))
         return false;
     return battle_tech_records_id(g, record) != TECH_NEEDING_FROGS_SWORD
-           || battle_member_carried(g, battle_frog_slot(g) / MEMBER_CARRIED_BYTES) == FROGS_SWORD;
+           || battle_member_carried_weapon(g, battle_frog_slot(g) / MEMBER_CARRIED_BYTES) == FROGS_SWORD;
 }
 
 /* A section of combination techs can be used when enough members are

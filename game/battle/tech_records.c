@@ -1,22 +1,26 @@
-/* Battle: the party's combination techs in its members' tech records, as the
- * battle sets them up.
+/* Battle: the party's techs in its members' tech records, as the fight's
+ * start sets them up (battle/fight_start.c).
  *
  * Each member has twenty tech records (battle_tech_records, battle/
- * setup_party.c lists them): its single techs, its double techs from record
- * 10, and a triple tech in record 18. A combination tech's record says, beside
+ * setup_party.c lists them): its character's eight single techs from record
+ * 0, the double techs it can do with the others in the fight from record 10,
+ * and a triple tech in record 18. Every record starts blank ($FF) and a tech
+ * the party hasn't learned leaves its record so. A tech's record says, beside
  * the tech, what each of the party's three slots pays for it in MP -- its own
  * part's cost, cut by that member's accessory -- and in its partners byte the
- * slots of the other two who perform it with the member.
+ * slots of the others who perform it with the member.
  *
- * The triple tech a member shows is the first of the party's learned triple
- * techs ($66 to $74) whose three members are all in the battle
- * ($C1:CCCB); the double techs' records (the original's $C1:CA1A) have their
- * costs set the same way ($C1:CC0B). The entries are at the end. */
+ * The single techs are the character's, learned one by one ($C1:C96A). The
+ * double techs are the first six learned whose two members are both in the
+ * fight and one of them the member ($C1:CA1A), and the triple tech the first
+ * learned one whose three members are all in it ($C1:CCCB). The entries are
+ * at the end. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
+#include "battle/fight.h"
 #include "battle/rules_data.h"
 #include "battle/setup_data.h"
 
@@ -98,11 +102,9 @@ static uint8_t partner_slot(const GameState *g, unsigned part, uint8_t member)
     return slot == member ? battle_character_slot(g, battle_tech_members(g, 0)) : slot;
 }
 
-/* The member's triple tech record filled with the tech: its menu bytes, what
- * each slot pays, and its partners. */
-static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
+/* A record given a tech: its menu bytes and the tech, and no costs yet. */
+static void start_record(GameState *g, unsigned record, uint8_t tech)
 {
-    unsigned record = member_record(g, member, TRIPLE_RECORD);
     TechMenuBytes menu = tech_menu_bytes(g, tech);
     set_battle_tech_records_flags(g, record, menu.flags);
     set_battle_tech_records_menu_detail(g, record, menu.detail);
@@ -110,6 +112,14 @@ static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
     set_battle_tech_records_cost(g, record, NO_COST);
     set_battle_tech_records_second_cost(g, record, NO_COST);
     set_battle_tech_records_third_cost(g, record, NO_COST);
+}
+
+/* The member's triple tech record filled with the tech: its menu bytes, what
+ * each slot pays, and its partners. */
+static void fill_triple(GameState *g, uint8_t member, uint8_t tech)
+{
+    unsigned record = member_record(g, member, TRIPLE_RECORD);
+    start_record(g, record, tech);
     PartyTech t = party_tech(g, tech);
     for (unsigned part = 0; part < TECH_MEMBERS; part++)
         set_slot_cost(g, record, battle_tech_members(g, part), party_effect_mp_cost(g, t.effects[part]));
@@ -184,6 +194,182 @@ static void set_up_triple_tech(GameState *g, uint8_t member)
     ORIGINAL_EFFECT(leave_search(g, member, TRIPLE_TECHS_END));
 }
 
+void battle_set_up_triple_tech_of(GameState *g, uint8_t member) { set_up_triple_tech(g, member); }
+
+/* ---- The single and double techs -------------------------------------------------------------- */
+
+/* A part's cost: what its effect costs in MP. The original finds the tech's
+ * record by a multiply, entered with the carry its search for the tech's
+ * members left, or the accessory's test before it (scaffolding). */
+static uint8_t part_cost(GameState *g, uint8_t tech, unsigned part, bool carry)
+{
+    (void)effect_times(g, tech, PARTY_TECH_BYTES);
+    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, carry));
+    return party_effect_mp_cost(g, party_tech(g, tech).effects[part]);
+}
+
+/* The carry the search for a tech's members ($C1:CB93) leaves: its members'
+ * number times three past a byte. */
+static bool members_search_carry(const GameState *g, uint8_t tech)
+{
+    uint8_t members = party_tech(g, tech).members;
+    return (uint8_t)(members * 2) + members > 0xFF;
+}
+
+/* The cells the builders keep their places in, as scaffolding, and the three
+ * of them later work reads as it finds them (battle.h), kept plainly: the
+ * character or the learned byte's number, the tech, and where the techs end;
+ * and the word the double techs' builder steps without starting it. */
+enum { COUNTED_AT = BATTLE_CLOCK_READS, TECH_TWICE_AT = 0x02, RECORD_PLACE_AT = 0x04, CURRENT_TECH = BATTLE_NUMBER_TESTED,
+       STEPPED = BATTLE_STAT_OFFSET_LOW, LEARNED_AT = 0x0C, TECHS_END_AT = BATTLE_TECH_HITS_LEFT, BIT_IN_BYTE = 0x10,
+       DOUBLES_FILLED = 0x14 };
+
+static void leave_record_place(GameState *g, uint8_t member, unsigned records)
+{
+    battle_leave_word(g, RECORD_PLACE_AT, (uint16_t)(battle_member_tech_records_place(g, member) + records * TECH_RECORD_BYTES));
+}
+
+enum { SINGLE_TECHS = 8 };
+
+// $C1:C96A
+/* The member's single techs: its character's eight in its first records, in
+ * order, each the character has learned given its cost to the member's slot;
+ * no partners. A member out of the fight has none. */
+void battle_set_up_single_techs(GameState *g, uint8_t member)
+{
+    battle_keep_word(g, COUNTED_AT, 0);
+    battle_keep_word(g, CURRENT_TECH, 0);
+    battle_keep_word(g, TECHS_END_AT, 0);
+    if (!combatant_in_fight(g, member))
+        return;
+    uint8_t character = battle_combatant_fighting(g, member);
+    uint8_t first = character_first_single_tech(g, character), end = character_first_single_tech(g, (uint8_t)(character + 1));
+    uint8_t learned = party_single_techs_learned(g, character);
+    unsigned record = member_record(g, member, 0);
+    uint8_t tech = first;
+    do {
+        if (learned & 0x80) {
+            effect_take_tech_members(g, tech);
+            start_record(g, record, tech);
+            set_slot_cost(g, record, battle_tech_members(g, 0), part_cost(g, tech, 0, members_search_carry(g, tech)));
+            set_battle_tech_records_partners(g, record, NO_PARTNERS);
+        }
+        learned = (uint8_t)(learned << 1);
+        record++;
+        tech++;
+    } while (tech < end);
+    battle_keep_word(g, COUNTED_AT, character);
+    battle_keep_word(g, CURRENT_TECH, tech);
+    battle_keep_word(g, TECHS_END_AT, end);
+    ORIGINAL_EFFECT(battle_leave_word(g, TECH_TWICE_AT, (uint16_t)(tech * 2)));
+    ORIGINAL_EFFECT(leave_record_place(g, member, (unsigned)(tech - first)));
+    ORIGINAL_EFFECT(battle_leave_byte(g, LEARNED_AT, learned));
+}
+
+/* The double techs, three to each byte of what the party has learned. */
+enum { FIRST_DOUBLE_TECH = 0x39, DOUBLE_TECHS_END = 0x66, DOUBLES_A_BYTE = 3, MOST_DOUBLES = 6 };
+
+static uint8_t doubles_learned_byte(const GameState *g, unsigned n)
+{
+    return n < PARTY_DOUBLE_TECHS_LEARNED_COUNT ? party_double_techs_learned(g, n) : party_double_techs_learned_unchecked(g, n);
+}
+
+/* Whether both members of a double tech are in the fight and one of them is
+ * the member. */
+static bool double_for(const GameState *g, uint8_t member)
+{
+    uint8_t slot[2];
+    for (unsigned part = 0; part < 2; part++) {
+        uint8_t character = battle_tech_members(g, part);
+        if (character == NO_MEMBER)
+            return false;
+        slot[part] = battle_character_slot(g, character);
+        if (slot[part] & NO_MEMBER_SLOT)
+            return false;
+    }
+    return slot[0] == member || slot[1] == member;
+}
+
+/* The member's record filled with a double tech: what each of the two pays
+ * for its part, and as the partner the other one's slot. */
+static void fill_double(GameState *g, uint8_t member, unsigned record, uint8_t tech)
+{
+    start_record(g, record, tech);
+    uint8_t first = battle_tech_members(g, 0), second = battle_tech_members(g, 1);
+    set_slot_cost(g, record, first, part_cost(g, tech, 0, members_search_carry(g, tech)));
+    set_slot_cost(g, record, second, part_cost(g, tech, 1, accessory_test_carry(g, first)));
+    uint8_t partner = battle_character_slot(g, second);
+    if (partner == member)
+        partner = battle_character_slot(g, first);
+    set_battle_tech_records_partners(g, record, (uint8_t)(partner | 0xF0));
+}
+
+// $C1:CA1A
+/* The member's double techs: the first six the party has learned whose two
+ * members are both in the fight, one of them the member, in the records from
+ * the tenth. A member out of the fight has none. */
+void battle_set_up_double_techs(GameState *g, uint8_t member)
+{
+    battle_keep_word(g, CURRENT_TECH, 0);
+    battle_keep_word(g, COUNTED_AT, 0);
+    ORIGINAL_EFFECT(battle_leave_word(g, BIT_IN_BYTE, 0));
+    battle_keep_word(g, TECHS_END_AT, 0);
+    ORIGINAL_EFFECT(battle_leave_word(g, DOUBLES_FILLED, 0));
+    if (!combatant_in_fight(g, member))
+        return;
+    uint16_t stepped = battle_cell_word(g, STEPPED);
+    unsigned byte = 0, bit = 0, filled = 0;
+    uint8_t learned = doubles_learned_byte(g, 0);
+    uint8_t tech = FIRST_DOUBLE_TECH;
+    for (;;) {
+        if (learned & 0x80) {
+            effect_take_tech_members(g, tech);
+            if (double_for(g, member)) {
+                fill_double(g, member, member_record(g, member, (uint8_t)(FIRST_DOUBLE_RECORD + filled)), tech);
+                if (++filled == MOST_DOUBLES)
+                    break;
+            }
+        }
+        learned = (uint8_t)(learned << 1);
+        tech++;
+        if (++bit == DOUBLES_A_BYTE) {
+            learned = doubles_learned_byte(g, ++byte);
+            bit = 0;
+        }
+        stepped = (uint16_t)(stepped + 12);
+        if (tech >= DOUBLE_TECHS_END)
+            break;
+    }
+    battle_keep_word(g, CURRENT_TECH, tech);
+    battle_keep_word(g, COUNTED_AT, (uint16_t)byte);
+    battle_keep_word(g, TECHS_END_AT, DOUBLE_TECHS_END);
+    battle_keep_word(g, STEPPED, stepped);
+    ORIGINAL_EFFECT(battle_leave_word(g, TECH_TWICE_AT, (uint16_t)(tech * 2)));
+    /* the place it steps is the member's records', the tenth's offset in the
+     * original's stores rather than in the cell */
+    ORIGINAL_EFFECT(leave_record_place(g, member, filled == MOST_DOUBLES ? filled - 1 : filled));
+    ORIGINAL_EFFECT(battle_leave_byte(g, LEARNED_AT, learned));
+    ORIGINAL_EFFECT(battle_leave_word(g, BIT_IN_BYTE, (uint16_t)bit));
+    ORIGINAL_EFFECT(battle_leave_word(g, DOUBLES_FILLED, (uint16_t)filled));
+}
+
+// $FD:AD09
+/* Every member's tech records blank. */
+enum { TECH_RECORDS = 60 };
+
+void battle_blank_tech_records(GameState *g)
+{
+    for (unsigned record = 0; record < TECH_RECORDS; record++) {
+        set_battle_tech_records_id(g, record, NO_COST);
+        set_battle_tech_records_menu_detail(g, record, NO_COST);
+        set_battle_tech_records_flags(g, record, NO_COST);
+        set_battle_tech_records_cost(g, record, NO_COST);
+        set_battle_tech_records_partners(g, record, NO_COST);
+        set_battle_tech_records_second_cost(g, record, NO_COST);
+        set_battle_tech_records_third_cost(g, record, NO_COST);
+    }
+}
+
 /* ---- The entries ------------------------------------------------------------------------------ */
 
 /* The member in the direct page's cell the setup hands it in ($06); a
@@ -238,3 +424,37 @@ bool battle_set_double_tech_cost_ready(Snes *s) { return record_place_ready(s, F
 void battle_set_double_tech_cost(Snes *s) { cost_entry(s, FIRST_DOUBLE_RECORD); }
 bool battle_set_triple_tech_cost_ready(Snes *s) { return record_place_ready(s, TRIPLE_RECORD); }
 void battle_set_triple_tech_cost(Snes *s) { cost_entry(s, TRIPLE_RECORD); }
+
+/* The single and double techs' builders take the member as the triple
+ * tech's does, and the character each is fighting as must be one of the
+ * seven, whose techs the ROM lists. */
+enum { CHARACTERS = 7 };
+
+bool battle_set_up_member_techs_ready(Snes *s)
+{
+    vars_peek(true);
+    GameState *g = state_of(s);
+    uint8_t member = battle_low_scratch(g, MEMBER_CELL);
+    bool ready = member < BATTLE_PARTY_SIZE
+                 && (!combatant_in_fight(g, member) || battle_combatant_fighting(g, member) < CHARACTERS);
+    vars_peek(false);
+    return battle_on_page(s) && ready;
+}
+
+void battle_set_up_single_techs_entry(Snes *s)
+{
+    battle_set_up_single_techs(state_of(s), battle_low_scratch(state_of(s), MEMBER_CELL));
+    m_rts(s);
+}
+
+void battle_set_up_double_techs_entry(Snes *s)
+{
+    battle_set_up_double_techs(state_of(s), battle_low_scratch(state_of(s), MEMBER_CELL));
+    m_rts(s);
+}
+
+void battle_blank_tech_records_entry(Snes *s)
+{
+    battle_blank_tech_records(state_of(s));
+    m_rtl(s);
+}

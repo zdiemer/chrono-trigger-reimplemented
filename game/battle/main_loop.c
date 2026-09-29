@@ -54,7 +54,6 @@
  * far as that is worked out; docs/TODO.md). */
 enum {
     CLEAR_TURN_STATE = 0xFDA982,     /* clear the turns' state */
-    SET_UP_STATS = 0xC1FA8B,         /* set the combatants' stats up for the battle */
     CLEAR_PARTY_STATUSES = 0xC1EA9D, /* the party's statuses cleared, at the battle's end */
     CLEAR_ENEMY_MARKS = 0xC1B3BB,    /* the enemies' battle marks cleared, at the end */
     PARTY_STANDS_DOWN = 0xC1B7F2,    /* each member's step 2 (its menu closed) */
@@ -275,7 +274,8 @@ static bool start_battle(Snes *s)
     if (!battle_call_long(s, 0xC18006, CLEAR_TURN_STATE, READS_NOTHING))
         return false;
     take_random_position(g);
-    if (!battle_call(s, 0xC18012, SET_UP_STATS, READS_NOTHING))
+    /* the fight's start (battle/fight_start.c), run as C */
+    if (!battle_run(s, 0xC18012, 0xC1FA8B, battle_start_fight_entry))
         return false;
     m_sep(s, CPU_FLAG_M);
     set_demo_aside(g);
@@ -337,7 +337,7 @@ static bool leave_battle(Snes *s)
     GameState *g = state_of(s);
     set_battle_random_kept(g, battle_random_position(g));
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        set_battle_stats_carried(g, member, battle_member_carried(g, member));
+        set_battle_stats_carried(g, member, battle_member_carried_weapon(g, member));
     if (!battle_call_long(s, 0xC1845A, NOTE_BEATEN_ENEMIES, READS_NOTHING))
         return false;
     m_stop_at(s, 0xC10006, DC_X | DC_Y | DC_FLAGS | DC_AL);

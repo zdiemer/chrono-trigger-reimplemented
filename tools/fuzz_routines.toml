@@ -10760,3 +10760,197 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
 iterations = 5000
 why = "any item, in every range and past the recorded ones"
+
+# -- the fight's start (battle/fight_*.c, battle/tech_records.c)
+
+[[routine]]
+name = "battle_start_fight"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+iterations = 2000
+why = "the whole start: a party of any of the characters or none in each slot, everything else at random (the demo flag, the enemies placed, the records, the techs learned, the inventory)"
+
+[[routine]]
+name = "fight_load_demo_party"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "a demo battle or not, any demo"
+
+[[routine]]
+name = "fight_start_demo_characters"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the demo's characters and inventory, over anything"
+
+[[routine]]
+name = "fight_list_combatants"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80,81,FF"]
+iterations = 5000
+why = "a party of any of the characters or an empty slot (any with the top bit), any enemies placed"
+
+[[routine]]
+name = "fight_load_enemy"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "X=0000-0007", "--fill", "7E0002-7E0002=00-07", "--fill", "7E0003-7E0003=00"]
+iterations = 5000
+why = "each enemy, in X and in its cell (the guard turns away the states where they differ), with any id"
+
+[[routine]]
+name = "fight_clear_enemy_block"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "Y=0000-0380/80"]
+iterations = 2000
+why = "each enemy's block by its offset"
+
+[[routine]]
+name = "fight_note_enemy_families"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any families"
+
+[[routine]]
+name = "fight_take_member_record"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "Y=0000-0002", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,06,80,FF"]
+iterations = 5000
+why = "each member, fighting as any character or out of the fight (any with the top bit)"
+
+[[routine]]
+name = "fight_aylas_fists"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "any level, the carry set (the guard turns the rest away), any leftover high word"
+
+[[routine]]
+name = "fight_set_up_affinities"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "X=0000-0002", "--range", "Y=0000-0100/80", "--fill", "7EAEFF-7EAF01=00,01,02,FF"]
+iterations = 5000
+why = "each member and its block's offset (the guard turns away the states where they differ), in the fight or not, any elements"
+
+[[routine]]
+name = "fight_note_accessories"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E5E57-7E5E57=00,A9,FF", "--fill", "7E5ED7-7E5ED7=00,A9,FF", "--fill", "7E5F57-7E5F57=00,A9,FF"]
+iterations = 2000
+why = "the members wearing the accessory that turns experience into gold or another"
+
+[[routine]]
+name = "fight_note_weapons"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "any weapons, any character slots"
+
+[[routine]]
+name = "fight_clear_timers"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any enemies and families"
+
+[[routine]]
+name = "fight_set_timer_lengths"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "over anything"
+
+[[routine]]
+name = "fight_set_first_turns"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EAEC6-7EAEC6=01-08", "--fill", "7EAEFF-7EAF09=00,01,02,03,10,40,7F,80,FE,FF", "--fill", "7EAF0A-7EAF14=00,01,02,03,10,40,7F,80,FE,FF"]
+iterations = 5000
+why = "any number of enemies listed, the combatants in the fight or out, any speeds and settings"
+
+[[routine]]
+name = "fight_apply_accessory_effects"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB3BA-7EB3BC=00,B3,FF", "--fill", "7E5E56-7E5E56=00,3D,42", "--fill", "7E5ED6-7E5ED6=00,3D,42", "--fill", "7E5F56-7E5F56=00,3D,42", "--fill", "7E5E77-7E5E77=00,01", "--fill", "7E5EF7-7E5EF7=00,01", "--fill", "7E5F77-7E5F77=00,01", "--fill", "7E5E9F-7E5E9F=00,01", "--fill", "7E5F1F-7E5F1F=00,01", "--fill", "7E5F9F-7E5F9F=00,01"]
+iterations = 5000
+why = "the sharpening accessory and the weapons it sharpens, the armor's and helmet's modifiers on or off, any modifier"
+
+[[routine]]
+name = "fight_raise_critical_rate"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "X=0000-0100/80", "--fill", "7E5E56-7E5E56=00,3D,42", "--fill", "7E5ED6-7E5ED6=00,3D,42", "--fill", "7E5F56-7E5F56=00,3D,42"]
+iterations = 2000
+why = "each member's block, with a sharpened weapon or not"
+
+[[routine]]
+name = "fight_clear_turn_state"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "over anything"
+
+[[routine]]
+name = "fight_apply_member_bonuses"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "Y=0000-0002", "--fill", "7EAEFF-7EAF01=00,01,FF", "--fill", "7E5E57-7E5E57=00,A0,A1", "--fill", "7E5ED7-7E5ED7=00,A0,A1", "--fill", "7E5F57-7E5F57=00,A0,A1"]
+iterations = 5000
+why = "each member, in the fight or not, with the accessories that raise its HP or another, any status its accessory gives"
+
+[[routine]]
+name = "fight_number_places"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 1000
+why = "over anything"
+
+[[routine]]
+name = "fight_ward_off_confusion"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E5E57-7E5E57=00,AB", "--fill", "7E5ED7-7E5ED7=00,AB", "--fill", "7E5F57-7E5F57=00,AB"]
+iterations = 2000
+why = "the accessory that wards off confusion or another"
+
+[[routine]]
+name = "battle_set_up_single_techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0006-7E0006=00-02", "--fill", "7E0007-7E0007=00", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00,01,02,FF,80", "--fill", "7EB3BA-7EB3BC=00,A2,A3,A4,FF"]
+iterations = 5000
+why = "a member fighting as any character or out of the fight, any techs learned, the characters' slots and the accessories that cut the cost"
+
+[[routine]]
+name = "battle_set_up_double_techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0006-7E0006=00-02", "--fill", "7E0007-7E0007=00", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,06,FF", "--fill", "7EB1BE-7EB1C4=00,01,02,FF,80", "--fill", "7EB3BA-7EB3BC=00,A2,A3,A4,FF", "--fill", "7E283E-7E284C=00,20,40,60,80,A0,C0,E0,FF"]
+iterations = 5000
+why = "a member in the fight or not, the double techs learned (all, often enough to fill six), the characters' slots and the accessories"
+
+[[routine]]
+name = "battle_blank_tech_records"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 1000
+why = "over anything"

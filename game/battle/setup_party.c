@@ -89,7 +89,7 @@ enum { SET_COLORS = 3, SET_BYTES = 6, FIRST_MEMBER_COLOR = 221, PALETTE_SIZE = 1
 void setup_party_colors(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        uint16_t set = setup_member_color_set(g, battle_member_carried(g, member));
+        uint16_t set = setup_member_color_set(g, battle_member_carried_weapon(g, member));
         for (unsigned color = 0; color < SET_COLORS; color++)
             set_palette_working(g, FIRST_MEMBER_COLOR + member * PALETTE_SIZE + color,
                                 setup_member_color(g, (uint16_t)(set * SET_BYTES + 2 * color)));

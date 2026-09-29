@@ -54,7 +54,7 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 44% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 42% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
@@ -209,12 +209,12 @@ docstring says which way it is wrong). **None of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 42.7K | 18.7K | 34% | 250 |
+| battle (`$C1`, `$CE`) | 64.8K | 44.0K | 18.8K | 32% | 254 |
 | field engine, events (`$C0`) | 59.4K | 44.8K | 9.3K | 25% | 289 |
 | menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
-| field graphics (`$FD`) | 15.3K | 9.4K | 0.8K | 39% | 58 |
+| field graphics (`$FD`) | 15.3K | 11.2K | 0.6K | 27% | 78 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
@@ -222,7 +222,7 @@ docstring says which way it is wrong). **None of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **151.3K** | **42.1K** | **44%** | **1115** |
+| **total** | **268.5K** | **154.5K** | **41.9K** | **42%** | **1139** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -333,18 +333,18 @@ the accumulated diff of its chunks, before it merges
 accounts are in docs/history/recomp-waves.md and recomp-chunks.md, the latest
 in RECOMP.md.
 
-**`$C1`: the battle, next.** Six chunks are in: the enemies' scripts, the
+**`$C1`: the battle.** Seven chunks are in: the enemies' scripts, the
 target search, the random numbers, an enemy's turn, the statuses' timers,
-every action's effect, a party member's action carried out, and the setup's
-party helpers with the inventory and gold service (`$C1:8003`). **The next
-chunk is the battle's setup (`$C1:FA8B`, 820 bytes) and the members' tech
-records (`$C1:C96A`, 478, with `$C1:CA1A`)**: every helper they call is C now,
-so with them the battle's start is C from the party's records to its item
-list. After that, by `python3 tools/burndown.py --uncovered C1`, the
-combatants' animation commands and the enemy effects (`$C1:5CF1` 6,346 bytes,
-`$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981) and `$C1:F205` (2,140).
-The battle routines at `$FD:A8A5`-`$B7EB` that `$C1` calls (4.2 KiB) belong
-with this bank's chunks, not `$FD`'s.
+every action's effect, a party member's action carried out, the setup's party
+helpers with the inventory and gold service (`$C1:8003`), and the fight's
+start (`$C1:FA8B`) with the `$FD` routines it calls, which the main loop now
+runs as C. **Next**, by `python3 tools/burndown.py --uncovered C1` (28% of the
+bank left): the combatants' animation commands and the enemy effects
+(`$C1:5CF1` 6,346 bytes, `$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981)
+and `$C1:F205` (2,140). What is left of the battle's routines in bank `$FD`
+(`$FD:A8A5`-`$B7EB`) goes with them: the rewards' messages (`$FD:AD17`), the
+experience's share (`$FD:B201`), a member's turn (`$FD:AB30`), the
+counterattacks (`$FD:AC6E`) and `$FD:A8CE`.
 
 **`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
 instruction set and the map they scroll, the load screen, the window command
@@ -373,7 +373,8 @@ wave 1: bank `$FD`"): the time-gate tunnel scenes event `$FF` starts with
 `$FD:DE15`/`$DE87` and helpers `$FD:EAA6`-`$F2xx`, 2.6 KiB), which draw through
 the PPU directly and want the video service; and the location's tile animation
 loader `$FD:DE98`, blocked on the work RAM port writes through `$217F`
-(TODO.md, "P1 leftovers").
+(TODO.md, "P1 leftovers"). The battle's routines in the bank go with `$C1`
+(above).
 
 RECOMP.md's "What drafts don't do yet" lists where the draft tool still falls
 short, starting with D and DB where only interrupts reach.

@@ -171,4 +171,39 @@ enum { SETUP_RULE_ENTRY_BYTES = 4 };
 static inline uint16_t setup_rule_enemy(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE00u + at); }
 static inline uint16_t setup_rule(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE02u + at); }
 
+/* ---- The fight's start (battle/fight_*.c) ----------------------------------------------------- */
+
+/* An enemy's record, 23 bytes by its id ($CC:4700): its HP, its level, what
+ * it shrugs off and keeps, its stats and affinities, and its kind, family
+ * and attack. */
+enum { ENEMY_STATS_RECORD_BYTES = 23 };
+
+static inline uint8_t enemy_record_byte(const GameState *g, uint8_t enemy, unsigned n)
+{
+    return rom_read8(g, 0xCC4700u + (uint16_t)(enemy * ENEMY_STATS_RECORD_BYTES) + n);
+}
+
+/* The characters' records as a new game starts them ($CC:0000, laid out as
+ * character_records), which a demo battle's party starts from. */
+static inline uint8_t character_start_record_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xCC0000u + at); }
+
+/* A demo battle's party: each character's HP, its most, its MP and its most,
+ * eight bytes a character, from where the demo's word says in bank FD
+ * ($FD:B99C, a word a demo). */
+typedef struct {
+    uint16_t hp, max_hp, mp, max_mp;
+} DemoMember;
+
+static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned character)
+{
+    uint16_t at = (uint16_t)(rom_read16(g, 0xFDB99Cu + (uint8_t)(demo << 1)) + character * 8);
+    return (DemoMember){ rom_read16(g, 0xFD0000u | at), rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
+                         rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
+}
+
+/* How long a combatant's first turn waits, before its speed takes its part
+ * off, by the battle speed setting and its speed ($CC:2E31, sixteen a
+ * setting). */
+static inline uint8_t first_turn_wait(const GameState *g, uint8_t at) { return rom_read8(g, 0xCC2E31u + at); }
+
 #endif

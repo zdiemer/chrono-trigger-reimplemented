@@ -8841,6 +8841,10 @@ source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battl
   offset = 3
   meaning = "The combatant the member chose to aim at"
   [[var.field]]
+  name = "spare"
+  offset = 4
+  meaning = "A byte the fight's start clears with the rest; no code traced reads it"
+  [[var.field]]
   name = "partners"
   offset = 5
   meaning = "Combination tech pairing: a partner's party slot in each nibble ($F: none)"
@@ -9303,8 +9307,21 @@ count = 3
 stride = 5
 index = "party member"
 subsystem = "battle"
-meaning = "Five bytes the battle keeps for each party member; the first goes back into its stat block when the battle ends"
-source = "game/battle/main_loop.c $C1:8443"
+meaning = "Five bytes the battle keeps for each party member: the weapon it carries, which goes back into its stat block when the battle ends"
+source = "game/battle/main_loop.c $C1:8443; game/battle/fight_party.c ($FD:AEF2)"
+  [[var.field]]
+  name = "weapon"
+  offset = 0
+  meaning = "The member's weapon as the fight starts (0 for none)"
+  [[var.field]]
+  name = "spare"
+  offset = 1
+  meaning = "A byte the fight's start clears; no code traced reads it"
+  [[var.field]]
+  name = "marks"
+  offset = 2
+  size = 3
+  meaning = "For a member with a weapon: $80, 1, and the party-slot bit (bit 7 the first slot) of the character the weapon is made for; no code traced reads them"
 
 [[var]]
 name = "battle_enemy_hp_seen"
@@ -14856,3 +14873,207 @@ index = "battle slot (0-1)"
 subsystem = "battle"
 meaning = "Where the modifier that beats its target outright marks a party member in the first two slots as beaten: it marks by battle slot from here, so the third member's mark is battle_enemy_beaten_any and an enemy's is battle_enemy_beaten"
 source = "game/battle/effect_modifiers.c ($C1:F124)"
+
+# ---- The fight's start (game/battle/fight_*.c, $C1:FA8B) ---------------------------------
+
+[[var]]
+name = "character_records"
+addr = "7E:2600"
+count = 7
+stride = 0x50
+index = "character (0 Crono to 6 Magus)"
+unchecked = "the demo battle's party writes eight records' HP and MP, the eighth over the learned techs after the seventh (game/battle/fight_party.c, $FD:B2DE)"
+subsystem = "core"
+meaning = "Each character's record: its HP and MP, its stats and its equipment, laid out as a battle stat block's first $50 bytes, which the battle copies it into"
+source = "game/battle/fight_party.c ($FD:AE52, $FD:B2DE, $FD:B33F)"
+  [[var.field]]
+  name = "record"
+  offset = 0
+  size = 0x50
+  meaning = "The record a byte at a time, by the stat block's offsets (battle/combatant.h)"
+  [[var.field]]
+  name = "hp"
+  offset = 0x03
+  size = 2
+  meaning = "Current HP"
+  [[var.field]]
+  name = "max_hp"
+  offset = 0x05
+  size = 2
+  meaning = "Maximum HP"
+  [[var.field]]
+  name = "mp"
+  offset = 0x07
+  size = 2
+  meaning = "Current MP"
+  [[var.field]]
+  name = "max_mp"
+  offset = 0x09
+  size = 2
+  meaning = "Maximum MP"
+
+[[var]]
+name = "party_single_techs_learned"
+addr = "7E:2837"
+count = 7
+index = "character"
+subsystem = "core"
+meaning = "The character's single techs learned, its first in bit 7 down to its eighth in bit 0"
+source = "game/battle/tech_records.c ($C1:C96A)"
+
+[[var]]
+name = "party_double_techs_learned"
+addr = "7E:283E"
+count = 15
+index = "the double techs from the first ($39), three a byte"
+unchecked = "the battle's setup of a member's double techs reads the byte after the last as it ends, the first triple techs' (game/battle/tech_records.c, $C1:CA1A)"
+subsystem = "core"
+meaning = "The double techs learned, three a byte in bits 7, 6 and 5"
+source = "game/battle/tech_records.c ($C1:CA1A)"
+
+[[var]]
+name = "battle_demo"
+addr = "7E:29AC"
+subsystem = "battle"
+meaning = "Which demo battle this is, picking its party's HP and MP and the actions it takes"
+source = "game/battle/fight_party.c ($FD:B2DE); $C1:B743"
+
+[[var]]
+name = "battle_demo_spare"
+addr = "7E:AF1D"
+subsystem = "battle"
+meaning = "A byte a demo battle's setup clears; no code traced reads it"
+source = "game/battle/fight_party.c ($FD:B33F)"
+
+[[var]]
+name = "battle_party_fighting_count"
+addr = "7E:AEC5"
+subsystem = "battle"
+meaning = "How many party members the fight starts with, which with the enemies makes the timers' order"
+source = "game/battle/fight_start.c ($C1:FA8B, $FD:B22E)"
+
+[[var]]
+name = "battle_members_turning_experience_to_gold"
+addr = "7E:B3BD"
+subsystem = "battle"
+meaning = "How many party members wear the accessory ($A9) that turns the experience the battle gives into gold"
+source = "game/battle/fight_party.c ($FD:AE99); $FD:B201"
+
+[[var]]
+name = "battle_enemy_family_bits"
+addr = "7E:A020"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "The low two bits of each enemy's family byte, noted as the fight starts; no code traced reads them"
+source = "game/battle/fight_enemies.c ($FD:B121)"
+
+[[var]]
+name = "battle_experience_won"
+addr = "7E:B28C"
+size = 2
+subsystem = "battle"
+meaning = "The experience the battle gives, added up from the enemies beaten"
+source = "game/battle/fight_start.c ($FD:B732); $FD:ABD0, $FD:AD17, $C1:F7D7"
+
+[[var]]
+name = "battle_tech_points_won"
+addr = "7E:B2DB"
+stride = 3
+subsystem = "battle"
+meaning = "The tech points the battle gives, a 24-bit sum"
+source = "game/battle/fight_start.c ($FD:B732); $FD:ABD0, $FD:AD17"
+  [[var.field]]
+  name = "low"
+  offset = 0
+  size = 2
+  meaning = "Its low word"
+  [[var.field]]
+  name = "high"
+  offset = 2
+  meaning = "Its high byte"
+
+[[var]]
+name = "battle_rewards_levels"
+addr = "7E:B2B0"
+count = 6
+index = "a byte of what the level-ups note"
+subsystem = "battle"
+meaning = "What the level-ups note for the rewards' messages to show ($C1:F81B, $FD:AD9C)"
+source = "game/battle/fight_start.c ($FD:B732)"
+
+[[var]]
+name = "battle_rewards_techs"
+addr = "7E:B3CE"
+count = 24
+index = "a tech named"
+subsystem = "battle"
+meaning = "The techs the rewards' messages name as learned ($FD:ADD7), $FF for none"
+source = "game/battle/fight_start.c ($FD:B732)"
+
+[[var]]
+name = "battle_rewards_last_messages"
+addr = "7E:B30F"
+count = 2
+index = "which message's byte"
+subsystem = "battle"
+meaning = "Two bytes the rewards' last messages read ($FD:AE10, $FD:AE37); what they are isn't worked out"
+source = "game/battle/fight_start.c ($FD:B732)"
+
+[[var]]
+name = "battle_fight_start_spares"
+addr = "7E:AEBD"
+count = 6
+index = "a byte of them"
+subsystem = "battle"
+meaning = "Six bytes the fight's start clears after the enemy's foe kept; no code traced reads them"
+source = "game/battle/fight_start.c ($C1:FA8B)"
+
+[[var]]
+name = "battle_timer_tick_spare"
+addr = "7E:B3C2"
+size = 2
+subsystem = "battle"
+meaning = "A word between the count-down pass's slot and timer that the fight's start clears; no code traced reads it"
+source = "game/battle/fight_start.c ($C1:FA8B)"
+
+[[var]]
+name = "battle_enemy_turn_spare"
+addr = "7E:B253"
+subsystem = "battle"
+meaning = "A byte after the enemy's turn that the fight's start clears; no code traced reads it"
+source = "game/battle/fight_start.c ($FD:B732)"
+
+[[var]]
+name = "battle_condition_target_spares"
+addr = "7E:AED9"
+count = 10
+index = "a byte of them"
+subsystem = "battle"
+meaning = "The ten bytes after battle_condition_target, which the fight's start clears with it; no code traced reads them"
+source = "game/battle/fight_start.c ($FD:B732)"
+
+[[var]]
+name = "battle_effect_record_spares"
+addr = "7E:AEF2"
+count = 5
+index = "a byte of them"
+subsystem = "battle"
+meaning = "The five bytes after the effect's record, which the fight's start clears with it; no code traced reads them"
+source = "game/battle/fight_party.c ($FD:B555)"
+
+[[var]]
+name = "battle_fight_start_mark"
+addr = "7E:AE56"
+subsystem = "battle"
+meaning = "A byte the fight's start clears as it adds the party's stats up; no code traced reads it"
+source = "game/battle/fight_party.c ($C1:FC48)"
+
+[[var]]
+name = "battle_enemy_animation_work"
+addr = "7E:5E1D"
+count = 16
+index = "enemy, and past the eighth what follows"
+subsystem = "battle"
+meaning = "Bytes the enemies' animation commands ($C1:3772, the original's) keep per enemy, which the fight's start clears; what they hold isn't worked out"
+source = "game/battle/fight_party.c ($FD:B555); $C1:3790"

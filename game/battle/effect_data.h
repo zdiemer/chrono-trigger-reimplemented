@@ -267,6 +267,14 @@ static inline ModifierRecord modifier_record(const GameState *g, uint8_t modifie
     return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
 
+/* The same by the record's place, as the fight's start finds it: its number
+ * times three in a byte, so the modifiers from 86 on read earlier ones'. */
+static inline ModifierRecord modifier_record_at(const GameState *g, uint8_t place)
+{
+    uint32_t at = 0xCC2A05u + place;
+    return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+}
+
 /* $CC:05CD: an item's healing, four bytes an item: what it restores or cures,
  * how much (a multiple, or $0F for all), and the power of it. The original
  * finds the item's four bytes by its number times four in a byte, so the

@@ -15,6 +15,7 @@
  * end. */
 #include "battle/bridge.h"
 #include "battle/combatant.h"
+#include "battle/fight.h"
 #include "battle/effect_parts.h"
 #include "battle/entries.h"
 #include "battle/equipment_data.h"
@@ -56,13 +57,11 @@ static uint8_t raised(uint8_t stat, uint8_t amount, uint8_t most)
     return sum < most ? sum : most;
 }
 
-// $FD:B141
-/* The boost a piece's record names, if any, added to the member's stats. */
-static void apply_boost(GameState *g, uint8_t member, uint16_t record)
+// $FD:B14D
+/* A boost added to the member's stats: each stat it names, raised by its
+ * amount. */
+void battle_apply_boost(GameState *g, uint8_t member, uint8_t which)
 {
-    uint8_t which = equipment_bank_byte(g, (uint16_t)(record + BOOST_BYTE));
-    if (which == NO_BOOST)
-        return;
     StatBoost boost = stat_boost(g, which);
     battle_keep_byte(g, ADDED, boost.amount);
     for (unsigned i = 0; i < BOOSTABLE; i++) {
@@ -73,6 +72,15 @@ static void apply_boost(GameState *g, uint8_t member, uint16_t record)
     }
     ORIGINAL_EFFECT(battle_leave_word(g, BOOST_AT, stat_boost_place(which)));
     ORIGINAL_EFFECT(battle_leave_byte(g, BITS_LEFT, (uint8_t)(boost.stats << (BOOSTABLE - 1))));
+}
+
+// $FD:B141
+/* The boost a piece's record names, if any, added to the member's stats. */
+static void apply_boost(GameState *g, uint8_t member, uint16_t record)
+{
+    uint8_t which = equipment_bank_byte(g, (uint16_t)(record + BOOST_BYTE));
+    if (which != NO_BOOST)
+        battle_apply_boost(g, member, which);
 }
 
 // $C1:CF69
@@ -177,6 +185,14 @@ static void copy_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
     }
     ORIGINAL_EFFECT(battle_leave_word(g, MEMBER_AT, BATTLE_PARTY_SIZE));
     ORIGINAL_EFFECT(battle_leave_word(g, COPIED, 0));
+}
+
+/* As the fight's start calls them (battle/fight.h). */
+void battle_set_up_member_stats_of(GameState *g, uint8_t member) { set_up_member_stats(g, member); }
+
+void battle_copy_equipment_records_for(GameState *g, uint8_t worn_at, uint8_t copy_to, uint8_t bytes)
+{
+    copy_equipment_records(g, worn_at, copy_to, bytes);
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
