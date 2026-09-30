@@ -48,8 +48,8 @@ void battle_share_experience(GameState *g);
 /* The pieces (each an entry of its own too, battle/entries.h). */
 
 /* battle/rewards_levels.c */
-/* `pot` is the experience left to share out, which a level-up pays from. */
 void rewards_gain_experience(GameState *g, Grower who, uint16_t amount);
+/* `pot` is the experience left to share out, which a level-up pays from. */
 void rewards_level_up(GameState *g, Grower who, uint8_t member, uint16_t *pot);
 bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot);
 void rewards_grow_hp_and_mp(GameState *g, Grower who);

@@ -153,6 +153,7 @@ void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, 
         uint16_t cost = tech_points_for_next(g, character, party_single_techs_known(g, character));
         uint16_t over = points_left(g, member);
         if (cost < over) {
+            /* the arithmetic's first cell, game state as in the level-up */
             battle_set_wide_math_first(g, cost);
             points = over;
             set_points_left(g, member, cost);
@@ -170,7 +171,7 @@ void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, 
         ORIGINAL_EFFECT(battle_leave_word(g, WORK_TECHS_AT, character_techs_place(character)));
     }
     if (learned)
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BIT_AT, (uint16_t)(character * 16)));
+        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BIT_AT, tech_costs_place(character)));
 }
 
 /* ---- Combination techs ------------------------------------------------------------------ */
@@ -259,7 +260,7 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
     AsksMet last = { false, 0, 0 };
     uint8_t n = 0;
     do {
-        uint8_t tech = (uint8_t)(c.first + n), bit = (uint8_t)(n < 8 ? 0x80 >> n : 0);
+        uint8_t tech = (uint8_t)(c.first + n), bit = learned_bit(n);
         if (combination_learned(g, c.record) & bit)
             continue;
         last = asks_met(g, &list, c.asks, n);
@@ -285,7 +286,7 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
     } while (++n != c.count);
     if (tested)
         leave_asks_met(g, last);
-    ORIGINAL_EFFECT(set_battle_combination_tech_bit(g, (uint8_t)(n < 8 ? 0x80 >> n : 0)));
+    ORIGINAL_EFFECT(set_battle_combination_tech_bit(g, learned_bit(n)));
     ORIGINAL_EFFECT(set_battle_combination_tech(g, (uint8_t)(c.first + n)));
     ORIGINAL_EFFECT(battle_leave_word(g, WORK_TECHS_AT, combination_tech_asks_place(c.asks, n)));
     ORIGINAL_EFFECT(set_battle_combination_techs_left(g, 0));
@@ -415,7 +416,7 @@ void rewards_learn_techs(GameState *g)
         ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, combination_learned_place(c.record)));
         ORIGINAL_EFFECT(set_battle_combination_members(g, c.characters));
     } else if (fighting) {
-        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, (uint16_t)(noted * BATTLE_STAT_BLOCK_BYTES)));
+        ORIGINAL_EFFECT(battle_leave_word(g, WORK_BLOCK_AT, member_block_place(noted)));
     }
     /* the cell is the effect's hits left, which the next effect that hits
      * several times reads as it finds it (battle/effect_work.c) */

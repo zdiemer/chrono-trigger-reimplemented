@@ -11,11 +11,15 @@
 #include "battle/battle.h"
 #include "battle/combatant.h"
 #include "battle/rewards.h"
+#include "battle/rewards_data.h"
 #include "ram.h"
 #include "state.h"
 #include "vars.h"
 
 enum { TOP_LEVEL = 99 };
+
+/* The most HP and MP a level brings them to. */
+enum { MOST_MAX_HP = 999, MOST_MAX_MP = 99 };
 
 /* ---- The record a level grows -------------------------------------------------------------- */
 
@@ -93,6 +97,17 @@ enum {
     WORK_LISTED_AT = 0x10,    /* the combination's characters listed, which is tested; the HP or MP step */
     WORK_CHARACTER_AT = 0x12, /* the character looked at */
 };
+
+/* A character's record's size, which the original multiplies by to find it. */
+enum { CHARACTER_RECORD_BYTES = RAM_CHARACTER_RECORDS_STRIDE };
+
+/* A member's stat block, as an offset from the first, in the cell the tech
+ * pieces take it in. */
+static inline uint16_t member_block_place(uint8_t member) { return (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES); }
+
+/* Where a character's costs of its single techs start, as an offset into the
+ * table (rewards_data.h, tech_points_for_next). */
+static inline uint16_t tech_costs_place(uint8_t character) { return (uint16_t)(character * TECH_COSTS_BYTES); }
 
 static inline uint16_t known_place(uint8_t character) { return (uint16_t)(RAM_PARTY_SINGLE_TECHS_KNOWN + character); }
 static inline uint16_t combination_learned_place(uint8_t record) { return (uint16_t)(RAM_PARTY_DOUBLE_TECHS_LEARNED + record); }

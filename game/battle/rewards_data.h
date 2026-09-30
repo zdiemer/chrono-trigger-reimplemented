@@ -78,9 +78,10 @@ static inline CharacterTechs character_techs(const GameState *g, uint8_t charact
 
 /* The tech points each of a character's single techs takes after the one
  * before, by how many it knows ($CC:26FA, sixteen bytes a character). */
+enum { TECH_COSTS_BYTES = 16 };
 static inline uint16_t tech_points_for_next(const GameState *g, uint8_t character, uint8_t known)
 {
-    return rom_read16(g, 0xCC26FAu + (uint16_t)(character * 16 + (uint8_t)(known * 2)));
+    return rom_read16(g, 0xCC26FAu + (uint16_t)(character * TECH_COSTS_BYTES + (uint8_t)(known * 2)));
 }
 
 /* The combination techs, a record for each pair or trio of characters who
@@ -111,12 +112,14 @@ static inline CombinationRecord combination_record(const GameState *g, uint8_t r
     return (CombinationRecord){ rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place),
                                 rom_read8(g, 0xCC0002u + place), rom_read16(g, 0xCC0003u + place) };
 }
-/* What a combination's tech asks of the character at `position` in its
- * list, from where its record says the asks are. */
+/* Where the asks of a combination's tech are, from where its record says
+ * the first's are. */
 static inline uint16_t combination_tech_asks_place(uint16_t asks, uint8_t tech)
 {
     return (uint16_t)(asks + tech * COMBINATION_TECH_ASKS);
 }
+/* What a combination's tech asks of the character at `position` in its
+ * list. */
 static inline uint8_t combination_tech_asks(const GameState *g, uint16_t asks, uint8_t tech, uint8_t position)
 {
     return rom_read8(g, 0xCC0000u + (uint16_t)(combination_tech_asks_place(asks, tech) + position));

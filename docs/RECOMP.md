@@ -3257,8 +3257,12 @@ as they are: the reserve's count of levels carried as a word, since the
 reserve's byte isn't cleared between battles and gets to `$FF`; the rewards'
 member a word, as the effect code's block offset it reuses is; and a
 combination's asks as the place in bank CC its record gives. Three rubric
-items came of it (111-113). After the rework, every entry fuzzed again with
-seed 1, none mismatching.
+items came of it (111-113). A scoped re-review of the rework rated no file
+translation; its residual findings (a knocked-out test made twice, a constant
+defined twice, three places built inline, two comments above the wrong
+declaration) were fixed, and the arithmetic's first cell, written on each pass
+of the stats' and the costs' loops, stays plain, as the effect code reads it.
+After the rework, every entry fuzzed again with seed 1, none mismatching.
 
 **Validation.** The library's 26 movies in shadow mode, none mismatching:
 the experience's share 25 calls (23 compared, 2 interrupted), its level-ups

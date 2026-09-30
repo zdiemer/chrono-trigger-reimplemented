@@ -79,6 +79,7 @@ static bool knocked_out(const GameState *g, Grower who) { return (record_byte(g,
  * a level was reached, noted for `member`. */
 bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot)
 {
+    bool reached = false;
     if (!knocked_out(g, who)) {
         set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_EXPERIENCE);
         if (grower_level(g, who) >= TOP_LEVEL) {
@@ -86,9 +87,6 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
             ORIGINAL_EFFECT(set_battle_growth_no_level(g, NO_LEVEL));
             return false;
         }
-    }
-    bool reached = false;
-    if (!knocked_out(g, who)) {
         uint16_t left = record_word(g, who, STAT_EXPERIENCE_LEFT);
         reached = *pot >= left;
         if (reached) {
@@ -109,8 +107,6 @@ bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot
     return reached;
 }
 
-/* The most HP and MP a level brings them to. */
-enum { MOST_MAX_HP = 999, MOST_MAX_MP = 99 };
 
 /* The first of the character's steps that goes up to the level. */
 static uint8_t growth_step_for(const GameState *g, uint8_t character, uint8_t level,
@@ -179,6 +175,8 @@ static uint8_t grown_stat(GameState *g, Grower who, uint8_t character, uint8_t r
     TIMED_AS(g, MULTIPLY_WORDS, product = battle_multiply_words(g, stat_growth_rate(g, character, rate_at), levels));
     TIMED_AS(g, DIVIDE_LONG, growth = battle_divide_leftover(g, (uint16_t)product, GROWTH_RATE_SCALE));
     uint8_t first = record_byte(g, who, STAT_FIRST_LEVEL_STATS + rate_at);
+    /* game state as the arithmetic's cells are: the effect code reads the
+     * first number's cell as the last caller left it (battle/effect_amounts.c) */
     battle_set_wide_math_first(g, first);
     return (uint8_t)(first + (uint8_t)growth.quotient);
 }
@@ -270,7 +268,7 @@ void rewards_share_with_reserve(GameState *g)
             continue;
         Grower who = grower_in_reserve(character);
         /* the original finds the record by multiplying */
-        TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, RAM_CHARACTER_RECORDS_STRIDE, character));
+        TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, CHARACTER_RECORD_BYTES, character));
         uint32_t scaled;
         uint16_t share;
         TIMED_AS(g, MULTIPLY_WORDS, scaled = battle_multiply_words(g, battle_experience_won(g), RESERVE_SHARE));

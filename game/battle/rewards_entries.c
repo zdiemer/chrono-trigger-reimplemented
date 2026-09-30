@@ -180,7 +180,6 @@ bool rewards_grow_hp_and_mp_ready(Snes *s)
 }
 
 /* The carry says whether the MP reached its most, where it stops. */
-enum { MOST_MAX_MP = 99 };
 
 void rewards_grow_hp_and_mp_entry(Snes *s)
 {
@@ -237,15 +236,15 @@ void rewards_sort_combination_members_entry(Snes *s)
 /* The member whose stat block is at the offset the original keeps, and the
  * character learning; where the pieces note techs, the rewards note for that
  * member too. */
-static uint8_t member_kept(const GameState *g) { return (uint8_t)(battle_cell_word(g, WORK_BLOCK_AT) / BATTLE_STAT_BLOCK_BYTES); }
+static uint8_t member_kept(const GameState *g) { return (uint8_t)(battle_cell_word(g, WORK_BLOCK_AT) / member_block_place(1)); }
 
 static bool learner_ready(Snes *s, bool noting_the_member)
 {
     uint16_t block = cell_word(s, WORK_BLOCK_AT);
     vars_peek(true);
     const GameState *g = state_of(s);
-    uint8_t member = (uint8_t)(block / BATTLE_STAT_BLOCK_BYTES);
-    bool ready = block % BATTLE_STAT_BLOCK_BYTES == 0 && member < BATTLE_PARTY_SIZE && battle_tech_learner(g) < SETUP_CHARACTERS
+    uint8_t member = (uint8_t)(block / member_block_place(1));
+    bool ready = member < BATTLE_PARTY_SIZE && block == member_block_place(member) && battle_tech_learner(g) < SETUP_CHARACTERS
                  && (!noting_the_member || battle_rewards_member(g) == member);
     vars_peek(false);
     return battle_on_page(s) && ready;
