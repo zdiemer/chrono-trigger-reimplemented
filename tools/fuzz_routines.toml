@@ -10954,3 +10954,145 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E"]
 iterations = 1000
 why = "over anything"
+
+# ---- battle: the rewards (game/battle/rewards_*.c) ----------------------------------------------
+
+[[routine]]
+name = "battle_turn_experience_to_gold"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "any experience, gold and wearers"
+
+[[routine]]
+name = "battle_share_experience"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,06,80,FF",
+        "--fill", "7E5E2D-7E5F2D:80=00-06", "--fill", "7E5E3F-7E5F3F:80=01-63", "--fill", "7E5E4A-7E5F4A:80=00-7F",
+        "--fill", "7E2600-7E27E0:50=00-06", "--fill", "7E2612-7E27F2:50=01-63", "--fill", "7E2830-7E2836=00-07"]
+iterations = 5000
+why = "each member fighting as a character or out of the fight, its stat block a character's at any level from 1 to 99 and not knocked out (the guard turns away one knocked out, whose level-ups would go on for ever), the characters' records theirs at those levels, each knowing fewer single techs than it has; any experience, tech points and characters joined and in reserve"
+
+[[routine]]
+name = "rewards_gain_experience"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=5E2D-5F2D/80"]
+iterations = 5000
+why = "each member's stat block, any experience in it and won"
+
+[[routine]]
+name = "rewards_gain_experience"
+variant = "reserve"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=2600-27E0/50"]
+iterations = 5000
+why = "each character's record, any experience in it and won"
+
+[[routine]]
+name = "rewards_level_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB285-7EB286=5E2D,5EAD,5F2D,2600,2650,26A0,26F0,2740,2790,27E0",
+        "--fill", "7EB1F4-7EB1F5=0000,0001,0002,0003", "--fill", "7E5E2D-7E5F2D:80=00-06", "--fill", "7E5E3F-7E5F3F:80=01-63",
+        "--fill", "7E2600-7E27E0:50=00-06", "--fill", "7E2612-7E27F2:50=01-63"]
+iterations = 10000
+why = "each member's stat block and each character's record, noted for a member or the reserve, a character's at any level from 1 to 99, knocked out or not; any experience won and lacking"
+
+[[routine]]
+name = "rewards_reach_level"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB285-7EB286=5E2D,5EAD,5F2D,2600,2650,26A0,26F0,2740,2790,27E0",
+        "--fill", "7EB1F4-7EB1F5=0000,0001,0002,0003"]
+iterations = 10000
+why = "each member's stat block and each character's record, noted for a member or the reserve, at any level, knocked out or not; any experience won and lacking"
+
+[[routine]]
+name = "rewards_grow_hp_and_mp"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB285-7EB286=5E2D,5EAD,5F2D,2600,2650,26A0,26F0,2740,2790,27E0",
+        "--fill", "7E5E2D-7E5F2D:80=00-06", "--fill", "7E5E3F-7E5F3F:80=00-63",
+        "--fill", "7E2600-7E27E0:50=00-06", "--fill", "7E2612-7E27F2:50=00-63"]
+iterations = 5000
+why = "each member's stat block and each character's record, a character's at any level up to 99 (a level-up brings it to 99 at most), any HP and MP"
+
+[[routine]]
+name = "rewards_share_with_reserve"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2600-7E27E0:50=00-06", "--fill", "7E2612-7E27F2:50=01-63"]
+iterations = 5000
+why = "the characters' records theirs, at any level from 1 to 99; any characters joined and in the fight, any experience"
+
+[[routine]]
+name = "rewards_learn_techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,06,80,FF",
+        "--fill", "7E5E2D-7E5F2D:80=00-06", "--fill", "7E5E4A-7E5F4A:80=00-7F", "--fill", "7E2830-7E2836=00-07"]
+iterations = 10000
+why = "each member fighting as a character or out of the fight, its stat block a character's and not knocked out, knowing fewer single techs than it has (the guard turns away more, whose techs would run past the member's places in the messages' list); any tech points, learned bits and unlocks"
+
+[[routine]]
+name = "rewards_sort_combination_members"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "any members"
+
+[[routine]]
+name = "rewards_count_tech_points"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=0000,0080,0100", "--fill", "7EB1F4-7EB1F5=0000,0001,0002",
+        "--fill", "7EB3CC-7EB3CD=0000,0008,0010", "--fill", "7EB2D1-7EB2D1=00-06", "--fill", "7E2830-7E2836=00-07"]
+iterations = 20000
+why = "a member's stat block, the rewards noting for it and its places in the messages' list from its first (the guard turns away the states where the three differ), any character knowing fewer single techs than it has; any tech points"
+
+[[routine]]
+name = "rewards_reach_next_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=0000,0080,0100", "--fill", "7EB1F4-7EB1F5=0000,0001,0002",
+        "--fill", "7EB2D1-7EB2D1=00-06"]
+iterations = 10000
+why = "a member's stat block and the rewards noting for it (the guard turns away the states where the two differ), any character, any tech points"
+
+[[routine]]
+name = "rewards_learn_single_tech"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=0000", "--fill", "7EB1F4-7EB1F5=0000",
+        "--fill", "7EB2D1-7EB2D1=03", "--fill", "7E0002-7E0003=2833", "--fill", "7E0004-7E0005=2770",
+        "--fill", "7EB3CC-7EB3CC=00-17", "--fill", "7EB3CD-7EB3CD=00", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "the first member's stat block and a character's cells as the tech points' count leaves them, any place in the messages' list, any count of techs known and first tech; A's high byte clear, as the count leaves it (it comes into an index)"
+
+[[routine]]
+name = "rewards_learn_combination_techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=283E,2840,2845,284C,284D,2850,2856",
+        "--fill", "7EB2E0-7EB2E0=01-03", "--fill", "7EB30F-7EB30F=00-07", "--fill", "7EB1F4-7EB1F5=0000,0001,0002"]
+iterations = 10000
+why = "a double or triple combination's learned byte, one to three techs whose doubles fit the messages' list, noted for a member; any characters, techs, asks and techs known"
+
+[[routine]]
+name = "battle_put_items_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "any list, inventory and choices"
+
+[[routine]]
+name = "battle_return_chosen_item"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0014-7E0014=00-02"]
+iterations = 5000
+why = "each member, any choice and list"

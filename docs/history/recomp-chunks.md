@@ -1980,3 +1980,105 @@ item held 14,109 (and one fewer, which nothing measures, the same), gold
 covered 4,208, given 5,066, taken 4,042. The member's action (7,890), its
 attack (11,057) and the party's tech (23,069) moved with what they call now
 running as C.
+
+## Phase 3, battle chunk 7: the fight's start (`$C1:FA8B`)
+
+The plan named the battle's setup (`$C1:FA8B`) and the members' tech records
+(`$C1:C96A`, `$C1:CA1A`) as the next chunk, on the understanding that every
+helper they call was C. It wasn't: the setup calls eighteen routines in bank
+`$FD`, part of the battle's run at `$FD:A8A5`-`$B7EB` that wave 1 left for this
+bank's chunks. They came with it, so the chunk is the fight's start whole --
+3.2 KiB of the original, `$C1` from 30% left to 28% and `$FD` from 39% to 27% --
+and the main loop now runs it as C (`battle_run`, as the combination check).
+
+What it is, in the game's terms (`battle/fight_start.c` has the order):
+
+- **Who is in the fight** (`battle/fight_enemies.c`): every stat block cleared,
+  the party's members in their slots with each character's slot noted, the
+  eight placed enemies with those in reserve out of the fight for now
+  (`$FD:B22E`); each enemy's block filled from its 23-byte record in bank CC
+  (`$FD:B438`, `$FD:B4D6`), a new accessor, `enemy_record_byte`; and what each
+  enemy carries for a steal to take (`$C1:FD60`).
+- **The party** (`battle/fight_party.c`): a demo battle's party
+  (`$FD:B2DE`, `$FD:B33F`: the characters as a new game starts them, an
+  inventory of every item, the demo's HP and MP); each member's block copied
+  from its character's record (`$FD:AE52`), Ayla's fists by her level
+  (`$C1:FDAE`); the party listed again without a member sitting the fight out;
+  the elemental affinities (`$FD:B3FE`); the accessories noted (`$FD:AE99`),
+  the weapons carried (`$FD:AEF2`), the defence and attack (`$C1:FC4B`); what
+  the accessories and armor do (`$FD:B555`, `$FD:B3EB`, `$FD:B363`,
+  `$FD:AEC4`: a modifier, a status to start with, more HP, sharper weapons,
+  confusion warded off).
+- **The techs** (`battle/tech_records.c`): the records blank (`$FD:AD09`), a
+  member's eight single techs (`$C1:C96A`) and its first six double techs
+  with a partner in the fight (`$C1:CA1A`), beside the triple tech chunk 6
+  ported, sharing one way of filling a record (`start_record`).
+- **The timers** (`battle/fight_timers.c`): every timer stopped
+  (`$FD:B0D5`), each status's length as a table (`$FD:B4E7`), and each
+  combatant's first turn, the soonest one tick away (`$FD:B7EB`).
+- **The turns' and rewards' state cleared** (`$FD:B732`), the places
+  numbered (`$FD:B223`).
+
+The map gained the characters' records (`character_records`, laid out as a
+stat block's first `$50` bytes, the core subsystem's), the single and double
+techs learned, the experience and tech points won, the carried weapon's
+fields, and eleven cells the start clears that no traced code reads, named as
+spares (TODO.md). Two of the original's quirks are kept, each in one place:
+the attack takes a byte of bank CC at the member's block's place, where the
+original meant the weapon's record, and a demo battle's eighth record lands on
+the learned techs.
+
+**The review** rated `tech_records.c` translation and the rest mostly or
+hand-written, and the chunk was reworked before it merged. The builders'
+logic no longer takes the original's carry: a part's cost is a cost, and the
+carries the multiplies are entered with are worked out in leaves helpers
+(`leave_single_cost_carry`, `leave_double_cost_carry`, `leave_speed_carry`).
+The direct page's cells that only the start writes and overwrites are
+scaffolding in each piece, one leaves helper per piece worked out from where
+it ended; the start's header names the five cells that survive it and their
+last, plain writers (rubric item 109). combatant.h's names for three stat
+bytes were wrong, which the start's use showed (the defence is built from
+`$37`, Marle's and Lucca's attack from `$3A`): `$37` is now `STAT_STAMINA`,
+`$3A` `STAT_HIT` and `$3D` `STAT_ATTACK`, with the effect code, the statuses'
+timers and the boosts renamed to match, and the equipment records' bytes in
+the block are named there too (`STAT_ARMOR_DEFENCE`, `STAT_ACCESSORY_FLAGS`,
+...). The data came through records: `enemy_stats_record`, `armor_modifier`
+(the modifier table read as a stat byte and bits, rubric item 110),
+`first_turn_wait(setting, speed)`, `weapon_made_for(weapon)`; the byte after
+the action's targets is `battle_action_targets_end`; the carried weapon's
+three marks are fields, set inside their scaffolding. Accepted as they are:
+the six turn-work words `fight_clear_turn_state` clears, written by their
+numbers because nothing names what they hold; the attack's sum left in the
+arithmetic's cells plainly, which the effects check requires of those cells
+though the first turns overwrite them; and `battle_enemy_animation_work`
+indexed by enemy for its first eight bytes and past them as the original
+clears them, until its reader is ported (TODO.md). A scoped re-review of the
+rework rated no file translation; its last three findings (the records'
+copies' per-row keeps, a weapon's record size borrowing another table's
+name, the TODO line) were fixed. After the rework: shadow mode over the library and every entry
+fuzzed again (seed 1), none mismatching, with chunk 6's triple tech, member
+stats and boost.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching: the
+fight's start 31 calls, every one interrupted (it spans a frame), so it is
+fuzzed; its pieces as the original calls them, the enemies' records 254 calls
+(222 compared) and their blocks cleared 254 (229), the members' records 93
+(82), the single techs 93 (68) and the double techs 93 (36), the affinities
+and bonuses 93 each (all), the combatants listed 31 (13), the first turns 31
+(22), the timers cleared 31 (21), the rest 31 each, nearly all compared;
+Ayla's fists 1. The demo's characters and the sharpened weapons no movie
+reaches. No guard turned a real call away. **Fuzzing**, seed 1, none
+mismatching: the whole start 2,000 states, the enemies' records 648 (the
+rest the guard's, X and its cell differing), the members' records 3,442,
+Ayla's fists 2,504 (the carry clear refused), the affinities 1,791, every
+other entry all of 1,000 to 5,000. Shadow mode found one difference, the
+double techs' record place, which the original keeps without the tenth
+record's offset (its stores carry it); the don't-care check, that the enemy's
+loader hands A back to what reads its high byte.
+
+**Timing.** Calibrated from the shadow runs, the new rows only: the pieces
+from 3,438 (the demo party's test) to 28,297 (the first turns), the single
+and double techs 19,433 and 22,885, Ayla's fists 111,641 (the original divides
+bit by bit). The whole start, which shadow mode never compares, takes its
+measured ratio over the library, 18,554; the demo's characters and the
+sharpened weapons, which nothing measures, a sibling's.

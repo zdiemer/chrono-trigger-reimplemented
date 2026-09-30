@@ -300,7 +300,8 @@ void rewards_reach_next_tech_entry(Snes *s)
 bool rewards_learn_single_tech_ready(Snes *s)
 {
     uint8_t member;
-    if (!learner_ready(s, &member))
+    /* A's high byte comes into the index of the character's count */
+    if (!learner_ready(s, &member) || !battle_on_page_a_high_clear(s))
         return false;
     uint16_t known = cell_word(s, KNOWN_AT), techs = cell_word(s, TECHS_AT);
     vars_peek(true);

@@ -236,9 +236,10 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
         if (!(combination_learned(g, c.record) & bit)) {
             ORIGINAL_EFFECT(battle_leave_word(g, KNOWN_TESTED_AT, 0));
             ORIGINAL_EFFECT(set_battle_combination_short(g, 0));
+            /* a count of techs known that is the list's end ends it too */
             uint8_t n = 0;
             bool short_of_techs = false;
-            for (; n < listed; n++) {
+            for (; n < listed && known[n] != NO_MORE_CHARACTERS; n++) {
                 ORIGINAL_EFFECT(battle_leave_byte(g, KNOWN_TESTED_AT, known[n]));
                 if (known[n] < combination_tech_asks(g, asks, n)) {
                     short_of_techs = true;
@@ -255,12 +256,12 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
                 battle_leave_multiply_carry(g, true);
                 if (!party_tech_locked(g, tech)) {
                     set_combination_learned(g, c.record, combination_learned(g, c.record) | bit);
-                    if (listed == DOUBLE) {
+                    if (n == DOUBLE) {
                         uint8_t at = battle_rewards_double_techs_listed(g);
                         set_battle_rewards_double_techs(g, at, tech);
                         set_battle_rewards_double_techs_listed(g, (uint8_t)(at + 1));
                         note_learned(g, member, NOTED_DOUBLE_TECHS);
-                    } else if (listed == TRIPLE) {
+                    } else if (n == TRIPLE) {
                         set_battle_rewards_triple_tech(g, tech);
                         note_learned(g, member, NOTED_TRIPLE_TECH);
                     }
