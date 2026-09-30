@@ -3194,7 +3194,67 @@ chest's entries' order mismatched 677 of 1,015, and the facing's flip 714 of
 (now also run as C from the tile copy) were calibrated over the library; no
 exception.
 
-@@CHUNK8@@
+### Phase 3, battle chunk 8: the rewards of a won battle (`$C1:F93E`)
+
+The plan named the combatants' animation commands and `$C1:F205` next; this
+chunk took `$C1:F205` with what it belongs to, the rewards a won battle gives,
+whole but for their messages: about 1.9 KiB of the original, `$C1` from 28%
+left to 25% and `$FD` from 27% to 26%. The main loop now runs all of it as C
+(`battle_run`), in fifteen entries.
+
+What it is, in the game's terms (`battle/rewards_levels.c`'s header has the
+order):
+
+- **The experience** (`battle/rewards_levels.c`): turned to gold where a
+  member wears the accessory that does that (`$FD:B201`); otherwise every
+  member still fighting gets the whole of it (`$C1:F93E`), up to 9,999,999
+  (`$C1:F908`), and gains levels with it one at a time (`$C1:F623`,
+  `$C1:F7B9`): a level grows the maximum HP and MP by the character's steps
+  (`$C1:F871`) and six stats by its growth rates, speed not at all. The
+  characters in reserve get three quarters and a level at most (`$C1:F9EB`).
+  A level-up works on a record, a stat block or a character's record, which
+  lay their fields out alike (`Grower`).
+- **The techs** (`battle/rewards_techs.c`): the tech points towards each
+  member's next single tech, a locked one waiting for its character's
+  unlock (`$C1:F205`, `$C1:F39A`, `$C1:F45F`, `$C1:F4DF`); then each pair's and
+  the trio's combination techs, once each character knows as many single techs
+  as a tech asks (`$C1:F2DB`, `$C1:F533`).
+- **The items** (`battle/inventory.c`): the counts of the battle's item list
+  back into the inventory, with the items the members chose and never used
+  (`$C1:B4E9`, `$C1:B6D1`), as a battle is won or run from.
+
+The ROM's tables come through `battle/rewards_data.h` (the experience per
+level, the growth rates and steps, the characters' techs and their costs, the
+combination records) and `party_tech_locked`; the map gained the rewards'
+cells, three of them reusing the effect code's and the reactions' (the
+rewards' member, the combination counted, the third character bit), whose
+last values those readers find, so they are written plainly (the effects
+check found both). What the rewards note for their messages got its meaning:
+`battle_rewards_noted` (a level in a member's first byte, techs in its
+second), the double techs taught and their count, the triple tech. Kept as
+the original has them, each in one place and in TODO.md: the tech points paid
+again where a leftover doesn't reach the next tech's cost, the reserve's level
+noted in the first member's techs byte, and its count carried as a word.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the experience's share 25 calls (23 compared, 2 interrupted), its level-ups
+130 and experience added 129, the HP and MP grown 1, the reserve's share 25
+(24), the techs 25 (23), the tech points 8, the combination techs 86, the
+items put back 25 (16) and a choice returned 82 (81), the gold 25; a single
+tech learned no movie reaches. No guard turned a real call away. Shadow mode
+found the carry the share leaves, which the messages' call compares, and the
+flags the main loop hands them (their overflow is dead, which the don't-care
+check agrees with). **Fuzzing**, seed 1, none mismatching: the share 5,000
+states, the level-ups and levels 10,000 each, the techs 10,000, the tech
+points 4,473 of 20,000 and the next tech 3,339 of 10,000 (the guard's:
+the member's block and the one noted differing), a single tech 5,000, the
+combination techs 10,000, the rest 2,000 to 20,000. It found two of the
+original's ways the movies never meet: a count of techs known of `$FF` ends
+the combination's list, and A's high byte comes into a single tech's index.
+
+**Timing.** Calibrated from the shadow runs, the new rows only: from 2,688
+(the gold) to 23,471 (the reserve's share); a single tech learned, which
+nothing measures, takes the next tech's, 21,182.
 
 ### The reading cost of a chunk
 
