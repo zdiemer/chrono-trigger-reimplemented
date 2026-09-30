@@ -15001,13 +15001,23 @@ source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_techs.c ($C1
   meaning = "Its high byte"
 
 [[var]]
-name = "battle_rewards_noted"
+name = "battle_rewards_levels_noted"
 addr = "7E:B2B0"
-count = 6
-index = "party member for its level (3, the characters in reserve), 3 + party member for its techs"
+count = 4
+index = "party member, 3 the characters in reserve"
 subsystem = "battle"
-meaning = "What the rewards note for their messages ($FD:AD17) to show: in a member's first byte, bit 7 a level gained; in its second, bit 3 single techs learned, bit 2 double techs, bit 1 a triple tech. A level a character in reserve gains is noted in the byte after the third member's, which is the first member's second"
-source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_levels.c ($C1:F7B9), game/battle/rewards_techs.c ($C1:F4DF, $C1:F533)"
+meaning = "Bit 7: the member gained a level, for the rewards' messages ($FD:AD17) to show. The reserve's byte is the first member's battle_rewards_techs_noted, whose bit 7 no message tests"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_levels.c ($C1:F7B9)"
+
+[[var]]
+name = "battle_rewards_techs_noted"
+addr = "7E:B2B3"
+reuses = "battle_rewards_levels_noted"
+count = 3
+index = "party member"
+subsystem = "battle"
+meaning = "What the member learned, for the rewards' messages ($FD:AD17) to show: bit 3 single techs, bit 2 double techs, bit 1 a triple tech"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_techs.c ($C1:F4DF, $C1:F533)"
 
 [[var]]
 name = "battle_rewards_techs"
@@ -15152,7 +15162,7 @@ name = "battle_rewards_levels_gained"
 addr = "7E:B311"
 count = 4
 index = "party member, 3 the characters in reserve"
-unchecked = "the original counts a level gained as a word, so a count at $FF carries into the next byte, past the last the battle's reaction entry (game/battle/rewards_levels.c, $C1:F84A)"
+unchecked = "the original counts a level gained as a word, so a count at $FF carries into the next byte; the reserve's count is not cleared where the members' are, so it can get there, and its carry lands past the last, on the battle's reaction entry (game/battle/rewards_levels.c, $C1:F84A)"
 subsystem = "battle"
 meaning = "How many levels the member gained, which the rewards' messages ($FD:AD17) count down"
 source = "game/battle/rewards_levels.c ($C1:F93E, $C1:F7B9)"
@@ -15290,10 +15300,16 @@ source = "game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
 [[var]]
 name = "battle_rewards_tech_at"
 addr = "7E:B3CC"
-size = 2
 subsystem = "battle"
-meaning = "Where in battle_rewards_techs the next single tech learned is noted: the member's eight from its first, counted in the low byte"
+meaning = "Where in battle_rewards_techs the next single tech learned is noted: the member's eight from its first"
 source = "game/battle/rewards_techs.c ($C1:F205, $C1:F4DF); $FD:ADC6"
+
+[[var]]
+name = "battle_rewards_tech_at_high"
+addr = "7E:B3CD"
+subsystem = "battle"
+meaning = "The byte after battle_rewards_tech_at, which the original writes 0 with it as a word and reads with it as an index"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F4DF)"
 
 [[var]]
 name = "battle_learner_first_tech"

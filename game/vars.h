@@ -7673,13 +7673,17 @@ void set_battle_first_candidate(GameState *g, uint8_t v);
 uint8_t battle_reward_flags(const GameState *g);
 void set_battle_reward_flags(GameState *g, uint8_t v);
 
-enum { BATTLE_REWARDS_NOTED_COUNT = 6 };   /* by party member for its level (3, the characters in reserve), 3 + party member for its techs */
-/* What the rewards note for their messages ($FD:AD17) to show: in a member's first byte, bit 7 a
- * level gained; in its second, bit 3 single techs learned, bit 2 double techs, bit 1 a triple
- * tech. A level a character in reserve gains is noted in the byte after the third member's,
- * which is the first member's second */
-uint8_t battle_rewards_noted(const GameState *g, unsigned member);
-void set_battle_rewards_noted(GameState *g, unsigned member, uint8_t v);
+enum { BATTLE_REWARDS_LEVELS_NOTED_COUNT = 4 };   /* by party member, 3 the characters in reserve */
+/* Bit 7: the member gained a level, for the rewards' messages ($FD:AD17) to show. The reserve's
+ * byte is the first member's battle_rewards_techs_noted, whose bit 7 no message tests */
+uint8_t battle_rewards_levels_noted(const GameState *g, unsigned member);
+void set_battle_rewards_levels_noted(GameState *g, unsigned member, uint8_t v);
+
+enum { BATTLE_REWARDS_TECHS_NOTED_COUNT = 3 };   /* by party member */
+/* What the member learned, for the rewards' messages ($FD:AD17) to show: bit 3 single techs, bit
+ * 2 double techs, bit 1 a triple tech */
+uint8_t battle_rewards_techs_noted(const GameState *g, unsigned member);
+void set_battle_rewards_techs_noted(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_ENEMY_ACTION_CHOSEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
@@ -7858,7 +7862,8 @@ uint8_t battle_rewards_levels_gained(const GameState *g, unsigned member);
 void set_battle_rewards_levels_gained(GameState *g, unsigned member, uint8_t v);
 /* How many levels the member gained, which the rewards' messages ($FD:AD17) count down
  * Unchecked, for marked scaffolding only: the original counts a level gained as a word, so a
- * count at $FF carries into the next byte, past the last the battle's reaction entry
+ * count at $FF carries into the next byte; the reserve's count is not cleared where the members'
+ * are, so it can get there, and its carry lands past the last, on the battle's reaction entry
  * (game/battle/rewards_levels.c, $C1:F84A) */
 uint8_t battle_rewards_levels_gained_unchecked(const GameState *g, unsigned member);
 void set_battle_rewards_levels_gained_unchecked(GameState *g, unsigned member, uint8_t v);
@@ -7991,9 +7996,14 @@ uint16_t battle_reaction_place_kept(const GameState *g);
 void set_battle_reaction_place_kept(GameState *g, uint16_t v);
 
 /* Where in battle_rewards_techs the next single tech learned is noted: the member's eight from
- * its first, counted in the low byte */
-uint16_t battle_rewards_tech_at(const GameState *g);
-void set_battle_rewards_tech_at(GameState *g, uint16_t v);
+ * its first */
+uint8_t battle_rewards_tech_at(const GameState *g);
+void set_battle_rewards_tech_at(GameState *g, uint8_t v);
+
+/* The byte after battle_rewards_tech_at, which the original writes 0 with it as a word and reads
+ * with it as an index */
+uint8_t battle_rewards_tech_at_high(const GameState *g);
+void set_battle_rewards_tech_at_high(GameState *g, uint8_t v);
 
 enum { BATTLE_REWARDS_TECHS_COUNT = 24 };   /* by a tech named */
 /* The techs the rewards' messages name as learned ($FD:ADD7), $FF for none */

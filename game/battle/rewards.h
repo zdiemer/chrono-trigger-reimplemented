@@ -36,11 +36,6 @@ typedef struct {
 static inline Grower grower_member(uint8_t member) { return (Grower){ false, member }; }
 static inline Grower grower_in_reserve(uint8_t character) { return (Grower){ true, character }; }
 
-/* Where the record is in work RAM, as the original keeps it
- * (battle_growth_record_places), and the record that is there, if one is. */
-uint16_t grower_place(Grower who);
-bool grower_at(uint16_t place, Grower *who);
-
 /* $FD:B201: the experience turned to gold, where a member wears the accessory
  * that does it. */
 void battle_turn_experience_to_gold(GameState *g);
@@ -53,23 +48,25 @@ void battle_share_experience(GameState *g);
 /* The pieces (each an entry of its own too, battle/entries.h). */
 
 /* battle/rewards_levels.c */
+/* `pot` is the experience left to share out, which a level-up pays from. */
 void rewards_gain_experience(GameState *g, Grower who, uint16_t amount);
-void rewards_level_up(GameState *g, Grower who, uint8_t member);
-bool rewards_reach_level(GameState *g, Grower who, uint8_t member);
-bool rewards_grow_hp_and_mp(GameState *g, Grower who);
+void rewards_level_up(GameState *g, Grower who, uint8_t member, uint16_t *pot);
+bool rewards_reach_level(GameState *g, Grower who, uint8_t member, uint16_t *pot);
+void rewards_grow_hp_and_mp(GameState *g, Grower who);
 void rewards_share_with_reserve(GameState *g);
 
 /* battle/rewards_techs.c */
 void rewards_learn_techs(GameState *g);
 void rewards_sort_combination_members(GameState *g);
-void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character);
+/* `at` is where in the messages' list of single techs the next is noted. */
+void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, uint8_t *at);
 bool rewards_reach_next_tech(GameState *g, uint8_t member, uint8_t character, uint16_t points);
-void rewards_learn_single_tech(GameState *g, uint8_t member, uint8_t character, uint8_t first);
+void rewards_learn_single_tech(GameState *g, uint8_t member, uint8_t character, uint8_t first, uint8_t *at);
 typedef struct {
     uint8_t record;      /* its number among the combination records, which is its learned byte's */
     uint8_t characters;  /* its characters, a bit each */
     uint8_t first, count; /* its techs */
-    uint16_t asks;       /* where the single techs each tech asks are */
+    uint16_t asks;       /* where in bank CC its record says what each tech asks is */
 } Combination;
 void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member);
 

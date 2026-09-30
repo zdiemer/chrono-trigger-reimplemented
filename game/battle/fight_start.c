@@ -134,8 +134,10 @@ void fight_clear_turn_state(GameState *g)
     set_battle_tech_points_won_low(g, 0);
     set_battle_tech_points_won_high(g, 0);
     set_battle_reward_flags(g, 0);
-    for (unsigned n = 0; n < BATTLE_REWARDS_NOTED_COUNT; n++)
-        set_battle_rewards_noted(g, n, 0);
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        set_battle_rewards_levels_noted(g, member, 0);
+        set_battle_rewards_techs_noted(g, member, 0);
+    }
     set_battle_action_actor_bits(g, 0);
     set_battle_action_tech_hits(g, 0);
     set_battle_action_elements(g, 0);

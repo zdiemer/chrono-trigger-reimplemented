@@ -50,4 +50,7 @@ void battle_list_usable_items(GameState *g);
 void battle_put_items_back(GameState *g);
 void battle_return_chosen_item(GameState *g, uint8_t member);
 
+/* The cell the original's callers of $C1:B6D1 leave the member in. */
+enum { BATTLE_ITEM_RETURNING_FOR_AT = 0x14 };
+
 #endif

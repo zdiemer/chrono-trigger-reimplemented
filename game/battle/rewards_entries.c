@@ -4,26 +4,35 @@
  * never hands it (battle/rewards_levels.c says what the pieces are). */
 #include "battle/rewards.h"
 
-#include "battle/battle.h"
 #include "battle/bridge.h"
-#include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/inventory.h"
 #include "battle/rewards_data.h"
+#include "battle/rewards_work.h"
 #include "battle/setup.h"
 #include "port/machine.h"
-#include "ram.h"
-#include "vars.h"
 
 static uint16_t index_x(const Snes *s) { return s->cpu.x; }
+
+bool grower_at(uint16_t place, Grower *who)
+{
+    for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
+        if (place == grower_place(grower_member(member))) {
+            *who = grower_member(member);
+            return true;
+        }
+    for (uint8_t character = 0; character < CHARACTER_RECORDS_COUNT; character++)
+        if (place == grower_place(grower_in_reserve(character))) {
+            *who = grower_in_reserve(character);
+            return true;
+        }
+    return false;
+}
 
 /* What the original leaves in A as the experience's share is done: the count
  * of the characters it went through, and the carry of its last test of it,
  * set. */
 enum { CHARACTERS_GONE_THROUGH = SETUP_CHARACTERS };
-
-/* The cells the pieces take their work from (battle/rewards_techs.c). */
-enum { MEMBER_BLOCK_AT = 0x00, KNOWN_AT = 0x02, TECHS_AT = 0x04, RETURNING_FOR_AT = 0x14 };
 
 static uint16_t cell_word(Snes *s, unsigned at)
 {
@@ -36,11 +45,7 @@ static uint16_t cell_word(Snes *s, unsigned at)
 /* ---- What the guards ask ----------------------------------------------------------------- */
 
 /* A record whose character the growth tables have. */
-static bool grows(const GameState *g, Grower who)
-{
-    uint8_t character = who.in_reserve ? character_records_record_byte(g, who.who, STAT_ID) : battle_stats_block_byte(g, who.who, STAT_ID);
-    return character < SETUP_CHARACTERS;
-}
+static bool grows(const GameState *g, Grower who) { return grower_character(g, who) < SETUP_CHARACTERS; }
 
 /* The record the level-up works on, where the original keeps its place. */
 static bool growing(const GameState *g, Grower *who) { return grower_at(battle_growth_record_places(g, 0), who); }
@@ -48,21 +53,16 @@ static bool growing(const GameState *g, Grower *who) { return grower_at(battle_g
 /* The member the rewards note for: a party member, or the reserve. */
 static bool noting(const GameState *g, unsigned most) { return battle_rewards_member(g) <= most; }
 
-enum { OUT_OF_FIGHT = 0x80, NO_SLOT = 0x80, JOINED_FIRST = 0x80 };
-
-/* The members still fighting: characters the tables have, none knocked out
- * (the level-ups would go on for ever), and each with fewer single techs
- * known than it has, or all learned. */
+/* The members fighting: characters the tables have, each with fewer single
+ * techs known than it has, or all learned (its techs stay in its eight places
+ * of the messages' list). */
 static bool members_ready(const GameState *g)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        uint8_t fighting = battle_combatant_fighting(g, member);
-        if (fighting == COMBATANT_NONE)
+        if (battle_combatant_fighting(g, member) == COMBATANT_NONE)
             continue;
         uint8_t character = battle_stats_block_byte(g, member, STAT_ID);
         if (character >= SETUP_CHARACTERS)
-            return false;
-        if (!(fighting & OUT_OF_FIGHT) && (battle_stats_block_byte(g, member, STAT_CONDITION) & CONDITION_KNOCKED_OUT))
             return false;
         bool all = battle_stats_block_byte(g, member, STAT_NOTES) & STAT_NOTE_TECHS_ALL_LEARNED;
         if (!all && party_single_techs_known(g, character) >= character_techs(g, character).count)
@@ -74,10 +74,8 @@ static bool members_ready(const GameState *g)
 /* The characters in reserve: characters the tables have. */
 static bool reserve_ready(const GameState *g)
 {
-    uint8_t joined = party_characters_joined(g);
-    for (uint8_t character = 0; character < SETUP_CHARACTERS; character++, joined = (uint8_t)(joined << 1))
-        if ((joined & JOINED_FIRST) && (battle_character_slot(g, character) & NO_SLOT)
-            && !grows(g, grower_in_reserve(character)))
+    for (uint8_t character = 0; character < SETUP_CHARACTERS; character++)
+        if (character_in_reserve(g, character) && !grows(g, grower_in_reserve(character)))
             return false;
     return true;
 }
@@ -148,10 +146,13 @@ static Grower grower_kept(const GameState *g)
 // $C1:F623
 bool rewards_level_up_ready(Snes *s) { return level_up_ready(s, true); }
 
+/* The pot is the experience won's cell. */
 void rewards_level_up_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    rewards_level_up(g, grower_kept(g), (uint8_t)battle_rewards_member(g));
+    uint16_t pot = battle_experience_won(g);
+    rewards_level_up(g, grower_kept(g), (uint8_t)battle_rewards_member(g), &pot);
+    set_battle_experience_won(g, pot);
     m_rts(s);
 }
 
@@ -161,29 +162,32 @@ bool rewards_reach_level_ready(Snes *s) { return level_up_ready(s, false); }
 void rewards_reach_level_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    rewards_reach_level(g, grower_kept(g), (uint8_t)battle_rewards_member(g));
+    uint16_t pot = battle_experience_won(g);
+    rewards_reach_level(g, grower_kept(g), (uint8_t)battle_rewards_member(g), &pot);
+    set_battle_experience_won(g, pot);
     m_rts(s);
 }
 
 // $C1:F871
-enum { TOP_LEVEL = 99 };
-
 bool rewards_grow_hp_and_mp_ready(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
     Grower who;
-    bool ready = growing(g, &who) && grows(g, who)
-                 && (who.in_reserve ? character_records_record_byte(g, who.who, STAT_LEVEL) : battle_stats_block_byte(g, who.who, STAT_LEVEL)) <= TOP_LEVEL;
+    bool ready = growing(g, &who) && grows(g, who) && grower_level(g, who) <= TOP_LEVEL;
     vars_peek(false);
     return battle_on_page(s) && ready;
 }
 
-/* The carry says whether the MP reached its most. */
+/* The carry says whether the MP reached its most, where it stops. */
+enum { MOST_MAX_MP = 99 };
+
 void rewards_grow_hp_and_mp_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    m_set_flag(s, CPU_FLAG_C, rewards_grow_hp_and_mp(g, grower_kept(g)));
+    Grower who = grower_kept(g);
+    rewards_grow_hp_and_mp(g, who);
+    m_set_flag(s, CPU_FLAG_C, record_word(g, who, STAT_MAX_MP) == MOST_MAX_MP);
     m_rts(s);
 }
 
@@ -210,8 +214,7 @@ void rewards_share_with_reserve_entry(Snes *s)
 bool rewards_learn_techs_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = members_ready(g);
+    bool ready = members_ready(state_of(s));
     vars_peek(false);
     return battle_on_page(s) && ready;
 }
@@ -231,93 +234,83 @@ void rewards_sort_combination_members_entry(Snes *s)
     m_rts(s);
 }
 
-/* The member whose stat block is at the offset the original keeps, the one
- * the rewards note for; and the character learning. */
-static bool learner_ready(Snes *s, uint8_t *member)
+/* The member whose stat block is at the offset the original keeps, and the
+ * character learning; where the pieces note techs, the rewards note for that
+ * member too. */
+static uint8_t member_kept(const GameState *g) { return (uint8_t)(battle_cell_word(g, WORK_BLOCK_AT) / BATTLE_STAT_BLOCK_BYTES); }
+
+static bool learner_ready(Snes *s, bool noting_the_member)
 {
-    uint16_t block = cell_word(s, MEMBER_BLOCK_AT);
+    uint16_t block = cell_word(s, WORK_BLOCK_AT);
     vars_peek(true);
     const GameState *g = state_of(s);
-    uint8_t character = battle_tech_learner(g);
-    bool ready = block % BATTLE_STAT_BLOCK_BYTES == 0 && block / BATTLE_STAT_BLOCK_BYTES < BATTLE_PARTY_SIZE
-                 && battle_rewards_member(g) == block / BATTLE_STAT_BLOCK_BYTES && character < SETUP_CHARACTERS;
+    uint8_t member = (uint8_t)(block / BATTLE_STAT_BLOCK_BYTES);
+    bool ready = block % BATTLE_STAT_BLOCK_BYTES == 0 && member < BATTLE_PARTY_SIZE && battle_tech_learner(g) < SETUP_CHARACTERS
+                 && (!noting_the_member || battle_rewards_member(g) == member);
     vars_peek(false);
-    *member = (uint8_t)(block / BATTLE_STAT_BLOCK_BYTES);
     return battle_on_page(s) && ready;
 }
 
-/* The techs it learns stay in the member's eight places of the messages'
- * list. */
-enum { PLACES_A_MEMBER = 8 };
-
-static bool techs_fit(Snes *s, uint8_t member)
+/* Where the next single tech is noted, a byte as the pieces count it, and the
+ * places the member can still learn stay in the messages' list. */
+static bool techs_fit(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    uint8_t character = battle_tech_learner(g);
+    uint8_t character = battle_tech_learner(g), member = member_kept(g);
     unsigned known = party_single_techs_known(g, character), count = character_techs(g, character).count;
     bool all = battle_stats_block_byte(g, member, STAT_NOTES) & STAT_NOTE_TECHS_ALL_LEARNED;
-    unsigned at = battle_rewards_tech_at(g), most = (unsigned)(member + 1) * PLACES_A_MEMBER;
-    bool fit = all || (known < count && at + (count - known) <= most && at >= (unsigned)member * PLACES_A_MEMBER);
+    unsigned at = battle_rewards_tech_at(g);
+    bool fit = battle_rewards_tech_at_high(g) == 0 && (all || (known < count && at + (count - known) <= BATTLE_REWARDS_TECHS_COUNT));
     vars_peek(false);
     return fit;
 }
 
 // $C1:F39A
-bool rewards_count_tech_points_ready(Snes *s)
-{
-    uint8_t member;
-    return learner_ready(s, &member) && techs_fit(s, member);
-}
+bool rewards_count_tech_points_ready(Snes *s) { return learner_ready(s, true) && techs_fit(s); }
 
 /* It comes back with A clear. */
 void rewards_count_tech_points_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    rewards_count_tech_points(g, (uint8_t)(battle_cell_word(g, MEMBER_BLOCK_AT) / BATTLE_STAT_BLOCK_BYTES), battle_tech_learner(g));
+    uint8_t at = battle_rewards_tech_at(g);
+    rewards_count_tech_points(g, member_kept(g), battle_tech_learner(g), &at);
     s->cpu.a = 0;
     m_rts(s);
 }
 
 // $C1:F45F
-bool rewards_reach_next_tech_ready(Snes *s)
-{
-    uint8_t member;
-    return learner_ready(s, &member);
-}
+bool rewards_reach_next_tech_ready(Snes *s) { return learner_ready(s, false); }
 
 void rewards_reach_next_tech_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    rewards_reach_next_tech(g, (uint8_t)(battle_cell_word(g, MEMBER_BLOCK_AT) / BATTLE_STAT_BLOCK_BYTES), battle_tech_learner(g),
-                            battle_tech_points_won_low(g));
+    rewards_reach_next_tech(g, member_kept(g), battle_tech_learner(g), battle_tech_points_won_low(g));
     m_rts(s);
 }
 
 // $C1:F4DF
 /* With the places of the character's count of techs known and of its techs'
- * record in the cells, as the tech points' count leaves them. */
+ * record in the cells, as the tech points' count leaves them; A's high byte
+ * clear, as the count leaves it (it comes into the index of the count). */
 bool rewards_learn_single_tech_ready(Snes *s)
 {
-    uint8_t member;
-    /* A's high byte comes into the index of the character's count */
-    if (!learner_ready(s, &member) || !battle_on_page_a_high_clear(s))
+    if (!learner_ready(s, true) || !battle_on_page_a_high_clear(s))
         return false;
-    uint16_t known = cell_word(s, KNOWN_AT), techs = cell_word(s, TECHS_AT);
+    uint16_t known = cell_word(s, WORK_KNOWN_AT), techs = cell_word(s, WORK_TECHS_AT);
     vars_peek(true);
     const GameState *g = state_of(s);
     uint8_t character = battle_tech_learner(g);
-    unsigned at = battle_rewards_tech_at(g);
+    bool at_in_list = battle_rewards_tech_at_high(g) == 0 && battle_rewards_tech_at(g) < BATTLE_REWARDS_TECHS_COUNT;
     vars_peek(false);
-    return known == (uint16_t)(RAM_PARTY_SINGLE_TECHS_KNOWN + character) && techs == character_techs_place(character)
-           && at < BATTLE_REWARDS_TECHS_COUNT;
+    return known == known_place(character) && techs == character_techs_place(character) && at_in_list;
 }
 
 void rewards_learn_single_tech_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    rewards_learn_single_tech(g, (uint8_t)(battle_cell_word(g, MEMBER_BLOCK_AT) / BATTLE_STAT_BLOCK_BYTES), battle_tech_learner(g),
-                              battle_learner_first_tech(g));
+    uint8_t at = battle_rewards_tech_at(g);
+    rewards_learn_single_tech(g, member_kept(g), battle_tech_learner(g), battle_learner_first_tech(g), &at);
     m_rts(s);
 }
 
@@ -325,8 +318,8 @@ void rewards_learn_single_tech_entry(Snes *s)
 static bool combination_learned_at(uint16_t place, uint8_t *record)
 {
     unsigned bytes = PARTY_DOUBLE_TECHS_LEARNED_COUNT + PARTY_TRIPLE_TECHS_LEARNED_COUNT;
-    *record = (uint8_t)(place - (uint16_t)RAM_PARTY_DOUBLE_TECHS_LEARNED);
-    return place >= (uint16_t)RAM_PARTY_DOUBLE_TECHS_LEARNED && place < (uint16_t)RAM_PARTY_DOUBLE_TECHS_LEARNED + bytes;
+    *record = (uint8_t)(place - combination_learned_place(0));
+    return place >= combination_learned_place(0) && place < combination_learned_place(0) + bytes;
 }
 
 // $C1:F533
@@ -335,7 +328,7 @@ static bool combination_learned_at(uint16_t place, uint8_t *record)
 bool rewards_learn_combination_techs_ready(Snes *s)
 {
     uint8_t record;
-    bool learned_place = combination_learned_at(cell_word(s, MEMBER_BLOCK_AT), &record);
+    bool learned_place = combination_learned_at(cell_word(s, WORK_BLOCK_AT), &record);
     vars_peek(true);
     const GameState *g = state_of(s);
     unsigned count = battle_combination_techs_left(g);
@@ -349,11 +342,11 @@ void rewards_learn_combination_techs_entry(Snes *s)
 {
     GameState *g = state_of(s);
     Combination c;
-    combination_learned_at(battle_cell_word(g, MEMBER_BLOCK_AT), &c.record);
+    combination_learned_at(battle_cell_word(g, WORK_BLOCK_AT), &c.record);
     c.characters = battle_combination_members(g);
     c.first = battle_combination_tech(g);
     c.count = battle_combination_techs_left(g);
-    c.asks = battle_cell_word(g, TECHS_AT);
+    c.asks = battle_cell_word(g, WORK_TECHS_AT);
     rewards_learn_combination_techs(g, c, (uint8_t)battle_rewards_member(g));
     m_rts(s);
 }
@@ -372,7 +365,7 @@ void battle_put_items_back_entry(Snes *s)
 bool battle_return_chosen_item_ready(Snes *s)
 {
     vars_peek(true);
-    uint8_t member = battle_low_scratch(state_of(s), RETURNING_FOR_AT);
+    uint8_t member = battle_low_scratch(state_of(s), BATTLE_ITEM_RETURNING_FOR_AT);
     vars_peek(false);
     return battle_on_page(s) && member < BATTLE_PARTY_SIZE;
 }
@@ -380,6 +373,6 @@ bool battle_return_chosen_item_ready(Snes *s)
 void battle_return_chosen_item_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    battle_return_chosen_item(g, battle_low_scratch(g, RETURNING_FOR_AT));
+    battle_return_chosen_item(g, battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT));
     m_rts(s);
 }

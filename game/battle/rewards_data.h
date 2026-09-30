@@ -37,27 +37,27 @@ static inline uint8_t stat_growth_rate(const GameState *g, uint8_t character, un
     return rom_read8(g, 0xCC0000u + stat_growth_rates_place(character) + stat);
 }
 
-/* A character's HP and MP growth, four steps of eight bytes a character: up to
- * a level, the HP (MP) each level adds ($CC:258A and $CC:25C2, the step in
- * the character's eight bytes). */
+/* A character's HP and MP growth, four steps a character: up to a level, the
+ * HP (MP) each level adds ($CC:258A and $CC:25C2, two bytes a step, eight a
+ * character). The original finds a step by a byte's sum, which wraps. */
 typedef struct {
     uint8_t up_to_level, gain;
 } GrowthStep;
 
 enum { GROWTH_STEP_BYTES = 2, GROWTH_STEPS_BYTES = 8 };
 
-static inline uint8_t growth_step_place(uint8_t character, uint8_t at)
+static inline uint8_t growth_step_place(uint8_t character, uint8_t step)
 {
-    return (uint8_t)(character * GROWTH_STEPS_BYTES + at);
+    return (uint8_t)(character * GROWTH_STEPS_BYTES + step * GROWTH_STEP_BYTES);
 }
-static inline GrowthStep hp_growth_step(const GameState *g, uint8_t character, uint8_t at)
+static inline GrowthStep hp_growth_step(const GameState *g, uint8_t character, uint8_t step)
 {
-    uint8_t place = growth_step_place(character, at);
+    uint8_t place = growth_step_place(character, step);
     return (GrowthStep){ rom_read8(g, 0xCC258Au + place), rom_read8(g, 0xCC258Bu + place) };
 }
-static inline GrowthStep mp_growth_step(const GameState *g, uint8_t character, uint8_t at)
+static inline GrowthStep mp_growth_step(const GameState *g, uint8_t character, uint8_t step)
 {
-    uint8_t place = growth_step_place(character, at);
+    uint8_t place = growth_step_place(character, step);
     return (GrowthStep){ rom_read8(g, 0xCC25C2u + place), rom_read8(g, 0xCC25C3u + place) };
 }
 
@@ -85,30 +85,41 @@ static inline uint16_t tech_points_for_next(const GameState *g, uint8_t characte
 
 /* The combination techs, a record for each pair or trio of characters who
  * have some: the characters, a bit each from Crono's at the top; the first
- * tech and how many, in order; and where the single techs each asks of them
- * are, a byte for each character in order, three a tech ($CC:2778, five bytes
- * a record, $FF for the characters past the last). The learned bits of the
- * record's techs are its own byte, by its number among the records. */
-enum { COMBINATION_RECORD_BYTES = 5, COMBINATION_TECH_ASKS = 3, NO_MORE_COMBINATIONS = 0xFF };
+ * tech and how many, in order ($FF for the first where it has none); and
+ * where in bank CC the single techs each asks of them are, a byte for each
+ * character in order, three a tech ($CC:2778, five bytes a record, $FF for the
+ * characters past the last). A record's number among them is its learned
+ * byte's. */
+enum { COMBINATION_RECORD_BYTES = 5, COMBINATION_TECH_ASKS = 3, NO_MORE_COMBINATIONS = 0xFF, COMBINATION_HAS_NO_TECHS = 0xFF };
 
 typedef struct {
     uint8_t characters, first, count;
     uint16_t asks;
 } CombinationRecord;
 
-static inline uint16_t combination_records_place(void) { return 0x2778u; }
-static inline uint8_t combination_record_characters(const GameState *g, uint16_t place)
+static inline uint16_t combination_record_place(uint8_t record)
 {
-    return rom_read8(g, 0xCC0000u + place);
+    return (uint16_t)(0x2778u + record * COMBINATION_RECORD_BYTES);
 }
-static inline CombinationRecord combination_record(const GameState *g, uint16_t place)
+static inline uint8_t combination_record_characters(const GameState *g, uint8_t record)
 {
+    return rom_read8(g, 0xCC0000u + combination_record_place(record));
+}
+static inline CombinationRecord combination_record(const GameState *g, uint8_t record)
+{
+    uint16_t place = combination_record_place(record);
     return (CombinationRecord){ rom_read8(g, 0xCC0000u + place), rom_read8(g, 0xCC0001u + place),
                                 rom_read8(g, 0xCC0002u + place), rom_read16(g, 0xCC0003u + place) };
 }
-static inline uint8_t combination_tech_asks(const GameState *g, uint16_t asks, uint16_t character)
+/* What a combination's tech asks of the character at `position` in its
+ * list, from where its record says the asks are. */
+static inline uint16_t combination_tech_asks_place(uint16_t asks, uint8_t tech)
 {
-    return rom_read8(g, 0xCC0000u + (uint16_t)(asks + character));
+    return (uint16_t)(asks + tech * COMBINATION_TECH_ASKS);
+}
+static inline uint8_t combination_tech_asks(const GameState *g, uint16_t asks, uint8_t tech, uint8_t position)
+{
+    return rom_read8(g, 0xCC0000u + (uint16_t)(combination_tech_asks_place(asks, tech) + position));
 }
 
 #endif

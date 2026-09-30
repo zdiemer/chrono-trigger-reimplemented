@@ -10972,7 +10972,7 @@ args = ["--d", "0000", "--db", "7E", "--fill", "7EAEFF-7EAF01=00,01,02,03,04,05,
         "--fill", "7E5E2D-7E5F2D:80=00-06", "--fill", "7E5E3F-7E5F3F:80=01-63", "--fill", "7E5E4A-7E5F4A:80=00-7F",
         "--fill", "7E2600-7E27E0:50=00-06", "--fill", "7E2612-7E27F2:50=01-63", "--fill", "7E2830-7E2836=00-07"]
 iterations = 5000
-why = "each member fighting as a character or out of the fight, its stat block a character's at any level from 1 to 99 and not knocked out (the guard turns away one knocked out, whose level-ups would go on for ever), the characters' records theirs at those levels, each knowing fewer single techs than it has; any experience, tech points and characters joined and in reserve"
+why = "each member fighting as a character or out of the fight, its stat block a character's at any level from 1 to 99 and not knocked out (the original offers one knocked out the experience for ever, the port stops), the characters' records theirs at those levels, each knowing fewer single techs than it has; any experience, tech points and characters joined and in reserve"
 
 [[routine]]
 name = "rewards_gain_experience"
@@ -11051,7 +11051,7 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=0000,0080,0100", "--fill", "7EB1F4-7EB1F5=0000,0001,0002",
         "--fill", "7EB3CC-7EB3CD=0000,0008,0010", "--fill", "7EB2D1-7EB2D1=00-06", "--fill", "7E2830-7E2836=00-07"]
 iterations = 20000
-why = "a member's stat block, the rewards noting for it and its places in the messages' list from its first (the guard turns away the states where the three differ), any character knowing fewer single techs than it has; any tech points"
+why = "a member's stat block, the rewards noting for it (the guard turns away the states where the two differ) and a place in the messages' list its techs fit from, any character knowing fewer single techs than it has; any tech points"
 
 [[routine]]
 name = "rewards_reach_next_tech"
@@ -11060,7 +11060,7 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E0000-7E0001=0000,0080,0100", "--fill", "7EB1F4-7EB1F5=0000,0001,0002",
         "--fill", "7EB2D1-7EB2D1=00-06"]
 iterations = 10000
-why = "a member's stat block and the rewards noting for it (the guard turns away the states where the two differ), any character, any tech points"
+why = "a member's stat block, any character, any tech points"
 
 [[routine]]
 name = "rewards_learn_single_tech"

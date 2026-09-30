@@ -5321,14 +5321,17 @@
 /* What the rewards were, for their messages ($FD:AD17): bit 7 the experience shared out, bit 6
  * the gold given, bit 5 an item given, bit 4 tech points counted towards a tech */
 #define RAM_BATTLE_REWARD_FLAGS 0x7EB2AFu
-/* What the rewards note for their messages ($FD:AD17) to show: in a member's first byte, bit 7 a
- * level gained; in its second, bit 3 single techs learned, bit 2 double techs, bit 1 a triple
- * tech. A level a character in reserve gains is noted in the byte after the third member's,
- * which is the first member's second [6 x $1 bytes, by party member for its level (3, the
- * characters in reserve), 3 + party member for its techs] */
-#define RAM_BATTLE_REWARDS_NOTED 0x7EB2B0u
-#define RAM_BATTLE_REWARDS_NOTED_COUNT 6u
-#define RAM_BATTLE_REWARDS_NOTED_STRIDE 0x01u
+/* Bit 7: the member gained a level, for the rewards' messages ($FD:AD17) to show. The reserve's
+ * byte is the first member's battle_rewards_techs_noted, whose bit 7 no message tests [4 x $1
+ * bytes, by party member, 3 the characters in reserve] */
+#define RAM_BATTLE_REWARDS_LEVELS_NOTED 0x7EB2B0u
+#define RAM_BATTLE_REWARDS_LEVELS_NOTED_COUNT 4u
+#define RAM_BATTLE_REWARDS_LEVELS_NOTED_STRIDE 0x01u
+/* What the member learned, for the rewards' messages ($FD:AD17) to show: bit 3 single techs, bit
+ * 2 double techs, bit 1 a triple tech [3 x $1 bytes, by party member] */
+#define RAM_BATTLE_REWARDS_TECHS_NOTED 0x7EB2B3u
+#define RAM_BATTLE_REWARDS_TECHS_NOTED_COUNT 3u
+#define RAM_BATTLE_REWARDS_TECHS_NOTED_STRIDE 0x01u
 /* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
  * turn, when the enemy and its link are out, or where the script could find no one to act on
  * ($C1:8C09 has the script of a present enemy with it clear choose again) [8 x $1 bytes, by
@@ -5517,8 +5520,11 @@
 /* A reaction's kept place, while its conditions are tested [2 bytes] */
 #define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
 /* Where in battle_rewards_techs the next single tech learned is noted: the member's eight from
- * its first, counted in the low byte [2 bytes] */
+ * its first */
 #define RAM_BATTLE_REWARDS_TECH_AT 0x7EB3CCu
+/* The byte after battle_rewards_tech_at, which the original writes 0 with it as a word and reads
+ * with it as an index */
+#define RAM_BATTLE_REWARDS_TECH_AT_HIGH 0x7EB3CDu
 /* The techs the rewards' messages name as learned ($FD:ADD7), $FF for none [24 x $1 bytes, by a
  * tech named] */
 #define RAM_BATTLE_REWARDS_TECHS 0x7EB3CEu
