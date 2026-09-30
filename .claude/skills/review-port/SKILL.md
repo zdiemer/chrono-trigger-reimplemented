@@ -816,6 +816,19 @@ Each of these is a finding. Every example here comes from this repo.
 110. **One table read through a record named for another use.** The same
      bytes read two ways (a modifier record's routine number read as a stat
      block's offset) want two named views, each with its own accessor.
+111. **A multi-byte field carried in pieces.** A 24- or 32-bit value read as
+     a word and a byte, added with a hand-made carry and capped a byte and a
+     word at a time: give the record a wide accessor, add in one expression,
+     and put the original's way of capping in one named function whose
+     comment says how it differs from a plain minimum.
+112. **Scaffolding written on every pass of a loop.** Where only the loop's
+     last value is observed, work the final values out after it and write
+     them once (a leaves helper), rather than mirroring the original's cell
+     updates pass by pass.
+113. **A guard that exists only because the logic loops for ever on an
+     input.** Where the game never produces the input, make the loop end on
+     it (equivalent on every input the game produces) and drop the guard's
+     condition; fuzzing then counts the original's endless run as skipped.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean

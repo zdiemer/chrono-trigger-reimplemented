@@ -3230,11 +3230,35 @@ cells, three of them reusing the effect code's and the reactions' (the
 rewards' member, the combination counted, the third character bit), whose
 last values those readers find, so they are written plainly (the effects
 check found both). What the rewards note for their messages got its meaning:
-`battle_rewards_noted` (a level in a member's first byte, techs in its
-second), the double techs taught and their count, the triple tech. Kept as
+the levels and techs noted for each member (`battle_rewards_levels_noted`,
+`battle_rewards_techs_noted`), the double techs taught and their count, the triple tech. Kept as
 the original has them, each in one place and in TODO.md: the tech points paid
 again where a leftover doesn't reach the next tech's cost, the reserve's level
 noted in the first member's techs byte, and its count carried as a word.
+
+**The review** rated `rewards_levels.c` and `rewards_techs.c` translation, each
+for one function: the experience and the tech points added a word and a byte
+at a time with a carry by hand, capped twice, differently. Both now go through
+a three-byte record accessor and one named cap each, whose comment says how
+the original's differs from a plain minimum (a tech point total just past the
+most, with a low word under the most's, stays). The rework besides: the
+experience left to share is a pot passed to the level-up rather than the
+cell, which only the entries load and store, and the members' loop stops on a
+member knocked out where the original would offer it the rest for ever (so the
+guard lost that condition); the single techs' place in the messages' list and
+the member a combination is noted for are parameters; every loop's
+scaffolding is worked out after it and written once, by a leaves helper; the
+shared multiply's carry is scaffolding; the growth steps and the combination
+records are read by number; the addresses the pieces leave behind, the
+character bits and the cell offsets are in one internal header
+(`rewards_work.h`); `battle_rewards_noted` is two named views, the levels
+noted and the techs noted; and the single techs' cursor is a byte. Accepted
+as they are: the reserve's count of levels carried as a word, since the
+reserve's byte isn't cleared between battles and gets to `$FF`; the rewards'
+member a word, as the effect code's block offset it reuses is; and a
+combination's asks as the place in bank CC its record gives. Three rubric
+items came of it (111-113). After the rework, every entry fuzzed again with
+seed 1, none mismatching.
 
 **Validation.** The library's 26 movies in shadow mode, none mismatching:
 the experience's share 25 calls (23 compared, 2 interrupted), its level-ups
