@@ -32,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -177,8 +177,10 @@ def main(argv=None):
         with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
             futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout, args.resume)
                        for route, mode in jobs]
+            # each outcome as it comes, so a run cut short still reports the
+            # routes that finished
             results = []
-            for future in futures:
+            for future in as_completed(futures):
                 result = future.result()
                 results.append(result)
                 print("%s %s in %s: %s (%.0fs%s)" % ("PASS" if result["passed"] else "FAIL", result["route"],
