@@ -732,7 +732,12 @@ rest waits, is [PLAN.md](PLAN.md).
     113,838 against 54,968 and 64,472). Shadow and trace identity were
     clean, so it is likely timing reaching a harder battle state; whether
     the menus' per-frame input (which runs in every mode) or the merged
-    main moved it is not worked out.
+    main moved it is not worked out. Part of the time is the fights'
+    restores: each (a wipe's retry, a command menu's checkpoint) replays
+    from the last base, which a native battle, suspended for its whole
+    length, keeps before the fight (MOVIES.md, "resume"); a base ct_drive
+    could take inside a battle, or fewer restores in `campaign.fight`,
+    would bound it.
 - **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
   characters in the records"):
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port

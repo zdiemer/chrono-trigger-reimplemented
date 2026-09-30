@@ -229,15 +229,24 @@ python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check
 A long run can be cut short (a time limit on the session running it, a
 restart): with `--scratch` kept and `--resume`, running the same command again
 carries each route on from its last checkpoint rather than from its save. Each
-run's directory records the route, the mode and the SHA-256 of the `ct_drive`
-and the ROM that played its checkpoints; a run whose build or ROM differs
-starts over, so no outcome rests on phases another build played. The suite
+run's directory records the route, the mode and the SHA-256 of the `ct_drive`,
+the ROM, the route's script and `campaign.py` that played its checkpoints; a
+run where any differs starts over, so no outcome rests on phases another build played. The suite
 takes the same through `--routes-scratch DIR` (with `--long-routes`, all three
 ending routes at once where `-j` allows):
 
 ```sh
 python3 -m tools.movies.route_check --scratch work/long --resume -j 3 beyond_time bucket_lavos telepod_lavos
 ```
+
+A restore in a native mode costs a replay from the last base while native
+routines are suspended, and in a battle they are for its whole length (its
+native code spans the frames), so the last base is from before the fight: each
+restore there took about 20 seconds at the end of Lavos Core. The ending's
+player search (`campaign.py`, `find_player`), which restores five times, called
+every 20 frames while the battle wound down, made that stretch take hours; it
+now doesn't probe while anything is suspended, when no pad moves an object
+anyway, and `beyond_time`'s ending runs in minutes again.
 
 `telepod_lavos:shell` is the field test: the world map, Leene Square and the
 telepod exhibit, walking, talking and dialogue, stopped at the Gate.

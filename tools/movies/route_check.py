@@ -18,10 +18,10 @@ modes side by side. Frame counts differ between modes by design; the outcome is
 what must match. Exits 0 only if every run reached its outcome.
 
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
-the same route, mode, ct_drive and ROM left it, so a run cut short -- a time
+the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time
 limit, a restart -- carries on from its last checkpoint instead of replaying the
-hour before it. A run whose build or ROM differs from the one that wrote the
-checkpoints starts over, so no outcome rests on phases another build played.
+hour before it. A run whose build, ROM or scripts differ from the ones that wrote
+the checkpoints starts over, so no outcome rests on phases another build played.
 """
 import argparse
 import hashlib
@@ -70,11 +70,16 @@ def file_digest(path):
 
 
 def run_stamp(route, mode, rom, drive):
-    """What a run's checkpoints are only good for: the route, the mode, and the
-    build and ROM that played them."""
+    """What a run's checkpoints are only good for: the route, the mode, the
+    build and ROM that played them, and the route's script and runner that
+    chose its inputs."""
     drive = drive or os.environ.get("CT_DRIVE") or os.path.join(REPO, "build/main/ct_drive")
     rom = rom or os.environ.get("CT_ROM") or os.path.join(REPO, "roms/ct-usa.sfc")
-    return "route %s\nmode %s\nct_drive %s\nrom %s\n" % (route, mode_name(mode), file_digest(drive), file_digest(rom))
+    name = route.partition(":")[0]
+    script = os.path.join(REPO, "tools", "movies", "routes", name + ".py")
+    runner = os.path.join(REPO, "tools", "movies", "campaign.py")
+    return "route %s\nmode %s\nct_drive %s\nrom %s\nscript %s\nrunner %s\n" % (
+        route, mode_name(mode), file_digest(drive), file_digest(rom), file_digest(script), file_digest(runner))
 
 
 STAMP = "run-stamp.txt"
