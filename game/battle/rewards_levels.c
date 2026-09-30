@@ -24,6 +24,7 @@
 #include "battle/rewards_data.h"
 #include "battle/rewards_work.h"
 #include "battle/setup.h"
+#include "charge.h"
 #include "original_effects.h"
 
 /* ---- Experience -------------------------------------------------------------------------- */
@@ -160,6 +161,11 @@ enum { MOST_STAT = 99, MOST_SPEED = 50 };
 /* In hundredths. */
 enum { GROWTH_RATE_SCALE = 100 };
 
+/* The battle's shared multiply and divide, which the original calls: its
+ * divide goes bit by bit, far longer than the port's, so their work is timed
+ * as theirs. */
+enum { MULTIPLY_WORDS = 0xC1C90B, DIVIDE_LONG = 0xC1C92A };
+
 /* A stat is its value at the first level, and its rate for each level past
  * it; its hundredths dropped, and a byte's worth. The arithmetic is the
  * battle's shared multiply and divide, whose cells the next caller finds; the
@@ -168,8 +174,10 @@ enum { GROWTH_RATE_SCALE = 100 };
 static uint8_t grown_stat(GameState *g, Grower who, uint8_t character, uint8_t rate_at)
 {
     uint8_t levels = (uint8_t)(grower_level(g, who) - 1);
-    uint32_t product = battle_multiply_words(g, stat_growth_rate(g, character, rate_at), levels);
-    BattleLongQuotient growth = battle_divide_leftover(g, (uint16_t)product, GROWTH_RATE_SCALE);
+    uint32_t product;
+    BattleLongQuotient growth;
+    TIMED_AS(g, MULTIPLY_WORDS, product = battle_multiply_words(g, stat_growth_rate(g, character, rate_at), levels));
+    TIMED_AS(g, DIVIDE_LONG, growth = battle_divide_leftover(g, (uint16_t)product, GROWTH_RATE_SCALE));
     uint8_t first = record_byte(g, who, STAT_FIRST_LEVEL_STATS + rate_at);
     battle_set_wide_math_first(g, first);
     return (uint8_t)(first + (uint8_t)growth.quotient);
@@ -179,7 +187,7 @@ static void grow_stats(GameState *g, Grower who)
 {
     uint8_t character = grower_character(g, who);
     /* the original finds the rates by multiplying, and keeps their place */
-    battle_leave_multiply(g, character, STAT_GROWTH_RATES);
+    TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, character, STAT_GROWTH_RATES));
     ORIGINAL_EFFECT(set_battle_growth_rates_place(g, stat_growth_rates_place(character)));
     for (unsigned n = 0; n < sizeof stats_grown / sizeof stats_grown[0]; n++)
         set_record_byte(g, who, STAT_BASE_STATS + stats_grown[n].stat, grown_stat(g, who, character, stats_grown[n].rate));
@@ -194,9 +202,11 @@ static void grow_stats(GameState *g, Grower who)
 /* The next level, where the pot reaches it, and what it grows. */
 void rewards_level_up(GameState *g, Grower who, uint8_t member, uint16_t *pot)
 {
-    if (!rewards_reach_level(g, who, member, pot))
+    bool reached;
+    TIMED_AS(g, 0xC1F7B9, reached = rewards_reach_level(g, who, member, pot));
+    if (!reached)
         return;
-    rewards_grow_hp_and_mp(g, who);
+    TIMED_AS(g, 0xC1F871, rewards_grow_hp_and_mp(g, who));
     grow_stats(g, who);
 }
 
@@ -224,20 +234,20 @@ void battle_share_experience(GameState *g)
         if (battle_combatant_fighting(g, member) & OUT_OF_FIGHT)
             continue;
         Grower who = grower_member(member);
-        rewards_gain_experience(g, who, won);
+        TIMED_AS(g, 0xC1F908, rewards_gain_experience(g, who, won));
         /* one knocked out takes none, which the original offers it for ever
          * (the game never leaves one in the fight) */
         uint16_t pot = won;
         do
-            rewards_level_up(g, who, member, &pot);
+            TIMED_AS(g, 0xC1F623, rewards_level_up(g, who, member, &pot));
         while (pot != 0 && !knocked_out(g, who));
         grown = true;
         last = who;
     }
     if (grown)
         leave_record_growing(g, last);
-    rewards_learn_techs(g);
-    rewards_share_with_reserve(g);
+    TIMED_AS(g, 0xC1F205, rewards_learn_techs(g));
+    TIMED_AS(g, 0xC1F9EB, rewards_share_with_reserve(g));
 }
 
 /* A character in reserve takes fifteen twentieths of the experience. */
@@ -260,11 +270,13 @@ void rewards_share_with_reserve(GameState *g)
             continue;
         Grower who = grower_in_reserve(character);
         /* the original finds the record by multiplying */
-        battle_leave_multiply(g, RAM_CHARACTER_RECORDS_STRIDE, character);
-        uint32_t scaled = battle_multiply_words(g, battle_experience_won(g), RESERVE_SHARE);
-        uint16_t share = (uint16_t)battle_divide_leftover(g, (uint16_t)scaled, RESERVE_SHARE_OF).quotient;
-        rewards_gain_experience(g, who, share);
-        rewards_level_up(g, who, REWARDS_RESERVE, &share);
+        TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, RAM_CHARACTER_RECORDS_STRIDE, character));
+        uint32_t scaled;
+        uint16_t share;
+        TIMED_AS(g, MULTIPLY_WORDS, scaled = battle_multiply_words(g, battle_experience_won(g), RESERVE_SHARE));
+        TIMED_AS(g, DIVIDE_LONG, share = (uint16_t)battle_divide_leftover(g, (uint16_t)scaled, RESERVE_SHARE_OF).quotient);
+        TIMED_AS(g, 0xC1F908, rewards_gain_experience(g, who, share));
+        TIMED_AS(g, 0xC1F623, rewards_level_up(g, who, REWARDS_RESERVE, &share));
         shared = true;
         last = character;
     }

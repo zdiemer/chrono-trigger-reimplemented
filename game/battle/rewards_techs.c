@@ -25,6 +25,7 @@
 #include "battle/rewards_data.h"
 #include "battle/rewards_work.h"
 #include "battle/setup.h"
+#include "charge.h"
 #include "original_effects.h"
 
 /* What a member's techs noted says it learned. */
@@ -60,9 +61,11 @@ enum { TECH_REACHED = 0x00, TECH_NOT_REACHED = 0xFF };
 
 /* The original finds the tech's record by multiplying, the carry of its sum
  * of the character's first tech and its count coming in with it. */
+enum { MULTIPLY_WORDS = 0xC1C90B };
+
 static void leave_tech_record_found(GameState *g, uint8_t known, uint8_t first)
 {
-    battle_leave_multiply(g, (uint8_t)(known + first), PARTY_TECH_BYTES);
+    TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, (uint8_t)(known + first), PARTY_TECH_BYTES));
     ORIGINAL_EFFECT(battle_leave_multiply_carry(g, known + first > 0xFF));
     ORIGINAL_EFFECT(set_battle_learner_first_tech(g, first));
 }
@@ -141,8 +144,11 @@ void rewards_count_tech_points(GameState *g, uint8_t member, uint8_t character, 
     ORIGINAL_EFFECT(set_battle_wide_math(g, POINTS_KEPT_AT, (uint8_t)won));
     ORIGINAL_EFFECT(set_battle_wide_math(g, POINTS_KEPT_AT + 1, (uint8_t)(won >> 8)));
     bool reached = false, learned = false;
-    while ((reached = rewards_reach_next_tech(g, member, character, points)) && !all_learned(g, member)) {
-        rewards_learn_single_tech(g, member, character, character_techs(g, character).first, at);
+    for (;;) {
+        TIMED_AS(g, 0xC1F45F, reached = rewards_reach_next_tech(g, member, character, points));
+        if (!reached || all_learned(g, member))
+            break;
+        TIMED_AS(g, 0xC1F4DF, rewards_learn_single_tech(g, member, character, character_techs(g, character).first, at));
         learned = true;
         uint16_t cost = tech_points_for_next(g, character, party_single_techs_known(g, character));
         uint16_t over = points_left(g, member);
@@ -262,7 +268,7 @@ void rewards_learn_combination_techs(GameState *g, Combination c, uint8_t member
             continue;
         /* the original finds the tech's record by multiplying, its carry set
          * from the end of the list */
-        battle_leave_multiply(g, tech, PARTY_TECH_BYTES);
+        TIMED_AS(g, MULTIPLY_WORDS, battle_leave_multiply(g, tech, PARTY_TECH_BYTES));
         ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));
         if (party_tech_locked(g, tech))
             continue;
@@ -382,15 +388,16 @@ void rewards_learn_techs(GameState *g)
             continue;
         learning = true;
         learner = battle_stats_block_byte(g, member, STAT_ID);
-        rewards_count_tech_points(g, member, learner, &at);
+        TIMED_AS(g, 0xC1F39A, rewards_count_tech_points(g, member, learner, &at));
     }
 
-    MemberSets s = sort_members(g);
+    MemberSets s;
+    TIMED_AS(g, 0xC1F2DB, s = sort_members(g));
     bool combined = false;
     Combination c = { 0, 0, 0, 0, 0 };
     for (uint8_t set = 0; set < BATTLE_COMBINATION_MEMBER_SETS_COUNT; set++)
         if (find_combination(g, s.sets[set], &c)) {
-            rewards_learn_combination_techs(g, c, noted);
+            TIMED_AS(g, 0xC1F533, rewards_learn_combination_techs(g, c, noted));
             combined = true;
         }
 

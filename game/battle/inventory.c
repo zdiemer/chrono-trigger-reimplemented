@@ -8,6 +8,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/equipment_data.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -459,7 +460,7 @@ static void put_list_back(GameState *g)
 void battle_put_items_back(GameState *g)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
-        battle_return_chosen_item(g, member);
+        TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     ORIGINAL_EFFECT(battle_leave_byte(g, BATTLE_ITEM_RETURNING_FOR_AT, BATTLE_PARTY_SIZE - 1));
     put_list_back(g);
 }
