@@ -37,6 +37,7 @@
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
 #include "battle/random.h"
+#include "battle/rewards.h"
 #include "battle/targets.h"
 #include "battle/timers.h"
 #include "charge.h"
@@ -60,11 +61,8 @@ enum {
     REVIVE_PARTY = 0xC1EAE8,         /* the party revived and its stat blocks cleaned, at the end */
     SAVE_PARTY_STATS = 0xC1B442,     /* the party's stats kept for after the battle */
     NOTE_BEATEN_ENEMIES = 0xFDAAB0,  /* the enemies beaten, noted for the story */
-    SHARE_EXPERIENCE = 0xFDB201,     /* the experience and tech points shared out */
     GIVE_GOLD = 0xC1D0A2,            /* the gold (Y) given */
-    LEVEL_UP = 0xC1F93E,             /* the members' level-ups */
     SHOW_REWARDS = 0xFDAD17,         /* the rewards' messages */
-    UPDATE_TECHS = 0xC1B4E9,         /* the members' techs learnt */
     GIVE_ITEM = 0xC1D005,            /* an item (Y) given */
     MARK_ENEMIES_BEATEN = 0xC1B3D2,  /* the enemies still standing marked, at a demo's end */
     CANCEL_IF_UNABLE = 0xC1B3F9,     /* a member's action dropped if its status keeps it from acting */
@@ -358,11 +356,10 @@ static bool leave_without_rewards(Snes *s)
 enum { ITEMS_WON = 6 };
 
 /* $C1:83BB: a battle that is won: unless it is a demo, the rewards -- the
- * experience shared out and the gold given (where the battle gives them),
- * the level-ups, their messages, the party revived, its stats kept, its techs
- * learnt, and the items won. */
-enum { REWARDS_GIVEN = 0x40, ITEMS_GIVEN = 0x20 };
-
+ * experience turned to gold where the party wears what does that, the gold
+ * given, the experience and the tech points shared out (battle/rewards.h),
+ * their messages, the party revived, its stats kept, the items it chose and
+ * didn't use put back, and the items won. */
 static bool leave_with_rewards(Snes *s)
 {
     GameState *g = state_of(s);
@@ -370,23 +367,26 @@ static bool leave_with_rewards(Snes *s)
     if (battle_is_demo(g))
         return leave_without_rewards(s);
     if (battle_rewards_held(g) == 0) {
-        if (!battle_call_long(s, 0xC183E0, SHARE_EXPERIENCE, READS_NOTHING))
+        if (!battle_run_long(s, 0xC183E0, 0xFDB201, battle_turn_experience_to_gold_entry))
             return false;
         s->cpu.y = battle_gold_won(g);
         if (!battle_call(s, 0xC183E7, GIVE_GOLD, DC_A | DC_X | DC_FLAGS))
             return false;
-        set_battle_reward_flags(g, battle_reward_flags(g) | REWARDS_GIVEN);
+        set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_GOLD);
+        /* the flags in A as the original calls it, which it leaves with what
+         * the messages take along */
         s->cpu.a = battle_reward_flags(g);
-        if (!battle_call(s, 0xC183F2, LEVEL_UP, READS_ALL_OF_A))
+        if (!battle_run(s, 0xC183F2, 0xC1F93E, battle_share_experience_entry))
             return false;
     } else {
         s->cpu.a = battle_rewards_held(g);
     }
-    /* the messages take A along as the code before leaves it */
-    if (!battle_call_long(s, 0xC183F5, SHOW_REWARDS, READS_ALL_OF_A)
+    /* the messages take A along as the code before leaves it; the overflow
+     * they pass through to their own callee, which doesn't read it */
+    if (!battle_call_long(s, 0xC183F5, SHOW_REWARDS, READS_ALL_OF_A | DC_V)
         || !battle_call(s, 0xC183F9, REVIVE_PARTY, READS_CARRY)
         || !battle_call(s, 0xC183FC, SAVE_PARTY_STATS, READS_NOTHING)
-        || !battle_call(s, 0xC183FF, UPDATE_TECHS, READS_NOTHING))
+        || !battle_run(s, 0xC183FF, 0xC1B4E9, battle_put_items_back_entry))
         return false;
     for (unsigned item = 0; item < ITEMS_WON; item++) {
         ORIGINAL_EFFECT(set_battle_low_scratch(g, 0x10, (uint8_t)item));
@@ -396,7 +396,7 @@ static bool leave_with_rewards(Snes *s)
         s->cpu.y = won;
         if (!battle_call(s, 0xC1840E, GIVE_ITEM, DC_A | DC_X | DC_FLAGS))
             return false;
-        set_battle_reward_flags(g, battle_reward_flags(g) | ITEMS_GIVEN);
+        set_battle_reward_flags(g, battle_reward_flags(g) | REWARD_ITEMS);
     }
     ORIGINAL_EFFECT(set_battle_low_scratch(g, 0x10, ITEMS_WON));
     return leave_battle(s);
@@ -458,7 +458,7 @@ static bool run_away(Snes *s)
     m_set_a8(s, RUN_AWAY_ACTION);
     return battle_call(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW) && battle_call(s, 0xC18212, REVIVE_PARTY, READS_CARRY)
            && battle_call(s, 0xC18215, SAVE_PARTY_STATS, READS_NOTHING)
-           && battle_call(s, 0xC18218, UPDATE_TECHS, READS_NOTHING)
+           && battle_run(s, 0xC18218, 0xC1B4E9, battle_put_items_back_entry)
            && battle_call(s, 0xC1821B, CLEAR_ENEMY_MARKS, READS_NOTHING) && leave_without_rewards(s);
 }
 

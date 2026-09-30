@@ -496,6 +496,11 @@ void set_character_records_mp_unchecked(GameState *g, unsigned i, uint16_t v);
 uint16_t character_records_max_mp_unchecked(const GameState *g, unsigned i);
 void set_character_records_max_mp_unchecked(GameState *g, unsigned i, uint16_t v);
 
+enum { PARTY_SINGLE_TECHS_KNOWN_COUNT = 7 };   /* by character */
+/* How many of its single techs the character has learned, which are its first that many */
+uint8_t party_single_techs_known(const GameState *g, unsigned i);
+void set_party_single_techs_known(GameState *g, unsigned i, uint8_t v);
+
 enum { PARTY_SINGLE_TECHS_LEARNED_COUNT = 7 };   /* by character */
 /* The character's single techs learned, its first in bit 7 down to its eighth in bit 0 */
 uint8_t party_single_techs_learned(const GameState *g, unsigned i);
@@ -561,6 +566,11 @@ void set_frames_at_leaving(GameState *g, uint8_t v);
 uint8_t current_song(const GameState *g);
 void set_current_song(GameState *g, uint8_t v);
 
+/* The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting
+ * take a share of the experience */
+uint8_t party_characters_joined(const GameState *g);
+void set_party_characters_joined(GameState *g, uint8_t v);
+
 enum { CHARACTER_NAMES_COUNT = 7 };   /* by character */
 /* The characters' names, five name characters in each 6-byte record; the battle converts them to
  * tiles [5 bytes, one at a time] */
@@ -586,6 +596,11 @@ void set_save_slot_summaries_members_byte(GameState *g, unsigned slot, unsigned 
 enum { SAVE_SLOT_SUMMARIES_HEADER_BYTES = 16 };
 uint8_t save_slot_summaries_header_byte(const GameState *g, unsigned slot, unsigned at);
 void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+
+/* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
+ * whose record has its top bit set waits for this */
+uint8_t party_techs_unlocked(const GameState *g);
+void set_party_techs_unlocked(GameState *g, uint8_t v);
 
 enum { TILE_ANIMATION_TABLES_COUNT = 12 };   /* by animated tile slot */
 /* Accumulator step for each of the eight frames, one word per frame [16 bytes, one at a time] */
@@ -4469,6 +4484,10 @@ enum { BATTLE_WIDE_MATH_COUNT = 12 };   /* by byte: the first number, a word ($2
 uint8_t battle_wide_math(const GameState *g, unsigned i);
 void set_battle_wide_math(GameState *g, unsigned i, uint8_t v);
 
+/* The first single tech of the character the tech points go towards */
+uint8_t battle_learner_first_tech(const GameState *g);
+void set_battle_learner_first_tech(GameState *g, uint8_t v);
+
 /* The partners of the member whose action is carried out, kept while they are marked as taking
  * part ($C1:B9DA); nothing reads it after */
 uint8_t battle_member_partners_kept(const GameState *g);
@@ -7082,6 +7101,11 @@ void set_battle_places(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_action_modifier_kept(const GameState *g);
 void set_battle_action_modifier_kept(GameState *g, uint8_t v);
 
+/* The characters who have joined, shifted up as the share for those in reserve goes through
+ * them; the original clears the word with the next byte, battle_status_script_seen's first */
+uint8_t battle_reserve_bits(const GameState *g);
+void set_battle_reserve_bits(GameState *g, uint8_t v);
+
 enum { BATTLE_STATUS_SCRIPT_SEEN_COUNT = 11 };   /* by battle slot */
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script */
@@ -7516,6 +7540,12 @@ void set_battle_enemy_block_actions(GameState *g, unsigned i, uint16_t v);
 uint16_t battle_effect_actor_block(const GameState *g);
 void set_battle_effect_actor_block(GameState *g, uint16_t v);
 
+/* The member the rewards are working for, 3 for the characters in reserve: whose level and techs
+ * the messages note. Combination techs are noted for the last member whose single techs were
+ * looked at */
+uint16_t battle_rewards_member(const GameState *g);
+void set_battle_rewards_member(GameState *g, uint16_t v);
+
 /* The target's stat block's offset among the blocks (its battle slot times $80) */
 uint16_t battle_effect_target_block(const GameState *g);
 void set_battle_effect_target_block(GameState *g, uint16_t v);
@@ -7594,9 +7624,23 @@ void set_battle_enemy_actions_block(GameState *g, unsigned i, uint8_t v);
 uint16_t battle_script_actions_place(const GameState *g);
 void set_battle_script_actions_place(GameState *g, uint16_t v);
 
+enum { BATTLE_GROWTH_RECORD_PLACES_COUNT = 3 };   /* by the record growing, then the other two members' stat blocks */
+/* Where the record a level-up grows is, a stat block or a character's record in reserve, and the
+ * other two members' stat blocks, which no code traced reads */
+uint16_t battle_growth_record_places(const GameState *g, unsigned i);
+void set_battle_growth_record_places(GameState *g, unsigned i, uint16_t v);
+
+/* $FF where the level-up's experience didn't reach a level, 0 where it did and the stats grow */
+uint8_t battle_growth_no_level(const GameState *g);
+void set_battle_growth_no_level(GameState *g, uint8_t v);
+
 /* The experience the battle gives, added up from the enemies beaten */
 uint16_t battle_experience_won(const GameState *g);
 void set_battle_experience_won(GameState *g, uint16_t v);
+
+/* Where in bank $CC the growing character's stat growth rates are */
+uint16_t battle_growth_rates_place(const GameState *g);
+void set_battle_growth_rates_place(GameState *g, uint16_t v);
 
 enum { BATTLE_EFFECT_GIVEN_STATUS_COUNT = 11 };   /* by battle slot */
 /* The status the attacker's weapon adds to each target its hit's status chance took (the
@@ -7624,15 +7668,22 @@ void set_battle_items_won(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_first_candidate(const GameState *g);
 void set_battle_first_candidate(GameState *g, uint8_t v);
 
-/* What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a
- * message ($FD:AD17) */
+/* What the rewards were, for their messages ($FD:AD17): bit 7 the experience shared out, bit 6
+ * the gold given, bit 5 an item given, bit 4 tech points counted towards a tech */
 uint8_t battle_reward_flags(const GameState *g);
 void set_battle_reward_flags(GameState *g, uint8_t v);
 
-enum { BATTLE_REWARDS_LEVELS_COUNT = 6 };   /* by a byte of what the level-ups note */
-/* What the level-ups note for the rewards' messages to show ($C1:F81B, $FD:AD9C) */
-uint8_t battle_rewards_levels(const GameState *g, unsigned level);
-void set_battle_rewards_levels(GameState *g, unsigned level, uint8_t v);
+enum { BATTLE_REWARDS_LEVELS_NOTED_COUNT = 4 };   /* by party member, 3 the characters in reserve */
+/* Bit 7: the member gained a level, for the rewards' messages ($FD:AD17) to show. The reserve's
+ * byte is the first member's battle_rewards_techs_noted, whose bit 7 no message tests */
+uint8_t battle_rewards_levels_noted(const GameState *g, unsigned member);
+void set_battle_rewards_levels_noted(GameState *g, unsigned member, uint8_t v);
+
+enum { BATTLE_REWARDS_TECHS_NOTED_COUNT = 3 };   /* by party member */
+/* What the member learned, for the rewards' messages ($FD:AD17) to show: bit 3 single techs, bit
+ * 2 double techs, bit 1 a triple tech */
+uint8_t battle_rewards_techs_noted(const GameState *g, unsigned member);
+void set_battle_rewards_techs_noted(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_ENEMY_ACTION_CHOSEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
@@ -7698,13 +7749,49 @@ void set_battle_element_resisted(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_hits_left(const GameState *g);
 void set_battle_hits_left(GameState *g, uint8_t v);
 
+/* The member whose techs are looked at, then the pair or trio of members whose combination techs
+ * are */
+uint8_t battle_rewards_combination(const GameState *g);
+void set_battle_rewards_combination(GameState *g, uint8_t v);
+
+/* The character whose single techs the tech points go towards */
+uint8_t battle_tech_learner(const GameState *g);
+void set_battle_tech_learner(GameState *g, uint8_t v);
+
+/* Which record of combination techs the search for the members' has reached, which is also which
+ * byte of the learned bits is theirs */
+uint8_t battle_combination_record_number(const GameState *g);
+void set_battle_combination_record_number(GameState *g, uint8_t v);
+
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 uint8_t battle_combatant_updating(const GameState *g);
 void set_battle_combatant_updating(GameState *g, uint8_t v);
 
+/* The lowest of the members' character bits, as the combination techs sort them */
+uint8_t battle_combination_first_bit(const GameState *g);
+void set_battle_combination_first_bit(GameState *g, uint8_t v);
+
+/* The middle of the members' character bits, as the combination techs sort them */
+uint8_t battle_combination_second_bit(const GameState *g);
+void set_battle_combination_second_bit(GameState *g, uint8_t v);
+
 /* The enemy's animation, kept while its reactions run and put back after */
 uint8_t battle_animation_kept(const GameState *g);
 void set_battle_animation_kept(GameState *g, uint8_t v);
+
+/* The highest of the members' character bits, as the combination techs sort them */
+uint8_t battle_combination_third_bit(const GameState *g);
+void set_battle_combination_third_bit(GameState *g, uint8_t v);
+
+enum { BATTLE_COMBINATION_MEMBER_SETS_COUNT = 4 };   /* by the first two, the first and third, the second and third, all three */
+/* The characters of each pair of members and of all three, a bit each, as the records of
+ * combination techs name them */
+uint8_t battle_combination_member_sets(const GameState *g, unsigned i);
+void set_battle_combination_member_sets(GameState *g, unsigned i, uint8_t v);
+
+/* 0 where the tech points reached the next single tech, $FF where they didn't */
+uint8_t battle_tech_learned(const GameState *g);
+void set_battle_tech_learned(GameState *g, uint8_t v);
 
 /* Its low word */
 uint16_t battle_tech_points_won_low(const GameState *g);
@@ -7712,6 +7799,28 @@ void set_battle_tech_points_won_low(GameState *g, uint16_t v);
 /* Its high byte */
 uint8_t battle_tech_points_won_high(const GameState *g);
 void set_battle_tech_points_won_high(GameState *g, uint8_t v);
+
+/* The characters of the combination whose techs are looked at, a bit each */
+uint8_t battle_combination_members(const GameState *g);
+void set_battle_combination_members(GameState *g, uint8_t v);
+
+/* The learned bit of the combination tech looked at */
+uint8_t battle_combination_tech_bit(const GameState *g);
+void set_battle_combination_tech_bit(GameState *g, uint8_t v);
+
+/* How many of the combination's techs are left to look at */
+uint8_t battle_combination_techs_left(const GameState *g);
+void set_battle_combination_techs_left(GameState *g, uint8_t v);
+
+enum { BATTLE_COMBINATION_TECHS_KNOWN_COUNT = 8 };   /* by the combination's character, in order, and $FF past them */
+/* How many single techs each character of the combination knows */
+uint8_t battle_combination_techs_known(const GameState *g, unsigned i);
+void set_battle_combination_techs_known(GameState *g, unsigned i, uint8_t v);
+
+/* $FF where a character of the combination lacks the single techs its tech asks, 0 where none
+ * has been found to */
+uint8_t battle_combination_short(const GameState *g);
+void set_battle_combination_short(GameState *g, uint8_t v);
 
 enum { BATTLE_TECH_MEMBERS_COUNT = 3 };   /* by the member's part in the tech */
 /* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
@@ -7728,11 +7837,36 @@ void set_battle_action_further_ids(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_effect_target_count(const GameState *g);
 void set_battle_effect_target_count(GameState *g, uint8_t v);
 
-enum { BATTLE_REWARDS_LAST_MESSAGES_COUNT = 2 };   /* by which message's byte */
-/* Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as
- * a fight starts */
-uint8_t battle_rewards_last_messages(const GameState *g, unsigned i);
-void set_battle_rewards_last_messages(GameState *g, unsigned i, uint8_t v);
+/* The combination tech looked at */
+uint8_t battle_combination_tech(const GameState *g);
+void set_battle_combination_tech(GameState *g, uint8_t v);
+
+enum { BATTLE_REWARDS_DOUBLE_TECHS_COUNT = 10 };   /* by a double tech taught */
+/* The double techs the battle taught, $FF past them, which the rewards' messages ($FD:AE0F) name */
+uint8_t battle_rewards_double_techs(const GameState *g, unsigned i);
+void set_battle_rewards_double_techs(GameState *g, unsigned i, uint8_t v);
+
+/* How many double techs the battle taught (battle_rewards_double_techs), which the rewards'
+ * messages ($FD:AD17) then count through them with */
+uint8_t battle_rewards_double_techs_listed(const GameState *g);
+void set_battle_rewards_double_techs_listed(GameState *g, uint8_t v);
+
+/* The triple tech the battle taught, $FF for none, which the rewards' last message names
+ * ($FD:AE37) */
+uint8_t battle_rewards_triple_tech(const GameState *g);
+void set_battle_rewards_triple_tech(GameState *g, uint8_t v);
+
+enum { BATTLE_REWARDS_LEVELS_GAINED_COUNT = 4 };   /* by party member, 3 the characters in reserve */
+/* How many levels the member gained, which the rewards' messages ($FD:AD17) count down */
+uint8_t battle_rewards_levels_gained(const GameState *g, unsigned member);
+void set_battle_rewards_levels_gained(GameState *g, unsigned member, uint8_t v);
+/* How many levels the member gained, which the rewards' messages ($FD:AD17) count down
+ * Unchecked, for marked scaffolding only: the original counts a level gained as a word, so a
+ * count at $FF carries into the next byte; the reserve's count is not cleared where the members'
+ * are, so it can get there, and its carry lands past the last, on the battle's reaction entry
+ * (game/battle/rewards_levels.c, $C1:F84A) */
+uint8_t battle_rewards_levels_gained_unchecked(const GameState *g, unsigned member);
+void set_battle_rewards_levels_gained_unchecked(GameState *g, unsigned member, uint8_t v);
 
 /* The place among the action's targets the reactions are at */
 uint8_t battle_reaction_entry(const GameState *g);
@@ -7860,6 +7994,16 @@ void set_battle_action_choice(GameState *g, uint8_t v);
 /* A reaction's kept place, while its conditions are tested */
 uint16_t battle_reaction_place_kept(const GameState *g);
 void set_battle_reaction_place_kept(GameState *g, uint16_t v);
+
+/* Where in battle_rewards_techs the next single tech learned is noted: the member's eight from
+ * its first */
+uint8_t battle_rewards_tech_at(const GameState *g);
+void set_battle_rewards_tech_at(GameState *g, uint8_t v);
+
+/* The byte after battle_rewards_tech_at, which the original writes 0 with it as a word and reads
+ * with it as an index */
+uint8_t battle_rewards_tech_at_high(const GameState *g);
+void set_battle_rewards_tech_at_high(GameState *g, uint8_t v);
 
 enum { BATTLE_REWARDS_TECHS_COUNT = 24 };   /* by a tech named */
 /* The techs the rewards' messages name as learned ($FD:ADD7), $FF for none */

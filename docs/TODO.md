@@ -111,7 +111,7 @@ rest waits, is [PLAN.md](PLAN.md).
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
     (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, the
-    rewards `$FD:B201`/`$C1:D0A2`/`$C1:F93E`/`$FD:AD17`); from a member's
+    rewards' gold `$C1:D0A2` and messages `$FD:AD17`); from a member's
     chosen action carried out (RECOMP.md, "Phase 3, battle chunk 5"), the
     targeting `$C1:C1DD`, the calling off of a combination tech one of its
     members can't act in `$FD:A93C` and the messages `$CD:0021`; from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
@@ -454,6 +454,26 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_demo_spare`, `battle_fight_start_mark`, the carried weapon's
     marks and spare, `battle_enemy_family_bits`): find a reader or drop
     them with the gate.
+
+- **What battle's chunk 8 left** (RECOMP.md, "Phase 3, battle chunk 8"):
+  - the rewards' messages (`$FD:AD17`) are still the original's: each waits
+    for the player through `$CD:0021`, so their port waits on the messages'
+    own (the window's text and the wait for a button);
+  - the tech points' count (`rewards_techs.c`, `rewards_count_tech_points`)
+    pays the battle's points again towards a tech whose cost the points left
+    over from the last one don't reach, so a member can learn more than the
+    points pay for: a native build decides whether to keep the original's
+    count;
+  - a level a character in reserve gains is noted in bit 7 of the byte after
+    the members' three, which is the first member's techs' byte (no message
+    tests that bit there), and counted in the byte after the members' counts,
+    whose carry reaches the battle's reaction entry (`rewards_levels.c`,
+    `count_level_gained`): name the reserve's bytes when `$FD:AD17` is ported,
+    or drop them if the messages never read them;
+  - the share for the reserve clears `battle_status_script_seen`'s first byte
+    as it clears its own cell (`rewards_share_with_reserve`): nothing after
+    the battle's end reads it before the next fight's start clears it, so a
+    native build can drop the write.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:

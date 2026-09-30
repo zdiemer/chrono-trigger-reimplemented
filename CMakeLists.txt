@@ -233,6 +233,9 @@ add_library(ct_game STATIC
   game/battle/fight_party.c
   game/battle/fight_timers.c
   game/battle/fight_entries.c
+  game/battle/rewards_entries.c
+  game/battle/rewards_levels.c
+  game/battle/rewards_techs.c
   game/battle/member_stats.c
   game/battle/draw_objects.c
   game/battle/object_motion.c

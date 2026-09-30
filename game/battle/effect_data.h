@@ -10,6 +10,7 @@
 #ifndef CT_GAME_BATTLE_EFFECT_DATA_H
 #define CT_GAME_BATTLE_EFFECT_DATA_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "rom.h"
@@ -174,6 +175,11 @@ static inline PartyTech party_tech(const GameState *g, uint8_t tech)
     }
     return t;
 }
+
+/* A tech whose record has its top bit set is locked: the tech points don't
+ * teach it until the character's techs are unlocked (battle/rewards_techs.c),
+ * nor a combination's its characters. */
+static inline bool party_tech_locked(const GameState *g, uint8_t tech) { return (rom_read8(g, party_tech_place(tech)) & 0x80) != 0; }
 
 /* $CC:249F: the characters who perform a tech, three bytes a record ($FF past
  * them). */
