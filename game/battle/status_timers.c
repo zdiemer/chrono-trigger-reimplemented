@@ -116,7 +116,7 @@ static bool tenth_run(GameState *g, BattleTimer kind, uint8_t slot)
 }
 
 // $C1:88C5
-/* Poison takes the combatant's most HP over half its hit stat and 8 (in a
+/* Poison takes the combatant's most HP over half its stamina and 8 (in a
  * byte). The original divides the long arithmetic's leftover high word with
  * the most HP, and by a divisor whose high byte is what that arithmetic left
  * in its cell, as the game plays them: both are 0 after the small multiplies
@@ -125,8 +125,8 @@ static bool tenth_run(GameState *g, BattleTimer kind, uint8_t slot)
  * nothing. */
 static uint16_t poison_damage(GameState *g, uint8_t slot)
 {
-    uint8_t hit = stat(g, slot, STAT_HIT);
-    uint16_t divisor = (uint16_t)(battle_wide_math_second_high(g) << 8 | (uint8_t)((hit >> 1) + 8));
+    uint8_t stamina = stat(g, slot, STAT_STAMINA);
+    uint16_t divisor = (uint16_t)(battle_wide_math_second_high(g) << 8 | (uint8_t)((stamina >> 1) + 8));
     uint16_t most = (uint16_t)(stat(g, slot, STAT_MAX_HP) | stat(g, slot, STAT_MAX_HP + 1) << 8);
     return (uint16_t)battle_divide_leftover(g, most, divisor).quotient;
 }
@@ -165,9 +165,9 @@ static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
     case POISON_HURTS:
         if (knocked_out(g, slot) || !has_timed_status(g, kind, slot))
             return NOTHING_TO_SHOW;
-        /* each run the next is longer, by the combatant's hit stat (in a
+        /* each run the next is longer, by the combatant's stamina (in a
          * byte, so a long one runs round to a short one) */
-        battle_start_timer(g, kind, slot, (uint8_t)(battle_timer_length(g, kind, slot) + stat(g, slot, STAT_HIT)));
+        battle_start_timer(g, kind, slot, (uint8_t)(battle_timer_length(g, kind, slot) + stat(g, slot, STAT_STAMINA)));
         effect_show_status_damage(g, slot, poison_damage(g, slot));
         return NUMBER_TO_SHOW;
     case LOSES_A_POINT:

@@ -16,9 +16,6 @@
 static uint16_t index_x(const Snes *s) { return s->cpu.x; }
 static uint16_t index_y(const Snes *s) { return s->cpu.y; }
 
-/* The characters the ROM has records and techs for. */
-enum { CHARACTERS = 7 };
-
 /* A party whose every member is empty or one of the characters, and whose
  * fight is listed: what the pieces after the listing take for granted. */
 static bool party_real(Snes *s)
@@ -33,7 +30,7 @@ static bool members_fighting_real(const GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         uint8_t character = battle_combatant_fighting(g, member);
-        if (character != COMBATANT_NONE && character >= CHARACTERS)
+        if (character != COMBATANT_NONE && character >= SETUP_CHARACTERS)
             return false;
     }
     return true;
@@ -195,7 +192,8 @@ void fight_set_first_turns_entry(Snes *s)
 
 void fight_apply_accessory_effects_entry(Snes *s)
 {
-    fight_apply_accessory_effects(state_of(s));
+    fight_clear_enemy_animations(state_of(s));
+    fight_apply_equipment_effects(state_of(s));
     m_rtl(s);
 }
 

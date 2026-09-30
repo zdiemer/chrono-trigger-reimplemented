@@ -3236,12 +3236,38 @@ The map gained the characters' records (`character_records`, laid out as a
 stat block's first `$50` bytes, the core subsystem's), the single and double
 techs learned, the experience and tech points won, the carried weapon's
 fields, and eleven cells the start clears that no traced code reads, named as
-spares (TODO.md). Three of combatant.h's stat names disagree with what the
-start builds them from, which is written down where the attack and defence are
-added up rather than renamed in this chunk (TODO.md). Two of the original's
-quirks are kept, each in one place: the attack takes a byte of bank CC at the
-member's block's place, where the original meant the weapon's record, and a
-demo battle's eighth record lands on the learned techs.
+spares (TODO.md). Two of the original's quirks are kept, each in one place:
+the attack takes a byte of bank CC at the member's block's place, where the
+original meant the weapon's record, and a demo battle's eighth record lands on
+the learned techs.
+
+**The review** rated `tech_records.c` translation and the rest mostly or
+hand-written, and the chunk was reworked before it merged. The builders'
+logic no longer takes the original's carry: a part's cost is a cost, and the
+carries the multiplies are entered with are worked out in leaves helpers
+(`leave_single_cost_carry`, `leave_double_cost_carry`, `leave_speed_carry`).
+The direct page's cells that only the start writes and overwrites are
+scaffolding in each piece, one leaves helper per piece worked out from where
+it ended; the start's header names the five cells that survive it and their
+last, plain writers (rubric item 109). combatant.h's names for three stat
+bytes were wrong, which the start's use showed (the defence is built from
+`$37`, Marle's and Lucca's attack from `$3A`): `$37` is now `STAT_STAMINA`,
+`$3A` `STAT_HIT` and `$3D` `STAT_ATTACK`, with the effect code, the statuses'
+timers and the boosts renamed to match, and the equipment records' bytes in
+the block are named there too (`STAT_ARMOR_DEFENCE`, `STAT_ACCESSORY_FLAGS`,
+...). The data came through records: `enemy_stats_record`, `armor_modifier`
+(the modifier table read as a stat byte and bits, rubric item 110),
+`first_turn_wait(setting, speed)`, `weapon_made_for(weapon)`; the byte after
+the action's targets is `battle_action_targets_end`; the carried weapon's
+three marks are fields, set inside their scaffolding. Accepted as they are:
+the six turn-work words `fight_clear_turn_state` clears, written by their
+numbers because nothing names what they hold; the attack's sum left in the
+arithmetic's cells plainly, which the effects check requires of those cells
+though the first turns overwrite them; and `battle_enemy_animation_work`
+indexed by enemy for its first eight bytes and past them as the original
+clears them. After the rework: shadow mode over the library and every entry
+fuzzed again (seed 1), none mismatching, with chunk 6's triple tech, member
+stats and boost.
 
 **Validation.** The library's 26 movies in shadow mode, none mismatching: the
 fight's start 31 calls, every one interrupted (it spans a frame), so it is

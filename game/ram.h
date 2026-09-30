@@ -3288,7 +3288,9 @@
 #define RAM_BATTLE_MEMBER_CARRIED_STRIDE 0x05u
 #define RAM_BATTLE_MEMBER_CARRIED_WEAPON 0x7E1C48u /* The member's weapon as the fight starts (0 for none) */
 #define RAM_BATTLE_MEMBER_CARRIED_SPARE 0x7E1C49u /* A byte the fight's start clears; no code traced reads it */
-#define RAM_BATTLE_MEMBER_CARRIED_MARKS 0x7E1C4Au /* For a member with a weapon: $80, 1, and the party-slot bit (bit 7 the first slot) of the character the weapon is made for; no code traced reads them */
+#define RAM_BATTLE_MEMBER_CARRIED_WEAPON_MARK 0x7E1C4Au /* $80 for a member with a weapon; no code traced reads it */
+#define RAM_BATTLE_MEMBER_CARRIED_WEAPON_COUNT 0x7E1C4Bu /* 1 for a member with a weapon; no code traced reads it */
+#define RAM_BATTLE_MEMBER_CARRIED_OWNER_BIT 0x7E1C4Cu /* For a member with a weapon, the party-slot bit (bit 7 the first slot) of the character it is made for, where that character is in the party; no code traced reads it */
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from [11 x $3
  * bytes, by battle slot] */
 #define RAM_BATTLE_OBJECT_GRAPHICS 0x7E1C57u
@@ -3525,9 +3527,9 @@
 #define RAM_BATTLE_ENEMY_TARGET 0x7E5E15u
 #define RAM_BATTLE_ENEMY_TARGET_COUNT 8u
 #define RAM_BATTLE_ENEMY_TARGET_STRIDE 0x01u
-/* Bytes the enemies' animation commands ($C1:3772, the original's) keep per enemy, which the
- * fight's start clears; what they hold isn't worked out [16 x $1 bytes, by enemy, and past the
- * eighth what follows] */
+/* Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which
+ * the fight's start clears with the enemies' animations and targets [16 x $1 bytes, by enemy,
+ * and past the eighth what follows] */
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK 0x7E5E1Du
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK_COUNT 16u
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK_STRIDE 0x01u
@@ -4891,6 +4893,8 @@
 #define RAM_BATTLE_ACTION_TARGETS 0x7EAD8Eu
 #define RAM_BATTLE_ACTION_TARGETS_COUNT 11u
 #define RAM_BATTLE_ACTION_TARGETS_STRIDE 0x01u
+/* The byte after the action's eleven targets, $FF from the fight's start: a full list's end */
+#define RAM_BATTLE_ACTION_TARGETS_END 0x7EAD99u
 /* How many party members are out of the fight, as the modifier that hits harder for each counts
  * them */
 #define RAM_BATTLE_PARTY_OUT_COUNT 0x7EAD9Au
@@ -5353,8 +5357,8 @@
 #define RAM_BATTLE_ACTION_FURTHER_IDS_STRIDE 0x01u
 /* How many targets the action has, kept while the effect's loop counts them down */
 #define RAM_BATTLE_EFFECT_TARGET_COUNT 0x7EB2EDu
-/* Two bytes the rewards' last messages read ($FD:AE10, $FD:AE37); what they are isn't worked out
- * [2 x $1 bytes, by which message's byte] */
+/* Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as
+ * a fight starts [2 x $1 bytes, by which message's byte] */
 #define RAM_BATTLE_REWARDS_LAST_MESSAGES 0x7EB30Fu
 #define RAM_BATTLE_REWARDS_LAST_MESSAGES_COUNT 2u
 #define RAM_BATTLE_REWARDS_LAST_MESSAGES_STRIDE 0x01u

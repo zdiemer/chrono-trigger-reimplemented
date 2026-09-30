@@ -45,7 +45,7 @@ void effect_cure(GameState *g, bool revives)
 // $C1:E006
 /* The timer a status's first bit given starts, by the status byte and the
  * bit, the highest first: the first byte's stop, poison (its length made
- * longer by the target's hit stat), slow and the HP lost; the third's haste
+ * longer by the target's stamina), slow and the HP lost; the third's haste
  * and evading much better; the fourth's shield and the MP regained. The
  * second byte's have none (battle/status_timers.c says what each does when
  * it runs out). */
@@ -57,7 +57,7 @@ static void start_timer_for(GameState *g, uint8_t which, uint8_t bits)
         if (bits & STATUS_STOP) {
             battle_start_timer(g, BATTLE_TIMER_STOP, slot, battle_timer_length(g, BATTLE_TIMER_STOP, slot));
         } else if (bits & STATUS_POISON) {
-            uint8_t length = battle_timer_length(g, BATTLE_TIMER_POISON, slot), longer = effect_target_stat(g, STAT_HIT);
+            uint8_t length = battle_timer_length(g, BATTLE_TIMER_POISON, slot), longer = effect_target_stat(g, STAT_STAMINA);
             battle_start_timer(g, BATTLE_TIMER_POISON, slot, (uint8_t)(length + longer));
         } else if (bits & STATUS_SLOW) {
             battle_start_timer(g, BATTLE_TIMER_SLOW, slot, battle_timer_length(g, BATTLE_TIMER_SLOW, slot));

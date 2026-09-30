@@ -173,14 +173,33 @@ static inline uint16_t setup_rule(const GameState *g, uint16_t at) { return rom_
 
 /* ---- The fight's start (battle/fight_*.c) ----------------------------------------------------- */
 
-/* An enemy's record, 23 bytes by its id ($CC:4700): its HP, its level, what
- * it shrugs off and keeps, its stats and affinities, and its kind, family
- * and attack. */
-enum { ENEMY_STATS_RECORD_BYTES = 23 };
+/* An enemy's record, 23 bytes by its id ($CC:4700): its HP, its level, the
+ * five bytes of what it shrugs off and keeps (the stat block's from
+ * STAT_SHRUGS_OFF), its twelve stats from its stamina to its affinities, and
+ * its kind, family and attack's detail. */
+enum { ENEMY_DEFENCES = 5, ENEMY_STATS = 12, ENEMY_KIND_BYTES = 3 };
 
-static inline uint8_t enemy_record_byte(const GameState *g, uint8_t enemy, unsigned n)
+typedef struct {
+    uint16_t hp;
+    uint8_t level;
+    uint8_t defences[ENEMY_DEFENCES];
+    uint8_t stats[ENEMY_STATS];
+    uint8_t kind[ENEMY_KIND_BYTES];
+} EnemyStatsRecord;
+
+static inline EnemyStatsRecord enemy_stats_record(const GameState *g, uint8_t enemy)
 {
-    return rom_read8(g, 0xCC4700u + (uint16_t)(enemy * ENEMY_STATS_RECORD_BYTES) + n);
+    uint32_t at = 0xCC4700u + (uint16_t)(enemy * 23);
+    EnemyStatsRecord r;
+    r.hp = rom_read16(g, at);
+    r.level = rom_read8(g, at + 2);
+    for (unsigned n = 0; n < ENEMY_DEFENCES; n++)
+        r.defences[n] = rom_read8(g, at + 3 + n);
+    for (unsigned n = 0; n < ENEMY_STATS; n++)
+        r.stats[n] = rom_read8(g, at + 8 + n);
+    for (unsigned n = 0; n < ENEMY_KIND_BYTES; n++)
+        r.kind[n] = rom_read8(g, at + 20 + n);
+    return r;
 }
 
 /* The characters' records as a new game starts them ($CC:0000, laid out as
@@ -203,7 +222,13 @@ static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned 
 
 /* How long a combatant's first turn waits, before its speed takes its part
  * off, by the battle speed setting and its speed ($CC:2E31, sixteen a
- * setting). */
-static inline uint8_t first_turn_wait(const GameState *g, uint8_t at) { return rom_read8(g, 0xCC2E31u + at); }
+ * setting from speed 1; the place is taken in a byte, so a speed of 0 reads
+ * the previous setting's last). */
+enum { SPEEDS_A_SETTING = 16 };
+
+static inline uint8_t first_turn_wait(const GameState *g, uint8_t setting, uint8_t speed)
+{
+    return rom_read8(g, 0xCC2E31u + (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
+}
 
 #endif

@@ -9318,10 +9318,17 @@ source = "game/battle/main_loop.c $C1:8443; game/battle/fight_party.c ($FD:AEF2)
   offset = 1
   meaning = "A byte the fight's start clears; no code traced reads it"
   [[var.field]]
-  name = "marks"
+  name = "weapon_mark"
   offset = 2
-  size = 3
-  meaning = "For a member with a weapon: $80, 1, and the party-slot bit (bit 7 the first slot) of the character the weapon is made for; no code traced reads them"
+  meaning = "$80 for a member with a weapon; no code traced reads it"
+  [[var.field]]
+  name = "weapon_count"
+  offset = 3
+  meaning = "1 for a member with a weapon; no code traced reads it"
+  [[var.field]]
+  name = "owner_bit"
+  offset = 4
+  meaning = "For a member with a weapon, the party-slot bit (bit 7 the first slot) of the character it is made for, where that character is in the party; no code traced reads it"
 
 [[var]]
 name = "battle_enemy_hp_seen"
@@ -15017,7 +15024,7 @@ addr = "7E:B30F"
 count = 2
 index = "which message's byte"
 subsystem = "battle"
-meaning = "Two bytes the rewards' last messages read ($FD:AE10, $FD:AE37); what they are isn't worked out"
+meaning = "Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as a fight starts"
 source = "game/battle/fight_start.c ($FD:B732)"
 
 [[var]]
@@ -15075,5 +15082,12 @@ addr = "7E:5E1D"
 count = 16
 index = "enemy, and past the eighth what follows"
 subsystem = "battle"
-meaning = "Bytes the enemies' animation commands ($C1:3772, the original's) keep per enemy, which the fight's start clears; what they hold isn't worked out"
+meaning = "Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which the fight's start clears with the enemies' animations and targets"
 source = "game/battle/fight_party.c ($FD:B555); $C1:3790"
+
+[[var]]
+name = "battle_action_targets_end"
+addr = "7E:AD99"
+subsystem = "battle"
+meaning = "The byte after the action's eleven targets, $FF from the fight's start: a full list's end"
+source = "game/battle/fight_start.c ($C1:FBA1)"

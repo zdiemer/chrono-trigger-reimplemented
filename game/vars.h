@@ -4715,10 +4715,16 @@ void set_battle_member_carried_weapon(GameState *g, unsigned member, uint8_t v);
 /* A byte the fight's start clears; no code traced reads it */
 uint8_t battle_member_carried_spare(const GameState *g, unsigned member);
 void set_battle_member_carried_spare(GameState *g, unsigned member, uint8_t v);
-/* For a member with a weapon: $80, 1, and the party-slot bit (bit 7 the first slot) of the
- * character the weapon is made for; no code traced reads them */
-uint32_t battle_member_carried_marks(const GameState *g, unsigned member);
-void set_battle_member_carried_marks(GameState *g, unsigned member, uint32_t v);
+/* $80 for a member with a weapon; no code traced reads it */
+uint8_t battle_member_carried_weapon_mark(const GameState *g, unsigned member);
+void set_battle_member_carried_weapon_mark(GameState *g, unsigned member, uint8_t v);
+/* 1 for a member with a weapon; no code traced reads it */
+uint8_t battle_member_carried_weapon_count(const GameState *g, unsigned member);
+void set_battle_member_carried_weapon_count(GameState *g, unsigned member, uint8_t v);
+/* For a member with a weapon, the party-slot bit (bit 7 the first slot) of the character it is
+ * made for, where that character is in the party; no code traced reads it */
+uint8_t battle_member_carried_owner_bit(const GameState *g, unsigned member);
+void set_battle_member_carried_owner_bit(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_OBJECT_GRAPHICS_COUNT = 11 };   /* by battle slot */
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from */
@@ -5035,8 +5041,8 @@ uint8_t battle_enemy_target(const GameState *g, unsigned i);
 void set_battle_enemy_target(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ENEMY_ANIMATION_WORK_COUNT = 16 };   /* by enemy, and past the eighth what follows */
-/* Bytes the enemies' animation commands ($C1:3772, the original's) keep per enemy, which the
- * fight's start clears; what they hold isn't worked out */
+/* Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which
+ * the fight's start clears with the enemies' animations and targets */
 uint8_t battle_enemy_animation_work(const GameState *g, unsigned i);
 void set_battle_enemy_animation_work(GameState *g, unsigned i, uint8_t v);
 
@@ -6962,6 +6968,10 @@ void set_battle_action_targets(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_action_targets_unchecked(const GameState *g, unsigned i);
 void set_battle_action_targets_unchecked(GameState *g, unsigned i, uint8_t v);
 
+/* The byte after the action's eleven targets, $FF from the fight's start: a full list's end */
+uint8_t battle_action_targets_end(const GameState *g);
+void set_battle_action_targets_end(GameState *g, uint8_t v);
+
 /* How many party members are out of the fight, as the modifier that hits harder for each counts
  * them */
 uint8_t battle_party_out_count(const GameState *g);
@@ -7719,7 +7729,8 @@ uint8_t battle_effect_target_count(const GameState *g);
 void set_battle_effect_target_count(GameState *g, uint8_t v);
 
 enum { BATTLE_REWARDS_LAST_MESSAGES_COUNT = 2 };   /* by which message's byte */
-/* Two bytes the rewards' last messages read ($FD:AE10, $FD:AE37); what they are isn't worked out */
+/* Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as
+ * a fight starts */
 uint8_t battle_rewards_last_messages(const GameState *g, unsigned i);
 void set_battle_rewards_last_messages(GameState *g, unsigned i, uint8_t v);
 

@@ -22,7 +22,7 @@
 // $FD:B0D5
 /* Every timer stopped, each with ten runs left; and the enemies whose HP the
  * target cursor may show: those not of the families it hides. */
-enum { RUNS = 10, HIDES_HP = 0x02 };
+enum { RUNS = 10, HIDES_HP = 0x02, HP_SHOWN = HIDES_HP };
 
 void fight_clear_timers(GameState *g)
 {
@@ -38,7 +38,7 @@ void fight_clear_timers(GameState *g)
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         uint8_t slot = (uint8_t)(BATTLE_FIRST_ENEMY + enemy);
         if (battle_combatant_id(g, slot) != COMBATANT_NONE)
-            set_battle_enemy_hp_visible(g, enemy, (combatant_stat_byte(g, slot, STAT_FAMILY) & HIDES_HP) ^ HIDES_HP);
+            set_battle_enemy_hp_visible(g, enemy, combatant_stat_byte(g, slot, STAT_FAMILY) & HIDES_HP ? 0 : HP_SHOWN);
     }
 }
 
@@ -67,9 +67,15 @@ void fight_set_timer_lengths(GameState *g)
 // $FD:B7EB
 /* A combatant's first turn: its speed, at most 16, takes six ticks a point off
  * the slowest wait, and the table gives it back a part by its speed and the
- * battle speed setting. The original multiplies each through its cells, the
- * speed's with the carry of the sum before it (scaffolding). */
-enum { FASTEST_SPEED = 16, SETTINGS_SPEED_BITS = 0x07, SPEEDS_A_SETTING = 16, TICKS_A_SPEED_POINT = 6 };
+ * battle speed setting. */
+enum { FASTEST_SPEED = 16, SETTINGS_SPEED_BITS = 0x07, TICKS_A_SPEED_POINT = 6 };
+
+/* The original multiplies both through the arithmetic's cells, the speed's
+ * with the carry of the table's place, a byte, over it (scaffolding). */
+static void leave_speed_carry(GameState *g, uint8_t speed, uint8_t setting)
+{
+    battle_leave_multiply_carry(g, (uint8_t)(speed - 1) + (uint8_t)(setting * SPEEDS_A_SETTING) > 0xFF);
+}
 
 static uint8_t first_wait(GameState *g, uint8_t slot)
 {
@@ -78,21 +84,25 @@ static uint8_t first_wait(GameState *g, uint8_t slot)
         speed = FASTEST_SPEED;
         set_combatant_stat_byte(g, slot, STAT_SPEED_RATING, speed);
     }
-    uint8_t setting = (uint8_t)effect_times(g, game_settings(g, SETTINGS_TIME_AND_INFO) & SETTINGS_SPEED_BITS, SPEEDS_A_SETTING);
-    uint8_t at = (uint8_t)(speed - 1 + setting);
-    uint8_t given_back = first_turn_wait(g, at);
-    uint8_t taken = (uint8_t)effect_times(g, speed, TICKS_A_SPEED_POINT);
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, (uint8_t)(speed - 1) + setting > 0xFF));
-    return (uint8_t)(SLOWEST_TURN - taken + given_back);
+    uint8_t setting = game_settings(g, SETTINGS_TIME_AND_INFO) & SETTINGS_SPEED_BITS;
+    battle_leave_multiply(g, setting, SPEEDS_A_SETTING);
+    uint8_t given_back = first_turn_wait(g, setting, speed);
+    battle_leave_multiply(g, speed, TICKS_A_SPEED_POINT);
+    ORIGINAL_EFFECT(leave_speed_carry(g, speed, setting));
+    return (uint8_t)(SLOWEST_TURN - speed * TICKS_A_SPEED_POINT + given_back);
 }
 
-/* An enemy whose block has this bit is marked in its standing (what the mark
- * is for isn't worked out: docs/TODO.md). */
+/* An enemy whose block has bit 0 of its most MP's high byte is marked $40 in
+ * its standing. The enemies' records don't fill that byte, and nothing in the
+ * fight's start writes it first, so as the game reaches it no enemy is ever
+ * marked; the port keeps the test as the original makes it. */
 enum { MAX_MP_HIGH = STAT_MAX_MP + 1, STANDING_MARK_BIT = 0x01, STANDING_MARK = 0x40 };
 
 /* The cells the original counts in: the combatant and its block's place, and
- * the wait the soonest turn takes off the others (kept: battle.h). */
-enum { SLOT_AT = 0x02, PLACE_AT = 0x04, TAKEN_OFF_AT = BATTLE_CLOCK_READS };
+ * the wait the soonest turn takes off the others. Only the fight's start sets
+ * the first turns, and it overwrites them before anything reads them
+ * (scaffolding). */
+enum { SLOT_AT = 0x02, PLACE_AT = 0x04, TAKEN_OFF_AT = 0x00 };
 
 static void start_turn(GameState *g, uint8_t slot, uint8_t wait)
 {
@@ -142,7 +152,7 @@ void fight_set_first_turns(GameState *g)
         least = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest);
     }
     uint8_t taken_off = (uint8_t)(battle_timer_counts_byte(g, BATTLE_TIMER_TURN, soonest) - 1);
-    battle_keep_word(g, TAKEN_OFF_AT, taken_off);
+    ORIGINAL_EFFECT(battle_leave_word(g, TAKEN_OFF_AT, taken_off));
     for (uint8_t slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         uint8_t wait = battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot);
         if (combatant_in_fight(g, slot) && wait != 0)

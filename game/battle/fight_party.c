@@ -20,12 +20,14 @@
 #include "battle/effect_data.h"
 #include "battle/effect_parts.h"
 #include "battle/equipment_data.h"
+#include "battle/party_records.h"
 #include "battle/rules_data.h"
+#include "battle/setup.h"
 #include "battle/setup_data.h"
 #include "original_effects.h"
 #include "vars.h"
 
-enum { CHARACTERS = 7, RECORD_BYTES = 0x50, AYLA = 5 };
+enum { RECORD_BYTES = 0x50, AYLA = 5 };
 
 /* ---- A demo battle's party ---------------------------------------------------------------------- */
 
@@ -55,7 +57,7 @@ void fight_start_demo_characters(GameState *g)
 {
     ORIGINAL_EFFECT(set_battle_demo_spare(g, 0));
     set_battle_party_fighting_count(g, BATTLE_PARTY_SIZE);
-    for (unsigned at = 0; at < CHARACTERS * RECORD_BYTES; at++)
+    for (unsigned at = 0; at < SETUP_CHARACTERS * RECORD_BYTES; at++)
         set_character_records_record_byte(g, at / RECORD_BYTES, at % RECORD_BYTES, character_start_record_byte(g, (uint16_t)at));
     for (unsigned place = 0; place < INVENTORY_PLACES; place++) {
         set_inventory_items_unchecked(g, place, (uint8_t)place);
@@ -87,9 +89,16 @@ void fight_load_demo_party(GameState *g)
 
 /* ---- Who fights, and with what ------------------------------------------------------------------ */
 
-/* The cells the record's copy leaves: its count, kept (battle.h), and the
- * character. */
-enum { COPIED_AT = BATTLE_CLOCK_READS, CHARACTER_AT = 0x02, COPY_ENDS_AT = 0x80 };
+/* The cells the record's copy leaves: its count and the character. Only the
+ * fight's start copies records, and it overwrites both before anything reads
+ * them (scaffolding). */
+enum { COPIED_AT = 0x00, CHARACTER_AT = 0x02, COPY_ENDS_AT = 0x80 };
+
+static void leave_record_copied(GameState *g, uint8_t character)
+{
+    battle_leave_word(g, COPIED_AT, COPY_ENDS_AT);
+    battle_leave_word(g, CHARACTER_AT, character);
+}
 
 // $FD:AE52
 /* A member's stat block, its character's record copied in and the rest of it
@@ -97,14 +106,14 @@ enum { COPIED_AT = BATTLE_CLOCK_READS, CHARACTER_AT = 0x02, COPY_ENDS_AT = 0x80 
 void fight_take_member_record(GameState *g, uint8_t member)
 {
     uint8_t character = battle_combatant_fighting(g, member);
-    if (character & 0x80)
+    /* out of the fight: the original tests the top bit alone */
+    if (character & BATTLE_EMPTY_SLOT)
         return;
     /* the original finds the record by a multiply */
-    (void)effect_times(g, RECORD_BYTES, character);
+    battle_leave_multiply(g, RECORD_BYTES, character);
     for (unsigned at = 0; at < BATTLE_STAT_BLOCK_BYTES; at++)
         set_combatant_stat_byte(g, member, (uint16_t)at, at < RECORD_BYTES ? character_records_record_byte(g, character, at) : 0);
-    battle_keep_word(g, COPIED_AT, COPY_ENDS_AT);
-    ORIGINAL_EFFECT(battle_leave_word(g, CHARACTER_AT, character));
+    ORIGINAL_EFFECT(leave_record_copied(g, character));
 }
 
 // $C1:FDAE
@@ -119,7 +128,7 @@ uint8_t fight_aylas_fists(GameState *g, uint8_t level)
 }
 
 /* Whether the member's block is Ayla's: its first byte, the character. */
-bool fight_member_is_ayla(const GameState *g, uint8_t member) { return combatant_stat_byte(g, member, 0) == AYLA; }
+bool fight_member_is_ayla(const GameState *g, uint8_t member) { return combatant_stat_byte(g, member, STAT_ID) == AYLA; }
 
 // $C1:FB06
 /* The party in the fight: each member not sitting it out, counted; with the
@@ -128,13 +137,11 @@ void fight_list_party(GameState *g)
 {
     uint8_t members = 0;
     for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++) {
-        set_battle_combatant_fighting(g, slot, COMBATANT_NONE);
-        set_battle_combatant_id(g, slot, COMBATANT_NONE);
+        combatant_list_nobody(g, slot);
         uint8_t character = party_members(g, slot);
-        if (battle_member_sitting_out(g, slot) || (character & 0x80))
+        if (battle_member_sitting_out(g, slot) || (character & BATTLE_EMPTY_SLOT))
             continue;
-        set_battle_combatant_fighting(g, slot, character);
-        set_battle_combatant_id(g, slot, character);
+        combatant_list_as(g, slot, character);
         members++;
     }
     set_battle_party_fighting_count(g, members);
@@ -200,27 +207,24 @@ void fight_raise_critical_rate(GameState *g, uint8_t member)
         set_combatant_stat_byte(g, member, STAT_CRITICAL_RATE, SHARPENED_CRITICAL_RATE);
 }
 
-/* Where the armor's and the helmet's records put their modifier in the block
- * (battle/member_stats.c copies them): the modifier, and whether it applies. */
-enum { ARMOR_MODIFIER = 0x49, ARMOR_MODIFIER_ON = 0x4A, HELMET_MODIFIER = 0x71, HELMET_MODIFIER_ON = 0x72,
-       MODIFIER_APPLIES = 1 };
+/* An armor's or a helmet's modifier applies where its record says so. */
+enum { MODIFIER_APPLIES = 1 };
 
-/* A modifier a piece of armor gives: the bits its record names set in the
- * byte of the member's block it names (a block's offset past its end reaches
- * the next). */
+/* A modifier a piece of armor gives: the bits it names set in the byte of
+ * the member's block it names (an offset past the block's end reaches the
+ * next). */
 static void give_modifier(GameState *g, uint8_t member, uint8_t modifier)
 {
-    ModifierRecord r = modifier_record_at(g, (uint8_t)(modifier * 3));
-    set_combatant_stat_byte(g, member, r.routine, combatant_stat_byte(g, member, r.routine) | r.first);
+    ArmorModifier m = armor_modifier(g, modifier);
+    set_combatant_stat_byte(g, member, m.at, combatant_stat_byte(g, member, m.at) | m.bits);
 }
 
 // $FD:B555
-/* The action and the enemies' animations start clear; then what the
- * accessories and the armor do: the sharpened weapons, and each armor's and
- * helmet's modifier. */
+/* The action's effect and the enemies' chosen actions, animations and
+ * targets start clear. */
 enum { ENEMY_ANIMATION_WORK = 16 };
 
-void fight_apply_accessory_effects(GameState *g)
+void fight_clear_enemy_animations(GameState *g)
 {
     for (unsigned n = 0; n < BATTLE_EFFECT_RECORD_COUNT; n++)
         set_battle_effect_record(g, n, 0);
@@ -233,32 +237,40 @@ void fight_apply_accessory_effects(GameState *g)
     }
     for (unsigned n = 0; n < ENEMY_ANIMATION_WORK; n++)
         set_battle_enemy_animation_work(g, n, 0);
+}
+
+// $FD:B555
+/* What the party's equipment does from the start: the accessory that
+ * sharpens two weapons, and each armor's and helmet's modifier. */
+void fight_apply_equipment_effects(GameState *g)
+{
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         if (battle_member_accessory(g, member) == SHARPER_WEAPONS)
             fight_raise_critical_rate(g, member);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
-        if (combatant_stat_byte(g, member, ARMOR_MODIFIER_ON) == MODIFIER_APPLIES)
-            give_modifier(g, member, combatant_stat_byte(g, member, ARMOR_MODIFIER));
+        if (combatant_stat_byte(g, member, STAT_ARMOR_MODIFIER_ON) == MODIFIER_APPLIES)
+            give_modifier(g, member, combatant_stat_byte(g, member, STAT_ARMOR_MODIFIER));
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
-        if (combatant_stat_byte(g, member, HELMET_MODIFIER_ON) == MODIFIER_APPLIES)
-            give_modifier(g, member, combatant_stat_byte(g, member, HELMET_MODIFIER));
+        if (combatant_stat_byte(g, member, STAT_HELMET_MODIFIER_ON) == MODIFIER_APPLIES)
+            give_modifier(g, member, combatant_stat_byte(g, member, STAT_HELMET_MODIFIER));
 }
 
-/* An accessory's record in the block (battle/member_stats.c copies it): its
- * flags, and two bytes they say how to read -- a status the member starts
+/* An accessory's record in the block (battle/member_stats.c copies it) says
+ * by its flags how to read its next two bytes: a status the member starts
  * with (which status byte from the condition, and its bits), or a boost to
  * its stats. */
-enum { ACCESSORY_FLAGS = 0x4C, ACCESSORY_FIRST = 0x4D, ACCESSORY_SECOND = 0x4E, GIVES_STATUS = 0x80, GIVES_BOOST = 0x40 };
+enum { GIVES_STATUS = 0x80, GIVES_BOOST = 0x40, MOST_HP = 999 };
 
-/* The cells the original works in: the status's bits (kept, battle.h), where
- * the block is, and which status byte. */
-enum { STATUS_BITS_AT = BATTLE_CLOCK_READS, BLOCK_OFFSET_AT = 0x02, STATUS_BYTE_AT = 0x04, MOST_HP = 999 };
+/* The cells the original works in: the status's bits, where the block is,
+ * and which status byte. Only the fight's start sees to the bonuses, and it
+ * overwrites them before anything reads them (scaffolding). */
+enum { STATUS_BITS_AT = 0x00, BLOCK_OFFSET_AT = 0x02, STATUS_BYTE_AT = 0x04 };
 
-static void keep_bonus_cells(GameState *g, uint16_t bits, uint16_t block, uint16_t byte)
+static void leave_bonus_cells(GameState *g, uint16_t bits, uint16_t block, uint16_t byte)
 {
-    battle_keep_word(g, STATUS_BITS_AT, bits);
-    ORIGINAL_EFFECT(battle_leave_word(g, BLOCK_OFFSET_AT, block));
-    ORIGINAL_EFFECT(battle_leave_word(g, STATUS_BYTE_AT, byte));
+    battle_leave_word(g, STATUS_BITS_AT, bits);
+    battle_leave_word(g, BLOCK_OFFSET_AT, block);
+    battle_leave_word(g, STATUS_BYTE_AT, byte);
 }
 
 // $FD:B363
@@ -267,16 +279,18 @@ static void keep_bonus_cells(GameState *g, uint16_t bits, uint16_t block, uint16
  * up to 999. A member out of the fight gets nothing. */
 void fight_apply_member_bonuses(GameState *g, uint8_t member)
 {
-    keep_bonus_cells(g, 0, 0, 0);
-    if (!combatant_in_fight(g, member))
+    if (!combatant_in_fight(g, member)) {
+        ORIGINAL_EFFECT(leave_bonus_cells(g, 0, 0, 0));
         return;
+    }
     uint16_t block = (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES);
-    keep_bonus_cells(g, 0, block, 0);
-    if (combatant_stat_byte(g, member, ACCESSORY_FLAGS) & GIVES_STATUS) {
-        uint8_t byte = combatant_stat_byte(g, member, ACCESSORY_FIRST), bits = combatant_stat_byte(g, member, ACCESSORY_SECOND);
+    if (combatant_stat_byte(g, member, STAT_ACCESSORY_FLAGS) & GIVES_STATUS) {
+        uint8_t byte = combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST), bits = combatant_stat_byte(g, member, STAT_ACCESSORY_SECOND);
         uint16_t at = (uint16_t)(STAT_CONDITION + byte);
         set_combatant_stat_byte(g, member, at, combatant_stat_byte(g, member, at) | bits);
-        keep_bonus_cells(g, bits, block, byte);
+        ORIGINAL_EFFECT(leave_bonus_cells(g, bits, block, byte));
+    } else {
+        ORIGINAL_EFFECT(leave_bonus_cells(g, 0, block, 0));
     }
     uint8_t accessory = combatant_stat_byte(g, member, STAT_ACCESSORY);
     if (accessory != QUARTER_MORE_HP && accessory != HALF_MORE_HP)
@@ -297,28 +311,47 @@ void fight_ward_off_confusion(GameState *g)
 
 /* ---- The weapons -------------------------------------------------------------------------------- */
 
-/* A member's weapon noted as the battle carries it, with its marks: $80, 1,
- * and the party-slot bit of the character it is made for, where that
- * character is in the party (nothing reads the marks: scaffolding). The
- * character is the first of the weapon's bits from the top; a weapon made for
- * none reads past the characters' slots, as the original does. */
-enum { CARRIED_BYTES = 5, NO_CHARACTER_SLOT = 0x80, WEAPON_RECORD_BYTES = 6 };
+/* The marks the battle keeps beside a carried weapon, which nothing reads
+ * (scaffolding): $80, 1, and the party-slot bit of the character the weapon
+ * is made for, where that character is in the party. The character is the
+ * first of the weapon's bits from the top; a weapon made for none reads past
+ * the characters' slots, as the original does. */
+enum { WEAPON_MARK = 0x80, WEAPON_COUNT = 1, CARRIED_BYTES = 5, OWNERS = 8 };
 
-static uint8_t owners_slot_bit(const GameState *g, uint16_t record)
+static uint8_t owners_slot_bit(const GameState *g, uint8_t weapon)
 {
-    uint8_t made_for = weapon_made_for(g, record);
+    uint8_t made_for = weapon_made_for(g, weapon);
     unsigned character = 0;
-    while (character < 8 && !(made_for & 0x80)) {
+    while (character < OWNERS && !(made_for & 0x80)) {
         made_for = (uint8_t)(made_for << 1);
         character++;
     }
     uint8_t slot = character < BATTLE_CHARACTER_SLOT_COUNT ? battle_character_slot(g, character)
                                                             : battle_character_slot_unchecked(g, character);
-    return slot & NO_CHARACTER_SLOT ? 0 : (uint8_t)(slot < 8 ? 0x80 >> slot : 0);
+    return slot & BATTLE_EMPTY_SLOT ? 0 : (uint8_t)(slot < OWNERS ? 0x80 >> slot : 0);
 }
 
-/* The cells the original counts in: each member's weapon (kept: battle.h),
- * its record's place, the member, and the carried bytes' place (kept). */
+static void clear_weapon_marks(GameState *g, unsigned member)
+{
+    set_battle_member_carried_spare(g, member, 0);
+    set_battle_member_carried_weapon_mark(g, member, 0);
+    set_battle_member_carried_weapon_count(g, member, 0);
+    set_battle_member_carried_owner_bit(g, member, 0);
+}
+
+static void leave_weapon_marks(GameState *g, unsigned member, uint8_t weapon)
+{
+    set_battle_member_carried_weapon_mark(g, member, WEAPON_MARK);
+    set_battle_member_carried_weapon_count(g, member, WEAPON_COUNT);
+    uint8_t owner = owners_slot_bit(g, weapon);
+    if (owner)
+        set_battle_member_carried_owner_bit(g, member, owner);
+}
+
+/* The cells the original counts in: each member's weapon and the carried
+ * bytes' place, which later work reads as it finds them (battle.h; the
+ * weapons are also noted outside the fight's start), and the weapon's record
+ * and the member (scaffolding). */
 enum { WEAPON_AT = BATTLE_MEMBER_CELL, RECORD_AT = 0x04, MEMBER_AT = 0x02, CARRIED_AT = BATTLE_STAT_OFFSET_LOW };
 
 // $FD:AEF2
@@ -327,19 +360,17 @@ void fight_note_weapons(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_battle_member_carried_weapon(g, member, 0);
-        set_battle_member_carried_marks(g, member, 0);
-        ORIGINAL_EFFECT(set_battle_member_carried_spare(g, member, 0));
+        ORIGINAL_EFFECT(clear_weapon_marks(g, member));
     }
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         uint8_t weapon = combatant_stat_byte(g, member, STAT_WEAPON);
         battle_keep_byte(g, WEAPON_AT, weapon);
         if (weapon == 0)
             continue;
-        uint16_t record = (uint16_t)effect_times(g, weapon, WEAPON_RECORD_BYTES);
+        uint16_t record = (uint16_t)battle_multiply_words(g, weapon, BOOST_RECORD_BYTES);
         ORIGINAL_EFFECT(battle_leave_word(g, RECORD_AT, record));
         set_battle_member_carried_weapon(g, member, weapon);
-        uint8_t owner = owners_slot_bit(g, record);
-        ORIGINAL_EFFECT(set_battle_member_carried_marks(g, member, (uint32_t)0x80 | 1u << 8 | (uint32_t)owner << 16));
+        ORIGINAL_EFFECT(leave_weapon_marks(g, member, weapon));
     }
     ORIGINAL_EFFECT(battle_leave_word(g, MEMBER_AT, BATTLE_PARTY_SIZE));
     battle_keep_word(g, CARRIED_AT, BATTLE_PARTY_SIZE * CARRIED_BYTES);
@@ -347,18 +378,13 @@ void fight_note_weapons(GameState *g)
 
 /* ---- Attack and defence ------------------------------------------------------------------------- */
 
-/* The stats the setup builds the member's attack and defence from.
- * combatant.h's names for three of them disagree with what they are built
- * from here (docs/TODO.md): its defence is the stat it calls STAT_HIT with the
- * armor's and the helmet's, and Marle's and Lucca's attack the one it calls
- * STAT_STAMINA where the others' is their power; the attack is the byte it
- * calls STAT_SPEED. */
-enum { OWN_DEFENCE = STAT_HIT, MARKSMAN_POWER = STAT_STAMINA, ATTACK = STAT_SPEED, DEFENCE = 0x3E,
-       ARMOR_DEFENCE = 0x48, HELMET_DEFENCE = 0x70, MOST_DEFENCE = 0xFF, MARLE = 1, LUCCA = 2 };
+enum { MOST_DEFENCE = 0xFF, MARLE = 1, LUCCA = 2 };
 
-/* The cells the original adds in: the member's block's place, and what the
- * boost was handed (kept: battle.h). */
-enum { BLOCK_PLACE_AT = 0x12, BOOST_BLOCK_AT = BATTLE_CLOCK_READS, BOOST_TABLE_AT = BATTLE_TECH_HITS_LEFT };
+/* The cells the original adds in: the member's block's place, and what it
+ * hands the boost: the block (scaffolding: the start overwrites it), and the
+ * boosts' table, which later work reads as it finds it (battle.h) and which
+ * nothing in the start writes after. */
+enum { BLOCK_PLACE_AT = 0x12, BOOST_BLOCK_AT = 0x00, BOOST_TABLE_AT = BATTLE_TECH_HITS_LEFT };
 
 /* The original adds the two in the arithmetic's cells, which are game state
  * (battle/arith.h): the next multiply's or division's caller finds them. */
@@ -371,30 +397,30 @@ static void keep_sum_cells(GameState *g, uint8_t first, uint8_t second)
 }
 
 // $C1:FC4B
-/* A member's defence and attack: its own defence with its armor's and its
- * helmet's, at most 255; the boost its accessory gives, if any; and its
- * attack, its power (Marle's and Lucca's, the other stat) with a byte the
+/* A member's defence and attack: its stamina with its armor's and its
+ * helmet's defence, at most 255; the boost its accessory gives, if any; and
+ * its attack, its power (Marle's and Lucca's, their hit) with a byte the
  * original reads from bank CC at the block's place where it means the
  * weapon's record, taken in a byte. */
 void fight_add_up_member_stats(GameState *g, uint8_t member)
 {
     uint16_t place = battle_stat_block_place(g, member);
     ORIGINAL_EFFECT(battle_leave_word(g, BLOCK_PLACE_AT, place));
-    uint16_t defence = (uint16_t)(combatant_stat_byte(g, member, OWN_DEFENCE) + combatant_stat_byte(g, member, ARMOR_DEFENCE)
-                                  + combatant_stat_byte(g, member, HELMET_DEFENCE));
-    set_combatant_stat_byte(g, member, DEFENCE, defence < MOST_DEFENCE ? (uint8_t)defence : MOST_DEFENCE);
-    uint8_t boost = combatant_stat_byte(g, member, ACCESSORY_FIRST);
-    if ((combatant_stat_byte(g, member, ACCESSORY_FLAGS) & GIVES_BOOST) && boost) {
-        battle_keep_word(g, BOOST_BLOCK_AT, place);
+    uint16_t defence = (uint16_t)(combatant_stat_byte(g, member, STAT_STAMINA) + combatant_stat_byte(g, member, STAT_ARMOR_DEFENCE)
+                                  + combatant_stat_byte(g, member, STAT_HELMET_DEFENCE));
+    set_combatant_stat_byte(g, member, STAT_DEFENCE, defence < MOST_DEFENCE ? (uint8_t)defence : MOST_DEFENCE);
+    uint8_t boost = combatant_stat_byte(g, member, STAT_ACCESSORY_FIRST);
+    if ((combatant_stat_byte(g, member, STAT_ACCESSORY_FLAGS) & GIVES_BOOST) && boost) {
+        ORIGINAL_EFFECT(battle_leave_word(g, BOOST_BLOCK_AT, place));
         battle_keep_word(g, BOOST_TABLE_AT, STAT_BOOSTS);
         battle_apply_boost(g, member, boost);
     }
     /* the original finds the weapon's record by a multiply, then reads the
      * wrong place for it */
-    (void)effect_times(g, combatant_stat_byte(g, member, STAT_WEAPON), WEAPON_RECORD_BYTES);
+    battle_leave_multiply(g, combatant_stat_byte(g, member, STAT_WEAPON), BOOST_RECORD_BYTES);
     uint8_t character = battle_combatant_fighting(g, member);
-    uint8_t power = combatant_stat_byte(g, member, character == MARLE || character == LUCCA ? MARKSMAN_POWER : STAT_POWER);
+    uint8_t power = combatant_stat_byte(g, member, character == MARLE || character == LUCCA ? STAT_HIT : STAT_POWER);
     uint8_t stray = equipment_bank_byte(g, place);
-    set_combatant_stat_byte(g, member, ATTACK, (uint8_t)(power + stray));
+    set_combatant_stat_byte(g, member, STAT_ATTACK, (uint8_t)(power + stray));
     keep_sum_cells(g, power, stray);
 }

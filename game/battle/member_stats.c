@@ -15,7 +15,7 @@
  * end. */
 #include "battle/bridge.h"
 #include "battle/combatant.h"
-#include "battle/fight.h"
+#include "battle/party_records.h"
 #include "battle/effect_parts.h"
 #include "battle/entries.h"
 #include "battle/equipment_data.h"
@@ -40,7 +40,7 @@ enum { BYTE_MOST = 0xFF };
 static const struct {
     uint8_t stat, most;
 } boostable[] = {
-    { STAT_POWER, 99 }, { STAT_SPEED_RATING, 16 }, { STAT_HIT, 99 }, { STAT_STAMINA, 99 },
+    { STAT_POWER, 99 }, { STAT_SPEED_RATING, 16 }, { STAT_STAMINA, 99 }, { STAT_HIT, 99 },
     { STAT_EVADE, BYTE_MOST }, { STAT_MAGIC, 99 }, { STAT_MAGIC_DEFENCE, 99 },
 };
 
@@ -188,9 +188,9 @@ static void copy_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_t
 }
 
 /* As the fight's start calls them (battle/fight.h). */
-void battle_set_up_member_stats_of(GameState *g, uint8_t member) { set_up_member_stats(g, member); }
+void battle_equip_member(GameState *g, uint8_t member) { set_up_member_stats(g, member); }
 
-void battle_copy_equipment_records_for(GameState *g, uint8_t worn_at, uint8_t copy_to, uint8_t bytes)
+void battle_take_equipment_records(GameState *g, uint8_t worn_at, uint8_t copy_to, uint8_t bytes)
 {
     copy_equipment_records(g, worn_at, copy_to, bytes);
 }

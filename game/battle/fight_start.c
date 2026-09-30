@@ -21,14 +21,24 @@
  *   - what each enemy carries to steal, the combatants' places, and the
  *     accessory that wards off confusion.
  *
- * All of it is C; battle/fight_entries.c is its machine side. The original
- * works in the direct page's cells throughout, and hands several of its
- * pieces their member or their numbers there; each piece leaves the cells as
- * the original's does, and this file leaves those it counts in itself. */
+ * All of it is C; battle/fight_entries.c is its machine side.
+ *
+ * The original works in the direct page's cells throughout and hands several
+ * pieces their member or their numbers there. Most of what it leaves there is
+ * overwritten before the start ends, and the pieces only it calls leave that
+ * as scaffolding. Five cells hold, when it ends, what later work reads as it
+ * finds it (battle.h), and each is written plainly by its last writer: $00 the
+ * enemies counted as their steal marks are set (battle/fight_enemies.c), $06
+ * and $08 the accessory's record's copy (below), $0A the same copy's length
+ * or, where a member's accessory boosts it, the boost's amount
+ * (battle/member_stats.c), and $0E the stats' spare table or the boosts'
+ * (battle/member_stats.c, battle/fight_party.c). */
 #include "battle/fight.h"
 
 #include "battle/battle.h"
 #include "battle/combatant.h"
+#include "battle/inventory.h"
+#include "battle/party_records.h"
 #include "battle/rules_data.h"
 #include "battle/timers.h"
 #include "original_effects.h"
@@ -36,36 +46,34 @@
 
 /* ---- What the start clears ---------------------------------------------------------------------- */
 
-/* The members' choices and whether each is ready, and the action's targets:
- * the original clears eighteen bytes of the members' action records, the
- * third's first four of its seven. */
-enum { MEMBER_RECORD_BYTES = 7, CLEARED_OF_THIRD = 4, ACTION_TARGET_SLOTS = 12 };
-
-static void clear_member_record(GameState *g, unsigned member, unsigned bytes)
+/* A member's choice cleared: where it is in choosing, its choice, its tech's
+ * aim and its target. The first two members' partners and what they chose
+ * are cleared too; the third's keep what they had (the original clears
+ * eighteen bytes of the records, the third's first four), until the turns'
+ * state below gives every member no partners. */
+static void clear_member_choice(GameState *g, unsigned member)
 {
-    void (*const clear[])(GameState *, unsigned, uint8_t) = {
-        set_battle_member_actions_state, set_battle_member_actions_choice_flags, set_battle_member_actions_tech_aim,
-        set_battle_member_actions_target, set_battle_member_actions_spare, set_battle_member_actions_partners,
-        set_battle_member_actions_what,
-    };
-    for (unsigned n = 0; n < bytes; n++)
-        clear[n](g, member, 0);
+    set_battle_member_actions_state(g, member, 0);
+    set_battle_member_actions_choice_flags(g, member, 0);
+    set_battle_member_actions_tech_aim(g, member, 0);
+    set_battle_member_actions_target(g, member, 0);
 }
 
 static void clear_member_choices(GameState *g)
 {
-    clear_member_record(g, 0, MEMBER_RECORD_BYTES);
-    clear_member_record(g, 1, MEMBER_RECORD_BYTES);
-    clear_member_record(g, 2, CLEARED_OF_THIRD);
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
+        clear_member_choice(g, member);
+    for (unsigned member = 0; member < BATTLE_PARTY_SIZE - 1; member++) {
+        set_battle_member_actions_spare(g, member, 0);
+        set_battle_member_actions_partners(g, member, 0);
+        set_battle_member_actions_what(g, member, 0);
+    }
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_member_ready(g, member, 0);
     set_battle_action_target_count(g, 0);
-    for (unsigned n = 0; n < ACTION_TARGET_SLOTS; n++) {
-        if (n < BATTLE_ACTION_TARGETS_COUNT)
-            set_battle_action_targets(g, n, COMBATANT_NONE);
-        else
-            set_battle_action_targets_unchecked(g, n, COMBATANT_NONE);
-    }
+    for (unsigned n = 0; n < BATTLE_ACTION_TARGETS_COUNT; n++)
+        set_battle_action_targets(g, n, COMBATANT_NONE);
+    set_battle_action_targets_end(g, COMBATANT_NONE);
 }
 
 /* The timers' order and counts: nobody in the order, every count and state
@@ -172,9 +180,10 @@ void fight_number_places(GameState *g)
 /* ---- The whole of it ---------------------------------------------------------------------------- */
 
 /* The cells the original counts in and hands its pieces their numbers in:
- * the enemy or the member it is at, the member whose techs are built (kept:
- * battle.h), the equipment records' copies' three numbers (kept), and the
- * member whose stats are added up, twice over. */
+ * the enemy or the member it is at, the member whose techs are built, and the
+ * member whose stats are added up, twice over (scaffolding); and the
+ * equipment records' copies' three numbers, the last of which survive the
+ * start (above). */
 enum { COUNTING_AT = 0x02, TECHS_MEMBER_AT = BATTLE_MEMBER_CELL, WORN_AT = BATTLE_MEMBER_CELL,
        COPY_TO_AT = BATTLE_NUMBER_TESTED, BYTES_AT = BATTLE_STAT_OFFSET_LOW, ADDING_UP_AT = 0x10 };
 
@@ -185,9 +194,9 @@ static const struct {
     uint8_t worn_at, copy_to, bytes;
 } records_taken[] = {
     { STAT_WEAPON, STAT_WEAPON_ATTACK, 6 },
-    { STAT_HELMET, 0x70, 3 },
-    { STAT_ARMOR, 0x48, 3 },
-    { STAT_ACCESSORY, 0x4B, 4 },
+    { STAT_HELMET, STAT_HELMET_DEFENCE, 3 },
+    { STAT_ARMOR, STAT_ARMOR_DEFENCE, 3 },
+    { STAT_ACCESSORY, STAT_ACCESSORY_RECORD, 4 },
 };
 
 void battle_start_fight(GameState *g)
@@ -210,12 +219,12 @@ void battle_start_fight(GameState *g)
 
     battle_blank_tech_records(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        battle_keep_word(g, TECHS_MEMBER_AT, member);
+        ORIGINAL_EFFECT(battle_leave_word(g, TECHS_MEMBER_AT, member));
         battle_set_up_single_techs(g, member);
         battle_set_up_double_techs(g, member);
-        battle_set_up_triple_tech_of(g, member);
+        battle_find_triple_tech(g, member);
     }
-    battle_build_item_list_now(g);
+    battle_list_usable_items(g);
     fight_note_weapons(g);
 
     clear_member_choices(g);
@@ -224,13 +233,13 @@ void battle_start_fight(GameState *g)
 
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         ORIGINAL_EFFECT(battle_leave_word(g, COUNTING_AT, member));
-        battle_set_up_member_stats_of(g, member);
+        battle_equip_member(g, member);
     }
     for (unsigned n = 0; n < sizeof records_taken / sizeof records_taken[0]; n++) {
         battle_keep_word(g, WORN_AT, records_taken[n].worn_at);
         battle_keep_word(g, COPY_TO_AT, records_taken[n].copy_to);
         battle_keep_word(g, BYTES_AT, records_taken[n].bytes);
-        battle_copy_equipment_records_for(g, records_taken[n].worn_at, records_taken[n].copy_to, records_taken[n].bytes);
+        battle_take_equipment_records(g, records_taken[n].worn_at, records_taken[n].copy_to, records_taken[n].bytes);
     }
     ORIGINAL_EFFECT(set_battle_fight_start_mark(g, 0));
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
@@ -240,7 +249,8 @@ void battle_start_fight(GameState *g)
     fight_clear_timers(g);
     fight_set_timer_lengths(g);
     fight_set_first_turns(g);
-    fight_apply_accessory_effects(g);
+    fight_clear_enemy_animations(g);
+    fight_apply_equipment_effects(g);
     fight_clear_turn_state(g);
     battle_clear_damage_table(g);
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)

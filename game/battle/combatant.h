@@ -116,19 +116,37 @@ typedef enum {
     STAT_WEAPON = 0x29,
     STAT_ACCESSORY = 0x2A,       /* a party member's accessory */
     STAT_POWER = 0x36,
-    STAT_HIT = 0x37,
+    STAT_STAMINA = 0x37,
     STAT_SPEED_RATING = 0x38,    /* at most 16 */
     STAT_MAGIC = 0x39,
-    STAT_STAMINA = 0x3A,
+    STAT_HIT = 0x3A,
     STAT_EVADE = 0x3B,
     STAT_MAGIC_DEFENCE = 0x3C,
-    STAT_SPEED = 0x3D,
+    STAT_ATTACK = 0x3D,          /* a party member's: its power, Marle's and Lucca's their hit, with a byte the fight's start adds */
+    STAT_DEFENCE = 0x3E,         /* stamina with the armor's and the helmet's defence, at most 255 */
     STAT_ELEMENT_AFFINITY = 0x3F, /* four, an element each: bit 7 absorbs it, bit 6 two less, the rest the scale's divisor */
+    /* A party member's equipment's records, which the fight's start copies in
+     * (battle/member_stats.c): the weapon's from its attack, the armor's and
+     * the helmet's defence and modifier, and the accessory's record. */
     STAT_WEAPON_ATTACK = 0x43,   /* a word */
     STAT_CRITICAL_RATE = 0x45,
     STAT_WEAPON_MODIFIER = 0x46, /* the modifier its weapon applies */
     STAT_WEAPON_MODIFIER_ON = 0x47, /* bit 0: its weapon's modifier applies */
+    STAT_ARMOR_DEFENCE = 0x48,
+    STAT_ARMOR_MODIFIER = 0x49,
+    STAT_ARMOR_MODIFIER_ON = 0x4A, /* 1: the armor's modifier applies */
+    STAT_ACCESSORY_RECORD = 0x4B,
+    STAT_ACCESSORY_FLAGS = 0x4C, /* bit 7: it gives a status (the next two bytes); bit 6: a boost (the next byte) */
+    STAT_ACCESSORY_FIRST = 0x4D,
+    STAT_ACCESSORY_SECOND = 0x4E,
+    STAT_HELMET_DEFENCE = 0x70,
+    STAT_HELMET_MODIFIER = 0x71,
+    STAT_HELMET_MODIFIER_ON = 0x72, /* 1: the helmet's modifier applies */
 } StatOffset;
+
+/* The first byte of a stat block: what the combatant is, a party member's
+ * character or an enemy's id. */
+enum { STAT_ID = 0x00 };
 
 /* The condition byte's bit for knocked out. */
 enum { CONDITION_KNOCKED_OUT = 0x80 };
@@ -146,6 +164,14 @@ enum { COMBATANT_NONE = 0xFF };
 
 /* The animation a stopped enemy shows, and the one it goes back to. */
 enum { ENEMY_ANIMATION_IDLE = 0, ENEMY_ANIMATION_STOPPED = 4 };
+
+/* A slot listed for a fight: in it as `id`, or nobody's. */
+static inline void combatant_list_as(GameState *g, unsigned slot, uint8_t id)
+{
+    set_battle_combatant_fighting(g, slot, id);
+    set_battle_combatant_id(g, slot, id);
+}
+static inline void combatant_list_nobody(GameState *g, unsigned slot) { combatant_list_as(g, slot, COMBATANT_NONE); }
 
 Statuses combatant_statuses(const GameState *g, unsigned slot);
 

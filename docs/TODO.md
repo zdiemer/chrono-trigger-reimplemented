@@ -434,11 +434,6 @@ rest waits, is [PLAN.md](PLAN.md).
     or give the item no record.
 
 - **What battle's chunk 7 left** (RECOMP.md, "Phase 3, battle chunk 7"):
-  - combatant.h's names for three stat block bytes disagree with what the
-    fight's start builds them from: the defence (`$3E`) is `$37` (named
-    `STAT_HIT`) with the armor's and the helmet's, and the attack (`$3D`,
-    named `STAT_SPEED`) is the power, or for Marle and Lucca `$3A` (named
-    `STAT_STAMINA`); read the effect code that uses them and rename;
   - the attack's second part is a byte of bank CC at the member's block's
     place, where the original means the weapon's record (it has just found
     it by a multiply, then reloads the index): a native build decides
@@ -446,7 +441,8 @@ rest waits, is [PLAN.md](PLAN.md).
     `fight_add_up_member_stats`);
   - an enemy whose stat block has bit 0 of `$0A` gets `$40` in its standing
     as its first turn is set (`fight_timers.c`); nothing the enemy's record
-    fills sets the byte, and what the mark means isn't worked out;
+    fills sets the byte, so the start never marks one: find whether anything
+    sets it later and what the mark is for, or drop the test in a native build;
   - the bytes the fight's start clears that no traced code reads, named for
     now as spares in `re/ram.toml` (`battle_fight_start_spares`,
     `battle_condition_target_spares`, `battle_effect_record_spares`,

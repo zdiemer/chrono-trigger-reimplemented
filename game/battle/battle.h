@@ -21,6 +21,11 @@ enum { BATTLE_PARTY_SIZE = 3, BATTLE_ENEMIES = 8, BATTLE_COMBATANTS = BATTLE_PAR
 
 static inline bool battle_slot_is_party(unsigned slot) { return slot < BATTLE_PARTY_SIZE; }
 
+/* The top bit of a party slot's character marks it empty, and of a
+ * character's party slot (battle_character_slot) marks the character out of
+ * the party. */
+enum { BATTLE_EMPTY_SLOT = 0x80 };
+
 /* How the battle ended (battle_result), which the field reads when it puts
  * the party back (field/battle_return.c). */
 typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;

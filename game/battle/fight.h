@@ -36,7 +36,8 @@ void fight_set_up_affinities(GameState *g, uint8_t member);
 void fight_note_accessories(GameState *g);
 void fight_note_weapons(GameState *g);
 void fight_add_up_member_stats(GameState *g, uint8_t member);
-void fight_apply_accessory_effects(GameState *g);
+void fight_clear_enemy_animations(GameState *g);
+void fight_apply_equipment_effects(GameState *g);
 void fight_raise_critical_rate(GameState *g, uint8_t member);
 void fight_apply_member_bonuses(GameState *g, uint8_t member);
 void fight_ward_off_confusion(GameState *g);
@@ -49,17 +50,5 @@ void fight_set_first_turns(GameState *g);
 /* battle/fight_start.c */
 void fight_clear_turn_state(GameState *g);
 void fight_number_places(GameState *g);
-
-/* battle/tech_records.c */
-void battle_blank_tech_records(GameState *g);
-void battle_set_up_single_techs(GameState *g, uint8_t member);
-void battle_set_up_double_techs(GameState *g, uint8_t member);
-void battle_set_up_triple_tech_of(GameState *g, uint8_t member);
-
-/* battle/member_stats.c and battle/inventory.c, called as C */
-void battle_set_up_member_stats_of(GameState *g, uint8_t member);
-void battle_apply_boost(GameState *g, uint8_t member, uint8_t which);
-void battle_copy_equipment_records_for(GameState *g, uint8_t worn_at, uint8_t copy_to, uint8_t bytes);
-void battle_build_item_list_now(GameState *g);
 
 #endif
