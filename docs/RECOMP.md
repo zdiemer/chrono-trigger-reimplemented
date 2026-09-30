@@ -3291,9 +3291,9 @@ loader hands A back to what reads its high byte.
 
 **Timing.** Calibrated from the shadow runs, the new rows only: the pieces
 from 3,438 (the demo party's test) to 28,297 (the first turns), the single
-and double techs 19,225 and 21,554, Ayla's fists 111,641 (the original divides
+and double techs 19,433 and 22,885, Ayla's fists 111,641 (the original divides
 bit by bit). The whole start, which shadow mode never compares, takes its
-measured ratio over the library, 18,363; the demo's characters and the
+measured ratio over the library, 18,554; the demo's characters and the
 sharpened weapons, which nothing measures, a sibling's.
 
 ### The reading cost of a chunk
