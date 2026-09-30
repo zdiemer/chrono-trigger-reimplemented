@@ -226,6 +226,19 @@ python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check
     telepod_lavos:shell beyond_time
 ```
 
+A long run can be cut short (a time limit on the session running it, a
+restart): with `--scratch` kept and `--resume`, running the same command again
+carries each route on from its last checkpoint rather than from its save. Each
+run's directory records the route, the mode and the SHA-256 of the `ct_drive`
+and the ROM that played its checkpoints; a run whose build or ROM differs
+starts over, so no outcome rests on phases another build played. The suite
+takes the same through `--routes-scratch DIR` (with `--long-routes`, all three
+ending routes at once where `-j` allows):
+
+```sh
+python3 -m tools.movies.route_check --scratch work/long --resume -j 3 beyond_time bucket_lavos telepod_lavos
+```
+
 `telepod_lavos:shell` is the field test: the world map, Leene Square and the
 telepod exhibit, walking, talking and dialogue, stopped at the Gate.
 `beyond_time` is the battle test: two Lavos fights, then the ending's walks and
