@@ -48,8 +48,40 @@ uint8_t script_effect(const GameState *g);
 enum { OTHER_TARGETS_START = 4, LIST_ENDS = 0x80 };
 bool script_listed(const GameState *g, unsigned at, uint8_t *combatant);
 
+/* The k-th combatant a command acts on for a combatant channel: the
+ * channel's subject (k = 0 only), or on the other-targets channel the k-th
+ * target listed from `first`. False past the last. */
+bool script_combatant_from(const GameState *g, ScriptChannel ch, unsigned first, unsigned k, uint8_t *combatant);
+static inline bool script_each_combatant(const GameState *g, ScriptChannel ch, unsigned k, uint8_t *combatant)
+{
+    return script_combatant_from(g, ch, OTHER_TARGETS_START, k, combatant);
+}
+
+/* The battle's first work cells ($80 on), where the commands leave their
+ * operands and working values as the original does. What one command leaves
+ * in the first two another reads as it finds them (the trail's periods, the
+ * jumps' kind of height), so those are written plainly; the rest is
+ * scaffolding (script_leave, under ORIGINAL_EFFECT). */
+enum {
+    SCRIPT_CELL_OPERAND = 0x00,
+    SCRIPT_CELL_OPERAND_2 = 0x01,
+    SCRIPT_CELL_PART = 0x02,
+    SCRIPT_CELL_FROM = 0x04,
+    SCRIPT_CELL_LEFT = 0x06,
+    SCRIPT_CELL_COMBATANT = 0x0A,
+    SCRIPT_CELL_COUNT = 0x0C,
+    SCRIPT_CELL_MODE = 0x0E,
+    SCRIPT_CELL_MODE_2 = 0x0F,
+    SCRIPT_CELL_LIST_PLACE = 0x10,
+    SCRIPT_CELL_PERIOD = 0x12,
+};
+void script_leave(GameState *g, unsigned cell, uint8_t value);
+void script_leave_word(GameState *g, unsigned cell, uint16_t value);
+
 /* Operand k of the command (the command byte is operand 0), wherever the
- * script is: the ROM or work RAM. */
+ * script is: the ROM or work RAM. A script in work RAM can lie over the cells
+ * a command writes, so a command reads each operand after what the original
+ * writes before reading it. */
 uint8_t script_operand(const GameState *g, unsigned k);
 
 /* How the channel goes on after a command. */
@@ -98,5 +130,42 @@ ScriptStep script_copy_variable(GameState *g, ScriptChannel ch, uint8_t form);
 ScriptStep script_store_mark_a(GameState *g, ScriptChannel ch, uint8_t form);
 ScriptStep script_add_held(GameState *g, ScriptChannel ch, uint8_t form);
 ScriptStep script_swap_with_mark_a(GameState *g, ScriptChannel ch, uint8_t value);
+
+/* battle/script_poses.c */
+typedef enum { PLAY_ONCE = 1, PLAY_LOOPING = 2 } PlayMode;
+ScriptStep script_play_animation(GameState *g, ScriptChannel ch, uint8_t mode);
+ScriptStep script_play_shown_and_wait(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_play_and_wait(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_play_and_wait_marked(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_own_speed(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_speed(GameState *g, ScriptChannel ch, uint8_t speed);
+ScriptStep script_drawn_on_top(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_hidden(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_withdrawn(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_sprite_back_in_place(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_bring_back(GameState *g, ScriptChannel ch, uint8_t form);
+typedef enum { GLIDE_TO_HEIGHT, GLIDE_HOME } GlideForm;
+ScriptStep script_glide_sprite(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_shadow(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_attribute_bits(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_attribute_bits_back(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_trail(GameState *g, ScriptChannel ch, uint8_t on);
+
+/* battle/script_effects.c */
+ScriptStep script_anchor_follows(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_anchor_stays(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_all_effects_shown(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_effect_shown(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_effect_drawn_with(GameState *g, ScriptChannel ch, uint8_t side);
+/* battle/script_colors.c */
+ScriptStep script_flash(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_flash_off(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_blink(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_rotate_colors(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_palette_frame(GameState *g, ScriptChannel ch, uint8_t form);
+ScriptStep script_palettes_paused(GameState *g, ScriptChannel ch, uint8_t on);
+ScriptStep script_palette_animation(GameState *g, ScriptChannel ch, uint8_t slot);
+ScriptStep script_palette_animation_off(GameState *g, ScriptChannel ch, uint8_t slot);
+ScriptStep script_colour_cycles_off(GameState *g, ScriptChannel ch, uint8_t form);
 
 #endif

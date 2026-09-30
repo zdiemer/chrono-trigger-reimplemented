@@ -28,6 +28,23 @@ bool script_listed(const GameState *g, unsigned at, uint8_t *combatant)
     return true;
 }
 
+bool script_combatant_from(const GameState *g, ScriptChannel ch, unsigned first, unsigned k, uint8_t *combatant)
+{
+    if (ch.kind == SCRIPT_OTHER_TARGETS)
+        return script_listed(g, first + k, combatant);
+    if (ch.kind != SCRIPT_ONE_COMBATANT || k != 0)
+        return false;
+    *combatant = script_combatant(g, ch);
+    return true;
+}
+
+void script_leave(GameState *g, unsigned cell, uint8_t value) { set_battle_work(g, cell, value); }
+void script_leave_word(GameState *g, unsigned cell, uint16_t value)
+{
+    set_battle_work(g, cell, (uint8_t)value);
+    set_battle_work(g, cell + 1, (uint8_t)(value >> 8));
+}
+
 /* A script's bytes, where its pointer puts them: the ROM, or work RAM. */
 static uint8_t script_byte(const GameState *g, uint32_t at)
 {

@@ -4372,12 +4372,27 @@
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS 0x7EA1FEu
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS_COUNT 11u
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS_STRIDE 0x02u
+/* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_OBJECT_FACING_SHOWN 0x7EA214u
+#define RAM_BATTLE_OBJECT_FACING_SHOWN_COUNT 11u
+#define RAM_BATTLE_OBJECT_FACING_SHOWN_STRIDE 0x01u
 /* Where the animation scheduler's round-robin search resumes */
 #define RAM_BATTLE_ANIMATION_CURSOR 0x7EA21Fu
+/* Offset in bank $CE of the first record of the animation an effect plays, which its frames are
+ * taken from (battle_effect_animation_starts) [8 x $2 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE 0x7EA220u
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE_COUNT 8u
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE_STRIDE 0x02u
 /* Facing of an anchor's chase, from its angle [8 x $1 bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_FACING 0x7EA230u
 #define RAM_BATTLE_ANCHOR_FACING_COUNT 8u
 #define RAM_BATTLE_ANCHOR_FACING_STRIDE 0x01u
+/* Number of frames (records) of the animation an effect plays (battle_effect_animation_frames):
+ * a facing's part of the animation is that many records [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH 0x7EA238u
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH_COUNT 8u
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH_STRIDE 0x01u
 /* Anchor points' X positions, for effects [8 x $2 bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_X 0x7EA240u
 #define RAM_BATTLE_ANCHOR_X_COUNT 8u
@@ -4416,6 +4431,11 @@
 #define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
 /* The byte after battle_script_enemy, which only the objects' reset writes */
 #define RAM_BATTLE_SCRIPT_ENEMY_SPARE 0x7EA2B7u
+/* The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_FACING_SHOWN 0x7EA2B8u
+#define RAM_BATTLE_EFFECT_FACING_SHOWN_COUNT 8u
+#define RAM_BATTLE_EFFECT_FACING_SHOWN_STRIDE 0x01u
 /* The sprite set an effect draws (low six bits) [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SPRITE_SET 0x7EA2C0u
 #define RAM_BATTLE_EFFECT_SPRITE_SET_COUNT 8u

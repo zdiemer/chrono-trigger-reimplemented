@@ -11358,6 +11358,7 @@ name = "battle_anchor_sources"
 addr = "7E:A437"
 count = 8
 index = "anchor"
+unchecked = "the script command that stops an anchor following takes the anchor from an operand, unchecked (game/battle/script_effects.c)"
 subsystem = "battle"
 meaning = "What each anchor follows: the battle slot of an object, with bit 6 another anchor (low three bits); negative none"
 source = "game/battle/object_motion.c update_anchors $CF:ECC2; game/battle/reset.c battle_reset_object_state $CC:F06B"
@@ -11605,6 +11606,7 @@ name = "battle_object_effect_slots"
 addr = "7E:A3DF"
 count = 88
 index = "effect slot * 11 + battle slot"
+unchecked = "the script commands that draw an effect with a combatant index its row by the combatant an operand names, unchecked, in a byte (game/battle/script_effects.c)"
 subsystem = "battle"
 meaning = "The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind them; 0 none"
 source = "game/battle/draw_objects.c draw_effects in $CF:EDB8/$CF:EDF7; game/battle/reset.c battle_reset_object_state $CC:F06B"
@@ -12031,6 +12033,7 @@ size = 2
 count = 16
 index = "animation"
 subsystem = "battle"
+unchecked = "an effect channel's animation commands take the animation from an operand and don't check it against the sixteen (game/battle/script_poses.c)"
 meaning = "Offset in bank $CE of the first record of each of the effect's sixteen animations"
 source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC; read at $C1:4DDF"
 
@@ -12040,8 +12043,46 @@ addr = "7E:A2A0"
 count = 16
 index = "animation"
 subsystem = "battle"
+unchecked = "an effect channel's animation commands take the animation from an operand and don't check it against the sixteen (game/battle/script_poses.c)"
 meaning = "Number of frames (records) of each of the effect's sixteen animations"
 source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC; read at $C1:4DDF"
+
+[[var]]
+name = "battle_effect_animation_place"
+addr = "7E:A220"
+size = 2
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Offset in bank $CE of the first record of the animation an effect plays, which its frames are taken from (battle_effect_animation_starts)"
+source = "game/battle/script_poses.c play_effect_animation $C1:4D08; read at $CC:F2EF"
+
+[[var]]
+name = "battle_effect_animation_length"
+addr = "7E:A238"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Number of frames (records) of the animation an effect plays (battle_effect_animation_frames): a facing's part of the animation is that many records"
+source = "game/battle/script_poses.c play_effect_animation $C1:4D08; read at $CC:F2BD"
+
+[[var]]
+name = "battle_effect_facing_shown"
+addr = "7E:A2B8"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next frame taken afresh, as starting an animation does"
+source = "game/battle/script_poses.c play_effect_animation $C1:4D08; read at $CC:F2AE"
+
+[[var]]
+name = "battle_object_facing_shown"
+addr = "7E:A214"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next frame taken afresh, as starting an animation does"
+source = "game/battle/script_poses.c play_combatant_animation $C1:4D08; read at $C1:4286"
 
 [[var]]
 name = "battle_effect_records"

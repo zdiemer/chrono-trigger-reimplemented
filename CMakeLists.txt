@@ -236,6 +236,9 @@ add_library(ct_game STATIC
   game/battle/rewards_entries.c
   game/battle/script_language.c
   game/battle/script_flow.c
+  game/battle/script_poses.c
+  game/battle/script_effects.c
+  game/battle/script_colors.c
   game/battle/rewards_levels.c
   game/battle/rewards_techs.c
   game/battle/member_stats.c

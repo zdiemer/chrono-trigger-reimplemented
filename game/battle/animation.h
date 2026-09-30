@@ -58,6 +58,11 @@ void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame);
  * largest enemies' don't). */
 bool battle_object_builds_graphics(const GameState *g, unsigned object);
 
+/* Put a color set of three colors, or of seven, from its offset in the sets
+ * into the first sprite palette, from color 1 of the quarter (0-7: a quarter
+ * past the palette's four runs on into the next). */
+void battle_put_color_set(GameState *g, bool seven, uint16_t from, uint8_t quarter);
+
 /* The frame the object shows next, which the graphics upload takes. */
 void battle_show_object_frame(GameState *g, unsigned object, uint8_t frame);
 

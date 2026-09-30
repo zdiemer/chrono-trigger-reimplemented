@@ -238,20 +238,25 @@ static void leave_palette_frame(GameState *g, BattlePaletteFrame frame)
     set_battle_multiply_factors(g, 0, 0);
 }
 
-static void show_palette_frame(GameState *g, uint8_t number)
+void battle_put_color_set(GameState *g, bool seven, uint16_t from, uint8_t quarter)
 {
-    uint16_t at = (uint16_t)((uint8_t)(number * 2) + battle_palette_anim_frames(g));
-    BattlePaletteFrame frame = battle_palette_frame(g, at);
-    bool seven = (frame.place & PLACE_SEVEN_COLORS) != 0;
     uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
-    uint16_t from = battle_multiply(g, colors * COLOR_BYTES, frame.set);
-    unsigned first = FIRST_SPRITE_PALETTE + 1 + (frame.place & PLACE_QUARTER) * COLORS_PER_QUARTER;
+    unsigned first = FIRST_SPRITE_PALETTE + 1 + quarter * COLORS_PER_QUARTER;
     for (unsigned c = 0; c < colors; c++) {
         uint16_t at_color = (uint16_t)(from + c * COLOR_BYTES);
         uint16_t color = (uint16_t)(battle_palette_set_byte(g, seven, at_color)
                                     | battle_palette_set_byte(g, seven, (uint16_t)(at_color + 1)) << 8);
         set_palette_working(g, first + c, color);
     }
+}
+
+static void show_palette_frame(GameState *g, uint8_t number)
+{
+    uint16_t at = (uint16_t)((uint8_t)(number * 2) + battle_palette_anim_frames(g));
+    BattlePaletteFrame frame = battle_palette_frame(g, at);
+    bool seven = (frame.place & PLACE_SEVEN_COLORS) != 0;
+    uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
+    battle_put_color_set(g, seven, battle_multiply(g, colors * COLOR_BYTES, frame.set), frame.place & PLACE_QUARTER);
     ORIGINAL_EFFECT(leave_palette_frame(g, frame));
 }
 

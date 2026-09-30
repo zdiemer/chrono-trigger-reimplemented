@@ -85,6 +85,17 @@ static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t numb
     return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
 }
 
+/* The eight speeds the scripts set a mover to by number: its period
+ * ($CC:F5BC) and its steps a period ($CC:F4BC). */
+static inline uint8_t battle_script_speed_period(const GameState *g, uint8_t speed)
+{
+    return rom_read8(g, 0xCCF5BCu + speed);
+}
+static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t speed)
+{
+    return rom_read8(g, 0xCCF4BCu + speed);
+}
+
 /* ---- Building an object's sprite graphics ------------------------------------------------- */
 
 /* The bytes of one frame's tile list, by the object's graphics kind
@@ -154,6 +165,13 @@ static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16
 static inline uint8_t battle_palette_set_byte(const GameState *g, bool seven, uint16_t at)
 {
     return rom_read8(g, (seven ? 0xD14400u : 0xD14100u) + at);
+}
+
+/* The color sets a flash puts into the combatants' flash palette ($D1:4D90,
+ * twelve colors a set), at the set's offset. */
+static inline uint16_t battle_flash_color(const GameState *g, uint16_t from, unsigned color)
+{
+    return rom_read16(g, 0xD14D90u + from + color * 2u);
 }
 
 /* ---- Effect records and bitmap sprites ---------------------------------------------------- */

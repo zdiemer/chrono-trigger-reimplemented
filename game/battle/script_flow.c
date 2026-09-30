@@ -240,7 +240,7 @@ ScriptStep script_add_held(GameState *g, ScriptChannel ch, uint8_t form)
 {
     (void)ch, (void)form;
     uint8_t n = script_operand(g, 1), amount = script_operand(g, 2);
-    set_battle_work(g, 0, amount);
+    set_battle_work(g, SCRIPT_CELL_OPERAND, amount);
     unsigned sum = variable(g, n) + amount;
     uint8_t held;
     if (!(amount & AMOUNT_NEGATIVE))
