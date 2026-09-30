@@ -367,7 +367,7 @@ void fight_note_weapons(GameState *g)
         battle_keep_byte(g, WEAPON_AT, weapon);
         if (weapon == 0)
             continue;
-        uint16_t record = (uint16_t)battle_multiply_words(g, weapon, BOOST_RECORD_BYTES);
+        uint16_t record = (uint16_t)battle_multiply_words(g, weapon, WEAPON_SECOND_RECORD_BYTES);
         ORIGINAL_EFFECT(battle_leave_word(g, RECORD_AT, record));
         set_battle_member_carried_weapon(g, member, weapon);
         ORIGINAL_EFFECT(leave_weapon_marks(g, member, weapon));
@@ -417,7 +417,7 @@ void fight_add_up_member_stats(GameState *g, uint8_t member)
     }
     /* the original finds the weapon's record by a multiply, then reads the
      * wrong place for it */
-    battle_leave_multiply(g, combatant_stat_byte(g, member, STAT_WEAPON), BOOST_RECORD_BYTES);
+    battle_leave_multiply(g, combatant_stat_byte(g, member, STAT_WEAPON), WEAPON_SECOND_RECORD_BYTES);
     uint8_t character = battle_combatant_fighting(g, member);
     uint8_t power = combatant_stat_byte(g, member, character == MARLE || character == LUCCA ? STAT_HIT : STAT_POWER);
     uint8_t stray = equipment_bank_byte(g, place);

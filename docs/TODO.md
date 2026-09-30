@@ -443,6 +443,10 @@ rest waits, is [PLAN.md](PLAN.md).
     as its first turn is set (`fight_timers.c`); nothing the enemy's record
     fills sets the byte, so the start never marks one: find whether anything
     sets it later and what the mark is for, or drop the test in a native build;
+  - `battle_enemy_animation_work` (`$7E:5E1D`, sixteen bytes): the enemies'
+    animation commands (`$C1:3772`) index the first eight by enemy; what the
+    eight after them are, which the fight's start clears with them, isn't
+    known: find their reader when `$C1:3772` is ported, and split the name;
   - the bytes the fight's start clears that no traced code reads, named for
     now as spares in `re/ram.toml` (`battle_fight_start_spares`,
     `battle_condition_target_spares`, `battle_effect_record_spares`,

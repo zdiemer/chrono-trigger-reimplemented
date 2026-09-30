@@ -3265,7 +3265,10 @@ numbers because nothing names what they hold; the attack's sum left in the
 arithmetic's cells plainly, which the effects check requires of those cells
 though the first turns overwrite them; and `battle_enemy_animation_work`
 indexed by enemy for its first eight bytes and past them as the original
-clears them. After the rework: shadow mode over the library and every entry
+clears them, until its reader is ported (TODO.md). A scoped re-review of the
+rework rated no file translation; its last three findings (the records'
+copies' per-row keeps, a weapon's record size borrowing another table's
+name, the TODO line) were fixed. After the rework: shadow mode over the library and every entry
 fuzzed again (seed 1), none mismatching, with chunk 6's triple tech, member
 stats and boost.
 

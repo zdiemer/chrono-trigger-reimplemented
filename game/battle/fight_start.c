@@ -199,6 +199,25 @@ static const struct {
     { STAT_ACCESSORY, STAT_ACCESSORY_RECORD, 4 },
 };
 
+enum { RECORDS_TAKEN = sizeof records_taken / sizeof records_taken[0] };
+
+/* The original hands each copy its three numbers in the cells; only the last
+ * copy's survive the start, which later work reads as it finds them
+ * (above). */
+static void hand_over_record(GameState *g, unsigned n)
+{
+    battle_leave_word(g, WORN_AT, records_taken[n].worn_at);
+    battle_leave_word(g, COPY_TO_AT, records_taken[n].copy_to);
+    battle_leave_word(g, BYTES_AT, records_taken[n].bytes);
+}
+
+static void keep_last_record_handed_over(GameState *g)
+{
+    battle_keep_word(g, WORN_AT, records_taken[RECORDS_TAKEN - 1].worn_at);
+    battle_keep_word(g, COPY_TO_AT, records_taken[RECORDS_TAKEN - 1].copy_to);
+    battle_keep_word(g, BYTES_AT, records_taken[RECORDS_TAKEN - 1].bytes);
+}
+
 void battle_start_fight(GameState *g)
 {
     fight_load_demo_party(g);
@@ -235,12 +254,11 @@ void battle_start_fight(GameState *g)
         ORIGINAL_EFFECT(battle_leave_word(g, COUNTING_AT, member));
         battle_equip_member(g, member);
     }
-    for (unsigned n = 0; n < sizeof records_taken / sizeof records_taken[0]; n++) {
-        battle_keep_word(g, WORN_AT, records_taken[n].worn_at);
-        battle_keep_word(g, COPY_TO_AT, records_taken[n].copy_to);
-        battle_keep_word(g, BYTES_AT, records_taken[n].bytes);
+    for (unsigned n = 0; n < RECORDS_TAKEN; n++) {
+        ORIGINAL_EFFECT(hand_over_record(g, n));
         battle_take_equipment_records(g, records_taken[n].worn_at, records_taken[n].copy_to, records_taken[n].bytes);
     }
+    keep_last_record_handed_over(g);
     ORIGINAL_EFFECT(set_battle_fight_start_mark(g, 0));
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         fight_add_up_member_stats(g, member);
