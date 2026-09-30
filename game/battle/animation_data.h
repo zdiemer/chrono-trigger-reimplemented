@@ -74,6 +74,17 @@ static inline uint8_t battle_facing_of_direction(const GameState *g, uint16_t di
     return rom_read8(g, 0xC0F700u + direction);
 }
 
+/* ---- The animation scripts ----------------------------------------------------------------- */
+
+/* The subroutines a script calls by number ($CE:0000, a word each, in bank
+ * CE); the original doubles the number in a byte, so one of 128 or more names
+ * the one 128 below it. */
+enum { SCRIPT_SUBROUTINE_BANK = 0xCE };
+static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t number)
+{
+    return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
+}
+
 /* ---- Building an object's sprite graphics ------------------------------------------------- */
 
 /* The bytes of one frame's tile list, by the object's graphics kind

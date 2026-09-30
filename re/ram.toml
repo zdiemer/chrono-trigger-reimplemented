@@ -11969,6 +11969,7 @@ name = "battle_script_subjects"
 addr = "7E:A014"
 count = 11
 index = "script channel"
+unchecked = "the other targets' list is read up to its first byte with the top bit set, which for a full list is past the table; and a command naming a subject by an operand reads wherever it points (game/battle/script_language.c)"
 subsystem = "battle"
 meaning = "The combatant each animation script channel animates, which its commands act on ($FF: none; channel 0's is set at the battle's start from $AE91, $CC:F165)"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B; the script commands ($C1:40FD and on)"
@@ -11991,7 +11992,7 @@ source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E; game/battle/
 name = "battle_script_enemy"
 addr = "7E:A2B6"
 subsystem = "battle"
-meaning = "The enemy whose script channel (8 and up) is running, for its commands"
+meaning = "The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies')"
 source = "game/battle/scripts.c battle_run_scripts $C1:4BBE"
 
 [[var]]
@@ -12622,6 +12623,7 @@ name = "battle_script_variables"
 addr = "7E:5D80"
 count = 0x1B
 index = "variable, by the number a command names"
+unchecked = "a command names its variable by a byte, and a number past the 27 reaches the marks, the point and the work RAM after them, as the original's indexed access does (game/battle/script_flow.c)"
 subsystem = "battle"
 meaning = "The animation scripts' variables, which their commands set, count up and down, add to and compare by number ($C1:58F3, $C1:5935, $C1:5731)"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B; the script commands at $C1:5731-$C1:5A8E"
@@ -15317,4 +15319,37 @@ addr = "7E:003B"
 subsystem = "battle"
 meaning = "The first single tech of the character the tech points go towards"
 source = "game/battle/rewards_techs.c ($C1:F45F, $C1:F4DF)"
+
+# ---- The animation script language (game/battle/script_*.c, $C1:4CF0) --------------------------
+
+[[var]]
+name = "battle_script_pointer_pad"
+addr = "7E:00E9"
+page = "battle"
+subsystem = "battle"
+meaning = "The byte after the script pointer, which the commands' advance adds to with the pointer's bank as a word, and a call keeps and a return puts back with it"
+source = "game/battle/scripts.c ($C1:75BB); game/battle/script_flow.c ($C1:56CC, $C1:56FB)"
+
+[[var]]
+name = "battle_script_returns"
+addr = "7E:A569"
+count = 16
+stride = 4
+index = "script channel"
+subsystem = "battle"
+meaning = "Where each channel's script goes back to after a subroutine: one a channel, so a call inside a subroutine replaces it"
+source = "game/battle/script_flow.c ($C1:56CC, $C1:56FB)"
+  [[var.field]]
+  name = "place"
+  offset = 0
+  size = 2
+  meaning = "The return's offset"
+  [[var.field]]
+  name = "bank"
+  offset = 2
+  meaning = "Its bank"
+  [[var.field]]
+  name = "pad"
+  offset = 3
+  meaning = "The byte after the pointer, kept and put back with the bank"
 

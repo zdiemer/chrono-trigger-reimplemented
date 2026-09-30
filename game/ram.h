@@ -3217,6 +3217,10 @@
 /* Long pointer to the running animation script channel's next opcode [3 bytes] */
 #define RAM_BATTLE_SCRIPT_POINTER 0x7E00E6u
 #define RAM_BATTLE_SCRIPT_POINTER_DP 0xE6u   /* page battle */
+/* The byte after the script pointer, which the commands' advance adds to with the pointer's bank
+ * as a word, and a call keeps and a return puts back with it */
+#define RAM_BATTLE_SCRIPT_POINTER_PAD 0x7E00E9u
+#define RAM_BATTLE_SCRIPT_POINTER_PAD_DP 0xE9u /* page battle */
 /* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
  * frames, and the player's button flips both */
 #define RAM_BATTLE_ALTERNATE_FRAME 0x7E00ECu
@@ -4407,7 +4411,8 @@
 /* The animation of the enemy whose animation effect runs, which picks the effect's handler
  * ($CC:FBAB) */
 #define RAM_BATTLE_EFFECT_KIND 0x7EA2B5u
-/* The enemy whose script channel (8 and up) is running, for its commands */
+/* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
+ * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
 #define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
 /* The byte after battle_script_enemy, which only the objects' reset writes */
 #define RAM_BATTLE_SCRIPT_ENEMY_SPARE 0x7EA2B7u
@@ -4588,6 +4593,14 @@
 #define RAM_BATTLE_PATH 0x7EA517u
 #define RAM_BATTLE_PATH_COUNT 11u
 #define RAM_BATTLE_PATH_STRIDE 0x01u
+/* Where each channel's script goes back to after a subroutine: one a channel, so a call inside a
+ * subroutine replaces it [16 x $4 bytes, by script channel] */
+#define RAM_BATTLE_SCRIPT_RETURNS 0x7EA569u
+#define RAM_BATTLE_SCRIPT_RETURNS_COUNT 16u
+#define RAM_BATTLE_SCRIPT_RETURNS_STRIDE 0x04u
+#define RAM_BATTLE_SCRIPT_RETURNS_PLACE 0x7EA569u /* The return's offset */
+#define RAM_BATTLE_SCRIPT_RETURNS_BANK 0x7EA56Bu /* Its bank */
+#define RAM_BATTLE_SCRIPT_RETURNS_PAD 0x7EA56Cu /* The byte after the pointer, kept and put back with the bank */
 /* $FF once every enemy that must be beaten is out */
 #define RAM_BATTLE_WON 0x7EA5A9u
 /* The angle the spiral last used, which the flicker reuses [19 x $1 bytes, by effect slot (0-10

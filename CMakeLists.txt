@@ -234,6 +234,8 @@ add_library(ct_game STATIC
   game/battle/fight_timers.c
   game/battle/fight_entries.c
   game/battle/rewards_entries.c
+  game/battle/script_language.c
+  game/battle/script_flow.c
   game/battle/rewards_levels.c
   game/battle/rewards_techs.c
   game/battle/member_stats.c

@@ -4624,6 +4624,11 @@ void set_battle_queued_uploads_on(GameState *g, uint8_t v);
 uint32_t battle_script_pointer(const GameState *g);
 void set_battle_script_pointer(GameState *g, uint32_t v);
 
+/* The byte after the script pointer, which the commands' advance adds to with the pointer's bank
+ * as a word, and a call keeps and a return puts back with it */
+uint8_t battle_script_pointer_pad(const GameState *g);
+void set_battle_script_pointer_pad(GameState *g, uint8_t v);
+
 /* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
  * frames, and the player's button flips both */
 uint8_t battle_alternate_frame(const GameState *g);
@@ -4994,6 +4999,12 @@ enum { BATTLE_SCRIPT_VARIABLES_COUNT = 27 };   /* by variable, by the number a c
  * compare by number ($C1:58F3, $C1:5935, $C1:5731) */
 uint8_t battle_script_variables(const GameState *g, unsigned i);
 void set_battle_script_variables(GameState *g, unsigned i, uint8_t v);
+/* The animation scripts' variables, which their commands set, count up and down, add to and
+ * compare by number ($C1:58F3, $C1:5935, $C1:5731) Unchecked, for marked scaffolding only: a
+ * command names its variable by a byte, and a number past the 27 reaches the marks, the point
+ * and the work RAM after them, as the original's indexed access does (game/battle/script_flow.c) */
+uint8_t battle_script_variables_unchecked(const GameState *g, unsigned i);
+void set_battle_script_variables_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
@@ -5989,6 +6000,13 @@ enum { BATTLE_SCRIPT_SUBJECTS_COUNT = 11 };   /* by script channel */
  * channel 0's is set at the battle's start from $AE91, $CC:F165) */
 uint8_t battle_script_subjects(const GameState *g, unsigned channel);
 void set_battle_script_subjects(GameState *g, unsigned channel, uint8_t v);
+/* The combatant each animation script channel animates, which its commands act on ($FF: none;
+ * channel 0's is set at the battle's start from $AE91, $CC:F165) Unchecked, for marked
+ * scaffolding only: the other targets' list is read up to its first byte with the top bit set,
+ * which for a full list is past the table; and a command naming a subject by an operand reads
+ * wherever it points (game/battle/script_language.c) */
+uint8_t battle_script_subjects_unchecked(const GameState *g, unsigned channel);
+void set_battle_script_subjects_unchecked(GameState *g, unsigned channel, uint8_t v);
 
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
  * reads it: docs/TODO.md) */
@@ -6360,7 +6378,8 @@ void set_battle_position_found_y(GameState *g, uint8_t v);
 uint8_t battle_effect_kind(const GameState *g);
 void set_battle_effect_kind(GameState *g, uint8_t v);
 
-/* The enemy whose script channel (8 and up) is running, for its commands */
+/* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
+ * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
 uint8_t battle_script_enemy(const GameState *g);
 void set_battle_script_enemy(GameState *g, uint8_t v);
 
@@ -6586,6 +6605,17 @@ enum { BATTLE_PATH_COUNT = 11 };   /* by battle slot */
 /* The path the object follows (8 X/Y delta steps each in $CC:F494/$CC:F594) */
 uint8_t battle_path(const GameState *g, unsigned slot);
 void set_battle_path(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_SCRIPT_RETURNS_COUNT = 16 };   /* by script channel */
+/* The return's offset */
+uint16_t battle_script_returns_place(const GameState *g, unsigned channel);
+void set_battle_script_returns_place(GameState *g, unsigned channel, uint16_t v);
+/* Its bank */
+uint8_t battle_script_returns_bank(const GameState *g, unsigned channel);
+void set_battle_script_returns_bank(GameState *g, unsigned channel, uint8_t v);
+/* The byte after the pointer, kept and put back with the bank */
+uint8_t battle_script_returns_pad(const GameState *g, unsigned channel);
+void set_battle_script_returns_pad(GameState *g, unsigned channel, uint8_t v);
 
 /* $FF once every enemy that must be beaten is out */
 uint8_t battle_won(const GameState *g);

@@ -337,6 +337,39 @@ void fight_apply_member_bonuses_entry(Snes *s);
 void fight_number_places_entry(Snes *s);
 void fight_ward_off_confusion_entry(Snes *s);
 
+/* battle/scripts.c: the script commands whose operations are C, each at its
+ * handler's address */
+bool script_end_ready(Snes *s);
+bool script_halt_ready(Snes *s);
+bool script_call_ready(Snes *s);
+bool script_return_ready(Snes *s);
+bool script_wait_ready(Snes *s);
+bool script_return_unless_point_low_ready(Snes *s);
+bool script_wait_for_variable_ready(Snes *s);
+bool script_wait_for_mark_a_ready(Snes *s);
+bool script_wait_for_mark_b_ready(Snes *s);
+bool script_end_unless_listed_ready(Snes *s);
+bool script_set_variable_ready(Snes *s);
+bool script_set_mark_a_ready(Snes *s);
+bool script_set_mark_b_ready(Snes *s);
+bool script_count_variable_up_ready(Snes *s);
+bool script_count_mark_a_up_ready(Snes *s);
+bool script_count_mark_b_up_ready(Snes *s);
+bool script_count_variable_down_ready(Snes *s);
+bool script_count_mark_a_down_ready(Snes *s);
+bool script_count_mark_b_down_ready(Snes *s);
+bool script_add_to_variable_ready(Snes *s);
+bool script_add_to_mark_a_ready(Snes *s);
+bool script_add_variable_to_mark_a_ready(Snes *s);
+bool script_copy_variable_ready(Snes *s);
+bool script_store_mark_a_ready(Snes *s);
+bool script_add_held_ready(Snes *s);
+bool script_swap_marks_ready(Snes *s);
+bool script_swap_mark_a_with_point_x_ready(Snes *s);
+bool script_swap_mark_a_with_point_y_ready(Snes *s);
+bool script_skip_ready(Snes *s);
+void battle_script_command_entry(Snes *s);
+
 /* battle/rewards_entries.c */
 void battle_turn_experience_to_gold_entry(Snes *s);
 bool battle_share_experience_ready(Snes *s);
