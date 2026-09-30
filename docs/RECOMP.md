@@ -3270,15 +3270,20 @@ found the carry the share leaves, which the messages' call compares, and the
 flags the main loop hands them (their overflow is dead, which the don't-care
 check agrees with). **Fuzzing**, seed 1, none mismatching: the share 5,000
 states, the level-ups and levels 10,000 each, the techs 10,000, the tech
-points 4,473 of 20,000 and the next tech 3,339 of 10,000 (the guard's:
-the member's block and the one noted differing), a single tech 5,000, the
+points 6,657 of 20,000 (the guard's: the member's block and the one noted
+differing) and the next tech 10,000, a single tech 5,000, the
 combination techs 10,000, the rest 2,000 to 20,000. It found two of the
 original's ways the movies never meet: a count of techs known of `$FF` ends
 the combination's list, and A's high byte comes into a single tech's index.
 
-**Timing.** Calibrated from the shadow runs, the new rows only: from 2,688
-(the gold) to 23,471 (the reserve's share); a single tech learned, which
-nothing measures, takes the next tech's, 21,182.
+**Timing.** A level-up's time follows its path: one that grows the stats
+divides six times, and the original's divide goes bit by bit, far longer than
+the port's. One ratio put the level-ups over the worst limit (97,287 clocks),
+so each piece's work is timed as its own routine's (`TIMED_AS`), the shared
+multiply and divide among them, and the new rows calibrated from the shadow
+runs: from 135 (the reserve's share, whose work is nearly all its pieces') to
+33,106 (the techs); a single tech learned, which nothing measures, takes the
+next tech's, 21,182. The gate then passes with no new exception.
 
 ### The reading cost of a chunk
 
