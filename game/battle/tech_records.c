@@ -304,6 +304,13 @@ static void fill_double(GameState *g, uint8_t member, unsigned record, uint8_t t
     set_battle_tech_records_partners(g, record, (uint8_t)(partner | 0xF0));
 }
 
+/* The original steps a word by twelve a tech, which it never starts: the
+ * start overwrites it before anything reads it (scaffolding). */
+static void step_cell(GameState *g, unsigned steps)
+{
+    battle_leave_word(g, STEPPED, (uint16_t)(battle_cell_word(g, STEPPED) + steps * 12));
+}
+
 // $C1:CA1A
 /* The member's double techs: the first six the party has learned whose two
  * members are both in the fight, one of them the member, in the records from
@@ -317,7 +324,7 @@ void battle_set_up_double_techs(GameState *g, uint8_t member)
     ORIGINAL_EFFECT(battle_leave_word(g, DOUBLES_FILLED, 0));
     if (!combatant_in_fight(g, member))
         return;
-    uint16_t stepped = battle_cell_word(g, STEPPED);
+    unsigned steps = 0;
     unsigned byte = 0, bit = 0, filled = 0;
     uint8_t learned = doubles_learned_byte(g, 0);
     uint8_t tech = FIRST_DOUBLE_TECH;
@@ -336,14 +343,14 @@ void battle_set_up_double_techs(GameState *g, uint8_t member)
             learned = doubles_learned_byte(g, ++byte);
             bit = 0;
         }
-        stepped = (uint16_t)(stepped + 12);
+        steps++;
         if (tech >= DOUBLE_TECHS_END)
             break;
     }
     battle_keep_word(g, CURRENT_TECH, tech);
     battle_keep_word(g, COUNTED_AT, (uint16_t)byte);
     battle_keep_word(g, TECHS_END_AT, DOUBLE_TECHS_END);
-    battle_keep_word(g, STEPPED, stepped);
+    ORIGINAL_EFFECT(step_cell(g, steps));
     ORIGINAL_EFFECT(battle_leave_word(g, TECH_TWICE_AT, (uint16_t)(tech * 2)));
     /* the place it steps is the member's records', the tenth's offset in the
      * original's stores rather than in the cell */

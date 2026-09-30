@@ -284,4 +284,6 @@ game/battle/inventory.c count_place battle_low_scratch[8] battle_low_scratch # a
 game/battle/member_stats.c battle_copy_equipment_records battle_low_scratch[6] battle_low_scratch # the entry's operands: the setup ($C1:FC08 on, $C1:BCC5 on, the original's) puts them in the cells, every call
 game/battle/member_stats.c battle_copy_equipment_records battle_low_scratch[8] battle_low_scratch # the entry's operands: the setup ($C1:FC08 on, $C1:BCC5 on, the original's) puts them in the cells, every call
 game/battle/member_stats.c battle_copy_equipment_records battle_low_scratch[10] battle_low_scratch # the entry's operands: the setup ($C1:FC08 on, $C1:BCC5 on, the original's) puts them in the cells, every call
-game/battle/tech_records.c battle_set_up_triple_tech battle_low_scratch[6] battle_low_scratch # the entry's operand: the setup ($C1:FB62 on, the original's) puts the member in the cell, every call
+game/battle/tech_records.c battle_set_up_triple_tech battle_low_scratch[6] battle_low_scratch # the entry's operand: the fight's start ($C1:FB62 on) puts the member in the cell, every call
+game/battle/tech_records.c battle_set_up_single_techs_entry battle_low_scratch[6] battle_low_scratch # the entry's operand: the fight's start ($C1:FB62 on) puts the member in the cell, every call
+game/battle/tech_records.c battle_set_up_double_techs_entry battle_low_scratch[6] battle_low_scratch # the entry's operand: the fight's start ($C1:FB62 on) puts the member in the cell, every call
