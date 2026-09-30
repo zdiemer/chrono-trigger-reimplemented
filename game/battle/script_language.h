@@ -54,21 +54,16 @@ uint8_t script_operand(const GameState *g, unsigned k);
 
 /* How the channel goes on after a command. */
 typedef struct {
-    uint8_t length;    /* past the command; 0 stays on it */
-    bool go_on;        /* the channel runs its next command this frame */
-    bool through_tail; /* the original moved on through its commands' common advance
-                          (not where it ended the channel or held without it),
-                          whose flags the next command finds */
+    uint8_t length; /* past the command; 0 stays on it */
+    bool go_on;     /* the channel runs its next command this frame */
 } ScriptStep;
 
-static inline ScriptStep script_next(uint8_t length) { return (ScriptStep){ length, true, true }; }
-static inline ScriptStep script_next_frame(uint8_t length) { return (ScriptStep){ length, false, true }; }
-static inline ScriptStep script_stays(void) { return (ScriptStep){ 0, false, true }; }
+static inline ScriptStep script_next(uint8_t length) { return (ScriptStep){ length, true }; }
+static inline ScriptStep script_next_frame(uint8_t length) { return (ScriptStep){ length, false }; }
+static inline ScriptStep script_stays(void) { return (ScriptStep){ 0, false }; }
 /* Nothing to move past: a command that moved the channel itself (a call, a
- * return). */
-static inline ScriptStep script_moved(bool go_on) { return (ScriptStep){ 0, go_on, true }; }
-/* The channel ended, or held without moving on at all. */
-static inline ScriptStep script_left_as_it_was(void) { return (ScriptStep){ 0, false, false }; }
+ * return), or ended it. */
+static inline ScriptStep script_moved(bool go_on) { return (ScriptStep){ 0, go_on }; }
 
 /* The channel's place moves on past `length` bytes. */
 void script_advance(GameState *g, uint8_t length);

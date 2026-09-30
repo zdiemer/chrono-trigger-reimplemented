@@ -19,7 +19,7 @@ ScriptStep script_end(GameState *g, ScriptChannel ch, uint8_t form)
 {
     (void)form;
     set_battle_script_running(g, ch.channel, 0);
-    return script_left_as_it_was();
+    return script_moved(false);
 }
 
 // $C1:4CF7
@@ -32,7 +32,7 @@ ScriptStep script_halt(GameState *g, ScriptChannel ch, uint8_t form)
     if (battle_number_step(g) != 0)
         return script_stays();
     set_battle_script_signal(g, (uint8_t)(battle_script_signal(g) + 1));
-    return script_left_as_it_was();
+    return script_moved(false);
 }
 
 // $C1:56CC

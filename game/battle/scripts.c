@@ -289,20 +289,6 @@ static bool take_up_channel(GameState *g, unsigned channel)
     return true;
 }
 
-/* The overflow the original's handlers leave where they end in the common
- * advance: its last add, the pointer's bank as a word with the byte after
- * it and the offset's carry. The next command's handler may read it. */
-static void leave_tail_overflow(Snes *s, ScriptStep step)
-{
-    if (!step.through_tail)
-        return;
-    GameState *g = state_of(s);
-    uint32_t at = battle_script_pointer(g);
-    bool carry = (at & 0xFFFF) + step.length > 0xFFFF;
-    uint16_t bank = (uint16_t)((at >> 16) | battle_script_pointer_pad(g) << 8);
-    m_set_flag(s, CPU_FLAG_V, carry && bank == 0x7FFF);
-}
-
 /* A command whose operation is C: run as the original's handler, whose time
  * it takes, and leaving A clear as every handler does. */
 static void run_operation(Snes *s, uint8_t command)
@@ -311,7 +297,6 @@ static void run_operation(Snes *s, uint8_t command)
     const ScriptCommand *row = &commands[command];
     ScriptStep step;
     NATIVE_TIME_AS(s, handler_of(command), step = row->operation(g, script_channel_running(g, command), row->form));
-    leave_tail_overflow(s, step);
     script_take_step(g, step);
     s->cpu.a = 0;
 }
@@ -335,7 +320,11 @@ static bool run_channel(Snes *s, unsigned channel)
             s->cpu.x = (uint16_t)(command * 2);
             s->cpu.y = 0;
             s->cpu.a = 0;
-            if (!battle_call(s, 0xC14CD4, handler_of((uint8_t)command), DC_AL | DC_N | DC_Z | DC_C))
+            /* no handler reads the overflow the one before it left, which a
+               command in C doesn't reproduce */
+            /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
+               1994 call-outs scrambled, 0 mismatched */
+            if (!battle_call(s, 0xC14CD4, handler_of((uint8_t)command), DC_AL | DC_N | DC_V | DC_Z | DC_C))
                 return false;
         }
         if (!battle_script_continue(g))
@@ -464,9 +453,7 @@ void battle_script_command_entry(Snes *s)
     GameState *g = state_of(s);
     uint8_t command = battle_script_command(g);
     const ScriptCommand *row = &commands[command];
-    ScriptStep step = row->operation(g, script_channel_running(g, command), row->form);
-    leave_tail_overflow(s, step);
-    script_take_step(g, step);
+    script_take_step(g, row->operation(g, script_channel_running(g, command), row->form));
     s->cpu.a = 0;
     m_rts(s);
 }
