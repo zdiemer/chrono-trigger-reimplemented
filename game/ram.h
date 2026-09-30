@@ -342,6 +342,11 @@
 #define RAM_CHARACTER_RECORDS_MAX_HP 0x7E2605u /* Maximum HP */
 #define RAM_CHARACTER_RECORDS_MP 0x7E2607u   /* Current MP */
 #define RAM_CHARACTER_RECORDS_MAX_MP 0x7E2609u /* Maximum MP */
+/* How many of its single techs the character has learned, which are its first that many [7 x $1
+ * bytes, by character] */
+#define RAM_PARTY_SINGLE_TECHS_KNOWN 0x7E2830u
+#define RAM_PARTY_SINGLE_TECHS_KNOWN_COUNT 7u
+#define RAM_PARTY_SINGLE_TECHS_KNOWN_STRIDE 0x01u
 /* The character's single techs learned, its first in bit 7 down to its eighth in bit 0 [7 x $1
  * bytes, by character] */
 #define RAM_PARTY_SINGLE_TECHS_LEARNED 0x7E2837u
@@ -390,6 +395,9 @@
 #define RAM_FRAMES_AT_LEAVING 0x7E29ADu
 /* The song the last play-song event command started */
 #define RAM_CURRENT_SONG 0x7E29AEu
+/* The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting
+ * take a share of the experience */
+#define RAM_PARTY_CHARACTERS_JOINED 0x7E29AFu
 /* The characters' names, five name characters in each 6-byte record; the battle converts them to
  * tiles [7 x $6 bytes, by character] */
 #define RAM_CHARACTER_NAMES 0x7E2C23u
@@ -406,6 +414,9 @@
 #define RAM_SAVE_SLOT_SUMMARIES_STRIDE 0x40u
 #define RAM_SAVE_SLOT_SUMMARIES_MEMBERS 0x7E7600u /* Three $10-byte party member records, the first byte the member (negative: empty) */
 #define RAM_SAVE_SLOT_SUMMARIES_HEADER 0x7E7630u /* The slot's header: where the party is (the location, a word at $32) and what the load screen shows of it */
+/* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
+ * whose record has its top bit set waits for this */
+#define RAM_PARTY_TECHS_UNLOCKED 0x7F01E0u
 /* Per-slot animation tables of the animated background tiles [12 x $20 bytes, by animated tile
  * slot] */
 #define RAM_TILE_ANIMATION_TABLES 0x7F0400u
@@ -3078,6 +3089,8 @@
 #define RAM_BATTLE_WIDE_MATH_COUNT 12u
 #define RAM_BATTLE_WIDE_MATH_STRIDE 0x01u
 #define RAM_BATTLE_WIDE_MATH_DP 0x28u        /* page battle */
+/* The first single tech of the character the tech points go towards */
+#define RAM_BATTLE_LEARNER_FIRST_TECH 0x7E003Bu
 /* The partners of the member whose action is carried out, kept while they are marked as taking
  * part ($C1:B9DA); nothing reads it after */
 #define RAM_BATTLE_MEMBER_PARTNERS_KEPT 0x7E003Du
@@ -4954,6 +4967,9 @@
 #define RAM_BATTLE_PLACES_STRIDE 0x01u
 /* The action's modifier, kept while the weapon's is applied */
 #define RAM_BATTLE_ACTION_MODIFIER_KEPT 0x7EAE78u
+/* The characters who have joined, shifted up as the share for those in reserve goes through
+ * them; the original clears the word with the next byte, battle_status_script_seen's first */
+#define RAM_BATTLE_RESERVE_BITS 0x7EAE79u
 /* The combatant's status bit that restarts its script ($04 of the second status byte) as last
  * seen: a change restarts the script [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_STATUS_SCRIPT_SEEN 0x7EAE7Au
@@ -5219,6 +5235,10 @@
 /* The acting combatant's stat block's offset among the blocks (its battle slot times $80) [2
  * bytes] */
 #define RAM_BATTLE_EFFECT_ACTOR_BLOCK 0x7EB1F4u
+/* The member the rewards are working for, 3 for the characters in reserve: whose level and techs
+ * the messages note. Combination techs are noted for the last member whose single techs were
+ * looked at [2 bytes] */
+#define RAM_BATTLE_REWARDS_MEMBER 0x7EB1F4u
 /* The target's stat block's offset among the blocks (its battle slot times $80) [2 bytes] */
 #define RAM_BATTLE_EFFECT_TARGET_BLOCK 0x7EB1F6u
 /* A stat block's offset two of the damage formulas read a stat of (kinds 7 and 8), which the
@@ -5272,8 +5292,18 @@
  * reactions are looked at, where they start); an enemy's turn keeps the place of the action it
  * carried out here [2 bytes] */
 #define RAM_BATTLE_SCRIPT_ACTIONS_PLACE 0x7EB273u
+/* Where the record a level-up grows is, a stat block or a character's record in reserve, and the
+ * other two members' stat blocks, which no code traced reads [3 x $2 bytes, by the record
+ * growing, then the other two members' stat blocks] */
+#define RAM_BATTLE_GROWTH_RECORD_PLACES 0x7EB285u
+#define RAM_BATTLE_GROWTH_RECORD_PLACES_COUNT 3u
+#define RAM_BATTLE_GROWTH_RECORD_PLACES_STRIDE 0x02u
+/* $FF where the level-up's experience didn't reach a level, 0 where it did and the stats grow */
+#define RAM_BATTLE_GROWTH_NO_LEVEL 0x7EB28Bu
 /* The experience the battle gives, added up from the enemies beaten [2 bytes] */
 #define RAM_BATTLE_EXPERIENCE_WON 0x7EB28Cu
+/* Where in bank $CC the growing character's stat growth rates are [2 bytes] */
+#define RAM_BATTLE_GROWTH_RATES_PLACE 0x7EB294u
 /* The status the attacker's weapon adds to each target its hit's status chance took (the
  * weapon's stat byte $46), cleared for each effect [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_EFFECT_GIVEN_STATUS 0x7EB29Au
@@ -5288,14 +5318,17 @@
 /* The first combatant a selector of an enemy's script picked, kept for the tech's targeting
  * ($C1:C1DD) */
 #define RAM_BATTLE_FIRST_CANDIDATE 0x7EB2AEu
-/* What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a
- * message ($FD:AD17) */
+/* What the rewards were, for their messages ($FD:AD17): bit 7 the experience shared out, bit 6
+ * the gold given, bit 5 an item given, bit 4 tech points counted towards a tech */
 #define RAM_BATTLE_REWARD_FLAGS 0x7EB2AFu
-/* What the level-ups note for the rewards' messages to show ($C1:F81B, $FD:AD9C) [6 x $1 bytes,
- * by a byte of what the level-ups note] */
-#define RAM_BATTLE_REWARDS_LEVELS 0x7EB2B0u
-#define RAM_BATTLE_REWARDS_LEVELS_COUNT 6u
-#define RAM_BATTLE_REWARDS_LEVELS_STRIDE 0x01u
+/* What the rewards note for their messages ($FD:AD17) to show: in a member's first byte, bit 7 a
+ * level gained; in its second, bit 3 single techs learned, bit 2 double techs, bit 1 a triple
+ * tech. A level a character in reserve gains is noted in the byte after the third member's,
+ * which is the first member's second [6 x $1 bytes, by party member for its level (3, the
+ * characters in reserve), 3 + party member for its techs] */
+#define RAM_BATTLE_REWARDS_NOTED 0x7EB2B0u
+#define RAM_BATTLE_REWARDS_NOTED_COUNT 6u
+#define RAM_BATTLE_REWARDS_NOTED_STRIDE 0x01u
 /* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
  * turn, when the enemy and its link are out, or where the script could find no one to act on
  * ($C1:8C09 has the script of a present enemy with it clear choose again) [8 x $1 bytes, by
@@ -5337,14 +5370,50 @@
 #define RAM_BATTLE_ELEMENT_RESISTED_STRIDE 0x01u
 /* How many hits an effect that hits several times has left */
 #define RAM_BATTLE_HITS_LEFT 0x7EB2D0u
+/* The member whose techs are looked at, then the pair or trio of members whose combination techs
+ * are */
+#define RAM_BATTLE_REWARDS_COMBINATION 0x7EB2D0u
+/* The character whose single techs the tech points go towards */
+#define RAM_BATTLE_TECH_LEARNER 0x7EB2D1u
+/* Which record of combination techs the search for the members' has reached, which is also which
+ * byte of the learned bits is theirs */
+#define RAM_BATTLE_COMBINATION_RECORD_NUMBER 0x7EB2D2u
 /* The combatant battle_update_all_combatants is updating (11 once it is done) */
 #define RAM_BATTLE_COMBATANT_UPDATING 0x7EB2D3u
+/* The lowest of the members' character bits, as the combination techs sort them */
+#define RAM_BATTLE_COMBINATION_FIRST_BIT 0x7EB2D3u
+/* The middle of the members' character bits, as the combination techs sort them */
+#define RAM_BATTLE_COMBINATION_SECOND_BIT 0x7EB2D4u
 /* The enemy's animation, kept while its reactions run and put back after */
 #define RAM_BATTLE_ANIMATION_KEPT 0x7EB2D5u
+/* The highest of the members' character bits, as the combination techs sort them */
+#define RAM_BATTLE_COMBINATION_THIRD_BIT 0x7EB2D5u
+/* The characters of each pair of members and of all three, a bit each, as the records of
+ * combination techs name them [4 x $1 bytes, by the first two, the first and third, the second
+ * and third, all three] */
+#define RAM_BATTLE_COMBINATION_MEMBER_SETS 0x7EB2D6u
+#define RAM_BATTLE_COMBINATION_MEMBER_SETS_COUNT 4u
+#define RAM_BATTLE_COMBINATION_MEMBER_SETS_STRIDE 0x01u
+/* 0 where the tech points reached the next single tech, $FF where they didn't */
+#define RAM_BATTLE_TECH_LEARNED 0x7EB2DAu
 /* The tech points the battle gives, a 24-bit sum [3 bytes] */
 #define RAM_BATTLE_TECH_POINTS_WON 0x7EB2DBu
 #define RAM_BATTLE_TECH_POINTS_WON_LOW 0x7EB2DBu /* Its low word */
 #define RAM_BATTLE_TECH_POINTS_WON_HIGH 0x7EB2DDu /* Its high byte */
+/* The characters of the combination whose techs are looked at, a bit each */
+#define RAM_BATTLE_COMBINATION_MEMBERS 0x7EB2DEu
+/* The learned bit of the combination tech looked at */
+#define RAM_BATTLE_COMBINATION_TECH_BIT 0x7EB2DFu
+/* How many of the combination's techs are left to look at */
+#define RAM_BATTLE_COMBINATION_TECHS_LEFT 0x7EB2E0u
+/* How many single techs each character of the combination knows [8 x $1 bytes, by the
+ * combination's character, in order, and $FF past them] */
+#define RAM_BATTLE_COMBINATION_TECHS_KNOWN 0x7EB2E1u
+#define RAM_BATTLE_COMBINATION_TECHS_KNOWN_COUNT 8u
+#define RAM_BATTLE_COMBINATION_TECHS_KNOWN_STRIDE 0x01u
+/* $FF where a character of the combination lacks the single techs its tech asks, 0 where none
+ * has been found to */
+#define RAM_BATTLE_COMBINATION_SHORT 0x7EB2E9u
 /* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
  * them: the member who chose it first [3 x $1 bytes, by the member's part in the tech] */
 #define RAM_BATTLE_TECH_MEMBERS 0x7EB2EAu
@@ -5357,11 +5426,24 @@
 #define RAM_BATTLE_ACTION_FURTHER_IDS_STRIDE 0x01u
 /* How many targets the action has, kept while the effect's loop counts them down */
 #define RAM_BATTLE_EFFECT_TARGET_COUNT 0x7EB2EDu
-/* Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as
- * a fight starts [2 x $1 bytes, by which message's byte] */
-#define RAM_BATTLE_REWARDS_LAST_MESSAGES 0x7EB30Fu
-#define RAM_BATTLE_REWARDS_LAST_MESSAGES_COUNT 2u
-#define RAM_BATTLE_REWARDS_LAST_MESSAGES_STRIDE 0x01u
+/* The combination tech looked at */
+#define RAM_BATTLE_COMBINATION_TECH 0x7EB304u
+/* The double techs the battle taught, $FF past them, which the rewards' messages ($FD:AE0F) name
+ * [10 x $1 bytes, by a double tech taught] */
+#define RAM_BATTLE_REWARDS_DOUBLE_TECHS 0x7EB305u
+#define RAM_BATTLE_REWARDS_DOUBLE_TECHS_COUNT 10u
+#define RAM_BATTLE_REWARDS_DOUBLE_TECHS_STRIDE 0x01u
+/* How many double techs the battle taught (battle_rewards_double_techs), which the rewards'
+ * messages ($FD:AD17) then count through them with */
+#define RAM_BATTLE_REWARDS_DOUBLE_TECHS_LISTED 0x7EB30Fu
+/* The triple tech the battle taught, $FF for none, which the rewards' last message names
+ * ($FD:AE37) */
+#define RAM_BATTLE_REWARDS_TRIPLE_TECH 0x7EB310u
+/* How many levels the member gained, which the rewards' messages ($FD:AD17) count down [4 x $1
+ * bytes, by party member, 3 the characters in reserve] */
+#define RAM_BATTLE_REWARDS_LEVELS_GAINED 0x7EB311u
+#define RAM_BATTLE_REWARDS_LEVELS_GAINED_COUNT 4u
+#define RAM_BATTLE_REWARDS_LEVELS_GAINED_STRIDE 0x01u
 /* The place among the action's targets the reactions are at */
 #define RAM_BATTLE_REACTION_ENTRY 0x7EB315u
 /* The party's maximum HP as the battle began, put back when it ends [3 x $2 bytes, by party
@@ -5434,6 +5516,9 @@
 #define RAM_BATTLE_ACTION_CHOICE 0x7EB3C9u
 /* A reaction's kept place, while its conditions are tested [2 bytes] */
 #define RAM_BATTLE_REACTION_PLACE_KEPT 0x7EB3CAu
+/* Where in battle_rewards_techs the next single tech learned is noted: the member's eight from
+ * its first, counted in the low byte [2 bytes] */
+#define RAM_BATTLE_REWARDS_TECH_AT 0x7EB3CCu
 /* The techs the rewards' messages name as learned ($FD:ADD7), $FF for none [24 x $1 bytes, by a
  * tech named] */
 #define RAM_BATTLE_REWARDS_TECHS 0x7EB3CEu

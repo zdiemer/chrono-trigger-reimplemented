@@ -139,6 +139,7 @@ uint16_t battle_wide_math_quotient(const GameState *g) { return wide_word(g, RES
 uint16_t battle_wide_math_first(const GameState *g) { return wide_word(g, FIRST); }
 uint8_t battle_wide_math_second_high(const GameState *g) { return battle_wide_math(g, SECOND + 1); }
 void battle_set_wide_math_quotient(GameState *g, uint16_t v) { set_wide_word(g, RESULT_LOW, v); }
+void battle_set_wide_math_first(GameState *g, uint16_t v) { set_wide_word(g, FIRST, v); }
 
 // $C1:C92A
 /* A long divided by a word, a 32-bit quotient and the remainder. Nothing is

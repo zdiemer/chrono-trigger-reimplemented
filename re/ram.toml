@@ -9623,8 +9623,8 @@ source = "game/battle/main_loop.c $C1:83BB; $FD:B201"
 name = "battle_reward_flags"
 addr = "7E:B2AF"
 subsystem = "battle"
-meaning = "What the rewards were: bit 6 the gold and experience given, bit 5 an item given, bit 7 a message ($FD:AD17)"
-source = "game/battle/main_loop.c $C1:83BB; $FD:B201, $FD:AD17"
+meaning = "What the rewards were, for their messages ($FD:AD17): bit 7 the experience shared out, bit 6 the gold given, bit 5 an item given, bit 4 tech points counted towards a tech"
+source = "game/battle/main_loop.c $C1:83BB; game/battle/rewards_levels.c ($FD:B201, $C1:F7B9); game/battle/rewards_techs.c ($C1:F45F); $FD:AD17"
 
 [[var]]
 name = "battle_items_won"
@@ -14964,7 +14964,7 @@ name = "battle_members_turning_experience_to_gold"
 addr = "7E:B3BD"
 subsystem = "battle"
 meaning = "How many party members wear the accessory ($A9) that turns the experience the battle gives into gold"
-source = "game/battle/fight_party.c ($FD:AE99); $FD:B201"
+source = "game/battle/fight_party.c ($FD:AE99); game/battle/rewards_levels.c ($FD:B201)"
 
 [[var]]
 name = "battle_enemy_family_bits"
@@ -14981,7 +14981,7 @@ addr = "7E:B28C"
 size = 2
 subsystem = "battle"
 meaning = "The experience the battle gives, added up from the enemies beaten"
-source = "game/battle/fight_start.c ($FD:B732); $FD:ABD0, $FD:AD17, $C1:F7D7"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_levels.c; $FD:ABD0, $FD:AD17"
 
 [[var]]
 name = "battle_tech_points_won"
@@ -14989,7 +14989,7 @@ addr = "7E:B2DB"
 stride = 3
 subsystem = "battle"
 meaning = "The tech points the battle gives, a 24-bit sum"
-source = "game/battle/fight_start.c ($FD:B732); $FD:ABD0, $FD:AD17"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_techs.c ($C1:F39A); $FD:ABD0, $FD:AD17"
   [[var.field]]
   name = "low"
   offset = 0
@@ -15001,13 +15001,13 @@ source = "game/battle/fight_start.c ($FD:B732); $FD:ABD0, $FD:AD17"
   meaning = "Its high byte"
 
 [[var]]
-name = "battle_rewards_levels"
+name = "battle_rewards_noted"
 addr = "7E:B2B0"
 count = 6
-index = "a byte of what the level-ups note"
+index = "party member for its level (3, the characters in reserve), 3 + party member for its techs"
 subsystem = "battle"
-meaning = "What the level-ups note for the rewards' messages to show ($C1:F81B, $FD:AD9C)"
-source = "game/battle/fight_start.c ($FD:B732)"
+meaning = "What the rewards note for their messages ($FD:AD17) to show: in a member's first byte, bit 7 a level gained; in its second, bit 3 single techs learned, bit 2 double techs, bit 1 a triple tech. A level a character in reserve gains is noted in the byte after the third member's, which is the first member's second"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_levels.c ($C1:F7B9), game/battle/rewards_techs.c ($C1:F4DF, $C1:F533)"
 
 [[var]]
 name = "battle_rewards_techs"
@@ -15019,13 +15019,18 @@ meaning = "The techs the rewards' messages name as learned ($FD:ADD7), $FF for n
 source = "game/battle/fight_start.c ($FD:B732)"
 
 [[var]]
-name = "battle_rewards_last_messages"
+name = "battle_rewards_double_techs_listed"
 addr = "7E:B30F"
-count = 2
-index = "which message's byte"
 subsystem = "battle"
-meaning = "Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as a fight starts"
-source = "game/battle/fight_start.c ($FD:B732)"
+meaning = "How many double techs the battle taught (battle_rewards_double_techs), which the rewards' messages ($FD:AD17) then count through them with"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_rewards_triple_tech"
+addr = "7E:B310"
+subsystem = "battle"
+meaning = "The triple tech the battle taught, $FF for none, which the rewards' last message names ($FD:AE37)"
+source = "game/battle/fight_start.c ($FD:B732); game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
 
 [[var]]
 name = "battle_fight_start_spares"
@@ -15091,3 +15096,209 @@ addr = "7E:AD99"
 subsystem = "battle"
 meaning = "The byte after the action's eleven targets, $FF from the fight's start: a full list's end"
 source = "game/battle/fight_start.c ($C1:FBA1)"
+
+# ---- The rewards (game/battle/rewards_*.c, $C1:F93E) -----------------------------------------
+
+[[var]]
+name = "party_single_techs_known"
+addr = "7E:2830"
+count = 7
+index = "character"
+subsystem = "core"
+meaning = "How many of its single techs the character has learned, which are its first that many"
+source = "game/battle/rewards_techs.c ($C1:F45F, $C1:F4DF, $C1:F533)"
+
+[[var]]
+name = "party_characters_joined"
+addr = "7E:29AF"
+subsystem = "core"
+meaning = "The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting take a share of the experience"
+source = "game/battle/rewards_levels.c ($C1:F9EB)"
+
+[[var]]
+name = "party_techs_unlocked"
+addr = "7F:01E0"
+subsystem = "core"
+meaning = "The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech whose record has its top bit set waits for this"
+source = "game/battle/rewards_techs.c ($C1:F45F)"
+
+[[var]]
+name = "battle_growth_record_places"
+addr = "7E:B285"
+size = 2
+count = 3
+index = "the record growing, then the other two members' stat blocks"
+subsystem = "battle"
+meaning = "Where the record a level-up grows is, a stat block or a character's record in reserve, and the other two members' stat blocks, which no code traced reads"
+source = "game/battle/rewards_levels.c ($C1:F93E, $C1:F9EB)"
+
+[[var]]
+name = "battle_growth_no_level"
+addr = "7E:B28B"
+subsystem = "battle"
+meaning = "$FF where the level-up's experience didn't reach a level, 0 where it did and the stats grow"
+source = "game/battle/rewards_levels.c ($C1:F7B9, $C1:F623)"
+
+[[var]]
+name = "battle_growth_rates_place"
+addr = "7E:B294"
+size = 2
+subsystem = "battle"
+meaning = "Where in bank $CC the growing character's stat growth rates are"
+source = "game/battle/rewards_levels.c ($C1:F623)"
+
+[[var]]
+name = "battle_rewards_levels_gained"
+addr = "7E:B311"
+count = 4
+index = "party member, 3 the characters in reserve"
+unchecked = "the original counts a level gained as a word, so a count at $FF carries into the next byte, past the last the battle's reaction entry (game/battle/rewards_levels.c, $C1:F84A)"
+subsystem = "battle"
+meaning = "How many levels the member gained, which the rewards' messages ($FD:AD17) count down"
+source = "game/battle/rewards_levels.c ($C1:F93E, $C1:F7B9)"
+
+[[var]]
+name = "battle_reserve_bits"
+addr = "7E:AE79"
+subsystem = "battle"
+meaning = "The characters who have joined, shifted up as the share for those in reserve goes through them; the original clears the word with the next byte, battle_status_script_seen's first"
+source = "game/battle/rewards_levels.c ($C1:F9EB)"
+
+[[var]]
+name = "battle_rewards_member"
+addr = "7E:B1F4"
+reuses = "battle_effect_actor_block"
+size = 2
+subsystem = "battle"
+meaning = "The member the rewards are working for, 3 for the characters in reserve: whose level and techs the messages note. Combination techs are noted for the last member whose single techs were looked at"
+source = "game/battle/rewards_levels.c ($C1:F93E, $C1:F9EB); game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_rewards_combination"
+addr = "7E:B2D0"
+reuses = "battle_hits_left"
+subsystem = "battle"
+meaning = "The member whose techs are looked at, then the pair or trio of members whose combination techs are"
+source = "game/battle/rewards_techs.c ($C1:F205)"
+
+[[var]]
+name = "battle_tech_learner"
+addr = "7E:B2D1"
+subsystem = "battle"
+meaning = "The character whose single techs the tech points go towards"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F39A)"
+
+[[var]]
+name = "battle_combination_record_number"
+addr = "7E:B2D2"
+subsystem = "battle"
+meaning = "Which record of combination techs the search for the members' has reached, which is also which byte of the learned bits is theirs"
+source = "game/battle/rewards_techs.c ($C1:F205)"
+
+[[var]]
+name = "battle_combination_first_bit"
+addr = "7E:B2D3"
+reuses = "battle_combatant_updating"
+subsystem = "battle"
+meaning = "The lowest of the members' character bits, as the combination techs sort them"
+source = "game/battle/rewards_techs.c ($C1:F2DB)"
+
+[[var]]
+name = "battle_combination_second_bit"
+addr = "7E:B2D4"
+subsystem = "battle"
+meaning = "The middle of the members' character bits, as the combination techs sort them"
+source = "game/battle/rewards_techs.c ($C1:F2DB)"
+
+[[var]]
+name = "battle_combination_third_bit"
+addr = "7E:B2D5"
+reuses = "battle_animation_kept"
+subsystem = "battle"
+meaning = "The highest of the members' character bits, as the combination techs sort them"
+source = "game/battle/rewards_techs.c ($C1:F2DB)"
+
+[[var]]
+name = "battle_combination_member_sets"
+addr = "7E:B2D6"
+count = 4
+index = "the first two, the first and third, the second and third, all three"
+subsystem = "battle"
+meaning = "The characters of each pair of members and of all three, a bit each, as the records of combination techs name them"
+source = "game/battle/rewards_techs.c ($C1:F2DB, $C1:F205)"
+
+[[var]]
+name = "battle_tech_learned"
+addr = "7E:B2DA"
+subsystem = "battle"
+meaning = "0 where the tech points reached the next single tech, $FF where they didn't"
+source = "game/battle/rewards_techs.c ($C1:F39A, $C1:F45F)"
+
+[[var]]
+name = "battle_combination_members"
+addr = "7E:B2DE"
+subsystem = "battle"
+meaning = "The characters of the combination whose techs are looked at, a bit each"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_combination_tech_bit"
+addr = "7E:B2DF"
+subsystem = "battle"
+meaning = "The learned bit of the combination tech looked at"
+source = "game/battle/rewards_techs.c ($C1:F533)"
+
+[[var]]
+name = "battle_combination_techs_left"
+addr = "7E:B2E0"
+subsystem = "battle"
+meaning = "How many of the combination's techs are left to look at"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_combination_techs_known"
+addr = "7E:B2E1"
+count = 8
+index = "the combination's character, in order, and $FF past them"
+subsystem = "battle"
+meaning = "How many single techs each character of the combination knows"
+source = "game/battle/rewards_techs.c ($C1:F533)"
+
+[[var]]
+name = "battle_combination_short"
+addr = "7E:B2E9"
+subsystem = "battle"
+meaning = "$FF where a character of the combination lacks the single techs its tech asks, 0 where none has been found to"
+source = "game/battle/rewards_techs.c ($C1:F533)"
+
+[[var]]
+name = "battle_combination_tech"
+addr = "7E:B304"
+subsystem = "battle"
+meaning = "The combination tech looked at"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_rewards_double_techs"
+addr = "7E:B305"
+count = 10
+index = "a double tech taught"
+subsystem = "battle"
+meaning = "The double techs the battle taught, $FF past them, which the rewards' messages ($FD:AE0F) name"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F533)"
+
+[[var]]
+name = "battle_rewards_tech_at"
+addr = "7E:B3CC"
+size = 2
+subsystem = "battle"
+meaning = "Where in battle_rewards_techs the next single tech learned is noted: the member's eight from its first, counted in the low byte"
+source = "game/battle/rewards_techs.c ($C1:F205, $C1:F4DF); $FD:ADC6"
+
+[[var]]
+name = "battle_learner_first_tech"
+addr = "7E:003B"
+subsystem = "battle"
+meaning = "The first single tech of the character the tech points go towards"
+source = "game/battle/rewards_techs.c ($C1:F45F, $C1:F4DF)"
+

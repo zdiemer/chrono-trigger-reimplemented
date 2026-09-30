@@ -93,12 +93,15 @@ enum {
  * offsets, as the enemies' scripts name a stat. */
 typedef enum {
     STAT_ELEMENTS = 0x01,        /* the elements of its attack, one bit each, the first from the top */
+    STAT_NOTES = 0x02,           /* a party member's: its HP low (bit 0), all its single techs learned (STAT_NOTE_TECHS_ALL_LEARNED) */
     STAT_HP = 0x03,              /* a word */
     STAT_MAX_HP = 0x05,          /* a word */
     STAT_MP = 0x07,              /* a word */
     STAT_MAX_MP = 0x09,          /* a word */
     STAT_BASE_STATS = 0x0B,      /* seven: a party member's stats from STAT_POWER on, as it has them without its equipment */
     STAT_LEVEL = 0x12,
+    STAT_EXPERIENCE = 0x13,      /* a party member's, three bytes */
+    STAT_TECH_POINTS = 0x16,     /* a party member's, three bytes */
     STAT_KIND = 0x19,            /* the kinds of effect it turns away; bit 7, it can't be felled outright */
     STAT_FAMILY = 0x1A,          /* the families some modifiers single out */
     STAT_ATTACK_DETAIL = 0x1B,   /* an enemy's attack's detail */
@@ -115,6 +118,9 @@ typedef enum {
     STAT_ARMOR = 0x28,
     STAT_WEAPON = 0x29,
     STAT_ACCESSORY = 0x2A,       /* a party member's accessory */
+    STAT_EXPERIENCE_LEFT = 0x2B, /* a word: the experience it lacks for its next level */
+    STAT_TECH_POINTS_LEFT = 0x2D, /* a word: the tech points it lacks for its next single tech */
+    STAT_FIRST_LEVEL_STATS = 0x2F, /* seven: its stats at the first level, which its level grows, in the growth rates' order */
     STAT_POWER = 0x36,
     STAT_STAMINA = 0x37,
     STAT_SPEED_RATING = 0x38,    /* at most 16 */
@@ -147,6 +153,10 @@ typedef enum {
 /* The first byte of a stat block: what the combatant is, a party member's
  * character or an enemy's id. */
 enum { STAT_ID = 0x00 };
+
+/* STAT_NOTES' bit for a party member that has learned all its single
+ * techs. */
+enum { STAT_NOTE_TECHS_ALL_LEARNED = 0x10 };
 
 /* The condition byte's bit for knocked out. */
 enum { CONDITION_KNOCKED_OUT = 0x80 };

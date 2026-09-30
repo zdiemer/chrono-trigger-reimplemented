@@ -370,3 +370,77 @@ void battle_pass_empty_place(Snes *s)
     s->cpu.a = 0;
     m_rtl(s);
 }
+
+/* ---- The items put back at the battle's end ------------------------------------------------ */
+
+/* A member that chose an item has it taken off the list's count while it waits
+ * for its turn (its choice's bit); the item goes back where the turn never
+ * came. */
+enum { ITEM_TAKEN_FOR_CHOICE = 0x40 };
+
+/* The original keeps the member it puts back for in a cell, and the item. */
+enum { RETURNING_FOR_AT = 0x14, RETURNING_ITEM_AT = 0x0E };
+
+// $C1:B6D1
+void battle_return_chosen_item(GameState *g, uint8_t member)
+{
+    uint8_t choice = battle_member_actions_choice_flags(g, member);
+    if (!(choice & ITEM_TAKEN_FOR_CHOICE))
+        return;
+    set_battle_member_actions_choice_flags(g, member, choice & (uint8_t)~ITEM_TAKEN_FOR_CHOICE);
+    uint8_t item = battle_member_actions_what(g, member);
+    ORIGINAL_EFFECT(battle_leave_byte(g, RETURNING_ITEM_AT, item));
+    for (unsigned record = 0; record < LIST_RECORDS; record++)
+        if (battle_item_list_item(g, record) == item) {
+            set_battle_item_list_held(g, record, (uint8_t)(battle_item_list_held(g, record) + 1));
+            return;
+        }
+}
+
+/* The original walks the list and the inventory with cells: the list's
+ * record, the place it found the item in and the empty place it put it in. */
+enum { FOUND_AT = 0x00, RECORD_AT = 0x02, EMPTY_AT = 0x04 };
+
+/* The list's count of each item goes back into the inventory: where the
+ * inventory holds the item, its count there is the list's (an item used up
+ * leaves its place empty); where it doesn't, the item goes into the first
+ * empty place, and where there is none, the rest stay as they are. */
+static void put_list_back(GameState *g)
+{
+    ORIGINAL_EFFECT(battle_leave_word(g, FOUND_AT, 0));
+    unsigned record = 0;
+    for (; record < LIST_RECORDS; record++) {
+        ORIGINAL_EFFECT(battle_leave_word(g, RECORD_AT, (uint16_t)(record * LIST_RECORD_BYTES)));
+        uint8_t item = battle_item_list_item(g, record), held = battle_item_list_held(g, record);
+        if (item == NO_ITEM)
+            continue;
+        unsigned place = 0;
+        while (place < INVENTORY_PLACES && item_at(g, place) != item)
+            place++;
+        if (place < INVENTORY_PLACES) {
+            ORIGINAL_EFFECT(battle_leave_word(g, FOUND_AT, (uint16_t)place));
+            set_place(g, place, held == 0 ? NO_ITEM : item, held);
+            continue;
+        }
+        place = 0;
+        while (place < INVENTORY_PLACES && item_at(g, place) != NO_ITEM)
+            place++;
+        if (place == INVENTORY_PLACES)
+            break;
+        ORIGINAL_EFFECT(battle_leave_word(g, EMPTY_AT, (uint16_t)place));
+        set_place(g, place, item, held);
+    }
+    /* it clears the places' high bytes as it leaves */
+    ORIGINAL_EFFECT(battle_leave_word(g, RECORD_AT, (uint8_t)(record * LIST_RECORD_BYTES)));
+    ORIGINAL_EFFECT(battle_leave_byte(g, EMPTY_AT + 1, 0));
+}
+
+// $C1:B4E9
+void battle_put_items_back(GameState *g)
+{
+    for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
+        ORIGINAL_EFFECT(battle_leave_byte(g, RETURNING_FOR_AT, member));
+        battle_return_chosen_item(g, member);
+    }
+    put_list_back(g);
+}

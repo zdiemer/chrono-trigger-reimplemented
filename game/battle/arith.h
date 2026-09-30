@@ -80,6 +80,9 @@ uint16_t battle_wide_math_quotient(const GameState *g);
 uint8_t battle_wide_math_second_high(const GameState *g);
 uint16_t battle_wide_math_first(const GameState *g);
 void battle_set_wide_math_quotient(GameState *g, uint16_t v);
+/* A caller that loads its next number into the first number's cell before it
+ * knows the other leaves it there where it doesn't multiply after all. */
+void battle_set_wide_math_first(GameState *g, uint16_t v);
 
 /* The word-by-word multiply leaves its second number's cell clear but for the
  * carry its caller came in with: scaffolding, for the callers whose carry is

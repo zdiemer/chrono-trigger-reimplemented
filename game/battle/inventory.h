@@ -45,4 +45,9 @@ bool battle_take_gold(GameState *g, uint16_t amount);
  * fight starts. */
 void battle_list_usable_items(GameState *g);
 
+/* $C1:B4E9: the list's counts back into the inventory as the battle ends,
+ * with the items the members chose and never used ($C1:B6D1, a member's). */
+void battle_put_items_back(GameState *g);
+void battle_return_chosen_item(GameState *g, uint8_t member);
+
 #endif

@@ -134,8 +134,8 @@ void fight_clear_turn_state(GameState *g)
     set_battle_tech_points_won_low(g, 0);
     set_battle_tech_points_won_high(g, 0);
     set_battle_reward_flags(g, 0);
-    for (unsigned n = 0; n < BATTLE_REWARDS_LEVELS_COUNT; n++)
-        set_battle_rewards_levels(g, n, 0);
+    for (unsigned n = 0; n < BATTLE_REWARDS_NOTED_COUNT; n++)
+        set_battle_rewards_noted(g, n, 0);
     set_battle_action_actor_bits(g, 0);
     set_battle_action_tech_hits(g, 0);
     set_battle_action_elements(g, 0);
@@ -162,8 +162,8 @@ void fight_clear_turn_state(GameState *g)
     set_battle_damage_flags_given(g, 0);
     for (unsigned n = 0; n < BATTLE_REWARDS_TECHS_COUNT; n++)
         set_battle_rewards_techs(g, n, COMBATANT_NONE);
-    for (unsigned n = 0; n < BATTLE_REWARDS_LAST_MESSAGES_COUNT; n++)
-        set_battle_rewards_last_messages(g, n, 0);
+    set_battle_rewards_double_techs_listed(g, 0);
+    set_battle_rewards_triple_tech(g, 0);
     set_battle_spare_turn_member(g, NO_SPARE_TURN);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_member_actions_partners(g, member, NO_PARTNERS);
