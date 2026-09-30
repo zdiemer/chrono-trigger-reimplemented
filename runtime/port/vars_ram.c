@@ -2925,8 +2925,12 @@ uint8_t battle_member_carried_weapon(const GameState *g, unsigned member) { IN_R
 void set_battle_member_carried_weapon(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 303, "set_battle_member_carried_weapon", "count", member, 3u); w8(g, 0x7E1C48u + (uint32_t)member * 0x05u, v); }
 uint8_t battle_member_carried_spare(const GameState *g, unsigned member) { IN_RANGE(g, 303, "battle_member_carried_spare", "count", member, 3u); return r8(g, 0x7E1C49u + (uint32_t)member * 0x05u); }
 void set_battle_member_carried_spare(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 303, "set_battle_member_carried_spare", "count", member, 3u); w8(g, 0x7E1C49u + (uint32_t)member * 0x05u, v); }
-uint32_t battle_member_carried_marks(const GameState *g, unsigned member) { IN_RANGE(g, 303, "battle_member_carried_marks", "count", member, 3u); return r24(g, 0x7E1C4Au + (uint32_t)member * 0x05u); }
-void set_battle_member_carried_marks(GameState *g, unsigned member, uint32_t v) { IN_RANGE(g, 303, "set_battle_member_carried_marks", "count", member, 3u); w24(g, 0x7E1C4Au + (uint32_t)member * 0x05u, v); }
+uint8_t battle_member_carried_weapon_mark(const GameState *g, unsigned member) { IN_RANGE(g, 303, "battle_member_carried_weapon_mark", "count", member, 3u); return r8(g, 0x7E1C4Au + (uint32_t)member * 0x05u); }
+void set_battle_member_carried_weapon_mark(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 303, "set_battle_member_carried_weapon_mark", "count", member, 3u); w8(g, 0x7E1C4Au + (uint32_t)member * 0x05u, v); }
+uint8_t battle_member_carried_weapon_count(const GameState *g, unsigned member) { IN_RANGE(g, 303, "battle_member_carried_weapon_count", "count", member, 3u); return r8(g, 0x7E1C4Bu + (uint32_t)member * 0x05u); }
+void set_battle_member_carried_weapon_count(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 303, "set_battle_member_carried_weapon_count", "count", member, 3u); w8(g, 0x7E1C4Bu + (uint32_t)member * 0x05u, v); }
+uint8_t battle_member_carried_owner_bit(const GameState *g, unsigned member) { IN_RANGE(g, 303, "battle_member_carried_owner_bit", "count", member, 3u); return r8(g, 0x7E1C4Cu + (uint32_t)member * 0x05u); }
+void set_battle_member_carried_owner_bit(GameState *g, unsigned member, uint8_t v) { IN_RANGE(g, 303, "set_battle_member_carried_owner_bit", "count", member, 3u); w8(g, 0x7E1C4Cu + (uint32_t)member * 0x05u, v); }
 uint32_t battle_object_graphics(const GameState *g, unsigned slot) { IN_RANGE(g, 304, "battle_object_graphics", "count", slot, 11u); return r24(g, 0x7E1C57u + (uint32_t)slot * 0x03u); }
 void set_battle_object_graphics(GameState *g, unsigned slot, uint32_t v) { IN_RANGE(g, 304, "set_battle_object_graphics", "count", slot, 11u); w24(g, 0x7E1C57u + (uint32_t)slot * 0x03u, v); }
 uint32_t battle_object_tile_lists(const GameState *g, unsigned slot) { IN_RANGE(g, 305, "battle_object_tile_lists", "count", slot, 11u); return r24(g, 0x7E1C78u + (uint32_t)slot * 0x03u); }
@@ -3851,6 +3855,8 @@ uint8_t battle_action_targets(const GameState *g, unsigned i) { IN_RANGE(g, 551,
 void set_battle_action_targets(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 551, "set_battle_action_targets", "count", i, 11u); w8(g, 0x7EAD8Eu + (uint32_t)i * 0x01u, v); }
 uint8_t battle_action_targets_unchecked(const GameState *g, unsigned i) { return r8(g, 0x7EAD8Eu + (uint32_t)i * 0x01u); }
 void set_battle_action_targets_unchecked(GameState *g, unsigned i, uint8_t v) { w8(g, 0x7EAD8Eu + (uint32_t)i * 0x01u, v); }
+uint8_t battle_action_targets_end(const GameState *g) { return r8(g, 0x7EAD99u); }
+void set_battle_action_targets_end(GameState *g, uint8_t v) { w8(g, 0x7EAD99u, v); }
 uint8_t battle_party_out_count(const GameState *g) { return r8(g, 0x7EAD9Au); }
 void set_battle_party_out_count(GameState *g, uint8_t v) { w8(g, 0x7EAD9Au, v); }
 uint8_t battle_effect_tally(const GameState *g) { return r8(g, 0x7EAD9Bu); }
