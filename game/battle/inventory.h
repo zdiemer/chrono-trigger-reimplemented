@@ -41,4 +41,8 @@ bool battle_gold_covers(GameState *g, uint16_t amount);
 bool battle_give_gold(GameState *g, uint16_t amount);
 bool battle_take_gold(GameState *g, uint16_t amount);
 
+/* $C1:CDFF: the battle's item list, built afresh from the inventory as a
+ * fight starts. */
+void battle_list_usable_items(GameState *g);
+
 #endif

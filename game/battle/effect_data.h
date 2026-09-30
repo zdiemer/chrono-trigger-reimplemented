@@ -267,6 +267,20 @@ static inline ModifierRecord modifier_record(const GameState *g, uint8_t modifie
     return (ModifierRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
 }
 
+/* The same record as armor and helmets read it at the fight's start: a byte
+ * of the member's stat block, and the bits the piece sets in it. The start
+ * finds the record by its number times three in a byte, so the modifiers from
+ * 86 on read earlier ones'. */
+typedef struct {
+    uint8_t at, bits;
+} ArmorModifier;
+
+static inline ArmorModifier armor_modifier(const GameState *g, uint8_t modifier)
+{
+    uint32_t at = 0xCC2A05u + (uint8_t)(modifier * 3);
+    return (ArmorModifier){ rom_read8(g, at), rom_read8(g, at + 1) };
+}
+
 /* $CC:05CD: an item's healing, four bytes an item: what it restores or cures,
  * how much (a multiple, or $0F for all), and the power of it. The original
  * finds the item's four bytes by its number times four in a byte, so the

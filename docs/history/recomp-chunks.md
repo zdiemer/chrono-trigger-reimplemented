@@ -1897,3 +1897,86 @@ as a sibling, the attack's fuzzing now reaches the showing in nearly every
 state, past the budget: stopped at the showing's call, the one difference
 left is A's low byte, which the showing doesn't read.
 
+## Phase 3, battle chunk 6: the setup's party helpers, the inventory and the gold (`$C1:CC0B`)
+
+The run chunk 5 named "the party's side of the showing" (`$C1:CC0B`, 1,018
+bytes) is not the showing (`$C1:AC57` was C already) but the helpers the
+battle's setup (`$C1:FA8B`, the original's) calls for the party, and the
+party's inventory and gold behind them. All of it is C now, with the bank
+`$FD` routines those helpers reach.
+
+`game/battle/tech_records.c` fills the members' combination techs in their
+tech records: what each of the party's slots pays for a double or triple
+tech's part, cut by its member's accessory (`$C1:CC0B`, `$C1:CC3E`, entries
+the double techs' builder `$C1:CA1A`, still the original's, calls), and a
+member's triple tech, the first learned one whose three members are all in
+the battle (`$C1:CCCB`), with its partners. The multiply that finds each
+part's cost and the tech's members (`$C1:CB93`, now `effect_take_tech_members`)
+are party_work.c's.
+
+`game/battle/member_stats.c` sets a member's stats as it fights (`$C1:CE3A`):
+its own seven, then each of its weapon, armor and helmet adds the boost its
+second record names (`$FD:B141`: some stats by an amount, each up to its most,
+the sum taken in a byte as the original does) and something to each of the
+four elemental affinities (`$C1:CF69`). It also copies the equipment's own
+records into the whole party's blocks, a piece at a time (`$C1:CF15`, with
+the records' ranges, `$FD:B033`). The records are bank CC's, through
+`battle/equipment_data.h`.
+
+`game/battle/inventory.c`, which had the adding of an item, has the rest of
+the inventory and the gold: whether an item is held (`$C1:CFE9`), one fewer
+(`$C1:D056`), whether the party has some gold, gold given up to 9,999,999 and
+taken (`$C1:D086`, `$C1:D0A2`, `$C1:D0ED`; the gold as one 24-bit number,
+and the giving's hold to the most kept as the original does it: a total of
+`$990000` or more has only its high byte brought down to `$98`, so the party
+can end below 9,999,999), and the request by number the rest
+of the game asks them through (`$C1:8003`: a chest, an event, a shop). And
+the battle's item list (`battle_item_list`, new in the map): built from the
+inventory's 256 places as the battle starts (`$C1:CDFF`), an empty place
+keeping a clear record and an item the battle doesn't use (`$CC:0ABC`'s top
+bit) left out, the rest moving up (`$FD:AF80`, `$FD:B01C`, which the stolen
+item's adding, the original's, calls too). The flag that says an item was
+left out is the cell chunk 5 named twice, named a third time
+(`battle_item_not_listed`); the map's `reuses` now follows a chain.
+
+Every routine here is an entry, the helpers too (rubric item 101). The cells
+the setup works in are the battle's usual ones: those later work reads as it
+finds them are written plainly (the stat block's place, the record's, what
+the last boost added, the item and its count), the rest through
+`ORIGINAL_EFFECT`. New in the map: the party's gold (`party_gold`), the
+learned triple techs (`party_triple_techs_learned`, read one past its end as
+the original's search ends), the item list; in combatant.h the equipment's
+and the rest of the stats' offsets.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching: the
+request 33 calls (all compared), the double and triple tech costs 904 (902)
+and 198, the triple tech 93 (87), the item list 31 (3; the rest interrupted,
+fuzzed), an item listed 2,410 (2,399) and an empty place 5,929 (5,919), the
+member's stats 93 (89), the boost 267 (266), the affinities 267, the records'
+copy 124 (110) and places 372 (359), an item held 19, gold covered 1, given 25
+and taken 1; one fewer of an item no movie reaches. No guard turned a real
+call away. **Fuzzing**, seed 1, 5,000 states each, none mismatching: the item
+list over a mixed and a random inventory (all), an item listed (3,760; the
+rest at places between records, guarded), an empty place, the stats, the
+boost, the affinities, the records' copy and places (all), the inventory's
+and the gold's operations (all, the gold about its most and a borrow as
+variants), the request from the field's page (all, and the gold's with any
+amount), the triple tech (all), the costs (753 each; the rest at places no
+records are, guarded). Fuzzing found that the records' place leaves V as its
+add does (declared dead); the don't-care check, that the list's entries hand
+A's high byte back clear, which the stolen item's adding reads. Running the rewards' gold and
+item as siblings (`battle_run`) mismatched the flags the next call-out is
+entered with, where the call-outs declare them dead; they stay call-outs,
+reaching the ports through the machine.
+
+**Timing.** Calibrated from the shadow runs, battle's rows only: the request
+37,631 for its own part (it saves and restores its caller's registers around
+the request), each request timed as the routine that answers it
+(`NATIVE_TIME_AS`: timed as one row, the requests' different lengths put it
+past the timing gate's limit), the costs 5,227 and 5,250, the triple tech 24,425, the item list
+15,025, an item listed 3,667, an empty place 2,977, the stats 21,859, the
+boost 3,062, the affinities 2,406, the copy 27,611, the places 41,379, an
+item held 14,109 (and one fewer, which nothing measures, the same), gold
+covered 4,208, given 5,066, taken 4,042. The member's action (7,890), its
+attack (11,057) and the party's tech (23,069) moved with what they call now
+running as C.

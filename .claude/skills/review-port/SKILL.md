@@ -806,6 +806,16 @@ Each of these is a finding. Every example here comes from this repo.
      overwritten after it is scaffolding however it is named (item 87's
      sibling): put it in `ORIGINAL_EFFECT`, or name the reader while the
      call waits.
+109. **A cell "kept plainly" whose only later writer is a sibling piece of the
+     same ported routine.** Item 108 when the overwrite is C, not a call-out:
+     a piece with its own registered entry looks as though someone might call
+     it alone. List the ROM callers of the piece's routine; where the only one
+     is a ported routine that overwrites the cell, the keep is scaffolding,
+     and the routine's last writer of each surviving cell keeps it plainly,
+     named where the routine is described.
+110. **One table read through a record named for another use.** The same
+     bytes read two ways (a modifier record's routine number read as a stat
+     block's offset) want two named views, each with its own accessor.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean

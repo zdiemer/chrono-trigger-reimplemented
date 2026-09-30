@@ -332,6 +332,8 @@ void battle_party_request(Snes *s)
  * (the guard's; it comes back clear, which the steal's giving reads). Each
  * advances the list's place past the record it gave, and the builder's place
  * counts by one. */
+void battle_list_usable_items(GameState *g) { build_item_list(g); }
+
 void battle_build_item_list(Snes *s)
 {
     build_item_list(state_of(s));

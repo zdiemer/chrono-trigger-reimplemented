@@ -451,6 +451,66 @@ void set_inventory_counts(GameState *g, unsigned i, uint8_t v);
 uint8_t inventory_counts_unchecked(const GameState *g, unsigned i);
 void set_inventory_counts_unchecked(GameState *g, unsigned i, uint8_t v);
 
+enum { CHARACTER_RECORDS_COUNT = 7 };   /* by character (0 Crono to 6 Magus) */
+/* The record a byte at a time, by the stat block's offsets (battle/combatant.h) [80 bytes, one
+ * at a time] */
+enum { CHARACTER_RECORDS_RECORD_BYTES = 80 };
+uint8_t character_records_record_byte(const GameState *g, unsigned i, unsigned at);
+void set_character_records_record_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Current HP */
+uint16_t character_records_hp(const GameState *g, unsigned i);
+void set_character_records_hp(GameState *g, unsigned i, uint16_t v);
+/* Maximum HP */
+uint16_t character_records_max_hp(const GameState *g, unsigned i);
+void set_character_records_max_hp(GameState *g, unsigned i, uint16_t v);
+/* Current MP */
+uint16_t character_records_mp(const GameState *g, unsigned i);
+void set_character_records_mp(GameState *g, unsigned i, uint16_t v);
+/* Maximum MP */
+uint16_t character_records_max_mp(const GameState *g, unsigned i);
+void set_character_records_max_mp(GameState *g, unsigned i, uint16_t v);
+/* The record a byte at a time, by the stat block's offsets (battle/combatant.h) [80 bytes, one
+ * at a time] Unchecked, for marked scaffolding only: the demo battle's party writes eight
+ * records' HP and MP, the eighth over the learned techs after the seventh
+ * (game/battle/fight_party.c, $FD:B2DE) */
+uint8_t character_records_record_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_character_records_record_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Current HP Unchecked, for marked scaffolding only: the demo battle's party writes eight
+ * records' HP and MP, the eighth over the learned techs after the seventh
+ * (game/battle/fight_party.c, $FD:B2DE) */
+uint16_t character_records_hp_unchecked(const GameState *g, unsigned i);
+void set_character_records_hp_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Maximum HP Unchecked, for marked scaffolding only: the demo battle's party writes eight
+ * records' HP and MP, the eighth over the learned techs after the seventh
+ * (game/battle/fight_party.c, $FD:B2DE) */
+uint16_t character_records_max_hp_unchecked(const GameState *g, unsigned i);
+void set_character_records_max_hp_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Current MP Unchecked, for marked scaffolding only: the demo battle's party writes eight
+ * records' HP and MP, the eighth over the learned techs after the seventh
+ * (game/battle/fight_party.c, $FD:B2DE) */
+uint16_t character_records_mp_unchecked(const GameState *g, unsigned i);
+void set_character_records_mp_unchecked(GameState *g, unsigned i, uint16_t v);
+/* Maximum MP Unchecked, for marked scaffolding only: the demo battle's party writes eight
+ * records' HP and MP, the eighth over the learned techs after the seventh
+ * (game/battle/fight_party.c, $FD:B2DE) */
+uint16_t character_records_max_mp_unchecked(const GameState *g, unsigned i);
+void set_character_records_max_mp_unchecked(GameState *g, unsigned i, uint16_t v);
+
+enum { PARTY_SINGLE_TECHS_LEARNED_COUNT = 7 };   /* by character */
+/* The character's single techs learned, its first in bit 7 down to its eighth in bit 0 */
+uint8_t party_single_techs_learned(const GameState *g, unsigned i);
+void set_party_single_techs_learned(GameState *g, unsigned i, uint8_t v);
+
+enum { PARTY_DOUBLE_TECHS_LEARNED_COUNT = 15 };   /* by the double techs from the first ($39), three a byte */
+/* The double techs learned, three a byte in bits 7, 6 and 5 */
+uint8_t party_double_techs_learned(const GameState *g, unsigned i);
+void set_party_double_techs_learned(GameState *g, unsigned i, uint8_t v);
+/* The double techs learned, three a byte in bits 7, 6 and 5 Unchecked, for marked scaffolding
+ * only: the battle's setup of a member's double techs reads the byte after the last as it ends,
+ * the first triple techs' (game/battle/tech_records.c, $C1:CA1A) */
+uint8_t party_double_techs_learned_unchecked(const GameState *g, unsigned i);
+void set_party_double_techs_learned_unchecked(GameState *g, unsigned i, uint8_t v);
+
 enum { PARTY_TRIPLE_TECHS_LEARNED_COUNT = 15 };   /* by triple tech, from the first ($66) */
 /* Bit 7: the party has learned the triple tech */
 uint8_t party_triple_techs_learned(const GameState *g, unsigned i);
@@ -4649,10 +4709,22 @@ uint8_t battle_tech_records_third_cost(const GameState *g, unsigned member);
 void set_battle_tech_records_third_cost(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_MEMBER_CARRIED_COUNT = 3 };   /* by party member */
-/* Five bytes the battle keeps for each party member; the first goes back into its stat block
- * when the battle ends */
-uint8_t battle_member_carried(const GameState *g, unsigned member);
-void set_battle_member_carried(GameState *g, unsigned member, uint8_t v);
+/* The member's weapon as the fight starts (0 for none) */
+uint8_t battle_member_carried_weapon(const GameState *g, unsigned member);
+void set_battle_member_carried_weapon(GameState *g, unsigned member, uint8_t v);
+/* A byte the fight's start clears; no code traced reads it */
+uint8_t battle_member_carried_spare(const GameState *g, unsigned member);
+void set_battle_member_carried_spare(GameState *g, unsigned member, uint8_t v);
+/* $80 for a member with a weapon; no code traced reads it */
+uint8_t battle_member_carried_weapon_mark(const GameState *g, unsigned member);
+void set_battle_member_carried_weapon_mark(GameState *g, unsigned member, uint8_t v);
+/* 1 for a member with a weapon; no code traced reads it */
+uint8_t battle_member_carried_weapon_count(const GameState *g, unsigned member);
+void set_battle_member_carried_weapon_count(GameState *g, unsigned member, uint8_t v);
+/* For a member with a weapon, the party-slot bit (bit 7 the first slot) of the character it is
+ * made for, where that character is in the party; no code traced reads it */
+uint8_t battle_member_carried_owner_bit(const GameState *g, unsigned member);
+void set_battle_member_carried_owner_bit(GameState *g, unsigned member, uint8_t v);
 
 enum { BATTLE_OBJECT_GRAPHICS_COUNT = 11 };   /* by battle slot */
 /* Long pointer to the object's graphics set, the tiles its frames are assembled from */
@@ -4779,6 +4851,10 @@ void set_battle_rewards_held(GameState *g, uint8_t v);
  * button ends it), bit 2 the party left off the battlefield grid */
 uint8_t battle_setup_flags(const GameState *g);
 void set_battle_setup_flags(GameState *g, uint8_t v);
+
+/* Which demo battle this is, picking its party's HP and MP and the actions it takes */
+uint8_t battle_demo(const GameState *g);
+void set_battle_demo(GameState *g, uint8_t v);
 
 /* battle_random_position kept between battles: taken at the start and put back at the end */
 uint8_t battle_random_kept(const GameState *g);
@@ -4963,6 +5039,12 @@ enum { BATTLE_ENEMY_TARGET_COUNT = 8 };   /* by enemy (battle slot - 3) */
  * out too forgets what it chose */
 uint8_t battle_enemy_target(const GameState *g, unsigned i);
 void set_battle_enemy_target(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_ANIMATION_WORK_COUNT = 16 };   /* by enemy, and past the eighth what follows */
+/* Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which
+ * the fight's start clears with the enemies' animations and targets */
+uint8_t battle_enemy_animation_work(const GameState *g, unsigned i);
+void set_battle_enemy_animation_work(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_STATS_COUNT = 11 };   /* by battle slot (0-2 the party, 3-10 enemies) */
 /* The whole block a byte at a time, by its offset: how an enemy's script names a stat to test or
@@ -5158,6 +5240,9 @@ void set_battle_member_actions_tech_aim(GameState *g, unsigned slot, uint8_t v);
 /* The combatant the member chose to aim at */
 uint8_t battle_member_actions_target(const GameState *g, unsigned slot);
 void set_battle_member_actions_target(GameState *g, unsigned slot, uint8_t v);
+/* A byte the fight's start clears with the rest; no code traced reads it */
+uint8_t battle_member_actions_spare(const GameState *g, unsigned slot);
+void set_battle_member_actions_spare(GameState *g, unsigned slot, uint8_t v);
 /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
 uint8_t battle_member_actions_partners(const GameState *g, unsigned slot);
 void set_battle_member_actions_partners(GameState *g, unsigned slot, uint8_t v);
@@ -5890,6 +5975,12 @@ void set_battle_script_subjects(GameState *g, unsigned channel, uint8_t v);
  * reads it: docs/TODO.md) */
 uint8_t battle_block_uploads_made(const GameState *g);
 void set_battle_block_uploads_made(GameState *g, uint8_t v);
+
+enum { BATTLE_ENEMY_FAMILY_BITS_COUNT = 8 };   /* by enemy */
+/* The low two bits of each enemy's family byte, noted as the fight starts; no code traced reads
+ * them */
+uint8_t battle_enemy_family_bits(const GameState *g, unsigned i);
+void set_battle_enemy_family_bits(GameState *g, unsigned i, uint8_t v);
 
 /* Nonzero to leave the OAM buffer as it is: it is neither cleared nor drawn into */
 uint8_t battle_sprites_frozen(const GameState *g);
@@ -6877,6 +6968,10 @@ void set_battle_action_targets(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_action_targets_unchecked(const GameState *g, unsigned i);
 void set_battle_action_targets_unchecked(GameState *g, unsigned i, uint8_t v);
 
+/* The byte after the action's eleven targets, $FF from the fight's start: a full list's end */
+uint8_t battle_action_targets_end(const GameState *g);
+void set_battle_action_targets_end(GameState *g, uint8_t v);
+
 /* How many party members are out of the fight, as the modifier that hits harder for each counts
  * them */
 uint8_t battle_party_out_count(const GameState *g);
@@ -6943,6 +7038,10 @@ void set_battle_member_revive_marks(GameState *g, unsigned member, uint8_t v);
  * an enemy ends */
 uint8_t battle_action_quiet(const GameState *g);
 void set_battle_action_quiet(GameState *g, uint8_t v);
+
+/* A byte the fight's start clears as it adds the party's stats up; no code traced reads it */
+uint8_t battle_fight_start_mark(const GameState *g);
+void set_battle_fight_start_mark(GameState *g, uint8_t v);
 
 /* The effect's modifier, kept across a hit of an effect that hits several times */
 uint8_t battle_effect_modifier_kept(const GameState *g);
@@ -7063,9 +7162,18 @@ void set_battle_enemy_beaten_unchecked(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_foe_kept(const GameState *g);
 void set_battle_foe_kept(GameState *g, uint8_t v);
 
+enum { BATTLE_FIGHT_START_SPARES_COUNT = 6 };   /* by a byte of them */
+/* Six bytes the fight's start clears after the enemy's foe kept; no code traced reads them */
+uint8_t battle_fight_start_spares(const GameState *g, unsigned i);
+void set_battle_fight_start_spares(GameState *g, unsigned i, uint8_t v);
+
 /* The bit of battle_timer_kinds_due for the kind being searched or handled */
 uint16_t battle_timer_kind_bit(const GameState *g);
 void set_battle_timer_kind_bit(GameState *g, uint16_t v);
+
+/* How many party members the fight starts with, which with the enemies makes the timers' order */
+uint8_t battle_party_fighting_count(const GameState *g);
+void set_battle_party_fighting_count(GameState *g, uint8_t v);
 
 /* How many enemies the battle has */
 uint8_t battle_enemy_count(const GameState *g);
@@ -7108,6 +7216,12 @@ void set_battle_candidates_unchecked(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_condition_target(const GameState *g);
 void set_battle_condition_target(GameState *g, uint8_t v);
 
+enum { BATTLE_CONDITION_TARGET_SPARES_COUNT = 10 };   /* by a byte of them */
+/* The ten bytes after battle_condition_target, which the fight's start clears with it; no code
+ * traced reads them */
+uint8_t battle_condition_target_spares(const GameState *g, unsigned i);
+void set_battle_condition_target_spares(GameState *g, unsigned i, uint8_t v);
+
 /* What an enemy's action is: its byte in the script as the action is chosen and started; then
  * what the turn's code carries out (2 a tech, 5 an enemy brought in, 7 an enemy leaving) */
 uint8_t battle_action_kind(const GameState *g);
@@ -7135,6 +7249,12 @@ void set_battle_action_pose_kind(GameState *g, uint8_t v);
 /* 4 as an enemy's attack starts ($C1:ACB0) */
 uint8_t battle_attack_hits(const GameState *g);
 void set_battle_attack_hits(GameState *g, uint8_t v);
+
+enum { BATTLE_EFFECT_RECORD_SPARES_COUNT = 5 };   /* by a byte of them */
+/* The five bytes after the effect's record, which the fight's start clears with it; no code
+ * traced reads them */
+uint8_t battle_effect_record_spares(const GameState *g, unsigned i);
+void set_battle_effect_record_spares(GameState *g, unsigned i, uint8_t v);
 
 /* The item the battle's inventory routines are adding or looking for */
 uint16_t battle_inventory_item(const GameState *g);
@@ -7180,6 +7300,10 @@ enum { BATTLE_ENEMY_STANDING_COUNT = 8 };   /* by enemy (battle slot - 3) */
  * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win */
 uint8_t battle_enemy_standing(const GameState *g, unsigned i);
 void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
+
+/* A byte a demo battle's setup clears; no code traced reads it */
+uint8_t battle_demo_spare(const GameState *g);
+void set_battle_demo_spare(GameState *g, uint8_t v);
 
 /* The combatant a selection by status is looking at, left in its cell */
 uint8_t battle_candidate_considered(const GameState *g);
@@ -7448,6 +7572,10 @@ void set_battle_enemy_script_outcome(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_enemy_turn(const GameState *g);
 void set_battle_enemy_turn(GameState *g, uint8_t v);
 
+/* A byte after the enemy's turn that the fight's start clears; no code traced reads it */
+uint8_t battle_enemy_turn_spare(const GameState *g);
+void set_battle_enemy_turn_spare(GameState *g, uint8_t v);
+
 enum { BATTLE_ENEMY_SCRIPT_BLOCK_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* The block of its script the enemy's script is testing, counted from 0 (0 again once it has
  * chosen) */
@@ -7465,6 +7593,10 @@ void set_battle_enemy_actions_block(GameState *g, unsigned i, uint8_t v);
  * carried out here */
 uint16_t battle_script_actions_place(const GameState *g);
 void set_battle_script_actions_place(GameState *g, uint16_t v);
+
+/* The experience the battle gives, added up from the enemies beaten */
+uint16_t battle_experience_won(const GameState *g);
+void set_battle_experience_won(GameState *g, uint16_t v);
 
 enum { BATTLE_EFFECT_GIVEN_STATUS_COUNT = 11 };   /* by battle slot */
 /* The status the attacker's weapon adds to each target its hit's status chance took (the
@@ -7496,6 +7628,11 @@ void set_battle_first_candidate(GameState *g, uint8_t v);
  * message ($FD:AD17) */
 uint8_t battle_reward_flags(const GameState *g);
 void set_battle_reward_flags(GameState *g, uint8_t v);
+
+enum { BATTLE_REWARDS_LEVELS_COUNT = 6 };   /* by a byte of what the level-ups note */
+/* What the level-ups note for the rewards' messages to show ($C1:F81B, $FD:AD9C) */
+uint8_t battle_rewards_levels(const GameState *g, unsigned level);
+void set_battle_rewards_levels(GameState *g, unsigned level, uint8_t v);
 
 enum { BATTLE_ENEMY_ACTION_CHOSEN_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set once the enemy's script has chosen what the enemy does on its next turn; cleared by the
@@ -7569,6 +7706,13 @@ void set_battle_combatant_updating(GameState *g, uint8_t v);
 uint8_t battle_animation_kept(const GameState *g);
 void set_battle_animation_kept(GameState *g, uint8_t v);
 
+/* Its low word */
+uint16_t battle_tech_points_won_low(const GameState *g);
+void set_battle_tech_points_won_low(GameState *g, uint16_t v);
+/* Its high byte */
+uint8_t battle_tech_points_won_high(const GameState *g);
+void set_battle_tech_points_won_high(GameState *g, uint8_t v);
+
 enum { BATTLE_TECH_MEMBERS_COUNT = 3 };   /* by the member's part in the tech */
 /* The characters who perform the party's tech, from its record's members ($CC:249F), $FF past
  * them: the member who chose it first */
@@ -7583,6 +7727,12 @@ void set_battle_action_further_ids(GameState *g, unsigned i, uint8_t v);
 /* How many targets the action has, kept while the effect's loop counts them down */
 uint8_t battle_effect_target_count(const GameState *g);
 void set_battle_effect_target_count(GameState *g, uint8_t v);
+
+enum { BATTLE_REWARDS_LAST_MESSAGES_COUNT = 2 };   /* by which message's byte */
+/* Two bytes the rewards' last two messages test before they show ($FD:AE10, $FD:AE37), clear as
+ * a fight starts */
+uint8_t battle_rewards_last_messages(const GameState *g, unsigned i);
+void set_battle_rewards_last_messages(GameState *g, unsigned i, uint8_t v);
 
 /* The place among the action's targets the reactions are at */
 uint8_t battle_reaction_entry(const GameState *g);
@@ -7659,6 +7809,11 @@ enum { BATTLE_MEMBER_ACCESSORY_COUNT = 3 };   /* by battle slot of a party membe
 uint8_t battle_member_accessory(const GameState *g, unsigned slot);
 void set_battle_member_accessory(GameState *g, unsigned slot, uint8_t v);
 
+/* How many party members wear the accessory ($A9) that turns the experience the battle gives
+ * into gold */
+uint8_t battle_members_turning_experience_to_gold(const GameState *g);
+void set_battle_members_turning_experience_to_gold(GameState *g, uint8_t v);
+
 /* The party member the spare turns cycle to (2, 1, 0 and round) */
 uint8_t battle_spare_turn_member(const GameState *g);
 void set_battle_spare_turn_member(GameState *g, uint8_t v);
@@ -7672,6 +7827,11 @@ void set_battle_steal_outcome(GameState *g, uint8_t v);
 /* The battle slot of the timer the count-down pass is at */
 uint16_t battle_timer_tick_slot(const GameState *g);
 void set_battle_timer_tick_slot(GameState *g, uint16_t v);
+
+/* A word between the count-down pass's slot and timer that the fight's start clears; no code
+ * traced reads it */
+uint16_t battle_timer_tick_spare(const GameState *g);
+void set_battle_timer_tick_spare(GameState *g, uint16_t v);
 
 /* The timer the count-down pass is at (kind * 11 + slot); 143 once it is through */
 uint16_t battle_timer_tick_timer(const GameState *g);
@@ -7700,6 +7860,11 @@ void set_battle_action_choice(GameState *g, uint8_t v);
 /* A reaction's kept place, while its conditions are tested */
 uint16_t battle_reaction_place_kept(const GameState *g);
 void set_battle_reaction_place_kept(GameState *g, uint16_t v);
+
+enum { BATTLE_REWARDS_TECHS_COUNT = 24 };   /* by a tech named */
+/* The techs the rewards' messages name as learned ($FD:ADD7), $FF for none */
+uint8_t battle_rewards_techs(const GameState *g, unsigned i);
+void set_battle_rewards_techs(GameState *g, unsigned i, uint8_t v);
 
 /* A second position in the battle's table of random numbers, which the critical hits' rolls take
  * from: it starts each battle where battle_random_position does, and each of those draws steps

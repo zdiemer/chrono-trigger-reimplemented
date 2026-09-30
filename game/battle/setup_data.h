@@ -171,4 +171,64 @@ enum { SETUP_RULE_ENTRY_BYTES = 4 };
 static inline uint16_t setup_rule_enemy(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE00u + at); }
 static inline uint16_t setup_rule(const GameState *g, uint16_t at) { return rom_read16(g, 0xE1DE02u + at); }
 
+/* ---- The fight's start (battle/fight_*.c) ----------------------------------------------------- */
+
+/* An enemy's record, 23 bytes by its id ($CC:4700): its HP, its level, the
+ * five bytes of what it shrugs off and keeps (the stat block's from
+ * STAT_SHRUGS_OFF), its twelve stats from its stamina to its affinities, and
+ * its kind, family and attack's detail. */
+enum { ENEMY_DEFENCES = 5, ENEMY_STATS = 12, ENEMY_KIND_BYTES = 3 };
+
+typedef struct {
+    uint16_t hp;
+    uint8_t level;
+    uint8_t defences[ENEMY_DEFENCES];
+    uint8_t stats[ENEMY_STATS];
+    uint8_t kind[ENEMY_KIND_BYTES];
+} EnemyStatsRecord;
+
+static inline EnemyStatsRecord enemy_stats_record(const GameState *g, uint8_t enemy)
+{
+    uint32_t at = 0xCC4700u + (uint16_t)(enemy * 23);
+    EnemyStatsRecord r;
+    r.hp = rom_read16(g, at);
+    r.level = rom_read8(g, at + 2);
+    for (unsigned n = 0; n < ENEMY_DEFENCES; n++)
+        r.defences[n] = rom_read8(g, at + 3 + n);
+    for (unsigned n = 0; n < ENEMY_STATS; n++)
+        r.stats[n] = rom_read8(g, at + 8 + n);
+    for (unsigned n = 0; n < ENEMY_KIND_BYTES; n++)
+        r.kind[n] = rom_read8(g, at + 20 + n);
+    return r;
+}
+
+/* The characters' records as a new game starts them ($CC:0000, laid out as
+ * character_records), which a demo battle's party starts from. */
+static inline uint8_t character_start_record_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xCC0000u + at); }
+
+/* A demo battle's party: each character's HP, its most, its MP and its most,
+ * eight bytes a character, from where the demo's word says in bank FD
+ * ($FD:B99C, a word a demo). */
+typedef struct {
+    uint16_t hp, max_hp, mp, max_mp;
+} DemoMember;
+
+static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned character)
+{
+    uint16_t at = (uint16_t)(rom_read16(g, 0xFDB99Cu + (uint8_t)(demo << 1)) + character * 8);
+    return (DemoMember){ rom_read16(g, 0xFD0000u | at), rom_read16(g, 0xFD0000u | (uint16_t)(at + 2)),
+                         rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
+}
+
+/* How long a combatant's first turn waits, before its speed takes its part
+ * off, by the battle speed setting and its speed ($CC:2E31, sixteen a
+ * setting from speed 1; the place is taken in a byte, so a speed of 0 reads
+ * the previous setting's last). */
+enum { SPEEDS_A_SETTING = 16 };
+
+static inline uint8_t first_turn_wait(const GameState *g, uint8_t setting, uint8_t speed)
+{
+    return rom_read8(g, 0xCC2E31u + (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
+}
+
 #endif

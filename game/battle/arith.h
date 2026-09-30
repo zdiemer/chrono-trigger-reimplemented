@@ -50,6 +50,10 @@ BattleLongQuotient battle_divide_long(GameState *g, uint32_t dividend, uint16_t 
  * them with the caller's carry clear. */
 uint32_t battle_multiply_words(GameState *g, uint16_t a, uint16_t b);
 
+/* A word-by-word multiply the original makes only to find a place in a
+ * table, whose cells the next arithmetic's caller finds as it left them. */
+static inline void battle_leave_multiply(GameState *g, uint16_t a, uint16_t b) { (void)battle_multiply_words(g, a, b); }
+
 /* The long arithmetic's leftover high word: the last word-by-word product's
  * high word, or what the last long division left of its dividend's. Game
  * state: the random draw divides with it (battle/random.c). */
@@ -63,8 +67,8 @@ BattleLongQuotient battle_divide_leftover(GameState *g, uint16_t low, uint16_t d
 
 /* The same where the original's caller comes in with its carry set: the high
  * word the division leaves has its top bit set, which the next division then
- * divides with (one caller does: the evasion's level bonus, battle/
- * effect_amounts.c). */
+ * divides with (two callers do: the evasion's level bonus, battle/
+ * effect_amounts.c, and Ayla's fists, battle/fight_party.c). */
 BattleLongQuotient battle_divide_leftover_marked(GameState *g, uint16_t low, uint16_t divisor);
 
 /* What the cells hold of the last call, which a few of the effect code's

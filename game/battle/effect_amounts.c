@@ -505,13 +505,13 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         return damage;
     }
     case 2: {
-        /* stamina and weapon */
-        uint16_t stamina_part = weighted(g, STAT_STAMINA, 8);
-        battle_keep_stat_offset_word(g, stamina_part);
-        uint16_t sum = (uint16_t)(weighted(g, STAT_WEAPON_ATTACK, 8) + stamina_part);
+        /* hit and weapon */
+        uint16_t hit_part = weighted(g, STAT_HIT, 8);
+        battle_keep_stat_offset_word(g, hit_part);
+        uint16_t sum = (uint16_t)(weighted(g, STAT_WEAPON_ATTACK, 8) + hit_part);
         ORIGINAL_EFFECT(leave_working_word(g, sum));
         uint16_t damage = powered(g, power, sum, 0x12);
-        draw_variance(g, about_three_tenths(g, effect_actor_stat(g, STAT_STAMINA)), 1);
+        draw_variance(g, about_three_tenths(g, effect_actor_stat(g, STAT_HIT)), 1);
         return damage;
     }
     case 3: {
@@ -525,11 +525,11 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
         return damage;
     }
     case 4: {
-        /* speed */
-        uint16_t speed_part = weighted(g, STAT_SPEED, 2);
-        battle_keep_stat_offset_word(g, speed_part);
-        uint16_t damage = powered(g, power, speed_part, 0x12);
-        draw_variance(g, about_a_fifth(g, effect_actor_stat(g, STAT_SPEED)), 2);
+        /* attack */
+        uint16_t attack_part = weighted(g, STAT_ATTACK, 2);
+        battle_keep_stat_offset_word(g, attack_part);
+        uint16_t damage = powered(g, power, attack_part, 0x12);
+        draw_variance(g, about_a_fifth(g, effect_actor_stat(g, STAT_ATTACK)), 2);
         return damage;
     }
     case 5: {
@@ -549,10 +549,10 @@ static uint16_t formula(GameState *g, uint8_t kind, uint8_t power)
     }
     case 6: {
         /* the HP the attacker has lost */
-        uint16_t powered_hit = effect_times(g, effect_actor_stat(g, STAT_HIT), power);
+        uint16_t powered_stamina = effect_times(g, effect_actor_stat(g, STAT_STAMINA), power);
         uint16_t missing = (uint16_t)(effect_actor_stat_word(g, STAT_MAX_HP) - effect_actor_stat_word(g, STAT_HP));
         battle_keep_stat_offset_word(g, missing);
-        uint16_t damage = effect_over(g, effect_times(g, missing, powered_hit), 0x8C).quotient;
+        uint16_t damage = effect_over(g, effect_times(g, missing, powered_stamina), 0x8C).quotient;
         draw_variance(g, (uint8_t)effect_about_a_tenth(g, missing), 1);
         return damage;
     }

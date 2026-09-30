@@ -59,6 +59,16 @@ static inline uint16_t boost_records_place(EquipmentKind kind)
     return first[kind];
 }
 
+/* The characters a weapon is made for, a bit each from the top by character
+ * (the fourth byte of its second record, $CC:06A7, six bytes a weapon; the
+ * place is taken in a word, as the original's multiply gives it). */
+enum { WEAPON_SECOND_RECORD_BYTES = 6 };
+
+static inline uint8_t weapon_made_for(const GameState *g, uint8_t weapon)
+{
+    return equipment_bank_byte(g, (uint16_t)(0x06A7 + weapon * WEAPON_SECOND_RECORD_BYTES));
+}
+
 /* $CC:29D7: the stat boosts, two bytes each: which stats (a bit each), and
  * by how much. Where a record names none its byte is 0. */
 typedef struct {
