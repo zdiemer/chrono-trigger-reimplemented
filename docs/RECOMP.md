@@ -3194,100 +3194,71 @@ chest's entries' order mismatched 677 of 1,015, and the facing's flip 714 of
 (now also run as C from the tile copy) were calibrated over the library; no
 exception.
 
-### Phase 3, battle chunk 8: the rewards of a won battle (`$C1:F93E`)
+### Phase 3, battle chunk 9a: the animation script language, its table and its first half (`$C1:4CF0`)
 
-The plan named the combatants' animation commands and `$C1:F205` next; this
-chunk took `$C1:F205` with what it belongs to, the rewards a won battle gives,
-whole but for their messages: about 1.9 KiB of the original, `$C1` from 28%
-left to 25% and `$FD` from 27% to 26%. The main loop now runs all of it as C
-(`battle_run`), in fifteen entries.
+The plan named the combatants' animation commands next. They are a language:
+219 command bytes, 115 handlers from `$C1:4CF0` to `$C1:7A6A`, one channel
+per combatant, the other targets and each effect, run by `battle/scripts.c`
+since chunk 1 through the ROM's pointer table. This chunk is its first half:
+the table in C and the commands that need neither places nor paths, 154 of
+the 219 bytes (70 of them the halt), in 69 entries; `$C1` from 25% left to
+20%. The other half (places and facings, the
+moves, sound and the screen effect) is chunk 9b.
 
-What it is, in the game's terms (`battle/rewards_levels.c`'s header has the
-order):
+What it is, in the game's terms (`battle/script_language.h` has the shared
+vocabulary):
 
-- **The experience** (`battle/rewards_levels.c`): turned to gold where a
-  member wears the accessory that does that (`$FD:B201`); otherwise every
-  member still fighting gets the whole of it (`$C1:F93E`), up to 9,999,999
-  (`$C1:F908`), and gains levels with it one at a time (`$C1:F623`,
-  `$C1:F7B9`): a level grows the maximum HP and MP by the character's steps
-  (`$C1:F871`) and six stats by its growth rates, speed not at all. The
-  characters in reserve get three quarters and a level at most (`$C1:F9EB`).
-  A level-up works on a record, a stat block or a character's record, which
-  lay their fields out alike (`Grower`).
-- **The techs** (`battle/rewards_techs.c`): the tech points towards each
-  member's next single tech, a locked one waiting for its character's
-  unlock (`$C1:F205`, `$C1:F39A`, `$C1:F45F`, `$C1:F4DF`); then each pair's and
-  the trio's combination techs, once each character knows as many single techs
-  as a tech asks (`$C1:F2DB`, `$C1:F533`).
-- **The items** (`battle/inventory.c`): the counts of the battle's item list
-  back into the inventory, with the items the members chose and never used
-  (`$C1:B4E9`, `$C1:B6D1`), as a battle is won or run from.
+- **The table** (`battle/scripts.c`): a row per command byte, with the
+  operation in C or none, the original's handler, the form (the operation's
+  own enum: a value's kind, a speed's number, on or off, a slot) and what the
+  operation needs of the state in range. A command returns a `ScriptStep`,
+  how far the channel moves on and whether it runs its next command this
+  frame, which the runner takes (the original's `$C1:75BB` and its continue
+  flag); the runner calls the C operations directly, timed as their handlers,
+  and the rest out. `$01` and the 69 other bytes the ROM's table gives its handler
+  are one halt.
+- **The flow and the values** (`battle/script_flow.c`): end, halt, call and
+  return (a return place per channel), waits, and the script's 27 variables,
+  two marks and its point, which the waiting commands test.
+- **Poses** (`battle/script_poses.c`): an animation played looping, or once
+  while the channel waits for it, with the effect shown or with a count; a
+  mover's own speed or one of eight; drawn on top, hidden, off the
+  battlefield's plane, the sprite glided or put back, a shadow, a trail of
+  afterimages, attribute bits.
+- **Effects and colors** (`battle/script_effects.c`, `script_colors.c`): what
+  an anchor follows, the effects shown, an effect drawn with a combatant; the
+  flash, its restore and blink, the rotations, the palette animations' slots
+  and frames.
 
-The ROM's tables come through `battle/rewards_data.h` (the experience per
-level, the growth rates and steps, the characters' techs and their costs, the
-combination records) and `party_tech_locked`; the map gained the rewards'
-cells, three of them reusing the effect code's and the reactions' (the
-rewards' member, the combination counted, the third character bit), whose
-last values those readers find, so they are written plainly (the effects
-check found both). What the rewards note for their messages got its meaning:
-the levels and techs noted for each member (`battle_rewards_levels_noted`,
-`battle_rewards_techs_noted`), the double techs taught and their count, the triple tech. Kept as
-the original has them, each in one place and in TODO.md: the tech points paid
-again where a leftover doesn't reach the next tech's cost, the reserve's level
-noted in the first member's techs byte, and its count carried as a word.
+A command acts on what its channel animates, one of three kinds
+(`ScriptChannel`): a combatant, the other targets' list, or the channel's
+effect. The map gained the four cells starting an animation resets (the
+facing an object's and an effect's frames were last taken for, an effect's
+animation's place and length), the return places and the pointer's pad
+byte, and the meanings of the waits' marks; the effect animation tables,
+anchor sources and effect records take unchecked accessors, for the operands
+the original doesn't check. Reproduced on purpose, in TODO.md: the list waits
+leaving their mark set, the shadows' and the rotation's lists starting at the
+wrong subject, the glide's equality, the counts that count up, the blink
+running itself again.
 
-**The review** rated `rewards_levels.c` and `rewards_techs.c` translation, each
-for one function: the experience and the tech points added a word and a byte
-at a time with a carry by hand, capped twice, differently. Both now go through
-a three-byte record accessor and one named cap each, whose comment says how
-the original's differs from a plain minimum (a tech point total just past the
-most, with a low word under the most's, stays). The rework besides: the
-experience left to share is a pot passed to the level-up rather than the
-cell, which only the entries load and store, and the members' loop stops on a
-member knocked out where the original would offer it the rest for ever (so the
-guard lost that condition); the single techs' place in the messages' list and
-the member a combination is noted for are parameters; every loop's
-scaffolding is worked out after it and written once, by a leaves helper; the
-shared multiply's carry is scaffolding; the growth steps and the combination
-records are read by number; the addresses the pieces leave behind, the
-character bits and the cell offsets are in one internal header
-(`rewards_work.h`); `battle_rewards_noted` is two named views, the levels
-noted and the techs noted; and the single techs' cursor is a byte. Accepted
-as they are: the reserve's count of levels carried as a word, since the
-reserve's byte isn't cleared between battles and gets to `$FF`; the rewards'
-member a word, as the effect code's block offset it reuses is; and a
-combination's asks as the place in bank CC its record gives. Three rubric
-items came of it (111-113). A scoped re-review of the rework rated no file
-translation; its residual findings (a knocked-out test made twice, a constant
-defined twice, three places built inline, two comments above the wrong
-declaration) were fixed, and the arithmetic's first cell, written on each pass
-of the stats' and the costs' loops, stays plain, as the effect code reads it.
-After the rework, every entry fuzzed again with seed 1, none mismatching.
+**What the needs are for.** A guard alone isn't enough here: the runner calls
+the operations without one. The endings' movie runs a script on a channel
+whose subject is none (`$FF`), whose original writes land past the tables (a
+scheduled list at `$A2E6`); a row whose needs aren't met there goes to the
+original's handler, from the runner and the registry alike.
 
-**Validation.** The library's 26 movies in shadow mode, none mismatching:
-the experience's share 25 calls (23 compared, 2 interrupted), its level-ups
-130 and experience added 129, the HP and MP grown 1, the reserve's share 25
-(24), the techs 25 (23), the tech points 8, the combination techs 86, the
-items put back 25 (16) and a choice returned 82 (81), the gold 25; a single
-tech learned no movie reaches. No guard turned a real call away. Shadow mode
-found the carry the share leaves, which the messages' call compares, and the
-flags the main loop hands them (their overflow is dead, which the don't-care
-check agrees with). **Fuzzing**, seed 1, none mismatching: the share 5,000
-states, the level-ups and levels 10,000 each, the techs 10,000, the tech
-points 6,657 of 20,000 (the guard's: the member's block and the one noted
-differing) and the next tech 10,000, a single tech 5,000, the
-combination techs 10,000, the rest 2,000 to 20,000. It found two of the
-original's ways the movies never meet: a count of techs known of `$FF` ends
-the combination's list, and A's high byte comes into a single tech's index.
+**What the gate found.** Shadow mode: the overflow flag a C command leaves at
+the next call-out, which no handler reads (declared at the call-out, with a
+`ct_dev --poison-dc` run as its evidence); the out-of-range subject above.
+Fuzzing: a script in work RAM lying over the cells a command writes, so an
+operand is read after what the original writes before it. The effects check:
+stopping a trail sets its periods from whatever the first work cells hold,
+which nothing reads while it is off (its reason in the baseline).
 
-**Timing.** A level-up's time follows its path: one that grows the stats
-divides six times, and the original's divide goes bit by bit, far longer than
-the port's. One ratio put the level-ups over the worst limit (97,287 clocks),
-so each piece's work is timed as its own routine's (`TIMED_AS`), the shared
-multiply and divide among them, and the new rows calibrated from the shadow
-runs: from 135 (the reserve's share, whose work is nearly all its pieces') to
-33,106 (the techs); a single tech learned, which nothing measures, takes the
-next tech's, 21,182. The gate then passes with no new exception.
+**Validation.** The six battle movies and the endings' in shadow mode, none
+mismatching; every new entry fuzzed with seeds 1 and 3, none mismatching. The
+full gate's numbers follow with the chunk's close.
 
 ### The reading cost of a chunk
 
