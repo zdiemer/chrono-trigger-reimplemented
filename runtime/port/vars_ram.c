@@ -3590,8 +3590,8 @@ uint8_t battle_effect_animating(const GameState *g, unsigned i) { IN_RANGE(g, 44
 void set_battle_effect_animating(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 447, "set_battle_effect_animating", "count", i, 8u); w8(g, 0x7EA1A8u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_effect_frame_time(const GameState *g, unsigned i) { IN_RANGE(g, 448, "battle_effect_frame_time", "count", i, 8u); return r8(g, 0x7EA1B0u + (uint32_t)i * 0x01u); }
 void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 448, "set_battle_effect_frame_time", "count", i, 8u); w8(g, 0x7EA1B0u + (uint32_t)i * 0x01u, v); }
-uint8_t battle_effect_command_cells(const GameState *g, unsigned i) { IN_RANGE(g, 449, "battle_effect_command_cells", "count", i, 32u); return r8(g, 0x7EA1B8u + (uint32_t)i * 0x01u); }
-void set_battle_effect_command_cells(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 449, "set_battle_effect_command_cells", "count", i, 32u); w8(g, 0x7EA1B8u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_effect_command_cells(const GameState *g, unsigned row) { IN_RANGE(g, 449, "battle_effect_command_cells", "count", row, 32u); return r8(g, 0x7EA1B8u + (uint32_t)row * 0x01u); }
+void set_battle_effect_command_cells(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 449, "set_battle_effect_command_cells", "count", row, 32u); w8(g, 0x7EA1B8u + (uint32_t)row * 0x01u, v); }
 uint8_t battle_effect_shown(const GameState *g, unsigned i) { IN_RANGE(g, 450, "battle_effect_shown", "count", i, 8u); return r8(g, 0x7EA1D8u + (uint32_t)i * 0x01u); }
 void set_battle_effect_shown(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 450, "set_battle_effect_shown", "count", i, 8u); w8(g, 0x7EA1D8u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_anchor_done(const GameState *g, unsigned i) { IN_RANGE(g, 451, "battle_anchor_done", "count", i, 8u); return r8(g, 0x7EA1E0u + (uint32_t)i * 0x01u); }

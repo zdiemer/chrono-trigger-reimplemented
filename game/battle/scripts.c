@@ -26,12 +26,21 @@
 
 enum { LAST_COMMAND = 0xDA };
 
+/* What a command in C needs of the state to run as the original does: what
+ * its channel animates a combatant or an effect it can index by, and for the
+ * colors, the lists and colors they reach in range too. Where it isn't, the
+ * original's handler runs, whose indexed writes reach past the tables (an
+ * ending's script runs on a channel whose subject is none). */
+typedef enum { NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_EFFECT, NEEDS_COLORS } ScriptNeeds;
+
 /* The language: each command's operation, or none where it is still the
- * original's, and the original's handler, in bank C1. */
+ * original's, the original's handler, in bank C1, the operation's form and
+ * what it needs. */
 typedef struct {
     ScriptOperation operation;
     uint16_t handler;
     uint8_t form;
+    ScriptNeeds needs;
 } ScriptCommand;
 
 enum { HANDLER_BANK = 0xC1 };
@@ -39,20 +48,20 @@ enum { HANDLER_BANK = 0xC1 };
 static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0x00] = { script_end, 0x4CF0 },
     [0x01] = { script_halt, 0x4CF7 },
-    [0x02] = { script_play_animation, 0x4D04, PLAY_LOOPING },
-    [0x03] = { script_play_shown_and_wait, 0x4E22 },
-    [0x04] = { script_play_and_wait, 0x4EA2 },
-    [0x05] = { script_play_and_wait, 0x4EA2 },
-    [0x06] = { script_play_and_wait, 0x4EA2 },
-    [0x07] = { script_own_speed, 0x4F1A },
-    [0x08] = { script_speed, 0x4F54, 0 },
-    [0x09] = { script_speed, 0x4F54, 1 },
-    [0x0A] = { script_speed, 0x4F54, 2 },
-    [0x0B] = { script_speed, 0x4F54, 3 },
-    [0x0C] = { script_speed, 0x4F54, 4 },
-    [0x0D] = { script_speed, 0x4F54, 5 },
-    [0x0E] = { script_speed, 0x4F54, 6 },
-    [0x0F] = { script_speed, 0x4F54, 7 },
+    [0x02] = { script_play_animation, 0x4D04, PLAY_LOOPING, NEEDS_SUBJECTS },
+    [0x03] = { script_play_shown_and_wait, 0x4E22, 0, NEEDS_SUBJECTS },
+    [0x04] = { script_play_and_wait, 0x4EA2, 0, NEEDS_SUBJECTS },
+    [0x05] = { script_play_and_wait, 0x4EA2, 0, NEEDS_SUBJECTS },
+    [0x06] = { script_play_and_wait, 0x4EA2, 0, NEEDS_SUBJECTS },
+    [0x07] = { script_own_speed, 0x4F1A, 0, NEEDS_SUBJECTS },
+    [0x08] = { script_speed, 0x4F54, 0, NEEDS_SUBJECTS },
+    [0x09] = { script_speed, 0x4F54, 1, NEEDS_SUBJECTS },
+    [0x0A] = { script_speed, 0x4F54, 2, NEEDS_SUBJECTS },
+    [0x0B] = { script_speed, 0x4F54, 3, NEEDS_SUBJECTS },
+    [0x0C] = { script_speed, 0x4F54, 4, NEEDS_SUBJECTS },
+    [0x0D] = { script_speed, 0x4F54, 5, NEEDS_SUBJECTS },
+    [0x0E] = { script_speed, 0x4F54, 6, NEEDS_SUBJECTS },
+    [0x0F] = { script_speed, 0x4F54, 7, NEEDS_SUBJECTS },
     [0x10] = { NULL, 0x4FBF },
     [0x11] = { NULL, 0x4FD1 },
     [0x12] = { NULL, 0x4FE3 },
@@ -65,7 +74,7 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0x19] = { NULL, 0x5611 },
     [0x1A] = { NULL, 0x566C },
     [0x1B] = { NULL, 0x567D },
-    [0x1C] = { script_anchor_follows, 0x5694 },
+    [0x1C] = { script_anchor_follows, 0x5694, 0, NEEDS_SUBJECTS },
     [0x1D] = { script_anchor_stays, 0x56BB },
     [0x1E] = { script_call, 0x56CC },
     [0x1F] = { script_return, 0x56FB },
@@ -75,13 +84,13 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0x23] = { script_wait_for_value, 0x5743, SCRIPT_MARK_A },
     [0x24] = { script_wait_for_value, 0x5756, SCRIPT_MARK_B },
     [0x25] = { script_end_unless_listed, 0x5769 },
-    [0x26] = { script_play_and_wait_marked, 0x577D },
-    [0x27] = { script_drawn_on_top, 0x5806, 1 },
-    [0x28] = { script_drawn_on_top, 0x5840, 0 },
-    [0x29] = { script_hidden, 0x5844, 1 },
-    [0x2A] = { script_hidden, 0x5879, 0 },
-    [0x2B] = { script_sprite_back_in_place, 0x587D },
-    [0x2C] = { script_bring_back, 0x58AB },
+    [0x26] = { script_play_and_wait_marked, 0x577D, 0, NEEDS_SUBJECTS },
+    [0x27] = { script_drawn_on_top, 0x5806, 1, NEEDS_SUBJECTS },
+    [0x28] = { script_drawn_on_top, 0x5840, 0, NEEDS_SUBJECTS },
+    [0x29] = { script_hidden, 0x5844, 1, NEEDS_SUBJECTS },
+    [0x2A] = { script_hidden, 0x5879, 0, NEEDS_SUBJECTS },
+    [0x2B] = { script_sprite_back_in_place, 0x587D, 0, NEEDS_SUBJECTS },
+    [0x2C] = { script_bring_back, 0x58AB, 0, NEEDS_SUBJECTS },
     [0x2D] = { script_palettes_paused, 0x58DC, 1 },
     [0x2E] = { script_palettes_paused, 0x58E4, 0 },
     [0x2F] = { script_halt, 0x4CF7 },
@@ -130,8 +139,8 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0x5A] = { script_halt, 0x4CF7 },
     [0x5B] = { script_halt, 0x4CF7 },
     [0x5C] = { script_halt, 0x4CF7 },
-    [0x5D] = { script_withdrawn, 0x5CF1, 0 },
-    [0x5E] = { script_withdrawn, 0x5D12, 1 },
+    [0x5D] = { script_withdrawn, 0x5CF1, 0, NEEDS_SUBJECTS },
+    [0x5E] = { script_withdrawn, 0x5D12, 1, NEEDS_SUBJECTS },
     [0x5F] = { script_skip, 0x5D18 },
     [0x60] = { script_palette_frame, 0x5D1D },
     [0x61] = { script_palette_animation, 0x5D93, 0 },
@@ -142,18 +151,18 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0x66] = { script_palette_animation_off, 0x5DC1, 1 },
     [0x67] = { script_palette_animation_off, 0x5DC1, 2 },
     [0x68] = { script_palette_animation_off, 0x5DC1, 3 },
-    [0x69] = { script_flash, 0x5DD3 },
-    [0x6A] = { script_flash_off, 0x5E87 },
-    [0x6B] = { script_rotate_colors, 0x5EDF },
-    [0x6C] = { script_blink, 0x5F13 },
+    [0x69] = { script_flash, 0x5DD3, 0, NEEDS_COLORS },
+    [0x6A] = { script_flash_off, 0x5E87, 0, NEEDS_COLORS },
+    [0x6B] = { script_rotate_colors, 0x5EDF, 0, NEEDS_COLORS },
+    [0x6C] = { script_blink, 0x5F13, 0, NEEDS_COLORS },
     [0x6D] = { script_colour_cycles_off, 0x5F9A },
     [0x6E] = { script_all_effects_shown, 0x5FA5, 1 },
     [0x6F] = { script_all_effects_shown, 0x5FB3, 0 },
-    [0x70] = { script_effect_shown, 0x5FC1, 1 },
-    [0x71] = { script_effect_shown, 0x5FD3, 0 },
+    [0x70] = { script_effect_shown, 0x5FC1, 1, NEEDS_EFFECT },
+    [0x71] = { script_effect_shown, 0x5FD3, 0, NEEDS_EFFECT },
     [0x72] = { NULL, 0x5FDE },
-    [0x73] = { script_effect_drawn_with, 0x6059, BATTLE_RECORD_IN_FRONT },
-    [0x74] = { script_effect_drawn_with, 0x605F, BATTLE_RECORD_BEHIND },
+    [0x73] = { script_effect_drawn_with, 0x6059, BATTLE_RECORD_IN_FRONT, NEEDS_EFFECT },
+    [0x74] = { script_effect_drawn_with, 0x605F, BATTLE_RECORD_BEHIND, NEEDS_EFFECT },
     [0x75] = { NULL, 0x6093 },
     [0x76] = { NULL, 0x60E6 },
     [0x77] = { NULL, 0x6154 },
@@ -201,8 +210,8 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0xA1] = { script_halt, 0x4CF7 },
     [0xA2] = { NULL, 0x6751 },
     [0xA3] = { script_halt, 0x4CF7 },
-    [0xA4] = { script_trail, 0x691B, 1 },
-    [0xA5] = { script_trail, 0x69BA, 0 },
+    [0xA4] = { script_trail, 0x691B, 1, NEEDS_SUBJECTS },
+    [0xA5] = { script_trail, 0x69BA, 0, NEEDS_SUBJECTS },
     [0xA6] = { script_halt, 0x4CF7 },
     [0xA7] = { script_halt, 0x4CF7 },
     [0xA8] = { NULL, 0x69C3 },
@@ -233,8 +242,8 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0xC1] = { NULL, 0x6F31 },
     [0xC2] = { NULL, 0x6F53 },
     [0xC3] = { NULL, 0x6F75 },
-    [0xC4] = { script_glide_sprite, 0x6F9A, GLIDE_TO_HEIGHT },
-    [0xC5] = { script_glide_sprite, 0x6FEF, GLIDE_HOME },
+    [0xC4] = { script_glide_sprite, 0x6F9A, GLIDE_TO_HEIGHT, NEEDS_SUBJECTS },
+    [0xC5] = { script_glide_sprite, 0x6FEF, GLIDE_HOME, NEEDS_SUBJECTS },
     [0xC6] = { script_halt, 0x4CF7 },
     [0xC7] = { script_halt, 0x4CF7 },
     [0xC8] = { script_halt, 0x4CF7 },
@@ -245,8 +254,8 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0xCD] = { script_halt, 0x4CF7 },
     [0xCE] = { script_halt, 0x4CF7 },
     [0xCF] = { script_halt, 0x4CF7 },
-    [0xD0] = { script_shadow, 0x6FFC, 1 },
-    [0xD1] = { script_shadow, 0x702B, 0 },
+    [0xD0] = { script_shadow, 0x6FFC, 1, NEEDS_SUBJECTS },
+    [0xD1] = { script_shadow, 0x702B, 0, NEEDS_SUBJECTS },
     [0xD2] = { NULL, 0x705A },
     [0xD3] = { NULL, 0x720E },
     [0xD4] = { NULL, 0x7349 },
@@ -254,14 +263,75 @@ static const ScriptCommand commands[LAST_COMMAND + 1] = {
     [0xD6] = { NULL, 0x7364 },
     [0xD7] = { NULL, 0x740B },
     [0xD8] = { NULL, 0x74B4 },
-    [0xD9] = { script_attribute_bits, 0x753A },
-    [0xDA] = { script_attribute_bits_back, 0x7579 },
+    [0xD9] = { script_attribute_bits, 0x753A, 0, NEEDS_SUBJECTS },
+    [0xDA] = { script_attribute_bits_back, 0x7579, 0, NEEDS_SUBJECTS },
 };
 
 static uint32_t handler_of(uint8_t command) { return (uint32_t)HANDLER_BANK << 16 | commands[command].handler; }
 
 static uint32_t channel_place(const GameState *g, unsigned channel) { return battle_script_pointers(g, channel); }
 static void set_channel_place(GameState *g, unsigned channel, uint32_t at) { set_battle_script_pointers(g, channel, at); }
+
+/* ---- What a command in C needs ---------------------------------------------------------- */
+
+/* What a channel animates being something the commands can index by: a
+ * combatant's battle slot, for a combatant channel, and on the other
+ * targets' channels a list with a first target (from channel 4's subject on,
+ * and from channel 1's, where the shadows start it), each target a
+ * combatant; on an effect channel, one of the effects, which the original
+ * reads as a word. */
+enum { LIST_MOST = 16, SHADOW_LIST_START = 1 };
+
+static bool list_of_combatants(const GameState *g, unsigned first, bool needs_one)
+{
+    for (unsigned at = first; at < first + LIST_MOST; at++) {
+        uint8_t combatant;
+        if (!script_listed(g, at, &combatant))
+            return !needs_one || at > first;
+        if (combatant >= BATTLE_COMBATANTS)
+            return false;
+    }
+    return false;
+}
+
+static bool effect_in_range(const GameState *g)
+{
+    return battle_script_enemy(g) < BATTLE_EFFECTS && battle_script_enemy_spare(g) == 0;
+}
+
+static bool subjects_in_range(const GameState *g)
+{
+    uint8_t channel = (uint8_t)battle_script_channel(g);
+    if (channel >= FIRST_EFFECT_CHANNEL)
+        return effect_in_range(g);
+    if (channel != OTHER_TARGETS_CHANNEL && battle_script_subjects(g, channel) >= BATTLE_COMBATANTS)
+        return false;
+    if (channel < OTHER_TARGETS_CHANNEL)
+        return true;
+    return list_of_combatants(g, OTHER_TARGETS_START, true) && list_of_combatants(g, SHADOW_LIST_START, false);
+}
+
+/* The colors also change the other targets on every channel from the fourth
+ * on (an effect channel's included), look for a flashed enemy from the
+ * fourth channel's subject on, and copy the cycled background colors from the
+ * one the rule names to the last background color. */
+enum { ROTATION_LIST_START = 3, BACKGROUND_COLORS = 128 };
+
+static bool colors_in_range(const GameState *g)
+{
+    return subjects_in_range(g) && list_of_combatants(g, ROTATION_LIST_START, false)
+           && list_of_combatants(g, OTHER_TARGETS_START, false) && battle_background_cycle(g) < BACKGROUND_COLORS;
+}
+
+static bool command_can_run(const GameState *g, const ScriptCommand *row)
+{
+    switch (row->needs) {
+    case NEEDS_SUBJECTS: return subjects_in_range(g);
+    case NEEDS_EFFECT: return effect_in_range(g);
+    case NEEDS_COLORS: return colors_in_range(g);
+    default: return true;
+    }
+}
 
 /* ---- One channel ------------------------------------------------------------------------- */
 
@@ -315,7 +385,7 @@ static bool run_channel(Snes *s, unsigned channel)
         int command = next_command(g);
         if (command == HOLDS)
             break;
-        if (commands[command].operation) {
+        if (commands[command].operation && command_can_run(g, &commands[command])) {
             run_operation(s, (uint8_t)command);
         } else {
             s->cpu.x = (uint16_t)(command * 2);
@@ -404,104 +474,22 @@ bool battle_script_channel_in_y(Snes *s)
 /* A command whose operation is C, where the original's handler is entered:
  * the command's byte where the channel's runner leaves it, one this handler
  * serves, its operands from the channel's place, Y clear (they are read
- * through it) and A clear. */
+ * through it), A clear, and what the operation needs in range. */
 static bool command_ready(Snes *s, uint16_t handler)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
     uint16_t channel = battle_script_channel(g);
     uint8_t command = battle_script_command(g), offset = battle_script_offset(g);
+    bool ready = battle_on_page(s) && s->cpu.a == 0 && s->cpu.y == 0 && channel < SCRIPT_CHANNELS && offset == channel * 4
+                 && command <= LAST_COMMAND && commands[command].operation && commands[command].handler == handler
+                 && command_can_run(g, &commands[command]);
     vars_peek(false);
-    return battle_on_page(s) && s->cpu.a == 0 && s->cpu.y == 0 && channel < SCRIPT_CHANNELS && offset == channel * 4
-           && command <= LAST_COMMAND && commands[command].operation && commands[command].handler == handler;
+    return ready;
 }
 
 #define COMMAND_GUARD(name, handler) \
     bool name(Snes *s) { return command_ready(s, handler); }
-
-/* ... and, for a command that acts on what its channel animates, that being
- * something it can index by: a combatant's battle slot, for a combatant
- * channel, and on the other targets' channels a list with a first target
- * (from channel 4's subject on, and from channel 1's, where the shadows start
- * it), each target a combatant; on an effect channel, one of the effects,
- * which the original reads as a word. */
-enum { LIST_MOST = 16, SHADOW_LIST_START = 1 };
-
-static bool list_of_combatants(const GameState *g, unsigned first, bool needs_one)
-{
-    for (unsigned at = first; at < first + LIST_MOST; at++) {
-        uint8_t combatant;
-        if (!script_listed(g, at, &combatant))
-            return !needs_one || at > first;
-        if (combatant >= BATTLE_COMBATANTS)
-            return false;
-    }
-    return false;
-}
-
-static bool subjects_ready(const GameState *g)
-{
-    uint8_t channel = (uint8_t)battle_script_channel(g);
-    if (channel >= FIRST_EFFECT_CHANNEL)
-        return battle_script_enemy(g) < BATTLE_EFFECTS && battle_script_enemy_spare(g) == 0;
-    if (channel != OTHER_TARGETS_CHANNEL && battle_script_subjects(g, channel) >= BATTLE_COMBATANTS)
-        return false;
-    if (channel < OTHER_TARGETS_CHANNEL)
-        return true;
-    return list_of_combatants(g, OTHER_TARGETS_START, true) && list_of_combatants(g, SHADOW_LIST_START, false);
-}
-
-static bool command_on_subjects_ready(Snes *s, uint16_t handler)
-{
-    if (!command_ready(s, handler))
-        return false;
-    vars_peek(true);
-    bool ready = subjects_ready(state_of(s));
-    vars_peek(false);
-    return ready;
-}
-
-#define SUBJECTS_GUARD(name, handler) \
-    bool name(Snes *s) { return command_on_subjects_ready(s, handler); }
-
-/* ... and, for a command that acts on the channel's effect on any channel,
- * that being one of the effects, which the original reads as a word. */
-static bool command_on_effect_ready(Snes *s, uint16_t handler)
-{
-    if (!command_ready(s, handler))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = battle_script_enemy(g) < BATTLE_EFFECTS && battle_script_enemy_spare(g) == 0;
-    vars_peek(false);
-    return ready;
-}
-
-#define EFFECT_GUARD(name, handler) \
-    bool name(Snes *s) { return command_on_effect_ready(s, handler); }
-
-/* ... and, for a color command, the other targets made of combatants on
- * every channel from the fourth on (an effect channel's colors change them),
- * its list from the fourth channel's subject (where the rotation looks for a
- * flashed enemy) made of combatants too, and
- * the background colors the rule cycles starting among the background's, as
- * the original's copies to their last one need. */
-enum { ROTATION_LIST_START = 3, BACKGROUND_COLORS = 128 };
-
-static bool command_on_colors_ready(Snes *s, uint16_t handler)
-{
-    if (!command_on_subjects_ready(s, handler))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ready = list_of_combatants(g, ROTATION_LIST_START, false) && list_of_combatants(g, OTHER_TARGETS_START, false)
-                 && battle_background_cycle(g) < BACKGROUND_COLORS;
-    vars_peek(false);
-    return ready;
-}
-
-#define COLORS_GUARD(name, handler) \
-    bool name(Snes *s) { return command_on_colors_ready(s, handler); }
 
 COMMAND_GUARD(script_end_ready, 0x4CF0)
 COMMAND_GUARD(script_halt_ready, 0x4CF7)
@@ -532,29 +520,29 @@ COMMAND_GUARD(script_swap_marks_ready, 0x5A99)
 COMMAND_GUARD(script_swap_mark_a_with_point_x_ready, 0x5AAF)
 COMMAND_GUARD(script_swap_mark_a_with_point_y_ready, 0x5AC5)
 COMMAND_GUARD(script_skip_ready, 0x5D18)
-SUBJECTS_GUARD(script_play_animation_ready, 0x4D04)
-SUBJECTS_GUARD(script_play_shown_and_wait_ready, 0x4E22)
-SUBJECTS_GUARD(script_play_and_wait_ready, 0x4EA2)
-SUBJECTS_GUARD(script_own_speed_ready, 0x4F1A)
-SUBJECTS_GUARD(script_speed_ready, 0x4F54)
-SUBJECTS_GUARD(script_play_and_wait_marked_ready, 0x577D)
-SUBJECTS_GUARD(script_drawn_on_top_ready, 0x5806)
-SUBJECTS_GUARD(script_not_drawn_on_top_ready, 0x5840)
-SUBJECTS_GUARD(script_hide_ready, 0x5844)
-SUBJECTS_GUARD(script_show_ready, 0x5879)
-SUBJECTS_GUARD(script_sprite_back_in_place_ready, 0x587D)
-SUBJECTS_GUARD(script_bring_back_ready, 0x58AB)
-SUBJECTS_GUARD(script_return_to_plane_ready, 0x5CF1)
-SUBJECTS_GUARD(script_withdraw_ready, 0x5D12)
-SUBJECTS_GUARD(script_trail_on_ready, 0x691B)
-SUBJECTS_GUARD(script_trail_off_ready, 0x69BA)
-SUBJECTS_GUARD(script_glide_sprite_ready, 0x6F9A)
-SUBJECTS_GUARD(script_glide_sprite_home_ready, 0x6FEF)
-SUBJECTS_GUARD(script_shadow_on_ready, 0x6FFC)
-SUBJECTS_GUARD(script_shadow_off_ready, 0x702B)
-SUBJECTS_GUARD(script_attribute_bits_ready, 0x753A)
-SUBJECTS_GUARD(script_attribute_bits_back_ready, 0x7579)
-SUBJECTS_GUARD(script_anchor_follows_ready, 0x5694)
+COMMAND_GUARD(script_play_animation_ready, 0x4D04)
+COMMAND_GUARD(script_play_shown_and_wait_ready, 0x4E22)
+COMMAND_GUARD(script_play_and_wait_ready, 0x4EA2)
+COMMAND_GUARD(script_own_speed_ready, 0x4F1A)
+COMMAND_GUARD(script_speed_ready, 0x4F54)
+COMMAND_GUARD(script_play_and_wait_marked_ready, 0x577D)
+COMMAND_GUARD(script_drawn_on_top_ready, 0x5806)
+COMMAND_GUARD(script_not_drawn_on_top_ready, 0x5840)
+COMMAND_GUARD(script_hide_ready, 0x5844)
+COMMAND_GUARD(script_show_ready, 0x5879)
+COMMAND_GUARD(script_sprite_back_in_place_ready, 0x587D)
+COMMAND_GUARD(script_bring_back_ready, 0x58AB)
+COMMAND_GUARD(script_return_to_plane_ready, 0x5CF1)
+COMMAND_GUARD(script_withdraw_ready, 0x5D12)
+COMMAND_GUARD(script_trail_on_ready, 0x691B)
+COMMAND_GUARD(script_trail_off_ready, 0x69BA)
+COMMAND_GUARD(script_glide_sprite_ready, 0x6F9A)
+COMMAND_GUARD(script_glide_sprite_home_ready, 0x6FEF)
+COMMAND_GUARD(script_shadow_on_ready, 0x6FFC)
+COMMAND_GUARD(script_shadow_off_ready, 0x702B)
+COMMAND_GUARD(script_attribute_bits_ready, 0x753A)
+COMMAND_GUARD(script_attribute_bits_back_ready, 0x7579)
+COMMAND_GUARD(script_anchor_follows_ready, 0x5694)
 COMMAND_GUARD(script_anchor_stays_ready, 0x56BB)
 COMMAND_GUARD(script_pause_palettes_ready, 0x58DC)
 COMMAND_GUARD(script_resume_palettes_ready, 0x58E4)
@@ -563,15 +551,15 @@ COMMAND_GUARD(script_palette_animation_off_ready, 0x5DC1)
 COMMAND_GUARD(script_colour_cycles_off_ready, 0x5F9A)
 COMMAND_GUARD(script_show_all_effects_ready, 0x5FA5)
 COMMAND_GUARD(script_hide_all_effects_ready, 0x5FB3)
-EFFECT_GUARD(script_show_effect_ready, 0x5FC1)
-EFFECT_GUARD(script_hide_effect_ready, 0x5FD3)
-EFFECT_GUARD(script_effect_in_front_ready, 0x6059)
-EFFECT_GUARD(script_effect_behind_ready, 0x605F)
+COMMAND_GUARD(script_show_effect_ready, 0x5FC1)
+COMMAND_GUARD(script_hide_effect_ready, 0x5FD3)
+COMMAND_GUARD(script_effect_in_front_ready, 0x6059)
+COMMAND_GUARD(script_effect_behind_ready, 0x605F)
 COMMAND_GUARD(script_palette_frame_ready, 0x5D1D)
-COLORS_GUARD(script_flash_ready, 0x5DD3)
-COLORS_GUARD(script_flash_off_ready, 0x5E87)
-COLORS_GUARD(script_rotate_colors_ready, 0x5EDF)
-COLORS_GUARD(script_blink_ready, 0x5F13)
+COMMAND_GUARD(script_flash_ready, 0x5DD3)
+COMMAND_GUARD(script_flash_off_ready, 0x5E87)
+COMMAND_GUARD(script_rotate_colors_ready, 0x5EDF)
+COMMAND_GUARD(script_blink_ready, 0x5F13)
 
 void battle_script_command_entry(Snes *s)
 {

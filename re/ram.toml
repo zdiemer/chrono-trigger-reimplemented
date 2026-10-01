@@ -11596,10 +11596,10 @@ source = "game/battle/effect_animation.c battle_animate_effects $CC:F278; game/b
 name = "battle_effect_command_cells"
 addr = "7E:A1B8"
 count = 32
-index = "cell * 8 + effect: the frame time less one ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0)"
+index = "row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8 without), and an unused row ($A1D0)"
 subsystem = "battle"
-meaning = "Per-effect cells of the script commands that wait on an effect's animation; what each is for past that isn't worked out"
-source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+meaning = "Per-effect cells of the effects' animation and the script commands that wait on it"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c"
 
 [[var]]
 name = "battle_object_effect_slots"
@@ -11899,9 +11899,9 @@ source = "game/battle/objects.c battle_find_due_animation $C1:423A"
 name = "battle_animation_wait_cells"
 addr = "7E:A13A"
 count = 33
-index = "cell * 11 + battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits for an animation set while they wait ($A145, $A150)"
+index = "row * 11 + battle slot: the frame the animation is on ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation keep while they wait ($A145 with the effect shown, $A150 without)"
 subsystem = "battle"
-meaning = "Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0, $C1:4E37, $C1:4EB7); what each holds past that isn't worked out"
+meaning = "Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0, $C1:4E37, $C1:4EB7)"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]

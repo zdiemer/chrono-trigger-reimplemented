@@ -4311,9 +4311,9 @@
 #define RAM_BATTLE_ANIMATION_DELAY_COUNT 11u
 #define RAM_BATTLE_ANIMATION_DELAY_STRIDE 0x01u
 /* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out [33 x $1 bytes, by cell * 11 +
- * battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits
- * for an animation set while they wait ($A145, $A150)] */
+ * $C1:4E37, $C1:4EB7) [33 x $1 bytes, by row * 11 + battle slot: the frame the animation is on
+ * ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation
+ * keep while they wait ($A145 with the effect shown, $A150 without)] */
 #define RAM_BATTLE_ANIMATION_WAIT_CELLS 0x7EA13Au
 #define RAM_BATTLE_ANIMATION_WAIT_CELLS_COUNT 33u
 #define RAM_BATTLE_ANIMATION_WAIT_CELLS_STRIDE 0x01u
@@ -4347,9 +4347,10 @@
 #define RAM_BATTLE_EFFECT_FRAME_TIME 0x7EA1B0u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_COUNT 8u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_STRIDE 0x01u
-/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
- * past that isn't worked out [32 x $1 bytes, by cell * 8 + effect: the frame time less one
- * ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0)] */
+/* Per-effect cells of the effects' animation and the script commands that wait on it [32 x $1
+ * bytes, by row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the
+ * marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8
+ * without), and an unused row ($A1D0)] */
 #define RAM_BATTLE_EFFECT_COMMAND_CELLS 0x7EA1B8u
 #define RAM_BATTLE_EFFECT_COMMAND_CELLS_COUNT 32u
 #define RAM_BATTLE_EFFECT_COMMAND_CELLS_STRIDE 0x01u

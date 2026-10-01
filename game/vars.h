@@ -6247,9 +6247,9 @@ enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_ANIMATION_WAIT_CELLS_COUNT = 33 };   /* by cell * 11 + battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits for an animation set while they wait ($A145, $A150) */
+enum { BATTLE_ANIMATION_WAIT_CELLS_COUNT = 33 };   /* by row * 11 + battle slot: the frame the animation is on ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation keep while they wait ($A145 with the effect shown, $A150 without) */
 /* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out */
+ * $C1:4E37, $C1:4EB7) */
 uint8_t battle_animation_wait_cells(const GameState *g, unsigned slot);
 void set_battle_animation_wait_cells(GameState *g, unsigned slot, uint8_t v);
 
@@ -6292,11 +6292,10 @@ enum { BATTLE_EFFECT_FRAME_TIME_COUNT = 8 };   /* by effect */
 uint8_t battle_effect_frame_time(const GameState *g, unsigned i);
 void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_EFFECT_COMMAND_CELLS_COUNT = 32 };   /* by cell * 8 + effect: the frame time less one ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0) */
-/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
- * past that isn't worked out */
-uint8_t battle_effect_command_cells(const GameState *g, unsigned i);
-void set_battle_effect_command_cells(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_EFFECT_COMMAND_CELLS_COUNT = 32 };   /* by row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8 without), and an unused row ($A1D0) */
+/* Per-effect cells of the effects' animation and the script commands that wait on it */
+uint8_t battle_effect_command_cells(const GameState *g, unsigned row);
+void set_battle_effect_command_cells(GameState *g, unsigned row, uint8_t v);
 
 enum { BATTLE_EFFECT_SHOWN_COUNT = 8 };   /* by effect */
 /* Nonzero while the effect's sprites are drawn with the objects */
