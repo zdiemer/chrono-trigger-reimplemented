@@ -3217,6 +3217,10 @@
 /* Long pointer to the running animation script channel's next opcode [3 bytes] */
 #define RAM_BATTLE_SCRIPT_POINTER 0x7E00E6u
 #define RAM_BATTLE_SCRIPT_POINTER_DP 0xE6u   /* page battle */
+/* The byte after the script pointer, which the commands' advance adds to with the pointer's bank
+ * as a word, and a call keeps and a return puts back with it */
+#define RAM_BATTLE_SCRIPT_POINTER_PAD 0x7E00E9u
+#define RAM_BATTLE_SCRIPT_POINTER_PAD_DP 0xE9u /* page battle */
 /* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
  * frames, and the player's button flips both */
 #define RAM_BATTLE_ALTERNATE_FRAME 0x7E00ECu
@@ -4306,24 +4310,43 @@
 #define RAM_BATTLE_ANIMATION_DELAY 0x7EA12Fu
 #define RAM_BATTLE_ANIMATION_DELAY_COUNT 11u
 #define RAM_BATTLE_ANIMATION_DELAY_STRIDE 0x01u
-/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out [33 x $1 bytes, by cell * 11 +
- * battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits
- * for an animation set while they wait ($A145, $A150)] */
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS 0x7EA13Au
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS_COUNT 33u
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS_STRIDE 0x01u
+/* The frame of its animation a combatant shows ($FF before its first, as starting an animation
+ * leaves it) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_FRAME 0x7EA13Au
+#define RAM_BATTLE_ANIMATION_FRAME_COUNT 11u
+#define RAM_BATTLE_ANIMATION_FRAME_STRIDE 0x01u
+/* Set while a script waits for the animation it started on the combatant to end (the wait that
+ * shows an effect: game/battle/script_poses.c, $C1:4E22); the other targets' wait leaves it set
+ * on its first [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT 0x7EA145u
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT_COUNT 11u
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT_STRIDE 0x01u
+/* Set while a script waits for the animation it started on the combatant to end (the plain wait
+ * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark
+ * [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_WAIT 0x7EA150u
+#define RAM_BATTLE_ANIMATION_WAIT_COUNT 11u
+#define RAM_BATTLE_ANIMATION_WAIT_STRIDE 0x01u
 /* Set while the object moves along a scripted path [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PATH_ACTIVE 0x7EA15Bu
 #define RAM_BATTLE_PATH_ACTIVE_COUNT 11u
 #define RAM_BATTLE_PATH_ACTIVE_STRIDE 0x01u
-/* Per-combatant cells of the script commands that keep state over frames; what each is for past
- * that isn't worked out [44 x $1 bytes, by cell * 11 + battle slot: a count ($A166, $C1:546E),
- * an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at
- * $C1:5F35] */
+/* Per-combatant cells of the script commands that keep state over frames, the grid walk's
+ * ($C1:546E); what the count is for isn't worked out [22 x $1 bytes, by row * 11 + battle slot:
+ * a count ($A166, $C1:546E) and an unused row ($A171)] */
 #define RAM_BATTLE_SCRIPT_COMMAND_CELLS 0x7EA166u
-#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_COUNT 44u
+#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_COUNT 22u
 #define RAM_BATTLE_SCRIPT_COMMAND_CELLS_STRIDE 0x01u
+/* Frames until a blinking combatant turns over between the flash and its own colors
+ * (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_BLINK_COUNTDOWN 0x7EA17Cu
+#define RAM_BATTLE_BLINK_COUNTDOWN_COUNT 11u
+#define RAM_BATTLE_BLINK_COUNTDOWN_STRIDE 0x01u
+/* Nonzero while a blinking combatant shows the flash, 0 while its own colors; the blink turns
+ * its low bit over (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_BLINK_FLASHING 0x7EA187u
+#define RAM_BATTLE_BLINK_FLASHING_COUNT 11u
+#define RAM_BATTLE_BLINK_FLASHING_STRIDE 0x01u
 /* Set when the object records a position trail [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_TRAIL_ON 0x7EA192u
 #define RAM_BATTLE_TRAIL_ON_COUNT 11u
@@ -4343,12 +4366,28 @@
 #define RAM_BATTLE_EFFECT_FRAME_TIME 0x7EA1B0u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_COUNT 8u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_STRIDE 0x01u
-/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
- * past that isn't worked out [32 x $1 bytes, by cell * 8 + effect: the frame time less one
- * ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0)] */
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS 0x7EA1B8u
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS_COUNT 32u
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS_STRIDE 0x01u
+/* The frame of its animation an effect shows ($FF before its first, as starting an animation
+ * leaves it) [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_FRAME 0x7EA1B8u
+#define RAM_BATTLE_EFFECT_FRAME_COUNT 8u
+#define RAM_BATTLE_EFFECT_FRAME_STRIDE 0x01u
+/* Set while the effect's script waits for the animation it started to end, the effect shown
+ * meanwhile (game/battle/script_poses.c, $C1:4E22) [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT 0x7EA1C0u
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT_COUNT 8u
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT_STRIDE 0x01u
+/* Set while the effect's script waits for the animation it started to end
+ * (game/battle/script_poses.c, $C1:4EA2, $C1:577D, to the marked wait's mark); an effect whose
+ * frames come round to the first while it is set stops animating ($CC:F2DB) [8 x $1 bytes, by
+ * effect] */
+#define RAM_BATTLE_EFFECT_WAIT 0x7EA1C8u
+#define RAM_BATTLE_EFFECT_WAIT_COUNT 8u
+#define RAM_BATTLE_EFFECT_WAIT_STRIDE 0x01u
+/* A row of per-effect cells after the effects' waits, which only the objects' reset writes [8 x
+ * $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SPARE_CELLS 0x7EA1D0u
+#define RAM_BATTLE_EFFECT_SPARE_CELLS_COUNT 8u
+#define RAM_BATTLE_EFFECT_SPARE_CELLS_STRIDE 0x01u
 /* Nonzero while the effect's sprites are drawn with the objects [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SHOWN 0x7EA1D8u
 #define RAM_BATTLE_EFFECT_SHOWN_COUNT 8u
@@ -4368,12 +4407,27 @@
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS 0x7EA1FEu
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS_COUNT 11u
 #define RAM_BATTLE_SCHEDULED_DELAY_LISTS_STRIDE 0x02u
+/* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_OBJECT_FACING_SHOWN 0x7EA214u
+#define RAM_BATTLE_OBJECT_FACING_SHOWN_COUNT 11u
+#define RAM_BATTLE_OBJECT_FACING_SHOWN_STRIDE 0x01u
 /* Where the animation scheduler's round-robin search resumes */
 #define RAM_BATTLE_ANIMATION_CURSOR 0x7EA21Fu
+/* Offset in bank $CE of the first record of the animation an effect plays, which its frames are
+ * taken from (battle_effect_animation_starts) [8 x $2 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE 0x7EA220u
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE_COUNT 8u
+#define RAM_BATTLE_EFFECT_ANIMATION_PLACE_STRIDE 0x02u
 /* Facing of an anchor's chase, from its angle [8 x $1 bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_FACING 0x7EA230u
 #define RAM_BATTLE_ANCHOR_FACING_COUNT 8u
 #define RAM_BATTLE_ANCHOR_FACING_STRIDE 0x01u
+/* Number of frames (records) of the animation an effect plays (battle_effect_animation_frames):
+ * a facing's part of the animation is that many records [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH 0x7EA238u
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH_COUNT 8u
+#define RAM_BATTLE_EFFECT_ANIMATION_LENGTH_STRIDE 0x01u
 /* Anchor points' X positions, for effects [8 x $2 bytes, by anchor] */
 #define RAM_BATTLE_ANCHOR_X 0x7EA240u
 #define RAM_BATTLE_ANCHOR_X_COUNT 8u
@@ -4407,10 +4461,17 @@
 /* The animation of the enemy whose animation effect runs, which picks the effect's handler
  * ($CC:FBAB) */
 #define RAM_BATTLE_EFFECT_KIND 0x7EA2B5u
-/* The enemy whose script channel (8 and up) is running, for its commands */
-#define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
-/* The byte after battle_script_enemy, which only the objects' reset writes */
-#define RAM_BATTLE_SCRIPT_ENEMY_SPARE 0x7EA2B7u
+/* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
+ * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
+#define RAM_BATTLE_SCRIPT_EFFECT 0x7EA2B6u
+/* The byte after battle_script_effect, which only the objects' reset writes; the commands read
+ * the effect as a word with it */
+#define RAM_BATTLE_SCRIPT_EFFECT_HIGH 0x7EA2B7u
+/* The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_FACING_SHOWN 0x7EA2B8u
+#define RAM_BATTLE_EFFECT_FACING_SHOWN_COUNT 8u
+#define RAM_BATTLE_EFFECT_FACING_SHOWN_STRIDE 0x01u
 /* The sprite set an effect draws (low six bits) [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SPRITE_SET 0x7EA2C0u
 #define RAM_BATTLE_EFFECT_SPRITE_SET_COUNT 8u
@@ -4588,6 +4649,14 @@
 #define RAM_BATTLE_PATH 0x7EA517u
 #define RAM_BATTLE_PATH_COUNT 11u
 #define RAM_BATTLE_PATH_STRIDE 0x01u
+/* Where each channel's script goes back to after a subroutine: one a channel, so a call inside a
+ * subroutine replaces it [16 x $4 bytes, by script channel] */
+#define RAM_BATTLE_SCRIPT_RETURNS 0x7EA569u
+#define RAM_BATTLE_SCRIPT_RETURNS_COUNT 16u
+#define RAM_BATTLE_SCRIPT_RETURNS_STRIDE 0x04u
+#define RAM_BATTLE_SCRIPT_RETURNS_PLACE 0x7EA569u /* The return's offset */
+#define RAM_BATTLE_SCRIPT_RETURNS_BANK 0x7EA56Bu /* Its bank */
+#define RAM_BATTLE_SCRIPT_RETURNS_PAD 0x7EA56Cu /* The byte after the pointer, kept and put back with the bank */
 /* $FF once every enemy that must be beaten is out */
 #define RAM_BATTLE_WON 0x7EA5A9u
 /* The angle the spiral last used, which the flicker reuses [19 x $1 bytes, by effect slot (0-10

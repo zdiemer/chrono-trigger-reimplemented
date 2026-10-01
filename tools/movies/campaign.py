@@ -153,8 +153,15 @@ class Run:
 
         Tested against a no-input baseline in both directions, so an object the
         script happens to walk in a cutscene doesn't pass for the player.
+
+        Not while native routines are suspended (a battle's native code spans
+        its frames): no pad moves an object then, and each probe's restore
+        would replay from the last base, before the battle (ct_drive), about 20
+        seconds each, which made the end of a long fight take hours.
         """
         machine = self.machine
+        if machine.native != "off" and machine.native_status().get("suspended", 0):
+            return None
         machine.mark(PLAYER_SLOT)
         machine.probe(12)
         base = [self.object_pos(i) for i in range(0x40)]

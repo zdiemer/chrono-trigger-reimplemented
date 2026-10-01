@@ -40,7 +40,7 @@ static void reset_scripts(GameState *g)
     set_battle_script_signal(g, 0);
     set_battle_script_countdown_spare(g, 0);
     set_battle_script_countdown(g, 0);
-    set_battle_script_enemy_spare(g, 0);
+    set_battle_script_effect_high(g, 0);
 }
 
 static void reset_combatants(GameState *g)
@@ -56,8 +56,13 @@ static void reset_combatants(GameState *g)
         set_battle_sprite_offset_y(g, slot, 0);
         set_battle_number_rise_alt(g, slot, 0);
     }
-    for (unsigned i = 0; i < BATTLE_ANIMATION_WAIT_CELLS_COUNT; i++)
-        set_battle_animation_wait_cells(g, i, 0);
+    for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
+        set_battle_animation_frame(g, slot, 0);
+        set_battle_animation_shown_wait(g, slot, 0);
+        set_battle_animation_wait(g, slot, 0);
+        set_battle_blink_countdown(g, slot, 0);
+        set_battle_blink_flashing(g, slot, 0);
+    }
     for (unsigned i = 0; i < BATTLE_SCRIPT_COMMAND_CELLS_COUNT; i++)
         set_battle_script_command_cells(g, i, 0);
     set_battle_animation_cursor(g, 0);
@@ -73,8 +78,12 @@ static void reset_effects(GameState *g)
         set_battle_effect_frame_time(g, effect, 0);
         set_battle_effect_shown(g, effect, 0);
     }
-    for (unsigned i = 0; i < BATTLE_EFFECT_COMMAND_CELLS_COUNT; i++)
-        set_battle_effect_command_cells(g, i, 0);
+    for (unsigned effect = 0; effect < BATTLE_EFFECT_FRAME_COUNT; effect++) {
+        set_battle_effect_frame(g, effect, 0);
+        set_battle_effect_shown_wait(g, effect, 0);
+        set_battle_effect_wait(g, effect, 0);
+        set_battle_effect_spare_cells(g, effect, 0);
+    }
     for (unsigned slot = 0; slot < BATTLE_EFFECT_ACTIVE_COUNT; slot++) {
         set_battle_effect_active(g, slot, 0);
         set_battle_effect_angle(g, slot, 0);

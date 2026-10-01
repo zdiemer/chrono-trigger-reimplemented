@@ -11096,3 +11096,788 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E0014-7E0014=00-02"]
 iterations = 5000
 why = "each member, any choice and list"
+
+# ---- battle: the animation script language (game/battle/scripts.c, script_*.c) -----------------------
+
+[[routine]]
+name = "script_end"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=00", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_halt"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=01,2F,4B,4C,56,5C,7E,86,97,9E,A3,A6,AA,BF,C6,CF", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "the halt and a sample of the unused bytes that share it, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_call"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=1E", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_return_from_call"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=1F", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_wait_frames"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=20", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_return_at_the_top"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=21", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_wait_for_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=22", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_wait_for_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=23", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_wait_for_mark_b"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=24", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_end_unless_listed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=25", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_set_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=30", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_set_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=31", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_set_mark_b"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=32", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_variable_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=34", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_mark_a_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=35", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_mark_b_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=36", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_variable_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=37", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_mark_a_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=38", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_count_mark_b_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=39", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_add_to_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=3A", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_add_to_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=3B", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_add_variable_to_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=3C", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_copy_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=41", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_store_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=42", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_add_held"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=49", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_swap_with_mark_a"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=4A,4D", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_swap_with_mark_a_point_x"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=4E", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_swap_with_mark_a_point_y"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=4F", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_skip"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=5F", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
+
+[[routine]]
+name = "script_play_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=02", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_play_and_wait_shown"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=03", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_play_and_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=04,05,06", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_own_speed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=07", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_set_speed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=08,09,0A,0B,0C,0D,0E,0F", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_play_and_wait_marked"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=26", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_drawn_on_top"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=27", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_drawn_on_top_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=28", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_hidden"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=29", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_hidden_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=2A", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_sprite_back_in_place"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=2B", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_bring_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=2C", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_withdrawn_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=5D", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_withdrawn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=5E", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_trail"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=A4", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_trail_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=A5", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_glide_sprite"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=C4", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_glide_sprite_home"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=C5", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_shadow"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D0", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_shadow_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D1", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_attribute_bits"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D9", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_attribute_bits_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=DA", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+[[routine]]
+name = "script_anchor_follows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=1C", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_anchor_stays"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=1D", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_palettes_paused"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=2D", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_palettes_paused_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=2E", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_palette_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=61,62,63,64", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_palette_animation_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=65,66,67,68", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_color_cycles_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6D", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_all_effects_shown"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6E", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_all_effects_shown_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6F", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_effect_shown"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=70", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_effect_shown_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=71", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_effect_drawn_with"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=73", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_effect_drawn_with_behind"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=74", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_palette_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=60", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list"
+
+[[routine]]
+name = "script_flash_with"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=69", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E99D2-7E99D2=00,00,01,05", "--fill", "7E99D3-7E99D3=00,10,31,5A,7F", "--fill", "7EA08C-7EA096=00,01",
+        "--fill", "7E993C-7E9946=08,0A,0C,0E"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, with and without an enemy rule, bound or not, and any cycled background colors"
+
+[[routine]]
+name = "script_flash_off"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6A", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E99D2-7E99D2=00,00,01,05", "--fill", "7E99D3-7E99D3=00,10,31,5A,7F", "--fill", "7EA08C-7EA096=00,01",
+        "--fill", "7E993C-7E9946=08,0A,0C,0E"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, with and without an enemy rule, bound or not, and any cycled background colors"
+
+[[routine]]
+name = "script_rotate_colors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6B", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E99D2-7E99D2=00,00,01,05", "--fill", "7E99D3-7E99D3=00,10,31,5A,7F", "--fill", "7EA08C-7EA096=00,01",
+        "--fill", "7E993C-7E9946=08,0A,0C,0E"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, with and without an enemy rule, bound or not, and any cycled background colors"
+
+[[routine]]
+name = "script_blink"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=6C", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E99D2-7E99D2=00,00,01,05", "--fill", "7E99D3-7E99D3=00,10,31,5A,7F", "--fill", "7EA08C-7EA096=00,01",
+        "--fill", "7E993C-7E9946=08,0A,0C,0E",
+        "--fill", "7E5D80-7E5D80=00,01,01,01", "--fill", "7EA17C-7EA191=00,00,01,03"]
+iterations = 8000
+why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, with and without an enemy rule, bound or not, and any cycled background colors, the blink's variable set or clear and its countdowns due or not"

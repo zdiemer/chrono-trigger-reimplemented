@@ -16,8 +16,15 @@ cartridge save and from scratch, in `--scratch` (checkpoints, logs and screens;
 not the repo); the table gives each outcome with the frame it was reached at,
 modes side by side. Frame counts differ between modes by design; the outcome is
 what must match. Exits 0 only if every run reached its outcome.
+
+`--resume` (with `--scratch`) keeps each run's directory where the last run of
+the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time
+limit, a restart -- carries on from its last checkpoint instead of replaying the
+hour before it. A run whose build, ROM or scripts differ from the ones that wrote
+the checkpoints starts over, so no outcome rests on phases another build played.
 """
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -25,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -52,12 +59,55 @@ def mode_name(mode):
     return "off" if native == "off" else "%s:%s" % (native, recomp)
 
 
-def run_one(route, mode, scratch, rom, drive, timeout):
+def file_digest(path):
+    """The SHA-256 of a file, or of nothing where there is none."""
+    digest = hashlib.sha256()
+    if path and os.path.exists(path):
+        with open(path, "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                digest.update(block)
+    return digest.hexdigest()
+
+
+def run_stamp(route, mode, rom, drive):
+    """What a run's checkpoints are only good for: the route, the mode, the
+    build and ROM that played them, and the route's script and runner that
+    chose its inputs."""
+    drive = drive or os.environ.get("CT_DRIVE") or os.path.join(REPO, "build/main/ct_drive")
+    rom = rom or os.environ.get("CT_ROM") or os.path.join(REPO, "roms/ct-usa.sfc")
+    name = route.partition(":")[0]
+    script = os.path.join(REPO, "tools", "movies", "routes", name + ".py")
+    runner = os.path.join(REPO, "tools", "movies", "campaign.py")
+    return "route %s\nmode %s\nct_drive %s\nrom %s\nscript %s\nrunner %s\n" % (
+        route, mode_name(mode), file_digest(drive), file_digest(rom), file_digest(script), file_digest(runner))
+
+
+STAMP = "run-stamp.txt"
+
+
+def prepare(where, stamp, resume):
+    """The run's directory: kept where resuming and it holds this very run's
+    checkpoints, otherwise emptied. True where it was kept."""
+    kept = False
+    if resume and os.path.isdir(where):
+        try:
+            with open(os.path.join(where, STAMP), encoding="utf-8") as f:
+                kept = f.read() == stamp
+        except OSError:
+            kept = False
+    if not kept:
+        shutil.rmtree(where, ignore_errors=True)
+        os.makedirs(where)
+        with open(os.path.join(where, STAMP), "w", encoding="utf-8") as f:
+            f.write(stamp)
+    return kept
+
+
+def run_one(route, mode, scratch, rom, drive, timeout, resume=False):
     """Run one route in one mode; returns a result dict."""
     name, _, until = route.partition(":")
     where = os.path.join(scratch, "%s-%s" % (route.replace(":", "-"), mode_name(mode).replace(":", "-")))
-    shutil.rmtree(where, ignore_errors=True)
-    os.makedirs(where)
+    resumed = prepare(where, run_stamp(route, mode, rom, drive), resume)
     command = [sys.executable, "-m", "tools.movies.routes." + name, "--prefix", os.path.join(where, name),
                "--native", mode[0]]
     if mode[1]:
@@ -69,7 +119,9 @@ def run_one(route, mode, scratch, rom, drive, timeout):
     if drive:
         command += ["--drive", drive]
     started = time.time()
-    with open(os.path.join(where, "output.txt"), "w", encoding="utf-8") as out:
+    # a resumed run adds to the output of the runs before it, whose checkpoints
+    # it carries on from
+    with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out:
         try:
             status = subprocess.run(command, cwd=REPO, stdout=out, stderr=subprocess.STDOUT,
                                     timeout=timeout).returncode
@@ -96,7 +148,8 @@ def run_one(route, mode, scratch, rom, drive, timeout):
         what = "exit status %d: %s" % (status, lines[-1] if lines else "no output")
     frame = re.search(r"frame (\d+)", what) if passed else None
     return {"route": route, "mode": mode_name(mode), "passed": passed, "what": what, "phases": phases,
-            "frame": int(frame.group(1)) if frame else None, "seconds": time.time() - started, "dir": where}
+            "frame": int(frame.group(1)) if frame else None, "seconds": time.time() - started, "dir": where,
+            "resumed": resumed}
 
 
 def main(argv=None):
@@ -110,7 +163,12 @@ def main(argv=None):
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
     parser.add_argument("-j", "--jobs", type=int, default=1, help="routes run at once (default 1)")
     parser.add_argument("--timeout", type=int, default=6 * 3600, help="seconds per run (default 6 hours)")
+    parser.add_argument("--resume", action="store_true",
+                        help="carry on from the checkpoints a run cut short left in --scratch, where the build and "
+                             "ROM are the same")
     args = parser.parse_args(argv)
+    if args.resume and not args.scratch:
+        parser.error("--resume needs --scratch: the checkpoints are kept there")
     # The routes start ct_drive from their own working directory, so a relative
     # path given here would name nothing there: resolve it against ours.
     for name in ("drive", "rom"):
@@ -122,14 +180,17 @@ def main(argv=None):
     jobs = [(route, mode) for route in args.routes for mode in modes]
     try:
         with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout)
+            futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout, args.resume)
                        for route, mode in jobs]
+            # each outcome as it comes, so a run cut short still reports the
+            # routes that finished
             results = []
-            for future in futures:
+            for future in as_completed(futures):
                 result = future.result()
                 results.append(result)
-                print("%s %s in %s: %s (%.0fs)" % ("PASS" if result["passed"] else "FAIL", result["route"],
-                                                   result["mode"], result["what"], result["seconds"]), flush=True)
+                print("%s %s in %s: %s (%.0fs%s)" % ("PASS" if result["passed"] else "FAIL", result["route"],
+                                                     result["mode"], result["what"], result["seconds"],
+                                                     ", resumed" if result["resumed"] else ""), flush=True)
     finally:
         if not args.scratch:
             shutil.rmtree(scratch, ignore_errors=True)

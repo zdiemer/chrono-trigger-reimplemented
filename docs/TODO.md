@@ -138,9 +138,10 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_number_marks`, `battle_slot_draw_bits` and the sprite drawers'
     page's unnamed bytes; `battle_enemy_rule`'s rules 1 and 2;
     the rest of
-    `battle_fight_flags`; the script commands' per-combatant and per-effect
-    cells (`battle_animation_wait_cells`, `battle_script_command_cells`,
-    `battle_effect_command_cells`); the five window tile blocks the frame
+    `battle_fight_flags`; the unused rows of the script commands'
+    per-combatant and per-effect cells (`battle_script_command_cells` at
+    `$A171`, `battle_effect_spare_cells`) and the count at `$A166` the grid
+    walk keeps (chunk 9b); the five window tile blocks the frame
     loads and what reads `battle_block_uploads_made`; what the marker sprite
     is to the player; why the upload lets enemies in slots 4 and 6+ through.
   - Quirks of the enemies' scripts reproduced on purpose (RECOMP.md, "Phase 3,
@@ -170,6 +171,20 @@ rest waits, is [PLAN.md](PLAN.md).
     step keeping its list places in the scheduler's entry 0; the weak pose
     restarting frames every step; the pose's restart for an enemy writing past
     the party's frame table; the colour rotation from colour 0 storing a bank on.
+    The animation script commands' (RECOMP.md, "Phase 3, battle chunk 9a"):
+    the waits on the other targets leaving their mark set (`$03`, `$26`) and
+    `$04` waiting on the first target only; `$26` on an effect channel looping
+    the animation and running its second operand as a command; the shadows'
+    list starting at channel 1's subject and the rotation's at channel 3's;
+    hiding a channel's own combatant clearing its off-the-plane bit; bringing
+    back, showing an effect and a shadow counting up; the glide's equality
+    test; stopping a trail setting its periods from stale work cells; the
+    restore after a flash without the rule's test the flash has; the blink
+    running itself again in the frame it turns to the flash. Their reads and
+    writes past a table, through `_unchecked` accessors (a variable past the
+    27, a subject or an anchor named by an operand, an effect record found in
+    a byte, an effect animation past the 16), reach the next variable only
+    while storage is the RAM image: a native layout needs a decision for each.
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
@@ -732,7 +747,12 @@ rest waits, is [PLAN.md](PLAN.md).
     113,838 against 54,968 and 64,472). Shadow and trace identity were
     clean, so it is likely timing reaching a harder battle state; whether
     the menus' per-frame input (which runs in every mode) or the merged
-    main moved it is not worked out.
+    main moved it is not worked out. Part of the time is the fights'
+    restores: each (a wipe's retry, a command menu's checkpoint) replays
+    from the last base, which a native battle, suspended for its whole
+    length, keeps before the fight (MOVIES.md, "resume"); a base ct_drive
+    could take inside a battle, or fewer restores in `campaign.fight`,
+    would bound it.
 - **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
   characters in the records"):
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port

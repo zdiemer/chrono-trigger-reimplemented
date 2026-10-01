@@ -4624,6 +4624,11 @@ void set_battle_queued_uploads_on(GameState *g, uint8_t v);
 uint32_t battle_script_pointer(const GameState *g);
 void set_battle_script_pointer(GameState *g, uint32_t v);
 
+/* The byte after the script pointer, which the commands' advance adds to with the pointer's bank
+ * as a word, and a call keeps and a return puts back with it */
+uint8_t battle_script_pointer_pad(const GameState *g);
+void set_battle_script_pointer_pad(GameState *g, uint8_t v);
+
 /* The window arrangement the battle wants (0 or 1): battle_alternate_request follows it on even
  * frames, and the player's button flips both */
 uint8_t battle_alternate_frame(const GameState *g);
@@ -4994,6 +4999,12 @@ enum { BATTLE_SCRIPT_VARIABLES_COUNT = 27 };   /* by variable, by the number a c
  * compare by number ($C1:58F3, $C1:5935, $C1:5731) */
 uint8_t battle_script_variables(const GameState *g, unsigned i);
 void set_battle_script_variables(GameState *g, unsigned i, uint8_t v);
+/* The animation scripts' variables, which their commands set, count up and down, add to and
+ * compare by number ($C1:58F3, $C1:5935, $C1:5731) Unchecked, for marked scaffolding only: a
+ * command names its variable by a byte, and a number past the 27 reaches the marks, the point
+ * and the work RAM after them, as the original's indexed access does (game/battle/script_flow.c) */
+uint8_t battle_script_variables_unchecked(const GameState *g, unsigned i);
+void set_battle_script_variables_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* Set while the screen script channels run; cleared when both have ended. The HP gradient waits
  * for it */
@@ -5989,6 +6000,13 @@ enum { BATTLE_SCRIPT_SUBJECTS_COUNT = 11 };   /* by script channel */
  * channel 0's is set at the battle's start from $AE91, $CC:F165) */
 uint8_t battle_script_subjects(const GameState *g, unsigned channel);
 void set_battle_script_subjects(GameState *g, unsigned channel, uint8_t v);
+/* The combatant each animation script channel animates, which its commands act on ($FF: none;
+ * channel 0's is set at the battle's start from $AE91, $CC:F165) Unchecked, for marked
+ * scaffolding only: the other targets' list is read up to its first byte with the top bit set,
+ * which for a full list is past the table; and a command naming a subject by an operand reads
+ * wherever it points (game/battle/script_language.c) */
+uint8_t battle_script_subjects_unchecked(const GameState *g, unsigned channel);
+void set_battle_script_subjects_unchecked(GameState *g, unsigned channel, uint8_t v);
 
 /* Counted each time a requested block of rows goes to VRAM (nothing in the banks disassembled
  * reads it: docs/TODO.md) */
@@ -6229,22 +6247,47 @@ enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_ANIMATION_WAIT_CELLS_COUNT = 33 };   /* by cell * 11 + battle slot: the frames an animation has run ($A13A), and the marks two of the scripts' waits for an animation set while they wait ($A145, $A150) */
-/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7); what each holds past that isn't worked out */
-uint8_t battle_animation_wait_cells(const GameState *g, unsigned slot);
-void set_battle_animation_wait_cells(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_ANIMATION_FRAME_COUNT = 11 };   /* by battle slot */
+/* The frame of its animation a combatant shows ($FF before its first, as starting an animation
+ * leaves it) */
+uint8_t battle_animation_frame(const GameState *g, unsigned slot);
+void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ANIMATION_SHOWN_WAIT_COUNT = 11 };   /* by battle slot */
+/* Set while a script waits for the animation it started on the combatant to end (the wait that
+ * shows an effect: game/battle/script_poses.c, $C1:4E22); the other targets' wait leaves it set
+ * on its first */
+uint8_t battle_animation_shown_wait(const GameState *g, unsigned slot);
+void set_battle_animation_shown_wait(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ANIMATION_WAIT_COUNT = 11 };   /* by battle slot */
+/* Set while a script waits for the animation it started on the combatant to end (the plain wait
+ * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark */
+uint8_t battle_animation_wait(const GameState *g, unsigned slot);
+void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_PATH_ACTIVE_COUNT = 11 };   /* by battle slot */
 /* Set while the object moves along a scripted path */
 uint8_t battle_path_active(const GameState *g, unsigned slot);
 void set_battle_path_active(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 44 };   /* by cell * 11 + battle slot: a count ($A166, $C1:546E), an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at $C1:5F35 */
-/* Per-combatant cells of the script commands that keep state over frames; what each is for past
- * that isn't worked out */
+enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 22 };   /* by row * 11 + battle slot: a count ($A166, $C1:546E) and an unused row ($A171) */
+/* Per-combatant cells of the script commands that keep state over frames, the grid walk's
+ * ($C1:546E); what the count is for isn't worked out */
 uint8_t battle_script_command_cells(const GameState *g, unsigned slot);
 void set_battle_script_command_cells(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_BLINK_COUNTDOWN_COUNT = 11 };   /* by battle slot */
+/* Frames until a blinking combatant turns over between the flash and its own colors
+ * (game/battle/script_colors.c, $C1:5F13) */
+uint8_t battle_blink_countdown(const GameState *g, unsigned slot);
+void set_battle_blink_countdown(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_BLINK_FLASHING_COUNT = 11 };   /* by battle slot */
+/* Nonzero while a blinking combatant shows the flash, 0 while its own colors; the blink turns
+ * its low bit over (game/battle/script_colors.c, $C1:5F13) */
+uint8_t battle_blink_flashing(const GameState *g, unsigned slot);
+void set_battle_blink_flashing(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TRAIL_ON_COUNT = 11 };   /* by battle slot */
 /* Set when the object records a position trail */
@@ -6274,11 +6317,29 @@ enum { BATTLE_EFFECT_FRAME_TIME_COUNT = 8 };   /* by effect */
 uint8_t battle_effect_frame_time(const GameState *g, unsigned i);
 void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_EFFECT_COMMAND_CELLS_COUNT = 32 };   /* by cell * 8 + effect: the frame time less one ($A1B8, $C1:4E0D), the marks two effect waits set ($A1C0, $A1C8), and an unused row ($A1D0) */
-/* Per-effect cells of the script commands that wait on an effect's animation; what each is for
- * past that isn't worked out */
-uint8_t battle_effect_command_cells(const GameState *g, unsigned i);
-void set_battle_effect_command_cells(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_EFFECT_FRAME_COUNT = 8 };   /* by effect */
+/* The frame of its animation an effect shows ($FF before its first, as starting an animation
+ * leaves it) */
+uint8_t battle_effect_frame(const GameState *g, unsigned i);
+void set_battle_effect_frame(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_SHOWN_WAIT_COUNT = 8 };   /* by effect */
+/* Set while the effect's script waits for the animation it started to end, the effect shown
+ * meanwhile (game/battle/script_poses.c, $C1:4E22) */
+uint8_t battle_effect_shown_wait(const GameState *g, unsigned i);
+void set_battle_effect_shown_wait(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_WAIT_COUNT = 8 };   /* by effect */
+/* Set while the effect's script waits for the animation it started to end
+ * (game/battle/script_poses.c, $C1:4EA2, $C1:577D, to the marked wait's mark); an effect whose
+ * frames come round to the first while it is set stops animating ($CC:F2DB) */
+uint8_t battle_effect_wait(const GameState *g, unsigned i);
+void set_battle_effect_wait(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_SPARE_CELLS_COUNT = 8 };   /* by effect */
+/* A row of per-effect cells after the effects' waits, which only the objects' reset writes */
+uint8_t battle_effect_spare_cells(const GameState *g, unsigned i);
+void set_battle_effect_spare_cells(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_SHOWN_COUNT = 8 };   /* by effect */
 /* Nonzero while the effect's sprites are drawn with the objects */
@@ -6308,14 +6369,32 @@ enum { BATTLE_SCHEDULED_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
 uint16_t battle_scheduled_delay_lists(const GameState *g, unsigned slot);
 void set_battle_scheduled_delay_lists(GameState *g, unsigned slot, uint16_t v);
 
+enum { BATTLE_OBJECT_FACING_SHOWN_COUNT = 11 };   /* by battle slot */
+/* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does */
+uint8_t battle_object_facing_shown(const GameState *g, unsigned slot);
+void set_battle_object_facing_shown(GameState *g, unsigned slot, uint8_t v);
+
 /* Where the animation scheduler's round-robin search resumes */
 uint8_t battle_animation_cursor(const GameState *g);
 void set_battle_animation_cursor(GameState *g, uint8_t v);
+
+enum { BATTLE_EFFECT_ANIMATION_PLACE_COUNT = 8 };   /* by effect */
+/* Offset in bank $CE of the first record of the animation an effect plays, which its frames are
+ * taken from (battle_effect_animation_starts) */
+uint16_t battle_effect_animation_place(const GameState *g, unsigned i);
+void set_battle_effect_animation_place(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_ANCHOR_FACING_COUNT = 8 };   /* by anchor */
 /* Facing of an anchor's chase, from its angle */
 uint8_t battle_anchor_facing(const GameState *g, unsigned i);
 void set_battle_anchor_facing(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_ANIMATION_LENGTH_COUNT = 8 };   /* by effect */
+/* Number of frames (records) of the animation an effect plays (battle_effect_animation_frames):
+ * a facing's part of the animation is that many records */
+uint8_t battle_effect_animation_length(const GameState *g, unsigned i);
+void set_battle_effect_animation_length(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ANCHOR_X_COUNT = 8 };   /* by anchor */
 /* Anchor points' X positions, for effects */
@@ -6341,11 +6420,21 @@ enum { BATTLE_EFFECT_ANIMATION_STARTS_COUNT = 16 };   /* by animation */
 /* Offset in bank $CE of the first record of each of the effect's sixteen animations */
 uint16_t battle_effect_animation_starts(const GameState *g, unsigned i);
 void set_battle_effect_animation_starts(GameState *g, unsigned i, uint16_t v);
+/* Offset in bank $CE of the first record of each of the effect's sixteen animations Unchecked,
+ * for marked scaffolding only: an effect channel's animation commands take the animation from an
+ * operand and don't check it against the sixteen (game/battle/script_poses.c) */
+uint16_t battle_effect_animation_starts_unchecked(const GameState *g, unsigned i);
+void set_battle_effect_animation_starts_unchecked(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_EFFECT_ANIMATION_FRAMES_COUNT = 16 };   /* by animation */
 /* Number of frames (records) of each of the effect's sixteen animations */
 uint8_t battle_effect_animation_frames(const GameState *g, unsigned i);
 void set_battle_effect_animation_frames(GameState *g, unsigned i, uint8_t v);
+/* Number of frames (records) of each of the effect's sixteen animations Unchecked, for marked
+ * scaffolding only: an effect channel's animation commands take the animation from an operand
+ * and don't check it against the sixteen (game/battle/script_poses.c) */
+uint8_t battle_effect_animation_frames_unchecked(const GameState *g, unsigned i);
+void set_battle_effect_animation_frames_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* X of the position an animation slot's position mode worked out (the handlers at $C1:79D3) */
 uint8_t battle_position_found_x(const GameState *g);
@@ -6360,13 +6449,21 @@ void set_battle_position_found_y(GameState *g, uint8_t v);
 uint8_t battle_effect_kind(const GameState *g);
 void set_battle_effect_kind(GameState *g, uint8_t v);
 
-/* The enemy whose script channel (8 and up) is running, for its commands */
-uint8_t battle_script_enemy(const GameState *g);
-void set_battle_script_enemy(GameState *g, uint8_t v);
+/* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
+ * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
+uint8_t battle_script_effect(const GameState *g);
+void set_battle_script_effect(GameState *g, uint8_t v);
 
-/* The byte after battle_script_enemy, which only the objects' reset writes */
-uint8_t battle_script_enemy_spare(const GameState *g);
-void set_battle_script_enemy_spare(GameState *g, uint8_t v);
+/* The byte after battle_script_effect, which only the objects' reset writes; the commands read
+ * the effect as a word with it */
+uint8_t battle_script_effect_high(const GameState *g);
+void set_battle_script_effect_high(GameState *g, uint8_t v);
+
+enum { BATTLE_EFFECT_FACING_SHOWN_COUNT = 8 };   /* by effect */
+/* The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does */
+uint8_t battle_effect_facing_shown(const GameState *g, unsigned i);
+void set_battle_effect_facing_shown(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_SPRITE_SET_COUNT = 8 };   /* by effect */
 /* The sprite set an effect draws (low six bits) */
@@ -6488,12 +6585,24 @@ enum { BATTLE_OBJECT_EFFECT_SLOTS_COUNT = 88 };   /* by effect slot * 11 + battl
  * them; 0 none */
 uint8_t battle_object_effect_slots(const GameState *g, unsigned slot);
 void set_battle_object_effect_slots(GameState *g, unsigned slot, uint8_t v);
+/* The effects drawn with each combatant, a row an effect and a byte a combatant: the effect (low
+ * three bits) with bit 7 drawn in front of the combatant's own sprites, or with bit 6 behind
+ * them; 0 none Unchecked, for marked scaffolding only: the script commands that draw an effect
+ * with a combatant index its row by the combatant an operand names, unchecked, in a byte
+ * (game/battle/script_effects.c) */
+uint8_t battle_object_effect_slots_unchecked(const GameState *g, unsigned slot);
+void set_battle_object_effect_slots_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ANCHOR_SOURCES_COUNT = 8 };   /* by anchor */
 /* What each anchor follows: the battle slot of an object, with bit 6 another anchor (low three
  * bits); negative none */
 uint8_t battle_anchor_sources(const GameState *g, unsigned i);
 void set_battle_anchor_sources(GameState *g, unsigned i, uint8_t v);
+/* What each anchor follows: the battle slot of an object, with bit 6 another anchor (low three
+ * bits); negative none Unchecked, for marked scaffolding only: the script command that stops an
+ * anchor following takes the anchor from an operand, unchecked (game/battle/script_effects.c) */
+uint8_t battle_anchor_sources_unchecked(const GameState *g, unsigned i);
+void set_battle_anchor_sources_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* Set when the current member's cursor tiles in the window must be redrawn; cleared once they
  * are */
@@ -6586,6 +6695,17 @@ enum { BATTLE_PATH_COUNT = 11 };   /* by battle slot */
 /* The path the object follows (8 X/Y delta steps each in $CC:F494/$CC:F594) */
 uint8_t battle_path(const GameState *g, unsigned slot);
 void set_battle_path(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_SCRIPT_RETURNS_COUNT = 16 };   /* by script channel */
+/* The return's offset */
+uint16_t battle_script_returns_place(const GameState *g, unsigned channel);
+void set_battle_script_returns_place(GameState *g, unsigned channel, uint16_t v);
+/* Its bank */
+uint8_t battle_script_returns_bank(const GameState *g, unsigned channel);
+void set_battle_script_returns_bank(GameState *g, unsigned channel, uint8_t v);
+/* The byte after the pointer, kept and put back with the bank */
+uint8_t battle_script_returns_pad(const GameState *g, unsigned channel);
+void set_battle_script_returns_pad(GameState *g, unsigned channel, uint8_t v);
 
 /* $FF once every enemy that must be beaten is out */
 uint8_t battle_won(const GameState *g);

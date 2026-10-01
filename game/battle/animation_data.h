@@ -74,6 +74,28 @@ static inline uint8_t battle_facing_of_direction(const GameState *g, uint16_t di
     return rom_read8(g, 0xC0F700u + direction);
 }
 
+/* ---- The animation scripts ----------------------------------------------------------------- */
+
+/* The subroutines a script calls by number ($CE:0000, a word each, in bank
+ * CE); the original doubles the number in a byte, so one of 128 or more names
+ * the one 128 below it. */
+enum { SCRIPT_SUBROUTINE_BANK = 0xCE };
+static inline uint32_t battle_script_subroutine(const GameState *g, uint8_t number)
+{
+    return (uint32_t)SCRIPT_SUBROUTINE_BANK << 16 | rom_read16(g, 0xCE0000u + (uint8_t)(number * 2));
+}
+
+/* The eight speeds the scripts set a mover to by number: its period
+ * ($CC:F5BC) and its steps a period ($CC:F4BC). */
+static inline uint8_t battle_script_speed_period(const GameState *g, uint8_t speed)
+{
+    return rom_read8(g, 0xCCF5BCu + speed);
+}
+static inline uint8_t battle_script_speed_steps(const GameState *g, uint8_t speed)
+{
+    return rom_read8(g, 0xCCF4BCu + speed);
+}
+
 /* ---- Building an object's sprite graphics ------------------------------------------------- */
 
 /* The bytes of one frame's tile list, by the object's graphics kind
@@ -127,22 +149,34 @@ static inline uint8_t battle_mirrored_byte(const GameState *g, uint8_t b) { retu
 
 /* ---- The objects' palette animations ------------------------------------------------------ */
 
-/* A palette animation frame ($CD:0000, at the effect's table plus frame * 2):
- * the color set it shows, and where (the quarter of the first sprite palette
- * in bits 0-1; bit 7 for a set of seven colors rather than three). */
+/* A palette animation frame ($CD:0000, two bytes a frame from the effect's
+ * table): the color set it shows, and where (the quarter of the first sprite
+ * palette in its low bits; bit 7 for a set of seven colors rather than
+ * three). The frame's place is worked out in 16 bits from the table's. */
 typedef struct {
     uint8_t set, place;
 } BattlePaletteFrame;
 
-static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16_t at)
+static inline BattlePaletteFrame battle_palette_frame(const GameState *g, uint16_t table, uint16_t frame)
 {
+    uint16_t at = (uint16_t)(table + frame * 2u);
     return (BattlePaletteFrame){ rom_read8(g, 0xCD0000u + at), rom_read8(g, 0xCD0001u + at) };
 }
 
-/* A byte of a color set of three colors ($D1:4100) or of seven ($D1:4400). */
-static inline uint8_t battle_palette_set_byte(const GameState *g, bool seven, uint16_t at)
+/* A color of a set of three colors ($D1:4100) or of seven ($D1:4400). */
+enum { BATTLE_SMALL_SET_COLORS = 3, BATTLE_LARGE_SET_COLORS = 7 };
+static inline uint16_t battle_palette_set_color(const GameState *g, bool seven, uint8_t set, unsigned color)
 {
-    return rom_read8(g, (seven ? 0xD14400u : 0xD14100u) + at);
+    unsigned colors = seven ? BATTLE_LARGE_SET_COLORS : BATTLE_SMALL_SET_COLORS;
+    return rom_read16(g, (seven ? 0xD14400u : 0xD14100u) + (set * colors + color) * 2u);
+}
+
+/* A color of the sets a flash puts into the combatants' flash palette
+ * ($D1:4D90, twelve colors a set). */
+enum { BATTLE_FLASH_SET_COLORS = 12 };
+static inline uint16_t battle_flash_color(const GameState *g, uint8_t set, unsigned color)
+{
+    return rom_read16(g, 0xD14D90u + (set * BATTLE_FLASH_SET_COLORS + color) * 2u);
 }
 
 /* ---- Effect records and bitmap sprites ---------------------------------------------------- */

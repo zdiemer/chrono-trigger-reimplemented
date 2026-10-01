@@ -207,11 +207,16 @@ def check_routes(args, ctx):
     drive = ctx["binary"].with_name("ct_drive" + ctx["binary"].suffix)
     if not drive.exists():
         return False, "routes", "%s: not found (build it first)" % drive, []
-    cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
-           "--mode", "on:on", "-j", str(min(ctx["jobs"], 2))]
     # --long-routes runs every route whole; route_check's own default is two of
     # them, so naming them here is what makes it more than the fast set.
-    cmd += all_routes() if args.long_routes else FAST_ROUTES
+    routes = all_routes() if args.long_routes else FAST_ROUTES
+    cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
+           "--mode", "on:on", "-j", str(max(1, min(ctx["jobs"], len(routes))))]
+    # a scratch of the caller's keeps the routes' checkpoints, so a run cut
+    # short carries on where it stopped (route_check --resume)
+    if args.routes_scratch:
+        cmd += ["--scratch", str(args.routes_scratch), "--resume"]
+    cmd += routes
     rc, lines = run_tool(cmd)
     passed = sum(1 for line in lines if re.match(r"^\S+\s+pass", line))
     failed = sum(1 for line in lines if re.match(r"^\S+\s+FAIL", line))
@@ -305,6 +310,9 @@ def main():
                     help="concurrent movies (default: half the CPUs, at least 1)")
     ap.add_argument("--trace-movie", default="new-game")
     ap.add_argument("--trace-frames", type=int, default=7200)
+    ap.add_argument("--routes-scratch", type=pathlib.Path,
+                    help="keep the routes' runs here and resume them from their checkpoints where the build is the "
+                         "same (route_check --resume): a long run cut short carries on on the next")
     ap.add_argument("--long-routes", action="store_true",
                     help="run every route, the ending ones too (most of an hour), not only the fast one")
     ap.add_argument("--evidence", action="store_true",

@@ -333,16 +333,23 @@ the accumulated diff of its chunks, before it merges
 accounts are in docs/history/recomp-waves.md and recomp-chunks.md, the latest
 in RECOMP.md.
 
-**`$C1`: the battle.** Eight chunks are in: the enemies' scripts, the
+**`$C1`: the battle.** Nine chunks are in: the enemies' scripts, the
 target search, the random numbers, an enemy's turn, the statuses' timers,
 every action's effect, a party member's action carried out, the setup's party
 helpers with the inventory and gold service (`$C1:8003`), the fight's start
-(`$C1:FA8B`) with the `$FD` routines it calls, and the rewards of a won
+(`$C1:FA8B`) with the `$FD` routines it calls, the rewards of a won
 battle (`$C1:F93E`, `$C1:F205`, `$C1:B4E9`, `$FD:B201`: the experience, the
-levels, the techs, the items put back), all of which the main loop runs as C.
-**Next**, by `python3 tools/burndown.py --uncovered C1` (25% of the bank
-left): the combatants' animation commands and the enemy effects (`$C1:5CF1`
-6,346 bytes, `$C1:4CF0` 3,563, `$C1:3772` 2,278, `$C1:75CC` 981). What is
+levels, the techs, the items put back), all of which the main loop runs as C,
+and the first half of the animation script language (chunk 9a: the command
+table in C, the flow, the script's values, poses, drawing, speed, effects and
+colors). **Next**, chunk 9b, the rest of the language: the places and
+facings (`$C1:762E`, `$C1:75CC`) the moves
+and the sound commands need, the moves (lines, chases, the grid walk with
+`$C1:4A71`, jumps, spirals, orbits, the throws), the sound commands (a
+machine-aware operation, since the driver call bridges) and the screen effect
+(`$80`, which needs `battle_set_screen_effect`'s core as a C call). Then, by
+`python3 tools/burndown.py --uncovered C1` (20% of the bank left), the enemy
+effects (`$C1:3772` 2,278 bytes). What is
 left of the battle's routines in bank `$FD` (`$FD:A8A5`-`$B7EB`) goes with
 them: a member's turn (`$FD:AB30`), the counterattacks (`$FD:AC6E`) and
 `$FD:A8CE`; the rewards' messages (`$FD:AD17`) wait for the battle messages'
