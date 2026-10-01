@@ -3284,9 +3284,22 @@ names follow the operations. Accepted: the number display's commands
 (`numbers.c`, chunk 1) keep their own pointer advance, which differs only for
 a script past the end of a bank; they move to the rows when 9b reaches them.
 
-**Validation.** The six battle movies and the endings' in shadow mode, none
-mismatching; every new entry fuzzed with seeds 1 and 3, none mismatching. The
-full gate's numbers follow with the chunk's close.
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the 69 entries were entered 1,978,926 times (1,973,533 compared, 4,973
+interrupted; the rest turned to the original by their needs, the endings'
+subject among them), the waits most (the second mark's 311,758, the shown
+wait's 105,129), the channel runner 1,017,429 (3,363 interrupted). Eleven
+entries no movie reaches: the first mark's set, count down and sums, a
+variable stored from it, the swaps, an anchor let go, the return at the top
+and the skip. **Fuzzing**, seed 1, none mismatching after the fixes: every
+entry, 186 to 469 states each of 8,000 (the guard's: the channel and its
+offset differ in fifteen of sixteen), 30,157 in all. It found the blink's
+byte turned over by its low bit (a leftover 3 turns to 2, which flashes) and
+the direct page's mirrors in the upper banks.
+
+**Timing.** The entries' costs come from the shadow runs, from 1,938 (the
+halt) to 6,943 (a flash); the eleven no movie reaches take a sibling's (a
+mark's sum a variable's). The confirming gate run follows.
 
 ### The reading cost of a chunk
 
