@@ -3299,7 +3299,7 @@ the direct page's mirrors in the upper banks.
 
 **Timing.** The entries' costs come from the shadow runs, from 1,938 (the
 halt) to 6,943 (a flash); the eleven no movie reaches take a sibling's (a
-mark's sum a variable's). The confirming gate run follows.
+mark's sum a variable's). The full gate then passes with no new exception.
 
 ### The reading cost of a chunk
 
