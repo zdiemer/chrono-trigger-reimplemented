@@ -6284,8 +6284,8 @@ uint8_t battle_blink_countdown(const GameState *g, unsigned slot);
 void set_battle_blink_countdown(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_BLINK_FLASHING_COUNT = 11 };   /* by battle slot */
-/* 1 while a blinking combatant shows the flash, 0 while its own colors
- * (game/battle/script_colors.c, $C1:5F13) */
+/* Nonzero while a blinking combatant shows the flash, 0 while its own colors; the blink turns
+ * its low bit over (game/battle/script_colors.c, $C1:5F13) */
 uint8_t battle_blink_flashing(const GameState *g, unsigned slot);
 void set_battle_blink_flashing(GameState *g, unsigned slot, uint8_t v);
 

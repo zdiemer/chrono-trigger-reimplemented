@@ -4342,8 +4342,8 @@
 #define RAM_BATTLE_BLINK_COUNTDOWN 0x7EA17Cu
 #define RAM_BATTLE_BLINK_COUNTDOWN_COUNT 11u
 #define RAM_BATTLE_BLINK_COUNTDOWN_STRIDE 0x01u
-/* 1 while a blinking combatant shows the flash, 0 while its own colors
- * (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
+/* Nonzero while a blinking combatant shows the flash, 0 while its own colors; the blink turns
+ * its low bit over (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_BLINK_FLASHING 0x7EA187u
 #define RAM_BATTLE_BLINK_FLASHING_COUNT 11u
 #define RAM_BATTLE_BLINK_FLASHING_STRIDE 0x01u

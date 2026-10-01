@@ -135,7 +135,11 @@ static ScriptFlow flash_off(GameState *g, ScriptChannel channel, uint8_t length)
 SCRIPT_OPERATION(flash_off, channel, length)
 
 /* Counts the combatant's blink down; when it is due, starts the count over
- * and says so, the blink turning over to the flash or back. */
+ * and says so, the blink turning over to the flash or back. The original
+ * turns its byte over by its low bit, so any other bits it holds stay, and
+ * show the flash. */
+enum { FLASHING = 1 };
+
 static bool blink_due(GameState *g, uint8_t combatant, uint8_t period, bool *flashing)
 {
     uint8_t left = battle_blink_countdown(g, combatant);
@@ -144,9 +148,9 @@ static bool blink_due(GameState *g, uint8_t combatant, uint8_t period, bool *fla
         return false;
     }
     set_battle_blink_countdown(g, combatant, period);
-    bool now = !battle_blink_flashing(g, combatant);
+    uint8_t now = battle_blink_flashing(g, combatant) ^ FLASHING;
     set_battle_blink_flashing(g, combatant, now);
-    *flashing = now;
+    *flashing = now != 0;
     return true;
 }
 

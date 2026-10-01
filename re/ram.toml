@@ -11973,7 +11973,7 @@ addr = "7E:A187"
 count = 11
 index = "battle slot"
 subsystem = "battle"
-meaning = "1 while a blinking combatant shows the flash, 0 while its own colors (game/battle/script_colors.c, $C1:5F13)"
+meaning = "Nonzero while a blinking combatant shows the flash, 0 while its own colors; the blink turns its low bit over (game/battle/script_colors.c, $C1:5F13)"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_colors.c"
 
 [[var]]
