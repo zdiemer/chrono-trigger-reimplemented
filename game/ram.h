@@ -4310,24 +4310,43 @@
 #define RAM_BATTLE_ANIMATION_DELAY 0x7EA12Fu
 #define RAM_BATTLE_ANIMATION_DELAY_COUNT 11u
 #define RAM_BATTLE_ANIMATION_DELAY_STRIDE 0x01u
-/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7) [33 x $1 bytes, by row * 11 + battle slot: the frame the animation is on
- * ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation
- * keep while they wait ($A145 with the effect shown, $A150 without)] */
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS 0x7EA13Au
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS_COUNT 33u
-#define RAM_BATTLE_ANIMATION_WAIT_CELLS_STRIDE 0x01u
+/* The frame of its animation a combatant shows ($FF before its first, as starting an animation
+ * leaves it) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_FRAME 0x7EA13Au
+#define RAM_BATTLE_ANIMATION_FRAME_COUNT 11u
+#define RAM_BATTLE_ANIMATION_FRAME_STRIDE 0x01u
+/* Set while a script waits for the animation it started on the combatant to end (the wait that
+ * shows an effect: game/battle/script_poses.c, $C1:4E22); the other targets' wait leaves it set
+ * on its first [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT 0x7EA145u
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT_COUNT 11u
+#define RAM_BATTLE_ANIMATION_SHOWN_WAIT_STRIDE 0x01u
+/* Set while a script waits for the animation it started on the combatant to end (the plain wait
+ * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark
+ * [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_ANIMATION_WAIT 0x7EA150u
+#define RAM_BATTLE_ANIMATION_WAIT_COUNT 11u
+#define RAM_BATTLE_ANIMATION_WAIT_STRIDE 0x01u
 /* Set while the object moves along a scripted path [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PATH_ACTIVE 0x7EA15Bu
 #define RAM_BATTLE_PATH_ACTIVE_COUNT 11u
 #define RAM_BATTLE_PATH_ACTIVE_STRIDE 0x01u
-/* Per-combatant cells of the script commands that keep state over frames; what each is for past
- * that isn't worked out [44 x $1 bytes, by cell * 11 + battle slot: a count ($A166, $C1:546E),
- * an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at
- * $C1:5F35] */
+/* Per-combatant cells of the script commands that keep state over frames, the grid walk's
+ * ($C1:546E); what the count is for isn't worked out [22 x $1 bytes, by row * 11 + battle slot:
+ * a count ($A166, $C1:546E) and an unused row ($A171)] */
 #define RAM_BATTLE_SCRIPT_COMMAND_CELLS 0x7EA166u
-#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_COUNT 44u
+#define RAM_BATTLE_SCRIPT_COMMAND_CELLS_COUNT 22u
 #define RAM_BATTLE_SCRIPT_COMMAND_CELLS_STRIDE 0x01u
+/* Frames until a blinking combatant turns over between the flash and its own colors
+ * (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_BLINK_COUNTDOWN 0x7EA17Cu
+#define RAM_BATTLE_BLINK_COUNTDOWN_COUNT 11u
+#define RAM_BATTLE_BLINK_COUNTDOWN_STRIDE 0x01u
+/* 1 while a blinking combatant shows the flash, 0 while its own colors
+ * (game/battle/script_colors.c, $C1:5F13) [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_BLINK_FLASHING 0x7EA187u
+#define RAM_BATTLE_BLINK_FLASHING_COUNT 11u
+#define RAM_BATTLE_BLINK_FLASHING_STRIDE 0x01u
 /* Set when the object records a position trail [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_TRAIL_ON 0x7EA192u
 #define RAM_BATTLE_TRAIL_ON_COUNT 11u
@@ -4347,13 +4366,28 @@
 #define RAM_BATTLE_EFFECT_FRAME_TIME 0x7EA1B0u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_COUNT 8u
 #define RAM_BATTLE_EFFECT_FRAME_TIME_STRIDE 0x01u
-/* Per-effect cells of the effects' animation and the script commands that wait on it [32 x $1
- * bytes, by row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the
- * marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8
- * without), and an unused row ($A1D0)] */
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS 0x7EA1B8u
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS_COUNT 32u
-#define RAM_BATTLE_EFFECT_COMMAND_CELLS_STRIDE 0x01u
+/* The frame of its animation an effect shows ($FF before its first, as starting an animation
+ * leaves it) [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_FRAME 0x7EA1B8u
+#define RAM_BATTLE_EFFECT_FRAME_COUNT 8u
+#define RAM_BATTLE_EFFECT_FRAME_STRIDE 0x01u
+/* Set while the effect's script waits for the animation it started to end, the effect shown
+ * meanwhile (game/battle/script_poses.c, $C1:4E22) [8 x $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT 0x7EA1C0u
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT_COUNT 8u
+#define RAM_BATTLE_EFFECT_SHOWN_WAIT_STRIDE 0x01u
+/* Set while the effect's script waits for the animation it started to end
+ * (game/battle/script_poses.c, $C1:4EA2, $C1:577D, to the marked wait's mark); an effect whose
+ * frames come round to the first while it is set stops animating ($CC:F2DB) [8 x $1 bytes, by
+ * effect] */
+#define RAM_BATTLE_EFFECT_WAIT 0x7EA1C8u
+#define RAM_BATTLE_EFFECT_WAIT_COUNT 8u
+#define RAM_BATTLE_EFFECT_WAIT_STRIDE 0x01u
+/* A row of per-effect cells after the effects' waits, which only the objects' reset writes [8 x
+ * $1 bytes, by effect] */
+#define RAM_BATTLE_EFFECT_SPARE_CELLS 0x7EA1D0u
+#define RAM_BATTLE_EFFECT_SPARE_CELLS_COUNT 8u
+#define RAM_BATTLE_EFFECT_SPARE_CELLS_STRIDE 0x01u
 /* Nonzero while the effect's sprites are drawn with the objects [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_SHOWN 0x7EA1D8u
 #define RAM_BATTLE_EFFECT_SHOWN_COUNT 8u
@@ -4429,9 +4463,10 @@
 #define RAM_BATTLE_EFFECT_KIND 0x7EA2B5u
 /* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
  * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
-#define RAM_BATTLE_SCRIPT_ENEMY 0x7EA2B6u
-/* The byte after battle_script_enemy, which only the objects' reset writes */
-#define RAM_BATTLE_SCRIPT_ENEMY_SPARE 0x7EA2B7u
+#define RAM_BATTLE_SCRIPT_EFFECT 0x7EA2B6u
+/* The byte after battle_script_effect, which only the objects' reset writes; the commands read
+ * the effect as a word with it */
+#define RAM_BATTLE_SCRIPT_EFFECT_HIGH 0x7EA2B7u
 /* The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next
  * frame taken afresh, as starting an animation does [8 x $1 bytes, by effect] */
 #define RAM_BATTLE_EFFECT_FACING_SHOWN 0x7EA2B8u

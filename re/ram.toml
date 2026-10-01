@@ -11593,13 +11593,40 @@ meaning = "Frames the effect's animation frame still shows (from its frame recor
 source = "game/battle/effect_animation.c battle_animate_effects $CC:F278; game/battle/draw_objects.c $CF:EEEB"
 
 [[var]]
-name = "battle_effect_command_cells"
+name = "battle_effect_frame"
 addr = "7E:A1B8"
-count = 32
-index = "row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8 without), and an unused row ($A1D0)"
+count = 8
+index = "effect"
 subsystem = "battle"
-meaning = "Per-effect cells of the effects' animation and the script commands that wait on it"
+meaning = "The frame of its animation an effect shows ($FF before its first, as starting an animation leaves it)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c; read at $CC:F2D4"
+
+[[var]]
+name = "battle_effect_shown_wait"
+addr = "7E:A1C0"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Set while the effect's script waits for the animation it started to end, the effect shown meanwhile (game/battle/script_poses.c, $C1:4E22)"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c"
+
+[[var]]
+name = "battle_effect_wait"
+addr = "7E:A1C8"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "Set while the effect's script waits for the animation it started to end (game/battle/script_poses.c, $C1:4EA2, $C1:577D, to the marked wait's mark); an effect whose frames come round to the first while it is set stops animating ($CC:F2DB)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c"
+
+[[var]]
+name = "battle_effect_spare_cells"
+addr = "7E:A1D0"
+count = 8
+index = "effect"
+subsystem = "battle"
+meaning = "A row of per-effect cells after the effects' waits, which only the objects' reset writes"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
 name = "battle_object_effect_slots"
@@ -11896,22 +11923,58 @@ meaning = "Frames until the object's next animation step in the scheduler"
 source = "game/battle/objects.c battle_find_due_animation $C1:423A"
 
 [[var]]
-name = "battle_animation_wait_cells"
+name = "battle_animation_frame"
 addr = "7E:A13A"
-count = 33
-index = "row * 11 + battle slot: the frame the animation is on ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation keep while they wait ($A145 with the effect shown, $A150 without)"
+count = 11
+index = "battle slot"
 subsystem = "battle"
-meaning = "Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0, $C1:4E37, $C1:4EB7)"
-source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+meaning = "The frame of its animation a combatant shows ($FF before its first, as starting an animation leaves it)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c; read at $C1:42B0"
+
+[[var]]
+name = "battle_animation_shown_wait"
+addr = "7E:A145"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set while a script waits for the animation it started on the combatant to end (the wait that shows an effect: game/battle/script_poses.c, $C1:4E22); the other targets' wait leaves it set on its first"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c"
+
+[[var]]
+name = "battle_animation_wait"
+addr = "7E:A150"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Set while a script waits for the animation it started on the combatant to end (the plain wait and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_poses.c"
 
 [[var]]
 name = "battle_script_command_cells"
 addr = "7E:A166"
-count = 44
-index = "cell * 11 + battle slot: a count ($A166, $C1:546E), an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at $C1:5F35"
+count = 22
+index = "row * 11 + battle slot: a count ($A166, $C1:546E) and an unused row ($A171)"
 subsystem = "battle"
-meaning = "Per-combatant cells of the script commands that keep state over frames; what each is for past that isn't worked out"
+meaning = "Per-combatant cells of the script commands that keep state over frames, the grid walk's ($C1:546E); what the count is for isn't worked out"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
+
+[[var]]
+name = "battle_blink_countdown"
+addr = "7E:A17C"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Frames until a blinking combatant turns over between the flash and its own colors (game/battle/script_colors.c, $C1:5F13)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_colors.c"
+
+[[var]]
+name = "battle_blink_flashing"
+addr = "7E:A187"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "1 while a blinking combatant shows the flash, 0 while its own colors (game/battle/script_colors.c, $C1:5F13)"
+source = "game/battle/reset.c battle_reset_object_state $CC:F06B; game/battle/script_colors.c"
 
 [[var]]
 name = "battle_animating"
@@ -11991,17 +12054,17 @@ meaning = "The command the running animation script channel is at, which its han
 source = "game/battle/scripts.c battle_run_script_channel $C1:4C9E; game/battle/numbers.c"
 
 [[var]]
-name = "battle_script_enemy"
+name = "battle_script_effect"
 addr = "7E:A2B6"
 subsystem = "battle"
 meaning = "The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies')"
 source = "game/battle/scripts.c battle_run_scripts $C1:4BBE"
 
 [[var]]
-name = "battle_script_enemy_spare"
+name = "battle_script_effect_high"
 addr = "7E:A2B7"
 subsystem = "battle"
-meaning = "The byte after battle_script_enemy, which only the objects' reset writes"
+meaning = "The byte after battle_script_effect, which only the objects' reset writes; the commands read the effect as a word with it"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]

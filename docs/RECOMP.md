@@ -3208,15 +3208,20 @@ moves, sound and the screen effect) is chunk 9b.
 What it is, in the game's terms (`battle/script_language.h` has the shared
 vocabulary):
 
-- **The table** (`battle/scripts.c`): a row per command byte, with the
-  operation in C or none, the original's handler, the form (the operation's
-  own enum: a value's kind, a speed's number, on or off, a slot) and what the
-  operation needs of the state in range. A command returns a `ScriptStep`,
-  how far the channel moves on and whether it runs its next command this
-  frame, which the runner takes (the original's `$C1:75BB` and its continue
-  flag); the runner calls the C operations directly, timed as their handlers,
-  and the rest out. `$01` and the 69 other bytes the ROM's table gives its handler
-  are one halt.
+- **The rows** (`battle/script_language.h`, the event engine's shape): each
+  file of commands has a table, a row a command byte, with the operation, how
+  each of its typed, named parameters comes from the command (an operand
+  byte, or fixed by the byte: a speed's number, on or off, a value's kind, a
+  slot), the command's length and what the operation needs of the state.
+  The runner decodes the command by its row into a `ScriptCommand` and the
+  operation takes the parameters it names (`play_animation(g, channel,
+  animation, mode)`); it returns a `ScriptFlow` (on past the command this
+  frame or next, stay, again, or moved by a call), which the runner takes
+  (the original's `$C1:75BB` and its continue flag). The original's handler
+  addresses are a separate dispatch table in `battle/scripts.c`, for the
+  call-outs and the timing: a command with no row, or whose needs the state
+  doesn't meet, runs the original's handler. `$01` and the 69 other bytes
+  the ROM's table gives its handler are one halt.
 - **The flow and the values** (`battle/script_flow.c`): end, halt, call and
   return (a return place per channel), waits, and the script's 27 variables,
   two marks and its point, which the waiting commands test.
@@ -3232,10 +3237,14 @@ vocabulary):
 
 A command acts on what its channel animates, one of three kinds
 (`ScriptChannel`): a combatant, the other targets' list, or the channel's
-effect. The map gained the four cells starting an animation resets (the
-facing an object's and an effect's frames were last taken for, an effect's
-animation's place and length), the return places and the pointer's pad
-byte, and the meanings of the waits' marks; the effect animation tables,
+effect (`battle_script_effect`, named for the effects' channels it was
+first taken for the enemies'). The map gained the four cells starting an
+animation resets (the facing an object's and an effect's frames were last
+taken for, an effect's animation's place and length), the return places and
+the pointer's pad byte; the per-combatant and per-effect cells the commands
+keep, declared as row-indexed arrays, are split into what each row is (the
+frame an animation is on, the two waits' marks, the blink's countdown and
+whether it flashes). The effect animation tables,
 anchor sources and effect records take unchecked accessors, for the operands
 the original doesn't check. Reproduced on purpose, in TODO.md: the list waits
 leaving their mark set, the shadows' and the rotation's lists starting at the
@@ -3251,10 +3260,29 @@ original's handler, from the runner and the registry alike.
 **What the gate found.** Shadow mode: the overflow flag a C command leaves at
 the next call-out, which no handler reads (declared at the call-out, with a
 `ct_dev --poison-dc` run as its evidence); the out-of-range subject above.
-Fuzzing: a script in work RAM lying over the cells a command writes, so an
-operand is read after what the original writes before it. The effects check:
-stopping a trail sets its periods from whatever the first work cells hold,
-which nothing reads while it is off (its reason in the baseline).
+Fuzzing: a script in work RAM lying over the direct page, whose cells a
+command writes before the original reads its next operand there; the
+original runs those (`script_over_the_direct_page`), as the event engine
+does for a command at its buffer's end.
+
+**The review** rated every file "mostly", none translation, and asked for two
+things first: the table to decode operands into typed parameters (the first
+version handed every operation a polymorphic `form` byte and read operands
+by position), and the work cells to be scaffolding (they were written
+plainly for one reader, stopping a trail, which itself only sets dead
+periods). Both are done as above: everything the commands leave in the first
+work cells is written by a leaves helper under `ORIGINAL_EFFECT`, and
+stopping a trail sets its periods from them only there, the trail's two
+readers answered in the effects baseline (they read only while the trail is
+on). Besides: the three waits are one `play_and_wait_as` with a `WaitStyle`;
+`$26` on an effect channel, which no script does, is the original's to run;
+the flash's, the palette sets' and the palette frames' accessors take a set
+or a frame, not a byte offset; the cycled background's painting is the rule
+it is, its leftover count worked out after; one `ScriptPlace` arithmetic for
+the advance and the call's return; the held addition a clamp; the registry
+names follow the operations. Accepted: the number display's commands
+(`numbers.c`, chunk 1) keep their own pointer advance, which differs only for
+a script past the end of a bank; they move to the rows when 9b reaches them.
 
 **Validation.** The six battle movies and the endings' in shadow mode, none
 mismatching; every new entry fuzzed with seeds 1 and 3, none mismatching. The

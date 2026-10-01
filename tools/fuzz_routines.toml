@@ -11130,7 +11130,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_return"
+name = "script_return_from_call"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11140,7 +11140,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_wait"
+name = "script_wait_frames"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11150,7 +11150,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_return_unless_point_low"
+name = "script_return_at_the_top"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11350,7 +11350,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_swap_marks"
+name = "script_swap_with_mark_a"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11360,7 +11360,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_swap_mark_a_with_point_x"
+name = "script_swap_with_mark_a_point_x"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11370,7 +11370,7 @@ iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
 [[routine]]
-name = "script_swap_mark_a_with_point_y"
+name = "script_swap_with_mark_a_point_y"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11403,7 +11403,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_play_shown_and_wait"
+name = "script_play_and_wait_shown"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11442,7 +11442,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_speed"
+name = "script_set_speed"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11481,7 +11481,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_not_drawn_on_top"
+name = "script_drawn_on_top_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11494,7 +11494,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_hide"
+name = "script_hidden"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11507,7 +11507,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_show"
+name = "script_hidden_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11546,7 +11546,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_return_to_plane"
+name = "script_withdrawn_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11559,7 +11559,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_withdraw"
+name = "script_withdrawn"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11572,7 +11572,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_trail_on"
+name = "script_trail"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11624,7 +11624,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
 
 [[routine]]
-name = "script_shadow_on"
+name = "script_shadow"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11698,7 +11698,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_pause_palettes"
+name = "script_palettes_paused"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11709,7 +11709,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_resume_palettes"
+name = "script_palettes_paused_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11742,7 +11742,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_colour_cycles_off"
+name = "script_color_cycles_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11753,7 +11753,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_show_all_effects"
+name = "script_all_effects_shown"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11764,7 +11764,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_hide_all_effects"
+name = "script_all_effects_shown_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11775,7 +11775,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_show_effect"
+name = "script_effect_shown"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11786,7 +11786,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_hide_effect"
+name = "script_effect_shown_off"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11797,7 +11797,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_effect_in_front"
+name = "script_effect_drawn_with"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11808,7 +11808,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
-name = "script_effect_behind"
+name = "script_effect_drawn_with_behind"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
@@ -11830,7 +11830,7 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list"
 
 [[routine]]
-name = "script_flash"
+name = "script_flash_with"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",

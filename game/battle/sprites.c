@@ -210,7 +210,7 @@ enum { PALETTE_ANIMATIONS = 4 };
  * into, from color 1 of it, and whether the set has seven colors rather than
  * three. */
 enum { PLACE_QUARTER = 0x03, PLACE_SEVEN_COLORS = 0x80, COLORS_PER_QUARTER = 4 };
-enum { FIRST_SPRITE_PALETTE = 128, SMALL_SET_COLORS = 3, LARGE_SET_COLORS = 7, COLOR_BYTES = 2 };
+enum { FIRST_SPRITE_PALETTE = 128, SMALL_SET_COLORS = BATTLE_SMALL_SET_COLORS, LARGE_SET_COLORS = BATTLE_LARGE_SET_COLORS, COLOR_BYTES = 2 };
 
 /* The frame after the one the animation shows, starting over after its
  * last. */
@@ -238,25 +238,26 @@ static void leave_palette_frame(GameState *g, BattlePaletteFrame frame)
     set_battle_multiply_factors(g, 0, 0);
 }
 
-void battle_put_color_set(GameState *g, bool seven, uint16_t from, uint8_t quarter)
+void battle_put_color_set(GameState *g, bool seven, uint8_t set, uint8_t quarter)
 {
     uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
     unsigned first = FIRST_SPRITE_PALETTE + 1 + quarter * COLORS_PER_QUARTER;
-    for (unsigned c = 0; c < colors; c++) {
-        uint16_t at_color = (uint16_t)(from + c * COLOR_BYTES);
-        uint16_t color = (uint16_t)(battle_palette_set_byte(g, seven, at_color)
-                                    | battle_palette_set_byte(g, seven, (uint16_t)(at_color + 1)) << 8);
-        set_palette_working(g, first + c, color);
-    }
+    for (unsigned c = 0; c < colors; c++)
+        set_palette_working(g, first + c, battle_palette_set_color(g, seven, set, c));
 }
+
+/* The original doubles the frame's number in a byte, and finds the set's
+ * colors on the multiplier, whose operands and product it leaves
+ * (battle/arith.h). */
+enum { FRAME_NUMBERS_IN_A_BYTE = 0x7F };
 
 static void show_palette_frame(GameState *g, uint8_t number)
 {
-    uint16_t at = (uint16_t)((uint8_t)(number * 2) + battle_palette_anim_frames(g));
-    BattlePaletteFrame frame = battle_palette_frame(g, at);
+    BattlePaletteFrame frame = battle_palette_frame(g, battle_palette_anim_frames(g), number & FRAME_NUMBERS_IN_A_BYTE);
     bool seven = (frame.place & PLACE_SEVEN_COLORS) != 0;
     uint8_t colors = seven ? LARGE_SET_COLORS : SMALL_SET_COLORS;
-    battle_put_color_set(g, seven, battle_multiply(g, colors * COLOR_BYTES, frame.set), frame.place & PLACE_QUARTER);
+    (void)battle_multiply(g, colors * COLOR_BYTES, frame.set);
+    battle_put_color_set(g, seven, frame.set, frame.place & PLACE_QUARTER);
     ORIGINAL_EFFECT(leave_palette_frame(g, frame));
 }
 

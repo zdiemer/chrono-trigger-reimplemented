@@ -140,8 +140,8 @@ rest waits, is [PLAN.md](PLAN.md).
     the rest of
     `battle_fight_flags`; the unused rows of the script commands'
     per-combatant and per-effect cells (`battle_script_command_cells` at
-    `$A171`, `battle_effect_command_cells` at `$A1D0`) and the count at `$A166`
-    the grid walk keeps (chunk 9b); the five window tile blocks the frame
+    `$A171`, `battle_effect_spare_cells`) and the count at `$A166` the grid
+    walk keeps (chunk 9b); the five window tile blocks the frame
     loads and what reads `battle_block_uploads_made`; what the marker sprite
     is to the player; why the upload lets enemies in slots 4 and 6+ through.
   - Quirks of the enemies' scripts reproduced on purpose (RECOMP.md, "Phase 3,
@@ -180,7 +180,11 @@ rest waits, is [PLAN.md](PLAN.md).
     back, showing an effect and a shadow counting up; the glide's equality
     test; stopping a trail setting its periods from stale work cells; the
     restore after a flash without the rule's test the flash has; the blink
-    running itself again in the frame it turns to the flash.
+    running itself again in the frame it turns to the flash. Their reads and
+    writes past a table, through `_unchecked` accessors (a variable past the
+    27, a subject or an anchor named by an operand, an effect record found in
+    a byte, an effect animation past the 16), reach the next variable only
+    while storage is the RAM image: a native layout needs a decision for each.
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).

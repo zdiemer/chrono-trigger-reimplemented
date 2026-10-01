@@ -6247,22 +6247,47 @@ enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_ANIMATION_WAIT_CELLS_COUNT = 33 };   /* by row * 11 + battle slot: the frame the animation is on ($A13A, $FF before its first), and the marks the scripts' two kinds of wait for an animation keep while they wait ($A145 with the effect shown, $A150 without) */
-/* Per-combatant cells of the animation and the script commands that wait on it ($C1:42B0,
- * $C1:4E37, $C1:4EB7) */
-uint8_t battle_animation_wait_cells(const GameState *g, unsigned slot);
-void set_battle_animation_wait_cells(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_ANIMATION_FRAME_COUNT = 11 };   /* by battle slot */
+/* The frame of its animation a combatant shows ($FF before its first, as starting an animation
+ * leaves it) */
+uint8_t battle_animation_frame(const GameState *g, unsigned slot);
+void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ANIMATION_SHOWN_WAIT_COUNT = 11 };   /* by battle slot */
+/* Set while a script waits for the animation it started on the combatant to end (the wait that
+ * shows an effect: game/battle/script_poses.c, $C1:4E22); the other targets' wait leaves it set
+ * on its first */
+uint8_t battle_animation_shown_wait(const GameState *g, unsigned slot);
+void set_battle_animation_shown_wait(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_ANIMATION_WAIT_COUNT = 11 };   /* by battle slot */
+/* Set while a script waits for the animation it started on the combatant to end (the plain wait
+ * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark */
+uint8_t battle_animation_wait(const GameState *g, unsigned slot);
+void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_PATH_ACTIVE_COUNT = 11 };   /* by battle slot */
 /* Set while the object moves along a scripted path */
 uint8_t battle_path_active(const GameState *g, unsigned slot);
 void set_battle_path_active(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 44 };   /* by cell * 11 + battle slot: a count ($A166, $C1:546E), an unused row ($A171), a countdown ($A17C) and a toggle ($A187) of the blinking command at $C1:5F35 */
-/* Per-combatant cells of the script commands that keep state over frames; what each is for past
- * that isn't worked out */
+enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 22 };   /* by row * 11 + battle slot: a count ($A166, $C1:546E) and an unused row ($A171) */
+/* Per-combatant cells of the script commands that keep state over frames, the grid walk's
+ * ($C1:546E); what the count is for isn't worked out */
 uint8_t battle_script_command_cells(const GameState *g, unsigned slot);
 void set_battle_script_command_cells(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_BLINK_COUNTDOWN_COUNT = 11 };   /* by battle slot */
+/* Frames until a blinking combatant turns over between the flash and its own colors
+ * (game/battle/script_colors.c, $C1:5F13) */
+uint8_t battle_blink_countdown(const GameState *g, unsigned slot);
+void set_battle_blink_countdown(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_BLINK_FLASHING_COUNT = 11 };   /* by battle slot */
+/* 1 while a blinking combatant shows the flash, 0 while its own colors
+ * (game/battle/script_colors.c, $C1:5F13) */
+uint8_t battle_blink_flashing(const GameState *g, unsigned slot);
+void set_battle_blink_flashing(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_TRAIL_ON_COUNT = 11 };   /* by battle slot */
 /* Set when the object records a position trail */
@@ -6292,10 +6317,29 @@ enum { BATTLE_EFFECT_FRAME_TIME_COUNT = 8 };   /* by effect */
 uint8_t battle_effect_frame_time(const GameState *g, unsigned i);
 void set_battle_effect_frame_time(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_EFFECT_COMMAND_CELLS_COUNT = 32 };   /* by row * 8 + effect: the frame the animation is on ($A1B8, $FF before its first), the marks the scripts' two kinds of wait keep while they wait ($A1C0 with the effect shown, $A1C8 without), and an unused row ($A1D0) */
-/* Per-effect cells of the effects' animation and the script commands that wait on it */
-uint8_t battle_effect_command_cells(const GameState *g, unsigned row);
-void set_battle_effect_command_cells(GameState *g, unsigned row, uint8_t v);
+enum { BATTLE_EFFECT_FRAME_COUNT = 8 };   /* by effect */
+/* The frame of its animation an effect shows ($FF before its first, as starting an animation
+ * leaves it) */
+uint8_t battle_effect_frame(const GameState *g, unsigned i);
+void set_battle_effect_frame(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_SHOWN_WAIT_COUNT = 8 };   /* by effect */
+/* Set while the effect's script waits for the animation it started to end, the effect shown
+ * meanwhile (game/battle/script_poses.c, $C1:4E22) */
+uint8_t battle_effect_shown_wait(const GameState *g, unsigned i);
+void set_battle_effect_shown_wait(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_WAIT_COUNT = 8 };   /* by effect */
+/* Set while the effect's script waits for the animation it started to end
+ * (game/battle/script_poses.c, $C1:4EA2, $C1:577D, to the marked wait's mark); an effect whose
+ * frames come round to the first while it is set stops animating ($CC:F2DB) */
+uint8_t battle_effect_wait(const GameState *g, unsigned i);
+void set_battle_effect_wait(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_EFFECT_SPARE_CELLS_COUNT = 8 };   /* by effect */
+/* A row of per-effect cells after the effects' waits, which only the objects' reset writes */
+uint8_t battle_effect_spare_cells(const GameState *g, unsigned i);
+void set_battle_effect_spare_cells(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_SHOWN_COUNT = 8 };   /* by effect */
 /* Nonzero while the effect's sprites are drawn with the objects */
@@ -6407,12 +6451,13 @@ void set_battle_effect_kind(GameState *g, uint8_t v);
 
 /* The effect whose script channel (8 and up) is running: channel 8 + e animates effect e and its
  * anchor, mover 11 + e in the paths' tables (the channels were first taken for the enemies') */
-uint8_t battle_script_enemy(const GameState *g);
-void set_battle_script_enemy(GameState *g, uint8_t v);
+uint8_t battle_script_effect(const GameState *g);
+void set_battle_script_effect(GameState *g, uint8_t v);
 
-/* The byte after battle_script_enemy, which only the objects' reset writes */
-uint8_t battle_script_enemy_spare(const GameState *g);
-void set_battle_script_enemy_spare(GameState *g, uint8_t v);
+/* The byte after battle_script_effect, which only the objects' reset writes; the commands read
+ * the effect as a word with it */
+uint8_t battle_script_effect_high(const GameState *g);
+void set_battle_script_effect_high(GameState *g, uint8_t v);
 
 enum { BATTLE_EFFECT_FACING_SHOWN_COUNT = 8 };   /* by effect */
 /* The facing (battle_anchor_facing) an effect's frames were last taken for; $FF has the next
