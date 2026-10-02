@@ -552,17 +552,17 @@ void menu_items_draw_row(GameState *g, uint16_t at, uint8_t row)
     if (usable_from_the_menu(g, item))
         set_menu_text_attribute(g, (uint8_t)(menu_text_attribute(g) | USABLE_ATTRIBUTE));
     if (item == NO_ITEM) {
-        TIMED_AS(g, 0xC2EF65, (void)menu_draw_blanks(g, at, BLANK_ROW_SETTINGS));
+        (void)menu_draw_blanks(g, at, BLANK_ROW_SETTINGS);
         return;
     }
     uint16_t pen = at;
-    TIMED_AS(g, 0xC2EF65, pen = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, NAME_SETTINGS));
+    pen = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, NAME_SETTINGS);
     pen = menu_draw_colon(g, pen);
-    TIMED_AS(g, 0xC2F114, pen = menu_draw_number_value(g, count, COUNT_FORMAT, pen));
+    pen = menu_draw_number_value(g, count, COUNT_FORMAT, pen);
     pen = (uint16_t)(pen + TILE_BYTES);
     wram_fill8(g, MENU_NAMES_BANK | pen, LABEL_TILES * TILE_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, LABEL_TILES * TILE_BYTES));
-    TIMED_AS(g, 0xC2EF65, (void)menu_draw_string(g, menu_item_kind_label(g, item), pen, LABEL_SETTINGS));
+    (void)menu_draw_string(g, menu_item_kind_label(g, item), pen, LABEL_SETTINGS);
 }
 
 // $C2:AE43

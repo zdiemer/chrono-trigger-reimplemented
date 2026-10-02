@@ -152,7 +152,7 @@ static void leave_slots_listed(GameState *g)
 static uint16_t draw_item_name(GameState *g, uint8_t item, uint16_t pen, uint8_t settings)
 {
     uint16_t after = pen;
-    TIMED_AS(g, 0xC2EF65, after = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, settings));
+    after = menu_draw_string(g, MENU_ITEM_TABLES_BANK | menu_item_name_places(g, item), pen, settings);
     return after;
 }
 
@@ -176,7 +176,7 @@ void menu_equip_take_slot(GameState *g)
     ORIGINAL_EFFECT(set_menu_scratch_slot_label(g, (uint16_t)(slot * 2)));
     set_menu_fill_tile(g, 0);
     set_menu_text_attribute(g, 0);
-    TIMED_AS(g, 0xC2EF65, (void)menu_draw_string(g, menu_slot_label(g, slot), SLOT_LABEL_AT, SLOT_LABEL_SETTINGS));
+    (void)menu_draw_string(g, menu_slot_label(g, slot), SLOT_LABEL_AT, SLOT_LABEL_SETTINGS);
     wram_copy(g, 0x7E0000u | LABELS_ROW, 0x7E0000u | LABELS_ROW_COPY, ROW_BYTES);
     ORIGINAL_EFFECT(charge_block_move(g, ROW_BYTES));
 }
@@ -472,11 +472,10 @@ void menu_equip_draw_list_row(GameState *g, uint16_t at)
     set_menu_text_attribute(g, LIST_ROW_ATTRIBUTE);
     uint8_t item = menu_item_operand(g);
     if (item != 0)
-        TIMED_AS(g, 0xC2EF65,
-                 (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | (uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON),
-                                        at, LIST_NAME_SETTINGS));
+        (void)menu_draw_string(g, MENU_ITEM_TABLES_BANK | (uint16_t)(menu_item_name_places(g, item) + NAME_PAST_THE_ICON), at,
+                               LIST_NAME_SETTINGS);
     else
-        TIMED_AS(g, 0xC2EF65, (void)menu_draw_blanks(g, at, LIST_NAME_SETTINGS));
+        (void)menu_draw_blanks(g, at, LIST_NAME_SETTINGS);
     set_menu_fill_tile(g, 0);
     set_menu_text_attribute(g, 0);
 }
