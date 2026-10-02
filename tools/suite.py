@@ -18,9 +18,14 @@ a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
 (tools/timing_gate.py); no video write in the shipping mode may land on the
 picture where the reference's doesn't (tools/vblank_check.py); and the route
-scripts must reach their outcomes in the shipping mode
-(tools/movies/route_check.py; the fast route by default, all of them with
---long-routes); and every don't-care declaration in game/ must be one the
+scripts must reach their outcomes in the shipping mode, with the C sound driver
+that ships (tools/movies/route_check.py; the fast route by default, all of them
+with --long-routes); and the C sound driver must match the original's at every
+tick of every movie, register for register and field for field (`ct_dev
+--sound-lockstep --sound-lockstep-level state`, run inside the shadow runs, where
+the original's timing is kept: docs/SOUND.md, "How it was checked"), and over a
+short ct_sound_fuzz in both its modes, against the original and in the SPC700's
+place; and every don't-care declaration in game/ must be one the
 liveness analysis agrees with (tools/dontcare_check.py, static, with the call
 logs the shadow runs just wrote); and no port may transliterate the assembly
 where one didn't before (tools/portstyle.py, static, a ratchet against its
@@ -88,13 +93,16 @@ def collect(only, names):
     return out
 
 
-def run_movie(binary, rom, out, name, path, frames):
-    """One shadow run. Returns (name, ok, detail)."""
+def run_movie(binary, rom, out, name, path, frames, lockstep):
+    """One shadow run, with the sound lockstep beside it unless `lockstep` is
+    false (it adds about a twentieth to the run). Returns (name, ok, detail)."""
     log = out / ("shadow-%s.log" % name)
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path),
            "--frames", str(frames), "--native", "shadow", "--timing-report", "--page-report",
            "--coverage", str(out / ("cov-%s.txt" % name)),
            "--calls", str(out / ("calls-%s.txt" % name))]
+    if lockstep:
+        cmd += ["--sound-lockstep", "--sound-lockstep-level", "state"]
     started = time.time()
     with open(log, "wb") as fh:
         rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT)
@@ -210,8 +218,10 @@ def check_routes(args, ctx):
     # --long-routes runs every route whole; route_check's own default is two of
     # them, so naming them here is what makes it more than the fast set.
     routes = all_routes() if args.long_routes else FAST_ROUTES
+    # the shipping mode with the sound driver that ships (the C one); the
+    # original driver's shipping-mode runs are the vblank check's
     cmd = [sys.executable, "-m", "tools.movies.route_check", "--drive", str(drive), "--rom", str(args.rom),
-           "--mode", "on:on", "-j", str(max(1, min(ctx["jobs"], len(routes))))]
+           "--mode", "on:on:c", "-j", str(max(1, min(ctx["jobs"], len(routes))))]
     # a scratch of the caller's keeps the routes' checkpoints, so a run cut
     # short carries on where it stopped (route_check --resume)
     if args.routes_scratch:
@@ -222,6 +232,73 @@ def check_routes(args, ctx):
     failed = sum(1 for line in lines if re.match(r"^\S+\s+FAIL", line))
     summary = "%d of %d route(s) reach their outcome in the shipping mode" % (passed, passed + failed)
     return rc == 0 and failed == 0, "routes", summary, [] if rc == 0 else lines[-30:]
+
+
+LOCKSTEP = re.compile(r"^sound lockstep \(.*?\): (\d+) ticks, (\d+) while loading, (\d+) commands, (\d+) loads(.*)$",
+                      re.M)
+LOCKSTEP_SAME = re.compile(r"^: identical(?:; the samples' places checked (\d+) times against the CPU half's: "
+                           r"identical)?$")
+
+
+def check_lockstep(args, ctx):
+    """The C sound driver beside the original's at every tick of every movie
+    (ct_dev --sound-lockstep --sound-lockstep-level state, in the shadow runs):
+    status, keys, S-DSP registers and the drivers' state, and the samples'
+    places against the CPU half's. Any difference, or a run without its
+    verdict, fails."""
+    totals, places, bad = [0, 0, 0, 0], 0, []
+    for name in ctx["movies"]:
+        log = args.out / ("shadow-%s.log" % name)
+        text = log.read_text(errors="replace") if log.exists() else ""
+        found = LOCKSTEP.findall(text)
+        same = found and LOCKSTEP_SAME.match(found[-1][4])
+        if not same:
+            line = next((l for l in text.splitlines() if l.startswith("sound lockstep")), "no lockstep verdict")
+            bad.append("%s: %s" % (name, line))
+            continue
+        totals = [t + int(n) for t, n in zip(totals, found[-1][:4])]
+        places += int(same.group(1) or 0)
+    summary = ("%d of %d movies identical: %d ticks (%d loading), %d commands, %d loads, the places checked %d times"
+               % (len(ctx["movies"]) - len(bad), len(ctx["movies"]), *totals, places))
+    return not bad, "sound lockstep", summary, bad[:40]
+
+
+# ct_sound_fuzz's part of the gate: a few runs of each kind, from fixed seeds, so
+# a run is the same run every time (docs/SOUND.md, "How it was checked"). Against
+# the original at the state level, with the game's songs and with made-up ones;
+# and the C driver in the SPC700's place as ct_play plays it, likewise.
+SOUND_FUZZ_RUNS = [
+    ("original", ["--level", "state"]),
+    ("original, made-up songs", ["--level", "state", "--made-up-songs", "1"]),
+    ("hosted", ["--sound-driver", "c"]),
+    ("hosted, made-up songs", ["--sound-driver", "c", "--made-up-songs", "1"]),
+]
+SOUND_FUZZ_SIZE = ["--runs", "10", "--commands", "400", "--seed", "1"]
+
+
+def check_sound_fuzz(args, ctx):
+    """ct_sound_fuzz in both its modes (a short run of each): the C driver
+    against the original on command streams no movie plays, and in the
+    SPC700's place answering every command with no sample placed where the
+    echo writes and no command dropped."""
+    fuzz = ctx["binary"].with_name("ct_sound_fuzz" + ctx["binary"].suffix)
+    if not fuzz.exists():
+        return False, "sound fuzz", "%s: not found (build it first)" % fuzz, []
+
+    def one(run):
+        label, extra = run
+        rc, lines = run_tool([str(fuzz), "--rom", str(args.rom)] + SOUND_FUZZ_SIZE + extra)
+        return label, rc, lines
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, min(ctx["jobs"], 2))) as pool:
+        results = list(pool.map(one, SOUND_FUZZ_RUNS))
+    failed = [(label, lines) for label, rc, lines in results if rc != 0]
+    summary = "%d of %d kinds of run clean (%s commands each)" % (len(results) - len(failed), len(results),
+                                                                  " runs of ".join(SOUND_FUZZ_SIZE[1:4:2]))
+    details = []
+    for label, lines in failed:
+        details += ["%s:" % label] + ["  " + line for line in lines[-20:]]
+    return not failed, "sound fuzz", summary, details
 
 
 def check_dontcare(args, ctx):
@@ -291,6 +368,9 @@ CHECKS = (
     ("timing", check_timing, "the timing gate over the shadow runs"),
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),
+    ("lockstep", check_lockstep, "the C sound driver against the original's in the shadow runs (and the lockstep "
+                                 "in them)"),
+    ("sound-fuzz", check_sound_fuzz, "the short ct_sound_fuzz runs"),
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
@@ -344,7 +424,7 @@ def main():
     bad_movies = []
     started = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(run_movie, binary, args.rom, args.out, *m) for m in movies]
+        futures = [pool.submit(run_movie, binary, args.rom, args.out, *m, not args.no_lockstep) for m in movies]
         for done, fut in enumerate(concurrent.futures.as_completed(futures), 1):
             name, ok, detail = fut.result()
             print("[%d/%d] %s %s%s" % (done, len(movies), name, detail,
@@ -361,7 +441,7 @@ def main():
            "complete": library == len(movies)}
     failed = ["movies: " + ", ".join(bad_movies)] if bad_movies else []
     for name, fn, _what in CHECKS:
-        if getattr(args, "no_" + name):
+        if getattr(args, "no_" + name.replace("-", "_")):
             continue
         ok, label, summary, details = fn(args, ctx)
         print("%s: %s%s" % (label, summary, "" if ok else "  <-- FAILED"), flush=True)

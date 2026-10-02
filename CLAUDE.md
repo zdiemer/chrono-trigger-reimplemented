@@ -71,9 +71,12 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   adding a movie or a port, recalibrate with its `--calibrate game/registry.c`; docs/RECOMP.md, "The
   timing gate"); no video write in the shipping mode (`--recomp on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
-  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode
-  (`tools/movies/route_check.py`; the suite runs the fast route, `--long-routes` all of them, which
-  is worth doing before a change to timing or to the native runtime lands); every
+  (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
+  sound driver that ships (`tools/movies/route_check.py`, `ct_drive --sound-driver c`; the suite runs
+  the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
+  the native runtime lands); the C sound driver matches the original's at every tick of every movie
+  (`ct_dev --sound-lockstep --sound-lockstep-level state`, inside the shadow runs) and over a short
+  `ct_sound_fuzz` in both its modes (docs/SOUND.md); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
   (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk"); no
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before

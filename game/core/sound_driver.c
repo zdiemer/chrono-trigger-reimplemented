@@ -1196,9 +1196,12 @@ void sound_driver_command(Snes *s)
 {
     if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
         return;
-    if (au_driver_command_taken(m_platform(s))) {
-        if (m_read8(s, COMMAND) == SELECT_2F00_SET)
-            m_write8(s, SET_2F00, m_read8(s, PARAMETERS) != 0);
+    if (au_driver_hosted(m_platform(s))) {
+        AudioCommand c = { .command = m_read8(s, COMMAND), .p1 = m_read8(s, PARAMETERS),
+                           .p2 = m_read8(s, PARAMETERS + 1), .p3 = m_read8(s, PARAMETERS + 2), .count = 3 };
+        au_driver_command_taken(m_platform(s), c, m_read8(s, SET_2F00));
+        if (c.command == SELECT_2F00_SET)
+            m_write8(s, SET_2F00, c.p1 != 0);
         taken_by_host(s);
         return;
     }

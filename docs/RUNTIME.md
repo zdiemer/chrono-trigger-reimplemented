@@ -39,8 +39,9 @@ status, keys, dsp or state; SOUND.md, "The port as built"); it needs a run
 from power-on. A third hook, `Apu.host`, runs a program on the host in the
 SPC700's place, and `Apu.host_boot` and `Apu.host_command` hand it the CPU
 half's boot and commands as calls (`au_driver_boot_taken`,
-`au_driver_command_taken`): `ct_play` plays the port that way by default, and
-`ct_dev --sound-driver c` (`frontend/sound_host.c`).
+`au_driver_command_taken`, given the command and the set of effects asked
+for): `ct_play` plays the port that way by default, and `ct_dev` and
+`ct_drive --sound-driver c` (`frontend/sound_host.c`).
 
 ## Components
 
@@ -605,9 +606,14 @@ own, which a state holds beside the machine's: `snes_state_write_with` and
 (the C sound driver's and its host's, under `sound.`, from
 `sound_host_state`), and a read fills a copy first and hands it over only once
 the whole state has checked out. Such a state also has an `apu.host` field,
-and a state loads only the way it was saved: with the program's fields, or
-without them, since the SPC700's state means nothing to the program and its
-fields nothing to the SPC700 (format 2; a format 1 state loads without them).
+the program's number (`SNES_STATE_HOST_*` in `snes/system.h`; 1 is the C sound
+driver, and the native mixer will take the next), and a state loads only the
+way it was saved: with that program's fields, or without any, since the
+SPC700's state means nothing to a program, nor one program's fields to another
+or to the SPC700 (format 2; a format 1 state loads without them).
+`snes_state_save_with` and `snes_state_load_with` do the same to a file, and
+`sound_host_copy` and `sound_host_restore` are the host's half of an in-memory
+copy (`ct_drive`'s slots).
 
 Nor is the native runtime (`runtime/port/native.c`). With `--native on` a
 hand port may be suspended in a call-out at a frame's end (`native_suspended`),

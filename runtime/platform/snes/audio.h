@@ -71,6 +71,8 @@ PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care)
         m_jsr_dc(s, o.site, o.target, dont_care);
 }
 
+PF_API bool au_driver_hosted(Platform *pf) { return pf_snes(pf)->apu.host_command != NULL; }
+
 PF_API bool au_driver_boot_taken(Platform *pf)
 {
     Apu *a = &pf_snes(pf)->apu;
@@ -80,16 +82,13 @@ PF_API bool au_driver_boot_taken(Platform *pf)
     return true;
 }
 
-PF_API bool au_driver_command_taken(Platform *pf)
+PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked)
 {
-    Snes *s = pf_snes(pf);
-    Apu *a = &s->apu;
+    Apu *a = &pf_snes(pf)->apu;
     if (!a->host_command)
         return false;
-    uint8_t command[4];
-    for (int i = 0; i < 4; i++)
-        command[i] = snes_bus_peek(&s->bus, 0x7E1E00u + (uint32_t)i);
-    a->host_command(a->host_ctx, a, command, snes_bus_peek(&s->bus, 0x7E1E10u));
+    const uint8_t command[4] = { c.command, c.p1, c.p2, c.p3 };
+    a->host_command(a->host_ctx, a, command, effects_asked);
     return true;
 }
 

@@ -21,6 +21,8 @@
 #ifndef CT_FRONTEND_SOUND_HOST_H
 #define CT_FRONTEND_SOUND_HOST_H
 
+#include <stdio.h>
+
 #include "snes/system.h"
 
 typedef struct SoundHost SoundHost;
@@ -38,6 +40,15 @@ void sound_host_detach(SoundHost *h);
  * Nonzero is a fault; ct_dev and ct_sound_fuzz check it. */
 unsigned long sound_host_samples_into_echo(const SoundHost *h);
 
+/* Commands the game or the scene sent while the driver waited for its echo
+ * that found the host's queue full and took the place of the last one held.
+ * Nonzero is a fault, as the samples above are. */
+unsigned long sound_host_commands_dropped(const SoundHost *h);
+
+/* Both faults on one line to `out` ("sound host: ..."); true if there were
+ * none. ct_dev, ct_drive and ct_sound_fuzz fail a run with any. */
+bool sound_host_report(const SoundHost *h, FILE *out);
+
 /* The song the driver has saved to resume (command $14), for ct_sound_fuzz,
  * which mustn't make up a song in its place. */
 uint8_t sound_host_saved_song(const SoundHost *h);
@@ -45,6 +56,16 @@ uint8_t sound_host_saved_song(const SoundHost *h);
 /* The host's and the driver's fields for a saved state
  * (snes_state_write_with, snes_state_read_with); NULL if out of memory. */
 const SnesStateExtra *sound_host_state(SoundHost *h);
+
+/* A machine copy's half for a host that plays beside it (ct_drive's slots):
+ * a detached copy of the host and its driver (freed with sound_host_detach,
+ * which leaves the machine's hooks to the host they belong to), and the host
+ * put back as a copy left it, keeping its machine, its voices and its fault
+ * counts, and hooked to its machine again (snes_clone leaves a machine's
+ * hooks out, so the machine restored beside it has none). sound_host_state
+ * works on a copy too. */
+SoundHost *sound_host_copy(const SoundHost *h);
+void sound_host_restore(SoundHost *h, const SoundHost *copy);
 
 /* For tests: every field a state holds, as snes_state_fields lists the
  * machine's, and where the driver is in the host. */

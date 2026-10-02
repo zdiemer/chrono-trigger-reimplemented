@@ -91,13 +91,15 @@ PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
 
 /* A host that plays its own driver in the SPC700's place (the C sound driver,
  * frontend/sound_host.h) takes the CPU half's boot and commands as calls:
- * nothing is uploaded and nothing waits on the ports. The CPU half's two
- * entries ask it first: true if it took the boot, or the command in the
- * buffer au_command fills (with the set of effects the game asks its next
- * song to bring, which it keeps beside the buffer). False with the original
- * driver. */
+ * nothing is uploaded and nothing waits on the ports. au_driver_hosted says
+ * whether one plays; the CPU half's two entries ask it first, and hand it
+ * their work: true if it took the boot, or the command `c` (the
+ * command and its three parameters, as au_command left them for the CPU half)
+ * with `effects_asked`, the set of effects the game asks its next song to
+ * bring. False with the original driver. */
+PF_API bool au_driver_hosted(Platform *pf);
 PF_API bool au_driver_boot_taken(Platform *pf);
-PF_API bool au_driver_command_taken(Platform *pf);
+PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effects_asked);
 
 /* ---- The voices ----------------------------------------------------------------------
  *

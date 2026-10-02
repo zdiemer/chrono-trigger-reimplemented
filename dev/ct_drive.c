@@ -2,7 +2,7 @@
  * movies from game state instead of from timing, and for testing the build
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
- *   ct_drive [--native off|shadow|on] [--recomp off|on|only] <rom> [sram.srm]
+ *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] <rom> [sram.srm]
  *
  * --native and --recomp mean what they mean to ct_play (frontend/natives.h
  * chooses the entries for both). The default, --native off, is the machine of
@@ -13,7 +13,14 @@
  * ships in: hand ports where they exist, generated code elsewhere, and time
  * that drifts from the original's where the ports estimate it, which is why
  * only a route can test it (a movie's presses land on the wrong frames).
- * --recomp defaults to on.
+ * --recomp defaults to on. --sound-driver c plays the C sound driver in the
+ * SPC700's place, as ct_play does by default (frontend/sound_host.h), with
+ * --native on and the ported routines: with --native on --recomp on it is the
+ * build that ships, which the gate's route check runs. Its machine copies and
+ * state files hold the driver's fields beside the machine's, as ct_play's
+ * states do; at quit a run in which the host placed samples where the echo
+ * was writing or dropped a command exits 1 (sound_host_report). The default,
+ * original, runs the original driver on the SPC700.
  *
  * Commands arrive one per line on stdin and answer with one line on stdout that
  * starts with "ok" or "err". Numbers are decimal unless noted.
@@ -71,13 +78,16 @@
 #include "natives.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "sound_host.h"
 
 #define SLOTS 4096
 #define WATCHES 32
 
-/* A machine copy, shared between the slots and bases that hold it. */
+/* A machine copy, shared between the slots and bases that hold it, with the
+ * sound host's half when the C sound driver plays. */
 typedef struct Snap {
     Snes snes;
+    SoundHost *sound;
     int refs;
 } Snap;
 
@@ -98,6 +108,7 @@ static uint32_t watch_addr[WATCHES], watch_len[WATCHES];
 static int nwatch;
 
 static NativeMode native_mode = NATIVE_OFF;
+static SoundHost *sound_host;   /* --sound-driver c */
 static NativeTable table;
 static NativeRuntime *natives;
 static bool shadow_failed;
@@ -154,8 +165,28 @@ static Snap *snap_ref(Snap *p)
 
 static void snap_release(Snap *p)
 {
-    if (p && --p->refs == 0)
+    if (p && --p->refs == 0) {
+        sound_host_detach(p->sound);
         free(p);
+    }
+}
+
+static Snap *snap_new(void)
+{
+    Snap *p = malloc(sizeof *p);
+    if (p) {
+        p->sound = NULL;
+        p->refs = 1;
+    }
+    return p;
+}
+
+/* The sound host's half of a copy: the host as it is now. False if out of memory. */
+static bool snap_take_sound(Snap *p)
+{
+    sound_host_detach(p->sound);
+    p->sound = sound_host ? sound_host_copy(sound_host) : NULL;
+    return !sound_host || p->sound;
 }
 
 /* A copy of the machine now, in *p's memory if nothing else holds it. */
@@ -163,13 +194,56 @@ static Snap *snap_take(Snap *p)
 {
     if (!p || p->refs > 1) {
         snap_release(p);
-        p = malloc(sizeof *p);
+        p = snap_new();
         if (!p)
             return NULL;
-        p->refs = 1;
     }
     snes_clone(&p->snes, &snes);
+    if (!snap_take_sound(p)) {
+        snap_release(p);
+        return NULL;
+    }
     return p;
+}
+
+/* The machine put back as a copy holds it. */
+static void snap_restore(const Snap *p)
+{
+    snes_clone(&snes, &p->snes);
+    snes_mark_all_written(&snes);
+    restore_hooks();
+    if (sound_host && p->sound)
+        sound_host_restore(sound_host, p->sound);
+}
+
+/* A machine and its sound host's half as a state, or a state file
+ * (snes_state_write_with): the host's fields beside the machine's. */
+static const SnesStateExtra *sound_fields(SoundHost *sound, bool *failed)
+{
+    const SnesStateExtra *extra = sound ? sound_host_state(sound) : NULL;
+    *failed = sound && !extra;
+    return extra;
+}
+
+static uint8_t *state_of_copy(const Snes *machine, SoundHost *sound, size_t *len)
+{
+    bool failed;
+    const SnesStateExtra *extra = sound_fields(sound, &failed);
+    return failed ? NULL : snes_state_write_with(machine, extra, len);
+}
+
+static int save_state_file(const Snes *machine, SoundHost *sound, const char *path)
+{
+    bool failed;
+    const SnesStateExtra *extra = sound_fields(sound, &failed);
+    return failed ? -1 : snes_state_save_with(machine, extra, path);
+}
+
+static int load_state_file(Snes *machine, SoundHost *sound, const char *path)
+{
+    bool failed;
+    const SnesStateExtra *extra = sound_fields(sound, &failed);
+    return failed ? -1 : snes_state_load_with(machine, extra, path);
 }
 
 /* --native on: the runtime holds state a machine copy doesn't, routines
@@ -204,14 +278,18 @@ static void set_base_here(void)
     } else {
         if (!base || base->refs > 1) {
             snap_release(base);
-            base = malloc(sizeof *base);
+            base = snap_new();
             if (!base) {
                 base_since = 0;
                 return;
             }
-            base->refs = 1;
         }
         base_since = snes_clone_since(&base->snes, &snes, 0);
+    }
+    if (!snap_take_sound(base)) {
+        snap_release(base);
+        base = NULL;
+        base_since = 0;
     }
     log_len = 0;
 }
@@ -249,19 +327,18 @@ static void step(uint16_t pad)
  * `want` was copied from them. Checked against `want`, which it matches, since
  * a fresh runtime at a base is the runtime the run had; if it didn't, the
  * replay would be kept anyway (its routines are intact) and counted "inexact". */
-static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snes *want)
+static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snap *want_copy)
 {
+    const Snes *want = &want_copy->snes;
     size_t want_len;
-    uint8_t *want_state = snes_state_write(want, &want_len);
-    snes_clone(&snes, &from->snes);
-    snes_mark_all_written(&snes);
-    restore_hooks();
+    uint8_t *want_state = state_of_copy(want, want_copy->sound, &want_len);
+    snap_restore(from);
     restart_natives();
     set_base(from);
     for (size_t i = 0; i < npads; i++)
         step(pads[i]);
     size_t len;
-    uint8_t *now = snes_state_write(&snes, &len);
+    uint8_t *now = state_of_copy(&snes, sound_host, &len);
     if (now && want_state && len == want_len && !memcmp(now, want_state, len)) {
         loads_replayed++;
     } else {
@@ -325,12 +402,10 @@ static int slot_save(Slot *s)
 static void slot_load(Slot *s)
 {
     if (s->base) {
-        replay(s->base, s->pads, s->npads, &s->machine->snes);
+        replay(s->base, s->pads, s->npads, s->machine);
         return;
     }
-    snes_clone(&snes, &s->machine->snes);
-    snes_mark_all_written(&snes);
-    restore_hooks();
+    snap_restore(s->machine);
     settle_loaded(s->unsettled);
 }
 
@@ -346,7 +421,7 @@ static void sidecar_names(const char *path, char *state, char *pads, size_t size
 
 static int state_save(const char *path)
 {
-    if (snes_state_save(&snes, path) != 0)
+    if (save_state_file(&snes, sound_host, path) != 0)
         return -1;
     char state[1100], pads[1100];
     sidecar_names(path, state, pads, sizeof state);
@@ -356,7 +431,7 @@ static int state_save(const char *path)
         return 0;
     /* the buttons alone (no base, after a poke) mark the routines as lost */
     FILE *f = fopen(pads, "w");
-    if (!f || (base && snes_state_save(&base->snes, state) != 0)) {
+    if (!f || (base && save_state_file(&base->snes, base->sound, state) != 0)) {
         if (f)
             fclose(f);
         return -1;
@@ -390,13 +465,12 @@ static uint16_t *read_pads(FILE *f, size_t *count)
 /* A machine for this ROM from a state file, or NULL. */
 static Snap *snap_load(const char *path)
 {
-    Snap *p = malloc(sizeof *p);
+    Snap *p = snap_new();
     if (!p)
         return NULL;
-    p->refs = 1;
     snes_clone(&p->snes, &snes);   /* the ROM, which a state doesn't hold */
-    if (snes_state_load(&p->snes, path) != 0) {
-        free(p);
+    if (!snap_take_sound(p) || load_state_file(&p->snes, p->sound, path) != 0) {
+        snap_release(p);
         return NULL;
     }
     return p;
@@ -419,14 +493,14 @@ static int state_load(const char *path)
         }
         bool replayed = from && list;
         if (replayed)
-            replay(from, list, n, &want->snes);
+            replay(from, list, n, want);
         snap_release(from);
         snap_release(want);
         free(list);
         if (replayed)
             return 0;
     }
-    if (snes_state_load(&snes, path) != 0)
+    if (load_state_file(&snes, sound_host, path) != 0)
         return -1;
     restore_hooks();
     settle_loaded(f != NULL);
@@ -467,17 +541,25 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 
 static int usage(void)
 {
-    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] <rom> [sram.srm]\n");
+    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] "
+                    "<rom> [sram.srm]\n");
     return 2;
 }
 
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL;
-    bool recomp = true, recomp_only = false;
+    bool recomp = true, recomp_only = false, c_sound_driver = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (!strcmp(a, "--native") || !strcmp(a, "--recomp")) {
+        if (!strcmp(a, "--sound-driver")) {
+            const char *v = i + 1 < argc ? argv[++i] : "";
+            if (strcmp(v, "c") && strcmp(v, "original")) {
+                fprintf(stderr, "--sound-driver must be original or c\n");
+                return 2;
+            }
+            c_sound_driver = !strcmp(v, "c");
+        } else if (!strcmp(a, "--native") || !strcmp(a, "--recomp")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (a[2] == 'n') {
                 if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
@@ -509,6 +591,11 @@ int main(int argc, char **argv)
     }
     if (!rom_path)
         return usage();
+    if (c_sound_driver && (native_mode != NATIVE_ON || recomp_only)) {
+        fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: it "
+                        "needs --native on with the ported routines (not --recomp only)\n");
+        return 2;
+    }
     size_t rom_len;
     uint8_t *rom = read_file(rom_path, &rom_len);
     if (!rom) {
@@ -520,6 +607,10 @@ int main(int argc, char **argv)
     render_init(&renderer);
     restore_hooks();
     snes_power_on(&snes);
+    if (c_sound_driver && !(sound_host = sound_host_attach(&snes))) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
+    }
     if (sram_path) {
         size_t sram_len;
         uint8_t *sram = read_file(sram_path, &sram_len);
@@ -668,5 +759,11 @@ int main(int argc, char **argv)
     snap_release(base);
     free(log_pads);
     free(rom);
-    return 0;
+    int rc = 0;
+    if (sound_host) {
+        if (!sound_host_report(sound_host, stderr))
+            rc = 1;
+        sound_host_detach(sound_host);
+    }
+    return rc;
 }

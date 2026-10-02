@@ -154,9 +154,18 @@ void snes_state_fields(Snes *snes, SnesStateField fn, void *ctx);
  * `loaded`. A state saved with a host program's fields loads only with them,
  * and one saved without only without (`what` names the program for the
  * refusal): the SPC700's state means nothing to the program, nor its fields
- * to the SPC700. */
+ * to the SPC700. Nor does one host program's state mean anything to another,
+ * so the state names the program (`id`). */
 typedef struct SnesStateVisitor SnesStateVisitor;
+/* Which host program played in the SPC700's place, saved in the state
+ * (`apu.host`) so that a state loads only with the program that saved it.
+ * A new program (the native mixer) takes a number of its own. */
+enum {
+    SNES_STATE_NO_HOST = 0,                 /* the SPC700 ran */
+    SNES_STATE_HOST_C_SOUND_DRIVER = 1      /* frontend/sound_host.h */
+};
 typedef struct {
+    uint8_t id;                             /* SNES_STATE_HOST_*: never SNES_STATE_NO_HOST */
     const char *what;
     void (*visit)(SnesStateVisitor *v, void *fields);
     void *fields, *loading;
@@ -170,6 +179,9 @@ int snes_state_read_with(Snes *snes, const SnesStateExtra *extra, const uint8_t 
 void snes_state_extra_fields(const SnesStateExtra *extra, SnesStateField fn, void *ctx);
 int snes_state_save(const Snes *snes, const char *path);
 int snes_state_load(Snes *snes, const char *path);
+/* The same with a host program's fields (SnesStateExtra, NULL for none). */
+int snes_state_save_with(const Snes *snes, const SnesStateExtra *extra, const char *path);
+int snes_state_load_with(Snes *snes, const SnesStateExtra *extra, const char *path);
 
 /* Put the timing model where snes_run_frame leaves it: the start of vblank
  * (line 225) with RDNMI set, the NMI scheduled if $4200 enables it, joypads

@@ -24,6 +24,11 @@ static inline uint8_t effect_track_of(uint8_t voice) { return (uint8_t)(SOUND_FI
  * are when there is none. */
 enum { NO_SONG = 0xFF };
 
+/* The echo's delay is one of sixteen, 0 to 15 steps of 16 ms and 2 KiB of
+ * buffer each: a command or a song asks for one in the low four bits. */
+enum { ECHO_DELAYS = 16 };
+static inline uint8_t echo_delay_of(uint8_t asked) { return (uint8_t)(asked % ECHO_DELAYS); }
+
 enum {
     ALL_VOICES = 0xFF,
     EFFECT_PAIR_67 = 0xC0,    /* the voices the effects of command $18 play on */

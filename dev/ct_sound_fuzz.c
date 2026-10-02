@@ -26,8 +26,9 @@
  * at their own volume and echo, the set of effects switched, instruments
  * loaded, the driver reloaded) and the rest through the ports as the scene
  * sends them (songs at made-up volumes among them); a run checks
- * that every command written to the ports is answered, and that no sample is
- * placed where the echo is writing (sound_host_samples_into_echo).
+ * that every command written to the ports is answered, that no sample is
+ * placed where the echo is writing (sound_host_samples_into_echo) and that no
+ * command is dropped from the host's full queue (sound_host_commands_dropped).
  *
  * The CPU half's work RAM the harness reads (the effect set sent, command
  * $71's block) is written here as the CPU half would have it. The data the
@@ -764,10 +765,13 @@ int main(int argc, char **argv)
         bool same = true;
         if (hosted) {
             unsigned long into_echo = sound_host_samples_into_echo(host);
-            same = into_echo == 0;
+            unsigned long dropped = sound_host_commands_dropped(host);
+            same = into_echo == 0 && dropped == 0;
             fprintf(stderr, "%s", stuck ? "stuck" : "answered");
-            if (!same)
+            if (into_echo)
                 fprintf(stderr, ", but %lu bytes of samples were placed where the echo was writing", into_echo);
+            if (dropped)
+                fprintf(stderr, ", but %lu commands were dropped from the host's full queue", dropped);
             fprintf(stderr, "\n");
         }
         else

@@ -35,20 +35,24 @@ class DriveError(RuntimeError):
 
 
 class Machine:
-    """`native` and `recomp` are ct_drive's --native and --recomp (default: the
-    interpreter, or $CT_DRIVE_NATIVE and $CT_DRIVE_RECOMP)."""
+    """`native`, `recomp` and `sound` are ct_drive's --native, --recomp and
+    --sound-driver (default: the interpreter and the original sound driver, or
+    $CT_DRIVE_NATIVE, $CT_DRIVE_RECOMP and $CT_DRIVE_SOUND)."""
 
-    def __init__(self, rom=None, sram=None, drive=None, native=None, recomp=None):
+    def __init__(self, rom=None, sram=None, drive=None, native=None, recomp=None, sound=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
         drive = str(drive or os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
         native = native or os.environ.get("CT_DRIVE_NATIVE") or "off"
         recomp = recomp or os.environ.get("CT_DRIVE_RECOMP") or "on"
+        sound = sound or os.environ.get("CT_DRIVE_SOUND") or "original"
         command = [drive]
         if native != "off":
             command += ["--native", native, "--recomp", recomp]
+        if sound != "original":
+            command += ["--sound-driver", sound]
         command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
-        self.native, self.recomp = native, recomp
+        self.native, self.recomp, self.sound = native, recomp, sound
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         self.frame = 0
@@ -66,11 +70,15 @@ class Machine:
         return answer[3:]
 
     def close(self):
+        """Quit. ct_drive exits 1 where the run went wrong in a way no answer
+        showed (the C sound driver's host dropping a command, say): a DriveError."""
         try:
             self.cmd("quit")
         except Exception:
             pass
-        self.process.wait()
+        status = self.process.wait()
+        if status:
+            raise DriveError("ct_drive exited with status %d (its output says why)" % status)
 
     def __enter__(self):
         return self

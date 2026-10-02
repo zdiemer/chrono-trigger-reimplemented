@@ -293,7 +293,7 @@ target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime c
 # and testing the shipping mode with the routes that do (tools/movies,
 # docs/MOVIES.md). The interpreter by default, like ct_dev --native off; --native
 # and --recomp choose native code the way ct_play does (frontend/natives.c).
-add_executable(ct_drive dev/ct_drive.c frontend/natives.c)
+add_executable(ct_drive dev/ct_drive.c frontend/natives.c frontend/sound_host.c)
 target_include_directories(ct_drive PRIVATE frontend)
 target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_recomp ct_runtime ct_trace)
 

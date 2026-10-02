@@ -541,8 +541,11 @@ static void program_loaded(void *fields, void *loading)
 static void check_host_fields(Snes *s, const uint8_t *rom)
 {
     Program saved = { 0x1234, true, 0 }, live = { 0, false, 0 }, loading = { 0, false, 0 };
-    SnesStateExtra write = { "the program", visit_program, &saved, NULL, program_loaded };
-    SnesStateExtra read = { "the program", visit_program, &live, &loading, program_loaded };
+    enum { OTHER_PROGRAM = SNES_STATE_HOST_C_SOUND_DRIVER + 1 };
+    SnesStateExtra write = { SNES_STATE_HOST_C_SOUND_DRIVER, "the program", visit_program, &saved, NULL, program_loaded };
+    SnesStateExtra read = { SNES_STATE_HOST_C_SOUND_DRIVER, "the program", visit_program, &live, &loading,
+                            program_loaded };
+    SnesStateExtra other = { OTHER_PROGRAM, "another program", visit_program, &live, &loading, program_loaded };
     size_t len, plain_len;
     uint8_t *state = snes_state_write_with(s, &write, &len);
     uint8_t *plain = snes_state_write(s, &plain_len);
@@ -555,6 +558,9 @@ static void check_host_fields(Snes *s, const uint8_t *rom)
     CHECK(snes_state_read(t, state, len, err, sizeof err) != 0 && strstr(err, "host program"),
           "a host program's state loaded without it: %s", err);
     live.took = 0;
+    CHECK(snes_state_read_with(t, &other, state, len, err, sizeof err) != 0 && strstr(err, "another host program") &&
+              live.took == 0,
+          "one host program's state loaded with another: %s", err);
     CHECK(snes_state_read_with(t, &read, plain, plain_len, err, sizeof err) != 0 && strstr(err, "the program") &&
               live.took == 0,
           "a machine's state loaded with a host program: %s", err);
