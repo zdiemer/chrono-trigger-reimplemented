@@ -97,7 +97,6 @@ menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip
 # runs a script only for some, against openings of 0 to 30 commands, and the
 # commands it hands to the original's table, which it looks up; a mix one
 # scalar can't fit. The vblank check finds none of its writes moved.
-event_run_init_scripts vblank-tail runs the map's openings at load, screen blanked, writing RAM; commands attributed to their handlers, the rest its own walk over the slots, which clears every object and runs only some; 3.54% of calls off by a line or more, at most 5640 clocks (4.1 lines)
 
 
 # Palette animation, rewritten in Phase 3a: each handler and each fade mode's
