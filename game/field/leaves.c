@@ -168,25 +168,33 @@ bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild 
 
 /* What the frame wait leaves in A: the idle count's high byte, as it counted
  * the frame, and 0, the vblank's flag it waited on. The battle takes A as
- * the wait before it leaves it (liveness has it read, $C1:0000). */
+ * the wait before it leaves it (liveness has it read, $C1:0000). The wait is
+ * the original's, but where A was already that before it, shadow mode keeps
+ * the port's own A across the call (docs/PORTING.md, "Call-outs"), so the
+ * port hands the battle the wait's A itself. */
 uint16_t field_frame_wait_leaves_a(const GameState *g) { return (uint16_t)(field_idle_frames(g) & 0xFF00); }
+
+/* ---- The searchlight ($C0:2409) ------------------------------------------------------------- */
+
+/* The overflow of its last corner's move: the last corner's y and its speed,
+ * added in 16 bits. */
+bool field_searchlight_overflow(const GameState *g)
+{
+    enum { LAST_CORNER = FIELD_SEARCHLIGHT_CORNERS_COUNT - 1 };
+    uint16_t speed = field_searchlight_speeds_y(g, LAST_CORNER);
+    return field_add_overflows16((uint16_t)(field_searchlight_corners_y(g, LAST_CORNER) - speed), speed);
+}
 
 /* ---- The step event, before a chest ($C0:0D45-$C0:16DB) --------------------------------------- */
 
 /* A's high byte as the step event's code leaves it: a pressed switch's, the
  * high byte of its last redraw entry, as the entries are worked out in 16
- * bits; otherwise the remembering's, which leaves the step where it found or
- * put it in the list, and the list's last tile where it found no room. */
-enum { STEPS_KEPT = FIELD_PRESSED_TILES_COUNT };
-
+ * bits; otherwise the remembering's, the list's entry where it stopped. */
 uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed)
 {
     if (pressed)
         return (uint8_t)(field_switch_entries(g, field_switch_entry_count(g) - 1u) >> 8);
-    for (unsigned i = 0; i < STEPS_KEPT; i++)
-        if (field_pressed_tiles(g, i) == step)
-            return (uint8_t)(step >> 8);
-    return (uint8_t)(field_pressed_tiles(g, STEPS_KEPT - 1) >> 8);
+    return (uint8_t)(field_step_kept_at(g, step) >> 8);
 }
 
 /* ---- The chest ($C0:16EE) --------------------------------------------------------------------- */
@@ -196,7 +204,7 @@ uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed)
 bool field_chest_redraw_overflow(const GameState *g)
 {
     uint16_t base = field_layer_map_base(g, 0);
-    uint16_t last = field_chest_entries(g, 3);
+    uint16_t last = field_chest_entries(g, FIELD_CHEST_ENTRIES_COUNT - 1);
     return field_add_overflows16((uint16_t)(last - base), base);
 }
 

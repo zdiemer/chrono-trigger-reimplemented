@@ -111,6 +111,8 @@ add_library(ct_game STATIC
   game/field/frame.c
   game/field/frames.c
   game/field/requests.c
+  game/field/screen_effects.c
+  game/field/script_layers.c
   game/field/graphics.c
   game/field/interrupts.c
   game/field/layers.c

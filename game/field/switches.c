@@ -34,7 +34,7 @@
  * column, which runs on past a layer's 64 columns into the next table of the
  * row (BG2's, BG3's, the properties); the switches' neighbours are reached
  * by moving the index, as the original does. */
-enum { MAP_ROW = 0x100, TABLE_COLUMNS = 0x40, PROPERTIES_TABLE = 3, MAP_ROWS_KEPT = 64 };
+enum { MAP_ROW = 0x100, TABLE_COLUMNS = 0x40, PROPERTIES_TABLE = 3 };
 
 uint8_t field_map_byte(const GameState *g, uint16_t at)
 {
@@ -98,7 +98,8 @@ bool field_is_switch(const GameState *g, uint16_t step)
  * original indexes it, and above the first row there is none). */
 static int switch_tile_row(uint16_t step, unsigned step_column, unsigned column, unsigned up)
 {
-    return ((int)step + (int)column - (int)step_column - (int)(up * MAP_ROW)) >> 8;
+    int at = (int)step + (int)column - (int)step_column - (int)(up * MAP_ROW);
+    return at < 0 ? -1 : at / MAP_ROW;
 }
 
 bool field_switch_inside_the_map(const GameState *g, uint16_t step)
@@ -110,7 +111,7 @@ bool field_switch_inside_the_map(const GameState *g, uint16_t step)
     for (unsigned c = 0; c < shapes[shape].columns; c++)
         for (unsigned up = 0; up < shapes[shape].rows; up++) {
             int row = switch_tile_row(step, step_column, c, up);
-            if (row < 0 || row >= MAP_ROWS_KEPT)
+            if (row < 0 || row >= FIELD_MAP_ROWS)
                 return false;
         }
     return true;
@@ -159,8 +160,10 @@ SwitchPress field_press_switch(GameState *g, uint16_t step)
 enum { BG1 = 0, ENTRIES_A_TILE = FIELD_ENTRIES_A_MAP_TILE, COLUMN_BITS = FIELD_TILE_MAP_COLUMNS - 1,
        ROW_BITS = FIELD_TILE_MAP_ROWS - 1 };
 
+/* A map tile's four tile map entries, as a chest's are kept. */
+enum { QUARTERS = FIELD_CHEST_ENTRIES_COUNT };
 typedef struct {
-    uint16_t entry[4];   /* top left, top right, bottom left, bottom right */
+    uint16_t entry[QUARTERS];   /* top left, top right, bottom left, bottom right */
 } TileEntries;
 
 static TileEntries tile_entries(const GameState *g, int column, int row)
@@ -201,7 +204,7 @@ void field_queue_switch_redraw(GameState *g, SwitchPress p, uint16_t step)
         for (unsigned up = 0; up < s->rows; up++) {
             row = at.row - (int)up;
             TileEntries e = tile_entries(g, at.column + (int)c - (int)p.step_column, row);
-            for (unsigned k = 0; k < 4; k++)
+            for (unsigned k = 0; k < QUARTERS; k++)
                 set_field_switch_entries(g, n++, e.entry[k]);
         }
     set_field_switch_shape(g, (uint8_t)p.shape);
@@ -234,7 +237,7 @@ bool field_open_chest(GameState *g)
     next_tile(g, at);
     MapPlace place = map_place_at(at);
     TileEntries e = tile_entries(g, place.column, place.row);
-    for (unsigned k = 0; k < 4; k++)
+    for (unsigned k = 0; k < QUARTERS; k++)
         set_field_chest_entries(g, k, e.entry[k]);
     set_field_tiles_to_redraw(g, (uint8_t)(field_tiles_to_redraw(g) | REDRAW_CHEST));
     ORIGINAL_EFFECT(leave_entries(g, place.row));
@@ -281,7 +284,7 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
         vid_start_vram_uploads(pf, PF_AT(0xC0ED33), VID_VRAM_WORD_PORT);
         unsigned n = 0;
         for (unsigned t = 0; t < (unsigned)s->columns * s->rows; t++)
-            for (unsigned k = 0; k < 4; k++, n++)
+            for (unsigned k = 0; k < QUARTERS; k++, n++)
                 redraw_quarter(pf, g, (uint8_t)(s->tiles[t] + 1), field_switch_entries(g, n), k);
         set_field_tiles_to_redraw(g, (uint8_t)(waiting & ~REDRAW_SWITCH));
         return;
@@ -289,7 +292,7 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
     if (waiting & REDRAW_CHEST) {
         ChestKind kind = field_chest_kind(g) == CHEST_AT_THE_SET_END ? CHEST_AT_THE_SET_END : CHEST_FIRST_OF_THE_CHANGING_TILES;
         vid_start_vram_uploads(pf, PF_AT(0xC0EFDC), VID_VRAM_WORD_PORT);
-        for (unsigned k = 0; k < 4; k++)
+        for (unsigned k = 0; k < QUARTERS; k++)
             redraw_quarter(pf, g, (uint8_t)(closed_chest_tile(kind) + 1), field_chest_entries(g, k), k);
         set_field_tiles_to_redraw(g, (uint8_t)(waiting & ~REDRAW_CHEST));
     }
@@ -312,6 +315,14 @@ void field_remember_step(GameState *g, uint16_t step)
         if (kept == step)
             return;
     }
+}
+
+uint16_t field_step_kept_at(const GameState *g, uint16_t step)
+{
+    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++)
+        if (field_pressed_tiles(g, i) == step)
+            return step;
+    return field_pressed_tiles(g, FIELD_PRESSED_TILES_COUNT - 1);
 }
 
 unsigned field_switch_entry_count(const GameState *g)

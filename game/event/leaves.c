@@ -5,6 +5,7 @@
  * V that follow from the command, what it did and the state before and after.
  * The build without the original's effects has none of it. */
 #include "event/leaves.h"
+#include "cpu_io.h"
 #include "event/contact.h"
 #include "event/party.h"
 #include "event/variables.h"
@@ -213,6 +214,46 @@ static void derive_drift(GameState *g, const EventCommand *c, EventFlow flow, co
         l->y = c->drift;
 }
 
+/* The searchlight's moves ($FE): the original works the eight coordinates
+ * out one after another (each corner's x, then its y) in the field page's
+ * cells, dividing each one's distance by the frames in the divider, and
+ * leaves the last there: no coordinates left, the last one's start, the
+ * frames, the offset past the corners' table, where its parse read up to,
+ * the division of the last coordinate that moves, and the overflow of the
+ * last coordinate's distance, its end less its start in 16 bits. */
+enum { SEARCHLIGHT_LENGTH = 18, COORDINATES = 2 * SEARCHLIGHT_CORNERS, COORDINATE_BYTES = 2 };
+
+typedef struct {
+    uint8_t from, to;
+} Coordinate;
+
+static Coordinate searchlight_coordinate(const SearchlightMove *m, unsigned i)
+{
+    unsigned corner = i / 2;
+    return (i & 1) ? (Coordinate){ m->from[corner].y, m->to[corner].y }
+                   : (Coordinate){ m->from[corner].x, m->to[corner].x };
+}
+
+static void derive_searchlight(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)n;
+    Coordinate last = searchlight_coordinate(&c->searchlight, COORDINATES - 1);
+    l->overflow = field_subtract_overflows16((uint16_t)(last.to << 8), (uint16_t)(last.from << 8));
+    set_event_searchlight_work_coordinates_left(g, 0);
+    set_event_searchlight_work_start(g, (uint16_t)(last.from << 8));
+    set_event_searchlight_work_frames(g, c->frames);
+    set_event_searchlight_work_next(g, COORDINATES * COORDINATE_BYTES);
+    event_keep_offset(g, (uint16_t)(c->at + SEARCHLIGHT_LENGTH));
+    for (unsigned i = COORDINATES; i-- > 0;) {
+        Coordinate k = searchlight_coordinate(&c->searchlight, i);
+        if (k.from != k.to) {
+            hw_set_dividend(g, (uint16_t)((k.to > k.from ? k.to - k.from : k.from - k.to) << 8));
+            hw_divide_by(g, c->frames);
+            break;
+        }
+    }
+}
+
 /* The party's step ($B0, and $AF once): the step's routines run with 8-bit
  * index registers, and leave Y the one stepping, or where the leader looked
  * to push what it walked into, that; and the overflow of the leader's or the
@@ -410,6 +451,7 @@ static const OriginalLeaves by_opcode[256] = {
     [0xE4] = { .derive = derive_tile_copy },
     [0xE6] = { .first = KEEP(BYTE, layers), .second = KEEP(WORD, drift), .derive = derive_drift },
     [0xF0] = { .first = KEEP_OPERAND(1) },
+    [0xFE] = { .derive = derive_searchlight },
     /* the story */
     [0x56] = { .parse = 4, .first = KEEP(BYTE, value) },
     [0x58] = { .parse = 4, .first = KEEP(WORD, value) },

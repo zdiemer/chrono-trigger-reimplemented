@@ -162,7 +162,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 181 files, 117 of 48,827 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 183 files, 117 of 49,698 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -209,12 +209,12 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **40% of the code is still generated.**
+docstring says which way it is wrong). **39% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 49.2K | 18.8K | 24% | 337 |
-| field engine, events (`$C0`) | 59.4K | 44.8K | 9.3K | 25% | 289 |
+| field engine, events (`$C0`) | 59.4K | 46.5K | 10.4K | 22% | 300 |
 | menus, text (`$C2`) | 59.3K | 24.2K | 7.0K | 59% | 261 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
@@ -226,7 +226,7 @@ docstring says which way it is wrong). **40% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **161.2K** | **42.0K** | **40%** | **1248** |
+| **total** | **268.5K** | **163.0K** | **43.2K** | **39%** | **1259** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -375,9 +375,10 @@ load one stream named by a byte of the scene record at `$C6:FD00`, and without
 knowing what each stream holds their ports would be named after their
 destination addresses.
 
-**`$C0`: the field and events**, 25% left after thirteen chunks, and all of
-it routines the ports call out to: the screen effects' steps (`$C0:220E`), the
-event commands at `$C0:4186` and `$C0:3711`, the field's setup after a menu
+**`$C0`: the field and events**, 22% left after fourteen chunks, and all of
+it routines the ports call out to: the event commands at `$C0:4186` (the
+party's characters' objects, `$57`-`$83`) and `$C0:3711` (items, gold and
+the party, `$C7`-`$D7`), the field's setup after a menu
 and a map (`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
 (`$C0:011B`), the fade in (`$C0:2824`), the sprite lists (`$C0:B192`), the
 frame work (`$C0:00BF`) and a choice's buttons (`$C0:1ADF`). Event's bridges

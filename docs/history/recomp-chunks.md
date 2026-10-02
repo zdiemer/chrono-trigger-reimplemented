@@ -1452,6 +1452,73 @@ which the guard now takes where the tiles are clear of the build place.
 **The timing gate.** The row was calibrated over the library; no exception.
 `$C0` stands at 41.8 KiB ported, 30% left.
 
+## Phase 3, field and events: the main loop's requests answered
+
+The thirteenth chunk of bank `$C0`, and chunk 12's review.
+
+**Chunk 12's review, folded in.**
+- The figure's place is a named view of the frame builder's areas and the
+  bytes after them (`field_figure_tiles`, `$7F:3800`, `$C00` bytes, which
+  re/ram.toml marks as reusing `field_frame_staging`); the figure and its
+  guard's check against it read that name.
+- The layout is derived: the VRAM word from the first tile and the words a
+  tile, the tiles' steps from the builder's `NEXT_SPRITE_TILE` and two tile
+  rows, the attributes from palette 1 and priority 2 (the figure ignores its
+  object's palette), and the offsets through `sprite_offset` with a sprite
+  count, as the frames' plans use it.
+- `leave_figure` is built from the builder's leaves (`leave_drawing_from`,
+  `leave_description_place`, `leave_run`); `field_set_tile_start`
+  (graphics.h) is where a set's tile starts, for both guards and the copies;
+  menus.c says why the control byte is put back raw (event `$E3` sets any
+  value); the entry names the readers of its V and Y.
+
+**What it is** (field/requests.c, `field_handle_requests` `$C0:0C76`). Every
+request the main loop answers is now the port's, one kind a frame:
+- *A location change* (`$C0:0C8F`): the picture fades a step a frame
+  (`field_dims_a_step`, field.h, which the menus' fades share); dark, the
+  party's place is kept as the one it came from (the location, the leader's
+  tile, and the facing it will come back with, the opposite of its own), the
+  next place becomes the party's, and the port stops where the field starts
+  again on a fresh stack (`$C0:0CC0`), which is the original's to do. The
+  guard takes the change only with a leader (the original reads its place
+  with the link as a 16-bit index, past the tables for none: three calls in
+  `field`, at the title's changes, go to the original).
+- *A chest* (`$C0:16DC`): its sound from the original's call, the chest shown
+  open (field/switches.c `field_open_chest`, with the switches' entries), and
+  its overflow for the code after it (field/leaves.c). With a step event
+  before it, its sound reads A's high byte as the step event leaves it: a
+  pressed switch's last redraw entry's, else the remembering's
+  (`field_step_event_high_a`).
+- *A tile copy* (`$C0:1779`): the screen scrolls back onto the grid a frame at
+  a time, the tiles are copied (`field_copy_tiles` through `field_run`), and
+  the layers they changed drawn again on the layers' page
+  (`field_run_on_page`, a new bridge that keeps the field's page on the stack
+  under the call as the original's `PHD` does) and sent in the vblank, BG1,
+  BG2 or BG3 alone from a table of their calls, or BG1 and BG2 over three
+  frames; the port stops at the frame wait the original jumps to.
+- *A battle* (`$C0:188C`): the layers scrolled into place, the effects built
+  with the field's setup's values, the battle fought (`$C1:0000`, given A as
+  the frame wait before it leaves it, which liveness has it read), the field's
+  interrupts taken back as C, and the field's objects and turn taken up again.
+The guard's switch test now covers every tile a switch presses (one two
+columns wide, stepped into at a row's first column, reaches the row above's
+last), which fuzzing found; a chest inside the map's rows.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches (190,914 of 191,044 compared, the rest the guard's; none mismatched); 55 calls interrupted, the tile copies and battles whose
+stretches span frames, which fuzzing reaches only up to their first long
+call-out (TODO.md). Fuzzed (seeds 1 and 2, 20,000 states each): a location
+change 0 of 17,473 and 17,497 (the rest the guard's leaderless states), a
+chest 0 of 10,089 and 9,865, a step event and a chest together 0 of 9,899
+and 10,060 (the rest run a sound past the call-out budget), a tile copy 0 of
+20,000 each up to its frame work; the rows before unchanged. Breaking the
+chest's entries' order mismatched 677 of 1,015, and the facing's flip 714 of
+1,462. `$C0` stands at 44.8 KiB ported, 25% left.
+
+**The timing gate.** `field_handle_requests` and `field_recentre_the_screen`
+(now also run as C from the tile copy) were calibrated over the library; no
+exception.
+
 ## Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out

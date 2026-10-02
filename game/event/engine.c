@@ -60,7 +60,11 @@ const EventOpcode *event_opcode(uint8_t opcode)
  * everything else is the original's to run (and would be an assertion in a
  * build without it; docs/PLAN.md). */
 
-enum { LONGEST_COMMAND = 8 };
+/* The bytes a command's operands are read from: its own, and at least
+ * eight (a row may decode operands its shorter forms don't have). */
+enum { OPERANDS_READ = 8 };
+
+static uint16_t bytes_read(const EventOpcode *row) { return row->length > OPERANDS_READ ? row->length : OPERANDS_READ; }
 
 /* A place of the party (doubled, as scripts write it). */
 static bool a_place(uint8_t place) { return !(place & 1) && (place >> 1) < PARTY_PLACES; }
@@ -102,7 +106,7 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
 
 bool event_runs_here(const GameState *g, const EventOpcode *row, uint16_t at)
 {
-    if (!object_current_is_one(g) || at > EVENT_SCRIPT_BYTES - LONGEST_COMMAND)
+    if (!object_current_is_one(g) || at > EVENT_SCRIPT_BYTES - bytes_read(row))
         return false;
 #define CHECK_PARAMETER(type, name)                   \
     if (!names_what_it_says(g, row, &row->name, at)) \
@@ -158,6 +162,21 @@ static FormationPlace decode_FormationPlace(const GameState *g, const EventArg *
     uint8_t row = script_byte(g, (uint16_t)(at + arg->operand + 1));
     Facing facing = formation_facing((column & FACING_BIT) != 0, (row & FACING_BIT) != 0);
     return (FormationPlace){ { (uint8_t)(column & TILE_BITS), (uint8_t)(row & TILE_BITS) }, facing };
+}
+
+/* The searchlight's moves: for each corner, its x's start and end, then its
+ * y's. */
+static SearchlightMove decode_SearchlightMove(const GameState *g, const EventArg *arg, uint16_t at)
+{
+    SearchlightMove m = { { { 0, 0 } }, { { 0, 0 } } };
+    if (arg->kind != ARG_SEARCHLIGHT_MOVE)
+        return m;
+    uint16_t from = (uint16_t)(at + arg->operand);
+    for (unsigned k = 0; k < SEARCHLIGHT_CORNERS; k++, from = (uint16_t)(from + 4)) {
+        m.from[k] = (WindowPoint){ script_byte(g, from), script_byte(g, (uint16_t)(from + 2)) };
+        m.to[k] = (WindowPoint){ script_byte(g, (uint16_t)(from + 1)), script_byte(g, (uint16_t)(from + 3)) };
+    }
+    return m;
 }
 
 /* A jump is by the distance in its jump byte, forward or back from that byte. */

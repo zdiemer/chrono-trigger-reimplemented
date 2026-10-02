@@ -42,7 +42,7 @@ static void nothing_under_way(GameState *g)
     field_lock_pause(g, false);
     set_field_mode_flags(g, 0);
     screen_counts_as_recentred(g);
-    set_field_screen_job(g, 0);
+    set_field_screen_effect(g, 0);
     set_field_screen_shake(g, 0);
     set_field_tile_copy_maps(g, 0);
     set_field_tile_copy_queued_maps(g, 0);

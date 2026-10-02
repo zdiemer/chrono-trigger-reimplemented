@@ -135,7 +135,7 @@ void event_cmd_take_out_of_party(Snes *s)
 /* The menus' party routines ($C2:8004): the routine in A, its arguments in X
  * and Y, which the menus' dispatcher ($C2:8C36) takes as they come. The
  * script goes on after the command, with the carry the routine leaves. */
-static bool call_party_routine(Snes *s, uint32_t site, uint8_t routine)
+bool event_call_party_routine(Snes *s, uint32_t site, uint8_t routine)
 {
     s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | routine);
     m_set_nz8(s, routine);
@@ -155,7 +155,7 @@ void event_cmd_party_routine_0a(Snes *s)
     s->cpu.a = 0;
     s->cpu.x = c.second_argument;
     s->cpu.y = c.first_argument;
-    if (call_party_routine(s, 0xC03A7C, ROUTINE))
+    if (event_call_party_routine(s, 0xC03A7C, ROUTINE))
         event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
@@ -167,9 +167,9 @@ static void party_routines(Snes *s, uint32_t first_site, uint8_t first, bool the
     uint16_t resume = (uint16_t)(event_command_offset(s) + 1);
     s->cpu.y = resume;
     ORIGINAL_EFFECT(event_keep_offset(state_of(s), resume));
-    if (!call_party_routine(s, first_site, first))
+    if (!event_call_party_routine(s, first_site, first))
         return;
-    if (then_7 && !call_party_routine(s, 0xC03E67, 7))
+    if (then_7 && !event_call_party_routine(s, 0xC03E67, 7))
         return;
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }

@@ -3626,6 +3626,64 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", 
 why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
 
 [[routine]]
+name = "event_cmd_screen_command"
+at = "C0:3FAF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=90-9F", "--fill", "7E0139-7E0139=00-0E", "--fill", "7E0350-7E0350=00-02"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; each screen command, with any screen effect under way and the curtain swept or not"
+
+[[routine]]
+name = "event_cmd_screen_command"
+variant = "scene"
+at = "C0:3FAF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-8F", "--fill", "7E0119-7E0119=00,01,02,0F,80,FF", "--stop-at-call", "C0EC60"]
+why = "a scene the field ends into, dark already (the screen blanked and the stop where the original starts it) or a step of the fade to go: compared up to the fade's first frame wait"
+
+[[routine]]
+name = "event_cmd_move_searchlight"
+at = "C0:3F26"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the corners' moves and the frames random (the guard refuses no frames)"
+
+[[routine]]
+name = "event_cmd_choose_credits"
+at = "C0:3E84"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-FF"]
+iterations = 5000
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; any text, among the credits' 47 or past them into the bank, either map layout"
+
+[[routine]]
+name = "event_cmd_layer_work_credits"
+at = "C0:3EE2"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "as event_cmd_tint; $2A and $2B are the same operation's rows"
+
+[[routine]]
+name = "event_cmd_place_bg3"
+at = "C0:3EE6"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "as event_cmd_tint"
+
+[[routine]]
+name = "event_cmd_place_the_credits"
+at = "C0:3F12"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
+why = "as event_cmd_tint"
+
+[[routine]]
 name = "event_cmd_shake_screen"
 at = "C0:3D84"
 subsystem = "event"
@@ -4888,6 +4946,29 @@ subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E0117-7E0117=12", "--fill", "7E015C-7E015C=02-3F", "--fill", "7E015E-7E015E=00-3F", "--fill", "[7E015B]+3000,1=E6,EC,EE,FA,FC,10", "--fill", "7E015D-7E015D=00-3F", "--fill", "[7E015D]+3000,1=FE,E0,10"]
 why = "a step event (a switch of each shape, or none) and a chest asked for together: the chest's sound after the step event's, taking A's high byte as the step event leaves it; about half the states run a sound past the call-out budget"
+
+[[routine]]
+name = "field_move_screen_effect_on"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0139-7E0139=00,01,02,03,04,05,06,07,08,09,0A,0D,0E", "--fill", "7E036B-7E036B=00-00"]
+why = "the field's page; every screen effect the table has but the ripple and the field's close, whose first call-outs wait on the vblank, which ct_fuzz never gives (no movie reaches them either: docs/TODO.md); their circle, the searchlight's corners and the display flags random, the shape's right side starting on a line (the guard's)"
+
+[[routine]]
+name = "field_move_screen_effect_on"
+variant = "curtain"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0139-7E0139=03", "--fill", "7E0350-7E0350=00-02", "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0353=C817,C81A", "--fill", "7E0354-7E0354=7F", "--fill", "7E013C-7E013C=00-03"]
+iterations = 5000
+why = "the curtain, swept or done, from either table, with each of the four curtains' edges: its step through bank $C3's sweep, and the cut taken away or left after it"
+
+[[routine]]
+name = "field_do_script_layer_work"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0154-7E0154=00-3F", "--fill", "7E0BE2-7E0BE2=00-07", "--fill", "7E015D-7E015E=00-3F"]
+why = "the field's page; any layer work and a chest's message or not, the credits' cursor among the texts and their place random, the chest on the map; the guard refuses a credits line that would run past BG3's staging, which no text has"
 
 [[routine]]
 name = "field_redraw_after_picture"

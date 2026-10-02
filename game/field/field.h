@@ -112,6 +112,26 @@ static inline void field_set_next_location(GameState *g, Location l)
     set_location_next_flags(g, l.how);
 }
 
+/* field_map_transition: what the vblank sends of the layers' tile maps for
+ * the main loop and the scripts, a send a frame (field/nmi.c). Its low bits
+ * are a move, which sends the tile map staged in bank $7E to a layer's place
+ * in VRAM: BG1's, BG2's, the place the map's loader chose, or BG3's. The bits
+ * above ask for the staged half screen to go to BG2's left screen or its
+ * right one, and for a piece of BG3's map (a credits line,
+ * field/scripted_layers.c). */
+typedef enum {
+    FIELD_MOVE_TO_BG1 = 1,
+    FIELD_MOVE_TO_BG2 = 2,
+    FIELD_MOVE_TO_THE_LOADERS_PLACE = 3,
+    FIELD_MOVE_TO_BG3 = 4,
+} FieldMapMove;
+enum { FIELD_MAP_MOVES = 4, FIELD_SEND_BG2_LEFT = 0x08, FIELD_SEND_BG2_RIGHT = 0x10, FIELD_SEND_BG3_PIECE = 0x20 };
+
+static inline void field_send_maps(GameState *g, uint8_t sends)
+{
+    set_field_map_transition(g, (uint8_t)(field_map_transition(g) | sends));
+}
+
 /* field_effect_status: what the field has running, or has finished, that a
  * script waits on. */
 enum {
@@ -125,11 +145,13 @@ enum {
 /* What the field has under way that scripts and the field's own routines
  * look at (field_mode_flags): the party gathering to its leader (event $DA:
  * event/party.c), an object being pushed until its push script is done
- * (event/contact.c), a dialog the field opened itself rather than a
- * script (event/dialog.c), and palettes a script loaded itself, which keeps
- * the objects out of the shared palette slots until the next map
- * (field/palettes.c). */
-enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20,
+ * (event/contact.c), the layer work a script asked of the main loop (BG2's
+ * halves cleared, the credits written a line a frame: field/script_layers.c),
+ * a dialog the field opened itself rather than a script (event/dialog.c), and
+ * palettes a script loaded itself, which keeps the objects out of the shared
+ * palette slots until the next map (field/palettes.c). */
+enum { FIELD_PARTY_GATHERING = 0x01, FIELD_OBJECT_PUSHED = 0x02, FIELD_CLEAR_BG2_LEFT = 0x04,
+       FIELD_CLEAR_BG2_RIGHT = 0x08, FIELD_WRITING_CREDITS = 0x10, FIELD_DIALOG_OPENED_BY_THE_FIELD = 0x20,
        FIELD_PALETTES_SET_BY_SCRIPT = 0x80 };
 
 static inline void field_mode_flag(GameState *g, uint8_t flag, bool on)
@@ -172,6 +194,11 @@ static inline void set_leader_contact(GameState *g, FieldLink object)
 }
 static inline void leader_loses_contact(GameState *g) { set_field_leader_contact(g, field_link_byte(field_no_link())); }
 
+/* dialog_state: a dialog a script asked for, and the dialog ended from
+ * outside it: the object a script's dialog waits on left view, or the chest
+ * whose message the field opened left the screen. */
+enum { DIALOG_ENDS = 0x0D };
+
 /* dialog_choice_active: where a dialog with choices is (event/dialog.c):
  * none open, its text still showing, the player picking an answer, or one
  * picked. */
@@ -189,12 +216,16 @@ static inline WindowPosition dialog_window_at(const GameState *g) { return (Wind
  * test has it. The fades before a menu and a location change take a step a
  * frame. */
 enum { FIELD_DARK = 0, FIELD_BRIGHTNESS_SIGN = 0x80 };
-static inline bool field_dims_a_step(GameState *g)
+static inline bool field_is_dark(const GameState *g)
 {
     uint8_t brightness = field_brightness(g);
-    if (brightness == FIELD_DARK || (brightness & FIELD_BRIGHTNESS_SIGN))
+    return brightness == FIELD_DARK || (brightness & FIELD_BRIGHTNESS_SIGN);
+}
+static inline bool field_dims_a_step(GameState *g)
+{
+    if (field_is_dark(g))
         return false;
-    set_field_brightness(g, (uint8_t)(brightness - 1));
+    set_field_brightness(g, (uint8_t)(field_brightness(g) - 1));
     return true;
 }
 
@@ -260,7 +291,7 @@ static inline uint16_t field_staged_line(unsigned layer, bool column)
 }
 
 /* The field's three layers, as the tables of layers index them. */
-enum { FIELD_BG1, FIELD_BG2, FIELD_BG3, FIELD_LAYERS };
+typedef enum { FIELD_BG1, FIELD_BG2, FIELD_BG3, FIELD_LAYERS } FieldLayer;
 
 /* The screen's two axes, as the tables of scrolls index them. */
 typedef enum { AXIS_X, AXIS_Y, AXES } Axis;
@@ -338,7 +369,14 @@ bool field_object_frames_in_bank(Snes *s);
 void field_update_object_visibility(Snes *s);
 void field_update_object_in_window(Snes *s);
 
-/* field/window_shape.c */
+/* field/window_shape.c: the quadrilateral in field_window_shape_corners drawn
+ * into the table field_window_shape_table points at, as C, and whether the
+ * table is one the port draws as the original does (in bank $7F, clear of its
+ * end, the right side starting on a line, which the rasterizer reads before
+ * it finds one of its own). */
+void field_draw_window_shape(GameState *g);
+bool field_window_shape_fits(const GameState *g);
+bool field_window_shape_starts_on_a_line(const GameState *g);
 void field_rasterize_quad(Snes *s);
 bool field_window_shape_table_in_place(Snes *s);
 

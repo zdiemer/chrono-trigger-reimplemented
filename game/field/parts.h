@@ -95,6 +95,8 @@ bool field_chest_redraw_overflow(const GameState *g);
 uint8_t field_step_event_high_a(const GameState *g, uint16_t step, bool pressed);
 /* The frame wait's A, which the battle reads after it (field/requests.c). */
 uint16_t field_frame_wait_leaves_a(const GameState *g);
+/* The overflow the searchlight's step leaves (field/screen_effects.c). */
+bool field_searchlight_overflow(const GameState *g);
 uint8_t field_switch_sound_high_a(const GameState *g, SwitchPress p, uint16_t step);
 
 /* The Start assignment's test of the story's progress (field/menus.c): the

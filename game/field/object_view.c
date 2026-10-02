@@ -22,8 +22,6 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
-enum { DIALOG_ENDED_BY_LEAVING = 0x0D };   /* dialog_state */
-
 /* The window objects come into view in: the screen's edges, in tiles doubled
  * as the positions are compared, widened a little. */
 typedef struct {
@@ -140,7 +138,7 @@ static void come_into_view(GameState *g, FieldObject obj)
 static void after_leaving_view(GameState *g, FieldObject obj)
 {
     if (event_object_wait_dialog(g, obj) != 0 && dialog_box_position(g) == 0)
-        set_dialog_state(g, DIALOG_ENDED_BY_LEAVING);
+        set_dialog_state(g, DIALOG_ENDS);
 }
 
 // $C0:A947

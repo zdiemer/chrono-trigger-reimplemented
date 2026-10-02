@@ -118,7 +118,12 @@ MusicStatus scene_music_status(Platform *pf);
 uint8_t scene_music_progress(MusicStatus music);
 bool scene_music_reached(MusicStatus music, uint8_t level);
 
-/* scene/circle.c: the iris, as a C call for the menus' sprite objects. */
+/* scene/circle.c: the iris, as a C call for the menus' sprite objects and the
+ * field's screen effects. The mode says how the lower half is made from the
+ * upper one -- mirrored, or from every other line of it for a circle squashed
+ * to half its height -- and, with SCENE_CIRCLE_KEEPS_OUTSIDE, that the lines
+ * outside the circle are left as they were rather than closed. */
+enum { SCENE_CIRCLE_ROUND = 0, SCENE_CIRCLE_SQUASHED = 1, SCENE_CIRCLE_KEEPS_OUTSIDE = 0x80 };
 void scene_circle_draw(GameState *g, uint8_t mode);
 
 /* ---- Entries, by file ------------------------------------------------------------------------ */

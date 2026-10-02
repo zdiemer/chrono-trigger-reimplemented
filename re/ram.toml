@@ -1311,8 +1311,8 @@ name = "field_window2_edge"
 addr = "7E:013C"
 page = "field"
 subsystem = "field"
-meaning = "Bit 0: the eighth per-line effect drives window 2's right edge instead of its left"
-source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE"
+meaning = "Bit 0: the eighth per-line effect drives window 2's right edge instead of its left; bit 1: the curtain (event $FF $94 and $95) leaves the picture hidden when it has swept across, where the others ($92, $93) take window 2 off"
+source = "game/field/line_effects.c, field_setup_line_effects $FD:C1EE; game/field/screen_effects.c, the curtain $C0:22D8"
 
 [[var]]
 name = "field_map_transition"
@@ -1876,6 +1876,33 @@ size = 14
 subsystem = "event"
 meaning = "The field page's scratch cells, $D9-$E6. Each event command keeps its operands and intermediate values in the words at $D9, $DB, $DD, $DF, $E1 and $E3, and only that command reads them back (ct_dev --event-reads over the library; the menus' wave handler at $C2:77C7 reads $E2 as a phase it never sets); the field's motion, sprite, layer and graphics routines leave their values there on the way (field/scratch.h)"
 source = "game/event/leaves.h keep_byte, keep_word (scaffolding: ORIGINAL_EFFECT); game/field/scratch.h"
+
+[[var]]
+name = "event_searchlight_work"
+addr = "7E:01EE"
+page = "field"
+stride = 10
+subsystem = "event"
+meaning = "The cells event $FE works out the searchlight's corners in: the corner coordinates left, the start of the last as a word (its whole pixel in the high byte), the frames, and the offset of the next coordinate in the corners' table. Only the command reads them, so the port leaves their last values for shadow mode (event/leaves.c)"
+source = "game/event/leaves.c, event $FE $C0:3F26"
+[[var.field]]
+name = "coordinates_left"
+offset = 0
+meaning = "Coordinates still to work out"
+[[var.field]]
+name = "start"
+offset = 2
+size = 2
+meaning = "The coordinate's start"
+[[var.field]]
+name = "frames"
+offset = 6
+meaning = "The frames the move takes"
+[[var.field]]
+name = "next"
+offset = 8
+size = 2
+meaning = "Byte offset of the next coordinate"
 
 [[var]]
 name = "field_sprites_left"
@@ -3211,6 +3238,13 @@ meaning = "Nonzero: BG2 waves like field_line_wave_bg3 (with BG3's scroll)"
 source = "game/field/line_effects.c, set_bg2_table $FD:C4B5"
 
 [[var]]
+name = "field_ripple_frames_left"
+addr = "7E:1DFF"
+subsystem = "field"
+meaning = "Frames left in the stretch of the ripple (event $FF $9E) under way: its wait, its circle's growing, holding and shrinking. The original counts them in the cell across its frame waits; the port counts in a local and leaves the cell as the original has it at each wait"
+source = "game/field/screen_effects.c, the ripple $C0:264F"
+
+[[var]]
 name = "field_layer_map_size"
 addr = "7E:1D84"
 count = 3
@@ -3474,6 +3508,47 @@ page = "decompress"
 subsystem = "scene"
 meaning = "Bit 0: the circle's table is in bank $7F rather than $7E"
 source = "game/scene/circle.c, scene_draw_circle $C3:0077"
+
+# The curtain's cells, the inputs of the other window routine of bank $C3
+# ($C3:01E4, through the jump at $C3:000E): the field's curtain sweeps a ragged
+# edge across the screen through window 2 (game/field/screen_effects.c). They
+# are the circle's input cells, at another time.
+[[var]]
+name = "scene_curtain_sweep"
+addr = "7E:0350"
+page = "decompress"
+reuses = "scene_circle_center_x"
+subsystem = "scene"
+meaning = "The curtain $C3:01E4 sweeps a step a frame: 0 none (it clears this after its 32nd step), 1 its edges start at the left and move right, 2 they start at the right and move left"
+source = "game/field/screen_effects.c, the curtain $C0:22D8 and event $FF $92-$95 ($C0:405D)"
+
+[[var]]
+name = "scene_curtain_steps"
+addr = "7E:0351"
+page = "decompress"
+reuses = "scene_circle_center_x"
+subsystem = "scene"
+meaning = "Steps the curtain has taken: 0 starts it"
+source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
+
+[[var]]
+name = "scene_curtain_table"
+addr = "7E:0352"
+size = 2
+page = "decompress"
+reuses = "scene_circle_center_y"
+subsystem = "scene"
+meaning = "Address of the curtain's per-line table of edges (a byte a line), which it keeps $1C0 bytes on and sends through the work RAM port to the table or the half after it, a frame each"
+source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
+
+[[var]]
+name = "scene_curtain_table_bank"
+addr = "7E:0354"
+page = "decompress"
+reuses = "scene_circle_radius"
+subsystem = "scene"
+meaning = "The curtain table's bank; bit 0 picks bank $7F"
+source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 
 # The circle's scratch, high on the decompressor's page: the original keeps its
 # loop state there rather than in registers, and other code on the page writes
@@ -3932,12 +4007,51 @@ meaning = "Color math layers the table builders send instead of field_fixed_colo
 source = "game/field/line_effects.c, send_scroll $FD:C401"
 
 [[var]]
-name = "field_window_shape_quad"
-addr = "7F:1CEA"
-size = 0x0F
+name = "field_searchlight_frames"
+addr = "7F:1CE8"
 subsystem = "field"
-meaning = "Corners the field copies into field_window_shape_corners before rasterizing"
-source = "game/field/window_shape.c (header comment, $7F:1CEA-$7F:1CF8)"
+meaning = "Frames the searchlight's corners still move for (event $FE)"
+source = "game/field/screen_effects.c, the searchlight $C0:2409; game/event/screen.c, event $FE $C0:3F26"
+
+[[var]]
+name = "field_searchlight_corners"
+addr = "7F:1CE9"
+count = 4
+stride = 4
+index = "corner, in drawing order"
+subsystem = "field"
+meaning = "The searchlight's four corners, 8.8 fixed point (the whole pixel in the high byte), which the field copies into field_window_shape_corners each frame before rasterizing them"
+source = "game/field/screen_effects.c, the searchlight $C0:2409"
+[[var.field]]
+name = "x"
+offset = 0
+size = 2
+meaning = "X"
+[[var.field]]
+name = "y"
+offset = 2
+size = 2
+meaning = "Y"
+
+[[var]]
+name = "field_searchlight_speeds"
+addr = "7F:1CF9"
+count = 4
+stride = 4
+index = "corner, in drawing order"
+subsystem = "field"
+meaning = "How far each of the searchlight's corners moves a frame, 8.8 fixed point, signed"
+source = "game/field/screen_effects.c, the searchlight $C0:2409; game/event/screen.c, event $FE $C0:3F26"
+[[var.field]]
+name = "x"
+offset = 0
+size = 2
+meaning = "X"
+[[var.field]]
+name = "y"
+offset = 2
+size = 2
+meaning = "Y"
 
 [[var]]
 name = "event_object_count"
@@ -14672,12 +14786,45 @@ meaning = "The byte after dialog_speaker, which $C0:1FDD reads with it as a word
 source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
-name = "field_screen_job"
+name = "field_screen_effect"
 addr = "7E:0139"
 page = "field"
 subsystem = "field"
-meaning = "The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself"
-source = "game/field/start.c, field_start $C0:0B86"
+meaning = "The screen effect under way, which the main loop moves on a step every frame ($C0:21E1, through the table at $C0:21EE), 0 for none: a hole in the map, an oval of colour, the curtain, the searchlight, BG3 in a circle, the scene's start, the ripple (game/field/screen_effects.c, ScreenEffect). Event $FF starts one, and each ends itself"
+source = "game/field/screen_effects.c, field_move_screen_effect_on $C0:21E1; game/event/screen.c, event $FF $C0:3FAF"
+
+[[var]]
+name = "field_circle_x"
+addr = "7E:013A"
+page = "field"
+subsystem = "field"
+meaning = "X of the centre of the circle a hole or an oval is cut in (event $FF $90 and $97)"
+source = "game/field/screen_effects.c, $C0:4036"
+
+[[var]]
+name = "field_circle_y"
+addr = "7E:013B"
+page = "field"
+subsystem = "field"
+meaning = "Line of the centre of the hole's or the oval's circle"
+source = "game/field/screen_effects.c, $C0:4036"
+
+[[var]]
+name = "field_circle_radius"
+addr = "7E:013C"
+page = "field"
+reuses = "field_window2_edge"
+subsystem = "field"
+meaning = "The radius the hole's or the oval's circle has reached, in lines, as it opens from 0 or closes to 0; the ripple's circle too. The cell is field_window2_edge while the curtain runs"
+source = "game/field/screen_effects.c, $C0:220E-$C0:23E2, $C0:264F"
+
+[[var]]
+name = "field_circle_target_radius"
+addr = "7E:013D"
+page = "field"
+subsystem = "field"
+meaning = "The radius an opening hole or oval stops at"
+source = "game/field/screen_effects.c, $C0:4036"
 
 [[var]]
 name = "field_built_sprite_object"
@@ -14721,6 +14868,44 @@ addr = "7E:0BE9"
 subsystem = "field"
 meaning = "Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of its own; the scene program sets it ($7E:30E6) and the field's start clears it"
 source = "game/field/start.c, field_start $C0:0B86"
+
+[[var]]
+name = "field_credits_cursor"
+addr = "7E:0BE1"
+size = 2
+subsystem = "field"
+meaning = "Where the credits text BG3 shows goes on: an offset into the credits' texts ($FD:A000), at the start of a text event $29 picks or of the line after the last one written"
+source = "game/field/script_layers.c, $C0:274D; game/event/screen.c, event $29 $C0:3E84"
+
+[[var]]
+name = "field_credits_column"
+addr = "7E:0BE3"
+subsystem = "field"
+meaning = "The BG3 tile map column the credits' lines start at (event $2F); its low 5 bits are used"
+source = "game/field/script_layers.c, $C0:27EB"
+
+[[var]]
+name = "field_credits_row"
+addr = "7E:0BE4"
+subsystem = "field"
+meaning = "The BG3 tile map row the next credits line goes to (event $2F); each line moves it on one row, and the end of a text two; its low 6 bits are used"
+source = "game/field/script_layers.c, $C0:27EB"
+
+[[var]]
+name = "field_bg3_piece_vram"
+addr = "7E:0BE5"
+size = 2
+subsystem = "field"
+meaning = "VRAM word address the vblank's BG3 piece (field_map_transition bit 5, $C0:EC77) sends BG3's staged row to: a credits line's place in BG3's tile map"
+source = "game/field/script_layers.c, $C0:27EB"
+
+[[var]]
+name = "field_bg3_piece_bytes"
+addr = "7E:0BE7"
+size = 2
+subsystem = "field"
+meaning = "How many bytes of BG3's staged row the BG3 piece sends: the rest of the tile map's row from the line's column"
+source = "game/field/script_layers.c, $C0:27EB"
 
 [[var]]
 name = "field_switch_sound"

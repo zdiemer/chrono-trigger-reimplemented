@@ -1271,22 +1271,30 @@ below. `python3 tools/timing_census.py` re-runs the census.
     pans it on the leader by reading the objects' screen X with the party's
     first two places as one index word); the port calls it and hands it A's
     high byte as the original has it (field/leaves.c);
-  - from chunk 13's review: `requests.c:411` writes A back after the frame
-    wait (`field_frame_wait_leaves_a`), but `$C0:EC60` is still the
-    original's and leaves exactly that A, so the line and the helper go; the
-    tile copy's single-layer table wants a `BgLayer` enum, designated rows, a
-    typed transition and a row column for the different ending (only how the
-    original's copy ends differs); `field_chest_opening_starts` is observed
-    only by shadow mode's compare at the sound's call, so it belongs in
-    `ORIGINAL_EFFECT` in `answer_chest`; `LAYERS_PAGE` duplicates
-    `FIELD_LAYERS_PAGE`, the darkness test is written twice (a shared
-    `field_is_dark`), `MAP_ROWS`/`MAP_ROWS_KEPT` and `FIGURE_BYTES`/
-    `FIELD_FIGURE_TILES_BYTES` are one value each; `field_step_event_high_a`
-    should ask switches.c (`field_step_kept_at`) rather than repeat the
-    search; the dead `requests == 0` branch, the header's "one kind a frame",
-    `keep_where_the_party_was` also moving the party, `answer_chest`'s A-high
-    comment and graphics.c's orphaned comment; `switch_tile_row` shifts a
-    possibly negative int; `CHEST_ENTRIES` for the bare 3 and 4s.
+- **What the screen effects left** (RECOMP.md, "Phase 3, field and events:
+  the screen effects and the credits"):
+  - the curtain's sweep is still bank `$C3`'s (`$C3:01E4`, through the jump
+    at `$C3:000E`): each frame it moves every line's edge on by a few pixels
+    picked by the scene engine's random mixer (`$C3:02DD`), which reads the
+    beam's position (the H/V counter latches), so it waits on a timing
+    service before it can be C; no movie reaches the curtain, which fuzzing
+    checks around the call;
+  - the ripple (event `$FF` `$9E`) and the field's close into scene `$85`
+    (`$9B`) run for frames with the original's routines between their steps
+    (BG1 drawn and its tile map readied, the frame's effects, the frame
+    wait, the field put aside); no movie reaches either, and fuzzing stops
+    at their first readying call, which waits on the vblank: both are
+    unchecked past their first call-out;
+  - event `$FF` `$96` (the field's restart from its loader) is the
+    original's from the command's own dispatch (`$C0:4009`), where the port
+    stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
+    the same dispatch's frame (`event_screen_party_routine`);
+  - the credits' letters' loading (`$C0:6E27`) and the layers' staging
+    blanked (`$C0:75A0`, the block move from `$D2:0000` the map scrolling's
+    follow-ups name) are call-outs of event `$29` and the layer work;
+  - one fuzzed state in 40,000 of the screen effects' step differs only in
+    OAM bytes holding what looks like the original's stack (seed 1, state
+    10,647): find what writes OAM there.
 - **The line effects' tables past their size on fuzzed states.** Fuzzing
   `field_build_line_effect_tables` and the window and wave builders over
   random states reports the accessor out of range: a table built for a random

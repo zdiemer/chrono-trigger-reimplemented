@@ -41,6 +41,12 @@ unsigned field_switch_entry_count(const GameState *g);
 unsigned field_switch_rows(SwitchShape shape);
 void field_redraw_changed_tiles(GameState *g, Platform *pf);
 void field_remember_step(GameState *g, uint16_t step);
+/* Where remembering `step` stopped in the list: the step, kept or found
+ * there, or, the list full of others, its last. */
+uint16_t field_step_kept_at(const GameState *g, uint16_t step);
+
+/* The map's rows the field keeps (field_layer_maps, field_tile_properties). */
+enum { FIELD_MAP_ROWS = 64 };
 
 /* The chest the leader opened (field_opened_chest_tile), from the main
  * loop's requests: its kind forgotten as the opening starts, and the chest

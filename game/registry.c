@@ -30,6 +30,8 @@
 #include "field/menus.h"
 #include "field/start.h"
 #include "field/requests.h"
+#include "field/screen_effects.h"
+#include "field/script_layers.h"
 #include "field/graphics.h"
 #include "field/layers.h"
 #include "field/line_effects.h"
@@ -1397,7 +1399,7 @@ const NativeEntry game_natives[] = {
 
     /* event engine */
     { .addr = 0xC058DE, .name = "event_run_init_scripts", .fn = event_run_init_scripts,
-      NEEDS_M8_X16_BINARY, .cost_milli = 5865, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_has_objects },
+      NEEDS_M8_X16_BINARY, .cost_milli = 5915, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = event_has_objects },
     { .addr = 0xC05A93, .name = "event_run_object_script", .fn = event_run_object_script,
       NEEDS_M8_X8, .cost_milli = 4723, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
       .guard = event_runs_an_object },
@@ -1577,6 +1579,15 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03D7A, event_cmd_wait_for_screen_tint, 2856, event_cmd_wait_for_screen_tint_accepts),
     EVENT_CMD(0xC03D07, event_cmd_tint, 3985, event_cmd_tint_accepts),
     EVENT_CMD(0xC03D84, event_cmd_shake_screen, 3229, event_cmd_shake_screen_accepts),
+    EVENT_CMD(0xC03ED6, event_cmd_layer_work_bg2_left, 2542, event_cmd_layer_work_bg2_left_accepts),
+    EVENT_CMD(0xC03EDE, event_cmd_layer_work_bg2_right, 2917, event_cmd_layer_work_bg2_right_accepts),
+    EVENT_CMD(0xC03EE2, event_cmd_layer_work_credits, 2917, event_cmd_layer_work_credits_accepts),
+    EVENT_CMD(0xC03EE6, event_cmd_place_bg3, 4938, event_cmd_place_bg3_accepts),
+    EVENT_CMD(0xC03F12, event_cmd_place_the_credits, 3375, event_cmd_place_the_credits_accepts),
+    EVENT_CMD(0xC03F26, event_cmd_move_searchlight, 10907, event_cmd_move_searchlight_accepts),
+    EVENT_CMD(0xC03E84, event_cmd_choose_credits, 2650, event_cmd_choose_credits_accepts),
+    EVENT_CMD(0xC03FAF, event_cmd_screen_command, 5856, event_cmd_screen_command_accepts),
+    EVENT_CMD(0xC03E7C, event_screen_party_routine, 3400, event_screen_party_routine_accepts),
     EVENT_CMD(0xC03D97, event_cmd_copy_tiles, 6262, event_cmd_copy_tiles_accepts),
     EVENT_CMD(0xC03DC5, event_cmd_queue_tile_copy, 3011, event_cmd_queue_tile_copy_accepts),
     EVENT_CMD(0xC03DF4, event_cmd_drift_layers, 4458, event_cmd_drift_layers_accepts),
@@ -1747,6 +1758,11 @@ const NativeEntry game_natives[] = {
       .guard = field_tile_copy_in_build_bank },
     { .addr = 0xC0CB3A, .name = "field_read_animation_frame", .fn = field_read_animation_frame, NEEDS_M8_X8_BINARY,
       .cost_milli = 3914, .dont_care = DC_Y | DC_N | DC_Z, .guard = field_object_frames_in_bank },
+    { .addr = 0xC021E1, .name = "field_move_screen_effect_on", .fn = field_move_screen_effect_on, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3242, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_screen_effect_can_move_on },
+    { .addr = 0xC0274D, .name = "field_do_script_layer_work", .fn = field_do_script_layer_work, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4510, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
+      .guard = field_script_layer_work_can_run },
     { .addr = 0xC00C76, .name = "field_handle_requests", .fn = field_handle_requests, NEEDS_M8_X16,
       .cost_milli = 2937, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_requests_can_run },
     { .addr = 0xC0ED15, .name = "field_redraw_after_picture", .fn = field_redraw_after_picture, NEEDS_M8_X16,

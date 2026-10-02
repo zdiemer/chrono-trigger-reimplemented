@@ -3,7 +3,9 @@
  * Every frame the field's main loop moves a brightness change and a tint
  * change that are under way a step toward their targets, and then answers
  * what the event scripts and the leader's walk have asked of it
- * (field_requests, field/field.h), one kind a frame, in this order:
+ * (field_requests, field/field.h): a location change alone, or the menus
+ * alone, or else a step event, a chest, and then a tile copy or a battle,
+ * in this order:
  * - a location change: the picture fades out a step a frame, then the party's
  *   place is kept as the one it came from, the next place becomes the
  *   party's, and the field starts again there;
@@ -185,7 +187,7 @@ enum {
 enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FREE_SPRITE_AREAS = 0xC0E935,
        DRAW_BG1 = 0xC075E9, DRAW_BG2 = 0xC078EC, DRAW_BG3 = 0xC07CB5 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-       READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, LAYERS_PAGE = 0x1D00 };
+       READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
@@ -207,6 +209,11 @@ static void keep_where_the_party_was(GameState *g)
     set_location_previous_x(g, field_object_x_tile(g, leader));
     set_location_previous_y(g, field_object_y_tile(g, leader));
     set_location_previous_flags(g, (uint8_t)(field_object_facing(g, leader) ^ FACING_OPPOSITE));
+}
+
+/* The next place becomes the party's. */
+static void party_moves_to_the_next_place(GameState *g)
+{
     set_location_id(g, location_next_id(g));
     set_location_x(g, location_next_x(g));
     set_location_y(g, location_next_y(g));
@@ -227,6 +234,7 @@ static bool change_location(Snes *s)
         return true;
     display_go_dark(s);
     keep_where_the_party_was(g);
+    party_moves_to_the_next_place(g);
     m_stop_at_own(s, FIELD_STARTS_AGAIN, AS_THE_FIELD_STARTS);
     return false;
 }
@@ -235,14 +243,16 @@ static bool change_location(Snes *s)
 
 /* The chest's sound, from the original's own call: the switch's sound's
  * routine with the chest's effect ($C0:1BA7). It reads A's high byte (the
- * sound driver keeps it and hands it back), which the port has left as the
- * main loop called it, as the original has it there. */
+ * sound driver keeps it and hands it back): the step event's where one came
+ * before (leave_a_for_the_chest), else as the main loop called the requests.
+ * The chest's kind is forgotten before the sound, which only shadow mode's
+ * comparison at the call sees: opening the chest sets it again. */
 enum { CHEST_SOUND = 0xC01BA7, CHEST_SOUND_SITE = 0xC016EB };
 
 static bool answer_chest(Snes *s)
 {
     GameState *g = state_of(s);
-    field_chest_opening_starts(g);
+    ORIGINAL_EFFECT(field_chest_opening_starts(g));
     answered(g, FIELD_REQUEST_OPEN_CHEST);
     if (!call(s, CHEST_SOUND_SITE, CHEST_SOUND, SOUND_READS_NOTHING))
         return false;
@@ -255,23 +265,27 @@ static bool answer_chest(Snes *s)
 
 /* The layers a copy changed (field_tile_copy_queued_maps), drawn again and
  * sent: BG1, BG2 or BG3 alone, or BG1 and BG2 (below). A layer is drawn on the
- * layers' page, its tile map prepared to send, and the vblank told to send it
- * (field_map_transition); after it the frame's effects are refreshed and the
- * layers' scroll put where the screen is. Each layer alone has its own copy of
- * the calls, by where each is. */
-typedef enum { SENT_BG1 = 1, SENT_BG2 = 2, SENT_BG1_AND_BG2 = 3, SENT_BG3 = 4 } LayersSent;
-enum { LAYERS_ALONE = 3 };
+ * layers' page, its tile map prepared to send, and the vblank told to move it
+ * to the layer's place (field_map_transition); after it the frame's effects
+ * are refreshed and the layers' scroll put where the screen is. Each layer
+ * alone has its own copy of the calls, by where each is; BG3's ends with a
+ * frame wait of its own, the others by jumping to the main loop's. */
+typedef enum { QUEUED_BG1 = 1, QUEUED_BG2 = 2, QUEUED_BG1_AND_BG2 = 3, QUEUED_BG3 = 4 } QueuedMaps;
 
 static const struct {
-    uint32_t draw_routine, draw, prepare_routine, prepare, refresh, wait, refresh_after, scroll;
-} alone_sites[LAYERS_ALONE] = {
-    { DRAW_BG1, 0xC017A9, SEND_BG1, 0xC017AD, 0xC017B0, 0xC017B9, 0xC017BC, 0xC017BF },
-    { DRAW_BG2, 0xC017D2, SEND_BG2, 0xC017D6, 0xC017D9, 0xC017E2, 0xC017E5, 0xC017E8 },
-    { DRAW_BG3, 0xC0186F, SEND_BG3, 0xC01873, 0xC01876, 0xC0187F, 0xC01882, 0xC01885 },
+    void (*draw)(Snes *);
+    uint32_t draw_routine, prepare_routine;
+    FieldMapMove move;
+    bool waits_itself;
+    uint32_t draw_site, prepare_site, refresh_site, wait_site, refresh_after_site, scroll_site, last_wait_site;
+} alone[FIELD_LAYERS] = {
+    [FIELD_BG1] = { field_draw_bg1_at_the_load, DRAW_BG1, SEND_BG1, FIELD_MOVE_TO_BG1, false,
+                    0xC017A9, 0xC017AD, 0xC017B0, 0xC017B9, 0xC017BC, 0xC017BF, 0 },
+    [FIELD_BG2] = { field_draw_bg2_at_the_load, DRAW_BG2, SEND_BG2, FIELD_MOVE_TO_BG2, false,
+                    0xC017D2, 0xC017D6, 0xC017D9, 0xC017E2, 0xC017E5, 0xC017E8, 0 },
+    [FIELD_BG3] = { field_draw_bg3_at_the_load, DRAW_BG3, SEND_BG3, FIELD_MOVE_TO_BG3, true,
+                    0xC0186F, 0xC01873, 0xC01876, 0xC0187F, 0xC01882, 0xC01885, 0xC01888 },
 };
-static void (*const alone_drawers[LAYERS_ALONE])(Snes *) = { field_draw_bg1_at_the_load, field_draw_bg2_at_the_load,
-                                                             field_draw_bg3_at_the_load };
-static const uint8_t alone_transitions[LAYERS_ALONE] = { 1, 2, 4 };
 
 /* BG1 and the transition base trade places: the copy's second pass sends
  * BG1's map to where the first sent BG2's. */
@@ -289,21 +303,21 @@ enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 
 // $C0:1779 ($C0:179A-$C0:188B for the layers)
 /* One layer alone. False where the port stopped. */
-static bool send_one_layer(Snes *s, unsigned n)
+static bool send_one_layer(Snes *s, FieldLayer layer)
 {
     GameState *g = state_of(s);
-    if (!field_run_on_page(s, alone_sites[n].draw, alone_sites[n].draw_routine, READS_NOTHING, alone_drawers[n],
-                           LAYERS_PAGE) ||
-        !call(s, alone_sites[n].prepare, alone_sites[n].prepare_routine, READS_NOTHING) ||
-        !call(s, alone_sites[n].refresh, REFRESH, READS_NOTHING))
+    if (!field_run_on_page(s, alone[layer].draw_site, alone[layer].draw_routine, READS_NOTHING, alone[layer].draw,
+                           FIELD_LAYERS_PAGE) ||
+        !call(s, alone[layer].prepare_site, alone[layer].prepare_routine, READS_NOTHING) ||
+        !call(s, alone[layer].refresh_site, REFRESH, READS_NOTHING))
         return false;
-    set_field_map_transition(g, alone_transitions[n]);
+    set_field_map_transition(g, alone[layer].move);
     set_field_tile_copy_queued_maps(g, 0);
-    if (!wait_frame(s, alone_sites[n].wait) || !call(s, alone_sites[n].refresh_after, REFRESH, READS_NOTHING) ||
-        !call(s, alone_sites[n].scroll, SCROLL_FOLLOWS, READS_NOTHING))
+    if (!wait_frame(s, alone[layer].wait_site) || !call(s, alone[layer].refresh_after_site, REFRESH, READS_NOTHING) ||
+        !call(s, alone[layer].scroll_site, SCROLL_FOLLOWS, READS_NOTHING))
         return false;
-    if (alone_transitions[n] == SENT_BG3)
-        return wait_frame(s, 0xC01888);
+    if (alone[layer].waits_itself)
+        return wait_frame(s, alone[layer].last_wait_site);
     m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
     return false;
 }
@@ -314,26 +328,26 @@ static bool send_one_layer(Snes *s, unsigned n)
 static bool send_bg1_and_bg2(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!field_run_on_page(s, 0xC017FE, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, LAYERS_PAGE) ||
+    if (!field_run_on_page(s, 0xC017FE, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE) ||
         !call(s, 0xC01802, REFRESH, READS_NOTHING))
         return false;
-    set_field_map_transition(g, SENT_BG1_AND_BG2);
+    set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
     set_field_tile_copy_queued_maps(g, 0);
     if (!wait_frame(s, 0xC0180B) ||
-        !field_run_on_page(s, 0xC01817, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, LAYERS_PAGE))
+        !field_run_on_page(s, 0xC01817, DRAW_BG2, READS_NOTHING, field_draw_bg2_at_the_load, FIELD_LAYERS_PAGE))
         return false;
     trade_bg1_base(g);
     if (!call(s, 0xC01825, SEND_BG1, READS_NOTHING) || !call(s, 0xC01828, SEND_BG2, READS_NOTHING) ||
         !call(s, 0xC0182B, REFRESH, READS_NOTHING))
         return false;
-    set_field_map_transition(g, SENT_BG2);
+    set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     if (!wait_frame(s, 0xC01832) ||
-        !field_run_on_page(s, 0xC0183E, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, LAYERS_PAGE))
+        !field_run_on_page(s, 0xC0183E, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE))
         return false;
     trade_bg1_base(g);
     if (!call(s, 0xC0184C, SEND_BG1, READS_NOTHING) || !call(s, 0xC0184F, REFRESH, READS_NOTHING))
         return false;
-    set_field_map_transition(g, SENT_BG1);
+    set_field_map_transition(g, FIELD_MOVE_TO_BG1);
     if (!wait_frame(s, 0xC01856) || !call(s, 0xC01859, REFRESH, READS_NOTHING) ||
         !call(s, 0xC0185C, SCROLL_FOLLOWS, READS_NOTHING))
         return false;
@@ -363,11 +377,11 @@ static bool answer_tile_copy(Snes *s)
         !bridge_call_long(s, 0xC01793, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
         !wait_frame(s, 0xC01797))
         return false;
-    switch ((LayersSent)field_tile_copy_queued_maps(g)) {
-    case SENT_BG1: return send_one_layer(s, 0);
-    case SENT_BG2: return send_one_layer(s, 1);
-    case SENT_BG3: return send_one_layer(s, 2);
-    case SENT_BG1_AND_BG2: return send_bg1_and_bg2(s);
+    switch ((QueuedMaps)field_tile_copy_queued_maps(g)) {
+    case QUEUED_BG1: return send_one_layer(s, FIELD_BG1);
+    case QUEUED_BG2: return send_one_layer(s, FIELD_BG2);
+    case QUEUED_BG3: return send_one_layer(s, FIELD_BG3);
+    case QUEUED_BG1_AND_BG2: return send_bg1_and_bg2(s);
     default: return true;
     }
 }
@@ -427,28 +441,30 @@ static bool answer_battle(Snes *s)
 /* The field's page, 8-bit A and 16-bit index registers. A's high byte and the
  * overflow are read after it, as the routines it calls leave them or as it
  * came. */
+/* The requests asked for, in their order. False where the port stopped. */
+static bool answer_requests(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
+        return change_location(s);
+    if (asked(g, FIELD_REQUEST_MENUS))
+        return field_open_script_menu(s);
+    if (asked(g, FIELD_REQUEST_STEP_EVENT) && !answer_step_event(s))
+        return false;
+    if (asked(g, FIELD_REQUEST_OPEN_CHEST) && !answer_chest(s))
+        return false;
+    if (asked(g, FIELD_REQUEST_TILE_COPY))
+        return answer_tile_copy(s);
+    if (asked(g, FIELD_REQUEST_BATTLE))
+        return answer_battle(s);
+    return true;
+}
+
 void field_handle_requests(Snes *s)
 {
     GameState *g = state_of(s);
     field_step_screen_changes(g);
-    bool on = true;
-    if (field_requests(g) == 0)
-        on = true;
-    else if (asked(g, FIELD_REQUEST_LOCATION_CHANGE))
-        on = change_location(s);
-    else if (asked(g, FIELD_REQUEST_MENUS))
-        on = field_open_script_menu(s);
-    else {
-        if (asked(g, FIELD_REQUEST_STEP_EVENT))
-            on = answer_step_event(s);
-        if (on && asked(g, FIELD_REQUEST_OPEN_CHEST))
-            on = answer_chest(s);
-        if (on && asked(g, FIELD_REQUEST_TILE_COPY))
-            on = answer_tile_copy(s);
-        else if (on && asked(g, FIELD_REQUEST_BATTLE))
-            on = answer_battle(s);
-    }
-    if (on)
+    if (field_requests(g) == 0 || answer_requests(s))
         m_rts(s);
 }
 
@@ -462,7 +478,7 @@ void field_handle_requests(Snes *s)
  * map's rows; for a location change made (the fade done), the leader an
  * object, its link a word (the original reads the leader's place with it as
  * a 16-bit index). */
-enum { MAP_ROWS = 64, LAST_TILE = 0xFF };
+enum { LAST_TILE = 0xFF };
 
 bool field_requests_can_run(Snes *s)
 {
@@ -475,16 +491,14 @@ bool field_requests_can_run(Snes *s)
     if ((requests & FIELD_REQUEST_STEP_EVENT) &&
         !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS))) {
         uint16_t step = field_step_tile(g);
-        ok = (step >> 8) < MAP_ROWS && field_switch_inside_the_map(g, step) &&
+        ok = (step >> 8) < FIELD_MAP_ROWS && field_switch_inside_the_map(g, step) &&
              !(field_is_one_by_two_switch(g, step) && field_map_byte(g, field_switch_upper_tile(step)) == LAST_TILE);
     }
-    uint8_t brightness = field_brightness(g);
-    bool dark = brightness == FIELD_DARK || (brightness & FIELD_BRIGHTNESS_SIGN);
-    if ((requests & FIELD_REQUEST_LOCATION_CHANGE) && dark)
+    if ((requests & FIELD_REQUEST_LOCATION_CHANGE) && field_is_dark(g))
         ok = ok && field_party_objects_high(g, PARTY_LEADER) == 0 &&
              field_link_names_object(party_member_link(g, PARTY_LEADER));
     if ((requests & FIELD_REQUEST_OPEN_CHEST) && !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS)))
-        ok = ok && (field_opened_chest_tile(g) >> 8) < MAP_ROWS;
+        ok = ok && (field_opened_chest_tile(g) >> 8) < FIELD_MAP_ROWS;
     vars_peek(false);
     return ok;
 }

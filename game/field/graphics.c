@@ -19,8 +19,6 @@
 #include "vars.h"
 #include "wram.h"
 
-/* A tile's offset in its graphics set. */
-
 /* The graphics set's bank, as the straight copy reads it: bank $7F where the
  * builder made the graphics, else the ROM's bank of sprite graphics it names
  * (field_data.h). */

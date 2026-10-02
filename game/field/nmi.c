@@ -41,35 +41,29 @@ static int screen_transition_step(const GameState *g)
     return -1;
 }
 
-/* A map transition: moving to a destination (1-4, each with its tile map
- * base), or sending a tile map staged in bank $7E to VRAM: the staged half
- * screen to BG2's left screen, the same to its right screen, or a piece of
- * BG3's map (bits 3-5, each the original's routine). */
-enum {
-    MAP_MOVES = 4,
-    MAP_SEND_BG2_LEFT = 0x08,     /* $C0:7F5D */
-    MAP_SEND_BG2_RIGHT = 0x10,    /* $C0:7F58 */
-    MAP_SEND_BG3_PIECE = 0x20,    /* $C0:EC77 */
-};
+/* A map transition (field/field.h, FieldMapMove): a move to a destination,
+ * each with its tile map base, or a send of a tile map staged in bank $7E,
+ * each the original's routine: BG2's left screen ($C0:7F5D), its right screen
+ * ($C0:7F58), a piece of BG3's map ($C0:EC77). */
 
 /* The first two moves also set BG1's tile map in the line effects' values,
  * two screens wide, from the destination's. */
 
 /* The destinations: BG1's and BG2's tile maps for the first two, the one the
  * map loader chose for the third, BG3's for the fourth. */
-static void start_map_move(GameState *g, uint8_t move)
+static void start_map_move(GameState *g, FieldMapMove move)
 {
-    uint16_t destination = move == 1   ? field_layer_map_base(g, FIELD_BG1)
-                           : move == 2 ? field_layer_map_base(g, FIELD_BG2)
-                           : move == 3 ? field_transition_map_base(g)
-                                       : field_layer_map_base(g, FIELD_BG3);
+    uint16_t destination = move == FIELD_MOVE_TO_BG1                 ? field_layer_map_base(g, FIELD_BG1)
+                           : move == FIELD_MOVE_TO_BG2               ? field_layer_map_base(g, FIELD_BG2)
+                           : move == FIELD_MOVE_TO_THE_LOADERS_PLACE ? field_transition_map_base(g)
+                                                                     : field_layer_map_base(g, FIELD_BG3);
     set_field_transfer_vram(g, destination);
 }
 
-static void finish_map_move(GameState *g, uint8_t move)
+static void finish_map_move(GameState *g, FieldMapMove move)
 {
     set_field_map_transition(g, 0);
-    if (move <= 2) {
+    if (move <= FIELD_MOVE_TO_BG2) {
         uint32_t maps = field_line_bg_maps(g, 0);
         uint8_t bg1 = (uint8_t)((field_layer_map_base(g, FIELD_BG1) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE);
         set_field_line_bg_maps(g, 0, (maps & 0xFFFFFF00u) | bg1);
@@ -182,14 +176,14 @@ static bool run_screen_transition(Snes *s, int step)
  * ended with it. */
 static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
 {
-    static const uint32_t move_sites[MAP_MOVES] = { 0xC0EAE1, 0xC0EB01, 0xC0EB21, 0xC0EB38 };
+    static const uint32_t move_sites[FIELD_MAP_MOVES] = { 0xC0EAE1, 0xC0EB01, 0xC0EB21, 0xC0EB38 };
     GameState *g = state_of(s);
     *finished = true;
-    if (asked >= 1 && asked <= MAP_MOVES) {
-        start_map_move(g, asked);
+    if (asked >= 1 && asked <= FIELD_MAP_MOVES) {
+        start_map_move(g, (FieldMapMove)asked);
         if (!call(s, move_sites[asked - 1], SEND_STAGED_MAP, FIELD_PAGE))
             return false;
-        finish_map_move(g, asked);
+        finish_map_move(g, (FieldMapMove)asked);
         finish_frame(s);
         return true;
     }
@@ -201,9 +195,9 @@ static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
         uint32_t site, routine;
         bool ends_the_frame;
     } sends[] = {
-        { MAP_SEND_BG2_LEFT, 0xC0EB4A, SEND_BG2_LEFT, true },
-        { MAP_SEND_BG2_RIGHT, 0xC0EB5E, SEND_BG2_RIGHT, true },
-        { MAP_SEND_BG3_PIECE, 0xC0EB72, SEND_BG3_PIECE, false },
+        { FIELD_SEND_BG2_LEFT, 0xC0EB4A, SEND_BG2_LEFT, true },
+        { FIELD_SEND_BG2_RIGHT, 0xC0EB5E, SEND_BG2_RIGHT, true },
+        { FIELD_SEND_BG3_PIECE, 0xC0EB72, SEND_BG3_PIECE, false },
     };
     for (unsigned k = 0; k < sizeof sends / sizeof sends[0]; k++) {
         if (!(asked & sends[k].asked))

@@ -1,8 +1,8 @@
 /* Field: window shapes. A quadrilateral rasterized into the per-line table the
  * field's window line effect reads, so that a four-cornered shape of light or
  * shadow can cover part of the map: the searchlight cones in the Black Omen.
- * The field copies the corners in from field_window_shape_quad and points the
- * table at field_window_edge_lines or its copy. The code lives in bank C3,
+ * The field's searchlight (field/screen_effects.c) copies its corners in and
+ * points the table at field_window_edge_lines or its copy. The code lives in bank C3,
  * beside the scene engine's circle, and this port stands in for the edge
  * drawing it runs too ($C3:0F35-$C3:1025).
  *
@@ -242,14 +242,26 @@ static void rasterize_quad(GameState *g)
  * field_window_edge_lines or its copy. */
 enum { TABLE_BANK = 0x7F, TABLE_END = 0xFC00, LINES = 0x100 };
 
+bool field_window_shape_starts_on_a_line(const GameState *g) { return field_window_shape_right_start(g) < LINES; }
+
+bool field_window_shape_fits(const GameState *g)
+{
+    return field_window_shape_table_bank(g) == TABLE_BANK && field_window_shape_table_address(g) < TABLE_END &&
+           field_window_shape_starts_on_a_line(g);
+}
+
 bool field_window_shape_table_in_place(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = field_window_shape_table_bank(g) == TABLE_BANK && field_window_shape_table_address(g) < TABLE_END &&
-              field_window_shape_right_start(g) < LINES;
+    bool ok = field_window_shape_fits(state_of(s));
     vars_peek(false);
     return ok;
+}
+
+void field_draw_window_shape(GameState *g)
+{
+    ORIGINAL_EFFECT(shape_leaves.sloped = false);
+    rasterize_quad(g);
 }
 
 /* Entered through the JMP at $C3:0011 with 16-bit X; it sets its own direct
@@ -257,7 +269,6 @@ bool field_window_shape_table_in_place(Snes *s)
  * read after (the entry's don't-care set). */
 void field_rasterize_quad(Snes *s)
 {
-    ORIGINAL_EFFECT(shape_leaves.sloped = false);
-    rasterize_quad(state_of(s));
+    field_draw_window_shape(state_of(s));
     m_rtl(s);
 }

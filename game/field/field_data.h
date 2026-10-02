@@ -30,6 +30,19 @@ static inline uint16_t field_wave_offset(const GameState *g, uint16_t at) { retu
  * left to right, a byte (8 pixels of one bit plane) at a time. */
 static inline uint8_t field_mirrored_byte(const GameState *g, uint8_t b) { return rom_read8(g, 0xC0FD00u + b); }
 
+/* The credits the endings roll on BG3 (field/script_layers.c): texts of
+ * capital letters, one after another from $FD:A000, each line ended by '/'
+ * and each text by a byte with its top bit set. `at` is an offset from the
+ * first text's start, carried into the next bank as the original's indexed
+ * reads carry. */
+static inline uint8_t field_credits_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xFDA000u + at); }
+
+/* The blank tile map entries a row of BG3's staging is cleared with before a
+ * credits line: 32 bytes at $D2:0000, the start of the sprite graphics' first
+ * bank, which hold 0. */
+enum { FIELD_BLANK_ENTRIES_BYTES = 32 };
+static inline uint8_t field_blank_entries_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xD20000u + i); }
+
 /* Sprite tile graphics, wherever a graphics set's pointer puts them: the ROM's
  * banks $D2-$D5, or graphics built in bank $7F. `at` is a 24-bit address,
  * carried into the next bank as the original's indexed reads carry. */
