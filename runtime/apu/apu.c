@@ -93,7 +93,10 @@ static void smp_write(void *ctx, uint16_t addr, uint8_t v)
 /* Timers and DSP run from the same SPC700 clock. */
 static void tick_timers(Apu *apu, unsigned cycles)
 {
-    dsp_run(&apu->dsp, apu->ram, cycles);
+    if (apu->host_mix)
+        apu->host_mix(apu->host_ctx, apu, cycles);
+    else
+        dsp_run(&apu->dsp, apu->ram, cycles);
     for (int i = 0; i < 3; i++) {
         ApuTimer *t = &apu->timer[i];
         t->divider += cycles;
@@ -264,5 +267,7 @@ void apu_run_ahead(Apu *apu, uint32_t master_clocks)
 
 size_t apu_take_samples(Apu *apu, int16_t *out, size_t max_frames)
 {
+    if (apu->host_take)
+        return apu->host_take(apu->host_ctx, apu, out, max_frames);
     return dsp_take_samples(&apu->dsp, out, max_frames);
 }

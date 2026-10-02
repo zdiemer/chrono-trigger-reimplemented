@@ -49,9 +49,11 @@ add_library(ct_runtime STATIC
   runtime/platform/snes/backend.c
   runtime/platform/direct/audio.c
   runtime/platform/observe.c
+  runtime/platform/voices.c
   runtime/platform/voices_dsp.c
   runtime/platform/snes/decode.c
   runtime/platform/snes/encodings.c
+  runtime/platform/native/mixer.c
   runtime/platform/native/render.c)
 target_include_directories(ct_runtime PUBLIC runtime PRIVATE game)
 
@@ -313,7 +315,8 @@ target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_recomp ct_runtime ct_t
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)
 add_executable(spc700_runner tests/apu/spc700_runner.c runtime/apu/spc700.c)
-add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c)
+add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c runtime/platform/voices.c runtime/platform/voices_dsp.c
+  runtime/platform/native/mixer.c)
 target_include_directories(dsp_test PRIVATE runtime)
 add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
 target_include_directories(fiber_test PRIVATE runtime)

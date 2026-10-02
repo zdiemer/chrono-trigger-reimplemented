@@ -25,9 +25,10 @@ tick of every movie, register for register and field for field (`ct_dev
 --sound-lockstep --sound-lockstep-level state`, run inside the shadow runs, where
 the original's timing is kept: docs/SOUND.md, "How it was checked"), and over a
 short ct_sound_fuzz in both its modes, against the original and in the SPC700's
-place; and every don't-care declaration in game/ must be one the
-liveness analysis agrees with (tools/dontcare_check.py, static, with the call
-logs the shadow runs just wrote); and no port may transliterate the assembly
+place, where the native mixer must make the S-DSP's every frame; and every
+don't-care declaration in game/ must be one the liveness analysis agrees with
+(tools/dontcare_check.py, static, with the call logs the shadow runs just
+wrote); and no port may transliterate the assembly
 where one didn't before (tools/portstyle.py, static, a ratchet against its
 baseline); and no port's logic may read what some port writes only as
 scaffolding where none did before (tools/effects_check.py, static and over the
@@ -266,12 +267,14 @@ def check_lockstep(args, ctx):
 # ct_sound_fuzz's part of the gate: a few runs of each kind, from fixed seeds, so
 # a run is the same run every time (docs/SOUND.md, "How it was checked"). Against
 # the original at the state level, with the game's songs and with made-up ones;
-# and the C driver in the SPC700's place as ct_play plays it, likewise.
+# and the C driver in the SPC700's place as ct_play plays it, likewise, heard
+# through the S-DSP and the native mixer side by side, every frame of the two
+# the same (--mixer check; docs/PLATFORM.md, "The native mixer, as built").
 SOUND_FUZZ_RUNS = [
     ("original", ["--level", "state"]),
     ("original, made-up songs", ["--level", "state", "--made-up-songs", "1"]),
-    ("hosted", ["--sound-driver", "c"]),
-    ("hosted, made-up songs", ["--sound-driver", "c", "--made-up-songs", "1"]),
+    ("hosted", ["--sound-driver", "c", "--mixer", "check"]),
+    ("hosted, made-up songs", ["--sound-driver", "c", "--made-up-songs", "1", "--mixer", "check"]),
 ]
 SOUND_FUZZ_SIZE = ["--runs", "10", "--commands", "400", "--seed", "1"]
 
@@ -280,7 +283,8 @@ def check_sound_fuzz(args, ctx):
     """ct_sound_fuzz in both its modes (a short run of each): the C driver
     against the original on command streams no movie plays, and in the
     SPC700's place answering every command with no sample placed where the
-    echo writes and no command dropped."""
+    echo writes and no command dropped, and the native mixer's every frame
+    the S-DSP's."""
     fuzz = ctx["binary"].with_name("ct_sound_fuzz" + ctx["binary"].suffix)
     if not fuzz.exists():
         return False, "sound fuzz", "%s: not found (build it first)" % fuzz, []
