@@ -559,6 +559,19 @@ rest waits, is [PLAN.md](PLAN.md).
   run alone or four at a time, the builds alternating, shows 1% or less
   (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
   runs before reading the gap as the checks' cost.
+- **What the equipment screen's review left** (merged at c251088; none
+  blocking): `menu_equip_list_slide_brings_a_row` passes the row to
+  `menu_equip_bring_in_list_row` through `menu_item_operand` -- return it and
+  write the cell once as scaffolding; `menu_draw_portrait` reads its
+  attribute back from `$7E:0001` as half of a word -- take it as a
+  parameter; `member_before`'s `before < 0x80` and its unreachable
+  `reachable == 0` arm; `menu_list_top(g) == 0` means "the list doesn't
+  scroll" (wrap or rename); one `menu_member_character(g)` beside
+  `record_place` instead of the record-address arithmetic twice;
+  `leave_member_switched` and `menu_start_member_card` re-decode the worked
+  member; `menu_draw_member_rows` writes `menu_screen_argument` every pass;
+  `MenuElement` numbered by byte offset.
+
 ## Recompiler
 
 - **What the dc-evidence tooling doesn't check yet** (PORTING.md,
