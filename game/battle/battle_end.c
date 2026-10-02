@@ -25,12 +25,14 @@
 
 /* ---- The party ------------------------------------------------------------------------------ */
 
-/* The original makes each member the actor in turn as it goes, finding its
- * stat block by a multiply (the actor's block, battle_effect_actor_block). */
-static void take_as_actor(GameState *g, uint8_t member)
+/* The original makes each member the actor in turn as it goes over the
+ * party, finding its stat block by a multiply (the actor's block,
+ * battle_effect_actor_block), so the last member is left the actor. */
+static void leave_last_member_acting(GameState *g)
 {
-    set_battle_actor(g, member);
-    set_battle_effect_actor_block(g, effect_times(g, BATTLE_STAT_BLOCK_BYTES, member));
+    enum { LAST_MEMBER = BATTLE_PARTY_SIZE - 1 };
+    set_battle_actor(g, LAST_MEMBER);
+    set_battle_effect_actor_block(g, effect_times(g, BATTLE_STAT_BLOCK_BYTES, LAST_MEMBER));
 }
 
 /* The member it counted in a cell, left at the party's size once it is done. */
@@ -49,16 +51,16 @@ enum { STAT_AFTER_STATUSES = 0x24 };
 void battle_clear_party_statuses(GameState *g)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        take_as_actor(g, member);
         set_battle_stats_status(g, member, 0);
         set_battle_stats_block_byte(g, member, STAT_SHRUGS_OFF, 0);
         set_battle_stats_status_ignored(g, member, 0);
         set_battle_stats_block_byte(g, member, STAT_AFTER_STATUSES, 0);
         set_battle_stats_status_kept(g, member, 0);
         set_battle_stats_condition(g, member, battle_stats_condition(g, member) & CONDITION_KNOCKED_OUT);
-        set_battle_stats_low_hp(g, member, battle_stats_low_hp(g, member) & (uint8_t)~0x01);
+        combatant_forget_low_hp(g, member);
         set_battle_member_revive_marks(g, member, 0);
     }
+    leave_last_member_acting(g);
     ORIGINAL_EFFECT(leave_members_counted(g));
 }
 
@@ -66,24 +68,30 @@ void battle_clear_party_statuses(GameState *g)
 /* The knocked-out members stand again, with what HP they have. */
 void battle_stand_party_up(GameState *g)
 {
-    for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        take_as_actor(g, member);
+    for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_stats_condition(g, member, 0);
-    }
+    leave_last_member_acting(g);
     ORIGINAL_EFFECT(leave_members_counted(g));
 }
 
-/* A character's record is a stat block's first $50 bytes. A party slot
- * holding a character past the seven writes on past the records, as the
- * original's indexed stores do. */
+/* A character's record is a stat block's first $50 bytes. */
 enum { RECORD_BYTES = 0x50, NO_CHARACTER = 0xFF };
 
-static void set_record_byte(GameState *g, unsigned character, unsigned at, uint8_t v)
+static void keep_record(GameState *g, uint8_t member, uint8_t character)
 {
-    if (character < CHARACTER_RECORDS_COUNT)
-        set_character_records_record_byte(g, character, at, v);
-    else
-        set_character_records_record_byte_unchecked(g, character, at, v);
+    for (unsigned at = 0; at < RECORD_BYTES; at++)
+        set_character_records_record_byte(g, character, at, battle_stats_block_byte(g, member, at));
+}
+
+/* A party slot holding a character past the seven, which the game never
+ * makes: the original's indexed stores copy the block on past the records,
+ * over whatever follows them. Kept as the original has it, in this one
+ * place: a layout of the records other than the original's decides here what
+ * such a slot does. */
+static void copy_past_the_records(GameState *g, uint8_t member, uint8_t character)
+{
+    for (unsigned at = 0; at < RECORD_BYTES; at++)
+        set_character_records_record_byte_unchecked(g, character, at, battle_stats_block_byte(g, member, at));
 }
 
 /* Where the copy ended, in the record and in the block, as the original's
@@ -105,8 +113,10 @@ void battle_keep_party_records(GameState *g)
             continue;
         /* the original finds the record by a multiply */
         battle_leave_multiply(g, RECORD_BYTES, character);
-        for (unsigned at = 0; at < RECORD_BYTES; at++)
-            set_record_byte(g, character, at, battle_stats_block_byte(g, member, at));
+        if (character < CHARACTER_RECORDS_COUNT)
+            keep_record(g, member, character);
+        else
+            copy_past_the_records(g, member, character);
         ORIGINAL_EFFECT(leave_copy_ends(g, member, character));
     }
     /* its count of the members, kept in the cell the clock modifier reads */

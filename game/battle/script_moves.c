@@ -89,9 +89,8 @@ static void at_the_start_of_the_line(GameState *g, Mover m, uint16_t vx, uint16_
 /* ---- The line's velocity -------------------------------------------------------------------- */
 
 /* A line's velocity: a whole pixel a step (8.8) along its longer axis, and
- * the share of that along the shorter one. Every line's set-up leaves its
- * length, in pixels along the longer axis, where a throw's rise takes it
- * from (battle_throw_wait_after's low byte). */
+ * the share of that along the shorter one; and its length, in pixels along
+ * the longer axis. */
 typedef struct {
     uint16_t vx, vy;
     uint8_t across, down, length;
@@ -106,14 +105,6 @@ static uint8_t apart(uint8_t a, uint8_t b) { return a < b ? (uint8_t)(b - a) : (
  * is asked of them (battle/positions.c): the next direction can be asked of
  * the same points. */
 enum { DIFFERENCES = 4 };
-
-static void keep_the_points(GameState *g, BattlePoint from, BattlePoint to)
-{
-    set_battle_direction_cells(g, 0, from.x);
-    set_battle_direction_cells(g, 1, from.y);
-    set_battle_direction_cells(g, 2, to.x);
-    set_battle_direction_cells(g, 3, to.y);
-}
 
 /* What working out a line leaves: the differences and their signs, the
  * sizes; which ways it goes, half its length and which axis is the
@@ -143,15 +134,24 @@ static void leave_line(GameState *g, BattlePoint from, BattlePoint to, LineVeloc
     script_leave_word(g, LEFT_TALL, v.tall);
 }
 
+/* Every line's set-up leaves its length in the low byte of the throw's wait
+ * after its rise, the original's cell for it. That is the game's, not only
+ * the original's working: a line set off on another channel while a throw
+ * waits after its rise changes how long it waits. */
+static void note_line_length(GameState *g, uint8_t length)
+{
+    set_battle_throw_wait_after(g, (uint16_t)((battle_throw_wait_after(g) & 0xFF00) | length));
+}
+
 // $C1:65BA
 static LineVelocity line_velocity(GameState *g, BattlePoint from, BattlePoint to)
 {
     LineVelocity v = { 0, 0, apart(from.x, to.x), apart(from.y, to.y), 0, false };
-    keep_the_points(g, from, to);
+    battle_keep_direction_points(g, from, to);
     v.tall = v.across < v.down;
     v.length = v.tall ? v.down : v.across;
     uint8_t shorter = v.tall ? v.across : v.down;
-    set_battle_throw_wait_after(g, (uint16_t)((battle_throw_wait_after(g) & 0xFF00) | v.length));
+    note_line_length(g, v.length);
     uint16_t share = battle_divide_by(g, (uint16_t)(shorter << 8), v.length).quotient;
     v.vx = v.tall ? share : (uint16_t)WHOLE_PIXEL;
     v.vy = v.tall ? (uint16_t)WHOLE_PIXEL : share;
@@ -181,9 +181,9 @@ enum { LEFT_LINE_MOVER = 0x06 };
 
 // $C1:5135, $C1:5042
 /* Set the mover off in a straight line to a point, from where it is, at its
- * speed, facing the way it goes. (An anchor's line keeps its angle for a
- * spiral or a chase after.) */
-static void start_line(GameState *g, Mover m, BattlePoint to)
+ * speed, facing the way it goes; returns the line's length. (An anchor's line
+ * keeps its angle for a spiral or a chase after.) */
+static uint8_t start_line(GameState *g, Mover m, BattlePoint to)
 {
     unsigned e = mover_entry(m);
     BattlePoint from = mover_position(g, m);
@@ -205,6 +205,7 @@ static void start_line(GameState *g, Mover m, BattlePoint to)
     begin_path(g, m, PATH_LINE);
     at_the_start_of_the_line(g, m, vx, vy);
     ORIGINAL_EFFECT(leave_velocity(g, vx, vy));
+    return v.length;
 }
 
 /* A channel's move: the length of the command that started it, which the
@@ -638,9 +639,40 @@ SCRIPT_OPERATION(spiral_for, channel, frames, stops_at_others)
  * orbit is half as tall as it is wide. */
 enum { CIRCLE_BACKWARD = 0x80, CIRCLE_RADIUS = 0x7F, QUARTER_TURN_STEPS = 0x40 };
 
-/* The original keeps the circle, the heading, the quarter turns, the place
- * and the kind of orbit in work cells. */
-enum { LEFT_CIRCLE = 0x00, LEFT_START = 0x02, LEFT_QUARTERS = 0x04, LEFT_CENTER = 0x06, LEFT_KIND = 0x0F };
+/* What the original leaves of an orbit in its work cells: the circle, the
+ * heading the last mover set out at, the quarter turns, the place it aimed
+ * at, the command's length and the kind of orbit. On the other targets'
+ * channel it puts two of them to other uses: the place's cell counts its way
+ * down the list (a word), and once it has looked the list over for the
+ * orbits that ended, the quarter turns' cell holds how many had. */
+enum { LEFT_CIRCLE = 0x00, LEFT_HEADING_SET_OUT = 0x02, LEFT_QUARTERS = 0x04, LEFT_PLACE = 0x06, LEFT_KIND = 0x0F };
+
+typedef struct {
+    uint8_t circle, heading, quarter_turns, length;
+    bool flat;
+    bool at_a_place;
+    uint8_t place;
+} OrbitAsked;
+
+/* How far the other targets' channel came down the list, and, if it looked
+ * them over, how many had ended. */
+typedef struct {
+    bool listed, looked_over;
+    uint8_t came_to, ended;
+} OrbitList;
+
+static void leave_orbit(GameState *g, OrbitAsked o, OrbitList list)
+{
+    script_leave(g, LEFT_CIRCLE, o.circle);
+    script_leave(g, LEFT_HEADING_SET_OUT, o.heading);
+    script_leave(g, LEFT_QUARTERS, list.looked_over ? list.ended : o.quarter_turns);
+    if (list.listed)
+        script_leave_word(g, LEFT_PLACE, list.came_to);
+    else if (o.at_a_place)
+        script_leave(g, LEFT_PLACE, o.place);
+    script_leave(g, LEFT_LENGTH, o.length);
+    script_leave(g, LEFT_KIND, o.flat ? PATH_ORBIT_FLAT : PATH_ORBIT);
+}
 
 // $C1:6D32, $C1:6E9A
 static uint8_t start_orbit(GameState *g, Mover m, BattlePoint center, uint8_t circle, uint8_t start, uint8_t quarter_turns,
@@ -679,43 +711,39 @@ static uint8_t start_orbit(GameState *g, Mover m, BattlePoint center, uint8_t ci
 static ScriptFlow orbit(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim aim, uint8_t place, uint8_t circle,
                        uint8_t start, uint8_t quarter_turns, bool flat)
 {
-    ORIGINAL_EFFECT(script_leave(g, LEFT_CIRCLE, circle));
-    ORIGINAL_EFFECT(script_leave(g, LEFT_START, start));
-    ORIGINAL_EFFECT(script_leave(g, LEFT_QUARTERS, quarter_turns));
-    if (aim == AIM_AT_A_PLACE)
-        ORIGINAL_EFFECT(script_leave(g, LEFT_CENTER, place));
     BattlePoint center = script_aim(g, aim, 0, 0, place);
-    ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
-    ORIGINAL_EFFECT(script_leave(g, LEFT_KIND, flat ? PATH_ORBIT_FLAT : PATH_ORBIT));
+    OrbitList list = { false, false, 0, 0 };
+    ScriptFlow flow;
     if (ch.kind == SCRIPT_OTHER_TARGETS) {
         uint8_t slot;
         unsigned k = 0;
-        for (; script_each_combatant(g, ch, k, &slot) && !moving(g, combatant_mover(slot)); k++) {
+        for (; script_each_combatant(g, ch, k, &slot) && !moving(g, combatant_mover(slot)); k++)
             start = start_orbit(g, combatant_mover(slot), center, circle, start, quarter_turns, flat);
-            ORIGINAL_EFFECT(script_leave(g, LEFT_START, start));
+        list.listed = true;
+        list.came_to = (uint8_t)k;
+        flow = SCRIPT_STAY;
+        if (script_each_combatant(g, ch, k, &slot)) {
+            unsigned j = 0;
+            for (; script_each_combatant(g, ch, j, &slot); j++)
+                if (stopped_at_the_end(g, combatant_mover(slot)))
+                    list.ended++;
+            list.looked_over = true;
+            list.came_to = (uint8_t)j;
+            flow = list.ended ? SCRIPT_STAY : SCRIPT_NEXT_FRAME;
         }
-        if (!script_each_combatant(g, ch, k, &slot)) {
-            ORIGINAL_EFFECT(script_leave_word(g, LEFT_CENTER, (uint8_t)k));
-            return SCRIPT_STAY;
+    } else {
+        Mover m = channel_mover(g, ch);
+        switch (stage_of(g, m)) {
+        case MOVE_STARTS:
+            start = start_orbit(g, m, center, circle, start, quarter_turns, flat);
+            flow = SCRIPT_STAY;
+            break;
+        case MOVE_ENDED: flow = SCRIPT_NEXT_FRAME; break;
+        default: flow = SCRIPT_STAY; break;
         }
-        uint8_t ended = 0;
-        unsigned j = 0;
-        for (; script_each_combatant(g, ch, j, &slot); j++)
-            if (stopped_at_the_end(g, combatant_mover(slot)))
-                ended++;
-        ORIGINAL_EFFECT(script_leave_word(g, LEFT_CENTER, (uint8_t)j));
-        ORIGINAL_EFFECT(script_leave(g, LEFT_QUARTERS, ended));
-        return ended ? SCRIPT_STAY : SCRIPT_NEXT_FRAME;
     }
-    Mover m = channel_mover(g, ch);
-    switch (stage_of(g, m)) {
-    case MOVE_STARTS:
-        start = start_orbit(g, m, center, circle, start, quarter_turns, flat);
-        ORIGINAL_EFFECT(script_leave(g, LEFT_START, start));
-        return SCRIPT_STAY;
-    case MOVE_ENDED: return SCRIPT_NEXT_FRAME;
-    default: return SCRIPT_STAY;
-    }
+    ORIGINAL_EFFECT(leave_orbit(g, (OrbitAsked){ circle, start, quarter_turns, length, flat, aim == AIM_AT_A_PLACE, place }, list));
+    return flow;
 }
 SCRIPT_OPERATION(orbit, channel, length, aim, place, circle, start, quarter_turns, flat)
 
@@ -745,7 +773,7 @@ static void leave_aimed(GameState *g, BattlePoint from, BattlePoint to, uint8_t 
 static LineVelocity aim_the_throw(GameState *g, BattlePoint from, BattlePoint to)
 {
     LineVelocity v = { 0, 0, apart(from.x, to.x), apart(from.y, to.y), 0, false };
-    keep_the_points(g, from, to);
+    battle_keep_direction_points(g, from, to);
     v.vx = (uint16_t)(v.across << THROW_SPEED_SHIFT);
     v.vy = (uint16_t)(v.down << THROW_SPEED_SHIFT);
     uint8_t half_across = (uint8_t)(v.across >> 1), half_down = (uint8_t)(v.down >> 1);
@@ -798,10 +826,11 @@ SCRIPT_OPERATION(aim_throw, channel, place)
 
 // $C1:7313
 /* Share the throw's 36 frames between the wait before its rise and the wait
- * after it, by the frames the rise takes at the mover's speed. */
-static void time_the_rise(GameState *g, uint8_t speed)
+ * after it, by the frames the rise takes along its line at the mover's
+ * speed. */
+static void time_the_rise(GameState *g, uint8_t length, uint8_t speed)
 {
-    uint16_t rise = battle_divide_by(g, (uint8_t)battle_throw_wait_after(g), speed).quotient;
+    uint16_t rise = battle_divide_by(g, length, speed).quotient;
     uint16_t before = battle_throw_wait_before(g);
     set_battle_throw_wait_before(g, before >= rise ? 0 : (uint16_t)(rise - before));
     set_battle_throw_wait_after(g, before >= rise ? (uint16_t)(before - rise) : 0);
@@ -826,10 +855,10 @@ static ScriptFlow throw_rise(GameState *g, ScriptChannel ch)
     if (ch.kind == SCRIPT_OTHER_TARGETS)
         return SCRIPT_NEXT_FRAME;
     Mover m = channel_mover(g, ch);
-    start_line(g, m, top);
+    uint8_t length = start_line(g, m, top);
     if (!mover_is_anchor(m))
         set_moving(g, m, false);
-    time_the_rise(g, mover_is_anchor(m) ? anchor_rise_speed(g, m.index) : speed_of(g, m));
+    time_the_rise(g, length, mover_is_anchor(m) ? anchor_rise_speed(g, m.index) : speed_of(g, m));
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(throw_rise, channel)

@@ -235,9 +235,17 @@ void combatant_note_low_hp(GameState *g, unsigned slot);
 
 /* Whether the combatant's HP was last noted low (the low bit of its stat
  * block's first byte): a party member then takes its weak pose. */
+enum { COMBATANT_LOW_HP_NOTED = 0x01 };
 static inline bool combatant_low_hp_noted(const GameState *g, unsigned slot)
 {
-    return (battle_stats_low_hp(g, slot) & 0x01) != 0;
+    return (battle_stats_low_hp(g, slot) & COMBATANT_LOW_HP_NOTED) != 0;
+}
+
+/* The combatant's low HP is no longer noted: it has left the fight, or the
+ * battle is over. */
+static inline void combatant_forget_low_hp(GameState *g, unsigned slot)
+{
+    set_battle_stats_low_hp(g, slot, battle_stats_low_hp(g, slot) & (uint8_t)~COMBATANT_LOW_HP_NOTED);
 }
 
 /* Bring the combatant's status timers in step with its statuses, and what its

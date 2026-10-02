@@ -58,7 +58,19 @@ typedef enum {
     BATTLE_STEP_DEFEAT = 9,           /* the party's defeat */
 } BattleStep;
 
-/* A party member's action record (battle_member_actions). Its choice: the
+/* A party member's action record (battle_member_actions). Its state, where
+ * the member is in choosing (battle_member_ready keeps it once chosen):
+ * nothing yet, its command menu open, its action waiting its turn to be
+ * carried out, an action chosen. The record is seven bytes. */
+enum {
+    MEMBER_NO_ACTION = 0,
+    MEMBER_MENU_OPEN = 0x01,
+    MEMBER_ACTION_WAITING = 0x40,
+    MEMBER_ACTION_CHOSEN = 0x80,
+    MEMBER_ACTION_RECORD_BYTES = 7,
+};
+
+/* Its choice: the
  * first set of these bits decides what the member does; bit 4, whose meaning
  * isn't worked out (docs/TODO.md), is dropped when the member is knocked out,
  * and a choice of it alone leaves the member's turn as it is. Its partners:

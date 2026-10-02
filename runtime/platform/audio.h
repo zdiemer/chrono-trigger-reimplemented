@@ -119,32 +119,7 @@ PF_API bool au_driver_command_taken(Platform *pf, AudioCommand c, uint8_t effect
  * register against the original (ct_dev --sound-lockstep) and can play through
  * the emulated S-DSP; a native mixer is the second (docs/PLAN.md, Phase 4a).
  * An AuVoices is whichever of them the driver was given. */
-typedef struct AuVoices AuVoices;
-
-enum { AU_VOICES = 8 };
-typedef uint8_t AuVoiceSet;   /* a bit per voice, voice 0 the lowest */
-
-/* An ADSR envelope: attack rate 0-15, decay rate 0-7, the level the decay
- * stops at 0-7 (in eighths, less one), and the rate it falls at from there
- * 0-31. `adsr` false plays the voice at its gain instead. */
-typedef struct {
-    bool adsr;
-    uint8_t attack, decay, sustain_level, sustain_rate;
-} AuEnvelope;
-
-/* A gain, what a voice plays at when its ADSR is off: a level held
- * (AU_GAIN_DIRECT, 0-127), or a rate 0-31 it moves at (0 holds it still). */
-typedef enum {
-    AU_GAIN_DIRECT,
-    AU_GAIN_DECREASE_LINEAR,
-    AU_GAIN_DECREASE_EXPONENTIAL,
-    AU_GAIN_INCREASE_LINEAR,
-    AU_GAIN_INCREASE_BENT
-} AuGainMode;
-typedef struct {
-    AuGainMode mode;
-    uint8_t value;
-} AuGain;
+#include "platform/voice_types.h"
 
 /* Ready the voices for a driver: they find their samples in the directory
  * the driver's data was loaded with. */

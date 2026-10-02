@@ -1094,12 +1094,13 @@ four on, as on the S-DSP), and the echo taking a new place a frame later and
 a new size when its offset wraps. Each is cheap, some are audible, and the
 game relies on the echo's (SOUND.md, "What playing it found"); together they
 make the mixer checkable frame for frame against the S-DSP, which is how it
-is proved now and how a change to it is checked. One thing the first version
-did differently showed why the layout is the original's: it kept the sample
-directory as a table, and the comparison parted where a buffer whose delay
-had changed ran on at its old size from its new place, past the top of
-memory and round into the bottom, reading the directory there into the echo.
-The directory is in sound memory now, where the original driver keeps it.
+is proved now and how a change to it is checked. Its sound memory is laid out
+as the original driver lays out the SPC700's, sample directory included,
+because where a sample lies decides what the echo reads and overwrites
+(docs/history/platform-mixer.md has how the first version found that). Its
+voices' types come from `platform/voice_types.h`, the voices' part of the
+audio service alone, so the mixer includes nothing of the rest of the service
+or of the SNES backend under it.
 
 The host (`frontend/sound_host.c`) takes a `SoundMixer`. `SOUND_MIXER_DSP`
 keeps the S-DSP, as before (`ct_dev` and `ct_sound_fuzz` default to it, as the
@@ -1111,16 +1112,22 @@ driver's work in them as the S-DSP was stepped; `host_take` hands
 check (`sound_host_samples_into_echo`) and its echo wait ask the mixer where
 its echo writes and what its delay is. `SOUND_MIXER_CHECK` hands the driver a
 pair, the S-DSP's registers and then the mixer, runs the S-DSP and the mixer
-frame by frame, plays the S-DSP's and compares every frame
-(`sound_host_mixer_report`: frames compared and sounding, how many differ, the
+frame by frame, plays the S-DSP's and hands every pair of frames to a
+comparison (`sound_host_compare_mixer`). The comparison is a developer tool's,
+`dev/mixer_check.{h,c}` (frames compared and sounding, how many differ, the
 largest difference, and the difference's power against the signal's, overall
-and in octave bands from a Haar split of each 1024 frames). A saved state of
-the mixer holds its fields under `sound.mixer.` (its memory among them) and is
-a host program of its own (`SNES_STATE_HOST_C_SOUND_DRIVER_MIXER`), so it
-loads only with the mixer, as one played through the S-DSP loads only with
-that. `ct_play --mixer dsp|native` picks it (PLAYING.md); `ct_dev`, `ct_drive`
-and `ct_sound_fuzz` take `--mixer dsp|native|check`, and with `check` a run
-in which a frame differs exits 1.
+and in octave bands from a Haar split of each 1024 frames), because it works
+in floating point and the host `ct_play` ships with stays integer-only. A
+saved state of the mixer holds its fields under `sound.mixer.` (its memory
+among them) and is a host program of its own
+(`SNES_STATE_HOST_C_SOUND_DRIVER_MIXER`), so it loads only with the mixer, as
+one played through the S-DSP loads only with that; one played with the check
+is a third (`..._MIXER_CHECK`), so the check never compares the mixer with an
+S-DSP a state played through the mixer alone left behind (`sound_test`).
+`ct_play --mixer dsp|native` picks it (PLAYING.md); `ct_dev`, `ct_drive` and
+`ct_sound_fuzz` take `--mixer dsp|native|check`, and with `check` a run in
+which a frame differs exits 1. `ct_dev` and `ct_play` refuse `--mixer` on a
+run that doesn't play the C driver.
 
 Measured, `ct_dev --native on --sound-driver c --mixer check` over every
 movie (the C driver drifts from the movie, so the game is the movie's only
@@ -1148,10 +1155,11 @@ kind the driver makes, the escape among them, over random BRR samples some of
 which lie under the echo's longest buffers, through a pair of the S-DSP's
 registers into the S-DSP and the mixer, six seeds of about 230,000 frames:
 every frame, every voice's output level and, at the end, every byte of sound
-memory must be the same. Changed by hand to start a note in four frames, to
-release it a step slower or to switch the echo's right write a frame late, it
-fails; the Gaussian sum's wrap is reached by none of its random samples. And
-the gate's hosted `ct_sound_fuzz` runs play with `--mixer check` (PLAN.md).
+memory must be the same; and a hand-built block of the most negative samples,
+played at one sample a frame, makes the Gaussian sum wrap, which none of the
+random samples reach (`test_gaussian_wrap`: the voice is heard positive from a
+sample all negative, as on the S-DSP). And the gate's hosted `ct_sound_fuzz`
+runs play with `--mixer check` (PLAN.md).
 `tests/test_native_render.py` holds the mixer to the renderer's rule: it
 includes its service's headers and the C library, and names nothing of the
 S-DSP's or the APU's.

@@ -49,8 +49,10 @@
  * is fuzzed with. */
 enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
 
-/* The step's number in A; its high byte clear where the original's code
- * before it leaves it so. */
+/* The step's number in A. The step indexes its table of steps with the whole
+ * of A, so A's high byte is part of what it reads and can't be declared dead:
+ * it is clear where the original's code before the step clears it, and
+ * otherwise what the step before left there. */
 static void give_step(Snes *s, BattleStep number, bool a_high_clear)
 {
     if (a_high_clear)
@@ -58,9 +60,6 @@ static void give_step(Snes *s, BattleStep number, bool a_high_clear)
     else
         m_set_a8(s, number);
 }
-
-/* The member a step is about, in the cell the steps read it from. */
-static void set_step_member(GameState *g, uint8_t member) { set_battle_effect_sprite_attributes(g, member); }
 
 /* A member's attack on the action's first target ($C1:BFAA), called from
  * bank $FD through the long call at $C1:FDC7. */
@@ -147,18 +146,27 @@ static bool status_turn(Snes *s, uint8_t member, uint8_t statuses_of)
     return true;
 }
 
+/* The member's chosen action, waiting its turn, is dropped: it is no longer
+ * ready, its turn's timer stops and its record's state is cleared. (The
+ * original keeps the member whose item goes back in a cell.) */
+static void drop_waiting_action(GameState *g, uint8_t member)
+{
+    set_battle_member_ready(g, member, MEMBER_NO_ACTION);
+    set_battle_step_member(g, member);
+    ORIGINAL_EFFECT(battle_leave_word(g, BATTLE_ITEM_RETURNING_FOR_AT, member));
+    set_battle_timer_flags_byte(g, BATTLE_TIMER_TURN, member, 0);
+    set_battle_member_actions_state(g, member, MEMBER_NO_ACTION);
+}
+
 // $C1:B3F9
+/* A member whose status keeps it from acting loses the action it waited
+ * with: its menu closes (the battle's step) and its item goes back. */
 static bool cancel_if_unable(Snes *s, uint8_t member)
 {
     GameState *g = state_of(s);
-    if (!combatant_cant_act(g, member) || battle_member_ready(g, member) == 0)
+    if (!combatant_cant_act(g, member) || battle_member_ready(g, member) == MEMBER_NO_ACTION)
         return true;
-    set_battle_member_ready(g, member, 0);
-    set_step_member(g, member);
-    set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT, member);
-    set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT + 1, 0);
-    set_battle_timer_flags_byte(g, BATTLE_TIMER_TURN, member, 0);
-    set_battle_member_actions_state(g, member, 0);
+    drop_waiting_action(g, member);
     give_step(s, BATTLE_STEP_CALLED_OFF, true);
     /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
      * states, 4904 call-outs scrambled, 0 mismatched */
@@ -246,7 +254,7 @@ static bool members_hit_are_combatants(const GameState *g)
  * partners forgotten, and its turn's wait started again. */
 static void forget_combination(GameState *g, uint8_t member)
 {
-    set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT, member);
+    ORIGINAL_EFFECT(battle_leave_byte(g, BATTLE_ITEM_RETURNING_FOR_AT, member));
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     set_battle_member_actions_state(g, member, 0);
     set_battle_member_actions_choice_flags(g, member, 0);
@@ -281,7 +289,7 @@ static bool call_off_waiting_member(Snes *s, uint8_t member)
     if (!battle_member_ready(g, member))
         return true;
     forget_combination(g, member);
-    set_step_member(g, member);
+    set_battle_step_member(g, member);
     return battle_run_long(s, CLOSE_MENU_SITE, CLOSE_MENU, battle_member_called_off_step);
 }
 
@@ -388,9 +396,12 @@ static bool reaction_targets_are_combatants(const GameState *g)
 
 /* ---- The demo's party, and standing down ----------------------------------------------------- */
 
-/* A demo battle's members are ready with an action from the start; the demo's
- * records name it. */
-enum { DEMO_READY = 0x81, DEMO_ACTION_STATE = 0x41 };
+/* A demo battle's members are ready with an action from the start, waiting
+ * with it, their menus open; the demo's records name the action. */
+enum {
+    DEMO_READY = MEMBER_ACTION_CHOSEN | MEMBER_MENU_OPEN,
+    DEMO_ACTION_STATE = MEMBER_ACTION_WAITING | MEMBER_MENU_OPEN,
+};
 
 // $C1:B70E
 void battle_demo_party_ready(GameState *g)
@@ -403,7 +414,7 @@ void battle_demo_party_ready(GameState *g)
 
 /* Every pass of a demo battle the first member's action is next, the
  * members' gauges stand empty, and their records are the demo's again. */
-enum { DEMO_GAUGE_FULL = 0x30, RECORD_BYTES = 7 };
+enum { DEMO_GAUGE_FULL = 0x30 };
 
 // $C1:B725
 void battle_demo_next_turn(GameState *g)
@@ -415,8 +426,9 @@ void battle_demo_next_turn(GameState *g)
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_gauge_wait_full(g, member, DEMO_GAUGE_FULL);
     uint8_t demo = battle_demo(g);
-    for (unsigned at = 0; at < BATTLE_PARTY_SIZE * RECORD_BYTES; at++)
-        set_battle_member_actions_record_byte(g, at / RECORD_BYTES, at % RECORD_BYTES, demo_party_actions_byte(g, demo, at));
+    for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++)
+        for (unsigned at = 0; at < MEMBER_ACTION_RECORD_BYTES; at++)
+            set_battle_member_actions_record_byte(g, member, at, demo_member_action_byte(g, demo, member, at));
 }
 
 static const uint32_t stand_down_sites[BATTLE_PARTY_SIZE] = { 0xC1B7F7, 0xC1B800, 0xC1B809 };
@@ -425,7 +437,7 @@ static const uint32_t stand_down_sites[BATTLE_PARTY_SIZE] = { 0xC1B7F7, 0xC1B800
 static bool stand_down(Snes *s)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
-        set_step_member(state_of(s), member);
+        set_battle_step_member(state_of(s), member);
         give_step(s, BATTLE_STEP_CALLED_OFF, member == 0);
         /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
          * states, 15000 call-outs scrambled, 0 mismatched */

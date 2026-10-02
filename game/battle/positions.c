@@ -409,6 +409,20 @@ static void leave_direction(GameState *g, BattlePoint from, BattlePoint to, uint
         set_battle_direction_cells(g, i, cells[i]);
 }
 
+/* The cells' places: the two points, and the angle after their differences
+ * and signs. */
+enum { DIRECTION_FROM_X = 0, DIRECTION_FROM_Y = 1, DIRECTION_TO_X = 2, DIRECTION_TO_Y = 3, DIRECTION_ANGLE = 8 };
+
+void battle_keep_direction_points(GameState *g, BattlePoint from, BattlePoint to)
+{
+    set_battle_direction_cells(g, DIRECTION_FROM_X, from.x);
+    set_battle_direction_cells(g, DIRECTION_FROM_Y, from.y);
+    set_battle_direction_cells(g, DIRECTION_TO_X, to.x);
+    set_battle_direction_cells(g, DIRECTION_TO_Y, to.y);
+}
+
+void battle_note_direction(GameState *g, uint8_t angle) { set_battle_direction_cells(g, DIRECTION_ANGLE, angle); }
+
 enum { HALF_TURN = 0x80 };
 
 // $C1:0222

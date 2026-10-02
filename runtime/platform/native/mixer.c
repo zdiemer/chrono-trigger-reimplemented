@@ -62,15 +62,42 @@ static bool rate_steps(const Mixer *m, uint8_t rate)
     return rate && (m->rate_counter + rate_phase[rate % 3]) % rate_period[rate] == 0;
 }
 
+enum { START_FRAMES = 5 };   /* from a key on to the note's first sound */
+
+/* A BRR block: a header byte, then sixteen 4-bit samples in eight bytes. The
+ * header's top four bits are the range the nibbles are shifted by (past 12,
+ * a nibble is its sign alone), the next two the filter of the samples before
+ * it, and the last two its flags. */
+enum {
+    BLOCK_BYTES = 9,
+    RANGE_SHIFT = 4,
+    LARGEST_RANGE = 12,
+    FILTER_SHIFT = 2,
+    FILTER_BITS = 3,
+    FLAG_BITS = 3,
+    NO_LOOP = 1,                 /* flags: the sample ends here without looping ... */
+    LAST_BLOCK = 1,              /* ... or this is its last block (with loop, it loops) */
+};
+
+/* An envelope's level runs from 0 to LEVEL_MAX, 2048 steps. An ADSR attack
+ * rises a step of ATTACK_STEP at a time, or ATTACK_STEP_FASTEST at its fastest
+ * rate; a linear gain moves by LINEAR_STEP; a bent gain rises by LINEAR_STEP
+ * until BENT_KNEE, then by BENT_STEP; a released note falls RELEASE_STEP a
+ * frame. */
 enum {
     LEVEL_MAX = 0x7FF,
-    START_FRAMES = 5,            /* from a key on to the note's first sound */
-    NO_LOOP = 1,                 /* a block's flags: the sample ends here without looping ... */
-    LAST_BLOCK = 1,              /* ... or this is its last block (with loop, it loops) */
-    BLOCK_BYTES = 9,
-    ECHO_UNIT_BYTES = 0x800,
-    ECHO_FRAME_BYTES = 4
+    ATTACK_STEP = 0x20,
+    ATTACK_STEP_FASTEST = 0x400,
+    FASTEST_RATE = 31,
+    LINEAR_STEP = 0x20,
+    BENT_KNEE = 0x600,
+    BENT_STEP = 0x08,
+    RELEASE_STEP = 8,
+    DIRECT_GAIN_SCALE = 0x10,    /* a direct gain's 0-127 to a level */
 };
+
+/* Voice 0 has no voice below it, so it never has its pitch modulated. */
+enum { MODULATED_VOICES = 0xFE };
 
 static int clamp16(int v) { return v > 32767 ? 32767 : v < -32768 ? -32768 : v; }
 static int wrap16(int v) { return (int16_t)(uint16_t)v; }
@@ -99,16 +126,17 @@ static uint16_t sample_loop(const Mixer *m, uint8_t sample)
 }
 
 /* One sample of BRR: a nibble scaled by the block's range, plus the block's
- * filter of the two before it. The S-DSP keeps 15 bits, saturating to 16
- * first and then losing the top one, which some samples rely on. */
-static int brr_sample(int nibble, uint8_t header, int older, int old)
+ * filter of the two before it, `last` the one just before and `before_last`
+ * the one before that. The S-DSP keeps 15 bits, saturating to 16 first and
+ * then losing the top one, which some samples rely on. */
+static int brr_sample(int nibble, uint8_t header, int last, int before_last)
 {
-    int shift = header >> 4;
-    int s = shift <= 12 ? (nibble * (1 << shift)) >> 1 : (nibble < 0 ? -2048 : 0);
-    switch ((header >> 2) & 3) {
-    case 1: s += older + ((-older) >> 4); break;
-    case 2: s += 2 * older + ((-3 * older) >> 5) - old + (old >> 4); break;
-    case 3: s += 2 * older + ((-13 * older) >> 6) - old + ((3 * old) >> 4); break;
+    int shift = header >> RANGE_SHIFT;
+    int s = shift <= LARGEST_RANGE ? (nibble * (1 << shift)) >> 1 : (nibble < 0 ? -2048 : 0);
+    switch ((header >> FILTER_SHIFT) & FILTER_BITS) {
+    case 1: s += last + ((-last) >> 4); break;
+    case 2: s += 2 * last + ((-3 * last) >> 5) - before_last + (before_last >> 4); break;
+    case 3: s += 2 * last + ((-13 * last) >> 6) - before_last + ((3 * before_last) >> 4); break;
     }
     return wrap16(clamp16(s) * 2) >> 1;
 }
@@ -119,16 +147,16 @@ static int brr_sample(int nibble, uint8_t header, int older, int old)
  * sample, the driver rewriting its own) is heard from the next four on. */
 static void decode_four(Mixer *m, MixerVoice *v, uint8_t header)
 {
-    int newest = v->decoded[(v->decoded_at + 11) % 12];
-    int before = v->decoded[(v->decoded_at + 10) % 12];
+    int last = v->decoded[(v->decoded_at + 11) % 12];
+    int before_last = v->decoded[(v->decoded_at + 10) % 12];
     uint16_t at = (uint16_t)(v->block + v->block_byte);
     unsigned bytes = (unsigned)m->memory[at] << 8 | m->memory[(uint16_t)(at + 1)];
     for (int k = 0; k < 4; k++) {
         int nibble = (int)(((bytes >> (12 - 4 * k)) & 0x0F) ^ 8) - 8;
-        int s = brr_sample(nibble, header, newest, before);
+        int s = brr_sample(nibble, header, last, before_last);
         v->decoded[(v->decoded_at + k) % 12] = (int16_t)s;
-        before = newest;
-        newest = s;
+        before_last = last;
+        last = s;
     }
     v->decoded_at = (uint8_t)((v->decoded_at + 4) % 12);
 }
@@ -167,7 +195,7 @@ static void run_envelope(const Mixer *m, MixerVoice *v)
 {
     int level = v->level;
     if (v->phase == MIXER_RELEASE) {
-        level -= 8;
+        level -= RELEASE_STEP;
         v->level = (int16_t)(level < 0 ? 0 : level);
         return;
     }
@@ -176,23 +204,23 @@ static void run_envelope(const Mixer *m, MixerVoice *v)
     if (v->adsr) {
         if (v->phase == MIXER_ATTACK) {
             rate = (v->attack & 0x0F) * 2 + 1;
-            level += rate < 31 ? 0x20 : 0x400;
+            level += rate < FASTEST_RATE ? ATTACK_STEP : ATTACK_STEP_FASTEST;
         } else {
             level -= 1;
             level -= level >> 8;
             rate = v->phase == MIXER_DECAY ? (v->decay & 7) * 2 + 16 : v->sustain_rate & 0x1F;
         }
     } else if (v->gain_mode == AU_GAIN_DIRECT) {
-        level = (v->gain_value & 0x7F) * 0x10;
-        rate = 31;
+        level = (v->gain_value & 0x7F) * DIRECT_GAIN_SCALE;
+        rate = FASTEST_RATE;
     } else {
         rate = v->gain_value & 0x1F;
         switch (v->gain_mode) {
-        case AU_GAIN_DECREASE_LINEAR: level -= 0x20; break;
+        case AU_GAIN_DECREASE_LINEAR: level -= LINEAR_STEP; break;
         case AU_GAIN_DECREASE_EXPONENTIAL: level -= 1; level -= level >> 8; break;
-        case AU_GAIN_INCREASE_LINEAR: level += 0x20; break;
+        case AU_GAIN_INCREASE_LINEAR: level += LINEAR_STEP; break;
         default:   /* bent: slower over three quarters */
-            level += v->level_unclipped < 0 || v->level_unclipped >= 0x600 ? 0x08 : 0x20;
+            level += v->level_unclipped < 0 || v->level_unclipped >= BENT_KNEE ? BENT_STEP : LINEAR_STEP;
             break;
         }
     }
@@ -221,7 +249,7 @@ static int play_voice(Mixer *m, uint8_t n, int below)
     uint8_t header = m->memory[v->block];
 
     int pitch = v->pitch & 0x3FFF;
-    if (m->modulated_voices & bit & 0xFE)
+    if (m->modulated_voices & bit & MODULATED_VOICES)
         pitch += ((below >> 5) * pitch) >> 10;
 
     /* A note's start: back to the sample's first block, and the frames it
@@ -247,7 +275,7 @@ static int play_voice(Mixer *m, uint8_t n, int below)
     }
 
     /* A sample's end without a loop silences it at once, as does the reset. */
-    if (m->resetting || (header & 3) == NO_LOOP) {
+    if (m->resetting || (header & FLAG_BITS) == NO_LOOP) {
         v->phase = MIXER_RELEASE;
         v->level = 0;
     }
@@ -306,8 +334,8 @@ static void run_echo(Mixer *m, const int sent[2], int heard[2])
 
     m->echo_page_now = m->echo_page;
     if (m->echo_offset == 0)
-        m->echo_length = (uint16_t)((m->echo_delay & 0x0F) * ECHO_UNIT_BYTES);
-    m->echo_offset = (uint16_t)(m->echo_offset + ECHO_FRAME_BYTES);
+        m->echo_length = (uint16_t)((m->echo_delay & 0x0F) * VOICES_ECHO_UNIT_BYTES);
+    m->echo_offset = (uint16_t)(m->echo_offset + VOICES_ECHO_FRAME_BYTES);
     if (m->echo_offset >= m->echo_length)
         m->echo_offset = 0;
     for (int ch = 0; ch < 2; ch++) {
@@ -384,12 +412,8 @@ uint8_t mixer_echo_delay(const Mixer *m) { return m->echo_delay & 0x0F; }
 
 bool mixer_echo_writes_over(const Mixer *m, uint16_t at)
 {
-    if (!m->echo_writes)
-        return false;
-    uint16_t now = (uint16_t)(m->echo_page_now << 8), next = (uint16_t)(m->echo_page << 8);
-    uint32_t now_length = m->echo_length ? m->echo_length : ECHO_FRAME_BYTES;
-    uint32_t next_length = mixer_echo_delay(m) ? mixer_echo_delay(m) * (uint32_t)ECHO_UNIT_BYTES : ECHO_FRAME_BYTES;
-    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
+    VoicesEcho echo = { m->echo_writes != 0, m->echo_page_now, m->echo_length, m->echo_page, m->echo_delay };
+    return voices_echo_writes_over(echo, at);
 }
 
 /* ---- The voice calls -------------------------------------------------------------------- */
