@@ -283,6 +283,179 @@ def stale_provenance(path: str, text: str):
     return out
 
 
+# A bridge (`bridge.c`, `script_bridge.c`) is where a port meets the original's
+# calling convention, and a leaves file (`leaves.c`, `window_leaves.c`) is where
+# it works out the registers it hands back: both are machine-shaped on purpose.
+def bridge_or_leaves(path: str) -> bool:
+    return path.endswith(("bridge.c", "leaves.c", "bridge.h", "leaves.h"))
+
+
+def paren_end(text: str, i: int) -> int:
+    """The offset of the `)` that closes the `(` at `i`."""
+    depth = 0
+    for j in range(i, len(text)):
+        if text[j] == "(":
+            depth += 1
+        elif text[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return j
+    return len(text)
+
+
+def control_of(head: str):
+    """('if'|'else'|'loop'|None, condition) for the text a block or a
+    statement starts with: `if (c)`, `else`, `else if (c)`, `for (...)`,
+    `while (c)`, `do`."""
+    head = head.strip()
+    mo = re.match(r"(?:else\s+)?if\s*\(", head)
+    if mo:
+        return "if", head[mo.end():paren_end(head, mo.end() - 1)]
+    if re.match(r"else\b", head):
+        return "else", None
+    mo = re.match(r"(?:for|while)\s*\(", head)
+    if mo:
+        return "loop", head[mo.end():paren_end(head, mo.end() - 1)]
+    if re.match(r"do\b", head):
+        return "loop", None
+    return None, None
+
+
+def blocks_of(body: str):
+    """[[open, close, kind, condition, function]] for every brace block of
+    source with comments and strings already blanked. An `else` block takes
+    the condition of the `if` it follows; a function's body carries the
+    parameters it was defined with."""
+    blocks, stack, last_if = [], [], {}
+    start = i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "(":
+            i = paren_end(body, i) + 1
+            continue
+        if ch == "{":
+            head = body[start:i]
+            kind, cond = control_of(head)
+            if kind == "else":
+                kind, cond = "if", last_if.get(len(stack))
+            params = None
+            if not stack:
+                mo = re.search(r"(\w+)\s*\(([^;{]*)\)\s*$", head)
+                params = (mo.group(1), mo.group(2)) if mo else ("", "")
+            stack.append([i, None, kind, cond, params])
+            start = i + 1
+        elif ch == "}":
+            if stack:
+                b = stack.pop()
+                b[1] = i
+                blocks.append(b)
+                if b[2] == "if":
+                    last_if[len(stack)] = b[3]
+            start = i + 1
+        elif ch == ";":
+            start = i + 1
+        i += 1
+    return blocks
+
+
+# What records a flag or a register: a helper named for one (`*_carry*`,
+# `*_overflow*`, `*_flags*`, `*_registers*`, `leave_a`, `leave_y_a_byte`) or
+# the CPU's flag set directly.
+FLAG_NOTE = re.compile(r"\b\w*(?:carry|overflow|flags?|registers?|shifted_out)\w*\s*\("
+                       r"|\b(?:battle_)?leave_[axy](?:_\w+)?\s*\(|\bCPU_FLAG_\w+")
+EFFECT_CALL = re.compile(r"\bORIGINAL_EFFECT\s*\(")
+# A scaffolding helper called plainly, outside ORIGINAL_EFFECT.
+LEAVE_FLAG_CALL = re.compile(r"\b(?:battle_)?leave_\w*?(?:carry|overflow|flags?|registers?)\w*\s*\(")
+# A condition about the machine or the bridge -- whether a call-out came back,
+# a guard refused, a register's value -- rather than about the game.
+MACHINE_CONDITION = re.compile(r"\bm_\w+\s*\(|\bs->|\bc->|\bcpu\b|\bORIGINAL_EFFECTS\b"
+                               r"|\bstop|\brefus|\bguard|\binterrupt|\bnative|\bcame_back\b", re.I)
+MACHINE_PARAM = re.compile(r"\b(?:Snes|Cpu)\s*\*")
+
+
+def flag_notes_in_control_flow(path: str, text: str):
+    """Items 93 and 105: a note of a flag -- `ORIGINAL_EFFECT` of something
+    that records a carry, an overflow or a register -- inside a loop's body or
+    under an `if` whose condition is the game's, so that the scaffolding runs
+    on the original's path through the logic and pins the logic to its order.
+    The legitimate form is one leaves helper that works the flag out from the
+    final state, after the logic. A helper named `leave_*` is that form and
+    is not read; a `leave_*carry*` call outside ORIGINAL_EFFECT counts only in
+    a function with no machine parameter, where it can only be scaffolding (in
+    a wrapper it is the registers the wrapper hands back, its job). Whether a
+    condition is the game's is decided narrowly: one that reads the machine, a
+    guard or whether a call-out came back is not."""
+    if bridge_or_leaves(path):
+        return []
+    body = code(text)
+    body = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', body)
+    body = re.sub(r"'(?:\\.|[^'\\\n])*'", "''", body)
+    blocks = blocks_of(body)
+    lines = text.splitlines()
+    out = []
+    calls = [(mo, True) for mo in EFFECT_CALL.finditer(body)] + \
+            [(mo, False) for mo in LEAVE_FLAG_CALL.finditer(body)]
+    for mo, scaffolding in sorted(calls, key=lambda c: c[0].start()):
+        at = mo.start()
+        if scaffolding:
+            if not FLAG_NOTE.search(body[mo.end():paren_end(body, mo.end() - 1)]):
+                continue
+        elif re.search(r"ORIGINAL_EFFECT\s*\(\s*$", body[max(0, at - 40):at]):
+            continue            # counted as the ORIGINAL_EFFECT it is in
+        enclosing = sorted((b for b in blocks if b[0] < at < b[1]), key=lambda b: b[0])
+        if not enclosing or enclosing[0][4] is None:
+            continue
+        function, params = enclosing[0][4]
+        if re.match(r"(?:battle_)?leave_", function):
+            continue            # a leaves helper deriving the flag: the legitimate form
+        if not scaffolding and MACHINE_PARAM.search(params):
+            continue
+        context = [(b[2], b[3]) for b in enclosing[1:] if b[2]]
+        # a brace-less `if (c)` or loop right before the statement
+        stmt = max(body.rfind(";", 0, at), body.rfind("{", 0, at), body.rfind("}", 0, at)) + 1
+        kind, cond = control_of(body[stmt:at])
+        if kind:
+            context.append(("if" if kind == "else" else kind, cond))
+        why = None
+        for kind, cond in reversed(context):
+            if kind == "loop":
+                why = "in a loop"
+                break
+            if kind == "if" and cond is not None and not MACHINE_CONDITION.search(cond):
+                why = "under if (%s)" % " ".join(cond.split())
+                break
+        if why:
+            line = body[:at].count("\n") + 1
+            out.append((line, "%s: %s" % (why, lines[line - 1].strip()[:100])))
+    return out
+
+
+# A return address pushed by hand: a hex constant, or a named one that says it
+# is a return, a call site or a JSR's last byte.
+PUSH = re.compile(r"\bm_push(?:16|24)\s*\(\s*\w+\s*,")
+RETURN_LIKE = re.compile(r"\b0x[0-9A-Fa-f]{3,6}\b|\b[A-Z0-9_]*(?:RETURN|SITE|CALL|JSR|RTS|_TO)[A-Z0-9_]*\b")
+
+
+def return_address_pushed(path: str, text: str):
+    """Items 85 and 101: a return frame for the original's call stack built by
+    hand outside a bridge -- `m_push16(s, 0xAC5C)`, `m_push16(s, SITE + JSR_SIZE
+    - 1)`. A bridge may push its caller's frame for an inlined subroutine; a
+    port elsewhere that does mirrors the ROM's call graph in its own body.
+    Pushes of registers (`c->d`, `s->cpu.d`) and of plain locals are a
+    wrapper saving state, and are not read."""
+    if bridge_or_leaves(path):
+        return []
+    body = code(text)
+    out = []
+    for mo in PUSH.finditer(body):
+        arg = body[mo.end():paren_end(body, body.index("(", mo.start()))]
+        if re.search(r"\bs->|\bc->|\bcpu\b", arg) or not RETURN_LIKE.search(arg):
+            continue
+        line = body[:mo.start()].count("\n") + 1
+        out.append((line, text.splitlines()[line - 1].strip()[:100]))
+    return out
+
+
 TYPEDEF_ENUM = re.compile(r"\}\s*(\w+)\s*;")
 ENUM_BLOCK = re.compile(r"\btypedef\s+enum\b[^{]*\{", re.S)
 
@@ -349,6 +522,10 @@ CHECKS = (
      "a cited file that no longer exists"),
     ("enum-types-nothing", enum_types_nothing, "33",
      "an enum declared but never used as a type; the type is the vocabulary"),
+    ("flag-note-in-logic", flag_notes_in_control_flow, "93, 105",
+     "a flag noted inside the logic's loop or game branch; work it out once from the final state"),
+    ("return-address-pushed", return_address_pushed, "85, 101",
+     "a return frame pushed by hand outside a bridge; register the subroutine or port the call-out"),
 )
 
 # Which files each check reads. The RAM map is source for provenance only.

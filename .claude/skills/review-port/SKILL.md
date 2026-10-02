@@ -20,9 +20,10 @@ where the code still reads as a translation, not to confirm that it doesn't.
   python3 tools/portsmell.py --files    # the rubric items a machine can settle
   python3 tools/portsmell.py --list     # which items those are
   ```
-  Eleven of the items below are decidable from the source -- quoted assembly, a
+  Thirteen of the items below are decidable from the source -- quoted assembly, a
   "presumably", a sibling port called through its ROM address, a `Trace *`
-  out-parameter, an enum nothing takes as a type -- and `tools/portsmell.py`
+  out-parameter, an enum nothing takes as a type, a flag noted inside a game
+  branch, a return frame pushed by hand -- and `tools/portsmell.py`
   owns them. Its findings are yours to report, with the item's number, but they
   are not yours to hunt for: the items it owns are one line each below, pointing
   here. Spend the reading on the items that need a reader.
@@ -687,11 +688,13 @@ Each of these is a finding. Every example here comes from this repo.
     to tell a wrapper which flags to set. Items 26 and 45 in their most
     easily missed form; the wrapper asks the state instead.
 
-85. **The original's call stack mirrored in the logic.** An enum of `JSR`
-    sites with push and pop around calls and a "stopped" check after each,
-    so that a call-out can rebuild the original's return frames. It pins the
-    logic to the ROM's call graph. Port the call-outs that need it, or have
-    the guard refuse what reaches them.
+85. **The original's call stack mirrored in the logic.** A return frame
+    pushed by hand outside a bridge is machine-checked, `portsmell.py
+    return-address-pushed`. What needs a reader is the frame kept another
+    way: an enum of `JSR` sites with a "stopped" check after each call, so
+    that a call-out can rebuild the original's frames. It pins the logic to
+    the ROM's call graph. Port the call-outs that need it, or have the guard
+    refuse what reaches them.
 86. **A CPU-flag parameter on a shared service whose only effect is a
     leftover cell** (`battle_multiply_words_carrying(..., carry)`). Once the
     service writes the cell plainly the flag looks like game input.
@@ -720,13 +723,13 @@ Each of these is a finding. Every example here comes from this repo.
     89 with a register (the work RAM port's address) in place of a cell. Pass
     the destination; leave the cursor's final place as scaffolding.
 
-93. **Flag notes interleaved with the logic's arithmetic.** A scaffolding
-    note of a flag beside each add, even compiled out, pins the logic to the
-    original's order of operations. The test: would reordering two
-    independent adds in a formula break the gate? If so, the flag is threaded
-    through the logic whatever the signatures say. The legitimate form is one
-    leaves helper that works the flag out from the final state
-    (`event/contact.c`).
+93. **Flag notes interleaved with the logic's arithmetic.** A note of a flag
+    inside a loop or under a game branch is machine-checked, `portsmell.py
+    flag-note-in-logic`. What needs a reader is the straight-line form: a
+    note beside each add pins the logic to the original's order of
+    operations. The test: would reordering two independent adds in a formula
+    break the gate? The legitimate form is one leaves helper that works the
+    flag out from the final state (`event/contact.c`).
 
 94. **A leaves derivation that decodes state differently from the logic.** A
     helper that works a register out must read the state through the logic
@@ -762,9 +765,9 @@ Each of these is a finding. Every example here comes from this repo.
      in a column beside it makes the ROM's layout look like part of the
      game. Keep routine and entry columns in a parallel dispatch table beside
      the entries.
-101. **An inlined subroutine's frame, chosen by a game condition.** A bridge
-     that inlines a subroutine and pushes its caller's return address
-     (`m_push16(... POISON ? A : B)`) is acceptable in a bridge, but prefer
+101. **An inlined subroutine's frame, chosen by a game condition.** Outside
+     a bridge, machine-checked, `portsmell.py return-address-pushed`. In a
+     bridge (`m_push16(... POISON ? A : B)`) it is acceptable, but prefer
      registering the inlined subroutine as its own entry so `battle_run` or
      its sibling supplies the frame.
 
@@ -790,8 +793,9 @@ Each of these is a finding. Every example here comes from this repo.
      keeps the rest of the routine C either way.
 
 105. **A scaffolding note run only on the original's path through a branch.**
-     `if (!(moves & X)) ORIGINAL_EFFECT(bit_test(...))` mirrors the original's
-     branch inside scaffolding (item 7 there); items 7 and 93 together.
+     Machine-checked for flags, `portsmell.py flag-note-in-logic`; a cell's
+     note under a game branch (`if (!(moves & X)) ORIGINAL_EFFECT(bit_test(...))`)
+     still needs a reader: item 7 inside scaffolding.
 106. **A game-sounding bool that is really the carry of an unsigned add.**
      `past_the_top = was + step > 0xFFFF` for a negative step. If the name
      matches the carry only on the inputs that occur, it is the register:

@@ -74,6 +74,18 @@ rest waits, is [PLAN.md](PLAN.md).
     (`game/battle/frame.h`, `game/battle/screen_gradient.c`): rubric item 17.
   The four bridges' `s->cpu.pc` comparisons are on the baseline with a reason:
   asking whether a call-out returned to its site is not entry identity.
+  - 9 flag notes inside a loop or a game branch (rubric items 93, 105):
+    battle's `effect_amounts.c`, `enemy_turn.c`, `member_stats.c`,
+    `member_turn.c`, `rewards_techs.c`, `tech_records.c`, event's
+    `movement.c`, menu's `save_screen.c`, scene's `frame.c`; each to become
+    one leaves derivation from the final state. Five more are on the baseline
+    with a reason (a wrapper's entry state for a call-out, a shared wrapper's
+    exit, the scene interpreter's per-command derivation).
+  - 12 return frames pushed by hand outside a bridge (rubric items 85, 101) in
+    `attract/main_loop.c`, battle's `animation.c`, `enemy_turn.c`,
+    `main_loop.c`, `screen_beam.c`, `core/input.c`, `menu/cursor.c` (3) and
+    scene's `frame.c` (2) and `script.c`: register the inlined subroutine as
+    its own entry, or port the call-out that needs the frame.
 
 - **Scene's follow-ups from its targeted re-review** (merged with these
   accepted; `script.c`, `sprites.c` and `title.c` rated mostly):

@@ -3316,7 +3316,9 @@ none of them to the bar:
   (12), a register carried out to a wrapper (26), the scaffolding switch as a
   value (23), the PC read for identity (72), the sign bit of a difference (19),
   a call-out into one of our own registered ports (22, 61), a `source` line
-  citing a file that is gone (25), and an enum nothing takes as a type (33). It
+  citing a file that is gone (25), and an enum nothing takes as a type (33);
+  two more came later, a flag noted inside the logic's loop or game branch
+  (93, 105) and a return frame pushed by hand outside a bridge (85, 101). It
   is a ratchet against `tools/portsmell_baseline.txt` and the suite runs it, so
   each of those items is caught before a port is submitted instead of coming
   back from a review a day later, and the rubric names the tool in one line

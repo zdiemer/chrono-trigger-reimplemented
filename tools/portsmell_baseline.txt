@@ -4,21 +4,44 @@
 # the list empties as the backlog is rewritten. A deliberate exception carries
 # its reason as a `#` comment on its line.
 
+game/attract/main_loop.c                     return-address-pushed    1
+game/battle/animation.c                      return-address-pushed    1
 game/battle/bridge.c                         pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/battle/display.c                        sibling-through-machine  2
+game/battle/effect_amounts.c                 flag-note-in-logic       1
+game/battle/effect_work.c                    flag-note-in-logic       1  # a shared entry wrapper's exit for one of its kinds, not a note in the logic
+game/battle/enemy_turn.c                     flag-note-in-logic       1
+game/battle/enemy_turn.c                     return-address-pushed    1
 game/battle/frame.h                          admitted-ignorance       1
+game/battle/main_loop.c                      return-address-pushed    1
+game/battle/member_stats.c                   flag-note-in-logic       1
+game/battle/member_turn.c                    flag-note-in-logic       1
 game/battle/nmi.c                            sibling-through-machine  1
+game/battle/rewards_techs.c                  flag-note-in-logic       1
+game/battle/screen_beam.c                    return-address-pushed    1
 game/battle/screen_gradient.c                admitted-ignorance       1
+game/battle/screen_graphics.c                flag-note-in-logic       1  # the wrapper's entry state for each block's unpack call-out, not a note in the logic
+game/battle/tech_records.c                   flag-note-in-logic       1
 game/battle/window.h                         enum-types-nothing       1
+game/core/input.c                            return-address-pushed    1
 game/core/input.h                            enum-types-nothing       1
 game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/event/contact.c                         flag-note-in-logic       1  # the wrapper's entry state for the gift's call-out on that branch, not a note in the logic
+game/event/movement.c                        flag-note-in-logic       1
 game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/field/display.c                         sibling-through-machine  1
 game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
+game/menu/cursor.c                           return-address-pushed    3
 game/menu/cursor.h                           enum-types-nothing       1
 game/menu/display.c                          sibling-through-machine  4
 game/menu/epoch.c                            enum-types-nothing       1
 game/menu/epoch.c                            sibling-through-machine  7
+game/menu/load_screen.c                      flag-note-in-logic       1  # the wrapper's entry state for the erase's call-out on that branch, not a note in the logic
+game/menu/save_screen.c                      flag-note-in-logic       1
 game/scene/boot.c                            sibling-through-machine  1
+game/scene/frame.c                           flag-note-in-logic       1
+game/scene/frame.c                           return-address-pushed    2
 game/scene/frame.c                           sibling-through-machine  1
+game/scene/script.c                          flag-note-in-logic       1  # the interpreter's one derivation per command, from its row and the state before it
+game/scene/script.c                          return-address-pushed    1
 re/ram.toml                                  stale-provenance         20

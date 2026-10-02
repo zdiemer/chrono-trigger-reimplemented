@@ -86,6 +86,58 @@ class TestChecks(unittest.TestCase):
         src = "typedef enum { MENU_SOUND_CURSOR = 0 } MenuSoundNobodyTakes;\n"
         self.assertTrue(self.hits("enum-types-nothing", src))
 
+    def test_a_flag_noted_in_the_logic_s_loop_or_game_branch(self):
+        loop = ("static void boost(GameState *g)\n{\n"
+                "    for (unsigned p = 0; p < PIECES; p++) {\n"
+                "        add_boost(g, p);\n"
+                "        ORIGINAL_EFFECT(battle_leave_multiply_carry(g, p > 1));\n"
+                "    }\n}\n")
+        self.assertTrue(self.hits("flag-note-in-logic", loop))
+        branch = ("static void heal(GameState *g)\n{\n"
+                  "    if (battle_action_state(g) & ABSORBED)\n"
+                  "        ORIGINAL_EFFECT(leave_carry(g, true));\n}\n")
+        self.assertTrue(self.hits("flag-note-in-logic", branch))
+        plain = ("static void boost(GameState *g)\n{\n"
+                 "    if (battle_action_state(g) & ABSORBED) {\n"
+                 "        battle_leave_multiply_carry(g, true);\n    }\n}\n")
+        self.assertTrue(self.hits("flag-note-in-logic", plain),
+                        "a leave helper called plainly in a logic function is still the note")
+
+    def test_a_flag_worked_out_once_or_by_the_machine_is_not_a_finding(self):
+        after = ("static void boost(GameState *g)\n{\n"
+                 "    for (unsigned p = 0; p < PIECES; p++)\n        add_boost(g, p);\n"
+                 "    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, true));\n}\n")
+        self.assertFalse(self.hits("flag-note-in-logic", after))
+        cell = ("static void boost(GameState *g)\n{\n"
+                "    for (unsigned p = 0; p < PIECES; p++)\n"
+                "        ORIGINAL_EFFECT(battle_leave_word(g, 0x0C, p));\n}\n")
+        self.assertFalse(self.hits("flag-note-in-logic", cell), "a scratch cell is not a flag")
+        machine = ("void entry(Snes *s)\n{\n"
+                   "    if (!came_back)\n        ORIGINAL_EFFECT(leave_carry(s, false));\n"
+                   "    if (outcome == ENDED)\n        leave_flags_of_measuring(s, a, b);\n}\n")
+        self.assertFalse(self.hits("flag-note-in-logic", machine),
+                         "a machine condition, and a wrapper handing back its registers")
+        helper = ("static void leave_cost_carry(Snes *s, uint8_t t)\n{\n"
+                  "    if (t > 3)\n        ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, true));\n}\n")
+        self.assertFalse(self.hits("flag-note-in-logic", helper), "the leaves helper is the legitimate form")
+        loop = ("static void f(GameState *g)\n{\n    for (;;) {\n"
+                "        ORIGINAL_EFFECT(leave_carry(g, true));\n    }\n}\n")
+        self.assertFalse(self.hits("flag-note-in-logic", loop, "game/battle/bridge.c"))
+        self.assertFalse(self.hits("flag-note-in-logic", loop, "game/event/leaves.c"))
+
+    def test_a_return_address_pushed_by_hand(self):
+        self.assertTrue(self.hits("return-address-pushed", "m_push16(s, 0xAC5C);\n"))
+        self.assertTrue(self.hits("return-address-pushed",
+                                  "m_push16(s, (uint16_t)(site + MENU_JSR_SIZE - 1));\n"))
+        self.assertTrue(self.hits("return-address-pushed", "m_push16(s, READ_CONTROLLER_RETURN);\n"))
+
+    def test_a_register_saved_or_a_push_in_a_bridge_is_not_a_finding(self):
+        self.assertFalse(self.hits("return-address-pushed", "m_push16(s, s->cpu.d);\nm_push16(s, c->a);\n"))
+        self.assertFalse(self.hits("return-address-pushed", "m_push16(s, (uint16_t)kind);\n"))
+        self.assertFalse(self.hits("return-address-pushed", "m_push16(s, 0xAC5C);\n", "game/menu/bridge.c"))
+        self.assertFalse(self.hits("return-address-pushed", "m_push16(s, 0xAC5C);\n",
+                                   "game/menu/script_bridge.c"))
+
     def test_a_generated_header_is_not_a_port(self):
         """game/ram.h and game/vars.h come from re/ram.toml, so a finding in one
         is a finding in the map and can't be fixed in the file."""
