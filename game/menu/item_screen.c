@@ -103,7 +103,7 @@ void menu_items_lay_out(GameState *g, Platform *pf)
     set_menu_scratch_list_rows(g, MENU_ITEMS_ROWS);
 }
 
-void menu_items_show_bar_at_the_top(GameState *g) { set_menu_scroll_bar_thumb(g, menu_item_list_top(g)); }
+void menu_items_show_bar_at_the_list(GameState *g) { set_menu_scroll_bar_thumb(g, menu_item_list_top(g)); }
 
 void menu_items_put_the_cursor_back(GameState *g) { set_menu_cursor_index(g, menu_item_list_row(g)); }
 
@@ -676,20 +676,25 @@ ItemUseKind menu_items_look_up_use(GameState *g, uint8_t item)
     return use_of(menu_item_table_byte(g, (uint16_t)(figures + FIGURES_USE)));
 }
 
-/* The restoring's strength: a fixed amount of HP ($B2) where it restores
- * HP, else a random amount of MP's power ($8A). */
-enum { RESTORES_HP = 0x80, RESTORES_MP = 0x40, FOR_EVERY_MEMBER = 0x08 };
-enum { HP_STRENGTH = 0xB2, MP_STRENGTH = 0x8A };
+/* The restoring's strength: a fixed amount for each step of the item's
+ * factor, 50 HP where it restores HP, else 10 MP. */
+enum { FIXED_AMOUNT = 0x80, HP_A_STEP = 50, MP_A_STEP = 10 };
+enum { HP_STRENGTH = FIXED_AMOUNT | HP_A_STEP, MP_STRENGTH = FIXED_AMOUNT | MP_A_STEP };
+
+/* The effect's low bits, which the figures carry besides what the restoring
+ * reads and the outcomes by chance set as the figures would. */
+enum { FIGURES_BIT_1 = 0x02, FIGURES_BIT_0 = 0x01 };
 
 // $C2:B17F
 void menu_items_set_restore_strength(GameState *g)
 {
-    set_menu_heal_power(g, (menu_use_effect(g) & RESTORES_HP) ? HP_STRENGTH : MP_STRENGTH);
+    set_menu_heal_power(g, (menu_use_effect(g) & MENU_USE_RESTORES_HP) ? HP_STRENGTH : MP_STRENGTH);
 }
 
 /* An item used by chance draws what it does each time: a random number
  * under 100 (the frame's random byte, scaled through the multiplier) picks
- * one of four outcomes by the chances' limits. */
+ * one of four outcomes by the chances' limits: all of HP and MP, all of HP,
+ * 30 MP, 50 HP. */
 enum { CHANCES = 4, CHANCE_SCALE = 100 };
 
 typedef struct {
@@ -698,10 +703,10 @@ typedef struct {
 } Chance;
 
 static const Chance CHANCE_OUTCOMES[CHANCES] = {
-    { RESTORES_HP | RESTORES_MP | 0x02, ALL_OF_IT, 0, false },
-    { RESTORES_HP | 0x02, ALL_OF_IT, 0, false },
-    { RESTORES_MP | 0x01, 0x03, MP_STRENGTH, true },
-    { RESTORES_HP, 0x01, HP_STRENGTH, true },
+    { MENU_USE_RESTORES_HP | MENU_USE_RESTORES_MP | FIGURES_BIT_1, ALL_OF_IT, 0, false },
+    { MENU_USE_RESTORES_HP | FIGURES_BIT_1, ALL_OF_IT, 0, false },
+    { MENU_USE_RESTORES_MP | FIGURES_BIT_0, 3, MP_STRENGTH, true },
+    { MENU_USE_RESTORES_HP, 1, HP_STRENGTH, true },
 };
 
 static void leave_chance_drawn(GameState *g, uint8_t random)
@@ -727,7 +732,7 @@ void menu_items_draw_a_chance(GameState *g)
 }
 
 /* The party's rest: all of HP and MP for every member. */
-enum { REST = RESTORES_HP | RESTORES_MP | FOR_EVERY_MEMBER | 0x02 };
+enum { REST = MENU_USE_RESTORES_HP | MENU_USE_RESTORES_MP | MENU_USE_FOR_EVERY_MEMBER | FIGURES_BIT_1 };
 
 // $C2:B1F8
 void menu_items_set_party_rest(GameState *g) { set_menu_use_effect(g, REST); }
@@ -735,12 +740,12 @@ void menu_items_set_party_rest(GameState *g) { set_menu_use_effect(g, REST); }
 /* A tab's figure, by the item: the power tab's, the magic tab's, else the
  * speed tab's (the figures' indexes into $FF:CF2B's offsets and $FF:CF32's
  * caps). */
-enum { POWER_TAB = 0xCD, MAGIC_TAB = 0xCE, POWER = 1, MAGIC = 6, SPEED = 2 };
+enum { POWER = 1, MAGIC = 6, SPEED = 2 };
 
 // $C2:B200
 void menu_items_set_figure_raised(GameState *g, uint8_t item)
 {
-    set_menu_use_effect(g, item == POWER_TAB ? POWER : item == MAGIC_TAB ? MAGIC : SPEED);
+    set_menu_use_effect(g, item == MENU_POWER_TAB ? POWER : item == MENU_MAGIC_TAB ? MAGIC : SPEED);
 }
 
 /* The member window: its rows from cursor place 12, which the second cursor
@@ -848,7 +853,7 @@ ItemsMemberChoice menu_items_choose_member(const GameState *g)
     return chose(g) ? MEMBER_CHOSEN_TO_USE_ON : MEMBER_POINTED_AT_TO_USE_ON;
 }
 
-bool menu_items_restores_every_member(const GameState *g) { return (menu_use_effect(g) & FOR_EVERY_MEMBER) != 0; }
+bool menu_items_restores_every_member(const GameState *g) { return (menu_use_effect(g) & MENU_USE_FOR_EVERY_MEMBER) != 0; }
 
 // $C2:B24A
 /* A tab's member: the cursor taken round the active members' rows (up past
@@ -942,14 +947,14 @@ void menu_items_name_one_used(GameState *g)
     uint8_t item = inventory_items(g, menu_item_picked(g));
     set_menu_item_operand(g, item);
     if (item == CHANCE_ITEM)
-        TIMED_AS(g, 0xC2B10D, menu_items_draw_a_chance(g));
+        menu_items_draw_a_chance(g);
 }
 
 /* Once taken: the row drawn again, and where none are left the item does
  * nothing more (the member window stays). */
 bool menu_items_used_up(GameState *g)
 {
-    TIMED_AS(g, 0xC2AE20, menu_items_redraw_the_cursors_row(g));
+    menu_items_redraw_the_cursors_row(g);
     bool used_up = inventory_counts(g, menu_item_picked(g)) == 0;
     if (used_up)
         set_menu_use_effect(g, 0);

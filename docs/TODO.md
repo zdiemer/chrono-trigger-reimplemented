@@ -604,19 +604,6 @@ rest waits, is [PLAN.md](PLAN.md).
   run alone or four at a time, the builds alternating, shows 1% or less
   (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
   runs before reading the gap as the checks' cost.
-- **What the equipment screen's review left** (merged at c251088; none
-  blocking): `menu_equip_list_slide_brings_a_row` passes the row to
-  `menu_equip_bring_in_list_row` through `menu_item_operand` -- return it and
-  write the cell once as scaffolding; `menu_draw_portrait` reads its
-  attribute back from `$7E:0001` as half of a word -- take it as a
-  parameter; `member_before`'s `before < 0x80` and its unreachable
-  `reachable == 0` arm; `menu_list_top(g) == 0` means "the list doesn't
-  scroll" (wrap or rename); one `menu_member_character(g)` beside
-  `record_place` instead of the record-address arithmetic twice;
-  `leave_member_switched` and `menu_start_member_card` re-decode the worked
-  member; `menu_draw_member_rows` writes `menu_screen_argument` every pass;
-  `MenuElement` numbered by byte offset.
-
 - **What the screen effects' review left** (merged with field's
   screen-effects chunk; none blocking): `draw_circle` and
   `draw_the_searchlight` hand `scene_circle_draw`/`field_draw_window_shape`
@@ -792,16 +779,37 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' sixth chunk left** (RECOMP.md, "Phase 3, menus: the
+  items screen and the equipment screen's windows"):
+  - the window of who can equip an item reads an accessory's power past the
+    table the menus build (`menu_item_powers`, 148 entries: the weapons',
+    the armour's and the helmets'), as the original does, through the
+    variable's unchecked accessor: whatever work RAM holds there shows beside
+    the accessory's (empty) label. A native storage has to decide what the
+    window shows for an accessory;
+  - the library never slides the list of the party's items, shows who can
+    equip one, or uses a tab, an item by chance or the party's rest, and the
+    member window's loop is checked past its first frame only on the one
+    tonic `menus-field-menu` uses: fuzzing compares each up to its first
+    wait for a frame. A library movie that does them (from a save with tabs
+    and a Lapis, more than ten places of items) would keep them checked;
+  - the items screen still calls out for the description (`$C2:F2F3`), the
+    restoring and its showing (`$C2:8F55`, `$C2:8F6C`), the cursor among the
+    members a tonic is used on (`$C2:B83E`, the techs screen's), the records'
+    reset and task (`$C2:F566`, `$C2:F643`), the members' sprites' colours
+    (`$C2:F5A7`) and the cursors' tasks (`$C2:89E4`, `$C2:8AD5`).
 - **What the menus' fifth chunk left** (RECOMP.md, "Phase 3, menus: the
   equipment screen and its member list"):
-  - the rest of the equipment screen, `$C2:A2CD`-`$C2:AA05` (the slots, the
-    list of what fits and its rows, the figures an item gives, back to the
-    members), and what its steps call out to beyond it: the inventory's
-    routines (`$C2:8791`, `$C2:87D5`), the list of what fits (`$C2:8953`),
-    the member's figures (`$C2:9137`), the lists' paging and sliding
-    (`$C2:93BF`, `$C2:EA53`, `$C2:EB9B`, `$C2:EB1F`), the party's items set
-    aside and back (`$C2:90FC`, `$C2:9121`), the tasks' stop (`$C2:8255`)
-    and the main menu (`$C2:9A98`);
+  - the equipment screen's preview of an item's figures (`$C2:A5C3`,
+    `$C2:A5E7`) stays the original's: the P it saves (under its calls to the
+    figures, `$C2:916E`, and the description) is what the list's move
+    (`$C2:9F05`) leaves at its return, which that port doesn't work out on
+    its paths; what its steps call out to beyond it is still the original's
+    too: the inventory's routines (`$C2:8791`, `$C2:87D5`), the list of what
+    fits (`$C2:8953`), the member's figures (`$C2:9137`), the lists' paging
+    and sliding (`$C2:93BF`, `$C2:EA53`, `$C2:EB9B`, `$C2:EB1F`), the party's
+    items set aside and back (`$C2:90FC`, `$C2:9121`), the low-HP marks
+    (`$C2:813C`), the tasks' stop (`$C2:8255`) and the main menu (`$C2:9A98`);
   - the member slide's start (`$C2:9D5B`) and the member list's scroll bar
     (`$C2:A170`) stay the original's: each saves P after a count of its own
     (the new first row, the row and scroll's sum) and calls out under it

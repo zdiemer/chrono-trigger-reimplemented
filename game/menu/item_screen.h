@@ -30,7 +30,7 @@ typedef enum {
  * and the screen shown. */
 void menu_items_open(GameState *g);
 void menu_items_lay_out(GameState *g, Platform *pf);
-void menu_items_show_bar_at_the_top(GameState *g);
+void menu_items_show_bar_at_the_list(GameState *g);
 void menu_items_put_the_cursor_back(GameState *g);
 void menu_items_show_screen(GameState *g);
 
@@ -142,6 +142,13 @@ void menu_items_panel_put_away(GameState *g);
  * raise one of a member's figures; or nothing. */
 typedef enum { USE_RESTORES, USE_DOES_NOTHING, USE_RESTORES_BY_CHANCE, USE_RESTS_THE_PARTY, USE_RAISES_A_FIGURE } ItemUseKind;
 ItemUseKind menu_items_look_up_use(GameState *g, uint8_t item);
+
+/* What a tonic does, as its effect's bits say (menu_use_effect): it
+ * restores HP, MP, and for every member at once. */
+enum { MENU_USE_RESTORES_HP = 0x80, MENU_USE_RESTORES_MP = 0x40, MENU_USE_FOR_EVERY_MEMBER = 0x08 };
+
+/* The tabs that raise power and magic (any other raises speed). */
+enum { MENU_POWER_TAB = 0xCD, MENU_MAGIC_TAB = 0xCE };
 
 /* The restoring's strength (a tonic's, by its effect), the chance's draw,
  * the party's rest; a tab's figure. */

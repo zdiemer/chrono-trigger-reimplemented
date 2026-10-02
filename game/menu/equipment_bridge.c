@@ -83,6 +83,7 @@ enum {
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
     READS_A_LOW = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
 static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
@@ -649,7 +650,7 @@ void menu_open_equipment_list(Snes *s)
         return;
     menu_equip_settle_the_list(g);
     menu_restore_p(s);
-    m_stop_at_own(s, CURSOR_SOUND, READS_A);
+    m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);
 }
 
 // $C2:A64D
@@ -685,9 +686,11 @@ void menu_show_member_slots(Snes *s)
 }
 
 // $C2:A38B
+/* It leaves what its label's copy leaves. */
 void menu_take_equipment_slot(Snes *s)
 {
     menu_equip_take_slot(state_of(s));
+    ORIGINAL_EFFECT(leave_label_copied(s));
     m_rts(s);
 }
 
@@ -699,9 +702,11 @@ void menu_mark_equipment_slots(Snes *s)
 }
 
 // $C2:A569
+/* It leaves the pen past the list in A. */
 void menu_draw_equipment_list(Snes *s)
 {
     menu_equip_draw_list(state_of(s));
+    ORIGINAL_EFFECT(leave_list_drawn(s));
     m_rts(s);
 }
 
@@ -714,10 +719,16 @@ void menu_draw_equipment_list_row(Snes *s)
 }
 
 // $C2:A6F0
-/* What the member has on, from X. */
+/* What the member has on, from X; it leaves the row past the last in A. */
+enum { EQUIPPED_ROWS_BYTES = 4 * 0x80 };
+
+static void leave_equipped_drawn(Snes *s, uint16_t at) { s->cpu.a = (uint16_t)(at + EQUIPPED_ROWS_BYTES); }
+
 void menu_draw_equipped_items(Snes *s)
 {
-    menu_equip_draw_equipped(state_of(s), s->cpu.x);
+    uint16_t at = s->cpu.x;
+    menu_equip_draw_equipped(state_of(s), at);
+    ORIGINAL_EFFECT(leave_equipped_drawn(s, at));
     m_rts(s);
 }
 

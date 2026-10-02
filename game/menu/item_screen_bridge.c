@@ -106,9 +106,9 @@ static void leave_cursor_compared(Snes *s);
 static void leave_load(Snes *s, uint8_t v);
 static void leave_rows_queued(Snes *s, uint16_t record);
 static void leave_place_compared(Snes *s);
-static void leave_picked_found(Snes *s);
+static void leave_ends_compared(Snes *s);
 static void leave_rows_redrawn(Snes *s);
-static void leave_slide_frames(Snes *s, bool took_frames, uint16_t shift_before, uint16_t step);
+static void leave_slide_frames(Snes *s, bool took_frames);
 static void leave_effect_tested(Snes *s);
 static void leave_use_found(Snes *s);
 
@@ -146,7 +146,7 @@ void menu_open_items(Snes *s)
     s->cpu.y = MENU_ITEMS;
     if (!menu_call(s, 0xC2ADF9, FRAME_THE_LIST, READS_Y))
         return;
-    menu_items_show_bar_at_the_top(g);
+    menu_items_show_bar_at_the_list(g);
     if (!call(s, 0xC2AE02, START_SCROLL_BAR))
         return;
     menu_items_put_the_cursor_back(g);
@@ -237,19 +237,14 @@ static void slide_the_list(Snes *s)
     if (!tick(s, 0xC2ACB9))
         return;
     menu_set_widths(s, false, false);
-    uint16_t shift_before = menu_held_cursor_shift(g), step = menu_scroll_step(g);
     bool took_frames = menu_items_slide_takes_frames(g);
     if (took_frames)
-        for (;;) {
-            shift_before = menu_held_cursor_shift(g);
-            if (!menu_items_slide_a_frame(g))
-                break;
+        while (menu_items_slide_a_frame(g))
             if (!call(s, 0xC2ACDF, LIST_SLIDE_FRAME))
                 return;
-        }
     menu_set_widths(s, true, false);
+    ORIGINAL_EFFECT(leave_slide_frames(s, took_frames));
     menu_items_end_slide_frames(g);
-    ORIGINAL_EFFECT(leave_slide_frames(s, took_frames, shift_before, step));
     if (!menu_run(s, 0xC2ACEC, 0xC2AC59, menu_point_at_listed_item))
         return;
     menu_items_finish_slide(g);
@@ -286,7 +281,7 @@ static void point_along_the_list(Snes *s)
         slide_the_list(s);
         return;
     }
-    ORIGINAL_EFFECT(leave_picked_found(s));
+    ORIGINAL_EFFECT(leave_ends_compared(s));
     point_at_listed_item(s);
 }
 
@@ -547,7 +542,7 @@ void menu_use_restoring_item(Snes *s)
 void menu_use_item_by_chance(Snes *s)
 {
     GameState *g = state_of(s);
-    TIMED_AS(g, 0xC2B10D, menu_items_draw_a_chance(g));
+    menu_items_draw_a_chance(g);
     menu_use_restoring_item(s);
 }
 
@@ -755,10 +750,10 @@ static void leave_rows_redrawn(Snes *s)
     s->cpu.a = (uint16_t)(menu_cursor_index(g) | menu_cursor_left_from(g) << 8);
 }
 
-/* A push at the list's ends: the cursor's place in the party's items less
- * one, compared with the first past the ends. Elsewhere the list's keeping
- * of the cursor leaves its own. */
-static void leave_picked_found(Snes *s)
+/* A push past the list's rows at its ends: the cursor's place in the
+ * party's items less one, compared with the first past the ends. Elsewhere
+ * the list's keeping of the cursor leaves its own. */
+static void leave_ends_compared(Snes *s)
 {
     const GameState *g = state_of(s);
     if (!(menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE)))
@@ -768,17 +763,19 @@ static void leave_picked_found(Snes *s)
     menu_leave_compare(s, before, 0xF0);
 }
 
-/* The slide's frames over: the second cursor's shift less the step (its
- * carry and overflow) and the frames counted out; or, skipped, the fast
- * repeat's test. */
-static void leave_slide_frames(Snes *s, bool took_frames, uint16_t shift_before, uint16_t step)
+/* The slide's frames over: the second cursor's shift taken down by the
+ * step a last time (that subtraction's carry and overflow) and the frames
+ * counted out; or, skipped, the fast repeat's test. */
+static void leave_slide_frames(Snes *s, bool took_frames)
 {
     if (!took_frames) {
         m_set_flag(s, CPU_FLAG_N, true);
         m_set_flag(s, CPU_FLAG_Z, false);
         return;
     }
-    uint16_t r = (uint16_t)(shift_before - step);
+    const GameState *g = state_of(s);
+    uint16_t step = menu_scroll_step(g), r = menu_held_cursor_shift(g);
+    uint16_t shift_before = (uint16_t)(r + step);
     m_set_flag(s, CPU_FLAG_C, shift_before >= step);
     m_set_flag(s, CPU_FLAG_V, ((shift_before ^ step) & (shift_before ^ r) & 0x8000) != 0);
     m_set_flag(s, CPU_FLAG_N, false);
@@ -789,18 +786,16 @@ static void leave_slide_frames(Snes *s, bool took_frames, uint16_t shift_before,
  * tonic's strength picked by testing its effect (the overflow its MP bit), a
  * tab's figure by comparing the item with the power tab's and the magic
  * tab's. */
-enum { POWER_TAB = 0xCD, MAGIC_TAB = 0xCE, EFFECT_MP = 0x40 };
-
 static void leave_member_choice_started(Snes *s, ItemUseKind kind)
 {
     const GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
     if (kind == USE_RESTORES) {
-        m_set_flag(s, CPU_FLAG_V, (menu_use_effect(g) & EFFECT_MP) != 0);
+        m_set_flag(s, CPU_FLAG_V, (menu_use_effect(g) & MENU_USE_RESTORES_MP) != 0);
     } else if (kind == USE_RAISES_A_FIGURE) {
         uint8_t item = menu_item_operand(g);
-        m_set_flag(s, CPU_FLAG_C, item >= (item == POWER_TAB ? POWER_TAB : MAGIC_TAB));
+        m_set_flag(s, CPU_FLAG_C, item >= (item == MENU_POWER_TAB ? MENU_POWER_TAB : MENU_MAGIC_TAB));
     }
 }
 
