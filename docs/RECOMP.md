@@ -3127,72 +3127,83 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
-### Phase 3, field and events: the main loop's requests answered
+### Phase 3, field and events: the screen effects and the credits
 
-The thirteenth chunk of bank `$C0`, and chunk 12's review.
+The fourteenth chunk of bank `$C0`, and chunk 13's review folded in.
 
-**Chunk 12's review, folded in.**
-- The figure's place is a named view of the frame builder's areas and the
-  bytes after them (`field_figure_tiles`, `$7F:3800`, `$C00` bytes, which
-  re/ram.toml marks as reusing `field_frame_staging`); the figure and its
-  guard's check against it read that name.
-- The layout is derived: the VRAM word from the first tile and the words a
-  tile, the tiles' steps from the builder's `NEXT_SPRITE_TILE` and two tile
-  rows, the attributes from palette 1 and priority 2 (the figure ignores its
-  object's palette), and the offsets through `sprite_offset` with a sprite
-  count, as the frames' plans use it.
-- `leave_figure` is built from the builder's leaves (`leave_drawing_from`,
-  `leave_description_place`, `leave_run`); `field_set_tile_start`
-  (graphics.h) is where a set's tile starts, for both guards and the copies;
-  menus.c says why the control byte is put back raw (event `$E3` sets any
-  value); the entry names the readers of its V and Y.
+**How it was chosen.** The plan named the screen effects' steps (`$C0:220E`).
+By concept that is the step the main loop runs every frame (`$C0:21E1` and its
+sixteen handlers), the event command that starts and waits on the effects
+(`$FF`, `$C0:3FAF`, and its sub-table at `$C0:400E`) and the searchlight's
+setup (`$FE`); and beside them in the main loop, the layer work scripts leave
+it (`$C0:274D`) with the commands that ask for it (`$29`, `$2A`, `$2B`, `$2C`,
+`$2F`, `$32`): BG2's halves cleared and the endings' credits written into BG3.
+That is the whole of the concept, 2.6 KiB, short of the plan's 8-12: the rest
+of `$C0`'s runs are other concepts (the characters' objects, the items and the
+party, the field's setup), and the fade in (`$C0:2824`) is the field's setup's
+caller more than an effect.
 
-**What it is** (field/requests.c, `field_handle_requests` `$C0:0C76`). Every
-request the main loop answers is now the port's, one kind a frame:
-- *A location change* (`$C0:0C8F`): the picture fades a step a frame
-  (`field_dims_a_step`, field.h, which the menus' fades share); dark, the
-  party's place is kept as the one it came from (the location, the leader's
-  tile, and the facing it will come back with, the opposite of its own), the
-  next place becomes the party's, and the port stops where the field starts
-  again on a fresh stack (`$C0:0CC0`), which is the original's to do. The
-  guard takes the change only with a leader (the original reads its place
-  with the link as a 16-bit index, past the tables for none: three calls in
-  `field`, at the title's changes, go to the original).
-- *A chest* (`$C0:16DC`): its sound from the original's call, the chest shown
-  open (field/switches.c `field_open_chest`, with the switches' entries), and
-  its overflow for the code after it (field/leaves.c). With a step event
-  before it, its sound reads A's high byte as the step event leaves it: a
-  pressed switch's last redraw entry's, else the remembering's
-  (`field_step_event_high_a`).
-- *A tile copy* (`$C0:1779`): the screen scrolls back onto the grid a frame at
-  a time, the tiles are copied (`field_copy_tiles` through `field_run`), and
-  the layers they changed drawn again on the layers' page
-  (`field_run_on_page`, a new bridge that keeps the field's page on the stack
-  under the call as the original's `PHD` does) and sent in the vblank, BG1,
-  BG2 or BG3 alone from a table of their calls, or BG1 and BG2 over three
-  frames; the port stops at the frame wait the original jumps to.
-- *A battle* (`$C0:188C`): the layers scrolled into place, the effects built
-  with the field's setup's values, the battle fought (`$C1:0000`, given A as
-  the frame wait before it leaves it, which liveness has it read), the field's
-  interrupts taken back as C, and the field's objects and turn taken up again.
-The guard's switch test now covers every tile a switch presses (one two
-columns wide, stepped into at a row's first column, reaches the row above's
-last), which fuzzing found; a chest inside the map's rows.
+**What it is.** `field/screen_effects.c`: an effect is a window's shape drawn
+into the per-line table the line effects aren't reading, and a cut (which
+layers the windows hide on which screen, where the colour blending applies),
+as data: a hole in BG1 and BG2, an oval of blending, both opening to a radius
+and closing; the searchlight's four moving corners; the curtain, window 2's
+ragged edge swept across by bank `$C3`'s routine (a call-out); BG3 in a circle
+at the top of the screen, or blended round it, drawn into both table sets over
+two frames; the ripple, a waving copy of BG1 through a circle; and the field's
+close into scene `$85`. The circles are `scene/circle.c`'s and the shape
+`field/window_shape.c`'s, run as C (`TIMED_AS` their entries).
+`field/script_layers.c`: the credits laid out a line a frame in BG3's staged
+row from the texts at `$FD:A000` (`field_data.h`) and sent by the vblank's BG3
+piece; BG2's halves asked of the vblank and the staging blanked (a call-out);
+and the message the field opened for a chest closed once the chest is off the
+screen. Event `$FF` (`event/screen.c`) is a bridge: below `$90` the field fades
+out a step a frame and goes dark, and the port stops where the original starts
+the scene on a fresh stack (`$C0:3FD6`); from `$90` a C table of the sixteen
+screen commands (start an effect, open a circle at a place, a curtain or the
+ripple waited on, the push ended), with the field's restart (`$96`) handed to
+the original at the command's dispatch and the menus' party routine 8 (`$9F`)
+called through the dispatch's frame. `$FE` decodes its sixteen operands into a
+record of the language (`SearchlightMove`); its leaves (the divider, the
+working cells, the overflow of the last distance) are `event/leaves.c`'s.
+
+**Chunk 13's review, folded in.** The tile copy's single-layer table is typed
+(`FieldLayer`, designated rows, the move as a `FieldMapMove`, BG3's own frame
+wait a column), and the queued maps no longer double as a transition; the map
+transitions' moves and sends are `field.h`'s (`nmi.c` used private copies);
+`field_is_dark`, one map-rows constant (`FIELD_MAP_ROWS`), the figure's size
+from the map, `field_step_kept_at` asked rather than the search repeated, the
+chest's kind forgotten in `ORIGINAL_EFFECT`, the party's keeping and its move
+split, the header's request order, `switch_tile_row` without a negative shift.
+The review's call to drop `field_frame_wait_leaves_a` was wrong and is
+answered in its comment: the frame wait leaves A the idle count's high byte,
+and where A held that before the wait shadow mode keeps the port's own A
+across the call, so without the line the battle's call mismatched (9 calls in
+`endings-bucket-lavos`). Removing the requests' `== 0` test the review called
+dead put five reads of the requests in every frame's estimate (+85% drift);
+it stays, as the test that skips the answers.
 
 **What shadow mode and fuzzing found.** Over the 26 movies every call
-matches (190,914 of 191,044 compared, the rest the guard's; none mismatched); 55 calls interrupted, the tile copies and battles whose
-stretches span frames, which fuzzing reaches only up to their first long
-call-out (TODO.md). Fuzzed (seeds 1 and 2, 20,000 states each): a location
-change 0 of 17,473 and 17,497 (the rest the guard's leaderless states), a
-chest 0 of 10,089 and 9,865, a step event and a chest together 0 of 9,899
-and 10,060 (the rest run a sound past the call-out budget), a tile copy 0 of
-20,000 each up to its frame work; the rows before unchanged. Breaking the
-chest's entries' order mismatched 677 of 1,015, and the facing's flip 714 of
-1,462. `$C0` stands at 44.8 KiB ported, 25% left.
+matches: the step 190,882, the layer work 190,882, `$FF` 56 (32 inside the
+event engine's stretch), `$FE` 74, the credits' commands 36-38 each; no call
+interrupted, none refused. The curtain, the ripple, the field's close and the
+BG3 circles no movie reaches. Shadow mode found the scene's stop leaving the
+carry (the fade's last comparison clears it, now declared dead) and the
+credits line leaving its column in the scratch cell. Fuzzing (seeds 1 and 2)
+found the curtains' order wrong: `$93` uncovers leftward and `$94` covers
+rightward (57 of 10,154), and `$29` reading its operand before the letters'
+unpacking, which reaches the script's bank (79 of 2,525); fixed, every entry
+is 0 mismatched: the step 0 of 19,996 and 19,993 (one state of seed 1 differs
+in OAM bytes only, TODO.md), the curtain 0 of 5,000 each, the layer work 0 of
+20,000 each, `$FF` 0 of 10,154 and 9,999, the scene 0 of 9,986 and 10,054,
+`$FE` 0 of 9,943 and 10,091, `$29` 0 of 2,525 and 2,499, the rest 0 of
+9,987-10,133. `$C0` stands at 46.5 KiB ported, 22% left.
 
-**The timing gate.** `field_handle_requests` and `field_recentre_the_screen`
-(now also run as C from the tile copy) were calibrated over the library; no
-exception.
+**The timing gate.** The new rows and `event_run_init_scripts` (whose
+openings now run `$FF`'s and the credits' rows) were calibrated over the
+library. `field_move_screen_effect_on` carries `field_rasterize_quad`'s three
+exceptions: the searchlight's shape is timed as that routine and is off by
+what it is off by.
 
 ### Phase 3, battle chunk 9a: the animation script language, its table and its first half (`$C1:4CF0`)
 

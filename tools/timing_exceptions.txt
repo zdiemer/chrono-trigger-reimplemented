@@ -33,6 +33,9 @@ decompress_direct worst as decompress
 field_rasterize_quad vblank-tail rasterizes a window shape into a RAM table (35 lines a call, as long as vblank); 7.5% error, the time follows the quadrilateral's edges
 field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 lines) in a call of 35 lines or more, writing RAM
 field_rasterize_quad worst as for vblank-tail: the original steps each pixel of an edge's run and the port each line, so the error follows the shape's widths; at most 80899 clocks, in calls up to four times vblank's length, and no video write moves
+field_move_screen_effect_on vblank-tail the searchlight's frames draw its shape as field_rasterize_quad, timed as it (TIMED_AS) and off by what it is off by (above); the rest of the effects' steps are within the limits; a step writes RAM tables the next vblank's line effects read
+field_move_screen_effect_on vblank-worst as for vblank-tail: the searchlight's shape, at most 88000 clocks, writing RAM
+field_move_screen_effect_on worst as for vblank-tail: the searchlight's shape, at most 75000 clocks, and no video write moves
 field_build_sprite_table vblank-tail builds the sprite table in RAM, which the next vblank uploads; its time is its draws where it runs them as C (each timed as the draw) and the loop hiding last frame's leftover sprites, whose instructions are mostly index steps the rewrite doesn't make; at most 7352 clocks (5.6 lines) in vblank, 6716 a call on average
 field_build_line_effect_tables vblank-tail builds the next frame's line-effect tables in RAM; its time follows the dialog window's band and the waves, whose loops' index steps the rewrite doesn't make; at most 2252 clocks (1.7 lines)
 field_build_bottom_window_0 vblank-tail as field_build_line_effect_tables: 2.7% of its calls in vblank off by 1024 clocks or more, at most 1079

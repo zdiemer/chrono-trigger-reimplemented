@@ -491,6 +491,16 @@
  * leave their values there on the way (field/scratch.h) [14 bytes] */
 #define RAM_EVENT_SCRATCH 0x7E01D9u
 #define RAM_EVENT_SCRATCH_DP 0xD9u           /* page field */
+/* The cells event $FE works out the searchlight's corners in: the corner coordinates left, the
+ * start of the last as a word (its whole pixel in the high byte), the frames, and the offset of
+ * the next coordinate in the corners' table. Only the command reads them, so the port leaves
+ * their last values for shadow mode (event/leaves.c) [10 bytes] */
+#define RAM_EVENT_SEARCHLIGHT_WORK 0x7E01EEu
+#define RAM_EVENT_SEARCHLIGHT_WORK_DP 0xEEu  /* page field */
+#define RAM_EVENT_SEARCHLIGHT_WORK_COORDINATES_LEFT 0x7E01EEu /* Coordinates still to work out */
+#define RAM_EVENT_SEARCHLIGHT_WORK_START 0x7E01F0u /* The coordinate's start */
+#define RAM_EVENT_SEARCHLIGHT_WORK_FRAMES 0x7E01F4u /* The frames the move takes */
+#define RAM_EVENT_SEARCHLIGHT_WORK_NEXT 0x7E01F6u /* Byte offset of the next coordinate */
 /* Offset in the script buffer where the object's script resumes [64 x $2 bytes, by object slot
  * (X = slot * 2)] */
 #define RAM_EVENT_OBJECT_SCRIPT_POSITION 0x7E1180u
@@ -649,13 +659,30 @@
  * waits) */
 #define RAM_FIELD_SCREEN_RECENTRING 0x7E0138u
 #define RAM_FIELD_SCREEN_RECENTRING_DP 0x38u /* page field */
-/* The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at
- * $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself */
-#define RAM_FIELD_SCREEN_JOB 0x7E0139u
-#define RAM_FIELD_SCREEN_JOB_DP 0x39u        /* page field */
-/* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
+/* The screen effect under way, which the main loop moves on a step every frame ($C0:21E1,
+ * through the table at $C0:21EE), 0 for none: a hole in the map, an oval of colour, the curtain,
+ * the searchlight, BG3 in a circle, the scene's start, the ripple (game/field/screen_effects.c,
+ * ScreenEffect). Event $FF starts one, and each ends itself */
+#define RAM_FIELD_SCREEN_EFFECT 0x7E0139u
+#define RAM_FIELD_SCREEN_EFFECT_DP 0x39u     /* page field */
+/* X of the centre of the circle a hole or an oval is cut in (event $FF $90 and $97) */
+#define RAM_FIELD_CIRCLE_X 0x7E013Au
+#define RAM_FIELD_CIRCLE_X_DP 0x3Au          /* page field */
+/* Line of the centre of the hole's or the oval's circle */
+#define RAM_FIELD_CIRCLE_Y 0x7E013Bu
+#define RAM_FIELD_CIRCLE_Y_DP 0x3Bu          /* page field */
+/* The radius the hole's or the oval's circle has reached, in lines, as it opens from 0 or closes
+ * to 0; the ripple's circle too. The cell is field_window2_edge while the curtain runs */
+#define RAM_FIELD_CIRCLE_RADIUS 0x7E013Cu
+#define RAM_FIELD_CIRCLE_RADIUS_DP 0x3Cu     /* page field */
+/* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left; bit 1: the
+ * curtain (event $FF $94 and $95) leaves the picture hidden when it has swept across, where the
+ * others ($92, $93) take window 2 off */
 #define RAM_FIELD_WINDOW2_EDGE 0x7E013Cu
 #define RAM_FIELD_WINDOW2_EDGE_DP 0x3Cu      /* page field */
+/* The radius an opening hole or oval stops at */
+#define RAM_FIELD_CIRCLE_TARGET_RADIUS 0x7E013Du
+#define RAM_FIELD_CIRCLE_TARGET_RADIUS_DP 0x3Du /* page field */
 /* A copy of map tiles events $E4 and $E5 describe, which $C0:AF4E makes (now, or from the field
  * main loop) [8 bytes] */
 #define RAM_FIELD_TILE_COPY 0x7E013Eu
@@ -1099,6 +1126,20 @@
 /* Color math layers for event $F1's fixed color: $17 add, $97 subtract, back to
  * field_color_math_layers when the color is cleared */
 #define RAM_FIELD_FIXED_COLOR_MATH_LAYERS 0x7E0BE0u
+/* Where the credits text BG3 shows goes on: an offset into the credits' texts ($FD:A000), at the
+ * start of a text event $29 picks or of the line after the last one written [2 bytes] */
+#define RAM_FIELD_CREDITS_CURSOR 0x7E0BE1u
+/* The BG3 tile map column the credits' lines start at (event $2F); its low 5 bits are used */
+#define RAM_FIELD_CREDITS_COLUMN 0x7E0BE3u
+/* The BG3 tile map row the next credits line goes to (event $2F); each line moves it on one row,
+ * and the end of a text two; its low 6 bits are used */
+#define RAM_FIELD_CREDITS_ROW 0x7E0BE4u
+/* VRAM word address the vblank's BG3 piece (field_map_transition bit 5, $C0:EC77) sends BG3's
+ * staged row to: a credits line's place in BG3's tile map [2 bytes] */
+#define RAM_FIELD_BG3_PIECE_VRAM 0x7E0BE5u
+/* How many bytes of BG3's staged row the BG3 piece sends: the rest of the tile map's row from
+ * the line's column [2 bytes] */
+#define RAM_FIELD_BG3_PIECE_BYTES 0x7E0BE7u
 /* Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of
  * its own; the scene program sets it ($7E:30E6) and the field's start clears it */
 #define RAM_FIELD_BG3_MAP_SIZE 0x7E0BE9u
@@ -1592,6 +1633,10 @@
 #define RAM_FIELD_LINE_WAVE_PHASE 0x7E1DFBu
 /* Nonzero: BG2 waves like field_line_wave_bg3 (with BG3's scroll) [2 bytes] */
 #define RAM_FIELD_LINE_WAVE_BG2 0x7E1DFDu
+/* Frames left in the stretch of the ripple (event $FF $9E) under way: its wait, its circle's
+ * growing, holding and shrinking. The original counts them in the cell across its frame waits;
+ * the port counts in a local and leaves the cell as the original has it at each wait */
+#define RAM_FIELD_RIPPLE_FRAMES_LEFT 0x7E1DFFu
 /* Scroll values of the self-scrolling layers, copied from their positions in bank $7F [2 x $4
  * bytes, by layer (BG2, BG3)] */
 #define RAM_FIELD_LAYER_SCROLL_VALUES 0x7E2C74u
@@ -1784,8 +1829,23 @@
 #define RAM_FIELD_PRESSED_TILES 0x7F1CC8u
 #define RAM_FIELD_PRESSED_TILES_COUNT 16u
 #define RAM_FIELD_PRESSED_TILES_STRIDE 0x02u
-/* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes] */
-#define RAM_FIELD_WINDOW_SHAPE_QUAD 0x7F1CEAu
+/* Frames the searchlight's corners still move for (event $FE) */
+#define RAM_FIELD_SEARCHLIGHT_FRAMES 0x7F1CE8u
+/* The searchlight's four corners, 8.8 fixed point (the whole pixel in the high byte), which the
+ * field copies into field_window_shape_corners each frame before rasterizing them [4 x $4 bytes,
+ * by corner, in drawing order] */
+#define RAM_FIELD_SEARCHLIGHT_CORNERS 0x7F1CE9u
+#define RAM_FIELD_SEARCHLIGHT_CORNERS_COUNT 4u
+#define RAM_FIELD_SEARCHLIGHT_CORNERS_STRIDE 0x04u
+#define RAM_FIELD_SEARCHLIGHT_CORNERS_X 0x7F1CE9u /* X */
+#define RAM_FIELD_SEARCHLIGHT_CORNERS_Y 0x7F1CEBu /* Y */
+/* How far each of the searchlight's corners moves a frame, 8.8 fixed point, signed [4 x $4
+ * bytes, by corner, in drawing order] */
+#define RAM_FIELD_SEARCHLIGHT_SPEEDS 0x7F1CF9u
+#define RAM_FIELD_SEARCHLIGHT_SPEEDS_COUNT 4u
+#define RAM_FIELD_SEARCHLIGHT_SPEEDS_STRIDE 0x04u
+#define RAM_FIELD_SEARCHLIGHT_SPEEDS_X 0x7F1CF9u /* X */
+#define RAM_FIELD_SEARCHLIGHT_SPEEDS_Y 0x7F1CFBu /* Y */
 /* Each party member's X on the map (field_object_x), kept while a menu is open ($C0:011B) and
  * put back after it ($C0:1A72) [3 x $2 bytes, by party place] */
 #define RAM_FIELD_KEPT_PARTY_X 0x7F1D09u
@@ -6093,14 +6153,28 @@
  * bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_X 0x7E0350u
 #define RAM_SCENE_CIRCLE_CENTER_X_DP 0x50u   /* page decompress */
+/* The curtain $C3:01E4 sweeps a step a frame: 0 none (it clears this after its 32nd step), 1 its
+ * edges start at the left and move right, 2 they start at the right and move left */
+#define RAM_SCENE_CURTAIN_SWEEP 0x7E0350u
+#define RAM_SCENE_CURTAIN_SWEEP_DP 0x50u     /* page decompress */
+/* Steps the curtain has taken: 0 starts it */
+#define RAM_SCENE_CURTAIN_STEPS 0x7E0351u
+#define RAM_SCENE_CURTAIN_STEPS_DP 0x51u     /* page decompress */
 /* Line of the circle's center: an 8-bit value in a 16-bit cell, whose high byte the routine
  * clears [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_Y 0x7E0352u
 #define RAM_SCENE_CIRCLE_CENTER_Y_DP 0x52u   /* page decompress */
+/* Address of the curtain's per-line table of edges (a byte a line), which it keeps $1C0 bytes on
+ * and sends through the work RAM port to the table or the half after it, a frame each [2 bytes] */
+#define RAM_SCENE_CURTAIN_TABLE 0x7E0352u
+#define RAM_SCENE_CURTAIN_TABLE_DP 0x52u     /* page decompress */
 /* The circle's radius in lines: an 8-bit value in a 16-bit cell, whose high byte the routine
  * clears; 0 closes every line [2 bytes] */
 #define RAM_SCENE_CIRCLE_RADIUS 0x7E0354u
 #define RAM_SCENE_CIRCLE_RADIUS_DP 0x54u     /* page decompress */
+/* The curtain table's bank; bit 0 picks bank $7F */
+#define RAM_SCENE_CURTAIN_TABLE_BANK 0x7E0354u
+#define RAM_SCENE_CURTAIN_TABLE_BANK_DP 0x54u /* page decompress */
 /* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
 #define RAM_SCENE_CIRCLE_TABLE 0x7E0356u
 #define RAM_SCENE_CIRCLE_TABLE_DP 0x56u      /* page decompress */

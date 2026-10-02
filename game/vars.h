@@ -695,6 +695,19 @@ enum { EVENT_SCRATCH_BYTES = 14 };
 uint8_t event_scratch_byte(const GameState *g, unsigned at);
 void set_event_scratch_byte(GameState *g, unsigned at, uint8_t v);
 
+/* Coordinates still to work out */
+uint8_t event_searchlight_work_coordinates_left(const GameState *g);
+void set_event_searchlight_work_coordinates_left(GameState *g, uint8_t v);
+/* The coordinate's start */
+uint16_t event_searchlight_work_start(const GameState *g);
+void set_event_searchlight_work_start(GameState *g, uint16_t v);
+/* The frames the move takes */
+uint8_t event_searchlight_work_frames(const GameState *g);
+void set_event_searchlight_work_frames(GameState *g, uint8_t v);
+/* Byte offset of the next coordinate */
+uint16_t event_searchlight_work_next(const GameState *g);
+void set_event_searchlight_work_next(GameState *g, uint16_t v);
+
 enum { EVENT_OBJECT_SCRIPT_POSITION_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Offset in the script buffer where the object's script resumes */
 uint16_t event_object_script_position(const GameState *g, unsigned slot);
@@ -895,14 +908,35 @@ void set_field_fade_request(GameState *g, uint8_t v);
 uint8_t field_screen_recentring(const GameState *g);
 void set_field_screen_recentring(GameState *g, uint8_t v);
 
-/* The screen effect the main loop runs a step of every frame ($C0:21E1, through the table at
- * $C0:21EE), 0 for none: the event commands at $C0:3FA9-$C0:41D8 start one, and each ends itself */
-uint8_t field_screen_job(const GameState *g);
-void set_field_screen_job(GameState *g, uint8_t v);
+/* The screen effect under way, which the main loop moves on a step every frame ($C0:21E1,
+ * through the table at $C0:21EE), 0 for none: a hole in the map, an oval of colour, the curtain,
+ * the searchlight, BG3 in a circle, the scene's start, the ripple (game/field/screen_effects.c,
+ * ScreenEffect). Event $FF starts one, and each ends itself */
+uint8_t field_screen_effect(const GameState *g);
+void set_field_screen_effect(GameState *g, uint8_t v);
 
-/* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left */
+/* X of the centre of the circle a hole or an oval is cut in (event $FF $90 and $97) */
+uint8_t field_circle_x(const GameState *g);
+void set_field_circle_x(GameState *g, uint8_t v);
+
+/* Line of the centre of the hole's or the oval's circle */
+uint8_t field_circle_y(const GameState *g);
+void set_field_circle_y(GameState *g, uint8_t v);
+
+/* The radius the hole's or the oval's circle has reached, in lines, as it opens from 0 or closes
+ * to 0; the ripple's circle too. The cell is field_window2_edge while the curtain runs */
+uint8_t field_circle_radius(const GameState *g);
+void set_field_circle_radius(GameState *g, uint8_t v);
+
+/* Bit 0: the eighth per-line effect drives window 2's right edge instead of its left; bit 1: the
+ * curtain (event $FF $94 and $95) leaves the picture hidden when it has swept across, where the
+ * others ($92, $93) take window 2 off */
 uint8_t field_window2_edge(const GameState *g);
 void set_field_window2_edge(GameState *g, uint8_t v);
+
+/* The radius an opening hole or oval stops at */
+uint8_t field_circle_target_radius(const GameState *g);
+void set_field_circle_target_radius(GameState *g, uint8_t v);
 
 /* The source rectangle's top left tile (x, then y) */
 uint16_t field_tile_copy_from(const GameState *g);
@@ -1449,6 +1483,30 @@ void set_field_color_math_layers(GameState *g, uint8_t v);
  * field_color_math_layers when the color is cleared */
 uint8_t field_fixed_color_math_layers(const GameState *g);
 void set_field_fixed_color_math_layers(GameState *g, uint8_t v);
+
+/* Where the credits text BG3 shows goes on: an offset into the credits' texts ($FD:A000), at the
+ * start of a text event $29 picks or of the line after the last one written */
+uint16_t field_credits_cursor(const GameState *g);
+void set_field_credits_cursor(GameState *g, uint16_t v);
+
+/* The BG3 tile map column the credits' lines start at (event $2F); its low 5 bits are used */
+uint8_t field_credits_column(const GameState *g);
+void set_field_credits_column(GameState *g, uint8_t v);
+
+/* The BG3 tile map row the next credits line goes to (event $2F); each line moves it on one row,
+ * and the end of a text two; its low 6 bits are used */
+uint8_t field_credits_row(const GameState *g);
+void set_field_credits_row(GameState *g, uint8_t v);
+
+/* VRAM word address the vblank's BG3 piece (field_map_transition bit 5, $C0:EC77) sends BG3's
+ * staged row to: a credits line's place in BG3's tile map */
+uint16_t field_bg3_piece_vram(const GameState *g);
+void set_field_bg3_piece_vram(GameState *g, uint16_t v);
+
+/* How many bytes of BG3's staged row the BG3 piece sends: the rest of the tile map's row from
+ * the line's column */
+uint16_t field_bg3_piece_bytes(const GameState *g);
+void set_field_bg3_piece_bytes(GameState *g, uint16_t v);
 
 /* Nonzero: the tile map size bits the field's setup gives BG3 ($C0:0AF6, into $1D86) instead of
  * its own; the scene program sets it ($7E:30E6) and the field's start clears it */
@@ -2069,6 +2127,12 @@ void set_field_line_wave_phase(GameState *g, uint8_t v);
 uint16_t field_line_wave_bg2(const GameState *g);
 void set_field_line_wave_bg2(GameState *g, uint16_t v);
 
+/* Frames left in the stretch of the ripple (event $FF $9E) under way: its wait, its circle's
+ * growing, holding and shrinking. The original counts them in the cell across its frame waits;
+ * the port counts in a local and leaves the cell as the original has it at each wait */
+uint8_t field_ripple_frames_left(const GameState *g);
+void set_field_ripple_frames_left(GameState *g, uint8_t v);
+
 enum { FIELD_LAYER_SCROLL_VALUES_COUNT = 2 };   /* by layer (BG2, BG3) */
 /* Horizontal */
 uint16_t field_layer_scroll_values_x(const GameState *g, unsigned layer);
@@ -2309,11 +2373,25 @@ enum { FIELD_PRESSED_TILES_COUNT = 16 };   /* by slot; negative: free */
 uint16_t field_pressed_tiles(const GameState *g, unsigned slot);
 void set_field_pressed_tiles(GameState *g, unsigned slot, uint16_t v);
 
-/* Corners the field copies into field_window_shape_corners before rasterizing [15 bytes, one at
- * a time] */
-enum { FIELD_WINDOW_SHAPE_QUAD_BYTES = 15 };
-uint8_t field_window_shape_quad_byte(const GameState *g, unsigned at);
-void set_field_window_shape_quad_byte(GameState *g, unsigned at, uint8_t v);
+/* Frames the searchlight's corners still move for (event $FE) */
+uint8_t field_searchlight_frames(const GameState *g);
+void set_field_searchlight_frames(GameState *g, uint8_t v);
+
+enum { FIELD_SEARCHLIGHT_CORNERS_COUNT = 4 };   /* by corner, in drawing order */
+/* X */
+uint16_t field_searchlight_corners_x(const GameState *g, unsigned corner);
+void set_field_searchlight_corners_x(GameState *g, unsigned corner, uint16_t v);
+/* Y */
+uint16_t field_searchlight_corners_y(const GameState *g, unsigned corner);
+void set_field_searchlight_corners_y(GameState *g, unsigned corner, uint16_t v);
+
+enum { FIELD_SEARCHLIGHT_SPEEDS_COUNT = 4 };   /* by corner, in drawing order */
+/* X */
+uint16_t field_searchlight_speeds_x(const GameState *g, unsigned corner);
+void set_field_searchlight_speeds_x(GameState *g, unsigned corner, uint16_t v);
+/* Y */
+uint16_t field_searchlight_speeds_y(const GameState *g, unsigned corner);
+void set_field_searchlight_speeds_y(GameState *g, unsigned corner, uint16_t v);
 
 enum { FIELD_KEPT_PARTY_X_COUNT = 3 };   /* by party place */
 /* Each party member's X on the map (field_object_x), kept while a menu is open ($C0:011B) and
@@ -8860,15 +8938,33 @@ void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v);
 uint16_t scene_circle_center_x(const GameState *g);
 void set_scene_circle_center_x(GameState *g, uint16_t v);
 
+/* The curtain $C3:01E4 sweeps a step a frame: 0 none (it clears this after its 32nd step), 1 its
+ * edges start at the left and move right, 2 they start at the right and move left */
+uint8_t scene_curtain_sweep(const GameState *g);
+void set_scene_curtain_sweep(GameState *g, uint8_t v);
+
+/* Steps the curtain has taken: 0 starts it */
+uint8_t scene_curtain_steps(const GameState *g);
+void set_scene_curtain_steps(GameState *g, uint8_t v);
+
 /* Line of the circle's center: an 8-bit value in a 16-bit cell, whose high byte the routine
  * clears */
 uint16_t scene_circle_center_y(const GameState *g);
 void set_scene_circle_center_y(GameState *g, uint16_t v);
 
+/* Address of the curtain's per-line table of edges (a byte a line), which it keeps $1C0 bytes on
+ * and sends through the work RAM port to the table or the half after it, a frame each */
+uint16_t scene_curtain_table(const GameState *g);
+void set_scene_curtain_table(GameState *g, uint16_t v);
+
 /* The circle's radius in lines: an 8-bit value in a 16-bit cell, whose high byte the routine
  * clears; 0 closes every line */
 uint16_t scene_circle_radius(const GameState *g);
 void set_scene_circle_radius(GameState *g, uint16_t v);
+
+/* The curtain table's bank; bit 0 picks bank $7F */
+uint8_t scene_curtain_table_bank(const GameState *g);
+void set_scene_curtain_table_bank(GameState *g, uint8_t v);
 
 /* Address of the circle's per-line table (224 lines of left and right X) */
 uint16_t scene_circle_table(const GameState *g);

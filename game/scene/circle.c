@@ -32,7 +32,6 @@
 enum { LINES = 224, LINE_BYTES = 2, LAST_OPEN_BOTTOM = LINES - 1 };
 enum { RIGHT_EDGE = 0xFF };                    /* where a line's right edge is clamped */
 enum { CLOSED_LINE = 0x0001 };                  /* left 1, right 0 */
-enum { MODE_MIRROR = 0, MODE_HALF_HEIGHT = 1, MODE_LEAVE_OUTSIDE = 0x80 };
 
 /* The circle, as the caller describes it. */
 typedef struct {
@@ -223,12 +222,12 @@ static void draw_circle(GameState *g, uint8_t mode)
     Octant o = draw_upper_half(g, &c);
     uint16_t count = (uint16_t)(c.radius + 1);   /* what the original's count ends as */
     int height;
-    switch (mode & ~MODE_LEAVE_OUTSIDE) {
-    case MODE_MIRROR:
+    switch (mode & ~SCENE_CIRCLE_KEEPS_OUTSIDE) {
+    case SCENE_CIRCLE_ROUND:
         draw_lower_half(g, &c, c.radius + 1, 1);
         height = c.radius;
         break;
-    case MODE_HALF_HEIGHT:
+    case SCENE_CIRCLE_SQUASHED:
         draw_lower_half(g, &c, (c.radius + 1) / 2, 2);
         height = c.radius / 2;
         break;
@@ -238,7 +237,7 @@ static void draw_circle(GameState *g, uint8_t mode)
     }
     count = 0;
 
-    if (!(mode & MODE_LEAVE_OUTSIDE)) {
+    if (!(mode & SCENE_CIRCLE_KEEPS_OUTSIDE)) {
         /* close the lines below the circle, from its last line on; with only
          * the table's last line left, the original's count would run its block
          * move through the whole bank, and it closes none */

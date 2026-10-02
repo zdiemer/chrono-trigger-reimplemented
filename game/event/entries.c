@@ -14,3 +14,5 @@ EVENT_ENTRIES(EVENT_DEFINE_ENTRY)
 #define EVENT_DEFINE_GUARD(name, opcode) \
     bool name##_accepts(Snes *s) { return event_command_accepts(s, opcode); }
 EVENT_BRIDGES(EVENT_DEFINE_GUARD)
+
+bool event_screen_party_routine_accepts(Snes *s) { return event_command_accepts(s, 0xFF); }

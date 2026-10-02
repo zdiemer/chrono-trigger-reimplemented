@@ -387,7 +387,7 @@ static FrameBuild draw_next_frame(GameState *g, FieldObject obj)
  * (field_object_palette, which the frames the queue draws take). */
 enum { FIGURE_SPRITES = 24, FIGURE_TILES = FIGURE_SPRITES * TILES_A_SPRITE, FIGURE_FIRST_TILE = 0x40,
        FIGURE_SPRITES_A_ROW = 8, FIGURE_PALETTE = 1, FIGURE_PRIORITY = 2, FIGURE_FRAME = 0 };
-enum { FIGURE_VRAM = FIGURE_FIRST_TILE * VRAM_WORDS_A_TILE, FIGURE_BYTES = FIGURE_TILES * TILE_BYTES };
+enum { FIGURE_VRAM = FIGURE_FIRST_TILE * VRAM_WORDS_A_TILE };
 enum { ATTRIBUTE_PALETTE_SHIFT = 1, ATTRIBUTE_PRIORITY_SHIFT = 4 };
 
 static uint16_t figure_place(void) { return RAM_ABS(RAM_FIELD_FIGURE_TILES); }
@@ -424,7 +424,8 @@ void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj)
     for (unsigned t = 0; t < FIGURE_TILES; t++)
         field_draw_frame_tile(g, set, tile_name(g, description, t), (uint16_t)(figure_place() + t * TILE_BYTES));
     ORIGINAL_EFFECT(leave_figure(g, set, description));
-    vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME(RAM_FIELD_FIGURE_TILES), FIGURE_BYTES, VID_VRAM_WORD_PORT);
+    vid_send_vram(pf, PF_AT(0xC0E19A), FIGURE_VRAM, PF_GAME(RAM_FIELD_FIGURE_TILES), FIELD_FIGURE_TILES_BYTES,
+                  VID_VRAM_WORD_PORT);
     for (unsigned n = 0; n < FIGURE_SPRITES; n++)
         sprites_set_record_sprite(g, obj, n, figure_sprite(g, description, n));
 }
