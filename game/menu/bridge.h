@@ -65,6 +65,11 @@ bool menu_back(Snes *s, uint32_t returns_to, MenuMachine m);
  * one whose work is C on the game's state is called as C. */
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
+/* The same for a sibling that comes back with widths that depend on what it
+ * did (the equipment list's move leaves a 16-bit accumulator after a slide):
+ * the widths it came back with stand. */
+bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
 /* ---- The frame of the routines a bridge stands in for ------------------------------- */
 
 /* Set the accumulator's and the index registers' widths as the original's

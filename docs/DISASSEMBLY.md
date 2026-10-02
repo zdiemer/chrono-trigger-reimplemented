@@ -240,7 +240,9 @@ names the other with `reuses`: the same subsystem's bytes put to another use
 at another time (the field decompresses a map's data where the map's tile
 looks go once the data is unpacked, `field_tile_looks` over
 `field_map_data`); a third use names the second, and the chain covers the
-first. State every mode shares -- the party, inventory, story
+first. An entry whose bytes are more than one other's names them all, a list
+(the equipment screen's list of items, `menu_list_items`, over the load
+screen's kept cursor and the gate screen's state). State every mode shares -- the party, inventory, story
 flags -- is `core`.
 
 One directory holds two such modes, so it has two tags. Bank `$C2` is the menus

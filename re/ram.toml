@@ -43,8 +43,8 @@
 #       purpose (a `leave_stray_*` write the gate needs); it generates a second
 #       pair of accessors, `<name>_unchecked`, without the bounds check the
 #       others make (docs/DISASSEMBLY.md, "The accessors"). `reuses` names a
-#       variable of the same subsystem whose bytes this one takes over at
-#       another time (the map's data, decompressed where the tiles' looks go
+#       variable (or a list of them) of the same subsystem whose bytes this
+#       one takes over at another time (the map's data, decompressed where the tiles' looks go
 #       once it is unpacked), which the overlap check otherwise refuses.
 #
 #   [[var.field]]  name, offset, [size], meaning
@@ -5111,6 +5111,30 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 0
   meaning = "The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it"
   [[var.field]]
+  name = "member_rows_done"
+  offset = 0
+  size = 2
+  meaning = "A member list's colouring ($C2:9E76): the rows it has coloured, left at 3"
+  [[var.field]]
+  name = "member_row_chosen"
+  offset = 2
+  size = 2
+  meaning = "The same: the row the cursor is on, which keeps its colours"
+  [[var.field]]
+  name = "member_row_place"
+  offset = 4
+  size = 2
+  meaning = "The same: where in the tilemap buffer the row it colours starts, a row past the last when done"
+  [[var.field]]
+  name = "member_row_colour"
+  offset = 6
+  size = 2
+  meaning = "The same: the tiles across a row it colours (low byte) and the colour it gives them (high byte), the last row's left"
+  [[var.field]]
+  name = "portrait_attribute"
+  offset = 1
+  meaning = "A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte"
+  [[var.field]]
   name = "graphics_tiles"
   offset = 2
   size = 2
@@ -6437,28 +6461,331 @@ meaning = "Where the load screen draws the era label's tiles in its tilemap: two
 source = "game/menu/save_screen.c, menu_show_save_slot $C2:E743, menu_draw_save_slot $C2:D36C ($C2:FB97 draws them)"
 
 [[var]]
-name = "menu_status_record_head"
+name = "menu_status_record"
 addr = "7E:9A90"
-size = 9
+stride = 0x50
 subsystem = "menu"
-meaning = "The character record a status window draws ($C2:ED31's command lists read it): its first nine bytes, the character in the first's low bits. Its fields aren't named yet"
-source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; $C2:A1EF"
+meaning = "The record of the character a status window draws ($C2:ED31's command lists read it): a copy of the character's record (character_records), or on the load screen what a save's summary has of it"
+source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; game/menu/members.c, a member's loading $C2:8820"
+  [[var.field]]
+  name = "bytes"
+  offset = 0
+  size = 0x50
+  meaning = "The record a byte at a time, by the character record's offsets"
+  [[var.field]]
+  name = "head"
+  offset = 0
+  size = 9
+  meaning = "Its first nine bytes, which a save's summary fills"
+  [[var.field]]
+  name = "character"
+  offset = 0
+  meaning = "The character, in the low three bits"
+  [[var.field]]
+  name = "hp"
+  offset = 3
+  size = 2
+  meaning = "The character's HP"
+  [[var.field]]
+  name = "last"
+  offset = 0x12
+  size = 2
+  meaning = "The last byte a save's summary has of the record, as a word with the byte after it"
 
 [[var]]
 name = "menu_status_record_tail"
 addr = "7E:9AE0"
 size = 6
 subsystem = "menu"
-meaning = "The same record's next six bytes"
+meaning = "The six bytes after the record: on the load screen the summary's, for a party member the character's name record (character_names)"
 source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
 
 [[var]]
-name = "menu_status_record_last"
-addr = "7E:9AA2"
+name = "menu_member_record_at"
+addr = "7E:006F"
+page = "menu"
 size = 2
 subsystem = "menu"
-meaning = "The same record's last byte, as a word with the byte after it"
-source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+meaning = "Where in work RAM the record of the member the menus loaded last is (character_records), which a screen that changes the member writes the change back to"
+source = "game/menu/members.c, a member's loading $C2:8820"
+
+[[var]]
+name = "menu_member_waiting"
+addr = "7E:0078"
+page = "menu"
+subsystem = "menu"
+meaning = "$FF when the member the menus loaded last is one of the waiting ones (past the active members), 0 when it is active"
+source = "game/menu/members.c, a member's loading $C2:8820"
+
+[[var]]
+name = "menu_equip_slot"
+addr = "7E:0077"
+page = "menu"
+subsystem = "menu"
+meaning = "The equipment screen's slot: 0 the weapon, 1 the helmet, 2 the armor, 3 the accessory, as the slots are laid out down the screen ($C2:A38B sets it from the cursor)"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_member_pointed"
+addr = "7E:0083"
+page = "menu"
+subsystem = "menu"
+meaning = "The member the equipment screen's member list pointed at last, which it compares with to tick the cursor's sound when it points at another"
+source = "game/menu/equipment.c, the member list's move $C2:9D17"
+
+[[var]]
+name = "menu_equip_shown"
+addr = "7E:0084"
+page = "menu"
+subsystem = "menu"
+meaning = "The slot and member (their sum) the equipment screen's list of what fits was drawn for last; $FF has it drawn again"
+source = "game/menu/equipment.c, the slots' step $C2:9ECD"
+
+[[var]]
+name = "menu_members_reachable"
+addr = "7E:0085"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "How many of the party's members the menus' screens let the player choose among: the active ones, or all of them once the story lets the party be switched ($FF:F813, which clears the high byte)"
+source = "the save code's list $FF:F813; game/menu/members.c"
+
+[[var]]
+name = "menu_member_row"
+addr = "7E:0412"
+subsystem = "menu"
+meaning = "Which of the three rows of a member list the cursor is on (the member is it plus menu_member_scroll)"
+source = "game/menu/members.c, game/menu/equipment.c"
+
+[[var]]
+name = "menu_member_scroll"
+addr = "7E:0413"
+subsystem = "menu"
+meaning = "The first member a member list shows: the list shows three at a time and scrolls through the reachable members"
+source = "game/menu/members.c, game/menu/equipment.c"
+
+[[var]]
+name = "menu_member_scroll_most"
+addr = "7E:0FC4"
+subsystem = "menu"
+meaning = "The furthest a member list scrolls: the reachable members past three, 0 with three or fewer"
+source = "game/menu/equipment.c, the main menu's equipment panel $C2:A051"
+
+[[var]]
+name = "menu_equip_kept_slot"
+addr = "7E:0FC5"
+subsystem = "menu"
+meaning = "The equipment screen's slot the cursor was on, kept while the list of what fits is chosen from, and put back after"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_equip_choices"
+addr = "7E:0FC6"
+subsystem = "menu"
+meaning = "How many items the equipment screen's list for the slot offers ($C2:8953 counts them); 0 when nothing fits, and choosing the slot is refused"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_equip_list_top"
+addr = "7E:0FC8"
+subsystem = "menu"
+meaning = "The first of the equipment screen's list's items it shows"
+source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_equip_record_place"
+addr = "7E:0D26"
+size = 2
+subsystem = "menu"
+meaning = "Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the armor, $29 the weapon, $2A the accessory, set by $C2:A4AF)"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_low_hp_marks"
+addr = "7E:0D38"
+size = 2
+count = 7
+index = "character"
+subsystem = "menu"
+meaning = "Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member row draws the member's HP marked once it is down to that ($C2:A1EF)"
+source = "the menus' opening $C2:813C; game/menu/members.c"
+
+[[var]]
+name = "menu_member_face"
+addr = "7E:0D4D"
+size = 2
+subsystem = "menu"
+meaning = "The character whose face and name a member row's window list draws, in the low bits, with bit 5 set ($C2:A1EF)"
+source = "game/menu/members.c, a member row $C2:A1EF"
+
+[[var]]
+name = "menu_member_marked_high"
+addr = "7E:0D5E"
+subsystem = "menu"
+meaning = "The byte after menu_member_marked, which a member row clears with it, writing the mark a word wide"
+source = "game/menu/members.c, a member row $C2:A1EF"
+
+[[var]]
+name = "menu_scroll_step"
+addr = "7E:0D22"
+size = 2
+subsystem = "menu"
+meaning = "How far a list moves each frame while it slides a row along (signed: 4 lines down, -4 up), 0 at rest; the item lists' slide frame ($C2:EB1F) and the rows' move after it ($C2:9FDE) read its sign from the low byte"
+source = "game/menu/equipment.c, the member list's slide $C2:9DAF and the list's move $C2:9F05"
+
+[[var]]
+name = "menu_scroll_frames"
+addr = "7E:0D24"
+size = 2
+subsystem = "menu"
+meaning = "The frames a list's slide has left"
+source = "game/menu/equipment.c, the member list's slide $C2:9DAF and the list's move $C2:9F05"
+
+[[var]]
+name = "menu_scroll_moved"
+addr = "7E:0DAB"
+size = 2
+subsystem = "menu"
+meaning = "How far a list's slide has moved so far (its steps summed), which the item lists' slide frame ($C2:EB1F) moves the rows' lines by"
+source = "game/menu/equipment.c, the member list's slide $C2:9DAF and the list's move $C2:9F05"
+
+[[var]]
+name = "menu_scroll_bar"
+addr = "7E:0D92"
+stride = 9
+subsystem = "menu"
+meaning = "The scroll bar beside a list that scrolls, which its task ($C2:8BB8) draws as a sprite"
+source = "game/menu/equipment.c; the member list's bar $C2:A170"
+  [[var.field]]
+  name = "place"
+  offset = 0
+  size = 2
+  meaning = "Where the bar is on the screen"
+  [[var.field]]
+  name = "span"
+  offset = 2
+  meaning = "The lines the bar's thumb travels over the whole list"
+  [[var.field]]
+  name = "thumb"
+  offset = 3
+  meaning = "The thumb's place along the bar, in lines"
+  [[var.field]]
+  name = "thumb_word"
+  offset = 3
+  size = 2
+  meaning = "The same as a word with the byte after it, as a sliding list moves the thumb a line a frame"
+  [[var.field]]
+  name = "step"
+  offset = 6
+  size = 2
+  meaning = "The thumb's move a row of the list"
+  [[var.field]]
+  name = "hidden"
+  offset = 8
+  meaning = "Nonzero while the bar is hidden"
+
+[[var]]
+name = "menu_item_operand"
+addr = "7E:04C9"
+subsystem = "menu"
+meaning = "The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of ($C2:A59A); a list's row on the screen while it slides"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_item_operand_count"
+addr = "7E:04CA"
+subsystem = "menu"
+meaning = "How many of menu_item_operand the party has, as a list's row shows it"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_item_operand_quantity"
+addr = "7E:04CB"
+subsystem = "menu"
+meaning = "How many of menu_item_operand the inventory's routines add or take"
+source = "game/menu/equipment.c"
+
+[[var]]
+name = "menu_slide_line"
+addr = "7E:0022"
+reuses = "menu_opening_records_loaded"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the rows' per-line table each frame, moving by menu_scroll_step"
+source = "game/menu/equipment.c, the member list's slide $C2:9D5B, $C2:9DAF"
+
+[[var]]
+name = "menu_slide_copy"
+addr = "7E:0026"
+reuses = "menu_save_era_width"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "Where the member list's slide copies its rows to (a window command's place: the column in the low byte, the row in the high), out of sight below the list's place on the tilemap"
+source = "game/menu/equipment.c, the member list's slide $C2:9D5B, $C2:9DAF"
+
+[[var]]
+name = "menu_row_line_values"
+addr = "7E:5D42"
+size = 2
+count = 12
+index = "band of lines"
+subsystem = "menu"
+meaning = "The member list's per-line table's values, a word a band of lines: the line its rows are shown from, which the member list's slide moves each frame and sets back to $61FF after"
+source = "game/menu/equipment.c, the member list's slide $C2:9DAF; the main menu's equipment panel $C2:A051"
+
+[[var]]
+name = "menu_row_other_line_values"
+addr = "7E:5DC2"
+size = 2
+count = 12
+index = "band of lines"
+subsystem = "menu"
+meaning = "A second per-line table's values beside menu_row_line_values, which the main menu's equipment panel fills with $61FF too"
+source = "game/menu/equipment.c, the main menu's equipment panel $C2:A051"
+
+[[var]]
+name = "menu_list_items"
+addr = "7E:0F00"
+reuses = ["menu_kept_cursor", "menu_gate_screen_state"]
+count = 98
+index = "row of the list"
+subsystem = "menu"
+meaning = "A list of items a screen offers (the equipment screen's: what fits the slot), an item a row"
+source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_list_item_counts"
+addr = "7E:0F62"
+count = 98
+index = "row of the list"
+subsystem = "menu"
+meaning = "How many of each of menu_list_items' items the party has"
+source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_slide_rows"
+addr = "7E:0DAA"
+subsystem = "menu"
+meaning = "The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over"
+source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_paging_top"
+addr = "7E:0DD9"
+subsystem = "menu"
+meaning = "A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page on or back"
+source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_equip_list_rows"
+addr = "7E:4F80"
+reuses = ["menu_era_label_tiles", "menu_carry_on_question"]
+size = 0x480
+subsystem = "menu"
+meaning = "The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows apart, and the row past the last where a slide draws the row coming in"
+source = "game/menu/equipment.c, the list's rows moved $C2:9FDE"
 
 [[var]]
 name = "menu_save_summary"
@@ -8130,10 +8457,10 @@ name = "character_names"
 addr = "7E:2C23"
 count = 7
 stride = 6
-size = 5
+size = 6
 index = "character"
 subsystem = "core"
-meaning = "The characters' names, five name characters in each 6-byte record; the battle converts them to tiles"
+meaning = "The characters' names, five name characters and the byte after them in each 6-byte record; the battle converts them to tiles, and the menus copy a member's whole record after its status record ($C2:8839)"
 source = "game/battle/setup_names.c setup_copy_character_names and setup_party.c setup_party_slots in battle_setup_state $CC:E2E4 (seven records, a party member's picked through $CC:F846 by character)"
 
 # ---- battle direct page (D = $0000) -------------------------------------------

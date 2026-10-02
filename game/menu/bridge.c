@@ -49,7 +49,7 @@ bool menu_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care
     return menu_back(s, site + MENU_JSL_SIZE, m);
 }
 
-bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+static bool run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *), bool any_widths)
 {
     MenuMachine m = menu_machine_now(s);
     uint16_t stack = stack_pointer(s);
@@ -59,7 +59,18 @@ bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
     s->cpu.pc = (uint16_t)routine;
     NATIVE_TIME_AS(s, routine, entry(s));
     bool returned = stack_pointer(s) == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+    if (any_widths) {
+        m.a8 = m_m8(s);
+        m.x8 = m_x8(s);
+    }
     return returned && menu_back(s, returns_to, m);
+}
+
+bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *)) { return run(s, site, routine, entry, false); }
+
+bool menu_run_any_widths(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *))
+{
+    return run(s, site, routine, entry, true);
 }
 
 void menu_set_widths(Snes *s, bool a8, bool x8)

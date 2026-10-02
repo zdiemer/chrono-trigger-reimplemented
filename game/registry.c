@@ -44,7 +44,9 @@
 #include "menu/cursor.h"
 #include "menu/display.h"
 #include "menu/epoch.h"
+#include "menu/equipment.h"
 #include "menu/map.h"
+#include "menu/members.h"
 #include "menu/line_effects.h"
 #include "menu/load_screen.h"
 #include "menu/object_commands.h"
@@ -2012,7 +2014,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2EC38, .name = "menu_draw_large_portrait", .fn = menu_draw_large_portrait, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 2882, .dont_care = DC_A | DC_X | DC_Y, .guard = menu_large_portrait_is_drawable },
     { .addr = 0xC2EC93, .name = "menu_recolour_rows", .fn = menu_recolour_rows, .p_mask = CPU_FLAG_D, .p_value = 0,
-      .cost_milli = 10176, .dont_care = DC_X | DC_Y, .guard = menu_rows_are_colourable },
+      .cost_milli = 11533, .dont_care = DC_X | DC_Y, .guard = menu_rows_are_colourable },
     { .addr = 0xC2ECAC, .name = "menu_set_row_pair_attribute", .fn = menu_set_row_pair_attribute, .cost_milli = 7033,
       .dont_care = DC_AL | DC_X | DC_Y, .guard = menu_row_pair_is_colourable },
     { .addr = 0xC2ECDB, .name = "menu_window_in_design", .fn = menu_window_in_design, .p_mask = CPU_FLAG_D,
@@ -2054,7 +2056,7 @@ const NativeEntry game_natives[] = {
       .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D, .p_value = CPU_FLAG_M | CPU_FLAG_X, .cost_milli = 3038,
       .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_sounds_on_page },
     { .addr = 0xC2EAC2, .name = "menu_play_cursor_sound", .fn = menu_play_cursor_sound, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 2996, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_sounds_on_page },
+      .p_value = 0, .cost_milli = 3008, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_sounds_on_page },
     { .addr = 0xC2EACC, .name = "menu_play_refusal_sound", .fn = menu_play_refusal_sound, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 2996, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_sounds_on_page },
@@ -2124,6 +2126,58 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2D32C, .name = "menu_draw_slot_window", .fn = menu_draw_slot_window, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 22112, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_slot_window_is_drawable },
+    /* the member list and the card (game/menu/members.c) */
+    { .addr = 0xC28820, .name = "menu_load_member", .fn = menu_load_member_entry, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 3243,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_is_loadable },
+    { .addr = 0xC2A1EF, .name = "menu_note_member_face", .fn = menu_note_member_face, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 4705,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_face_is_noteable },
+    { .addr = 0xC2A216, .name = "menu_draw_member_row", .fn = menu_draw_member_row_entry, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 139021,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_row_is_drawable },
+    { .addr = 0xC2A1E9, .name = "menu_draw_empty_member_row", .fn = menu_draw_empty_member_row, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_empty_member_row_is_drawable },
+    { .addr = 0xC2A1B2, .name = "menu_draw_member_rows", .fn = menu_draw_member_rows_entry, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 30299,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_rows_are_drawable },
+    { .addr = 0xC29E76, .name = "menu_colour_member_rows", .fn = menu_colour_member_rows_entry, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 41312,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_rows_are_colourable },
+    { .addr = 0xC29EB0, .name = "menu_colour_member_row", .fn = menu_colour_member_row_entry, NEEDS_M16_X16_BINARY, .cost_milli = 11660,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_row_is_colourable },
+    { .addr = 0xC2A273, .name = "menu_show_member_element", .fn = menu_show_member_element, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 2582,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_element_is_showable },
+    { .addr = 0xC2A22F, .name = "menu_draw_member_card", .fn = menu_draw_member_card, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 42837,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_card_is_drawable },
+    { .addr = 0xC2A21F, .name = "menu_redraw_member_card", .fn = menu_redraw_member_card, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_card_is_drawable },
+    /* the equipment screen and the main menu's panel for it (game/menu/equipment_bridge.c) */
+    { .addr = 0xC29C31, .name = "menu_open_equipment", .fn = menu_open_equipment, NEEDS_M8_X16_BINARY, .cost_milli = 2714,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_opens },
+    { .addr = 0xC2A11A, .name = "menu_set_up_equipment", .fn = menu_set_up_equipment, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 18196,
+      .dont_care = 0, .guard = menu_equipment_sets_up },
+    { .addr = 0xC29C39, .name = "menu_choose_equipment_member", .fn = menu_choose_equipment_member, NEEDS_M8_X16_BINARY, .cost_milli = 5919,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_member_step_runs },
+    { .addr = 0xC29D17, .name = "menu_point_at_equipment_member", .fn = menu_point_at_equipment_member, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 6307,
+      .dont_care = 0, .guard = menu_equipment_member_is_pointable },
+    { .addr = 0xC29DAF, .name = "menu_slide_equipment_members", .fn = menu_slide_equipment_members, NEEDS_M16_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_members_slide },
+    { .addr = 0xC29C70, .name = "menu_choose_equipment_slot", .fn = menu_choose_equipment_slot, NEEDS_M8_X16_BINARY, .cost_milli = 5922,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_slot_step_runs },
+    { .addr = 0xC29ECD, .name = "menu_point_at_equipment_slot", .fn = menu_point_at_equipment_slot, NEEDS_M8_X16_BINARY, .cost_milli = 3597,
+      .dont_care = 0, .guard = menu_equipment_slot_is_pointable },
+    { .addr = 0xC2A00B, .name = "menu_switch_equipment_member", .fn = menu_switch_equipment_member, NEEDS_M8_X16_BINARY, .cost_milli = 3214,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_member_switches },
+    { .addr = 0xC29CA5, .name = "menu_choose_equipment_item", .fn = menu_choose_equipment_item, NEEDS_M8_X16_BINARY, .cost_milli = 3564,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_item_step_runs },
+    { .addr = 0xC29F05, .name = "menu_point_along_equipment_list", .fn = menu_point_along_equipment_list, NEEDS_M8_X16_BINARY, .cost_milli = 3438,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_list_is_pointable },
+    { .addr = 0xC29FDE, .name = "menu_move_equipment_list_rows", .fn = menu_move_equipment_list_rows, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_list_rows_move },
+    { .addr = 0xC29CFC, .name = "menu_forget_weapon", .fn = menu_forget_weapon, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5983,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_weapon_is_forgettable },
+    { .addr = 0xC2A051, .name = "menu_show_equipment_panel", .fn = menu_show_equipment_panel, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_equipment_panel_shows },
+    { .addr = 0xC2A0E7, .name = "menu_dim_panel_colours", .fn = menu_dim_panel_colours, NEEDS_M16_X16, .cost_milli = 6099,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_panel_colours_dim },
+    { .addr = 0xC2A101, .name = "menu_show_panel_colours", .fn = menu_show_panel_colours, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3379,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_panel_colours_show },
     /* menu object scripts: starting an object, and the command handlers at $C2:0F91's
      * table (game/menu/object_script.c, tools/disasm/objscript.py) */
     { .addr = 0xC2048A, .name = "menu_object_spawn", .fn = menu_object_spawn,

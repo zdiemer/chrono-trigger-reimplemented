@@ -27,6 +27,26 @@ typedef struct {
  * the menus' tilemaps, from the drawing origin it sets. */
 void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list);
 
+/* Whether the list can be drawn from the drawing origin as it is: its
+ * commands whole, in the tilemap buffers, and its strings convertible (for a
+ * port's guard, before it draws the list as C). */
+bool menu_window_list_drawable(const GameState *g, uint16_t list);
+bool menu_window_list_drawable_from(const GameState *g, uint16_t list, uint16_t origin);
+
+/* A tile's place as the lists give it: its column (0-31) and row from the
+ * drawing origin. */
+typedef struct {
+    uint8_t column, row;
+} MenuTilePlace;
+
+/* A rectangle of tiles `size` big copied from one place to another, a row at
+ * a time and each row from its left (a rectangle copied over itself reads
+ * what it has already written), as a list's copy command does; and whether
+ * it stays in the tilemap buffers from the drawing origin `origin`. */
+void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, MenuWindowSize size);
+bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTilePlace from, MenuTilePlace to,
+                                  MenuWindowSize size);
+
 /* A window in `style` at `at` in bank $7E: its frame, and its inside. */
 void menu_draw_window_frame(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style);
 void menu_fill_window_inside(GameState *g, uint16_t at, MenuWindowSize size, MenuWindowStyle style);

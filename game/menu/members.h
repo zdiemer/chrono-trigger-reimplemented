@@ -1,0 +1,86 @@
+/* The party's members as the menus' screens list them (game/menu/members.c):
+ * a member's record loaded where the status windows draw it from, the member
+ * list down a screen's left side, and the chosen member's card beside it. */
+#ifndef CT_GAME_MENU_MEMBERS_H
+#define CT_GAME_MENU_MEMBERS_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "platform/video.h"
+#include "snes/system.h"
+#include "state.h"
+
+/* The list shows three members at a time. */
+enum { MENU_MEMBER_ROWS = 3 };
+
+/* Load the member at `member` in the menus' list of the party into the status
+ * record the windows draw from (menu_status_record): false, with nothing
+ * loaded, for a place past the last member. */
+bool menu_load_member(GameState *g, uint8_t member);
+
+/* The member the list's cursor is on: its row plus how far the list has
+ * scrolled. */
+uint8_t menu_member_on_the_cursor(const GameState *g);
+
+/* The loaded member's row of the list, drawn from the drawing origin; and
+ * every row the list shows, from its first member. */
+void menu_draw_member_row(GameState *g, Platform *pf);
+void menu_draw_member_rows(GameState *g, Platform *pf);
+
+/* The list's rows coloured: the cursor's row keeps its colours and the
+ * others are dimmed. A row coloured on its own, at `at` (its first tile on
+ * the list's front layer), in the colour of the cursor's row or dimmed. */
+void menu_colour_member_rows(GameState *g);
+void menu_colour_member_row(GameState *g, uint16_t at, bool dimmed);
+/* What the original's colouring of a row on its own leaves in the menus'
+ * cells (scaffolding: ORIGINAL_EFFECT). */
+void menu_leave_member_row_coloured(GameState *g, uint16_t at, bool dimmed);
+
+/* The card's parts on either side of the original's figures and stats,
+ * which the card's bridge calls out to between them: the time played and the
+ * member on the cursor loaded; then the card's window, and after the stats
+ * the large portrait and the member's element. */
+void menu_start_member_card(GameState *g);
+void menu_draw_member_card_window(GameState *g, Platform *pf);
+void menu_finish_member_card(GameState *g);
+
+/* Whether a place of the list loads a character or is past the last member;
+ * whether the card can be drawn for the member on the cursor (or another),
+ * and the list's rows from its first (or another): every member they load is
+ * a character or the end of the list. For the guards of the screens that
+ * draw them. */
+bool menu_member_can_be_loaded(const GameState *g, uint8_t member);
+bool menu_member_card_can_be_drawn(const GameState *g);
+bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member);
+bool menu_member_rows_can_be_drawn(const GameState *g);
+bool menu_member_rows_can_be_drawn_from(const GameState *g, uint8_t first);
+
+/* What the rows' colouring leaves in the registers, its upload queued last,
+ * for a bridge that coloured them as C and goes on to a call that sees them
+ * (scaffolding: ORIGINAL_EFFECT). */
+void menu_leave_member_rows_coloured(Snes *s);
+
+/* The entries (game/registry.c). */
+void menu_load_member_entry(Snes *s);
+void menu_note_member_face(Snes *s);
+void menu_draw_member_row_entry(Snes *s);
+void menu_draw_empty_member_row(Snes *s);
+void menu_draw_member_rows_entry(Snes *s);
+void menu_colour_member_rows_entry(Snes *s);
+void menu_colour_member_row_entry(Snes *s);
+void menu_show_member_element(Snes *s);
+void menu_draw_member_card(Snes *s);
+void menu_redraw_member_card(Snes *s);
+
+bool menu_member_is_loadable(Snes *s);
+bool menu_member_face_is_noteable(Snes *s);
+bool menu_member_row_is_drawable(Snes *s);
+bool menu_empty_member_row_is_drawable(Snes *s);
+bool menu_member_rows_are_drawable(Snes *s);
+bool menu_member_rows_are_colourable(Snes *s);
+bool menu_member_row_is_colourable(Snes *s);
+bool menu_member_element_is_showable(Snes *s);
+bool menu_member_card_is_drawable(Snes *s);
+
+#endif

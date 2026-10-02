@@ -36,11 +36,8 @@
 
 /* ---- Places ---------------------------------------------------------------------------------- */
 
-/* A tile's place in a command: its column (0-31) and row from the drawing
- * origin. */
-typedef struct {
-    uint8_t column, row;
-} TilePlace;
+/* A tile's place in a command (windows.h). */
+typedef MenuTilePlace TilePlace;
 
 enum { COLUMN_BITS = 0x1F };
 
@@ -607,6 +604,22 @@ void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list)
     }
 }
 
+/* ---- The language's operations, for a screen that runs one itself ------------------------------- */
+
+static Operands copy_operands(MenuTilePlace from, MenuTilePlace to, MenuWindowSize size)
+{
+    return (Operands){ { from.column, from.row, to.column, to.row, size.columns, size.rows } };
+}
+
+enum { COPY_AREA_COMMAND = 0x02 };
+
+void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, MenuWindowSize size)
+{
+    Operands o = copy_operands(from, to, size);
+    TIMED_AS(g, LANGUAGE[COPY_AREA_COMMAND / 2].timed_as, copy_area(g, from, to, size.columns, size.rows));
+    ORIGINAL_EFFECT(leave_command(g, COPY_AREA_COMMAND, &o));
+}
+
 /* ---- Where a list may draw ---------------------------------------------------------------------- */
 
 /* The menus draw above low RAM, where their cells and the tasks' stacks are,
@@ -680,9 +693,8 @@ static bool strings_convert_from_one(const GameState *g) { return menu_zero(g) =
  * is by then, and an end within the bank and a sensible length. */
 enum { MOST_COMMANDS = 128 };
 
-static bool list_is_drawable(const GameState *g, uint16_t list)
+static bool list_is_drawable_from(const GameState *g, uint16_t list, uint16_t origin)
 {
-    uint16_t origin = menu_draw_origin(g);
     uint32_t at = list;
     for (unsigned n = 0; n < MOST_COMMANDS && at < BANK_END; n++) {
         uint8_t command = menu_window_byte(g, (uint16_t)at);
@@ -699,6 +711,21 @@ static bool list_is_drawable(const GameState *g, uint16_t list)
         at += 1u + LANGUAGE[command / 2].operands;
     }
     return false;
+}
+
+static bool list_is_drawable(const GameState *g, uint16_t list) { return list_is_drawable_from(g, list, menu_draw_origin(g)); }
+
+bool menu_window_list_drawable(const GameState *g, uint16_t list) { return list_is_drawable(g, list); }
+bool menu_window_list_drawable_from(const GameState *g, uint16_t list, uint16_t origin)
+{
+    return list_is_drawable_from(g, list, origin);
+}
+
+bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTilePlace from, MenuTilePlace to,
+                                  MenuWindowSize size)
+{
+    Operands o = copy_operands(from, to, size);
+    return command_is_drawable(g, COPY_AREA_COMMAND, &o, origin);
 }
 
 /* ---- The entries -------------------------------------------------------------------------------- */
