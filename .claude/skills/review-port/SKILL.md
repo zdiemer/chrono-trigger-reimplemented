@@ -839,6 +839,11 @@ Each of these is a finding. Every example here comes from this repo.
      port's `ORIGINAL_EFFECT` leave writes at its offset (`LEFT_WAY_BACK`):
      the native shape then reads it stale. Check every leave's offset against
      the map's named cells; a candidate for `tools/effects_check.py`.
+115. **A register leftover made into vocabulary.** A logic header exporting a
+     query whose answer is only what a register held when the original
+     returned (`menu_equip_item_described_on_opening`, X left pointing at a
+     place): it is a register derivation and belongs in the subsystem's
+     leaves, worked out from the state, not named as a game concept.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
