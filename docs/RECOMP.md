@@ -3250,8 +3250,11 @@ What it is, in the game's terms:
 **The third trap, settled first.** `tools/v_readers.py` found V dead into the
 steps (`$C1:0003`), the called-off step (`$C1:B961`), the attack (`$C1:BFAA`)
 and the reactions' finding (`$C1:B488`), and after every routine the main loop
-called. The steps' V rests on the static result and a library run poisoning it
-at their six sites (the notes in `party_turns.c` and `member_turn.c`). Where
+called. The library reaches the steps' sites too seldom for a run there to
+count (19 calls at the most), so each step's V rests on a `ct_fuzz
+--poison-dc` run of its routine, the called-off step's with A's high byte
+clear as its callers leave it: random high bytes send the step's dispatch
+where V is read (the notes in `party_turns.c` and `member_turn.c`). Where
 the main loop's next call-out reads A's high byte after a routine that is now
 C, the loop clears it as the original's code there does (the victory's step,
 the running away's message, the field's return).

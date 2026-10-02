@@ -43,24 +43,20 @@
 #include "port/native.h"
 #include "vars.h"
 
-/* The battle's steps read A alone. */
+/* The battle's steps read A alone: the overflow flag they save with the flags
+ * across their frame waits is read by nothing after (tools/v_readers.py
+ * C1:0003), which each call's dc-evidence shows over the states its routine
+ * is fuzzed with. */
 enum { STEP_READS_A = DC_X | DC_Y | DC_FLAGS };
 
-/* The battle's step `number`, from the JSR at `site`; A's high byte is clear
- * where the original's code before it leaves it so. */
-static bool step(Snes *s, uint32_t site, BattleStep number, bool a_high_clear)
+/* The step's number in A; its high byte clear where the original's code
+ * before it leaves it so. */
+static void give_step(Snes *s, BattleStep number, bool a_high_clear)
 {
     if (a_high_clear)
         s->cpu.a = number;
     else
         m_set_a8(s, number);
-    /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after (dc-evidence: tools/v_readers.py C1:0003: V
-     * dead, its tables' indexes at most $FE (A's high byte known clear, on the
-     * battle's direct page $0000); ct_dev --poison-set V at each site over the
-     * library, calls with V inverted: C1B43B 0, C1B7D7 0, C1B7F7 0, C1B800 0,
-     * C1B809 0; 0 differing; a site under 100 rests on the static result) */
-    return battle_call(s, site, BATTLE_STEP, STEP_READS_A);
 }
 
 /* The member a step is about, in the cell the steps read it from. */
@@ -163,7 +159,10 @@ static bool cancel_if_unable(Snes *s, uint8_t member)
     set_battle_low_scratch(g, BATTLE_ITEM_RETURNING_FOR_AT + 1, 0);
     set_battle_timer_flags_byte(g, BATTLE_TIMER_TURN, member, 0);
     set_battle_member_actions_state(g, member, 0);
-    if (!step(s, 0xC1B43B, BATTLE_STEP_CALLED_OFF, true))
+    give_step(s, BATTLE_STEP_CALLED_OFF, true);
+    /* dc-evidence: ct_fuzz --poison-dc battle_cancel_if_unable, seed 1: 5000
+     * states, 4904 call-outs scrambled, 0 mismatched */
+    if (!battle_call(s, 0xC1B43B, BATTLE_STEP, STEP_READS_A))
         return false;
     TIMED_AS(g, 0xC1B6D1, battle_return_chosen_item(g, member));
     return true;
@@ -358,8 +357,13 @@ static bool see_to_knocked_out(Snes *s)
             count_beaten_now(g, slot - BATTLE_FIRST_ENEMY);
     }
     set_battle_reaction_entry(g, BATTLE_ENEMIES);
-    if (battle_enemy_beaten_any(g) && !battle_is_demo(g) && !step(s, 0xC1B7D7, BATTLE_STEP_ENEMIES_BEATEN, true))
-        return false;
+    if (battle_enemy_beaten_any(g) && !battle_is_demo(g)) {
+        give_step(s, BATTLE_STEP_ENEMIES_BEATEN, true);
+        /* dc-evidence: ct_fuzz --poison-dc battle_see_to_knocked_out_enemies:knocked_out, seed 1:
+         * 5000 states, 4954 call-outs scrambled, 0 mismatched */
+        if (!battle_call(s, 0xC1B7D7, BATTLE_STEP, STEP_READS_A))
+            return false;
+    }
     uint8_t any = 0;
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++) {
         uint8_t beaten = battle_enemy_beaten_before(g, enemy);
@@ -422,7 +426,10 @@ static bool stand_down(Snes *s)
 {
     for (uint8_t member = 0; member < BATTLE_PARTY_SIZE; member++) {
         set_step_member(state_of(s), member);
-        if (!step(s, stand_down_sites[member], BATTLE_STEP_CALLED_OFF, member == 0))
+        give_step(s, BATTLE_STEP_CALLED_OFF, member == 0);
+        /* dc-evidence: ct_fuzz --poison-dc battle_party_stands_down, seed 1: 5000
+         * states, 15000 call-outs scrambled, 0 mismatched */
+        if (!battle_call(s, stand_down_sites[member], BATTLE_STEP, STEP_READS_A))
             return false;
     }
     return true;

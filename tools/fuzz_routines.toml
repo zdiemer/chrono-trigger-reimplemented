@@ -10893,9 +10893,9 @@ why = "a party member's turn ending, with partners in the party's places or none
 name = "battle_member_called_off_step"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E"]
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
 iterations = 5000
-why = "the battle's step for a called-off action, from any state"
+why = "the step called off, A's high byte clear as its callers leave it (the step indexes its tables with the whole of A)"
 
 [[routine]]
 name = "battle_members_wait_after_tech"
@@ -12970,3 +12970,12 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EAD8E-7EAD8E=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A"]
 iterations = 5000
 why = "as battle_member_attacks, called long"
+
+[[routine]]
+name = "battle_see_to_knocked_out_enemies"
+variant = "knocked_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3AC-7EB3B3=03,04,05,06,07,08,09,0A", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAE85-7EAE8C=00", "--fill", "7EAF15-7EAF1C=00", "--fill", "7E2989-7E2989=00"]
+iterations = 5000
+why = "every target an enemy out of the fight and not yet counted beaten, outside a demo: the step that shows them beaten runs (its dc-evidence)"

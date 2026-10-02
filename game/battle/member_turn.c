@@ -662,10 +662,9 @@ void battle_member_called_off_step(Snes *s)
 {
     m_set_a8(s, BATTLE_STEP_CALLED_OFF);
     /* the overflow flag the step saves with the flags across its frame waits
-     * is read by nothing after (dc-evidence: tools/v_readers.py C1:0003: V
-     * dead, its tables' indexes at most $FE (A's high byte known clear, on the
-     * battle's direct page $0000); ct_dev --poison-set V at each site over the
-     * library, calls with V inverted: C1B963 0; 0 differing) */
+     * is read by nothing after (tools/v_readers.py C1:0003). dc-evidence:
+     * ct_fuzz --poison-dc battle_member_called_off_step, seed 1: 5000 states,
+     * 5000 call-outs scrambled, 0 mismatched */
     if (battle_call(s, 0xC1B963, BATTLE_STEP, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         m_rtl(s);
 }
