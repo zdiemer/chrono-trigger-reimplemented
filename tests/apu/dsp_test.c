@@ -1,11 +1,14 @@
 /* Unit checks for the S-DSP (runtime/apu/dsp.c): the envelope/noise rate
  * counter, BRR decoding, and the key-on, envelope, ENDX and echo timing of a
- * voice. Prints failures and exits nonzero if any. */
+ * voice; and the native mixer (runtime/platform/native/mixer.c) against it,
+ * frame for frame. Prints failures and exits nonzero if any. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "apu/dsp.h"
+#include "platform/native/mixer.h"
+#include "platform/voices_dsp.h"
 
 static int failures;
 
@@ -217,12 +220,175 @@ static void test_echo(void)
     CHECK(buf[0] == 0 && buf[2] == 0x1FC0, "take_samples returns oldest first");
 }
 
+/* ---- The native mixer against the S-DSP ---------------------------------------------------- */
+
+/* The voices played through both implementations at once (a pair): the
+ * S-DSP's registers (platform/voices_dsp.h) into an S-DSP over its sound
+ * memory, and the native mixer (platform/native/mixer.h). Random calls of
+ * every kind the driver makes, at random frames, over random BRR samples
+ * placed where the echo's buffer runs over some of them; every frame of the
+ * two outputs, and every voice's output level, must be the same. */
+typedef struct {
+    Dsp dsp;
+    uint8_t ram[0x10000];
+    VoicesDsp registers;
+    Mixer mixer;
+    AuVoicesPair both;
+    uint64_t rng;
+    long frame, echo_settled;   /* the echo's writes may come on again from echo_settled */
+} Pair;
+
+static uint8_t pair_read(void *ctx, uint8_t reg) { return dsp_read(&((Pair *)ctx)->dsp, reg); }
+static void pair_write(void *ctx, uint8_t reg, uint8_t value) { dsp_write(&((Pair *)ctx)->dsp, reg, value); }
+static void pair_memory_write(void *ctx, uint16_t at, uint8_t value) { ((Pair *)ctx)->ram[at] = value; }
+static uint8_t pair_memory_read(void *ctx, uint16_t at) { return ((Pair *)ctx)->ram[at]; }
+
+static uint32_t pair_next(Pair *p)
+{
+    p->rng ^= p->rng << 13;
+    p->rng ^= p->rng >> 7;
+    p->rng ^= p->rng << 17;
+    return (uint32_t)(p->rng >> 16);
+}
+static uint32_t pair_below(Pair *p, uint32_t n) { return pair_next(p) % n; }
+
+enum { SAMPLE_COUNT = 24, SAMPLE_BASE = 0x2400 };
+
+/* A random sample of 2-40 blocks, its last one ending or looping. */
+static uint16_t place_sample(Pair *p, AuVoices *v, uint8_t sample, uint16_t at)
+{
+    uint16_t blocks = (uint16_t)(2 + pair_below(p, 39));
+    bool loops = pair_below(p, 4) != 0;
+    for (uint16_t b = 0; b < blocks; b++) {
+        uint8_t header = (uint8_t)(pair_below(p, 13) << 4 | pair_below(p, 4) << 2);
+        if (pair_below(p, 50) == 0)
+            header = (uint8_t)(0xD0 | pair_below(p, 4) << 2);   /* the ranges past 12 */
+        if (b == blocks - 1)
+            header |= loops ? 3 : 1;
+        au_sample_memory_write(v, (uint16_t)(at + 9 * b), header);
+        for (int i = 1; i < 9; i++)
+            au_sample_memory_write(v, (uint16_t)(at + 9 * b + i), (uint8_t)pair_next(p));
+    }
+    au_sample_place(v, sample, at, (uint16_t)(at + 9 * pair_below(p, blocks)));
+    return (uint16_t)(at + 9 * blocks);
+}
+
+static void random_call(Pair *p, AuVoices *v)
+{
+    uint8_t voice = (uint8_t)pair_below(p, 8);
+    switch (pair_below(p, 24)) {
+    case 0: au_voice_sample(v, voice, (uint8_t)pair_below(p, SAMPLE_COUNT + 1)); break;
+    case 1: case 2: au_voice_pitch(v, voice, (uint16_t)pair_next(p)); break;
+    case 3: au_voice_volume(v, voice, (int8_t)pair_next(p), (int8_t)pair_next(p)); break;
+    case 4:
+        au_voice_envelope(v, voice, (AuEnvelope){ pair_below(p, 4) != 0, (uint8_t)pair_below(p, 16),
+                                                  (uint8_t)pair_below(p, 8), (uint8_t)pair_below(p, 8),
+                                                  (uint8_t)pair_below(p, 32) });
+        break;
+    case 5: au_voice_gain(v, voice, (AuGain){ (AuGainMode)pair_below(p, 5), (uint8_t)pair_next(p) }); break;
+    case 6: case 7: case 8: au_voices_key_on(v, (AuVoiceSet)pair_next(p)); break;
+    case 9: case 10: au_voices_key_off(v, (AuVoiceSet)(pair_below(p, 2) ? 0 : pair_next(p))); break;
+    case 11: au_master_volume(v, (int8_t)pair_next(p), (int8_t)pair_next(p)); break;
+    case 12: au_echo_volume(v, (int8_t)pair_next(p), (int8_t)pair_next(p)); break;
+    case 13: au_echo_feedback(v, (int8_t)pair_next(p)); break;
+    case 14: {
+        int8_t taps[8];
+        for (int t = 0; t < 8; t++)
+            taps[t] = (int8_t)pair_next(p);
+        au_echo_filter(v, taps);
+        break;
+    }
+    case 15:
+        /* as the driver changes it: with the writes off until the old
+         * buffer's time and the new one's have passed (platform/audio.h) */
+        au_echo_writes(v, false);
+        au_echo_delay(v, (uint8_t)pair_below(p, 16));
+        p->echo_settled = p->frame + 2 * 0x7800 / 4;
+        break;
+    case 16: au_echo_writes(v, p->frame >= p->echo_settled && pair_below(p, 3) != 0); break;
+    case 17: au_echo_voices(v, (AuVoiceSet)pair_next(p)); break;
+    case 18:
+        au_noise_clock(v, (uint8_t)pair_below(p, 32));
+        au_noise_voices(v, (AuVoiceSet)(pair_below(p, 3) ? 0 : pair_next(p)));
+        break;
+    case 19: au_pitch_modulation(v, (AuVoiceSet)pair_next(p)); break;
+    case 20: au_voices_hold(v, pair_below(p, 2)); break;
+    case 21: au_output_stopped(v, pair_below(p, 8) == 0); break;
+    case 22: au_sample_write(v, 0x10, (uint16_t)pair_below(p, 45), (uint8_t)pair_next(p)); break;
+    default: {
+        /* the escape, but for the registers the S-DSP reports through and
+         * the directory's page, which the mixer keeps where the original
+         * driver does (the game never moves it) */
+        uint8_t reg;
+        do
+            reg = (uint8_t)pair_below(p, 0x80);
+        while ((reg & 0x0F) == DSP_ENVX || (reg & 0x0F) == DSP_OUTX || reg == DSP_DIR || reg == DSP_ENDX);
+        au_voices_snes_register(v, reg, (uint8_t)pair_next(p));
+        break;
+    }
+    }
+}
+
+static void test_mixer(void)
+{
+    static Pair p;
+    for (uint64_t seed = 1; seed <= 6; seed++) {
+        memset(&p, 0, sizeof p);
+        p.rng = seed * 0x9E3779B97F4A7C15ull | 1;
+        dsp_init(&p.dsp);
+        mixer_init(&p.mixer);
+        voices_dsp_init(&p.registers, &p, pair_read, pair_write, pair_memory_write, pair_memory_read);
+        au_voices_pair(&p.both, &p.registers.voices, mixer_voices(&p.mixer));
+        AuVoices *v = &p.both.voices;
+
+        au_voices_start(v);
+        uint16_t at = SAMPLE_BASE;
+        for (uint8_t s = 0; s < SAMPLE_COUNT; s++)
+            at = place_sample(&p, v, s, at);
+        /* some samples under where the echo's longest buffers lie */
+        at = 0x9000;
+        for (uint8_t s = SAMPLE_COUNT - 4; s < SAMPLE_COUNT; s++)
+            at = place_sample(&p, v, s, at);
+        static const uint8_t own[45] = { 0xB3, 0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0 };
+        au_sample_define(v, 0x10, own, sizeof own, 0);
+        au_output_stopped(v, false);
+
+        long frames = 0, differ = 0, levels_differ = 0;
+        for (int burst = 0; burst < 1500; burst++) {
+            for (uint32_t calls = pair_below(&p, 6); calls; calls--)
+                random_call(&p, v);
+            for (uint32_t n = 1 + pair_below(&p, pair_below(&p, 8) ? 64 : 2000); n; n--, p.frame = ++frames) {
+                int16_t a[2], b[2];
+                dsp_sample(&p.dsp, p.ram);
+                dsp_take_samples(&p.dsp, a, 1);
+                mixer_frame(&p.mixer, b);
+                if (a[0] != b[0] || a[1] != b[1]) {
+                    if (!differ)
+                        printf("  seed %llu: the first difference at frame %ld: %d %d against %d %d\n",
+                               (unsigned long long)seed, frames, b[0], b[1], a[0], a[1]);
+                    differ++;
+                }
+            }
+            for (uint8_t n = 0; n < 8; n++)
+                levels_differ += au_voice_output(&p.registers.voices, n) != au_voice_output(&p.mixer.voices, n);
+        }
+        /* the echo's writes, into the samples under it too */
+        long memory_differs = 0;
+        for (uint32_t a = 0; a < 0x10000; a++)
+            memory_differs += p.ram[a] != p.mixer.memory[a];
+        CHECK(!differ && !levels_differ && !memory_differs,
+              "mixer, seed %llu: %ld of %ld frames differ from the S-DSP's, %ld voice levels, %ld bytes of memory",
+              (unsigned long long)seed, differ, frames, levels_differ, memory_differs);
+    }
+}
+
 int main(void)
 {
     test_rates();
     test_brr();
     test_voice();
     test_echo();
+    test_mixer();
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

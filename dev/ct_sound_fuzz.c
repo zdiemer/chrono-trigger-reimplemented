@@ -3,7 +3,7 @@
  *
  *   ct_sound_fuzz --rom roms/ct-usa.sfc [--runs N] [--commands N] [--seed S]
  *                 [--made-up-songs 1] [--spc-coverage out.txt]
- *                 [--level status|keys|dsp|state] [--sound-driver c]
+ *                 [--level status|keys|dsp|state] [--sound-driver c [--mixer dsp|native|check]]
  *
  * The APU runs alone. The driver's boot blocks go into sound memory as the
  * CPU half's boot upload leaves them, and it starts at $0200; this program
@@ -29,6 +29,9 @@
  * that every command written to the ports is answered, that no sample is
  * placed where the echo is writing (sound_host_samples_into_echo) and that no
  * command is dropped from the host's full queue (sound_host_commands_dropped).
+ * --mixer picks what makes its sound (frontend/sound_host.h): check plays the
+ * S-DSP and the native mixer side by side, and a run in which any frame of
+ * theirs differs fails (sound_host_mixer_report).
  *
  * The CPU half's work RAM the harness reads (the effect set sent, command
  * $71's block) is written here as the CPU half would have it. The data the
@@ -53,6 +56,7 @@ static uint32_t *coverage;
 static SoundLockstep *lockstep;
 static bool hosted;           /* the C driver in the SPC700's place */
 static SoundHost *host;
+static SoundMixer mixer = SOUND_MIXER_DSP;
 
 enum {
     FRAME_CLOCKS = 357368,    /* master clocks a frame */
@@ -339,7 +343,7 @@ static void boot(void)
     a->on_dsp_write = on_dsp_write;
     if (hosted) {
         sound_host_detach(host);
-        host = sound_host_attach(&snes);
+        host = sound_host_attach_mixer(&snes, mixer);
     }
     start_driver();
 }
@@ -717,6 +721,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--spc-coverage")) coverage_path = v;
         else if (!strcmp(a, "--made-up-songs")) made_up = strcmp(v, "0") != 0;
         else if (!strcmp(a, "--sound-driver")) hosted = strcmp(v, "c") == 0;
+        else if (!strcmp(a, "--mixer")) {
+            if (!sound_mixer_named(v, &mixer)) {
+                fprintf(stderr, "--mixer must be dsp, native or check\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--level")) level = !strcmp(v, "status") ? SOUND_COMPARE_STATUS
                                                : !strcmp(v, "keys") ? SOUND_COMPARE_KEYS
                                                : !strcmp(v, "state") ? SOUND_COMPARE_STATE : SOUND_COMPARE_DSP;
@@ -773,6 +783,10 @@ int main(int argc, char **argv)
             if (dropped)
                 fprintf(stderr, ", but %lu commands were dropped from the host's full queue", dropped);
             fprintf(stderr, "\n");
+            if (mixer == SOUND_MIXER_CHECK) {
+                fprintf(stderr, "  ");
+                same = sound_host_mixer_report(host, stderr) && same;
+            }
         }
         else
             same = sound_lockstep_report(lockstep, NULL, stderr);

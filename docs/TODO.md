@@ -1075,12 +1075,33 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are PLAN.md's Phase 4a, and they are no longer optional or later.
-    **A native mixer behind the voices** (`platform/audio.h`, "The voices",
-    and the sample memory the C driver places its samples in) that decodes the
-    same BRR samples and runs the same envelopes and echo, replacing
-    `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
-    (SOUND.md, "Validating the port") for when the lockstep reference is gone.
+    items are PLAN.md's Phase 4a, and they are no longer optional or later:
+    the native mixer as `ct_play`'s default (it is built and makes the S-DSP's
+    every frame: PLATFORM.md, "The native mixer, as built"), and a note-stream
+    comparison (SOUND.md, "Validating the port") for when the lockstep
+    reference is gone.
+  - **What the native mixer's check doesn't reach.** `dsp_test`'s random
+    samples never make the Gaussian sum wrap (the mixer keeps the S-DSP's
+    wrap; the movies' comparison is identical, but nothing shows a movie
+    reaches it either): a sample built to overshoot would. And the mixer's
+    sound memory is a copy of the SPC700's 64 KiB with the original driver's
+    layout, which is what keeps the echo's overwrites; a build that loads the
+    samples as assets will want them out of it, with the echo's buffer still
+    lying over the ones the original lets it reach.
+  - **What the native mixer's review left.** In `mixer.c`, `brr_sample`'s
+    `older`/`old` parameters are swapped in name, and the pitch-modulation
+    mask, the envelope limits and the BRR header offsets want names.
+    `sound_host.c`'s MixerCheck band report (floating point) is dev-only and
+    belongs in `dev/`, keeping the shipping host integer-only. `--mixer check`
+    after loading a state saved with the native mixer compares a stale S-DSP:
+    refuse it. `ct_dev` ignores `--mixer` without `--sound-driver c` where
+    `ct_play` reports it. `mixer_echo_writes_over` repeats `in_echo`'s test:
+    one helper over plain values. `mixer.h` needs only the voice types, not
+    `platform/snes/audio.h`. For a small target, `SoundHost` holds two
+    ~80 KiB mixers (live and loading scratch) beside the APU's 64 KiB, and the
+    output rate is fixed at 32 kHz. PLATFORM.md's "as built" section keeps
+    two stories (the first version's directory, the hand mutations) that
+    belong in docs/history/.
   - **The effects check's scaffold reads with the C sound driver.** The route
     check plays the driver that ships, but the scaffold reads come from the
     vblank check's shipping-mode runs, which play the original driver because

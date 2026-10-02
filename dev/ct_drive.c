@@ -2,7 +2,8 @@
  * movies from game state instead of from timing, and for testing the build
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
- *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] <rom> [sram.srm]
+ *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c]
+ *            [--mixer dsp|native|check] <rom> [sram.srm]
  *
  * --native and --recomp mean what they mean to ct_play (frontend/natives.h
  * chooses the entries for both). The default, --native off, is the machine of
@@ -20,7 +21,10 @@
  * state files hold the driver's fields beside the machine's, as ct_play's
  * states do; at quit a run in which the host placed samples where the echo
  * was writing or dropped a command exits 1 (sound_host_report). The default,
- * original, runs the original driver on the SPC700.
+ * original, runs the original driver on the SPC700. --mixer picks what makes
+ * the C driver's sound (frontend/sound_host.h): the S-DSP (dsp, the default),
+ * the native mixer (native), or both compared frame by frame (check, which at
+ * quit prints a `mixer check:` line and exits 1 if a frame differed).
  *
  * Commands arrive one per line on stdin and answer with one line on stdout that
  * starts with "ok" or "err". Numbers are decimal unless noted.
@@ -542,7 +546,7 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 static int usage(void)
 {
     fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] "
-                    "<rom> [sram.srm]\n");
+                    "[--mixer dsp|native|check] <rom> [sram.srm]\n");
     return 2;
 }
 
@@ -550,9 +554,15 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL;
     bool recomp = true, recomp_only = false, c_sound_driver = false;
+    SoundMixer mixer = SOUND_MIXER_DSP;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (!strcmp(a, "--sound-driver")) {
+        if (!strcmp(a, "--mixer")) {
+            if (!sound_mixer_named(i + 1 < argc ? argv[++i] : "", &mixer)) {
+                fprintf(stderr, "--mixer must be dsp, native or check\n");
+                return 2;
+            }
+        } else if (!strcmp(a, "--sound-driver")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (strcmp(v, "c") && strcmp(v, "original")) {
                 fprintf(stderr, "--sound-driver must be original or c\n");
@@ -607,7 +617,7 @@ int main(int argc, char **argv)
     render_init(&renderer);
     restore_hooks();
     snes_power_on(&snes);
-    if (c_sound_driver && !(sound_host = sound_host_attach(&snes))) {
+    if (c_sound_driver && !(sound_host = sound_host_attach_mixer(&snes, mixer))) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }
@@ -762,6 +772,8 @@ int main(int argc, char **argv)
     int rc = 0;
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
+            rc = 1;
+        if (!sound_host_mixer_report(sound_host, stderr))
             rc = 1;
         sound_host_detach(sound_host);
     }

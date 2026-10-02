@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "apu/dsp.h"
+#include "platform/native/mixer.h"
 #include "platform/voices_dsp.h"
 #include "port/vars_ram.h"
 #include "sound/sound.h"
@@ -53,10 +54,28 @@ typedef struct {
     uint8_t effects_asked;
 } Waiting;
 
+/* SOUND_MIXER_CHECK's comparison: frames, and their power in bands of the
+ * spectrum, a block of frames at a time. */
+enum { CHECK_BLOCK = 1024, CHECK_BANDS = 7 };
+
+typedef struct {
+    unsigned long long compared, sounding, differing, first_difference;
+    int largest;
+    double power[2];                    /* the S-DSP's, and the difference's */
+    double band_power[CHECK_BANDS][2];
+    float block[2][CHECK_BLOCK];        /* the S-DSP's frames, and the differences, as mono */
+    unsigned filled;
+} MixerCheck;
+
 struct SoundHost {
     Snes *snes;
     SoundDriver driver;
-    AuVoices voices;
+    SoundMixer mixer;
+    AuVoices *voices;           /* what the driver plays through: one of the three below */
+    VoicesDsp dsp_voices;
+    Mixer native;
+    AuVoicesPair pair;          /* SOUND_MIXER_CHECK: the S-DSP's, then the mixer */
+    uint32_t mix_clock;         /* SPC700 cycles toward the mixer's next frame */
     bool booted;
     Phase phase;
     uint32_t timer;             /* SPC700 cycles since the driver's last tick was due */
@@ -68,6 +87,7 @@ struct SoundHost {
 
     unsigned long samples_into_echo;
     unsigned long commands_dropped;
+    MixerCheck *check;
     SoundHost *loading;         /* a state read goes here first (sound_host_state) */
     SnesStateExtra extra;       /* what sound_host_state hands out */
 };
@@ -103,14 +123,21 @@ static bool in_echo(const Dsp *dsp, uint16_t at)
     return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
 }
 
+/* (a sample placed past where the places' echo starts is the original's,
+ * which places a song's samples end to end whatever their length, and forgets
+ * those past the echo once they are in) */
+static void watch_memory(void *ctx, uint16_t at)
+{
+    SoundHost *h = ctx;
+    bool echo = h->mixer == SOUND_MIXER_NATIVE ? mixer_echo_writes_over(&h->native, at) : in_echo(&apu_of(h)->dsp, at);
+    if (echo && at >> 8 < h->driver.samples.echo_page)
+        h->samples_into_echo++;
+}
+
 static void write_memory(void *ctx, uint16_t at, uint8_t value)
 {
     SoundHost *h = ctx;
-    /* (a sample placed past where the places' echo starts is the
-     * original's, which places a song's samples end to end whatever their
-     * length, and forgets those past the echo once they are in) */
-    if (in_echo(&apu_of(h)->dsp, at) && at >> 8 < h->driver.samples.echo_page)
-        h->samples_into_echo++;
+    watch_memory(h, at);
     apu_of(h)->ram[at] = value;
 }
 
@@ -118,6 +145,90 @@ static uint8_t read_memory(void *ctx, uint16_t at)
 {
     SoundHost *h = ctx;
     return apu_of(h)->ram[at];
+}
+
+/* The voices the driver plays through, made again after the host is copied
+ * in from a state or a copy. With both (CHECK) the S-DSP's side watches
+ * where samples go. */
+static void bind_voices(SoundHost *h)
+{
+    voices_dsp_init(&h->dsp_voices, h, read_register, write_register, write_memory, read_memory);
+    AuVoices *native = mixer_voices(&h->native);
+    h->native.watch = h->mixer == SOUND_MIXER_NATIVE ? watch_memory : NULL;
+    h->native.watch_ctx = h;
+    au_voices_pair(&h->pair, &h->dsp_voices.voices, native);
+    h->voices = h->mixer == SOUND_MIXER_DSP ? &h->dsp_voices.voices
+              : h->mixer == SOUND_MIXER_NATIVE ? native : &h->pair.voices;
+    h->driver.voices = h->voices;
+}
+
+/* The echo's delay as whatever makes the sound has it now. */
+static uint8_t echo_delay_now(SoundHost *h)
+{
+    if (h->mixer == SOUND_MIXER_NATIVE)
+        return mixer_echo_delay(&h->native);
+    return dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
+}
+
+/* ---- The mixer, on the APU's time ------------------------------------------------------------ */
+
+static void check_block(MixerCheck *c);
+
+/* The S-DSP's frame and the mixer's, compared. */
+static void check_frame(MixerCheck *c, const int16_t dsp[2], const int16_t mixed[2])
+{
+    c->compared++;
+    c->sounding += dsp[0] || dsp[1];
+    int largest = 0;
+    for (int ch = 0; ch < 2; ch++) {
+        int d = mixed[ch] - dsp[ch];
+        if (d < 0)
+            d = -d;
+        if (d > largest)
+            largest = d;
+        c->power[0] += (double)dsp[ch] * dsp[ch];
+        c->power[1] += (double)d * d;
+    }
+    if (largest) {
+        if (!c->differing)
+            c->first_difference = c->compared - 1;
+        c->differing++;
+        if (largest > c->largest)
+            c->largest = largest;
+    }
+    c->block[0][c->filled] = (float)(dsp[0] + dsp[1]) / 2;
+    c->block[1][c->filled] = (float)((mixed[0] - dsp[0]) + (mixed[1] - dsp[1])) / 2;
+    if (++c->filled == CHECK_BLOCK)
+        check_block(c);
+}
+
+/* The machine's sound, frame by frame on the APU's clock: the mixer's, or
+ * (CHECK) the S-DSP's with the mixer's compared beside it. */
+static void mix(void *ctx, Apu *apu, unsigned cycles)
+{
+    SoundHost *h = ctx;
+    h->mix_clock += cycles;
+    for (; h->mix_clock >= DSP_SAMPLE_CYCLES; h->mix_clock -= DSP_SAMPLE_CYCLES) {
+        if (h->mixer == SOUND_MIXER_NATIVE) {
+            mixer_run(&h->native, 1);
+            continue;
+        }
+        /* nothing taking the S-DSP's frames (ct_dev without --wav): they go */
+        if (apu->dsp.out_count == DSP_OUT_FRAMES)
+            apu->dsp.out_count = 0;
+        dsp_sample(&apu->dsp, apu->ram);
+        int16_t mixed[2];
+        mixer_frame(&h->native, mixed);
+        check_frame(h->check, &apu->dsp.out[(apu->dsp.out_count - 1) * 2], mixed);
+    }
+}
+
+static size_t take(void *ctx, Apu *apu, int16_t *out, size_t max_frames)
+{
+    SoundHost *h = ctx;
+    if (h->mixer == SOUND_MIXER_NATIVE)
+        return mixer_take(&h->native, out, max_frames);
+    return dsp_take_samples(&apu->dsp, out, max_frames);
 }
 
 /* ---- The driver ----------------------------------------------------------------------------- */
@@ -193,7 +304,7 @@ static void carry_out(SoundHost *h, Waiting w)
 {
     SoundDriver *d = &h->driver;
     SoundCommand c = w.command;
-    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
+    uint8_t old_delay = echo_delay_now(h);
     bool was_draining = d->echo_draining;
     bool was = quiet();
     if (w.game)
@@ -246,7 +357,7 @@ static void boot(SoundHost *h)
 {
     SoundDriver *d = &h->driver;
     Apu *a = apu_of(h);
-    uint8_t old_delay = dsp_read(&a->dsp, DSP_EDL) & 0x0F;
+    uint8_t old_delay = echo_delay_now(h);
     if (!h->booted)
         memset(d, 0, sizeof *d);
     d->echo_waits = true;
@@ -256,7 +367,7 @@ static void boot(SoundHost *h)
     memset(a->cpu_in, 0, sizeof a->cpu_in);
     memset(a->cpu_out, 0, sizeof a->cpu_out);
     bool was = quiet();
-    sound_boot(d, state_of(h->snes), &h->voices);
+    sound_boot(d, state_of(h->snes), h->voices);
     vars_peek(was);
     h->booted = true;
     h->phase = WAITING;
@@ -362,17 +473,102 @@ static void hook(SoundHost *h)
     a->host_ctx = h;
     a->host_boot = take_boot;
     a->host_command = take_command;
+    a->host_mix = h->mixer == SOUND_MIXER_DSP ? NULL : mix;
+    a->host_take = h->mixer == SOUND_MIXER_DSP ? NULL : take;
 }
 
-SoundHost *sound_host_attach(Snes *s)
+SoundHost *sound_host_attach_mixer(Snes *s, SoundMixer mixer)
 {
     SoundHost *h = calloc(1, sizeof *h);
     if (!h)
         return NULL;
+    if (mixer == SOUND_MIXER_CHECK && !(h->check = calloc(1, sizeof *h->check))) {
+        free(h);
+        return NULL;
+    }
     h->snes = s;
-    h->voices = (AuVoices){ h, read_register, write_register, write_memory, read_memory };
+    h->mixer = mixer;
+    mixer_init(&h->native);
+    bind_voices(h);
     hook(h);
     return h;
+}
+
+SoundHost *sound_host_attach(Snes *s) { return sound_host_attach_mixer(s, SOUND_MIXER_DSP); }
+
+bool sound_mixer_named(const char *name, SoundMixer *mixer)
+{
+    static const char *const names[] = { "dsp", "native", "check" };
+    for (int i = 0; i < 3; i++)
+        if (!strcmp(name, names[i])) {
+            *mixer = (SoundMixer)i;
+            return true;
+        }
+    return false;
+}
+
+/* ---- The check's report ---------------------------------------------------------------------- */
+
+/* The power in each band of a block of frames, an octave wide from 250 Hz up
+ * to the 16 kHz the output reaches and everything below 250 Hz, by a Haar
+ * wavelet's split of the block: each level halves the band, and the
+ * differences of a level are the power in the upper half (the bands' edges
+ * are soft, which is enough to say where a difference is). */
+static void band_powers(float *x, double power[CHECK_BANDS])
+{
+    const float root_half = 0.70710678f;
+    unsigned n = CHECK_BLOCK;
+    for (int band = CHECK_BANDS - 1; band > 0; band--) {
+        n /= 2;
+        double upper = 0;
+        for (unsigned i = 0; i < n; i++) {
+            float a = x[2 * i], b = x[2 * i + 1];
+            float d = (a - b) * root_half;
+            x[i] = (a + b) * root_half;
+            upper += (double)d * d;
+        }
+        power[band] += upper;
+    }
+    for (unsigned i = 0; i < n; i++)
+        power[0] += (double)x[i] * x[i];
+}
+
+static void check_block(MixerCheck *c)
+{
+    double power[2][CHECK_BANDS] = { { 0 } };
+    for (int which = 0; which < 2; which++)
+        band_powers(c->block[which], power[which]);
+    for (int b = 0; b < CHECK_BANDS; b++)
+        for (int which = 0; which < 2; which++)
+            c->band_power[b][which] += power[which][b];
+    c->filled = 0;
+}
+
+/* `of` as a percentage of `to`. */
+static double percent(double of, double to) { return to > 0 ? 100 * of / to : 0; }
+
+bool sound_host_mixer_report(const SoundHost *h, FILE *out)
+{
+    const MixerCheck *c = h->check;
+    if (!c)
+        return true;
+    fprintf(out, "mixer check: %llu frames compared (%llu sounding)", c->compared, c->sounding);
+    if (!c->differing) {
+        fprintf(out, ": identical\n");
+        return true;
+    }
+    fprintf(out, ": %llu differ (%.3f%%), the first at %.3f s; largest difference %d; the difference's power "
+                 "%.4f%% of the signal's; by band (Hz), the same:",
+            c->differing, 100.0 * (double)c->differing / (double)c->compared,
+            (double)c->first_difference / DSP_SAMPLE_RATE, c->largest, percent(c->power[1], c->power[0]));
+    for (int b = 0; b < CHECK_BANDS; b++) {
+        if (b)
+            fprintf(out, " %d-%d %.4f%%", 125 << b, 250 << b, percent(c->band_power[b][1], c->band_power[b][0]));
+        else
+            fprintf(out, " <250 %.4f%%", percent(c->band_power[b][1], c->band_power[b][0]));
+    }
+    fprintf(out, "\n");
+    return false;
 }
 
 unsigned long sound_host_samples_into_echo(const SoundHost *h) { return h->samples_into_echo; }
@@ -398,8 +594,11 @@ void sound_host_detach(SoundHost *h)
         h->snes->apu.host_ctx = NULL;
         h->snes->apu.host_boot = NULL;
         h->snes->apu.host_command = NULL;
+        h->snes->apu.host_mix = NULL;
+        h->snes->apu.host_take = NULL;
     }
     free(h->loading);
+    free(h->check);
     free(h);
 }
 
@@ -621,6 +820,15 @@ static void visit_driver(Names *n, SoundDriver *d)
     leave(n, was);
 }
 
+/* The mixer's fields, beside the driver's when it plays (its own state's
+ * kind: sound_host_state). */
+static void visit_mixer(void *ctx, const char *name, void *field, unsigned size, uint32_t count)
+{
+    char full[96];
+    snprintf(full, sizeof full, "sound.mixer.%s", name);
+    snes_state_uint(ctx, full, field, size, count);
+}
+
 static void visit_host(SnesStateVisitor *v, void *fields)
 {
     SoundHost *h = fields;
@@ -642,6 +850,10 @@ static void visit_host(SnesStateVisitor *v, void *fields)
     }
     U(&n, "queued", h->queued);
     visit_driver(&n, &h->driver);
+    if (h->mixer != SOUND_MIXER_DSP) {
+        U(&n, "mix_clock", h->mix_clock);
+        mixer_fields(&h->native, visit_mixer, v);
+    }
 }
 
 /* The state read: the host takes the loaded fields, and keeps its machine,
@@ -650,18 +862,20 @@ static void loaded(void *fields, void *loading)
 {
     SoundHost *h = fields, *from = loading;
     Snes *snes = h->snes;
-    AuVoices voices = h->voices;
     SoundHost *scratch = h->loading;
+    SoundMixer mixer = h->mixer;
+    MixerCheck *check = h->check;
     SnesStateExtra extra = h->extra;
     unsigned long into_echo = h->samples_into_echo, dropped = h->commands_dropped;
     *h = *from;
     h->snes = snes;
-    h->voices = voices;
     h->loading = scratch;
+    h->mixer = mixer;
+    h->check = check;
     h->extra = extra;
     h->samples_into_echo = into_echo;
     h->commands_dropped = dropped;
-    h->driver.voices = &h->voices;
+    bind_voices(h);
     h->driver.game = state_of(snes);
     if (h->queued > SOUND_QUEUE)
         h->queued = SOUND_QUEUE;
@@ -669,7 +883,16 @@ static void loaded(void *fields, void *loading)
         h->driver.queued = SOUND_QUEUE;
 }
 
-#define WHAT "the C sound driver"
+/* A state played through the mixer holds the mixer's fields, and is a host
+ * program of its own: it loads only with the mixer, as one played through
+ * the S-DSP loads only with that (the S-DSP's fields are the machine's). */
+static SnesStateExtra extra_of(SoundHost *h, void *loading)
+{
+    if (h->mixer == SOUND_MIXER_DSP)
+        return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER, "the C sound driver", visit_host, h, loading, loaded };
+    return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER_MIXER, "the C sound driver with the native mixer",
+                             visit_host, h, loading, loaded };
+}
 
 const SnesStateExtra *sound_host_state(SoundHost *h)
 {
@@ -677,9 +900,12 @@ const SnesStateExtra *sound_host_state(SoundHost *h)
         h->loading = malloc(sizeof *h->loading);
     if (!h->loading)
         return NULL;
-    /* what a field the state lacks keeps: a host that hasn't booted */
+    /* what a field the state lacks keeps: a host that hasn't booted, and a
+     * silent mixer */
     memset(h->loading, 0, sizeof *h->loading);
-    h->extra = (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER, WHAT, visit_host, h, h->loading, loaded };
+    h->loading->mixer = h->mixer;
+    mixer_init(&h->loading->native);
+    h->extra = extra_of(h, h->loading);
     return &h->extra;
 }
 
@@ -690,6 +916,7 @@ SoundHost *sound_host_copy(const SoundHost *h)
         return NULL;
     *copy = *h;
     copy->loading = NULL;
+    copy->check = NULL;
     return copy;
 }
 
@@ -701,7 +928,7 @@ void sound_host_restore(SoundHost *h, const SoundHost *copy)
 
 void sound_host_driver_fields(SoundHost *h, SnesStateField fn, void *ctx)
 {
-    SnesStateExtra extra = { SNES_STATE_HOST_C_SOUND_DRIVER, WHAT, visit_host, h, NULL, loaded };
+    SnesStateExtra extra = extra_of(h, NULL);
     snes_state_extra_fields(&extra, fn, ctx);
 }
 

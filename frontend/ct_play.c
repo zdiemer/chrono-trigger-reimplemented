@@ -2,7 +2,8 @@
  * and the rest on the development system (docs/PLAYING.md).
  *
  *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
- *           [--audio snes|direct] [--sound-driver c|original] [--renderer native|scanline] [--save-dir dir] [--keys f] [--bind IN=ACTION]...
+ *           [--audio snes|direct] [--sound-driver c|original] [--mixer dsp|native] [--renderer native|scanline]
+ *           [--save-dir dir] [--keys f] [--bind IN=ACTION]...
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
  *   ct_play --rom <rom> --frames N [--screenshot out.png] [--hold BUTTONS@FIRST-LAST]...
  *           [--load-state f] [--save-state f] [--movie m.ctm] [--record out.ctm] [--wav out.wav]
@@ -76,6 +77,9 @@ static void usage(FILE *out)
             "                       own on the SPC700, with the original's timing, which movies, recording,\n"
             "                       --load-zst, --audio direct, --native off|shadow and --recomp only use; a\n"
             "                       saved state loads only with the driver it was saved with\n"
+            "  --mixer M            what makes the C driver's sound: dsp, the emulated S-DSP (default); native,\n"
+            "                       the native mixer, with no S-DSP (the same sound, frame for frame); a saved\n"
+            "                       state loads only with the mixer it was saved with\n"
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
             "  --save-dir DIR       where <rom name>.srm and <rom name>.state go (default: the ROM's directory)\n"
@@ -169,6 +173,8 @@ int main(int argc, char **argv)
     static Files files;
     bool native_given = false, recomp = true, recomp_only = false, recomp_given = false, audio_direct = false;
     int sound_driver = -1;   /* -1 the default, 0 the original, 1 the C driver */
+    SoundMixer mixer = SOUND_MIXER_DSP;
+    bool mixer_given = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
     /* A TV showed the picture at 4:3 and hid about 8 rows at the top and bottom. */
@@ -273,6 +279,13 @@ int main(int argc, char **argv)
                 fprintf(stderr, "--audio must be snes or direct\n");
                 return 2;
             }
+        }
+        else if (!strcmp(a, "--mixer")) {
+            if (!sound_mixer_named(v, &mixer) || mixer == SOUND_MIXER_CHECK) {
+                fprintf(stderr, "--mixer must be dsp or native\n");
+                return 2;
+            }
+            mixer_given = true;
         }
         else if (!strcmp(a, "--sound-driver")) {
             if (!strcmp(v, "original") || !strcmp(v, "c")) {
@@ -401,6 +414,10 @@ int main(int argc, char **argv)
         return 2;
     }
     bool c_sound_driver = sound_driver == 1 || (sound_driver < 0 && !needs_original);
+    if (mixer_given && mixer != SOUND_MIXER_DSP && !c_sound_driver) {
+        fprintf(stderr, "--mixer native plays the C sound driver, which this run doesn't (see --sound-driver)\n");
+        return 2;
+    }
 
     size_t rom_len;
     uint8_t *rom = read_file(rom_path, &rom_len);
@@ -483,7 +500,7 @@ int main(int argc, char **argv)
         player_load_sram(&pl, sram && sram_len == SNES_SRAM_SIZE ? sram : NULL);
         free(sram);
     }
-    if (player_start(&pl, audio_direct, c_sound_driver) != 0)
+    if (player_start(&pl, audio_direct, c_sound_driver, mixer) != 0)
         return 1;
     if (load_state_path && files_load_state(&pl, load_state_path) != 0)
         return 1;

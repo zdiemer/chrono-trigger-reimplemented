@@ -11,8 +11,14 @@
  * the original does (holding the commands that come meanwhile), shows the
  * driver's status on the ports, and answers the commands the game writes to
  * the ports itself (the scene's). The driver plays through the voices
- * (platform/audio.h) as S-DSP register writes (platform/voices_dsp.h), into
- * the emulated S-DSP, which makes the sound as ever.
+ * (platform/audio.h), made into sound by one of (SoundMixer):
+ *
+ * - DSP: S-DSP register writes (platform/voices_dsp.h) into the emulated
+ *   S-DSP, which makes the sound as ever (ct_play's default);
+ * - NATIVE: the native mixer (platform/native/mixer.h), on the APU's time in
+ *   the S-DSP's place, which isn't run;
+ * - CHECK: both, the S-DSP heard and the mixer made beside it, every frame of
+ *   one compared with the other's (sound_host_mixer_report).
  *
  * A command takes no time, where the original's took frames over its uploads,
  * so the game's timing is not the original's: this can't record or replay a
@@ -27,9 +33,14 @@
 
 typedef struct SoundHost SoundHost;
 
+typedef enum { SOUND_MIXER_DSP, SOUND_MIXER_NATIVE, SOUND_MIXER_CHECK } SoundMixer;
+
 /* Play the C driver on the machine's APU from the game's next boot of the
- * driver on. */
+ * driver on, through the S-DSP or the mixer. */
 SoundHost *sound_host_attach(Snes *s);
+SoundHost *sound_host_attach_mixer(Snes *s, SoundMixer mixer);
+/* "dsp", "native" or "check" to a SoundMixer; false if it is none of them. */
+bool sound_mixer_named(const char *name, SoundMixer *mixer);
 void sound_host_detach(SoundHost *h);
 
 /* Bytes of samples placed where the S-DSP was writing its echo, below where
@@ -48,6 +59,12 @@ unsigned long sound_host_commands_dropped(const SoundHost *h);
 /* Both faults on one line to `out` ("sound host: ..."); true if there were
  * none. ct_dev, ct_drive and ct_sound_fuzz fail a run with any. */
 bool sound_host_report(const SoundHost *h, FILE *out);
+
+/* SOUND_MIXER_CHECK: the frames compared so far, the mixer's against the
+ * S-DSP's, on one line to `out` ("mixer check: ..."): how many differ, by how
+ * much, and the difference's power in each band of the spectrum; true if
+ * none differ. The other mixers print nothing and return true. */
+bool sound_host_mixer_report(const SoundHost *h, FILE *out);
 
 /* The song the driver has saved to resume (command $14), for ct_sound_fuzz,
  * which mustn't make up a song in its place. */

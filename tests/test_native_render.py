@@ -1,11 +1,13 @@
-"""The native renderer draws from a VidFrame and nothing else.
+"""The native backends draw and play from their services and nothing else.
 
-P3 of docs/PLATFORM.md: runtime/platform/native/ is a backend of the video
-service, so it may read platform/video.h and the C library, and nothing in
-runtime/snes/ -- not the PPU register layer, not its VRAM, CGRAM or OAM, not the
-scanline renderer it is checked against. Everything it draws has to reach it
-through the frame the service describes, or a second backend (widescreen, GBA)
-would inherit the hardware model with it.
+P3 of docs/PLATFORM.md: runtime/platform/native/ holds backends of the
+services -- the renderer of the video service, the mixer of the voices -- so
+each may read its service's header and the C library, and nothing in
+runtime/snes/ or runtime/apu/: not the PPU register layer, not its VRAM, CGRAM
+or OAM, not the scanline renderer it is checked against; not the S-DSP or its
+registers. Everything a backend draws or plays has to reach it through what
+its service describes, or a second backend (widescreen, GBA) would inherit the
+hardware model with it.
 """
 import pathlib
 import re
@@ -14,18 +16,21 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 NATIVE = ROOT / "runtime" / "platform" / "native"
 
-# What the renderer may include: the video service, the platform conventions
-# below it, and the C library.
+# What a backend may include: its service, the platform conventions below it,
+# and the C library.
 ALLOWED_INCLUDES = {
     "platform/native/render.h",
     "platform/video.h",
+    "platform/native/mixer.h",
+    "platform/voices.h",
+    "platform/audio.h",
     "platform/platform.h",
 }
 
 # The hardware model's types and functions. `snes_extra*` is excluded: those are
 # members of the video service's own structures, naming the bits of a SNES
 # register that the hardware ignores.
-FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_(?!extra)", "ppu_", "render_line", "Renderer")
+FORBIDDEN_NAMES = ("Ppu", "Snes", "snes_(?!extra)", "ppu_", "render_line", "Renderer", "Dsp", "dsp_", "Apu", "apu_")
 
 
 class TestNativeRenderer(unittest.TestCase):
