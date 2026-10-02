@@ -1179,3 +1179,64 @@ void scene_race_drain_score(Snes *s)
     ORIGINAL_EFFECT(s->cpu.a = scene_race_score(g));
     m_rts(s);
 }
+
+/* ---- The start ------------------------------------------------------------------------------ */
+
+/* The bikes as the race starts. Crono is on the higher lanes and Johnny on
+ * the lower; Johnny's top speed is lower than Crono's while he leads and higher
+ * while he trails. */
+enum {
+    CRONO_START_LANE = 0x6000, JOHNNY_START_LANE = 0x2000,
+    CRONO_TOP_SPEED = 0x4000, JOHNNY_TOP_SPEED_LEADING = 0x3000, JOHNNY_TOP_SPEED_TRAILING = 0x5000,
+    APART = 0x20,   /* the bikes start apart, Crono above */
+};
+
+/* The race's own boosts and their timer, which the demo has none of; the
+ * setup writes their low bytes. */
+enum { STARTING_BOOSTS = 3, BOOST_TIMER_START = 0x80 };
+
+/* The demo's panel is the bar alone, longer: its right end and the markers'
+ * at $D8 (the cap after it at $E8), and the score's label and the corners
+ * left out of their lists. The setup writes the low bytes of the bar's ends. */
+enum { DEMO_BAR_RIGHT = 0xD8, DEMO_BAR_CAP = 0xE8, DEMO_PANEL_SPRITES = 6, DEMO_CORNER_SPRITES = 1 };
+
+static uint16_t with_low_byte(uint16_t word, uint8_t low) { return (uint16_t)((word & 0xFF00) | low); }
+
+static void panel_for_the_demo(GameState *g)
+{
+    set_scene_race_bar_end_x(g, DEMO_BAR_RIGHT);
+    set_scene_race_bar_right(g, with_low_byte(scene_race_bar_right(g), DEMO_BAR_RIGHT));
+    set_scene_race_markers_right(g, with_low_byte(scene_race_markers_right(g), DEMO_BAR_RIGHT));
+    set_scene_race_bar_cap_x(g, DEMO_BAR_CAP);
+    set_scene_race_panel_sprites(g, DEMO_PANEL_SPRITES);
+    set_scene_race_corner_sprites(g, DEMO_CORNER_SPRITES);
+}
+
+// $7E:45D6
+/* The race's start: the panel for the demo or the boosts for the race, the
+ * bikes' top speeds and lanes, the plane's column as the cartridge's, the
+ * boost button taken as held, the pad's directions for the camera facing down
+ * the track, and the distances' divisors forgotten. */
+void race_start(GameState *g)
+{
+    if (scene_race_demo(g) & 0xFF) {
+        panel_for_the_demo(g);
+    } else {
+        set_scene_race_boost_timer(g, with_low_byte(scene_race_boost_timer(g), BOOST_TIMER_START));
+        set_scene_race_boosts(g, with_low_byte(scene_race_boosts(g), STARTING_BOOSTS));
+    }
+    set_scene_race_racers_top_speed_leading(g, RACER_CRONO, CRONO_TOP_SPEED);
+    set_scene_race_racers_top_speed_trailing(g, RACER_CRONO, CRONO_TOP_SPEED);
+    set_scene_race_racers_top_speed_leading(g, RACER_JOHNNY, JOHNNY_TOP_SPEED_LEADING);
+    set_scene_race_racers_top_speed_trailing(g, RACER_JOHNNY, JOHNNY_TOP_SPEED_TRAILING);
+    set_scene_race_crono_lean(g, 0);
+    set_scene_race_racers_lane(g, RACER_CRONO, CRONO_START_LANE);
+    set_scene_race_racers_lane(g, RACER_JOHNNY, JOHNNY_START_LANE);
+    set_scene_race_last_contact(g, APART);
+    set_scene_race_cartridge_column(g, 1);
+    set_scene_race_boost_held(g, 1);
+    set_scene_race_johnny_gone(g, 0);
+    set_scene_race_steer_buttons(g, 0, scene_race_steering_by_view(g, 0));
+    set_scene_race_steer_buttons(g, 1, scene_race_steering_by_view(g, 8));
+    race_forget_divisors(g);
+}

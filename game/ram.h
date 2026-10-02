@@ -6807,6 +6807,10 @@
 /* The curtain table's bank; bit 0 picks bank $7F */
 #define RAM_SCENE_CURTAIN_TABLE_BANK 0x7E0354u
 #define RAM_SCENE_CURTAIN_TABLE_BANK_DP 0x54u /* page decompress */
+/* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
+ * bank's low bit counts) and the race's setup writes 0 with it */
+#define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH 0x7E0355u
+#define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH_DP 0x55u /* page decompress */
 /* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
 #define RAM_SCENE_CIRCLE_TABLE 0x7E0356u
 #define RAM_SCENE_CIRCLE_TABLE_DP 0x56u      /* page decompress */
@@ -6851,6 +6855,10 @@
 #define RAM_SCENE_START_HELD 0x7E0394u
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 #define RAM_SCENE_RESET_DISABLED 0x7E0396u
+/* How many times the attract sequence's race has been shown, below the program's work RAM so it
+ * survives from one showing to the next: the camera takes one of its two scripts on odd showings
+ * and the other on even [2 bytes] */
+#define RAM_SCENE_RACE_DEMO_SHOWINGS 0x7E0397u
 /* Frames left before the race's scene ends, once a button has been pressed after it [2 bytes] */
 #define RAM_SCENE_RACE_END_WAIT 0x7E0399u
 /* Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it
@@ -6995,6 +7003,9 @@
 #define RAM_SCENE_RACE_DIVISORS_STRIDE 0x01u
 /* The scene's working palette, 256 colors, sent to CGRAM [512 bytes] */
 #define RAM_SCENE_PALETTE 0x7E2200u
+/* The routine the program's main loop calls each pass, the operand of its own call, which a
+ * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) [2 bytes] */
+#define RAM_SCENE_MAIN_LOOP_CALL 0x7E3024u
 /* Which routine starts the plane's perspective lines, the operand of the program's own call: the
  * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
  * the line above it) [2 bytes] */
@@ -7036,6 +7047,9 @@
 #define RAM_SCENE_RACE_OPENINGS 0x7E3F66u
 #define RAM_SCENE_RACE_OPENINGS_COUNT 2u
 #define RAM_SCENE_RACE_OPENINGS_STRIDE 0x02u
+/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
+ * program's own load, which the setup of the race without its panel writes again */
+#define RAM_SCENE_RACE_ENDING_SWEEP 0x7E4259u
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
  * then the one toward the higher lanes (the program's data) [16 x $2 bytes, by the way the
  * camera faces (0-7, an eighth of a turn each), then 8 more for the other direction] */
@@ -7115,6 +7129,18 @@
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS 0x7E531Bu
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_COUNT 2u
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_STRIDE 0x41u
+/* The count of the race panel's sprite list (the program's data): 7, six sprites with the
+ * score's label; the race without its panel makes it 6 */
+#define RAM_SCENE_RACE_PANEL_SPRITES 0x7E5395u
+/* Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8
+ * without the panel) */
+#define RAM_SCENE_RACE_BAR_END_X 0x7E53A0u
+/* Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8;
+ * $E8 without the panel) */
+#define RAM_SCENE_RACE_BAR_CAP_X 0x7E53A4u
+/* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
+ * without the panel */
+#define RAM_SCENE_RACE_CORNER_SPRITES 0x7E53AEu
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u

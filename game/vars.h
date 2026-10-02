@@ -9901,6 +9901,11 @@ void set_scene_circle_radius(GameState *g, uint16_t v);
 uint8_t scene_curtain_table_bank(const GameState *g);
 void set_scene_curtain_table_bank(GameState *g, uint8_t v);
 
+/* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
+ * bank's low bit counts) and the race's setup writes 0 with it */
+uint8_t scene_curtain_table_bank_high(const GameState *g);
+void set_scene_curtain_table_bank_high(GameState *g, uint8_t v);
+
 /* Address of the circle's per-line table (224 lines of left and right X) */
 uint16_t scene_circle_table(const GameState *g);
 void set_scene_circle_table(GameState *g, uint16_t v);
@@ -9974,6 +9979,12 @@ void set_scene_start_held(GameState *g, uint16_t v);
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 uint8_t scene_reset_disabled(const GameState *g);
 void set_scene_reset_disabled(GameState *g, uint8_t v);
+
+/* How many times the attract sequence's race has been shown, below the program's work RAM so it
+ * survives from one showing to the next: the camera takes one of its two scripts on odd showings
+ * and the other on even */
+uint16_t scene_race_demo_showings(const GameState *g);
+void set_scene_race_demo_showings(GameState *g, uint16_t v);
 
 /* Frames left before the race's scene ends, once a button has been pressed after it */
 uint16_t scene_race_end_wait(const GameState *g);
@@ -10185,6 +10196,11 @@ enum { SCENE_PALETTE_BYTES = 512 };
 uint8_t scene_palette_byte(const GameState *g, unsigned at);
 void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The routine the program's main loop calls each pass, the operand of its own call, which a
+ * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) */
+uint16_t scene_main_loop_call(const GameState *g);
+void set_scene_main_loop_call(GameState *g, uint16_t v);
+
 /* Which routine starts the plane's perspective lines, the operand of the program's own call: the
  * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
  * the line above it) */
@@ -10244,6 +10260,11 @@ enum { SCENE_RACE_OPENINGS_COUNT = 2 };   /* by which opening */
 /* The two openings the race's camera script can take, one picked at random (the program's data) */
 uint16_t scene_race_openings(const GameState *g, unsigned i);
 void set_scene_race_openings(GameState *g, unsigned i, uint16_t v);
+
+/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
+ * program's own load, which the setup of the race without its panel writes again */
+uint8_t scene_race_ending_sweep(const GameState *g);
+void set_scene_race_ending_sweep(GameState *g, uint8_t v);
 
 enum { SCENE_RACE_STEERING_BY_VIEW_COUNT = 16 };   /* by the way the camera faces (0-7, an eighth of a turn each), then 8 more for the other direction */
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
@@ -10334,6 +10355,26 @@ enum { SCENE_RACE_SPRITE_LIST_COUNTS_COUNT = 2 };   /* by racer: 0 Crono, 1 John
  * racer is */
 uint8_t scene_race_sprite_list_counts(const GameState *g, unsigned i);
 void set_scene_race_sprite_list_counts(GameState *g, unsigned i, uint8_t v);
+
+/* The count of the race panel's sprite list (the program's data): 7, six sprites with the
+ * score's label; the race without its panel makes it 6 */
+uint8_t scene_race_panel_sprites(const GameState *g);
+void set_scene_race_panel_sprites(GameState *g, uint8_t v);
+
+/* Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8
+ * without the panel) */
+uint8_t scene_race_bar_end_x(const GameState *g);
+void set_scene_race_bar_end_x(GameState *g, uint8_t v);
+
+/* Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8;
+ * $E8 without the panel) */
+uint8_t scene_race_bar_cap_x(const GameState *g);
+void set_scene_race_bar_cap_x(GameState *g, uint8_t v);
+
+/* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
+ * without the panel */
+uint8_t scene_race_corner_sprites(const GameState *g);
+void set_scene_race_corner_sprites(GameState *g, uint8_t v);
 
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */

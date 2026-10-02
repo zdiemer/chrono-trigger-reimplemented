@@ -51,6 +51,9 @@ enum {
      * the boot starts it, the frame's work leaves interrupts enabled so it can
      * fire, and the program's clear of its work RAM keeps what lies below $0920. */
     SCENE_FLAG_TITLE_WITH_LINE_IRQ = 0x80,
+    /* The race is drawn without its panel, and closes behind a curtain: the
+     * attract sequence's. */
+    SCENE_FLAG_NO_PANEL = 0x40,
     /* The frame's work doesn't send the sound driver song changes. */
     SCENE_FLAG_NO_SONGS = 0x20,
 };
@@ -140,6 +143,17 @@ int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint1
 uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor);
 uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, uint16_t limit);
 
+/* scene/screen.c: the program's transfer of what the unpacker made, as the
+ * caller has set its mode and register (scene_call); and the per-line
+ * effects from a table of descriptors (returns where it ends). */
+void scene_send_unpacked(const GameState *g, Platform *pf);
+uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at);
+
+/* scene/race_matrix.c: the regrouping routine written, through the work RAM
+ * port as the caller has pointed it, for a picture at `source` into the page
+ * at `destination`. */
+void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source);
+
 /* scene/perspective.c: the Mode 7 plane's perspective built again for a
  * channel's camera, as the race's camera check and the endings ask for it. */
 void scene_build_perspective(GameState *g, SceneChannel ch);
@@ -228,21 +242,11 @@ bool scene_title_upload_ripple_present(Snes *s);
 void scene_title_upload_ripple(Snes *s);
 
 /* scene/race.c (the program in RAM) */
-bool scene_race_clear_buffers_present(Snes *s);
-void scene_race_clear_buffers(Snes *s);
-bool scene_race_setup_maps_present(Snes *s);
-void scene_race_setup_maps(Snes *s);
-bool scene_race_fill_map_present(Snes *s);
-void scene_race_fill_map(Snes *s);
-bool scene_race_loader_present(Snes *s);
-void scene_race_load_plane_graphics(Snes *s);
-void scene_race_load_plane_map(Snes *s);
-void scene_race_load_layer_tiles(Snes *s);
-void scene_race_load_more_layer_tiles(Snes *s);
-void scene_race_load_sprite_graphics(Snes *s);
-void scene_race_load_bg1_map(Snes *s);
-void scene_race_load_bg3_map(Snes *s);
-void scene_race_load_bg2_map(Snes *s);
+bool scene_race_set_up_present(Snes *s);
+void scene_race_set_up(Snes *s);
+void scene_race_set_up_entry(Snes *s);
+bool scene_race_sweep_curtain_present(Snes *s);
+void scene_race_sweep_curtain(Snes *s);
 bool scene_race_move_camera_present(Snes *s);
 void scene_race_move_camera(Snes *s);
 bool scene_race_upload_column_present(Snes *s);

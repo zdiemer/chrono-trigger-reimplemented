@@ -24,8 +24,6 @@
 #include "vars.h"
 
 /* The race is drawn without its panel when the scene's flags say so. */
-enum { SCENE_FLAG_NO_PANEL = 0x40 };
-
 static bool panel_shown(const GameState *g) { return !(scene_flags(g) & SCENE_FLAG_NO_PANEL); }
 
 /* Compared as the race compares: by the sign of the difference. */

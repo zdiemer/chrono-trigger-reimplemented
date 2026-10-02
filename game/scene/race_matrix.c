@@ -66,7 +66,7 @@ static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
 /* Write the routine: pairs store from the page in `destination` on, and load
  * from `source` on. The source base stays in the scene's cells, where the
  * program's next multiply finds it after its product. */
-static void write_matrix_code(GameState *g, uint16_t destination, uint16_t source)
+void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source)
 {
     Offsets o = { 0, 0, 0, 0 };
     uint16_t pair = destination;
@@ -115,7 +115,7 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
  * which is clear. */
 void scene_write_matrix_code(Snes *s)
 {
-    write_matrix_code(state_of(s), s->cpu.x, s->cpu.y);
+    scene_write_matrix_code_for(state_of(s), s->cpu.x, s->cpu.y);
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_V, false);

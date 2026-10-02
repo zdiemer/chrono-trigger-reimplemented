@@ -1514,6 +1514,14 @@ meaning = "What Crono's winning score earns, for the story to read: a prize for 
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 
 [[var]]
+name = "scene_race_demo_showings"
+addr = "7E:0397"
+size = 2
+subsystem = "scene"
+meaning = "How many times the attract sequence's race has been shown, below the program's work RAM so it survives from one showing to the next: the camera takes one of its two scripts on odd showings and the other on even"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
 name = "scene_race_final_score"
 addr = "7E:0382"
 size = 2
@@ -1770,6 +1778,49 @@ index = "which score, from 111 up"
 subsystem = "scene"
 meaning = "Scores that earn a prize as repdigits: 111 to 999, 1111, 2222 and 3333 (the program's data; the search runs down from the 11th)"
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_ending_sweep"
+addr = "7E:4259"
+subsystem = "scene"
+meaning = "Which way the curtain sweeps as the race ends (2, from the right): the operand of the program's own load, which the setup of the race without its panel writes again"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
+name = "scene_main_loop_call"
+addr = "7E:3024"
+size = 2
+subsystem = "scene"
+meaning = "The routine the program's main loop calls each pass, the operand of its own call, which a scene's setup points at its work (the race's: the racers' pictures scaled, $51D1)"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
+name = "scene_race_panel_sprites"
+addr = "7E:5395"
+subsystem = "scene"
+meaning = "The count of the race panel's sprite list (the program's data): 7, six sprites with the score's label; the race without its panel makes it 6"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_bar_end_x"
+addr = "7E:53A0"
+subsystem = "scene"
+meaning = "Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8 without the panel)"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_bar_cap_x"
+addr = "7E:53A4"
+subsystem = "scene"
+meaning = "Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8; $E8 without the panel)"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_corner_sprites"
+addr = "7E:53AE"
+subsystem = "scene"
+meaning = "The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none, without the panel"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
 
 [[var]]
 name = "scene_race_bar_right"
@@ -4447,6 +4498,15 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 # loop state there rather than in registers, and other code on the page writes
 # the cells before it reads them, so the port keeps its state in locals and
 # writes the cells' final values for shadow mode (ORIGINAL_EFFECT).
+[[var]]
+name = "scene_curtain_table_bank_high"
+addr = "7E:0355"
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_radius"
+meaning = "The byte after the curtain's table's bank, which the curtain reads with it as a word (only the bank's low bit counts) and the race's setup writes 0 with it"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
 [[var]]
 name = "scene_circle_count"
 addr = "7E:03F0"

@@ -120,6 +120,26 @@ void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
 
+/* scene/race_rules.c: the bikes as the race starts. */
+void race_start(GameState *g);
+
+/* scene/race_camera.c: the distances' divisors forgotten, for the perspective
+ * of a new camera height. */
+void race_forget_divisors(GameState *g);
+
+/* scene/bridge.c: where the race's setup calls the original's code -- the
+ * program's unpacker for a resource, the song's start, the camera script's
+ * first step -- with the machine as the original has it there: a subroutine
+ * it runs inline entered and left (its frame on the stack under the
+ * call-outs), and the unpacking it does while it works on the pictures, with
+ * the data bank and the direct page kept on the stack. */
+void scene_bridge_enter(Snes *s, uint32_t call);
+void scene_bridge_leave(Snes *s);
+void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource);
+void scene_bridge_unpack_holding(Snes *s, uint32_t site, uint16_t resource);
+void scene_bridge_start_song(Snes *s, uint8_t song);
+void scene_bridge_first_script_step(Snes *s);
+
 /* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
  * in the original's scaler, with the carry its first row takes. */
 void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge);

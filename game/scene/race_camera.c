@@ -140,7 +140,7 @@ enum { PERSPECTIVE_REGISTERS = sizeof perspective_registers / sizeof perspective
  * storing the first word. */
 enum { DIVISORS = 0x100, DIVISORS_MOVED = DIVISORS - 1 };
 
-static void forget_divisors(GameState *g)
+void race_forget_divisors(GameState *g)
 {
     uint32_t mark = 0;
     ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
@@ -164,7 +164,7 @@ static bool camera_changed(GameState *g)
         return false;
     if (first == 0) {
         set_scene_race_perspective_camera(g, 0, race_camera(g, CAMERA_HEIGHT));
-        forget_divisors(g);
+        race_forget_divisors(g);
     }
     for (unsigned i = first ? first : 1; i < PERSPECTIVE_REGISTERS; i++)
         set_scene_race_perspective_camera(g, i, race_camera(g, perspective_registers[i]));
