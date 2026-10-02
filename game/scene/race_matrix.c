@@ -1,16 +1,21 @@
-/* Scenes: the jet bike race's generated matrix routine.
+/* Scenes: the scaled picture gathered into sprite tiles.
  *
- * To gather the track's data into the order its per-line effects read it, the
- * race writes a routine of its own, straight-line code with no loop in it, and
- * runs it every frame. This writes that routine into work RAM through the work
- * RAM port, which its callers point at $7E:B574: 1024 pairs of a load from an
- * absolute address and a store to the direct page, the direct page moved to the
- * next page every 128 pairs, and a return. Pair n loads from the base in Y plus
- * four offsets built from n's digits (a table word by the outermost, then 4, 2
- * and $20 steps) and stores to direct page byte 2n, so the routine gathers a
- * 128x8 block of the race's data into the pages from X on. The port writes the
- * same bytes; the routine itself runs as the program's own code (RECOMP.md,
- * "The race's generated code").
+ * The bitmap scaler (scene/scaler.c) leaves a picture a row at a time: each
+ * row is $20 bytes, eight groups of four bitplane bytes, one group for every
+ * eight pixels across. Sprites want it as 8x8 tiles, each the eight rows of
+ * its first two bitplanes and then the eight rows of the other two. The jet
+ * bike race scales its two racers this way every frame they change size, and
+ * the Beyond Time ending its picture, and both regroup the result into the
+ * tilemap buffer, which the vblank sends to VRAM as the racers' tiles.
+ *
+ * The original does the regrouping with a routine it writes for the purpose at
+ * setup, straight-line code with no loop in it: 1024 pairs of a load from the
+ * picture and a store to the buffer, the direct page moved on a page every 128
+ * pairs. The generator ($C3:09E9) writes that routine at $7E:B574 through the
+ * work RAM port, and the port below writes the same bytes. The routine itself
+ * ($7E:B574) is the regrouping as a loop. The pairs come in eight strips of
+ * eight rows, the strips in the order a table of the generator's names them
+ * ($C3:09D9), so the tiles land in the order the sprites ask for them.
  *
  * The generator keeps its offsets in the scene's cells (scene_call). */
 #include "scene/scene.h"
@@ -112,4 +117,50 @@ void scene_write_matrix_code(Snes *s)
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
     m_rtl(s);
+}
+
+/* ---- The regrouping --------------------------------------------------------------------------- */
+
+/* Where the scaler leaves the picture, in the bank the routine is entered
+ * with: the generator is always given this base. */
+enum { PICTURE = 0x0200 };
+
+/* The routine the generator writes, guarded by a hash of all of it: the bytes
+ * are the generator's output for its one table and base, so any other code
+ * there is not this. It reads the picture through the data bank, which every
+ * caller points at the second bank of work RAM. */
+bool scene_matrix_code_present(Snes *s)
+{
+    return s->cpu.db == SCENE_UPPER_WORK_RAM && m_code_matches(s, 0x7EB574, 5153, 0x087A234E99D12FFFull);
+}
+
+// $7E:B574
+/* Regroup the scaled picture into tiles in the tilemap buffer, a word at a
+ * time: strip by strip, the tiles of a strip from left to right, in each tile
+ * the rows of its first two bitplanes and then of its other two. */
+static void gather_picture_into_tiles(GameState *g)
+{
+    uint16_t word = 0;
+    for (uint16_t strip = 0; strip < TABLE_ENTRIES; strip++) {
+        uint16_t strip_start = (uint16_t)(PICTURE + scene_matrix_offset(g, strip));
+        for (uint8_t tile = 0; tile < ROWS; tile++) {
+            for (uint8_t planes = 0; planes < PAIRS; planes++) {
+                for (uint8_t row = 0; row < COLUMNS; row++) {
+                    uint16_t from = (uint16_t)(strip_start + tile * ROW_STEP + planes * PAIR_STEP + row * COLUMN_STEP);
+                    uint16_t pixels = scene_race_picture(g, (uint16_t)(from - PICTURE) / 2);
+                    set_scene_tilemap_buffer_byte(g, word * 2u, (uint8_t)pixels);
+                    set_scene_tilemap_buffer_byte(g, word * 2u + 1, (uint8_t)(pixels >> 8));
+                    word++;
+                }
+            }
+        }
+    }
+}
+
+/* Entered with 16-bit A. The routine moves the direct page as it goes, which
+ * its callers put back; nothing it leaves in the registers is read. */
+void scene_gather_picture(Snes *s)
+{
+    gather_picture_into_tiles(state_of(s));
+    m_rts(s);
 }

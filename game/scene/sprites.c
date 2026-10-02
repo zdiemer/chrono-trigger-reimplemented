@@ -175,6 +175,10 @@ static void add_sprite(GameState *g, uint16_t source, bool large)
     set_cursor(g, c);
 }
 
+/* As C calls, for the program's routines ported as C. */
+void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
+void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }
+
 /* ---- Guards --------------------------------------------------------------------------------- */
 
 /* The port writes through the named sprite tables, so it takes only what the
@@ -197,6 +201,13 @@ static bool fits_in_table(uint16_t entry, uint16_t high, unsigned sprites)
         last_high += (entry / ENTRY_BYTES % SPRITES_PER_HIGH_BYTE + sprites - 1) / SPRITES_PER_HIGH_BYTE;
     return (unsigned)entry + sprites * ENTRY_BYTES <= SCENE_SPRITE_TABLE_BYTES && high >= SCENE_SPRITE_HIGH_TABLE &&
            last_high < SCENE_SPRITE_HIGH_TABLE + SCENE_SPRITE_HIGH_TABLE_BYTES;
+}
+
+/* Whether `sprites` more fit in the tables from the cursor, for the guards of
+ * ports that draw through these as C. */
+bool scene_sprites_fit(const GameState *g, unsigned sprites)
+{
+    return fits_in_table(scene_sprite_index(g), scene_sprite_high_pointer(g), sprites);
 }
 
 static bool cursor_fits(Snes *s, unsigned sprites)
@@ -249,21 +260,40 @@ void scene_load_sprite_list(Snes *s)
  * sprite's X shifted left -- where an X past the right edge is the word $9801,
  * as the original stores it (its high byte overwritten by the Y) -- and V the
  * overflow of adding the scene's offset to its Y. An empty list leaves both. */
+typedef struct {
+    uint16_t a;
+    bool overflow;
+} ClippedListLeaves;
+
+static ClippedListLeaves clipped_list_leaves(const GameState *g, uint16_t list, uint16_t a, bool overflow)
+{
+    uint8_t sprites = list_sprites(g, list);
+    if (sprites) {
+        uint32_t last = list_entry(list, sprites - 1u);
+        uint16_t x = clipped_x(g, wram_read8(g, last + 2));
+        uint16_t stored = past_the_right(x) ? 0x9801 : x;
+        uint8_t y = wram_read8(g, last + 3), offset = (uint8_t)scene_sprite_offset_y(g);
+        uint8_t sum = (uint8_t)(y + offset);
+        a = (uint16_t)(((uint16_t)(stored << 1) & 0xFF00) | (a & 0xFF));
+        overflow = (~(y ^ offset) & (y ^ sum) & 0x80) != 0;
+    }
+    return (ClippedListLeaves){ a, overflow };
+}
+
+/* The A a clipped list leaves, from the A it was called with, for the ports
+ * that call it as C and hand A on as the original does. */
+uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a)
+{
+    return clipped_list_leaves(g, list, a, false).a;
+}
+
 static void leave_after_clipped_list(Snes *s, uint16_t list)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
-    uint8_t sprites = (uint8_t)(snes_bus_peek(&s->bus, list_address(list)) - 1);
-    if (sprites) {
-        uint32_t last = list_entry(list, sprites - 1u);
-        uint16_t x = clipped_x(g, snes_bus_peek(&s->bus, last + 2));
-        uint16_t stored = past_the_right(x) ? 0x9801 : x;
-        uint8_t y = snes_bus_peek(&s->bus, last + 3), offset = (uint8_t)scene_sprite_offset_y(g);
-        uint8_t sum = (uint8_t)(y + offset);
-        s->cpu.a = (uint16_t)(((uint16_t)(stored << 1) & 0xFF00) | (s->cpu.a & 0xFF));
-        m_set_flag(s, CPU_FLAG_V, (~(y ^ offset) & (y ^ sum) & 0x80) != 0);
-    }
+    ClippedListLeaves left = clipped_list_leaves(state_of(s), list, s->cpu.a, m_flag(s, CPU_FLAG_V));
     vars_peek(false);
+    s->cpu.a = left.a;
+    m_set_flag(s, CPU_FLAG_V, left.overflow);
 }
 
 /* The list at A, large sprites clipped at the right edge; back, Y is the next

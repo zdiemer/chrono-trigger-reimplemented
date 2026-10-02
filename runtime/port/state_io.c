@@ -31,6 +31,8 @@ uint16_t hw_remainder(const GameState *g) { return m_read16(state_snes(g), RDMPY
 
 void hw_divide_by(GameState *g, uint8_t divisor) { m_write8(state_snes(g), WRDIVB, divisor); }
 
+void hw_divide_by_word(GameState *g, uint16_t word) { m_write16(state_snes(g), WRDIVB, word); }
+
 uint16_t hw_dividend(const GameState *g) { return state_snes(g)->bus.wrdiv; }
 
 uint8_t hw_multiplicand(const GameState *g) { return state_snes(g)->bus.wrmpya; }

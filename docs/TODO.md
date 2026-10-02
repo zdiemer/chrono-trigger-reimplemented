@@ -1648,6 +1648,14 @@ waits on M5 rather than on a backend.
   (100k-170k frame runs), the addresses each route needs, and re-running a
   route when the timing model changes, since routes survive drift but the
   movies they record don't.
+- **The jet bike race won, and the demo's race.** `events-jetbike-race`
+  loses, and nothing plays the attract demo's race (the scene's mode 9), so
+  Crono's finish, the coast, the victory song's wait, the camera settling, the
+  end of the scene and the prizes his score earns (`scene_race_prize`) rest on
+  fuzzing alone (RECOMP.md, "Phase 3, the scene program: the jet bike race
+  running"). A route that wins the race (the boosts late, against Johnny's
+  catching up) and a movie that idles at the title into the demo would put
+  shadow mode on them.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest
@@ -1741,6 +1749,16 @@ waits on M5 rather than on a backend.
   stops) and the ripple's new first offset each frame (`$7E:600E`, where
   `scene_title_ripple_columns` stops) are the program's code; porting them
   would end two stops mid-routine.
+- **The jet bike race's remainder** (RECOMP.md, "Phase 3, the scene program:
+  the jet bike race running"): the bikes placed in perspective (`$7E:4D0D`:
+  the signed multiply's leftover byte, the divisor search through the CPU's
+  divider and its cache `scene_race_divisors`, the carries of a dozen sums);
+  the main loop's scaling of the racers' pictures (`$7E:51D1`, `$7E:51F4`,
+  which stops at its wait `$7E:5211` and leaves a carry its loop reads); the
+  perspective table (`$7E:357B`, whose call at `$7E:35FC` and instructions at
+  `$7E:3634` the race's setup and the endings patch); and the setup
+  (`$7E:3B48`-`$7E:3F13`, `$7E:45D6`, the noise `$7E:3D72` through `$C3:000E`),
+  which ported whole retires the loader's block entries (above).
 - **What scene's second review accepted as later work** (RECOMP.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:

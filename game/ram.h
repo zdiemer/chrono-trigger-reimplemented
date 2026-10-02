@@ -6281,6 +6281,15 @@
  * pause [2 bytes] */
 #define RAM_SCENE_JOYPAD 0x7E0002u
 #define RAM_SCENE_JOYPAD_DP 0x02u            /* page scene */
+/* The controller as the race read it last frame (the race keeps the last two frames' as it takes
+ * this frame's into scene_race_buttons) [2 bytes] */
+#define RAM_SCENE_RACE_BUTTONS_BEFORE 0x7E0004u
+#define RAM_SCENE_RACE_BUTTONS_BEFORE_DP 0x04u /* page scene */
+/* The controller as the race reads it this frame (JOY1 order, PadBits): the steering buttons, B
+ * for a boost, A to leave once the race is over, and in the demo L, R, X and A turn and raise
+ * the camera [2 bytes] */
+#define RAM_SCENE_RACE_BUTTONS 0x7E0006u
+#define RAM_SCENE_RACE_BUTTONS_DP 0x06u      /* page scene */
 /* Frames counted by the scene NMI work [2 bytes] */
 #define RAM_SCENE_FRAME_COUNTER 0x7E0008u
 #define RAM_SCENE_FRAME_COUNTER_DP 0x08u     /* page scene */
@@ -6303,6 +6312,10 @@
 /* Y added to every sprite of a list as it is copied */
 #define RAM_SCENE_SPRITE_OFFSET_Y 0x7E0017u
 #define RAM_SCENE_SPRITE_OFFSET_Y_DP 0x17u   /* page scene */
+/* The byte after the sprites' Y offset, which the race stores with it as a word; nothing reads
+ * it */
+#define RAM_SCENE_SPRITE_OFFSET_Y_HIGH 0x7E0018u
+#define RAM_SCENE_SPRITE_OFFSET_Y_HIGH_DP 0x18u /* page scene */
 /* Count byte of the sprite list being copied, decremented per entry (the list holds one fewer
  * entry than it) */
 #define RAM_SCENE_SPRITE_LIST_LEFT 0x7E0019u
@@ -6361,10 +6374,34 @@
 /* BG3's horizontal scroll, sent with the per-frame tilemap block [2 bytes] */
 #define RAM_SCENE_BG3_SCROLL_X 0x7E0044u
 #define RAM_SCENE_BG3_SCROLL_X_DP 0x44u      /* page scene */
-/* The pitch of the race's engine: the parameter of the sound driver command $89 (the effect
- * voices' pitch, docs/SOUND.md), which the race sends each frame without waiting for the echo */
-#define RAM_SCENE_RACE_ENGINE_PITCH 0x7E004Bu
-#define RAM_SCENE_RACE_ENGINE_PITCH_DP 0x4Bu /* page scene */
+/* Nonzero while the race is the attract sequence's (the scene's mode other than 0, set by the
+ * race's setup at $7E:3B4F): the computer rides, the controller turns and raises the camera, and
+ * there are no boosts [2 bytes] */
+#define RAM_SCENE_RACE_DEMO 0x7E0044u
+#define RAM_SCENE_RACE_DEMO_DP 0x44u         /* page scene */
+/* The two jet bikes: where each is on the screen and on the track, how fast it goes and how it
+ * drifts across [2 x $25 bytes, by racer: 0 Crono, 1 Johnny] */
+#define RAM_SCENE_RACE_RACERS 0x7E0046u
+#define RAM_SCENE_RACE_RACERS_COUNT 2u
+#define RAM_SCENE_RACE_RACERS_STRIDE 0x25u
+#define RAM_SCENE_RACE_RACERS_DP 0x46u       /* page scene */
+#define RAM_SCENE_RACE_RACERS_SCREEN_X 0x7E0046u /* Where the bike is drawn across the screen: the left of its picture */
+#define RAM_SCENE_RACE_RACERS_SCREEN_Y 0x7E0048u /* Where the bike is drawn down the screen: the top of its picture */
+#define RAM_SCENE_RACE_RACERS_SPEED 0x7E004Au /* The bike's speed: every frame it goes $80 slower and as much faster as speeding_up, and moves on along the track by a 64th of it; Crono's high byte is the engine's pitch (the sound driver's command $89) */
+#define RAM_SCENE_RACE_RACERS_SPEEDING_UP 0x7E004Cu /* What the bike adds to its speed next frame: $100 for Crono and $F8 for Johnny while below the top speed, 0 at it */
+#define RAM_SCENE_RACE_RACERS_LANE 0x7E004Eu /* Where the bike is across the track, 0 to $7000 */
+#define RAM_SCENE_RACE_RACERS_AFTER_LANE 0x7E0050u /* The byte after the lane, which nothing writes; the distance bar's marker reads the lane's high byte as a word and takes it along */
+#define RAM_SCENE_RACE_RACERS_DISTANCE 0x7E0051u /* How far the bike has come; it finishes when the high word reaches 8 ($80000) */
+#define RAM_SCENE_RACE_RACERS_TOP_SPEED_LEADING 0x7E0055u /* The bike's top speed while it is ahead (Crono's: also its top speed coasting after the finish) */
+#define RAM_SCENE_RACE_RACERS_TOP_SPEED 0x7E0057u /* The bike's top speed this frame: the leading or the trailing one */
+#define RAM_SCENE_RACE_RACERS_TOP_SPEED_TRAILING 0x7E0059u /* The bike's top speed while it is behind; Johnny's is higher than his leading one, so he catches up */
+#define RAM_SCENE_RACE_RACERS_WIDTH 0x7E005Bu /* The width of the bike's picture at its distance from the camera */
+#define RAM_SCENE_RACE_RACERS_HEIGHT 0x7E005Du /* The height of the bike's picture at its distance from the camera */
+#define RAM_SCENE_RACE_RACERS_RIGHT 0x7E005Fu /* The right edge of the bike's picture on the screen */
+#define RAM_SCENE_RACE_RACERS_BOTTOM 0x7E0061u /* The bottom edge of the bike's picture on the screen: the bike lower on the screen is the nearer, and is drawn over the other */
+#define RAM_SCENE_RACE_RACERS_OUT_OF_SIGHT 0x7E0063u /* Nonzero when the bike isn't drawn: Johnny's when Crono is $1000 or more ahead */
+#define RAM_SCENE_RACE_RACERS_DRIFT_UP 0x7E0065u /* How fast the bike drifts toward the higher lanes: it builds up while the bike steers that way and dies away by $10 a frame */
+#define RAM_SCENE_RACE_RACERS_DRIFT_DOWN 0x7E0067u /* How fast the bike drifts toward the lower lanes */
 /* The Mode 7 matrix the scene keeps and copies to the hardware [8 bytes] */
 #define RAM_SCENE_MODE7_MATRIX 0x7E005Au
 #define RAM_SCENE_MODE7_MATRIX_DP 0x5Au      /* page scene */
@@ -6385,14 +6422,99 @@
  * the next script [2 bytes] */
 #define RAM_SCENE_TITLE_TIMER 0x7E0068u
 #define RAM_SCENE_TITLE_TIMER_DP 0x68u       /* page scene */
+/* Crono's score, shown at half its value: two more each frame he leads, one less each frame he
+ * trails, 20 more for bumping Johnny from behind and 10 less for being bumped; it drains away
+ * after Johnny wins [2 bytes] */
+#define RAM_SCENE_RACE_SCORE 0x7E0069u
+#define RAM_SCENE_RACE_SCORE_DP 0x69u        /* page scene */
+/* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
+ * decides each bike's top speed [2 bytes] */
+#define RAM_SCENE_RACE_LEAD 0x7E008Eu
+#define RAM_SCENE_RACE_LEAD_DP 0x8Eu         /* page scene */
+/* The camera's turn as the bikes are placed on the screen: its cosine and sine, and their
+ * negatives [4 x $2 bytes, by 0 the cosine, 1 the sine, 2 and 3 their negatives] */
+#define RAM_SCENE_RACE_VIEW 0x7E0090u
+#define RAM_SCENE_RACE_VIEW_COUNT 4u
+#define RAM_SCENE_RACE_VIEW_STRIDE 0x02u
+#define RAM_SCENE_RACE_VIEW_DP 0x90u         /* page scene */
+/* What Johnny presses this frame: $8000 the throttle, $0100 and $0200 steering toward the lower
+ * or the higher lanes [2 bytes] */
+#define RAM_SCENE_RACE_JOHNNY_CONTROLS 0x7E0098u
+#define RAM_SCENE_RACE_JOHNNY_CONTROLS_DP 0x98u /* page scene */
+/* Crono's boosts left (3 at the start) [2 bytes] */
+#define RAM_SCENE_RACE_BOOSTS 0x7E009Au
+#define RAM_SCENE_RACE_BOOSTS_DP 0x9Au       /* page scene */
+/* Where the camera is along the track: the two bikes' distances averaged [4 bytes] */
+#define RAM_SCENE_RACE_PLACE 0x7E009Cu
+#define RAM_SCENE_RACE_PLACE_DP 0x9Cu        /* page scene */
+/* Nonzero while B is held after a boost, so holding it boosts once [2 bytes] */
+#define RAM_SCENE_RACE_BOOST_HELD 0x7E00A0u
+#define RAM_SCENE_RACE_BOOST_HELD_DP 0xA0u   /* page scene */
+/* Nonzero while the plane's column at the track's seam is the cartridge's, as at the start and
+ * near the finish; the race sends its own copy back (scene_race_plane_column) once the camera is
+ * past [2 bytes] */
+#define RAM_SCENE_RACE_CARTRIDGE_COLUMN 0x7E00A2u
+#define RAM_SCENE_RACE_CARTRIDGE_COLUMN_DP 0xA2u /* page scene */
+/* Where Johnny is from Crono this frame: along the track in the low bits (1 Crono well ahead, 2
+ * Johnny well ahead), across it in the high bits ($10 and $20); 0 when they touch [2 bytes] */
+#define RAM_SCENE_RACE_CONTACT 0x7E00A4u
+#define RAM_SCENE_RACE_CONTACT_DP 0xA4u      /* page scene */
+/* The across part of scene_race_contact before it is shifted in [2 bytes] */
+#define RAM_SCENE_RACE_CONTACT_ACROSS 0x7E00A6u
+#define RAM_SCENE_RACE_CONTACT_ACROSS_DP 0xA6u /* page scene */
+/* scene_race_contact as it last was apart: when the bikes touch, it says which way they came
+ * together [2 bytes] */
+#define RAM_SCENE_RACE_LAST_CONTACT 0x7E00A8u
+#define RAM_SCENE_RACE_LAST_CONTACT_DP 0xA8u /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4000; cleared when it is
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_A_READY 0x7E00AAu
 #define RAM_SCENE_RACE_TILEMAP_A_READY_DP 0xAAu /* page scene */
+/* The byte after each tilemap half's ready mark, which the race counts the mark up into as a
+ * word (the vblank clears the mark alone) [2 x $2 bytes, by racer: 0 Crono's half (after
+ * scene_race_tilemap_a_ready), 1 Johnny's (after _b_ready)] */
+#define RAM_SCENE_RACE_TILEMAP_READY_HIGH 0x7E00ABu
+#define RAM_SCENE_RACE_TILEMAP_READY_HIGH_COUNT 2u
+#define RAM_SCENE_RACE_TILEMAP_READY_HIGH_STRIDE 0x02u
+#define RAM_SCENE_RACE_TILEMAP_READY_HIGH_DP 0xABu /* page scene */
 /* Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4400; cleared when it is
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
 #define RAM_SCENE_RACE_TILEMAP_B_READY_DP 0xACu /* page scene */
+/* How Crono's bike leans this frame: 0 upright, 1 steering toward the higher lanes, 2 toward the
+ * lower ones [2 bytes] */
+#define RAM_SCENE_RACE_CRONO_LEAN 0x7E00AEu
+#define RAM_SCENE_RACE_CRONO_LEAN_DP 0xAEu   /* page scene */
+/* How far the race has got: 0 racing, 1 Crono has crossed the line and is coasting, 2 he has
+ * pulled away to his lane [2 bytes] */
+#define RAM_SCENE_RACE_STAGE 0x7E00B0u
+#define RAM_SCENE_RACE_STAGE_DP 0xB0u        /* page scene */
+/* Crono's lead as he crossed the line (its low byte), which dies away a step a frame while he
+ * coasts [2 bytes] */
+#define RAM_SCENE_RACE_FINISH_MARGIN 0x7E00B2u
+#define RAM_SCENE_RACE_FINISH_MARGIN_DP 0xB2u /* page scene */
+/* The divisor the race's distance scale was last found at, which the next search starts from [2
+ * bytes] */
+#define RAM_SCENE_RACE_DIVISOR_START 0x7E00B4u
+#define RAM_SCENE_RACE_DIVISOR_START_DP 0xB4u /* page scene */
+/* Which of the control pad's directions steers which way, by the way the camera faces the track
+ * [2 x $2 bytes, by 0 the button that steers toward the lower lanes, 1 toward the higher] */
+#define RAM_SCENE_RACE_STEER_BUTTONS 0x7E00B6u
+#define RAM_SCENE_RACE_STEER_BUTTONS_COUNT 2u
+#define RAM_SCENE_RACE_STEER_BUTTONS_STRIDE 0x02u
+#define RAM_SCENE_RACE_STEER_BUTTONS_DP 0xB6u /* page scene */
+/* Frames left of the boost Crono is on ($80 at a boost), while the boost gauge in the road strip
+ * flashes [2 bytes] */
+#define RAM_SCENE_RACE_BOOST_TIMER 0x7E00BAu
+#define RAM_SCENE_RACE_BOOST_TIMER_DP 0xBAu  /* page scene */
+/* Frames since the race started [2 bytes] */
+#define RAM_SCENE_RACE_FRAMES 0x7E00BCu
+#define RAM_SCENE_RACE_FRAMES_DP 0xBCu       /* page scene */
+/* Nonzero once A has been pressed after the finish and the picture is fading out [2 bytes] */
+#define RAM_SCENE_RACE_LEAVING 0x7E00BEu
+#define RAM_SCENE_RACE_LEAVING_DP 0xBEu      /* page scene */
+/* Nonzero (2) once a button has been pressed after the race and its ending has begun */
+#define RAM_SCENE_RACE_ENDING 0x7E0350u
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
  * bytes] */
@@ -6426,6 +6548,14 @@
 /* Bit 0: the circle's table is in bank $7F rather than $7E */
 #define RAM_SCENE_CIRCLE_TABLE_BANK 0x7E0358u
 #define RAM_SCENE_CIRCLE_TABLE_BANK_DP 0x58u /* page decompress */
+/* Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny */
+#define RAM_SCENE_RACE_WINNER 0x7E0380u
+/* What Crono's winning score earns, for the story to read: a prize for a lucky number in the low
+ * bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for
+ * reaching 1300, 1500 and 2000 */
+#define RAM_SCENE_RACE_PRIZE 0x7E0381u
+/* Crono's score as he won, as it is shown (half scene_race_score) [2 bytes] */
+#define RAM_SCENE_RACE_FINAL_SCORE 0x7E0382u
 /* Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the
  * shorter work RAM clear (the title coming back); bit 5 = don't send song changes */
 #define RAM_SCENE_FLAGS 0x7E0384u
@@ -6441,6 +6571,11 @@
 #define RAM_SCENE_LINE_EFFECTS 0x7E038Cu
 /* Display brightness the NMI work restores (0 = forced blank), halved while paused */
 #define RAM_SCENE_BRIGHTNESS 0x7E038Du
+/* Frames between the steps of the scene's fade in or out (the program's fade tasks at $7E:347A
+ * and on) */
+#define RAM_SCENE_FADE_PERIOD 0x7E038Eu
+/* Frames left before the fade's next step; a store of the period as a word sets it too */
+#define RAM_SCENE_FADE_COUNTDOWN 0x7E038Fu
 /* Nonzero while Start may pause the scene [2 bytes] */
 #define RAM_SCENE_PAUSE_ENABLED 0x7E0390u
 /* 1 while the scene is paused: the task lists don't run and the screen is at half brightness [2
@@ -6451,6 +6586,11 @@
 #define RAM_SCENE_START_HELD 0x7E0394u
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 #define RAM_SCENE_RESET_DISABLED 0x7E0396u
+/* Frames left before the race's scene ends, once a button has been pressed after it [2 bytes] */
+#define RAM_SCENE_RACE_END_WAIT 0x7E0399u
+/* Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it
+ * on */
+#define RAM_SCENE_RANDOM_STEP 0x7E039Bu
 /* Scratch of the circle $C3:0077 draws: whatever it is counting or has just computed -- the
  * octant's x, then y, then the lines left to mirror, then the byte count of a run of closed
  * lines [2 bytes] */
@@ -6512,12 +6652,55 @@
 #define RAM_SCENE_CHANNELS_SCRIPT 0x7E0A20u  /* Pointer to the channel's next script command in bank $7E; a store to it is a goto */
 #define RAM_SCENE_CHANNELS_LOOP_COUNTERS 0x7E0A22u /* Counters of the loop commands $80-$9F, a word each at $22 + 2n (n = 7 is the return address) */
 #define RAM_SCENE_CHANNELS_RETURN_ADDRESS 0x7E0A30u /* Where the script's call command ($A3) returns to */
+/* The camera the race last built its perspective for, kept in channel 0's spare loop counters:
+ * when the camera differs, the perspective is built again [5 x $2 bytes, by the camera's height,
+ * angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them] */
+#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA 0x7E0A30u
+#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA_COUNT 5u
+#define RAM_SCENE_RACE_PERSPECTIVE_CAMERA_STRIDE 0x02u
+/* In the demo, how fast the camera is turning each way: it builds up to 12 while the shoulder
+ * button is held and dies away when it isn't; the camera turns by a quarter of each a frame [2 x
+ * $2 bytes, by 0 turning one way (R), 1 the other (L)] */
+#define RAM_SCENE_RACE_TURNING 0x7E0A3Au
+#define RAM_SCENE_RACE_TURNING_COUNT 2u
+#define RAM_SCENE_RACE_TURNING_STRIDE 0x02u
 /* Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's
  * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
  * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
  * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
  * [2048 bytes] */
 #define RAM_SCENE_TILEMAP_BUFFER 0x7E0C00u
+/* A racer's picture to scale for this frame: the scaler's settings, which the program's main
+ * loop copies into the scaler's cells ($7E:51F4) when the request is pending [2 x $E bytes, by
+ * racer: 0 Crono, 1 Johnny] */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS 0x7E1400u
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_COUNT 2u
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_STRIDE 0x0Eu
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_PAIRS 0x7E1400u /* The picture's width in pairs of eight-pixel groups */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_STATE 0x7E1402u /* 0 nothing asked, 1 waiting for the main loop to scale it, 2 scaled and gathered into the tilemap buffer, for the racer's half of VRAM */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_SOURCE 0x7E1404u /* Where the racer's picture is in the bank of pictures, by its pose and its frame of animation */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_ROWS 0x7E1406u /* How many rows to scale */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_ROW_STEP 0x7E1408u /* How far down the picture each scaled row steps: half the racer's size on the screen */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_COLUMN_STEP 0x7E140Au /* How far across each scaled pixel steps (the main loop sets it from the row step) */
+#define RAM_SCENE_RACE_PICTURE_REQUESTS_SOURCE_LIMIT 0x7E140Cu /* Where the picture's rows end; past it the scaler clears the rest */
+/* How far the plane is turned on the screen: the camera's angle negated (after the finish, how
+ * far the camera has come); the flat layers scroll across by a part of it [2 bytes] */
+#define RAM_SCENE_RACE_PLANE_TURN 0x7E141Cu
+/* Where the horizon is, measured as BG3's scroll before the 2 lines it is moved: $17 less the
+ * camera's pitch [2 bytes] */
+#define RAM_SCENE_RACE_HORIZON 0x7E141Eu
+/* Where on the plane the camera looks from: its place along the track and the scenery's drift,
+ * plus the camera's offset; the plane's rotation center is $7F and $E0 more [2 x $2 bytes, by 0
+ * across the plane, 1 down it] */
+#define RAM_SCENE_RACE_VIEW_POSITION 0x7E1420u
+#define RAM_SCENE_RACE_VIEW_POSITION_COUNT 2u
+#define RAM_SCENE_RACE_VIEW_POSITION_STRIDE 0x02u
+/* The camera as the vblank last sent it, which the program's per-line work reads while the
+ * frame's work changes the originals [4 x $2 bytes, by the plane's turn, the horizon, the view
+ * position across and down] */
+#define RAM_SCENE_RACE_VIEW_SENT 0x7E1424u
+#define RAM_SCENE_RACE_VIEW_SENT_COUNT 4u
+#define RAM_SCENE_RACE_VIEW_SENT_STRIDE 0x02u
 /* Race camera: the Mode 7 rotation center's X [2 bytes] */
 #define RAM_SCENE_RACE_CENTER_X 0x7E142Cu
 /* Race camera: the Mode 7 rotation center's Y [2 bytes] */
@@ -6528,8 +6711,115 @@
 #define RAM_SCENE_RACE_BG3_SCROLL_X 0x7E1434u
 /* Race: BG3's vertical scroll [2 bytes] */
 #define RAM_SCENE_RACE_BG3_SCROLL_Y 0x7E1436u
+/* How far the flat layers' scenery has turned after the finish, added to the plane's turn as the
+ * camera follows the winner [2 bytes] */
+#define RAM_SCENE_RACE_SCENERY_DRIFT 0x7E143Eu
+/* How far the camera stands from its place on the track: its distance turned by its angle [2 x
+ * $2 bytes, by 0 across the plane, 1 down it] */
+#define RAM_SCENE_RACE_CAMERA_OFFSET 0x7E1440u
+#define RAM_SCENE_RACE_CAMERA_OFFSET_COUNT 2u
+#define RAM_SCENE_RACE_CAMERA_OFFSET_STRIDE 0x02u
+/* Nonzero once Johnny has dropped out of the picture after Crono's finish: he is no longer
+ * placed on the screen [2 bytes] */
+#define RAM_SCENE_RACE_JOHNNY_GONE 0x7E1444u
+/* The divisor found for each of the race's distances from the camera, 0 where none has been yet;
+ * cleared whenever the camera's height changes [256 x $1 bytes, by the distance's high byte plus
+ * the camera's height (wrapping)] */
+#define RAM_SCENE_RACE_DIVISORS 0x7E1446u
+#define RAM_SCENE_RACE_DIVISORS_COUNT 256u
+#define RAM_SCENE_RACE_DIVISORS_STRIDE 0x01u
 /* The scene's working palette, 256 colors, sent to CGRAM [512 bytes] */
 #define RAM_SCENE_PALETTE 0x7E2200u
+/* The sprite list the program draws a number with: the count byte (one more than the digits
+ * shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20
+ * and the digit) [21 x $1 bytes, by byte of the list] */
+#define RAM_SCENE_NUMBER_DIGITS 0x7E3A7Du
+#define RAM_SCENE_NUMBER_DIGITS_COUNT 21u
+#define RAM_SCENE_NUMBER_DIGITS_STRIDE 0x01u
+/* The two openings the race's camera script can take, one picked at random (the program's data)
+ * [2 x $2 bytes, by which opening] */
+#define RAM_SCENE_RACE_OPENINGS 0x7E3F66u
+#define RAM_SCENE_RACE_OPENINGS_COUNT 2u
+#define RAM_SCENE_RACE_OPENINGS_STRIDE 0x02u
+/* The control pad direction that steers toward the lower lanes for each way the camera can face,
+ * then the one toward the higher lanes (the program's data) [16 x $2 bytes, by the way the
+ * camera faces (0-7, an eighth of a turn each), then 8 more for the other direction] */
+#define RAM_SCENE_RACE_STEERING_BY_VIEW 0x7E4319u
+#define RAM_SCENE_RACE_STEERING_BY_VIEW_COUNT 16u
+#define RAM_SCENE_RACE_STEERING_BY_VIEW_STRIDE 0x02u
+/* The line counts of the race's per-line table for the BG mode (mode 1 above the horizon, the
+ * plane's mode 7 from it), which the race sets each vblank from the horizon [2 x $3 bytes, by 0
+ * the lines above the horizon, 1 the lines from it] */
+#define RAM_SCENE_RACE_LINE_COUNTS 0x7E451Fu
+#define RAM_SCENE_RACE_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_RACE_LINE_COUNTS_STRIDE 0x03u
+/* The line counts of the race's per-line table for the color math, set from the horizon as
+ * scene_race_line_counts are [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from
+ * it] */
+#define RAM_SCENE_RACE_MATH_LINE_COUNTS 0x7E452Bu
+#define RAM_SCENE_RACE_MATH_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_RACE_MATH_LINE_COUNTS_STRIDE 0x03u
+/* The line counts of the race's per-line table for BG1's scroll, set from the horizon as
+ * scene_race_line_counts are [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from
+ * it] */
+#define RAM_SCENE_RACE_SCROLL_LINE_COUNTS 0x7E45A6u
+#define RAM_SCENE_RACE_SCROLL_LINE_COUNTS_COUNT 2u
+#define RAM_SCENE_RACE_SCROLL_LINE_COUNTS_STRIDE 0x03u
+/* The lanes the two bikes pull over to after the finish in the demo: operands of the program's
+ * own compares, which Crono's finish swaps when he crosses the line on the higher lanes' side [2
+ * x $16 bytes, by racer: 0 Crono, 1 Johnny] */
+#define RAM_SCENE_RACE_FINISH_LANES 0x7E46CEu
+#define RAM_SCENE_RACE_FINISH_LANES_COUNT 2u
+#define RAM_SCENE_RACE_FINISH_LANES_STRIDE 0x16u
+/* Scores that earn a prize as repdigits: 111 to 999, 1111, 2222 and 3333 (the program's data;
+ * the search runs down from the 11th) [11 x $2 bytes, by which score, from 111 up] */
+#define RAM_SCENE_RACE_LUCKY_SCORES 0x7E4772u
+#define RAM_SCENE_RACE_LUCKY_SCORES_COUNT 11u
+#define RAM_SCENE_RACE_LUCKY_SCORES_STRIDE 0x02u
+/* Where the distance bar ends across the screen ($B8; the demo's setup makes it $D8): the
+ * operand of the program's own load the markers' scale is worked out from [2 bytes] */
+#define RAM_SCENE_RACE_BAR_RIGHT 0x7E4F74u
+/* Where the distance bar ends, as the markers are placed back from it: the same as
+ * scene_race_bar_right, in a second operand of the program's [2 bytes] */
+#define RAM_SCENE_RACE_MARKERS_RIGHT 0x7E50DAu
+/* The first byte of the program's instruction that draws the distance bar's markers: Johnny's
+ * win writes a return over it ($60), so the markers stop being drawn */
+#define RAM_SCENE_RACE_MARKERS_SHOWN 0x7E510Du
+/* How much the distance still to go is shown less than it is: the operand of the program's own
+ * subtraction, which counts down one every 64 frames from $18 [2 bytes] */
+#define RAM_SCENE_RACE_DISTANCE_SHOWN_LESS 0x7E5171u
+/* Where each of Johnny's pictures is in the bank of pictures (the program's data) [16 x $2
+ * bytes, by pose (by the way the camera faces), then 8 more for the other frame of the bike's
+ * animation] */
+#define RAM_SCENE_RACE_JOHNNY_FRAMES 0x7E51B1u
+#define RAM_SCENE_RACE_JOHNNY_FRAMES_COUNT 16u
+#define RAM_SCENE_RACE_JOHNNY_FRAMES_STRIDE 0x02u
+/* Where each of Crono's pictures is in the bank of pictures, by how the bike leans (the
+ * program's data) [48 x $2 bytes, by lean (0-2) * 16, then the pose, then 8 more for the other
+ * frame] */
+#define RAM_SCENE_RACE_CRONO_FRAMES 0x7E528Bu
+#define RAM_SCENE_RACE_CRONO_FRAMES_COUNT 48u
+#define RAM_SCENE_RACE_CRONO_FRAMES_STRIDE 0x02u
+/* Where Crono's picture for each pose ends, the scaler's source limit (the program's data) [8 x
+ * $2 bytes, by pose] */
+#define RAM_SCENE_RACE_CRONO_FRAME_ENDS 0x7E52EBu
+#define RAM_SCENE_RACE_CRONO_FRAME_ENDS_COUNT 8u
+#define RAM_SCENE_RACE_CRONO_FRAME_ENDS_STRIDE 0x02u
+/* How many rows Crono's picture for each pose has (the program's data) [8 x $2 bytes, by pose] */
+#define RAM_SCENE_RACE_CRONO_FRAME_ROWS 0x7E52FBu
+#define RAM_SCENE_RACE_CRONO_FRAME_ROWS_COUNT 8u
+#define RAM_SCENE_RACE_CRONO_FRAME_ROWS_STRIDE 0x02u
+/* How many of the sprites of Crono's sprite list each pose shows when he is far away (the list's
+ * count byte; the program's data) [8 x $2 bytes, by pose] */
+#define RAM_SCENE_RACE_CRONO_SPRITE_COUNTS 0x7E530Bu
+#define RAM_SCENE_RACE_CRONO_SPRITE_COUNTS_COUNT 8u
+#define RAM_SCENE_RACE_CRONO_SPRITE_COUNTS_STRIDE 0x02u
+/* The count bytes of the sprite lists the racers are drawn with over their scaled pictures (the
+ * program's data, but these): one more than the sprites to draw, fewer the farther away the
+ * racer is [2 x $41 bytes, by racer: 0 Crono, 1 Johnny] */
+#define RAM_SCENE_RACE_SPRITE_LIST_COUNTS 0x7E531Bu
+#define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_COUNT 2u
+#define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_STRIDE 0x41u
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
@@ -6537,6 +6827,12 @@
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes] */
 #define RAM_SCENE_RACE_LINE_TABLES 0x7EF000u
+/* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
+ * after another, before it is gathered into tiles [1152 x $2 bytes, by word of the picture, $10
+ * a row] */
+#define RAM_SCENE_RACE_PICTURE 0x7F0200u
+#define RAM_SCENE_RACE_PICTURE_COUNT 1152u
+#define RAM_SCENE_RACE_PICTURE_STRIDE 0x02u
 /* The bitmap scaler's output buffer in the race (planar tile graphics), cleared at setup [1792
  * bytes] */
 #define RAM_SCENE_RACE_SCALER_OUTPUT 0x7F0300u
@@ -6568,6 +6864,8 @@
 #define RAM_SCENE_CALL_MATRIX_COLUMN_STEP_DP 0xF6u /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
 #define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
 #define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
+#define RAM_SCENE_CALL_BUMP_PUSH_DP 0xF6u    /* The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte */
+#define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 
 #endif

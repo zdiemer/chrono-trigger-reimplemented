@@ -386,6 +386,141 @@ subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
 
+[[routine]]
+name = "scene_race_ride"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "a frame task on the scene's page; the program kept (its code is the guard's hash, its tables the race's data); the driver's echo looped back for the bump's sound"
+
+[[routine]]
+name = "scene_race_ride"
+variant = "finish"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E0053-7E0053=07-08", "--fill", "7E0078-7E0078=07-08", "--fill", "7E00B0-7E00B0=00-00", "--fill", "7E00B1-7E00B1=00-00"]
+why = "the bikes' distances near the finish and the race running, so the two finishes and the seam's swaps are reached"
+
+[[routine]]
+name = "scene_race_ride"
+variant = "bump"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback", "--fill", "7E00B0-7E00B1=00-00", "--fill", "7E004E-7E004F=@7E0073", "--fill", "7E0051-7E0052=@7E0076"]
+why = "the race running with the bikes level in lane and distance, so they touch and bump every way"
+
+[[routine]]
+name = "scene_race_coast"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E00B0-7E00B0=01-02", "--fill", "7E00B1-7E00B1=00-00"]
+why = "after Crono's finish: stage 1 coasting or 2 pulled away"
+
+[[routine]]
+name = "scene_race_await_victory_song"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_wait_to_leave"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+why = "a frame task; the driver's echo looped back for the sound that begins the end"
+
+[[routine]]
+name = "scene_race_leave"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_drain_score"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_settle_camera"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_move_along"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_keep_controller"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page"
+
+[[routine]]
+name = "scene_race_check_perspective"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page; the perspective it stops at is the original's"
+
+[[routine]]
+name = "scene_race_turn_camera"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page, the demo's flag random"
+
+[[routine]]
+name = "scene_race_aim_camera"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task on the scene's page; the multiply on channel 0's"
+
+[[routine]]
+name = "scene_race_follow_finish"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task on the scene's page"
+
+[[routine]]
+name = "scene_race_set_horizon"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task on the scene's page; the strip's upload after it"
+
+[[routine]]
+name = "scene_race_draw"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E009A-7E009A=00-03", "--fill", "7E009B-7E009B=00-00", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E00AE-7E00AE=00-02", "--fill", "7E00AF-7E00AF=00-00"]
+why = "a frame task; boosts at most three, Crono leaning one of his three ways and the sprite cursor at the table's start, as the race's frames draw (the guard refuses the rest, where the original's sprites leave the table and its pictures' index the program's other data)"
+
+[[routine]]
+name = "scene_race_pick_opening"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "channel 0's script calls it, on its page, with the data bank on the program's"
+
+[[routine]]
+name = "scene_gather_picture"
+subsystem = "scene"
+state = "race"
+args = ["--db", "7F", "--keep", "7E3000-7EC994"]
+why = "the picture read through the data bank, the second bank of work RAM, as every caller sets it"
+
 # ---- scene: display (P2) -------------------------------------------------------------------------
 
 [[routine]]

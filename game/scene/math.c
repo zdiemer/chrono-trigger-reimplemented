@@ -8,6 +8,8 @@
  *
  * - multiply: 16 x 16 bits into a 32-bit product;
  * - multiply_signed: a signed 16-bit value times a signed byte;
+ * - multiply_signed16: two signed 16-bit values, as magnitudes through
+ *   multiply (the race's camera; a C call, not an entry);
  * - divide: 32 by 32 bits, into a quotient and a remainder;
  * - divide_8_8: a value's high byte by a 16-bit divisor, as an 8.8 fixed-point
  *   fraction (how far along a distance something is);
@@ -61,14 +63,16 @@ static void shift_the_byte_after(GameState *g, SceneProgramPage page)
 }
 
 // $7E:31BF
-/* The product of the two operands. */
-static void multiply(GameState *g, SceneProgramPage page)
+/* The product of the two operands, which it also returns. */
+static uint32_t multiply(GameState *g, SceneProgramPage page)
 {
     uint16_t a = scene_call_first(g, page), b = scene_call_second(g, page);
     bool carried = carries_into_the_product(g, page);
     shift_the_byte_after(g, page);
-    set_scene_call_product(g, page, (uint32_t)a * b + (carried ? CARRIED_IN : 0));
+    uint32_t product = (uint32_t)a * b + (carried ? CARRIED_IN : 0);
+    set_scene_call_product(g, page, product);
     ORIGINAL_EFFECT(leave_multiplier(g, (uint8_t)(b >> 8), (uint8_t)(a >> 8)));
+    return product;
 }
 
 /* The original sums the middle partial products in 16 bits, and one that
@@ -109,6 +113,27 @@ static void multiply_signed(GameState *g, SceneProgramPage page)
     uint32_t product = magnitude_with_leftover((uint32_t)size_a * size_b, leftover);
     set_scene_call_product(g, page, negative ? (uint32_t)-product : product);
     ORIGINAL_EFFECT(leave_multiplier(g, size_b, (uint8_t)(size_a >> 8)));
+}
+
+/* ---- multiply_signed16 --------------------------------------------------------------------- */
+
+// $7E:33D6
+/* A signed 16-bit value times another, as the race's camera turns its
+ * distance: the magnitudes multiplied (multiply, above: its carried byte and
+ * all, and its time) and the product negated when the signs differ. The
+ * operands' cells are left with the magnitudes, as the multiply takes them.
+ * Returns the product. */
+uint32_t scene_multiply_signed16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b)
+{
+    set_scene_call_first(g, page, magnitude16(a));
+    set_scene_call_second(g, page, magnitude16(b));
+    uint32_t product;
+    TIMED_AS(g, 0x7E31BF, product = multiply(g, page));
+    if ((a ^ b) & 0x8000) {
+        product = (uint32_t)-product;
+        set_scene_call_product(g, page, product);
+    }
+    return product;
 }
 
 /* ---- divide ----------------------------------------------------------------------------------- */

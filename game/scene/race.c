@@ -11,11 +11,15 @@
  * track scrolls in, the scaled road strip, and whichever half of the racers'
  * tilemap the race has finished drawing, and waits for that upload before it
  * draws the next. The engine's sound follows the bike: the race sets the pitch
- * of the effect voices every frame.
+ * of the effect voices every frame, and sends its own effects (the bikes
+ * bumping, the button that ends the scene) and waits for the driver to take
+ * them.
  *
  * Only `events-jetbike-race` reaches any of it. It is the scene program's
- * code, in work RAM, so every entry is guarded by a hash of its code. */
-#include "scene/scene.h"
+ * code, in work RAM, so every entry is guarded by a hash of its code. What the
+ * race does each frame -- the bikes, the camera, the drawing -- is in
+ * race_rules.c, race_camera.c and race_drawing.c (race.h). */
+#include "scene/race.h"
 
 #include "platform/audio.h"
 #include "platform/video.h"
@@ -235,7 +239,7 @@ void scene_race_upload_plane(Snes *s)
 
 bool scene_race_move_camera_present(Snes *s)
 {
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E43F2, 60, 0xBD782F2009885B3Aull);
+    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E43F2, 0x55, 0xDBEA3A9A200F00DEull);
 }
 
 // $7E:43F2
@@ -251,11 +255,23 @@ static void move_camera(const GameState *g, Platform *pf)
                    VID_SCROLL_H | VID_SCROLL_V);
 }
 
-/* Stops where the routine goes on to copy its own state around. */
+/* Then the camera as sent, kept for the program's per-line work to read
+ * while the frame's work changes the originals: the plane's turn, the horizon
+ * and the view's position. */
+static void keep_camera_sent(GameState *g)
+{
+    set_scene_race_view_sent(g, 0, scene_race_plane_turn(g));
+    set_scene_race_view_sent(g, 2, scene_race_view_position(g, 0));
+    set_scene_race_view_sent(g, 1, scene_race_horizon(g));
+    set_scene_race_view_sent(g, 3, scene_race_view_position(g, 1));
+}
+
+/* Nothing it leaves in the registers is read. */
 void scene_race_move_camera(Snes *s)
 {
     move_camera(state_of(s), m_platform(s));
-    m_stop_at(s, 0x7E442E, NOTHING_READ);
+    keep_camera_sent(state_of(s));
+    m_rts(s);
 }
 
 bool scene_race_upload_column_present(Snes *s) { return m_code_matches(s, 0x7E4643, 52, 0xAE7FE41C71F7EB77ull); }
@@ -324,16 +340,16 @@ void scene_race_upload_tilemap(Snes *s)
 bool scene_race_upload_strip_present(Snes *s) { return m_code_matches(s, 0x7E5221, 106, 0x2A63AA398E2A05CBull); }
 
 // $7E:5261
-/* The scaled road strip, a word at a time. Also the end of the routine at
- * $7E:44FE, which points the scaler at the strip and jumps here. */
-static void upload_road_strip(Platform *pf)
+/* The scaled road strip, a word at a time. Also the end of the vblank task that
+ * sets the horizon (scene_race_set_horizon, $7E:44FE), which goes on here. */
+void race_upload_road_strip(Platform *pf)
 {
     vid_send_vram(pf, PF_AT(0x7E5287), ROAD_STRIP_VRAM, PF_GAME(ROAD_STRIP), ROAD_STRIP_BYTES, SCENE_VRAM_WHOLE_WORDS);
 }
 
 void scene_race_upload_strip(Snes *s)
 {
-    upload_road_strip(m_platform(s));
+    race_upload_road_strip(m_platform(s));
     m_rts(s);
 }
 
@@ -369,18 +385,47 @@ bool scene_race_engine_present(Snes *s)
  * its parameter first, without waiting for the echo. */
 enum { EFFECT_PITCH = 0x89 };
 
+/* The engine's pitch is Crono's speed's high byte. */
+static uint8_t engine_pitch(const GameState *g) { return (uint8_t)(scene_race_racers_speed(g, RACER_CRONO) >> 8); }
+
 // $7E:4BD2
-/* Unless a song is being sent: the engine's pitch to the sound driver. */
-static void set_engine_pitch(const GameState *g, Platform *pf)
+/* The engine's pitch to the sound driver; the race skips it while a song is
+ * being sent. */
+void race_send_engine_pitch(const GameState *g, Platform *pf)
 {
-    au_driver_write(pf, PF_AT(0x7E4BD4), 1, scene_race_engine_pitch(g));
+    au_driver_write(pf, PF_AT(0x7E4BD4), 1, engine_pitch(g));
     au_driver_write(pf, PF_AT(0x7E4BD9), 0, EFFECT_PITCH);
 }
+
+/* The race's own sound effects, sent by the program's send ($7E:377E), which
+ * waits for the driver to take each: the command and its effect and pan into
+ * the sound command buffer, then the call, with 8-bit A as the program makes
+ * it. The send reads none of the registers but Y and the data bank, which it
+ * leaves (and nothing after these calls reads A or the flags it changes). */
+enum { SCENE_SEND = 0x7E377E };
+
+static void send_effect(Snes *s, uint32_t site, uint8_t command, uint8_t effect)
+{
+    GameState *g = state_of(s);
+    set_sound_command_parameters(g, 0, effect);
+    set_sound_command_parameters(g, 1, AU_CENTRE);
+    set_sound_command(g, command);
+    m_set_flag(s, CPU_FLAG_M, true);
+    au_driver_call(m_platform(s), PF_CALL(site, SCENE_SEND), DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
+}
+
+/* The bikes bumping, on the second pair of effect voices. */
+enum { BUMP_SOUND = 0x98, LEAVING_SOUND = 0xBA };
+
+void race_sound_bump(Snes *s) { send_effect(s, 0x7E4BC8, AU_START_OTHER_EFFECT, BUMP_SOUND); }
+
+/* The button that ends the scene after the race. */
+void race_sound_leaving(Snes *s) { send_effect(s, 0x7E426D, AU_START_EFFECT, LEAVING_SOUND); }
 
 /* Continues at $7E:4BDC with 8-bit A the command. */
 void scene_race_set_engine_pitch(Snes *s)
 {
-    set_engine_pitch(state_of(s), m_platform(s));
+    race_send_engine_pitch(state_of(s), m_platform(s));
     m_set_a8(s, EFFECT_PITCH);
     m_set_nz8(s, EFFECT_PITCH);
     s->cpu.pc = 0x4BDC;
