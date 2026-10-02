@@ -26,7 +26,8 @@
 #include "system.h"
 
 #define STATE_MAGIC "CTST"
-#define STATE_VERSION 1u
+/* 2: a host program in the SPC700's place saves its own fields (apu.host). */
+#define STATE_VERSION 2u
 /* The raw machine images written before this format. */
 #define RAW_MAGIC "CTSS"
 
@@ -43,7 +44,7 @@ typedef struct {
 
 typedef enum { MODE_WRITE, MODE_READ, MODE_LIST } Mode;
 
-typedef struct {
+struct SnesStateVisitor {
     Mode mode;
     /* MODE_WRITE */
     uint8_t *out;
@@ -57,7 +58,8 @@ typedef struct {
     /* MODE_LIST */
     SnesStateField fn;
     void *ctx;
-} Visitor;
+};
+typedef SnesStateVisitor Visitor;
 
 static void fail(Visitor *v, const char *fmt, ...)
 {
@@ -200,6 +202,16 @@ static void field(Visitor *v, const char *name, void *p, unsigned size, uint32_t
         return;
     }
     /* Not in the state: the field keeps its power-on value. */
+}
+
+void snes_state_uint(SnesStateVisitor *v, const char *name, void *p, unsigned size, uint32_t count)
+{
+    field(v, name, p, size, count, KIND_UINT);
+}
+
+void snes_state_bool(SnesStateVisitor *v, const char *name, bool *p, uint32_t count)
+{
+    field(v, name, p, sizeof *p, count, KIND_BOOL);
 }
 
 #define U(v, name, x) field((v), (name), &(x), sizeof(x), 1, KIND_UINT)
@@ -466,7 +478,18 @@ void snes_state_fields(Snes *snes, SnesStateField fn, void *ctx)
     visit(&v, snes);
 }
 
-uint8_t *snes_state_write(const Snes *snes, size_t *len)
+void snes_state_extra_fields(const SnesStateExtra *extra, SnesStateField fn, void *ctx)
+{
+    Visitor v = { .mode = MODE_LIST, .fn = fn, .ctx = ctx };
+    extra->visit(&v, extra->fields);
+}
+
+/* Whether the SPC700's place was taken by a host program with fields of its
+ * own: a record of its own, so that a state is only ever loaded the way it
+ * was saved. */
+#define HOST_RECORD "apu.host"
+
+uint8_t *snes_state_write_with(const Snes *snes, const SnesStateExtra *extra, size_t *len)
 {
     Visitor v = { .mode = MODE_WRITE };
     put_bytes(&v, STATE_MAGIC, 4);
@@ -475,6 +498,11 @@ uint8_t *snes_state_write(const Snes *snes, size_t *len)
     uint32_t rom_crc = crc32_of(snes->bus.rom, snes->bus.rom_size);
     field(&v, "rom.crc32", &rom_crc, 4, 1, KIND_UINT);
     visit(&v, (Snes *)snes);   /* only read in MODE_WRITE */
+    if (extra) {
+        bool host = true;
+        field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_BOOL);
+        extra->visit(&v, extra->fields);   /* likewise */
+    }
     put_le(&v, 0, 1);
     if (!v.failed)
         put_le(&v, crc32_of(v.out, v.len), 4);
@@ -534,7 +562,10 @@ bad:
     return -1;
 }
 
-int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t err_len)
+uint8_t *snes_state_write(const Snes *snes, size_t *len) { return snes_state_write_with(snes, NULL, len); }
+
+int snes_state_read_with(Snes *s, const SnesStateExtra *extra, const uint8_t *data, size_t len, char *err,
+                         size_t err_len)
 {
     Visitor v = { .mode = MODE_READ, .err = err, .err_len = err_len };
     if (len >= 4 && !memcmp(data, RAW_MAGIC, 4)) {
@@ -576,6 +607,14 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     if (!v.failed && rom_crc && rom_crc != crc32_of(s->bus.rom, s->bus.rom_size))
         fail(&v, "it was saved with another ROM (CRC-32 %08X)", (unsigned)rom_crc);
     visit(&v, tmp);
+    bool host = false;
+    field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_BOOL);
+    if (host && !extra)
+        fail(&v, "it was saved with a host program playing in the SPC700's place, and this machine has none");
+    else if (!host && extra)
+        fail(&v, "it was saved with the SPC700 running, and %s plays in its place here", extra->what);
+    else if (extra)
+        extra->visit(&v, extra->loading);
     const char *bad = v.failed ? NULL : out_of_range(tmp);
     if (bad)
         fail(&v, "its field %s is out of range", bad);
@@ -604,6 +643,8 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     s->apu.on_dsp_write = keep.apu.on_dsp_write;
     s->apu.host = keep.apu.host;
     s->apu.host_ctx = keep.apu.host_ctx;
+    s->apu.host_boot = keep.apu.host_boot;
+    s->apu.host_command = keep.apu.host_command;
     s->on_line = keep.on_line;
     s->on_line_ctx = keep.on_line_ctx;
     s->on_frame_top = keep.on_frame_top;
@@ -621,7 +662,14 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     s->bus.write_epoch = keep.bus.write_epoch;
     s->ppu.write_epoch = keep.ppu.write_epoch;
     snes_mark_all_written(s);
+    if (extra)
+        extra->loaded(extra->fields, extra->loading);
     return 0;
+}
+
+int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t err_len)
+{
+    return snes_state_read_with(s, NULL, data, len, err, err_len);
 }
 
 int snes_state_save(const Snes *s, const char *path)

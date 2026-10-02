@@ -88,10 +88,10 @@
  * hear what that changes. --sound-lockstep-wav prefix writes both outputs as
  * prefix-c.wav and prefix-original.wav.
  * --sound-driver c plays the C sound driver in the SPC700's place, as ct_play
- * --sound-driver c does (frontend/sound_host.h). The game's timing is then not
- * the original's, so a movie drifts; it is for hearing the C driver over a
- * movie (--wav) and for the host's own check: a run in which anything was
- * uploaded where the echo was writing exits 1.
+ * does by default (frontend/sound_host.h), with --native on and the ported
+ * routines. The game's timing is then not the original's, so a movie drifts;
+ * it is for hearing the C driver over a movie (--wav) and for the host's own
+ * check: a run in which a sample was placed where the echo was writing exits 1.
  * --shadow-details N describes up to N mismatches in the native report, and
  * apart from them up to N notes (abandoned comparisons, timing), mismatches
  * first (default 16 each, at most 256).
@@ -775,6 +775,8 @@ int main(int argc, char **argv)
             return 2;
         }
         spc.lockstep = sound_lockstep_create(&snes, lockstep_level);
+        if (spc.lockstep)
+            sound_lockstep_check_places(spc.lockstep);
         if (audio_timing >= 0) {
             if (wav_path) {
                 fprintf(stderr, "--sound-lockstep-audio takes the S-DSP's output itself: use --sound-lockstep-wav, not --wav\n");
@@ -841,6 +843,11 @@ int main(int argc, char **argv)
     if (c_sound_driver) {
         if (load_state || zst_path || want_lockstep || spc_coverage_path || dsp_log_path) {
             fprintf(stderr, "--sound-driver c runs from power-on, without the SPC700's hooks\n");
+            return 2;
+        }
+        if (native_mode != NATIVE_ON || recomp_only || audio_direct) {
+            fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: "
+                            "it needs --native on with the ported routines (not --recomp only or --audio direct)\n");
             return 2;
         }
         sound_host = sound_host_attach(&snes);
@@ -995,8 +1002,8 @@ int main(int argc, char **argv)
         sound_audio_destroy(sound_audio);
     }
     if (sound_host) {
-        unsigned long into_echo = sound_host_uploads_into_echo(sound_host);
-        fprintf(stderr, "sound host: %lu bytes uploaded where the echo was writing%s\n", into_echo,
+        unsigned long into_echo = sound_host_samples_into_echo(sound_host);
+        fprintf(stderr, "sound host: %lu bytes of samples placed where the echo was writing%s\n", into_echo,
                 into_echo ? "" : ": none");
         if (into_echo)
             rc = 1;

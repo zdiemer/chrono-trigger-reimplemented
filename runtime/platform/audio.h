@@ -89,6 +89,16 @@ PF_API bool au_driver_run_direct(Platform *pf, uint32_t lo, uint32_t hi);
  * as logic apart from the registers sets only what the callee takes. */
 PF_API void au_driver_call(Platform *pf, PfOrigin o, uint16_t dont_care);
 
+/* A host that plays its own driver in the SPC700's place (the C sound driver,
+ * frontend/sound_host.h) takes the CPU half's boot and commands as calls:
+ * nothing is uploaded and nothing waits on the ports. The CPU half's two
+ * entries ask it first: true if it took the boot, or the command in the
+ * buffer au_command fills (with the set of effects the game asks its next
+ * song to bring, which it keeps beside the buffer). False with the original
+ * driver. */
+PF_API bool au_driver_boot_taken(Platform *pf);
+PF_API bool au_driver_command_taken(Platform *pf);
+
 /* ---- The voices ----------------------------------------------------------------------
  *
  * What the sound driver (game/sound/) plays through, the S-DSP's semantics
@@ -175,6 +185,17 @@ void au_echo_writes(AuVoices *v, bool on);
  * sample `sample` of the directory; and one byte of it changed. */
 void au_sample_define(AuVoices *v, uint8_t sample, const uint8_t *brr, uint16_t length, uint16_t loop);
 void au_sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte);
+
+/* The game's samples: BRR bytes in the voices' sound memory, which the
+ * driver places itself (game/sound/loads.c), where the original's CPU half
+ * uploaded them, since where a sample lies decides whether the echo's buffer
+ * runs over it. A byte of one put in place; the samples between two addresses
+ * moved down to another, whole 256-byte pages first from the start and then
+ * what is left from its end down, as the original's receiver copies them; and
+ * sample `sample` of the directory found at `start`, looping from `loop`. */
+void au_sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte);
+void au_sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length);
+void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop);
 
 /* The SNES escape: an S-DSP register written as it is, for the driver's
  * command that asks for exactly that ($FD). */

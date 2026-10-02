@@ -161,6 +161,25 @@ enum {
     SOUND_PERCUSSION = 0xF120
 };
 
+/* The game's samples in sound memory (loads.c): sixteen places after the
+ * boot's own samples, each holding one sample block of the cartridge, laid
+ * end to end from the first. The echo's buffer takes the top of sound memory,
+ * and what lies past its start once a song has loaded is forgotten. */
+enum { SOUND_SAMPLE_PLACES = 16 };
+
+typedef struct {
+    uint16_t block[SOUND_SAMPLE_PLACES];        /* the block each place holds, 0 for none */
+    uint16_t length[SOUND_SAMPLE_PLACES];
+    uint16_t start[SOUND_SAMPLE_PLACES + 1];    /* each place's start; a place ends where the next starts */
+    uint16_t song_start[SOUND_SAMPLE_PLACES];   /* where the song's instruments' samples were found, */
+    uint16_t song_loop[SOUND_SAMPLE_PLACES];    /* ... and loop from, as the song that last loaded left them */
+    uint8_t echo_delay;                          /* the echo whose buffer the places keep below */
+    uint8_t echo_page;                           /* ... and the page that buffer starts at */
+    uint8_t instrument_place;                    /* command $71's: the place of the song's first instrument */
+    uint8_t effect_set;                          /* the set of effects loaded */
+    uint8_t effects_overwritten;                 /* songs that ran over the effects since they were loaded */
+} SoundSamples;
+
 typedef struct {
     const GameState *game;   /* where songs, effects and instruments are loaded from */
     AuVoices *voices;
@@ -201,14 +220,15 @@ typedef struct {
     uint8_t echo_silences_waiting;     /* ... delay changes that silence the echo if no music plays */
     bool echo_draining;                /* the echo's writes wait for the old buffer to drain */
     SoundStatus status;
+    SoundSamples samples;
 
     uint32_t stray_reads;              /* reads outside the sound memory kept here, */
     uint16_t first_stray_read;         /* ... the first of them at this address */
 } SoundDriver;
 
 /* Start the driver: its tables and the data the boot uploads (the first set
- * of sound effects and the first instruments), its own sample, and the
- * voices. The host zeroes the driver first, as power-on leaves sound memory;
+ * of sound effects, the first instruments and their samples), its own
+ * sample, and the voices. The host zeroes the driver first, as power-on leaves sound memory;
  * booting it again reloads it, keeping what the original keeps (driver.c). */
 void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices);
 
@@ -258,6 +278,33 @@ void sound_echo_ready(SoundDriver *d);
  * (command $71's upload). A song's own data is loaded when it starts. */
 void sound_load_effects(SoundDriver *d, uint8_t set);
 void sound_load_instrument(SoundDriver *d, uint8_t instrument, uint16_t block);
+
+/* ---- The game's side (loads.c) -------------------------------------------------------------
+ *
+ * What the original's CPU half did with its uploads, as calls: the game's
+ * command as it took it ($C7:0004), which starts a song with its samples
+ * placed in sound memory, switches the set of effects, loads an instrument,
+ * and sends the rest to the driver as they are. Beside the command the game
+ * keeps the set of effects it wants its next song to bring (`effects_asked`,
+ * nonzero for the second), which the field asks for before some songs. A
+ * host that plays the C driver in the original's place gives it the game's
+ * commands here. */
+void sound_game_command(SoundDriver *d, SoundCommand c, uint8_t effects_asked);
+
+/* Its parts, for a host that takes the CPU half's work from the original as
+ * it happens (ct_dev --sound-lockstep): a song's start with the parameters it
+ * comes with (a new echo delay keeps its buffer free of samples first); the
+ * set of effects a song announced by sound_announce_song brings; the rest of
+ * that song once the original's upload is in (its samples placed, the effects
+ * loaded again if they changed or a song ran over them, the song started);
+ * the room the echo keeps at the top after a change of its delay; and command
+ * $71's instrument, false if its sample doesn't fit where the song's first
+ * lies. */
+void sound_play_song(SoundDriver *d, SoundCommand c, uint8_t effects_asked);
+void sound_ask_for_effects(SoundDriver *d, uint8_t effects_asked);
+void sound_load_announced_song(SoundDriver *d);
+void sound_keep_echo_free(SoundDriver *d, uint8_t echo_delay);
+bool sound_load_song_instrument(SoundDriver *d, uint16_t block);
 
 /* The status the game reads (docs/SOUND.md, "What the game reads back"), as
  * the driver showed it at its last tick. */
