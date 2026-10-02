@@ -286,7 +286,7 @@ static void fast_forward(SoundDriver *d, const CommandRow *row, SoundCommand c)
  * the echo falls silent. */
 static void set_echo_delay(SoundDriver *d, uint8_t delay)
 {
-    delay &= 0x0F;
+    delay = echo_delay_of(delay);
     if (delay == d->echo_delay)
         return;
     d->echo_delay = delay;

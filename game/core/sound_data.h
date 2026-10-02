@@ -300,6 +300,22 @@ static inline uint8_t sound_boot_block_byte(const GameState *g, uint8_t block, u
     return rom_read8(g, sound_boot_block_data(g, block) + i);
 }
 
+/* The boot's directory: for each of its samples, where it starts in sound
+ * memory and where it loops from. */
+typedef struct {
+    uint16_t start, loop;
+} SoundDirectoryEntry;
+enum { SOUND_DIRECTORY_ENTRY_BYTES = 4 };
+static inline uint8_t sound_boot_directory_entries(const GameState *g)
+{
+    return (uint8_t)(sound_boot_block_length(g, SOUND_BOOT_DIRECTORY_BLOCK) / SOUND_DIRECTORY_ENTRY_BYTES);
+}
+static inline SoundDirectoryEntry sound_boot_directory_entry(const GameState *g, uint8_t sample)
+{
+    uint32_t entry = sound_boot_block_data(g, SOUND_BOOT_DIRECTORY_BLOCK) + SOUND_DIRECTORY_ENTRY_BYTES * sample;
+    return (SoundDirectoryEntry){ rom_read16(g, entry), rom_read16(g, entry + 2) };
+}
+
 /* A set of sound effects, as it goes to SPC700 $2F00. */
 enum { SOUND_EFFECT_SETS = 2 };
 static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set) { return rom_read16(g, sound_2f00_set(set)); }

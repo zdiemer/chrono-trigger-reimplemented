@@ -580,7 +580,10 @@ with the driver it was saved with. `ct_sound_fuzz --sound-driver c` plays half
 its commands as the game's calls and half through the ports (songs at made-up
 volumes among them), and checks that every port command is answered and that
 no sample is placed where the echo is writing below where the places end for
-it (`sound_host_samples_into_echo`; a run with any exits 1): 100 runs of 400
+it (`sound_host_samples_into_echo`), and that no command is dropped from the
+queue the host keeps while the echo's buffer settles
+(`sound_host_commands_dropped`; `sound_host_report` gives both, and a run with
+either exits 1, here and in `ct_dev` and `ct_drive`): 100 runs of 400
 commands with the game's songs and 100 with made-up ones pass. Past that end
 a sample can land in the echo's buffer while it writes, in the original as
 here, when a song's samples outgrow the room its echo leaves: the fuzzer gets
@@ -588,7 +591,32 @@ there with command `$71` loading a block that a place already holds, or a
 shorter one in the song's first place, which the next song then keeps where
 it was. `ct_dev --sound-driver c` runs a movie the same way (it drifts from
 the movie, the timing not being the original's), with the same check: none
-over battle-magus and fair.
+over battle-magus and fair. `ct_drive --sound-driver c` plays it for the
+routes (MOVIES.md, "Routes as a test"), its machine copies and state files
+holding the host's half (`sound_host_copy`, `sound_host_restore`). A state
+names the host program that saved it (`apu.host`, the C driver's number), so
+a later one, the native mixer, can't load another's fields.
+
+**In the gate** (`tools/suite.py`; PLAN.md lists the gate):
+
+- *The lockstep*, at the `state` level, runs inside every movie's shadow run,
+  where the original's timing is kept, for about a twentieth more time; a
+  difference anywhere, the samples' places included, or a run without the
+  lockstep's verdict fails (`lockstep`).
+- *`ct_sound_fuzz`*, ten runs of 400 commands from seed 1 of each of its four
+  kinds (against the original at the `state` level, with the game's songs and
+  with made-up ones, and in the SPC700's place, likewise), two at a time,
+  about half a minute (`sound-fuzz`). It needs the ROM (the driver's program
+  and data are the cartridge's), so CI runs only `sound_test`.
+- *The routes* in the shipping mode play the C driver (`route_check --mode
+  on:on:c`), so the gate shows the game reaches its outcomes with the driver
+  that ships. The original driver's shipping-mode runs are the vblank check's,
+  over every movie. The count of dropped commands found the first fault: a
+  machine copy put back (`snes_clone`) comes without the APU's hooks, so after
+  a route's first restore the host never ran again, its echo's wait never
+  ended and every command after it queued and dropped (12,960 over
+  `telepod_lavos`, and the music silent), while the routes still passed;
+  `sound_host_restore` hooks the host up again.
 
 **What playing it found.** Reported by ear: battle music "very off" (the
 normal battle theme in Magus's castle), and some hi-hats "tinny" in the house

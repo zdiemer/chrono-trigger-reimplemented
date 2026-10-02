@@ -1023,13 +1023,11 @@ rest waits, is [PLAN.md](PLAN.md).
     same BRR samples and runs the same envelopes and echo, replacing
     `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
     (SOUND.md, "Validating the port") for when the lockstep reference is gone.
-  - **The shipping mode's checks don't play the C sound driver.** `ct_play`
-    plays it by default, but the suite's shipping-mode runs (the vblank check,
-    the effects check's scaffold reads, the route check through `ct_drive`)
-    run the original driver, whose commands take the original's time. A
-    `--sound-driver c` in `ct_drive` (its states would hold the driver's
-    fields, as `ct_play`'s do) would let the route check show the game reaches
-    its outcomes with the driver that ships.
+  - **The effects check's scaffold reads with the C sound driver.** The route
+    check plays the driver that ships, but the scaffold reads come from the
+    vblank check's shipping-mode runs, which play the original driver because
+    they replay movies (the C driver's timing would drift from them). A
+    `--scaffold-reads` in `ct_drive` would collect them over the routes too.
   - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
     paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
     (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the

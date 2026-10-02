@@ -484,9 +484,10 @@ void snes_state_extra_fields(const SnesStateExtra *extra, SnesStateField fn, voi
     extra->visit(&v, extra->fields);
 }
 
-/* Whether the SPC700's place was taken by a host program with fields of its
- * own: a record of its own, so that a state is only ever loaded the way it
- * was saved. */
+/* Which host program took the SPC700's place with fields of its own
+ * (SNES_STATE_HOST_*), or none: a record of its own, so that a state is only
+ * ever loaded the way it was saved. (Format 2's first states wrote it as a
+ * bool, true for the C sound driver, which is that driver's number.) */
 #define HOST_RECORD "apu.host"
 
 uint8_t *snes_state_write_with(const Snes *snes, const SnesStateExtra *extra, size_t *len)
@@ -499,8 +500,8 @@ uint8_t *snes_state_write_with(const Snes *snes, const SnesStateExtra *extra, si
     field(&v, "rom.crc32", &rom_crc, 4, 1, KIND_UINT);
     visit(&v, (Snes *)snes);   /* only read in MODE_WRITE */
     if (extra) {
-        bool host = true;
-        field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_BOOL);
+        uint8_t host = extra->id;
+        field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_UINT);
         extra->visit(&v, extra->fields);   /* likewise */
     }
     put_le(&v, 0, 1);
@@ -607,12 +608,15 @@ int snes_state_read_with(Snes *s, const SnesStateExtra *extra, const uint8_t *da
     if (!v.failed && rom_crc && rom_crc != crc32_of(s->bus.rom, s->bus.rom_size))
         fail(&v, "it was saved with another ROM (CRC-32 %08X)", (unsigned)rom_crc);
     visit(&v, tmp);
-    bool host = false;
-    field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_BOOL);
-    if (host && !extra)
+    uint8_t host = SNES_STATE_NO_HOST;
+    field(&v, HOST_RECORD, &host, sizeof host, 1, KIND_UINT);
+    if (host != SNES_STATE_NO_HOST && !extra)
         fail(&v, "it was saved with a host program playing in the SPC700's place, and this machine has none");
-    else if (!host && extra)
+    else if (host == SNES_STATE_NO_HOST && extra)
         fail(&v, "it was saved with the SPC700 running, and %s plays in its place here", extra->what);
+    else if (extra && host != extra->id)
+        fail(&v, "it was saved with another host program (number %u) in the SPC700's place than %s",
+             (unsigned)host, extra->what);
     else if (extra)
         extra->visit(&v, extra->loading);
     const char *bad = v.failed ? NULL : out_of_range(tmp);
@@ -672,10 +676,10 @@ int snes_state_read(Snes *s, const uint8_t *data, size_t len, char *err, size_t 
     return snes_state_read_with(s, NULL, data, len, err, err_len);
 }
 
-int snes_state_save(const Snes *s, const char *path)
+int snes_state_save_with(const Snes *s, const SnesStateExtra *extra, const char *path)
 {
     size_t len;
-    uint8_t *data = snes_state_write(s, &len);
+    uint8_t *data = snes_state_write_with(s, extra, &len);
     FILE *f = data ? fopen(path, "wb") : NULL;
     int ok = f && fwrite(data, len, 1, f) == 1;
     if (f && fclose(f) != 0)
@@ -684,7 +688,7 @@ int snes_state_save(const Snes *s, const char *path)
     return ok ? 0 : -1;
 }
 
-int snes_state_load(Snes *s, const char *path)
+int snes_state_load_with(Snes *s, const SnesStateExtra *extra, const char *path)
 {
     FILE *f = fopen(path, "rb");
     if (!f)
@@ -698,7 +702,11 @@ int snes_state_load(Snes *s, const char *path)
             len = (size_t)n;
     }
     fclose(f);
-    int rc = len ? snes_state_read(s, data, len, NULL, 0) : -1;
+    int rc = len ? snes_state_read_with(s, extra, data, len, NULL, 0) : -1;
     free(data);
     return rc;
 }
+
+int snes_state_save(const Snes *s, const char *path) { return snes_state_save_with(s, NULL, path); }
+
+int snes_state_load(Snes *s, const char *path) { return snes_state_load_with(s, NULL, path); }

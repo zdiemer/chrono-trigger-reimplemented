@@ -396,7 +396,7 @@ bool announce_song(SoundDriver *d, uint8_t song, uint8_t volume, uint8_t echo_de
     au_voices_key_off(d->voices, ALL_VOICES);
     d->song_id = song;
     d->song.volume = volume;
-    echo_delay &= 0x0F;
+    echo_delay = echo_delay_of(echo_delay);
     d->song_echo_changed = echo_delay != d->echo_delay;
     if (d->song_echo_changed) {
         d->echo_delay = echo_delay;

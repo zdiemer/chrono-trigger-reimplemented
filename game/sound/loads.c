@@ -74,7 +74,7 @@ static void forget_places_under_echo(SoundDriver *d)
 void sound_keep_echo_free(SoundDriver *d, uint8_t echo_delay)
 {
     SoundSamples *p = places(d);
-    echo_delay &= 0x0F;
+    echo_delay = echo_delay_of(echo_delay);
     if (echo_delay == p->echo_delay)
         return;
     p->echo_delay = echo_delay;
@@ -118,14 +118,20 @@ static uint8_t first_free_place(const SoundSamples *p)
     return place;
 }
 
+/* A block's sample, `length` bytes, into sound memory at `at`. */
+static void write_sample(SoundDriver *d, uint16_t at, uint16_t block, uint16_t length)
+{
+    for (uint16_t i = 0; i < length; i++)
+        au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_byte(d->game, block, i));
+}
+
 // $C7:0655
 /* A block's sample into a place, which then ends where the sample does. */
 static void load_sample(SoundDriver *d, uint8_t place, uint16_t block)
 {
     SoundSamples *p = places(d);
     uint16_t at = p->start[place], length = sound_block_length(d->game, block);
-    for (uint16_t i = 0; i < length; i++)
-        au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_byte(d->game, block, i));
+    write_sample(d, at, block, length);
     p->block[place] = block;
     p->length[place] = length;
     p->start[place + 1] = (uint16_t)(at + length);
@@ -166,9 +172,10 @@ static void load_missing_samples(SoundDriver *d, const uint16_t *missing, uint8_
             p->block[i] = 0;
         place = 0;
     }
-    /* a song has at most eleven samples and the kept ones were closed up
-     * first, so the places never run out (the original would run on into
-     * its table of lengths) */
+    /* a song has at most one sample a place (SOUND_SONG_INSTRUMENTS), and
+     * the places before these hold only its own, closed up first, so the
+     * places never run out (the original would run on into its table of
+     * lengths) */
     for (uint8_t i = 0; i < count && place < SOUND_SAMPLE_PLACES; i++)
         load_sample(d, place++, missing[i]);
     for (; place < SOUND_SAMPLE_PLACES; place++) {
@@ -330,8 +337,7 @@ bool sound_load_song_instrument(SoundDriver *d, uint16_t block)
     uint16_t at = p->start[place], length = sound_block_length(d->game, block);
     if ((uint16_t)(at + length - 1) >= p->start[place + 1])
         return false;
-    for (uint16_t i = 0; i < length; i++)
-        au_sample_memory_write(d->voices, (uint16_t)(at + i), sound_block_byte(d->game, block, i));
+    write_sample(d, at, block, length);
     p->length[place] = length;
     au_sample_place(d->voices, SOUND_FIRST_SONG_INSTRUMENT, at, (uint16_t)(at + sound_block_loop(d->game, block)));
     sound_load_instrument(d, SOUND_FIRST_SONG_INSTRUMENT, block);
@@ -354,14 +360,9 @@ void load_boot_samples(SoundDriver *d)
     uint16_t samples_length = sound_boot_block_length(g, SOUND_BOOT_SAMPLES_BLOCK);
     for (uint16_t i = 0; i < samples_length; i++)
         au_sample_memory_write(d->voices, (uint16_t)(samples_at + i), sound_boot_block_byte(g, SOUND_BOOT_SAMPLES_BLOCK, i));
-    uint16_t directory_bytes = sound_boot_block_length(g, SOUND_BOOT_DIRECTORY_BLOCK);
-    for (uint8_t sample = 0; 4u * sample + 3 < directory_bytes; sample++) {
-        uint16_t entry = (uint16_t)(4 * sample);
-        uint16_t start = (uint16_t)(sound_boot_block_byte(g, SOUND_BOOT_DIRECTORY_BLOCK, entry) |
-                                    sound_boot_block_byte(g, SOUND_BOOT_DIRECTORY_BLOCK, (uint16_t)(entry + 1)) << 8);
-        uint16_t loop = (uint16_t)(sound_boot_block_byte(g, SOUND_BOOT_DIRECTORY_BLOCK, (uint16_t)(entry + 2)) |
-                                   sound_boot_block_byte(g, SOUND_BOOT_DIRECTORY_BLOCK, (uint16_t)(entry + 3)) << 8);
-        au_sample_place(d->voices, sample, start, loop);
+    for (uint8_t sample = 0; sample < sound_boot_directory_entries(g); sample++) {
+        SoundDirectoryEntry entry = sound_boot_directory_entry(g, sample);
+        au_sample_place(d->voices, sample, entry.start, entry.loop);
     }
 
     SoundSamples *p = places(d);

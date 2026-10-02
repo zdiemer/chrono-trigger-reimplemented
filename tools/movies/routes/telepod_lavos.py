@@ -38,7 +38,7 @@ DREAM_TEAM = [(9, 0x02), (8, 0x04), (10, 0x01), (11, 0x08), (12, 0x10)]      # b
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              recomp=args.recomp, until=args.until)
+              recomp=args.recomp, sound=args.sound_driver, until=args.until)
     machine = run.machine
     developers = lambda: machine.b(A.DEVELOPERS_TALKED)
     dream_team = lambda: machine.b(A.DREAM_TEAM_TALKED)

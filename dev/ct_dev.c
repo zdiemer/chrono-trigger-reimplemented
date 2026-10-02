@@ -91,7 +91,8 @@
  * does by default (frontend/sound_host.h), with --native on and the ported
  * routines. The game's timing is then not the original's, so a movie drifts;
  * it is for hearing the C driver over a movie (--wav) and for the host's own
- * check: a run in which a sample was placed where the echo was writing exits 1.
+ * checks: a run in which a sample was placed where the echo was writing, or a
+ * command dropped from the host's full queue, exits 1 (sound_host_report).
  * --shadow-details N describes up to N mismatches in the native report, and
  * apart from them up to N notes (abandoned comparisons, timing), mismatches
  * first (default 16 each, at most 256).
@@ -1002,10 +1003,7 @@ int main(int argc, char **argv)
         sound_audio_destroy(sound_audio);
     }
     if (sound_host) {
-        unsigned long into_echo = sound_host_samples_into_echo(sound_host);
-        fprintf(stderr, "sound host: %lu bytes of samples placed where the echo was writing%s\n", into_echo,
-                into_echo ? "" : ": none");
-        if (into_echo)
+        if (!sound_host_report(sound_host, stderr))
             rc = 1;
         sound_host_detach(sound_host);
     }

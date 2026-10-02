@@ -67,7 +67,9 @@ struct SoundHost {
     uint8_t queued;
 
     unsigned long samples_into_echo;
+    unsigned long commands_dropped;
     SoundHost *loading;         /* a state read goes here first (sound_host_state) */
+    SnesStateExtra extra;       /* what sound_host_state hands out */
 };
 
 /* ---- The voices, into the emulated S-DSP ------------------------------------------------ */
@@ -210,10 +212,18 @@ static void carry_out(SoundHost *h, Waiting w)
         wait_for_echo(h, old_delay, d->song_voices_waiting);
 }
 
-/* While the driver waits for its echo, commands wait in the order they came. */
+/* While the driver waits for its echo, commands wait in the order they came.
+ * A full queue takes the new command in place of its last, as the driver's own
+ * does (sound_queue_command); the game never sends that many in one wait, so
+ * one dropped is counted as a fault (sound_host_commands_dropped). */
 static void hold(SoundHost *h, Waiting w)
 {
-    h->queue[h->queued < SOUND_QUEUE ? h->queued++ : SOUND_QUEUE - 1] = w;
+    if (h->queued < SOUND_QUEUE) {
+        h->queue[h->queued++] = w;
+        return;
+    }
+    h->commands_dropped++;
+    h->queue[SOUND_QUEUE - 1] = w;
 }
 
 /* The commands that waited, until one starts another wait: the rest wait on
@@ -344,6 +354,16 @@ static unsigned run_host(void *ctx, Apu *apu, unsigned cycles)
     return h->took;
 }
 
+/* The machine's APU hands its time, boot and commands to this host. */
+static void hook(SoundHost *h)
+{
+    Apu *a = apu_of(h);
+    a->host = run_host;
+    a->host_ctx = h;
+    a->host_boot = take_boot;
+    a->host_command = take_command;
+}
+
 SoundHost *sound_host_attach(Snes *s)
 {
     SoundHost *h = calloc(1, sizeof *h);
@@ -351,14 +371,21 @@ SoundHost *sound_host_attach(Snes *s)
         return NULL;
     h->snes = s;
     h->voices = (AuVoices){ h, read_register, write_register, write_memory, read_memory };
-    s->apu.host = run_host;
-    s->apu.host_ctx = h;
-    s->apu.host_boot = take_boot;
-    s->apu.host_command = take_command;
+    hook(h);
     return h;
 }
 
 unsigned long sound_host_samples_into_echo(const SoundHost *h) { return h->samples_into_echo; }
+
+unsigned long sound_host_commands_dropped(const SoundHost *h) { return h->commands_dropped; }
+
+bool sound_host_report(const SoundHost *h, FILE *out)
+{
+    fprintf(out, "sound host: %lu bytes of samples placed where the echo was writing, %lu commands dropped from a "
+                 "full queue%s\n", h->samples_into_echo, h->commands_dropped,
+            h->samples_into_echo || h->commands_dropped ? "" : ": none");
+    return !h->samples_into_echo && !h->commands_dropped;
+}
 
 uint8_t sound_host_saved_song(const SoundHost *h) { return h->driver.saved_song_id; }
 
@@ -366,10 +393,12 @@ void sound_host_detach(SoundHost *h)
 {
     if (!h)
         return;
-    h->snes->apu.host = NULL;
-    h->snes->apu.host_ctx = NULL;
-    h->snes->apu.host_boot = NULL;
-    h->snes->apu.host_command = NULL;
+    if (h->snes->apu.host_ctx == h) {   /* not a copy's (sound_host_copy) */
+        h->snes->apu.host = NULL;
+        h->snes->apu.host_ctx = NULL;
+        h->snes->apu.host_boot = NULL;
+        h->snes->apu.host_command = NULL;
+    }
     free(h->loading);
     free(h);
 }
@@ -623,12 +652,15 @@ static void loaded(void *fields, void *loading)
     Snes *snes = h->snes;
     AuVoices voices = h->voices;
     SoundHost *scratch = h->loading;
-    unsigned long into_echo = h->samples_into_echo;
+    SnesStateExtra extra = h->extra;
+    unsigned long into_echo = h->samples_into_echo, dropped = h->commands_dropped;
     *h = *from;
     h->snes = snes;
     h->voices = voices;
     h->loading = scratch;
+    h->extra = extra;
     h->samples_into_echo = into_echo;
+    h->commands_dropped = dropped;
     h->driver.voices = &h->voices;
     h->driver.game = state_of(snes);
     if (h->queued > SOUND_QUEUE)
@@ -637,22 +669,39 @@ static void loaded(void *fields, void *loading)
         h->driver.queued = SOUND_QUEUE;
 }
 
+#define WHAT "the C sound driver"
+
 const SnesStateExtra *sound_host_state(SoundHost *h)
 {
-    static SnesStateExtra extra;
     if (!h->loading)
         h->loading = malloc(sizeof *h->loading);
     if (!h->loading)
         return NULL;
     /* what a field the state lacks keeps: a host that hasn't booted */
     memset(h->loading, 0, sizeof *h->loading);
-    extra = (SnesStateExtra){ "the C sound driver", visit_host, h, h->loading, loaded };
-    return &extra;
+    h->extra = (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER, WHAT, visit_host, h, h->loading, loaded };
+    return &h->extra;
+}
+
+SoundHost *sound_host_copy(const SoundHost *h)
+{
+    SoundHost *copy = malloc(sizeof *copy);
+    if (!copy)
+        return NULL;
+    *copy = *h;
+    copy->loading = NULL;
+    return copy;
+}
+
+void sound_host_restore(SoundHost *h, const SoundHost *copy)
+{
+    loaded(h, (SoundHost *)copy);
+    hook(h);
 }
 
 void sound_host_driver_fields(SoundHost *h, SnesStateField fn, void *ctx)
 {
-    SnesStateExtra extra = { "the C sound driver", visit_host, h, NULL, loaded };
+    SnesStateExtra extra = { SNES_STATE_HOST_C_SOUND_DRIVER, WHAT, visit_host, h, NULL, loaded };
     snes_state_extra_fields(&extra, fn, ctx);
 }
 

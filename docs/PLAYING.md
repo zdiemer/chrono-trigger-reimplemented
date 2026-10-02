@@ -258,7 +258,8 @@ its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). With the C sound
 driver the state holds the driver's fields beside the machine's
 (`sound_host_state`), so a state loads only with the driver it was saved with:
 one saved with `--sound-driver original` (or by `ct_dev`) needs that option to
-load. A state that can't be read -- damaged, from another ROM, from before
+load, and so do quick saves made before the C driver became the default, which
+were all saved with the original's. A state that can't be read -- damaged, from another ROM, from before
 this format, or from the other driver -- is refused with a message, and the
 game goes on as it was. A quick save waits for the end
 of a frame where the state keeps everything: no native routine suspended in a

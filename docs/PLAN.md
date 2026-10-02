@@ -136,9 +136,14 @@ Nothing lands without it, and it is the same gate for every phase:
 - no video write in the shipping mode lands on the picture where the
   reference's doesn't, unless it is an accepted exception
   (`tools/vblank_check.py`);
-- the route scripts reach their outcomes in the shipping mode
-  (`tools/movies/route_check.py`: the fast route every time, all of them with
-  `--long-routes` before a change to timing or the native runtime lands);
+- the route scripts reach their outcomes in the shipping mode, with the C
+  sound driver (`tools/movies/route_check.py`: the fast route every time, all
+  of them with `--long-routes` before a change to timing or the native runtime
+  lands);
+- the C sound driver matches the original's at every tick of every movie
+  (`ct_dev --sound-lockstep --sound-lockstep-level state`, in the shadow runs)
+  and over a short `ct_sound_fuzz` in both its modes (SOUND.md, "How it was
+  checked");
 - every don't-care declaration in `game/` is one liveness agrees with
   (`tools/dontcare_check.py`; RECOMP.md, "Before the bulk");
 - no port transliterates the assembly where one didn't before

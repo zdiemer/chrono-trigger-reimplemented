@@ -28,7 +28,7 @@ SQUARE, BELL_PLAZA, TELEPODS = "5000", "5100", "5500"
 def main():
     args = route_arguments(__doc__.splitlines()[0], save=SAVE)
     run = Run(args.prefix, rom=args.rom, sram=args.sram, drive=args.drive, native=args.native,
-              recomp=args.recomp, until=args.until)
+              recomp=args.recomp, sound=args.sound_driver, until=args.until)
     machine = run.machine
     start = run.start_at(PHASES)
 
