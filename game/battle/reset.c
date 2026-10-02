@@ -39,7 +39,7 @@ static void reset_scripts(GameState *g)
         set_battle_script_subjects(g, channel, NOBODY);
     set_battle_script_signal(g, 0);
     set_battle_script_countdown_spare(g, 0);
-    set_battle_script_countdown(g, 0);
+    set_battle_throw_wait_before(g, 0);
     set_battle_script_effect_high(g, 0);
 }
 

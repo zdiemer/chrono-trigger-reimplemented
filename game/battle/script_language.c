@@ -140,17 +140,51 @@ static bool colors_in_range(const GameState *g)
            && list_of_combatants(g, OTHER_TARGETS_START, false) && battle_background_cycle(g) < BACKGROUND_COLORS;
 }
 
+/* The screen effect's settings: how many of them the command gives (its
+ * first operand's low bits; the original copies 256 for none), and which
+ * effect (its high bits), one of the six the original's table has. */
+enum { SETTINGS_GIVEN = 0x0F, SCREEN_EFFECTS = 6 };
+
+static bool a_screen_effect(const GameState *g)
+{
+    uint8_t settings = script_operand(g, 1);
+    return (settings & SETTINGS_GIVEN) != 0 && settings >> 4 < SCREEN_EFFECTS;
+}
+
+static bool needs_met(const GameState *g, const ScriptOpcode *row)
+{
+    switch (row->needs) {
+    case NEEDS_SUBJECTS: return subjects_in_range(g);
+    case NEEDS_A_COMBATANT_CHANNEL: return subjects_in_range(g) && script_channel_running(g).kind != SCRIPT_EFFECT;
+    case NEEDS_ONE_MOVER: return subjects_in_range(g) && script_channel_running(g).kind != SCRIPT_OTHER_TARGETS;
+    case NEEDS_EFFECT: return effect_in_range(g);
+    case NEEDS_COLORS: return colors_in_range(g);
+    case NEEDS_A_SCREEN_EFFECT: return a_screen_effect(g);
+    case NEEDS_SUBJECTS_AND_A_QUIET_PLACE:
+        return subjects_in_range(g) && !script_place_works_in_cells(script_decode(g, row).place);
+    default: return true;
+    }
+}
+
+/* A place or a facing the command names is one of the original's. */
+static bool names_known_places(const GameState *g, const ScriptOpcode *row)
+{
+    if (row->place.kind == ARG_NONE && row->toward.kind == ARG_NONE && row->facing.kind == ARG_NONE)
+        return true;
+    ScriptCommand command = script_decode(g, row);
+    bool aims_at_a_place = row->aim.kind != ARG_NONE && command.aim == AIM_AT_A_PLACE;
+    if ((aims_at_a_place || row->place.kind != ARG_NONE) && !script_place_known(g, command.place))
+        return false;
+    if (row->toward.kind != ARG_NONE && !script_place_known(g, command.toward))
+        return false;
+    return row->facing.kind == ARG_NONE || command.facing <= LAST_FACING;
+}
+
 bool script_runs_here(const GameState *g, const ScriptOpcode *row)
 {
     if (script_over_the_direct_page(g))
         return false;
-    switch (row->needs) {
-    case NEEDS_SUBJECTS: return subjects_in_range(g);
-    case NEEDS_A_COMBATANT_CHANNEL: return subjects_in_range(g) && script_channel_running(g).kind != SCRIPT_EFFECT;
-    case NEEDS_EFFECT: return effect_in_range(g);
-    case NEEDS_COLORS: return colors_in_range(g);
-    default: return true;
-    }
+    return needs_met(g, row) && names_known_places(g, row);
 }
 
 /* ---- Running a command ----------------------------------------------------------------- */
@@ -160,6 +194,11 @@ static const ScriptOpcodes *const every_file[] = {
     &script_pose_opcodes,
     &script_effect_opcodes,
     &script_color_opcodes,
+    &script_place_opcodes,
+    &script_move_opcodes,
+    &script_walk_opcodes,
+    &script_sound_opcodes,
+    &script_number_opcodes,
 };
 
 enum { COMMANDS = 0x100 };
@@ -182,7 +221,7 @@ static uint8_t decode(const GameState *g, ScriptArg arg)
     return arg.kind == ARG_OPERAND ? script_operand(g, arg.operand_or_constant) : arg.operand_or_constant;
 }
 
-static ScriptCommand decode_command(const GameState *g, const ScriptOpcode *row)
+ScriptCommand script_decode(const GameState *g, const ScriptOpcode *row)
 {
     ScriptCommand command = { .channel = script_channel_running(g), .length = row->length };
 #define SCRIPT_PARAMETER_DECODE(type, name) command.name = (type)decode(g, row->name);
@@ -195,19 +234,25 @@ static ScriptCommand decode_command(const GameState *g, const ScriptOpcode *row)
  * before each command. */
 static void go_on_this_frame(GameState *g) { set_battle_script_continue(g, (uint8_t)(battle_script_continue(g) + 1)); }
 
-static void move_past(GameState *g, uint8_t length) { set_script_place(g, script_place_plus(script_place(g), length)); }
+void script_go_past(GameState *g, uint8_t length) { set_script_place(g, script_place_plus(script_place(g), length)); }
 
-void script_perform(GameState *g, const ScriptOpcode *row)
+void script_move_on(GameState *g, const ScriptOpcode *row, ScriptFlow flow)
 {
-    ScriptCommand command = decode_command(g, row);
-    switch (row->run(g, &command)) {
+    switch (flow) {
     case SCRIPT_NEXT:
         go_on_this_frame(g);
-        move_past(g, row->length);
+        script_go_past(g, row->length);
         break;
-    case SCRIPT_NEXT_FRAME: move_past(g, row->length); break;
+    case SCRIPT_NEXT_FRAME: script_go_past(g, row->length); break;
     case SCRIPT_AGAIN:
     case SCRIPT_MOVED: go_on_this_frame(g); break;
-    case SCRIPT_STAY: break;
+    case SCRIPT_STAY:
+    case SCRIPT_MOVED_NEXT_FRAME: break;
     }
+}
+
+ScriptFlow script_operate(GameState *g, const ScriptOpcode *row)
+{
+    ScriptCommand command = script_decode(g, row);
+    return row->run(g, &command);
 }

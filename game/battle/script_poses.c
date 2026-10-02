@@ -244,14 +244,12 @@ SCRIPT_OPERATION(play_and_wait_marked, channel, animation, mark)
 
 /* ---- Speed ----------------------------------------------------------------------------- */
 
-/* A mover's speed: a step every so many frames, of so many steps. The
- * anchors' movers follow the combatants'. */
-static void set_mover_speed(GameState *g, unsigned mover, uint8_t period, uint8_t steps)
+/* A mover's speed: a step every so many frames, of so many steps. */
+static void set_mover_speed(GameState *g, Mover m, uint8_t period, uint8_t steps)
 {
-    set_battle_effect_period(g, mover, period);
-    set_battle_effect_steps(g, mover, steps);
+    set_battle_effect_period(g, mover_entry(m), period);
+    set_battle_effect_steps(g, mover_entry(m), steps);
 }
-static unsigned anchor_mover(uint8_t effect) { return BATTLE_COMBATANTS + effect; }
 
 /* A combatant's own speed: a party member's the one its effects start from,
  * an enemy's its orbit's (the original reads the party's tables on by battle
@@ -273,7 +271,7 @@ static ScriptFlow own_speed(GameState *g, ScriptChannel channel)
 {
     uint8_t combatant;
     for (unsigned k = 0; script_each_combatant(g, channel, k, &combatant); k++)
-        set_mover_speed(g, combatant, own_period(g, combatant), own_steps(g, combatant));
+        set_mover_speed(g, combatant_mover(combatant), own_period(g, combatant), own_steps(g, combatant));
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(own_speed, channel)
@@ -293,7 +291,7 @@ static ScriptFlow set_speed(GameState *g, ScriptChannel channel, uint8_t speed)
     uint8_t combatant;
     unsigned k;
     for (k = 0; script_each_combatant(g, channel, k, &combatant); k++)
-        set_mover_speed(g, combatant, period, steps);
+        set_mover_speed(g, combatant_mover(combatant), period, steps);
     if (channel.kind == SCRIPT_OTHER_TARGETS)
         ORIGINAL_EFFECT(script_leave_word(g, LEFT_TARGETS_COUNTED, (uint8_t)k));
     return SCRIPT_NEXT_FRAME;

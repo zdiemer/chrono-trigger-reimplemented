@@ -95,7 +95,17 @@ static bool take_up_channel(GameState *g, unsigned channel)
  * it takes, and leaving A clear as every handler does. */
 static void run_operation(Snes *s, uint8_t command, const ScriptOpcode *row)
 {
-    NATIVE_TIME_AS(s, handler_of(command), script_perform(state_of(s), row));
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, handler_of(command), script_move_on(g, row, script_operate(g, row)));
+    s->cpu.a = 0;
+}
+
+/* The registers the original's runner calls a handler with: the command's
+ * byte doubled in X (its table's index), Y and A clear. */
+static void enter_as_the_runner_does(Snes *s, uint8_t command)
+{
+    s->cpu.x = (uint16_t)(command * 2);
+    s->cpu.y = 0;
     s->cpu.a = 0;
 }
 
@@ -113,12 +123,15 @@ static bool run_channel(Snes *s, unsigned channel)
         if (command == HOLDS)
             break;
         const ScriptOpcode *row = script_opcode((uint8_t)command);
-        if (row && script_runs_here(g, row)) {
+        if (row && script_runs_here(g, row) && !row->bridge) {
             run_operation(s, (uint8_t)command, row);
+        } else if (row && script_runs_here(g, row)) {
+            /* a bridge runs as its handler, called as the runner calls it */
+            enter_as_the_runner_does(s, (uint8_t)command);
+            if (!battle_run(s, 0xC14CD4, handler_of((uint8_t)command), battle_script_command_entry))
+                return false;
         } else {
-            s->cpu.x = (uint16_t)(command * 2);
-            s->cpu.y = 0;
-            s->cpu.a = 0;
+            enter_as_the_runner_does(s, (uint8_t)command);
             /* no handler reads the overflow the one before it left, which a
                command in C doesn't reproduce */
             /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
@@ -288,11 +301,69 @@ COMMAND_GUARD(script_flash_with_ready, 0x5DD3)
 COMMAND_GUARD(script_flash_off_ready, 0x5E87)
 COMMAND_GUARD(script_rotate_colors_ready, 0x5EDF)
 COMMAND_GUARD(script_blink_ready, 0x5F13)
+COMMAND_GUARD(script_line_to_coordinates_ready, 0x4FBF)
+COMMAND_GUARD(script_line_to_the_point_ready, 0x4FD1)
+COMMAND_GUARD(script_line_to_a_place_ready, 0x4FE3)
+COMMAND_GUARD(script_chase_to_coordinates_ready, 0x51EE)
+COMMAND_GUARD(script_chase_to_the_point_ready, 0x5205)
+COMMAND_GUARD(script_chase_to_a_place_ready, 0x521C)
+COMMAND_GUARD(script_walk_to_coordinates_ready, 0x5409)
+COMMAND_GUARD(script_walk_to_the_point_ready, 0x541B)
+COMMAND_GUARD(script_walk_to_a_place_ready, 0x542D)
+COMMAND_GUARD(script_put_at_coordinates_ready, 0x5611)
+COMMAND_GUARD(script_put_at_the_point_ready, 0x566C)
+COMMAND_GUARD(script_put_at_a_place_ready, 0x567D)
+COMMAND_GUARD(script_point_at_place_ready, 0x591A)
+COMMAND_GUARD(script_slot_at_place_ready, 0x59B9)
+COMMAND_GUARD(script_point_off_place_ready, 0x5A0C)
+COMMAND_GUARD(script_point_at_the_mover_ready, 0x5A3E)
+COMMAND_GUARD(script_show_numbers_ready, 0x5ADB)
+COMMAND_GUARD(script_face_ready, 0x5FDE)
+COMMAND_GUARD(script_take_heading_ready, 0x6093)
+COMMAND_GUARD(script_heading_between_ready, 0x60E6)
+COMMAND_GUARD(script_turn_heading_ready, 0x6154)
+COMMAND_GUARD(script_play_sound_ready, 0x619E)
+COMMAND_GUARD(script_play_sound_at_ready, 0x61C1)
+COMMAND_GUARD(script_weapon_swing_sound_ready, 0x61EB)
+COMMAND_GUARD(script_weapon_hit_sound_ready, 0x61F5)
+COMMAND_GUARD(script_screen_effect_ready, 0x621B)
+COMMAND_GUARD(script_slot_follows_place_ready, 0x623C)
+COMMAND_GUARD(script_set_heading_ready, 0x6258)
+COMMAND_GUARD(script_jump_to_a_place_ready, 0x6299)
+COMMAND_GUARD(script_jump_to_the_point_ready, 0x672E)
+COMMAND_GUARD(script_jump_down_to_a_place_ready, 0x6743)
+COMMAND_GUARD(script_jump_down_to_the_point_ready, 0x674A)
+COMMAND_GUARD(script_spiral_out_ready, 0x6751)
+COMMAND_GUARD(script_spiral_for_ready, 0x69C3)
+COMMAND_GUARD(script_spiral_for_stopping_ready, 0x6AF0)
+COMMAND_GUARD(script_orbit_a_place_ready, 0x6CF3)
+COMMAND_GUARD(script_orbit_the_point_ready, 0x6F31)
+COMMAND_GUARD(script_orbit_flat_a_place_ready, 0x6F53)
+COMMAND_GUARD(script_orbit_flat_the_point_ready, 0x6F75)
+COMMAND_GUARD(script_aim_throw_ready, 0x705A)
+COMMAND_GUARD(script_throw_rise_ready, 0x720E)
+COMMAND_GUARD(script_throw_waits_before_ready, 0x7349)
+COMMAND_GUARD(script_throw_waits_after_ready, 0x73AD)
+COMMAND_GUARD(script_throw_moves_ready, 0x7364)
+COMMAND_GUARD(script_point_along_ready, 0x740B)
+COMMAND_GUARD(script_flicker_ready, 0x74B4)
 
+/* A command whose operation is C, or a bridge, entered as its handler. A
+ * bridge whose call-out the original carried on from leaves the machine
+ * there. */
 void battle_script_command_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    script_perform(g, script_opcode(battle_script_command(g)));
+    const ScriptOpcode *row = script_opcode(battle_script_command(g));
+    ScriptFlow flow;
+    if (row->bridge) {
+        ScriptCommand command = script_decode(g, row);
+        if (!row->bridge(s, &command, &flow))
+            return;
+    } else {
+        flow = script_operate(g, row);
+    }
+    script_move_on(g, row, flow);
     s->cpu.a = 0;
     m_rts(s);
 }

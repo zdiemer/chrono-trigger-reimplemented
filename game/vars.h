@@ -4514,6 +4514,12 @@ enum { BATTLE_SCRATCH_COUNT = 38 };   /* by byte */
 uint8_t battle_scratch(const GameState *g, unsigned i);
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_SCREEN_EFFECT_SETTINGS_COUNT = 15 };   /* by setting */
+/* A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many
+ * as its first byte says; the effect reads five) */
+uint8_t battle_screen_effect_settings(const GameState *g, unsigned i);
+void set_battle_screen_effect_settings(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_MULTIPLIER_OPERANDS_COUNT = 2 };   /* by operand (multiplicand, multiplier) */
 /* Copies of the last operands written to the hardware multiplier, which the interrupt handlers
  * write back after their own arithmetic */
@@ -4546,6 +4552,13 @@ enum { BATTLE_WORK_COUNT = 30 };   /* by cell ($80-$9D) */
  * (the effect $CC:F2A9 takes the next frame of, a word at $80) */
 uint8_t battle_work(const GameState *g, unsigned i);
 void set_battle_work(GameState *g, unsigned i, uint8_t v);
+
+/* How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2
+ * once and bouncing at half, else once); the jumps to the script's point take what is here,
+ * which in every battle the movies reach is 6, the count the animation slots' places loop ends
+ * at each frame ($C1:4231) */
+uint8_t battle_jump_lift(const GameState *g);
+void set_battle_jump_lift(GameState *g, uint8_t v);
 
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 uint8_t battle_frame_pending(const GameState *g);
@@ -5207,17 +5220,38 @@ enum { BATTLE_GRID_COUNT = 256 };   /* by cell (Y tile * 16 + X tile) */
 uint8_t battle_grid(const GameState *g, unsigned i);
 void set_battle_grid(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_WALK_FRONTIER_COUNT = 256 };   /* by entry */
+/* The walk's search: the cells it reached last, ending in 0 */
+uint8_t battle_walk_frontier(const GameState *g, unsigned i);
+void set_battle_walk_frontier(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_WALK_NEXT_FRONTIER_COUNT = 256 };   /* by entry */
+/* The walk's search: the cells it reaches from the last, ending in 0 once their step is done */
+uint8_t battle_walk_next_frontier(const GameState *g, unsigned i);
+void set_battle_walk_next_frontier(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_LOAD_TILEMAP_COUNT = 128 };   /* by tile */
 /* Tilemap words built at setup ($29FF blanks and counting tile runs); load step 2 uploads $1C0
  * bytes of it to VRAM $7B00 */
 uint16_t battle_load_tilemap(const GameState *g, unsigned i);
 void set_battle_load_tilemap(GameState *g, unsigned i, uint16_t v);
 
+enum { BATTLE_WALK_SAVED_GRIDS_COUNT = 2816 };   /* by battle_walk_grid_store(slot) + cell */
+/* Each walking combatant's copy of the grid its walk's search marked, its way through it set
+ * apart, kept for the steps */
+uint8_t battle_walk_saved_grids(const GameState *g, unsigned i);
+void set_battle_walk_saved_grids(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_LOAD_TILEMAP_2_COUNT = 512 };   /* by byte */
 /* Tilemap bytes built at setup (from $D1:5D50, then $29FF words); load step 2 uploads the $40
  * bytes at $81BD to VRAM $7800 */
 uint8_t battle_load_tilemap_2(const GameState *g, unsigned i);
 void set_battle_load_tilemap_2(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_WALK_GRID_COUNT = 256 };   /* by cell (Y tile * 16 + X tile) */
+/* The walking combatant's grid, copied back from its store for each step */
+uint8_t battle_walk_grid(const GameState *g, unsigned i);
+void set_battle_walk_grid(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_OAM_HIGH_BITS_COUNT = 512 };   /* by OAM buffer offset */
 /* For each OAM buffer byte offset, the mask that clears its sprite's X high bit in its
@@ -5466,6 +5500,11 @@ enum { BATTLE_OBJECT_FACING_COUNT = 11 };   /* by battle slot */
 /* Direction the object faces, selecting the facing's part of its frame lists */
 uint8_t battle_object_facing(const GameState *g, unsigned slot);
 void set_battle_object_facing(GameState *g, unsigned slot, uint8_t v);
+/* Direction the object faces, selecting the facing's part of its frame lists Unchecked, for
+ * marked scaffolding only: a facing code names a channel's subject, whichever it is
+ * (game/battle/script_places.c) */
+uint8_t battle_object_facing_unchecked(const GameState *g, unsigned slot);
+void set_battle_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_OBJECT_FACING_LOADED_COUNT = 11 };   /* by battle slot */
 /* The facing the enemy's frame list was loaded for; a change reloads it */
@@ -5796,6 +5835,16 @@ enum { BATTLE_NUMBER_COLORS_COUNT = 8 };   /* by color: the first four of sprite
  * palette */
 uint16_t battle_number_colors(const GameState *g, unsigned i);
 void set_battle_number_colors(GameState *g, unsigned i, uint16_t v);
+
+enum { BATTLE_SCRIPT_START_X_COUNT = 3 };   /* by channel 0-2 */
+/* X of where the first three channels' subjects stood as the action's scripts began ($CC:F1CE) */
+uint8_t battle_script_start_x(const GameState *g, unsigned channel);
+void set_battle_script_start_x(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCRIPT_START_Y_COUNT = 3 };   /* by channel 0-2 */
+/* Y of where the first three channels' subjects stood as the action's scripts began */
+uint8_t battle_script_start_y(const GameState *g, unsigned channel);
+void set_battle_script_start_y(GameState *g, unsigned channel, uint8_t v);
 
 enum { BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT = 11 };   /* by battle slot */
 /* Attribute bits ORed with the palette into the object's sprites */
@@ -6272,8 +6321,8 @@ uint8_t battle_path_active(const GameState *g, unsigned slot);
 void set_battle_path_active(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_SCRIPT_COMMAND_CELLS_COUNT = 22 };   /* by row * 11 + battle slot: a count ($A166, $C1:546E) and an unused row ($A171) */
-/* Per-combatant cells of the script commands that keep state over frames, the grid walk's
- * ($C1:546E); what the count is for isn't worked out */
+/* Per-combatant cells of the script commands that keep state over frames: how many walks the
+ * combatant has started ($C1:546E), which nothing reads */
 uint8_t battle_script_command_cells(const GameState *g, unsigned slot);
 void set_battle_script_command_cells(GameState *g, unsigned slot, uint8_t v);
 
@@ -6436,13 +6485,27 @@ void set_battle_effect_animation_frames(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_effect_animation_frames_unchecked(const GameState *g, unsigned i);
 void set_battle_effect_animation_frames_unchecked(GameState *g, unsigned i, uint8_t v);
 
-/* X of the position an animation slot's position mode worked out (the handlers at $C1:79D3) */
+/* X of the place an animation script last named, worked out ($C1:762E's handlers): one of the
+ * places is the one last found */
 uint8_t battle_position_found_x(const GameState *g);
 void set_battle_position_found_x(GameState *g, uint8_t v);
 
-/* Y of the position an animation slot's position mode worked out */
+/* The high byte of the place last found's X, which only the places on an anchor set (an anchor
+ * can stand off the battlefield) */
+uint8_t battle_position_found_x_high(const GameState *g);
+void set_battle_position_found_x_high(GameState *g, uint8_t v);
+
+/* Y of the place an animation script last named, worked out */
 uint8_t battle_position_found_y(const GameState *g);
 void set_battle_position_found_y(GameState *g, uint8_t v);
+
+/* The high byte of the place last found's Y, which only the places on an anchor set */
+uint8_t battle_position_found_y_high(const GameState *g);
+void set_battle_position_found_y_high(GameState *g, uint8_t v);
+
+/* The facing an animation script's facing code last named, worked out ($C1:75CC's handlers) */
+uint8_t battle_facing_found(const GameState *g);
+void set_battle_facing_found(GameState *g, uint8_t v);
 
 /* The animation of the enemy whose animation effect runs, which picks the effect's handler
  * ($CC:FBAB) */
@@ -6500,6 +6563,11 @@ enum { BATTLE_EFFECT_STEPS_COUNT = 19 };   /* by effect slot (0-10 the combatant
 /* The jump's substeps a frame, the spiral's radius growth, or the chase's speed */
 uint8_t battle_effect_steps(const GameState *g, unsigned slot);
 void set_battle_effect_steps(GameState *g, unsigned slot, uint8_t v);
+/* The jump's substeps a frame, the spiral's radius growth, or the chase's speed Unchecked, for
+ * marked scaffolding only: the throw's line for an anchor reads its speed at twice the anchor's
+ * number past the combatants' (game/battle/script_moves.c) */
+uint8_t battle_effect_steps_unchecked(const GameState *g, unsigned slot);
+void set_battle_effect_steps_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_EFFECT_ACTIVE_COUNT = 19 };   /* by effect slot (11 per object, then 8) */
 /* Set while the timed effect slot runs */
@@ -6510,6 +6578,11 @@ enum { BATTLE_EFFECT_ANGLE_COUNT = 19 };   /* by effect slot (0-10 the combatant
 /* The spiral's angle (256 steps a turn) */
 uint8_t battle_effect_angle(const GameState *g, unsigned slot);
 void set_battle_effect_angle(GameState *g, unsigned slot, uint8_t v);
+/* The spiral's angle (256 steps a turn) Unchecked, for marked scaffolding only: a place 24
+ * pixels along a combatant's angle takes the running channel's subject, whichever it is
+ * (game/battle/script_places.c) */
+uint8_t battle_effect_angle_unchecked(const GameState *g, unsigned slot);
+void set_battle_effect_angle_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_EFFECT_BASE_X_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
 /* X the path is measured from */
@@ -6530,6 +6603,12 @@ enum { BATTLE_EFFECT_TARGET_Y_COUNT = 19 };   /* by effect slot (0-10 the combat
 /* Y of the jump's or chase's target */
 uint8_t battle_effect_target_y(const GameState *g, unsigned slot);
 void set_battle_effect_target_y(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_SCRIPT_MOVE_LENGTHS_COUNT = 16 };   /* by script channel */
+/* The length of the line or jump command each channel last started, which the channel goes past
+ * once the move has ended, whichever command it is at then */
+uint8_t battle_script_move_lengths(const GameState *g, unsigned channel);
+void set_battle_script_move_lengths(GameState *g, unsigned channel, uint8_t v);
 
 enum { BATTLE_PALETTE_ANIM_ON_COUNT = 4 };   /* by object palette animation */
 /* Set while the object palette animation runs */
@@ -6673,6 +6752,11 @@ void set_battle_marker_frame(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_marker_frame_unchecked(const GameState *g, unsigned slot);
 void set_battle_marker_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
+/* The weapon of the party member whose action plays, which picks the sounds of its swing and its
+ * hit */
+uint8_t battle_acting_weapon(const GameState *g);
+void set_battle_acting_weapon(GameState *g, uint8_t v);
+
 enum { BATTLE_ANIMATION_POSITION_MODES_COUNT = 6 };   /* by animation slot */
 /* Position mode of the animation slot plus 1 (0: none) */
 uint8_t battle_animation_position_modes(const GameState *g, unsigned slot);
@@ -6686,15 +6770,55 @@ void set_battle_targets_changed(GameState *g, uint8_t v);
 uint8_t battle_color_phase(const GameState *g);
 void set_battle_color_phase(GameState *g, uint8_t v);
 
+enum { BATTLE_SCRIPT_WALK_LENGTHS_COUNT = 16 };   /* by script channel */
+/* The length of the walk command each channel last started, which it goes past once the walk
+ * ends (and at once on a channel that walks nobody) */
+uint8_t battle_script_walk_lengths(const GameState *g, unsigned channel);
+void set_battle_script_walk_lengths(GameState *g, unsigned channel, uint8_t v);
+
 enum { BATTLE_PATH_STEPS_COUNT = 11 };   /* by battle slot */
 /* Path steps left (from 7; negative when done) */
 uint8_t battle_path_steps(const GameState *g, unsigned slot);
 void set_battle_path_steps(GameState *g, unsigned slot, uint8_t v);
 
+/* The grid cell the last walk's search started from, where the walker stands */
+uint8_t battle_walk_from_cell(const GameState *g);
+void set_battle_walk_from_cell(GameState *g, uint8_t v);
+
+/* The grid cell the last walk's search was for */
+uint8_t battle_walk_goal_cell(const GameState *g);
+void set_battle_walk_goal_cell(GameState *g, uint8_t v);
+
 enum { BATTLE_PATH_COUNT = 11 };   /* by battle slot */
 /* The path the object follows (8 X/Y delta steps each in $CC:F494/$CC:F594) */
 uint8_t battle_path(const GameState *g, unsigned slot);
 void set_battle_path(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_WALK_CLEARED_COUNT = 11 };   /* by battle slot */
+/* Cleared for a combatant as its walk starts; nothing reads it */
+uint8_t battle_walk_cleared(const GameState *g, unsigned slot);
+void set_battle_walk_cleared(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_WALK_CELL_COUNT = 11 };   /* by battle slot */
+/* The grid cell a walking combatant has reached */
+uint8_t battle_walk_cell(const GameState *g, unsigned slot);
+void set_battle_walk_cell(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_WALK_HEADING_COUNT = 11 };   /* by battle slot */
+/* The way a walking combatant last stepped (0 up, 1 down, 2 left, 3 right; $FF before its first
+ * step), which its next step doesn't turn back along */
+uint8_t battle_walk_heading(const GameState *g, unsigned slot);
+void set_battle_walk_heading(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_WALK_START_X_COUNT = 11 };   /* by battle slot */
+/* X of where a combatant stood as its walk started */
+uint8_t battle_walk_start_x(const GameState *g, unsigned slot);
+void set_battle_walk_start_x(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_WALK_START_Y_COUNT = 11 };   /* by battle slot */
+/* Y of where a combatant stood as its walk started */
+uint8_t battle_walk_start_y(const GameState *g, unsigned slot);
+void set_battle_walk_start_y(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_SCRIPT_RETURNS_COUNT = 16 };   /* by script channel */
 /* The return's offset */
@@ -6715,6 +6839,28 @@ enum { BATTLE_EFFECT_ANGLE_USED_COUNT = 19 };   /* by effect slot (0-10 the comb
 /* The angle the spiral last used, which the flicker reuses */
 uint8_t battle_effect_angle_used(const GameState *g, unsigned slot);
 void set_battle_effect_angle_used(GameState *g, unsigned slot, uint8_t v);
+/* The angle the spiral last used, which the flicker reuses Unchecked, for marked scaffolding
+ * only: a script names a mover by its channel's subject or by an anchor's number, unchecked
+ * against the movers (game/battle/script_places.c heading commands) */
+uint8_t battle_effect_angle_used_unchecked(const GameState *g, unsigned slot);
+void set_battle_effect_angle_used_unchecked(GameState *g, unsigned slot, uint8_t v);
+
+/* The frames a spiral command gives its movers, kept as it starts them */
+uint8_t battle_script_spiral_frames(const GameState *g);
+void set_battle_script_spiral_frames(GameState *g, uint8_t v);
+
+/* X of the place a heading is taken toward ($C1:60E6), kept while the place it is taken from is
+ * found */
+uint8_t battle_heading_to_x(const GameState *g);
+void set_battle_heading_to_x(GameState *g, uint8_t v);
+
+/* The place a heading is taken from ($C1:60E6), kept while the place it is taken toward is found */
+uint8_t battle_heading_from_place(const GameState *g);
+void set_battle_heading_from_place(GameState *g, uint8_t v);
+
+/* Y of the place a heading is taken toward */
+uint8_t battle_heading_to_y(const GameState *g);
+void set_battle_heading_to_y(GameState *g, uint8_t v);
 
 enum { BATTLE_SLOT_DRAW_BITS_COUNT = 11 };   /* by battle slot */
 /* $C0 for every combatant at the start, $80 for an enemy drawn on top (flag bit 7 of its
@@ -6840,6 +6986,15 @@ enum { BATTLE_EFFECT_TYPE_COUNT = 19 };   /* by effect slot */
 uint8_t battle_effect_type(const GameState *g, unsigned slot);
 void set_battle_effect_type(GameState *g, unsigned slot, uint8_t v);
 
+/* The velocity a line or a jump is set up with across (8.8 pixels a step), worked out and then
+ * multiplied by the mover's speed in place; only the setting up reads it */
+uint16_t battle_line_velocity_x(const GameState *g);
+void set_battle_line_velocity_x(GameState *g, uint16_t v);
+
+/* The velocity a line or a jump is set up with down the screen (8.8 pixels a step) */
+uint16_t battle_line_velocity_y(const GameState *g);
+void set_battle_line_velocity_y(GameState *g, uint16_t v);
+
 enum { BATTLE_EFFECT_VELOCITY_X_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
 /* Horizontal velocity, 8.8 pixels a frame */
 uint16_t battle_effect_velocity_x(const GameState *g, unsigned slot);
@@ -6909,10 +7064,21 @@ enum { BATTLE_FORMATION_OFFSET_Y_COUNT = 8 };   /* by enemy (battle slot less 3)
 uint8_t battle_formation_offset_y(const GameState *g, unsigned i);
 void set_battle_formation_offset_y(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_COMBATANT_ORBIT_CENTER_X_COUNT = 11 };   /* by battle slot */
+/* X of the center a combatant's orbit started at (the combatant is put there; the orbit then
+ * turns its sprite about it, so nothing reads this) */
+uint8_t battle_combatant_orbit_center_x(const GameState *g, unsigned slot);
+void set_battle_combatant_orbit_center_x(GameState *g, unsigned slot, uint8_t v);
+
 enum { BATTLE_ANCHOR_ORBIT_CENTER_X_COUNT = 8 };   /* by anchor */
 /* X of the center an anchor orbits */
 uint8_t battle_anchor_orbit_center_x(const GameState *g, unsigned i);
 void set_battle_anchor_orbit_center_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_COMBATANT_ORBIT_CENTER_Y_COUNT = 11 };   /* by battle slot */
+/* Y of the center a combatant's orbit started at */
+uint8_t battle_combatant_orbit_center_y(const GameState *g, unsigned slot);
+void set_battle_combatant_orbit_center_y(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ANCHOR_ORBIT_CENTER_Y_COUNT = 8 };   /* by anchor */
 /* Y of the center an anchor orbits */
@@ -6939,14 +7105,27 @@ enum { BATTLE_EFFECT_ORBIT_RADIUS_COUNT = 19 };   /* by effect slot (0-10 the co
 uint8_t battle_effect_orbit_radius(const GameState *g, unsigned slot);
 void set_battle_effect_orbit_radius(GameState *g, unsigned slot, uint8_t v);
 
-/* The byte before battle_script_countdown, which only the objects' reset writes */
+/* X of the top of a throw's arc: halfway to where it lands */
+uint8_t battle_throw_apex_x(const GameState *g);
+void set_battle_throw_apex_x(GameState *g, uint8_t v);
+
+/* Y of the top of a throw's arc: 64 pixels above halfway, kept on the screen */
+uint8_t battle_throw_apex_y(const GameState *g);
+void set_battle_throw_apex_y(GameState *g, uint8_t v);
+
+/* The byte before battle_throw_wait_before, which only the objects' reset writes */
 uint8_t battle_script_countdown_spare(const GameState *g);
 void set_battle_script_countdown_spare(GameState *g, uint8_t v);
 
-/* A count a script command runs down a frame at a time before it goes on ($C1:7349), set by
- * $C1:6727 */
-uint16_t battle_script_countdown(const GameState *g);
-void set_battle_script_countdown(GameState *g, uint16_t v);
+/* Frames a throw waits before it rises ($C1:7349): 36 as it is aimed, less the frames its rise
+ * takes */
+uint16_t battle_throw_wait_before(const GameState *g);
+void set_battle_throw_wait_before(GameState *g, uint16_t v);
+
+/* Frames a throw waits after its rise before it falls; every line's set-up first leaves its
+ * length in pixels here (its low byte), which the throw's rise turns into its frames */
+uint16_t battle_throw_wait_after(const GameState *g);
+void set_battle_throw_wait_after(GameState *g, uint16_t v);
 
 enum { BATTLE_EFFECT_HOME_STAGE_COUNT = 19 };   /* by effect slot (0-10 the combatants', 11-18 the anchors') */
 /* Set once the jump onto its target has first come near it */

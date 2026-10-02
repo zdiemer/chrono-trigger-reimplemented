@@ -9,6 +9,7 @@
  * pair of fades the frame work copies over palette animation slots 8 and 9. */
 #include "battle/screen.h"
 
+#include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
 
@@ -289,12 +290,10 @@ bool battle_screen_saves_positions(Snes *s)
 
 /* The caller hands the settings in five of the page's cells, $53-$57, and the
  * effect is one of the six the original's table has. */
-enum { SETTINGS_CELL = 0x53 };
-
 static void settings_in_cells(const GameState *g, uint8_t settings[SETTINGS_BYTES])
 {
     for (unsigned i = 0; i < SETTINGS_BYTES; i++)
-        settings[i] = screen_cell(g, (uint8_t)(SETTINGS_CELL + i));
+        settings[i] = battle_screen_effect_settings(g, i);
 }
 
 bool battle_screen_effect_is_one(Snes *s)
@@ -334,18 +333,22 @@ void battle_screen_save_positions(Snes *s)
 }
 
 // $D1:F67A
-/* Set a screen effect from the settings, each effect's work timed as its own
- * routine's. */
-void battle_set_screen_effect(Snes *s)
+/* Set the screen effect the settings name, each effect's work timed as its
+ * own routine's. */
+void battle_screen_effect_from_settings(GameState *g)
 {
-    GameState *g = state_of(s);
     uint8_t settings[SETTINGS_BYTES];
     settings_in_cells(g, settings);
     switch (effect_kinds[effect_choice(settings)]) {
-    case PALETTE_PRESET: NATIVE_TIME_AS(s, 0xD1F74D, set_palette_preset_from(g, settings)); break;
-    case START_SHAKE: NATIVE_TIME_AS(s, 0xD1F6B4, start_shake_from(g, settings)); break;
-    case STOP_SHAKE: NATIVE_TIME_AS(s, 0xD1F692, stop_shake(g)); break;
+    case PALETTE_PRESET: TIMED_AS(g, 0xD1F74D, set_palette_preset_from(g, settings)); break;
+    case START_SHAKE: TIMED_AS(g, 0xD1F6B4, start_shake_from(g, settings)); break;
+    case STOP_SHAKE: TIMED_AS(g, 0xD1F692, stop_shake(g)); break;
     }
+}
+
+void battle_set_screen_effect(Snes *s)
+{
+    battle_screen_effect_from_settings(state_of(s));
     screen_command_done(s);
 }
 

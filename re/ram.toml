@@ -8788,7 +8788,7 @@ stride = 4
 index = "combatant * 4 + digit"
 subsystem = "battle"
 meaning = "Prepared number sprites shown over the combatants (four digits each)"
-source = "game/battle/numbers.c header and battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c draw_numbers; game/battle/object_motion.c raise_numbers $CF:E781"
+source = "game/battle/numbers.c header and show_numbers_command $C1:5ADB; game/battle/draw_objects.c draw_numbers; game/battle/object_motion.c raise_numbers $CF:E781"
   [[var.field]]
   name = "x"
   offset = 0
@@ -10499,6 +10499,7 @@ name = "battle_object_facing"
 addr = "7E:96DB"
 count = 11
 index = "battle slot"
+unchecked = "a facing code names a channel's subject, whichever it is (game/battle/script_places.c)"
 subsystem = "battle"
 meaning = "Direction the object faces, selecting the facing's part of its frame lists"
 source = "game/battle/animation.c face_target $C1:2F22 and party frames; game/battle/setup_party.c setup_party_objects, setup_enemies.c set_up_enemy"
@@ -11698,7 +11699,7 @@ name = "battle_number_step"
 addr = "7E:A3D1"
 subsystem = "battle"
 meaning = "Step of the number display script opcodes (hide, build, wait); while set the objects draw their prepared sprites"
-source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB; game/battle/draw_objects.c draw_in_front $CF:EDB8"
+source = "game/battle/numbers.c show_numbers_command $C1:5ADB; game/battle/draw_objects.c draw_in_front $CF:EDB8"
 
 [[var]]
 name = "battle_numbers_rising"
@@ -11784,7 +11785,7 @@ name = "battle_numbers_set"
 addr = "7E:A3D3"
 subsystem = "battle"
 meaning = "The set of numbers (battle_number_records) the script's number command last showed"
-source = "game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
+source = "game/battle/numbers.c show_numbers_command $C1:5ADB"
 
 [[var]]
 name = "battle_number_at_cursor"
@@ -11793,7 +11794,7 @@ count = 11
 index = "battle slot"
 subsystem = "battle"
 meaning = "Nonzero for a combatant whose numbers show at its cursor point (its object's position plus battle_cursor_offset_x and _y) rather than at its object's position"
-source = "game/battle/numbers.c number_position in battle_script_build_number_sprites $C1:5ADB; game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4 (counted up for an enemy with flag bit 5 of its header)"
+source = "game/battle/numbers.c number_position in show_numbers_command $C1:5ADB; game/battle/setup_enemies.c take_flags in battle_setup_state $CC:E2E4 (counted up for an enemy with flag bit 5 of its header)"
 
 [[var]]
 name = "battle_number_colors"
@@ -11803,7 +11804,7 @@ count = 8
 index = "color: the first four of sprite palette 0, then of sprite palette 4"
 subsystem = "battle"
 meaning = "The number sprites' colors, loaded at setup; each number command puts them back in the working palette"
-source = "game/battle/setup_screen.c setup_cursor_sprites_and_colors in battle_setup_graphics ($CC:EF09); game/battle/numbers.c battle_script_build_number_sprites $C1:5ADB"
+source = "game/battle/setup_screen.c setup_cursor_sprites_and_colors in battle_setup_graphics ($CC:EF09); game/battle/numbers.c show_numbers_command $C1:5ADB"
 
 [[var]]
 name = "battle_palette_anim_on"
@@ -11955,7 +11956,7 @@ addr = "7E:A166"
 count = 22
 index = "row * 11 + battle slot: a count ($A166, $C1:546E) and an unused row ($A171)"
 subsystem = "battle"
-meaning = "Per-combatant cells of the script commands that keep state over frames, the grid walk's ($C1:546E); what the count is for isn't worked out"
+meaning = "Per-combatant cells of the script commands that keep state over frames: how many walks the combatant has started ($C1:546E), which nothing reads"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
@@ -12011,6 +12012,13 @@ index = "battle slot"
 subsystem = "battle"
 meaning = "Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a party member's frame step keeps its own in the first entry"
 source = "game/battle/animation.c take_next_party_frame $C1:2E28; the scheduler at $C1:4269"
+
+[[var]]
+name = "battle_acting_weapon"
+addr = "7E:A4E7"
+subsystem = "battle"
+meaning = "The weapon of the party member whose action plays, which picks the sounds of its swing and its hit"
+source = "game/battle/script_sound.c $C1:61EB; set at $C1:4349"
 
 [[var]]
 name = "battle_animation_position_modes"
@@ -12159,15 +12167,36 @@ source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC"
 name = "battle_position_found_x"
 addr = "7E:A2B0"
 subsystem = "battle"
-meaning = "X of the position an animation slot's position mode worked out (the handlers at $C1:79D3)"
-source = "game/battle/objects.c battle_update_animation_positions $C1:4212"
+meaning = "X of the place an animation script last named, worked out ($C1:762E's handlers): one of the places is the one last found"
+source = "game/battle/script_places.c script_find_place $C1:762E"
+
+[[var]]
+name = "battle_position_found_x_high"
+addr = "7E:A2B1"
+subsystem = "battle"
+meaning = "The high byte of the place last found's X, which only the places on an anchor set (an anchor can stand off the battlefield)"
+source = "game/battle/script_places.c script_find_place $C1:762E"
 
 [[var]]
 name = "battle_position_found_y"
 addr = "7E:A2B2"
 subsystem = "battle"
-meaning = "Y of the position an animation slot's position mode worked out"
-source = "game/battle/objects.c battle_update_animation_positions $C1:4212"
+meaning = "Y of the place an animation script last named, worked out"
+source = "game/battle/script_places.c script_find_place $C1:762E"
+
+[[var]]
+name = "battle_position_found_y_high"
+addr = "7E:A2B3"
+subsystem = "battle"
+meaning = "The high byte of the place last found's Y, which only the places on an anchor set"
+source = "game/battle/script_places.c script_find_place $C1:762E"
+
+[[var]]
+name = "battle_facing_found"
+addr = "7E:A2B4"
+subsystem = "battle"
+meaning = "The facing an animation script's facing code last named, worked out ($C1:75CC's handlers)"
+source = "game/battle/script_places.c script_find_facing $C1:75CC"
 
 [[var]]
 name = "battle_effect_kind"
@@ -13290,6 +13319,7 @@ name = "battle_effect_steps"
 addr = "7E:A324"
 count = 19
 index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+unchecked = "the throw's line for an anchor reads its speed at twice the anchor's number past the combatants' (game/battle/script_moves.c)"
 subsystem = "battle"
 meaning = "The jump's substeps a frame, the spiral's radius growth, or the chase's speed"
 source = "game/battle/effect_paths.c"
@@ -13308,6 +13338,7 @@ name = "battle_effect_angle"
 addr = "7E:A34A"
 count = 19
 index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+unchecked = "a place 24 pixels along a combatant's angle takes the running channel's subject, whichever it is (game/battle/script_places.c)"
 subsystem = "battle"
 meaning = "The spiral's angle (256 steps a turn)"
 source = "game/battle/effect_paths.c spiral $CF:F194"
@@ -13317,6 +13348,7 @@ name = "battle_effect_angle_used"
 addr = "7E:A5AA"
 count = 19
 index = "effect slot (0-10 the combatants', 11-18 the anchors')"
+unchecked = "a script names a mover by its channel's subject or by an anchor's number, unchecked against the movers (game/battle/script_places.c heading commands)"
 subsystem = "battle"
 meaning = "The angle the spiral last used, which the flicker reuses"
 source = "game/battle/effect_paths.c spiral $CF:F194, flicker_step $CF:F3BA"
@@ -13430,15 +13462,15 @@ source = "game/battle/effect_paths.c orbit_step $CF:F1F8"
 name = "battle_script_countdown_spare"
 addr = "7E:AAFB"
 subsystem = "battle"
-meaning = "The byte before battle_script_countdown, which only the objects' reset writes"
+meaning = "The byte before battle_throw_wait_before, which only the objects' reset writes"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
-name = "battle_script_countdown"
+name = "battle_throw_wait_before"
 addr = "7E:AAFC"
 size = 2
 subsystem = "battle"
-meaning = "A count a script command runs down a frame at a time before it goes on ($C1:7349), set by $C1:6727"
+meaning = "Frames a throw waits before it rises ($C1:7349): 36 as it is aimed, less the frames its rise takes"
 source = "game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
@@ -15457,3 +15489,238 @@ source = "game/battle/script_flow.c ($C1:56CC, $C1:56FB)"
   offset = 3
   meaning = "The byte after the pointer, kept and put back with the bank"
 
+[[var]]
+name = "battle_script_start_x"
+addr = "7E:99AF"
+count = 3
+index = "channel 0-2"
+subsystem = "battle"
+meaning = "X of where the first three channels' subjects stood as the action's scripts began ($CC:F1CE)"
+source = "game/battle/script_places.c script_find_place $C1:77DA"
+
+[[var]]
+name = "battle_script_start_y"
+addr = "7E:99B2"
+count = 3
+index = "channel 0-2"
+subsystem = "battle"
+meaning = "Y of where the first three channels' subjects stood as the action's scripts began"
+source = "game/battle/script_places.c script_find_place $C1:77DA"
+
+[[var]]
+name = "battle_script_move_lengths"
+addr = "7E:A3A9"
+count = 16
+index = "script channel"
+subsystem = "battle"
+meaning = "The length of the line or jump command each channel last started, which the channel goes past once the move has ended, whichever command it is at then"
+source = "game/battle/script_moves.c $C1:4FED, $C1:62AA"
+
+[[var]]
+name = "battle_script_walk_lengths"
+addr = "7E:A4F0"
+count = 16
+index = "script channel"
+subsystem = "battle"
+meaning = "The length of the walk command each channel last started, which it goes past once the walk ends (and at once on a channel that walks nobody)"
+source = "game/battle/script_walk.c $C1:5437"
+
+[[var]]
+name = "battle_walk_from_cell"
+addr = "7E:A513"
+subsystem = "battle"
+meaning = "The grid cell the last walk's search started from, where the walker stands"
+source = "game/battle/script_walk.c find_the_way $C1:4A71"
+
+[[var]]
+name = "battle_walk_goal_cell"
+addr = "7E:A515"
+subsystem = "battle"
+meaning = "The grid cell the last walk's search was for"
+source = "game/battle/script_walk.c find_the_way $C1:4A71"
+
+[[var]]
+name = "battle_walk_cleared"
+addr = "7E:A522"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Cleared for a combatant as its walk starts; nothing reads it"
+source = "game/battle/script_walk.c $C1:54AE"
+
+[[var]]
+name = "battle_walk_cell"
+addr = "7E:A53D"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The grid cell a walking combatant has reached"
+source = "game/battle/script_walk.c $C1:5486, $C1:55F9"
+
+[[var]]
+name = "battle_walk_heading"
+addr = "7E:A548"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "The way a walking combatant last stepped (0 up, 1 down, 2 left, 3 right; $FF before its first step), which its next step doesn't turn back along"
+source = "game/battle/script_walk.c $C1:54B3, $C1:55ED"
+
+[[var]]
+name = "battle_walk_start_x"
+addr = "7E:A553"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "X of where a combatant stood as its walk started"
+source = "game/battle/script_walk.c $C1:5459"
+
+[[var]]
+name = "battle_walk_start_y"
+addr = "7E:A55E"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Y of where a combatant stood as its walk started"
+source = "game/battle/script_walk.c $C1:545F"
+
+[[var]]
+name = "battle_walk_frontier"
+addr = "7E:7DFD"
+count = 256
+index = "entry"
+subsystem = "battle"
+meaning = "The walk's search: the cells it reached last, ending in 0"
+source = "game/battle/script_walk.c find_the_way $C1:4A71"
+
+[[var]]
+name = "battle_walk_next_frontier"
+addr = "7E:7EFD"
+count = 256
+index = "entry"
+subsystem = "battle"
+meaning = "The walk's search: the cells it reaches from the last, ending in 0 once their step is done"
+source = "game/battle/script_walk.c find_the_way $C1:4A71"
+
+[[var]]
+name = "battle_walk_saved_grids"
+addr = "7E:7FFD"
+count = 0xB00
+index = "battle_walk_grid_store(slot) + cell"
+reuses = ["battle_load_tilemap", "battle_load_tilemap_2"]
+subsystem = "battle"
+meaning = "Each walking combatant's copy of the grid its walk's search marked, its way through it set apart, kept for the steps"
+source = "game/battle/script_walk.c $C1:5492"
+
+[[var]]
+name = "battle_walk_grid"
+addr = "7E:8AFD"
+count = 256
+index = "cell (Y tile * 16 + X tile)"
+subsystem = "battle"
+meaning = "The walking combatant's grid, copied back from its store for each step"
+source = "game/battle/script_walk.c $C1:54D6"
+
+[[var]]
+name = "battle_combatant_orbit_center_x"
+addr = "7E:AA74"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "X of the center a combatant's orbit started at (the combatant is put there; the orbit then turns its sprite about it, so nothing reads this)"
+source = "game/battle/script_moves.c $C1:6D40"
+
+[[var]]
+name = "battle_combatant_orbit_center_y"
+addr = "7E:AA87"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Y of the center a combatant's orbit started at"
+source = "game/battle/script_moves.c $C1:6D49"
+
+[[var]]
+name = "battle_throw_apex_x"
+addr = "7E:AAF9"
+subsystem = "battle"
+meaning = "X of the top of a throw's arc: halfway to where it lands"
+source = "game/battle/script_moves.c $C1:6671"
+
+[[var]]
+name = "battle_throw_apex_y"
+addr = "7E:AAFA"
+subsystem = "battle"
+meaning = "Y of the top of a throw's arc: 64 pixels above halfway, kept on the screen"
+source = "game/battle/script_moves.c $C1:6671"
+
+[[var]]
+name = "battle_throw_wait_after"
+addr = "7E:AAFE"
+size = 2
+subsystem = "battle"
+meaning = "Frames a throw waits after its rise before it falls; every line's set-up first leaves its length in pixels here (its low byte), which the throw's rise turns into its frames"
+source = "game/battle/script_moves.c $C1:65BA, $C1:7313, $C1:73AD"
+
+[[var]]
+name = "battle_script_spiral_frames"
+addr = "7E:A5BD"
+subsystem = "battle"
+meaning = "The frames a spiral command gives its movers, kept as it starts them"
+source = "game/battle/script_moves.c $C1:69C6"
+
+[[var]]
+name = "battle_heading_to_x"
+addr = "7E:A5BE"
+subsystem = "battle"
+meaning = "X of the place a heading is taken toward ($C1:60E6), kept while the place it is taken from is found"
+source = "game/battle/script_places.c heading_between $C1:60E6"
+
+[[var]]
+name = "battle_heading_from_place"
+addr = "7E:A5BF"
+subsystem = "battle"
+meaning = "The place a heading is taken from ($C1:60E6), kept while the place it is taken toward is found"
+source = "game/battle/script_places.c heading_between $C1:60E6"
+
+[[var]]
+name = "battle_heading_to_y"
+addr = "7E:A5C0"
+subsystem = "battle"
+meaning = "Y of the place a heading is taken toward"
+source = "game/battle/script_places.c heading_between $C1:60E6"
+
+[[var]]
+name = "battle_line_velocity_x"
+addr = "7E:A880"
+size = 2
+subsystem = "battle"
+meaning = "The velocity a line or a jump is set up with across (8.8 pixels a step), worked out and then multiplied by the mover's speed in place; only the setting up reads it"
+source = "game/battle/script_moves.c line_velocity $C1:65BA"
+
+[[var]]
+name = "battle_line_velocity_y"
+addr = "7E:A882"
+size = 2
+subsystem = "battle"
+meaning = "The velocity a line or a jump is set up with down the screen (8.8 pixels a step)"
+source = "game/battle/script_moves.c line_velocity $C1:65BA"
+
+[[var]]
+name = "battle_screen_effect_settings"
+addr = "7E:0053"
+page = "battle"
+count = 15
+index = "setting"
+reuses = "battle_scratch"
+subsystem = "battle"
+meaning = "A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many as its first byte says; the effect reads five)"
+source = "game/battle/screen_motion.c battle_screen_effect_from_settings $D1:F67A; game/battle/script_sound.c screen_effect $C1:621B"
+
+[[var]]
+name = "battle_jump_lift"
+addr = "7E:0090"
+page = "battle"
+reuses = "battle_work"
+subsystem = "battle"
+meaning = "How a jump lifts, as the jump commands that give it leave it ($C1:629E; 0 twice its height, 2 once and bouncing at half, else once); the jumps to the script's point take what is here, which in every battle the movies reach is 6, the count the animation slots' places loop ends at each frame ($C1:4231)"
+source = "game/battle/script_moves.c jump $C1:6299; game/battle/objects.c battle_update_animation_positions $C1:4212"

@@ -12,13 +12,14 @@
  * swing, a spell's cast) a frame's time at a time: each frame every object's
  * time counts down, and the scheduler takes the next object due, round the
  * objects from where it last stopped. And six animation slots can have their
- * position worked out each frame by a position mode, whose code is still the
- * original's. */
+ * position worked out each frame by a position mode: a place the animation
+ * scripts name (battle/script_places.c). */
 #include "battle/animation.h"
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/script_language.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -117,12 +118,18 @@ static void keep_found_position(GameState *g, unsigned slot)
     set_battle_animation_positions(g, slot, (uint16_t)(battle_position_found_x(g) | battle_position_found_y(g) << 8));
 }
 
-/* The original keeps the slot it is at in a cell; the modes' code doesn't
- * read it. */
+/* The original counts the slots in a cell, which the places don't read; the
+ * count it ends at is what the animation scripts' jumps to their point take
+ * as their lift (battle/script_moves.c), so the last is the game's. */
 enum { LEFT_POSITION_SLOT = 0x10 };
 static void leave_position_slot(GameState *g, unsigned slot)
 {
     set_battle_work(g, LEFT_POSITION_SLOT, (uint8_t)slot);
+    set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
+}
+static void slots_counted(GameState *g)
+{
+    set_battle_jump_lift(g, POSITION_SLOTS);
     set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
 }
 
@@ -189,8 +196,9 @@ bool battle_scheduler_in_place(Snes *s)
     return battle_on_page(s) && in_place;
 }
 
-/* Each slot's position is worked out by its mode's code ($C1:762E, which
- * picks it by the mode in A), a call per slot. */
+/* Each slot's position is the place its mode names (battle/script_places.c),
+ * worked out afresh. A mode naming a place the game doesn't have is the
+ * original's to work out ($C1:762E, which picks it by the mode in A). */
 void battle_update_animation_positions(Snes *s)
 {
     GameState *g = state_of(s);
@@ -198,11 +206,16 @@ void battle_update_animation_positions(Snes *s)
         ORIGINAL_EFFECT(leave_position_slot(g, slot));
         if (!has_position_mode(g, slot))
             continue;
-        s->cpu.a = position_mode(g, slot);
-        if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
-            return;
+        uint8_t place = position_mode(g, slot);
+        if (script_place_known(g, place)) {
+            script_find_place(g, place);
+        } else {
+            s->cpu.a = place;
+            if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
+                return;
+        }
         keep_found_position(g, slot);
     }
-    ORIGINAL_EFFECT(leave_position_slot(g, POSITION_SLOTS));
+    slots_counted(g);
     m_rts(s);
 }

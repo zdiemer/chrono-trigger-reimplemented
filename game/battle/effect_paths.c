@@ -46,42 +46,10 @@
 
 /* ---- Movers --------------------------------------------------------------------------- */
 
-enum { COMBATANT_MOVERS = BATTLE_COMBATANTS, ANCHOR_MOVERS = BATTLE_ANCHORS, FIRST_ANCHOR_MOVER = COMBATANT_MOVERS };
+enum { COMBATANT_MOVERS = BATTLE_COMBATANTS, ANCHOR_MOVERS = BATTLE_ANCHORS };
 
-typedef enum { MOVES_COMBATANT, MOVES_ANCHOR } MoverKind;
-
-/* A mover: a combatant (its battle slot) or an anchor. */
-typedef struct {
-    MoverKind kind;
-    uint8_t index;
-} Mover;
-
-static bool is_anchor(Mover m) { return m.kind == MOVES_ANCHOR; }
-
-/* The mover's entry in the movers' tables. */
-static unsigned entry_of(Mover m) { return m.index + (is_anchor(m) ? FIRST_ANCHOR_MOVER : 0); }
-
-static bool path_done(const GameState *g, Mover m)
-{
-    return (is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index)) != 0;
-}
-
-/* The done flag counts: a path that ends sets it, and the homing jump counts
- * its arrivals on it. */
-static void set_done_count(GameState *g, Mover m, uint8_t n)
-{
-    if (is_anchor(m))
-        set_battle_anchor_done(g, m.index, n);
-    else
-        set_battle_effect_done(g, m.index, n);
-}
-static uint8_t done_count(const GameState *g, Mover m)
-{
-    return is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index);
-}
-
-static void end_path(GameState *g, Mover m) { set_done_count(g, m, 1); }
-static void count_done(GameState *g, Mover m) { set_done_count(g, m, (uint8_t)(done_count(g, m) + 1)); }
+static void end_path(GameState *g, Mover m) { set_mover_done_count(g, m, 1); }
+static void count_done(GameState *g, Mover m) { set_mover_done_count(g, m, (uint8_t)(mover_done_count(g, m) + 1)); }
 
 /* The homing jump counts the top of its jump with a word increment of the
  * flag, as the original does: a flag at $FF carries into the next byte, the
@@ -90,10 +58,10 @@ static void count_done(GameState *g, Mover m) { set_done_count(g, m, (uint8_t)(d
 static void count_turn(GameState *g, Mover m)
 {
     count_done(g, m);
-    if (done_count(g, m) != 0)
+    if (mover_done_count(g, m) != 0)
         return;
     unsigned next = m.index + 1u;
-    if (is_anchor(m))
+    if (mover_is_anchor(m))
         set_battle_anchor_done_unchecked(g, next, (uint8_t)(battle_anchor_done_unchecked(g, next) + 1));
     else
         set_battle_effect_done_unchecked(g, next, (uint8_t)(battle_effect_done_unchecked(g, next) + 1));
@@ -113,7 +81,7 @@ typedef struct {
  * low bytes. */
 static Point position_of(const GameState *g, Mover m)
 {
-    if (is_anchor(m))
+    if (mover_is_anchor(m))
         return (Point){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
     return (Point){ combatant_x(g, m.index), combatant_y(g, m.index) };
 }
@@ -121,7 +89,7 @@ static Point position_of(const GameState *g, Mover m)
 /* Put the mover at a point on the battlefield. */
 static void place(GameState *g, Mover m, Point p)
 {
-    if (is_anchor(m)) {
+    if (mover_is_anchor(m)) {
         place_anchor(g, m.index, p.x, p.y);
     } else {
         place_combatant_x(g, m.index, p.x);
@@ -295,7 +263,7 @@ static uint8_t angle_toward(GameState *g, Point from, Point to)
  * that puts it: the base point plus the position's whole part. */
 static Point advance_along_line(GameState *g, Mover m)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint16_t x = (uint16_t)(battle_effect_position_x(g, e) + battle_effect_velocity_x(g, e));
     uint16_t y = (uint16_t)(battle_effect_position_y(g, e) + battle_effect_velocity_y(g, e));
     set_battle_effect_position_x(g, e, x);
@@ -319,7 +287,7 @@ enum { WHOLE_PIXEL = 0x10000 };
  * flag is written where the jump turns. Returns the height's whole part. */
 static uint16_t run_jump(GameState *g, Mover m, uint16_t substeps, bool count_turns)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint16_t gravity = battle_effect_jump_gravity(g, e);
     Jump j = { battle_effect_jump_speed(g, e), battle_effect_jump_height(g, e), battle_effect_jump_falling(g, e) != 0, false };
     do {
@@ -363,15 +331,15 @@ static uint8_t lifted(uint8_t y, uint8_t height, bool downward, bool single)
 
 /* Whether the jump lifts by its height once rather than twice: the flag's
  * low byte, which is all the original looks at. */
-static bool lifts_once(const GameState *g, Mover m) { return (uint8_t)battle_effect_jump_single(g, entry_of(m)) != 0; }
+static bool lifts_once(const GameState *g, Mover m) { return (uint8_t)battle_effect_jump_single(g, mover_entry(m)) != 0; }
 
 // $CF:F03E, $CF:F4B2
 /* A straight line for its number of steps. */
 static void line(GameState *g, Mover m)
 {
-    if (path_done(g, m))
+    if (mover_path_done(g, m))
         return;
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint8_t left = battle_effect_line_frames(g, e);
     if (left != 0) {
         place(g, m, advance_along_line(g, m));
@@ -387,15 +355,15 @@ static void line(GameState *g, Mover m)
  * down to it when the jump ends. */
 static void jump(GameState *g, Mover m)
 {
-    if (path_done(g, m))
+    if (mover_path_done(g, m))
         return;
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint8_t left = battle_effect_jump_frames(g, e);
     if (left != 0) {
         Point p = advance_along_line(g, m);
         uint8_t height = (uint8_t)run_jump(g, m, battle_effect_steps(g, e), false);
         bool downward = battle_effect_jump_downward(g, e) != 0, once = lifts_once(g, m);
-        if (is_anchor(m)) {
+        if (mover_is_anchor(m)) {
             place(g, m, (Point){ p.x, lifted(p.y, height, downward, once) });
         } else {
             place(g, m, p);
@@ -405,7 +373,7 @@ static void jump(GameState *g, Mover m)
     }
     if (left != 0)
         return;
-    if (!is_anchor(m))
+    if (!mover_is_anchor(m))
         set_combatant_sprite_offset_y(g, m.index, 0);
     end_path(g, m);
 }
@@ -420,13 +388,13 @@ enum { HOMING_SUBSTEPS = 4 };
 
 static Point target_of(const GameState *g, Mover m)
 {
-    return (Point){ battle_effect_target_x(g, entry_of(m)), battle_effect_target_y(g, entry_of(m)) };
+    return (Point){ battle_effect_target_x(g, mover_entry(m)), battle_effect_target_y(g, mover_entry(m)) };
 }
 
 static bool about_to_land(const GameState *g, Mover m)
 {
     int8_t lift = combatant_sprite_offset_y(g, m.index);
-    return is_anchor(m) || (lift < 0 && lift >= -LANDING_HEIGHT);
+    return mover_is_anchor(m) || (lift < 0 && lift >= -LANDING_HEIGHT);
 }
 
 /* Whether the jump has landed: near the target while falling. The first time
@@ -435,7 +403,7 @@ static bool about_to_land(const GameState *g, Mover m)
  * byte here. */
 static bool landed(GameState *g, Mover m)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     if ((uint8_t)battle_effect_jump_falling(g, e) == 0)
         return false;
     Point p = position_of(g, m);
@@ -444,7 +412,7 @@ static bool landed(GameState *g, Mover m)
         if (!close_to(g, p, target_of(g, m), ON_TARGET))
             return false;
     } else {
-        if (!close_to(g, p, target_of(g, m), is_anchor(m) ? ANCHOR_LANDING_REACH : LANDING_REACH) || !about_to_land(g, m))
+        if (!close_to(g, p, target_of(g, m), mover_is_anchor(m) ? ANCHOR_LANDING_REACH : LANDING_REACH) || !about_to_land(g, m))
             return false;
         set_battle_effect_home_stage(g, e, (uint8_t)(battle_effect_home_stage(g, e) + 1));
     }
@@ -462,7 +430,7 @@ static void jump_to_target(GameState *g, Mover m)
         return;
     Point p = advance_along_line(g, m);
     uint8_t height = (uint8_t)run_jump(g, m, HOMING_SUBSTEPS, true);
-    if (is_anchor(m)) {
+    if (mover_is_anchor(m)) {
         place(g, m, (Point){ p.x, lifted(p.y, height, false, lifts_once(g, m)) });
     } else {
         place(g, m, p);
@@ -488,9 +456,9 @@ static bool at_screen_edge(Point p)
  * screen or its steps run out. */
 static void spiral(GameState *g, Mover m)
 {
-    if (path_done(g, m))
+    if (mover_path_done(g, m))
         return;
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     if (at_screen_edge(position_of(g, m))) {
         end_path(g, m);
         return;
@@ -545,12 +513,12 @@ static void orbit_anchor_to(GameState *g, unsigned anchor, Point p)
  * orbit ends when its steps (a word) run out. */
 static void orbit_step(GameState *g, Mover m, bool flat)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint8_t radius = battle_effect_orbit_radius(g, e);
     uint8_t angle = (uint8_t)(battle_effect_orbit_angle(g, e) + battle_effect_orbit_step(g, e));
     set_battle_effect_orbit_angle(g, e, angle);
     Offset o = polar(g, angle, radius, flat ? (uint8_t)(radius / 2) : radius);
-    if (is_anchor(m)) {
+    if (mover_is_anchor(m)) {
         ORIGINAL_EFFECT(leave_offset_cells(g, o));
         Point center = { battle_anchor_orbit_center_x(g, m.index), battle_anchor_orbit_center_y(g, m.index) };
         orbit_anchor_to(g, m.index, moved(center, o));
@@ -568,7 +536,7 @@ static void orbit_step(GameState *g, Mover m, bool flat)
  * its center. */
 static void orbit(GameState *g, Mover m)
 {
-    if (!path_done(g, m))
+    if (!mover_path_done(g, m))
         orbit_step(g, m, false);
 }
 
@@ -577,12 +545,12 @@ static void orbit(GameState *g, Mover m)
  * circles or behind it, by where it was on the circle. */
 static void orbit_flat(GameState *g, Mover m)
 {
-    if (is_anchor(m))
+    if (mover_is_anchor(m))
         ORIGINAL_EFFECT(set_battle_low_scratch(g, 0, m.index));
-    if (path_done(g, m))
+    if (mover_path_done(g, m))
         return;
-    if (is_anchor(m))
-        turn_effect_by_side(g, m, battle_effect_orbit_angle(g, entry_of(m)));
+    if (mover_is_anchor(m))
+        turn_effect_by_side(g, m, battle_effect_orbit_angle(g, mover_entry(m)));
     orbit_step(g, m, true);
 }
 
@@ -638,7 +606,7 @@ enum { CHASE_REACH = 16 };
  * coordinate) counts as 0. */
 static Point chaser_position(const GameState *g, Mover m)
 {
-    if (!is_anchor(m))
+    if (!mover_is_anchor(m))
         return position_of(g, m);
     int16_t x = anchor_x(g, m.index), y = anchor_y(g, m.index);
     return (Point){ x < 0 ? 0 : (uint8_t)x, y < 0 ? 0 : (uint8_t)y };
@@ -650,7 +618,7 @@ static Point chaser_position(const GameState *g, Mover m)
  * target. */
 static uint8_t turn_toward(GameState *g, Mover m, uint8_t target, uint8_t speed)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     if (battle_effect_chase_aligned(g, e))
         return target;
     uint8_t heading = battle_effect_chase_angle(g, e);
@@ -677,7 +645,7 @@ static void leave_anchor_step_cells(GameState *g, Offset o)
  * toward the target, faces its heading, and moves its speed along it. */
 static void chase(GameState *g, Mover m)
 {
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     Point from = chaser_position(g, m), to = target_of(g, m);
     ORIGINAL_EFFECT(leave_chase_points(g, from, to));
     if (close_to(g, from, to, CHASE_REACH)) {
@@ -689,7 +657,7 @@ static void chase(GameState *g, Mover m)
     set_battle_effect_chase_angle(g, e, heading);
     uint8_t facing = battle_facing_for_angle(g, heading);
     Offset o = polar(g, heading, speed, speed);
-    if (is_anchor(m)) {
+    if (mover_is_anchor(m)) {
         set_battle_anchor_facing(g, m.index, facing);
         ORIGINAL_EFFECT(leave_anchor_step_cells(g, o));
         place_anchor(g, m.index, (int16_t)(anchor_x(g, m.index) + o.dx), (int16_t)(anchor_y(g, m.index) + o.dy));
@@ -701,11 +669,6 @@ static void chase(GameState *g, Mover m)
 }
 
 /* ---- The movers' timers and their paths ------------------------------------------------ */
-
-typedef enum {
-    PATH_LINE, PATH_JUMP, PATH_SPIRAL, PATH_ORBIT, PATH_JUMP_TO_TARGET, PATH_ORBIT_FLAT, PATH_FLICKER, PATH_CHASE,
-    PATH_KINDS
-} PathKind;
 
 /* Each kind of path, and the original's routines for it, a combatant's and
  * an anchor's, whose time its step is. An anchor's flicker is the
@@ -726,8 +689,8 @@ static const struct {
     [PATH_CHASE] = { chase, 0xCFF405, 0xCFF884 },
 };
 
-static bool mover_running(const GameState *g, Mover m) { return battle_effect_active(g, entry_of(m)) != 0; }
-static PathKind path_kind(const GameState *g, Mover m) { return (PathKind)battle_effect_type(g, entry_of(m)); }
+static bool mover_running(const GameState *g, Mover m) { return battle_effect_active(g, mover_entry(m)) != 0; }
+static PathKind path_kind(const GameState *g, Mover m) { return (PathKind)battle_effect_type(g, mover_entry(m)); }
 
 /* A running mover's timer counts down a frame; when it runs out it starts
  * again and the path takes a step. */
@@ -735,7 +698,7 @@ static bool path_due(GameState *g, Mover m)
 {
     if (!mover_running(g, m))
         return false;
-    unsigned e = entry_of(m);
+    unsigned e = mover_entry(m);
     uint8_t left = (uint8_t)(battle_effect_delay(g, e) - 1);
     set_battle_effect_delay(g, e, left ? left : battle_effect_period(g, e));
     return left == 0;
@@ -818,7 +781,7 @@ static void step_movers(Snes *s, MoverKind kind, unsigned movers)
             continue;
         ORIGINAL_EFFECT(leave_loop_cells(g, (unsigned)index));
         PathKind k = path_kind(g, m);
-        NATIVE_TIME_AS(s, is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
+        NATIVE_TIME_AS(s, mover_is_anchor(m) ? paths[k].anchor_routine : paths[k].combatant_routine, paths[k].step(g, m));
     }
     ORIGINAL_EFFECT(leave_loop_ended(g));
 }

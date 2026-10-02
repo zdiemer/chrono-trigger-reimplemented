@@ -26,6 +26,7 @@ PF_API void au_command(Platform *pf, PfOrigin o, AudioCommand c);
 enum {
     AU_START_SONG = 0x10,       /* p1 the song */
     AU_START_EFFECT = 0x18,     /* p1 the effect, p2 where it is panned (0x80 the middle) */
+    AU_START_OTHER_EFFECT = 0x19, /* ... on the other pair of effect voices (4-5) */
     AU_FADE_ALL = 0x80,         /* p1 steps, p2 the volume faded to: everything */
     AU_FADE_MUSIC = 0x81,       /* ... the music */
     AU_FADE_EFFECTS = 0x82,     /* ... the effects on voices 6-7 */

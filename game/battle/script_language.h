@@ -24,6 +24,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/positions.h"
+#include "snes/system.h"
 #include "state.h"
 
 enum { SCRIPT_CHANNELS = 16, FIRST_EFFECT_CHANNEL = 8, OTHER_TARGETS_CHANNEL = 4 };
@@ -86,6 +88,10 @@ void set_script_place(GameState *g, ScriptPlace place);
  * into the bank, as the original's word adds do. */
 ScriptPlace script_place_plus(ScriptPlace place, uint8_t length);
 
+/* Move the channel on `length` bytes, for a command that goes on by a length
+ * of its own (SCRIPT_MOVED_NEXT_FRAME). */
+void script_go_past(GameState *g, uint8_t length);
+
 /* Operand k of the command (the command byte is operand 0), wherever the
  * script is: the ROM or work RAM. */
 uint8_t script_operand(const GameState *g, unsigned k);
@@ -103,7 +109,13 @@ typedef enum {
     SCRIPT_STAY,       /* on the command, to run it again next frame */
     SCRIPT_AGAIN,      /* on the command, run again this frame */
     SCRIPT_MOVED,      /* the command moved the channel itself (a call, a return): on from there */
+    SCRIPT_MOVED_NEXT_FRAME, /* the command moved the channel itself; the channel's frame ends */
 } ScriptFlow;
+
+/* Where a command sends what it moves: to coordinates its operands give, to
+ * the script's point, or to a place on the battlefield it names (battle/
+ * script_places.c). */
+typedef enum { AIM_AT_COORDINATES, AIM_AT_THE_POINT, AIM_AT_A_PLACE } ScriptAim;
 
 /* The script's values: its variables, named by an operand, its two marks,
  * and its point. */
@@ -120,8 +132,17 @@ typedef enum { DRAWN_IN_FRONT = 0x80, DRAWN_BEHIND = 0x40 } EffectSide;
  * its operation takes. */
 #define SCRIPT_PARAMETERS(X)                                                                       \
     /* flow and values */                                                                          \
-    X(uint8_t, subroutine) X(uint8_t, frames) X(uint8_t, place) X(ScriptValue, which)             \
+    X(uint8_t, subroutine) X(uint8_t, frames) X(uint8_t, listed) X(ScriptValue, which)            \
     X(uint8_t, variable) X(uint8_t, other) X(uint8_t, value) X(uint8_t, amount)                    \
+    /* places, facings and headings */                                                             \
+    X(ScriptAim, aim) X(uint8_t, x) X(uint8_t, y) X(uint8_t, place) X(uint8_t, toward)             \
+    X(uint8_t, followed) X(uint8_t, facing) X(uint8_t, heading) X(uint8_t, steps)                  \
+    /* moves */                                                                                    \
+    X(uint8_t, lift) X(bool, lift_given) X(bool, downward) X(bool, short_hop)                      \
+    X(bool, stops_at_others) X(uint8_t, circle) X(uint8_t, start) X(uint8_t, quarter_turns)        \
+    X(bool, flat) X(uint8_t, radius)                                                               \
+    /* sound and the screen */                                                                     \
+    X(uint8_t, sound) X(uint8_t, voices) X(bool, hit) X(uint8_t, settings)                         \
     /* poses */                                                                                    \
     X(uint8_t, animation) X(PlayMode, mode) X(uint8_t, mark) X(uint8_t, speed) X(bool, on)        \
     X(uint8_t, height) X(uint8_t, step) X(uint8_t, bits) X(uint8_t, trail_period)                 \
@@ -152,8 +173,12 @@ typedef ScriptFlow (*ScriptOperation)(GameState *g, const ScriptCommand *command
 #define SCRIPT_TAKE_3(a, b, c) SCRIPT_TAKE_2(a, b), SCRIPT_TAKE_(c)
 #define SCRIPT_TAKE_4(a, b, c, d) SCRIPT_TAKE_3(a, b, c), SCRIPT_TAKE_(d)
 #define SCRIPT_TAKE_5(a, b, c, d, e) SCRIPT_TAKE_4(a, b, c, d), SCRIPT_TAKE_(e)
-#define SCRIPT_COUNT_(_1, _2, _3, _4, _5, n, ...) n
-#define SCRIPT_COUNT(...) SCRIPT_COUNT_(__VA_ARGS__, 5, 4, 3, 2, 1, 0)
+#define SCRIPT_TAKE_6(a, b, c, d, e, f) SCRIPT_TAKE_5(a, b, c, d, e), SCRIPT_TAKE_(f)
+#define SCRIPT_TAKE_7(a, b, c, d, e, f, h) SCRIPT_TAKE_6(a, b, c, d, e, f), SCRIPT_TAKE_(h)
+#define SCRIPT_TAKE_8(a, b, c, d, e, f, h, i) SCRIPT_TAKE_7(a, b, c, d, e, f, h), SCRIPT_TAKE_(i)
+#define SCRIPT_TAKE_9(a, b, c, d, e, f, h, i, j) SCRIPT_TAKE_8(a, b, c, d, e, f, h, i), SCRIPT_TAKE_(j)
+#define SCRIPT_COUNT_(_1, _2, _3, _4, _5, _6, _7, _8, _9, n, ...) n
+#define SCRIPT_COUNT(...) SCRIPT_COUNT_(__VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
 #define SCRIPT_GLUE_(a, b) a##b
 #define SCRIPT_GLUE(a, b) SCRIPT_GLUE_(a, b)
 #define SCRIPT_OPERATION(op, ...)                                                                  \
@@ -185,11 +210,22 @@ typedef struct {
  * channel; for the colors, the lists and colors they reach in range too.
  * Where it isn't, the original's handler runs, whose indexed writes reach past
  * the tables (an ending's script runs on a channel whose subject is none). */
-typedef enum { NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_EFFECT, NEEDS_COLORS } ScriptNeeds;
+typedef enum {
+    NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_ONE_MOVER, NEEDS_EFFECT, NEEDS_COLORS,
+    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE
+} ScriptNeeds;
+
+/* A command whose operation still calls out to the original's code (the
+ * sound driver): it takes the machine and says how the channel goes on, or
+ * returns false where the original carried on from the call-out itself (the
+ * channel then not moved on). BRIDGE(op) names op##_bridge in a row. */
+typedef bool (*ScriptBridge)(Snes *s, const ScriptCommand *command, ScriptFlow *flow);
+#define BRIDGE(op) .bridge = op##_bridge
 
 typedef struct {
     uint8_t command;
     ScriptOperation run;
+    ScriptBridge bridge;
     struct {
 #define SCRIPT_PARAMETER_SPEC(type, name) ScriptArg name;
         SCRIPT_PARAMETERS(SCRIPT_PARAMETER_SPEC)
@@ -209,14 +245,52 @@ typedef struct {
     const ScriptOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
 
 /* Every file's rows (battle/script_language.c indexes them). */
-extern const ScriptOpcodes script_flow_opcodes, script_pose_opcodes, script_effect_opcodes, script_color_opcodes;
+extern const ScriptOpcodes script_flow_opcodes, script_pose_opcodes, script_effect_opcodes, script_color_opcodes,
+    script_place_opcodes, script_move_opcodes, script_walk_opcodes, script_sound_opcodes, script_number_opcodes;
 
 /* The row of a command byte, or NULL for one still the original's. */
 const ScriptOpcode *script_opcode(uint8_t command);
 
 /* Whether the row's operation runs in this state as the original's handler
- * would, and running it: decode, operate, and move the channel on. */
+ * would; decoding its command; running its operation (a row with no bridge);
+ * and moving the channel on as the operation or the bridge says. */
 bool script_runs_here(const GameState *g, const ScriptOpcode *row);
-void script_perform(GameState *g, const ScriptOpcode *row);
+ScriptCommand script_decode(const GameState *g, const ScriptOpcode *row);
+ScriptFlow script_operate(GameState *g, const ScriptOpcode *row);
+void script_move_on(GameState *g, const ScriptOpcode *row, ScriptFlow flow);
+
+/* ---- Places and facings (battle/script_places.c) ----------------------------------------- */
+
+/* The places a command can name, 0-$47, and the facings, 0-$18: the
+ * original's tables end there, and a command naming one past them is the
+ * original's to run. */
+enum { LAST_PLACE = 0x47, LAST_FACING = 0x18 };
+
+/* $C1:762E: the point on the battlefield a place names, worked out now. The
+ * battle keeps it as the place last found, which one of the places names. */
+BattlePoint script_find_place(GameState *g, uint8_t place);
+
+/* Whether working the place out uses the work cells the original's commands
+ * keep their operands in: a command that reads its operands back from them
+ * after finding such a place takes what the place left (the chases' heading,
+ * an orbit's circle), so those commands leave such places to the original
+ * (NEEDS_SUBJECTS_AND_A_QUIET_PLACE). */
+bool script_place_works_in_cells(uint8_t place);
+
+/* Whether a place is one the original's table has, worked out on what the
+ * game has (the place along the heading takes the running channel's mover,
+ * which is one of the sixteen channels'). */
+bool script_place_known(const GameState *g, uint8_t place);
+
+/* $C1:75CC: the facing a facing code names, for something standing at
+ * `from`; the battle keeps it as the facing last found. */
+uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from);
+
+/* The script's point, which the placing commands leave and the moves aim at. */
+BattlePoint script_point(const GameState *g);
+
+/* Where a command aims: its coordinates, the script's point, or a place; the
+ * battle keeps it as the place last found. */
+BattlePoint script_aim(GameState *g, ScriptAim aim, uint8_t x, uint8_t y, uint8_t place);
 
 #endif
