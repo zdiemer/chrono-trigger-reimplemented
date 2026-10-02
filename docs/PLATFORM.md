@@ -1044,23 +1044,116 @@ and the stop for a reload sets them the other way with the clock at 0. The
 register file after each tick is the same byte, which is what the lockstep
 compares.
 
-The handle, `AuVoices`, is opaque to game code. Its first implementation,
-`runtime/platform/voices_dsp.{h,c}`, turns each call into the register writes
-that make it, through four host callbacks (read a register, write one, read
-and write a byte of sound memory), and keeps the original driver's layout of
-sound memory where the S-DSP needs one: the directory at `$1E00`, the echo
-buffer ending at page `$F1`, the driver's own sample at `$1DC2`. The game's
-samples are sound memory too, placed by the driver where the original's CPU
-half uploaded them (`au_sample_memory_write`, `au_sample_memory_move` and
-`au_sample_place`, a directory entry), since what the echo's buffer runs over
-depends on where they lie. Two hosts give it callbacks: `ct_dev
---sound-lockstep` points them at a copy of the register file and of sound
-memory, which are compared with the original driver's; and
+The handle, `AuVoices`, is opaque to game code. Host side
+(`runtime/platform/voices.h`) it is a table of the calls' implementations
+(`AuVoicesOps`) that each implementation's own struct starts with, and
+`voices.c` makes each `au_voice*` call through it; a pair (`au_voices_pair`)
+plays every call through two implementations at once. Both implementations
+keep the original driver's layout of sound memory (`voices.h`): the directory
+at `$1E00`, the echo buffer ending at page `$F1`, the driver's own sample at
+`$1DC2`. The game's samples are sound memory too, placed by the driver where
+the original's CPU half uploaded them (`au_sample_memory_write`,
+`au_sample_memory_move` and `au_sample_place`, a directory entry), since what
+the echo's buffer runs over depends on where they lie.
+
+The first implementation, `runtime/platform/voices_dsp.{h,c}`, turns each call
+into the register writes that make it, through four host callbacks (read a
+register, write one, read and write a byte of sound memory). Two hosts give it
+callbacks: `ct_dev --sound-lockstep` points them at a copy of the register
+file and of sound memory, which are compared with the original driver's; and
 `frontend/sound_host.c` (`ct_play`'s default) at the emulated S-DSP, which
-then makes the sound. A native mixer is the second implementation,
-behind the same calls. The lint test keeps the S-DSP out of `game/`: no
-`apu/` or `voices_dsp.h` include and no `DSP_` name there
-(`test_no_sound_hardware_in_game`).
+then makes the sound. The second is the native mixer (below). The lint test
+keeps the S-DSP out of `game/`: no `apu/` or `voices_dsp.h` include and no
+`DSP_` name there (`test_no_sound_hardware_in_game`).
+
+#### The native mixer, as built
+
+`runtime/platform/native/mixer.{h,c}` makes the voices into sound itself, with
+no S-DSP under it: eight voices playing BRR samples from its own 64 KiB of
+sound memory through the four-point Gaussian interpolation, shaped by ADSR
+envelopes or gains on the shared rate clock, with noise, pitch modulation of a
+voice by the one below, and the echo (a delay line in the same memory, eight
+filter taps, feedback) mixed in at its volume under the master volume, 32000
+stereo frames a second. Each call sets a named field (a voice's sample,
+pitch, volumes, envelope, gain; the echo's voices, volume, feedback, taps,
+delay, writes); there is no register file, and nothing is polled from one.
+What the S-DSP keeps in one register is the mixer's several fields (the
+output silenced, the voices reset, the echo writing, the noise clock), and
+the escape (`au_voices_snes_register`, the driver's `$FD`) is taken apart
+into them; the registers the S-DSP reports through mean nothing to it, and nor
+does the directory's page, which the game never moves.
+
+It keeps the S-DSP's arithmetic to the bit (the 15 bits BRR decodes to, the
+Gaussian sum that wraps at 16 bits before its last product, the FIR sum that
+wraps before its last tap, every clip in the mix) and the timing of what the
+driver asks for: key ons and offs taken every other frame, a note's five
+silent frames of start, a block decoded four samples at a time when the voice
+reaches them (so a byte that changes under a playing voice -- the echo
+writing over a sample, the driver rewriting its own -- is heard from the next
+four on, as on the S-DSP), and the echo taking a new place a frame later and
+a new size when its offset wraps. Each is cheap, some are audible, and the
+game relies on the echo's (SOUND.md, "What playing it found"); together they
+make the mixer checkable frame for frame against the S-DSP, which is how it
+is proved now and how a change to it is checked. One thing the first version
+did differently showed why the layout is the original's: it kept the sample
+directory as a table, and the comparison parted where a buffer whose delay
+had changed ran on at its old size from its new place, past the top of
+memory and round into the bottom, reading the directory there into the echo.
+The directory is in sound memory now, where the original driver keeps it.
+
+The host (`frontend/sound_host.c`) takes a `SoundMixer`. `SOUND_MIXER_DSP`
+(the default) is as before. `SOUND_MIXER_NATIVE` hands the driver the mixer and
+sets two `Apu` hooks: `host_mix` takes the SPC700 cycles where the S-DSP would
+run on them, and the host steps the mixer a frame every 32 cycles, after the
+driver's work in them as the S-DSP was stepped; `host_take` hands
+`apu_take_samples` the mixer's frames. The S-DSP isn't run. The host's echo
+check (`sound_host_samples_into_echo`) and its echo wait ask the mixer where
+its echo writes and what its delay is. `SOUND_MIXER_CHECK` hands the driver a
+pair, the S-DSP's registers and then the mixer, runs the S-DSP and the mixer
+frame by frame, plays the S-DSP's and compares every frame
+(`sound_host_mixer_report`: frames compared and sounding, how many differ, the
+largest difference, and the difference's power against the signal's, overall
+and in octave bands from a Haar split of each 1024 frames). A saved state of
+the mixer holds its fields under `sound.mixer.` (its memory among them) and is
+a host program of its own (`SNES_STATE_HOST_C_SOUND_DRIVER_MIXER`), so it
+loads only with the mixer, as one played through the S-DSP loads only with
+that. `ct_play --mixer dsp|native` picks it (PLAYING.md); `ct_dev`, `ct_drive`
+and `ct_sound_fuzz` take `--mixer dsp|native|check`, and with `check` a run
+in which a frame differs exits 1.
+
+Measured, `ct_dev --native on --sound-driver c --mixer check` over every
+movie (the C driver drifts from the movie, so the game is the movie's only
+roughly, but the music is the game's): every frame the mixer made is the
+S-DSP's, 406 million frames (3.5 hours, 2.5 of them sounding).
+
+| Movies | Frames compared (s) | Sounding (s) | Differing |
+|---|---|---|---|
+| power-on: title-start, new-game, menu, field, fair, fair-companion, gato-battle | 1352 | 1123 | 0 |
+| battle-golem-twins-gameover, battle-magus, battle-tyrano-lair-walls | 649 | 579 | 0 |
+| endings-beyond-time, endings-bucket-lavos, endings-telepod-lavos | 7220 | 4490 | 0 |
+| events-blackbird, -end-of-time-gate, -jetbike-race, -keepers-dome, -prison-escape | 621 | 521 | 0 |
+| late-lavos, late-omen-battles, -terramutant, -zeal | 2219 | 1689 | 0 |
+| menus-end-of-time, -epoch, -field-menu, -shop-inn | 631 | 537 | 0 |
+
+`--mixer native` writes the same WAV as `--mixer dsp` byte for byte (new-game,
+gato-battle), and runs as fast (late-lavos 8.7-9.2 s against 9.2-9.3 s: the
+sound was never the cost). A state saved with the mixer at 3000 frames from
+power-on, loaded and run 1000 more, is the same state as 4000 straight.
+`ct_sound_fuzz --sound-driver c --mixer check` (100 runs of 400 commands with
+the game's songs, and 100 with made-up ones) is identical too.
+
+Two checks hold it there. `dsp_test` (no ROM; CI) plays random calls of every
+kind the driver makes, the escape among them, over random BRR samples some of
+which lie under the echo's longest buffers, through a pair of the S-DSP's
+registers into the S-DSP and the mixer, six seeds of about 230,000 frames:
+every frame, every voice's output level and, at the end, every byte of sound
+memory must be the same. Changed by hand to start a note in four frames, to
+release it a step slower or to switch the echo's right write a frame late, it
+fails; the Gaussian sum's wrap is reached by none of its random samples. And
+the gate's hosted `ct_sound_fuzz` runs play with `--mixer check` (PLAN.md).
+`tests/test_native_render.py` holds the mixer to the renderer's rule: it
+includes its service's headers and the C library, and names nothing of the
+S-DSP's or the APU's.
 
 ### P2: video behind the API, subsystem by subsystem
 

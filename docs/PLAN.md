@@ -58,7 +58,7 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
-| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices still play through the emulated S-DSP, and the original stays as the gate's reference | a native mixer, and the original deleted |
+| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the emulated S-DSP by default, or through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md); the original stays as the gate's reference | the mixer the default, and the original deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
@@ -70,9 +70,10 @@ emulated SPC700. It is not in the burndown and was not in any phase. It is
 Phase 4a: read ([SOUND.md](SOUND.md)), ported to C as game code
 (`game/sound/`: the sequencer, the song and effect handling, voice output,
 and the game's side, whose commands are calls and whose samples the driver
-places itself), and now what `ct_play` plays. What is left is the voices'
-second implementation, a native mixer reading the same BRR samples, ADSR
-envelopes and echo settings in place of the emulated S-DSP. The mixer is the
+places itself), and now what `ct_play` plays. The voices' second
+implementation, a native mixer reading the same BRR samples, ADSR envelopes
+and echo settings in place of the emulated S-DSP, is built and makes the
+S-DSP's every frame; what is left is making it the default. The mixer is the
 audio engine, not an emulator; the SPC700 core is deleted with everything
 else under `runtime/`.
 
@@ -402,22 +403,18 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **A native mixer behind `au_*`: next.** The sound driver is C and plays by
+- **The native mixer the default: next.** The sound driver is C and plays by
   default (`game/sound/`, SOUND.md "The port as built" and "Playing it"): the
   game's commands are calls, the driver places the songs' samples itself, and
-  saved states hold its fields. It still plays through the voices' first
-  implementation, S-DSP register writes into the emulated S-DSP, so the mixer
-  is what takes the SPC700 and the S-DSP out of the shipped product. BRR
-  decoding, ADSR envelopes, echo and mixing, reading the same sample data the
-  driver places (the sample memory calls in `platform/audio.h`), including
-  what the echo's buffer runs over, which the game relies on (SOUND.md, "What
-  playing it found"). This is the audio engine, not an emulator: it replaces
-  `runtime/apu/dsp.c` in the shipped product. Everything the driver produces is S-DSP state (SOUND.md, "What
-  the port needs"), so its maths is `dsp.c`'s: start from that file's voice,
-  envelope and echo code behind the driver's voice-level interface, with the
-  register file and its polling cadence taken out. Divergence in the last bits of a sample is accepted (target 4);
-  structure -- which note, which instrument, which envelope -- is not. The
-  original driver stays as the reference until then (the gate, the movies and
+  saved states hold its fields. Its voices' second implementation, the native
+  mixer (PLATFORM.md, "The native mixer, as built"), makes every frame the
+  S-DSP makes over every movie and the fuzzer, and `dsp_test` and the gate's
+  sound fuzz hold it there; `ct_play --mixer native` plays it. What is left is
+  to make it `ct_play`'s default and the route check's (`ct_drive --mixer
+  native`), which takes the S-DSP out of the product as it ships: states saved
+  through the S-DSP then load with `--mixer dsp`. `runtime/apu/dsp.c` stays as
+  the mixer's reference while the mixer is checked against it. The original
+  driver stays as the driver's reference until then (the gate, the movies and
   the lockstep run it, and `ct_play --sound-driver original` plays it); it
   goes, with the CPU half's protocol (`game/core/sound_driver.c`'s uploads and
   waits), the SPC700 core and APU-direct, when the gate retires for sound.
