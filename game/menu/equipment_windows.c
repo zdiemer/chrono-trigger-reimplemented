@@ -393,7 +393,6 @@ void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
         w->rows_from = (uint8_t)(FRAMES_A_ROW * row);
     }
     ORIGINAL_EFFECT(leave_slide(g, w));
-    ORIGINAL_EFFECT(set_menu_scroll_frames(g, 0));
 }
 
 // $C2:A970
