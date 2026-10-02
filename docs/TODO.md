@@ -572,6 +572,20 @@ rest waits, is [PLAN.md](PLAN.md).
   member; `menu_draw_member_rows` writes `menu_screen_argument` every pass;
   `MenuElement` numbered by byte offset.
 
+- **What the screen effects' review left** (merged with field's
+  screen-effects chunk; none blocking): `draw_circle` and
+  `draw_the_searchlight` hand `scene_circle_draw`/`field_draw_window_shape`
+  their inputs through cells -- pass them as parameters and keep the cells as
+  scaffolding; the bytes of `field_line_screens`, `field_line_bg_maps` and
+  `field_line_wave_bg2` want fields in re/ram.toml (and `BG2_WAVES` a
+  meaning); `as_the_dispatch_has_it` sets A/X/C/V on every `$FF` path where
+  only the restart and `$9F` paths need it (only V-clear matters on the C
+  path); the `RIPPLE_PLAYED` comment says the script clears it (nothing
+  does); `CircleKind.mode` untyped, bare flag bytes for layer work,
+  `send_bg2_halves`' `<< 1`, designated initializers for `screen_commands`,
+  `SEARCHLIGHT_LENGTH` repeated; `field.h` names `scripted_layers.c`; a
+  misplaced comment in requests.c.
+
 ## Recompiler
 
 - **What the dc-evidence tooling doesn't check yet** (PORTING.md,
