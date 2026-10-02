@@ -46,6 +46,28 @@ enum {
  * a new pose starts its frame list over. */
 uint8_t combatant_choose_pose(GameState *g, unsigned slot);
 
+/* ---- The enemies' movements (battle/enemy_movement.c) ------------------------------------ */
+
+/* The movement an enemy's animation carries ($CC:FBAB names it by animation). */
+typedef enum {
+    MOVEMENT_WAIT_FOR_TARGET, /* stopped to act: moving on once its target moves */
+    MOVEMENT_APPROACH,        /* to within reach of its target */
+    MOVEMENT_CHARGE,          /* straight at its target */
+    MOVEMENT_LINE_UP,         /* across or down until level with its target */
+    MOVEMENT_KEEP_DISTANCE,   /* to a spot a set distance from its target */
+    MOVEMENT_CIRCLE,          /* to that spot, then round its target */
+    MOVEMENT_WEAVE,           /* round a loop below where it started */
+    MOVEMENT_MARCH,           /* one way until its way is blocked */
+    MOVEMENT_TO_THE_MIDDLE,   /* to the battlefield's middle */
+    ENEMY_MOVEMENTS
+} EnemyMovement;
+
+/* Whether the movement goes by the enemy's target (battle_enemy_target_seen). */
+bool battle_enemy_movement_needs_target(EnemyMovement movement);
+
+/* A step of the enemy's movement, the variant its animation picks. */
+void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uint8_t animation);
+
 /* ---- Sprite graphics (battle/sprites.c) --------------------------------------------------- */
 
 /* Build the object's graphics for an animation frame into its tile buffer,

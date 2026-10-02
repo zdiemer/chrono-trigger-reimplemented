@@ -32,10 +32,12 @@
 #include "battle/main_loop.h"
 
 #include "battle/battle.h"
+#include "battle/battle_end.h"
 #include "battle/bridge.h"
 #include "battle/combatant.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
+#include "battle/party_turns.h"
 #include "battle/random.h"
 #include "battle/rewards.h"
 #include "battle/targets.h"
@@ -55,29 +57,32 @@
  * far as that is worked out; docs/TODO.md). */
 enum {
     CLEAR_TURN_STATE = 0xFDA982,     /* clear the turns' state */
-    CLEAR_PARTY_STATUSES = 0xC1EA9D, /* the party's statuses cleared, at the battle's end */
-    CLEAR_ENEMY_MARKS = 0xC1B3BB,    /* the enemies' battle marks cleared, at the end */
-    PARTY_STANDS_DOWN = 0xC1B7F2,    /* each member's step 2 (its menu closed) */
-    REVIVE_PARTY = 0xC1EAE8,         /* the party revived and its stat blocks cleaned, at the end */
-    SAVE_PARTY_STATS = 0xC1B442,     /* the party's stats kept for after the battle */
-    NOTE_BEATEN_ENEMIES = 0xFDAAB0,  /* the enemies beaten, noted for the story */
     GIVE_GOLD = 0xC1D0A2,            /* the gold (Y) given */
     SHOW_REWARDS = 0xFDAD17,         /* the rewards' messages */
     GIVE_ITEM = 0xC1D005,            /* an item (Y) given */
-    MARK_ENEMIES_BEATEN = 0xC1B3D2,  /* the enemies still standing marked, at a demo's end */
-    CANCEL_IF_UNABLE = 0xC1B3F9,     /* a member's action dropped if its status keeps it from acting */
-    RUN_AWAY_MARKS = 0xFDAA98,       /* the party's stat blocks marked for running away */
     SHOW_MESSAGE = 0xCD0021,         /* a battle message */
     START_ACTION = 0xC1895B,         /* an action started (the running away, $79) */
     SPEED_UP_TURN = 0xC1BD6F,        /* a hasted combatant's turn wait halved */
-    MEMBER_TURN = 0xFDAB30,          /* a party member's turn: what its statuses decide */
     MEMBER_ACTS_FOR_ITSELF = 0xC1BCE1, /* a member whose status picks its action */
-    DEMO_PARTY_TURN = 0xC1B70E,      /* a demo battle's party picks its actions */
-    DEMO_NEXT_TURN = 0xC1B725,       /* a demo battle's turns reset */
     CARRY_OUT_ACTION = 0xC1B967,     /* a member's chosen action carried out */
-    AFTER_ACTION = 0xC1B762,         /* the action's targets that were knocked out */
-    PARTY_COUNTERS = 0xFDAC6E,       /* the party members' counterattacks */
 };
+
+/* The siblings in battle/party_turns.c that reach the battle's steps or a
+ * member's attack, run as the loop's calls call them. */
+enum {
+    MEMBER_TURN = 0xFDAB30,          /* a party member's turn: what its statuses decide */
+    CANCEL_IF_UNABLE = 0xC1B3F9,     /* a member's action dropped if its status keeps it from acting */
+    PARTY_STANDS_DOWN = 0xC1B7F2,    /* each member's menu closed, at the battle's end */
+    AFTER_ACTION = 0xC1B762,         /* the action's targets that were knocked out */
+    PARTY_COUNTERS = 0xFDAC6E,       /* the party members' counters */
+};
+
+/* The battle's end's bookkeeping (battle/battle_end.c), each timed as the
+ * routine the original calls. */
+static void clear_party_statuses(GameState *g) { TIMED_AS(g, 0xC1EA9D, battle_clear_party_statuses(g)); }
+static void stand_party_up(GameState *g) { TIMED_AS(g, 0xC1EAE8, battle_stand_party_up(g)); }
+static void keep_party_records(GameState *g) { TIMED_AS(g, 0xC1B442, battle_keep_party_records(g)); }
+static void take_enemies_away(GameState *g) { TIMED_AS(g, 0xC1B3BB, battle_take_enemies_away(g)); }
 
 /* The loop's siblings that call the original's code, run as its JSRs call
  * them: an enemy's turn (battle/enemy_turn.c), every combatant's update
@@ -336,8 +341,9 @@ static bool leave_battle(Snes *s)
     set_battle_random_kept(g, battle_random_position(g));
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
         set_battle_stats_carried(g, member, battle_member_carried_weapon(g, member));
-    if (!battle_call_long(s, 0xC1845A, NOTE_BEATEN_ENEMIES, READS_NOTHING))
-        return false;
+    TIMED_AS(g, 0xFDAAB0, battle_note_beaten_enemies(g));
+    /* the field's return takes A's high byte as the noting leaves it, clear */
+    s->cpu.a &= 0x00FF;
     m_stop_at(s, 0xC10006, DC_X | DC_Y | DC_FLAGS | DC_AL);
     return true;
 }
@@ -346,10 +352,12 @@ static bool leave_battle(Snes *s)
  * statuses cleared, the party revived, its stats kept. */
 static bool leave_without_rewards(Snes *s)
 {
-    restore_party_max_hp(state_of(s));
-    return battle_call(s, 0xC1843A, CLEAR_PARTY_STATUSES, READS_CARRY)
-           && battle_call(s, 0xC1843D, REVIVE_PARTY, READS_CARRY)
-           && battle_call(s, 0xC18440, SAVE_PARTY_STATS, READS_NOTHING) && leave_battle(s);
+    GameState *g = state_of(s);
+    restore_party_max_hp(g);
+    clear_party_statuses(g);
+    stand_party_up(g);
+    keep_party_records(g);
+    return leave_battle(s);
 }
 
 /* The six items a victory can give. */
@@ -383,10 +391,11 @@ static bool leave_with_rewards(Snes *s)
     }
     /* the messages take A along as the code before leaves it; the overflow
      * they pass through to their own callee, which doesn't read it */
-    if (!battle_call_long(s, 0xC183F5, SHOW_REWARDS, READS_ALL_OF_A | DC_V)
-        || !battle_call(s, 0xC183F9, REVIVE_PARTY, READS_CARRY)
-        || !battle_call(s, 0xC183FC, SAVE_PARTY_STATS, READS_NOTHING)
-        || !battle_run(s, 0xC183FF, 0xC1B4E9, battle_put_items_back_entry))
+    if (!battle_call_long(s, 0xC183F5, SHOW_REWARDS, READS_ALL_OF_A | DC_V))
+        return false;
+    stand_party_up(g);
+    keep_party_records(g);
+    if (!battle_run(s, 0xC183FF, 0xC1B4E9, battle_put_items_back_entry))
         return false;
     for (unsigned item = 0; item < ITEMS_WON; item++) {
         ORIGINAL_EFFECT(set_battle_low_scratch(g, 0x10, (uint8_t)item));
@@ -409,11 +418,10 @@ enum { DEFEAT_FRAMES = 8 };
 static bool lose(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!battle_call(s, 0xC18137, CLEAR_PARTY_STATUSES, READS_CARRY)
-        || !battle_call(s, 0xC1813A, CLEAR_ENEMY_MARKS, READS_NOTHING))
-        return false;
+    clear_party_statuses(g);
+    take_enemies_away(g);
     battle_ends(g, BATTLE_DEFEATED);
-    if (!battle_call(s, 0xC18143, PARTY_STANDS_DOWN, READS_OVERFLOW))
+    if (!battle_run(s, 0xC18143, PARTY_STANDS_DOWN, battle_party_stands_down))
         return false;
     set_battle_defeat_showing(g, true);
     for (unsigned frame = 0; frame < DEFEAT_FRAMES; frame++) {
@@ -432,12 +440,13 @@ enum { VICTORY_MARK = 0xFF };
 static bool win(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!battle_call(s, 0xC18176, CLEAR_ENEMY_MARKS, READS_NOTHING))
-        return false;
+    take_enemies_away(g);
     battle_ends(g, BATTLE_WON_OR_RAN);
     set_battle_won(g, VICTORY_MARK);
-    return battle_call(s, 0xC18183, CLEAR_PARTY_STATUSES, READS_CARRY) && step(s, 0xC18188, BATTLE_STEP_VICTORY)
-           && leave_with_rewards(s);
+    clear_party_statuses(g);
+    /* the victory's step takes A's high byte as the clearing leaves it, clear */
+    s->cpu.a = 0;
+    return step(s, 0xC18188, BATTLE_STEP_VICTORY) && leave_with_rewards(s);
 }
 
 /* The party runs away: the running away's marks and message, the party
@@ -448,18 +457,23 @@ static bool run_away(Snes *s)
 {
     GameState *g = state_of(s);
     battle_ends(g, BATTLE_WON_OR_RAN);
-    if (!battle_call_long(s, 0xC181FD, RUN_AWAY_MARKS, READS_NOTHING))
+    TIMED_AS(g, 0xFDAA98, battle_count_enemies_out(g));
+    /* the message in A, its high byte clear as the counting leaves it */
+    s->cpu.a = RAN_AWAY_MESSAGE;
+    if (!battle_call_long(s, 0xC18203, SHOW_MESSAGE, READS_A))
         return false;
-    m_set_a8(s, RAN_AWAY_MESSAGE);
-    if (!battle_call_long(s, 0xC18203, SHOW_MESSAGE, READS_A)
-        || !battle_call(s, 0xC18207, CLEAR_PARTY_STATUSES, READS_CARRY)
-        || !battle_call(s, 0xC1820A, PARTY_STANDS_DOWN, READS_OVERFLOW))
+    clear_party_statuses(g);
+    if (!battle_run(s, 0xC1820A, PARTY_STANDS_DOWN, battle_party_stands_down))
         return false;
     m_set_a8(s, RUN_AWAY_ACTION);
-    return battle_call(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW) && battle_call(s, 0xC18212, REVIVE_PARTY, READS_CARRY)
-           && battle_call(s, 0xC18215, SAVE_PARTY_STATS, READS_NOTHING)
-           && battle_run(s, 0xC18218, 0xC1B4E9, battle_put_items_back_entry)
-           && battle_call(s, 0xC1821B, CLEAR_ENEMY_MARKS, READS_NOTHING) && leave_without_rewards(s);
+    if (!battle_call(s, 0xC1820F, START_ACTION, READS_A_AND_OVERFLOW))
+        return false;
+    stand_party_up(g);
+    keep_party_records(g);
+    if (!battle_run(s, 0xC18218, 0xC1B4E9, battle_put_items_back_entry))
+        return false;
+    take_enemies_away(g);
+    return leave_without_rewards(s);
 }
 
 /* The party's low HP noted, and every combatant's statuses followed
@@ -482,7 +496,7 @@ static bool update_combatants(Snes *s, uint32_t site)
 /* A party member whose status keeps it from acting has its action dropped,
  * for each member in a slot (battle_update_all_combatants's order). The
  * member's number goes in its cell. */
-static bool cancel_unable_members(Snes *s, uint32_t site)
+static bool cancel_unable_members(Snes *s)
 {
     GameState *g = state_of(s);
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++) {
@@ -491,7 +505,7 @@ static bool cancel_unable_members(Snes *s, uint32_t site)
             continue;
         s->cpu.x = (uint16_t)member;
         s->cpu.a = (uint16_t)member;
-        if (!battle_call(s, site, CANCEL_IF_UNABLE, DC_Y | DC_FLAGS | DC_AL))
+        if (!battle_run(s, 0xC181DB, CANCEL_IF_UNABLE, battle_cancel_if_unable))
             return false;
     }
     set_battle_member_updating(g, BATTLE_PARTY_SIZE);
@@ -523,7 +537,7 @@ static bool run_pass(Snes *s)
         return win(s);
     follow_combatants(g);
     if (battle_timers_held(g)) {
-        if (!cancel_unable_members(s, 0xC181DB))
+        if (!cancel_unable_members(s))
             return false;
         m_stop_at(s, REST_OF_PASS, PASS_STOP_DEAD);
         return true;
@@ -552,7 +566,8 @@ static bool end_pass(Snes *s)
         m_stop_at(s, LOOP_HEAD, LOOP_HEAD_DEAD);
         return true;
     }
-    return battle_call(s, 0xC183B8, MARK_ENEMIES_BEATEN, READS_NOTHING) && leave_with_rewards(s);
+    TIMED_AS(g, 0xC1B3D2, battle_keep_standing_enemies(g));
+    return leave_with_rewards(s);
 }
 
 /* ---- A turn ------------------------------------------------------------------------------ */
@@ -632,12 +647,12 @@ typedef enum { ACTED_FOR_ITSELF, DEMO_PICKED, TO_THE_QUEUE } MemberTurn;
 static bool member_turn(Snes *s, uint8_t member, MemberTurn *turn)
 {
     GameState *g = state_of(s);
+    /* the turn starts from A clear, as the original's code before it leaves
+     * it; its attack leaves the high byte so for the combination check after */
+    s->cpu.a = 0;
     s->cpu.y = member;
     s->cpu.x = (uint16_t)(member * BATTLE_STAT_BLOCK_BYTES);
-    s->cpu.a = 0;
-    /* working the stat block's place out leaves the carry clear */
-    m_set_flag(s, CPU_FLAG_C, false);
-    if (!battle_call_long(s, 0xC18526, MEMBER_TURN, DC_N | DC_Z))
+    if (!battle_run_long(s, 0xC18526, MEMBER_TURN, battle_member_status_turn))
         return false;
     leave_member_for_callees(g, member);
     if (battle_member_acts_for_itself(g)) {
@@ -650,7 +665,8 @@ static bool member_turn(Snes *s, uint8_t member, MemberTurn *turn)
         return true;
     if (battle_is_demo(g)) {
         *turn = DEMO_PICKED;
-        return battle_call(s, 0xC1855C, DEMO_PARTY_TURN, READS_NOTHING);
+        TIMED_AS(g, 0xC1B70E, battle_demo_party_ready(g));
+        return true;
     }
     set_member_action(g, member, MENU_OPEN);
     set_step_member(g, member);
@@ -713,7 +729,7 @@ static bool check_members(Snes *s)
             return false;
         s->cpu.x = (uint16_t)member;
         s->cpu.a = (uint16_t)member;
-        if (!battle_call(s, 0xC18853, CANCEL_IF_UNABLE, DC_Y | DC_FLAGS | DC_AL))
+        if (!battle_run(s, 0xC18853, CANCEL_IF_UNABLE, battle_cancel_if_unable))
             return false;
     }
     set_battle_member_updating(g, BATTLE_PARTY_SIZE);
@@ -741,11 +757,8 @@ static bool run_queue(Snes *s, bool note_ready, TurnGoesOn *next)
     GameState *g = state_of(s);
     if (note_ready)
         note_members_ready(g);
-    if (battle_is_demo(g)) {
-        s->cpu.a = battle_setup_flags(g);
-        if (!battle_call(s, 0xC1858F, DEMO_NEXT_TURN, READS_ALL_OF_A))
-            return false;
-    }
+    if (battle_is_demo(g))
+        TIMED_AS(g, 0xC1B725, battle_demo_next_turn(g));
     uint8_t member = take_from_queue(g);
     *next = CHECK_MEMBERS;
     if (member == NOBODY || member >= BATTLE_PARTY_SIZE)
@@ -936,7 +949,7 @@ static bool follow_up(Snes *s, uint8_t actor)
     if (battle_is_demo(g))
         return true;
     if (!battle_action_hit_enemy(g))
-        return battle_call_long(s, 0xC18650, PARTY_COUNTERS, READS_NOTHING);
+        return battle_run_long(s, 0xC18650, PARTY_COUNTERS, battle_party_counters);
     return actor_silenced(g, actor) || enemies_react(s);
 }
 
@@ -956,12 +969,7 @@ static bool after_action(Snes *s, bool skip_to_end)
         for (unsigned i = 0; i < BATTLE_COMBATANTS; i++)
             set_battle_reaction_targets(g, i, battle_action_targets(g, i));
         set_battle_last_actor(g, battle_actor(g));
-        /* the overflow flag an enemy's action worked out leaves is read by
-         * nothing after (dc-evidence: tools/v_readers.py C1:B762: V dead, its
-         * tables' indexes at most $FE (A's high byte known clear, on the
-         * battle's direct page $0000); ct_dev --poison-set V at each site over
-         * the library, calls with V inverted: C1863D 6440; 0 differing) */
-        if (!battle_call(s, 0xC1863D, AFTER_ACTION, READS_NOTHING))
+        if (!battle_run(s, 0xC1863D, AFTER_ACTION, battle_see_to_knocked_out_enemies))
             return false;
         uint8_t actor = battle_last_actor(g);
         if (!follow_up(s, actor))

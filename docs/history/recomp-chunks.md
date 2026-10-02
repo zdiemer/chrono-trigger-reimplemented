@@ -2429,3 +2429,110 @@ the direct page's mirrors in the upper banks.
 **Timing.** The entries' costs come from the shadow runs, from 1,938 (the
 halt) to 6,943 (a flash); the eleven no movie reaches take a sibling's (a
 mark's sum a variable's). The full gate then passes with no new exception.
+
+## Phase 3, battle chunk 9b: the animation script language's second half (`$C1:762E`)
+
+Chunk 9a put the language's table in C with the commands that need neither
+places nor paths (docs/history/recomp-chunks.md). This chunk is the rest: the
+places and facings (`$C1:762E`, `$C1:75CC`, their 97 handlers), every move,
+the grid walk with its search (`$C1:4A71`), the sound commands, the screen
+effect `$80`, and the number commands, which moved onto the rows: 64 command
+bytes in 46 entries, about 8 KiB of `$C1`. Every command byte now has a row;
+the ROM's handler table is only the fallback for a state a row's needs turn
+away.
+
+What it is, in the game's terms:
+
+- **Places and facings** (`battle/script_places.c`): a place is one of 72
+  points a command names -- where a channel's subject stands or is aimed at,
+  halfway between two, the middle of three, part of the way from one to
+  another (eighths from a ROM table), 24 pixels along a mover's heading, the
+  battlefield's middle, where the first three began, where an anchor draws, a
+  point kept in the variables. The battle keeps the place last found (one
+  place names it), and the facing likewise. The commands that set the
+  script's point, an animation slot's place and a mover's heading are here;
+  `battle/objects.c` now works the animation slots' places out as C.
+- **Moves** (`battle/script_moves.c`): lines, chases, jumps and short hops,
+  spirals (open, counted, and stopping at walls and other combatants),
+  orbits and flat orbits, the throw (aimed as a jump onto a place, an arc's
+  top worked out, a rise in a line, the 36 frames shared between the waits
+  before and after), the flicker, and a point some steps along the line to a
+  place. A move sets up the mover's path (`battle/effect_paths.c` runs it) and
+  waits for its end; the mover vocabulary (`Mover`, `PathKind`, where a
+  mover is as a `BattlePoint`) moved to `battle/effects.h` so the paths and
+  the commands share it.
+- **The walk** (`battle/script_walk.c`): a ring-by-ring search out over the
+  battlefield's 16 by 16 grid for the way to a point, marked back from the
+  goal, and the walker's own copy of the marked grid, stepped a scripted
+  move at a time. The search's state is locals and what each ring returns
+  (`Ring`); a step returns where it saw the goal, if it did (`WalkStep`);
+  the cells the original leaves are worked out from those results, once, by
+  a leaves helper.
+- **Sound and the screen** (`battle/script_sound.c`): the sound commands are
+  the language's first bridges: their rows only decode them, and a table
+  beside the dispatch in `battle/scripts.c` names the bridge each runs as its
+  handler's entry through `battle_run` (the driver called through the audio
+  service), so the language's rows stay free of the machine; `$80` hands the
+  screen effect its settings, whose core `battle/screen_motion.c` now has as
+  C (`battle_set_screen_effect_to`).
+
+**The third trap, settled first.** The chunk's only call-out left is the
+sound driver's (`$C7:0004`), whose don't-care set is liveness's (`V` dead
+into it and after, by `tools/v_readers.py`). The arithmetic, the direction,
+the boxes and the grid were already C and are called as C.
+
+**What the original leaves.** Its handlers keep operands, loop places and
+partial sums in the battle's first work cells, written by leaves helpers as
+scaffolding; three cells turned out to be read back as game input:
+
+- the velocity a line is worked out with (`$A880`/`$A882`), only within the
+  set-up: scaffolding;
+- the jump lift (`$90`, `battle_jump_lift`): the original's jumps to the
+  script's point take what is there, a cell shared with the animation slots'
+  loop count and the walk's search; a probe over the library found it always
+  6, the count the loop ends at each frame. The rows lift by that as a named
+  constant (`POINT_JUMP_LIFT`), and their needs leave the jump to the
+  original while the cell holds anything else, so every write of the cell
+  stays scaffolding;
+- the operands a chase and an orbit at a place keep in the cells the place's
+  working out uses: a place that uses them overwrites the heading, the circle
+  and the quarter turns the command then reads. Those places, which no movie
+  has a chase or an orbit take, are left to the original
+  (`NEEDS_SUBJECTS_AND_A_QUIET_PLACE`).
+
+Reproduced on purpose, in TODO.md: the middle of three's Y taken from the
+X sums; a channel's move length kept per channel and gone past whatever
+command it is at; the other targets' forms (lines set every target off and go
+on at once, spirals out set them off without marking them moving, orbits go
+on when none has ended, the chase's own heading taken from the first for the
+rest); the anchor's rise in a throw reading its speed at twice its number;
+the place along the heading reading the running channel's subject as a word.
+
+**What the gate found.** Shadow mode found the cells the original works a line's velocity out in (`$A880`/`$A882`), which only the set-up reads, and a put's length left in its work cell. Fuzzing found the anchor's rise leaving
+its moving flag alone (the combatant's is stopped), the chase's and orbit's
+operands overwritten by a place, and the slots' places loop reading anchors
+past the eight for a running channel past the sixteen (now the original's).
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the 46 new entries were entered 234,643 times (230,367 compared, 542
+interrupted), the line to a place most (44,382), the number commands next
+(55,134); the channel runner 1,017,429 times and the animation slots' places
+281,498, both compared as before. Three kinds of call aren't compared on
+their own: the sound bridges' (3,472), set aside inside the channel runner's
+comparison while the driver's call-out runs past them (the runner's matched);
+the 180 calls of the throw's last step entered by the throw's wait falling
+into it, which its guard leaves to the original as the handler its byte
+names isn't it; and 82 jumps in `endings-beyond-time` on a channel whose
+subject is none, which the rows' needs leave to the original (TODO.md). Five
+entries no movie reaches: the chases and walks to coordinates and to the
+point, and the point along a line. **Fuzzing**, seed 1, none mismatching after
+the fixes: every entry, 90 to 509 states each of 8,000 (the guard's), and the
+search alone 8,000.
+
+**Timing.** The entries' costs come from the shadow runs, from 2,667 (a
+sound effect's own work, the driver's being its own) to 7,858 (the numbers);
+the five no movie reaches take a sibling's. The walk's search is timed as its
+own routine (`TIMED_AS`, `$C1:4A71` registered for it, 10,757), and so are the
+screen effect's three kinds, which put its worst stretch and the channel
+runner's within the gate's limits; the runner and the slots' places loop were
+recalibrated. The full gate then passes with no new exception.

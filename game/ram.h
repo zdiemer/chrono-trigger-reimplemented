@@ -3685,7 +3685,7 @@
 #define RAM_BATTLE_ENEMY_PLACEMENT_X_OFFSET 0x7E29C1u /* X offset within the tile */
 #define RAM_BATTLE_ENEMY_PLACEMENT_Y_OFFSET 0x7E29C2u /* Y offset within the tile */
 #define RAM_BATTLE_ENEMY_PLACEMENT_ENEMY 0x7E29C4u /* Enemy number (index of the enemy's 10-byte entry at $E4:F600); high byte negative: no enemy */
-#define RAM_BATTLE_ENEMY_PLACEMENT_KIND 0x7E29C6u /* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden */
+#define RAM_BATTLE_ENEMY_PLACEMENT_KIND 0x7E29C6u /* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden; at the battle's end all but bit 6 is cleared, which marks an enemy to stay on the field afterwards (the field takes away an enemy whose kind is 0; game/battle/battle_end.c, game/field/battle_return.c) */
 #define RAM_BATTLE_ENEMY_PLACEMENT_PALETTE 0x7E29C7u /* Sprite palette (doubled into $9888/$993C) */
 #define RAM_BATTLE_ENEMY_PLACEMENT_FRAME 0x7E29C3u /* The frame the enemy's object starts on */
 #define RAM_BATTLE_ENEMY_PLACEMENT_GRAPHICS 0x7E29C8u /* Long pointer to the enemy's graphics set. On the field, the first three people and creatures a map's scripts load note in the first three where in bank $7F their graphics were unpacked, the address alone (event $82, $C0:4645) */
@@ -3792,9 +3792,10 @@
 #define RAM_BATTLE_ENEMY_TARGET 0x7E5E15u
 #define RAM_BATTLE_ENEMY_TARGET_COUNT 8u
 #define RAM_BATTLE_ENEMY_TARGET_STRIDE 0x01u
-/* Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which
- * the fight's start clears with the enemies' animations and targets [16 x $1 bytes, by enemy,
- * and past the eighth what follows] */
+/* The animation an enemy was moving with when it stopped to act, which it goes back to once its
+ * target moves (game/battle/enemy_movement.c); the fight's start clears sixteen bytes of it with
+ * the enemies' animations and targets [16 x $1 bytes, by enemy, and past the eighth what
+ * follows] */
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK 0x7E5E1Du
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK_COUNT 16u
 #define RAM_BATTLE_ENEMY_ANIMATION_WORK_STRIDE 0x01u
@@ -3890,6 +3891,7 @@
 #define RAM_BATTLE_MEMBER_ACTIONS 0x7E93EEu
 #define RAM_BATTLE_MEMBER_ACTIONS_COUNT 3u
 #define RAM_BATTLE_MEMBER_ACTIONS_STRIDE 0x07u
+#define RAM_BATTLE_MEMBER_ACTIONS_RECORD 0x7E93EEu /* The whole record a byte at a time, as a demo battle's party has its records copied in ($C1:B725) */
 #define RAM_BATTLE_MEMBER_ACTIONS_STATE 0x7E93EEu /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen */
 #define RAM_BATTLE_MEMBER_ACTIONS_CHOICE_FLAGS 0x7E93EFu /* Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out */
 #define RAM_BATTLE_MEMBER_ACTIONS_TECH_AIM 0x7E93F0u /* How the chosen tech aims, from its menu record ($CC:1ACC, low six bits): the turn carries a tech out only where it is 1 or 3 ($C1:BB56) */
@@ -4108,10 +4110,17 @@
 #define RAM_BATTLE_BOUNDS_BOTTOM 0x7E977Bu
 #define RAM_BATTLE_BOUNDS_BOTTOM_COUNT 11u
 #define RAM_BATTLE_BOUNDS_BOTTOM_STRIDE 0x01u
-/* Angle on the orbit (256 steps per turn) [8 x $1 bytes, by enemy] */
-#define RAM_BATTLE_ORBIT_ANGLE 0x7E9786u
-#define RAM_BATTLE_ORBIT_ANGLE_COUNT 8u
-#define RAM_BATTLE_ORBIT_ANGLE_STRIDE 0x01u
+/* The heading the enemy drifts its step along, in 256ths of a turn (0 to the right, 64 down) [8
+ * x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_HEADING 0x7E9786u
+#define RAM_BATTLE_ENEMY_HEADING_COUNT 8u
+#define RAM_BATTLE_ENEMY_HEADING_STRIDE 0x01u
+/* How many steps in a row something has turned the enemy's walk aside (the grid or another
+ * combatant in the way); while it is nonzero the next step keeps the heading it was turned to [8
+ * x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_TURNED_ASIDE 0x7E9791u
+#define RAM_BATTLE_ENEMY_TURNED_ASIDE_COUNT 8u
+#define RAM_BATTLE_ENEMY_TURNED_ASIDE_STRIDE 0x01u
 /* Enemies' loaded frame lists: each frame's delay (0 ends the list) [64 x $1 bytes, by enemy
  * frame list offset ($CC:F82F by enemy) + frame] */
 #define RAM_BATTLE_ENEMY_FRAME_DELAYS 0x7E9799u
@@ -4131,6 +4140,15 @@
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY 0x7E9829u
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY_COUNT 8u
 #define RAM_BATTLE_ENEMY_ACTS_ANYWAY_STRIDE 0x01u
+/* Where the enemy's target stood, across, when the enemy stopped to act; the enemy moves on once
+ * its target is no longer there [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_X 0x7E9831u
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_X_COUNT 8u
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_X_STRIDE 0x01u
+/* Where the enemy's target stood, down, when the enemy stopped to act [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_Y 0x7E9839u
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_Y_COUNT 8u
+#define RAM_BATTLE_ENEMY_TARGET_SEEN_Y_STRIDE 0x01u
 /* The place in battle_anim_order the enemies' animation step has reached (3 once through) */
 #define RAM_BATTLE_ANIM_ORDER_PLACE 0x7E9841u
 /* The bytes before battle_enemy_numbers: set to $FF at the start and the last to 0. The last six
@@ -4190,18 +4208,21 @@
 #define RAM_BATTLE_ENEMY_EFFECT_PERIOD 0x7E989Fu
 #define RAM_BATTLE_ENEMY_EFFECT_PERIOD_COUNT 8u
 #define RAM_BATTLE_ENEMY_EFFECT_PERIOD_STRIDE 0x01u
-/* Set while the enemy moves in a circle [8 x $1 bytes, by enemy] */
-#define RAM_BATTLE_ORBIT_ACTIVE 0x7E98A7u
-#define RAM_BATTLE_ORBIT_ACTIVE_COUNT 8u
-#define RAM_BATTLE_ORBIT_ACTIVE_STRIDE 0x01u
-/* X of the orbit's center [8 x $1 bytes, by enemy] */
-#define RAM_BATTLE_ORBIT_CENTER_X 0x7E98AFu
-#define RAM_BATTLE_ORBIT_CENTER_X_COUNT 8u
-#define RAM_BATTLE_ORBIT_CENTER_X_STRIDE 0x01u
-/* Y of the orbit's center [8 x $1 bytes, by enemy] */
-#define RAM_BATTLE_ORBIT_CENTER_Y 0x7E98B7u
-#define RAM_BATTLE_ORBIT_CENTER_Y_COUNT 8u
-#define RAM_BATTLE_ORBIT_CENTER_Y_STRIDE 0x01u
+/* Set while the enemy drifts a step across the battlefield: its distance from where the step
+ * started (battle_enemy_drift_from_x, _y) grows along its heading until it comes to 8 pixels;
+ * the enemies' movements set it off when a step is free (game/battle/enemy_movement.c) [8 x $1
+ * bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_DRIFTING 0x7E98A7u
+#define RAM_BATTLE_ENEMY_DRIFTING_COUNT 8u
+#define RAM_BATTLE_ENEMY_DRIFTING_STRIDE 0x01u
+/* X of where the enemy's drifting step started [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_X 0x7E98AFu
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_X_COUNT 8u
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_X_STRIDE 0x01u
+/* Y of where the enemy's drifting step started [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_Y 0x7E98B7u
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_Y_COUNT 8u
+#define RAM_BATTLE_ENEMY_DRIFT_FROM_Y_STRIDE 0x01u
 /* The effect steps (battle_effect_steps) a party member's effects start from when an action
  * begins ($C1:4F1A reads it by battle slot: an enemy's is its orbit's radius step,
  * battle_orbit_radius_step, which follows); 2 [3 x $1 bytes, by party slot] */
@@ -5013,6 +5034,50 @@
 #define RAM_BATTLE_OBJECT_SHADOW_STRIDE 0x01u
 /* Attribute bits (priority) ORed into the shadows, markers and bitmap sprites */
 #define RAM_BATTLE_SPRITE_ATTRIBUTES 0x7EA5E3u
+/* Across, the spot the enemy makes for at its distance from its target (keeping its distance, or
+ * circling) [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_SPOT_X 0x7EA5E4u
+#define RAM_BATTLE_ENEMY_SPOT_X_COUNT 8u
+#define RAM_BATTLE_ENEMY_SPOT_X_STRIDE 0x01u
+/* Down, the spot the enemy makes for at its distance from its target [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_SPOT_Y 0x7EA5ECu
+#define RAM_BATTLE_ENEMY_SPOT_Y_COUNT 8u
+#define RAM_BATTLE_ENEMY_SPOT_Y_STRIDE 0x01u
+/* Set while the enemy circles its target the other way round; it turns back each time its way is
+ * blocked [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_CIRCLING_BACK 0x7EA5F4u
+#define RAM_BATTLE_ENEMY_CIRCLING_BACK_COUNT 8u
+#define RAM_BATTLE_ENEMY_CIRCLING_BACK_STRIDE 0x01u
+/* The distance from its target the last enemy to work its spot out circles at; an enemy turned
+ * aside circles at whatever the last one set */
+#define RAM_BATTLE_CIRCLE_RADIUS 0x7EA5FCu
+/* Set once the enemy's weave has its home; every other movement clears it, so the next weave
+ * starts afresh from where the enemy is [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_WEAVING 0x7EA5FDu
+#define RAM_BATTLE_ENEMY_WEAVING_COUNT 8u
+#define RAM_BATTLE_ENEMY_WEAVING_STRIDE 0x01u
+/* Across, the middle of the loop the enemy weaves round [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_X 0x7EA605u
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_X_COUNT 8u
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_X_STRIDE 0x01u
+/* Down, the middle of the loop the enemy weaves round: 16 pixels below where it started [8 x $1
+ * bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_Y 0x7EA60Du
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_Y_COUNT 8u
+#define RAM_BATTLE_ENEMY_WEAVE_HOME_Y_STRIDE 0x01u
+/* How far round its loop the enemy's weave has come, in 256ths of a turn [8 x $1 bytes, by
+ * enemy] */
+#define RAM_BATTLE_ENEMY_WEAVE_ANGLE 0x7EA615u
+#define RAM_BATTLE_ENEMY_WEAVE_ANGLE_COUNT 8u
+#define RAM_BATTLE_ENEMY_WEAVE_ANGLE_STRIDE 0x01u
+/* Set while the enemy weaves round its loop the other way; it turns back each time its way is
+ * blocked [8 x $1 bytes, by enemy] */
+#define RAM_BATTLE_ENEMY_WEAVE_BACK 0x7EA61Du
+#define RAM_BATTLE_ENEMY_WEAVE_BACK_COUNT 8u
+#define RAM_BATTLE_ENEMY_WEAVE_BACK_STRIDE 0x01u
+/* The height of the loop a weave's step is worked out on, its width 32 more (scaffolding: only
+ * the step itself reads it) */
+#define RAM_BATTLE_WEAVE_HEIGHT 0x7EA625u
 /* The chosen targets, one battle slot per byte, negative for unused entries; a second entry
  * means the action hits a group [6 x $1 bytes, by target entry] */
 #define RAM_BATTLE_TARGETS 0x7EA62Du
@@ -5382,6 +5447,12 @@
 /* The MP of the last member whose MP the party tech's check compared with what their part costs,
  * left over the second and third combatants' steal marks [2 bytes] */
 #define RAM_BATTLE_TECH_MP_COMPARED 0x7EAE5Bu
+/* The enemies the action beat (battle_enemy_beaten), kept aside while the enemies it knocked out
+ * are seen to; those shown beaten then are cleared from it before it is put back [8 x $1 bytes,
+ * by enemy] */
+#define RAM_BATTLE_ENEMY_BEATEN_BEFORE 0x7EAE65u
+#define RAM_BATTLE_ENEMY_BEATEN_BEFORE_COUNT 8u
+#define RAM_BATTLE_ENEMY_BEATEN_BEFORE_STRIDE 0x01u
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
  * place of the one it replaces [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PLACES 0x7EAE6Du
@@ -6316,6 +6387,9 @@
 #define RAM_BATTLE_WAVE_EDGES_STRIDE 0x08u
 /* How the battle ended: 1 when the party was defeated, 0 when it won or ran away */
 #define RAM_BATTLE_RESULT 0x7F01ECu
+/* The enemies the last battle beat, a bit each from the first enemy in bit 0, noted as the
+ * battle ends for the events to read (event memory $1EE) */
+#define RAM_BATTLE_ENEMIES_BEATEN_FOR_THE_STORY 0x7F01EEu
 /* The item a battle message names (the steal's) */
 #define RAM_BATTLE_MESSAGE_ITEM 0x7F0200u
 

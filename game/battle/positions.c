@@ -87,6 +87,11 @@ bool battle_within_reach(GameState *g, uint8_t a, uint8_t b, uint16_t reach)
     return measure_reach(g, box_place(g, a), box_place(g, b), reach) <= reach;
 }
 
+bool battle_box_within_reach_of(GameState *g, uint8_t slot, BattlePoint at, uint16_t reach)
+{
+    return measure_reach(g, box_place(g, slot), at, reach) <= reach;
+}
+
 /* ---- Finding the nearest and the farthest ----------------------------------------------- */
 
 /* Whether a combatant can be found: present, shown, and not knocked out. */

@@ -11143,9 +11143,9 @@ why = "a party member's turn ending, with partners in the party's places or none
 name = "battle_member_called_off_step"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E"]
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
 iterations = 5000
-why = "the battle's step for a called-off action, from any state"
+why = "the step called off, A's high byte clear as its callers leave it (the step indexes its tables with the whole of A)"
 
 [[routine]]
 name = "battle_members_wait_after_tech"
@@ -12993,3 +12993,239 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 8000
 why = "on the battle's page, from any point to any point, over any grid"
+
+# ---- battle: the enemies' movements, the party's turns and the battle's end (chunk 10) -------------
+
+[[routine]]
+name = "battle_enemy_waits_for_target"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=00,04,1A,20,21,23,24,25,26,27",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_approaches"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=01,02,03,05,1C,1D,22,28,29,2A,2B,2C",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_charges"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=07,1B,1E,1F,2D,2E,2F",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_lines_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=08,09,32,33",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_keeps_distance"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=06,10,37,38",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_circles"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=0D,0E,0F,3C,3D",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_weaves"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=0A,0B,0C,41,42",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_marches"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=11,12,13,14,15,16,17,18,46",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_enemy_makes_for_the_middle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=19,4B",
+        "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+[[routine]]
+name = "battle_clear_party_statuses"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the party's stat blocks at random"
+
+[[routine]]
+name = "battle_stand_party_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the party's stat blocks at random"
+
+[[routine]]
+name = "battle_keep_party_records"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,FF"]
+iterations = 5000
+why = "the party a character each or nobody; the stat blocks and records at random"
+
+[[routine]]
+name = "battle_take_enemies_away"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the enemies' placements at random"
+
+[[routine]]
+name = "battle_keep_standing_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the enemies' ids, standing and placements at random"
+
+[[routine]]
+name = "battle_count_enemies_out"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the enemies' stat blocks at random"
+
+[[routine]]
+name = "battle_note_beaten_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "the enemies' beaten marks at random"
+
+[[routine]]
+name = "battle_member_status_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "Y=0000-0002", "--range", "X=0000-0100/0080", "--fill", "7EAD8E-7EAD8E=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7E001B-7E001B=00"]
+iterations = 5000
+why = "a member, a stat block (the guard takes a block's place in X), any statuses; the attack's state as battle_member_attacks is fuzzed"
+
+[[routine]]
+name = "battle_cancel_if_unable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0002", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "a member in X and A's high byte clear, as the callers leave them; any statuses, ready or not; the step runs as the original's"
+
+[[routine]]
+name = "battle_party_counters"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB3B9-7EB3B9=00-01", "--fill", "7EB3AC-7EB3AE=00,01,02,FF", "--fill", "7E0022-7E0022=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7E001B-7E001B=00"]
+iterations = 5000
+why = "the action hit the party or not, the members it hit or none, an enemy's turn; accessories and statuses at random"
+
+[[routine]]
+name = "battle_call_off_waiting_combination"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB3E7-7EB3E9=00-01", "--fill", "7EB188-7EB18A=00,80,81"]
+iterations = 5000
+why = "any members called off, ready or not; the steps run as the original's"
+
+[[routine]]
+name = "battle_call_off_waiting_member"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0014-7E0014=00-02", "--fill", "7EB188-7EB18A=00,80,81"]
+iterations = 5000
+why = "a member in the cell, ready or not"
+
+[[routine]]
+name = "battle_call_off_combination"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7EB3E7-7EB3E9=00-01"]
+iterations = 5000
+why = "any members called off; their records at random"
+
+[[routine]]
+name = "battle_see_to_knocked_out_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3AC-7EB3B3=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7EAF0D-7EAF14=00-FF", "--fill", "7EB252-7EB252=00-07"]
+iterations = 5000
+why = "the action's targets combatants or none, any of them out or counted beaten; the step runs as the original's"
+
+[[routine]]
+name = "battle_demo_party_ready"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "any state"
+
+[[routine]]
+name = "battle_demo_next_turn"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E29AC-7E29AC=00-02", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "one of the demos"
+
+[[routine]]
+name = "battle_party_stands_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "any state; the steps run as the original's"
+
+[[routine]]
+name = "battle_member_attacks_from_bank_fd"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E001B-7E001B=00", "--fill", "7EB18B-7EB18B=00-02", "--fill", "7EAD8E-7EAD8E=03-0A", "--fill", "7EB1BE-7EB1C4=00-02", "--fill", "7EAE6D-7EAE77=00-0A"]
+iterations = 5000
+why = "as battle_member_attacks, called long"
+
+[[routine]]
+name = "battle_see_to_knocked_out_enemies"
+variant = "knocked_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB3AC-7EB3B3=03,04,05,06,07,08,09,0A", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAF02-7EAF09=FF", "--fill", "7EAE85-7EAE8C=00", "--fill", "7EAF15-7EAF1C=00", "--fill", "7E2989-7E2989=00"]
+iterations = 5000
+why = "every target an enemy out of the fight and not yet counted beaten, outside a demo: the step that shows them beaten runs (its dc-evidence)"

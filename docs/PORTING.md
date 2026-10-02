@@ -926,9 +926,8 @@ trace, an index past `$FE`, a bounded dispatch the library never ran
 `index_reach` hint or a dc-evidence note runs `tools/suite.py --evidence`
 first**: the notes' counts are the library's, and a change there can move them.
 The effect worked out for an enemy's action hands the action's showing
-(`$C1:BFA4`), the battle's step (`$C1:0003`) and what follows the action
-(`$C1:B762`) an overflow flag they only save and restore across their frame
-waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"), which is
+(`$C1:BFA4`) and the battle's step (`$C1:0003`) an overflow flag they only
+save and restore across their frame waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"), which is
 the case it was made for.
 
 ## Status

@@ -930,8 +930,8 @@ static void call_off_combos(GameState *g)
 }
 
 // $C1:B575
-/* Work out whose combination techs are called off; the original's $FD:A95F
- * then drops what they had queued. A's high byte is clear, as the check's
+/* Work out whose combination techs are called off, and drop what they had
+ * queued (battle/party_turns.c). A's high byte is clear, as the check's
  * calls leave it. */
 void battle_update_combo_members(Snes *s)
 {
@@ -939,7 +939,7 @@ void battle_update_combo_members(Snes *s)
     find_combo_partners(g);
     call_off_combos(g);
     s->cpu.a = 0;
-    if (!battle_call_long(s, 0xC1B6CC, 0xFDA95F, CALLEE_READS_NOTHING_HERE))
+    if (!battle_run_long(s, 0xC1B6CC, 0xFDA95F, battle_call_off_waiting_combination))
         return;
     m_rts(s);
 }

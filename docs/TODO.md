@@ -123,11 +123,10 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, the
-    rewards' gold `$C1:D0A2` and messages `$FD:AD17`); from a member's
-    chosen action carried out (RECOMP.md, "Phase 3, battle chunk 5"), the
-    targeting `$C1:C1DD`, the calling off of a combination tech one of its
-    members can't act in `$FD:A93C` and the messages `$CD:0021`; from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
+    (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
+    from a member's chosen action carried out (RECOMP.md, "Phase 3, battle
+    chunk 5"), the targeting `$C1:C1DD` and the messages `$CD:0021`; from an
+    enemy's turn (RECOMP.md, "Phase 3, wave 2:
     the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
@@ -136,11 +135,12 @@ rest waits, is [PLAN.md](PLAN.md).
     out"): a hit that steals as well (no record has one); a member that comes back once when knocked out
     (from `$C1:B316`); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
-    pose's setup `$C1:308C`, the enemy animation effects' nine handlers
-    `$C1:3760`; an effect's next
+    pose's setup `$C1:308C`, and an animation that names no movement
+    (`$C1:3760`'s table past its nine rows, no animation the battle gives);
+    an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
-    `$C1:1115`, `$CD:0027`/`$002D`/`$0030`, `$FD:A95F` from the menu window;
+    `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
     the name converter `$C1:01A9` from the setup; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
     `$CE:EE6E`, `$CE:E18E`, `$CD:1609`, `$CD:0B1E` and the wait tail's
@@ -288,6 +288,26 @@ rest waits, is [PLAN.md](PLAN.md).
     settings and choices beside `screen_motion.c`'s; `face` in
     `script_places.c` carries `at` and `last` through its loop only for the
     cells it leaves.
+  - what battle chunk 10's review left (none blocking): `battle_end.c`'s
+    stat copy (around line 81) writes past the character records through an
+    `_unchecked` accessor when a party slot holds a character past the
+    seventh, which the game never makes -- guard it or keep the stray write in
+    one marked place; `party_turns.c` writes
+    `BATTLE_ITEM_RETURNING_FOR_AT` plainly before
+    `battle_return_chosen_item`, which takes the member already
+    (`inventory.c` writes it as `ORIGINAL_EFFECT`); `cancel_if_unable` runs
+    its "drop the waiting action" setters in the `Snes *` body -- a
+    `drop_waiting_action(g, member)` operation; `set_step_member` is in both
+    `party_turns.c` and `main_loop.c`, through
+    `set_battle_effect_sprite_attributes` -- name the cell's second use and
+    keep one; `enemy_movement.c` writes the direction finder's angle as
+    `set_battle_direction_cells(g, 8, ...)`; `give_step`'s `a_high_clear`
+    mirrors A (declare `DC_AH` or say why); `DEMO_READY`/`DEMO_ACTION_STATE`
+    and `battle_end.c`'s low-HP `~0x01` want named bits; `take_as_actor`
+    writes the actor every pass; `demo_party_actions_byte` takes a byte
+    offset; `^ 1` on bool cells in `enemy_movement.c`; the moving enemy read
+    as two `battle_work` bytes; the demo and stand-down entries' round
+    `cost_milli` (3000, 3500) want a calibration check.
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the
@@ -517,9 +537,9 @@ rest waits, is [PLAN.md](PLAN.md).
     fills sets the byte, so the start never marks one: find whether anything
     sets it later and what the mark is for, or drop the test in a native build;
   - `battle_enemy_animation_work` (`$7E:5E1D`, sixteen bytes): the enemies'
-    animation commands (`$C1:3772`) index the first eight by enemy; what the
-    eight after them are, which the fight's start clears with them, isn't
-    known: find their reader when `$C1:3772` is ported, and split the name;
+    movements (`battle/enemy_movement.c`) keep the first eight, by enemy; no
+    ported code reads the eight after them, which the fight's start clears
+    with them: find their reader, and split the name;
   - the bytes the fight's start clears that no traced code reads, named for
     now as spares in `re/ram.toml` (`battle_fight_start_spares`,
     `battle_condition_target_spares`, `battle_effect_record_spares`,

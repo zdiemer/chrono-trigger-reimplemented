@@ -94,6 +94,10 @@ typedef struct {
 } BattlePoint;
 uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to);
 
+/* Whether a combatant's box is within `reach` of a point, as the reach tests
+ * measure between two boxes (an enemy's spot, battle/enemy_movement.c). */
+bool battle_box_within_reach_of(GameState *g, uint8_t slot, BattlePoint at, uint16_t reach);
+
 /* $C1:01F9: how far along an axis a point `radius` pixels away at `angle`
  * lies: the radius times the sine, as a signed pixel count. */
 int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius);
