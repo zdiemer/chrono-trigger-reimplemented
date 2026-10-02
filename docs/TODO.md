@@ -1089,6 +1089,20 @@ rest waits, is [PLAN.md](PLAN.md).
     layout, which is what keeps the echo's overwrites; a build that loads the
     samples as assets will want them out of it, with the echo's buffer still
     lying over the ones the original lets it reach.
+  - **What the native mixer's review left.** In `mixer.c`, `brr_sample`'s
+    `older`/`old` parameters are swapped in name, and the pitch-modulation
+    mask, the envelope limits and the BRR header offsets want names.
+    `sound_host.c`'s MixerCheck band report (floating point) is dev-only and
+    belongs in `dev/`, keeping the shipping host integer-only. `--mixer check`
+    after loading a state saved with the native mixer compares a stale S-DSP:
+    refuse it. `ct_dev` ignores `--mixer` without `--sound-driver c` where
+    `ct_play` reports it. `mixer_echo_writes_over` repeats `in_echo`'s test:
+    one helper over plain values. `mixer.h` needs only the voice types, not
+    `platform/snes/audio.h`. For a small target, `SoundHost` holds two
+    ~80 KiB mixers (live and loading scratch) beside the APU's 64 KiB, and the
+    output rate is fixed at 32 kHz. PLATFORM.md's "as built" section keeps
+    two stories (the first version's directory, the hand mutations) that
+    belong in docs/history/.
   - **The effects check's scaffold reads with the C sound driver.** The route
     check plays the driver that ships, but the scaffold reads come from the
     vblank check's shipping-mode runs, which play the original driver because
