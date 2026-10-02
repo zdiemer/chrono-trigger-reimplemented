@@ -122,4 +122,25 @@ void au_sample_write(AuVoices *v, uint8_t sample, uint16_t at, uint8_t byte)
         v->memory_write(v->ctx, (uint16_t)(VOICES_DSP_OWN_SAMPLE + at), byte);
 }
 
+void au_sample_memory_write(AuVoices *v, uint16_t at, uint8_t byte) { v->memory_write(v->ctx, at, byte); }
+
+/* The original's receiver ($1206) copies whole pages up from the first, then
+ * the rest down from its last byte. */
+void au_sample_memory_move(AuVoices *v, uint16_t to, uint16_t from, uint16_t length)
+{
+    for (uint8_t pages = (uint8_t)(length >> 8); pages; pages--) {
+        for (uint16_t i = 0; i < 0x100; i++)
+            v->memory_write(v->ctx, (uint16_t)(to + i), v->memory_read(v->ctx, (uint16_t)(from + i)));
+        from = (uint16_t)(from + 0x100);
+        to = (uint16_t)(to + 0x100);
+    }
+    for (uint8_t i = (uint8_t)length; i; i--)
+        v->memory_write(v->ctx, (uint16_t)(to + i - 1), v->memory_read(v->ctx, (uint16_t)(from + i - 1)));
+}
+
+void au_sample_place(AuVoices *v, uint8_t sample, uint16_t start, uint16_t loop)
+{
+    directory_entry(v, sample, start, loop);
+}
+
 void au_voices_snes_register(AuVoices *v, uint8_t reg, uint8_t value) { put(v, reg, value); }

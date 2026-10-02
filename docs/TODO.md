@@ -104,8 +104,9 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What core's rewrite left** (RECOMP.md, "Phase 3a: the controller off the
   machine" and "Phase 3a: the rest of core"):
   - `sound_driver.c` still reads as translation, and is not to be rewritten: it
-    is the original driver's upload protocol, which goes when the C sound
-    driver becomes the default (docs/SOUND.md);
+    is the original driver's upload protocol, which the C driver doesn't use
+    (it takes the boot and the commands as calls) and which goes with the
+    original driver when the gate retires for sound (PLAN.md, Phase 4a);
   - what core's review rated "mostly": `palette.c` passes one animation type
     to stand for a family (`ROTATE_DOWN` for both rotations, `FADE_TO_WHITE`
     for every fade, pulse and restore) where a `RunShape` belongs; the held
@@ -1004,18 +1005,18 @@ rest waits, is [PLAN.md](PLAN.md).
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
     items are PLAN.md's Phase 4a, and they are no longer optional or later.
-    **Make the C sound driver the one that plays** (`game/sound/`, identical to
-    the original tick for tick; `ct_play --sound-driver c` plays it on the
-    host, SOUND.md "The port as built"): play it enough to make it the default,
-    then drop the protocol for calls, which deletes the CPU half's uploads and
-    waits (`game/core/sound_driver.c`) and the host's answering of them
-    (`frontend/sound_host.c`). Until then the player can't save or load a state
-    with it, since the driver's state isn't in a saved state (saving the
-    `SoundDriver` beside the machine would do). Then **a native mixer behind
-    the voices** (`platform/audio.h`, "The voices") that decodes the same BRR
-    samples and runs the same envelopes and echo, replacing
+    **A native mixer behind the voices** (`platform/audio.h`, "The voices",
+    and the sample memory the C driver places its samples in) that decodes the
+    same BRR samples and runs the same envelopes and echo, replacing
     `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
     (SOUND.md, "Validating the port") for when the lockstep reference is gone.
+  - **The shipping mode's checks don't play the C sound driver.** `ct_play`
+    plays it by default, but the suite's shipping-mode runs (the vblank check,
+    the effects check's scaffold reads, the route check through `ct_drive`)
+    run the original driver, whose commands take the original's time. A
+    `--sound-driver c` in `ct_drive` (its states would hold the driver's
+    fields, as `ct_play`'s do) would let the route check show the game reaches
+    its outcomes with the driver that ships.
   - **The C sound driver's leftovers** (SOUND.md, "The port as built"). The
     paths neither the movies nor the fuzzer reach: the saturation at `$0A34`
     (unreachable by its arithmetic), the loop poll's retry at `$0B9B` and the
@@ -1030,8 +1031,9 @@ rest waits, is [PLAN.md](PLAN.md).
     report from playing `--sound-driver c` that no movie reproduces: over
     new-game the C driver plays the house's songs note for note as the
     original does, from the same samples. If it recurs, record the session
-    (`ct_play --record` can't with the C driver: note the route and the songs
-    before) and compare sound memory with the original's at the scene; the
+    (`ct_play --record` plays the original driver: note the route and the
+    songs, or quick save there with the C driver) and compare sound memory
+    with the original's at the scene; the
     host's fault that overwrote samples is fixed, and a song keeps a block the
     echo overwrote in the original too (battle-magus).
   - **The sound lockstep's audio comparison as a check**

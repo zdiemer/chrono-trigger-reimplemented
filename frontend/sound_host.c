@@ -1,13 +1,13 @@
 #include "sound_host.h"
 
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "apu/dsp.h"
-#include "core/sound_data.h"
 #include "platform/voices_dsp.h"
 #include "port/vars_ram.h"
-#include "ram.h"
 #include "sound/sound.h"
 
 /* The SPC700's timers count at 8 kHz; the original driver sets timer 0 to
@@ -21,57 +21,37 @@ enum {
     ECHO_STEP_CYCLES = 0x80 * TIMER_STEP_CYCLES
 };
 
-/* The host answers at once, but the original takes a while over a command,
- * the end of an upload or the commands queued in a wait, and its answer stays
- * on port 0 until the next tick shows the status there: the CPU half would
- * miss it after an upload or a wait, with a tick due, or when ticking fast
- * (every 128 cycles). The host takes about the original's time over those
+/* A command the game writes to the ports itself (the scene's sends) is
+ * answered at once, and the answer stays on port 0 until the next tick shows
+ * the status there: the game would miss it with a tick due, or when ticking
+ * fast (every 128 cycles). The host takes about the original's time over it
  * before it ticks again. */
 enum { COMMAND_CYCLES = 256 };
 
-/* The protocol (docs/SOUND.md, "Commands from the CPU" and "Uploads";
- * game/core/sound_driver.c is the CPU half's side). */
 enum {
-    SONG_COMMANDS = 0x10,       /* $10-$1F: songs and effects; $10, $11, $14 and $15 start a song */
-    FIRST_QUEUED_AFTER_SONGS = 0x18,
-    EFFECT_67 = 0x18,
-    EFFECT_45 = 0x19,
-    LAST_SONG_COMMAND = 0x1F,
-    RUN_AT_ONCE = 0x80,         /* $80 and up run as they come; below, $18-$1F and the ignored ones */
-    UPLOAD = 0xFE,
-    METER_OR_RELOAD = 0xFF,
-    RELOAD = 0xF0,              /* $FF's parameter that sends the driver back to the boot ROM */
-    SAME_SONG = 0xFF,           /* port 1's answer to a song that is playing already */
-    HEADER_ENDS_UPLOAD = 0xE0,  /* on port 1 in a header; on port 0, a header follows */
-    RECEIVING = 0xEE,           /* port 1 while an upload's data comes */
-    COUNTER_MASK = 0x7F,
-    MESSAGE_IS_DATA = 0x80      /* clear in a data message's counter */
+    RELOAD_COMMAND = 0xFF,
+    RELOAD = 0xF0,                  /* $FF's parameter that stops the driver for the game to boot it again */
+    SONG_COMMANDS = 0x10,           /* $10-$17 through the ports: a song's start waits out the echo */
+    FIRST_AFTER_SONGS = 0x18
 };
 
-/* Where uploads go: below the directory is the driver's own, which a
- * receiver takes and drops; the effect set's page and the song's first
- * instrument's tables are loads the C driver takes itself. */
-enum { OWN_PAGES_END = 0x1E, EFFECT_SET_PAGE = 0x2F, SONG_INSTRUMENT_TUNINGS = 0x1F40 };
-
-/* The boot ROM's entry, which the driver jumps to with the ROM mapped to be
- * loaded again; and the driver's entry, where the boot upload starts it. */
-enum { BOOT_ROM = 0xFFC0, BOOT_ROM_MAPPED = 0x80, DRIVER_ENTRY = 0x0200, DRIVER_RUNNING = 0x0299 };
+/* Where the SPC700 is left while the host plays in its place: in the
+ * original's main loop, which is where its program would be between ticks. */
+enum { DRIVER_RUNNING = 0x0299 };
 
 typedef enum {
     WAITING,          /* for a command, between ticks */
-    REFUSING,         /* a song that plays already: until the CPU half moves on */
-    FIRST_HEADER,     /* an upload's first header, under the counter after its command */
-    FIRST_MESSAGE,    /* the first message after a header, which is always data */
-    MESSAGES,         /* data, or a header, or the end */
     ECHO_DRAINING,    /* after a change of the echo's delay: the old buffer's time */
     ECHO_FILLING      /* ... and the new one's */
 } Phase;
 
-/* How a header's data is received: bytes a message, into sound memory (none
- * below the driver's own pages); ticking while it comes; or a move within
- * sound memory: a destination, a length and a source, over and over. */
-typedef enum { DATA, DATA_TICKING, MOVE, DROPPED } Receiver;
-typedef enum { MOVE_TO, MOVE_LENGTH, MOVE_FROM } MoveStep;
+/* A command that came while the driver waited for its echo: the game's (a
+ * call, as the CPU half takes it) or one written to the ports. */
+typedef struct {
+    SoundCommand command;
+    bool game;
+    uint8_t effects_asked;
+} Waiting;
 
 struct SoundHost {
     Snes *snes;
@@ -81,45 +61,61 @@ struct SoundHost {
     Phase phase;
     uint32_t timer;             /* SPC700 cycles since the driver's last tick was due */
     unsigned took;              /* cycles the host takes over what it did in this call */
-
-    uint8_t last;               /* the port 0 value the host last answered */
-    uint8_t first_counter;
-    Receiver receiver;
-    uint8_t bytes;              /* a data message's bytes */
-    uint16_t at;
-    MoveStep move_step;
-    uint16_t move_from, move_to;
-    bool song_upload;           /* a song's data is coming: the song starts at its end */
-    bool song_echo;             /* ... and its command changed the echo's delay */
-    uint8_t song_old_delay;
-    uint32_t song_echo_cycles;  /* the time since the command, which counts toward the echo's wait */
-
-    unsigned long uploads_into_echo;
-
     uint32_t wait_left;
     uint32_t fill_cycles;
-    SoundCommand queue[SOUND_QUEUE];
+    Waiting queue[SOUND_QUEUE];
     uint8_t queued;
+
+    unsigned long samples_into_echo;
+    SoundHost *loading;         /* a state read goes here first (sound_host_state) */
 };
 
 /* ---- The voices, into the emulated S-DSP ------------------------------------------------ */
 
+static Apu *apu_of(SoundHost *h) { return &h->snes->apu; }
+
 static uint8_t read_register(void *ctx, uint8_t reg)
 {
     SoundHost *h = ctx;
-    return dsp_read(&h->snes->apu.dsp, reg);
+    return dsp_read(&apu_of(h)->dsp, reg);
 }
 
 static void write_register(void *ctx, uint8_t reg, uint8_t value)
 {
     SoundHost *h = ctx;
-    dsp_write(&h->snes->apu.dsp, reg, value);
+    dsp_write(&apu_of(h)->dsp, reg, value);
+}
+
+/* Whether the S-DSP is writing its echo over an address: its writes are on,
+ * and the address is in the buffer it writes now or the one its registers
+ * name (which it moves to when its offset next wraps). */
+enum { ECHO_WRITES_OFF = 0x20, ECHO_UNIT_BYTES = 0x800 };
+
+static bool in_echo(const Dsp *dsp, uint16_t at)
+{
+    if (dsp->regs[DSP_FLG] & ECHO_WRITES_OFF)
+        return false;
+    uint16_t now = (uint16_t)(dsp->echo_esa << 8), next = (uint16_t)(dsp->regs[DSP_ESA] << 8);
+    uint32_t now_length = dsp->echo_length ? dsp->echo_length : 4;
+    uint32_t next_length = (dsp->regs[DSP_EDL] & 0x0F) ? (dsp->regs[DSP_EDL] & 0x0F) * ECHO_UNIT_BYTES : 4;
+    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
 }
 
 static void write_memory(void *ctx, uint16_t at, uint8_t value)
 {
     SoundHost *h = ctx;
-    h->snes->apu.ram[at] = value;
+    /* (a sample placed past where the places' echo starts is the
+     * original's, which places a song's samples end to end whatever their
+     * length, and forgets those past the echo once they are in) */
+    if (in_echo(&apu_of(h)->dsp, at) && at >> 8 < h->driver.samples.echo_page)
+        h->samples_into_echo++;
+    apu_of(h)->ram[at] = value;
+}
+
+static uint8_t read_memory(void *ctx, uint16_t at)
+{
+    SoundHost *h = ctx;
+    return apu_of(h)->ram[at];
 }
 
 /* ---- The driver ----------------------------------------------------------------------------- */
@@ -133,18 +129,7 @@ static bool quiet(void)
     return was;
 }
 
-static Apu *apu_of(SoundHost *h) { return &h->snes->apu; }
-
-static void clear_input_ports(SoundHost *h)
-{
-    memset(apu_of(h)->cpu_in, 0, sizeof apu_of(h)->cpu_in);
-}
-
-static void answer(SoundHost *h, uint8_t port0)
-{
-    apu_of(h)->cpu_out[0] = port0;
-    h->last = port0;
-}
+static void answer(SoundHost *h, uint8_t port0) { apu_of(h)->cpu_out[0] = port0; }
 
 static void show_status(SoundHost *h)
 {
@@ -174,20 +159,92 @@ static void tick(SoundHost *h)
     show_status(h);
 }
 
-static void tick_while_loading(SoundHost *h)
+/* The echo's wait after a change of its delay: the old delay's time for the
+ * old buffer to drain, then the new one's for it to fill. A song's command
+ * waits for the whole of the new buffer before the song takes its echo, and
+ * goes straight to that if there was no echo before; a change of the delay
+ * alone ($FC) waits for what the new buffer adds to the old. */
+static void wait_for_echo(SoundHost *h, uint8_t old_delay, bool song)
 {
+    SoundDriver *d = &h->driver;
+    uint8_t new_delay = d->echo_delay;
+    uint32_t fill = song ? new_delay * ECHO_STEP_CYCLES
+                         : new_delay > old_delay ? (uint32_t)(new_delay - old_delay) * ECHO_STEP_CYCLES : 0;
+    if (song && !old_delay) {
+        bool was = quiet();
+        sound_echo_drained(d);
+        vars_peek(was);
+        h->phase = ECHO_FILLING;
+        h->wait_left = fill;
+        return;
+    }
+    h->phase = ECHO_DRAINING;
+    h->wait_left = old_delay * ECHO_STEP_CYCLES;
+    h->fill_cycles = fill;
+}
+
+/* A command carried out: the game's as the CPU half took it (game/sound/loads.c),
+ * or one written to the ports, which the original's driver took as it is (a
+ * song's start then loads it as the game's would). $FF $F0 stops the driver
+ * for the game to boot it again. */
+static void carry_out(SoundHost *h, Waiting w)
+{
+    SoundDriver *d = &h->driver;
+    SoundCommand c = w.command;
+    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
+    bool was_draining = d->echo_draining;
     bool was = quiet();
-    sound_tick_while_loading(&h->driver);
+    if (w.game)
+        sound_game_command(d, c, w.effects_asked);
+    else if (c.command >= SONG_COMMANDS && c.command < FIRST_AFTER_SONGS)
+        sound_play_song(d, c, d->samples.effect_set);
+    else
+        sound_run_command(d, c);
     vars_peek(was);
+    if (c.command == RELOAD_COMMAND && c.p1 == RELOAD) {
+        h->phase = WAITING;
+        h->queued = 0;
+        return;
+    }
+    if (d->echo_draining && !was_draining)
+        wait_for_echo(h, old_delay, d->song_voices_waiting);
+}
+
+/* While the driver waits for its echo, commands wait in the order they came. */
+static void hold(SoundHost *h, Waiting w)
+{
+    h->queue[h->queued < SOUND_QUEUE ? h->queued++ : SOUND_QUEUE - 1] = w;
+}
+
+/* The commands that waited, until one starts another wait: the rest wait on
+ * for the end of that one. (The original runs the whole queue again after
+ * the next wait, which a second change of the delay queued behind the first
+ * turns into a loop that never ends; the game never sends one.) */
+static void run_held(SoundHost *h)
+{
+    uint8_t n = h->queued, i = 0;
+    h->queued = 0;
+    Waiting held[SOUND_QUEUE];
+    memcpy(held, h->queue, sizeof held);
+    while (i < n && h->phase == WAITING)
+        carry_out(h, held[i++]);
+    for (; i < n; i++)
+        hold(h, held[i]);
 }
 
 static void boot(SoundHost *h)
 {
     SoundDriver *d = &h->driver;
-    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
+    Apu *a = apu_of(h);
+    uint8_t old_delay = dsp_read(&a->dsp, DSP_EDL) & 0x0F;
     if (!h->booted)
         memset(d, 0, sizeof *d);
     d->echo_waits = true;
+    /* the SPC700 stays where the original's program would wait */
+    a->phase = APU_DRIVER;
+    a->spc.pc = DRIVER_RUNNING;
+    memset(a->cpu_in, 0, sizeof a->cpu_in);
+    memset(a->cpu_out, 0, sizeof a->cpu_out);
     bool was = quiet();
     sound_boot(d, state_of(h->snes), &h->voices);
     vars_peek(was);
@@ -195,382 +252,91 @@ static void boot(SoundHost *h)
     h->phase = WAITING;
     h->timer = 0;
     h->queued = 0;
-    h->song_upload = false;
-    apu_of(h)->spc.pc = DRIVER_RUNNING;
-    if (d->echo_draining) {
-        h->phase = ECHO_DRAINING;
-        h->wait_left = old_delay * ECHO_STEP_CYCLES;
-        h->fill_cycles = d->echo_delay > old_delay ? (d->echo_delay - old_delay) * ECHO_STEP_CYCLES : 0;
-    }
+    if (d->echo_draining)
+        wait_for_echo(h, old_delay, false);
 }
 
-/* Back to the boot ROM, for the CPU half to load the driver again. */
-static void reload(SoundHost *h)
+/* ---- The hooks -------------------------------------------------------------------------------- */
+
+static void take_boot(void *ctx, Apu *apu)
 {
-    bool was = quiet();
-    sound_run_command(&h->driver, (SoundCommand){ METER_OR_RELOAD, RELOAD, 0, 0 });
-    vars_peek(was);
-    apu_of(h)->control = BOOT_ROM_MAPPED;
-    apu_of(h)->spc.pc = BOOT_ROM;
-    h->phase = WAITING;
-    h->song_upload = false;
+    (void)apu;
+    boot(ctx);
 }
 
-/* A command carried out. A change of the echo's delay (command $FC) makes
- * the driver wait, the old delay's time and then up to the new one's. */
-static void carry_out(SoundHost *h, SoundCommand c)
+static void take_command(void *ctx, Apu *apu, const uint8_t bytes[4], uint8_t effects_asked)
 {
-    if (c.command == METER_OR_RELOAD && c.p1 == RELOAD) {
-        reload(h);
+    (void)apu;
+    SoundHost *h = ctx;
+    if (!h->booted)
         return;
-    }
-    SoundDriver *d = &h->driver;
-    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
-    bool was_draining = d->echo_draining;
-    bool was = quiet();
-    sound_run_command(d, c);
-    vars_peek(was);
-    if (!d->echo_draining || was_draining)
-        return;
-    uint8_t new_delay = d->echo_delay;
-    h->phase = ECHO_DRAINING;
-    h->wait_left = old_delay * ECHO_STEP_CYCLES;
-    h->fill_cycles = new_delay > old_delay ? (new_delay - old_delay) * ECHO_STEP_CYCLES : 0;
+    Waiting w = { { bytes[0], bytes[1], bytes[2], bytes[3] }, true, effects_asked };
+    if (h->phase == WAITING)
+        carry_out(h, w);
+    else
+        hold(h, w);
 }
 
-/* ---- Songs ---------------------------------------------------------------------------------- */
-
-/* A song's command, before its data comes: the driver stops the music and,
- * with a new echo delay, stops the echo writing and moves its buffer at once,
- * out of the way of the samples about to arrive, as the original does (the
- * old buffer can reach down over where they go). The echo's wait runs
- * meanwhile, since the original counts the upload's time toward it; with no
- * echo before, the echo writes again at once. */
-static void announce_song(SoundHost *h, SoundCommand c)
-{
-    SoundDriver *d = &h->driver;
-    uint8_t old_delay = dsp_read(&apu_of(h)->dsp, DSP_EDL) & 0x0F;
-    bool was = quiet();
-    sound_announce_song(d, c);
-    h->song_upload = true;
-    h->song_echo = d->echo_draining;
-    h->song_old_delay = old_delay;
-    h->song_echo_cycles = 0;
-    if (h->song_echo && !old_delay)
-        sound_echo_drained(d);
-    vars_peek(was);
-}
-
-/* The song, once its data is in; then what is left of the echo's wait: the
- * old delay's time from the command, and the new one's from the end of that
- * (from the command, if there was no echo before). */
-static void start_song(SoundHost *h)
-{
-    SoundDriver *d = &h->driver;
-    h->song_upload = false;
-    bool was = quiet();
-    sound_start_announced_song(d);
-    vars_peek(was);
-    if (!h->song_echo)
-        return;
-    uint32_t elapsed = h->song_echo_cycles, fill = d->echo_delay * ECHO_STEP_CYCLES;
-    if (d->echo_draining) {
-        uint32_t drain = h->song_old_delay * ECHO_STEP_CYCLES;
-        h->phase = ECHO_DRAINING;
-        h->wait_left = drain > elapsed ? drain - elapsed : 0;
-        h->fill_cycles = fill;
-    } else {
-        h->phase = ECHO_FILLING;
-        h->wait_left = fill > elapsed ? fill - elapsed : 0;
-    }
-}
-
-/* ---- Uploads ------------------------------------------------------------------------------ */
-
-static void begin_upload(SoundHost *h, uint8_t command)
-{
-    h->first_counter = (uint8_t)((command + 1) & COUNTER_MASK);
-    h->phase = FIRST_HEADER;
-}
-
-static void end_upload(SoundHost *h)
-{
-    h->phase = WAITING;
-    h->took = COMMAND_CYCLES;
-    if (h->song_upload)
-        start_song(h);
-}
-
-/* A header: where the data goes and how it comes, or the upload's end. The
- * set of effects is the one the CPU half's work RAM says it sent, and command
- * $71's instrument the block its parameter names, as ct_dev's lockstep
- * harness takes them. */
-static void header(SoundHost *h, uint8_t counter)
-{
-    Apu *a = apu_of(h);
-    uint8_t kind = a->cpu_in[1];
-    uint16_t at = (uint16_t)(a->cpu_in[2] | a->cpu_in[3] << 8);
-    if (kind == HEADER_ENDS_UPLOAD) {
-        a->cpu_out[1] = 0;
-        answer(h, counter);
-        clear_input_ports(h);
-        end_upload(h);
-        return;
-    }
-    a->cpu_out[1] = kind;
-    answer(h, counter);
-    static const Receiver receivers[8] = { DROPPED, DATA, DATA, DATA, DROPPED, DATA_TICKING, DROPPED, MOVE };
-    static const uint8_t bytes[8] = { 0, 1, 2, 3, 0, 3, 0, 0 };
-    uint8_t which = at >> 8 < OWN_PAGES_END ? 0 : kind & 7;
-    h->receiver = receivers[which];
-    h->bytes = bytes[which];
-    h->at = at;
-    h->move_step = MOVE_TO;
-    h->move_from = at;
-    h->phase = FIRST_MESSAGE;
-
-    bool was = quiet();
-    if (at >> 8 == EFFECT_SET_PAGE) {
-        uint8_t set = snes_bus_peek(&h->snes->bus, RAM_SOUND_DRIVER_2F00_SET_SENT) != 0;
-        sound_load_effects(&h->driver, set);
-    } else if (at == SONG_INSTRUMENT_TUNINGS && !h->song_upload) {
-        uint8_t block = snes_bus_peek(&h->snes->bus, RAM_SOUND_COMMAND_PARAMETERS);
-        sound_load_instrument(&h->driver, SOUND_FIRST_SONG_INSTRUMENT, block);
-    }
-    vars_peek(was);
-}
-
-/* A move within sound memory: whole pages up from the first, then what is
- * left down from its last byte, as the original copies them. */
-static void move(SoundHost *h, uint16_t length)
-{
-    uint8_t *ram = apu_of(h)->ram;
-    uint16_t from = h->move_from, to = h->move_to;
-    for (uint8_t pages = (uint8_t)(length >> 8); pages; pages--) {
-        for (uint16_t i = 0; i < 0x100; i++)
-            ram[(uint16_t)(to + i)] = ram[(uint16_t)(from + i)];
-        from = (uint16_t)(from + 0x100);
-        to = (uint16_t)(to + 0x100);
-    }
-    from--;
-    to--;
-    for (uint8_t i = (uint8_t)length; i; i--)
-        ram[(uint16_t)(to + i)] = ram[(uint16_t)(from + i)];
-}
-
-/* Whether the S-DSP is writing its echo over an address: its writes are on,
- * and the address is in the buffer it writes now or the one its registers
- * name (which it moves to when its offset next wraps). */
-enum { ECHO_WRITES_OFF = 0x20, ECHO_UNIT_BYTES = 0x800 };
-
-static bool in_echo(const Dsp *dsp, uint16_t at)
-{
-    if (dsp->regs[DSP_FLG] & ECHO_WRITES_OFF)
-        return false;
-    uint16_t now = (uint16_t)(dsp->echo_esa << 8), next = (uint16_t)(dsp->regs[DSP_ESA] << 8);
-    uint32_t now_length = dsp->echo_length ? dsp->echo_length : 4;
-    uint32_t next_length = (dsp->regs[DSP_EDL] & 0x0F) ? (dsp->regs[DSP_EDL] & 0x0F) * ECHO_UNIT_BYTES : 4;
-    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
-}
-
-static void upload_byte(SoundHost *h, uint8_t byte)
-{
-    Apu *a = apu_of(h);
-    if (in_echo(&a->dsp, h->at))
-        h->uploads_into_echo++;
-    a->ram[h->at++] = byte;
-}
-
-static void data(SoundHost *h, uint8_t counter)
-{
-    Apu *a = apu_of(h);
-    uint16_t word = (uint16_t)(a->cpu_in[2] | a->cpu_in[3] << 8);
-    switch (h->receiver) {
-    case DATA:
-    case DATA_TICKING:
-        for (uint8_t i = 0; i < h->bytes; i++)
-            upload_byte(h, a->cpu_in[1 + i]);
-        break;
-    case MOVE:
-        if (h->move_step == MOVE_TO) {
-            h->move_to = word;
-            h->move_step = MOVE_LENGTH;
-        } else if (h->move_step == MOVE_LENGTH) {
-            move(h, word);
-            h->move_step = MOVE_FROM;
-        } else {
-            h->move_from = word;
-            h->move_step = MOVE_TO;
-        }
-        break;
-    case DROPPED:
-        break;
-    }
-    answer(h, counter);
-}
-
-/* ---- The echo's wait ----------------------------------------------------------------------- */
-
-/* While the driver waits, commands are taken and echoed, and carried out when
- * each part of the wait is over; a song's start and an upload wait on the
- * port for the driver to be back. */
-static void take_while_waiting(SoundHost *h)
-{
-    Apu *a = apu_of(h);
-    uint8_t command = a->cpu_in[0];
-    if (!command || command == UPLOAD || (command >= SONG_COMMANDS && command < FIRST_QUEUED_AFTER_SONGS))
-        return;
-    SoundCommand c = { command, a->cpu_in[1], a->cpu_in[2], a->cpu_in[3] };
-    h->queue[h->queued < SOUND_QUEUE ? h->queued++ : SOUND_QUEUE - 1] = c;
-    clear_input_ports(h);
-    answer(h, command);
-}
-
-/* The commands taken meanwhile, until one starts another wait or sends the
- * driver back to the boot ROM. */
-static void run_queue(SoundHost *h)
-{
-    Phase part = h->phase;
-    uint8_t n = h->queued;
-    h->queued = 0;
-    for (uint8_t i = 0; i < n && h->phase == part; i++)
-        carry_out(h, h->queue[i]);
-}
-
-static void wait_for_echo(SoundHost *h, unsigned cycles)
-{
-    take_while_waiting(h);
-    if (h->wait_left > cycles) {
-        h->wait_left -= cycles;
-        return;
-    }
-    Phase part = h->phase;
-    h->took = COMMAND_CYCLES;
-    run_queue(h);
-    if (h->phase != part)
-        return;
-    bool was = quiet();
-    if (part == ECHO_DRAINING) {
-        sound_echo_drained(&h->driver);
-        h->phase = ECHO_FILLING;
-        h->wait_left = h->fill_cycles;
-    } else {
-        sound_echo_ready(&h->driver);
-        h->phase = WAITING;
-    }
-    vars_peek(was);
-}
-
-/* ---- Answering the ports --------------------------------------------------------------------- */
-
-static bool starts_song(uint8_t command) { return command >= SONG_COMMANDS && command < EFFECT_67 && !(command & 2); }
-
-/* Whether there was a command. */
-static bool take_command(SoundHost *h)
+/* A command written to the ports: echoed, and carried out (or held while the
+ * driver waits for its echo, but for a song's start, which waits on the port
+ * for the wait to end). Whether there was one. */
+static bool take_port_command(SoundHost *h)
 {
     Apu *a = apu_of(h);
     uint8_t command = a->cpu_in[0];
     if (!command)
         return false;
     SoundCommand c = { command, a->cpu_in[1], a->cpu_in[2], a->cpu_in[3] };
-    clear_input_ports(h);
-    if (command >= RUN_AT_ONCE) {
-        answer(h, command);
-        if (command == UPLOAD)
-            begin_upload(h, command);
-        else
-            carry_out(h, c);
-        return true;
-    }
-    if (starts_song(command)) {
-        if (c.p1 == h->driver.last_song_started) {
-            a->cpu_out[1] = SAME_SONG;
-            answer(h, command);
-            h->phase = REFUSING;
-            return true;
-        }
-        a->cpu_out[1] = c.p1;
-        answer(h, command);
-        announce_song(h, c);
-        begin_upload(h, command);
-        return true;
-    }
-    if (command == EFFECT_67 || command == EFFECT_45) {
-        answer(h, command);
-        carry_out(h, c);
-        return true;
-    }
-    if (command >= SONG_COMMANDS && command <= LAST_SONG_COMMAND)
-        return true;   /* the original's table has no answer for the rest of $10-$1F; the game never sends them */
-    answer(h, command);   /* the rest are echoed and ignored */
+    bool song = command >= SONG_COMMANDS && command < FIRST_AFTER_SONGS;
+    if (h->phase != WAITING && song)
+        return false;
+    memset(a->cpu_in, 0, sizeof a->cpu_in);
+    answer(h, command);
+    Waiting w = { c, false, 0 };
+    if (h->phase == WAITING)
+        carry_out(h, w);
+    else
+        hold(h, w);
     return true;
 }
 
-/* A message during an upload: data (its counter's top bit clear), a header
- * (under $E0), the driver sent back to the boot ROM, or nothing new. */
-static void take_message(SoundHost *h)
+static void echo_wait(SoundHost *h, unsigned cycles)
 {
-    Apu *a = apu_of(h);
-    uint8_t counter = a->cpu_in[0];
-    if (counter == h->last)
+    take_port_command(h);
+    if (h->wait_left > cycles) {
+        h->wait_left -= cycles;
         return;
-    if (!(counter & MESSAGE_IS_DATA))
-        data(h, counter);
-    else if (counter == HEADER_ENDS_UPLOAD)
-        header(h, counter);
-    else if (counter == METER_OR_RELOAD && a->cpu_in[1] == RELOAD)
-        reload(h);
-    else
-        h->last = counter;
+    }
+    bool was = quiet();
+    if (h->phase == ECHO_DRAINING) {
+        sound_echo_drained(&h->driver);
+        h->phase = ECHO_FILLING;
+        h->wait_left = h->fill_cycles;
+        vars_peek(was);
+        return;
+    }
+    sound_echo_ready(&h->driver);
+    vars_peek(was);
+    h->phase = WAITING;
+    h->took = COMMAND_CYCLES;
+    run_held(h);
 }
 
 static unsigned run_host(void *ctx, Apu *apu, unsigned cycles)
 {
+    (void)apu;
     SoundHost *h = ctx;
-    if (apu->spc.pc == DRIVER_ENTRY)
-        boot(h);
+    if (!h->booted)
+        return cycles;
     h->timer += cycles;
     h->took = 0;
-    if (h->song_upload && h->song_echo_cycles < UINT32_MAX - cycles)
-        h->song_echo_cycles += cycles;
-    switch (h->phase) {
-    case WAITING:
+    if (h->phase == WAITING) {
         if (tick_due(h))
             tick(h);
-        else if (take_command(h))
+        else if (take_port_command(h))
             h->took = COMMAND_CYCLES;
-        break;
-    case REFUSING:
-        if (apu->cpu_in[0]) {
-            clear_input_ports(h);
-            h->phase = WAITING;
-        }
-        break;
-    case FIRST_HEADER: {
-        uint8_t counter = apu->cpu_in[0];
-        if (counter == h->first_counter)
-            header(h, counter);
-        else if (counter && counter == h->last)
-            answer(h, counter);   /* the command again: answered again */
-        break;
-    }
-    case FIRST_MESSAGE:
-        if (apu->cpu_in[0] != h->last) {
-            apu->cpu_out[1] = RECEIVING;
-            h->phase = MESSAGES;
-            data(h, apu->cpu_in[0]);
-        }
-        break;
-    case MESSAGES:
-        if (h->receiver == DATA_TICKING && tick_due(h))
-            tick_while_loading(h);
-        else
-            take_message(h);
-        break;
-    case ECHO_DRAINING:
-    case ECHO_FILLING:
-        wait_for_echo(h, cycles);
-        break;
+    } else {
+        echo_wait(h, cycles);
     }
     if (h->took <= cycles)
         return cycles;
@@ -584,13 +350,17 @@ SoundHost *sound_host_attach(Snes *s)
     if (!h)
         return NULL;
     h->snes = s;
-    h->voices = (AuVoices){ h, read_register, write_register, write_memory };
+    h->voices = (AuVoices){ h, read_register, write_register, write_memory, read_memory };
     s->apu.host = run_host;
     s->apu.host_ctx = h;
+    s->apu.host_boot = take_boot;
+    s->apu.host_command = take_command;
     return h;
 }
 
-unsigned long sound_host_uploads_into_echo(const SoundHost *h) { return h->uploads_into_echo; }
+unsigned long sound_host_samples_into_echo(const SoundHost *h) { return h->samples_into_echo; }
+
+uint8_t sound_host_saved_song(const SoundHost *h) { return h->driver.saved_song_id; }
 
 void sound_host_detach(SoundHost *h)
 {
@@ -598,5 +368,292 @@ void sound_host_detach(SoundHost *h)
         return;
     h->snes->apu.host = NULL;
     h->snes->apu.host_ctx = NULL;
+    h->snes->apu.host_boot = NULL;
+    h->snes->apu.host_command = NULL;
+    free(h->loading);
     free(h);
 }
+
+/* ---- Saved states ------------------------------------------------------------------------------ */
+
+/* Every field of the host and its driver, by name, beside the machine's
+ * (snes/system.h, SnesStateExtra). A field added to the driver needs its line
+ * here; sound_test checks that every byte of the driver is in one. */
+typedef struct {
+    SnesStateVisitor *v;
+    char name[96];
+    size_t prefix;
+} Names;
+
+static const char *named(Names *n, const char *field)
+{
+    snprintf(n->name + n->prefix, sizeof n->name - n->prefix, ".%s", field);
+    return n->name;
+}
+
+/* Enter a part (`index` < 0: not one of several), and leave it. */
+static size_t enter(Names *n, const char *part, int index)
+{
+    size_t was = n->prefix;
+    int len = index < 0 ? snprintf(n->name + was, sizeof n->name - was, ".%s", part)
+                        : snprintf(n->name + was, sizeof n->name - was, ".%s[%d]", part, index);
+    n->prefix += (size_t)len;
+    return was;
+}
+static void leave(Names *n, size_t was) { n->prefix = was; n->name[was] = 0; }
+
+#define U(n, f, x) snes_state_uint((n)->v, named((n), (f)), &(x), sizeof(x), 1)
+#define UA(n, f, a) snes_state_uint((n)->v, named((n), (f)), (a), sizeof((a)[0]), sizeof(a) / sizeof((a)[0]))
+#define B(n, f, x) snes_state_bool((n)->v, named((n), (f)), &(x), 1)
+
+static void visit_slide(Names *n, const char *part, int index, SoundSlide *s)
+{
+    size_t was = enter(n, part, index);
+    U(n, "level", s->level);
+    U(n, "step", s->step);
+    U(n, "steps_left", s->steps_left);
+    leave(n, was);
+}
+
+static void visit_wave(Names *n, const char *part, SoundWave *w)
+{
+    size_t was = enter(n, part, -1);
+    U(n, "depth", w->depth);
+    U(n, "rate", w->rate);
+    U(n, "ticks_left", w->ticks_left);
+    U(n, "delay", w->delay);
+    U(n, "delay_left", w->delay_left);
+    U(n, "ramp", w->ramp);
+    U(n, "base_step", w->base_step);
+    U(n, "step", w->step);
+    U(n, "phase", w->phase);
+    leave(n, was);
+}
+
+static void visit_track(Names *n, int index, SoundTrack *t)
+{
+    size_t was = enter(n, "tracks", index);
+    U(n, "at", t->at);
+    U(n, "ticks_left", t->ticks_left);
+    U(n, "loop_level", t->loop_level);
+    for (int i = 0; i < SOUND_LOOP_LEVELS; i++) {
+        size_t loop = enter(n, "loops", i);
+        U(n, "passes", t->loops[i].passes);
+        U(n, "counts_left", t->loops[i].counts_left);
+        U(n, "start", t->loops[i].start);
+        leave(n, loop);
+    }
+    U(n, "instrument", t->instrument);
+    U(n, "tuning", t->tuning);
+    B(n, "envelope.adsr", t->envelope.adsr);
+    U(n, "envelope.attack", t->envelope.attack);
+    U(n, "envelope.decay", t->envelope.decay);
+    U(n, "envelope.sustain_level", t->envelope.sustain_level);
+    U(n, "envelope.sustain_rate", t->envelope.sustain_rate);
+    U(n, "octave", t->octave);
+    U(n, "transpose", t->transpose);
+    U(n, "detune", t->detune);
+    U(n, "note", t->note);
+    U(n, "pitch", t->pitch);
+    U(n, "volume_scale", t->volume_scale);
+    visit_slide(n, "volume", -1, &t->volume);
+    visit_slide(n, "pan", -1, &t->pan);
+    U(n, "slide_semitones", t->slide_semitones);
+    U(n, "slide_ticks", t->slide_ticks);
+    U(n, "slide_step", t->slide_step);
+    U(n, "pitch_fraction", t->pitch_fraction);
+    visit_wave(n, "vibrato", &t->vibrato);
+    visit_wave(n, "tremolo", &t->tremolo);
+    U(n, "vibrato_scale", t->vibrato_scale);
+    U(n, "vibrato_depth", t->vibrato_depth);
+    U(n, "vibrato_offset", t->vibrato_offset);
+    U(n, "pan_sweep", t->pan_sweep);
+    U(n, "pan_sweep_period", t->pan_sweep_period);
+    U(n, "pan_sweep_ticks_left", t->pan_sweep_ticks_left);
+    U(n, "pan_sweep_step", t->pan_sweep_step);
+    U(n, "pan_sweep_phase", t->pan_sweep_phase);
+    leave(n, was);
+}
+
+static void visit_flags(Names *n, const char *part, SoundVoiceFlags *f)
+{
+    size_t was = enter(n, part, -1);
+    U(n, "echo", f->echo);
+    U(n, "noise", f->noise);
+    U(n, "pitch_modulation", f->pitch_modulation);
+    U(n, "sounding", f->sounding);
+    U(n, "held", f->held);
+    U(n, "slur", f->slur);
+    U(n, "slurring", f->slurring);
+    U(n, "roll", f->roll);
+    leave(n, was);
+}
+
+static void visit_song(Names *n, const char *part, SoundSong *s)
+{
+    size_t was = enter(n, part, -1);
+    for (int i = 0; i < SOUND_TRACKS; i++)
+        visit_track(n, i, &s->tracks[i]);
+    U(n, "relocation", s->relocation);
+    U(n, "key_on", s->key_on);
+    U(n, "key_off", s->key_off);
+    visit_slide(n, "tempo", -1, &s->tempo);
+    U(n, "music_beat", s->music_beat);
+    U(n, "effect_beat", s->effect_beat);
+    U(n, "volume", s->volume);
+    visit_slide(n, "echo_volume", -1, &s->echo_volume);
+    visit_slide(n, "echo_feedback", -1, &s->echo_feedback);
+    for (int i = 0; i < 8; i++)
+        visit_slide(n, "filter", i, &s->filter[i]);
+    U(n, "filter_steps_left", s->filter_steps_left);
+    U(n, "music_tracks", s->music_tracks);
+    visit_flags(n, "music", &s->music);
+    visit_flags(n, "effects", &s->effects);
+    U(n, "music_noise_clock", s->music_noise_clock);
+    U(n, "effect_noise_clock", s->effect_noise_clock);
+    U(n, "marker", s->marker);
+    U(n, "percussion", s->percussion);
+    leave(n, was);
+}
+
+static void visit_samples(Names *n, SoundSamples *p)
+{
+    size_t was = enter(n, "samples", -1);
+    UA(n, "block", p->block);
+    UA(n, "length", p->length);
+    UA(n, "start", p->start);
+    UA(n, "song_start", p->song_start);
+    UA(n, "song_loop", p->song_loop);
+    U(n, "echo_delay", p->echo_delay);
+    U(n, "echo_page", p->echo_page);
+    U(n, "instrument_place", p->instrument_place);
+    U(n, "effect_set", p->effect_set);
+    U(n, "effects_overwritten", p->effects_overwritten);
+    leave(n, was);
+}
+
+static void visit_driver(Names *n, SoundDriver *d)
+{
+    size_t was = enter(n, "driver", -1);
+    UA(n, "instrument_tables", d->instrument_tables);
+    UA(n, "sequences", d->sequences);
+    UA(n, "percussion", d->percussion);
+    UA(n, "semitone_pitch", d->semitone_pitch);
+    UA(n, "note_length", d->note_length);
+    UA(n, "vibrato_scale", d->vibrato_scale);
+    snes_state_uint(n->v, named(n, "echo_filter"), &d->echo_filter[0][0], 1, sizeof d->echo_filter);
+    UA(n, "own_sample", d->own_sample);
+    U(n, "own_sample_nibble", d->own_sample_nibble);
+    visit_song(n, "song", &d->song);
+    visit_song(n, "saved", &d->saved);
+    U(n, "song_id", d->song_id);
+    U(n, "saved_song_id", d->saved_song_id);
+    U(n, "last_song_started", d->last_song_started);
+    B(n, "song_announced", d->song_announced);
+    U(n, "announced_track_set", d->announced_track_set);
+    B(n, "song_echo_changed", d->song_echo_changed);
+    U(n, "echo_delay", d->echo_delay);
+    U(n, "effect_voices", d->effect_voices);
+    U(n, "echo_voices", d->echo_voices);
+    U(n, "noise_voices", d->noise_voices);
+    U(n, "pitch_modulation_voices", d->pitch_modulation_voices);
+    U(n, "noise_clock", d->noise_clock);
+    U(n, "echo_volume_heard", d->echo_volume_heard);
+    U(n, "muted", d->muted);
+    U(n, "volume_changed", d->volume_changed);
+    U(n, "pitch_changed", d->pitch_changed);
+    B(n, "mono", d->mono);
+    B(n, "full_volume", d->full_volume);
+    B(n, "paused", d->paused);
+    B(n, "stepping_every_tick", d->stepping_every_tick);
+    B(n, "fast", d->fast);
+    B(n, "meter", d->meter);
+    B(n, "meter_upper", d->meter_upper);
+    B(n, "stopped", d->stopped);
+    visit_slide(n, "tempo_modifier", -1, &d->tempo_modifier);
+    visit_slide(n, "pitch_modifier", -1, &d->pitch_modifier);
+    U(n, "effect_pitch_modifier", d->effect_pitch_modifier);
+    U(n, "condition", d->condition);
+    U(n, "highest_condition", d->highest_condition);
+    for (int i = 0; i < SOUND_FADES; i++)
+        visit_slide(n, "fades", i, &d->fades[i].volume);
+    U(n, "fade_divider", d->fade_divider);
+    UA(n, "meter_volume", d->meter_volume);
+    snes_state_uint(n->v, named(n, "queue"), &d->queue[0], 1, sizeof d->queue);
+    U(n, "queued", d->queued);
+    B(n, "echo_waits", d->echo_waits);
+    B(n, "song_voices_waiting", d->song_voices_waiting);
+    U(n, "echo_silences_waiting", d->echo_silences_waiting);
+    B(n, "echo_draining", d->echo_draining);
+    UA(n, "status", d->status.port);
+    visit_samples(n, &d->samples);
+    U(n, "stray_reads", d->stray_reads);
+    U(n, "first_stray_read", d->first_stray_read);
+    leave(n, was);
+}
+
+static void visit_host(SnesStateVisitor *v, void *fields)
+{
+    SoundHost *h = fields;
+    Names n = { v, "sound", strlen("sound") };
+    B(&n, "booted", h->booted);
+    /* an enum, whose size is the compiler's: a byte in a state */
+    uint8_t phase = (uint8_t)h->phase;
+    U(&n, "phase", phase);
+    h->phase = phase <= ECHO_FILLING ? (Phase)phase : WAITING;
+    U(&n, "timer", h->timer);
+    U(&n, "wait_left", h->wait_left);
+    U(&n, "fill_cycles", h->fill_cycles);
+    for (int i = 0; i < SOUND_QUEUE; i++) {
+        size_t was = enter(&n, "queue", i);
+        snes_state_uint(v, named(&n, "command"), &h->queue[i].command, 1, sizeof h->queue[i].command);
+        B(&n, "game", h->queue[i].game);
+        U(&n, "effects_asked", h->queue[i].effects_asked);
+        leave(&n, was);
+    }
+    U(&n, "queued", h->queued);
+    visit_driver(&n, &h->driver);
+}
+
+/* The state read: the host takes the loaded fields, and keeps its machine,
+ * its voices and what the driver points at. */
+static void loaded(void *fields, void *loading)
+{
+    SoundHost *h = fields, *from = loading;
+    Snes *snes = h->snes;
+    AuVoices voices = h->voices;
+    SoundHost *scratch = h->loading;
+    unsigned long into_echo = h->samples_into_echo;
+    *h = *from;
+    h->snes = snes;
+    h->voices = voices;
+    h->loading = scratch;
+    h->samples_into_echo = into_echo;
+    h->driver.voices = &h->voices;
+    h->driver.game = state_of(snes);
+    if (h->queued > SOUND_QUEUE)
+        h->queued = SOUND_QUEUE;
+    if (h->driver.queued > SOUND_QUEUE)
+        h->driver.queued = SOUND_QUEUE;
+}
+
+const SnesStateExtra *sound_host_state(SoundHost *h)
+{
+    static SnesStateExtra extra;
+    if (!h->loading)
+        h->loading = malloc(sizeof *h->loading);
+    if (!h->loading)
+        return NULL;
+    /* what a field the state lacks keeps: a host that hasn't booted */
+    memset(h->loading, 0, sizeof *h->loading);
+    extra = (SnesStateExtra){ "the C sound driver", visit_host, h, h->loading, loaded };
+    return &extra;
+}
+
+void sound_host_driver_fields(SoundHost *h, SnesStateField fn, void *ctx)
+{
+    SnesStateExtra extra = { "the C sound driver", visit_host, h, NULL, loaded };
+    snes_state_extra_fields(&extra, fn, ctx);
+}
+
+size_t sound_host_driver_offset(void) { return offsetof(SoundHost, driver); }

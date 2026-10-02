@@ -245,6 +245,61 @@ static inline uint8_t sound_song_percussion_byte(const GameState *g, uint8_t son
     return rom_read8(g, sound_song_percussion_table() + SOUND_PERCUSSION_ENTRIES * SOUND_PERCUSSION_ENTRY_BYTES * song + i);
 }
 
+/* ---- What the CPU half's commands read (game/sound/loads.c) ------------------------ */
+
+/* How many songs there are; and song `song`'s entry: the echo delay it plays
+ * with, which is also how much sound memory it keeps free for the echo at the
+ * top (the low nibble of the first byte), and the volume it starts at. */
+static inline uint8_t sound_songs(const GameState *g) { return rom_read8(g, 0xC70AE9u); }
+static inline uint8_t sound_song_echo_delay(const GameState *g, uint8_t song)
+{
+    return rom_read8(g, 0xC7241Du + 2u * (song & 0x7F)) & 0x0F;
+}
+static inline uint8_t sound_song_volume(const GameState *g, uint8_t song) { return rom_read8(g, 0xC7241Eu + 2u * (song & 0x7F)); }
+
+/* Commands $30-$3F stand for four bytes each, a command and its three
+ * parameters (`i` 0-3); and the songs whose command saves the song playing
+ * first, a list ended by a negative byte. */
+static inline uint8_t sound_shortcut_byte(const GameState *g, uint8_t n, uint8_t i)
+{
+    return rom_read8(g, 0xC70A98u + 4u * n + i);
+}
+static inline uint8_t sound_song_saving_first(const GameState *g, uint16_t i) { return rom_read8(g, 0xC70AD8u + i); }
+
+/* A sample block (1-62): its length and BRR bytes, and where in it the sample
+ * loops from (sound_block_ptrs and the table after it, as above). */
+static inline uint32_t sound_block_data(const GameState *g, uint16_t id)
+{
+    uint32_t at = 0xC70AEAu + (uint16_t)((id - 1) * 3);
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+static inline uint16_t sound_block_length(const GameState *g, uint16_t id) { return rom_read16(g, sound_block_data(g, id)); }
+static inline uint8_t sound_block_byte(const GameState *g, uint16_t id, uint16_t i)
+{
+    return rom_read8(g, sound_block_data(g, id) + 2 + i);
+}
+static inline uint16_t sound_block_loop(const GameState *g, uint16_t id)
+{
+    return rom_read16(g, 0xC70BA4u + (uint16_t)((id - 1) * 2));
+}
+
+/* The boot's own samples (block 2, to $4700, a length and the bytes) and
+ * their directory entries (block 3, to $1E00); the songs' samples go after
+ * them. */
+enum { SOUND_BOOT_SAMPLES_BLOCK = 2, SOUND_BOOT_DIRECTORY_BLOCK = 3 };
+static inline uint16_t sound_boot_block_to(const GameState *g, uint8_t block)
+{
+    return rom_read16(g, 0xC7001Cu + 2u * block);
+}
+static inline uint16_t sound_boot_block_length(const GameState *g, uint8_t block)
+{
+    return rom_read16(g, sound_boot_block_data(g, block) - 2);
+}
+static inline uint8_t sound_boot_block_byte(const GameState *g, uint8_t block, uint16_t i)
+{
+    return rom_read8(g, sound_boot_block_data(g, block) + i);
+}
+
 /* A set of sound effects, as it goes to SPC700 $2F00. */
 enum { SOUND_EFFECT_SETS = 2 };
 static inline uint16_t sound_effect_set_length(const GameState *g, uint8_t set) { return rom_read16(g, sound_2f00_set(set)); }
