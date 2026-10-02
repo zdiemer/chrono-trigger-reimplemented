@@ -1076,9 +1076,7 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are PLAN.md's Phase 4a, and they are no longer optional or later:
-    the native mixer as `ct_play`'s default (it is built and makes the S-DSP's
-    every frame: PLATFORM.md, "The native mixer, as built"), and a note-stream
+    item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
     comparison (SOUND.md, "Validating the port") for when the lockstep
     reference is gone.
   - **What the native mixer's check doesn't reach.** `dsp_test`'s random

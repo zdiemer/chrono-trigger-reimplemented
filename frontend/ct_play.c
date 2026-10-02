@@ -20,7 +20,9 @@
  * OFF, docs/PLAYING.md), it runs only native code, the generated blocks: an
  * instruction without generated code is a miss, logged to <rom name>.misses.txt
  * and run on the interpreter (1, FALLBACK), or, with the interpreter not linked
- * at all (2, OFF), the game stops there.
+ * at all (2, OFF), the game stops there. --interpreted gives the player with
+ * the interpreter the same two behaviours at run time, over whatever --recomp
+ * leaves the interpreter: with --recomp off, everything no hand port covers.
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -72,13 +74,16 @@ static void usage(FILE *out)
             "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
             "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
             "                       runs the ported routines, so --recomp on is implied)\n"
-            "  --sound-driver D     c: the sound driver ported to C (game/sound/), playing through the S-DSP in the\n"
+            "  --sound-driver D     c: the sound driver ported to C (game/sound/), playing through --mixer in the\n"
             "                       SPC700's place, its commands taking no time (default); original: the game's\n"
             "                       own on the SPC700, with the original's timing, which movies, recording,\n"
             "                       --load-zst, --audio direct, --native off|shadow and --recomp only use; a\n"
             "                       saved state loads only with the driver it was saved with\n"
-            "  --mixer M            what makes the C driver's sound: dsp, the emulated S-DSP (default); native,\n"
-            "                       the native mixer, with no S-DSP (the same sound, frame for frame); a saved\n"
+            "  --interpreted W      what an instruction no native code runs does (--native on): log, run it on\n"
+            "                       the interpreter and list it in <rom name>.interpreted.txt; stop, stop the\n"
+            "                       game there. With --recomp off that is everything no hand port covers\n"
+            "  --mixer M            what makes the C driver's sound: native, the native mixer (default); dsp,\n"
+            "                       the emulated S-DSP it was checked against (the same sound, frame for frame); a saved\n"
             "                       state loads only with the mixer it was saved with\n"
             "  --renderer R         native: draw each frame from the video service's frame state (default);\n"
             "                       scanline: the reference renderer, line by line from the PPU registers\n"
@@ -173,7 +178,7 @@ int main(int argc, char **argv)
     static Files files;
     bool native_given = false, recomp = true, recomp_only = false, recomp_given = false, audio_direct = false;
     int sound_driver = -1;   /* -1 the default, 0 the original, 1 the C driver */
-    SoundMixer mixer = SOUND_MIXER_DSP;
+    SoundMixer mixer = SOUND_MIXER_NATIVE;
     bool mixer_given = false;
     pl.native_mode = NATIVE_ON;
     long frames = -1, scale = 3, movie_frames = -1;
@@ -280,6 +285,14 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
+        else if (!strcmp(a, "--interpreted")) {
+            if (!strcmp(v, "log")) pl.interpreted = PLAYER_INTERPRETED_LOG;
+            else if (!strcmp(v, "stop")) pl.interpreted = PLAYER_INTERPRETED_STOP;
+            else {
+                fprintf(stderr, "--interpreted must be log or stop\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--mixer")) {
             if (!sound_mixer_named(v, &mixer) || mixer == SOUND_MIXER_CHECK) {
                 fprintf(stderr, "--mixer must be dsp or native\n");
@@ -367,6 +380,10 @@ int main(int argc, char **argv)
                 player_build_mode[CT_PLAYER_NO_INTERPRETER]);
         return 2;
     }
+    if (pl.interpreted != PLAYER_INTERPRETED_RUN && pl.native_mode != NATIVE_ON) {
+        fprintf(stderr, "--interpreted needs --native on\n");
+        return 2;
+    }
     const char *record_path = files.movie;
     /* A movie is button presses at frame numbers, recorded against the original's
      * timing: replayed or recorded with the ported routines' estimated timing it
@@ -414,7 +431,7 @@ int main(int argc, char **argv)
         return 2;
     }
     bool c_sound_driver = sound_driver == 1 || (sound_driver < 0 && !needs_original);
-    if (mixer_given && mixer != SOUND_MIXER_DSP && !c_sound_driver) {
+    if (mixer_given && mixer == SOUND_MIXER_NATIVE && !c_sound_driver) {
         fprintf(stderr, "--mixer native plays the C sound driver, which this run doesn't (see --sound-driver)\n");
         return 2;
     }
@@ -431,7 +448,10 @@ int main(int argc, char **argv)
     files_side_path(files.sram, sizeof files.sram, rom_path, rom_path, save_dir, ".srm");
     files_side_path(files.state, sizeof files.state, record_path ? record_path : rom_path, rom_path, save_dir,
                     ".state");
-    files_side_path(files.misses, sizeof files.misses, rom_path, rom_path, save_dir, ".misses.txt");
+    /* A session's --interpreted list is its own; the build's misses accumulate. */
+    bool own_list = !CT_PLAYER_NO_INTERPRETER && pl.interpreted != PLAYER_INTERPRETED_RUN;
+    files_side_path(files.misses, sizeof files.misses, rom_path, rom_path, save_dir,
+                    own_list ? ".interpreted.txt" : ".misses.txt");
 
     if (movie_path) {
         ct_movie movie;
@@ -448,9 +468,7 @@ int main(int argc, char **argv)
         ct_movie_free(&movie);
     }
 
-#if CT_PLAYER_NO_INTERPRETER
     pl.misses_name = files.misses;
-#endif
     int rc = player_init(&pl, rom + header, rom_len - header, recomp, recomp_only);
     if (rc != 0)
         return rc;
@@ -465,6 +483,11 @@ int main(int argc, char **argv)
         free(text);
         fprintf(stderr, "ct_play: %s; instructions without generated code are logged to %s\n",
                 player_build_mode[CT_PLAYER_NO_INTERPRETER], files.misses);
+    } else if (own_list) {
+        fprintf(stderr, "ct_play: instructions with %s %s; listed in %s\n",
+                recomp ? "no generated code or hand port" : "no hand port",
+                pl.interpreted == PLAYER_INTERPRETED_STOP ? "stop the game" : "run on the interpreter",
+                files.misses);
     }
     /* A movie from a cartridge save: find the save by its CRC-32 when --sram
      * isn't given (the vendored saves next to the movies, or below the ROM). */

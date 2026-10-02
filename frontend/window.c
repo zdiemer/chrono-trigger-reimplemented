@@ -262,8 +262,7 @@ int run_window(Player *pl, const WindowOptions *o)
             update_title(window, pl, paused);
             char msg[1600], load[64], quit[64];
             snprintf(msg, sizeof msg,
-                     "The game stopped at frame %u: %s.\n\nThis player runs without the interpreter. The address "
-                     "is logged to %s; a build with it in CT_RECOMP_COVERAGE generates the code. %s loads the quick "
+                     "The game stopped at frame %u: %s.\n\nThe address is logged to %s. %s loads the quick "
                      "save; %s quits.",
                      (unsigned)pl->snes.frame, player_halt_reason(pl), player_misses_name(pl),
                      bindings_name(ACT_QUICK_LOAD, load, sizeof load, "QuickLoad"),

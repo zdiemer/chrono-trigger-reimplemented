@@ -58,7 +58,7 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
-| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the emulated S-DSP by default, or through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md); the original stays as the gate's reference | the mixer the default, and the original deleted |
+| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
@@ -73,7 +73,7 @@ and the game's side, whose commands are calls and whose samples the driver
 places itself), and now what `ct_play` plays. The voices' second
 implementation, a native mixer reading the same BRR samples, ADSR envelopes
 and echo settings in place of the emulated S-DSP, is built and makes the
-S-DSP's every frame; what is left is making it the default. The mixer is the
+S-DSP's every frame, and is what `ct_play` plays. The mixer is the
 audio engine, not an emulator; the SPC700 core is deleted with everything
 else under `runtime/`.
 
@@ -399,21 +399,6 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **The native mixer the default: next.** The sound driver is C and plays by
-  default (`game/sound/`, SOUND.md "The port as built" and "Playing it"): the
-  game's commands are calls, the driver places the songs' samples itself, and
-  saved states hold its fields. Its voices' second implementation, the native
-  mixer (PLATFORM.md, "The native mixer, as built"), makes every frame the
-  S-DSP makes over every movie and the fuzzer, and `dsp_test` and the gate's
-  sound fuzz hold it there; `ct_play --mixer native` plays it. What is left is
-  to make it `ct_play`'s default and the route check's (`ct_drive --mixer
-  native`), which takes the S-DSP out of the product as it ships: states saved
-  through the S-DSP then load with `--mixer dsp`. `runtime/apu/dsp.c` stays as
-  the mixer's reference while the mixer is checked against it. The original
-  driver stays as the driver's reference until then (the gate, the movies and
-  the lockstep run it, and `ct_play --sound-driver original` plays it); it
-  goes, with the CPU half's protocol (`game/core/sound_driver.c`'s uploads and
-  waits), the SPC700 core and APU-direct, when the gate retires for sound.
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
   takes `vid_*` calls rather than a decoded PPU register file. Widescreen and
@@ -425,7 +410,14 @@ the audit that found them.
   writes SNES registers. That backend is not waste: compiled for real hardware
   it is what target 3 runs on. What is missing is the host side of four of
   them. Input and save are small (`in_host_set` and `frontend/player.c` already
-  carry the host's half). Audio is Phase 4a's mixer, above.
+  carry the host's half). Audio is the native mixer (PLATFORM.md), which
+  already makes the sound from the voices with no S-DSP.
+- **Power-on and the interrupt entries.** `ct_play --recomp off --interpreted
+  stop` (PLAYING.md) stops at frame 0: the reset stub (`$00:FF00`), the boot
+  (`$FD:C000`), the vector stubs (`$00:FF10`) and the RAM trampolines the
+  game points them through (`$00:0500`, `$0504`) have no hand ports. They are
+  small, and one chunk in a later round; the meter only moves far past them
+  once the title's scene program (`$7E`) is ported.
 
   **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census
   behind it: 117 instructions, 49 ported). The game has no raster effect done

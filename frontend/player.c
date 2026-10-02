@@ -26,7 +26,13 @@ static const char *const title_mode[] = { "", " [generated code, fallback]", " [
 
 /* ---- misses ------------------------------------------------------------------- */
 
-#if CT_PLAYER_NO_INTERPRETER
+/* What a miss is, in the words of this build and --recomp: with the generated
+ * blocks, code nothing was generated for; without them, code no port covers. */
+static const char *missing_code(const Player *pl)
+{
+    return pl->table.generated ? "no generated code" : "no hand port";
+}
+
 /* The system found no native code for the instruction at PC. */
 static bool on_miss(void *ctx, Snes *snes)
 {
@@ -36,73 +42,41 @@ static bool on_miss(void *ctx, Snes *snes)
     misses_note(pl->misses, cpu_pc24(c), c->p, c->e);
     pl->miss_steps++;
     char what[200];
-    if (CT_PLAYER_NO_INTERPRETER == 2) {
+    if (pl->interpreted == PLAYER_INTERPRETED_STOP) {
         misses_describe(snes, what, sizeof what);
-        snprintf(pl->halt_reason, sizeof pl->halt_reason, "no generated code for %s", what);
-        fprintf(stderr, "ct_play: stopped at frame %u: %s. This player has no interpreter to run it; the address is "
-                        "logged to %s for the build's CT_RECOMP_COVERAGE.\n",
-                (unsigned)snes->frame, what, pl->misses_name);
+        snprintf(pl->halt_reason, sizeof pl->halt_reason, "%s for %s", missing_code(pl), what);
+        fprintf(stderr, "ct_play: stopped at frame %u: %s; the address is logged to %s.\n",
+                (unsigned)snes->frame, pl->halt_reason, pl->misses_name);
         return false;
     }
     if (misses_count(pl->misses, NULL) > before && before < MISSES_REPORTED) {
         misses_describe(snes, what, sizeof what);
-        fprintf(stderr, "ct_play: frame %u: no generated code for %s; running it on the interpreter (logged to %s)\n",
-                (unsigned)snes->frame, what, pl->misses_name);
+        fprintf(stderr, "ct_play: frame %u: %s for %s; running it on the interpreter (logged to %s)\n",
+                (unsigned)snes->frame, missing_code(pl), what, pl->misses_name);
     }
     return true;
 }
-#endif
 
 int player_misses_merge(Player *pl, const char *text, size_t len)
 {
-#if CT_PLAYER_NO_INTERPRETER
-    return misses_parse(pl->misses, text, len);
-#else
-    (void)pl, (void)text, (void)len;
-    return 0;
-#endif
+    return pl->misses ? misses_parse(pl->misses, text, len) : 0;
 }
 
 char *player_misses_text(Player *pl, size_t *len)
 {
-#if CT_PLAYER_NO_INTERPRETER
-    if (pl->miss_steps == pl->miss_steps_written)
+    if (!pl->misses || pl->miss_steps == pl->miss_steps_written)
         return NULL;
     return misses_format(pl->misses, len, NULL);
-#else
-    (void)pl, (void)len;
-    return NULL;
-#endif
 }
 
-void player_misses_stored(Player *pl)
-{
-#if CT_PLAYER_NO_INTERPRETER
-    pl->miss_steps_written = pl->miss_steps;
-#else
-    (void)pl;
-#endif
-}
+void player_misses_stored(Player *pl) { pl->miss_steps_written = pl->miss_steps; }
 
 const char *player_halt_reason(const Player *pl)
 {
-#if CT_PLAYER_NO_INTERPRETER
-    return pl->halt_reason;
-#else
-    (void)pl;
-    return "an instruction without native code";
-#endif
+    return pl->halt_reason[0] ? pl->halt_reason : "an instruction without native code";
 }
 
-const char *player_misses_name(const Player *pl)
-{
-#if CT_PLAYER_NO_INTERPRETER
-    return pl->misses_name;
-#else
-    (void)pl;
-    return "the miss report";
-#endif
-}
+const char *player_misses_name(const Player *pl) { return pl->misses_name ? pl->misses_name : "the miss report"; }
 
 static void on_line(void *ctx, Snes *snes, uint16_t line)
 {
@@ -364,16 +338,24 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
                 player_build_mode[CT_PLAYER_NO_INTERPRETER], recomp_native_count ? "they are for another ROM" : "none");
         return 1;
     }
-#if CT_PLAYER_NO_INTERPRETER == 1
-    pl->snes.interpreter = cpu_step;   /* for misses only */
+    if (CT_PLAYER_NO_INTERPRETER == 2)
+        pl->interpreted = PLAYER_INTERPRETED_STOP;
+    else if (pl->interpreted == PLAYER_INTERPRETED_RUN)
+        pl->interpreted = PLAYER_INTERPRETED_LOG;
 #endif
-    pl->snes.native_only = true;
-    pl->snes.on_miss = on_miss;
-    pl->snes.on_miss_ctx = pl;
-    pl->misses = misses_create(&pl->snes);
-#else
-    pl->snes.interpreter = cpu_step;
+#if CT_PLAYER_NO_INTERPRETER != 2
+    pl->snes.interpreter = cpu_step;   /* without --interpreted, for everything native code doesn't run */
 #endif
+    if (pl->interpreted != PLAYER_INTERPRETED_RUN) {
+        pl->snes.native_only = true;
+        pl->snes.on_miss = on_miss;
+        pl->snes.on_miss_ctx = pl;
+        pl->misses = misses_create(&pl->snes);
+        if (!pl->misses) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+    }
     if (t->record_name && pl->native_mode == NATIVE_ON && pl->table.ported) {
         fprintf(stderr, "--record with --native on needs the generated blocks, which this build or ROM lacks\n");
         return 2;
@@ -458,12 +440,12 @@ void player_discard_audio(Player *pl)
 void player_title(const Player *pl, bool paused, char *out, size_t size)
 {
     int n = snprintf(out, size, "ct_play%s", title_mode[CT_PLAYER_NO_INTERPRETER]);
-#if CT_PLAYER_NO_INTERPRETER
-    if (pl->snes.halted)
+    if (!CT_PLAYER_NO_INTERPRETER && pl->misses)
+        n += snprintf(out + n, size - n, " [%s]", pl->table.generated ? "generated code" : "hand ports");
+    if (pl->snes.halted && pl->misses)
         n += snprintf(out + n, size - n, " (stopped: %s)", pl->halt_reason);
     else if (pl->miss_steps)
-        n += snprintf(out + n, size - n, " (%lu misses)", pl->miss_steps);
-#endif
+        n += snprintf(out + n, size - n, " (%lu interpreted)", pl->miss_steps);
     if (player_replaying(pl))
         n += snprintf(out + n, size - n, " (replaying %u/%u)", (unsigned)pl->snes.frame,
                       (unsigned)pl->track.replay_frames);
@@ -484,16 +466,17 @@ void player_finish(Player *pl)
     native_destroy(pl->natives);
     pl->natives = NULL;
     natives_free(&pl->table);
-#if CT_PLAYER_NO_INTERPRETER
-    if (pl->miss_steps) {
+    /* The instruction a stop stopped at didn't run. */
+    unsigned long ran = pl->miss_steps - (pl->snes.halted && pl->interpreted == PLAYER_INTERPRETED_STOP);
+    if (ran) {
         uint64_t total;
         size_t distinct = misses_count(pl->misses, &total);
-        fprintf(stderr, "ct_play: %lu instructions this session had no generated code; %s now lists %llu at %lu "
-                        "addresses (feed it back with CT_RECOMP_COVERAGE)\n",
-                pl->miss_steps, pl->misses_name, (unsigned long long)total, (unsigned long)distinct);
+        fprintf(stderr, "ct_play: %lu instructions this session had %s and ran on the interpreter; %s now lists "
+                        "%llu at %lu addresses\n",
+                ran, missing_code(pl), pl->misses_name, (unsigned long long)total, (unsigned long)distinct);
     }
     misses_destroy(pl->misses);
-#endif
+    pl->misses = NULL;
     free(t->pads);
     t->pads = NULL;
     free(pl->quick_save);
