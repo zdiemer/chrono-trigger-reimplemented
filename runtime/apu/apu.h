@@ -72,6 +72,12 @@ typedef struct Apu {
      * ports (platform/audio.h, au_driver_boot_taken). */
     void (*host_boot)(void *ctx, struct Apu *apu);
     void (*host_command)(void *ctx, struct Apu *apu, const uint8_t command[4], uint8_t effects_asked);
+    /* Optional: the host makes the sound in the S-DSP's place (a native
+     * mixer, frontend/sound_host.h): `host_mix` is handed the SPC700 cycles
+     * as they pass, where the S-DSP would run on them, and apu_take_samples
+     * takes the host's frames through `host_take`. The S-DSP isn't run. */
+    void (*host_mix)(void *ctx, struct Apu *apu, unsigned cycles);
+    size_t (*host_take)(void *ctx, struct Apu *apu, int16_t *out, size_t max_frames);
 } Apu;
 
 /* SPC700 writes to $F1 that cleared the CPU-to-APU ports: [0] ports 0-1, [1]

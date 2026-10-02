@@ -128,43 +128,43 @@ static uint8_t read_memory(void *ctx, uint16_t at)
     return memory[at];
 }
 
-static AuVoices voices = { NULL, read_reg, write_reg, write_memory, read_memory };
+static VoicesDsp voices_dsp;
 
 static void test_voices(void)
 {
-    au_voice_envelope(&voices, 2, (AuEnvelope){ .adsr = true, .attack = 0xF, .decay = 7, .sustain_level = 5, .sustain_rate = 0x1F });
+    au_voice_envelope(&voices_dsp.voices, 2, (AuEnvelope){ .adsr = true, .attack = 0xF, .decay = 7, .sustain_level = 5, .sustain_rate = 0x1F });
     CHECK(regs[0x25] == 0xFF && regs[0x26] == 0xBF, "envelope %02X %02X", regs[0x25], regs[0x26]);
-    au_voice_gain(&voices, 3, (AuGain){ AU_GAIN_DECREASE_EXPONENTIAL, 0 });
+    au_voice_gain(&voices_dsp.voices, 3, (AuGain){ AU_GAIN_DECREASE_EXPONENTIAL, 0 });
     CHECK(regs[0x37] == 0xA0, "gain %02X", regs[0x37]);
-    au_voice_gain(&voices, 3, (AuGain){ AU_GAIN_DIRECT, 0x40 });
+    au_voice_gain(&voices_dsp.voices, 3, (AuGain){ AU_GAIN_DIRECT, 0x40 });
     CHECK(regs[0x37] == 0x40, "direct gain %02X", regs[0x37]);
-    au_echo_delay(&voices, 5);
+    au_echo_delay(&voices_dsp.voices, 5);
     CHECK(regs[0x7D] == 5 && regs[0x6D] == 0xC9, "echo delay %02X at %02X", regs[0x7D], regs[0x6D]);
     regs[0x6C] = 0x13;
-    au_echo_writes(&voices, false);
+    au_echo_writes(&voices_dsp.voices, false);
     CHECK(regs[0x6C] == 0x33, "echo writes off %02X", regs[0x6C]);
-    au_echo_writes(&voices, true);
+    au_echo_writes(&voices_dsp.voices, true);
     CHECK(regs[0x6C] == 0x13, "echo writes on %02X", regs[0x6C]);
-    au_voices_hold(&voices, true);
+    au_voices_hold(&voices_dsp.voices, true);
     CHECK(regs[0x25] == 0x7F, "held %02X", regs[0x25]);
-    au_voices_hold(&voices, false);
+    au_voices_hold(&voices_dsp.voices, false);
     CHECK(regs[0x25] == 0xFF, "released %02X", regs[0x25]);
-    au_voice_pitch(&voices, 1, 0x1234);
+    au_voice_pitch(&voices_dsp.voices, 1, 0x1234);
     CHECK(regs[0x12] == 0x34 && regs[0x13] == 0x12, "pitch");
     static const uint8_t brr[9] = { 0x02, 1, 2, 3 };
-    au_sample_define(&voices, 0x10, brr, sizeof brr, 0);
-    CHECK(memory[VOICES_DSP_DIRECTORY + 0x40] == (uint8_t)VOICES_DSP_OWN_SAMPLE &&
-              memory[VOICES_DSP_OWN_SAMPLE + 2] == 2, "the driver's own sample");
+    au_sample_define(&voices_dsp.voices, 0x10, brr, sizeof brr, 0);
+    CHECK(memory[VOICES_DIRECTORY + 0x40] == (uint8_t)VOICES_OWN_SAMPLE &&
+              memory[VOICES_OWN_SAMPLE + 2] == 2, "the driver's own sample");
 
     /* A move down: whole pages first, then the rest from its end, as the
      * original's receiver copies (over itself where the two overlap). */
     for (int i = 0; i < 0x300; i++)
         memory[0x5000 + i] = (uint8_t)i;
-    au_sample_memory_move(&voices, 0x4F80, 0x5000, 0x180);
+    au_sample_memory_move(&voices_dsp.voices, 0x4F80, 0x5000, 0x180);
     CHECK(memory[0x4F80] == 0x00 && memory[0x507F] == 0xFF && memory[0x5080] == 0x00 && memory[0x50FF] == 0x7F,
           "the move: %02X %02X %02X %02X", memory[0x4F80], memory[0x507F], memory[0x5080], memory[0x50FF]);
-    au_sample_place(&voices, 0x21, 0x1234, 0x5678);
-    CHECK(memory[VOICES_DSP_DIRECTORY + 0x84] == 0x34 && memory[VOICES_DSP_DIRECTORY + 0x87] == 0x56,
+    au_sample_place(&voices_dsp.voices, 0x21, 0x1234, 0x5678);
+    CHECK(memory[VOICES_DIRECTORY + 0x84] == 0x34 && memory[VOICES_DIRECTORY + 0x87] == 0x56,
           "a sample's directory entry");
 }
 
@@ -283,8 +283,8 @@ static void test_driver(void)
 {
     make_cartridge();
     memset(regs, 0, sizeof regs);
-    sound_boot(&driver, state_of(&snes), &voices);
-    CHECK(regs[0x5D] == VOICES_DSP_DIRECTORY >> 8 && regs[0x0C] == 0x40 && regs[0x7D] == 5,
+    sound_boot(&driver, state_of(&snes), &voices_dsp.voices);
+    CHECK(regs[0x5D] == VOICES_DIRECTORY >> 8 && regs[0x0C] == 0x40 && regs[0x7D] == 5,
           "the boot: directory %02X, master volume %02X, echo delay %02X", regs[0x5D], regs[0x0C], regs[0x7D]);
     tick(2);
     CHECK(regs[0x5C] == 0, "the boot's key off is flushed and cleared (%02X)", regs[0x5C]);
@@ -341,7 +341,7 @@ enum { BASE = 0x4712 };
 
 static uint16_t directory_word(uint8_t sample, uint8_t half)
 {
-    uint16_t at = (uint16_t)(VOICES_DSP_DIRECTORY + 4 * sample + 2 * half);
+    uint16_t at = (uint16_t)(VOICES_DIRECTORY + 4 * sample + 2 * half);
     return (uint16_t)(memory[at] | memory[at + 1] << 8);
 }
 
@@ -350,7 +350,7 @@ static void test_samples(void)
     make_cartridge();
     memset(memory, 0, sizeof memory);
     memset(&driver, 0, sizeof driver);
-    sound_boot(&driver, state_of(&snes), &voices);
+    sound_boot(&driver, state_of(&snes), &voices_dsp.voices);
     const SoundSamples *p = &driver.samples;
     CHECK(memory[0x4700] == 0xA0 && memory[0x4711] == 0xA0 && directory_word(1, 0) == 0x4709,
           "the boot's own samples and their directory");
@@ -452,6 +452,7 @@ static void test_host_state(void)
 
 int main(void)
 {
+    voices_dsp_init(&voices_dsp, NULL, read_reg, write_reg, write_memory, read_memory);
     test_compare();
     test_voices();
     test_driver();

@@ -159,10 +159,11 @@ void snes_state_fields(Snes *snes, SnesStateField fn, void *ctx);
 typedef struct SnesStateVisitor SnesStateVisitor;
 /* Which host program played in the SPC700's place, saved in the state
  * (`apu.host`) so that a state loads only with the program that saved it.
- * A new program (the native mixer) takes a number of its own. */
+ * A new program takes a number of its own. */
 enum {
     SNES_STATE_NO_HOST = 0,                 /* the SPC700 ran */
-    SNES_STATE_HOST_C_SOUND_DRIVER = 1      /* frontend/sound_host.h */
+    SNES_STATE_HOST_C_SOUND_DRIVER = 1,     /* frontend/sound_host.h, through the S-DSP */
+    SNES_STATE_HOST_C_SOUND_DRIVER_MIXER = 2   /* ... through the native mixer */
 };
 typedef struct {
     uint8_t id;                             /* SNES_STATE_HOST_*: never SNES_STATE_NO_HOST */
