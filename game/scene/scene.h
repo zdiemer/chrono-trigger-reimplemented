@@ -130,6 +130,20 @@ bool scene_music_reached(MusicStatus music, uint8_t level);
 enum { SCENE_CIRCLE_ROUND = 0, SCENE_CIRCLE_SQUASHED = 1, SCENE_CIRCLE_KEEPS_OUTSIDE = 0x80 };
 void scene_circle_draw(GameState *g, uint8_t mode);
 
+/* scene/math.c: the program's arithmetic as C calls, on a page's cells, each
+ * timed as the routine it stands for: a 16 x 16-bit product; a signed 16-bit
+ * value times a signed byte (the low word of the product); the 8.8 fraction of
+ * a value's high byte over a divisor; and the first divisor from `from` whose
+ * quotient of `dividend` falls under `limit`. */
+uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
+int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
+uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor);
+uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, uint16_t limit);
+
+/* scene/perspective.c: the Mode 7 plane's perspective built again for a
+ * channel's camera, as the race's camera check and the endings ask for it. */
+void scene_build_perspective(GameState *g, SceneChannel ch);
+
 /* ---- Entries, by file ------------------------------------------------------------------------ */
 
 /* scene/guards.c */
@@ -245,10 +259,25 @@ void scene_race_wait_for_tilemap_upload_loop(Snes *s);
 bool scene_race_engine_present(Snes *s);
 void scene_race_set_engine_pitch(Snes *s);
 
+/* scene/perspective.c (the program in RAM): the entry the endings jump to,
+ * and for the race's camera check, whether the port builds the perspective
+ * for the channel at a page and what the original leaves in the registers. */
+bool scene_build_perspective_present(Snes *s);
+void scene_build_perspective_entry(Snes *s);
+bool scene_perspective_as_ported(Snes *s, uint16_t d);
+void scene_leave_perspective_registers(Snes *s, SceneChannel ch);
+
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);
 void scene_gather_picture(Snes *s);
+bool scene_race_scale_pictures_present(Snes *s);
+void scene_race_scale_pictures(Snes *s);
+bool scene_race_scale_after_present(Snes *s);
+void scene_race_scale_after_crono(Snes *s);
+void scene_race_scale_after_johnny(Snes *s);
+bool scene_race_gather_scaled_present(Snes *s);
+void scene_race_gather_scaled(Snes *s);
 
 /* scene/race_rules.c (the program in RAM) */
 bool scene_race_ride_present(Snes *s);
@@ -265,6 +294,10 @@ bool scene_race_leave_present(Snes *s);
 void scene_race_leave(Snes *s);
 bool scene_race_drain_score_present(Snes *s);
 void scene_race_drain_score(Snes *s);
+
+/* scene/race_projection.c (the program in RAM) */
+bool scene_race_place_bikes_present(Snes *s);
+void scene_race_place_bikes(Snes *s);
 
 /* scene/race_drawing.c (the program in RAM) */
 bool scene_race_draw_present(Snes *s);

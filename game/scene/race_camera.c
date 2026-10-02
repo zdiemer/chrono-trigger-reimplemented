@@ -8,8 +8,8 @@
  * above the horizon scroll across by the angle, BG3 by half of it and BG2 by a
  * quarter, and the horizon's line splits the per-line tables between them and
  * the plane. When the camera's height, angle or pitch changes, the plane's
- * perspective is built again (still the original's, at $7E:357B), and the
- * distances the bikes are scaled by are forgotten.
+ * perspective is built again (scene/perspective.c), and the distances the
+ * bikes are scaled by are forgotten.
  *
  * Which way the control pad steers depends on the camera: the pad's directions
  * are given to the lanes by the eighth of a turn it faces. In the attract
@@ -133,7 +133,7 @@ static void set_horizon(GameState *g)
 
 /* The camera the perspective is built for, as scene_race_perspective_camera
  * keeps it. */
-static const unsigned perspective_registers[] = { CAMERA_HEIGHT, CAMERA_ANGLE, CAMERA_PITCH, CAMERA_PLANE_TOP, CAMERA_MIRRORED };
+static const unsigned perspective_registers[] = { CAMERA_HEIGHT, CAMERA_ANGLE, CAMERA_PITCH, CAMERA_PLANE_TOP, CAMERA_LINES_PAIRED };
 enum { PERSPECTIVE_REGISTERS = sizeof perspective_registers / sizeof perspective_registers[0] };
 
 /* The original clears the divisors with a block move of 255 bytes after
@@ -386,21 +386,28 @@ void scene_race_keep_controller(Snes *s)
     m_rts(s);
 }
 
-/* The perspective is the original's ($7E:357B), on channel 0's page; it reads
- * none of the registers but the page. Unchanged, A is the last register
- * compared. */
+/* The perspective is built on channel 0's page (scene/perspective.c), where
+ * the original jumps on to it; where the port doesn't build it (another
+ * scene's step written into its loop), the original does, and it reads none
+ * of the registers but the page. Unchanged, A is the last register compared. */
 enum { BUILD_PERSPECTIVE = 0x7E357B };
 
 void scene_race_check_perspective(Snes *s)
 {
     GameState *g = state_of(s);
     if (!camera_changed(g)) {
-        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_MIRRORED));
+        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_LINES_PAIRED));
         m_rts(s);
         return;
     }
-    s->cpu.d = CHANNEL_0_PAGE;
-    m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    if (!scene_perspective_as_ported(s, CHANNEL_0_PAGE)) {
+        s->cpu.d = CHANNEL_0_PAGE;
+        m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+        return;
+    }
+    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
+    ORIGINAL_EFFECT(scene_leave_perspective_registers(s, 0));
+    m_rts(s);
 }
 
 void scene_race_turn_camera(Snes *s)

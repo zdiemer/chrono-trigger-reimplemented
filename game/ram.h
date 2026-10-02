@@ -6580,6 +6580,10 @@
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
 #define RAM_SCENE_SCALER_PAIRS_DP 0x1Fu      /* page scene */
+/* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
+ * request leaves the request's state; nothing reads them [2 bytes] */
+#define RAM_SCENE_SCALER_REQUEST_STATE 0x7E0021u
+#define RAM_SCENE_SCALER_REQUEST_STATE_DP 0x21u /* page scene */
 /* Bitmap scaler: base address added to a source row's position to point at it [2 bytes] */
 #define RAM_SCENE_SCALER_SOURCE_BASE 0x7E0023u
 #define RAM_SCENE_SCALER_SOURCE_BASE_DP 0x23u /* page scene */
@@ -6687,8 +6691,9 @@
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
 #define RAM_SCENE_RACE_LEAD_DP 0x8Eu         /* page scene */
-/* The camera's turn as the bikes are placed on the screen: its cosine and sine, and their
- * negatives [4 x $2 bytes, by 0 the cosine, 1 the sine, 2 and 3 their negatives] */
+/* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
+ * camera's angle): its sine and cosine, and their negatives [4 x $2 bytes, by 0 the sine, 1 the
+ * cosine, 2 and 3 their negatives] */
 #define RAM_SCENE_RACE_VIEW 0x7E0090u
 #define RAM_SCENE_RACE_VIEW_COUNT 4u
 #define RAM_SCENE_RACE_VIEW_STRIDE 0x02u
@@ -6990,6 +6995,36 @@
 #define RAM_SCENE_RACE_DIVISORS_STRIDE 0x01u
 /* The scene's working palette, 256 colors, sent to CGRAM [512 bytes] */
 #define RAM_SCENE_PALETTE 0x7E2200u
+/* Which routine starts the plane's perspective lines, the operand of the program's own call: the
+ * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
+ * the line above it) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_START 0x7E35FDu
+/* The sine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ACROSS_PRODUCT 0x7E360Bu
+/* The branch the perspective's loop takes over its negation of the cosine's entries ($0480) or
+ * into it ($0080, when the cosine is negative) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_COSINE_SIGN 0x7E3616u
+/* The cosine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ALONG_PRODUCT 0x7E3623u
+/* Where the perspective's loop stores each line's sine entry as it divides it out: the matrices'
+ * second entries ($F0FE, the sine not negative) or their third ($F484) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ACROSS_ENTRIES 0x7E362Bu
+/* Where the perspective's loop stores each line's sine entry negated: the other of
+ * scene_perspective_across_entries' two [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_AGAINST_ENTRIES 0x7E3632u
+/* The two instructions the perspective's loop runs after each line: a step to the next distance
+ * ($EAE8 as the program comes, $E8EA as the race writes it), or the branch the race copies from
+ * scene_perspective_pair_branch to give each line's matrix to the next; scenes no movie reaches
+ * write other steps [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_LINE_STEP 0x7E3634u
+/* Where the perspective's lines end, the operand of the loop's compare: $380, past the 224th
+ * line's four bytes [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_END 0x7E3637u
+/* The branch the race writes into the perspective's loop to build the lines in pairs (the
+ * program's data, $3680) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_PAIR_BRANCH 0x7E368Fu
 /* The sprite list the program draws a number with: the count byte (one more than the digits
  * shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20
  * and the digit) [21 x $1 bytes, by byte of the list] */
@@ -7087,6 +7122,21 @@
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes] */
 #define RAM_SCENE_RACE_LINE_TABLES 0x7EF000u
+/* The first half of each screen line's Mode 7 matrix for the plane in perspective, which a
+ * per-line effect sends: the camera's cosine and sine times its height over the line's distance
+ * [224 x $4 bytes, by screen line] */
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW 0x7EF100u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_COUNT 224u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_STRIDE 0x04u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_A 0x7EF100u /* The matrix's first entry: the cosine's */
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_B 0x7EF102u /* The matrix's second entry: the sine's */
+/* The second half of each screen line's Mode 7 matrix for the plane in perspective
+ * (scene_plane_matrix_top_row) [224 x $4 bytes, by screen line] */
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW 0x7EF488u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_COUNT 224u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_STRIDE 0x04u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_C 0x7EF488u /* The matrix's third entry: the sine's, negated */
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_D 0x7EF48Au /* The matrix's fourth entry: the cosine's, as the first */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
  * after another, before it is gathered into tiles [1152 x $2 bytes, by word of the picture, $10
  * a row] */
@@ -7125,6 +7175,8 @@
 #define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
 #define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
 #define RAM_SCENE_CALL_BUMP_PUSH_DP 0xF6u    /* The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte */
+#define RAM_SCENE_CALL_RACE_HALF_SIZE_DP 0xFCu /* The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over */
+#define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap below the plane's top, less one, kept there across the multiply that shifts the cell after the product */
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 

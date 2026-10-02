@@ -44,8 +44,6 @@ static void draw_clipped_list(GameState *g, uint16_t list) { TIMED_AS(g, 0xC30D5
 
 /* ---- The racers' pictures --------------------------------------------------------------------- */
 
-/* A racer's picture request (scene_race_picture_requests' state). */
-enum { PICTURE_NONE = 0, PICTURE_WAITING = 1, PICTURE_GATHERED = 2 };
 
 /* The racers' sprite lists, in the program's data. */
 enum { CRONO_SPRITES = (uint16_t)0x7E531B, JOHNNY_SPRITES = (uint16_t)0x7E535C };
@@ -68,7 +66,7 @@ static void mark_tiles_ready(GameState *g, Racer r)
  * tiles are marked ready and the request done. */
 static bool picture_taken(GameState *g, Racer r)
 {
-    uint16_t state = scene_race_picture_requests_state(g, r);
+    PictureState state = race_picture_state(g, r);
     if (state == PICTURE_WAITING)
         return false;
     if (state == PICTURE_GATHERED) {

@@ -36,7 +36,7 @@ enum {
     CAMERA_PLANE_TOP = 8,  /* where below the horizon the plane's perspective starts */
     CAMERA_SPEED = 9,      /* how far it moves along each frame */
     RACE_ANIMATION = 10,   /* the bikes' animation: they change frame every other count */
-    CAMERA_MIRRORED = 11,  /* nonzero while the perspective is built mirrored */
+    CAMERA_LINES_PAIRED = 11, /* nonzero while the perspective is built a pair of lines at a time */
     CAMERA_LEAN = 12,      /* turned into the bikes' poses with the angle */
 };
 
@@ -67,6 +67,15 @@ static inline bool race_in_attract_mode(const GameState *g) { return (scene_flag
 static inline uint16_t race_lane_high(const GameState *g, Racer r)
 {
     return (uint16_t)(scene_race_racers_lane(g, r) >> 8 | scene_race_racers_after_lane(g, r) << 8);
+}
+
+/* Where a racer's picture request is (scene_race_picture_requests' state):
+ * nothing asked, asked and waiting for the main loop to scale it, or scaled
+ * and gathered into the tilemap buffer. */
+typedef enum { PICTURE_NONE = 0, PICTURE_WAITING = 1, PICTURE_GATHERED = 2 } PictureState;
+static inline PictureState race_picture_state(const GameState *g, Racer r)
+{
+    return (PictureState)scene_race_picture_requests_state(g, r);
 }
 
 /* Where the race is (scene_race_stage). */
@@ -110,6 +119,10 @@ void scene_draw_sprite(GameState *g, uint16_t source);
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
+
+/* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
+ * in the original's scaler, with the carry its first row takes. */
+void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge);
 
 /* scene/math.c: the program's signed 16-bit multiply ($7E:33D6), on a page's
  * cells; returns the product. */

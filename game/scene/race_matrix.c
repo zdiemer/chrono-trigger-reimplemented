@@ -18,8 +18,9 @@
  * ($C3:09D9), so the tiles land in the order the sprites ask for them.
  *
  * The generator keeps its offsets in the scene's cells (scene_call). */
-#include "scene/scene.h"
+#include "scene/race.h"
 
+#include "charge.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -165,5 +166,122 @@ static void gather_picture_into_tiles(GameState *g)
 void scene_gather_picture(Snes *s)
 {
     gather_picture_into_tiles(state_of(s));
+    m_rts(s);
+}
+
+/* ---- The main loop's scaling ------------------------------------------------------------------- */
+
+/* The program's main loop, while the race runs, scales the pictures the race
+ * asks for (race_drawing.c), one racer after the other, Crono first: it hands a
+ * waiting request to the bitmap scaler (scene/scaler.c), whose rows take a
+ * frame or more, waits for the racer's last tiles to be sent, and gathers the
+ * new picture into the tilemap buffer, for the race to send at its next
+ * frame. Then the request is marked gathered. */
+
+static bool picture_waiting(const GameState *g, Racer r) { return race_picture_state(g, r) == PICTURE_WAITING; }
+
+/* The scaler draws a racer's picture from the start of its output. */
+enum { SCALER_OUTPUT_START = 0x0200 };
+
+// $7E:51F4
+/* A racer's request to the scaler: its settings (the request's state comes
+ * along into the cells between them, which nothing reads), the scaled rows
+ * from the start of the output, a sample across every two row steps, from the
+ * picture's first row. */
+static void hand_to_scaler(GameState *g, Racer r)
+{
+    set_scene_scaler_pairs(g, scene_race_picture_requests_pairs(g, r));
+    set_scene_scaler_request_state(g, scene_race_picture_requests_state(g, r));
+    set_scene_scaler_source_base(g, scene_race_picture_requests_source(g, r));
+    set_scene_scaler_rows_left(g, scene_race_picture_requests_rows(g, r));
+    uint16_t row_step = scene_race_picture_requests_row_step(g, r);
+    set_scene_scaler_row_step(g, row_step);
+    set_scene_scaler_source_limit(g, scene_race_picture_requests_source_limit(g, r));
+    set_scene_scaler_output(g, SCALER_OUTPUT_START);
+    set_scene_scaler_plane_output(g, SCALER_OUTPUT_START);
+    set_scene_scaler_column_step(g, (uint16_t)(row_step << 1));
+    set_scene_scaler_row_position(g, 0);
+}
+
+/* The next racer from `from` whose picture waits, or RACERS for none. */
+enum { RACERS = 2 };
+
+static unsigned next_waiting(const GameState *g, unsigned from)
+{
+    unsigned r = from;
+    while (r < RACERS && !picture_waiting(g, (Racer)r))
+        r++;
+    return r;
+}
+
+// $7E:5215
+/* After the racer's last tiles have gone: the new ones are to be sent, and the
+ * picture is gathered into them. */
+static void gather_scaled_picture(GameState *g)
+{
+    set_scene_race_tilemap_pending(g, (uint16_t)(scene_race_tilemap_pending(g) + 1));
+    TIMED_AS(g, 0x7EB574, gather_picture_into_tiles(g));
+}
+
+/* ---- Entries: the main loop's scaling ----------------------------------------------------------- */
+
+/* The scaling's code, with the scaler's start, and the regrouping. */
+bool scene_race_scale_pictures_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_code_matches(s, 0x7E51D1, 0x40, 0xCF48DD1914245AD5ull);
+}
+
+/* Back from the gathering, which hands the request's new state back in A. */
+bool scene_race_scale_after_present(Snes *s) { return scene_race_scale_pictures_present(s) && s->cpu.a == PICTURE_GATHERED; }
+
+bool scene_race_gather_scaled_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_code_matches(s, 0x7E5215, 0x0C, 0x4CE857A6AFB42F4Dull) && scene_matrix_code_present(s);
+}
+
+/* The first racer from `from` whose picture waits goes to the scaler, and the
+ * machine carries on in the scaler's rows, where the original does (the
+ * bridge); with none, back to the main loop, the carry left by the last
+ * request's compare: whether Johnny's picture was ever asked for. */
+static void scale_pictures_from(Snes *s, unsigned from)
+{
+    GameState *g = state_of(s);
+    unsigned r = next_waiting(g, from);
+    if (r < RACERS) {
+        hand_to_scaler(g, (Racer)r);
+        scene_bridge_scale_picture(s, (Racer)r, scene_scaler_row_step(g) & 0x8000);
+        return;
+    }
+    m_set_flag(s, CPU_FLAG_C, race_picture_state(g, RACER_JOHNNY) != PICTURE_NONE);
+    m_rts(s);
+}
+
+// $7E:51D1
+/* The main loop's call each pass, while the race runs. */
+void scene_race_scale_pictures(Snes *s) { scale_pictures_from(s, RACER_CRONO); }
+
+/* Back from Crono's picture, gathered: Johnny's next. */
+void scene_race_scale_after_crono(Snes *s)
+{
+    set_scene_race_picture_requests_state(state_of(s), RACER_CRONO, PICTURE_GATHERED);
+    scale_pictures_from(s, RACER_JOHNNY);
+}
+
+/* Back from Johnny's: the main loop goes on. The carry is the scaling's. */
+void scene_race_scale_after_johnny(Snes *s)
+{
+    set_scene_race_picture_requests_state(state_of(s), RACER_JOHNNY, PICTURE_GATHERED);
+    m_rts(s);
+}
+
+/* Entered with 16-bit A once the upload is done; back to whichever racer's
+ * scaling, the request's new state in A, the data bank the one the scaling left
+ * on the stack. The carry, which the main loop's callers may read, is the
+ * scaler's, untouched. */
+void scene_race_gather_scaled(Snes *s)
+{
+    gather_scaled_picture(state_of(s));
+    s->cpu.db = m_pull8(s);
+    s->cpu.a = PICTURE_GATHERED;
     m_rts(s);
 }
