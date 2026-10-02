@@ -185,7 +185,6 @@ game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte men
 game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte menu_scratch only
 game/menu/epoch.c time_dial menu_object_slots_turn menu_setting_spare
 game/menu/equipment.c menu_equip_keep_slot menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
-game/menu/equipment.c menu_equip_list_slide_brings_a_row menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/lists.c menu_list_scrolls menu_list_scroll_most menu_object_sprite_group # whether the list scrolls, which the list's step writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/equipment.c menu_equip_member_slide_can_run menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/equipment.c menu_equip_member_slide_can_run menu_slide_line menu_time_played_shown # the slide's start ($C2:9D5B, the original's) sets it before every call
@@ -249,8 +248,6 @@ game/menu/text.c two_digits_at $7E98C9 menu_save_summary
 game/menu/text.c two_digits_at $7E98CA menu_save_summary
 game/menu/text.c two_digits_at $7E98CB menu_save_summary
 game/menu/text.c two_digits_at $7E98CC menu_save_summary
-game/menu/tiles.c menu_draw_portrait menu_scratch_portrait_tile menu_object_scratch # the portrait's attribute: both callers ($C2:A256, $C2:E457) store it in the cell's high byte just before the call
-game/menu/tiles.c menu_draw_portrait menu_scratch_portrait_tile menu_scratch # the same
 game/menu/top_layer.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c move_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c wave menu_object_shadows_bg3_scroll_x menu_save_member_row
@@ -395,3 +392,11 @@ game/menu/top_layer.c drift menu_object_shadows_bg3_scroll_x menu_window_slide #
 game/menu/top_layer.c move_layer menu_object_shadows_bg3_scroll_x menu_window_slide # the sprite-object mode's, which it writes plainly; the scaffolding at the address is the menus proper's (the items and equipment screens')
 game/menu/top_layer.c wave menu_object_shadows_bg3_scroll_x menu_window_slide # the sprite-object mode's, which it writes plainly; the scaffolding at the address is the menus proper's (the items and equipment screens')
 game/menu/wave.c wave menu_object_shadows_bg3_scroll_x menu_window_slide # the sprite-object mode's, which it writes plainly; the scaffolding at the address is the menus proper's (the items and equipment screens')
+game/menu/equipment.c menu_equip_list_row menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment_windows.c menu_equip_draw_list_row menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
+game/menu/item_screen.c menu_items_note_the_cursors_item menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
+game/menu/item_screen.c menu_items_show_users menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
+game/menu/item_screen_bridge.c menu_use_item menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
+game/menu/item_screen_bridge.c menu_use_tab menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
+game/menu/tiles.c menu_draw_large_portrait menu_scratch_portrait_tile menu_object_scratch # the entry's operand: the original's callers put the attribute in the cell, every call
+game/menu/tiles.c menu_draw_large_portrait menu_scratch_portrait_tile menu_scratch # the entry's operand: the original's callers put the attribute in the cell, every call
