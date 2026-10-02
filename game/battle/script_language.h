@@ -18,8 +18,9 @@
  * parameters it names. It says how the channel goes on (ScriptFlow): past the
  * command, or staying on it to run it again next frame (a wait); and whether
  * the channel carries on with its next command in this frame. A row whose
- * operation still calls out to the original's code (the sound driver) is a
- * bridge, which takes the machine. */
+ * command still calls out to the original's code (the sound driver) has no
+ * operation: it decodes the command for a bridge, which takes the machine,
+ * in battle/scripts.c's table beside the dispatch. */
 #ifndef CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 #define CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 
@@ -27,8 +28,8 @@
 #include <stdint.h>
 
 #include "battle/positions.h"
-#include "snes/system.h"
 #include "state.h"
+#include "vars.h"
 
 enum { SCRIPT_CHANNELS = 16, FIRST_EFFECT_CHANNEL = 8, OTHER_TARGETS_CHANNEL = 4 };
 
@@ -130,6 +131,10 @@ typedef enum { PLAY_ONCE = 1, PLAY_LOOPING = 2 } PlayMode;
 /* Which side of a combatant an effect is drawn on (its record's bit). */
 typedef enum { DRAWN_IN_FRONT = 0x80, DRAWN_BEHIND = 0x40 } EffectSide;
 
+/* A throw's wait before its mover moves: the one before its rise, the one
+ * after it, or none. */
+typedef enum { NO_WAIT, WAIT_BEFORE, WAIT_AFTER } ThrowWait;
+
 /* Every parameter of the language: a row says which operands give the ones
  * its operation takes. */
 #define SCRIPT_PARAMETERS(X)                                                                       \
@@ -140,9 +145,9 @@ typedef enum { DRAWN_IN_FRONT = 0x80, DRAWN_BEHIND = 0x40 } EffectSide;
     X(ScriptAim, aim) X(uint8_t, x) X(uint8_t, y) X(uint8_t, place) X(uint8_t, toward)             \
     X(uint8_t, followed) X(uint8_t, facing) X(uint8_t, heading) X(uint8_t, steps)                  \
     /* moves */                                                                                    \
-    X(uint8_t, lift) X(bool, lift_given) X(bool, downward) X(bool, short_hop)                      \
+    X(uint8_t, lift) X(bool, downward) X(bool, short_hop)                                          \
     X(bool, stops_at_others) X(uint8_t, circle) X(uint8_t, start) X(uint8_t, quarter_turns)        \
-    X(bool, flat) X(uint8_t, radius)                                                               \
+    X(bool, flat) X(uint8_t, radius) X(ThrowWait, wait)                                            \
     /* sound and the screen */                                                                     \
     X(uint8_t, sound) X(uint8_t, voices) X(bool, hit) X(uint8_t, settings)                         \
     /* poses */                                                                                    \
@@ -155,7 +160,7 @@ typedef enum { DRAWN_IN_FRONT = 0x80, DRAWN_BEHIND = 0x40 } EffectSide;
 
 /* A command, decoded by its row: the channel it runs on, its length, and the
  * parameters of the language, of which an operation takes the ones it names. */
-typedef struct {
+typedef struct ScriptCommand {
     ScriptChannel channel;
     uint8_t length;
 #define SCRIPT_PARAMETER_FIELD(type, name) type name;
@@ -211,23 +216,25 @@ typedef struct {
  * one, a combatant's channel); the channel's effect being one, on any
  * channel; for the colors, the lists and colors they reach in range too.
  * Where it isn't, the original's handler runs, whose indexed writes reach past
- * the tables (an ending's script runs on a channel whose subject is none). */
+ * the tables (an ending's script runs on a channel whose subject is none).
+ * The jumps to the script's point need the usual lift besides (below). */
 typedef enum {
     NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_ONE_MOVER, NEEDS_EFFECT, NEEDS_COLORS,
-    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE
+    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE, NEEDS_SUBJECTS_AND_THE_USUAL_LIFT
 } ScriptNeeds;
 
-/* A command whose operation still calls out to the original's code (the
- * sound driver): it takes the machine and says how the channel goes on, or
- * returns false where the original carried on from the call-out itself (the
- * channel then not moved on). BRIDGE(op) names op##_bridge in a row. */
-typedef bool (*ScriptBridge)(Snes *s, const ScriptCommand *command, ScriptFlow *flow);
-#define BRIDGE(op) .bridge = op##_bridge
+/* The lift a jump to the script's point takes: once, at full bounce. The
+ * original takes it from a work cell it shares with other work ($90), which
+ * the animation slots' frame leaves at their count, 6, and which a jump
+ * given its own lift, or a walk's search, overwrites until the next frame;
+ * the rows lift by the 6, and leave a jump to the original while the cell
+ * holds anything else (battle/scripts.c looks). */
+enum { POINT_JUMP_LIFT = 6 };
+bool script_point_jump_lift_as_usual(const GameState *g);
 
 typedef struct {
     uint8_t command;
-    ScriptOperation run;
-    ScriptBridge bridge;
+    ScriptOperation run; /* none for a bridge's row */
     struct {
 #define SCRIPT_PARAMETER_SPEC(type, name) ScriptArg name;
         SCRIPT_PARAMETERS(SCRIPT_PARAMETER_SPEC)
@@ -254,7 +261,7 @@ extern const ScriptOpcodes script_flow_opcodes, script_pose_opcodes, script_effe
 const ScriptOpcode *script_opcode(uint8_t command);
 
 /* Whether the row's operation runs in this state as the original's handler
- * would; decoding its command; running its operation (a row with no bridge);
+ * would; decoding its command; running its operation (a row that has one);
  * and moving the channel on as the operation or the bridge says. */
 bool script_runs_here(const GameState *g, const ScriptOpcode *row);
 ScriptCommand script_decode(const GameState *g, const ScriptOpcode *row);
@@ -287,6 +294,19 @@ bool script_place_known(const GameState *g, uint8_t place);
 /* $C1:75CC: the facing a facing code names, for something standing at
  * `from`; the battle keeps it as the facing last found. */
 uint8_t script_find_facing(GameState *g, uint8_t facing, BattlePoint from);
+
+/* An animation slot can follow a place, found again each frame (battle/
+ * objects.c); the battle keeps the place one up, 0 for none. */
+static inline void set_animation_slot_follows(GameState *g, unsigned slot, uint8_t place)
+{
+    set_battle_animation_position_modes(g, slot, (uint8_t)(place + 1));
+}
+static inline bool animation_slot_follows(const GameState *g, unsigned slot, uint8_t *place)
+{
+    uint8_t kept = battle_animation_position_modes(g, slot);
+    *place = (uint8_t)(kept - 1);
+    return kept != 0;
+}
 
 /* The script's point, which the placing commands leave and the moves aim at. */
 BattlePoint script_point(const GameState *g);

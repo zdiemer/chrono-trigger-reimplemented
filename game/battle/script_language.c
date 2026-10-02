@@ -162,6 +162,7 @@ static bool needs_met(const GameState *g, const ScriptOpcode *row)
     case NEEDS_A_SCREEN_EFFECT: return a_screen_effect(g);
     case NEEDS_SUBJECTS_AND_A_QUIET_PLACE:
         return subjects_in_range(g) && !script_place_works_in_cells(script_decode(g, row).place);
+    case NEEDS_SUBJECTS_AND_THE_USUAL_LIFT: return subjects_in_range(g) && script_point_jump_lift_as_usual(g);
     default: return true;
     }
 }

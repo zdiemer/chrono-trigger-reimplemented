@@ -40,15 +40,6 @@ static Mover channel_mover(const GameState *g, ScriptChannel ch)
     return ch.kind == SCRIPT_EFFECT ? anchor_mover(script_effect(g)) : combatant_mover(script_combatant(g, ch));
 }
 
-/* Where the mover is: a combatant where it stands, an anchor at its
- * coordinates' low bytes. */
-static BattlePoint mover_at(const GameState *g, Mover m)
-{
-    if (mover_is_anchor(m))
-        return (BattlePoint){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
-    return (BattlePoint){ combatant_x(g, m.index), combatant_y(g, m.index) };
-}
-
 static bool moving(const GameState *g, Mover m) { return battle_effect_active(g, mover_entry(m)) != 0; }
 static void set_moving(GameState *g, Mover m, bool on) { set_battle_effect_active(g, mover_entry(m), on); }
 
@@ -195,7 +186,7 @@ enum { LEFT_LINE_MOVER = 0x06 };
 static void start_line(GameState *g, Mover m, BattlePoint to)
 {
     unsigned e = mover_entry(m);
-    BattlePoint from = mover_at(g, m);
+    BattlePoint from = mover_position(g, m);
     set_base(g, m, from);
     uint8_t angle = battle_direction(g, from, to);
     LineVelocity v = line_velocity(g, from, to);
@@ -309,7 +300,7 @@ static uint8_t start_chase(GameState *g, Mover m, BattlePoint to, uint8_t headin
     unsigned e = mover_entry(m);
     if (mover_is_anchor(m))
         place_anchor(g, m.index, (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index));
-    uint8_t angle = battle_direction(g, mover_at(g, m), to);
+    uint8_t angle = battle_direction(g, mover_position(g, m), to);
     if (heading == OWN_HEADING)
         heading = heading_of(g, m);
     ORIGINAL_EFFECT(script_leave(g, LEFT_CHASE_HEADING, heading));
@@ -394,12 +385,11 @@ SCRIPT_OPERATION(put, channel, length, aim, x, y, place)
 /* ---- Jumps ----------------------------------------------------------------------------------- */
 
 /* How a jump lifts: by its height twice over (a combatant's sprite) or once,
- * and how fast it bounces back up off a fall: full, or at half. A jump
- * command with no lift of its own takes what the battle keeps as the lift
- * (battle_jump_lift): the last one given, or as the original has it, the
- * count the animation slots' places leave there each frame (battle/
- * objects.c), which lifts once. */
-enum { LIFTED_TWICE = 0, BOUNCES_AT_HALF = 2, FULL_BOUNCE = 0xFFFF, HALF_BOUNCE = 0x7FFF };
+ * and how fast it bounces back up off a fall: full, or at half. A jump to the
+ * script's point has no lift of its own, and lifts once at full bounce
+ * (POINT_JUMP_LIFT, battle/script_language.h). The original leaves a lift
+ * the command gives where it takes that one from. */
+enum { LIFTED_TWICE = 0, BOUNCES_AT_HALF = 2, FULL_BOUNCE = 0xFFFF, HALF_BOUNCE = 0x7FFF, LEFT_LIFT = 0x10 };
 
 static uint16_t bounce_of(uint8_t lift) { return lift == BOUNCES_AT_HALF ? HALF_BOUNCE : FULL_BOUNCE; }
 
@@ -437,7 +427,7 @@ enum { LEFT_JUMPER = 0x00, LEFT_DOWNWARD = 0x0F };
 static void start_jump(GameState *g, Mover m, BattlePoint to, uint8_t lift, bool downward, bool short_hop)
 {
     unsigned e = mover_entry(m);
-    BattlePoint from = mover_at(g, m);
+    BattlePoint from = mover_position(g, m);
     set_base(g, m, from);
     BattlePoint aim = short_hop ? a_quarter_of_the_way(from, to) : to;
     uint8_t angle = battle_direction(g, from, aim);
@@ -467,13 +457,11 @@ static void start_jump(GameState *g, Mover m, BattlePoint to, uint8_t lift, bool
  * screen, or hops a short way toward it. On the other targets' channel
  * nothing jumps, and the channel goes past the last move it started. */
 static ScriptFlow jump(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim aim, uint8_t place, uint8_t lift,
-                      bool lift_given, bool downward, bool short_hop)
+                      bool downward, bool short_hop)
 {
     ORIGINAL_EFFECT(script_leave(g, LEFT_DOWNWARD, downward));
-    if (lift_given)
-        set_battle_jump_lift(g, lift);
-    else
-        lift = battle_jump_lift(g);
+    if (aim == AIM_AT_A_PLACE) /* the jumps that give their lift */
+        ORIGINAL_EFFECT(script_leave(g, LEFT_LIFT, lift));
     BattlePoint to = script_aim(g, aim, 0, 0, place);
     ORIGINAL_EFFECT(script_leave(g, LEFT_LENGTH, length));
     if (ch.kind == SCRIPT_OTHER_TARGETS)
@@ -489,7 +477,7 @@ static ScriptFlow jump(GameState *g, ScriptChannel ch, uint8_t length, ScriptAim
     default: return SCRIPT_STAY;
     }
 }
-SCRIPT_OPERATION(jump, channel, length, aim, place, lift, lift_given, downward, short_hop)
+SCRIPT_OPERATION(jump, channel, length, aim, place, lift, downward, short_hop)
 
 /* ---- Spirals --------------------------------------------------------------------------------- */
 
@@ -507,7 +495,7 @@ static void start_spiral(GameState *g, Mover m, uint8_t frames)
     uint8_t angle = heading_of(g, m);
     set_battle_effect_angle(g, e, angle);
     face_along(g, m, angle);
-    set_base(g, m, mover_at(g, m));
+    set_base(g, m, mover_position(g, m));
     begin_path(g, m, PATH_SPIRAL);
     set_battle_effect_radius(g, e, 0);
     set_battle_effect_spiral_frames(g, e, frames);
@@ -528,7 +516,7 @@ static void leave_looked_ahead(GameState *g, uint8_t row, int8_t dx)
 static bool blocked_ahead(GameState *g, Mover m)
 {
     uint8_t angle = battle_effect_angle(g, mover_entry(m));
-    BattlePoint at = mover_at(g, m);
+    BattlePoint at = mover_position(g, m);
     int8_t dy = battle_along(g, angle, LOOK_AHEAD), dx = battle_along(g, (uint8_t)(angle + QUARTER_TURN), LOOK_AHEAD);
     uint8_t row = (uint8_t)((at.y + dy) & GRID_ROW);
     uint8_t cell = (uint8_t)(row | (uint8_t)(at.x + dx) >> GRID_COLUMN_SHIFT);
@@ -784,7 +772,7 @@ static ScriptFlow aim_throw(GameState *g, ScriptChannel ch, uint8_t place)
         return SCRIPT_NEXT_FRAME;
     Mover m = channel_mover(g, ch);
     unsigned e = mover_entry(m);
-    BattlePoint from = mover_at(g, m);
+    BattlePoint from = mover_position(g, m);
     set_base(g, m, from);
     uint8_t angle = battle_direction(g, from, to);
     LineVelocity v = aim_the_throw(g, from, to);
@@ -846,9 +834,7 @@ static ScriptFlow throw_rise(GameState *g, ScriptChannel ch)
 }
 SCRIPT_OPERATION(throw_rise, channel)
 
-/* The throw's waits: before the rise, after it, or none. */
-typedef enum { NO_WAIT, WAIT_BEFORE, WAIT_AFTER } ThrowWait;
-
+/* Count a frame off the throw's wait, if it has one left. */
 static bool waits(GameState *g, ThrowWait wait)
 {
     if (wait == WAIT_BEFORE && battle_throw_wait_before(g) != 0) {
@@ -866,9 +852,8 @@ static bool waits(GameState *g, ThrowWait wait)
 /* The throw goes on: after its wait, the mover moves until its path has
  * ended, when it stops; the path's end is cleared for the next, but after
  * the wait after the rise. */
-static ScriptFlow throw_moves(GameState *g, ScriptChannel ch, uint8_t value)
+static ScriptFlow throw_moves(GameState *g, ScriptChannel ch, ThrowWait wait)
 {
-    ThrowWait wait = (ThrowWait)value;
     if (waits(g, wait))
         return SCRIPT_STAY;
     if (ch.kind == SCRIPT_OTHER_TARGETS)
@@ -881,7 +866,7 @@ static ScriptFlow throw_moves(GameState *g, ScriptChannel ch, uint8_t value)
         set_mover_done_count(g, m, 0);
     return SCRIPT_NEXT_FRAME;
 }
-SCRIPT_OPERATION(throw_moves, channel, value)
+SCRIPT_OPERATION(throw_moves, channel, wait)
 
 /* ---- A point along the line to a place --------------------------------------------------------- */
 
@@ -899,7 +884,7 @@ static ScriptFlow point_along(GameState *g, ScriptChannel ch, uint8_t steps, uin
     ORIGINAL_EFFECT(script_leave(g, LEFT_STEPS, steps));
     if (ch.kind == SCRIPT_OTHER_TARGETS)
         return SCRIPT_NEXT_FRAME;
-    BattlePoint from = mover_at(g, channel_mover(g, ch));
+    BattlePoint from = mover_position(g, channel_mover(g, ch));
     LineVelocity v = line_velocity(g, from, to);
     ORIGINAL_EFFECT(leave_velocity(g, v.vx, v.vy));
     if (steps >= v.length) {
@@ -923,6 +908,21 @@ SCRIPT_OPERATION(point_along, channel, steps, place)
 /* The original keeps the radius, the period and the frames in work cells. */
 enum { LEFT_FLICKER_RADIUS = 0x00, LEFT_FLICKER_PERIOD = 0x02, LEFT_FLICKER_FRAMES = 0x04 };
 
+/* Set a combatant's sprite flickering: shown off by the radius first, and
+ * moved every frame, for `lasting` frames. */
+static void start_flicker(GameState *g, uint8_t slot, uint8_t radius, uint8_t period, uint8_t lasting)
+{
+    set_battle_effect_flicker_radius(g, slot, radius);
+    set_battle_effect_flicker_period(g, slot, period);
+    set_battle_effect_flicker_frames(g, slot, lasting);
+    set_battle_effect_flicker_count(g, slot, 1);
+    set_battle_effect_flicker_hidden(g, slot, 1);
+    set_battle_effect_period(g, slot, 1);
+    set_battle_effect_delay(g, slot, 1);
+    set_battle_effect_type(g, slot, PATH_FLICKER);
+    set_moving(g, combatant_mover(slot), true);
+}
+
 // $C1:74B4
 /* What the channel moves flickers: its combatant's sprite (each of the other
  * targets') jumps between where it stands and the given distance off, every
@@ -935,17 +935,8 @@ static ScriptFlow flicker(GameState *g, ScriptChannel ch, uint8_t radius, uint8_
     ORIGINAL_EFFECT(script_leave(g, LEFT_FLICKER_PERIOD, period));
     ORIGINAL_EFFECT(script_leave(g, LEFT_FLICKER_FRAMES, lasting));
     uint8_t slot;
-    for (unsigned k = 0; script_each_combatant(g, ch, k, &slot); k++) {
-        set_battle_effect_flicker_radius(g, slot, radius);
-        set_battle_effect_flicker_period(g, slot, period);
-        set_battle_effect_flicker_frames(g, slot, lasting);
-        set_battle_effect_flicker_count(g, slot, 1);
-        set_battle_effect_flicker_hidden(g, slot, 1);
-        set_battle_effect_period(g, slot, 1);
-        set_battle_effect_delay(g, slot, 1);
-        set_battle_effect_type(g, slot, PATH_FLICKER);
-        set_moving(g, combatant_mover(slot), true);
-    }
+    for (unsigned k = 0; script_each_combatant(g, ch, k, &slot); k++)
+        start_flicker(g, slot, radius, period, lasting);
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(flicker, channel, radius, period, frames)
@@ -955,6 +946,7 @@ SCRIPT_OPERATION(flicker, channel, radius, period, frames)
 #define AT_COORDINATES .aim = CONSTANT(AIM_AT_COORDINATES)
 #define AT_THE_POINT .aim = CONSTANT(AIM_AT_THE_POINT)
 #define AT_A_PLACE .aim = CONSTANT(AIM_AT_A_PLACE)
+#define POINT_LIFT .lift = CONSTANT(POINT_JUMP_LIFT)
 
 SCRIPT_OPCODES(script_move_opcodes,
     { 0x10, OPERATION(line), AT_COORDINATES, .x = OPERAND(1), .y = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
@@ -966,12 +958,12 @@ SCRIPT_OPCODES(script_move_opcodes,
     { 0x19, OPERATION(put), AT_COORDINATES, .x = OPERAND(1), .y = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
     { 0x1A, OPERATION(put), AT_THE_POINT, .length = 1, .needs = NEEDS_SUBJECTS },
     { 0x1B, OPERATION(put), AT_A_PLACE, .place = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x98, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .lift_given = CONSTANT(true), .place = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x99, OPERATION(jump), AT_THE_POINT, .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x9A, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .lift_given = CONSTANT(true), .place = OPERAND(2), .downward = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x9B, OPERATION(jump), AT_THE_POINT, .downward = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x9C, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .lift_given = CONSTANT(true), .place = OPERAND(2), .short_hop = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
-    { 0x9D, OPERATION(jump), AT_THE_POINT, .short_hop = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS },
+    { 0x98, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
+    { 0x99, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
+    { 0x9A, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .downward = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
+    { 0x9B, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .downward = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
+    { 0x9C, OPERATION(jump), AT_A_PLACE, .lift = OPERAND(1), .place = OPERAND(2), .short_hop = CONSTANT(true), .length = 3, .needs = NEEDS_SUBJECTS },
+    { 0x9D, OPERATION(jump), AT_THE_POINT, POINT_LIFT, .short_hop = CONSTANT(true), .length = 2, .needs = NEEDS_SUBJECTS_AND_THE_USUAL_LIFT },
     { 0xA2, OPERATION(spiral_out), .length = 1, .needs = NEEDS_SUBJECTS },
     { 0xA8, OPERATION(spiral_for), .frames = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0xA9, OPERATION(spiral_for), .frames = OPERAND(1), .stops_at_others = CONSTANT(true), .length = 2, .needs = NEEDS_ONE_MOVER },
@@ -981,8 +973,8 @@ SCRIPT_OPCODES(script_move_opcodes,
     { 0xC3, OPERATION(orbit), AT_THE_POINT, .circle = OPERAND(1), .start = OPERAND(2), .quarter_turns = OPERAND(3), .flat = CONSTANT(true), .length = 4, .needs = NEEDS_SUBJECTS },
     { 0xD2, OPERATION(aim_throw), .place = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0xD3, OPERATION(throw_rise), .length = 1, .needs = NEEDS_SUBJECTS },
-    { 0xD4, OPERATION(throw_moves), .value = CONSTANT(WAIT_BEFORE), .length = 1, .needs = NEEDS_SUBJECTS },
-    { 0xD5, OPERATION(throw_moves), .value = CONSTANT(WAIT_AFTER), .length = 1, .needs = NEEDS_SUBJECTS },
-    { 0xD6, OPERATION(throw_moves), .value = CONSTANT(NO_WAIT), .length = 1, .needs = NEEDS_SUBJECTS },
+    { 0xD4, OPERATION(throw_moves), .wait = CONSTANT(WAIT_BEFORE), .length = 1, .needs = NEEDS_SUBJECTS },
+    { 0xD5, OPERATION(throw_moves), .wait = CONSTANT(WAIT_AFTER), .length = 1, .needs = NEEDS_SUBJECTS },
+    { 0xD6, OPERATION(throw_moves), .wait = CONSTANT(NO_WAIT), .length = 1, .needs = NEEDS_SUBJECTS },
     { 0xD7, OPERATION(point_along), .steps = OPERAND(1), .place = OPERAND(2), .length = 3, .needs = NEEDS_SUBJECTS },
     { 0xD8, OPERATION(flicker), .radius = OPERAND(1), .period = OPERAND(2), .frames = OPERAND(3), .length = 4, .needs = NEEDS_SUBJECTS });

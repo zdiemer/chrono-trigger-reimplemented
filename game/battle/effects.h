@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "battle/battle.h"
+#include "battle/positions.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -99,6 +100,25 @@ static inline bool mover_is_anchor(Mover m) { return m.kind == MOVES_ANCHOR; }
 
 /* The mover's entry in the movers' tables. */
 static inline unsigned mover_entry(Mover m) { return m.index + (mover_is_anchor(m) ? FIRST_ANCHOR_MOVER : 0); }
+
+/* Where the mover is, as a point on the battlefield: a combatant where it
+ * stands, an anchor at its coordinates' low bytes; and putting it at one (an
+ * anchor back on the battlefield). */
+static inline BattlePoint mover_position(const GameState *g, Mover m)
+{
+    if (mover_is_anchor(m))
+        return (BattlePoint){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
+    return (BattlePoint){ combatant_x(g, m.index), combatant_y(g, m.index) };
+}
+static inline void place_mover(GameState *g, Mover m, BattlePoint p)
+{
+    if (mover_is_anchor(m)) {
+        place_anchor(g, m.index, p.x, p.y);
+    } else {
+        place_combatant_x(g, m.index, p.x);
+        place_combatant_y(g, m.index, p.y);
+    }
+}
 
 /* The kinds of path a mover runs (battle/effect_paths.c), by the number its
  * entry keeps. */

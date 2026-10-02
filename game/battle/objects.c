@@ -100,36 +100,21 @@ static unsigned find_due_animation(GameState *g)
 
 /* ---- The animation slots' positions ------------------------------------------------------- */
 
-enum { POSITION_SLOTS = 6, NO_POSITION_MODE = 0 };
+enum { POSITION_SLOTS = 6 };
 
-/* The slot's position mode, less the "none" that 0 is. */
-static bool has_position_mode(const GameState *g, unsigned slot)
+/* Keep the position the slot's place worked out. */
+static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
 {
-    return battle_animation_position_modes(g, slot) != NO_POSITION_MODE;
-}
-static uint8_t position_mode(const GameState *g, unsigned slot)
-{
-    return (uint8_t)(battle_animation_position_modes(g, slot) - 1);
+    set_battle_animation_positions(g, slot, (uint16_t)(at.x | at.y << 8));
 }
 
-/* Keep the position the slot's mode worked out. */
-static void keep_found_position(GameState *g, unsigned slot)
-{
-    set_battle_animation_positions(g, slot, (uint16_t)(battle_position_found_x(g) | battle_position_found_y(g) << 8));
-}
-
-/* The original counts the slots in a cell, which the places don't read; the
- * count it ends at is what the animation scripts' jumps to their point take
- * as their lift (battle/script_moves.c), so the last is the game's. */
+/* The original counts the slots in a cell, which the places don't read. The
+ * count it ends at, POSITION_SLOTS, is the lift the original's jumps to the
+ * script's point take from there (battle/script_language.h). */
 enum { LEFT_POSITION_SLOT = 0x10 };
 static void leave_position_slot(GameState *g, unsigned slot)
 {
     set_battle_work(g, LEFT_POSITION_SLOT, (uint8_t)slot);
-    set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
-}
-static void slots_counted(GameState *g)
-{
-    set_battle_jump_lift(g, POSITION_SLOTS);
     set_battle_work(g, LEFT_POSITION_SLOT + 1, 0);
 }
 
@@ -204,18 +189,20 @@ void battle_update_animation_positions(Snes *s)
     GameState *g = state_of(s);
     for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
         ORIGINAL_EFFECT(leave_position_slot(g, slot));
-        if (!has_position_mode(g, slot))
+        uint8_t place;
+        if (!animation_slot_follows(g, slot, &place))
             continue;
-        uint8_t place = position_mode(g, slot);
+        BattlePoint at;
         if (script_place_known(g, place)) {
-            script_find_place(g, place);
+            at = script_find_place(g, place);
         } else {
             s->cpu.a = place;
             if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
                 return;
+            at = (BattlePoint){ battle_position_found_x(g), battle_position_found_y(g) };
         }
-        keep_found_position(g, slot);
+        keep_found_position(g, slot, at);
     }
-    slots_counted(g);
+    ORIGINAL_EFFECT(leave_position_slot(g, POSITION_SLOTS));
     m_rts(s);
 }

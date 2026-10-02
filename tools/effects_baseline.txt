@@ -83,7 +83,7 @@ game/battle/screen_beam.c battle_quad_edge_slope battle_low_scratch[12] battle_l
 game/battle/screen_beam.c battle_quad_edge_slope battle_low_scratch[13] battle_low_scratch
 game/battle/screen_beam.c corners_in_cells battle_low_scratch battle_low_scratch
 game/battle/screen_motion.c settings_in_cells battle_screen_effect_settings battle_scratch # the effect's settings: its callers (the original's, and the scripts' $80) give them first, every call
-game/battle/script_moves.c jump battle_jump_lift battle_work # the slots' places loop leaves its count there plainly each frame (battle/objects.c), and the jumps that give a lift leave it plainly; in the movies the jumps to the point read 6 every time (a ct_dev probe over the library)
+game/battle/script_sound.c screen_effect battle_screen_effect_settings battle_scratch # the settings a command does not give: the scripts' $80 give every setting their effect reads, as the original's callers do
 game/battle/script_walk.c battle_find_the_way battle_work[0] battle_work # the entry's operands: the original's walk puts the two points there first, every call
 game/battle/script_walk.c battle_find_the_way battle_work[1] battle_work # the entry's operands: the original's walk puts the two points there first, every call
 game/battle/script_walk.c battle_find_the_way battle_work[2] battle_work only # the entry's operands: the original's walk puts the two points there first, every call

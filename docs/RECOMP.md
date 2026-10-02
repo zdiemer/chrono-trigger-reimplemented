@@ -3222,17 +3222,23 @@ What it is, in the game's terms:
   top worked out, a rise in a line, the 36 frames shared between the waits
   before and after), the flicker, and a point some steps along the line to a
   place. A move sets up the mover's path (`battle/effect_paths.c` runs it) and
-  waits for its end; the mover vocabulary (`Mover`, `PathKind`) moved to
-  `battle/effects.h` so the paths and the commands share it.
+  waits for its end; the mover vocabulary (`Mover`, `PathKind`, where a
+  mover is as a `BattlePoint`) moved to `battle/effects.h` so the paths and
+  the commands share it.
 - **The walk** (`battle/script_walk.c`): a ring-by-ring search out over the
   battlefield's 16 by 16 grid for the way to a point, marked back from the
   goal, and the walker's own copy of the marked grid, stepped a scripted
-  move at a time.
+  move at a time. The search's state is locals and what each ring returns
+  (`Ring`); a step returns where it saw the goal, if it did (`WalkStep`);
+  the cells the original leaves are worked out from those results, once, by
+  a leaves helper.
 - **Sound and the screen** (`battle/script_sound.c`): the sound commands are
-  the language's first bridges (`ScriptBridge` rows, run as their handler
-  entries through `battle_run`, the driver called through the audio
-  service); `$80` gives the screen effect its settings, whose core
-  `battle/screen_motion.c` now has as C.
+  the language's first bridges: their rows only decode them, and a table
+  beside the dispatch in `battle/scripts.c` names the bridge each runs as its
+  handler's entry through `battle_run` (the driver called through the audio
+  service), so the language's rows stay free of the machine; `$80` hands the
+  screen effect its settings, whose core `battle/screen_motion.c` now has as
+  C (`battle_set_screen_effect_to`).
 
 **The third trap, settled first.** The chunk's only call-out left is the
 sound driver's (`$C7:0004`), whose don't-care set is liveness's (`V` dead
@@ -3245,10 +3251,13 @@ scaffolding; three cells turned out to be read back as game input:
 
 - the velocity a line is worked out with (`$A880`/`$A882`), only within the
   set-up: scaffolding;
-- the jump lift (`$90`, `battle_jump_lift`): the jumps to the script's point
-  take what is there, which a probe over the library found is always 6, the
-  count the animation slots' loop ends at each frame. That loop's last write
-  is now the game's (plain), and the effects baseline says so;
+- the jump lift (`$90`, `battle_jump_lift`): the original's jumps to the
+  script's point take what is there, a cell shared with the animation slots'
+  loop count and the walk's search; a probe over the library found it always
+  6, the count the loop ends at each frame. The rows lift by that as a named
+  constant (`POINT_JUMP_LIFT`), and their needs leave the jump to the
+  original while the cell holds anything else, so every write of the cell
+  stays scaffolding;
 - the operands a chase and an orbit at a place keep in the cells the place's
   working out uses: a place that uses them overwrites the heading, the circle
   and the quarter turns the command then reads. Those places, which no movie

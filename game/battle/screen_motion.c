@@ -137,7 +137,7 @@ static void save_animation_positions(GameState *g, uint8_t slot)
 /* A caller asks for a screen effect with five bytes of settings. The first
  * says which effect in its high nibble: 0-3 a palette preset (the nibble
  * picking which), 4 the screen shake, 5 an end to it. */
-enum { SETTINGS_BYTES = 5 };
+enum { SETTINGS_BYTES = SCREEN_EFFECT_SETTINGS };
 typedef enum { PALETTE_PRESET, START_SHAKE, STOP_SHAKE } ScreenEffectKind;
 enum { SCREEN_EFFECT_CHOICES = 6 };
 
@@ -335,10 +335,8 @@ void battle_screen_save_positions(Snes *s)
 // $D1:F67A
 /* Set the screen effect the settings name, each effect's work timed as its
  * own routine's. */
-void battle_screen_effect_from_settings(GameState *g)
+void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SETTINGS_BYTES])
 {
-    uint8_t settings[SETTINGS_BYTES];
-    settings_in_cells(g, settings);
     switch (effect_kinds[effect_choice(settings)]) {
     case PALETTE_PRESET: TIMED_AS(g, 0xD1F74D, set_palette_preset_from(g, settings)); break;
     case START_SHAKE: TIMED_AS(g, 0xD1F6B4, start_shake_from(g, settings)); break;
@@ -348,7 +346,10 @@ void battle_screen_effect_from_settings(GameState *g)
 
 void battle_set_screen_effect(Snes *s)
 {
-    battle_screen_effect_from_settings(state_of(s));
+    GameState *g = state_of(s);
+    uint8_t settings[SETTINGS_BYTES];
+    settings_in_cells(g, settings);
+    battle_set_screen_effect_to(g, settings);
     screen_command_done(s);
 }
 

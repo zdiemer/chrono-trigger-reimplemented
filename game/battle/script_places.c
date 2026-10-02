@@ -383,7 +383,7 @@ SCRIPT_OPERATION(slot_at_place, slot, place)
  * each frame (battle/objects.c). */
 static ScriptFlow slot_follows_place(GameState *g, uint8_t slot, uint8_t followed)
 {
-    set_battle_animation_position_modes(g, slot, (uint8_t)(followed + 1));
+    set_animation_slot_follows(g, slot, followed);
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(slot_follows_place, slot, followed)

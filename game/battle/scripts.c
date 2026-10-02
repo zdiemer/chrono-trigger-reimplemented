@@ -11,8 +11,9 @@
  * The commands are the language's rows (battle/script_language.h, the
  * script_*.c files and battle/numbers.c hold them), one for every command
  * byte. A command whose row's operation can run in the state runs it, timed
- * as the original's handler; a bridge row (the sound commands) runs as its
- * handler's entry, called as the original's runner calls it. What a row's
+ * as the original's handler; a command with a bridge (the sound commands,
+ * the table below) runs as its handler's entry, called as the original's
+ * runner calls it. What a row's
  * needs turn away calls the original's handler, found through the dispatch
  * table below, with the channel's place in the script in
  * battle_script_pointer, which the handler reads its operands through and
@@ -62,6 +63,41 @@ static const uint16_t handlers[LAST_COMMAND + 1] = {
 };
 
 static uint32_t handler_of(uint8_t command) { return (uint32_t)HANDLER_BANK << 16 | handlers[command]; }
+
+/* The commands that still call out to the original's code (the sound
+ * driver), whose rows only decode them: each bridge takes the machine and the
+ * command, and is false where the original carried on from the call-out
+ * itself (the channel then not moved on); otherwise the channel goes on past
+ * the command within the frame. */
+typedef bool (*ScriptBridge)(Snes *s, const ScriptCommand *command);
+
+static const struct {
+    uint8_t command;
+    ScriptBridge bridge;
+} bridges[] = {
+    { 0x78, script_play_sound_bridge },    { 0x79, script_play_sound_bridge },    { 0x7A, script_play_sound_at_bridge },
+    { 0x7B, script_play_sound_at_bridge }, { 0x7C, script_weapon_sound_bridge }, { 0x7D, script_weapon_sound_bridge },
+};
+
+static ScriptBridge bridge_of(uint8_t command)
+{
+    for (unsigned i = 0; i < sizeof bridges / sizeof bridges[0]; i++)
+        if (bridges[i].command == command)
+            return bridges[i].bridge;
+    return NULL;
+}
+
+/* The jumps to the script's point run as C only while the cell the original
+ * takes their lift from holds the usual one (battle/script_language.h): a
+ * look at the original's state, as a guard's. */
+bool script_point_jump_lift_as_usual(const GameState *g)
+{
+    bool was = vars_peeking();
+    vars_peek(true);
+    bool usual = battle_jump_lift(g) == POINT_JUMP_LIFT;
+    vars_peek(was);
+    return usual;
+}
 
 static uint32_t channel_place(const GameState *g, unsigned channel) { return battle_script_pointers(g, channel); }
 static void set_channel_place(GameState *g, unsigned channel, uint32_t at) { set_battle_script_pointers(g, channel, at); }
@@ -125,7 +161,7 @@ static bool run_channel(Snes *s, unsigned channel)
         if (command == HOLDS)
             break;
         const ScriptOpcode *row = script_opcode((uint8_t)command);
-        if (row && script_runs_here(g, row) && !row->bridge) {
+        if (row && script_runs_here(g, row) && !bridge_of((uint8_t)command)) {
             run_operation(s, (uint8_t)command, row);
         } else if (row && script_runs_here(g, row)) {
             /* a bridge runs as its handler, called as the runner calls it */
@@ -346,6 +382,9 @@ COMMAND_GUARD(script_aim_throw_ready, 0x705A)
 COMMAND_GUARD(script_throw_rise_ready, 0x720E)
 COMMAND_GUARD(script_throw_waits_before_ready, 0x7349)
 COMMAND_GUARD(script_throw_waits_after_ready, 0x73AD)
+/* D4's handler goes on into D6's here once its wait is over: where the
+   original runs D4 (its needs refused), this sees D4's byte and refuses too
+   (180 calls in the library; docs/TODO.md). */
 COMMAND_GUARD(script_throw_moves_ready, 0x7364)
 COMMAND_GUARD(script_point_along_ready, 0x740B)
 COMMAND_GUARD(script_flicker_ready, 0x74B4)
@@ -356,11 +395,13 @@ COMMAND_GUARD(script_flicker_ready, 0x74B4)
 void battle_script_command_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    const ScriptOpcode *row = script_opcode(battle_script_command(g));
-    ScriptFlow flow;
-    if (row->bridge) {
+    uint8_t byte = battle_script_command(g);
+    const ScriptOpcode *row = script_opcode(byte);
+    ScriptBridge bridge = bridge_of(byte);
+    ScriptFlow flow = SCRIPT_NEXT;
+    if (bridge) {
         ScriptCommand command = script_decode(g, row);
-        if (!row->bridge(s, &command, &flow))
+        if (!bridge(s, &command))
             return;
     } else {
         flow = script_operate(g, row);
