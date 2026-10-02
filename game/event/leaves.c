@@ -12,6 +12,7 @@
 #include "field/field.h"
 #include "field/layers.h"
 #include "field/parts.h"
+#include "field/palettes.h"
 #include "field/party.h"
 #include "port/vars_ram.h"
 
@@ -58,6 +59,9 @@ typedef struct {
     Touch touch;     /* what the leader's walking into an object did */
     bool looked_to_push;
     uint8_t length;   /* the command's bytes, as its row says */
+    bool colour_effect_running;   /* the object remembered an effect on its colours */
+    bool slot_free;               /* a palette animation slot was free for an effect, and which */
+    uint8_t slot;
 } Noted;
 
 typedef void (*NoteBefore)(const GameState *g, const EventCommand *c, Noted *n);
@@ -344,6 +348,166 @@ static void derive_tile_copy(GameState *g, const EventCommand *c, EventFlow flow
 }
 
 #define PARSE(n) .parse = (n), .parse_on_jump = (n)
+/* Casting a playable character ($57-$6D, $80): the original reads the
+ * character's sprite record where the character is in the party, which ends
+ * with Y at the command's end, kept, and the overflow of its sums, clear;
+ * where the character isn't, it only notes the character, and Y is where its
+ * parse got. */
+static bool character_in_the_party(const GameState *g, uint8_t character)
+{
+    for (unsigned place = 0; place < PARTY_PLACES; place++)
+        if (party_members(g, place) == character)
+            return true;
+    return false;
+}
+
+static void derive_character_cast(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    if (!character_in_the_party(g, c->character)) {
+        keep_byte(g, KEPT_FIRST, c->character);
+        l->y = (uint16_t)(c->at + n->length - 1);
+        return;
+    }
+    l->y = (uint16_t)(c->at + n->length);
+    l->overflow = false;
+    event_keep_offset(g, l->y);
+}
+
+/* ... and apart from the party ($81), always. */
+static void derive_character_apart(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    l->y = (uint16_t)(c->at + n->length);
+    l->overflow = false;
+    event_keep_offset(g, l->y);
+}
+
+/* The object's colours loaded into its slot ($33, and $88 ending its effect)
+ * leave Y past the colours written in the palette on the screen, a slot's
+ * sixteen to 32 bytes, and the overflow of those sums, clear. */
+enum { WORKING_PALETTE_AT = 0x2200, OBJECT_COLOURS_FROM = 2 * (128 + 1), COLOUR_BYTES = 24, SLOT_COLOUR_BYTES = 32 };
+
+static uint16_t past_the_object_colours(uint8_t slot)
+{
+    return (uint16_t)(WORKING_PALETTE_AT + OBJECT_COLOURS_FROM + COLOUR_BYTES + slot * SLOT_COLOUR_BYTES);
+}
+
+static void derive_palette_slot(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    l->y = past_the_object_colours(c->palette);
+    l->overflow = false;
+    event_keep_offset(g, (uint16_t)(c->at + n->length));
+}
+
+/* Effects on colours ($88, $2E): the slot free for them, and whether the
+ * object remembered one, before. */
+static void note_colour_effect(const GameState *g, const EventCommand *c, Noted *n)
+{
+    n->colour_effect_running = event_object_remembers_colour_effect(g, c->self);
+    n->slot_free = event_colour_effect_slot(g, &n->slot);
+}
+
+/* The script's own colours: Y past them in the palette as loaded; and the
+ * overflow of taking the script's place back from the copy's end, where the
+ * parse goes on. The original keeps the colours' place, the copy's start in
+ * the script and its count less one. */
+enum { LOADED_PALETTE_AT = 0x2000, SCRIPT_AT = 0x2001 };
+
+static void derive_colours_written(GameState *g, const ColourEffect *e, unsigned first, EventLeaves *l)
+{
+    uint16_t from = (uint16_t)(SCRIPT_AT + e->colours_at), end = (uint16_t)(from + e->bytes);
+    keep_word(g, KEPT_SECOND, from);
+    keep_word(g, KEPT_THIRD, (uint16_t)(first * 2));
+    original_cell16(g, FIELD_WORK_CELLS, (uint16_t)(e->bytes - 1));
+    l->y = (uint16_t)(LOADED_PALETTE_AT + first * 2 + e->bytes);
+    l->overflow = field_subtract_overflows16(end, SCRIPT_AT);
+}
+
+/* A fade keeps its levels, and leaves the target's nibble, shifted up, in its
+ * first cell. */
+static void keep_fade(GameState *g, const ColourEffect *e)
+{
+    keep_byte(g, KEPT_THIRD, e->levels);
+    keep_byte(g, KEPT_FIRST, (uint8_t)(e->levels << 4));
+}
+
+/* The slots' search ends at the slot it found, or past the eight, a slot's
+ * place twelve bytes on from the one before. */
+enum { SLOT_BYTES = 12, PAST_THE_SLOTS = 8 * SLOT_BYTES };
+
+static void derive_object_colours(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    const ColourEffect *e = &c->colour_effect;
+    event_keep_offset(g, c->at);
+    uint8_t palette_base = (uint8_t)object_first_colour(g, c->self);
+    if (e->kind != COLOURS_STOP)
+        keep_byte(g, KEPT_FIRST, e->animation);
+    switch (e->kind) {
+    case COLOURS_STOP:
+        if (n->colour_effect_running) {
+            l->y = past_the_object_colours((uint8_t)((palette_base - 128) / 16));
+            l->overflow = false;
+        }
+        break;
+    case COLOURS_ROTATE:
+    case COLOURS_FADE:
+        l->y = n->slot_free ? (uint16_t)(n->slot * SLOT_BYTES) : (uint16_t)PAST_THE_SLOTS;
+        l->overflow = false;
+        if (!n->slot_free)
+            break;
+        keep_byte(g, KEPT_SECOND, palette_base);
+        if (e->kind == COLOURS_FADE)
+            keep_fade(g, e);
+        else
+            keep_byte(g, KEPT_FIRST, (uint8_t)(e->first << 4 | e->count));
+        break;
+    case COLOURS_SET:
+        derive_colours_written(g, e, palette_base | e->first, l);
+        break;
+    default:
+        break;
+    }
+}
+
+static void derive_screen_colours(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow;
+    const ColourEffect *e = &c->colour_effect;
+    event_keep_offset(g, c->at);
+    keep_byte(g, KEPT_FIRST, e->animation);
+    if (e->kind == COLOURS_SET) {
+        derive_colours_written(g, e, e->first, l);
+        return;
+    }
+    if (e->kind != COLOURS_FADE)
+        return;
+    l->y = n->slot_free ? (uint16_t)(n->slot * SLOT_BYTES) : (uint16_t)PAST_THE_SLOTS;
+    /* the search's sums clear the overflow, unless the first slot was free */
+    if (!n->slot_free || n->slot != 0)
+        l->overflow = false;
+    if (n->slot_free)
+        keep_fade(g, e);
+}
+
+/* The inventory's and the gold's ($C7-$CE): the item or the amount stays in Y,
+ * and the original keeps where the command's operands end. */
+static void derive_item(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)n;
+    l->y = c->item;
+    event_keep_offset(g, (uint16_t)(c->at + 2));
+}
+
+static void derive_gold(GameState *g, const EventCommand *c, EventFlow flow, const Noted *n, EventLeaves *l)
+{
+    (void)flow, (void)n;
+    l->y = c->amount;
+    event_keep_offset(g, (uint16_t)(c->at + 3));
+}
+
 #define KEEP(how, parameter) { KEEP_##how, PARAMETER_##parameter, 0 }
 #define KEEP_OPERAND(n) { KEEP_OPERAND_BYTE, 0, (n) }
 #define KEEP_OPERAND_AT(n) { KEEP_OPERAND_OFFSET, 0, (n) }
@@ -411,6 +575,27 @@ static const OriginalLeaves by_opcode[256] = {
     [0x44] = { .parse = 2, .parse_on_jump = 1 },
     /* the party */
     [0xD9] = { .note = note_formation_starts, .derive = derive_formation },
+    /* who the objects are, and their colours */
+    [0x57] = { .derive = derive_character_cast },
+    [0x5C] = { .derive = derive_character_cast },
+    [0x62] = { .derive = derive_character_cast },
+    [0x68] = { .derive = derive_character_cast },
+    [0x6A] = { .derive = derive_character_cast },
+    [0x6C] = { .derive = derive_character_cast },
+    [0x6D] = { .derive = derive_character_cast },
+    [0x80] = { .derive = derive_character_cast },
+    [0x81] = { .derive = derive_character_apart },
+    [0x33] = { .derive = derive_palette_slot },
+    [0x88] = { .note = note_colour_effect, .derive = derive_object_colours },
+    [0x2E] = { .note = note_colour_effect, .derive = derive_screen_colours },
+    /* items and gold */
+    [0xC7] = { .derive = derive_item },
+    [0xC9] = { .derive = derive_item },
+    [0xCA] = { .derive = derive_item },
+    [0xCB] = { .derive = derive_item },
+    [0xCC] = { .derive = derive_gold },
+    [0xCD] = { .derive = derive_gold },
+    [0xCE] = { .derive = derive_gold },
     [0xDA] = { .note = note_gathering_starts, .derive = derive_gathering },
     /* places */
     [0xE2] = { .note = note_change_asked, .derive = derive_change_asked },

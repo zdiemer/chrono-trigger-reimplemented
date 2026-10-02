@@ -93,6 +93,10 @@ typedef enum { CALL_AND_GO, CALL_WHEN_TAKEN, CALL_AND_WAIT } CallKind;
 bool event_call_reaches_the_places(const GameState *g, CallKind kind, FieldObject self, FieldObject target, bool there,
                                    uint8_t level);
 bool event_question_opens(const GameState *g, FieldObject self);
+/* ... whether the object remembers an effect on its colours, and the
+ * animation slot an effect would take, if one is free (event/colours.c). */
+bool event_object_remembers_colour_effect(const GameState *g, FieldObject obj);
+bool event_colour_effect_slot(const GameState *g, uint8_t *slot);
 
 /* The scratch cells, as byte offsets into event_scratch: six words, which the
  * original fills in this order, a command's first value first. */

@@ -116,7 +116,9 @@ typedef enum {
     ROLE_PARTY_1 = 1,
     ROLE_PARTY_2 = 2,
     ROLE_LEFT_THE_PARTY = 3,
-    ROLE_WALKS_ONLY = 4,     /* from here on an object only ever walks */
+    ROLE_WALKS_ONLY = 4,     /* from here on an object only ever walks: one of the people and creatures */
+    ROLE_ENEMY = 5,          /* an enemy a battle on the map can take in */
+    ROLE_ENEMY_SET_APART = 6,   /* an enemy the battle tells from the rest (its kind's bit 6) */
     ROLE_WINDOW_ONLY = 7,
     ROLE_LEFT_ALONE = 8,
 } ObjectKind;
@@ -134,6 +136,16 @@ bool object_may_run(const GameState *g, FieldObject obj);
 /* A character leaves the party: its object stays on the map as an object of
  * its own, which may still run. */
 void object_leave_the_party(GameState *g, FieldObject obj);
+
+/* What a script casts the object as (field/cast.h): a member of the party in
+ * a place of it (0 the leader); one of the other kinds, enabled; or set
+ * aside, as a character who isn't in the party is: on the map for its
+ * scripts, disabled. And the character (or the person, creature or enemy)
+ * it is. */
+void object_become_party_member(GameState *g, FieldObject obj, unsigned place);
+void object_become(GameState *g, FieldObject obj, ObjectKind kind);
+void object_set_aside(GameState *g, FieldObject obj);
+void object_set_character(GameState *g, FieldObject obj, uint8_t character);
 
 /* The character the object is, and whether it runs a script of its own. */
 uint8_t object_character(const GameState *g, FieldObject obj);
@@ -159,6 +171,9 @@ void object_take_off_the_map(GameState *g, FieldObject obj);
  * sprite table -- in front of the others, behind them, or in the middle,
  * which its layering says (below). */
 typedef enum { LAYOUT_4, LAYOUT_8, LAYOUT_12, LAYOUT_24 } SpriteLayout;
+/* The layout is a byte's low two bits, as a sprite record gives it and the
+ * object keeps it. */
+static inline SpriteLayout sprite_layout_of(uint8_t byte) { return (SpriteLayout)(byte & 0x03); }
 typedef enum { RANGE_MIDDLE, RANGE_BACK, RANGE_FRONT } SpriteRange;
 SpriteLayout object_sprite_layout(const GameState *g, FieldObject obj);
 SpriteRange object_sprite_range(const GameState *g, FieldObject obj);
@@ -268,6 +283,8 @@ bool object_facing_is_one(const GameState *g, FieldObject obj);
 void object_set_facing(GameState *g, FieldObject obj, Facing facing);
 /* It turns on the spot: the new facing shows from the next frame. */
 void object_turn(GameState *g, FieldObject obj, Facing facing);
+/* It faces whichever way another object does, as that one keeps it. */
+void object_face_as(GameState *g, FieldObject obj, FieldObject other);
 
 /* How another object stands from one at `at`, the way the one faces: whether
  * it is on the side it looks, and how far along the way and across it is
@@ -378,6 +395,14 @@ void object_hurry_animation(GameState *g, FieldObject obj);
 /* The object's animation starts again from its first frame, with the
  * frame's whole time (an object coming into view). */
 void object_restart_animation(GameState *g, FieldObject obj);
+/* A sprite a script has just put on the object starts standing, at its
+ * animation's first frame (field/cast.c). */
+void object_start_standing(GameState *g, FieldObject obj);
+/* A character joining the party (event $D3) has the member it becomes put
+ * on the map show its first frame at once: the member's frame time is up,
+ * and its frame goes to the front of the frame builder's queue. */
+void field_character_joining(GameState *g);
+void object_first_frame_if_joining(GameState *g, FieldObject obj);
 /* The object's frame's time is up: it moves on to its next frame on the next
  * tick, drawn afresh (so a turn shows at once). */
 void object_end_frame_time(GameState *g, FieldObject obj);
@@ -456,6 +481,9 @@ bool object_lines_up(const GameState *g, FieldObject obj, ObjectArrival how);
  * (object_start_walk). */
 void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps);
 uint8_t object_move_length(const GameState *g, FieldObject obj);
+/* A member of the party moves a step at a time (its walks are the trail's):
+ * the length alone, keeping the mark, and not the copy below. */
+void object_move_a_step_at_a_time(GameState *g, FieldObject obj);
 /* The original keeps a second copy of the length, which nothing reads, and
  * clears it where the field hands an object a script of its own (a talk, a
  * touch, the party's scripts: event/calls.h). Scaffolding. */
@@ -478,6 +506,8 @@ void object_start_walk(GameState *g, FieldObject obj, uint8_t steps);
 bool object_moving(const GameState *g, FieldObject obj);
 /* An interrupted object forgets the move it was making. */
 void object_stop_moving(GameState *g, FieldObject obj);
+/* It has no motion across: its horizontal velocity, a word, is clear. */
+void object_stop_moving_across(GameState *g, FieldObject obj);
 
 /* A script marks the move it waits on, and takes the mark away when it is
  * over. */
@@ -589,6 +619,9 @@ FieldLink row_first_object(const GameState *g, unsigned row);
  * leaves. */
 FieldLink party_member_link(const GameState *g, unsigned place);
 void party_place_left_empty(GameState *g, unsigned place);
+/* A member joins a place: its link, kept as a word whose high byte is clear
+ * (the party's regrouping adds the whole word into a place's offset). */
+void party_place_taken_by(GameState *g, unsigned place, FieldObject obj);
 
 /* ---- Past the tables (field/object.c): the original's effects only ----------------------- *
  *

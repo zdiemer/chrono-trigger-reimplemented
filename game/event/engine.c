@@ -26,7 +26,8 @@
 /* ---- The table, by opcode ------------------------------------------------------------- */
 
 static const EventOpcodes *const every_file[] = {
-    &event_animation_opcodes, &event_calls_opcodes,  &event_dialog_opcodes,     &event_facing_opcodes,
+    &event_animation_opcodes, &event_calls_opcodes,  &event_characters_opcodes, &event_colours_opcodes,
+    &event_dialog_opcodes,    &event_items_opcodes,  &event_facing_opcodes,
     &event_flow_opcodes,      &event_input_opcodes,  &event_locations_opcodes,  &event_memory_opcodes,
     &event_movement_opcodes,  &event_party_opcodes,  &event_properties_opcodes, &event_screen_opcodes,
     &event_sound_opcodes,     &event_story_opcodes,  &event_variables_opcodes,
@@ -179,6 +180,53 @@ static SearchlightMove decode_SearchlightMove(const GameState *g, const EventArg
     return m;
 }
 
+/* An effect on colours (event/colours.c): its form, then the form's
+ * operands. The object's form rotates or fades a run of its colours named by
+ * a byte's two nibbles (the first, from its palette's, and how many) or
+ * writes its own over them from the low nibble's on; the screen's names the
+ * run's first of the 256, and its length in colours or the bytes of its own.
+ * Colours of the script's own follow a word, their bytes' count plus two. */
+enum { STOP_FORM = 0x00, ROTATE_DOWN_FORM = 0x20, ROTATE_UP_FORM = 0x30, FADE_TO_WHITE_FORM = 0x40,
+       FADE_TO_BLACK_FORM = 0x50, COLOURS_FORM = 0x80, FORM_TYPE = 0xF0, FORM_LOW = 0x0F };
+
+static ColourEffect decode_ColourEffect(const GameState *g, const EventArg *arg, uint16_t at)
+{
+    ColourEffect e = { COLOURS_UNCHANGED, 0, 0, 0, 0, 0, 0, 0, 2 };
+    if (arg->kind != ARG_OBJECT_COLOUR_EFFECT && arg->kind != ARG_SCREEN_COLOUR_EFFECT)
+        return e;
+    bool object = arg->kind == ARG_OBJECT_COLOUR_EFFECT;
+    uint16_t form_at = (uint16_t)(at + arg->operand);
+    uint8_t form = script_byte(g, form_at), type = form & FORM_TYPE;
+    uint8_t next = script_byte(g, (uint16_t)(form_at + 1));
+    e.animation = form;
+    if (object && form == STOP_FORM) {
+        e.kind = COLOURS_STOP;
+    } else if (object && (form == ROTATE_DOWN_FORM || form == ROTATE_UP_FORM)) {
+        e.kind = COLOURS_ROTATE;
+        e.first = next >> 4;
+        e.count = next & FORM_LOW;
+        e.period = script_byte(g, (uint16_t)(form_at + 2));
+        e.length = 4;
+    } else if (type == FADE_TO_WHITE_FORM || type == FADE_TO_BLACK_FORM) {
+        uint16_t rest = (uint16_t)(form_at + (object ? 2 : 3));
+        e.kind = COLOURS_FADE;
+        e.first = object ? (uint8_t)(next >> 4) : next;
+        e.count = object ? (uint8_t)(next & FORM_LOW) : script_byte(g, (uint16_t)(form_at + 2));
+        e.levels = script_byte(g, rest);
+        e.period = script_byte(g, (uint16_t)(rest + 1));
+        e.length = object ? 5 : 6;
+    } else if (type == COLOURS_FORM) {
+        uint16_t count_at = (uint16_t)(form_at + (object ? 1 : 2));
+        uint16_t count = script_word(g, count_at);
+        e.kind = COLOURS_SET;
+        e.first = object ? (uint8_t)(form & FORM_LOW) : next;
+        e.colours_at = (uint16_t)(count_at + 2);
+        e.bytes = (uint16_t)(count - 2);
+        e.length = (uint16_t)(e.colours_at + e.bytes - at);
+    }
+    return e;
+}
+
 /* A jump is by the distance in its jump byte, forward or back from that byte. */
 static EventStep jump(GameState *g, const EventOpcode *row, uint16_t at)
 {
@@ -198,6 +246,7 @@ EventStep event_follow(GameState *g, const EventOpcode *row, uint16_t at, EventF
     case FLOW_AGAIN: return (EventStep){ at, true };
     case FLOW_JUMP: return jump(g, row, at);
     case FLOW_NEXT_AFTER: return (EventStep){ (uint16_t)(at + flow.to), true };
+    case FLOW_END_TURN_AFTER: return (EventStep){ (uint16_t)(at + flow.to), false };
     default: return (EventStep){ flow.to, true };
     }
 }

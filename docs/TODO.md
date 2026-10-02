@@ -628,8 +628,7 @@ rest waits, is [PLAN.md](PLAN.md).
   path); the `RIPPLE_PLAYED` comment says the script clears it (nothing
   does); `CircleKind.mode` untyped, bare flag bytes for layer work,
   `send_bg2_halves`' `<< 1`, designated initializers for `screen_commands`,
-  `SEARCHLIGHT_LENGTH` repeated; `field.h` names `scripted_layers.c`; a
-  misplaced comment in requests.c.
+  `SEARCHLIGHT_LENGTH` repeated; a misplaced comment in requests.c.
 
 ## Recompiler
 
@@ -1221,10 +1220,14 @@ below. `python3 tools/timing_census.py` re-runs the census.
   the play time as they are. No movie reaches either; both want the input
   frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
-  onto the field's objects"): 12 bridges, rows of the language's table that
+  onto the field's objects"): 21 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`) and `$D6`'s carry, the location change
-  from `$C0:3B71`, and `$4E`'s stack.
+  menus' party routines (`$C2:8004`; the party's record, `$CF`-`$D7` in
+  `party.c`) and `$D6`'s and `$D4`'s carries, the location change from
+  `$C0:3B71`, `$4E`'s stack, and the unpacker (`$C3:0002`, still a
+  machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
+  machine between their halves of C). A C unpacker taking a source and a
+  destination would make those two operations.
 - **What the party on the map left** (RECOMP.md, "Phase 3, field and events:
   the party on the map"):
   - an object is made pushable by bit 1 of the byte event `$84` stores, and

@@ -1003,9 +1003,14 @@ static bool cursors_in_table(const GameState *g)
  * bank $80's low RAM and I/O registers). The game puts every object's records
  * inside them; only the fifth sprite's stray Y goes past, which
  * leave_stray_fifth_sprite_y writes on purpose. */
+bool sprites_records_fit(uint16_t records, SpriteLayout layout)
+{
+    return (uint32_t)records + layouts[layout].sprites * RECORD_BYTES <= FIELD_SPRITE_RECORDS_BYTES;
+}
+
 static bool records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout)
 {
-    return (uint32_t)object_sprite_records(g, obj) + layouts[layout].sprites * RECORD_BYTES <= FIELD_SPRITE_RECORDS_BYTES;
+    return sprites_records_fit(object_sprite_records(g, obj), layout);
 }
 
 static bool own_records_in_the_tables(const GameState *g, FieldObject obj)

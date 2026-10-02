@@ -1,10 +1,21 @@
 /* Scripts and the party (event/party.h): who is in a place of it (Someone),
- * who leads it, someone leaving it, and the menus' party routines, which the scripts call on (what routines 6,
- * 7 and $0A do for the party isn't established; docs/TODO.md).
+ * who leads it, someone leaving it, and the menus' party routines, which the
+ * scripts call on (what routines 6, 7 and $0A do for the party isn't
+ * established; docs/TODO.md).
+ *
+ * The party's record is the menus': nine places, the three of the active
+ * party and the six of the reserve, each a character or empty. A script asks
+ * whether a character has been recruited (is in any of the nine) or is in the
+ * active party, recruits one into the reserve, dismisses one, brings one into
+ * the active party, or sends one of the active party to the reserve. The
+ * menus' routines ($C2:8004) keep the record, and are still the original's
+ * code; on the map, the characters' objects follow: one joining becomes the
+ * next member's, and the members behind one sent away close up, with their
+ * palettes.
  *
  * Leaving and the menus' routines are bridges: the first because what it
  * hands back is the carry the command was entered with (below), the others
- * because the menus' routines ($C2:8004) are still the original's code. */
+ * because the menus' routines are still the original's code. */
 #include "charge.h"
 #include "event/bridge.h"
 #include "event/calls.h"
@@ -173,6 +184,298 @@ static void party_routines(Snes *s, uint32_t first_site, uint8_t first, bool the
         return;
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
+
+/* ---- The party's record, through the menus' routines ---------------------------------------- */
+
+/* The menus' routines, by number: whether a character is in the active
+ * party, or recruited at all (each answering 0 if so); a character brought
+ * into the active party (the third member to the reserve where it is full),
+ * one of the active party sent to the front of the reserve, one recruited
+ * into the reserve, one dismissed; and how many of an item the party
+ * holds. */
+typedef enum {
+    IS_IN_THE_ACTIVE_PARTY = 0,
+    BRING_INTO_THE_ACTIVE_PARTY = 1,
+    SEND_TO_THE_RESERVE = 2,
+    IS_RECRUITED = 3,
+    RECRUIT = 4,
+    DISMISS = 5,
+    COUNT_ITEM = 0x0C,
+} MenusPartyRoutine;
+enum { MENUS_ANSWER_YES = 0 };
+
+/* Ask the menus, from the JSL at `site`, with the routine in A (its high
+ * byte clear) and its arguments in X and Y: the character in Y, or the item
+ * in X. True if it came back as the engine runs; the answer is A's low byte. */
+static bool ask_the_menus(Snes *s, uint32_t site, MenusPartyRoutine routine, uint16_t x, uint16_t y)
+{
+    s->cpu.a = 0;
+    s->cpu.x = x;
+    s->cpu.y = y;
+    return event_call_party_routine(s, site, (uint8_t)routine);
+}
+
+static uint8_t menus_answer(const Snes *s) { return (uint8_t)s->cpu.a; }
+
+/* For the original's code and shadow mode: a jump's distance kept, and the
+ * overflow of the sum that took it. */
+static void leave_jump(Snes *s, uint16_t from, uint8_t distance)
+{
+    keep_word(state_of(s), KEPT_FIRST, distance);
+    m_set_flag(s, CPU_FLAG_V, field_add_overflows16(from, distance));
+}
+
+/* A condition on the record ($D2, $CF): on after it if the menus answer yes,
+ * otherwise its jump, by the distance in its last operand. The original keeps
+ * where the command's character operand ends. */
+static void ask_after_character(Snes *s, uint8_t opcode, uint32_t site, MenusPartyRoutine routine)
+{
+    enum { LENGTH = 3, JUMP_BYTE = 2 };
+    GameState *g = state_of(s);
+    uint16_t at = event_command_offset(s);
+    uint8_t character = event_command_of(s, opcode).character;
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + JUMP_BYTE)));
+    if (!ask_the_menus(s, site, routine, (uint16_t)(at + JUMP_BYTE), character))
+        return;
+    if (menus_answer(s) == MENUS_ANSWER_YES) {
+        event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
+        return;
+    }
+    uint16_t from = (uint16_t)(at + JUMP_BYTE);
+    uint8_t distance = script_byte(g, from);
+    ORIGINAL_EFFECT(leave_jump(s, from, distance));
+    event_return(s, (EventStep){ (uint16_t)(from + distance), true });
+}
+
+// $C0:38E8
+/* Whether a character is in the active party. */
+void event_cmd_if_in_the_active_party(Snes *s) { ask_after_character(s, 0xD2, 0xC038F6, IS_IN_THE_ACTIVE_PARTY); }
+
+// $C0:388D
+/* Whether a character has been recruited, active or in reserve. */
+void event_cmd_if_recruited(Snes *s) { ask_after_character(s, 0xCF, 0xC0389B, IS_RECRUITED); }
+
+/* A change to the record ($D0, $D1): the script goes on with the carry the
+ * menus leave, which is the one they were called with. */
+static void change_the_record(Snes *s, uint8_t opcode, uint32_t site, MenusPartyRoutine routine)
+{
+    enum { LENGTH = 2 };
+    GameState *g = state_of(s);
+    uint16_t at = event_command_offset(s);
+    uint8_t character = event_command_of(s, opcode).character;
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
+    if (ask_the_menus(s, site, routine, (uint16_t)(at + LENGTH), character))
+        event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
+}
+
+// $C0:38BE
+/* A character is recruited into the reserve, unless already recruited. */
+void event_cmd_recruit(Snes *s) { change_the_record(s, 0xD0, 0xC038CC, RECRUIT); }
+
+// $C0:38D3
+/* A character is dismissed from the party's record. */
+void event_cmd_dismiss(Snes *s) { change_the_record(s, 0xD1, 0xC038E1, DISMISS); }
+
+// $C0:37F9
+/* A variable learns how many of an item the party holds. */
+void event_cmd_note_item_count(Snes *s)
+{
+    enum { LENGTH = 3, ITEM_ENDS = 2 };
+    GameState *g = state_of(s);
+    uint16_t at = event_command_offset(s);
+    EventCommand c = event_command_of(s, 0xD7);
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ITEM_ENDS)));
+    if (!ask_the_menus(s, 0xC03807, COUNT_ITEM, c.item, at))
+        return;
+    uint8_t count = menus_answer(s);
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, count));
+    set_variable_byte(g, c.variable, count);
+    event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
+}
+
+/* A character joining the active party: its object on the map, where it has
+ * one, becomes the next member's -- the first's place where it is empty, the
+ * second's otherwise -- and shows its first frame at once. */
+static void object_joins_the_party(GameState *g, uint8_t character)
+{
+    field_character_joining(g);
+    FieldLink object = field_link_stored(field_character_objects(g, character));
+    if (!field_link_is_object(object))
+        return;
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_SECOND, field_link_byte(object)));
+    PartyPlace place = place_taken(g, PARTY_FIRST_MEMBER) ? PARTY_SECOND_MEMBER : PARTY_FIRST_MEMBER;
+    set_field_party_objects(g, place, field_link_byte(object));
+}
+
+// $C0:3919
+/* A character is brought into the active party. */
+void event_cmd_bring_into_the_party(Snes *s)
+{
+    enum { LENGTH = 2 };
+    GameState *g = state_of(s);
+    uint16_t at = event_command_offset(s);
+    uint8_t character = event_command_of(s, 0xD3).character;
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
+    ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, character));
+    if (!ask_the_menus(s, 0xC0392B, BRING_INTO_THE_ACTIVE_PARTY, (uint16_t)(at + LENGTH), character))
+        return;
+    object_joins_the_party(g, character);
+    event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
+}
+
+/* The party's members wear the sprite palettes from slot 5 on, the leader's
+ * first: a member moving up a place takes the palette of the place before. */
+enum { LEADERS_PALETTE = 5, COLOURS_A_PALETTE = 16, FIRST_SPRITE_COLOUR = 128 };
+
+static void palette_moves_up(GameState *g, PartyPlace from)
+{
+    unsigned to_colour = FIRST_SPRITE_COLOUR + (LEADERS_PALETTE + from - 1u) * COLOURS_A_PALETTE;
+    for (unsigned c = 0; c < COLOURS_A_PALETTE; c++)
+        set_palette_base(g, to_colour + c, palette_base(g, to_colour + COLOURS_A_PALETTE + c));
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * COLOURS_A_PALETTE));
+}
+
+/* The members behind a place take the roles of the places before theirs, as
+ * far as there are members. */
+static void roles_close_up(GameState *g, PartyPlace from)
+{
+    for (PartyPlace place = from; place + 1 < PARTY_PLACES; place++) {
+        FieldLink behind = party_member_link(g, (PartyPlace)(place + 1));
+        if (!field_link_is_object(behind))
+            return;
+        object_become_party_member(g, field_linked_object(behind), place);
+    }
+}
+
+/* The places behind a place move up into it, with their palettes, and the
+ * last place empties. */
+static void places_close_up(GameState *g, PartyPlace from)
+{
+    for (PartyPlace place = from; place + 1 < PARTY_PLACES; place++) {
+        set_field_party_objects(g, place, field_party_objects(g, (PartyPlace)(place + 1)));
+        palette_moves_up(g, (PartyPlace)(place + 1));
+    }
+    party_place_left_empty(g, PARTY_SECOND_MEMBER);
+}
+
+/* Whether the member in a place is the character. */
+static bool member_is(const GameState *g, PartyPlace place, uint8_t character)
+{
+    return place_taken(g, place) && object_character(g, member_object(g, place)) == character;
+}
+
+/* A character of the active party goes to the reserve: its object stays on
+ * the map as one apart from the party, and the members behind close up. The
+ * original closes up from the first member's place whenever it is empty, its
+ * own or not; and a second member sent away keeps its place's object, the
+ * place only marked empty. */
+static void member_steps_out(GameState *g, uint8_t character)
+{
+    if (member_is(g, PARTY_LEADER, character)) {
+        object_leave_the_party(g, member_object(g, PARTY_LEADER));
+        roles_close_up(g, PARTY_LEADER);
+        places_close_up(g, PARTY_LEADER);
+        return;
+    }
+    if (!place_taken(g, PARTY_FIRST_MEMBER)) {
+        places_close_up(g, PARTY_FIRST_MEMBER);
+        return;
+    }
+    if (member_is(g, PARTY_FIRST_MEMBER, character)) {
+        object_leave_the_party(g, member_object(g, PARTY_FIRST_MEMBER));
+        roles_close_up(g, PARTY_FIRST_MEMBER);
+        places_close_up(g, PARTY_FIRST_MEMBER);
+        return;
+    }
+    if (member_is(g, PARTY_SECOND_MEMBER, character)) {
+        object_leave_the_party(g, member_object(g, PARTY_SECOND_MEMBER));
+        set_field_party_objects(g, PARTY_SECOND_MEMBER,
+                                (uint8_t)(field_party_objects(g, PARTY_SECOND_MEMBER) | LINK_NONE_BIT));
+    }
+}
+
+/* For the original's code and shadow mode: the X the menus are called with,
+ * which they keep (the menus' dispatcher stores it). The original leaves it
+ * the palettes' move's end where the members closed up, and otherwise the
+ * last member's object it compared. */
+enum { PALETTES_MOVED_X = 0x2200 };
+
+static uint16_t x_for_the_menus(const FieldLink before[PARTY_PLACES], const GameState *g, uint8_t character)
+{
+    bool leader_goes = field_link_is_object(before[0]) && object_character(g, field_linked_object(before[0])) == character;
+    if (leader_goes || !field_link_is_object(before[1]))
+        return PALETTES_MOVED_X;
+    if (object_character(g, field_linked_object(before[1])) == character)
+        return PALETTES_MOVED_X;
+    return field_link_byte(field_link_is_object(before[2]) ? before[2] : before[1]);
+}
+
+/* Whether the object's turn goes on after someone is sent to the reserve. As
+ * with someone leaving ($D6, above), the original goes on by the carry of its
+ * last comparison of a member's character with the one sent, which the
+ * menus' routine keeps: set where it found them, and where the last member it
+ * compared is a later character; with nobody to compare, the carry the
+ * command was entered with. Its search stops at the member found, and at the
+ * first member's place where that is empty. */
+static bool goes_on_after_sending(const GameState *g, uint8_t character, bool entered_with)
+{
+    bool at_least = entered_with;
+    for (PartyPlace place = PARTY_LEADER; place < PARTY_PLACES; place++) {
+        if (!place_taken(g, place)) {
+            if (place == PARTY_LEADER)
+                continue;
+            return at_least;
+        }
+        uint8_t theirs = object_character(g, member_object(g, place));
+        at_least = theirs >= character;
+        if (theirs == character)
+            return true;
+    }
+    return at_least;
+}
+
+// $C0:394E
+/* A character of the active party is sent to the reserve. */
+void event_cmd_send_to_the_reserve(Snes *s)
+{
+    enum { LENGTH = 2 };
+    GameState *g = state_of(s);
+    uint16_t at = event_command_offset(s);
+    uint8_t character = event_command_of(s, 0xD4).character;
+    FieldLink before[PARTY_PLACES];
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++)
+        before[place] = party_member_link(g, place);
+    ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
+    ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, character));
+    vars_peek(true);
+    uint16_t x = x_for_the_menus(before, g, character);
+    bool go_on = goes_on_after_sending(g, character, m_flag(s, CPU_FLAG_C));
+    vars_peek(false);
+    member_steps_out(g, character);
+    m_set_flag(s, CPU_FLAG_C, go_on);
+    if (ask_the_menus(s, 0xC039DA, SEND_TO_THE_RESERVE, x, character))
+        event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
+}
+
+/* Their guards: the character's cell for its object on the map among the
+ * seven; the party's places, where taken, objects the tables hold. */
+static bool joining_character(const GameState *g, uint8_t character)
+{
+    (void)g;
+    return character < FIELD_CHARACTER_OBJECTS_COUNT;
+}
+EVENT_CHECK(joining_character, character)
+
+static bool places_hold_objects(const GameState *g)
+{
+    for (PartyPlace place = 0; place < PARTY_PLACES; place++) {
+        FieldLink link = party_member_link(g, place);
+        if (field_link_is_object(link) && !field_link_names_object(link))
+            return false;
+    }
+    return true;
+}
+EVENT_CHECK_TAKING_NOTHING(places_hold_objects)
 
 // $C0:3E5C
 /* The menus' party routines 6, then 7. */
@@ -499,6 +802,13 @@ EVENT_OPCODES(event_party_opcodes,
     { 0xDA, OPERATION(gather_party), .length = 1, CHECK(party_can_regroup) },
     { 0xD6, .character = OPERAND(1), .length = 2, CHECK(members_are_objects) },
     { 0xD5, .first_argument = OPERAND(1), .second_argument = OPERAND(2), .length = 3 },
+    { 0xD2, .character = OPERAND(1), .length = 3, .jump = 2 },
+    { 0xCF, .character = OPERAND(1), .length = 3, .jump = 2 },
+    { 0xD0, .character = OPERAND(1), .length = 2 },
+    { 0xD1, .character = OPERAND(1), .length = 2 },
+    { 0xD3, .character = OPERAND(1), .length = 2, CHECK(joining_character) },
+    { 0xD4, .character = OPERAND(1), .length = 2, CHECK(places_hold_objects) },
+    { 0xD7, .item = OPERAND(1), .variable = VARIABLE(2), .length = 3 },
     { 0xF8, .length = 1 },
     { 0xF9, .length = 1 },
     { 0xFA, .length = 1 });
