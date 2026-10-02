@@ -141,7 +141,13 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_tint, 0xF1) \
     X(event_cmd_wait_for_screen_fade, 0xF2) \
     X(event_cmd_wait_for_screen_tint, 0xF3) \
-    X(event_cmd_shake_screen, 0xF4)     X(event_cmd_layer_work_bg2_left, 0x2A)     X(event_cmd_layer_work_bg2_right, 0x2B)     X(event_cmd_layer_work_credits, 0x32)     X(event_cmd_place_bg3, 0x2C)     X(event_cmd_place_the_credits, 0x2F)     X(event_cmd_move_searchlight, 0xFE) \
+    X(event_cmd_shake_screen, 0xF4) \
+    X(event_cmd_layer_work_bg2_left, 0x2A) \
+    X(event_cmd_layer_work_bg2_right, 0x2B) \
+    X(event_cmd_layer_work_credits, 0x32) \
+    X(event_cmd_place_bg3, 0x2C) \
+    X(event_cmd_place_the_credits, 0x2F) \
+    X(event_cmd_move_searchlight, 0xFE) \
     X(event_cmd_wait_for_music_fade, 0xED) \
     X(event_cmd_wait_for_music_to_end, 0xEE) \
     X(event_cmd_record, 0x56) \
@@ -213,7 +219,9 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_play_effect, 0xE8) \
     X(event_cmd_play_song, 0xEA) \
     X(event_cmd_fade_music, 0xEB) \
-    X(event_cmd_send_sound_command, 0xEC)     X(event_cmd_choose_credits, 0x29)     X(event_cmd_screen_command, 0xFF)
+    X(event_cmd_send_sound_command, 0xEC) \
+    X(event_cmd_choose_credits, 0x29) \
+    X(event_cmd_screen_command, 0xFF)
 
 #define EVENT_DECLARE_ENTRY(name, opcode) \
     void name(Snes *s);                  \

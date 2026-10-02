@@ -163,12 +163,17 @@ typedef struct {
     X(uint8_t, control) X(uint8_t, brightness) X(uint8_t, rate) X(uint8_t, changes)                \
     X(uint8_t, colour) X(TintMix, mix) X(uint8_t, shaking) X(uint16_t, from) X(uint16_t, to)       \
     X(uint16_t, destination) X(uint8_t, maps) X(uint16_t, drift) X(uint8_t, layers)             \
-    X(uint8_t, scroll_x) X(uint8_t, scroll_y) X(uint8_t, scanline)                                    X(uint8_t, screen_command) X(uint8_t, radius) X(uint8_t, layer_work)                             /* the credits */                                                                                X(uint8_t, credits_text) X(bool, two_screens_tall) X(uint8_t, text_column) X(uint8_t, text_row)
+    X(uint8_t, scroll_x) X(uint8_t, scroll_y) X(uint8_t, scanline) \
+    X(uint8_t, screen_command) X(uint8_t, radius) X(uint8_t, layer_work) \
+    /* the credits */ \
+    X(uint8_t, credits_text) X(bool, two_screens_tall) X(uint8_t, text_column) X(uint8_t, text_row)
 
 /* And the parameters a row decodes into a record of the language's rather
  * than a number: the three places of a formation, the leader's first; and
  * the searchlight's corners' moves (field/screen_effects.h). */
-#define EVENT_RECORD_PARAMETERS(X)                                                                     X(FormationPlace, leader_place) X(FormationPlace, first_place) X(FormationPlace, second_place)     X(SearchlightMove, searchlight)
+#define EVENT_RECORD_PARAMETERS(X) \
+    X(FormationPlace, leader_place) X(FormationPlace, first_place) X(FormationPlace, second_place) \
+    X(SearchlightMove, searchlight)
 
 /* A command, decoded by its row: the object whose script is running, where
  * the command is in the script, the host (for the commands that wait on the
