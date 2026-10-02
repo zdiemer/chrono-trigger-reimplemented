@@ -630,6 +630,28 @@ rest waits, is [PLAN.md](PLAN.md).
   `send_bg2_halves`' `<< 1`, designated initializers for `screen_commands`,
   `SEARCHLIGHT_LENGTH` repeated; a misplaced comment in requests.c.
 
+- **What the event language's review left** (merged at 136104d; none
+  blocking): the palette animation kinds are defined twice (`engine.c`'s
+  `*_FORM`, `core/palette.c`'s) and `ColourEffect.animation` carries the raw
+  byte -- one kind enum in `core/palette.h`, typed fields for the kind and
+  fade channels; `party.c`'s `palette_moves_up` redefines the sprite palette
+  layout and copies colours from an event file -- a `field/palettes.h`
+  operation; `member_steps_out` sets `LINK_NONE_BIT` inline -- a `field/party.h`
+  operation; re/ram.toml `source` lines name functions that don't exist
+  (`unpack_graphics`, `take_sprite_block`, `leave_record_place`,
+  `graphics_already_unpacked`, `object_colour_effect`); `cast.c`/`cast.h` say
+  the first three NPCs note their graphics where every NPC from the third
+  overwrites the third record (`$C0:463D`); `characters.c`'s header calls the
+  unpacker the original's code (it is `data/decompress.c`), and its
+  `leave_place_registers` works Y out inline unlike `field/leaves.c`;
+  `unsigned place` where `PartyPlace` fits; `goes_on_after_sending` and
+  `goes_on_after_leaving` near-twins; `colours.c` mixes `|` and `+` for the
+  palette and repeats an `if`; `items.c`'s script-menu-shown bit wants its own
+  read-and-clear. The loose cast fuzz variants (`$82`, `$83`) mismatch when a
+  random unpack place runs past `$7F:FFFF`, which the game's sets never reach
+  (characters.c, `event_cmd_cast_enemy`): accepted, and kept to the bank's
+  upper half in the variants that must be clean.
+
 ## Recompiler
 
 - **What the dc-evidence tooling doesn't check yet** (PORTING.md,
