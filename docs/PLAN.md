@@ -58,24 +58,23 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
-| SPC700 sound driver | reimplemented in C, identical to the original tick for tick (SOUND.md); the original still plays by default | the original deleted |
+| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices still play through the emulated S-DSP, and the original stays as the gate's reference | a native mixer, and the original deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
 
-**The sound driver proper is still interpreted assembly by default.**
+**The sound was the emulated S-DSP fed by interpreted assembly.**
 `game/core/sound_driver.c` is the CPU half only -- the code that uploads
-Square's driver and sends it commands. The driver itself runs on the emulated
-SPC700, feeding the emulated S-DSP, in the shipping path today. It is not in
-the burndown and was not in any phase. **It is now Phase 4a**: read
-([SOUND.md](SOUND.md)) and ported to C as game code (`game/sound/`: the
-sequencer, the song and effect handling, voice output), against a voice-level
-interface whose second implementation is a native mixer reading the same BRR
-samples, ADSR envelopes and echo settings. The upload protocol between
-the two processors is not ported: once both halves are C, commands are calls
-and song data comes from the asset accessors. The mixer is the audio engine,
-not an emulator; the SPC700 core is deleted with everything else under
-`runtime/`.
+Square's driver and sends it commands -- and the driver itself ran on the
+emulated SPC700. It is not in the burndown and was not in any phase. It is
+Phase 4a: read ([SOUND.md](SOUND.md)), ported to C as game code
+(`game/sound/`: the sequencer, the song and effect handling, voice output,
+and the game's side, whose commands are calls and whose samples the driver
+places itself), and now what `ct_play` plays. What is left is the voices'
+second implementation, a native mixer reading the same BRR samples, ADSR
+envelopes and echo settings in place of the emulated S-DSP. The mixer is the
+audio engine, not an emulator; the SPC700 core is deleted with everything
+else under `runtime/`.
 
 **The native renderer is fed by emulated registers.** P3 is done and
 pixel-identical, but it works by decoding PPU register writes, so the register
@@ -158,7 +157,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 181 files, 117 of 48,631 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 182 files, 117 of 48,947 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -390,25 +389,25 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **The SPC700 sound driver: the C port replaces the original.** The driver is
-  reimplemented in C as game code (`game/sound/`, SOUND.md "The port as built"),
-  against the voice-level interface in `platform/audio.h`, and is identical to
-  the interpreted driver tick for tick over the movie library and the command
-  fuzzer, down to its own state. `ct_play --sound-driver c` plays with it in the
-  SPC700's place, the CPU half's protocol answered on the host. What is left is
-  the switch: make that the default once it has been played (it changes the
-  game's timing, so it can't replay movies, and the player can't save a state
-  with it yet: TODO.md), then drop the protocol for calls, which is when the
-  CPU half (`game/core/sound_driver.c`) and its uploads go, and the SPC700 core
-  with them.
-- **A native mixer behind `au_*`.** BRR decoding, ADSR envelopes, echo and
-  mixing, reading the same sample data the driver points at. This is the audio
-  engine, not an emulator: it replaces `runtime/apu/dsp.c` in the shipped
-  product. Everything the driver produces is S-DSP state (SOUND.md, "What
+- **A native mixer behind `au_*`: next.** The sound driver is C and plays by
+  default (`game/sound/`, SOUND.md "The port as built" and "Playing it"): the
+  game's commands are calls, the driver places the songs' samples itself, and
+  saved states hold its fields. It still plays through the voices' first
+  implementation, S-DSP register writes into the emulated S-DSP, so the mixer
+  is what takes the SPC700 and the S-DSP out of the shipped product. BRR
+  decoding, ADSR envelopes, echo and mixing, reading the same sample data the
+  driver places (the sample memory calls in `platform/audio.h`), including
+  what the echo's buffer runs over, which the game relies on (SOUND.md, "What
+  playing it found"). This is the audio engine, not an emulator: it replaces
+  `runtime/apu/dsp.c` in the shipped product. Everything the driver produces is S-DSP state (SOUND.md, "What
   the port needs"), so its maths is `dsp.c`'s: start from that file's voice,
   envelope and echo code behind the driver's voice-level interface, with the
   register file and its polling cadence taken out. Divergence in the last bits of a sample is accepted (target 4);
-  structure -- which note, which instrument, which envelope -- is not.
+  structure -- which note, which instrument, which envelope -- is not. The
+  original driver stays as the reference until then (the gate, the movies and
+  the lockstep run it, and `ct_play --sound-driver original` plays it); it
+  goes, with the CPU half's protocol (`game/core/sound_driver.c`'s uploads and
+  waits), the SPC700 core and APU-direct, when the gate retires for sound.
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
   takes `vid_*` calls rather than a decoded PPU register file. Widescreen and

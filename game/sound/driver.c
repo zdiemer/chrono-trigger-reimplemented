@@ -585,6 +585,7 @@ void sound_boot(SoundDriver *d, const GameState *game, AuVoices *voices)
     d->voices = voices;
     forget_variables(d);
     load_boot_data(d);
+    load_boot_samples(d);
     d->last_song_started = d->song_id = d->saved_song_id = NO_SONG;
 
     au_echo_volume(voices, 0, 0);

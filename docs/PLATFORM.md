@@ -1023,8 +1023,11 @@ whole output stopped (`au_output_stopped`: silent, every voice keyed off and
 held); noise and pitch modulation by voice set; the
 echo's voices, volume, feedback, eight filter taps, delay and writes; a hold
 of every envelope (the driver's pause); a voice's current output (the
-driver's meter mode reads it); and the driver's own sample, defined and
-rewritten a byte at a time (`au_sample_define`, `au_sample_write`). No call
+driver's meter mode reads it); the driver's own sample, defined and
+rewritten a byte at a time (`au_sample_define`, `au_sample_write`); and the
+game's samples in sound memory, written, moved and given their directory
+entries (`au_sample_memory_write`, `au_sample_memory_move`,
+`au_sample_place`). No call
 names a register or implies a write order. The one escape is
 `au_voices_snes_register`, for the command whose meaning is "write this
 S-DSP register" (`$FD`), which the game never sends.
@@ -1043,14 +1046,18 @@ compares.
 
 The handle, `AuVoices`, is opaque to game code. Its first implementation,
 `runtime/platform/voices_dsp.{h,c}`, turns each call into the register writes
-that make it, through three host callbacks (read a register, write one, write
-a byte of sound memory), and keeps the original driver's layout of sound
-memory where the S-DSP needs one: the directory at `$1E00`, the echo buffer
-ending at page `$F1`, the driver's own sample at `$1DC2`. Two hosts give it
-callbacks: `ct_dev --sound-lockstep` points them at a copy of the register
-file, which is compared with the original driver's after every tick; and
-`frontend/sound_host.c` (`ct_play --sound-driver c`) at the emulated S-DSP,
-which then makes the sound. A native mixer is the second implementation,
+that make it, through four host callbacks (read a register, write one, read
+and write a byte of sound memory), and keeps the original driver's layout of
+sound memory where the S-DSP needs one: the directory at `$1E00`, the echo
+buffer ending at page `$F1`, the driver's own sample at `$1DC2`. The game's
+samples are sound memory too, placed by the driver where the original's CPU
+half uploaded them (`au_sample_memory_write`, `au_sample_memory_move` and
+`au_sample_place`, a directory entry), since what the echo's buffer runs over
+depends on where they lie. Two hosts give it callbacks: `ct_dev
+--sound-lockstep` points them at a copy of the register file and of sound
+memory, which are compared with the original driver's; and
+`frontend/sound_host.c` (`ct_play`'s default) at the emulated S-DSP, which
+then makes the sound. A native mixer is the second implementation,
 behind the same calls. The lint test keeps the S-DSP out of `game/`: no
 `apu/` or `voices_dsp.h` include and no `DSP_` name there
 (`test_no_sound_hardware_in_game`).

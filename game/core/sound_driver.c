@@ -1109,6 +1109,21 @@ static void boot_finish(Snes *s)
  * direct page, which it reaches work RAM and the ports through. */
 bool sound_driver_frame_is_set(Snes *s) { return s->cpu.db == 0x00 && s->cpu.d == RAM_PAGE_SOUND; }
 
+/* Command $70, the one whose choice the driver keeps where the game also
+ * writes it (the set of effects the next song brings, RAM_SOUND_DRIVER_2F00_SET). */
+enum { SELECT_2F00_SET = 0x70 };
+
+/* A host playing a driver of its own took the call (au_driver_boot_taken):
+ * back to the caller with its registers, as the driver's exit leaves them,
+ * and the command done. The set of effects asked for is kept as the
+ * original keeps it: none after the boot, and command $70's choice. */
+static void taken_by_host(Snes *s)
+{
+    m_write8(s, COMMAND, 0);
+    m_set_nz8(s, s->cpu.db);
+    m_rtl(s);
+}
+
 // $C7:0000
 /* The JSL that uploads the driver (a JMP to $C7:0038): the driver's frame, and
  * X = what the boot ROM will show when it's ready, for the loop at $C7:0050. */
@@ -1116,6 +1131,11 @@ void sound_driver_boot(Snes *s)
 {
     if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
         return;
+    if (au_driver_boot_taken(m_platform(s))) {
+        m_write8(s, SET_2F00, 0);
+        taken_by_host(s);
+        return;
+    }
     enter_driver(s);
     s->cpu.x = BOOT_ROM_READY;
     stop_at(s, 0x0050, DC_A);
@@ -1176,6 +1196,12 @@ void sound_driver_command(Snes *s)
 {
     if (au_driver_run_direct(m_platform(s), DRIVER_FIRST, DRIVER_LAST))
         return;
+    if (au_driver_command_taken(m_platform(s))) {
+        if (m_read8(s, COMMAND) == SELECT_2F00_SET)
+            m_write8(s, SET_2F00, m_read8(s, PARAMETERS) != 0);
+        taken_by_host(s);
+        return;
+    }
     enter_driver(s);
     finish(s, command(s));
 }

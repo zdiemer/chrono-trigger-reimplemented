@@ -16,7 +16,10 @@
  *   this one lacks, loads with the field skipped;
  * - a truncated, damaged, foreign, newer-format or inconsistent state (a
  *   field whose size changed, a value out of range, another ROM's) is
- *   rejected with a reason, and leaves the machine as it was.
+ *   rejected with a reason, and leaves the machine as it was;
+ * - a host program's fields (SnesStateExtra) round-trip beside the machine's,
+ *   reach the program only once the whole state has loaded, and a state loads
+ *   only the way it was saved, with them or without.
  *
  * Exits non-zero on failure.
  *
@@ -237,7 +240,7 @@ static bool host_byte(size_t offset)
         HOST(cpu.bus), HOST(cpu.on_insn), HOST(cpu.on_insn_ctx),
         HOST(bus.rom), HOST(bus.rom_size), HOST(bus.io), HOST(bus.wram_written), HOST(bus.wram_scaffold), HOST(bus.scaffolding),
         HOST(bus.on_access),
-        HOST(apu.spc.bus), HOST(apu.on_insn), HOST(apu.on_insn_ctx), HOST(apu.on_dsp_write), HOST(apu.host), HOST(apu.host_ctx),
+        HOST(apu.spc.bus), HOST(apu.on_insn), HOST(apu.on_insn_ctx), HOST(apu.on_dsp_write), HOST(apu.host), HOST(apu.host_ctx), HOST(apu.host_boot), HOST(apu.host_command),
         HOST(on_line), HOST(on_line_ctx), HOST(on_frame_top), HOST(on_frame_top_ctx),
         HOST(intercept), HOST(intercept_ctx), HOST(interpreter), HOST(native_only),
         HOST(on_miss), HOST(on_miss_ctx), HOST(halted),
@@ -396,8 +399,8 @@ static void check_rejected(Snes *s, const uint8_t *rom, const Fields *f)
     expect_rejected(s, f, copy, len, "isn't a state", "not a state");
 
     memcpy(copy, state, len);
-    copy[4] = 2;   /* a newer format */
-    expect_rejected(s, f, reseal(copy, len), len, "format 2", "newer format");
+    copy[4] = 3;   /* a newer format */
+    expect_rejected(s, f, reseal(copy, len), len, "format 3", "newer format");
 
     /* A field whose size changed: cpu.a written as one byte. */
     size_t rec_len;
@@ -512,6 +515,58 @@ static void check_write_tracking(const uint8_t *rom)
     free(a);
 }
 
+/* ---- a host program's fields ------------------------------------------------------------- */
+
+typedef struct {
+    uint16_t level;
+    bool on;
+    int took;   /* how many loads it took */
+} Program;
+
+static void visit_program(SnesStateVisitor *v, void *fields)
+{
+    Program *p = fields;
+    snes_state_uint(v, "program.level", &p->level, sizeof p->level, 1);
+    snes_state_bool(v, "program.on", &p->on, 1);
+}
+
+static void program_loaded(void *fields, void *loading)
+{
+    Program *p = fields, *from = loading;
+    p->level = from->level;
+    p->on = from->on;
+    p->took++;
+}
+
+static void check_host_fields(Snes *s, const uint8_t *rom)
+{
+    Program saved = { 0x1234, true, 0 }, live = { 0, false, 0 }, loading = { 0, false, 0 };
+    SnesStateExtra write = { "the program", visit_program, &saved, NULL, program_loaded };
+    SnesStateExtra read = { "the program", visit_program, &live, &loading, program_loaded };
+    size_t len, plain_len;
+    uint8_t *state = snes_state_write_with(s, &write, &len);
+    uint8_t *plain = snes_state_write(s, &plain_len);
+    Snes *t = malloc(sizeof *t);
+    boot(t, rom);
+    char err[256] = "";
+    CHECK(snes_state_read_with(t, &read, state, len, err, sizeof err) == 0, "a host program's state: %s", err);
+    CHECK(live.level == 0x1234 && live.on && live.took == 1, "the program's fields: %04X %d %d", live.level, live.on,
+          live.took);
+    CHECK(snes_state_read(t, state, len, err, sizeof err) != 0 && strstr(err, "host program"),
+          "a host program's state loaded without it: %s", err);
+    live.took = 0;
+    CHECK(snes_state_read_with(t, &read, plain, plain_len, err, sizeof err) != 0 && strstr(err, "the program") &&
+              live.took == 0,
+          "a machine's state loaded with a host program: %s", err);
+    /* damaged: nothing reaches the program */
+    state[len / 2] ^= 1;
+    CHECK(snes_state_read_with(t, &read, state, len, err, sizeof err) != 0 && live.took == 0,
+          "a damaged state reached the program");
+    free(t);
+    free(state);
+    free(plain);
+}
+
 int main(void)
 {
     uint8_t *rom = make_rom(0x00);
@@ -528,6 +583,7 @@ int main(void)
     check_versions(s, rom, f);
     check_rejected(s, rom, f);
     check_write_tracking(rom);
+    check_host_fields(s, rom);
 
     free(f);
     free(s);

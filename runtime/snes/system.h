@@ -145,6 +145,29 @@ int snes_state_read(Snes *snes, const uint8_t *data, size_t len, char *err, size
  * element size and element count. */
 typedef void (*SnesStateField)(void *ctx, const char *name, void *field, unsigned size, uint32_t count);
 void snes_state_fields(Snes *snes, SnesStateField fn, void *ctx);
+
+/* The fields of a host program that plays in the SPC700's place (the C sound
+ * driver, frontend/sound_host.h), saved beside the machine's: `visit` names
+ * every one of `fields` with snes_state_uint and snes_state_bool, as state.c
+ * names the machine's. A read fills `loading` (left as a field the state
+ * lacks should be) and, once the whole state has checked out, hands it to
+ * `loaded`. A state saved with a host program's fields loads only with them,
+ * and one saved without only without (`what` names the program for the
+ * refusal): the SPC700's state means nothing to the program, nor its fields
+ * to the SPC700. */
+typedef struct SnesStateVisitor SnesStateVisitor;
+typedef struct {
+    const char *what;
+    void (*visit)(SnesStateVisitor *v, void *fields);
+    void *fields, *loading;
+    void (*loaded)(void *fields, void *loading);
+} SnesStateExtra;
+void snes_state_uint(SnesStateVisitor *v, const char *name, void *p, unsigned size, uint32_t count);
+void snes_state_bool(SnesStateVisitor *v, const char *name, bool *p, uint32_t count);
+uint8_t *snes_state_write_with(const Snes *snes, const SnesStateExtra *extra, size_t *len);
+int snes_state_read_with(Snes *snes, const SnesStateExtra *extra, const uint8_t *data, size_t len, char *err,
+                         size_t err_len);
+void snes_state_extra_fields(const SnesStateExtra *extra, SnesStateField fn, void *ctx);
 int snes_state_save(const Snes *snes, const char *path);
 int snes_state_load(Snes *snes, const char *path);
 
