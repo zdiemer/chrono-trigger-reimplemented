@@ -17,7 +17,9 @@
  * command by its row into a ScriptCommand, and the operation takes the
  * parameters it names. It says how the channel goes on (ScriptFlow): past the
  * command, or staying on it to run it again next frame (a wait); and whether
- * the channel carries on with its next command in this frame. */
+ * the channel carries on with its next command in this frame. A row whose
+ * operation still calls out to the original's code (the sound driver) is a
+ * bridge, which takes the machine. */
 #ifndef CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 #define CT_GAME_BATTLE_SCRIPT_LANGUAGE_H
 

@@ -54,7 +54,7 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 42% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 38% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
@@ -205,11 +205,11 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **41% of the code is still generated.**
+docstring says which way it is wrong). **38% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 49.2K | 18.8K | 24% | 337 |
+| battle (`$C1`, `$CE`) | 64.9K | 57.0K | 20.3K | 12% | 383 |
 | field engine, events (`$C0`) | 59.4K | 44.8K | 9.3K | 25% | 289 |
 | menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
@@ -222,7 +222,7 @@ docstring says which way it is wrong). **41% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **159.7K** | **41.9K** | **41%** | **1223** |
+| **total** | **268.5K** | **167.4K** | **43.5K** | **38%** | **1269** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
@@ -340,16 +340,12 @@ helpers with the inventory and gold service (`$C1:8003`), the fight's start
 (`$C1:FA8B`) with the `$FD` routines it calls, the rewards of a won
 battle (`$C1:F93E`, `$C1:F205`, `$C1:B4E9`, `$FD:B201`: the experience, the
 levels, the techs, the items put back), all of which the main loop runs as C,
-and the first half of the animation script language (chunk 9a: the command
-table in C, the flow, the script's values, poses, drawing, speed, effects and
-colors). **Next**, chunk 9b, the rest of the language: the places and
-facings (`$C1:762E`, `$C1:75CC`) the moves
-and the sound commands need, the moves (lines, chases, the grid walk with
-`$C1:4A71`, jumps, spirals, orbits, the throws), the sound commands (a
-machine-aware operation, since the driver call bridges) and the screen effect
-(`$80`, which needs `battle_set_screen_effect`'s core as a C call). Then, by
-`python3 tools/burndown.py --uncovered C1` (20% of the bank left), the enemy
-effects (`$C1:3772` 2,278 bytes). What is
+and the animation script language (chunks 9a and 9b: the command table in C,
+the flow, values, poses, drawing, effects and colors; the places and facings,
+every move, the grid walk, the sound commands and the screen effect). **Next**,
+by `python3 tools/burndown.py --uncovered C1` (7% of the bank left), the enemy
+effects (`$C1:3772`, 2,278 bytes), the bank's largest run by far; the rest
+are runs of a few hundred bytes. What is
 left of the battle's routines in bank `$FD` (`$FD:A8A5`-`$B7EB`) goes with
 them: a member's turn (`$FD:AB30`), the counterattacks (`$FD:AC6E`) and
 `$FD:A8CE`; the rewards' messages (`$FD:AD17`) wait for the battle messages'

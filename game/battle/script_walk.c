@@ -355,11 +355,13 @@ SCRIPT_OPERATION(walk, channel, length, aim, x, y, place)
 /* ---- The entry -------------------------------------------------------------------------- */
 
 /* The search as the original's walk calls it: from the point in the first two
- * work cells to the point in the next two. */
+ * work cells to the point in the next two. It returns with A's high byte
+ * clear, as its first instruction leaves it. */
 void battle_find_the_way(Snes *s)
 {
     GameState *g = state_of(s);
     find_the_way(g, (BattlePoint){ battle_work(g, 0), battle_work(g, 1) }, (BattlePoint){ battle_work(g, 2), battle_work(g, 3) });
+    s->cpu.a = 0;
     m_rts(s);
 }
 

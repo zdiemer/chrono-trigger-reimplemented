@@ -8,14 +8,16 @@
  * it, or runs commands until one ends its frame. A command byte past the
  * language's last holds the channel there.
  *
- * The commands are the language's rows (battle/script_language.h, and the
- * script_*.c files that hold them). A command with a row whose operation can
- * run in the state runs it, timed as the original's handler; the rest call
- * the original's handler, found through the dispatch table below, with the
- * channel's place in the script in battle_script_pointer, which the handler
- * reads its operands through and moves on past them; a command that lets
- * the channel go on within the frame sets battle_script_continue. The number
- * display's commands are ported (battle/numbers.c) and reached that way. */
+ * The commands are the language's rows (battle/script_language.h, the
+ * script_*.c files and battle/numbers.c hold them), one for every command
+ * byte. A command whose row's operation can run in the state runs it, timed
+ * as the original's handler; a bridge row (the sound commands) runs as its
+ * handler's entry, called as the original's runner calls it. What a row's
+ * needs turn away calls the original's handler, found through the dispatch
+ * table below, with the channel's place in the script in
+ * battle_script_pointer, which the handler reads its operands through and
+ * moves on past them; a command that lets the channel go on within the frame
+ * sets battle_script_continue. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/effects.h"
