@@ -834,6 +834,12 @@ Each of these is a finding. Every example here comes from this repo.
      it (equivalent on every input the game produces) and drop the guard's
      condition; fuzzing then counts the original's endless run as skipped.
 
+114. **A named game cell that other routines' scaffolding also writes.** A
+     cell the logic reads under one name (`battle_jump_lift`) that another
+     port's `ORIGINAL_EFFECT` leave writes at its offset (`LEFT_WAY_BACK`):
+     the native shape then reads it stale. Check every leave's offset against
+     the map's named cells; a candidate for `tools/effects_check.py`.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the

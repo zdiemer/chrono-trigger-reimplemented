@@ -46,6 +46,12 @@ void menu_queue_object_upload(GameState *g, uint32_t source, uint16_t vram, uint
 /* Whether the queue's end is on a record (the game's always is). */
 bool menu_object_queue_is_whole(const GameState *g);
 
+/* What queueing the upload whose record is at `record_at` leaves in the
+ * registers (A's high byte $FF, X past the record, Y past the queue's new
+ * entry, the data bank on work RAM's), for a bridge that queued it as C and
+ * goes on to a call that sees them (scaffolding: ORIGINAL_EFFECT). */
+void menu_leave_queued_upload(Snes *s, uint16_t record_at);
+
 /* The entries: a record of the ROM's (bank C2), or one built in bank $7E. */
 void menu_queue_vram_upload(Snes *s);
 void menu_queue_built_vram_upload(Snes *s);

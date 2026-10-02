@@ -413,15 +413,15 @@ class Var:
 
         # A variable whose bytes its own subsystem uses for something else at
         # another time (a map's data decompressed where its tiles' looks go
-        # after): it names the other (or a list of the others, where it spans
-        # several), and says so in its meaning.
+        # after): it names the other (or a list of the others, where its bytes
+        # are more than one's), and says so in its meaning.
         reuses = raw.get("reuses")
         if isinstance(reuses, str):
             reuses = [reuses]
         if reuses is not None and not (isinstance(reuses, list) and reuses
                                        and all(isinstance(r, str) and r.strip() for r in reuses)):
             raise MapError("%s: reuses names a variable" % where)
-        self.reuses = reuses
+        self.reuses = tuple(reuses or ())
 
         # A variable some marked scaffolding reaches out of range on purpose
         # (a `leave_stray_*` write the gate needs): it gets a second, unchecked
@@ -549,14 +549,15 @@ class RamMap:
         def reused(v):
             # the names v reuses, following a chain of them (a cell put to a
             # third use reuses the second)
-            seen = set()
-            todo = [v]
+            seen, todo = set(), list(v.reuses)
             while todo:
-                v = todo.pop()
-                for name in (v.reuses or []) if v is not None else []:
-                    if name not in seen:
-                        seen.add(name)
-                        todo.append(by_name.get(name))
+                name = todo.pop()
+                if name in seen:
+                    continue
+                seen.add(name)
+                other = by_name.get(name)
+                if other is not None:
+                    todo.extend(other.reuses)
             return seen
 
         for i, (a_base, a) in enumerate(placed):

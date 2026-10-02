@@ -134,12 +134,15 @@ add_library(ct_game STATIC
   game/menu/cursor.c
   game/menu/display.c
   game/menu/epoch.c
+  game/menu/equipment.c
+  game/menu/equipment_bridge.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/graphics.c
   game/menu/items.c
   game/menu/line_effects.c
   game/menu/load_screen.c
+  game/menu/members.c
   game/menu/map.c
   game/menu/object_commands.c
   game/menu/object_script.c

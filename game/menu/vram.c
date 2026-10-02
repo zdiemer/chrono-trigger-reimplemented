@@ -68,6 +68,14 @@ static unsigned queued_bytes_now(Snes *s)
     return queued;
 }
 
+/* The same, for a port that queued the upload whose record is at `record_at`
+ * as C and goes on to a call that sees the registers (worked out after the
+ * upload went in). */
+void menu_leave_queued_upload(Snes *s, uint16_t record_at)
+{
+    leave_block_move(s, record_at, queued_bytes_now(s) - RECORD_BYTES);
+}
+
 // $C2:8385
 /* Queue the upload whose record is at X in bank C2. */
 void menu_queue_vram_upload(Snes *s)

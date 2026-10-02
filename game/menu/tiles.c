@@ -32,7 +32,7 @@ enum { PORTRAIT_SIDE = 6, PALETTE_BITS = 0x1C, PALETTE_BYTES_SHIFT = 3, PORTRAIT
 enum { PALETTE_BYTES = 2 };
 
 // $C2:EC38
-static void draw_large_portrait(GameState *g, uint16_t origin, uint8_t character)
+void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character)
 {
     uint16_t tile = (uint16_t)((menu_scratch_portrait_tile(g) & 0xFF00) | menu_large_portrait_first_tile(g, character));
     for (unsigned row = 0; row < PORTRAIT_SIDE; row++)
@@ -62,22 +62,20 @@ static void set_row_pair_attribute(GameState *g, uint16_t at, uint32_t tiles, ui
     }
 }
 
-/* A block of rows from the origin down, each a stretch of tiles given a
- * palette and priority (the attribute's top bits over its low four), the
- * origin moving down a row at a time as it goes. */
+/* A block of rows from `at` down, each a stretch of tiles given a palette
+ * and priority (the attribute's top bits over its low four). The drawing
+ * origin is left a row past the block, where the original walks it. */
 enum { KEPT_BITS = 0x0F };
 
 // $C2:EC93, $C2:ECC2
-static void recolour_rows(GameState *g, uint32_t rows, uint32_t tiles, uint8_t colour)
+void menu_recolour_block(GameState *g, uint16_t at, uint32_t rows, uint32_t tiles, uint8_t colour)
 {
-    for (uint32_t row = 0; row < rows; row++) {
-        uint16_t at = menu_draw_origin(g);
+    for (uint32_t row = 0; row < rows; row++, at = (uint16_t)(at + ROW_BYTES))
         for (uint32_t i = 0; i < tiles; i++) {
             uint16_t tile_at = (uint16_t)(at + i * TILE_BYTES);
             set_attribute_at(g, tile_at, (uint8_t)((attribute_at(g, tile_at) & KEPT_BITS) | colour));
         }
-        set_menu_draw_origin(g, (uint16_t)(at + ROW_BYTES));
-    }
+    set_menu_draw_origin(g, at);
 }
 
 /* ---- The entries --------------------------------------------------------------------------------- */
@@ -91,7 +89,7 @@ static uint32_t tiles_asked(Snes *s) { return count_of((uint8_t)s->cpu.a); }
 void menu_draw_large_portrait(Snes *s)
 {
     GameState *g = state_of(s);
-    draw_large_portrait(g, menu_draw_origin(g), menu_portrait_character(g));
+    menu_draw_portrait(g, menu_draw_origin(g), menu_portrait_character(g));
     m_rts(s);
 }
 
@@ -109,7 +107,7 @@ void menu_set_row_pair_attribute(Snes *s)
 void menu_recolour_rows(Snes *s)
 {
     GameState *g = state_of(s);
-    recolour_rows(g, count_of(s->cpu.x), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
+    menu_recolour_block(g, menu_draw_origin(g), count_of(s->cpu.x), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
     m_rts(s);
 }
 

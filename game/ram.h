@@ -398,8 +398,9 @@
 /* The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting
  * take a share of the experience */
 #define RAM_PARTY_CHARACTERS_JOINED 0x7E29AFu
-/* The characters' names, five name characters in each 6-byte record; the battle converts them to
- * tiles [7 x $6 bytes, by character] */
+/* The characters' names, five name characters and the byte after them in each 6-byte record; the
+ * battle converts them to tiles, and the menus copy a member's whole record after its status
+ * record ($C2:8839) [7 x $6 bytes, by character] */
 #define RAM_CHARACTER_NAMES 0x7E2C23u
 #define RAM_CHARACTER_NAMES_COUNT 7u
 #define RAM_CHARACTER_NAMES_STRIDE 0x06u
@@ -1895,6 +1896,11 @@
 #define RAM_MENU_SCRATCH_ERASED_SLOT_ROWS 0x7E0000u /* The load screen's erase: the slot's number times $100, its row's place in the empty labels' graphic */
 #define RAM_MENU_SCRATCH_GRAPHICS_COUNT 0x7E0000u /* The menus' graphics ($C2:968D): the count of rows a tile's planes are built a pair at a time with, which the loops leave at 0 (the three-plane tiles' a word, the inking a byte) */
 #define RAM_MENU_SCRATCH_GRAPHICS_ROWS 0x7E0000u /* The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it */
+#define RAM_MENU_SCRATCH_MEMBER_ROWS_DONE 0x7E0000u /* A member list's colouring ($C2:9E76): the rows it has coloured, left at 3 */
+#define RAM_MENU_SCRATCH_MEMBER_ROW_CHOSEN 0x7E0002u /* The same: the row the cursor is on, which keeps its colours */
+#define RAM_MENU_SCRATCH_MEMBER_ROW_PLACE 0x7E0004u /* The same: where in the tilemap buffer the row it colours starts, a row past the last when done */
+#define RAM_MENU_SCRATCH_MEMBER_ROW_COLOUR 0x7E0006u /* The same: the tiles across a row it colours (low byte) and the colour it gives them (high byte), the last row's left */
+#define RAM_MENU_SCRATCH_PORTRAIT_ATTRIBUTE 0x7E0001u /* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
 #define RAM_MENU_SCRATCH_GRAPHICS_TILES 0x7E0002u /* The menus' graphics: the three-plane tiles left to widen ($C2:960B), which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_SLOT_CHECK 0x7E0000u /* The save code's check of a slot ($FF:F9C4): 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong */
 #define RAM_MENU_SCRATCH_LABEL_MOVES 0x7E0000u /* A slot's name label: how many moves right are left to make ($C2:D2C4); zero once it sits in its place */
@@ -1916,6 +1922,10 @@
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
 #define RAM_MENU_OPENING_RECORDS_LOADED_DP 0x22u /* page menu */
+/* The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the
+ * rows' per-line table each frame, moving by menu_scroll_step [2 bytes] */
+#define RAM_MENU_SLIDE_LINE 0x7E0022u
+#define RAM_MENU_SLIDE_LINE_DP 0x22u         /* page menu */
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes [2 bytes] */
 #define RAM_MENU_TIME_PLAYED_SHOWN 0x7E0022u
@@ -1927,6 +1937,10 @@
 /* How wide, in pixels, the era label the load screen shows is */
 #define RAM_MENU_SAVE_ERA_WIDTH 0x7E0026u
 #define RAM_MENU_SAVE_ERA_WIDTH_DP 0x26u     /* page menu */
+/* Where the member list's slide copies its rows to (a window command's place: the column in the
+ * low byte, the row in the high), out of sight below the list's place on the tilemap [2 bytes] */
+#define RAM_MENU_SLIDE_COPY 0x7E0026u
+#define RAM_MENU_SLIDE_COPY_DP 0x26u         /* page menu */
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in [2 bytes] */
 #define RAM_MENU_ZERO 0x7E0051u
@@ -1986,6 +2000,10 @@
 /* The task the scheduler is running, its record's offset from the first ($B0) */
 #define RAM_MENU_CURRENT_TASK 0x7E006Eu
 #define RAM_MENU_CURRENT_TASK_DP 0x6Eu       /* page menu */
+/* Where in work RAM the record of the member the menus loaded last is (character_records), which
+ * a screen that changes the member writes the change back to [2 bytes] */
+#define RAM_MENU_MEMBER_RECORD_AT 0x7E006Fu
+#define RAM_MENU_MEMBER_RECORD_AT_DP 0x6Fu   /* page menu */
 /* What the menus' caller entered them with in X, which the screen they open on takes as its
  * argument (a shop's number, a party member) [2 bytes] */
 #define RAM_MENU_SCREEN_ARGUMENT 0x7E0071u
@@ -1997,6 +2015,14 @@
 /* How many members the party has, active and waiting, as the menus count them opening */
 #define RAM_MENU_MEMBER_COUNT 0x7E0075u
 #define RAM_MENU_MEMBER_COUNT_DP 0x75u       /* page menu */
+/* The equipment screen's slot: 0 the weapon, 1 the helmet, 2 the armor, 3 the accessory, as the
+ * slots are laid out down the screen ($C2:A38B sets it from the cursor) */
+#define RAM_MENU_EQUIP_SLOT 0x7E0077u
+#define RAM_MENU_EQUIP_SLOT_DP 0x77u         /* page menu */
+/* $FF when the member the menus loaded last is one of the waiting ones (past the active
+ * members), 0 when it is active */
+#define RAM_MENU_MEMBER_WAITING 0x7E0078u
+#define RAM_MENU_MEMBER_WAITING_DP 0x78u     /* page menu */
 /* The save slot whose summary the load screen is showing */
 #define RAM_MENU_SAVE_SLOT_SHOWN 0x7E0079u
 #define RAM_MENU_SAVE_SLOT_SHOWN_DP 0x79u    /* page menu */
@@ -2021,6 +2047,19 @@
  * it has moved since */
 #define RAM_MENU_CURSOR_FRAME_START 0x7E0081u
 #define RAM_MENU_CURSOR_FRAME_START_DP 0x81u /* page menu */
+/* The member the equipment screen's member list pointed at last, which it compares with to tick
+ * the cursor's sound when it points at another */
+#define RAM_MENU_MEMBER_POINTED 0x7E0083u
+#define RAM_MENU_MEMBER_POINTED_DP 0x83u     /* page menu */
+/* The slot and member (their sum) the equipment screen's list of what fits was drawn for last;
+ * $FF has it drawn again */
+#define RAM_MENU_EQUIP_SHOWN 0x7E0084u
+#define RAM_MENU_EQUIP_SHOWN_DP 0x84u        /* page menu */
+/* How many of the party's members the menus' screens let the player choose among: the active
+ * ones, or all of them once the story lets the party be switched ($FF:F813, which clears the
+ * high byte) [2 bytes] */
+#define RAM_MENU_MEMBERS_REACHABLE 0x7E0085u
+#define RAM_MENU_MEMBERS_REACHABLE_DP 0x85u  /* page menu */
 /* How many more tiles the string being drawn may write */
 #define RAM_MENU_TEXT_TILE_LIMIT 0x7E0087u
 #define RAM_MENU_TEXT_TILE_LIMIT_DP 0x87u    /* page menu */
@@ -2164,6 +2203,19 @@
 /* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
  * a word */
 #define RAM_MENU_CIRCLE_BANK_HIGH 0x7E0359u
+/* Which of the three rows of a member list the cursor is on (the member is it plus
+ * menu_member_scroll) */
+#define RAM_MENU_MEMBER_ROW 0x7E0412u
+/* The first member a member list shows: the list shows three at a time and scrolls through the
+ * reachable members */
+#define RAM_MENU_MEMBER_SCROLL 0x7E0413u
+/* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
+ * ($C2:A59A); a list's row on the screen while it slides */
+#define RAM_MENU_ITEM_OPERAND 0x7E04C9u
+/* How many of menu_item_operand the party has, as a list's row shows it */
+#define RAM_MENU_ITEM_OPERAND_COUNT 0x7E04CAu
+/* How many of menu_item_operand the inventory's routines add or take */
+#define RAM_MENU_ITEM_OPERAND_QUANTITY 0x7E04CBu
 /* The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1
  * armour, 2 helmets, 3 accessories, 4 the rest) [2 bytes] */
 #define RAM_MENU_ITEM_CATEGORY 0x7E04CCu
@@ -2237,6 +2289,15 @@
 #define RAM_MENU_CURSOR_DIRECTION 0x7E0D1Eu
 /* Nonzero keeps the cursor where it is against the next push; the push clears it */
 #define RAM_MENU_CURSOR_HELD 0x7E0D1Fu
+/* How far a list moves each frame while it slides a row along (signed: 4 lines down, -4 up), 0
+ * at rest; the item lists' slide frame ($C2:EB1F) and the rows' move after it ($C2:9FDE) read
+ * its sign from the low byte [2 bytes] */
+#define RAM_MENU_SCROLL_STEP 0x7E0D22u
+/* The frames a list's slide has left [2 bytes] */
+#define RAM_MENU_SCROLL_FRAMES 0x7E0D24u
+/* Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the
+ * armor, $29 the weapon, $2A the accessory, set by $C2:A4AF) [2 bytes] */
+#define RAM_MENU_EQUIP_RECORD_PLACE 0x7E0D26u
 /* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
  * can use it [2 bytes] */
 #define RAM_MENU_ITEM_DATA_AT 0x7E0D28u
@@ -2253,6 +2314,12 @@
 #define RAM_MENU_PLACE_ITEMS 0x7E0D32u
 #define RAM_MENU_PLACE_ITEMS_COUNT 3u
 #define RAM_MENU_PLACE_ITEMS_STRIDE 0x02u
+/* Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member
+ * row draws the member's HP marked once it is down to that ($C2:A1EF) [7 x $2 bytes, by
+ * character] */
+#define RAM_MENU_LOW_HP_MARKS 0x7E0D38u
+#define RAM_MENU_LOW_HP_MARKS_COUNT 7u
+#define RAM_MENU_LOW_HP_MARKS_STRIDE 0x02u
 /* The character whose large portrait (six tiles by six) the menus draw next, and whose colours
  * they load with it */
 #define RAM_MENU_PORTRAIT_CHARACTER 0x7E0D46u
@@ -2266,10 +2333,16 @@
 #define RAM_MENU_SAVE_SLOT_IN_USE 0x7E0D49u
 #define RAM_MENU_SAVE_SLOT_IN_USE_COUNT 4u
 #define RAM_MENU_SAVE_SLOT_IN_USE_STRIDE 0x01u
+/* The character whose face and name a member row's window list draws, in the low bits, with bit
+ * 5 set ($C2:A1EF) [2 bytes] */
+#define RAM_MENU_MEMBER_FACE 0x7E0D4Du
 /* Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has
  * reached the value the table at $7E:0D38 holds for it, which the window then draws in another
  * palette ($C2:B02B); a save slot's drawing clears it */
 #define RAM_MENU_MEMBER_MARKED 0x7E0D5Du
+/* The byte after menu_member_marked, which a member row clears with it, writing the mark a word
+ * wide */
+#define RAM_MENU_MEMBER_MARKED_HIGH 0x7E0D5Eu
 /* The party's characters as the menus list them: the active members, then the waiting ones, $FF
  * past the last [9 x $1 bytes, by member, as the menus list them] */
 #define RAM_MENU_MEMBERS 0x7E0D5Fu
@@ -2348,8 +2421,22 @@
 /* The byte after the unpacked settings, which their clearing clears with them; nothing in bank
  * C2 reads it */
 #define RAM_MENU_SETTING_SPARE 0x7E0D91u
+/* The scroll bar beside a list that scrolls, which its task ($C2:8BB8) draws as a sprite [9
+ * bytes] */
+#define RAM_MENU_SCROLL_BAR 0x7E0D92u
+#define RAM_MENU_SCROLL_BAR_PLACE 0x7E0D92u  /* Where the bar is on the screen */
+#define RAM_MENU_SCROLL_BAR_SPAN 0x7E0D94u   /* The lines the bar's thumb travels over the whole list */
+#define RAM_MENU_SCROLL_BAR_THUMB 0x7E0D95u  /* The thumb's place along the bar, in lines */
+#define RAM_MENU_SCROLL_BAR_THUMB_WORD 0x7E0D95u /* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
+#define RAM_MENU_SCROLL_BAR_STEP 0x7E0D98u   /* The thumb's move a row of the list */
+#define RAM_MENU_SCROLL_BAR_HIDDEN 0x7E0D9Au /* Nonzero while the bar is hidden */
 /* Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it */
 #define RAM_MENU_CURSOR_HIDDEN 0x7E0D9Bu
+/* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
+#define RAM_MENU_SLIDE_ROWS 0x7E0DAAu
+/* How far a list's slide has moved so far (its steps summed), which the item lists' slide frame
+ * ($C2:EB1F) moves the rows' lines by [2 bytes] */
+#define RAM_MENU_SCROLL_MOVED 0x7E0DABu
 /* Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound
  * 7, played by $C2:EAD6 the first first */
 #define RAM_MENU_QUEUED_SOUNDS 0x7E0DBCu
@@ -2358,14 +2445,36 @@
 /* The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the
  * load screen's slot labels, the text loader's graphics) [2 bytes] */
 #define RAM_MENU_GRAPHIC_FIRST_TILE 0x7E0DC7u
+/* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
+ * on or back */
+#define RAM_MENU_PAGING_TOP 0x7E0DD9u
 /* The cursor position a screen keeps to come back to: the load screen's slot while it asks
  * whether to erase it */
 #define RAM_MENU_KEPT_CURSOR 0x7E0F00u
+/* A list of items a screen offers (the equipment screen's: what fits the slot), an item a row
+ * [98 x $1 bytes, by row of the list] */
+#define RAM_MENU_LIST_ITEMS 0x7E0F00u
+#define RAM_MENU_LIST_ITEMS_COUNT 98u
+#define RAM_MENU_LIST_ITEMS_STRIDE 0x01u
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
 #define RAM_MENU_GATE_SCREEN_STATE_COUNT 14u
 #define RAM_MENU_GATE_SCREEN_STATE_STRIDE 0x01u
+/* How many of each of menu_list_items' items the party has [98 x $1 bytes, by row of the list] */
+#define RAM_MENU_LIST_ITEM_COUNTS 0x7E0F62u
+#define RAM_MENU_LIST_ITEM_COUNTS_COUNT 98u
+#define RAM_MENU_LIST_ITEM_COUNTS_STRIDE 0x01u
+/* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
+#define RAM_MENU_MEMBER_SCROLL_MOST 0x7E0FC4u
+/* The equipment screen's slot the cursor was on, kept while the list of what fits is chosen
+ * from, and put back after */
+#define RAM_MENU_EQUIP_KEPT_SLOT 0x7E0FC5u
+/* How many items the equipment screen's list for the slot offers ($C2:8953 counts them); 0 when
+ * nothing fits, and choosing the slot is refused */
+#define RAM_MENU_EQUIP_CHOICES 0x7E0FC6u
+/* The first of the equipment screen's list's items it shows */
+#define RAM_MENU_EQUIP_LIST_TOP 0x7E0FC8u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
@@ -2456,6 +2565,9 @@
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
+/* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
+ * apart, and the row past the last where a slide draws the row coming in [1152 bytes] */
+#define RAM_MENU_EQUIP_LIST_ROWS 0x7E4F80u
 /* Where the load screen draws the era label's tiles in its tilemap: two rows of nine tile words,
  * cleared before each slot is shown [18 bytes] [2 rows, $40 bytes apart] */
 #define RAM_MENU_ERA_LABEL_TILES 0x7E5248u
@@ -2467,6 +2579,17 @@
 #define RAM_MENU_CARRY_ON_QUESTION 0x7E52C0u
 #define RAM_MENU_CARRY_ON_QUESTION_COUNT 256u
 #define RAM_MENU_CARRY_ON_QUESTION_STRIDE 0x01u
+/* The member list's per-line table's values, a word a band of lines: the line its rows are shown
+ * from, which the member list's slide moves each frame and sets back to $61FF after [12 x $2
+ * bytes, by band of lines] */
+#define RAM_MENU_ROW_LINE_VALUES 0x7E5D42u
+#define RAM_MENU_ROW_LINE_VALUES_COUNT 12u
+#define RAM_MENU_ROW_LINE_VALUES_STRIDE 0x02u
+/* A second per-line table's values beside menu_row_line_values, which the main menu's equipment
+ * panel fills with $61FF too [12 x $2 bytes, by band of lines] */
+#define RAM_MENU_ROW_OTHER_LINE_VALUES 0x7E5DC2u
+#define RAM_MENU_ROW_OTHER_LINE_VALUES_COUNT 12u
+#define RAM_MENU_ROW_OTHER_LINE_VALUES_STRIDE 0x02u
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
@@ -2605,12 +2728,17 @@
 /* The eighth byte of the upload record a record's frame queues, which the queue copies with it
  * and nothing reads or writes here */
 #define RAM_MENU_RECORD_UPLOAD_SPARE 0x7E9A8Fu
-/* The character record a status window draws ($C2:ED31's command lists read it): its first nine
- * bytes, the character in the first's low bits. Its fields aren't named yet [9 bytes] */
-#define RAM_MENU_STATUS_RECORD_HEAD 0x7E9A90u
-/* The same record's last byte, as a word with the byte after it [2 bytes] */
-#define RAM_MENU_STATUS_RECORD_LAST 0x7E9AA2u
-/* The same record's next six bytes [6 bytes] */
+/* The record of the character a status window draws ($C2:ED31's command lists read it): a copy
+ * of the character's record (character_records), or on the load screen what a save's summary has
+ * of it [80 bytes] */
+#define RAM_MENU_STATUS_RECORD 0x7E9A90u
+#define RAM_MENU_STATUS_RECORD_BYTES 0x7E9A90u /* The record a byte at a time, by the character record's offsets */
+#define RAM_MENU_STATUS_RECORD_HEAD 0x7E9A90u /* Its first nine bytes, which a save's summary fills */
+#define RAM_MENU_STATUS_RECORD_CHARACTER 0x7E9A90u /* The character, in the low three bits */
+#define RAM_MENU_STATUS_RECORD_HP 0x7E9A93u  /* The character's HP */
+#define RAM_MENU_STATUS_RECORD_LAST 0x7E9AA2u /* The last byte a save's summary has of the record, as a word with the byte after it */
+/* The six bytes after the record: on the load screen the summary's, for a party member the
+ * character's name record (character_names) [6 bytes] */
 #define RAM_MENU_STATUS_RECORD_TAIL 0x7E9AE0u
 /* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
  * a list has nothing to name [32 x $1 bytes, by tile] */

@@ -3301,6 +3301,114 @@ screen effect's three kinds, which put its worst stretch and the channel
 runner's within the gate's limits; the runner and the slots' places loop were
 recalibrated. The full gate then passes with no new exception.
 
+### Phase 3, menus: the equipment screen and its member list (`$C2:9C31`-`$C2:A2C5`)
+
+The largest run the plan named for `$C2`, 1,685 bytes: the equipment screen
+(the menus' screen 1), the main menu's panel for it, and the member list both
+draw from, with a member's loading (`$C2:8820`) that the list and the card
+need. An earlier attempt at the same run was reviewed as a translation (each
+step the original's branch tree in a `Snes *` body, flag notes threaded
+through every step, JSR returns pushed by hand); this one was written again
+from the drafts.
+
+**What it is.** `menu/members.c` is the member list and the card: a member's
+loading, the rows (`$C2:A1B2`, a row `$C2:A216` with its face and low-HP mark
+`$C2:A1EF`, an empty one `$C2:A1E9`), the rows' colours (`$C2:9E76`,
+`$C2:9EB0`, through a `menu_recolour_block` that `menu/tiles.c` now exports),
+and the card (`$C2:A22F`, again with the top row `$C2:A21F`): the time
+played, the figures and stats (the original's `$C2:9137` and `$C2:A6F0`,
+called out to), the large portrait and the element's label (`$C2:A273`, the
+element now a `MenuElement` in `menu_data.h`). `menu/equipment.c` is the
+screen as the game sees it, no machine in it: each step is a decision
+(`menu_equip_choose_member` returns `MEMBER_CHOSEN`, `MEMBER_LEFT_FOR_THE_MAIN_MENU`
+or `MEMBER_POINTED_AT`, and so on for the slots and the items) and each part
+between the original's calls an operation in the game's terms (the member list
+going round or sliding, the shoulder assignments switching members, the item
+put on and the one taken off given back, the list of what fits paged or slid,
+its rows moved). `menu/equipment_bridge.c` runs them: per step it reads the
+cursor, asks equipment.c, and sequences the sounds and the card as siblings
+(`menu_run`; `menu_run_any_widths` for the list's move, which leaves a 16-bit
+accumulator after a slide) and the original's drawings, inventory, paging
+and frame waits as call-outs, stopping where the original jumps on. The
+member slide's frames (`$C2:9DAF`) are a loop of `menu_equip_slide_members_a_frame`
+around the task's yield; the slide's thumb follows the step's sign, where the
+original reads the line's carry (equal for the lines the slide's start
+sets, which its guard holds it to).
+
+**The flags, settled first.** Every call the steps keep was checked against
+liveness before the logic was written (`tools/v_readers.py`, and the strict
+solve): the yields, the inventory, the paging and the list's slide read
+nothing; the drawings reached through the window language may read the
+overflow and the carry. What liveness can't declare is the P byte a sibling
+saves as it starts (the sounds, the card, the slots' pointing, the member
+switch), which shadow mode compares under the sibling's own calls out. Three
+things keep those few:
+- where a step **jumps** on to a routine that is itself a port (the member
+  list's move `$C2:9D17`, the slots' pointing `$C2:9ECD`, the screen's
+  set-up `$C2:A11A`, the card after the move, the refusal's sound), the
+  bridge stops there and the runtime enters it from the original's own state,
+  so its saved P is the original's (stops checked against liveness like any
+  other);
+- where a routine's saved P would carry a note and nothing else in it needs
+  one, the routine stays the original's: the member slide's start
+  (`$C2:9D5B`, whose P is saved after the new first row is counted, under
+  every frame's yield) and the member list's scroll bar (`$C2:A170`, under
+  its call to the bar's task);
+- what is left is one leaves helper per decision, at the end of the bridge
+  file, worked out from the state the decision left (`leave_member_pointed`,
+  `leave_slot_step_tested`, `leave_member_switched`, ...): the comparison or
+  load the original made last before a sibling saves P, and the overflow of a
+  sum before a drawing that may read it. A call-out declaring a flag
+  don't-care and returning it as it found it leaves the port's own value, so
+  a tick after such a call still needs the original's flags: the paged and
+  the slid list's ticks and the card's stats call have their own.
+
+The sounds' driver call now declares Y dead (`menu/cursor.c`; the driver
+reads A's high byte alone, which the don't-care check confirms), which a tick
+after the inventory's calls needed. `ram_map.py`'s `reuses` may name a list
+(the list of items over two of the menus' cells).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches, none refused: a member's loading 1,360 calls, the rows' colouring
+219 (each row 657), the card 223, the member step 216, its move 212, the
+slots' step 470, their pointing and the member switch 460 each, the item
+step 564 (the list's move inside it, 556), the screen's opening and set-up
+2 each, the weapon's byte 8, the panel's dimmed colours 8; one row drawn
+alone of 33 interrupted. The library never slides the member list, switches
+members with the shoulder assignments, slides the list of what fits or
+refuses a slot, and the panel's one call is interrupted; a scratch movie from
+the same save (the field menu's, kept outside the repository: it slides the
+members both ways, switches members, slides and pages the accessory list, puts
+an item on and returns to the main menu) matched every call over 6,296
+frames: 7 slides, 7 switches, 12 rows moved. It found two flags the library
+didn't: the list's tick after a page turned (the paging's flags kept through
+the list's drawing, which declared them dead) and the card's stats after the
+member's sum. Fuzzed from the `equipment` state (`menus-field-menu` at frame
+3800, low RAM, the tilemaps and the screen's tables kept and the decisions'
+cells filled; `tools/fuzz_routines.toml`), seed 1, 2,000 states each, none
+mismatching; compared: every state for the loading, the rows, the colours,
+the element, the set-up, the member move, both slides (up to the first
+frame's wait), the rows' move, the weapon's byte, the panel (up to its first
+frame's wait) and its colours; the card 1,642 and its redraw 1,619 (the rest
+the figures' call past the fuzzer's budget), the member step 828 and the
+slots' step 958 (the slots' drawing past the budget), the slots' pointing
+1,477 and the switch 1,473 (the rest the guard's and the budget's), the item
+step 1,611 and the list's move 1,599, the face 1,763. The first runs found the list's paging read as its new first
+row (the paging answers $FF for any turn), the element's label indexed by the
+element's half (an odd table byte past the seventh character), the card and
+the rows needing 16-bit index registers at entry, and a row redrawn after the
+card from a record the figures' routine had left naming no character (the
+bridge now hands that row to the original). One state in 1,671 of the card
+differs where the original's figures leave the upload queue's count
+off a record (TODO.md).
+
+**Timing.** The new entries were calibrated over the library, with the
+tiles' recolouring (which now writes the drawing origin once) and the
+cursor's tick; no exception. The entries whose work is nearly all another
+routine's (a row is the window language's, the colouring the rows') carry
+large scalars on few accesses of their own. `$C2` stands at 24.2 KiB
+ported, 59% left.
+
 ### The reading cost of a chunk
 
 By field chunk 13 and battle chunk 6, three streams were landing a chunk and a
