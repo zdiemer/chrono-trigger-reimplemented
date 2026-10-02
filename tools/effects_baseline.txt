@@ -186,7 +186,7 @@ game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte men
 game/menu/epoch.c time_dial menu_object_slots_turn menu_setting_spare
 game/menu/equipment.c menu_equip_keep_slot menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/equipment.c menu_equip_list_slide_brings_a_row menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
-game/menu/equipment.c menu_equip_list_slide_brings_a_row menu_list_top menu_object_sprite_group # whether the list scrolls, which the list's step writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/lists.c menu_list_scrolls menu_list_scroll_most menu_object_sprite_group # whether the list scrolls, which the list's step writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/equipment.c menu_equip_member_slide_can_run menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/equipment.c menu_equip_member_slide_can_run menu_slide_line menu_time_played_shown # the slide's start ($C2:9D5B, the original's) sets it before every call
 game/menu/equipment.c menu_equip_panel_can_be_shown menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly; the scaffolding at the address is the sprite-object mode's
@@ -356,7 +356,6 @@ game/menu/item_screen.c menu_items_slide_a_frame menu_scroll_frames menu_window_
 game/menu/item_screen.c menu_items_slide_a_frame menu_scroll_frames menu_window_rows_wait # the slide's frames, which its start ($C2:EB9B, $C2:9D5B, the original's) sets before every slide; the scaffolding at the address is the slots window's slide's
 game/menu/item_screen.c menu_items_slide_a_frame menu_scroll_moved menu_window_rows_step # how far the slide has moved, which the slide's own start sets plainly first; the scaffolding at the address is the slots window's slide's
 game/menu/item_screen.c menu_items_slide_brings_a_row menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
-game/menu/item_screen.c menu_items_slide_brings_a_row menu_list_top menu_object_sprite_group # whether the list scrolls, which the list's frame ($C2:EA81, the original's) writes; the scaffolding at the address is the sprite-object mode's
 game/menu/item_screen.c menu_items_sort menu_sort_counts menu_record_upload_size # the sort's own tables, which it clears plainly first; the scaffolding at the address is the records' and the card's
 game/menu/item_screen.c menu_items_sort menu_sort_counts menu_record_upload_source # the sort's own tables, which it clears plainly first; the scaffolding at the address is the records' and the card's
 game/menu/item_screen.c menu_items_sort menu_sort_counts menu_record_upload_vram # the sort's own tables, which it clears plainly first; the scaffolding at the address is the records' and the card's

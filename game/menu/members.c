@@ -60,6 +60,13 @@ static uint16_t record_place(uint8_t character)
     return (uint16_t)(RAM_ABS(RAM_CHARACTER_RECORDS) + character * RAM_CHARACTER_RECORDS_STRIDE);
 }
 
+uint8_t menu_member_worked_on(const GameState *g) { return (uint8_t)menu_screen_argument(g); }
+
+void menu_work_on_member(GameState *g, uint8_t member)
+{
+    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
+}
+
 /* The character whose record the menus loaded last, from where they noted
  * it. */
 uint8_t menu_member_character(const GameState *g)
@@ -142,7 +149,6 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
 {
     uint16_t member = menu_member_scroll(g);
     uint16_t at = FIRST_ROW;
-    set_menu_screen_argument(g, member);
     set_menu_draw_origin(g, at);
     for (;;) {
         bool loaded;
@@ -152,14 +158,14 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
         else
             TIMED_AS(g, 0xC2A1E9, draw_list(g, pf, EMPTY_ROW));
         member++;
-        set_menu_screen_argument(g, member);
         if (member >= menu_members_reachable(g))
-            return;
+            break;
         at = (uint16_t)(menu_draw_origin(g) + ROW_SPACING);
         set_menu_draw_origin(g, at);
         if (at >= ROWS_END)
-            return;
+            break;
     }
+    set_menu_screen_argument(g, member);
 }
 
 /* The rows' colours: a row is six tile rows of twelve tiles, from its second
@@ -240,7 +246,7 @@ void menu_start_member_card(GameState *g)
 {
     TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_AT, CLOCK_DIGITS));
     uint8_t member = menu_member_on_the_cursor(g);
-    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
+    menu_work_on_member(g, member);
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
 }
 
@@ -249,10 +255,9 @@ void menu_draw_member_card_window(GameState *g, Platform *pf) { draw_list(g, pf,
 void menu_finish_member_card(GameState *g)
 {
     uint8_t character = menu_status_record_character(g);
-    set_menu_scratch_portrait_attribute(g, PORTRAIT_ATTRIBUTE);
     set_menu_portrait_character(g, character);
     set_menu_draw_origin(g, PORTRAIT_AT);
-    TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character));
+    TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character, PORTRAIT_ATTRIBUTE));
     TIMED_AS(g, 0xC2A273, show_element(g));
     queue_upload(g, UPLOAD_BG1_CARD);
 }
@@ -279,10 +284,28 @@ static bool character_is_drawable(const GameState *g, uint8_t member)
     return (character & NO_MEMBER) || character_records_record_byte(g, character, 0) < CHARACTERS;
 }
 
+/* What the card draws the member as having on is items of the game's: the
+ * record's, or (past the last member, where nothing is loaded) the status
+ * record's as it stands. */
+enum { EQUIPPED_FROM = 0x27, EQUIPPED_BYTES = 4 };
+
+static bool equipment_is_the_games(const GameState *g, uint8_t member)
+{
+    uint8_t character = menu_members(g, member);
+    for (unsigned i = 0; i < EQUIPPED_BYTES; i++) {
+        uint8_t item = (character & NO_MEMBER) ? menu_status_record_bytes_byte(g, EQUIPPED_FROM + i)
+                                               : character_records_record_byte(g, character, EQUIPPED_FROM + i);
+        if (item >= MENU_ITEM_NAME_PLACES_COUNT)
+            return false;
+    }
+    return true;
+}
+
 bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member)
 {
-    return menu_member_can_be_loaded(g, member) && character_is_drawable(g, member) && menu_palette_changes_have_room(g)
-           && menu_time_digits_are_decimal(g, CLOCK_DIGITS) && menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0;
+    return menu_member_can_be_loaded(g, member) && character_is_drawable(g, member) && equipment_is_the_games(g, member)
+           && menu_palette_changes_have_room(g) && menu_time_digits_are_decimal(g, CLOCK_DIGITS)
+           && menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0;
 }
 
 bool menu_member_card_can_be_drawn(const GameState *g)

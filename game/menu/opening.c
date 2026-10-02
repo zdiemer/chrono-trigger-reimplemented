@@ -140,7 +140,7 @@ static void clear_the_menus_cells(GameState *g)
         set_menu_scroll_y(g, bg, A_LINE_UP);
     set_menu_zero(g, 0);
     set_menu_cursor_flip(g, 0);
-    set_menu_list_top(g, 0);
+    set_menu_list_scroll_most(g, 0);
     for (unsigned i = 0; i < MENU_BLANK_STRING_COUNT; i++)
         set_menu_blank_string(g, i, BLANK);
     for (unsigned i = 0; i < LISTED_MEMBERS; i++)

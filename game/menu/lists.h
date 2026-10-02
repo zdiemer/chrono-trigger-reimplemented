@@ -15,6 +15,10 @@
 
 #include "state.h"
 
+/* Whether the scrolling list on the screen scrolls at all: it has places
+ * past the rows it shows (its frame, the original's $C2:EA81, counts them). */
+bool menu_list_scrolls(const GameState *g);
+
 /* Whether the list slid up (its step negative, as its low byte has it). */
 bool menu_list_slid_up(const GameState *g);
 

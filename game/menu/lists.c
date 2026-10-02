@@ -10,6 +10,8 @@
 /* The step's low byte's sign is the way the list slid. */
 enum { STEP_UP = 0x80 };
 
+bool menu_list_scrolls(const GameState *g) { return menu_list_scroll_most(g) != 0; }
+
 bool menu_list_slid_up(const GameState *g) { return ((uint8_t)menu_scroll_step(g) & STEP_UP) != 0; }
 
 enum { WORK_RAM = 0x7E0000 };

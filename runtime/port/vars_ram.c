@@ -2033,8 +2033,8 @@ uint8_t menu_cursor_left_from(const GameState *g) { return r8(g, 0x7E0055u); }
 void set_menu_cursor_left_from(GameState *g, uint8_t v) { w8(g, 0x7E0055u, v); }
 uint8_t menu_cursor_flip(const GameState *g) { return r8(g, 0x7E0056u); }
 void set_menu_cursor_flip(GameState *g, uint8_t v) { w8(g, 0x7E0056u, v); }
-uint8_t menu_list_top(const GameState *g) { return r8(g, 0x7E0057u); }
-void set_menu_list_top(GameState *g, uint8_t v) { w8(g, 0x7E0057u, v); }
+uint8_t menu_list_scroll_most(const GameState *g) { return r8(g, 0x7E0057u); }
+void set_menu_list_scroll_most(GameState *g, uint8_t v) { w8(g, 0x7E0057u, v); }
 uint16_t menu_cursor_sprite(const GameState *g) { return r16(g, 0x7E0058u); }
 void set_menu_cursor_sprite(GameState *g, uint16_t v) { w16(g, 0x7E0058u, v); }
 uint8_t menu_cursor_moves(const GameState *g) { return r8(g, 0x7E005Au); }

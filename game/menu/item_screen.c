@@ -51,14 +51,9 @@ static void draw_list(GameState *g, Platform *pf, uint16_t list)
     TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
 }
 
-/* The frame's buttons and pushes, as the cursor's reading leaves them
- * (menu/cursor.c). */
-enum { CHOOSE = 0x80, GO_BACK = 0x40 };
-enum { PUSHED_DOWN = 0x04, PUSHED_UP = 0x08, PUSHED_PAST_AN_EDGE = 0x80 };
-
-static bool chose(const GameState *g) { return (menu_cursor_buttons(g) & CHOOSE) != 0; }
-static bool went_back(const GameState *g) { return (menu_cursor_buttons(g) & GO_BACK) != 0; }
-static bool pushed(const GameState *g, uint8_t way) { return (menu_cursor_moves(g) & way) != 0; }
+/* The frame's input, as the cursor's reading leaves it (menu/cursor.h). */
+static bool chose(const GameState *g) { return menu_asked(g, MENU_CHOOSE); }
+static bool went_back(const GameState *g) { return menu_asked(g, MENU_GO_BACK); }
 
 static void go_to(GameState *g, ItemsStep step) { set_menu_screen_step(g, (uint8_t)step); }
 
@@ -436,7 +431,7 @@ enum { FIRST_PAST_THE_ENDS = 0xF0 };
 
 bool menu_items_slide_brings_a_row(const GameState *g)
 {
-    if (menu_list_top(g) == 0 || !pushed(g, PUSHED_PAST_AN_EDGE))
+    if (!menu_list_scrolls(g) || !menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
         return false;
     uint8_t before_the_cursor = (uint8_t)(menu_cursor_index(g) + menu_item_list_top(g) - 1);
     return before_the_cursor < FIRST_PAST_THE_ENDS;
@@ -463,7 +458,7 @@ enum { INCOMING_ROW_AT = 0x344A, HELD_CURSOR_ROW_LINES = 12 };
 void menu_items_bring_in_a_row(GameState *g)
 {
     uint8_t top = menu_item_list_top(g);
-    bool down = pushed(g, PUSHED_DOWN);
+    bool down = menu_pushed(g, MENU_PUSHED_DOWN);
     set_menu_item_list_top(g, down ? (uint8_t)(top + 1) : (uint8_t)(top - 1));
     set_menu_held_cursor_shift(g, down ? HELD_CURSOR_ROW_LINES : (uint16_t)-HELD_CURSOR_ROW_LINES);
     set_menu_scroll_bar_thumb(g, menu_item_list_top(g));
@@ -503,8 +498,7 @@ void menu_items_end_slide_frames(GameState *g)
 }
 
 /* Then the block move set to bring the rows' new lines in, the rows moved a
- * row along in their buffer, and the list at rest (the step's low byte; its
- * high one as it stands). */
+ * row along in their buffer, and the list at rest. */
 enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
 enum { LIST_ROWS_AT = 0x2F00, ROW_BYTES = 0x80 };
 
@@ -513,7 +507,7 @@ void menu_items_finish_slide(GameState *g)
     set_menu_block_move_source(g, LIST_LINES_FROM);
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
     menu_move_list_rows(g, LIST_ROWS_AT, MENU_ITEMS_ROWS * ROW_BYTES, ROW_BYTES, menu_list_slid_up(g));
-    set_menu_scroll_step(g, (uint16_t)(menu_scroll_step(g) & 0xFF00));
+    set_menu_scroll_step(g, 0);
 }
 
 // $C2:AD2E
@@ -863,14 +857,7 @@ void menu_items_take_the_cursor_round(GameState *g)
 {
     uint8_t first = menu_use_first_member(g), active = menu_active_members(g);
     if ((uint8_t)(menu_cursor_index(g) - first) >= active)
-        set_menu_cursor_index(g, pushed(g, PUSHED_UP) ? (uint8_t)(active - 1 + first) : first);
-}
-
-/* The member a row of the window is, worked on: the original's cell for the
- * member the menus load. */
-static void work_on_member(GameState *g, uint8_t member)
-{
-    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
+        set_menu_cursor_index(g, menu_pushed(g, MENU_PUSHED_UP) ? (uint8_t)(active - 1 + first) : first);
 }
 
 // $C2:B275
@@ -879,7 +866,7 @@ bool menu_items_point_at_a_member(GameState *g)
 {
     set_menu_use_helps(g, 0);
     uint8_t member = (uint8_t)(menu_cursor_index(g) - menu_use_first_member(g));
-    work_on_member(g, member);
+    menu_work_on_member(g, member);
     bool another = member != menu_use_member(g);
     set_menu_use_member(g, member);
     return another;
@@ -928,7 +915,7 @@ void menu_items_show_the_raise(GameState *g)
 void menu_items_raise_the_figure(GameState *g)
 {
     uint8_t member = menu_use_member(g);
-    work_on_member(g, member);
+    menu_work_on_member(g, member);
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
     uint8_t figure = menu_use_effect(g), character = menu_member_character(g);
     unsigned at = FIGURES_AT + menu_figure_offset(g, figure);
@@ -996,12 +983,21 @@ void menu_items_clear_member_window(GameState *g)
 /* ---- What the steps can run on (the guards') --------------------------------------------------- */
 
 /* The list's places in the party's items: its first no further than its
- * last ten, the cursor on one of its rows. */
+ * last ten, the cursor on one of its rows; every place an item of the
+ * game's or none, as the menus' opening leaves the party's items. */
 enum { LAST_TOP = MENU_ITEMS - MENU_ITEMS_ROWS };
+
+static bool items_are_the_games(const GameState *g)
+{
+    for (unsigned place = 0; place < INVENTORY_ITEMS_COUNT; place++)
+        if (inventory_items(g, place) >= MENU_ITEMS)
+            return false;
+    return true;
+}
+
+bool menu_items_rows_can_be_drawn(const GameState *g) { return menu_item_list_top(g) <= LAST_TOP && items_are_the_games(g); }
 
 bool menu_items_list_is_pointable(const GameState *g)
 {
-    return menu_item_list_top(g) <= LAST_TOP && menu_cursor_index(g) < MENU_ITEMS_ROWS && menu_item_list_row(g) < MENU_ITEMS_ROWS;
+    return menu_items_rows_can_be_drawn(g) && menu_cursor_index(g) < MENU_ITEMS_ROWS && menu_item_list_row(g) < MENU_ITEMS_ROWS;
 }
-
-bool menu_items_rows_can_be_drawn(const GameState *g) { return menu_item_list_top(g) <= LAST_TOP; }

@@ -5804,11 +5804,11 @@ meaning = "How many members the party has, active and waiting, as the menus coun
 source = "game/menu/opening.c, the party's list $C2:816A"
 
 [[var]]
-name = "menu_list_top"
+name = "menu_list_scroll_most"
 addr = "7E:0057"
 page = "menu"
 subsystem = "menu"
-meaning = "The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared as the menus open"
+meaning = "How far a scrolling list of the menus scrolls: its places past the rows it shows, 0 for a list that doesn't scroll (the item and tech lists, set by their frame $C2:EA81); cleared as the menus open"
 source = "game/menu/opening.c, the menus' opening $C2:8101; $C2:EAA7"
 
 [[var]]

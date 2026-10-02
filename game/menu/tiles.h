@@ -11,10 +11,10 @@
 #include "state.h"
 
 /* A character's large portrait, six tiles by six from `origin`, numbered on
- * from the character's first in the attribute the portrait's tile word
- * (menu_scratch_portrait_tile) holds in its high byte, and its colours into
- * the palette row that attribute names. */
-void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character);
+ * from the character's first in `attribute`, and its colours into the
+ * palette row that attribute names. The tile word past the last is left in
+ * menu_scratch_portrait_tile, as the original leaves it. */
+void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character, uint8_t attribute);
 
 /* A stretch of `tiles` tiles of a row and the row below it, from `at`,
  * given one attribute. */

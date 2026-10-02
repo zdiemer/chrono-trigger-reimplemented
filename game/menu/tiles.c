@@ -32,17 +32,17 @@ enum { PORTRAIT_SIDE = 6, PALETTE_BITS = 0x1C, PALETTE_BYTES_SHIFT = 3, PORTRAIT
 enum { PALETTE_BYTES = 2 };
 
 // $C2:EC38
-void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character)
+void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character, uint8_t attribute)
 {
-    uint16_t tile = (uint16_t)((menu_scratch_portrait_tile(g) & 0xFF00) | menu_large_portrait_first_tile(g, character));
+    uint16_t tile = (uint16_t)(attribute << 8 | menu_large_portrait_first_tile(g, character));
     for (unsigned row = 0; row < PORTRAIT_SIDE; row++)
         for (unsigned column = 0; column < PORTRAIT_SIDE; column++) {
             wram_write16(g, WORK_RAM | (uint16_t)(origin + row * ROW_BYTES + column * TILE_BYTES), tile);
             tile = (uint16_t)(tile + 1);
         }
     set_menu_scratch_portrait_tile(g, tile);
-    uint8_t attribute = (uint8_t)(tile >> 8);
-    unsigned first_colour = (unsigned)((attribute & PALETTE_BITS) << PALETTE_BYTES_SHIFT) / PALETTE_BYTES;
+    uint8_t last_attribute = (uint8_t)(tile >> 8);
+    unsigned first_colour = (unsigned)((last_attribute & PALETTE_BITS) << PALETTE_BYTES_SHIFT) / PALETTE_BYTES;
     uint16_t colours = menu_large_portrait_colours(g, character % CHARACTER_SLOTS);
     for (unsigned i = 0; i < PORTRAIT_COLOURS; i++)
         set_menu_palette(g, first_colour + i, menu_large_portrait_colour(g, colours, i));
@@ -86,10 +86,12 @@ static uint32_t count_of(uint16_t n) { return n ? n : 0x10000u; }
 static uint32_t tiles_asked(Snes *s) { return count_of((uint8_t)s->cpu.a); }
 
 // $C2:EC38
+/* The attribute is what the caller left in the portrait's scratch word's
+ * high byte. */
 void menu_draw_large_portrait(Snes *s)
 {
     GameState *g = state_of(s);
-    menu_draw_portrait(g, menu_draw_origin(g), menu_portrait_character(g));
+    menu_draw_portrait(g, menu_draw_origin(g), menu_portrait_character(g), (uint8_t)(menu_scratch_portrait_tile(g) >> 8));
     m_rts(s);
 }
 

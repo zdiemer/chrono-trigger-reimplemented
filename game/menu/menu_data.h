@@ -566,12 +566,12 @@ static inline uint16_t menu_large_portrait_colour(const GameState *g, uint16_t c
 }
 
 /* A character's element: lightning, shadow, water, fire or none ($C2:A2C6, a
- * byte a character), numbered as the ROM's tables number them, in steps of
- * two: the offsets of the element's words in its label's tables. */
-typedef enum { MENU_LIGHTNING = 0, MENU_SHADOW = 2, MENU_WATER = 4, MENU_FIRE = 6, MENU_NO_ELEMENT = 8 } MenuElement;
+ * byte a character, which the ROM keeps doubled: the offset of the element's
+ * word in its label's tables). */
+typedef enum { MENU_LIGHTNING, MENU_SHADOW, MENU_WATER, MENU_FIRE, MENU_NO_ELEMENT } MenuElement;
 static inline MenuElement menu_character_element(const GameState *g, uint8_t character)
 {
-    return (MenuElement)rom_read8(g, 0xC2A2C6u + character);
+    return (MenuElement)(rom_read8(g, 0xC2A2C6u + character) / 2u);
 }
 
 /* An element's label, six tiles by two beside a member's portrait: its first
@@ -579,11 +579,11 @@ static inline MenuElement menu_character_element(const GameState *g, uint8_t cha
  * $FF:CE92). */
 static inline uint16_t menu_element_label_tile(const GameState *g, MenuElement element)
 {
-    return rom_read16(g, 0xFFCE88u + (uint8_t)element);
+    return rom_read16(g, 0xFFCE88u + 2u * element);
 }
 static inline uint16_t menu_element_label_colour(const GameState *g, MenuElement element, unsigned i)
 {
-    uint16_t colours = rom_read16(g, 0xFFCE92u + (uint8_t)element);
+    uint16_t colours = rom_read16(g, 0xFFCE92u + 2u * element);
     return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
 }
 

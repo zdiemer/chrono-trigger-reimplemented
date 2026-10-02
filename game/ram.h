@@ -2033,10 +2033,11 @@
 /* Nonzero flips the cursor sprite horizontally */
 #define RAM_MENU_CURSOR_FLIP 0x7E0056u
 #define RAM_MENU_CURSOR_FLIP_DP 0x56u        /* page menu */
-/* The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared
- * as the menus open */
-#define RAM_MENU_LIST_TOP 0x7E0057u
-#define RAM_MENU_LIST_TOP_DP 0x57u           /* page menu */
+/* How far a scrolling list of the menus scrolls: its places past the rows it shows, 0 for a list
+ * that doesn't scroll (the item and tech lists, set by their frame $C2:EA81); cleared as the
+ * menus open */
+#define RAM_MENU_LIST_SCROLL_MOST 0x7E0057u
+#define RAM_MENU_LIST_SCROLL_MOST_DP 0x57u   /* page menu */
 /* The cursor sprite's tile and attributes [2 bytes] */
 #define RAM_MENU_CURSOR_SPRITE 0x7E0058u
 #define RAM_MENU_CURSOR_SPRITE_DP 0x58u      /* page menu */

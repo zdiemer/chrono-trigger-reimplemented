@@ -23,6 +23,7 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
@@ -120,6 +121,7 @@ static void leave_member_switched(Snes *s);
 static void leave_panel_tested(Snes *s, uint8_t row_before);
 static void leave_page_turned(Snes *s);
 static void leave_row_found(Snes *s);
+static void leave_row_noted(Snes *s, uint8_t row);
 static void leave_list_rows_queued(Snes *s);
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
@@ -388,14 +390,17 @@ void menu_point_along_equipment_list(Snes *s)
     }
     if (!call(s, 0xC29F2F, MOVE_IN_LIST))
         return;
-    if (!menu_equip_list_slide_brings_a_row(g)) {
+    uint8_t row = menu_equip_list_row(g);
+    bool slides = menu_equip_list_slide_brings_a_row(g, row);
+    ORIGINAL_EFFECT(leave_row_noted(s, row));
+    if (!slides) {
         m_rts(s);
         return;
     }
     menu_equip_set_up_list_slide(g);
     if (!call(s, 0xC29F5B, START_LIST_SLIDE))
         return;
-    menu_equip_bring_in_list_row(g);
+    menu_equip_bring_in_list_row(g, row);
     ORIGINAL_EFFECT(leave_row_found(s));
     TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, NEW_LIST_ROW_AT));
     menu_equip_queue_list_rows(g);
@@ -718,8 +723,6 @@ void menu_draw_equipped_items(Snes *s)
 
 /* ---- What the original's tests leave ----------------------------------------------------------- */
 
-/* The pushes the steps test first (menu_cursor_moves). */
-enum { PUSHED_RIGHT = 0x01, PUSHED_LEFT = 0x02 };
 
 /* The original takes a choice of member by testing the push right and then
  * the buttons (whose overflow is going back's bit), and counts the step on,
@@ -727,7 +730,7 @@ enum { PUSHED_RIGHT = 0x01, PUSHED_LEFT = 0x02 };
 static void leave_member_step_tested(Snes *s)
 {
     const GameState *g = state_of(s);
-    if (!(menu_cursor_moves(g) & PUSHED_RIGHT))
+    if (!menu_pushed(g, MENU_PUSHED_RIGHT))
         menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
     menu_leave_load(s, menu_screen_step(g));
 }
@@ -737,7 +740,7 @@ static void leave_member_step_tested(Snes *s)
 static void leave_slot_step_tested(Snes *s, SlotChoice c)
 {
     const GameState *g = state_of(s);
-    if (!(menu_cursor_moves(g) & PUSHED_LEFT))
+    if (!menu_pushed(g, MENU_PUSHED_LEFT))
         menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
     if (c == SLOT_LEFT_FOR_THE_MEMBERS)
         menu_leave_load(s, menu_screen_step(g));
@@ -804,7 +807,7 @@ static void leave_list_drawn(Snes *s) { s->cpu.a = menu_equip_list_end(); }
 static void leave_member_switched(Snes *s)
 {
     const GameState *g = state_of(s);
-    uint8_t member = (uint8_t)menu_screen_argument(g);
+    uint8_t member = menu_member_worked_on(g);
     if (member >= MENU_MEMBER_ROWS - 1)
         menu_leave_load(s, MENU_MEMBER_ROWS - 1);
     else
@@ -832,6 +835,15 @@ static void leave_page_turned(Snes *s)
 {
     menu_leave_load(s, menu_equip_list_top(state_of(s)));
     m_set_flag(s, CPU_FLAG_C, true);
+}
+
+/* The row the cursor is on, which the original notes in the item cell for
+ * the slide where the push came past the list's edge (a scrolling list's). */
+static void leave_row_noted(Snes *s, uint8_t row)
+{
+    GameState *g = state_of(s);
+    if (menu_list_scrolls(g) && menu_pushed(g, MENU_PUSHED_PAST_AN_EDGE))
+        set_menu_item_operand(g, row);
 }
 
 /* The row coming in found by its place plus the list's first row, a sum
@@ -865,12 +877,12 @@ static bool queue_takes(const GameState *g, unsigned uploads)
 
 static bool on_the_screen(Snes *s) { return menu_on_page_work_ram(s) && menu_sounds_on_page(s); }
 
-/* The members the screen reaches: no more than the list's places, each a
- * character whose card can be drawn. */
+/* The members the screen reaches: at least one and no more than the list's
+ * places, each a character whose card can be drawn. */
 static bool members_are_drawable(const GameState *g)
 {
     uint16_t reachable = menu_members_reachable(g);
-    if (reachable > MENU_MEMBERS_COUNT || menu_active_members(g) > reachable)
+    if (reachable == 0 || reachable > MENU_MEMBERS_COUNT || menu_active_members(g) > reachable)
         return false;
     for (uint8_t member = 0; member < reachable; member++)
         if (!menu_member_card_can_be_drawn_for(g, member))
@@ -926,12 +938,6 @@ bool menu_equipment_member_switches(Snes *s) { return on_the_screen(s) && peek(s
  * place in it, the list's place of the cursor's row, and the list's. */
 enum { RECORD_BYTES = 0x50, FIRST_LIST_PLACE = 4, LIST_ROWS = 9 };
 
-static bool record_is_a_characters(const GameState *g)
-{
-    uint16_t at = (uint16_t)(menu_member_record_at(g) - RAM_ABS(RAM_CHARACTER_RECORDS));
-    return at % RAM_CHARACTER_RECORDS_STRIDE == 0 && at / RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
-}
-
 static bool list_is_pointable(const GameState *g)
 {
     uint8_t row = (uint8_t)(menu_cursor_index(g) - FIRST_LIST_PLACE);
@@ -941,7 +947,7 @@ static bool list_is_pointable(const GameState *g)
 
 static bool item_step_runs(const GameState *g)
 {
-    return record_is_a_characters(g) && menu_equip_record_place(g) < RECORD_BYTES
+    return menu_member_record_is_a_characters(g) && menu_equip_record_place(g) < RECORD_BYTES
            && menu_member_row(g) < MENU_MEMBERS_COUNT && list_is_pointable(g);
 }
 

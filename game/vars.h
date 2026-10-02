@@ -2724,10 +2724,11 @@ void set_menu_cursor_left_from(GameState *g, uint8_t v);
 uint8_t menu_cursor_flip(const GameState *g);
 void set_menu_cursor_flip(GameState *g, uint8_t v);
 
-/* The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared
- * as the menus open */
-uint8_t menu_list_top(const GameState *g);
-void set_menu_list_top(GameState *g, uint8_t v);
+/* How far a scrolling list of the menus scrolls: its places past the rows it shows, 0 for a list
+ * that doesn't scroll (the item and tech lists, set by their frame $C2:EA81); cleared as the
+ * menus open */
+uint8_t menu_list_scroll_most(const GameState *g);
+void set_menu_list_scroll_most(GameState *g, uint8_t v);
 
 /* The cursor sprite's tile and attributes */
 uint16_t menu_cursor_sprite(const GameState *g);

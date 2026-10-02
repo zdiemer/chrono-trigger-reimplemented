@@ -50,6 +50,9 @@ static void hide_sprites(GameState *g, unsigned first, unsigned count)
 /* Every sprite out of sight. */
 void menu_clear_sprites(GameState *g) { hide_sprites(g, 0, SPRITES); }
 
+bool menu_asked(const GameState *g, MenuButton b) { return (menu_cursor_buttons(g) & b) != 0; }
+bool menu_pushed(const GameState *g, MenuPush way) { return (menu_cursor_moves(g) & way) != 0; }
+
 /* The cursor at its place: its sprite's tile and attributes, flipped where the
  * screen says, unless the screen hid it for this one frame. */
 static void place_cursor(GameState *g)
@@ -135,7 +138,6 @@ static void move_cursor(GameState *g)
 /* The frame's buttons, as the menus take them: choosing and going back are
  * the player's first two assignments pressed this frame, and the seventh and
  * eighth (paging) repeat while held. */
-enum { CHOOSE = 0x80, GO_BACK = 0x40, PAGE_ONE_WAY = 0x02, PAGE_THE_OTHER = 0x01 };
 enum { CHOOSE_ASSIGNMENT = 0, BACK_ASSIGNMENT = 1, PAGE_ASSIGNMENT = 6, OTHER_PAGE_ASSIGNMENT = 7 };
 
 static uint8_t buttons_of(const GameState *g)
@@ -143,13 +145,13 @@ static uint8_t buttons_of(const GameState *g)
     uint8_t pressed = (uint8_t)input_pressed(g), repeating = (uint8_t)input_repeat(g);
     uint8_t buttons = 0;
     if (button_assignments(g, CHOOSE_ASSIGNMENT) & pressed)
-        buttons |= CHOOSE;
+        buttons |= MENU_CHOOSE;
     if (button_assignments(g, BACK_ASSIGNMENT) & pressed)
-        buttons |= GO_BACK;
+        buttons |= MENU_GO_BACK;
     if (repeating & button_assignments(g, PAGE_ASSIGNMENT))
-        buttons |= PAGE_ONE_WAY;
+        buttons |= MENU_PAGE_ONE_WAY;
     if (repeating & button_assignments(g, OTHER_PAGE_ASSIGNMENT))
-        buttons |= PAGE_THE_OTHER;
+        buttons |= MENU_PAGE_THE_OTHER;
     return buttons;
 }
 
@@ -164,7 +166,7 @@ void menu_read_cursor(GameState *g)
     set_menu_cursor_step_seen(g, step);
     uint8_t buttons = new_step ? 0 : buttons_of(g);
     if (menu_cursor_always_back(g) != 0)
-        buttons |= GO_BACK;
+        buttons |= MENU_GO_BACK;
     set_menu_cursor_buttons(g, buttons);
 }
 
@@ -285,7 +287,7 @@ void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
 {
     enum { PLACE_BYTES = 6, BUTTON_LOOPS = 2, LAST_BUTTON_ASSIGNMENT = 1 };
     const GameState *g = state_of(s);
-    uint8_t a_low = menu_cursor_always_back(g) != 0 ? GO_BACK : 0;
+    uint8_t a_low = menu_cursor_always_back(g) != 0 ? MENU_GO_BACK : 0;
     uint16_t a_high = r.moved ? 0 : (uint16_t)(s->cpu.a & 0xFF00);
     s->cpu.a = (uint16_t)(a_high | a_low);
     uint16_t x = r.moved ? (uint16_t)(r.push * 2) : r.pushed ? r.push : PUSHES;
@@ -293,7 +295,7 @@ void menu_leave_cursor_read(Snes *s, MenuCursorRead r)
     s->cpu.x = r.new_step ? x : BUTTON_LOOPS;
     s->cpu.y = r.new_step ? y : LAST_BUTTON_ASSIGNMENT;
     if (!r.new_step)
-        set_menu_scratch_cursor_button_bit(state_of(s), GO_BACK >> 1);
+        set_menu_scratch_cursor_button_bit(state_of(s), MENU_GO_BACK >> 1);
 }
 
 /* Where the controller read doesn't take the buttons, the port stops where
