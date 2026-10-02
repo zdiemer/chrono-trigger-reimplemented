@@ -323,7 +323,8 @@ driver to C, native mixer behind `au_*`":
    a song's data from the asset accessors. The protocol stays only as long as
    the interpreted driver is the reference. What must be kept is the *state*
    the uploads build (which samples sit in which slot, what the directory
-   says), because the song's instrument numbers index it.
+   says), because the song's instrument numbers index it. As built: "The
+   game's side", below.
 2. **The mixer is S-DSP semantics.** Everything the driver produces is S-DSP
    register state: SRCN into a directory of BRR samples, ADSR and GAIN
    envelopes with the DSP's rate table, 14-bit pitch, echo with an 8-tap FIR,
@@ -390,12 +391,14 @@ play without the original beside it.
 
 ## The port as built
 
-`game/sound/` is the driver reimplemented in C as game code, about 2,800 lines
-in six files, with no operation on emulated registers and no function that
-takes the machine (`portstyle.py`: 0.00 a line, 0% on the machine). It plays
-through the voices, the voice-level part of `platform/audio.h` (PLATFORM.md,
-"The voices, as built"), and reads its data from the cartridge through
-`core/sound_data.h`.
+`game/sound/` is the driver reimplemented in C as game code, with the game's
+side of it that the original ran on the main CPU (the CPU half's commands and
+the samples it placed), about 3,500 lines in seven files, with no operation on
+emulated registers and no function that takes the machine (`portstyle.py`:
+0.00 a line, 0% on the machine). It plays through the voices, the
+voice-level part of `platform/audio.h` (PLATFORM.md, "The voices, as built"),
+and reads its data from the cartridge through `core/sound_data.h`. It is what
+`ct_play` plays by default (below, "Playing it").
 
 | File | What |
 |---|---|
@@ -404,7 +407,8 @@ through the voices, the voice-level part of `platform/audio.h` (PLATFORM.md,
 | `songs.c` | Sound memory and what loads into it, the instruments, starting, stopping, saving and resuming songs, starting effects, the echo's delay |
 | `sequencer.c` | Stepping tracks: notes, rests and ties, the look-ahead, the 60 events as a table |
 | `voices.c` | Vibrato, tremolo and pan sweep; each voice's volume and pitch; the mix the tick sets; the meter |
-| `driver.h` | What the four share |
+| `loads.c` | The game's side: its commands as the CPU half took them, the songs' samples placed in sound memory, the sets of effects, command `$71`'s instrument |
+| `driver.h` | What the others share |
 
 **State.** The driver's state is its own structs, not sound RAM. `SoundDriver`
 keeps the sound memory the driver reads data from (the instruments' tunings
@@ -421,8 +425,9 @@ for where it loads), so the driver reads its sound memory by address
 (`sound_memory_byte`) and counts any read outside what it keeps
 (`stray_reads`); there are none in any movie or fuzzer run.
 
-**Interface.** Commands are calls with the command and parameters the game
-sends (`sound_run_command`). A song's start is two calls for a host that
+**Interface.** The game's command, as the CPU half took it, is
+`sound_game_command` (below, "The game's side"); the driver's own, as they
+reach the sound CPU, are `sound_run_command`. A song's start is two calls for a host that
 uploads the song's data between them as the CPU half does:
 `sound_announce_song` when the command comes (the music stops; a new echo delay
 stops the echo writing and moves its buffer at once, as the original does at
@@ -436,6 +441,32 @@ host that gives commands at the points the original takes them, and
 waits as the original does; otherwise what follows the wait follows at once.
 The three status values are `sound_music_fade_left`, `sound_marker` and
 `sound_playing` (`sound_status` is all four ports).
+
+**The game's side** (`loads.c`). What the CPU half did with its uploads
+(`game/core/sound_driver.c`, the port of `$C7`) is done as calls, so nothing
+is uploaded and nothing waits. A song's command takes its volume and echo
+delay from the song's entry; its echo's buffer is kept free of samples first
+(the places from the first that ends past the echo's start are forgotten,
+`$C7:0A12`); and once the driver has taken the command, the song's samples
+are placed: sixteen places after the boot's own samples, laid end to end. A
+song that has all its samples keeps them where they are; otherwise the places
+holding samples it doesn't use are freed (up to the first empty one), the
+rest move down to close up (`au_sample_memory_move`, whole pages first and
+the rest from its end down, as the original's receiver at `$1206` copies),
+and the ones it lacks load after them. The directory's entries for the
+song's instruments (`$20` on) point at the first place holding each, and
+the entries past the song's last keep what an earlier song left (the
+original sends its whole table, built only as far as the song goes). Then the
+effects load again if the game asked for the other set (it leaves word of it
+beside the command, `$1E10`, which the field does before some songs) or the
+last song was long enough to run over them, and the song starts. Command
+`$70` switches the set at once, `$71` loads a block's sample into the place
+of the song's first sample (the last place holding it) if it fits before the
+next, and `$FC`'s new delay forgets the places under the new buffer. The
+boot places the boot's own samples and their directory entries. The parts
+the lockstep needs at the original's points are calls of their own
+(`sound_play_song`, `sound_ask_for_effects`, `sound_load_announced_song`,
+`sound_keep_echo_free`, `sound_load_song_instrument`).
 
 **Shape.** The commands dispatch through a C table whose rows say which
 operation runs and with what (track set, save first, effect pair, fade, tempo
@@ -502,6 +533,17 @@ library before the next:
   and the driver on a synthetic cartridge, a song's command and start apart
   among it.
 
+- With the original's CPU half running (`ct_dev`), the lockstep also checks
+  the game's side: once the CPU half is done with each song, change of the
+  echo's delay and instrument, its tables in work RAM against the C side's
+  places (blocks, lengths, starts, the song's directory table, the echo's
+  delay and page, `$71`'s place, the set of effects and whether it is due to
+  load again), and the samples and the song's directory entries in sound
+  memory below the echo, the C side starting each song from the original's
+  memory (which the echo may have run over). Over the 7 power-on movies and
+  the 19 save movies they are identical at all 251 checks. `sound_test` places
+  samples on a made-up cartridge.
+
 What the checks found in the port, each fixed: the echo volume a loading tick
 sets; a paused tick's end; the order of a song's voices and the echo's wait
 (hence the host's say in the wait); and what a reload keeps. And one in this
@@ -514,31 +556,39 @@ arithmetic can't reach (`$0A34`); and a track's loop stack wrapping, a fifth
 loop nested or one left past the first (`$1C2B`, `$1C54`, `$1C6E`, `$1CB1`,
 `$1CDB`). TODO.md lists them.
 
-**Playing it.** `ct_play --sound-driver c` (PLAYING.md) plays the C driver in
-the SPC700's place. `frontend/sound_host.c` hooks the APU's run loop
-(`Apu.host`) once the boot upload starts a program, leaves the SPC700 idle, and
-answers the ports as the original's loop and upload receivers do: commands
-echoed and carried out, a song that is playing already refused, uploads
-received into sound memory (the samples and the directory the S-DSP plays
-from; the driver loads its own data), a loading tick while a set is uploaded,
-the echo's wait with commands queued meanwhile, the driver's ticks on its
-timer, its status on the ports, and command `$FF $F0` back to the boot ROM.
-The voices write the emulated S-DSP, which makes the sound. The host answers
-sooner than the original, so it takes about the original's time over a
-command, an upload's end or a wait's end before it ticks again; otherwise the
-next tick's status covers an answer before the CPU half has seen it.
-`ct_sound_fuzz --sound-driver c` checks the host's side of the protocol: 400
-runs of 400 commands with the game's songs and 100 with made-up ones, every
-command and upload answered. `ct_dev --sound-driver c` runs a movie with the
-host in the SPC700's place (it drifts from the movie, the timing not being
-the original's). Both check the one thing the original never lets happen: a
-byte uploaded where the S-DSP is writing its echo
-(`sound_host_uploads_into_echo`; a run with any exits 1). From power-on, the title music starts 233 ms
-sooner than with the original (the game's timing isn't the original's), and
-aligned by that the two are the same waveform to within 2% of its level over
-its first seconds, the rest being the S-DSP's envelope counter at another
-phase; later they drift apart as the game's timing does. The mode can't replay
-a movie or save a state (TODO.md).
+**Playing it.** `ct_play` (PLAYING.md) plays the C driver in the SPC700's
+place by default; `--sound-driver original` plays the original on the SPC700,
+which movies, recording and the gate use, since they need its timing. The
+CPU half's two entries hand the host the boot and each command as calls
+(`au_driver_boot_taken`, `au_driver_command_taken` in `platform/audio.h`, and
+the `Apu` hooks `host_boot` and `host_command` behind them), so its upload
+protocol never runs: `frontend/sound_host.c` boots the driver, carries out each
+command with `sound_game_command`, runs the ticks on the APU's time (`Apu.host`,
+with the SPC700 left idle), waits out the echo's buffer after a change of its
+delay as the original does (holding what comes meanwhile, in order), shows the
+status on the ports, and still answers the commands the scene writes to the
+ports itself. The voices write the emulated S-DSP, which makes the sound. A
+command takes no time where the original's took frames over its uploads, so
+the game's timing is not the original's and the mode can't replay a movie
+(from power-on the title music starts about a second sooner). A saved state
+holds the host's and the driver's fields beside the machine's
+(`sound_host_state`, under `sound.`; RUNTIME.md, "Save states"): a state saved
+and loaded again plays on identically (3000 frames from power-on, saved,
+loaded and run 1000 more is the same state as 4000 straight), `sound_test`
+checks that every byte of `SoundDriver` is in a field, and a state loads only
+with the driver it was saved with. `ct_sound_fuzz --sound-driver c` plays half
+its commands as the game's calls and half through the ports (songs at made-up
+volumes among them), and checks that every port command is answered and that
+no sample is placed where the echo is writing below where the places end for
+it (`sound_host_samples_into_echo`; a run with any exits 1): 100 runs of 400
+commands with the game's songs and 100 with made-up ones pass. Past that end
+a sample can land in the echo's buffer while it writes, in the original as
+here, when a song's samples outgrow the room its echo leaves: the fuzzer gets
+there with command `$71` loading a block that a place already holds, or a
+shorter one in the song's first place, which the next song then keeps where
+it was. `ct_dev --sound-driver c` runs a movie the same way (it drifts from
+the movie, the timing not being the original's), with the same check: none
+over battle-magus and fair.
 
 **What playing it found.** Reported by ear: battle music "very off" (the
 normal battle theme in Magus's castle), and some hi-hats "tinny" in the house
@@ -556,10 +606,12 @@ after the intro. Measured:
   overwritten samples (gato-battle in 86 of its snapshots, fair 15,
   fair-companion 70, late-lavos 135, the endings and the Black Omen too);
   with the fix none has, but for two that are the original's own (below).
-  The host now announces the song at its command and starts it at the upload's
-  end, with the echo's wait counted from the command as the original counts
-  it; `sound_host_uploads_into_echo` counts 17,752 such bytes over fair with the
-  old order and none with the new. The two left: battle-magus's samples
+  The host then announced the song at its command and started it at the
+  upload's end, with the echo's wait counted from the command as the original
+  counts it; a count of bytes uploaded into the echo found 17,752 over fair
+  with the old order and none with the new. Without the protocol the song's
+  samples are placed after its command in the same call
+  (`sound_play_song`). The two left: battle-magus's samples
   `$23`-`$25` and the end of `$22` lie where an earlier song's delay-15 echo
   was, in the original as in the C driver (the CPU half keeps the blocks), so
   both play whatever each echo left there; and one menus-epoch snapshot taken

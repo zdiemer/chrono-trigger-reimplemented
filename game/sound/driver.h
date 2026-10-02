@@ -76,6 +76,11 @@ void change_echo_delay(SoundDriver *d, uint8_t delay);
 void take_song_voices(SoundDriver *d);
 void load_boot_data(SoundDriver *d);
 
+/* ---- loads.c: the game's side ---------------------------------------------------------- */
+
+/* The boot's own samples and their directory, and no song's samples placed. */
+void load_boot_samples(SoundDriver *d);
+
 /* What a track leaves when its stream ends, or its effect is cut off. */
 void release_track(SoundDriver *d, uint8_t track);
 

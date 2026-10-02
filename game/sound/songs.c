@@ -56,11 +56,14 @@ static void load_effect_set(SoundDriver *d, uint8_t set)
 }
 
 // SPC $1044, $10EC
+/* The set loaded is the one a song that runs over it brings back (loads.c). */
 void sound_load_effects(SoundDriver *d, uint8_t set)
 {
     stop_effects(d, EFFECT_PAIR_67);
     stop_effects(d, EFFECT_PAIR_45);
     load_effect_set(d, set);
+    d->samples.effect_set = set;
+    d->samples.effects_overwritten = 0;
 }
 
 // SPC $107C

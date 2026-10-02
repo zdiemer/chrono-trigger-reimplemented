@@ -158,6 +158,7 @@ add_library(ct_game STATIC
   game/menu/wave.c
   game/menu/windows.c
   game/sound/driver.c
+  game/sound/loads.c
   game/sound/sequencer.c
   game/sound/songs.c
   game/sound/voices.c
@@ -317,10 +318,10 @@ target_link_libraries(fuzz_test PRIVATE ct_runtime)
 # Time attribution (native_time_as) in shadow mode, on a made-up program.
 add_executable(time_parts_test tests/port/time_parts_test.c)
 target_link_libraries(time_parts_test PRIVATE ct_runtime)
-# The C sound driver on a made-up cartridge, its voices as S-DSP registers, and
-# the lockstep harness's comparison (docs/SOUND.md).
-add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c)
-target_include_directories(sound_test PRIVATE dev)
+# The C sound driver on a made-up cartridge, its voices as S-DSP registers, the
+# lockstep harness's comparison, and the host's saved state (docs/SOUND.md).
+add_executable(sound_test tests/port/sound_test.c dev/sound_compare.c frontend/sound_host.c)
+target_include_directories(sound_test PRIVATE dev frontend)
 target_link_libraries(sound_test PRIVATE ct_game ct_vars_checked ct_runtime)
 # The accessors generated from re/ram.toml, and the page kinds' D mapping.
 add_executable(vars_test tests/port/vars_test.c)

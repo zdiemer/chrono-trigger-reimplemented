@@ -31,7 +31,10 @@ enum {
     METER_READS_LEVEL = 0x145C
 };
 enum { COMMAND_BYTES = 0x8D, UPLOAD_ADDRESS = 0x97, UPLOAD_ENDS = 0xE0, EFFECTS_PAGE = 0x2F, SONG_INSTRUMENTS = 0x1F40 };
-enum { KON = 0x4C, KOFF = 0x5C, OUTX = 0x09 };
+enum { KON = 0x4C, KOFF = 0x5C, OUTX = 0x09, ESA = 0x6D };
+enum { CHANGE_ECHO_DELAY = 0xFC, SONG_READY = 0x80 };
+/* Where the boot's own samples start; the songs' lie after them. */
+enum { SAMPLES_FROM = 0x4700, SONG_DIRECTORY = 0x1E80, SONG_DIRECTORY_BYTES = 4 * SOUND_SAMPLE_PLACES };
 enum { REPORTED = 1000 };
 
 /* How far through a tick the C driver has gone. */
@@ -62,6 +65,11 @@ struct SoundLockstep {
     unsigned reported_count;
     char state[1024];          /* where the two drivers' states differed at the first difference */
     unsigned state_differences;
+
+    /* The C side's samples against the original CPU half's (sound_lockstep_check_places). */
+    bool check_places, places_due;
+    unsigned long places_checked, places_differing, instruments_refused;
+    char places_first[200];
 };
 
 /* ---- The C driver's voices: a copy of the S-DSP's registers ------------------------------ */
@@ -96,6 +104,12 @@ static void write_memory(void *ctx, uint16_t at, uint8_t value)
     l->memory[at] = value;
 }
 
+static uint8_t read_memory(void *ctx, uint16_t at)
+{
+    SoundLockstep *l = ctx;
+    return l->memory[at];
+}
+
 SoundLockstep *sound_lockstep_create(Snes *s, SoundCompareLevel level)
 {
     SoundLockstep *l = calloc(1, sizeof *l);
@@ -103,7 +117,7 @@ SoundLockstep *sound_lockstep_create(Snes *s, SoundCompareLevel level)
         return NULL;
     l->snes = s;
     l->level = level;
-    l->voices = (AuVoices){ l, read_register, write_register, write_memory };
+    l->voices = (AuVoices){ l, read_register, write_register, write_memory, read_memory };
     return l;
 }
 
@@ -124,7 +138,7 @@ static bool quiet_begin(void)
 
 static void quiet_end(bool was) { vars_peek(was); }
 
-typedef enum { RUN_COMMAND, ANNOUNCE_SONG, START_SONG, LOAD_EFFECTS, LOAD_INSTRUMENT, ECHO_DRAINED, ECHO_READY, TICK_BEGIN, TICK_VOICES, TICK_END, LOADING } Step;
+typedef enum { RUN_COMMAND, ANNOUNCE_SONG, LOAD_SONG, LOAD_EFFECTS, LOAD_EFFECTS_AGAIN, LOAD_INSTRUMENT, ECHO_DRAINED, ECHO_READY, TICK_BEGIN, TICK_VOICES, TICK_END, LOADING } Step;
 
 static void drive(SoundLockstep *l, Step step, SoundCommand c, uint16_t value)
 {
@@ -133,18 +147,35 @@ static void drive(SoundLockstep *l, Step step, SoundCommand c, uint16_t value)
     switch (step) {
     case RUN_COMMAND:
         sound_run_command(d, c);
+        /* the CPU half keeps the echo's new buffer free of samples once the
+         * command is echoed */
+        if (c.command == CHANGE_ECHO_DELAY)
+            sound_keep_echo_free(d, c.p1);
         break;
     case ANNOUNCE_SONG:
-        sound_announce_song(d, c);
+        /* ... and a song's before it sends the command; the set of effects
+         * the game asked for comes with a song that isn't refused */
+        sound_keep_echo_free(d, c.p3);
+        if (sound_announce_song(d, c))
+            sound_ask_for_effects(d, (uint8_t)value);
         break;
-    case START_SONG:
-        sound_start_announced_song(d);
+    case LOAD_SONG:
+        sound_load_announced_song(d);
         break;
     case LOAD_EFFECTS:
         sound_load_effects(d, (uint8_t)value);
         break;
+    case LOAD_EFFECTS_AGAIN:
+        if (d->samples.effects_overwritten)
+            sound_load_effects(d, d->samples.effect_set);
+        break;
     case LOAD_INSTRUMENT:
-        sound_load_instrument(d, SOUND_FIRST_SONG_INSTRUMENT, value);
+        /* the original's CPU half found that the sample fits; ct_sound_fuzz
+         * plays a CPU half of its own that loads the instrument always */
+        if (!sound_load_song_instrument(d, value)) {
+            sound_load_instrument(d, SOUND_FIRST_SONG_INSTRUMENT, value);
+            l->instruments_refused++;
+        }
         break;
     case ECHO_DRAINED:
         sound_echo_drained(d);
@@ -235,6 +266,93 @@ static void compare(SoundLockstep *l)
     sound_side_clear_writes(&l->port);
 }
 
+/* ---- The samples' places against the original CPU half's ---------------------------------- */
+
+void sound_lockstep_check_places(SoundLockstep *l) { l->check_places = true; }
+
+static uint16_t wram_word(const SoundLockstep *l, uint32_t at)
+{
+    return (uint16_t)(snes_bus_peek(&l->snes->bus, at) | snes_bus_peek(&l->snes->bus, at + 1) << 8);
+}
+
+static void place_differs(SoundLockstep *l, const char *what, unsigned index, unsigned want, unsigned got)
+{
+    if (!l->places_differing++)
+        snprintf(l->places_first, sizeof l->places_first, "frame %u: %s[%u] is $%04X in the CPU half, $%04X here",
+                 (unsigned)l->snes->frame, what, index, want, got);
+}
+
+/* Once the CPU half is done with a song, a change of the echo's delay or an
+ * instrument (between commands, its upload over), its tables in work RAM
+ * against the C side's places, and the samples and the directory's entries
+ * in sound memory, below where the echo writes. */
+static void compare_places(SoundLockstep *l)
+{
+    const SoundSamples *p = &l->driver.samples;
+    if (snes_bus_peek(&l->snes->bus, RAM_SOUND_COMMAND) != 0 ||
+        !(snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_SONG) & SONG_READY))
+        return;
+    l->places_due = false;
+    l->places_checked++;
+    unsigned before = (unsigned)l->places_differing;
+    for (unsigned i = 0; i < SOUND_SAMPLE_PLACES; i++) {
+        uint16_t block = wram_word(l, RAM_SOUND_DRIVER_SLOT_IDS + 2 * i);
+        uint16_t length = wram_word(l, RAM_SOUND_DRIVER_SLOT_LENGTHS + 2 * i);
+        if (block != p->block[i])
+            place_differs(l, "block", i, block, p->block[i]);
+        if (length != p->length[i])
+            place_differs(l, "length", i, length, p->length[i]);
+        uint16_t start = wram_word(l, RAM_SOUND_DRIVER_ADDRESS_TABLE + 4 * i);
+        uint16_t loop = wram_word(l, RAM_SOUND_DRIVER_ADDRESS_TABLE + 4 * i + 2);
+        if (start != p->song_start[i] || loop != p->song_loop[i])
+            place_differs(l, "song_start", i, start, p->song_start[i]);
+    }
+    for (unsigned i = 0; i <= SOUND_SAMPLE_PLACES; i++) {
+        uint16_t start = wram_word(l, RAM_SOUND_DRIVER_SLOT_ADDRESSES + 2 * i);
+        if (start != p->start[i])
+            place_differs(l, "start", i, start, p->start[i]);
+    }
+    uint8_t reserve = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_RESERVE);
+    uint8_t limit = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_SLOT_LIMIT);
+    uint16_t upload_slot = wram_word(l, RAM_SOUND_DRIVER_UPLOAD_SLOT);
+    uint8_t pending = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_PENDING);
+    uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET_SENT);
+    if (reserve != p->echo_delay || limit != p->echo_page)
+        place_differs(l, "echo_delay", 0, (unsigned)(reserve << 8 | limit), (unsigned)(p->echo_delay << 8 | p->echo_page));
+    if (upload_slot != 2 * p->instrument_place)
+        place_differs(l, "instrument_place", 0, upload_slot / 2u, p->instrument_place);
+    if (pending != p->effects_overwritten || set != p->effect_set)
+        place_differs(l, "effects", 0, (unsigned)(set << 8 | pending), (unsigned)(p->effect_set << 8 | p->effects_overwritten));
+
+    const uint8_t *original = l->snes->apu.ram;
+    for (unsigned at = SONG_DIRECTORY; at < SONG_DIRECTORY + SONG_DIRECTORY_BYTES; at++)
+        if (original[at] != l->memory[at]) {
+            place_differs(l, "directory byte", at, original[at], l->memory[at]);
+            break;
+        }
+    uint32_t echo = (uint32_t)(l->snes->apu.dsp.regs[ESA] < l->snes->apu.dsp.echo_esa ? l->snes->apu.dsp.regs[ESA]
+                                                                                       : l->snes->apu.dsp.echo_esa)
+                    << 8;
+    for (unsigned i = 0; i < SOUND_SAMPLE_PLACES && p->block[i]; i++) {
+        for (uint32_t at = p->start[i]; at < (uint32_t)p->start[i] + p->length[i] && at < echo; at++)
+            if (original[at] != l->memory[at]) {
+                place_differs(l, "sample byte", at, original[at], l->memory[at]);
+                break;
+            }
+    }
+    if (l->places_differing != before && l->reported_count < REPORTED)
+        snprintf(l->reported[l->reported_count++], sizeof l->reported[0], "frame %u: the samples' places differ",
+                 (unsigned)l->snes->frame);
+}
+
+/* What a song moves and loads starts from what the original's memory holds,
+ * which the echo may have run over where the C side's hasn't. */
+static void sync_samples(SoundLockstep *l)
+{
+    if (l->check_places)
+        memcpy(l->memory + SAMPLES_FROM, l->snes->apu.ram + SAMPLES_FROM, 0x10000 - SAMPLES_FROM);
+}
+
 /* ---- Watching the original ------------------------------------------------------------------ */
 
 static void boot(SoundLockstep *l, const Apu *apu)
@@ -261,6 +379,8 @@ static void begin_tick(SoundLockstep *l, bool loading)
 {
     close_tick(l);
     compare(l);
+    if (l->places_due)
+        compare_places(l);
     if (l->audio) {
         sound_audio_tick(l->audio, &l->snes->apu);
         sound_audio_in_tick(l->audio, true);
@@ -286,10 +406,13 @@ static void command(SoundLockstep *l, const Apu *apu)
     l->commands++;
     if (song_start(c.command)) {
         l->song_open = true;
-        drive(l, ANNOUNCE_SONG, c, 0);
+        sync_samples(l);
+        drive(l, ANNOUNCE_SONG, c, snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET));
         return;
     }
     drive(l, RUN_COMMAND, c, 0);
+    if (c.command == CHANGE_ECHO_DELAY)
+        l->places_due = l->check_places;
 }
 
 /* A header of the CPU half's upload: what it loads, if it is something the C
@@ -301,14 +424,21 @@ static void upload_header(SoundLockstep *l, const Apu *apu)
     if (apu->spc.a == UPLOAD_ENDS)
         return;
     uint16_t address = (uint16_t)(apu->ram[UPLOAD_ADDRESS] | apu->ram[UPLOAD_ADDRESS + 1] << 8);
-    if (address >> 8 == EFFECTS_PAGE) {
+    if (address >> 8 == EFFECTS_PAGE && !l->song_open) {
         uint8_t set = snes_bus_peek(&l->snes->bus, RAM_SOUND_DRIVER_2F00_SET_SENT) != 0;
         drive(l, LOAD_EFFECTS, (SoundCommand){ 0 }, set);
+        l->loads++;
+    } else if (address >> 8 == EFFECTS_PAGE) {
+        /* with a song: loaded again because the last song ran over them,
+         * which the C side decides for itself (sound_load_announced_song);
+         * it does so here, before the song's start is compared */
+        drive(l, LOAD_EFFECTS_AGAIN, (SoundCommand){ 0 }, 0);
         l->loads++;
     } else if (address == SONG_INSTRUMENTS && !l->song_open) {
         uint8_t block = snes_bus_peek(&l->snes->bus, RAM_SOUND_COMMAND_PARAMETERS);
         drive(l, LOAD_INSTRUMENT, (SoundCommand){ 0 }, block);
         l->loads++;
+        l->places_due = l->check_places;
     }
 }
 
@@ -355,8 +485,10 @@ void sound_lockstep_insn(SoundLockstep *l, const Apu *apu)
         /* what the song's command did before its data came: the music
          * stopped and the echo moved out of the samples' way */
         compare(l);
-        if (l->song_open)
-            drive(l, START_SONG, (SoundCommand){ 0 }, 0);
+        if (l->song_open) {
+            drive(l, LOAD_SONG, (SoundCommand){ 0 }, 0);
+            l->places_due = l->check_places;
+        }
         l->song_open = false;
         break;
     case ECHO_WRITES_AGAIN:
@@ -409,6 +541,19 @@ bool sound_lockstep_report(SoundLockstep *l, const char *path, FILE *summary)
     if (l->driver.stray_reads)
         fprintf(summary, ", %lu reads outside the C driver's sound memory (the first at $%04X)",
                 (unsigned long)l->driver.stray_reads, l->driver.first_stray_read);
+    bool places_same = true;
+    if (l->check_places) {
+        places_same = !l->places_differing && !l->instruments_refused;
+        fprintf(summary, "%s; the samples' places checked %lu times against the CPU half's: %s",
+                l->diverged ? "" : ": identical", l->places_checked,
+                l->places_differing ? l->places_first : "identical");
+        if (l->instruments_refused)
+            fprintf(summary, ", but %lu of its instruments refused here", l->instruments_refused);
+        if (!l->diverged) {
+            fprintf(summary, "\n");
+            return places_same;
+        }
+    }
     if (!l->diverged) {
         fprintf(summary, ": identical\n");
         return true;

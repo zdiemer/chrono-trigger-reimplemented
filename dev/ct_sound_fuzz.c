@@ -21,9 +21,13 @@
  * its first difference and prints the commands that led to it.
  *
  * With --sound-driver c there is no original: the C driver plays in the
- * SPC700's place as ct_play's does (frontend/sound_host.h), and a run checks
- * that it answers the CPU half's every command and upload, and that nothing
- * is uploaded where the echo is writing (sound_host_uploads_into_echo).
+ * SPC700's place as ct_play's does (frontend/sound_host.h), taking the CPU
+ * half's boot and, at random, half of the commands as the game's calls (songs
+ * at their own volume and echo, the set of effects switched, instruments
+ * loaded, the driver reloaded) and the rest through the ports as the scene
+ * sends them (songs at made-up volumes among them); a run checks
+ * that every command written to the ports is answered, and that no sample is
+ * placed where the echo is writing (sound_host_samples_into_echo).
  *
  * The CPU half's work RAM the harness reads (the effect set sent, command
  * $71's block) is written here as the CPU half would have it. The data the
@@ -257,6 +261,7 @@ enum { LOAD = 0xFE };
 static bool switch_effect_set(uint8_t set)
 {
     effect_set = set;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET)] = set;
     snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET_SENT)] = set;
     if (!send_command(LOAD, 0, 0, 0))
         return false;
@@ -284,9 +289,11 @@ static bool load_instrument(uint8_t block)
  * track begins. */
 static uint16_t count_effects(void)
 {
+    uint16_t length;
+    const uint8_t *set = effect_set_bytes(effect_set, &length);
     uint16_t lowest = 0xFFFF;
-    for (uint16_t at = 0; at < 0x400 && SOUND_EFFECTS + at < lowest; at += 2) {
-        uint16_t p = (uint16_t)(apu()->ram[SOUND_EFFECTS + at] | apu()->ram[SOUND_EFFECTS + at + 1] << 8);
+    for (uint16_t at = 0; at + 1 < length && at < 0x400 && SOUND_EFFECTS + at < lowest; at += 2) {
+        uint16_t p = (uint16_t)(set[at] | set[at + 1] << 8);
         if (p >> 8 && p >= SOUND_EFFECTS && p < lowest)
             lowest = p;
     }
@@ -298,6 +305,15 @@ static uint16_t count_effects(void)
 static void start_driver(void)
 {
     Apu *a = &snes.apu;
+    effect_set = 0;
+    set_overwritten = false;
+    if (hosted) {
+        /* the CPU half's boot, which the host takes as a call */
+        a->host_boot(a->host_ctx, a);
+        run(20 * FRAME_CLOCKS);
+        effect_count = count_effects();
+        return;
+    }
     for (uint8_t k = 0; k < SOUND_BOOT_BLOCKS; k++) {
         uint32_t at = sound_boot_block(&snes, (uint16_t)(2 * k));
         uint16_t length = sound_data_length(&snes, at), to = sound_boot_block_destination(&snes, (uint16_t)(2 * k));
@@ -308,8 +324,7 @@ static void start_driver(void)
     a->spc.pc = 0x0200;
     a->spc.sp = 0xEF;
     a->spc.psw = SPC_FLAG_Z;
-    effect_set = 0;
-    set_overwritten = false;
+    snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET)] = 0;
     snes.bus.wram[RAM_ABS(RAM_SOUND_DRIVER_2F00_SET_SENT)] = 0;
     run(20 * FRAME_CLOCKS);
     effect_count = count_effects();
@@ -334,8 +349,23 @@ static void boot(void)
  * the announcement is what is waited for. */
 enum { RELOAD_WAIT_CLOCKS = 40 * FRAME_CLOCKS };   /* past a wait for the echo, which queues it */
 
+/* With the C driver in the SPC700's place: the game's command as the CPU
+ * half takes it ($C7:0004), which the host takes as a call. */
+static bool game_command(uint8_t command, uint8_t p1, uint8_t p2, uint8_t p3)
+{
+    const uint8_t bytes[4] = { command, p1, p2, p3 };
+    snes.apu.host_command(snes.apu.host_ctx, &snes.apu, bytes, effect_set);
+    run(AFTER_ECHO_CLOCKS);
+    return true;
+}
+
 static bool reload(void)
 {
+    if (hosted) {
+        game_command(0xFF, 0xF0, 0, 0);
+        start_driver();
+        return true;
+    }
     if (!await(apu()->cpu_out[0], true))
         return false;
     port(1, 0xF0);
@@ -547,14 +577,34 @@ static bool one_command(void)
             /* not the song the driver has saved: resuming it goes back into
              * the bytes it had */
             song = (uint8_t)below(MADE_UP_SONGS);
-            if (song == apu()->ram[SAVED_SONG])
+            if (song == (hosted ? sound_host_saved_song(host) : apu()->ram[SAVED_SONG]))
                 song ^= 1;
             make_song(song);
         }
         uint8_t volume = below(4) ? sound_song_parameter(&snes, song) : (uint8_t)next();
         uint8_t echo = below(4) ? (uint8_t)(sound_song_reserve(&snes, song) & 0x0F) : (uint8_t)below(8);
         note("song", command, song, volume, echo);
-        bool ok = play_song(command, song, volume, echo);
+        bool ok;
+        if (hosted) {
+            /* the game's song at its own volume through the CPU half's
+             * calls, or at another through the ports; at its own echo
+             * either way, which its samples are placed to keep clear of
+             * (with another, they can lie where the echo writes, in the
+             * original as here) */
+            refused = false;
+            uint8_t own_echo = (uint8_t)(sound_song_reserve(&snes, song) & 0x0F);
+            if (volume == sound_song_parameter(&snes, song))
+                ok = game_command(command, song, 0, 0);
+            else
+                ok = send_command(command, song, volume, own_echo);
+            /* The original's CPU half waits for a song's start through
+             * the echo's wait, which a new delay starts; the game's calls
+             * don't, and the host holds what comes meanwhile. Songs piled
+             * up behind each other's waits would outlast any wait here. */
+            run(ECHO_CHANGE_CLOCKS);
+        } else {
+            ok = play_song(command, song, volume, echo);
+        }
         if (!refused)
             made_up_playing = made_up && song < MADE_UP_SONGS;
         return ok;
@@ -565,6 +615,8 @@ static bool one_command(void)
     if (r < 360 && !set_overwritten) {
         uint8_t command = below(2) ? 0x18 : 0x19, effect = (uint8_t)below(effect_count), pan = (uint8_t)next();
         note("effect", command, effect, pan, 0);
+        if (hosted && below(2))
+            return game_command(command, effect, pan, 0);
         return send_command(command, effect, pan, 0);
     }
     /* Nor switch the set then: its upload overwrites the song's end a message
@@ -573,13 +625,21 @@ static bool one_command(void)
     if (r < 375 && !set_overwritten && !made_up_playing) {
         uint8_t set = (uint8_t)below(SOUND_EFFECT_SETS);
         note("effect set", set, 0, 0, 0);
-        bool ok = switch_effect_set(set);
+        bool ok;
+        if (hosted) {
+            effect_set = set;
+            ok = game_command(0x70, set, 0, 0);
+        } else {
+            ok = switch_effect_set(set);
+        }
         effect_count = count_effects();
         return ok;
     }
     if (r < 385) {
         uint8_t block = (uint8_t)(1 + below(62));
         note("instrument", block, 0, 0, 0);
+        if (hosted)
+            return game_command(0x71, block, 0, 0);
         return load_instrument(block);
     }
     if (r < 388) {
@@ -618,7 +678,9 @@ static bool one_command(void)
         if ((others[i].command & 0xF0) == 0x80 && others[i].command <= 0x87 && below(2))
             p1 = (uint8_t)below(8);   /* short fades and slides too */
         note("command", others[i].command, p1, p2, 0);
-        if (!send_command(others[i].command, p1, p2, 0))
+        if (hosted && below(2))
+            game_command(others[i].command, p1, p2, 0);
+        else if (!send_command(others[i].command, p1, p2, 0))
             return false;
         /* A change of the echo's delay waits for the buffer with the queue
          * open, and runs the queue again from its start when the wait ends:
@@ -701,11 +763,11 @@ int main(int argc, char **argv)
                 stuck ? ", the driver stopped answering" : "");
         bool same = true;
         if (hosted) {
-            unsigned long into_echo = sound_host_uploads_into_echo(host);
+            unsigned long into_echo = sound_host_samples_into_echo(host);
             same = into_echo == 0;
             fprintf(stderr, "%s", stuck ? "stuck" : "answered");
             if (!same)
-                fprintf(stderr, ", but %lu bytes were uploaded where the echo was writing", into_echo);
+                fprintf(stderr, ", but %lu bytes of samples were placed where the echo was writing", into_echo);
             fprintf(stderr, "\n");
         }
         else

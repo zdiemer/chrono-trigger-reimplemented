@@ -37,8 +37,10 @@ both are for the sound driver's port ([SOUND.md](SOUND.md)).
 interpreted driver and compares them every tick (`--sound-lockstep-level`
 status, keys, dsp or state; SOUND.md, "The port as built"); it needs a run
 from power-on. A third hook, `Apu.host`, runs a program on the host in the
-SPC700's place once the boot upload starts one: `ct_play --sound-driver c`
-plays the port that way (`frontend/sound_host.c`).
+SPC700's place, and `Apu.host_boot` and `Apu.host_command` hand it the CPU
+half's boot and commands as calls (`au_driver_boot_taken`,
+`au_driver_command_taken`): `ct_play` plays the port that way by default, and
+`ct_dev --sound-driver c` (`frontend/sound_host.c`).
 
 ## Components
 
@@ -586,7 +588,7 @@ structure changed (P3 showed it by changing `sizeof(Snes)`).
 | Bytes | Holds |
 |---|---|
 | 4 | `CTST` |
-| 2, 2 | format version (1), flags (0) |
+| 2, 2 | format version (2), flags (0) |
 | per field | name length (1-255), the name (`cpu.a`, `ppu.vram`, `apu.dsp.voice[3].env`), element size (1, 2, 4 or 8), element count (4 bytes), the elements |
 | 1 | 0: end of the fields |
 | 4 | CRC-32 of everything before it |
@@ -596,6 +598,16 @@ hosts. The first field is `rom.crc32`, the ROM the state was saved with; the
 rest are every field of `Snes` except the ROM, host pointers, hooks,
 `halted` and the write tracking shadow mode uses (below), about 300 of them in
 290 KB (work RAM, VRAM and sound RAM are most of it).
+
+A program on the host that plays in the SPC700's place keeps fields of its
+own, which a state holds beside the machine's: `snes_state_write_with` and
+`snes_state_read_with` take an `SnesStateExtra` that names every one of them
+(the C sound driver's and its host's, under `sound.`, from
+`sound_host_state`), and a read fills a copy first and hands it over only once
+the whole state has checked out. Such a state also has an `apu.host` field,
+and a state loads only the way it was saved: with the program's fields, or
+without them, since the SPC700's state means nothing to the program and its
+fields nothing to the SPC700 (format 2; a format 1 state loads without them).
 
 Nor is the native runtime (`runtime/port/native.c`). With `--native on` a
 hand port may be suspended in a call-out at a frame's end (`native_suspended`),
@@ -641,7 +653,9 @@ identically; a state without a field (an older build's) loads with it at its
 power-on value, and one with an unknown field (a newer build's) loads; every
 prefix of a state, flipped bytes, the raw magic, a newer version, a resized
 field or array, a duplicate field, out-of-range values and another ROM's state
-are all refused with the machine unchanged. It also checks that every byte of
+are all refused with the machine unchanged; a host program's fields round-trip,
+reach it only once the state has loaded, and load only the way they were
+saved. It also checks that every byte of
 `Snes` is a state field, a host pointer or hook, write tracking, or padding, so
 a field added without its line in `visit()` fails the test (a forgotten field
 small enough to pass for padding is caught by the byte-for-byte round trip
