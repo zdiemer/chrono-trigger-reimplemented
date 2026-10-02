@@ -158,7 +158,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 172 files, 117 of 46,013 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 177 files, 117 of 46,013 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -205,16 +205,16 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **None of the code is still generated.**
+docstring says which way it is wrong). **41% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.8K | 44.0K | 18.8K | 32% | 254 |
+| battle (`$C1`, `$CE`) | 64.9K | 49.2K | 18.8K | 24% | 337 |
 | field engine, events (`$C0`) | 59.4K | 44.8K | 9.3K | 25% | 289 |
 | menus, text (`$C2`) | 59.3K | 22.6K | 6.9K | 62% | 236 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
-| field graphics (`$FD`) | 15.3K | 11.2K | 0.6K | 27% | 78 |
+| field graphics (`$FD`) | 15.3K | 11.3K | 0.6K | 26% | 79 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
@@ -222,7 +222,7 @@ docstring says which way it is wrong). **None of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **154.5K** | **41.9K** | **42%** | **1139** |
+| **total** | **268.5K** | **159.7K** | **41.9K** | **41%** | **1223** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 185 event command entries), which is why the shares are so high
