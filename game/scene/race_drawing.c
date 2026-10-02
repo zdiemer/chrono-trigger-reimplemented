@@ -97,61 +97,90 @@ static uint8_t sprites_at(uint16_t size, uint8_t near_sprites)
     return at_least(size, MIDDLE) ? FAR_SPRITES : MIDDLE_SPRITES;
 }
 
-/* The smallest a racer is drawn at, and its frames of animation: a bike
+/* The nearest a racer is drawn at (its scale: the smaller, the bigger its
+ * picture), and its frames of animation: a bike
  * changes frame every other count of the race's animation, Crono's on the odd
  * counts and Johnny's on the even. */
-enum { CRONO_SMALLEST = 0x80, JOHNNY_SMALLEST = 0x40, SIZE_MASK = 0xFFF, OTHER_FRAME = 8, LEANS = 16 };
+enum { CRONO_NEAREST = 0x80, JOHNNY_NEAREST = 0x40, SIZE_MASK = 0xFFF, OTHER_FRAME = 8, LEANS = 16 };
 
 static unsigned picture_index(unsigned pose, bool other_frame) { return pose + (other_frame ? OTHER_FRAME : 0); }
 
-/* Crono's picture for this frame, his size from channel 1 (and the count of
- * sprites from the size he was asked at last time): his pose, his lean, his
- * frame. Returns the frame's place in his pictures, which the original leaves
- * in the first arithmetic cell. */
+/* A picture asked of the main loop: where it is in the bank of pictures, how
+ * many rows and how wide, where its rows end, and how far down each scaled
+ * row steps (half the racer's size). */
+typedef struct {
+    uint16_t source, rows, pairs, source_limit, row_step;
+} PictureRequest;
+
+static void ask_for_picture(GameState *g, Racer r, const PictureRequest *p)
+{
+    set_scene_race_picture_requests_source(g, r, p->source);
+    set_scene_race_picture_requests_rows(g, r, p->rows);
+    set_scene_race_picture_requests_pairs(g, r, p->pairs);
+    set_scene_race_picture_requests_source_limit(g, r, p->source_limit);
+    set_scene_race_picture_requests_row_step(g, r, p->row_step);
+    set_scene_race_picture_requests_state(g, r, PICTURE_WAITING);
+}
+
+/* The race's animation counts on each time Crono's picture is asked for. */
+static uint16_t count_animation(GameState *g)
+{
+    uint16_t counts = (uint16_t)(race_camera(g, RACE_ANIMATION) + 1);
+    set_race_camera(g, RACE_ANIMATION, counts);
+    return counts;
+}
+
+/* Crono's picture for this frame: his pose's, by his lean and his frame of
+ * animation, at his size from channel 1, never nearer than CRONO_NEAREST. How many
+ * of his sprites show follows the size he was asked at last time. Returns the
+ * frame's place in his pictures, which the original leaves in the first
+ * arithmetic cell. */
 enum { CRONO_PAIRS = 4 };
 
 static uint16_t ask_crono_picture(GameState *g, unsigned pose)
 {
-    set_scene_race_picture_requests_source_limit(g, RACER_CRONO, scene_race_crono_frame_ends(g, pose));
-    set_scene_race_picture_requests_rows(g, RACER_CRONO, scene_race_crono_frame_rows(g, pose));
     uint8_t far_count = (uint8_t)scene_race_crono_sprite_counts(g, pose);
     set_scene_race_sprite_list_counts(g, RACER_CRONO,
                                       sprites_at(scene_race_picture_requests_row_step(g, RACER_CRONO), far_count));
     uint16_t size = race_channel_1(g, RACE_CRONO_SCALE);
-    if (!at_least(size, CRONO_SMALLEST)) {
-        size = CRONO_SMALLEST;
+    if (!at_least(size, CRONO_NEAREST)) {
+        size = CRONO_NEAREST;
         set_race_channel_1(g, RACE_CRONO_SCALE, size);
     }
-    set_scene_race_picture_requests_row_step(g, RACER_CRONO, size >> 1);
-    uint16_t counts = (uint16_t)(race_camera(g, RACE_ANIMATION) + 1);
-    set_race_camera(g, RACE_ANIMATION, counts);
-    unsigned frame = picture_index(pose, counts & 1);
-    unsigned index = scene_race_crono_lean(g) * LEANS + frame;
-    set_scene_race_picture_requests_source(g, RACER_CRONO, scene_race_crono_frames(g, index));
-    set_scene_race_picture_requests_pairs(g, RACER_CRONO, CRONO_PAIRS);
-    set_scene_race_picture_requests_state(g, RACER_CRONO, PICTURE_WAITING);
+    unsigned frame = picture_index(pose, count_animation(g) & 1);
+    PictureRequest p = {
+        .source = scene_race_crono_frames(g, scene_race_crono_lean(g) * LEANS + frame),
+        .rows = scene_race_crono_frame_rows(g, pose),
+        .pairs = CRONO_PAIRS,
+        .source_limit = scene_race_crono_frame_ends(g, pose),
+        .row_step = size >> 1,
+    };
+    ask_for_picture(g, RACER_CRONO, &p);
     return (uint16_t)(frame * 2);
 }
 
-/* Johnny's picture: his size from channel 1, never below JOHNNY_SMALLEST;
- * 3 pairs wide, $30 rows, ending at $600. */
+/* Johnny's picture: his pose's, by his frame of animation, at his size from
+ * channel 1, never nearer than JOHNNY_NEAREST; all his pictures are 3 pairs wide
+ * and $30 rows, ending at $600. */
 enum { JOHNNY_PAIRS = 3, JOHNNY_ROWS = 0x30, JOHNNY_FRAME_END = 0x600 };
 
 static void ask_johnny_picture(GameState *g, unsigned pose)
 {
     uint16_t size = (race_channel_1(g, RACE_JOHNNY_SCALE) >> 1) & SIZE_MASK;
-    if (!at_least(size, JOHNNY_SMALLEST)) {
-        size = JOHNNY_SMALLEST;
+    if (!at_least(size, JOHNNY_NEAREST)) {
+        size = JOHNNY_NEAREST;
         set_race_channel_1(g, RACE_JOHNNY_SCALE, size);
     }
-    set_scene_race_picture_requests_row_step(g, RACER_JOHNNY, size);
     set_scene_race_sprite_list_counts(g, RACER_JOHNNY, sprites_at(size, JOHNNY_NEAR_SPRITES));
     unsigned frame = picture_index(pose, !(race_camera(g, RACE_ANIMATION) & 1));
-    set_scene_race_picture_requests_source(g, RACER_JOHNNY, scene_race_johnny_frames(g, frame));
-    set_scene_race_picture_requests_source_limit(g, RACER_JOHNNY, JOHNNY_FRAME_END);
-    set_scene_race_picture_requests_rows(g, RACER_JOHNNY, JOHNNY_ROWS);
-    set_scene_race_picture_requests_pairs(g, RACER_JOHNNY, JOHNNY_PAIRS);
-    set_scene_race_picture_requests_state(g, RACER_JOHNNY, PICTURE_WAITING);
+    PictureRequest p = {
+        .source = scene_race_johnny_frames(g, frame),
+        .rows = JOHNNY_ROWS,
+        .pairs = JOHNNY_PAIRS,
+        .source_limit = JOHNNY_FRAME_END,
+        .row_step = size,
+    };
+    ask_for_picture(g, RACER_JOHNNY, &p);
 }
 
 // $7E:4FAD, $7E:5047

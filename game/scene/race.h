@@ -42,9 +42,9 @@ enum {
 
 /* Channel 1's registers the race reads. */
 enum {
-    RACE_CRONO_SCALE = 0,  /* how big Crono's bike is drawn, at his distance */
+    RACE_CRONO_SCALE = 0,  /* how far off Crono is drawn: the larger, the smaller his picture */
     CAMERA_SIDE = 2,       /* where the camera is down the plane, across the track */
-    RACE_JOHNNY_SCALE = 6, /* how big Johnny's bike is drawn */
+    RACE_JOHNNY_SCALE = 6, /* the same for Johnny */
     RACE_STARTED = 13,     /* set when the countdown ends */
 };
 

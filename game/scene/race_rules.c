@@ -262,7 +262,7 @@ static void place_camera(GameState *g)
 
 /* How far Crono leads, in 32nds of the distance: the two distances' words from
  * bit 5, less one more when Crono's bit 4 is clear (the original subtracts with
- * the bit its shifts left last). Returns whether the subtraction didn't
+ * the bit its shifts carry out last). Returns whether the subtraction didn't
  * borrow, the one the bump's measuring carries on with. */
 enum { LEAD_SHIFT = 5 };
 
@@ -397,8 +397,6 @@ static void bump_across(GameState *g, Racer from, Racer pushed, bool carried)
 /* Bumping Johnny from behind scores 20, being bumped from behind costs 10. */
 enum { SCORE_FOR_BUMPING = 20, SCORE_FOR_BEING_BUMPED = 10 };
 
-static void bump_crono_into_johnny(GameState *g) { (void)bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE); }
-
 /* The bikes have come together: how they bump depends on where they came
  * from, which the last contact apart says. */
 static void bump(GameState *g)
@@ -407,7 +405,7 @@ static void bump(GameState *g)
     bool carried = true;   /* the bump's own comparison found the contact it bumps by */
     switch (from) {
     case CRONO_WELL_AHEAD:
-        bump_crono_into_johnny(g);
+        (void)bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE);
         set_scene_race_score(g, (uint16_t)(scene_race_score(g) + SCORE_FOR_BUMPING));
         return;
     case JOHNNY_WELL_AHEAD:
@@ -534,9 +532,9 @@ static uint8_t score_prize(uint16_t shown)
 }
 
 /* After the finish Crono coasts at a top speed of $7000; in the demo Johnny's
- * drops to $4000 instead. Johnny's picture keeps its largest size, and the
- * fades go a step every 5 frames. */
-enum { COASTING_SPEED = 0x7000, DEMO_JOHNNY_SPEED = 0x4000, JOHNNY_LARGEST = 0x0FFF, FINISH_FADE = 5 };
+ * drops to $4000 instead. Johnny's picture goes to its farthest size, and
+ * the fades go a step every 5 frames. */
+enum { COASTING_SPEED = 0x7000, DEMO_JOHNNY_SPEED = 0x4000, JOHNNY_FARTHEST = 0x0FFF, FINISH_FADE = 5 };
 enum { VICTORY_SONG = 0x1B };
 enum { LOWER_FINISH_LANE = 0x2000, HIGHER_FINISH_LANE = 0x6000 };
 
@@ -544,7 +542,7 @@ enum { LOWER_FINISH_LANE = 0x2000, HIGHER_FINISH_LANE = 0x6000 };
 /* Crono crosses the line first: the winner and his score, with what it earns,
  * kept for the story; the victory song; his lead kept to die away; the camera's
  * turning and the pause stopped; and in the demo the two bikes are sent to the
- * lanes on their own sides. Johnny's top speeds are his last word. */
+ * lanes on their own sides. */
 static void crono_finishes(GameState *g)
 {
     set_scene_race_winner(g, WINNER_CRONO);
@@ -557,7 +555,7 @@ static void crono_finishes(GameState *g)
         set_scene_race_racers_top_speed_leading(g, RACER_JOHNNY, DEMO_JOHNNY_SPEED);
         set_scene_race_racers_top_speed_trailing(g, RACER_JOHNNY, DEMO_JOHNNY_SPEED);
     }
-    set_race_channel_1(g, RACE_JOHNNY_SCALE, JOHNNY_LARGEST);
+    set_race_channel_1(g, RACE_JOHNNY_SCALE, JOHNNY_FARTHEST);
     set_scene_fade_period(g, FINISH_FADE);
     set_scene_fade_countdown(g, FINISH_FADE);
 
