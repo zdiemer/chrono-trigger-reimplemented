@@ -3296,7 +3296,7 @@ search alone 8,000.
 **Timing.** The entries' costs come from the shadow runs, from 2,667 (a
 sound effect's own work, the driver's being its own) to 7,858 (the numbers);
 the five no movie reaches take a sibling's. The walk's search is timed as its
-own routine (`TIMED_AS`, `$C1:4A71` registered for it, 10,907), and so are the
+own routine (`TIMED_AS`, `$C1:4A71` registered for it, 10,757), and so are the
 screen effect's three kinds, which put its worst stretch and the channel
 runner's within the gate's limits; the runner and the slots' places loop were
 recalibrated. The full gate then passes with no new exception.
