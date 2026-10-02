@@ -108,6 +108,11 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
 
+/* Set a screen effect from its five settings bytes (screen_motion.c says
+ * what they mean). */
+enum { SCREEN_EFFECT_SETTINGS = 5 };
+void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SCREEN_EFFECT_SETTINGS]);
+
 /* A command's body returns with A 0, as the original's last TDC leaves it. */
 static inline void screen_command_done(Snes *s)
 {

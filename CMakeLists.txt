@@ -245,6 +245,10 @@ add_library(ct_game STATIC
   game/battle/script_poses.c
   game/battle/script_effects.c
   game/battle/script_colors.c
+  game/battle/script_places.c
+  game/battle/script_moves.c
+  game/battle/script_walk.c
+  game/battle/script_sound.c
   game/battle/rewards_levels.c
   game/battle/rewards_techs.c
   game/battle/member_stats.c

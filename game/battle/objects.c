@@ -12,13 +12,14 @@
  * swing, a spell's cast) a frame's time at a time: each frame every object's
  * time counts down, and the scheduler takes the next object due, round the
  * objects from where it last stopped. And six animation slots can have their
- * position worked out each frame by a position mode, whose code is still the
- * original's. */
+ * position worked out each frame by a position mode: a place the animation
+ * scripts name (battle/script_places.c). */
 #include "battle/animation.h"
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/script_language.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -99,26 +100,17 @@ static unsigned find_due_animation(GameState *g)
 
 /* ---- The animation slots' positions ------------------------------------------------------- */
 
-enum { POSITION_SLOTS = 6, NO_POSITION_MODE = 0 };
+enum { POSITION_SLOTS = 6 };
 
-/* The slot's position mode, less the "none" that 0 is. */
-static bool has_position_mode(const GameState *g, unsigned slot)
+/* Keep the position the slot's place worked out. */
+static void keep_found_position(GameState *g, unsigned slot, BattlePoint at)
 {
-    return battle_animation_position_modes(g, slot) != NO_POSITION_MODE;
-}
-static uint8_t position_mode(const GameState *g, unsigned slot)
-{
-    return (uint8_t)(battle_animation_position_modes(g, slot) - 1);
+    set_battle_animation_positions(g, slot, (uint16_t)(at.x | at.y << 8));
 }
 
-/* Keep the position the slot's mode worked out. */
-static void keep_found_position(GameState *g, unsigned slot)
-{
-    set_battle_animation_positions(g, slot, (uint16_t)(battle_position_found_x(g) | battle_position_found_y(g) << 8));
-}
-
-/* The original keeps the slot it is at in a cell; the modes' code doesn't
- * read it. */
+/* The original counts the slots in a cell, which the places don't read. The
+ * count it ends at, POSITION_SLOTS, is the lift the original's jumps to the
+ * script's point take from there (battle/script_language.h). */
 enum { LEFT_POSITION_SLOT = 0x10 };
 static void leave_position_slot(GameState *g, unsigned slot)
 {
@@ -189,19 +181,27 @@ bool battle_scheduler_in_place(Snes *s)
     return battle_on_page(s) && in_place;
 }
 
-/* Each slot's position is worked out by its mode's code ($C1:762E, which
- * picks it by the mode in A), a call per slot. */
+/* Each slot's position is the place its mode names (battle/script_places.c),
+ * worked out afresh. A mode naming a place the game doesn't have is the
+ * original's to work out ($C1:762E, which picks it by the mode in A). */
 void battle_update_animation_positions(Snes *s)
 {
     GameState *g = state_of(s);
     for (unsigned slot = 0; slot < POSITION_SLOTS; slot++) {
         ORIGINAL_EFFECT(leave_position_slot(g, slot));
-        if (!has_position_mode(g, slot))
+        uint8_t place;
+        if (!animation_slot_follows(g, slot, &place))
             continue;
-        s->cpu.a = position_mode(g, slot);
-        if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
-            return;
-        keep_found_position(g, slot);
+        BattlePoint at;
+        if (script_place_known(g, place)) {
+            at = script_find_place(g, place);
+        } else {
+            s->cpu.a = place;
+            if (!battle_call(s, 0xC1421E, 0xC1762E, DC_X | DC_Y | DC_N | DC_Z | DC_C))
+                return;
+            at = (BattlePoint){ battle_position_found_x(g), battle_position_found_y(g) };
+        }
+        keep_found_position(g, slot, at);
     }
     ORIGINAL_EFFECT(leave_position_slot(g, POSITION_SLOTS));
     m_rts(s);

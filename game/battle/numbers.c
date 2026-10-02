@@ -12,8 +12,7 @@
  * front left out; a miss is two tiles of its own. */
 #include "battle/window.h"
 
-#include "battle/bridge.h"
-#include "battle/entries.h"
+#include "battle/script_language.h"
 #include "battle/window_data.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -183,46 +182,34 @@ static void put_numbers_away(GameState *g)
 
 /* The command's steps; a step past the second waits for the numbers to rise. */
 enum { PUT_AWAY = 0, SHOW = 1, WAIT_FOR_RISE = 2 };
-enum { NUMBER_SETS_MASK = 0x07 };
 
 // $C1:5ADB
-/* A number command's step; true when the script moves on past it. */
-static bool run_number_command(GameState *g, uint8_t command)
+/* A number command (the script's $50-$55, a set of numbers each): the
+ * numbers put away, then the set shown, then the channel waits for them to
+ * rise before it goes on. */
+static ScriptFlow show_numbers_command(GameState *g, uint8_t set)
 {
     switch (battle_number_step(g)) {
     case PUT_AWAY:
         set_battle_number_step(g, SHOW);
         put_numbers_away(g);
-        return false;
+        return SCRIPT_STAY;
     case SHOW:
         set_battle_number_step(g, WAIT_FOR_RISE);
-        show_numbers(g, command & NUMBER_SETS_MASK);
-        return false;
+        show_numbers(g, set);
+        return SCRIPT_STAY;
     default:
         if (battle_numbers_rising(g))
-            return false;
+            return SCRIPT_STAY;
         set_battle_number_step(g, PUT_AWAY);
-        return true;
+        return SCRIPT_NEXT_FRAME;
     }
 }
+SCRIPT_OPERATION(show_numbers_command, set)
 
-/* The script moves past a one-byte command. (The original adds to the
- * pointer's bank in a word, which only a pointer at the end of the address
- * space would carry into the byte after it.) */
-static void next_script_command(GameState *g)
-{
-    set_battle_script_pointer(g, (battle_script_pointer(g) + 1) & 0xFFFFFF);
-}
+/* ---- The table ------------------------------------------------------------------------- */
 
-/* ---- The entry ------------------------------------------------------------------------- */
+#define NUMBERS(b, k) { b, OPERATION(show_numbers_command), .set = CONSTANT(k), .length = 1 }
 
-/* The script's commands $50-$55 (the command in battle_script_command). It
- * ends, as the script commands do, with A clear. */
-void battle_script_build_number_sprites(Snes *s)
-{
-    GameState *g = state_of(s);
-    if (run_number_command(g, battle_script_command(g)))
-        next_script_command(g);
-    s->cpu.a = 0;
-    m_rts(s);
-}
+SCRIPT_OPCODES(script_number_opcodes, NUMBERS(0x50, 0), NUMBERS(0x51, 1), NUMBERS(0x52, 2), NUMBERS(0x53, 3), NUMBERS(0x54, 4),
+               NUMBERS(0x55, 5));

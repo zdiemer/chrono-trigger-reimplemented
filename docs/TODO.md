@@ -137,7 +137,7 @@ rest waits, is [PLAN.md](PLAN.md).
     (from `$C1:B316`); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, the enemy animation effects' nine handlers
-    `$C1:3760`, the position modes `$C1:762E`; an effect's next
+    `$C1:3760`; an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030`, `$FD:A95F` from the menu window;
@@ -153,8 +153,8 @@ rest waits, is [PLAN.md](PLAN.md).
     the rest of
     `battle_fight_flags`; the unused rows of the script commands'
     per-combatant and per-effect cells (`battle_script_command_cells` at
-    `$A171`, `battle_effect_spare_cells`) and the count at `$A166` the grid
-    walk keeps (chunk 9b); the five window tile blocks the frame
+    `$A171`, `battle_effect_spare_cells`), `battle_walk_cleared` and the
+    walk's count at `$A166`, which nothing reads; the five window tile blocks the frame
     loads and what reads `battle_block_uploads_made`; what the marker sprite
     is to the player; why the upload lets enemies in slots 4 and 6+ through.
   - Quirks of the enemies' scripts reproduced on purpose (RECOMP.md, "Phase 3,
@@ -198,6 +198,40 @@ rest waits, is [PLAN.md](PLAN.md).
     27, a subject or an anchor named by an operand, an effect record found in
     a byte, an effect animation past the 16), reach the next variable only
     while storage is the RAM image: a native layout needs a decision for each.
+    Chunk 9b's (RECOMP.md, "Phase 3, battle chunk 9b"): the middle of the
+    first three subjects taking its Y from the sum of their X; a channel's
+    line or jump going past the length its last move kept, whatever command
+    it is at; the other targets' forms -- lines setting every target off and
+    going on at once, spirals out setting them off without marking them
+    moving, orbits going on only when none has ended, a chase's or an orbit's
+    own heading taken from the first target's for the rest, the jumps and
+    throws doing nothing -- and the last of them leaving the work cells as
+    the original's loops do; the throw's rise for an anchor reading its speed
+    at twice its number (past the movers for the last four); the walk's
+    search ending at a ring holding cell 0. Their reads past a table where a
+    channel's subject is none (`$FF`), through `_unchecked` accessors: the
+    places that take a channel's subject or a mover's heading, the place 24
+    pixels along a subject's angle, a subject's facing
+    (`battle/script_places.c`), and the weapon sounds' pan, from where
+    channel 0's subject stands (`battle/script_sound.c`, `combatant_x`).
+  - The commands a row's needs leave to the original that the game reaches
+    (chunk 9b): the endings' scripts run moves on a channel whose subject is
+    none (`$FF`), the original's indexed writes landing past the movers'
+    tables (82 calls of the jump to a place in `endings-beyond-time`, and the
+    9a commands' as before); a chase or an orbit at a place whose working out
+    overwrites the operands it reads back, and the spiral that stops at
+    others on the other targets' channel, whose loop takes its place in the
+    list from the overlap test's answer, are left to the original too (no
+    movie reaches them). The jumps to the script's point (`$99`, `$9B`, `$9D`)
+    run as C, lifting by `POINT_JUMP_LIFT`, only while `$90`
+    (`battle_jump_lift`), a work cell the original shares, holds the 6 the
+    animation slots' loop leaves there each frame; a jump given its own lift or
+    a walk's search earlier in the frame overwrites it, and the original's jump
+    then lifts by that (no movie has one). The throw's last step `$C1:7364` is
+    entered by `$D4`'s handler once its wait runs out (`$C1:734F`); where the
+    original runs `$D4` its guard turns that entry away too (180 calls in the
+    library). Each wants deciding in game terms before the storage leaves the
+    RAM image.
   - The accepted divergences, each at its routine: the drawing pass past 128
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
@@ -243,6 +277,17 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
+  - what battle chunk 9b's review left (none blocking): `script_moves.c`'s
+    orbit writes a scaffolding cell nearly every line, some of them cells
+    named for other uses (`LEFT_CENTER` holding the list's place); a line's
+    length is handed to the throw's rise through the low byte of
+    `battle_throw_wait_after`; the places are a byte where `{kind, n}` would
+    say which subject or anchor they take; the subjects are named by channel
+    number (`subject(g, 1)`) rather than for what they are to the action;
+    `script_language.c`'s needs keep their own copy of the screen effect's
+    settings and choices beside `screen_motion.c`'s; `face` in
+    `script_places.c` carries `at` and `last` through its loop only for the
+    cells it leaves.
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the

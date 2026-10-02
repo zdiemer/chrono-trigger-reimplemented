@@ -8,14 +8,17 @@
  * it, or runs commands until one ends its frame. A command byte past the
  * language's last holds the channel there.
  *
- * The commands are the language's rows (battle/script_language.h, and the
- * script_*.c files that hold them). A command with a row whose operation can
- * run in the state runs it, timed as the original's handler; the rest call
- * the original's handler, found through the dispatch table below, with the
- * channel's place in the script in battle_script_pointer, which the handler
- * reads its operands through and moves on past them; a command that lets
- * the channel go on within the frame sets battle_script_continue. The number
- * display's commands are ported (battle/numbers.c) and reached that way. */
+ * The commands are the language's rows (battle/script_language.h, the
+ * script_*.c files and battle/numbers.c hold them), one for every command
+ * byte. A command whose row's operation can run in the state runs it, timed
+ * as the original's handler; a command with a bridge (the sound commands,
+ * the table below) runs as its handler's entry, called as the original's
+ * runner calls it. What a row's
+ * needs turn away calls the original's handler, found through the dispatch
+ * table below, with the channel's place in the script in
+ * battle_script_pointer, which the handler reads its operands through and
+ * moves on past them; a command that lets the channel go on within the frame
+ * sets battle_script_continue. */
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/effects.h"
@@ -61,6 +64,41 @@ static const uint16_t handlers[LAST_COMMAND + 1] = {
 
 static uint32_t handler_of(uint8_t command) { return (uint32_t)HANDLER_BANK << 16 | handlers[command]; }
 
+/* The commands that still call out to the original's code (the sound
+ * driver), whose rows only decode them: each bridge takes the machine and the
+ * command, and is false where the original carried on from the call-out
+ * itself (the channel then not moved on); otherwise the channel goes on past
+ * the command within the frame. */
+typedef bool (*ScriptBridge)(Snes *s, const ScriptCommand *command);
+
+static const struct {
+    uint8_t command;
+    ScriptBridge bridge;
+} bridges[] = {
+    { 0x78, script_play_sound_bridge },    { 0x79, script_play_sound_bridge },    { 0x7A, script_play_sound_at_bridge },
+    { 0x7B, script_play_sound_at_bridge }, { 0x7C, script_weapon_sound_bridge }, { 0x7D, script_weapon_sound_bridge },
+};
+
+static ScriptBridge bridge_of(uint8_t command)
+{
+    for (unsigned i = 0; i < sizeof bridges / sizeof bridges[0]; i++)
+        if (bridges[i].command == command)
+            return bridges[i].bridge;
+    return NULL;
+}
+
+/* The jumps to the script's point run as C only while the cell the original
+ * takes their lift from holds the usual one (battle/script_language.h): a
+ * look at the original's state, as a guard's. */
+bool script_point_jump_lift_as_usual(const GameState *g)
+{
+    bool was = vars_peeking();
+    vars_peek(true);
+    bool usual = battle_jump_lift(g) == POINT_JUMP_LIFT;
+    vars_peek(was);
+    return usual;
+}
+
 static uint32_t channel_place(const GameState *g, unsigned channel) { return battle_script_pointers(g, channel); }
 static void set_channel_place(GameState *g, unsigned channel, uint32_t at) { set_battle_script_pointers(g, channel, at); }
 
@@ -95,7 +133,17 @@ static bool take_up_channel(GameState *g, unsigned channel)
  * it takes, and leaving A clear as every handler does. */
 static void run_operation(Snes *s, uint8_t command, const ScriptOpcode *row)
 {
-    NATIVE_TIME_AS(s, handler_of(command), script_perform(state_of(s), row));
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, handler_of(command), script_move_on(g, row, script_operate(g, row)));
+    s->cpu.a = 0;
+}
+
+/* The registers the original's runner calls a handler with: the command's
+ * byte doubled in X (its table's index), Y and A clear. */
+static void enter_as_the_runner_does(Snes *s, uint8_t command)
+{
+    s->cpu.x = (uint16_t)(command * 2);
+    s->cpu.y = 0;
     s->cpu.a = 0;
 }
 
@@ -113,12 +161,15 @@ static bool run_channel(Snes *s, unsigned channel)
         if (command == HOLDS)
             break;
         const ScriptOpcode *row = script_opcode((uint8_t)command);
-        if (row && script_runs_here(g, row)) {
+        if (row && script_runs_here(g, row) && !bridge_of((uint8_t)command)) {
             run_operation(s, (uint8_t)command, row);
+        } else if (row && script_runs_here(g, row)) {
+            /* a bridge runs as its handler, called as the runner calls it */
+            enter_as_the_runner_does(s, (uint8_t)command);
+            if (!battle_run(s, 0xC14CD4, handler_of((uint8_t)command), battle_script_command_entry))
+                return false;
         } else {
-            s->cpu.x = (uint16_t)(command * 2);
-            s->cpu.y = 0;
-            s->cpu.a = 0;
+            enter_as_the_runner_does(s, (uint8_t)command);
             /* no handler reads the overflow the one before it left, which a
                command in C doesn't reproduce */
             /* dc-evidence: ct_fuzz --poison-dc battle_run_script_channel, seed 1: 5000 states,
@@ -288,11 +339,74 @@ COMMAND_GUARD(script_flash_with_ready, 0x5DD3)
 COMMAND_GUARD(script_flash_off_ready, 0x5E87)
 COMMAND_GUARD(script_rotate_colors_ready, 0x5EDF)
 COMMAND_GUARD(script_blink_ready, 0x5F13)
+COMMAND_GUARD(script_line_to_coordinates_ready, 0x4FBF)
+COMMAND_GUARD(script_line_to_the_point_ready, 0x4FD1)
+COMMAND_GUARD(script_line_to_a_place_ready, 0x4FE3)
+COMMAND_GUARD(script_chase_to_coordinates_ready, 0x51EE)
+COMMAND_GUARD(script_chase_to_the_point_ready, 0x5205)
+COMMAND_GUARD(script_chase_to_a_place_ready, 0x521C)
+COMMAND_GUARD(script_walk_to_coordinates_ready, 0x5409)
+COMMAND_GUARD(script_walk_to_the_point_ready, 0x541B)
+COMMAND_GUARD(script_walk_to_a_place_ready, 0x542D)
+COMMAND_GUARD(script_put_at_coordinates_ready, 0x5611)
+COMMAND_GUARD(script_put_at_the_point_ready, 0x566C)
+COMMAND_GUARD(script_put_at_a_place_ready, 0x567D)
+COMMAND_GUARD(script_point_at_place_ready, 0x591A)
+COMMAND_GUARD(script_slot_at_place_ready, 0x59B9)
+COMMAND_GUARD(script_point_off_place_ready, 0x5A0C)
+COMMAND_GUARD(script_point_at_the_mover_ready, 0x5A3E)
+COMMAND_GUARD(script_show_numbers_ready, 0x5ADB)
+COMMAND_GUARD(script_face_ready, 0x5FDE)
+COMMAND_GUARD(script_take_heading_ready, 0x6093)
+COMMAND_GUARD(script_heading_between_ready, 0x60E6)
+COMMAND_GUARD(script_turn_heading_ready, 0x6154)
+COMMAND_GUARD(script_play_sound_ready, 0x619E)
+COMMAND_GUARD(script_play_sound_at_ready, 0x61C1)
+COMMAND_GUARD(script_weapon_swing_sound_ready, 0x61EB)
+COMMAND_GUARD(script_weapon_hit_sound_ready, 0x61F5)
+COMMAND_GUARD(script_screen_effect_ready, 0x621B)
+COMMAND_GUARD(script_slot_follows_place_ready, 0x623C)
+COMMAND_GUARD(script_set_heading_ready, 0x6258)
+COMMAND_GUARD(script_jump_to_a_place_ready, 0x6299)
+COMMAND_GUARD(script_jump_to_the_point_ready, 0x672E)
+COMMAND_GUARD(script_jump_down_to_a_place_ready, 0x6743)
+COMMAND_GUARD(script_jump_down_to_the_point_ready, 0x674A)
+COMMAND_GUARD(script_spiral_out_ready, 0x6751)
+COMMAND_GUARD(script_spiral_for_ready, 0x69C3)
+COMMAND_GUARD(script_spiral_for_stopping_ready, 0x6AF0)
+COMMAND_GUARD(script_orbit_a_place_ready, 0x6CF3)
+COMMAND_GUARD(script_orbit_the_point_ready, 0x6F31)
+COMMAND_GUARD(script_orbit_flat_a_place_ready, 0x6F53)
+COMMAND_GUARD(script_orbit_flat_the_point_ready, 0x6F75)
+COMMAND_GUARD(script_aim_throw_ready, 0x705A)
+COMMAND_GUARD(script_throw_rise_ready, 0x720E)
+COMMAND_GUARD(script_throw_waits_before_ready, 0x7349)
+COMMAND_GUARD(script_throw_waits_after_ready, 0x73AD)
+/* D4's handler goes on into D6's here once its wait is over: where the
+   original runs D4 (its needs refused), this sees D4's byte and refuses too
+   (180 calls in the library; docs/TODO.md). */
+COMMAND_GUARD(script_throw_moves_ready, 0x7364)
+COMMAND_GUARD(script_point_along_ready, 0x740B)
+COMMAND_GUARD(script_flicker_ready, 0x74B4)
 
+/* A command whose operation is C, or a bridge, entered as its handler. A
+ * bridge whose call-out the original carried on from leaves the machine
+ * there. */
 void battle_script_command_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    script_perform(g, script_opcode(battle_script_command(g)));
+    uint8_t byte = battle_script_command(g);
+    const ScriptOpcode *row = script_opcode(byte);
+    ScriptBridge bridge = bridge_of(byte);
+    ScriptFlow flow = SCRIPT_NEXT;
+    if (bridge) {
+        ScriptCommand command = script_decode(g, row);
+        if (!bridge(s, &command))
+            return;
+    } else {
+        flow = script_operate(g, row);
+    }
+    script_move_on(g, row, flow);
     s->cpu.a = 0;
     m_rts(s);
 }

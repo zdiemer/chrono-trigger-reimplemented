@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "battle/battle.h"
+#include "battle/positions.h"
 #include "snes/system.h"
 #include "state.h"
 #include "vars.h"
@@ -78,6 +79,67 @@ static inline void place_anchor(GameState *g, unsigned anchor, int16_t x, int16_
 {
     set_battle_anchor_x(g, anchor, (uint16_t)x);
     set_battle_anchor_y(g, anchor, (uint16_t)y);
+}
+
+/* ---- Movers ------------------------------------------------------------------------------- */
+
+/* A mover: a combatant (its battle slot) or an anchor. The movers' tables hold
+ * the combatants' eleven entries and then the anchors' eight. */
+enum { BATTLE_MOVERS = BATTLE_COMBATANTS + BATTLE_ANCHORS, FIRST_ANCHOR_MOVER = BATTLE_COMBATANTS };
+
+typedef enum { MOVES_COMBATANT, MOVES_ANCHOR } MoverKind;
+
+typedef struct {
+    MoverKind kind;
+    uint8_t index;
+} Mover;
+
+static inline Mover combatant_mover(uint8_t slot) { return (Mover){ MOVES_COMBATANT, slot }; }
+static inline Mover anchor_mover(uint8_t anchor) { return (Mover){ MOVES_ANCHOR, anchor }; }
+static inline bool mover_is_anchor(Mover m) { return m.kind == MOVES_ANCHOR; }
+
+/* The mover's entry in the movers' tables. */
+static inline unsigned mover_entry(Mover m) { return m.index + (mover_is_anchor(m) ? FIRST_ANCHOR_MOVER : 0); }
+
+/* Where the mover is, as a point on the battlefield: a combatant where it
+ * stands, an anchor at its coordinates' low bytes; and putting it at one (an
+ * anchor back on the battlefield). */
+static inline BattlePoint mover_position(const GameState *g, Mover m)
+{
+    if (mover_is_anchor(m))
+        return (BattlePoint){ (uint8_t)anchor_x(g, m.index), (uint8_t)anchor_y(g, m.index) };
+    return (BattlePoint){ combatant_x(g, m.index), combatant_y(g, m.index) };
+}
+static inline void place_mover(GameState *g, Mover m, BattlePoint p)
+{
+    if (mover_is_anchor(m)) {
+        place_anchor(g, m.index, p.x, p.y);
+    } else {
+        place_combatant_x(g, m.index, p.x);
+        place_combatant_y(g, m.index, p.y);
+    }
+}
+
+/* The kinds of path a mover runs (battle/effect_paths.c), by the number its
+ * entry keeps. */
+typedef enum {
+    PATH_LINE, PATH_JUMP, PATH_SPIRAL, PATH_ORBIT, PATH_JUMP_TO_TARGET, PATH_ORBIT_FLAT, PATH_FLICKER, PATH_CHASE,
+    PATH_KINDS
+} PathKind;
+
+/* Whether the mover's path has come to its end. The flag counts: a path that
+ * ends sets it, and the homing jump counts its arrivals on it. */
+static inline uint8_t mover_done_count(const GameState *g, Mover m)
+{
+    return mover_is_anchor(m) ? battle_anchor_done(g, m.index) : battle_effect_done(g, m.index);
+}
+static inline bool mover_path_done(const GameState *g, Mover m) { return mover_done_count(g, m) != 0; }
+static inline void set_mover_done_count(GameState *g, Mover m, uint8_t n)
+{
+    if (mover_is_anchor(m))
+        set_battle_anchor_done(g, m.index, n);
+    else
+        set_battle_effect_done(g, m.index, n);
 }
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */

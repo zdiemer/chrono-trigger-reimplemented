@@ -102,14 +102,14 @@ SCRIPT_OPERATION_TAKING_NOTHING(skip)
 // $C1:5769
 /* The channel ends where the other targets have no target at the operand's
  * place in their list. */
-static ScriptFlow end_unless_listed(GameState *g, ScriptChannel channel, uint8_t place)
+static ScriptFlow end_unless_listed(GameState *g, ScriptChannel channel, uint8_t listed)
 {
     uint8_t target;
-    if (!script_listed(g, OTHER_TARGETS_START + place, &target))
+    if (!script_listed(g, OTHER_TARGETS_START + listed, &target))
         return end(g, channel);
     return SCRIPT_NEXT;
 }
-SCRIPT_OPERATION(end_unless_listed, channel, place)
+SCRIPT_OPERATION(end_unless_listed, channel, listed)
 
 /* ---- The values ------------------------------------------------------------------------ */
 
@@ -248,7 +248,7 @@ SCRIPT_OPCODES(script_flow_opcodes,
     { 0x22, OPERATION(wait_for_value), .which = CONSTANT(SCRIPT_VARIABLE), .variable = OPERAND(1), .value = OPERAND(2), .length = 3 },
     { 0x23, OPERATION(wait_for_value), .which = CONSTANT(SCRIPT_MARK_A), .value = OPERAND(1), .length = 2 },
     { 0x24, OPERATION(wait_for_value), .which = CONSTANT(SCRIPT_MARK_B), .value = OPERAND(1), .length = 2 },
-    { 0x25, OPERATION(end_unless_listed), .place = OPERAND(1), .length = 2 },
+    { 0x25, OPERATION(end_unless_listed), .listed = OPERAND(1), .length = 2 },
     { 0x5F, OPERATION(skip), .length = 2 },
 
     { 0x30, OPERATION(set_value), .which = CONSTANT(SCRIPT_VARIABLE), .variable = OPERAND(1), .value = OPERAND(2), .length = 3 },
