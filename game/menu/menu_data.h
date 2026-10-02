@@ -105,6 +105,58 @@ static inline uint8_t menu_item_table_byte(const GameState *g, uint16_t at) { re
 /* The items' names start at $CC:0B5E, eleven bytes each (menu_item_name). */
 enum { MENU_ITEM_NAMES = 0x0B5E };
 
+/* ---- The items screen ----------------------------------------------------------------------- */
+
+/* The label of an item's kind its row shows ("Weapon", "Item" and the
+ * rest): where the string is in bank $FF, from a word an item at $FF:B310. */
+static inline uint32_t menu_item_kind_label(const GameState *g, uint8_t item)
+{
+    return 0xFF0000u | rom_read16(g, 0xFFB310u + 2u * item);
+}
+
+/* Who an item of the rest is used on, a byte an item by its place in the
+ * category ($CC:1BB5): one member, or every member. */
+static inline uint8_t menu_item_targets(const GameState *g, uint8_t index) { return rom_read8(g, 0xCC1BB5u + index); }
+
+/* The categories in the order the sort writes them (the rest first, then the
+ * weapons, the armour, the helmets and the accessories): each one's first
+ * item ($C2:AC12) and how many it has ($C2:AC17). */
+static inline uint8_t menu_sort_category_first(const GameState *g, unsigned order) { return rom_read8(g, 0xC2AC12u + order); }
+static inline uint8_t menu_sort_category_items(const GameState *g, unsigned order) { return rom_read8(g, 0xC2AC17u + order); }
+
+/* The label of the figure the window of who can equip an item shows, by the
+ * item's category ($C2:AF3A, a word each): where in bank $FF its string is. */
+static inline uint16_t menu_item_power_label_at(const GameState *g, uint8_t category)
+{
+    return rom_read16(g, 0xC2AF3Au + 2u * category);
+}
+
+/* The chances an item used by chance has, the limit of each of its first
+ * three outcomes in a hundred ($C2:B13D). */
+static inline uint8_t menu_chance_limit(const GameState *g, unsigned outcome) { return rom_read8(g, 0xC2B13Du + outcome); }
+
+/* A tab's figure (menu_use_effect's index): its offset among a character's
+ * figures ($FF:CF2B), its cap ($FF:CF32), and its base's offset among the
+ * bases ($C2:B315). */
+static inline uint8_t menu_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF2Bu + figure); }
+static inline uint8_t menu_figure_cap(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF32u + figure); }
+static inline uint8_t menu_base_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xC2B315u + figure); }
+
+/* Where each member's sprite stands beside its row of the window an item is
+ * used on ($C2:B045, its Y and its X's low byte). */
+typedef struct {
+    uint8_t y, x;
+} MenuSpritePlace;
+static inline MenuSpritePlace menu_member_sprite_place(const GameState *g, uint8_t member)
+{
+    return (MenuSpritePlace){ rom_read8(g, 0xC2B045u + 2u * member), rom_read8(g, 0xC2B046u + 2u * member) };
+}
+
+/* The items screen's colours in bank $FF: the list's eight ($CC34, row 5's
+ * first half) and its highlight's four ($CBB4, row 2's), for
+ * menu_rom_colour. */
+enum { MENU_ROM_ITEMS_LIST_COLOURS = 0xCC34, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS = 0xCBB4 };
+
 /* ---- What the typesetter inserts ----------------------------------------------------------- */
 
 /* A number's decimal digits are the glyphs from $D4 on. */

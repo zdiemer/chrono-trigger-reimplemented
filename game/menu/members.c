@@ -59,6 +59,19 @@ static uint16_t record_place(uint8_t character)
     return (uint16_t)(RAM_ABS(RAM_CHARACTER_RECORDS) + character * RAM_CHARACTER_RECORDS_STRIDE);
 }
 
+/* The character whose record the menus loaded last, from where they noted
+ * it. */
+uint8_t menu_member_character(const GameState *g)
+{
+    return (uint8_t)((uint16_t)(menu_member_record_at(g) - RAM_ABS(RAM_CHARACTER_RECORDS)) / RAM_CHARACTER_RECORDS_STRIDE);
+}
+
+bool menu_member_record_is_a_characters(const GameState *g)
+{
+    uint16_t at = (uint16_t)(menu_member_record_at(g) - RAM_ABS(RAM_CHARACTER_RECORDS));
+    return at % RAM_CHARACTER_RECORDS_STRIDE == 0 && at / RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
+}
+
 /* The original finds the record and the name with the multiplier, which it
  * leaves holding the name's product. */
 static void leave_multiplier(GameState *g, uint8_t character, uint8_t named)
@@ -98,7 +111,7 @@ uint8_t menu_member_on_the_cursor(const GameState *g) { return (uint8_t)(menu_me
 enum { FACE_BIT = 0x20, LOW_HP_COLOUR = 4 };
 
 // $C2:A1EF
-static void note_face_and_low_hp(GameState *g)
+void menu_note_member_face_and_hp(GameState *g)
 {
     uint8_t character = menu_status_record_character(g) & CHARACTER_BITS;
     bool low = menu_low_hp_marks(g, character) >= menu_status_record_hp(g);
@@ -114,7 +127,7 @@ enum { MEMBER_ROW = 0xBE0E, EMPTY_ROW = 0xBE15, MEMBER_CARD = 0xBE1C };
 // $C2:A216
 void menu_draw_member_row(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC2A1EF, note_face_and_low_hp(g));
+    TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
     draw_list(g, pf, MEMBER_ROW);
 }
 
@@ -316,7 +329,7 @@ void menu_load_member_entry(Snes *s)
 // $C2:A1EF
 void menu_note_member_face(Snes *s)
 {
-    note_face_and_low_hp(state_of(s));
+    menu_note_member_face_and_hp(state_of(s));
     m_rts(s);
 }
 

@@ -45,6 +45,7 @@
 #include "menu/display.h"
 #include "menu/epoch.h"
 #include "menu/equipment.h"
+#include "menu/item_screen.h"
 #include "menu/map.h"
 #include "menu/members.h"
 #include "menu/line_effects.h"
@@ -2269,6 +2270,55 @@ const NativeEntry game_natives[] = {
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_panel_colours_dim },
     { .addr = 0xC2A101, .name = "menu_show_panel_colours", .fn = menu_show_panel_colours, .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 3379,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_panel_colours_show },
+    /* the items screen and the main menu's panel for it (game/menu/item_screen_bridge.c) */
+    { .addr = 0xC2AA40, .name = "menu_open_items", .fn = menu_open_items, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_items_screen_opens },
+    { .addr = 0xC2AA4A, .name = "menu_choose_item_command", .fn = menu_choose_item_command, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_command_step_runs },
+    { .addr = 0xC2AA86, .name = "menu_choose_on_item_list", .fn = menu_choose_on_item_list, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_list_step_runs },
+    { .addr = 0xC2AAC8, .name = "menu_move_picked_item", .fn = menu_move_picked_item, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_move_step_runs },
+    { .addr = 0xC2AB4A, .name = "menu_sort_items", .fn = menu_sort_items, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_items_sort_step_runs },
+    { .addr = 0xC2AC1D, .name = "menu_close_item_users", .fn = menu_close_item_users, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_users_step_runs },
+    { .addr = 0xC2AC59, .name = "menu_point_at_listed_item", .fn = menu_point_at_listed_item, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_listed_item_is_pointable },
+    { .addr = 0xC2AD2E, .name = "menu_describe_listed_item", .fn = menu_describe_listed_item, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_listed_item_is_pointable },
+    { .addr = 0xC2AD50, .name = "menu_show_items_panel", .fn = menu_show_items_panel, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_items_panel_shows },
+    { .addr = 0xC2ADC3, .name = "menu_put_items_panel_away", .fn = menu_put_items_panel_away, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_items_panel_goes },
+    { .addr = 0xC2B0AB, .name = "menu_use_item", .fn = menu_use_item, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_use_runs },
+    { .addr = 0xC2B17F, .name = "menu_use_restoring_item", .fn = menu_use_restoring_item, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_use_runs },
+    { .addr = 0xC2B107, .name = "menu_use_item_by_chance", .fn = menu_use_item_by_chance, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_use_runs },
+    { .addr = 0xC2B1F8, .name = "menu_rest_the_party", .fn = menu_rest_the_party, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_use_runs },
+    { .addr = 0xC2B200, .name = "menu_use_tab", .fn = menu_use_tab, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_use_runs },
+    { .addr = 0xC2AF42, .name = "menu_open_member_window", .fn = menu_open_member_window, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_member_window_opens },
+    { .addr = 0xC2B24A, .name = "menu_point_at_tab_member", .fn = menu_point_at_tab_member, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_tab_member_is_pointable },
+    { .addr = 0xC2B275, .name = "menu_look_at_tab_member", .fn = menu_look_at_tab_member, NEEDS_M8_X8_BINARY, .cost_milli = 5000,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_tab_member_is_pointable },
+    { .addr = 0xC2B2A7, .name = "menu_raise_figure", .fn = menu_raise_figure, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_figure_is_raisable },
+    { .addr = 0xC2B31C, .name = "menu_use_one_more", .fn = menu_use_one_more, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_one_more_is_usable },
+    { .addr = 0xC2AE43, .name = "menu_draw_item_rows", .fn = menu_draw_item_rows, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_rows_are_drawable },
+    { .addr = 0xC2AE65, .name = "menu_draw_item_row", .fn = menu_draw_item_row, .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_row_is_drawable },
+    { .addr = 0xC2AB62, .name = "menu_sort_party_items", .fn = menu_sort_party_items, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_party_items_are_sortable },
+    { .addr = 0xC2AE91, .name = "menu_show_item_users", .fn = menu_show_item_users, NEEDS_M8_X16_BINARY, .cost_milli = 5000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = menu_item_users_are_showable },
     /* menu object scripts: starting an object, and the command handlers at $C2:0F91's
      * table (game/menu/object_script.c, tools/disasm/objscript.py) */
     { .addr = 0xC2048A, .name = "menu_object_spawn", .fn = menu_object_spawn,

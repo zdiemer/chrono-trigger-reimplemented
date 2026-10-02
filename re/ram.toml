@@ -4927,6 +4927,7 @@ source = "game/menu/items.c, $C2:9875"
 name = "menu_item_powers"
 addr = "7E:7C00"
 count = 0x94
+unchecked = "the items screen's window of who can equip an accessory reads the byte past the table for its power, as the original does (docs/TODO.md)"
 index = "item"
 subsystem = "menu"
 meaning = "The first byte of each weapon's, armour's and helmet's figures: its attack or defence"
@@ -5130,6 +5131,18 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 6
   size = 2
   meaning = "The same: the tiles across a row it colours (low byte) and the colour it gives them (high byte), the last row's left"
+  [[var.field]]
+  name = "list_rows"
+  offset = 0
+  meaning = "A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here"
+  [[var.field]]
+  name = "users_bits"
+  offset = 0
+  meaning = "The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted out from the top, 0 once done"
+  [[var.field]]
+  name = "users_counted"
+  offset = 1
+  meaning = "The same: how many of the bits it looked at, the one past the last user"
   [[var.field]]
   name = "portrait_attribute"
   offset = 1
@@ -6786,6 +6799,208 @@ size = 0x480
 subsystem = "menu"
 meaning = "The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows apart, and the row past the last where a slide draws the row coming in"
 source = "game/menu/equipment.c, the list's rows moved $C2:9FDE"
+
+[[var]]
+name = "menu_item_list_row"
+addr = "7E:0415"
+subsystem = "menu"
+meaning = "The items screen's cursor on its list, the row (0-9) of the ten it shows, kept from one opening of the screen to the next"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_item_list_top"
+addr = "7E:0416"
+subsystem = "menu"
+meaning = "The first place of the party's items the items screen's list shows (0 to $E8), kept from one opening to the next"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_item_list_place"
+addr = "7E:0D26"
+reuses = "menu_equip_record_place"
+size = 2
+subsystem = "menu"
+meaning = "The place in the party's items of the item the items screen's cursor is on: the list's first place plus the cursor's row"
+source = "game/menu/item_screen.c, $C2:AD2E"
+
+[[var]]
+name = "menu_item_picked"
+addr = "7E:0F00"
+reuses = ["menu_kept_cursor", "menu_list_items", "menu_gate_screen_state"]
+size = 2
+subsystem = "menu"
+meaning = "The place in the party's items of the item the items screen picked up to move, $FFFF while none is"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_description_item"
+addr = "7E:0D77"
+reuses = "menu_save_slot_era"
+subsystem = "menu"
+meaning = "The item whose description the description window shows ($C2:F2F3 draws another only for another item)"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_description_stale"
+addr = "7E:0D78"
+subsystem = "menu"
+meaning = "Bit 7 set has the description window drawn again whatever item it shows ($C2:F2F3 clears it)"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_held_cursor"
+addr = "7E:0D9C"
+subsystem = "menu"
+meaning = "Where a second cursor stays while the first moves (its task, $C2:89F2, draws it): the row of the item the items screen picked up, the first member row an item is used on"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_held_cursor_top"
+addr = "7E:0D9D"
+subsystem = "menu"
+meaning = "The list's first place when the second cursor was left, which its task takes from the list's first place now to keep it on its item"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_held_cursor_shift"
+addr = "7E:0D9E"
+size = 2
+subsystem = "menu"
+meaning = "How many lines the second cursor is drawn off its row while the list slides (signed, 12 at the start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_item_row_item"
+addr = "7E:0D4D"
+reuses = "menu_member_face"
+subsystem = "menu"
+meaning = "The item the items screen's list drew last, which its row's number is drawn from"
+source = "game/menu/item_screen.c, $C2:AE75"
+
+[[var]]
+name = "menu_item_row_count"
+addr = "7E:0D4E"
+reuses = "menu_member_face"
+subsystem = "menu"
+meaning = "How many of the item the items screen's list drew last the party has, the number its row shows"
+source = "game/menu/item_screen.c, $C2:AE75"
+
+[[var]]
+name = "menu_item_power"
+addr = "7E:0D4D"
+reuses = ["menu_member_face", "menu_item_row_item"]
+subsystem = "menu"
+meaning = "The attack or defence of the weapon or armour whose users the items screen shows, which the window shows beside them"
+source = "game/menu/item_screen.c, $C2:AF0B"
+
+[[var]]
+name = "menu_item_users_names"
+addr = "7E:9890"
+reuses = ["menu_record_frame_tile_list", "menu_save_summary"]
+size = 6
+count = 7
+index = "user"
+subsystem = "menu"
+meaning = "The names of the characters who can equip the item the items screen shows and have joined the party, one after another, the places past them clear, which the window lists ($C2:AEB6)"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_item_power_label"
+addr = "7E:9990"
+reuses = ["menu_record_frame_tile_list", "menu_save_summary"]
+size = 0xD
+subsystem = "menu"
+meaning = "The label of the figure the window of who can equip an item shows (attack or defence), copied from the ROM with an end byte after it"
+source = "game/menu/item_screen.c, $C2:AF0B"
+
+[[var]]
+name = "menu_sort_held"
+addr = "7E:9890"
+reuses = ["menu_record_frame_tile_list", "menu_save_summary", "menu_item_users_names"]
+count = 0x100
+index = "item"
+subsystem = "menu"
+meaning = "The sorting of the party's items ($C2:AB62): each item the party holds, by the item's own number (0 for those it doesn't), cleared as an item is placed"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_sort_counts"
+addr = "7E:9990"
+reuses = ["menu_record_frame_tile_list", "menu_save_summary", "menu_item_power_label", "menu_record_upload_vram", "menu_record_upload_source", "menu_record_upload_size", "menu_record_upload_spare"]
+count = 0x100
+index = "item"
+subsystem = "menu"
+meaning = "The sorting of the party's items: how many of each item the party holds, the places holding it added up and held under 100"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_use_first_member"
+addr = "7E:0DBB"
+subsystem = "menu"
+meaning = "The cursor place of the first member row an item is used on (12): the member pointed at is the cursor less it"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_use_helps"
+addr = "7E:0DBC"
+reuses = "menu_queued_sounds"
+subsystem = "menu"
+meaning = "Nonzero where the item being used would do something for the member pointed at (HP or MP short of its greatest, a figure short of its cap), which choosing then uses it on"
+source = "game/menu/item_screen.c, $C2:B275; $C2:B870"
+
+[[var]]
+name = "menu_use_effect"
+addr = "7E:0DBD"
+subsystem = "menu"
+meaning = "What the item being used does: for a tonic, bit 7 restores HP, bit 6 MP, bit 3 does it for every member at once (bits 2-3 from the item's targets); for a tab, which figure it raises (1 power, 2 speed, 6 magic, an index into $FF:CF2B's offsets and $FF:CF32's caps)"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_use_member"
+addr = "7E:0DBE"
+subsystem = "menu"
+meaning = "Which member an item is being used on: the row the cursor points at, kept to tell when the cursor moves"
+source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_heal_power"
+addr = "7E:0DBF"
+subsystem = "menu"
+meaning = "How much a tonic restores: bit 7 a fixed amount (bits 0-6 times menu_heal_factor), else the power of the random amount; bit 6 all of it"
+source = "game/menu/item_screen.c; the amount worked out at $C2:8ECC"
+
+[[var]]
+name = "menu_heal_factor"
+addr = "7E:0DC0"
+subsystem = "menu"
+meaning = "What a tonic's power is multiplied by ($40 for an item whose figures say all, 15)"
+source = "game/menu/item_screen.c; the amount worked out at $C2:8ECC"
+
+[[var]]
+name = "menu_heal_shown"
+addr = "7E:0F63"
+reuses = ["menu_list_item_counts", "menu_list_items", "menu_gate_screen_state"]
+size = 2
+count = 6
+index = "the three members' HP, then their MP"
+subsystem = "menu"
+meaning = "The amounts restored that the members' rows show as an item is used ($C2:8F6C draws them): $FFFF where a member's shows none"
+source = "game/menu/item_screen.c, $C2:B2A7; $C2:8E2D"
+
+[[var]]
+name = "menu_record_offset"
+addr = "7E:0D2C"
+size = 2
+subsystem = "menu"
+meaning = "A character's sprite record's offset from the first ($C2:F626: the character times $40), which the techs screen reads back for a record's place"
+source = "game/menu/item_screen.c, the members' rows $C2:AFED"
+
+[[var]]
+name = "menu_list_first_place"
+addr = "7E:0DDB"
+subsystem = "menu"
+meaning = "The cursor place of a scrolling list's first row, which its frame ($C2:EA81) counts the list's last place from"
+source = "game/menu/item_screen.c"
 
 [[var]]
 name = "menu_save_summary"

@@ -141,8 +141,11 @@ add_library(ct_game STATIC
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/graphics.c
+  game/menu/item_screen.c
+  game/menu/item_screen_bridge.c
   game/menu/items.c
   game/menu/line_effects.c
+  game/menu/lists.c
   game/menu/load_screen.c
   game/menu/members.c
   game/menu/map.c
