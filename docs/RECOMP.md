@@ -3486,13 +3486,26 @@ sites. The stops into the list's own code (`$7E:39B1`, `$7E:39A7`) and the
 perspective's keep what those read, as their own sets (`m_stop_at_own`).
 
 **The carries.** The race never clears the carry between the sums of a frame's
-motion, so a drift's build-up and loss, the lead, the boost and both kinds of
-bump each take a one more or less from the sum or comparison before them. The
-ports keep them as named outcomes of the step that made them (a drift returns
-whether it is still going, which the next drift's loss takes; the lead whether
-it borrowed, which the contact's measuring adds), not as a flag threaded
-through the logic. The bump along also takes the push's high word off both of
-the bike ahead's words, as the original does.
+motion, so a drift's build-up and loss, the lead, the touching band, the boost
+and both kinds of bump each take a unit from the sum or comparison before
+them. The first version threaded that carry through the rules; the review
+rated `race_rules.c` a translation for it, and it was rewritten. Each rule is
+plain arithmetic with one term for its unit (a drift a unit stronger or slower
+to die, the lead a 32nd shorter, a bumped bike a unit farther), and one
+section, "The units the motion hands on", works each unit out from the values
+the step before used, in the order the original's sums run (`drift_units`,
+`contact_units`, `bump_along_units`, `bump_across_units`). A bump along is one
+32-bit distance; the original also takes the push's high word, 0 in any real
+bump, off both halves of the other bike's distance, which stays as a term.
+Three units that are constant wherever the game's values are became accepted
+divergences, written at the entries and held by the fuzz constraints: the
+boost's (whether Johnny is still speeding up, where the original compares his
+speeds unsigned), pulling over after the finish, and the markers' place on
+the distance bar. The same review had `race_drawing.c` work out the
+arithmetic cells it leaves from the state afterwards instead of threading
+them, compute the markers' product in C (the multiplier's last state left as
+scaffolding before the panel's numbers use the divider), and name the pose's
+backward turn that lengthens the bar by a pixel.
 
 **Program data and patched code.** The race's tables live in the program
 image, and the race and its setup write some of its operands: the demo's
@@ -3519,9 +3532,13 @@ opening's guard on a data bank of 0 (the script calls it with the program's,
 with a lean past 2 (the guard refuses it). Fuzzed from the `race` state with
 the program kept (`--keep 7E3000-7EC994`; `tools/fuzz_routines.toml`), seeds 1
 and 2, 20,000 states each, none mismatching: every entry, the ride three ways
-(as it comes, near the finish, the bikes level so they bump every way; 73 and
-79 near-finish states refused, a list without the turning task), the coast
-after Crono's finish, the drawing with up to three boosts.
+(as it comes, with both bikes' distances at the finish's word, the bikes level
+so they bump every way; at most 3 states refused, a task list without room),
+the coast with the finish margin near 0 and Crono's lane at the middle, the
+victory song's wait with the music playing (two thirds of its states reach
+its arrival), the leaving at its last frame, the drawing with up to three
+boosts. Johnny's speeds are kept within $8000 of his top speeds and the
+coast's lanes in the game's, where the accepted divergences hold.
 
 **Timing.** The new rows were calibrated over the library, with
 `scene_race_move_camera` and `scene_race_set_engine_pitch` (which now reads

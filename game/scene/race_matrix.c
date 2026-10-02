@@ -30,8 +30,11 @@
 /* The instructions it writes. */
 enum { OP_LDA_IMMEDIATE = 0xA9, OP_TCD = 0x5B, OP_LDA_ABSOLUTE = 0xAD, OP_STA_DIRECT = 0x85, OP_RTS = 0x60 };
 
-enum { TABLE_ENTRIES = 8, ROWS = 8, PAIRS = 2, COLUMNS = 8 };
-enum { ROW_STEP = 4, PAIR_STEP = 2, COLUMN_STEP = 0x20 };
+/* The picture's layout: eight strips (each a table word's offset), eight
+ * tiles across a strip, two pairs of bitplanes a tile, eight rows a tile; and
+ * how far apart in the picture each is. */
+enum { STRIPS = 8, TILES_ACROSS = 8, PLANE_PAIRS = 2, TILE_ROWS = 8 };
+enum { TILE_STEP = 4, PLANE_PAIR_STEP = 2, ROW_STEP = 0x20 };
 
 static void emit_word(GameState *g, uint16_t v)
 {
@@ -39,22 +42,22 @@ static void emit_word(GameState *g, uint16_t v)
     hw_port_write(g, (uint8_t)(v >> 8));
 }
 
-/* The generator's offsets: the table word of the eighth being written, and the
- * row's, the pair's and the column's steps within it. */
+/* The generator's offsets: the table word of the strip being written, and the
+ * tile's, the bitplane pair's and the row's steps within it. */
 typedef struct {
     uint16_t table;
-    uint8_t row, pair, column;
+    uint8_t tile, plane_pair, row;
 } Offsets;
 
 /* The offsets as the generator leaves them in the scene's cells, the
  * destination's page moved on past the last; nothing reads them again but the
- * column step (below). */
+ * row step (below). */
 static void leave_offsets(GameState *g, const Offsets *o, uint16_t destination)
 {
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_table_offset(g, scene, o->table);
-    set_scene_call_matrix_row_step(g, scene, o->row);
-    set_scene_call_matrix_pair_step(g, scene, o->pair);
+    set_scene_call_matrix_tile_step(g, scene, o->tile);
+    set_scene_call_matrix_plane_pair_step(g, scene, o->plane_pair);
     set_scene_call_matrix_destination(g, scene, destination);
 }
 
@@ -67,14 +70,14 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
     Offsets o = { 0, 0, 0, 0 };
     uint16_t pair = destination;
     uint8_t page = (uint8_t)(destination >> 8);
-    for (uint16_t t = 0; t < TABLE_ENTRIES; t++) {
+    for (uint16_t t = 0; t < STRIPS; t++) {
         o.table = scene_matrix_offset(g, t);
-        o.row = 0;
-        for (uint8_t i = 0; i < ROWS; i++) {
-            o.pair = 0;
-            for (uint8_t j = 0; j < PAIRS; j++) {
-                o.column = 0;
-                for (uint8_t k = 0; k < COLUMNS; k++) {
+        o.tile = 0;
+        for (uint8_t i = 0; i < TILES_ACROSS; i++) {
+            o.plane_pair = 0;
+            for (uint8_t j = 0; j < PLANE_PAIRS; j++) {
+                o.row = 0;
+                for (uint8_t k = 0; k < TILE_ROWS; k++) {
                     if ((uint8_t)pair == 0) {
                         /* the direct page moved to the next page */
                         hw_port_write(g, OP_LDA_IMMEDIATE);
@@ -83,31 +86,31 @@ static void write_matrix_code(GameState *g, uint16_t destination, uint16_t sourc
                         page++;
                     }
                     hw_port_write(g, OP_LDA_ABSOLUTE);
-                    emit_word(g, (uint16_t)(o.table + o.row + o.pair + o.column + source));
+                    emit_word(g, (uint16_t)(o.table + o.tile + o.plane_pair + o.row + source));
                     hw_port_write(g, OP_STA_DIRECT);
                     hw_port_write(g, (uint8_t)pair);
                     pair = (uint16_t)(pair + 2);
-                    o.column = (uint8_t)(o.column + COLUMN_STEP);
+                    o.row = (uint8_t)(o.row + ROW_STEP);
                 }
-                o.pair = (uint8_t)(o.pair + PAIR_STEP);
+                o.plane_pair = (uint8_t)(o.plane_pair + PLANE_PAIR_STEP);
             }
-            o.row = (uint8_t)(o.row + ROW_STEP);
+            o.tile = (uint8_t)(o.tile + TILE_STEP);
         }
     }
     hw_port_write(g, OP_RTS);
 
     SceneProgramPage scene = scene_program_own();
     set_scene_call_matrix_source(g, scene, source);
-    /* The column step's cell is also the third byte of the product cell, which
+    /* The row step's cell is also the third byte of the product cell, which
      * the program's next signed multiply adds into its product
      * (scene/math.c): the step as the loop leaves it is game state. */
-    set_scene_call_matrix_column_step(g, scene, o.column);
+    set_scene_call_matrix_row_step(g, scene, o.row);
     ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
 }
 
 /* Entered with 16-bit index registers: X the first destination page's
  * address, Y the source base. The routine sets the direct page and the data
- * bank to 0 itself, and the overflow is its last sum's, the row step's 28 + 4,
+ * bank to 0 itself, and the overflow is its last sum's, the tile step's 28 + 4,
  * which is clear. */
 void scene_write_matrix_code(Snes *s)
 {
@@ -141,12 +144,12 @@ bool scene_matrix_code_present(Snes *s)
 static void gather_picture_into_tiles(GameState *g)
 {
     uint16_t word = 0;
-    for (uint16_t strip = 0; strip < TABLE_ENTRIES; strip++) {
+    for (uint16_t strip = 0; strip < STRIPS; strip++) {
         uint16_t strip_start = (uint16_t)(PICTURE + scene_matrix_offset(g, strip));
-        for (uint8_t tile = 0; tile < ROWS; tile++) {
-            for (uint8_t planes = 0; planes < PAIRS; planes++) {
-                for (uint8_t row = 0; row < COLUMNS; row++) {
-                    uint16_t from = (uint16_t)(strip_start + tile * ROW_STEP + planes * PAIR_STEP + row * COLUMN_STEP);
+        for (uint8_t tile = 0; tile < TILES_ACROSS; tile++) {
+            for (uint8_t planes = 0; planes < PLANE_PAIRS; planes++) {
+                for (uint8_t row = 0; row < TILE_ROWS; row++) {
+                    uint16_t from = (uint16_t)(strip_start + tile * TILE_STEP + planes * PLANE_PAIR_STEP + row * ROW_STEP);
                     uint16_t pixels = scene_race_picture(g, (uint16_t)(from - PICTURE) / 2);
                     set_scene_tilemap_buffer_byte(g, word * 2u, (uint8_t)pixels);
                     set_scene_tilemap_buffer_byte(g, word * 2u + 1, (uint8_t)(pixels >> 8));

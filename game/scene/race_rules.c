@@ -7,10 +7,11 @@
  * control pad (which direction steers which way depends on how the camera
  * faces) and has three boosts on B; Johnny steers by a rule of his own,
  * blocking Crono while he leads and swerving away when Crono pulls alongside
- * ahead. Bikes that touch bump: the one behind takes the one ahead's place
- * and they swap speeds, or they push each other across and swap drifts. Crono
- * scores two points a frame he leads and loses one a frame he trails, gains 20
- * for bumping Johnny from behind and loses 10 for being bumped.
+ * ahead. Bikes that touch bump: the one ahead is set down just in front of the
+ * other and they swap speeds, or they push each other apart across the track
+ * and swap drifts. Crono scores two points a frame he leads and loses one a
+ * frame he trails, gains 20 when he was ahead as they touch and loses 10 when
+ * Johnny was.
  *
  * When Johnny reaches the line first, the race is over: the distance bar's
  * markers go, the camera follows him and Crono's score drains away. When Crono
@@ -18,11 +19,13 @@
  * starts, and he coasts over to a lane while Johnny drops out of the picture.
  * Then a button ends the scene, and A fades it out first.
  *
- * Every sum below is the original's, carries included. It never clears the
- * carry between the sums of a frame's motion, so a drift that builds up or dies
- * away, a bump's push, a boost, each takes a one more or less from how the sum
- * or comparison before it came out; those ones are part of how the bikes move,
- * and this file keeps them as named outcomes of the step that made them. */
+ * The rules are plain arithmetic, but for one thing the game does that the
+ * gate compares: the original never clears the carry between the sums of a
+ * frame's motion, so several of them take a unit from the comparison or sum
+ * before -- a drift a unit longer or slower to die, the lead a 32nd shorter,
+ * the touching band a unit wider, a bumped bike a unit farther. Each rule has
+ * one term for its unit, and "The units the motion hands on" works each one
+ * out, from the values the step before it used. */
 #include "scene/race.h"
 
 #include "original_effects.h"
@@ -41,10 +44,6 @@ enum {
     MAX_SPEED = 0x7FFF,
     BOOST = 0x1700,
     BOOST_FRAMES = 0x80,
-    MAX_DRIFT = 0x210,
-    DRIFT_LOSS = 0x10,             /* every frame */
-    CRONO_STEERING = 0x28,         /* how much a frame's steering builds the drift up */
-    JOHNNY_STEERING = 0x18,
     LAST_LANE = 0x7000,
     SPEED_TO_DISTANCE = 6,         /* a bike moves on by its speed over 64 */
     SPEED_TO_DISTANCE_MASK = 0x1FF,
@@ -63,6 +62,14 @@ static RaceStage stage(const GameState *g) { return (RaceStage)scene_race_stage(
 
 /* Compared as the race compares: by the sign of the difference. */
 static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
+
+/* What the motion leaves in the arithmetic's working cells, which nothing
+ * reads before the next routine sets them again. */
+static void leave_working_cells(GameState *g, uint16_t first, uint16_t second)
+{
+    set_scene_call_first(g, scene_program_own(), first);
+    set_scene_call_second(g, scene_program_own(), second);
+}
 
 /* A bike's speed for this frame: the frame's loss, then what it gained, which
  * it gains again next frame only while still below its top speed. Johnny
@@ -109,32 +116,77 @@ static void move_bike(GameState *g, Racer r)
     set_scene_race_racers_lane(g, r, down < 0 ? 0 : (uint16_t)down);
 }
 
+/* ---- Johnny ----------------------------------------------------------------------------------- */
+
+/* Johnny's controls (scene_race_johnny_controls). */
+enum { JOHNNY_THROTTLE = 0x8000, JOHNNY_STEERS_DOWN = 0x0100, JOHNNY_STEERS_UP = 0x0200 };
+
+/* How far apart across the track the bikes are, by their lanes' high bytes,
+ * and whether that is alongside. */
+enum { ALONGSIDE = 0x20, TRACK_MIDDLE = 0x40 };
+
+static uint16_t lanes_apart(const GameState *g)
+{
+    uint16_t crono = race_lane_high(g, RACER_CRONO), johnny = race_lane_high(g, RACER_JOHNNY);
+    uint16_t apart = (uint16_t)(crono - johnny);
+    return (int16_t)apart < 0 ? (uint16_t)(johnny - crono) : apart;
+}
+
+static bool alongside(uint16_t apart) { return !at_least(apart, ALONGSIDE); }
+
+/* Johnny opens the throttle while the race runs. Ahead of him, Crono scores;
+ * then if Crono comes alongside Johnny swerves away from him, to the lower
+ * lanes when Crono is on the higher side of the track. Behind or level, Crono
+ * loses a point, and Johnny steers into his lane to block him. */
+static void drive_johnny(GameState *g)
+{
+    uint16_t controls = JOHNNY_THROTTLE;
+    if ((int16_t)scene_race_lead(g) > 0) {
+        set_scene_race_score(g, (uint16_t)(scene_race_score(g) + 2));
+        if (alongside(lanes_apart(g)))
+            controls |= at_least(race_lane_high(g, RACER_CRONO), TRACK_MIDDLE) ? JOHNNY_STEERS_DOWN : JOHNNY_STEERS_UP;
+    } else {
+        set_scene_race_score(g, (uint16_t)(scene_race_score(g) - 1));
+        controls |= at_least(lane(g, RACER_CRONO), lane(g, RACER_JOHNNY)) ? JOHNNY_STEERS_UP : JOHNNY_STEERS_DOWN;
+    }
+    set_scene_race_johnny_controls(g, controls);
+}
+
 /* ---- Drifting across the track -------------------------------------------------------------- */
 
-/* A drift for the frame: built up while the bike steers its way, to at most
- * MAX_DRIFT, then dying away by DRIFT_LOSS, never below 0. `carried` is the
- * one the step before left (the drift before this one still going, or this
- * one reaching the top as it builds up): the build-up adds it, and the loss
- * is one more without it. Returns the one this drift leaves for the next:
- * whether it is still going after the loss. */
-static bool drift(GameState *g, Racer r, bool up, bool steering, uint16_t build_up, bool carried)
+enum {
+    MAX_DRIFT = 0x210,
+    DRIFT_LOSS = 0x11,             /* every frame */
+    CRONO_STEERING = 0x28,         /* how much a frame's steering builds the drift up */
+    JOHNNY_STEERING = 0x18,
+};
+
+/* A bike's four drifts, in the order the race works them out. */
+typedef enum { CRONO_UP, CRONO_DOWN, JOHNNY_UP, JOHNNY_DOWN, DRIFTS } Drift;
+
+static Racer drift_racer(Drift d) { return d < JOHNNY_UP ? RACER_CRONO : RACER_JOHNNY; }
+static bool drift_is_up(Drift d) { return d == CRONO_UP || d == JOHNNY_UP; }
+
+static uint16_t drift_of(const GameState *g, Drift d)
 {
-    uint16_t v = up ? scene_race_racers_drift_up(g, r) : scene_race_racers_drift_down(g, r);
-    if (steering) {
-        v = (uint16_t)(v + build_up + carried);
-        carried = v >= MAX_DRIFT;
-        if (at_least(v, MAX_DRIFT))
-            v = MAX_DRIFT;
-    }
-    int16_t left = (int16_t)(v - DRIFT_LOSS - !carried);
-    bool still = v >= (uint16_t)(DRIFT_LOSS + !carried);
-    v = left < 0 ? 0 : (uint16_t)left;
-    if (up)
+    Racer r = drift_racer(d);
+    return drift_is_up(d) ? scene_race_racers_drift_up(g, r) : scene_race_racers_drift_down(g, r);
+}
+
+static void set_drift(GameState *g, Drift d, uint16_t v)
+{
+    Racer r = drift_racer(d);
+    if (drift_is_up(d))
         set_scene_race_racers_drift_up(g, r, v);
     else
         set_scene_race_racers_drift_down(g, r, v);
-    return still;
 }
+
+/* Who steers which way this frame, and how hard. */
+typedef struct {
+    bool steering[DRIFTS];
+    uint16_t build_up[DRIFTS];
+} Steering;
 
 /* How Crono leans this frame (scene_race_crono_lean): steering both ways at
  * once, he leans down. */
@@ -142,56 +194,351 @@ typedef enum { LEAN_UPRIGHT = 0, LEAN_UP = 1, LEAN_DOWN = 2 } CronoLean;
 
 static CronoLean lean_for(bool up, bool down) { return down ? LEAN_DOWN : up ? LEAN_UP : LEAN_UPRIGHT; }
 
-/* Johnny's controls (scene_race_johnny_controls). */
-enum { JOHNNY_THROTTLE = 0x8000, JOHNNY_STEERS_DOWN = 0x0100, JOHNNY_STEERS_UP = 0x0200 };
-
-/* Both bikes' drifts for the frame, Crono's by the pad, Johnny's by his
- * controls, each drift's one carried into the next. */
-static void steer(GameState *g, bool carried)
+static Steering steering_this_frame(const GameState *g)
 {
     PadBits pad = scene_race_buttons(g);
-    bool up = pad & scene_race_steer_buttons(g, 1), down = pad & scene_race_steer_buttons(g, 0);
-    set_scene_race_crono_lean(g, lean_for(up, down));
-    carried = drift(g, RACER_CRONO, true, up, CRONO_STEERING, carried);
-    carried = drift(g, RACER_CRONO, false, down, CRONO_STEERING, carried);
     uint16_t johnny = scene_race_johnny_controls(g);
-    carried = drift(g, RACER_JOHNNY, true, johnny & JOHNNY_STEERS_UP, JOHNNY_STEERING, carried);
-    drift(g, RACER_JOHNNY, false, johnny & JOHNNY_STEERS_DOWN, JOHNNY_STEERING, carried);
+    Steering s = {
+        .steering = { (pad & scene_race_steer_buttons(g, 1)) != 0, (pad & scene_race_steer_buttons(g, 0)) != 0,
+                      (johnny & JOHNNY_STEERS_UP) != 0, (johnny & JOHNNY_STEERS_DOWN) != 0 },
+        .build_up = { CRONO_STEERING, CRONO_STEERING, JOHNNY_STEERING, JOHNNY_STEERING },
+    };
+    return s;
 }
 
-/* ---- Johnny ----------------------------------------------------------------------------------- */
-
-/* Johnny opens the throttle while the race runs. Ahead of him, Crono scores;
- * then if Crono comes alongside Johnny swerves away from him, to the lower
- * lanes when Crono is on the higher side of the track. Behind or level, Crono
- * loses a point, and Johnny steers into his lane to block him. Returns the one
- * the decision's last comparison leaves, which the drifts carry on with. */
-enum { ALONGSIDE = 0x20, TRACK_MIDDLE = 0x40 };
-
-static bool drive_johnny(GameState *g)
+/* Steering builds a drift up, to at most MAX_DRIFT; a unit more where one is
+ * handed on. */
+static uint16_t built_up(uint16_t drift, uint16_t build_up, bool unit)
 {
-    uint16_t controls = JOHNNY_THROTTLE;
-    int16_t lead = (int16_t)scene_race_lead(g);
-    bool carried;
-    if (lead > 0) {
-        set_scene_race_score(g, (uint16_t)(scene_race_score(g) + 2));
-        uint16_t crono = race_lane_high(g, RACER_CRONO), johnny = race_lane_high(g, RACER_JOHNNY);
-        uint16_t apart = (uint16_t)(crono - johnny);
-        if ((int16_t)apart < 0)
-            apart = (uint16_t)(johnny - crono);
-        carried = apart >= ALONGSIDE;
-        if (!at_least(apart, ALONGSIDE)) {
-            carried = crono >= TRACK_MIDDLE;
-            controls |= at_least(crono, TRACK_MIDDLE) ? JOHNNY_STEERS_DOWN : JOHNNY_STEERS_UP;
-        }
+    uint16_t v = (uint16_t)(drift + build_up + unit);
+    return at_least(v, MAX_DRIFT) ? MAX_DRIFT : v;
+}
+
+/* Every frame a drift dies away by DRIFT_LOSS, never below 0; a unit less
+ * where one is handed on. */
+static uint16_t died_away(uint16_t drift, bool unit)
+{
+    int16_t v = (int16_t)(drift - DRIFT_LOSS + unit);
+    return v < 0 ? 0 : (uint16_t)v;
+}
+
+/* ---- The lead and the camera's place ---------------------------------------------------------- */
+
+/* Where the camera is along the track, between the two bikes, and its place
+ * on the track's loop of $400. */
+enum { PLACE_TO_CAMERA = 4, CAMERA_PLACE_START = 0x375, CAMERA_LOOP = 0x3FF };
+
+static void place_camera(GameState *g)
+{
+    uint32_t place = (distance(g, RACER_CRONO) + distance(g, RACER_JOHNNY)) >> 1;
+    set_scene_race_place(g, place);
+    set_race_camera(g, CAMERA_PLACE, (uint16_t)(((uint16_t)place >> PLACE_TO_CAMERA) + CAMERA_PLACE_START) & CAMERA_LOOP);
+}
+
+/* How far Crono leads, in 32nds of the distance (a 32nd less without the
+ * unit). */
+enum { LEAD_SHIFT = 5 };
+
+static uint16_t in_32nds(uint32_t distance) { return (uint16_t)(distance >> LEAD_SHIFT); }
+
+static uint16_t lead(const GameState *g, bool unit)
+{
+    return (uint16_t)(in_32nds(distance(g, RACER_CRONO)) - in_32nds(distance(g, RACER_JOHNNY)) - 1 + unit);
+}
+
+/* ---- Touching ------------------------------------------------------------------------------------ */
+
+/* Where Johnny is from Crono (scene_race_contact). */
+enum {
+    CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02,
+    JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20,
+    ACROSS_SHIFT = 4,
+};
+
+/* How close counts as touching: along the track, Crono's bike from $100 on
+ * and Johnny's from $C0 on, $200 and $180 apart; across it, $1000. The
+ * original measures along with the distances' low words, so the band repeats
+ * every $10000 of the race. */
+enum { CRONO_NOSE = 0x100, JOHNNY_NOSE = 0xC0, BEHIND_REACH = 0x200, AHEAD_REACH = 0x180, ACROSS_REACH = 0x1000 };
+
+/* The units the touching takes (contact_units, below). */
+typedef struct {
+    bool crono_nose, johnny_nose, johnny_back, johnny_ahead, johnny_below;
+} ContactUnits;
+
+static uint16_t crono_nose(const GameState *g, const ContactUnits *u)
+{
+    return (uint16_t)((uint16_t)distance(g, RACER_CRONO) + CRONO_NOSE + u->crono_nose);
+}
+
+static uint16_t johnny_nose(const GameState *g, const ContactUnits *u)
+{
+    return (uint16_t)((uint16_t)distance(g, RACER_JOHNNY) + JOHNNY_NOSE + u->johnny_nose);
+}
+
+static uint16_t contact(GameState *g, const ContactUnits *u)
+{
+    uint16_t c = crono_nose(g, u), j = johnny_nose(g, u);
+    uint16_t along = 0;
+    if (!at_least((uint16_t)(j + BEHIND_REACH + u->johnny_back), c))
+        along = CRONO_WELL_AHEAD;
+    else if (at_least((uint16_t)(j - AHEAD_REACH - 1 + u->johnny_ahead), c))
+        along = JOHNNY_WELL_AHEAD;
+
+    uint16_t crono_lane = lane(g, RACER_CRONO), johnny_lane = lane(g, RACER_JOHNNY);
+    uint16_t across = 0;
+    if (at_least((uint16_t)(johnny_lane - ACROSS_REACH), crono_lane))
+        across = JOHNNY_WELL_ABOVE >> ACROSS_SHIFT;
+    else if (!at_least((uint16_t)(johnny_lane + ACROSS_REACH + u->johnny_below), crono_lane))
+        across = JOHNNY_WELL_BELOW >> ACROSS_SHIFT;
+    set_scene_race_contact_across(g, across);
+    ORIGINAL_EFFECT(leave_working_cells(g, c, j));
+    return (uint16_t)(across << ACROSS_SHIFT | along);
+}
+
+/* ---- Bumping ------------------------------------------------------------------------------------ */
+
+/* The units a bump along takes and hands on (bump_along_units, below). */
+typedef struct {
+    bool overlapping;   /* the bikes overlap: the one ahead goes a unit farther */
+    bool drops_back;    /* nothing wrapped: the other drops back a unit */
+    bool handed_on;     /* the unit handed to a bump across that follows */
+} BumpAlongUnits;
+
+/* A bump along the track: the bike that was ahead, `front`, is set down just
+ * in front of the other, `other` (its distance the other's plus both noses),
+ * the other drops back a unit, and they swap speeds. The original takes the
+ * push's high word -- 0 in any bump the game makes -- off both halves of the
+ * other's distance, which the second term keeps. */
+static uint32_t push_of(uint32_t front, uint16_t front_nose, uint32_t other, uint16_t other_nose)
+{
+    return (other + other_nose) - (front - front_nose);
+}
+
+static void bump_along(GameState *g, Racer front, uint16_t front_nose, Racer other, uint16_t other_nose,
+                       const BumpAlongUnits *u)
+{
+    uint32_t f = distance(g, front), o = distance(g, other);
+    uint32_t push = push_of(f, front_nose, o, other_nose);
+    set_scene_race_racers_distance(g, front, f + push + u->overlapping);
+    set_scene_race_racers_distance(g, other, o - (push >> 16) * 0x10001u - u->drops_back);
+    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)(f - front_nose), (uint16_t)((f - front_nose) >> 16)));
+    /* The push stays in the arithmetic's cells, where the placing of the bikes'
+     * next multiplies take bytes of it in (scene/math.c): it is game state. */
+    set_scene_call_bump_push(g, scene_program_own(), push);
+
+    uint16_t s = speed(g, front);
+    set_scene_race_racers_speed(g, front, speed(g, other));
+    set_scene_race_racers_speed(g, other, s);
+}
+
+/* The units a bump across takes (bump_across_units, below). */
+typedef struct {
+    bool reach;           /* the pushing bike reaches a unit farther */
+    bool reach_wrapped;   /* the overlap is a unit less without it */
+    bool into_crono;      /* Crono, who moves first, moves a unit farther with it */
+    bool into_johnny;     /* and Johnny after him */
+} BumpAcrossUnits;
+
+/* How far within ACROSS_REACH of each other the bikes are, `pushing` reaching
+ * across toward `pushed`. */
+static uint16_t overlap(const GameState *g, Racer pushing, Racer pushed, const BumpAcrossUnits *u)
+{
+    return (uint16_t)(lane(g, pushing) + ACROSS_REACH + u->reach - lane(g, pushed) - !u->reach_wrapped);
+}
+
+/* A bump across the track: the bikes push each other apart by how far they
+ * overlap, `pushing` moving away from `pushed`, and swap their drifts. */
+static void bump_across(GameState *g, Racer pushing, Racer pushed, const BumpAcrossUnits *u)
+{
+    uint16_t by = overlap(g, pushing, pushed, u);
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), by));
+    uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
+    if (pushing == RACER_CRONO) {
+        set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)(crono - by - !u->into_crono));
+        set_scene_race_racers_lane(g, RACER_JOHNNY, (uint16_t)(johnny + by + u->into_johnny));
     } else {
-        set_scene_race_score(g, (uint16_t)(scene_race_score(g) - 1));
-        uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
-        carried = crono >= johnny;
-        controls |= at_least(crono, johnny) ? JOHNNY_STEERS_UP : JOHNNY_STEERS_DOWN;
+        set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)(crono + by + u->into_crono));
+        set_scene_race_racers_lane(g, RACER_JOHNNY, (uint16_t)(johnny - by - !u->into_johnny));
     }
-    set_scene_race_johnny_controls(g, controls);
-    return carried;
+    for (Drift d = CRONO_UP; d < JOHNNY_UP; d++) {
+        uint16_t crono_drift = drift_of(g, d);
+        set_drift(g, d, drift_of(g, (Drift)(d + JOHNNY_UP)));
+        set_drift(g, (Drift)(d + JOHNNY_UP), crono_drift);
+    }
+}
+
+/* ---- The units the motion hands on ------------------------------------------------------------- */
+
+/* Each function here works out, from the values a step of the motion used,
+ * the unit that step leaves for the next sum (see the top of the file). They
+ * run in the order the original's sums do, each from the one before. */
+
+/* Out of Johnny's decision, into the drifts: where Crono leads, whether the
+ * bikes aren't alongside (alongside, whether Crono is on the track's higher
+ * half); where he doesn't, whether Crono's lane is at or above Johnny's. None
+ * after the finish, when Johnny decides nothing. */
+static bool unit_from_johnny(const GameState *g)
+{
+    if (stage(g) != RACE_RUNNING)
+        return false;
+    if ((int16_t)scene_race_lead(g) > 0) {
+        uint16_t apart = lanes_apart(g);
+        return alongside(apart) ? race_lane_high(g, RACER_CRONO) >= TRACK_MIDDLE : apart >= ALONGSIDE;
+    }
+    return lane(g, RACER_CRONO) >= lane(g, RACER_JOHNNY);
+}
+
+/* A drift's two units: one into its build-up, one into its loss. */
+typedef struct {
+    bool build_up, loss;
+} DriftUnits;
+
+/* The four drifts' units: into a drift's build-up, the unit handed on; into
+ * its loss, whether the build-up reached the top (not steering, the unit
+ * handed on); and on to the next drift, whether this one was still going. */
+static void drift_units(const GameState *g, const Steering *s, DriftUnits out[DRIFTS])
+{
+    bool unit = unit_from_johnny(g);
+    for (Drift d = CRONO_UP; d < DRIFTS; d++) {
+        uint16_t v = drift_of(g, d);
+        out[d].build_up = unit;
+        out[d].loss = s->steering[d] ? (uint16_t)(v + s->build_up[d] + unit) >= MAX_DRIFT : unit;
+        uint16_t built = s->steering[d] ? built_up(v, s->build_up[d], unit) : v;
+        unit = built >= (uint16_t)(DRIFT_LOSS - out[d].loss);
+    }
+}
+
+/* Into the lead: whether Crono is in the upper half of his 32nd. */
+static bool unit_into_lead(const GameState *g) { return distance(g, RACER_CRONO) & (1u << (LEAD_SHIFT - 1)); }
+
+/* Out of the lead, into the touching: whether Crono's 32nds were at least
+ * Johnny's (and one more without the unit in). */
+static bool unit_from_lead(const GameState *g, bool unit_in)
+{
+    return (uint32_t)in_32nds(distance(g, RACER_CRONO)) >= (uint32_t)in_32nds(distance(g, RACER_JOHNNY)) + !unit_in;
+}
+
+/* The touching's units: where a bike's nose passes a $10000 boundary of the
+ * race, the next sum takes a unit; whether Johnny's reach behind is past
+ * Crono's nose; and, across, whether Johnny's lane less the reach is still at
+ * or past Crono's as an unsigned number (as it is when Johnny is in the lowest
+ * lanes), which widens the band below him by a unit. */
+static ContactUnits contact_units(const GameState *g, bool from_lead)
+{
+    ContactUnits u = { from_lead, false, false, false, false };
+    u.johnny_nose = (uint32_t)(uint16_t)distance(g, RACER_CRONO) + CRONO_NOSE + from_lead > 0xFFFF;
+    u.johnny_back = (uint32_t)(uint16_t)distance(g, RACER_JOHNNY) + JOHNNY_NOSE + u.johnny_nose > 0xFFFF;
+    u.johnny_ahead = (uint16_t)(johnny_nose(g, &u) + BEHIND_REACH + u.johnny_back) >= crono_nose(g, &u);
+    u.johnny_below = (uint16_t)(lane(g, RACER_JOHNNY) - ACROSS_REACH) >= lane(g, RACER_CRONO);
+    return u;
+}
+
+/* A bump along's units: the one into place is whether the other's nose is at
+ * or past the front's back (as unsigned distances); the other drops back a unit
+ * unless the front's new distance wrapped; and what it hands on is whether the
+ * other's distance covered what it lost. */
+static BumpAlongUnits bump_along_units(const GameState *g, Racer front, uint16_t front_nose, Racer other,
+                                       uint16_t other_nose)
+{
+    uint32_t f = distance(g, front), o = distance(g, other);
+    uint32_t push = push_of(f, front_nose, o, other_nose);
+    BumpAlongUnits u;
+    u.overlapping = o + other_nose >= f - front_nose;
+    uint32_t moved = f + push;
+    u.drops_back = !(moved < f || moved + u.overlapping < moved);
+    uint32_t taken = (push >> 16) * 0x10001u;
+    u.handed_on = o >= taken && o - taken >= (uint32_t)u.drops_back;
+    return u;
+}
+
+/* A bump across's units: the one handed in, into the reach; whether the reach
+ * wrapped past the top of the lanes; into Crono's move, whether the reach got
+ * to the bike pushed; and into Johnny's, whether Crono's move covered the
+ * overlap (moving down) or ran past the top of the lanes (moving up). */
+static BumpAcrossUnits bump_across_units(const GameState *g, Racer pushing, Racer pushed, bool unit_in)
+{
+    BumpAcrossUnits u = { unit_in, false, false, false };
+    uint32_t reach = (uint32_t)lane(g, pushing) + ACROSS_REACH + unit_in;
+    u.reach_wrapped = reach > 0xFFFF;
+    u.into_crono = (uint16_t)reach >= (uint32_t)lane(g, pushed) + !u.reach_wrapped;
+    uint16_t by = overlap(g, pushing, pushed, &u);
+    uint16_t crono = lane(g, RACER_CRONO);
+    if (pushing == RACER_CRONO)
+        u.into_johnny = crono >= (uint32_t)by + !u.into_crono;
+    else
+        u.into_johnny = (uint32_t)crono + by + u.into_crono > 0xFFFF;
+    return u;
+}
+
+/* Into the boost: whether Johnny is still speeding up, which the comparison of
+ * his speed with his top speed, the last before the boost, says. */
+static bool unit_into_boost(const GameState *g) { return scene_race_racers_speeding_up(g, RACER_JOHNNY) != 0; }
+
+/* ---- A bump --------------------------------------------------------------------------------- */
+
+/* Gaining 20 when Crono was the one ahead as they touch, losing 10 when Johnny was. */
+enum { SCORE_FOR_BUMPING = 20, SCORE_FOR_BEING_BUMPED = 10 };
+
+static bool bump_crono_forward(GameState *g)
+{
+    BumpAlongUnits u = bump_along_units(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE);
+    bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE, &u);
+    return u.handed_on;
+}
+
+static void bump_johnny_forward(GameState *g)
+{
+    BumpAlongUnits u = bump_along_units(g, RACER_JOHNNY, JOHNNY_NOSE, RACER_CRONO, CRONO_NOSE);
+    bump_along(g, RACER_JOHNNY, JOHNNY_NOSE, RACER_CRONO, CRONO_NOSE, &u);
+}
+
+static void push_apart(GameState *g, Racer pushing, Racer pushed, bool unit_in)
+{
+    BumpAcrossUnits u = bump_across_units(g, pushing, pushed, unit_in);
+    bump_across(g, pushing, pushed, &u);
+}
+
+/* The bikes have come together: how they bump depends on where they came
+ * from, which the last contact apart says. Johnny well above means Crono
+ * pushes across toward him, well below Johnny pushes toward Crono; a bump
+ * across first hands the bump along that follows nothing (it starts afresh),
+ * one along first hands its unit to the bump across. */
+static void bump(GameState *g)
+{
+    bool unit = true;   /* what the choice of bump leaves: it found the contact it bumps by */
+    switch (scene_race_last_contact(g)) {
+    case CRONO_WELL_AHEAD:
+        bump_crono_forward(g);
+        set_scene_race_score(g, (uint16_t)(scene_race_score(g) + SCORE_FOR_BUMPING));
+        break;
+    case JOHNNY_WELL_AHEAD:
+        bump_johnny_forward(g);
+        set_scene_race_score(g, (uint16_t)(scene_race_score(g) - SCORE_FOR_BEING_BUMPED));
+        break;
+    case JOHNNY_WELL_ABOVE:
+        push_apart(g, RACER_CRONO, RACER_JOHNNY, unit);
+        break;
+    case JOHNNY_WELL_ABOVE | CRONO_WELL_AHEAD:
+        push_apart(g, RACER_CRONO, RACER_JOHNNY, bump_crono_forward(g));
+        break;
+    case JOHNNY_WELL_ABOVE | JOHNNY_WELL_AHEAD:
+        push_apart(g, RACER_CRONO, RACER_JOHNNY, unit);
+        bump_johnny_forward(g);
+        break;
+    case JOHNNY_WELL_BELOW:
+        push_apart(g, RACER_JOHNNY, RACER_CRONO, unit);
+        break;
+    case JOHNNY_WELL_BELOW | CRONO_WELL_AHEAD:
+        push_apart(g, RACER_JOHNNY, RACER_CRONO, bump_crono_forward(g));
+        break;
+    case JOHNNY_WELL_BELOW | JOHNNY_WELL_AHEAD:
+        push_apart(g, RACER_JOHNNY, RACER_CRONO, unit);
+        bump_johnny_forward(g);
+        break;
+    default:
+        break;
+    }
 }
 
 /* ---- Boosts ----------------------------------------------------------------------------------- */
@@ -219,9 +566,9 @@ static void flash_gauge(GameState *g)
 }
 
 /* A boost, while the race runs: B pressed (once a press) with boosts left
- * sends Crono $1700 faster, and one more when Johnny is below his top speed
- * (the one his speeding up's comparison leaves). */
-static void boost(GameState *g, bool johnny_below_top)
+ * sends Crono $1700 faster (a unit more where one is handed on), to at most
+ * MAX_SPEED. */
+static void boost(GameState *g, bool unit)
 {
     uint16_t timer = scene_race_boost_timer(g);
     if (timer != 0) {
@@ -243,200 +590,8 @@ static void boost(GameState *g, bool johnny_below_top)
     set_scene_race_boosts(g, (uint16_t)(boosts - 1));
     set_scene_race_boost_timer(g, BOOST_FRAMES);
     set_gauge(g, 0, 0);
-    int16_t faster = (int16_t)(speed(g, RACER_CRONO) + BOOST + johnny_below_top);
+    int16_t faster = (int16_t)(speed(g, RACER_CRONO) + BOOST + unit);
     set_scene_race_racers_speed(g, RACER_CRONO, faster < 0 ? MAX_SPEED : (uint16_t)faster);
-}
-
-/* ---- The lead and the camera's place ---------------------------------------------------------- */
-
-/* Where the camera is along the track, between the two bikes, and its place
- * on the track's loop of $400. */
-enum { PLACE_TO_CAMERA = 4, CAMERA_PLACE_START = 0x375, CAMERA_LOOP = 0x3FF };
-
-static void place_camera(GameState *g)
-{
-    uint32_t place = (distance(g, RACER_CRONO) + distance(g, RACER_JOHNNY)) >> 1;
-    set_scene_race_place(g, place);
-    set_race_camera(g, CAMERA_PLACE, (uint16_t)(((uint16_t)place >> PLACE_TO_CAMERA) + CAMERA_PLACE_START) & CAMERA_LOOP);
-}
-
-/* How far Crono leads, in 32nds of the distance: the two distances' words from
- * bit 5, less one more when Crono's bit 4 is clear (the original subtracts with
- * the bit its shifts carry out last). Returns whether the subtraction didn't
- * borrow, the one the bump's measuring carries on with. */
-enum { LEAD_SHIFT = 5 };
-
-static bool measure_lead(GameState *g)
-{
-    uint32_t crono = distance(g, RACER_CRONO), johnny = distance(g, RACER_JOHNNY);
-    uint16_t crono_far = (uint16_t)(crono >> LEAD_SHIFT), johnny_far = (uint16_t)(johnny >> LEAD_SHIFT);
-    bool half = crono & (1u << (LEAD_SHIFT - 1));
-    set_scene_race_lead(g, (uint16_t)(crono_far - johnny_far - !half));
-    /* the shifts' work, in the arithmetic's cells */
-    set_scene_call_first(g, scene_program_own(), (uint16_t)(crono >> 16 >> LEAD_SHIFT));
-    set_scene_call_second(g, scene_program_own(), johnny_far);
-    return (uint32_t)crono_far >= (uint32_t)johnny_far + !half;
-}
-
-/* ---- Bumping ------------------------------------------------------------------------------------ */
-
-/* Where Johnny is from Crono (scene_race_contact). */
-enum {
-    CRONO_WELL_AHEAD = 0x01, JOHNNY_WELL_AHEAD = 0x02,
-    JOHNNY_WELL_ABOVE = 0x10, JOHNNY_WELL_BELOW = 0x20,
-    ACROSS_SHIFT = 4,
-};
-
-/* How close counts as touching: along the track, Crono's bike from $100 on
- * and Johnny's from $C0 on, $200 and $180 apart; across it, $1000. The
- * original measures along with the distances' low words only. */
-enum { CRONO_NOSE = 0x100, JOHNNY_NOSE = 0xC0, BEHIND_REACH = 0x200, AHEAD_REACH = 0x180, ACROSS_REACH = 0x1000 };
-
-static uint16_t measure_contact(GameState *g, bool carried)
-{
-    uint32_t crono_nose = (uint32_t)(uint16_t)distance(g, RACER_CRONO) + CRONO_NOSE + carried;
-    uint32_t johnny_nose = (uint32_t)(uint16_t)distance(g, RACER_JOHNNY) + JOHNNY_NOSE + (crono_nose >> 16);
-    uint16_t c = (uint16_t)crono_nose, j = (uint16_t)johnny_nose;
-    set_scene_call_first(g, scene_program_own(), c);
-    set_scene_call_second(g, scene_program_own(), j);
-
-    uint32_t johnny_back = (uint32_t)j + BEHIND_REACH + (johnny_nose >> 16);
-    uint16_t along = 0;
-    if (!at_least((uint16_t)johnny_back, c))
-        along = CRONO_WELL_AHEAD;
-    else if (at_least((uint16_t)(j - AHEAD_REACH - !((uint16_t)johnny_back >= c)), c))
-        along = JOHNNY_WELL_AHEAD;
-
-    uint16_t crono_lane = lane(g, RACER_CRONO), johnny_lane = lane(g, RACER_JOHNNY);
-    uint16_t johnny_below = (uint16_t)(johnny_lane - ACROSS_REACH);
-    uint16_t across = 0;
-    if (at_least(johnny_below, crono_lane))
-        across = JOHNNY_WELL_ABOVE >> ACROSS_SHIFT;
-    else {
-        uint16_t johnny_above = (uint16_t)(johnny_lane + ACROSS_REACH + (johnny_below >= crono_lane));
-        if (!at_least(johnny_above, crono_lane))
-            across = JOHNNY_WELL_BELOW >> ACROSS_SHIFT;
-    }
-    set_scene_race_contact_across(g, across);
-    uint16_t contact = (uint16_t)(across << ACROSS_SHIFT | along);
-    set_scene_race_contact(g, contact);
-    return contact;
-}
-
-/* What the bump leaves in the arithmetic's cells: the place the bike behind
- * was put back to, and the push, whose bytes the next multiply carries in from
- * (scene/math.c). */
-static void leave_push(GameState *g, uint32_t behind, uint32_t push)
-{
-    SceneProgramPage own = scene_program_own();
-    set_scene_call_first(g, own, (uint16_t)behind);
-    set_scene_call_second(g, own, (uint16_t)(behind >> 16));
-    set_scene_call_bump_push(g, own, push);
-}
-
-/* A bump along the track: the bike behind, `back`, takes the place of the one
- * ahead, `front` (the front of its bike against the back of the other's,
- * `front_nose` and `back_nose` along), and the one ahead is pushed back by
- * the push's high word, taken off both its words; then they swap speeds.
- * Returns the one the last subtraction leaves. */
-static bool bump_along(GameState *g, Racer back, uint16_t back_nose, Racer front, uint16_t front_nose)
-{
-    uint32_t behind = distance(g, back) - back_nose;
-    uint32_t ahead = distance(g, front) + front_nose;
-    uint32_t push = ahead - behind;
-    bool no_borrow = ahead >= behind;
-    uint32_t was_back = distance(g, back);
-    uint32_t pushed = was_back + push, moved = pushed + no_borrow;
-    set_scene_race_racers_distance(g, back, moved);
-    bool overflow = pushed < was_back || moved < pushed;
-    uint16_t push_high = (uint16_t)(push >> 16);
-    uint32_t was = distance(g, front);
-    uint16_t low = (uint16_t)was, high = (uint16_t)(was >> 16);
-    uint32_t low_after = (uint32_t)low - push_high - !overflow;
-    bool low_kept = low >= (uint32_t)push_high + !overflow;
-    uint32_t high_after = (uint32_t)high - push_high - !low_kept;
-    set_scene_race_racers_distance(g, front, (uint32_t)(uint16_t)high_after << 16 | (uint16_t)low_after);
-    leave_push(g, behind, push);
-
-    uint16_t s = speed(g, back);
-    set_scene_race_racers_speed(g, back, speed(g, front));
-    set_scene_race_racers_speed(g, front, s);
-    return high >= (uint32_t)push_high + !low_kept;
-}
-
-/* A bump across the track: the bikes push each other apart by how far they
- * overlap across ($1000 apart), `pushed` moving the other way, and swap their
- * drifts. `carried` is the one the step before left. */
-static void bump_across(GameState *g, Racer from, Racer pushed, bool carried)
-{
-    uint16_t f = lane(g, from), p = lane(g, pushed);
-    uint32_t reach = (uint32_t)f + ACROSS_REACH + carried;
-    bool reach_carry = reach > 0xFFFF;
-    uint16_t overlap = (uint16_t)((uint16_t)reach - p - !reach_carry);
-    bool overlap_kept = (uint16_t)reach >= (uint32_t)p + !reach_carry;
-    set_scene_call_first(g, scene_program_own(), overlap);
-    uint16_t crono = lane(g, RACER_CRONO), johnny = lane(g, RACER_JOHNNY);
-    if (from == RACER_CRONO) {
-        uint16_t moved = (uint16_t)(crono - overlap - !overlap_kept);
-        bool kept = crono >= (uint32_t)overlap + !overlap_kept;
-        set_scene_race_racers_lane(g, RACER_CRONO, moved);
-        set_scene_race_racers_lane(g, RACER_JOHNNY, (uint16_t)(johnny + overlap + kept));
-    } else {
-        uint32_t moved = (uint32_t)crono + overlap + overlap_kept;
-        set_scene_race_racers_lane(g, RACER_CRONO, (uint16_t)moved);
-        set_scene_race_racers_lane(g, RACER_JOHNNY, (uint16_t)(johnny - overlap - !(moved > 0xFFFF)));
-    }
-    uint16_t d = scene_race_racers_drift_down(g, RACER_CRONO);
-    set_scene_race_racers_drift_down(g, RACER_CRONO, scene_race_racers_drift_down(g, RACER_JOHNNY));
-    set_scene_race_racers_drift_down(g, RACER_JOHNNY, d);
-    uint16_t u = scene_race_racers_drift_up(g, RACER_CRONO);
-    set_scene_race_racers_drift_up(g, RACER_CRONO, scene_race_racers_drift_up(g, RACER_JOHNNY));
-    set_scene_race_racers_drift_up(g, RACER_JOHNNY, u);
-}
-
-/* Bumping Johnny from behind scores 20, being bumped from behind costs 10. */
-enum { SCORE_FOR_BUMPING = 20, SCORE_FOR_BEING_BUMPED = 10 };
-
-/* The bikes have come together: how they bump depends on where they came
- * from, which the last contact apart says. */
-static void bump(GameState *g)
-{
-    uint16_t from = scene_race_last_contact(g);
-    bool carried = true;   /* the bump's own comparison found the contact it bumps by */
-    switch (from) {
-    case CRONO_WELL_AHEAD:
-        (void)bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE);
-        set_scene_race_score(g, (uint16_t)(scene_race_score(g) + SCORE_FOR_BUMPING));
-        return;
-    case JOHNNY_WELL_AHEAD:
-        (void)bump_along(g, RACER_JOHNNY, JOHNNY_NOSE, RACER_CRONO, CRONO_NOSE);
-        set_scene_race_score(g, (uint16_t)(scene_race_score(g) - SCORE_FOR_BEING_BUMPED));
-        return;
-    case JOHNNY_WELL_ABOVE:
-        bump_across(g, RACER_CRONO, RACER_JOHNNY, carried);
-        break;
-    case JOHNNY_WELL_ABOVE | CRONO_WELL_AHEAD:
-        carried = bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE);
-        bump_across(g, RACER_CRONO, RACER_JOHNNY, carried);
-        break;
-    case JOHNNY_WELL_ABOVE | JOHNNY_WELL_AHEAD:
-        bump_across(g, RACER_CRONO, RACER_JOHNNY, carried);
-        (void)bump_along(g, RACER_JOHNNY, JOHNNY_NOSE, RACER_CRONO, CRONO_NOSE);
-        break;
-    case JOHNNY_WELL_BELOW:
-        bump_across(g, RACER_JOHNNY, RACER_CRONO, carried);
-        break;
-    case JOHNNY_WELL_BELOW | CRONO_WELL_AHEAD:
-        carried = bump_along(g, RACER_CRONO, CRONO_NOSE, RACER_JOHNNY, JOHNNY_NOSE);
-        bump_across(g, RACER_JOHNNY, RACER_CRONO, carried);
-        break;
-    case JOHNNY_WELL_BELOW | JOHNNY_WELL_AHEAD:
-        bump_across(g, RACER_JOHNNY, RACER_CRONO, carried);
-        (void)bump_along(g, RACER_JOHNNY, JOHNNY_NOSE, RACER_CRONO, CRONO_NOSE);
-        break;
-    default:
-        break;
-    }
 }
 
 /* ---- A frame of the bikes ----------------------------------------------------------------------- */
@@ -449,37 +604,54 @@ typedef struct {
     bool running;
 } BikeSounds;
 
+/* The drifts for the frame: each built up while steered, then dying away. */
+static void drift_all(GameState *g, const Steering *s, const DriftUnits units[DRIFTS])
+{
+    for (Drift d = CRONO_UP; d < DRIFTS; d++) {
+        uint16_t v = drift_of(g, d);
+        if (s->steering[d])
+            v = built_up(v, s->build_up[d], units[d].build_up);
+        set_drift(g, d, died_away(v, units[d].loss));
+    }
+}
+
 /* The bikes for a frame, before they move: speeds, the boost, the top speeds,
  * the camera's place, Johnny's controls, the drifts, the lead; while the race
  * runs, whether they touch and their bump. */
 static BikeSounds ride_bikes(GameState *g)
 {
     BikeSounds sounds = { false, stage(g) == RACE_RUNNING };
-    bool johnny_throttle = scene_race_johnny_controls(g) & JOHNNY_THROTTLE;
     change_speed(g, RACER_CRONO, true);
-    change_speed(g, RACER_JOHNNY, johnny_throttle);
-    set_scene_race_racers_speeding_up(g, RACER_CRONO, CRONO_SPEEDING_UP);
-    set_scene_race_racers_speeding_up(g, RACER_JOHNNY, JOHNNY_SPEEDING_UP);
+    change_speed(g, RACER_JOHNNY, scene_race_johnny_controls(g) & JOHNNY_THROTTLE);
     keep_speeding_up(g, RACER_CRONO, CRONO_SPEEDING_UP);
     keep_speeding_up(g, RACER_JOHNNY, JOHNNY_SPEEDING_UP);
-    bool johnny_below_top = scene_race_racers_top_speed(g, RACER_JOHNNY) >= speed(g, RACER_JOHNNY);
-    bool running = sounds.running;
-    if (running)
-        boost(g, johnny_below_top);
-
+    if (sounds.running)
+        boost(g, unit_into_boost(g));
     set_top_speeds(g);
     place_camera(g);
 
     set_scene_race_johnny_controls(g, 0);
-    bool carried = running ? drive_johnny(g) : false;
-    steer(g, carried);
-    bool lead_kept = measure_lead(g);
-    if (!running)
+    if (sounds.running)
+        drive_johnny(g);
+    Steering s = steering_this_frame(g);
+    DriftUnits units[DRIFTS];
+    drift_units(g, &s, units);
+    set_scene_race_crono_lean(g, lean_for(s.steering[CRONO_UP], s.steering[CRONO_DOWN]));
+    drift_all(g, &s, units);
+
+    bool into_lead = unit_into_lead(g);
+    bool into_touching = unit_from_lead(g, into_lead);
+    set_scene_race_lead(g, lead(g, into_lead));
+    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)(distance(g, RACER_CRONO) >> 16) >> LEAD_SHIFT,
+                                        in_32nds(distance(g, RACER_JOHNNY))));
+    if (!sounds.running)
         return sounds;
 
-    uint16_t contact = measure_contact(g, lead_kept);
-    if (contact != 0) {
-        set_scene_race_last_contact(g, contact);
+    ContactUnits cu = contact_units(g, into_touching);
+    uint16_t now = contact(g, &cu);
+    set_scene_race_contact(g, now);
+    if (now != 0) {
+        set_scene_race_last_contact(g, now);
     } else {
         bump(g);
         sounds.bumped = true;
@@ -547,7 +719,8 @@ static void crono_finishes(GameState *g)
 {
     set_scene_race_winner(g, WINNER_CRONO);
     set_scene_race_prize(g, 0);
-    set_scene_race_finish_margin(g, scene_race_lead(g) & 0xFF);
+    set_scene_race_finish_margin(g, (uint8_t)scene_race_lead(g));
+    set_scene_race_finish_margin_high(g, 0);
     if (!race_in_attract_mode(g)) {
         set_scene_race_racers_top_speed_leading(g, RACER_CRONO, COASTING_SPEED);
         set_scene_race_racers_top_speed_trailing(g, RACER_CRONO, COASTING_SPEED);
@@ -631,21 +804,18 @@ static void keep_plane_seam(GameState *g)
     }
 }
 
-/* Johnny is out of sight when Crono is $1000 ahead (by the distances' high
- * words and then their low words, compared as the race compares), and so,
- * then, is Crono's own sprite. */
+/* Johnny is out of sight when Crono is ahead of him by $1000 or more, and so,
+ * then, is Crono's own sprite. The original reads the low word of the lead by
+ * its sign, so in the upper half of each $10000 of lead Johnny shows again. */
 enum { OUT_OF_SIGHT = 0x1000 };
 
 static void see_who_is_ahead(GameState *g)
 {
     set_scene_race_racers_out_of_sight(g, RACER_JOHNNY, 0);
     set_scene_race_racers_out_of_sight(g, RACER_CRONO, 0);
-    uint32_t crono = distance(g, RACER_CRONO), johnny = distance(g, RACER_JOHNNY);
-    uint16_t low = (uint16_t)((uint16_t)crono - (uint16_t)johnny);
-    uint16_t high = (uint16_t)((crono >> 16) - (johnny >> 16) - ((uint16_t)crono < (uint16_t)johnny));
-    set_scene_call_first(g, scene_program_own(), low);
-    set_scene_call_second(g, scene_program_own(), high);
-    if ((int16_t)high >= 0 && at_least(low, OUT_OF_SIGHT)) {
+    uint32_t ahead = distance(g, RACER_CRONO) - distance(g, RACER_JOHNNY);
+    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)ahead, (uint16_t)(ahead >> 16)));
+    if ((int32_t)ahead >= 0 && at_least((uint16_t)ahead, OUT_OF_SIGHT)) {
         set_scene_race_racers_out_of_sight(g, RACER_CRONO, 1);
         set_scene_race_racers_out_of_sight(g, RACER_JOHNNY, 1);
     }
@@ -657,7 +827,10 @@ typedef enum { RIDE_ON, RIDE_CRONO_WON, RIDE_JOHNNY_WON } RideEnd;
 
 // $7E:485D
 /* The race's frame while it runs: the finish, the plane's seam, who is out of
- * sight, and the bikes. */
+ * sight, and the bikes. Accepted divergence: the boost's unit is whether
+ * Johnny is still speeding up, where the original compares his speed with his
+ * top speed unsigned; the two differ only where his speed and his top speed
+ * are more than $8000 apart, which the game's never are. */
 static RideEnd ride(GameState *g, BikeSounds *sounds)
 {
     set_scene_race_frames(g, (uint16_t)(scene_race_frames(g) + 1));
@@ -683,8 +856,7 @@ static void pull_over(GameState *g, Racer r, uint16_t target)
     uint16_t at = lane(g, r);
     if (at == target)
         return;
-    bool above = at >= target;
-    uint16_t moved = (int16_t)(at - target) > 0 ? (uint16_t)(at - LANE_STEP - !above) : (uint16_t)(at + LANE_STEP + above);
+    uint16_t moved = at_least(at, target) ? (uint16_t)(at - LANE_STEP) : (uint16_t)(at + LANE_STEP);
     set_scene_race_racers_lane(g, r, moved & LANE_GRID);
 }
 
@@ -721,7 +893,10 @@ enum { CRONO_FINISH_LANE = 0x4000 };
 /* The race's frame after Crono's finish. Coasting, he pulls over to the
  * middle lane (in the demo, both bikes to their lanes), while his lead dies
  * away; once it has and Johnny is out of sight, Crono has pulled away and
- * Johnny is gone from the picture. The bikes go on moving all the while. */
+ * Johnny is gone from the picture. The bikes go on moving all the while.
+ * Accepted divergence: a bike pulling over steps $80 either way; the
+ * original's step takes a unit from its comparison, which is 0 wherever the
+ * lanes are the game's, 0 to $7000. */
 static void coast(GameState *g)
 {
     maybe_leave_early(g);
@@ -742,11 +917,10 @@ static void coast(GameState *g)
             return;
         pull_over(g, RACER_CRONO, CRONO_FINISH_LANE);
     }
-    uint8_t margin = (uint8_t)scene_race_finish_margin(g);
+    uint8_t margin = scene_race_finish_margin(g);
     if (margin != 0)
-        margin = (int8_t)margin > 0 ? (uint8_t)(margin - 1) : (uint8_t)(margin + 1);
-    set_scene_race_finish_margin(g, (uint16_t)((scene_race_finish_margin(g) & 0xFF00) | margin));
-    if (scene_race_finish_margin(g) != 0)
+        set_scene_race_finish_margin(g, (int8_t)margin > 0 ? (uint8_t)(margin - 1) : (uint8_t)(margin + 1));
+    if (scene_race_finish_margin(g) != 0 || scene_race_finish_margin_high(g) != 0)
         return;
     if (scene_race_racers_out_of_sight(g, RACER_JOHNNY) != 0 && (lane(g, RACER_CRONO) & 0xFFFE) == CRONO_FINISH_LANE) {
         set_scene_race_racers_drift_up(g, RACER_CRONO, 0);
@@ -805,21 +979,20 @@ static void leave(GameState *g)
 
 // $7E:44CE
 /* After Johnny's win, every fourth frame Crono's score drains by the largest of
- * 2000, 200, 20 and 2 it still holds; when it holds none the draining stops.
- * Returns the score after the step, or what is left below 2, less 2. */
+ * 2000, 200, 20 and 2 it still holds; when it holds none the draining stops,
+ * and this returns false. */
 static const uint16_t drains[] = { 2000, 200, 20, 2 };
+enum { LAST_DRAIN = 2 };
 
-static bool drain_score(GameState *g, uint16_t *left)
+static bool drain_score(GameState *g)
 {
     uint16_t score = scene_race_score(g);
     for (unsigned i = 0; i < sizeof drains / sizeof drains[0]; i++) {
         if (score >= drains[i]) {
-            *left = (uint16_t)(score - drains[i]);
-            set_scene_race_score(g, *left);
+            set_scene_race_score(g, (uint16_t)(score - drains[i]));
             return true;
         }
     }
-    *left = (uint16_t)(score - 2);
     return false;
 }
 
@@ -997,12 +1170,12 @@ void scene_race_drain_score(Snes *s)
         m_rts(s);
         return;
     }
-    uint16_t left;
-    bool drained = drain_score(g, &left);
-    ORIGINAL_EFFECT(s->cpu.a = left);
-    if (!drained) {
+    uint16_t before = scene_race_score(g);
+    if (!drain_score(g)) {
+        ORIGINAL_EFFECT(s->cpu.a = (uint16_t)(before - LAST_DRAIN));   /* the last subtraction tried */
         m_stop_at(s, REMOVE_THIS_TASK, DC_AL | DC_N | DC_V | DC_Z | DC_C);
         return;
     }
+    ORIGINAL_EFFECT(s->cpu.a = scene_race_score(g));
     m_rts(s);
 }

@@ -42,14 +42,6 @@ static void draw_sprite(GameState *g, uint16_t source) { TIMED_AS(g, 0xC30DBC, s
 static void draw_list(GameState *g, uint16_t list) { TIMED_AS(g, 0xC30D0E, scene_draw_sprite_list(g, list, false)); }
 static void draw_clipped_list(GameState *g, uint16_t list) { TIMED_AS(g, 0xC30D5E, scene_draw_sprite_list(g, list, true)); }
 
-/* The arithmetic cells the drawing works in, which it leaves as they end:
- * the first (a bike's frame, the numbers drawn), the second (the distance to
- * go's high word) and the pose. */
-typedef struct {
-    bool first_set, second_set;
-    uint16_t first, second;
-} WorkCells;
-
 /* ---- The racers' pictures --------------------------------------------------------------------- */
 
 /* A racer's picture request (scene_race_picture_requests' state). */
@@ -131,13 +123,13 @@ static uint16_t count_animation(GameState *g)
 }
 
 /* Crono's picture for this frame: his pose's, by his lean and his frame of
- * animation, at his size from channel 1, never nearer than CRONO_NEAREST. How many
- * of his sprites show follows the size he was asked at last time. Returns the
- * frame's place in his pictures, which the original leaves in the first
- * arithmetic cell. */
+ * animation, at his size from channel 1, never nearer than CRONO_NEAREST. How
+ * many of his sprites show follows the size he was asked at last time. */
 enum { CRONO_PAIRS = 4 };
 
-static uint16_t ask_crono_picture(GameState *g, unsigned pose)
+static unsigned crono_frame(unsigned pose, uint16_t animation) { return picture_index(pose, animation & 1); }
+
+static void ask_crono_picture(GameState *g, unsigned pose)
 {
     uint8_t far_count = (uint8_t)scene_race_crono_sprite_counts(g, pose);
     set_scene_race_sprite_list_counts(g, RACER_CRONO,
@@ -147,7 +139,7 @@ static uint16_t ask_crono_picture(GameState *g, unsigned pose)
         size = CRONO_NEAREST;
         set_race_channel_1(g, RACE_CRONO_SCALE, size);
     }
-    unsigned frame = picture_index(pose, count_animation(g) & 1);
+    unsigned frame = crono_frame(pose, count_animation(g));
     PictureRequest p = {
         .source = scene_race_crono_frames(g, scene_race_crono_lean(g) * LEANS + frame),
         .rows = scene_race_crono_frame_rows(g, pose),
@@ -156,7 +148,6 @@ static uint16_t ask_crono_picture(GameState *g, unsigned pose)
         .row_step = size >> 1,
     };
     ask_for_picture(g, RACER_CRONO, &p);
-    return (uint16_t)(frame * 2);
 }
 
 /* Johnny's picture: his pose's, by his frame of animation, at his size from
@@ -186,15 +177,13 @@ static void ask_johnny_picture(GameState *g, unsigned pose)
 // $7E:4FAD, $7E:5047
 /* A racer: its next picture asked for once the last has been scaled, and its
  * sprites drawn where it is on the screen, unless it is out of sight. */
-static void draw_racer(GameState *g, Racer r, unsigned pose, WorkCells *cells)
+static void draw_racer(GameState *g, Racer r, unsigned pose)
 {
     if (picture_taken(g, r)) {
-        if (r == RACER_CRONO) {
-            cells->first = ask_crono_picture(g, pose);
-            cells->first_set = true;
-        } else {
+        if (r == RACER_CRONO)
+            ask_crono_picture(g, pose);
+        else
             ask_johnny_picture(g, pose);
-        }
     }
     if (scene_race_racers_out_of_sight(g, r) != 0)
         return;
@@ -204,40 +193,46 @@ static void draw_racer(GameState *g, Racer r, unsigned pose, WorkCells *cells)
 
 /* ---- The panel -------------------------------------------------------------------------------- */
 
-/* The distance bar: its length is from its start at $21 to its right end (one
- * less, unless the pose's sum reached the top of its word: the original
- * subtracts with the carry that sum shifted out), which goes into the
- * multiplier as the first operand for both markers. */
-enum { BAR_START = 0x21, MARKER_SHIFT = 3, MARKER_BACK = 6, MARKER_DOWN = 0xC0 };
-
-static void set_bar_scale(GameState *g, bool turned_over)
-{
-    uint16_t length = (uint16_t)(scene_race_bar_right(g) - BAR_START - !turned_over);
-    hw_set_multiplicand(g, (uint8_t)length);
-    ORIGINAL_EFFECT(hw_multiply_by(g, (uint8_t)(length >> 8)));   /* the word store's high byte */
-}
-
-/* A bike's marker on the bar: back from the bar's end by its distance times
- * the bar's length, and down from the bar by its lane. The original reads the
- * product's high byte as a word, so the byte after it -- the controller's A,
- * X, L and R as the console last read them -- comes along as the high byte of
- * what it takes off. While the race runs, and until Johnny's win stops them,
- * the marker is drawn. */
+/* The distance bar, from its start at $22 to its right end, and each bike's
+ * marker on it: back from the bar's end by the bar's length times how far the
+ * bike has come (in $800ths, the product's high byte), down from the bar by
+ * its lane. The original reads the product's high byte as a word, so the byte
+ * after it -- the controller's A, X, L and R as the console last read them --
+ * comes along as the high byte of what it takes off. While the race runs, and
+ * until Johnny's win stops them, the markers are drawn. */
+enum { BAR_START = 0x22, MARKER_SHIFT = 3, MARKER_BACK = 5, MARKER_DOWN = 0xC0 };
 enum { MARKERS_STOPPED = 0x60 };
 static const uint16_t marker_sprites[] = { (uint16_t)0x7E5391, (uint16_t)0x7E538D };
 
-static void draw_marker(GameState *g, Platform *pf, Racer r)
+/* The bar is a pixel longer where channel 0's lean turns the pose back past
+ * the first: the original's sum hands a unit on into the bar's length. */
+static uint16_t bar_length(const GameState *g, bool leaned_back)
 {
-    uint16_t far = (uint16_t)(scene_race_racers_distance(g, r) >> 8) >> MARKER_SHIFT;
-    uint16_t product = hw_multiply_by(g, (uint8_t)far);
-    ORIGINAL_EFFECT(hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | far >> 8)));   /* the word store's high byte */
+    return (uint16_t)(scene_race_bar_right(g) - BAR_START + leaned_back);
+}
+
+static uint8_t marker_far(const GameState *g, Racer r) { return (uint8_t)((scene_race_racers_distance(g, r) >> 8) >> MARKER_SHIFT); }
+
+static void draw_marker(GameState *g, Platform *pf, Racer r, uint16_t length)
+{
+    uint16_t product = (uint16_t)((uint8_t)length * marker_far(g, r));
     uint16_t taken = (uint16_t)(in_read_low(pf, PF_AT(0x7E50E1), 0) << 8 | product >> 8);
-    uint32_t back = (uint32_t)scene_race_markers_right(g) + MARKER_BACK;
-    uint16_t x = (uint16_t)(back - taken - !(back >> 16));
+    uint16_t x = (uint16_t)(scene_race_markers_right(g) + MARKER_BACK - taken);
     uint16_t y = (uint16_t)((race_lane_high(g, r) >> MARKER_SHIFT) + MARKER_DOWN);
     set_sprite_offsets(g, x, y);
     if (scene_race_markers_shown(g) != MARKERS_STOPPED && scene_race_stage(g) == RACE_RUNNING)
         draw_sprite(g, marker_sprites[r]);
+}
+
+/* The CPU's multiplier as the bar leaves it: the bar's length as the first
+ * operand, and the product of the last marker placed, or, with no panel, the
+ * length times its own high byte (the original stores the length as a word).
+ * The panel's numbers then use the divider, whose remainder shares the
+ * product's register. */
+static void leave_multiplier(GameState *g, uint16_t length, bool markers, Racer last)
+{
+    hw_set_multiplicand(g, (uint8_t)length);
+    hw_multiply_by(g, markers ? marker_far(g, last) : (uint8_t)(length >> 8));
 }
 
 /* The boosts Crono has left, from the panel's right leftward; the last is
@@ -289,13 +284,16 @@ static void draw_number(GameState *g, uint16_t value)
  * finish), and Crono's score, never below 0, shown at half. */
 enum { DISTANCE_X = 0x10, DISTANCE_Y = 0x0E, SCORE_Y = 0x18, SHOWN_LIMIT = 1001, LAG_EVERY = 0x40 };
 
-static void draw_numbers(GameState *g, WorkCells *cells)
+static uint32_t distance_to_go(const GameState *g)
+{
+    return (uint32_t)(RACE_FINISH - scene_race_racers_distance(g, RACER_CRONO));
+}
+
+static void draw_numbers(GameState *g)
 {
     uint16_t to_go = 0;
     if (scene_race_stage(g) == RACE_RUNNING) {
-        uint32_t remaining = (uint32_t)(RACE_FINISH - scene_race_racers_distance(g, RACER_CRONO));
-        cells->second = (uint16_t)(remaining >> 16);
-        cells->second_set = true;
+        uint32_t remaining = distance_to_go(g);
         uint16_t shown = (uint16_t)(((uint16_t)(remaining >> 8) >> 1) - scene_race_distance_shown_less(g));
         to_go = at_least(shown, SHOWN_LIMIT) ? 0 : shown;
     }
@@ -308,75 +306,82 @@ static void draw_numbers(GameState *g, WorkCells *cells)
     set_sprite_offsets(g, scene_sprite_offset_x(g), SCORE_Y);
     if ((int16_t)scene_race_score(g) < 0)
         set_scene_race_score(g, 0);
-    cells->first = scene_race_score(g) >> 1;
-    cells->first_set = true;
-    draw_number(g, cells->first);
+    draw_number(g, scene_race_score(g) >> 1);
 }
 
 // $7E:5116
-static void draw_panel(GameState *g, WorkCells *cells)
+static void draw_panel(GameState *g)
 {
     draw_boosts(g);
     set_sprite_offsets(g, 0, 0);
     draw_clipped_list(g, PANEL_FRAME);
     draw_list(g, PANEL_CORNERS);
-    draw_numbers(g, cells);
+    draw_numbers(g);
 }
 
 /* ---- A frame's drawing ---------------------------------------------------------------------- */
 
 /* The pose both racers are drawn in: the way the camera faces, in eighths of a
- * turn, with channel 0's lean added; and whether that sum reached the top of
- * its word, which the bar's scale takes one off for. */
-typedef struct {
-    unsigned pose;
-    bool turned_over;
-} Pose;
-
+ * turn, with channel 0's lean added. */
 enum { POSE_SHIFT = 7, HALF_POSE = 0x40, POSES = 8 };
 
-static Pose pose_of(const GameState *g)
+static uint16_t pose_sum(const GameState *g)
 {
-    uint16_t eighths = (uint16_t)(((uint16_t)(race_camera(g, CAMERA_ANGLE) + HALF_POSE) >> POSE_SHIFT) +
-                                  race_camera(g, CAMERA_LEAN));
-    return (Pose){ eighths & (POSES - 1), (eighths & 0x8000) != 0 };
+    return (uint16_t)(((uint16_t)(race_camera(g, CAMERA_ANGLE) + HALF_POSE) >> POSE_SHIFT) + race_camera(g, CAMERA_LEAN));
 }
+
+static unsigned pose_of(const GameState *g) { return pose_sum(g) & (POSES - 1); }
+
+/* Whether the lean turned the pose back past the first. */
+static bool leaned_back_past_first(const GameState *g) { return (int16_t)pose_sum(g) < 0; }
 
 static bool crono_nearer(const GameState *g)
 {
     return at_least(scene_race_racers_bottom(g, RACER_CRONO), scene_race_racers_bottom(g, RACER_JOHNNY));
 }
 
-static void leave_cells(GameState *g, const WorkCells *cells, unsigned pose)
-{
-    SceneProgramPage own = scene_program_own();
-    if (cells->first_set)
-        set_scene_call_first(g, own, cells->first);
-    if (cells->second_set)
-        set_scene_call_second(g, own, cells->second);
-    set_scene_call_race_pose(g, own, (uint16_t)(pose * 2));
-}
-
 // $7E:4F54
 /* The racers and the panel: before the countdown ends the bikes' animation
  * stays at its start; the markers and the panel are drawn first, then the
- * nearer racer and the other. */
+ * nearer racer and the other. Accepted divergence: the markers are placed
+ * back from the bar's end without the unit the original's sum would carry
+ * past $FFFF, which the bar's ends the setup writes ($B8, $D8) never do. */
 static void draw(GameState *g, Platform *pf)
 {
-    Pose p = pose_of(g);
-    WorkCells cells = { false, false, 0, 0 };
+    unsigned pose = pose_of(g);
     if (race_channel_1(g, RACE_STARTED) == 0)
         set_race_camera(g, RACE_ANIMATION, 0);
-    set_bar_scale(g, p.turned_over);
+    uint16_t length = bar_length(g, leaned_back_past_first(g));
     bool crono_first = crono_nearer(g);
-    if (panel_shown(g)) {
-        draw_marker(g, pf, crono_first ? RACER_CRONO : RACER_JOHNNY);
-        draw_marker(g, pf, crono_first ? RACER_JOHNNY : RACER_CRONO);
-        draw_panel(g, &cells);
+    Racer nearer = crono_first ? RACER_CRONO : RACER_JOHNNY, farther = crono_first ? RACER_JOHNNY : RACER_CRONO;
+    bool panel = panel_shown(g);
+    if (panel) {
+        draw_marker(g, pf, nearer, length);
+        draw_marker(g, pf, farther, length);
     }
-    draw_racer(g, crono_first ? RACER_CRONO : RACER_JOHNNY, p.pose, &cells);
-    draw_racer(g, crono_first ? RACER_JOHNNY : RACER_CRONO, p.pose, &cells);
-    ORIGINAL_EFFECT(leave_cells(g, &cells, p.pose));
+    ORIGINAL_EFFECT(leave_multiplier(g, length, panel, farther));
+    if (panel)
+        draw_panel(g);
+    draw_racer(g, nearer, pose);
+    draw_racer(g, farther, pose);
+}
+
+/* What the drawing leaves in the arithmetic's working cells, from the state
+ * after it: the pose; the first cell Crono's picture's place where one was
+ * asked for (`crono_asked`), else the score shown, where the panel is; the
+ * second the distance to go's high word, where the panel shows it. */
+static void leave_working_cells(GameState *g, bool crono_asked)
+{
+    SceneProgramPage own = scene_program_own();
+    unsigned pose = pose_of(g);
+    set_scene_call_race_pose(g, own, (uint16_t)(pose * 2));
+    bool panel = panel_shown(g);
+    if (panel && scene_race_stage(g) == RACE_RUNNING)
+        set_scene_call_second(g, own, (uint16_t)(distance_to_go(g) >> 16));
+    if (crono_asked)
+        set_scene_call_first(g, own, (uint16_t)(crono_frame(pose, race_camera(g, RACE_ANIMATION)) * 2));
+    else if (panel)
+        set_scene_call_first(g, own, scene_race_score(g) >> 1);
 }
 
 /* ---- Entry ------------------------------------------------------------------------------------- */
@@ -433,7 +438,9 @@ void scene_race_draw(Snes *s)
 {
     GameState *g = state_of(s);
     bool crono_first = crono_nearer(g);
+    bool crono_asked = scene_race_picture_requests_state(g, RACER_CRONO) != PICTURE_WAITING;
     draw(g, m_platform(s));
+    ORIGINAL_EFFECT(leave_working_cells(g, crono_asked));
     ORIGINAL_EFFECT(leave_registers(s, crono_first));
     m_rts(s);
 }

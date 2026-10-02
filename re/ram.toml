@@ -874,10 +874,17 @@ source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_coast $7
 [[var]]
 name = "scene_race_finish_margin"
 addr = "7E:00B2"
-size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "Crono's lead as he crossed the line (its low byte), which dies away a step a frame while he coasts"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_finish_margin_high"
+addr = "7E:00B3"
+page = "scene"
+subsystem = "scene"
+meaning = "The byte after the finish margin, which Crono's finish clears and the coast tests with it as a word (the bikes' placing reads the two as a word too)"
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788, scene_race_coast $7E:4677"
 
 [[var]]
@@ -1007,20 +1014,20 @@ offset = 0x0
 size = 2
 meaning = "The race's matrix code generator: the table offset of the eighth being written"
 [[var.field]]
-name = "matrix_row_step"
+name = "matrix_tile_step"
 offset = 0x2
 size = 2
-meaning = "The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the tile's offset across a strip, 4 a tile (a byte, its high half 0)"
 [[var.field]]
-name = "matrix_pair_step"
+name = "matrix_plane_pair_step"
 offset = 0x4
 size = 2
-meaning = "The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the bitplane pair's offset, 2 a pair (a byte, its high half 0)"
 [[var.field]]
-name = "matrix_column_step"
+name = "matrix_row_step"
 offset = 0x6
 size = 2
-meaning = "The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the row's offset within a tile, $20 a row (a byte, its high half 0)"
 [[var.field]]
 name = "matrix_source"
 offset = 0x8

@@ -6490,9 +6490,13 @@
 #define RAM_SCENE_RACE_STAGE 0x7E00B0u
 #define RAM_SCENE_RACE_STAGE_DP 0xB0u        /* page scene */
 /* Crono's lead as he crossed the line (its low byte), which dies away a step a frame while he
- * coasts [2 bytes] */
+ * coasts */
 #define RAM_SCENE_RACE_FINISH_MARGIN 0x7E00B2u
 #define RAM_SCENE_RACE_FINISH_MARGIN_DP 0xB2u /* page scene */
+/* The byte after the finish margin, which Crono's finish clears and the coast tests with it as a
+ * word (the bikes' placing reads the two as a word too) */
+#define RAM_SCENE_RACE_FINISH_MARGIN_HIGH 0x7E00B3u
+#define RAM_SCENE_RACE_FINISH_MARGIN_HIGH_DP 0xB3u /* page scene */
 /* The divisor the race's distance scale was last found at, which the next search starts from [2
  * bytes] */
 #define RAM_SCENE_RACE_DIVISOR_START 0x7E00B4u
@@ -6859,9 +6863,9 @@
 #define RAM_SCENE_CALL_TRANSFER_CONTROL_DP 0xF0u /* The program's own transfer: its channel's mode (how it moves the bytes) */
 #define RAM_SCENE_CALL_TRANSFER_REGISTER_DP 0xF2u /* The program's own transfer: the register it feeds */
 #define RAM_SCENE_CALL_MATRIX_TABLE_OFFSET_DP 0xF0u /* The race's matrix code generator: the table offset of the eighth being written */
-#define RAM_SCENE_CALL_MATRIX_ROW_STEP_DP 0xF2u /* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
-#define RAM_SCENE_CALL_MATRIX_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
-#define RAM_SCENE_CALL_MATRIX_COLUMN_STEP_DP 0xF6u /* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_TILE_STEP_DP 0xF2u /* The race's matrix code generator: the tile's offset across a strip, 4 a tile (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_PLANE_PAIR_STEP_DP 0xF4u /* The race's matrix code generator: the bitplane pair's offset, 2 a pair (a byte, its high half 0) */
+#define RAM_SCENE_CALL_MATRIX_ROW_STEP_DP 0xF6u /* The race's matrix code generator: the row's offset within a tile, $20 a row (a byte, its high half 0) */
 #define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
 #define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
 #define RAM_SCENE_CALL_BUMP_PUSH_DP 0xF6u    /* The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte */

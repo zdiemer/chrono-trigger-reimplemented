@@ -9461,8 +9461,13 @@ void set_scene_race_stage(GameState *g, uint16_t v);
 
 /* Crono's lead as he crossed the line (its low byte), which dies away a step a frame while he
  * coasts */
-uint16_t scene_race_finish_margin(const GameState *g);
-void set_scene_race_finish_margin(GameState *g, uint16_t v);
+uint8_t scene_race_finish_margin(const GameState *g);
+void set_scene_race_finish_margin(GameState *g, uint8_t v);
+
+/* The byte after the finish margin, which Crono's finish clears and the coast tests with it as a
+ * word (the bikes' placing reads the two as a word too) */
+uint8_t scene_race_finish_margin_high(const GameState *g);
+void set_scene_race_finish_margin_high(GameState *g, uint8_t v);
 
 /* The divisor the race's distance scale was last found at, which the next search starts from */
 uint16_t scene_race_divisor_start(const GameState *g);
@@ -9993,15 +9998,18 @@ void set_scene_call_transfer_register(GameState *g, SceneProgramPage page, uint8
 /* The race's matrix code generator: the table offset of the eighth being written */
 uint16_t scene_call_matrix_table_offset(const GameState *g, SceneProgramPage page);
 void set_scene_call_matrix_table_offset(GameState *g, SceneProgramPage page, uint16_t v);
-/* The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0) */
+/* The race's matrix code generator: the tile's offset across a strip, 4 a tile (a byte, its high
+ * half 0) */
+uint16_t scene_call_matrix_tile_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_tile_step(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the bitplane pair's offset, 2 a pair (a byte, its high half
+ * 0) */
+uint16_t scene_call_matrix_plane_pair_step(const GameState *g, SceneProgramPage page);
+void set_scene_call_matrix_plane_pair_step(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's matrix code generator: the row's offset within a tile, $20 a row (a byte, its high
+ * half 0) */
 uint16_t scene_call_matrix_row_step(const GameState *g, SceneProgramPage page);
 void set_scene_call_matrix_row_step(GameState *g, SceneProgramPage page, uint16_t v);
-/* The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0) */
-uint16_t scene_call_matrix_pair_step(const GameState *g, SceneProgramPage page);
-void set_scene_call_matrix_pair_step(GameState *g, SceneProgramPage page, uint16_t v);
-/* The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0) */
-uint16_t scene_call_matrix_column_step(const GameState *g, SceneProgramPage page);
-void set_scene_call_matrix_column_step(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's matrix code generator: the base the generated loads add their offsets to */
 uint16_t scene_call_matrix_source(const GameState *g, SceneProgramPage page);
 void set_scene_call_matrix_source(GameState *g, SceneProgramPage page, uint16_t v);
