@@ -184,7 +184,10 @@ add_library(ct_game STATIC
   game/scene/guards.c
   game/scene/math.c
   game/scene/race.c
+  game/scene/race_camera.c
+  game/scene/race_drawing.c
   game/scene/race_matrix.c
+  game/scene/race_rules.c
   game/scene/scaler.c
   game/scene/screen.c
   game/scene/script.c

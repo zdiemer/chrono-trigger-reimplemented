@@ -377,6 +377,14 @@ meaning = "Y added to every sprite of a list as it is copied"
 source = "game/scene/sprites.c, scene_load_sprite_list $C3:0D0E, scene_add_sprite $C3:0DBC"
 
 [[var]]
+name = "scene_sprite_offset_y_high"
+addr = "7E:0018"
+page = "scene"
+subsystem = "scene"
+meaning = "The byte after the sprites' Y offset, which the race stores with it as a word; nothing reads it"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
 name = "scene_sprite_list_left"
 addr = "7E:0019"
 page = "scene"
@@ -536,14 +544,6 @@ meaning = "BG3's horizontal scroll, sent with the per-frame tilemap block"
 source = "game/scene/title.c, scene_title_upload_ripple $7E:6212"
 
 [[var]]
-name = "scene_race_engine_pitch"
-addr = "7E:004B"
-page = "scene"
-subsystem = "scene"
-meaning = "The pitch of the race's engine: the parameter of the sound driver command $89 (the effect voices' pitch, docs/SOUND.md), which the race sends each frame without waiting for the echo"
-source = "game/scene/race.c, scene_race_set_engine_pitch $7E:4BD2"
-
-[[var]]
 name = "scene_mode7_matrix"
 addr = "7E:005A"
 stride = 8
@@ -614,6 +614,325 @@ page = "scene"
 subsystem = "scene"
 meaning = "Nonzero when the race's tilemap buffer at $0C00 is ready for VRAM $4400; cleared when it is sent"
 source = "game/scene/race.c, scene_race_upload_tilemap $7E:5221"
+
+[[var]]
+name = "scene_race_tilemap_ready_high"
+addr = "7E:00AB"
+count = 2
+stride = 2
+index = "racer: 0 Crono's half (after scene_race_tilemap_a_ready), 1 Johnny's (after _b_ready)"
+page = "scene"
+subsystem = "scene"
+meaning = "The byte after each tilemap half's ready mark, which the race counts the mark up into as a word (the vblank clears the mark alone)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_buttons_before"
+addr = "7E:0004"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "The controller as the race read it last frame (the race keeps the last two frames' as it takes this frame's into scene_race_buttons)"
+source = "game/scene/race_camera.c, scene_race_keep_controller $7E:42BD"
+
+[[var]]
+name = "scene_race_buttons"
+addr = "7E:0006"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "The controller as the race reads it this frame (JOY1 order, PadBits): the steering buttons, B for a boost, A to leave once the race is over, and in the demo L, R, X and A turn and raise the camera"
+source = "game/scene/race_camera.c, scene_race_keep_controller $7E:42BD; game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_demo"
+addr = "7E:0044"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_bg3_scroll_x"
+meaning = "Nonzero while the race is the attract sequence's (the scene's mode other than 0, set by the race's setup at $7E:3B4F): the computer rides, the controller turns and raises the camera, and there are no boosts"
+source = "game/scene/race_camera.c, scene_race_turn_camera $7E:4339; game/scene/race_rules.c, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_racers"
+addr = "7E:0046"
+count = 2
+stride = 0x25
+index = "racer: 0 Crono, 1 Johnny"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_mode7_matrix", "scene_title_logo_x", "scene_title_logo_y", "scene_title_timer"]
+meaning = "The two jet bikes: where each is on the screen and on the track, how fast it goes and how it drifts across"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D; game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+[[var.field]]
+name = "screen_x"
+offset = 0x00
+size = 2
+meaning = "Where the bike is drawn across the screen: the left of its picture"
+[[var.field]]
+name = "screen_y"
+offset = 0x02
+size = 2
+meaning = "Where the bike is drawn down the screen: the top of its picture"
+[[var.field]]
+name = "speed"
+offset = 0x04
+size = 2
+meaning = "The bike's speed: every frame it goes $80 slower and as much faster as speeding_up, and moves on along the track by a 64th of it; Crono's high byte is the engine's pitch (the sound driver's command $89)"
+[[var.field]]
+name = "speeding_up"
+offset = 0x06
+size = 2
+meaning = "What the bike adds to its speed next frame: $100 for Crono and $F8 for Johnny while below the top speed, 0 at it"
+[[var.field]]
+name = "lane"
+offset = 0x08
+size = 2
+meaning = "Where the bike is across the track, 0 to $7000"
+[[var.field]]
+name = "after_lane"
+offset = 0x0A
+meaning = "The byte after the lane, which nothing writes; the distance bar's marker reads the lane's high byte as a word and takes it along"
+[[var.field]]
+name = "distance"
+offset = 0x0B
+size = 4
+meaning = "How far the bike has come; it finishes when the high word reaches 8 ($80000)"
+[[var.field]]
+name = "top_speed_leading"
+offset = 0x0F
+size = 2
+meaning = "The bike's top speed while it is ahead (Crono's: also its top speed coasting after the finish)"
+[[var.field]]
+name = "top_speed"
+offset = 0x11
+size = 2
+meaning = "The bike's top speed this frame: the leading or the trailing one"
+[[var.field]]
+name = "top_speed_trailing"
+offset = 0x13
+size = 2
+meaning = "The bike's top speed while it is behind; Johnny's is higher than his leading one, so he catches up"
+[[var.field]]
+name = "width"
+offset = 0x15
+size = 2
+meaning = "The width of the bike's picture at its distance from the camera"
+[[var.field]]
+name = "height"
+offset = 0x17
+size = 2
+meaning = "The height of the bike's picture at its distance from the camera"
+[[var.field]]
+name = "right"
+offset = 0x19
+size = 2
+meaning = "The right edge of the bike's picture on the screen"
+[[var.field]]
+name = "bottom"
+offset = 0x1B
+size = 2
+meaning = "The bottom edge of the bike's picture on the screen: the bike lower on the screen is the nearer, and is drawn over the other"
+[[var.field]]
+name = "out_of_sight"
+offset = 0x1D
+size = 2
+meaning = "Nonzero when the bike isn't drawn: Johnny's when Crono is $1000 or more ahead"
+[[var.field]]
+name = "drift_up"
+offset = 0x1F
+size = 2
+meaning = "How fast the bike drifts toward the higher lanes: it builds up while the bike steers that way and dies away by $10 a frame"
+[[var.field]]
+name = "drift_down"
+offset = 0x21
+size = 2
+meaning = "How fast the bike drifts toward the lower lanes"
+
+[[var]]
+name = "scene_race_score"
+addr = "7E:0069"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "Crono's score, shown at half its value: two more each frame he leads, one less each frame he trails, 20 more for bumping Johnny from behind and 10 less for being bumped; it drains away after Johnny wins"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_drain_score $7E:44CE"
+
+[[var]]
+name = "scene_race_lead"
+addr = "7E:008E"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads decides each bike's top speed"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_view"
+addr = "7E:0090"
+size = 2
+count = 4
+index = "0 the cosine, 1 the sine, 2 and 3 their negatives"
+page = "scene"
+subsystem = "scene"
+meaning = "The camera's turn as the bikes are placed on the screen: its cosine and sine, and their negatives"
+source = "game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+
+[[var]]
+name = "scene_race_johnny_controls"
+addr = "7E:0098"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "What Johnny presses this frame: $8000 the throttle, $0100 and $0200 steering toward the lower or the higher lanes"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_boosts"
+addr = "7E:009A"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Crono's boosts left (3 at the start)"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D; game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_place"
+addr = "7E:009C"
+size = 4
+page = "scene"
+subsystem = "scene"
+meaning = "Where the camera is along the track: the two bikes' distances averaged"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_boost_held"
+addr = "7E:00A0"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Nonzero while B is held after a boost, so holding it boosts once"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_cartridge_column"
+addr = "7E:00A2"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Nonzero while the plane's column at the track's seam is the cartridge's, as at the start and near the finish; the race sends its own copy back (scene_race_plane_column) once the camera is past"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_contact"
+addr = "7E:00A4"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Where Johnny is from Crono this frame: along the track in the low bits (1 Crono well ahead, 2 Johnny well ahead), across it in the high bits ($10 and $20); 0 when they touch"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_contact_across"
+addr = "7E:00A6"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "The across part of scene_race_contact before it is shifted in"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_last_contact"
+addr = "7E:00A8"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "scene_race_contact as it last was apart: when the bikes touch, it says which way they came together"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_crono_lean"
+addr = "7E:00AE"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "How Crono's bike leans this frame: 0 upright, 1 steering toward the higher lanes, 2 toward the lower ones"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D; game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_stage"
+addr = "7E:00B0"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "How far the race has got: 0 racing, 1 Crono has crossed the line and is coasting, 2 he has pulled away to his lane"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_finish_margin"
+addr = "7E:00B2"
+page = "scene"
+subsystem = "scene"
+meaning = "Crono's lead as he crossed the line (its low byte), which dies away a step a frame while he coasts"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_finish_margin_high"
+addr = "7E:00B3"
+page = "scene"
+subsystem = "scene"
+meaning = "The byte after the finish margin, which Crono's finish clears and the coast tests with it as a word (the bikes' placing reads the two as a word too)"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_divisor_start"
+addr = "7E:00B4"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "The divisor the race's distance scale was last found at, which the next search starts from"
+source = "game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+
+[[var]]
+name = "scene_race_steer_buttons"
+addr = "7E:00B6"
+size = 2
+count = 2
+index = "0 the button that steers toward the lower lanes, 1 toward the higher"
+page = "scene"
+subsystem = "scene"
+meaning = "Which of the control pad's directions steers which way, by the way the camera faces the track"
+source = "game/scene/race_camera.c, scene_race_turn_camera $7E:4339; game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_boost_timer"
+addr = "7E:00BA"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Frames left of the boost Crono is on ($80 at a boost), while the boost gauge in the road strip flashes"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D"
+
+[[var]]
+name = "scene_race_frames"
+addr = "7E:00BC"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Frames since the race started"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D; game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_leaving"
+addr = "7E:00BE"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Nonzero once A has been pressed after the finish and the picture is fading out"
+source = "game/scene/race_rules.c, scene_race_coast $7E:4677"
 
 [[var]]
 name = "scene_call"
@@ -695,20 +1014,20 @@ offset = 0x0
 size = 2
 meaning = "The race's matrix code generator: the table offset of the eighth being written"
 [[var.field]]
-name = "matrix_row_step"
+name = "matrix_tile_step"
 offset = 0x2
 size = 2
-meaning = "The race's matrix code generator: the row's offset, 4 a row (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the tile's offset across a strip, 4 a tile (a byte, its high half 0)"
 [[var.field]]
-name = "matrix_pair_step"
+name = "matrix_plane_pair_step"
 offset = 0x4
 size = 2
-meaning = "The race's matrix code generator: the pair's offset, 2 a pair (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the bitplane pair's offset, 2 a pair (a byte, its high half 0)"
 [[var.field]]
-name = "matrix_column_step"
+name = "matrix_row_step"
 offset = 0x6
 size = 2
-meaning = "The race's matrix code generator: the column's offset, $20 a column (a byte, its high half 0)"
+meaning = "The race's matrix code generator: the row's offset within a tile, $20 a row (a byte, its high half 0)"
 [[var.field]]
 name = "matrix_source"
 offset = 0x8
@@ -719,6 +1038,16 @@ name = "matrix_destination"
 offset = 0xA
 size = 2
 meaning = "The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last"
+[[var.field]]
+name = "bump_push"
+offset = 0x6
+size = 4
+meaning = "The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte"
+[[var.field]]
+name = "race_pose"
+offset = 0xE
+size = 2
+meaning = "The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures"
 [[var.field]]
 name = "script_scratch"
 offset = 0x0
@@ -1028,6 +1357,386 @@ size = 0x20
 subsystem = "core"
 meaning = "The OAM buffer's high table: two bits per sprite, X bit 8 and the large size"
 source = "game/scene/sprites.c, scene_load_sprite_list_clipped $C3:0D5E; game/scene/screen.c, scene_upload_sprites $7E:380E; docs/PLATFORM.md, survey (OAM)"
+
+[[var]]
+name = "scene_race_ending"
+addr = "7E:0350"
+subsystem = "scene"
+reuses = ["scene_circle_center_x", "scene_curtain_sweep"]
+meaning = "Nonzero (2) once a button has been pressed after the race and its ending has begun"
+source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D"
+
+[[var]]
+name = "scene_race_winner"
+addr = "7E:0380"
+subsystem = "scene"
+meaning = "Who won the jet bike race, for the story to read after the scene: 1 Crono, 2 Johnny"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_prize"
+addr = "7E:0381"
+subsystem = "scene"
+meaning = "What Crono's winning score earns, for the story to read: a prize for a lucky number in the low bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for reaching 1300, 1500 and 2000"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_final_score"
+addr = "7E:0382"
+size = 2
+subsystem = "scene"
+meaning = "Crono's score as he won, as it is shown (half scene_race_score)"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_fade_period"
+addr = "7E:038E"
+subsystem = "scene"
+meaning = "Frames between the steps of the scene's fade in or out (the program's fade tasks at $7E:347A and on)"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_fade_countdown"
+addr = "7E:038F"
+subsystem = "scene"
+meaning = "Frames left before the fade's next step; a store of the period as a word sets it too"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_end_wait"
+addr = "7E:0399"
+size = 2
+subsystem = "scene"
+meaning = "Frames left before the race's scene ends, once a button has been pressed after it"
+source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D, scene_race_leave $7E:4283"
+
+[[var]]
+name = "scene_random_step"
+addr = "7E:039B"
+subsystem = "scene"
+meaning = "Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it on"
+source = "game/scene/race_camera.c, scene_race_pick_opening $7E:3F59"
+
+[[var]]
+name = "scene_race_picture_requests"
+addr = "7E:1400"
+count = 2
+stride = 0x0E
+index = "racer: 0 Crono, 1 Johnny"
+subsystem = "scene"
+meaning = "A racer's picture to scale for this frame: the scaler's settings, which the program's main loop copies into the scaler's cells ($7E:51F4) when the request is pending"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+[[var.field]]
+name = "pairs"
+offset = 0x00
+size = 2
+meaning = "The picture's width in pairs of eight-pixel groups"
+[[var.field]]
+name = "state"
+offset = 0x02
+size = 2
+meaning = "0 nothing asked, 1 waiting for the main loop to scale it, 2 scaled and gathered into the tilemap buffer, for the racer's half of VRAM"
+[[var.field]]
+name = "source"
+offset = 0x04
+size = 2
+meaning = "Where the racer's picture is in the bank of pictures, by its pose and its frame of animation"
+[[var.field]]
+name = "rows"
+offset = 0x06
+size = 2
+meaning = "How many rows to scale"
+[[var.field]]
+name = "row_step"
+offset = 0x08
+size = 2
+meaning = "How far down the picture each scaled row steps: half the racer's size on the screen"
+[[var.field]]
+name = "column_step"
+offset = 0x0A
+size = 2
+meaning = "How far across each scaled pixel steps (the main loop sets it from the row step)"
+[[var.field]]
+name = "source_limit"
+offset = 0x0C
+size = 2
+meaning = "Where the picture's rows end; past it the scaler clears the rest"
+
+[[var]]
+name = "scene_race_plane_turn"
+addr = "7E:141C"
+size = 2
+subsystem = "scene"
+meaning = "How far the plane is turned on the screen: the camera's angle negated (after the finish, how far the camera has come); the flat layers scroll across by a part of it"
+source = "game/scene/race_camera.c, scene_race_aim_camera $7E:4447, scene_race_follow_finish $7E:449C"
+
+[[var]]
+name = "scene_race_horizon"
+addr = "7E:141E"
+size = 2
+subsystem = "scene"
+meaning = "Where the horizon is, measured as BG3's scroll before the 2 lines it is moved: $17 less the camera's pitch"
+source = "game/scene/race_camera.c, scene_race_aim_camera $7E:4447"
+
+[[var]]
+name = "scene_race_view_position"
+addr = "7E:1420"
+size = 2
+count = 2
+index = "0 across the plane, 1 down it"
+subsystem = "scene"
+meaning = "Where on the plane the camera looks from: its place along the track and the scenery's drift, plus the camera's offset; the plane's rotation center is $7F and $E0 more"
+source = "game/scene/race_camera.c, scene_race_move_along $7E:428B"
+
+[[var]]
+name = "scene_race_view_sent"
+addr = "7E:1424"
+size = 2
+count = 4
+index = "the plane's turn, the horizon, the view position across and down"
+subsystem = "scene"
+meaning = "The camera as the vblank last sent it, which the program's per-line work reads while the frame's work changes the originals"
+source = "game/scene/race.c, scene_race_move_camera $7E:43F2"
+
+[[var]]
+name = "scene_race_scenery_drift"
+addr = "7E:143E"
+size = 2
+subsystem = "scene"
+meaning = "How far the flat layers' scenery has turned after the finish, added to the plane's turn as the camera follows the winner"
+source = "game/scene/race_camera.c, scene_race_follow_finish $7E:449C"
+
+[[var]]
+name = "scene_race_camera_offset"
+addr = "7E:1440"
+size = 2
+count = 2
+index = "0 across the plane, 1 down it"
+subsystem = "scene"
+meaning = "How far the camera stands from its place on the track: its distance turned by its angle"
+source = "game/scene/race_camera.c, scene_race_aim_camera $7E:4447, scene_race_move_along $7E:428B"
+
+[[var]]
+name = "scene_race_johnny_gone"
+addr = "7E:1444"
+size = 2
+subsystem = "scene"
+meaning = "Nonzero once Johnny has dropped out of the picture after Crono's finish: he is no longer placed on the screen"
+source = "game/scene/race_rules.c, scene_race_coast $7E:4677"
+
+[[var]]
+name = "scene_race_divisors"
+addr = "7E:1446"
+count = 0x100
+index = "the distance's high byte plus the camera's height (wrapping)"
+subsystem = "scene"
+meaning = "The divisor found for each of the race's distances from the camera, 0 where none has been yet; cleared whenever the camera's height changes"
+source = "game/scene/race_camera.c, scene_race_check_perspective $7E:42CE; game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+
+[[var]]
+name = "scene_race_picture"
+addr = "7F:0200"
+size = 2
+count = 0x480
+index = "word of the picture, $10 a row"
+subsystem = "scene"
+reuses = "scene_race_scaler_output"
+meaning = "A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes after another, before it is gathered into tiles"
+source = "game/scene/race_matrix.c, scene_gather_picture $7E:B574"
+
+
+[[var]]
+name = "scene_race_perspective_camera"
+addr = "7E:0A30"
+size = 2
+count = 5
+index = "the camera's height, angle, pitch, depth and mirroring, as channel 0's registers 0, 5, 6, 8 and 11 hold them"
+subsystem = "scene"
+reuses = "scene_channels"
+meaning = "The camera the race last built its perspective for, kept in channel 0's spare loop counters: when the camera differs, the perspective is built again"
+source = "game/scene/race_camera.c, scene_race_check_perspective $7E:42CE"
+
+[[var]]
+name = "scene_race_turning"
+addr = "7E:0A3A"
+size = 2
+count = 2
+index = "0 turning one way (R), 1 the other (L)"
+subsystem = "scene"
+reuses = "scene_channels"
+meaning = "In the demo, how fast the camera is turning each way: it builds up to 12 while the shoulder button is held and dies away when it isn't; the camera turns by a quarter of each a frame"
+source = "game/scene/race_camera.c, scene_race_turn_camera $7E:4339"
+
+[[var]]
+name = "scene_race_openings"
+addr = "7E:3F66"
+size = 2
+count = 2
+index = "which opening"
+subsystem = "scene"
+meaning = "The two openings the race's camera script can take, one picked at random (the program's data)"
+source = "game/scene/race_camera.c, scene_race_pick_opening $7E:3F59"
+
+[[var]]
+name = "scene_race_steering_by_view"
+addr = "7E:4319"
+size = 2
+count = 16
+index = "the way the camera faces (0-7, an eighth of a turn each), then 8 more for the other direction"
+subsystem = "scene"
+meaning = "The control pad direction that steers toward the lower lanes for each way the camera can face, then the one toward the higher lanes (the program's data)"
+source = "game/scene/race_camera.c, scene_race_turn_camera $7E:4339"
+
+[[var]]
+name = "scene_race_line_counts"
+addr = "7E:451F"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the race's per-line table for the BG mode (mode 1 above the horizon, the plane's mode 7 from it), which the race sets each vblank from the horizon"
+source = "game/scene/race_camera.c, scene_race_set_horizon $7E:44FE"
+
+[[var]]
+name = "scene_race_math_line_counts"
+addr = "7E:452B"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the race's per-line table for the color math, set from the horizon as scene_race_line_counts are"
+source = "game/scene/race_camera.c, scene_race_set_horizon $7E:44FE"
+
+[[var]]
+name = "scene_race_scroll_line_counts"
+addr = "7E:45A6"
+count = 2
+stride = 3
+index = "0 the lines above the horizon, 1 the lines from it"
+subsystem = "scene"
+meaning = "The line counts of the race's per-line table for BG1's scroll, set from the horizon as scene_race_line_counts are"
+source = "game/scene/race_camera.c, scene_race_set_horizon $7E:44FE"
+
+[[var]]
+name = "scene_race_finish_lanes"
+addr = "7E:46CE"
+size = 2
+count = 2
+stride = 0x16
+index = "racer: 0 Crono, 1 Johnny"
+subsystem = "scene"
+meaning = "The lanes the two bikes pull over to after the finish in the demo: operands of the program's own compares, which Crono's finish swaps when he crosses the line on the higher lanes' side"
+source = "game/scene/race_rules.c, scene_race_coast $7E:4677, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_lucky_scores"
+addr = "7E:4772"
+size = 2
+count = 11
+index = "which score, from 111 up"
+subsystem = "scene"
+meaning = "Scores that earn a prize as repdigits: 111 to 999, 1111, 2222 and 3333 (the program's data; the search runs down from the 11th)"
+source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_bar_right"
+addr = "7E:4F74"
+size = 2
+subsystem = "scene"
+meaning = "Where the distance bar ends across the screen ($B8; the demo's setup makes it $D8): the operand of the program's own load the markers' scale is worked out from"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_markers_right"
+addr = "7E:50DA"
+size = 2
+subsystem = "scene"
+meaning = "Where the distance bar ends, as the markers are placed back from it: the same as scene_race_bar_right, in a second operand of the program's"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_markers_shown"
+addr = "7E:510D"
+subsystem = "scene"
+meaning = "The first byte of the program's instruction that draws the distance bar's markers: Johnny's win writes a return over it ($60), so the markers stop being drawn"
+source = "game/scene/race_rules.c, scene_race_ride $7E:485D; game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_distance_shown_less"
+addr = "7E:5171"
+size = 2
+subsystem = "scene"
+meaning = "How much the distance still to go is shown less than it is: the operand of the program's own subtraction, which counts down one every 64 frames from $18"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_johnny_frames"
+addr = "7E:51B1"
+size = 2
+count = 16
+index = "pose (by the way the camera faces), then 8 more for the other frame of the bike's animation"
+subsystem = "scene"
+meaning = "Where each of Johnny's pictures is in the bank of pictures (the program's data)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_crono_frames"
+addr = "7E:528B"
+size = 2
+count = 48
+index = "lean (0-2) * 16, then the pose, then 8 more for the other frame"
+subsystem = "scene"
+meaning = "Where each of Crono's pictures is in the bank of pictures, by how the bike leans (the program's data)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_crono_frame_ends"
+addr = "7E:52EB"
+size = 2
+count = 8
+index = "pose"
+subsystem = "scene"
+meaning = "Where Crono's picture for each pose ends, the scaler's source limit (the program's data)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_crono_frame_rows"
+addr = "7E:52FB"
+size = 2
+count = 8
+index = "pose"
+subsystem = "scene"
+meaning = "How many rows Crono's picture for each pose has (the program's data)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_crono_sprite_counts"
+addr = "7E:530B"
+size = 2
+count = 8
+index = "pose"
+subsystem = "scene"
+meaning = "How many of the sprites of Crono's sprite list each pose shows when he is far away (the list's count byte; the program's data)"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_race_sprite_list_counts"
+addr = "7E:531B"
+count = 2
+stride = 0x41
+index = "racer: 0 Crono, 1 Johnny"
+subsystem = "scene"
+meaning = "The count bytes of the sprite lists the racers are drawn with over their scaled pictures (the program's data, but these): one more than the sprites to draw, fewer the farther away the racer is"
+source = "game/scene/race_drawing.c, scene_race_draw $7E:4F54"
+
+[[var]]
+name = "scene_number_digits"
+addr = "7E:3A7D"
+count = 21
+index = "byte of the list"
+subsystem = "scene"
+meaning = "The sprite list the program draws a number with: the count byte (one more than the digits shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20 and the digit)"
+source = "game/scene/race_drawing.c, scene_draw_number $7E:39F5"
 
 # ==============================================================================
 # Field and event

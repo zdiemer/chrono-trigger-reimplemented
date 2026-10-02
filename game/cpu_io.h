@@ -42,6 +42,11 @@ void hw_set_dividend(GameState *g, uint16_t dividend);
 uint16_t hw_quotient(const GameState *g);
 uint16_t hw_remainder(const GameState *g);
 void hw_divide_by(GameState *g, uint8_t divisor);
+/* A division started by a word store, as some of the scene program's are: the
+ * divisor is the low byte, and the high byte lands in the next register, the
+ * dot timer's low byte (which nothing enables while the scenes run; PLATFORM.md,
+ * "The census", the divider spills). */
+void hw_divide_by_word(GameState *g, uint16_t word);
 /* The dividend a caller left in the divider, for a routine that divides it
  * itself (reading it costs no time: the register can't be read on the
  * machine, so the backing looks at what the divider holds). */

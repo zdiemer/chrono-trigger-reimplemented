@@ -15,8 +15,12 @@
  *   script.c      the sequence scripts
  *   screen.c      the program's screen: its setup, and what it sends each frame
  *   title.c       the title screen: the pendulum, the logo, the ripple
- *   race.c        the jet bike race's display, and its engine's pitch
- *   race_matrix.c the race's generated matrix code
+ *   race.c        the jet bike race's display, and its sounds
+ *   race_rules.c, race_camera.c, race_drawing.c
+ *                 the race while it runs: the bikes, the camera, the racers
+ *                 and the panel drawn (race.h, what they share)
+ *   race_matrix.c the routine the race writes to regroup its scaled
+ *                 pictures into tiles, and that routine
  *   sound.c       the program's messages to the sound driver
  *   sprites.c, circle.c, scaler.c, math.c
  *                 what the scenes share: sprites, the iris, the bitmap
@@ -243,6 +247,48 @@ void scene_race_set_engine_pitch(Snes *s);
 
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
+bool scene_matrix_code_present(Snes *s);
+void scene_gather_picture(Snes *s);
+
+/* scene/race_rules.c (the program in RAM) */
+bool scene_race_ride_present(Snes *s);
+bool scene_race_ride_lists_fit(Snes *s);
+void scene_race_ride(Snes *s);
+bool scene_race_coast_present(Snes *s);
+bool scene_race_coast_lists_fit(Snes *s);
+void scene_race_coast(Snes *s);
+bool scene_race_await_victory_song_present(Snes *s);
+void scene_race_await_victory_song(Snes *s);
+bool scene_race_wait_to_leave_present(Snes *s);
+void scene_race_wait_to_leave(Snes *s);
+bool scene_race_leave_present(Snes *s);
+void scene_race_leave(Snes *s);
+bool scene_race_drain_score_present(Snes *s);
+void scene_race_drain_score(Snes *s);
+
+/* scene/race_drawing.c (the program in RAM) */
+bool scene_race_draw_present(Snes *s);
+void scene_race_draw(Snes *s);
+
+/* scene/race_camera.c (the program in RAM) */
+bool scene_race_settle_camera_present(Snes *s);
+void scene_race_settle_camera(Snes *s);
+bool scene_race_move_along_present(Snes *s);
+void scene_race_move_along(Snes *s);
+bool scene_race_keep_controller_present(Snes *s);
+void scene_race_keep_controller(Snes *s);
+bool scene_race_check_perspective_present(Snes *s);
+void scene_race_check_perspective(Snes *s);
+bool scene_race_turn_camera_present(Snes *s);
+void scene_race_turn_camera(Snes *s);
+bool scene_race_aim_camera_present(Snes *s);
+void scene_race_aim_camera(Snes *s);
+bool scene_race_follow_finish_present(Snes *s);
+void scene_race_follow_finish(Snes *s);
+bool scene_race_set_horizon_present(Snes *s);
+void scene_race_set_horizon(Snes *s);
+bool scene_race_pick_opening_present(Snes *s);
+void scene_race_pick_opening(Snes *s);
 
 /* scene/sound.c (the program in RAM) */
 bool scene_wait_for_music_present(Snes *s);

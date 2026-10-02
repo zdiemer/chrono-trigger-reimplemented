@@ -41,6 +41,21 @@ static inline uint16_t scene_matrix_offset(const GameState *g, uint16_t index)
     return rom_read16(g, SCENE_MATRIX_TABLE + index * 2u);
 }
 
+/* The game's sine table at $C0:F900, as the scene program reads it: 1024
+ * steps a turn, each the magnitude in 256ths (the program gives it its sign). */
+enum { SCENE_SINE_TABLE = 0xC0F900, SCENE_SINE_STEPS = 0x400 };
+
+static inline uint8_t scene_sine_magnitude(const GameState *g, uint16_t step)
+{
+    return rom_read8(g, SCENE_SINE_TABLE + (step & (SCENE_SINE_STEPS - 1)));
+}
+
+/* The game's table of random bytes at $C0:FE00, 256 of them, which the scene
+ * program steps through. */
+enum { SCENE_RANDOM_TABLE = 0xC0FE00 };
+
+static inline uint8_t scene_random_byte(const GameState *g, uint8_t step) { return rom_read8(g, SCENE_RANDOM_TABLE + step); }
+
 /* The menu mode's scene stream tables in bank C6 (MD2 resources, 24-bit
  * pointers): scene graphics at $C6:FDF0, and the streams at $C6:FEA0, all in
  * bank C3. `offset` is the byte offset the loaders index them with. */
