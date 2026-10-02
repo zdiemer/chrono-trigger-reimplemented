@@ -572,9 +572,10 @@ uint8_t party_characters_joined(const GameState *g);
 void set_party_characters_joined(GameState *g, uint8_t v);
 
 enum { CHARACTER_NAMES_COUNT = 7 };   /* by character */
-/* The characters' names, five name characters in each 6-byte record; the battle converts them to
- * tiles [5 bytes, one at a time] */
-enum { CHARACTER_NAMES_BYTES = 5 };
+/* The characters' names, five name characters and the byte after them in each 6-byte record; the
+ * battle converts them to tiles, and the menus copy a member's whole record after its status
+ * record ($C2:8839) [6 bytes, one at a time] */
+enum { CHARACTER_NAMES_BYTES = 6 };
 uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at);
 void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -2475,6 +2476,22 @@ void set_menu_scratch_graphics_count(GameState *g, uint16_t v);
 /* The same, a byte wide, as the inking loops ($C2:962E, $C2:9653) count it */
 uint8_t menu_scratch_graphics_rows(const GameState *g);
 void set_menu_scratch_graphics_rows(GameState *g, uint8_t v);
+/* A member list's colouring ($C2:9E76): the rows it has coloured, left at 3 */
+uint16_t menu_scratch_member_rows_done(const GameState *g);
+void set_menu_scratch_member_rows_done(GameState *g, uint16_t v);
+/* The same: the row the cursor is on, which keeps its colours */
+uint16_t menu_scratch_member_row_chosen(const GameState *g);
+void set_menu_scratch_member_row_chosen(GameState *g, uint16_t v);
+/* The same: where in the tilemap buffer the row it colours starts, a row past the last when done */
+uint16_t menu_scratch_member_row_place(const GameState *g);
+void set_menu_scratch_member_row_place(GameState *g, uint16_t v);
+/* The same: the tiles across a row it colours (low byte) and the colour it gives them (high
+ * byte), the last row's left */
+uint16_t menu_scratch_member_row_colour(const GameState *g);
+void set_menu_scratch_member_row_colour(GameState *g, uint16_t v);
+/* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
+uint8_t menu_scratch_portrait_attribute(const GameState *g);
+void set_menu_scratch_portrait_attribute(GameState *g, uint8_t v);
 /* The menus' graphics: the three-plane tiles left to widen ($C2:960B), which the loop leaves at
  * 0 */
 uint16_t menu_scratch_graphics_tiles(const GameState *g);
@@ -2541,6 +2558,11 @@ void set_menu_scratch_frame_mirror_bytes(GameState *g, uint16_t v);
 uint8_t menu_opening_records_loaded(const GameState *g);
 void set_menu_opening_records_loaded(GameState *g, uint8_t v);
 
+/* The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the
+ * rows' per-line table each frame, moving by menu_scroll_step */
+uint16_t menu_slide_line(const GameState *g);
+void set_menu_slide_line(GameState *g, uint16_t v);
+
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes */
 uint16_t menu_time_played_shown(const GameState *g);
@@ -2554,6 +2576,11 @@ void set_menu_save_member_row(GameState *g, uint16_t v);
 /* How wide, in pixels, the era label the load screen shows is */
 uint8_t menu_save_era_width(const GameState *g);
 void set_menu_save_era_width(GameState *g, uint8_t v);
+
+/* Where the member list's slide copies its rows to (a window command's place: the column in the
+ * low byte, the row in the high), out of sight below the list's place on the tilemap */
+uint16_t menu_slide_copy(const GameState *g);
+void set_menu_slide_copy(GameState *g, uint16_t v);
 
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in */
@@ -2626,6 +2653,11 @@ void set_menu_screen_step(GameState *g, uint8_t v);
 uint8_t menu_current_task(const GameState *g);
 void set_menu_current_task(GameState *g, uint8_t v);
 
+/* Where in work RAM the record of the member the menus loaded last is (character_records), which
+ * a screen that changes the member writes the change back to */
+uint16_t menu_member_record_at(const GameState *g);
+void set_menu_member_record_at(GameState *g, uint16_t v);
+
 /* What the menus' caller entered them with in X, which the screen they open on takes as its
  * argument (a shop's number, a party member) */
 uint16_t menu_screen_argument(const GameState *g);
@@ -2639,6 +2671,16 @@ void set_menu_active_members(GameState *g, uint8_t v);
 /* How many members the party has, active and waiting, as the menus count them opening */
 uint8_t menu_member_count(const GameState *g);
 void set_menu_member_count(GameState *g, uint8_t v);
+
+/* The equipment screen's slot: 0 the weapon, 1 the helmet, 2 the armor, 3 the accessory, as the
+ * slots are laid out down the screen ($C2:A38B sets it from the cursor) */
+uint8_t menu_equip_slot(const GameState *g);
+void set_menu_equip_slot(GameState *g, uint8_t v);
+
+/* $FF when the member the menus loaded last is one of the waiting ones (past the active
+ * members), 0 when it is active */
+uint8_t menu_member_waiting(const GameState *g);
+void set_menu_member_waiting(GameState *g, uint8_t v);
 
 /* The save slot whose summary the load screen is showing */
 uint8_t menu_save_slot_shown(const GameState *g);
@@ -2671,6 +2713,22 @@ void set_menu_save_slot_next(GameState *g, uint8_t v);
  * it has moved since */
 uint8_t menu_cursor_frame_start(const GameState *g);
 void set_menu_cursor_frame_start(GameState *g, uint8_t v);
+
+/* The member the equipment screen's member list pointed at last, which it compares with to tick
+ * the cursor's sound when it points at another */
+uint8_t menu_member_pointed(const GameState *g);
+void set_menu_member_pointed(GameState *g, uint8_t v);
+
+/* The slot and member (their sum) the equipment screen's list of what fits was drawn for last;
+ * $FF has it drawn again */
+uint8_t menu_equip_shown(const GameState *g);
+void set_menu_equip_shown(GameState *g, uint8_t v);
+
+/* How many of the party's members the menus' screens let the player choose among: the active
+ * ones, or all of them once the story lets the party be switched ($FF:F813, which clears the
+ * high byte) */
+uint16_t menu_members_reachable(const GameState *g);
+void set_menu_members_reachable(GameState *g, uint16_t v);
 
 /* How many more tiles the string being drawn may write */
 uint8_t menu_text_tile_limit(const GameState *g);
@@ -2899,6 +2957,29 @@ void set_menu_travel_location(GameState *g, uint16_t v);
 uint8_t menu_circle_bank_high(const GameState *g);
 void set_menu_circle_bank_high(GameState *g, uint8_t v);
 
+/* Which of the three rows of a member list the cursor is on (the member is it plus
+ * menu_member_scroll) */
+uint8_t menu_member_row(const GameState *g);
+void set_menu_member_row(GameState *g, uint8_t v);
+
+/* The first member a member list shows: the list shows three at a time and scrolls through the
+ * reachable members */
+uint8_t menu_member_scroll(const GameState *g);
+void set_menu_member_scroll(GameState *g, uint8_t v);
+
+/* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
+ * ($C2:A59A); a list's row on the screen while it slides */
+uint8_t menu_item_operand(const GameState *g);
+void set_menu_item_operand(GameState *g, uint8_t v);
+
+/* How many of menu_item_operand the party has, as a list's row shows it */
+uint8_t menu_item_operand_count(const GameState *g);
+void set_menu_item_operand_count(GameState *g, uint8_t v);
+
+/* How many of menu_item_operand the inventory's routines add or take */
+uint8_t menu_item_operand_quantity(const GameState *g);
+void set_menu_item_operand_quantity(GameState *g, uint8_t v);
+
 /* The item last looked up ($C2:8881): which of the five categories it is in (0 weapons, 1
  * armour, 2 helmets, 3 accessories, 4 the rest) */
 uint16_t menu_item_category(const GameState *g);
@@ -3015,6 +3096,21 @@ void set_menu_cursor_direction(GameState *g, uint8_t v);
 uint8_t menu_cursor_held(const GameState *g);
 void set_menu_cursor_held(GameState *g, uint8_t v);
 
+/* How far a list moves each frame while it slides a row along (signed: 4 lines down, -4 up), 0
+ * at rest; the item lists' slide frame ($C2:EB1F) and the rows' move after it ($C2:9FDE) read
+ * its sign from the low byte */
+uint16_t menu_scroll_step(const GameState *g);
+void set_menu_scroll_step(GameState *g, uint16_t v);
+
+/* The frames a list's slide has left */
+uint16_t menu_scroll_frames(const GameState *g);
+void set_menu_scroll_frames(GameState *g, uint16_t v);
+
+/* Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the
+ * armor, $29 the weapon, $2A the accessory, set by $C2:A4AF) */
+uint16_t menu_equip_record_place(const GameState *g);
+void set_menu_equip_record_place(GameState *g, uint16_t v);
+
 /* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
  * can use it */
 uint16_t menu_item_data_at(const GameState *g);
@@ -3039,6 +3135,12 @@ enum { MENU_PLACE_ITEMS_COUNT = 3 };   /* by which */
 uint16_t menu_place_items(const GameState *g, unsigned i);
 void set_menu_place_items(GameState *g, unsigned i, uint16_t v);
 
+enum { MENU_LOW_HP_MARKS_COUNT = 7 };   /* by character */
+/* Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member
+ * row draws the member's HP marked once it is down to that ($C2:A1EF) */
+uint16_t menu_low_hp_marks(const GameState *g, unsigned i);
+void set_menu_low_hp_marks(GameState *g, unsigned i, uint16_t v);
+
 /* The character whose large portrait (six tiles by six) the menus draw next, and whose colours
  * they load with it */
 uint8_t menu_portrait_character(const GameState *g);
@@ -3057,11 +3159,21 @@ enum { MENU_SAVE_SLOT_IN_USE_COUNT = 4 };   /* by save slot */
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot);
 void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v);
 
+/* The character whose face and name a member row's window list draws, in the low bits, with bit
+ * 5 set ($C2:A1EF) */
+uint16_t menu_member_face(const GameState *g);
+void set_menu_member_face(GameState *g, uint16_t v);
+
 /* Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has
  * reached the value the table at $7E:0D38 holds for it, which the window then draws in another
  * palette ($C2:B02B); a save slot's drawing clears it */
 uint8_t menu_member_marked(const GameState *g);
 void set_menu_member_marked(GameState *g, uint8_t v);
+
+/* The byte after menu_member_marked, which a member row clears with it, writing the mark a word
+ * wide */
+uint8_t menu_member_marked_high(const GameState *g);
+void set_menu_member_marked_high(GameState *g, uint8_t v);
 
 enum { MENU_MEMBERS_COUNT = 9 };   /* by member, as the menus list them */
 /* The party's characters as the menus list them: the active members, then the waiting ones, $FF
@@ -3184,9 +3296,37 @@ void set_menu_setting_message_speed(GameState *g, uint8_t v);
 uint8_t menu_setting_spare(const GameState *g);
 void set_menu_setting_spare(GameState *g, uint8_t v);
 
+/* Where the bar is on the screen */
+uint16_t menu_scroll_bar_place(const GameState *g);
+void set_menu_scroll_bar_place(GameState *g, uint16_t v);
+/* The lines the bar's thumb travels over the whole list */
+uint8_t menu_scroll_bar_span(const GameState *g);
+void set_menu_scroll_bar_span(GameState *g, uint8_t v);
+/* The thumb's place along the bar, in lines */
+uint8_t menu_scroll_bar_thumb(const GameState *g);
+void set_menu_scroll_bar_thumb(GameState *g, uint8_t v);
+/* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
+uint16_t menu_scroll_bar_thumb_word(const GameState *g);
+void set_menu_scroll_bar_thumb_word(GameState *g, uint16_t v);
+/* The thumb's move a row of the list */
+uint16_t menu_scroll_bar_step(const GameState *g);
+void set_menu_scroll_bar_step(GameState *g, uint16_t v);
+/* Nonzero while the bar is hidden */
+uint8_t menu_scroll_bar_hidden(const GameState *g);
+void set_menu_scroll_bar_hidden(GameState *g, uint8_t v);
+
 /* Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it */
 uint8_t menu_cursor_hidden(const GameState *g);
 void set_menu_cursor_hidden(GameState *g, uint8_t v);
+
+/* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
+uint8_t menu_slide_rows(const GameState *g);
+void set_menu_slide_rows(GameState *g, uint8_t v);
+
+/* How far a list's slide has moved so far (its steps summed), which the item lists' slide frame
+ * ($C2:EB1F) moves the rows' lines by */
+uint16_t menu_scroll_moved(const GameState *g);
+void set_menu_scroll_moved(GameState *g, uint16_t v);
 
 /* Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound
  * 7, played by $C2:EAD6 the first first */
@@ -3202,15 +3342,48 @@ void set_menu_load_destination(GameState *g, uint16_t v);
 uint16_t menu_graphic_first_tile(const GameState *g);
 void set_menu_graphic_first_tile(GameState *g, uint16_t v);
 
+/* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
+ * on or back */
+uint8_t menu_paging_top(const GameState *g);
+void set_menu_paging_top(GameState *g, uint8_t v);
+
 /* The cursor position a screen keeps to come back to: the load screen's slot while it asks
  * whether to erase it */
 uint8_t menu_kept_cursor(const GameState *g);
 void set_menu_kept_cursor(GameState *g, uint8_t v);
 
+enum { MENU_LIST_ITEMS_COUNT = 98 };   /* by row of the list */
+/* A list of items a screen offers (the equipment screen's: what fits the slot), an item a row */
+uint8_t menu_list_items(const GameState *g, unsigned row);
+void set_menu_list_items(GameState *g, unsigned row, uint8_t v);
+
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
 uint8_t menu_gate_screen_state(const GameState *g, unsigned i);
 void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_LIST_ITEM_COUNTS_COUNT = 98 };   /* by row of the list */
+/* How many of each of menu_list_items' items the party has */
+uint8_t menu_list_item_counts(const GameState *g, unsigned row);
+void set_menu_list_item_counts(GameState *g, unsigned row, uint8_t v);
+
+/* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
+uint8_t menu_member_scroll_most(const GameState *g);
+void set_menu_member_scroll_most(GameState *g, uint8_t v);
+
+/* The equipment screen's slot the cursor was on, kept while the list of what fits is chosen
+ * from, and put back after */
+uint8_t menu_equip_kept_slot(const GameState *g);
+void set_menu_equip_kept_slot(GameState *g, uint8_t v);
+
+/* How many items the equipment screen's list for the slot offers ($C2:8953 counts them); 0 when
+ * nothing fits, and choosing the slot is refused */
+uint8_t menu_equip_choices(const GameState *g);
+void set_menu_equip_choices(GameState *g, uint8_t v);
+
+/* The first of the equipment screen's list's items it shows */
+uint8_t menu_equip_list_top(const GameState *g);
+void set_menu_equip_list_top(GameState *g, uint8_t v);
 
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 uint8_t menu_random_index(const GameState *g);
@@ -3345,6 +3518,13 @@ enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
 uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at);
 void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
+ * apart, and the row past the last where a slide draws the row coming in [1152 bytes, one at a
+ * time] */
+enum { MENU_EQUIP_LIST_ROWS_BYTES = 1152 };
+uint8_t menu_equip_list_rows_byte(const GameState *g, unsigned at);
+void set_menu_equip_list_rows_byte(GameState *g, unsigned at, uint8_t v);
+
 /* Where the load screen draws the era label's tiles in its tilemap: two rows of nine tile words,
  * cleared before each slot is shown [a byte by row and column] */
 enum { MENU_ERA_LABEL_TILES_ROWS = 2, MENU_ERA_LABEL_TILES_COLUMNS = 18 };
@@ -3356,6 +3536,18 @@ enum { MENU_CARRY_ON_QUESTION_COUNT = 256 };   /* by byte */
  * New Game+ carries on from is laid out over the header, and cleared when the player goes back */
 uint8_t menu_carry_on_question(const GameState *g, unsigned i);
 void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_ROW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
+/* The member list's per-line table's values, a word a band of lines: the line its rows are shown
+ * from, which the member list's slide moves each frame and sets back to $61FF after */
+uint16_t menu_row_line_values(const GameState *g, unsigned i);
+void set_menu_row_line_values(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_ROW_OTHER_LINE_VALUES_COUNT = 12 };   /* by band of lines */
+/* A second per-line table's values beside menu_row_line_values, which the main menu's equipment
+ * panel fills with $61FF too */
+uint16_t menu_row_other_line_values(const GameState *g, unsigned i);
+void set_menu_row_other_line_values(GameState *g, unsigned i, uint16_t v);
 
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes, one at a
@@ -3562,18 +3754,26 @@ void set_menu_record_upload_size(GameState *g, uint16_t v);
 uint8_t menu_record_upload_spare(const GameState *g);
 void set_menu_record_upload_spare(GameState *g, uint8_t v);
 
-/* The character record a status window draws ($C2:ED31's command lists read it): its first nine
- * bytes, the character in the first's low bits. Its fields aren't named yet [9 bytes, one at a
- * time] */
+/* The record a byte at a time, by the character record's offsets [80 bytes, one at a time] */
+enum { MENU_STATUS_RECORD_BYTES_BYTES = 80 };
+uint8_t menu_status_record_bytes_byte(const GameState *g, unsigned at);
+void set_menu_status_record_bytes_byte(GameState *g, unsigned at, uint8_t v);
+/* Its first nine bytes, which a save's summary fills [9 bytes, one at a time] */
 enum { MENU_STATUS_RECORD_HEAD_BYTES = 9 };
 uint8_t menu_status_record_head_byte(const GameState *g, unsigned at);
 void set_menu_status_record_head_byte(GameState *g, unsigned at, uint8_t v);
-
-/* The same record's last byte, as a word with the byte after it */
+/* The character, in the low three bits */
+uint8_t menu_status_record_character(const GameState *g);
+void set_menu_status_record_character(GameState *g, uint8_t v);
+/* The character's HP */
+uint16_t menu_status_record_hp(const GameState *g);
+void set_menu_status_record_hp(GameState *g, uint16_t v);
+/* The last byte a save's summary has of the record, as a word with the byte after it */
 uint16_t menu_status_record_last(const GameState *g);
 void set_menu_status_record_last(GameState *g, uint16_t v);
 
-/* The same record's next six bytes [6 bytes, one at a time] */
+/* The six bytes after the record: on the load screen the summary's, for a party member the
+ * character's name record (character_names) [6 bytes, one at a time] */
 enum { MENU_STATUS_RECORD_TAIL_BYTES = 6 };
 uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at);
 void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v);

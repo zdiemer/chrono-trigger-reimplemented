@@ -719,6 +719,35 @@ rest waits, is [PLAN.md](PLAN.md).
   writes anything, and the flags the machine should have there are in P after
   every command (`note_flags`); so the stop is what is left to try, with
   a fuzz comparison against the call-out.
+- **What the menus' fifth chunk left** (RECOMP.md, "Phase 3, menus: the
+  equipment screen and its member list"):
+  - the rest of the equipment screen, `$C2:A2CD`-`$C2:AA05` (the slots, the
+    list of what fits and its rows, the figures an item gives, back to the
+    members), and what its steps call out to beyond it: the inventory's
+    routines (`$C2:8791`, `$C2:87D5`), the list of what fits (`$C2:8953`),
+    the member's figures (`$C2:9137`), the lists' paging and sliding
+    (`$C2:93BF`, `$C2:EA53`, `$C2:EB9B`, `$C2:EB1F`), the party's items set
+    aside and back (`$C2:90FC`, `$C2:9121`), the tasks' stop (`$C2:8255`)
+    and the main menu (`$C2:9A98`);
+  - the member slide's start (`$C2:9D5B`) and the member list's scroll bar
+    (`$C2:A170`) stay the original's: each saves P after a count of its own
+    (the new first row, the row and scroll's sum) and calls out under it
+    (every frame's yield, the bar's task), which a port could only match with
+    a flag note. A way to declare a saved P's flags dead where liveness has
+    them dead after its `PLP` (the sibling runs' frames, the sounds' P under
+    the driver's call) would take the notes out of `menu/equipment_bridge.c`
+    and `menu/load_screen.c` and let these two be ported;
+  - the library never slides the member list, switches members with the
+    shoulder assignments, slides the list of what fits or refuses a slot, and
+    the main menu's panel is interrupted on its one call in each movie that
+    opens the menu: a scratch movie from `menus-field-menu`'s save checked them
+    (RECOMP.md), and fuzzing reaches each only up to its first wait for a
+    frame. A library movie that does the same (the equipment screen from a
+    save with more than three members to choose among, an accessory list of
+    more than nine) would keep them checked;
+  - the member list's colouring of one row (`$C2:9EB0`) reads where the row
+    is from a cell its two callers write before the call; both are ports now
+    that colour the row as C, so the entry is reached only by fuzzing.
 - **What the menus' fourth chunk left** (RECOMP.md, "Phase 3, menus: what
   the menus' ports called most"):
   - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
@@ -737,9 +766,7 @@ rest waits, is [PLAN.md](PLAN.md).
     the records' task and its guard each work out whether an animation moves
     on, where one pure `animation_due()` would say it once (the countdown
     its own statement), with the `0x0F` sprite count commented and the
-    orphaned comment above it placed; `recolour_rows` loops on the drawing
-    origin's cell where a local written once at the end would do; the
-    portrait's accessors take a slot where they could take the character,
+    orphaned comment above it placed; the portrait's accessors take a slot where they could take the character,
     with the guard refusing a character past the eighth; the menus' tilemap
     helpers want one header (`menu/tiles.h` beside `menu/windows.c`'s) and
     one `menu_note_palette_changed`; and the smaller notes on `cursor.c`,

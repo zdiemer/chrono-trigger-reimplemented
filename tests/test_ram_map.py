@@ -152,6 +152,18 @@ class TestRules(unittest.TestCase):
     def test_overlap_across_subsystems_is_allowed(self):
         self.load(var("x", 'addr = "7E:2000"\nsize = 4') + var("y", 'addr = "7E:2000"', "battle"))
 
+    def test_reuses_names_one_or_several(self):
+        """Within a subsystem an overlap needs `reuses`, naming the other or a
+        list of the others where the bytes are more than one's."""
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("x", 'addr = "7E:2000"\nsize = 4') + var("y", 'addr = "7E:2000"'))
+        self.load(var("x", 'addr = "7E:2000"\nsize = 4') + var("y", 'addr = "7E:2000"\nreuses = "x"'))
+        with self.assertRaises(ram_map.MapError):
+            self.load(var("x", 'addr = "7E:2000"') + var("y", 'addr = "7E:2002"')
+                      + var("z", 'addr = "7E:2000"\nsize = 4\nreuses = "x"'))
+        self.load(var("x", 'addr = "7E:2000"') + var("y", 'addr = "7E:2002"')
+                  + var("z", 'addr = "7E:2000"\nsize = 4\nreuses = ["x", "y"]'))
+
     def test_interleaved_arrays_do_not_overlap(self):
         self.load(var("x", 'addr = "7E:1800"\ncount = 4\nstride = 2\nindex = "i"')
                   + var("y", 'addr = "7E:1801"\ncount = 4\nstride = 2\nindex = "i"'))

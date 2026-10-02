@@ -359,9 +359,9 @@ void menu_read_cursor_input(Snes *s)
  * original's routines share ($C2:EB1A), so a routine that plays one stands in
  * for its whole chain: the P it saves as it starts, the return of its call to
  * the send, and the call itself. What the driver doesn't read at the call
- * (tools/dontcare_check.py checks it): the accumulator's low byte, X and the
+ * (tools/dontcare_check.py checks it): the accumulator's low byte, X, Y and the
  * flags. The accumulator holds the pan the original loads last before it. */
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void leave_pan(Snes *s) { m_set_a8(s, AU_CENTRE); }
 

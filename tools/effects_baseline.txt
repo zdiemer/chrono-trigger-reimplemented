@@ -170,6 +170,19 @@ game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte men
 game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte menu_scratch
 game/menu/epoch.c menu_epoch_upload_gate_rows menu_object_scratch_bytes_byte menu_scratch only
 game/menu/epoch.c time_dial menu_object_slots_turn menu_setting_spare
+game/menu/equipment.c equip_keep_slot menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_list_slide_brings_a_row menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_list_slide_brings_a_row menu_list_top menu_object_sprite_group # whether the list scrolls, which the list's step writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_member_slide_can_run menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_member_slide_can_run menu_slide_line menu_time_played_shown # the slide's start ($C2:9D5B, the original's) sets it before every call
+game/menu/equipment.c equip_panel_can_be_shown menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_point_at_member menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_slide_members_a_frame menu_slide_line menu_time_played_shown # the slide's start ($C2:9D5B, the original's) sets it before every call, and each frame writes it plainly
+game/menu/equipment.c equip_start_member_slide menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment.c equip_take_cursor_round_members menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment_bridge.c list_is_pointable menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment_bridge.c member_is_pointable menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
+game/menu/equipment_bridge.c menu_choose_equipment_item menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/glyphs.c draw_glyph_in_cells menu_glyph_dest menu_glyph_dest only                                      # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/glyphs.c draw_glyph_line menu_glyph_byte menu_glyph_byte only                                          # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
 game/menu/glyphs.c draw_glyph_line menu_glyph_dest menu_glyph_dest only                                          # the glyph drawer's own entries ($C2:5E36, $C2:5F07, $C2:5E89) take the glyph and the pen from the cells the original's setter ($C2:5DC4) leaves them in; that setter is typeset.c's now, which draws through menu_put_glyph with parameters, so only the original's code, calling the entries, reads them
@@ -195,6 +208,9 @@ game/menu/map.c named_plane menu_object_scratch_plane menu_object_scratch
 game/menu/map.c named_plane menu_object_scratch_plane menu_scratch
 game/menu/map.c scroll_entry menu_object_scratch_step menu_object_scratch
 game/menu/map.c scroll_entry menu_object_scratch_step menu_scratch
+game/menu/members.c menu_colour_member_row_entry menu_scratch_member_row_place menu_object_scratch only # the row's place: its only callers ($C2:9DAF, $C2:9E76) write it before the call, and their ports colour the row as C
+game/menu/members.c menu_colour_member_row_entry menu_scratch_member_row_place menu_scratch only # the same
+game/menu/members.c menu_member_rows_can_be_drawn_from menu_zero menu_object_sprite_script # the menus' zero word, which their opening writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/object_commands.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/object_script.c move_top_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/objects.c byte_at menu_object_slots_bytes_byte menu_setting_spare
@@ -219,8 +235,8 @@ game/menu/text.c two_digits_at $7E98C9 menu_save_summary
 game/menu/text.c two_digits_at $7E98CA menu_save_summary
 game/menu/text.c two_digits_at $7E98CB menu_save_summary
 game/menu/text.c two_digits_at $7E98CC menu_save_summary
-game/menu/tiles.c draw_large_portrait menu_scratch_portrait_tile menu_object_scratch # the portrait's attribute: both callers ($C2:A256, $C2:E457) store it in the cell's high byte just before the call
-game/menu/tiles.c draw_large_portrait menu_scratch_portrait_tile menu_scratch # the same
+game/menu/tiles.c menu_draw_portrait menu_scratch_portrait_tile menu_object_scratch # the portrait's attribute: both callers ($C2:A256, $C2:E457) store it in the cell's high byte just before the call
+game/menu/tiles.c menu_draw_portrait menu_scratch_portrait_tile menu_scratch # the same
 game/menu/top_layer.c drift menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c move_layer menu_object_shadows_bg3_scroll_x menu_save_member_row
 game/menu/top_layer.c wave menu_object_shadows_bg3_scroll_x menu_save_member_row
