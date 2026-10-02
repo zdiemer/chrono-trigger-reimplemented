@@ -80,19 +80,19 @@ static inline bool race_song_sending(const GameState *g) { return scene_song_sen
 int16_t race_sine(const GameState *g, uint16_t angle);
 int16_t race_cosine(const GameState *g, uint16_t angle);
 
-/* The scene's tasks this part of the program adds and removes (their
- * addresses, as the lists hold them). */
+/* The scene's tasks this part of the program adds and removes: their
+ * addresses in the program, as the lists hold them (within bank $7E). */
 enum {
-    TASK_FADE_OUT_AND_END = 0x34E3,
-    TASK_SETTLE_CAMERA = 0x416D,
-    TASK_LEAVE = 0x4283,
-    TASK_TURN_CAMERA = 0x4339,
-    TASK_FOLLOW_FINISH = 0x449C,
-    TASK_DRAIN_SCORE = 0x44CE,
-    TASK_COLUMN_FROM_CARTRIDGE = 0x4643,
-    TASK_COLUMN_FROM_COPY = 0x464D,
-    TASK_COAST = 0x4677,
-    TASK_AWAIT_VICTORY_SONG = 0x4755,
+    TASK_FADE_OUT_AND_END = (uint16_t)0x7E34E3,
+    TASK_SETTLE_CAMERA = (uint16_t)0x7E416D,
+    TASK_LEAVE = (uint16_t)0x7E4283,
+    TASK_TURN_CAMERA = (uint16_t)0x7E4339,
+    TASK_FOLLOW_FINISH = (uint16_t)0x7E449C,
+    TASK_DRAIN_SCORE = (uint16_t)0x7E44CE,
+    TASK_COLUMN_FROM_CARTRIDGE = (uint16_t)0x7E4643,
+    TASK_COLUMN_FROM_COPY = (uint16_t)0x7E464D,
+    TASK_COAST = (uint16_t)0x7E4677,
+    TASK_AWAIT_VICTORY_SONG = (uint16_t)0x7E4755,
 };
 
 /* scene/race.c: what the race sends the sound driver -- the engine's pitch

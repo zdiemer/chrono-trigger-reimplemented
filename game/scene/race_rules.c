@@ -584,7 +584,7 @@ static void crono_finishes(GameState *g)
 
 /* Johnny's win: the camera follows him out at the bikes' mean speed, Crono's
  * score drains away, and channel 0 goes on to the script that ends the race. */
-enum { JOHNNY_WON_SCRIPT = 0x4211, MARKERS_STOPPED = 0x60, CAMERA_SPEED_SHIFT = 11 };
+enum { JOHNNY_WON_SCRIPT = (uint16_t)0x7E4211, MARKERS_STOPPED = 0x60, CAMERA_SPEED_SHIFT = 11 };
 
 static void johnny_wins(GameState *g)
 {
@@ -763,7 +763,7 @@ static void coast(GameState *g)
  * (scene_race_settle_camera takes this task's place) and channel 0 goes on to
  * the script after the race. The frame counter starts its low byte over, which
  * the settling paces itself by. */
-enum { AFTER_THE_RACE_SCRIPT = 0x41A6 };
+enum { AFTER_THE_RACE_SCRIPT = (uint16_t)0x7E41A6 };
 
 static bool await_victory_song(GameState *g, Platform *pf)
 {

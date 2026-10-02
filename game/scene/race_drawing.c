@@ -56,7 +56,7 @@ typedef struct {
 enum { PICTURE_NONE = 0, PICTURE_WAITING = 1, PICTURE_GATHERED = 2 };
 
 /* The racers' sprite lists, in the program's data. */
-enum { CRONO_SPRITES = 0x531B, JOHNNY_SPRITES = 0x535C };
+enum { CRONO_SPRITES = (uint16_t)0x7E531B, JOHNNY_SPRITES = (uint16_t)0x7E535C };
 static const uint16_t racer_sprites[] = { CRONO_SPRITES, JOHNNY_SPRITES };
 
 /* A gathered picture is marked ready for the vblank to send to the racer's
@@ -195,7 +195,7 @@ static void set_bar_scale(GameState *g, bool turned_over)
  * what it takes off. While the race runs, and until Johnny's win stops them,
  * the marker is drawn. */
 enum { MARKERS_STOPPED = 0x60 };
-static const uint16_t marker_sprites[] = { 0x5391, 0x538D };
+static const uint16_t marker_sprites[] = { (uint16_t)0x7E5391, (uint16_t)0x7E538D };
 
 static void draw_marker(GameState *g, Platform *pf, Racer r)
 {
@@ -213,7 +213,7 @@ static void draw_marker(GameState *g, Platform *pf, Racer r)
 
 /* The boosts Crono has left, from the panel's right leftward; the last is
  * shown ready while no boost is on. */
-enum { PANEL_X = 0xEA, PANEL_Y = 0xD0, BOOST_STEP = 8, BOOST_ICON = 0x5389, BOOST_READY_ICON = 0x5385 };
+enum { PANEL_X = 0xEA, PANEL_Y = 0xD0, BOOST_STEP = 8, BOOST_ICON = (uint16_t)0x7E5389, BOOST_READY_ICON = (uint16_t)0x7E5385 };
 
 static void draw_boosts(GameState *g)
 {
@@ -226,14 +226,14 @@ static void draw_boosts(GameState *g)
 }
 
 /* The panel's frame: two lists of sprites round the screen. */
-enum { PANEL_FRAME = 0x5395, PANEL_CORNERS = 0x53AE };
+enum { PANEL_FRAME = (uint16_t)0x7E5395, PANEL_CORNERS = (uint16_t)0x7E53AE };
 
 // $7E:39F5
 /* A number, drawn as up to five digits from its leading one, each sprite a
  * digit's tile ($20 and the digit) in the program's number list, whose count
  * says how many show. The tens and ones come out of the CPU's divider in the
  * original, which it leaves dividing by 10. */
-enum { NUMBER_LIST = 0x3A7D, DIGIT_TILES = 0x20, DIGIT_BYTES = 4, DIGITS = 5 };
+enum { NUMBER_LIST = (uint16_t)0x7E3A7D, DIGIT_TILES = 0x20, DIGIT_BYTES = 4, DIGITS = 5 };
 
 static void draw_number(GameState *g, uint16_t value)
 {
