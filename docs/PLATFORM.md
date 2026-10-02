@@ -1102,7 +1102,8 @@ memory and round into the bottom, reading the directory there into the echo.
 The directory is in sound memory now, where the original driver keeps it.
 
 The host (`frontend/sound_host.c`) takes a `SoundMixer`. `SOUND_MIXER_DSP`
-(the default) is as before. `SOUND_MIXER_NATIVE` hands the driver the mixer and
+keeps the S-DSP, as before (`ct_dev` and `ct_sound_fuzz` default to it, as the
+reference; `ct_play` and `ct_drive` default to the mixer). `SOUND_MIXER_NATIVE` hands the driver the mixer and
 sets two `Apu` hooks: `host_mix` takes the SPC700 cycles where the S-DSP would
 run on them, and the host steps the mixer a frame every 32 cycles, after the
 driver's work in them as the S-DSP was stepped; `host_take` hands

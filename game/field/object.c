@@ -51,6 +51,23 @@ bool object_may_run(const GameState *g, FieldObject obj)
 // $C0:3A07
 void object_leave_the_party(GameState *g, FieldObject obj) { set_role(g, obj, (ObjectRole){ false, ROLE_LEFT_THE_PARTY }); }
 
+/* The party's places, as the kinds of their members. */
+static const ObjectKind kind_of_place[] = { ROLE_LEADER, ROLE_PARTY_1, ROLE_PARTY_2 };
+
+void object_become_party_member(GameState *g, FieldObject obj, unsigned place)
+{
+    set_role(g, obj, (ObjectRole){ false, kind_of_place[place] });
+}
+
+void object_become(GameState *g, FieldObject obj, ObjectKind kind) { set_role(g, obj, (ObjectRole){ false, kind }); }
+
+void object_set_aside(GameState *g, FieldObject obj) { set_role(g, obj, (ObjectRole){ true, ROLE_LEADER }); }
+
+void object_set_character(GameState *g, FieldObject obj, uint8_t character)
+{
+    set_field_object_character(g, obj, character);
+}
+
 uint8_t object_character(const GameState *g, FieldObject obj) { return field_object_character(g, obj); }
 
 bool object_runs_a_script(const GameState *g, FieldObject obj)
@@ -115,7 +132,7 @@ bool object_can_be_seen(const GameState *g, FieldObject obj)
 // $C0:6254
 void object_take_off_the_map(GameState *g, FieldObject obj)
 {
-    set_role(g, obj, (ObjectRole){ true, ROLE_LEADER });
+    object_set_aside(g, obj);
     object_set_sprite(g, obj, SPRITE_HIDDEN);
 }
 
@@ -145,11 +162,9 @@ void object_start_on_the_map(GameState *g, FieldObject obj)
 
 /* ---- Its sprite -------------------------------------------------------------------------- */
 
-/* The layout is the byte's low two bits. */
-enum { LAYOUT_BITS = 0x03 };
 SpriteLayout object_sprite_layout(const GameState *g, FieldObject obj)
 {
-    return (SpriteLayout)(field_object_sprite_layout(g, obj) & LAYOUT_BITS);
+    return sprite_layout_of(field_object_sprite_layout(g, obj));
 }
 
 /* The range is its layering's: 0 the middle, and of the others, the first
@@ -260,6 +275,11 @@ void object_turn(GameState *g, FieldObject obj, Facing facing)
 {
     object_set_facing(g, obj, facing);
     object_end_frame_time(g, obj);
+}
+
+void object_face_as(GameState *g, FieldObject obj, FieldObject other)
+{
+    set_field_object_facing(g, obj, field_object_facing(g, other));
 }
 
 Facing facing_of_direction(const GameState *g, Direction direction) { return (Facing)field_facing_of_direction(g, direction); }
@@ -392,6 +412,13 @@ void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps)
 
 uint8_t object_move_length(const GameState *g, FieldObject obj) { return field_object_step_length(g, obj); }
 
+enum { A_STEP = 1 };
+
+void object_move_a_step_at_a_time(GameState *g, FieldObject obj)
+{
+    set_field_object_step_length(g, obj, (uint8_t)(A_STEP | (field_object_step_length(g, obj) & UNREACHABLE_BIT)));
+}
+
 void object_clear_move_length_copy(GameState *g, FieldObject obj) { set_field_object_step_count(g, obj, 0); }
 
 /* The mark is kept as a byte, 1 while the move runs. */
@@ -406,6 +433,11 @@ void object_unmark_scripted_move(GameState *g, FieldObject obj) { set_field_obje
 
 FieldLink party_member_link(const GameState *g, unsigned place) { return field_link_stored(field_party_objects(g, place)); }
 void party_place_left_empty(GameState *g, unsigned place) { set_field_party_objects(g, place, field_link_byte(field_no_link())); }
+void party_place_taken_by(GameState *g, unsigned place, FieldObject obj)
+{
+    set_field_party_objects(g, place, field_link_byte(field_link_to(obj)));
+    set_field_party_objects_high(g, place, 0);
+}
 
 void dialog_set_speaker(GameState *g, FieldObject speaker) { set_dialog_speaker(g, field_link_byte(field_link_to(speaker))); }
 

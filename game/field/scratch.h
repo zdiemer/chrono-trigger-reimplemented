@@ -36,6 +36,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "field/cast.h"
+#include "field/field_data.h"
 #include "field/object.h"
 #include "original_effects.h"
 #include "state.h"
@@ -87,6 +89,15 @@ bool field_step_start_overflow(const GameState *g, FieldObject obj, StepStart r)
 bool field_walk_overflow(const GameState *g, FieldObject obj);
 bool field_jump_overflow(const GameState *g, FieldObject obj);
 bool field_screen_test_overflow(const GameState *g, MapTile tile);
+
+/* What casting an object leaves the event command that cast it (field/cast.c):
+ * Y at the last of its sprite record's table entries read -- the animations'
+ * where its graphics were shared, else the graphics set's bank -- and the
+ * overflow of the last sum: the animations' table size where the graphics
+ * were shared, the unpacked graphics' new end where a set was unpacked, none
+ * otherwise. */
+uint16_t field_cast_y(FieldSpriteRecord r, GraphicsSource source);
+bool field_cast_overflow(const GameState *g, FieldSpriteRecord r, GraphicsSource source);
 
 /* The frame read's overflow (field/animation.c's entry): from whether it
  * took a frame and the frame the object was on before. */

@@ -386,10 +386,15 @@ void party_trail_regroup(GameState *g)
 // $C0:9DC3
 /* The whole party at the first footprint, which says it moved and walked no
  * way. */
-void party_trail_start(GameState *g)
+void party_trail_rejoin(GameState *g)
 {
     for (PartyPlace place = PARTY_LEADER; place < PARTY_PLACES; place++)
         set_place_on_trail(g, place, 0);
+}
+
+void party_trail_start(GameState *g)
+{
+    party_trail_rejoin(g);
     set_field_trail_movement_x(g, 0, 0);
     set_field_trail_movement_y(g, 0, 0);
     set_field_trail_walk_x(g, 0, 0);

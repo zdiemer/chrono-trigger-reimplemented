@@ -615,8 +615,29 @@ rest waits, is [PLAN.md](PLAN.md).
   path); the `RIPPLE_PLAYED` comment says the script clears it (nothing
   does); `CircleKind.mode` untyped, bare flag bytes for layer work,
   `send_bg2_halves`' `<< 1`, designated initializers for `screen_commands`,
-  `SEARCHLIGHT_LENGTH` repeated; `field.h` names `scripted_layers.c`; a
-  misplaced comment in requests.c.
+  `SEARCHLIGHT_LENGTH` repeated; a misplaced comment in requests.c.
+
+- **What the event language's review left** (merged at 136104d; none
+  blocking): the palette animation kinds are defined twice (`engine.c`'s
+  `*_FORM`, `core/palette.c`'s) and `ColourEffect.animation` carries the raw
+  byte -- one kind enum in `core/palette.h`, typed fields for the kind and
+  fade channels; `party.c`'s `palette_moves_up` redefines the sprite palette
+  layout and copies colours from an event file -- a `field/palettes.h`
+  operation; `member_steps_out` sets `LINK_NONE_BIT` inline -- a `field/party.h`
+  operation; re/ram.toml `source` lines name functions that don't exist
+  (`unpack_graphics`, `take_sprite_block`, `leave_record_place`,
+  `graphics_already_unpacked`, `object_colour_effect`); `cast.c`/`cast.h` say
+  the first three NPCs note their graphics where every NPC from the third
+  overwrites the third record (`$C0:463D`); `characters.c`'s header calls the
+  unpacker the original's code (it is `data/decompress.c`), and its
+  `leave_place_registers` works Y out inline unlike `field/leaves.c`;
+  `unsigned place` where `PartyPlace` fits; `goes_on_after_sending` and
+  `goes_on_after_leaving` near-twins; `colours.c` mixes `|` and `+` for the
+  palette and repeats an `if`; `items.c`'s script-menu-shown bit wants its own
+  read-and-clear. The loose cast fuzz variants (`$82`, `$83`) mismatch when a
+  random unpack place runs past `$7F:FFFF`, which the game's sets never reach
+  (characters.c, `event_cmd_cast_enemy`): accepted, and kept to the bank's
+  upper half in the variants that must be clean.
 
 ## Recompiler
 
@@ -1084,9 +1105,7 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are PLAN.md's Phase 4a, and they are no longer optional or later:
-    the native mixer as `ct_play`'s default (it is built and makes the S-DSP's
-    every frame: PLATFORM.md, "The native mixer, as built"), and a note-stream
+    item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
     comparison (SOUND.md, "Validating the port") for when the lockstep
     reference is gone.
   - **What the native mixer's check doesn't reach.** `dsp_test`'s random
@@ -1250,10 +1269,14 @@ below. `python3 tools/timing_census.py` re-runs the census.
   the play time as they are. No movie reaches either; both want the input
   frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
-  onto the field's objects"): 12 bridges, rows of the language's table that
+  onto the field's objects"): 21 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`) and `$D6`'s carry, the location change
-  from `$C0:3B71`, and `$4E`'s stack.
+  menus' party routines (`$C2:8004`; the party's record, `$CF`-`$D7` in
+  `party.c`) and `$D6`'s and `$D4`'s carries, the location change from
+  `$C0:3B71`, `$4E`'s stack, and the unpacker (`$C3:0002`, still a
+  machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
+  machine between their halves of C). A C unpacker taking a source and a
+  destination would make those two operations.
 - **What the party on the map left** (RECOMP.md, "Phase 3, field and events:
   the party on the map"):
   - an object is made pushable by bit 1 of the byte event `$84` stores, and

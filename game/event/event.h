@@ -205,7 +205,27 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_take_formation, 0xD9) \
     X(event_cmd_gather_party, 0xDA) \
     X(event_cmd_follow_object, 0xB5) \
-    X(event_cmd_follow_party_member, 0xB6)
+    X(event_cmd_follow_party_member, 0xB6) \
+    X(event_cmd_cast_character_0, 0x57) \
+    X(event_cmd_cast_character_1, 0x5C) \
+    X(event_cmd_cast_character_2, 0x62) \
+    X(event_cmd_cast_character_4, 0x68) \
+    X(event_cmd_cast_character_3, 0x6A) \
+    X(event_cmd_cast_character_5, 0x6C) \
+    X(event_cmd_cast_character_6, 0x6D) \
+    X(event_cmd_cast_character, 0x80) \
+    X(event_cmd_cast_character_apart, 0x81) \
+    X(event_cmd_take_palette_slot, 0x33) \
+    X(event_cmd_change_object_colours, 0x88) \
+    X(event_cmd_change_screen_colours, 0x2E) \
+    X(event_cmd_give_item, 0xCA) \
+    X(event_cmd_give_item_from_variable, 0xC7) \
+    X(event_cmd_take_item, 0xCB) \
+    X(event_cmd_if_party_holds, 0xC9) \
+    X(event_cmd_give_gold, 0xCD) \
+    X(event_cmd_take_gold, 0xCE) \
+    X(event_cmd_if_party_has_gold, 0xCC) \
+    X(event_cmd_open_menu, 0xC8)
 
 #define EVENT_BRIDGES(X) \
     X(event_cmd_go_to_location_now_raising_1e, 0xDF) \
@@ -221,7 +241,16 @@ bool event_runs_an_object(Snes *s);
     X(event_cmd_fade_music, 0xEB) \
     X(event_cmd_send_sound_command, 0xEC) \
     X(event_cmd_choose_credits, 0x29) \
-    X(event_cmd_screen_command, 0xFF)
+    X(event_cmd_screen_command, 0xFF) \
+    X(event_cmd_cast_npc, 0x82) \
+    X(event_cmd_cast_enemy, 0x83) \
+    X(event_cmd_if_in_the_active_party, 0xD2) \
+    X(event_cmd_if_recruited, 0xCF) \
+    X(event_cmd_recruit, 0xD0) \
+    X(event_cmd_dismiss, 0xD1) \
+    X(event_cmd_bring_into_the_party, 0xD3) \
+    X(event_cmd_send_to_the_reserve, 0xD4) \
+    X(event_cmd_note_item_count, 0xD7)
 
 #define EVENT_DECLARE_ENTRY(name, opcode) \
     void name(Snes *s);                  \

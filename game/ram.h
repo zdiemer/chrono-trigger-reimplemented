@@ -779,14 +779,28 @@
  * the object loops' index [2 bytes] */
 #define RAM_FIELD_CURRENT_OBJECT 0x7E016Du
 #define RAM_FIELD_CURRENT_OBJECT_DP 0x6Du    /* page field */
+/* Where in bank $7F the next graphics set the map's scripts load unpacks to (events $82 and
+ * $83): the map's setup starts it at $8000 ($C0:58D7), each set unpacked moves it on by the
+ * set's size, and a set that would carry it past the bank's end stops the game ($C0:46D1,
+ * $C0:4838 to $C0:2E1E). Once the map runs, the leader's walk works out where it steps next in
+ * the same cells ($C0:9C65) [2 bytes] */
+#define RAM_FIELD_UNPACKED_GRAPHICS_END 0x7E0171u
+#define RAM_FIELD_UNPACKED_GRAPHICS_END_DP 0x71u /* page field */
+/* How many people and creatures the map's scripts have loaded (event $82), which the map's setup
+ * clears ($C0:58DC); the first three note where their graphics are in battle_enemy_placement's
+ * graphics. The leader's walk uses the cell as its next place's row once the map runs ($C0:9D35) */
+#define RAM_FIELD_NPC_GRAPHICS_COUNT 0x7E0173u
+#define RAM_FIELD_NPC_GRAPHICS_COUNT_DP 0x73u /* page field */
 /* Queue of objects due a new animation frame, which the frame builder works through, linked
  * through field_object_animation_link (objects as links: slots doubled, negative none) [2 bytes] */
 #define RAM_FIELD_ANIMATION_QUEUE 0x7E0176u
 #define RAM_FIELD_ANIMATION_QUEUE_DP 0x76u   /* page field */
 #define RAM_FIELD_ANIMATION_QUEUE_HEAD 0x7E0176u /* The first object queued (negative: the queue is empty) */
 #define RAM_FIELD_ANIMATION_QUEUE_TAIL 0x7E0177u /* The last object queued (negative: the queue is empty) */
-/* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
- * cleared) */
+/* Whether the next member of the party loaded onto the map shows its first frame at once: event
+ * $D3 sets it (1) as a character joins the party, the member's load makes it 2 with its frame's
+ * time up ($C0:4334), and at 2 the next object in state 1 or 2 due a frame goes to the front of
+ * the animation queue (then cleared) */
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT 0x7E0178u
 #define RAM_FIELD_ANIMATION_QUEUE_FRONT_DP 0x78u /* page field */
 /* Where the next entry of field_vram_queue_source's queue goes, as an offset (entry * 2): the
@@ -854,9 +868,8 @@
 #define RAM_FIELD_TRAIL_POSITION_STRIDE 0x01u
 #define RAM_FIELD_TRAIL_POSITION_DP 0xABu    /* page field */
 /* The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work
- * RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative
- * for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables'
- * first) takes the link's high byte, 0 */
+ * RAM (event $83, $C0:47E7, a byte store), and builds again when the field is set up after a
+ * menu ($C0:020B); negative for none */
 #define RAM_FIELD_BUILT_SPRITE_OBJECT 0x7E01AEu
 #define RAM_FIELD_BUILT_SPRITE_OBJECT_DP 0xAEu /* page field */
 /* Long pointers to the four tables in bank $E4 the commands that load an object's sprite read
@@ -875,6 +888,10 @@
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 #define RAM_FIELD_SCREEN_SHAKE 0x7E01BCu
 #define RAM_FIELD_SCREEN_SHAKE_DP 0xBCu      /* page field */
+/* The place in its table of the last sprite record an event command loaded (its number times the
+ * record's size, events $81-$83): only that command reads it back [2 bytes] */
+#define RAM_FIELD_SPRITE_RECORD_PLACE 0x7E01BFu
+#define RAM_FIELD_SPRITE_RECORD_PLACE_DP 0xBFu /* page field */
 /* Cells the field's object, sprite and graphics routines keep values in on the way: an
  * animation's delay entry ($C1), the view window's edges or an object's screen position
  * ($C3-$C6), the Y a tile copy saves ($C5), the Y the blocking check saves ($C7) [8 bytes] */
@@ -1021,6 +1038,18 @@
 /* The OAM image as the field's sprite table builds it, reached by byte offset: 128 entries of X,
  * Y, tile and attributes, then the high table's 32 bytes [544 bytes] */
 #define RAM_FIELD_SPRITE_TABLE 0x7E0700u
+/* The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events
+ * $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a
+ * set already there shares it rather than unpacking it again ($C0:5C90) [16 x $1 bytes, by
+ * shared graphics entry] */
+#define RAM_FIELD_SHARED_GRAPHICS 0x7E0920u
+#define RAM_FIELD_SHARED_GRAPHICS_COUNT 16u
+#define RAM_FIELD_SHARED_GRAPHICS_STRIDE 0x01u
+/* The object that unpacked each of field_shared_graphics' sets, a link: one that shares the set
+ * takes that object's graphics [16 x $1 bytes, by shared graphics entry] */
+#define RAM_FIELD_SHARED_GRAPHICS_OBJECT 0x7E0930u
+#define RAM_FIELD_SHARED_GRAPHICS_OBJECT_COUNT 16u
+#define RAM_FIELD_SHARED_GRAPHICS_OBJECT_STRIDE 0x01u
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
  * the first transfer's source [8 x $2 bytes, by queue entry] */
 #define RAM_FIELD_VRAM_QUEUE_SOURCE 0x7E0940u
@@ -1094,6 +1123,13 @@
 #define RAM_FIELD_PALETTE_SLOT_NEWEST 0x7E0B80u
 #define RAM_FIELD_PALETTE_SLOT_NEWEST_COUNT 8u
 #define RAM_FIELD_PALETTE_SLOT_NEWEST_STRIDE 0x01u
+/* The object each block of sprite tiles in VRAM is given to, a link, negative for a free block:
+ * the party's three places have blocks 1-3 and an enemy the block its script names (events
+ * $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA).
+ * Block 0 is never given [26 x $1 bytes, by block of sprite tiles in VRAM] */
+#define RAM_FIELD_SPRITE_BLOCK_OWNER 0x7E0B88u
+#define RAM_FIELD_SPRITE_BLOCK_OWNER_COUNT 26u
+#define RAM_FIELD_SPRITE_BLOCK_OWNER_STRIDE 0x01u
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
  * two side by side, a 12-sprite three, claimed by the frame builder and freed when the object's
@@ -1260,6 +1296,12 @@
 #define RAM_FIELD_OBJECT_FRAMES_ADDRESS 0x7E1380u
 #define RAM_FIELD_OBJECT_FRAMES_ADDRESS_COUNT 64u
 #define RAM_FIELD_OBJECT_FRAMES_ADDRESS_STRIDE 0x02u
+/* Where the object's twelve colours are in bank $E4 (its sprite record's palette times 24
+ * bytes): loaded into the palette slot it takes coming into view ($C0:7170), or the one a script
+ * gives it (events $33, $88) [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_COLOURS 0x7E1400u
+#define RAM_FIELD_OBJECT_COLOURS_COUNT 64u
+#define RAM_FIELD_OBJECT_COLOURS_STRIDE 0x02u
 /* Size of one facing's part of the object's animation frame table (facing 1-3 add it 1-3 times
  * to field_object_frame_table) [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_FACING_TABLE_SIZE 0x7E1480u
@@ -1724,6 +1766,12 @@
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES 0x7F0B01u
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT 64u
 #define RAM_FIELD_OBJECT_ONE_OFF_HALF_PASSES_STRIDE 0x02u
+/* The palette animation slot running a script's effect on the object's colours (event $88), as
+ * the slot's place in palette_animations (slot * 12); negative for none [64 x $2 bytes, by
+ * object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_COLOUR_EFFECT 0x7F0B80u
+#define RAM_FIELD_OBJECT_COLOUR_EFFECT_COUNT 64u
+#define RAM_FIELD_OBJECT_COLOUR_EFFECT_STRIDE 0x02u
 /* How far the leader moved across in the frame of each footprint, 1/16 pixel, signed
  * (field_leader_movement) [128 x $1 bytes, by footprint (field_trail_position)] */
 #define RAM_FIELD_TRAIL_MOVEMENT_X 0x7F0C00u
@@ -3774,7 +3822,7 @@
 #define RAM_BATTLE_ENEMY_PLACEMENT_KIND 0x7E29C6u /* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden */
 #define RAM_BATTLE_ENEMY_PLACEMENT_PALETTE 0x7E29C7u /* Sprite palette (doubled into $9888/$993C) */
 #define RAM_BATTLE_ENEMY_PLACEMENT_FRAME 0x7E29C3u /* The frame the enemy's object starts on */
-#define RAM_BATTLE_ENEMY_PLACEMENT_GRAPHICS 0x7E29C8u /* Long pointer to the enemy's graphics set */
+#define RAM_BATTLE_ENEMY_PLACEMENT_GRAPHICS 0x7E29C8u /* Long pointer to the enemy's graphics set. On the field, the first three people and creatures a map's scripts load note in the first three where in bank $7F their graphics were unpacked, the address alone (event $82, $C0:4645) */
 /* Flags the event hands the battle with battle_setup_flags (event $D8's second operand): with
  * bit 6 the battle keeps the field's song ($CD:03CC) */
 #define RAM_BATTLE_EVENT_FLAGS 0x7E2A1Fu

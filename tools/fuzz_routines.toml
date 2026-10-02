@@ -4069,6 +4069,256 @@ state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E01EB-7E01EB=00-7F", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E1C00-7E1C7F=00-07"]
 why = "the field's page and data bank; the member one of the slots (odd ones turned away), the call levels among the eight: the guard's (event/party.c)"
 
+[[routine]]
+name = "event_cmd_cast_character_0"
+at = "C0:41E4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_1"
+at = "C0:41EC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_2"
+at = "C0:41F4"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_4"
+at = "C0:41FC"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_3"
+at = "C0:4204"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_5"
+at = "C0:420C"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character_6"
+at = "C0:4214"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty: each place, and none"
+
+[[routine]]
+name = "event_cmd_cast_character"
+at = "C0:421E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F2102-7F2102=00-07"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the party's places characters or empty, the character one of the seven or past them (the guard's)"
+
+[[routine]]
+name = "event_cmd_cast_character_apart"
+at = "C0:4476"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, any character"
+
+[[routine]]
+name = "event_cmd_cast_npc"
+at = "C0:4590"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--keep", "7E0920-7E093F", "--keep", "7E0171-7E0173"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the map's shared graphics and where the next set unpacks as the field state has them: any of the people and creatures, shared or unpacked"
+
+[[routine]]
+name = "event_cmd_cast_npc"
+variant = "loose"
+at = "C0:4590"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E0920-7E092F=FF,00,01,02,03,10,20,30"]
+why = "as the strict entry, with the shared graphics' entries a few sets or free and the unpacking anywhere: the set run past the bank's end, where the original stops the game, and past it into low RAM, where the original reads its cells again and the port doesn't (the accepted divergence at event_cmd_cast_enemy, event/characters.c)"
+
+[[routine]]
+name = "event_cmd_cast_enemy"
+at = "C0:46DF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--keep", "7E0920-7E093F", "--keep", "7E0171-7E0173", "--fill", "7F2103-7F2103=00-1F"]
+why = "the field's page and data bank, the running object a slot, the sprite tables where the field's start points them, the map's shared graphics and where the next set unpacks as the field state has them, the block among the blocks or past them (the guard's): any enemy, those in the ROM and the figures among them"
+
+[[routine]]
+name = "event_cmd_cast_enemy"
+variant = "loose"
+at = "C0:46DF"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--keep", "7E01AF-7E01BA", "--fill", "7E0920-7E092F=FF,00,01,02,03,10,20,30", "--fill", "7F2103-7F2103=00-1F"]
+why = "as the strict entry, with the shared graphics' entries a few sets or free and the unpacking anywhere: past the bank's end into low RAM the original reads its cells again and the port doesn't (the accepted divergence at event_cmd_cast_enemy, event/characters.c)"
+
+[[routine]]
+name = "event_cmd_take_palette_slot"
+at = "C0:3711"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_change_object_colours"
+at = "C0:4892"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00,20,30,40,45,50,5A,80,8F,10", "--fill", "7F2104-7F2104=00-00", "--fill", "7E0F81-7E0FFF:2=00-0F", "--fill", "7E0520-7E058F:C=00,00,10", "--fill", "7F0B80-7F0BFF=00,0C,18,FF"]
+why = "the field's page and data bank, the running object a slot, the effect each of its forms (and one of none), the object's palette among the slots (odd bytes the guard's), the first eight animation slots free or busy, the object's remembered effect a slot or none, the colours' count a byte"
+
+[[routine]]
+name = "event_cmd_change_screen_colours"
+at = "C0:4A4E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00,40,45,50,55,80,85,10", "--fill", "7F2105-7F2105=00-00", "--fill", "7E0520-7E058F:C=00,00,10"]
+why = "the field's page and data bank, the running object a slot, the effect each of its forms (and one of none), the first eight animation slots free or busy, the colours' count a byte"
+
+[[routine]]
+name = "event_cmd_give_item"
+at = "C0:37B1"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_give_item_from_variable"
+at = "C0:37C7"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_take_item"
+at = "C0:37E3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_party_holds"
+at = "C0:3780"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_give_gold"
+at = "C0:385B"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_take_gold"
+at = "C0:3874"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_party_has_gold"
+at = "C0:3827"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_open_menu"
+at = "C0:3757"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_in_the_active_party"
+at = "C0:38E8"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_if_recruited"
+at = "C0:388D"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_recruit"
+at = "C0:38BE"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_dismiss"
+at = "C0:38D3"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_note_item_count"
+at = "C0:37F9"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+
+[[routine]]
+name = "event_cmd_bring_into_the_party"
+at = "C0:3919"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0199-7E0199=02,04,80"]
+why = "the field's page and data bank, the running object a slot, the character one of the seven or past them (the guard's), the first member's place taken or empty"
+
+[[routine]]
+name = "event_cmd_send_to_the_reserve"
+at = "C0:394E"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0197-7E019B:2=00,02,04,06,08,0A,80", "--fill", "7E0198-7E019C:2=00-00", "--fill", "7E1101-7E117F:2=00-07"]
+why = "the field's page and data bank, the running object a slot, the character one of the seven or past them, the party's places objects or empty, each object's character one of the seven or past them"
+
 # ---- field: banks C0, C3 and FD (the field's own routines) -----------------------------------------
 #
 # The field's routines run on its page (D = $0100) or its layers' page
@@ -4842,8 +5092,8 @@ name = "field_press_confirm"
 variant = "item"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=01-01", "--fill", "7E1801-7E1801=02-02", "--fill", "7E1881-7E1881=02-02", "--fill", "7E73C2-7E73C2=00-00", "--fill", "7E1D08-7E1D08=10-10", "--fill", "7E1D09-7E1D09=00-00"]
-why = "the leader facing down at the chest whose record is at $F5:0010 (an item, on row 3, column 2), nobody in view: the chest's flag (random) opened or not, and the item to the party's inventory"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E0129-7E0129=00-00", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E0F00-7E0F7F=00-00", "--fill", "7E1600-7E1600=01-01", "--fill", "7E1801-7E1801=02-02", "--fill", "7E1881-7E1881=02-02", "--fill", "7E73C2-7E73C2=00-00", "--fill", "7E1D08-7E1D08=E8-E8", "--fill", "7E1D09-7E1D09=D9-D9"]
+why = "the leader facing down at the chest whose record is at $F5:D9E8 (item 4, on row 3, column 2; the record at $F5:0010 the variant first used names item $104, past the inventory's, which the guard leaves to the original: event/chests.c), nobody in view: the chest's flag (random) opened or not, and the item to the party's inventory"
 
 [[routine]]
 name = "field_press_confirm"

@@ -22,8 +22,8 @@
  * states do; at quit a run in which the host placed samples where the echo
  * was writing or dropped a command exits 1 (sound_host_report). The default,
  * original, runs the original driver on the SPC700. --mixer picks what makes
- * the C driver's sound (frontend/sound_host.h): the S-DSP (dsp, the default),
- * the native mixer (native), or both compared frame by frame (check, which at
+ * the C driver's sound (frontend/sound_host.h): the native mixer that ships
+ * (native, the default), the S-DSP (dsp), or both compared frame by frame (check, which at
  * quit prints a `mixer check:` line and exits 1 if a frame differed).
  *
  * Commands arrive one per line on stdin and answer with one line on stdout that
@@ -554,7 +554,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL;
     bool recomp = true, recomp_only = false, c_sound_driver = false;
-    SoundMixer mixer = SOUND_MIXER_DSP;
+    SoundMixer mixer = SOUND_MIXER_NATIVE;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         if (!strcmp(a, "--mixer")) {

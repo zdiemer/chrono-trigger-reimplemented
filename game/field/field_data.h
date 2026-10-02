@@ -13,11 +13,87 @@
 #include "rom.h"
 #include "state.h"
 
+/* The four tables of the objects' sprite data a sprite record's fields pick
+ * from (below), in the order field_sprite_data_tables keeps them. */
+typedef enum {
+    FIELD_SPRITE_GRAPHICS_SETS,
+    FIELD_SPRITE_ASSEMBLIES,
+    FIELD_SPRITE_ANIMATIONS,
+    FIELD_SPRITE_FRAME_TIMES,
+    FIELD_SPRITE_TABLES,
+} FieldSpriteTable;
+
 /* Where each of the tables of the objects' sprite data is (field_sprite_data_tables),
  * as a long address: in bank $E4, at the word $E4:FFE0 keeps for it. */
-static inline uint32_t field_sprite_data_table(const GameState *g, unsigned table)
+static inline uint32_t field_sprite_data_table(const GameState *g, FieldSpriteTable table)
 {
     return 0xE40000u | rom_read16(g, 0xE4FFE0u + 2u * table);
+}
+
+/* What a sprite looks like, as a record of five fields, each picking an entry
+ * of one of the tables above: its graphics set, its assembly (how its frames
+ * lay its tiles out), its palette, its animations, and its layout (how many
+ * sprites it is drawn with). The field's records (MD2's field_sprite_records,
+ * five bytes from $E4:F000) are the seven playable characters' and then the
+ * people's and creatures' a script loads by number; the battle's (MD2's
+ * battle_sprite_records, ten bytes from $E4:F600) are the enemies', whose
+ * first five bytes are the same fields. */
+typedef struct {
+    uint8_t graphics;
+    uint8_t assembly;
+    uint8_t palette;
+    uint8_t animations;
+    uint8_t layout;
+} FieldSpriteRecord;
+
+enum { FIELD_SPRITE_RECORD_BYTES = 5, BATTLE_SPRITE_RECORD_BYTES = 10 };
+
+static inline FieldSpriteRecord field_sprite_record_at(const GameState *g, uint32_t at)
+{
+    return (FieldSpriteRecord){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3),
+                                rom_read8(g, at + 4) };
+}
+static inline FieldSpriteRecord field_sprite_record(const GameState *g, uint16_t id)
+{
+    return field_sprite_record_at(g, 0xE4F000u + (uint16_t)(id * FIELD_SPRITE_RECORD_BYTES));
+}
+static inline FieldSpriteRecord battle_sprite_record(const GameState *g, uint8_t id)
+{
+    return field_sprite_record_at(g, 0xE4F600u + (uint16_t)(id * BATTLE_SPRITE_RECORD_BYTES));
+}
+
+/* The tables a sprite record's fields pick from, where field_sprite_data_tables
+ * points them (`table`, a long address; an entry's place carries into the
+ * next bank as the original's long reads carry): the graphics sets and the
+ * assemblies, each entry a long address of three bytes; the animations, each
+ * entry the place of the sprite's frame table, a word (the next sprite's
+ * after it, so the difference is the table's size); and beside it the
+ * table of each one's frame times. */
+enum { FIELD_LONG_ENTRY_BYTES = 3, FIELD_WORD_ENTRY_BYTES = 2 };
+static inline uint32_t field_sprite_long_entry(const GameState *g, uint32_t table, uint8_t index)
+{
+    uint32_t at = (table + (uint32_t)index * FIELD_LONG_ENTRY_BYTES) & 0xFFFFFFu;
+    return (uint32_t)rom_read16(g, at) | (uint32_t)rom_read8(g, (at + 2) & 0xFFFFFFu) << 16;
+}
+static inline uint16_t field_sprite_word_entry(const GameState *g, uint32_t table, uint16_t index)
+{
+    return rom_read16(g, (table + (uint32_t)index * FIELD_WORD_ENTRY_BYTES) & 0xFFFFFFu);
+}
+
+/* A sprite palette's colours: twelve BGR words a palette, from $E4:0000 (a
+ * sprite record's palette times their 24 bytes), which load into a sprite
+ * palette's colours 1-12. `colours` is where the palette starts in the bank;
+ * a colour past its end wraps in the bank, as the original's block move does. */
+enum { FIELD_SPRITE_COLOURS = 12, FIELD_SPRITE_COLOURS_BANK = 0xE4 };
+static inline uint16_t field_sprite_palette_place(uint8_t palette)
+{
+    return (uint16_t)(palette * FIELD_SPRITE_COLOURS * 2);
+}
+static inline uint16_t field_sprite_colour(const GameState *g, uint16_t colours, unsigned n)
+{
+    uint32_t bank = (uint32_t)FIELD_SPRITE_COLOURS_BANK << 16;
+    return (uint16_t)(rom_read8(g, bank | (uint16_t)(colours + 2 * n)) |
+                      rom_read8(g, bank | (uint16_t)(colours + 2 * n + 1)) << 8);
 }
 
 /* The wave a waving layer's scroll follows: signed 16-bit horizontal offsets,

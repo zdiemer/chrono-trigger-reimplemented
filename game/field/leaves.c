@@ -17,6 +17,29 @@
 #include "field/switches.h"
 #include "vars.h"
 
+/* ---- Casting an object (field/cast.c) ------------------------------------------------------- */
+
+uint16_t field_cast_y(FieldSpriteRecord r, GraphicsSource source)
+{
+    if (source == GRAPHICS_SHARED)
+        return (uint16_t)(r.animations * FIELD_WORD_ENTRY_BYTES);
+    return (uint16_t)(r.graphics * FIELD_LONG_ENTRY_BYTES + 2);
+}
+
+bool field_cast_overflow(const GameState *g, FieldSpriteRecord r, GraphicsSource source)
+{
+    if (source == GRAPHICS_SHARED) {
+        uint32_t animations = field_sprite_data_tables(g, FIELD_SPRITE_ANIMATIONS);
+        return field_subtract_overflows16(field_sprite_word_entry(g, animations, (uint16_t)(r.animations + 1)),
+                                          field_sprite_word_entry(g, animations, r.animations));
+    }
+    if (source == GRAPHICS_TO_UNPACK) {
+        uint16_t length = decompress_length(g);
+        return field_add_overflows16(length, (uint16_t)(field_unpacked_graphics_end(g) - length));
+    }
+    return false;
+}
+
 /* ---- The direction routine ($C0:ABA2) ------------------------------------------------------ */
 
 /* It works from two tiles its caller leaves in cells, and leaves the
