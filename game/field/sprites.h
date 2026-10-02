@@ -46,5 +46,7 @@ bool sprites_claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layou
 void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
 void sprites_set_record_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
 bool sprites_records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);
+/* The same for records at `records`, wherever an object's are. */
+bool sprites_records_fit(uint16_t records, SpriteLayout layout);
 
 #endif

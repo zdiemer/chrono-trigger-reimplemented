@@ -85,7 +85,9 @@ add_library(ct_game STATIC
   game/event/animation.c
   game/event/bridge.c
   game/event/calls.c
+  game/event/characters.c
   game/event/chests.c
+  game/event/colours.c
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
@@ -93,6 +95,7 @@ add_library(ct_game STATIC
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
+  game/event/items.c
   game/event/leaves.c
   game/event/locations.c
   game/event/memory.c
@@ -105,6 +108,7 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/animation.c
   game/field/battle_return.c
+  game/field/cast.c
   game/field/palettes.c
   game/field/menus.c
   game/field/start.c

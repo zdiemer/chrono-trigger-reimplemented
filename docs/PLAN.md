@@ -163,7 +163,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 187 files, 117 of 50,320 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 191 files, 117 of 52,350 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -172,8 +172,8 @@ call-outs to the original's code:
 |---|--:|--:|--:|
 | battle | 17,302 | 0.02 | 27% |
 | menu | 10,035 | 0.03 | 33% |
-| field | 7,983 | 0.01 | 22% |
-| event | 3,270 | 0.01 | 12% |
+| field | 9,028 | 0.01 | 21% |
+| event | 4,255 | 0.01 | 14% |
 | scene | 2,492 | 0.04 | 45% |
 | core, data, attract | 2,054 | 0.06 | 70% |
 | sound | 1,983 | 0.00 | 0% |
@@ -210,12 +210,12 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **36% of the code is still generated.**
+docstring says which way it is wrong). **35% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 57.0K | 20.3K | 12% | 383 |
-| field engine, events (`$C0`) | 59.4K | 46.5K | 10.4K | 22% | 300 |
+| field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
 | menus, text (`$C2`) | 59.3K | 24.2K | 7.0K | 59% | 261 |
 | scene program, RAM (`$7E`) | 24.9K | 1.9K | 0.0K | 92% | 54 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
@@ -227,10 +227,10 @@ docstring says which way it is wrong). **36% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **170.7K** | **44.7K** | **36%** | **1305** |
+| **total** | **268.5K** | **173.8K** | **44.9K** | **35%** | **1334** |
 
 The three big banks are the work; the entries are concentrated in small hot
-routines (and the 185 event command entries), which is why the shares are so high
+routines (and the 225 event command entries), which is why the shares are so high
 despite the count. The burndown follows the jump tables the analysis has sized,
 counts the registry's macro rows, and credits the callees a port inlines (no
 call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
@@ -372,14 +372,14 @@ load one stream named by a byte of the scene record at `$C6:FD00`, and without
 knowing what each stream holds their ports would be named after their
 destination addresses.
 
-**`$C0`: the field and events**, 22% left after fourteen chunks, and all of
-it routines the ports call out to: the event commands at `$C0:4186` (the
-party's characters' objects, `$57`-`$83`) and `$C0:3711` (items, gold and
-the party, `$C7`-`$D7`), the field's setup after a menu
-and a map (`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
+**`$C0`: the field and events**, 16% left after fifteen chunks, and all of
+it routines the ports call out to: the field's setup after a menu and a map
+(`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
 (`$C0:011B`), the fade in (`$C0:2824`), the sprite lists (`$C0:B192`), the
-frame work (`$C0:00BF`) and a choice's buttons (`$C0:1ADF`). Event's bridges
-still call the menus' party routines (`$C2:8004`), which go with `$C2`.
+frame work (`$C0:00BF`), a choice's buttons (`$C0:1ADF`) and the sprite
+blocks objects take coming into view (`$C0:6FBA`). Every event command has a
+row; event's bridges still call the menus' party routines (`$C2:8004`),
+which go with `$C2`, and the unpacker (`$C3:0002`, TODO.md).
 
 **What `$FD` has left** after wave 1 (docs/history/recomp-waves.md, "Phase 3,
 wave 1: bank `$FD`"): the time-gate tunnel scenes event `$FF` starts with

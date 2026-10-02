@@ -23,7 +23,9 @@ typedef struct {
 ChestGift open_the_chest_before_the_leader(GameState *g);
 void announce_the_gift(GameState *g, ChestGift gift);
 
-/* The guards' part: the tiles the leader looks at for a chest are the map's. */
+/* The guards' part: the tiles the leader looks at for a chest are the map's,
+ * and the chest there, if any, gives an item the inventory holds. */
 bool chest_look_fits(const GameState *g);
+bool chest_gift_fits(const GameState *g);
 
 #endif

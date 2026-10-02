@@ -19,8 +19,13 @@ bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj);
 void field_put_drawn_frame(Snes *s);
 bool field_frames_can_put(Snes *s);
 
-/* A 24-sprite figure's frame drawn whole (field/frames.c). */
+/* A 24-sprite figure's frame drawn whole (field/frames.c); and whether the
+ * port draws one with these graphics, frame descriptions and records as the
+ * original does (the guards'). What the drawing leaves in Y, which the event
+ * engine has live after the command that loads a figure. */
 void object_draw_whole_figure(GameState *g, Platform *pf, FieldObject obj);
+bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphics descriptions, uint16_t records);
+uint16_t field_whole_figure_y(void);
 void field_draw_whole_figure(Snes *s);
 bool field_figure_can_be_drawn(Snes *s);
 

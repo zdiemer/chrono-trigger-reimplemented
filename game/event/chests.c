@@ -157,24 +157,57 @@ static void leave_chest_found(GameState *g, uint16_t place, uint16_t number)
     event_leave_overflow((bit & 0x40) != 0);
 }
 
+/* The chest on the wall before the leader: the location's chest the wall's
+ * tile names, if it stands there, and its number among the game's. */
+typedef struct {
+    Wall wall;
+    uint8_t index;
+    bool there;
+    uint16_t place, number;
+    FieldChest chest;
+} ChestBefore;
+
+static ChestBefore chest_before_the_leader(const GameState *g)
+{
+    ChestBefore c = { .wall = wall_before_the_leader(g) };
+    if (!c.wall.found)
+        return c;
+    c.index = c.wall.walkable & CHEST_INDEX_BITS;
+    c.place = field_chest_place(field_chests(g, THE_LOCATIONS_CHESTS), c.index);
+    c.chest = field_chest_at(g, c.place);
+    c.there = c.chest.tile == tile_number(c.wall.row, c.wall.column);
+    c.number = (uint16_t)((uint16_t)(c.place - field_chests(g, THE_GAMES_CHESTS)) / FIELD_CHEST_BYTES);
+    return c;
+}
+
+/* The inventory holds the items numbered below 256, as every chest of the
+ * game's gives: a chest found elsewhere in the bank can name one past them,
+ * which only the original gives (the guards'). */
+enum { INVENTORY_ITEMS = 0x100 };
+
+bool chest_gift_fits(const GameState *g)
+{
+    ChestBefore c = chest_before_the_leader(g);
+    uint16_t contents = c.chest.contents;
+    return !c.there || (contents & (HOLDS_GOLD | HOLDS_NOTHING_OF_ITS_OWN)) || (contents & ITEM_BITS) < INVENTORY_ITEMS;
+}
+
 // $C0:1DF4
 ChestGift open_the_chest_before_the_leader(GameState *g)
 {
     ChestGift nothing = { GIFT_NOTHING, 0 };
     if (dialog_on_screen(g))
         return nothing;
-    Wall w = wall_before_the_leader(g);
-    ORIGINAL_EFFECT(keep_word(g, KEPT_SECOND, tile_number(w.row, w.column)));
-    if (!w.found)
+    ChestBefore c = chest_before_the_leader(g);
+    ORIGINAL_EFFECT(keep_word(g, KEPT_SECOND, tile_number(c.wall.row, c.wall.column)));
+    if (!c.wall.found)
         return nothing;
-    uint8_t index = w.walkable & CHEST_INDEX_BITS;
-    uint16_t place = field_chest_place(field_chests(g, THE_LOCATIONS_CHESTS), index);
-    ORIGINAL_EFFECT(leave_chest_lookup(index, field_chests(g, THE_LOCATIONS_CHESTS)));
-    FieldChest chest = field_chest_at(g, place);
-    if (chest.tile != tile_number(w.row, w.column))
+    ORIGINAL_EFFECT(leave_chest_lookup(c.index, field_chests(g, THE_LOCATIONS_CHESTS)));
+    if (!c.there)
         return nothing;
-    uint16_t number = (uint16_t)((uint16_t)(place - field_chests(g, THE_GAMES_CHESTS)) / FIELD_CHEST_BYTES);
-    ORIGINAL_EFFECT(leave_chest_found(g, place, number));
+    uint16_t number = c.number;
+    FieldChest chest = c.chest;
+    ORIGINAL_EFFECT(leave_chest_found(g, c.place, number));
     if (chest_opened(g, number)) {
         field_message_opens(g, the_leader(g), MESSAGE_EMPTY);
         return nothing;

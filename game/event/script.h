@@ -70,12 +70,13 @@ typedef enum {
     FLOW_AGAIN,       /* this command runs again at once */
     FLOW_JUMP,        /* the command's jump: a condition that failed, or a jump */
     FLOW_NEXT_AFTER,  /* on to the command `to` bytes on, this frame: a command shorter than its row */
+    FLOW_END_TURN_AFTER,   /* on to the command `to` bytes on, but not before next frame */
     FLOW_GO_TO,       /* on at another place in the script, this frame */
 } EventFlowKind;
 
 typedef struct {
     EventFlowKind kind;
-    uint16_t to;   /* FLOW_NEXT_AFTER, FLOW_GO_TO */
+    uint16_t to;   /* FLOW_NEXT_AFTER, FLOW_END_TURN_AFTER, FLOW_GO_TO */
 } EventFlow;
 
 static inline EventFlow next_command(void) { return (EventFlow){ FLOW_NEXT, 0 }; }
@@ -84,6 +85,7 @@ static inline EventFlow stay(void) { return (EventFlow){ FLOW_STAY, 0 }; }
 static inline EventFlow run_again(void) { return (EventFlow){ FLOW_AGAIN, 0 }; }
 static inline EventFlow take_jump(void) { return (EventFlow){ FLOW_JUMP, 0 }; }
 static inline EventFlow next_command_after(uint16_t bytes) { return (EventFlow){ FLOW_NEXT_AFTER, bytes }; }
+static inline EventFlow end_turn_after(uint16_t bytes) { return (EventFlow){ FLOW_END_TURN_AFTER, bytes }; }
 static inline EventFlow go_to(uint16_t to) { return (EventFlow){ FLOW_GO_TO, to }; }
 
 /* A condition's outcome: on after it when it holds, its jump when it doesn't. */
@@ -120,6 +122,24 @@ typedef struct {
     Facing facing;
 } FormationPlace;
 
+/* An effect a script sets going on colours (event/colours.c): a rotation
+ * stopped, a rotation or a fade started on a run of them (`animation` the
+ * palette animation's kind: its type, and a fade's channels; a fade's level
+ * and target a nibble each of `levels`), or colours of the script's own
+ * written over them. The colours are named from `first`, in the object's
+ * palette or among the screen's 256 as the command's form says; `length` is
+ * the command's bytes. */
+typedef enum { COLOURS_UNCHANGED, COLOURS_STOP, COLOURS_ROTATE, COLOURS_FADE, COLOURS_SET } ColourEffectKind;
+typedef struct {
+    ColourEffectKind kind;
+    uint8_t animation;
+    uint8_t first, count;
+    uint8_t levels;
+    uint8_t period;
+    uint16_t colours_at, bytes;   /* COLOURS_SET: where the colours are in the script, and how many bytes */
+    uint16_t length;
+} ColourEffect;
+
 /* Every parameter an operation of the language takes, by type and name. A
  * row of the table says how the command's operands decode into the ones its
  * operation reads (`.animation = OPERAND(1)`, `.animation = CONSTANT(0)`);
@@ -148,8 +168,10 @@ typedef struct {
     X(uint8_t, acceleration)                                                                     \
     /* the party */                                                                              \
     X(uint8_t, character) X(uint8_t, first_argument) X(uint8_t, second_argument)                \
+    /* who an object is, and its colours */                                                     \
+    X(uint8_t, npc) X(uint8_t, enemy) X(uint8_t, slot) X(uint8_t, palette) X(uint8_t, item)      \
     /* sound */                                                                                  \
-    X(uint8_t, effect) X(uint8_t, song) X(uint8_t, volume) X(uint8_t, sound_command)            \
+    X(uint8_t, menu) X(uint8_t, effect) X(uint8_t, song) X(uint8_t, volume) X(uint8_t, sound_command)            \
     /* memory */                                                                                 \
     X(uint8_t, bank) X(uint16_t, size)                                                           \
     /* dialog */                                                                                 \
@@ -173,7 +195,7 @@ typedef struct {
  * the searchlight's corners' moves (field/screen_effects.h). */
 #define EVENT_RECORD_PARAMETERS(X) \
     X(FormationPlace, leader_place) X(FormationPlace, first_place) X(FormationPlace, second_place) \
-    X(SearchlightMove, searchlight)
+    X(SearchlightMove, searchlight) X(ColourEffect, colour_effect)
 
 /* A command, decoded by its row: the object whose script is running, where
  * the command is in the script, the host (for the commands that wait on the
@@ -265,6 +287,8 @@ typedef enum {
     ARG_FLAG,            /* the operand is 0 or 1: false or true */
     ARG_FORMATION_PLACE, /* two operands, a tile's column and row, their top bits the way it faces */
     ARG_SEARCHLIGHT_MOVE, /* sixteen operands: each corner's x and y, each a start and an end */
+    ARG_OBJECT_COLOUR_EFFECT,   /* an effect on the object's colours: its form, then its form's operands */
+    ARG_SCREEN_COLOUR_EFFECT,   /* the same on the screen's colours */
 } EventArgKind;
 
 typedef struct {
@@ -296,6 +320,8 @@ typedef struct {
 #define FLAG(n) { ARG_FLAG, (n), 0, 0 }
 #define FORMATION_PLACE(n) { ARG_FORMATION_PLACE, (n), 0, 0 }
 #define SEARCHLIGHT_MOVE(n) { ARG_SEARCHLIGHT_MOVE, (n), 0, 0 }
+#define OBJECT_COLOUR_EFFECT(n) { ARG_OBJECT_COLOUR_EFFECT, (n), 0, 0 }
+#define SCREEN_COLOUR_EFFECT(n) { ARG_SCREEN_COLOUR_EFFECT, (n), 0, 0 }
 
 /* The widths, as a row gives them. */
 #define BYTES CONSTANT(AS_BYTE)
@@ -329,7 +355,8 @@ typedef struct {
     const EventOpcodes name = { name##_rows, sizeof name##_rows / sizeof name##_rows[0] }
 
 /* Every file's rows (event/engine.c indexes them). */
-extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_dialog_opcodes,
+extern const EventOpcodes event_animation_opcodes, event_calls_opcodes, event_characters_opcodes,
+    event_colours_opcodes, event_dialog_opcodes, event_items_opcodes,
     event_facing_opcodes, event_flow_opcodes, event_input_opcodes, event_locations_opcodes, event_memory_opcodes,
     event_movement_opcodes, event_party_opcodes, event_properties_opcodes, event_screen_opcodes,
     event_sound_opcodes, event_story_opcodes, event_variables_opcodes;

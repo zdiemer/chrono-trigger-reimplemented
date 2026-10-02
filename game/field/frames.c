@@ -505,6 +505,8 @@ void field_draw_next_frame(Snes *s)
  * ($C0:47E5) returns. */
 enum { FIGURE_Y_AFTER = FIGURE_TILES * WORDS_A_TILE_NAME + FIGURE_SPRITES * OFFSET_BYTES - 1 };
 
+uint16_t field_whole_figure_y(void) { return FIGURE_Y_AFTER; }
+
 void field_draw_whole_figure(Snes *s)
 {
     object_draw_whole_figure(state_of(s), m_platform(s), (FieldObject)field_current_object_slot(s));
@@ -601,9 +603,8 @@ bool object_drawn_frame_can_go_back(const GameState *g, FieldObject obj)
  * inside their tables, and its graphics set in the ROM or built in bank $7F
  * (as the figures the game loads are), each tile there inside the bank and
  * clear of the build place the figure is drawn into. */
-static bool figure_tiles_clear(const GameState *g, FieldObject obj)
+static bool figure_tiles_clear(const GameState *g, ObjectGraphics set, ObjectGraphics d)
 {
-    ObjectGraphics set = object_graphics(g, obj), d = object_frame_descriptions(g, obj);
     uint32_t description = (uint32_t)d.bank << 16 | d.address;
     uint32_t place = figure_place(), place_end = place + FIELD_FIGURE_TILES_BYTES;
     for (unsigned t = 0; t < FIGURE_TILES; t++) {
@@ -614,6 +615,13 @@ static bool figure_tiles_clear(const GameState *g, FieldObject obj)
     return true;
 }
 
+bool field_figure_drawable(const GameState *g, ObjectGraphics set, ObjectGraphics descriptions, uint16_t records)
+{
+    return descriptions.bank >= FIRST_ROM_BANK && sprites_records_fit(records, LAYOUT_24) &&
+           ((set.bank >= FIRST_ROM_BANK && set.bank != LAST_BANK) ||
+            (set.bank == FIELD_BUILD_BANK && figure_tiles_clear(g, set, descriptions)));
+}
+
 bool field_figure_can_be_drawn(Snes *s)
 {
     if (!field_current_object_bank_zero(s))
@@ -621,11 +629,9 @@ bool field_figure_can_be_drawn(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     FieldObject obj = (FieldObject)field_current_object_slot(s);
-    uint8_t graphics = object_graphics(g, obj).bank;
-    bool ok = (s->cpu.x >> 1) == obj && !(s->cpu.x & 1) && object_frame_descriptions(g, obj).bank >= FIRST_ROM_BANK &&
-              sprites_records_in_the_tables(g, obj, LAYOUT_24) &&
-              ((graphics >= FIRST_ROM_BANK && graphics != LAST_BANK) ||
-               (graphics == FIELD_BUILD_BANK && figure_tiles_clear(g, obj)));
+    bool ok = (s->cpu.x >> 1) == obj && !(s->cpu.x & 1) &&
+              field_figure_drawable(g, object_graphics(g, obj), object_frame_descriptions(g, obj),
+                                    object_sprite_records(g, obj));
     vars_peek(false);
     return ok;
 }

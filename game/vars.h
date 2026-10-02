@@ -1066,6 +1066,20 @@ void set_field_animation_line_limit(GameState *g, uint16_t v);
 uint16_t field_current_object(const GameState *g);
 void set_field_current_object(GameState *g, uint16_t v);
 
+/* Where in bank $7F the next graphics set the map's scripts load unpacks to (events $82 and
+ * $83): the map's setup starts it at $8000 ($C0:58D7), each set unpacked moves it on by the
+ * set's size, and a set that would carry it past the bank's end stops the game ($C0:46D1,
+ * $C0:4838 to $C0:2E1E). Once the map runs, the leader's walk works out where it steps next in
+ * the same cells ($C0:9C65) */
+uint16_t field_unpacked_graphics_end(const GameState *g);
+void set_field_unpacked_graphics_end(GameState *g, uint16_t v);
+
+/* How many people and creatures the map's scripts have loaded (event $82), which the map's setup
+ * clears ($C0:58DC); the first three note where their graphics are in battle_enemy_placement's
+ * graphics. The leader's walk uses the cell as its next place's row once the map runs ($C0:9D35) */
+uint8_t field_npc_graphics_count(const GameState *g);
+void set_field_npc_graphics_count(GameState *g, uint8_t v);
+
 /* The first object queued (negative: the queue is empty) */
 uint8_t field_animation_queue_head(const GameState *g);
 void set_field_animation_queue_head(GameState *g, uint8_t v);
@@ -1073,8 +1087,10 @@ void set_field_animation_queue_head(GameState *g, uint8_t v);
 uint8_t field_animation_queue_tail(const GameState *g);
 void set_field_animation_queue_tail(GameState *g, uint8_t v);
 
-/* 2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then
- * cleared) */
+/* Whether the next member of the party loaded onto the map shows its first frame at once: event
+ * $D3 sets it (1) as a character joins the party, the member's load makes it 2 with its frame's
+ * time up ($C0:4334), and at 2 the next object in state 1 or 2 due a frame goes to the front of
+ * the animation queue (then cleared) */
 uint8_t field_animation_queue_front(const GameState *g);
 void set_field_animation_queue_front(GameState *g, uint8_t v);
 
@@ -1139,9 +1155,8 @@ uint8_t field_trail_position(const GameState *g, unsigned i);
 void set_field_trail_position(GameState *g, unsigned i, uint8_t v);
 
 /* The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work
- * RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative
- * for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables'
- * first) takes the link's high byte, 0 */
+ * RAM (event $83, $C0:47E7, a byte store), and builds again when the field is set up after a
+ * menu ($C0:020B); negative for none */
 uint8_t field_built_sprite_object(const GameState *g);
 void set_field_built_sprite_object(GameState *g, uint8_t v);
 
@@ -1162,6 +1177,11 @@ void set_field_map_has_no_bg3_set(GameState *g, uint8_t v);
  * field_scroll_offset) and cleared when the field starts ($C0:0BA4) */
 uint8_t field_screen_shake(const GameState *g);
 void set_field_screen_shake(GameState *g, uint8_t v);
+
+/* The place in its table of the last sprite record an event command loaded (its number times the
+ * record's size, events $81-$83): only that command reads it back */
+uint16_t field_sprite_record_place(const GameState *g);
+void set_field_sprite_record_place(GameState *g, uint16_t v);
 
 /* Cells the field's object, sprite and graphics routines keep values in on the way: an
  * animation's delay entry ($C1), the view window's edges or an object's screen position
@@ -1351,6 +1371,19 @@ enum { FIELD_SPRITE_TABLE_BYTES = 544 };
 uint8_t field_sprite_table_byte(const GameState *g, unsigned at);
 void set_field_sprite_table_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { FIELD_SHARED_GRAPHICS_COUNT = 16 };   /* by shared graphics entry */
+/* The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events
+ * $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a
+ * set already there shares it rather than unpacking it again ($C0:5C90) */
+uint8_t field_shared_graphics(const GameState *g, unsigned i);
+void set_field_shared_graphics(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_SHARED_GRAPHICS_OBJECT_COUNT = 16 };   /* by shared graphics entry */
+/* The object that unpacked each of field_shared_graphics' sets, a link: one that shares the set
+ * takes that object's graphics */
+uint8_t field_shared_graphics_object(const GameState *g, unsigned i);
+void set_field_shared_graphics_object(GameState *g, unsigned i, uint8_t v);
+
 enum { FIELD_VRAM_QUEUE_SOURCE_COUNT = 8 };   /* by queue entry */
 /* Queued VRAM uploads from bank $7F, two transfers per entry, run by field_upload_vram_queue:
  * the first transfer's source */
@@ -1432,6 +1465,14 @@ enum { FIELD_PALETTE_SLOT_NEWEST_COUNT = 8 };   /* by sprite palette slot */
  * negative when no object has the slot ($C0:7170, $C0:734C) */
 uint8_t field_palette_slot_newest(const GameState *g, unsigned slot);
 void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_SPRITE_BLOCK_OWNER_COUNT = 26 };   /* by block of sprite tiles in VRAM */
+/* The object each block of sprite tiles in VRAM is given to, a link, negative for a free block:
+ * the party's three places have blocks 1-3 and an enemy the block its script names (events
+ * $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA).
+ * Block 0 is never given */
+uint8_t field_sprite_block_owner(const GameState *g, unsigned i);
+void set_field_sprite_block_owner(GameState *g, unsigned i, uint8_t v);
 
 enum { FIELD_FRAME_STAGING_CLAIMS_COUNT = 8 };   /* by area of field_frame_staging (the last four entries are cleared with the first four and claim nothing read so far) */
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
@@ -1663,6 +1704,13 @@ enum { FIELD_OBJECT_FRAMES_ADDRESS_COUNT = 64 };   /* by object slot (X = slot *
  * in 16 bits */
 uint16_t field_object_frames_address(const GameState *g, unsigned slot);
 void set_field_object_frames_address(GameState *g, unsigned slot, uint16_t v);
+
+enum { FIELD_OBJECT_COLOURS_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Where the object's twelve colours are in bank $E4 (its sprite record's palette times 24
+ * bytes): loaded into the palette slot it takes coming into view ($C0:7170), or the one a script
+ * gives it (events $33, $88) */
+uint16_t field_object_colours(const GameState *g, unsigned slot);
+void set_field_object_colours(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_FACING_TABLE_SIZE_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Size of one facing's part of the object's animation frame table (facing 1-3 add it 1-3 times
@@ -2256,6 +2304,12 @@ enum { FIELD_OBJECT_ONE_OFF_HALF_PASSES_COUNT = 64 };   /* by object slot (X = s
  * holding its last frame) */
 uint8_t field_object_one_off_half_passes(const GameState *g, unsigned slot);
 void set_field_object_one_off_half_passes(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_COLOUR_EFFECT_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* The palette animation slot running a script's effect on the object's colours (event $88), as
+ * the slot's place in palette_animations (slot * 12); negative for none */
+uint16_t field_object_colour_effect(const GameState *g, unsigned slot);
+void set_field_object_colour_effect(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_TRAIL_MOVEMENT_X_COUNT = 128 };   /* by footprint (field_trail_position) */
 /* How far the leader moved across in the frame of each footprint, 1/16 pixel, signed
@@ -5217,7 +5271,9 @@ void set_battle_enemy_placement_palette(GameState *g, unsigned i, uint8_t v);
 /* The frame the enemy's object starts on */
 uint8_t battle_enemy_placement_frame(const GameState *g, unsigned i);
 void set_battle_enemy_placement_frame(GameState *g, unsigned i, uint8_t v);
-/* Long pointer to the enemy's graphics set */
+/* Long pointer to the enemy's graphics set. On the field, the first three people and creatures a
+ * map's scripts load note in the first three where in bank $7F their graphics were unpacked, the
+ * address alone (event $82, $C0:4645) */
 uint32_t battle_enemy_placement_graphics(const GameState *g, unsigned i);
 void set_battle_enemy_placement_graphics(GameState *g, unsigned i, uint32_t v);
 

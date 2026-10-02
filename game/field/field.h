@@ -118,7 +118,7 @@ static inline void field_set_next_location(GameState *g, Location l)
  * in VRAM: BG1's, BG2's, the place the map's loader chose, or BG3's. The bits
  * above ask for the staged half screen to go to BG2's left screen or its
  * right one, and for a piece of BG3's map (a credits line,
- * field/scripted_layers.c). */
+ * field/script_layers.c). */
 typedef enum {
     FIELD_MOVE_TO_BG1 = 1,
     FIELD_MOVE_TO_BG2 = 2,

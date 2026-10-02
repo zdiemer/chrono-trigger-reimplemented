@@ -8,11 +8,17 @@
  * newest. An object leaving view, or an enemy a battle took off the map,
  * gives its slot up here; a slot whose last sharer leaves is free again.
  * While a script has loaded palettes itself (event $33), objects keep out of
- * the slots altogether, until the next map. */
+ * the slots altogether, until the next map.
+ *
+ * An object's colours are twelve, from the ROM (field/cast.c says where), and
+ * load into colours 1-12 of its slot's sixteen: in the palette as loaded and
+ * in the one on the screen, which the palette animations work from and on. */
 #include "field/palettes.h"
 #include "field/field.h"
 
+#include "charge.h"
 #include "field/bridge.h"
+#include "field/field_data.h"
 #include "field/scratch.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -70,6 +76,46 @@ void object_give_up_palette(GameState *g, FieldObject obj)
     set_sharer_before(g, field_linked_object(after), first ? field_no_link() : before);
     if (!first)
         set_sharer_after(g, field_linked_object(before), after);
+}
+
+/* ---- The object's colours ---------------------------------------------------------------- */
+
+/* The sprite palettes are the second half of the 256 colours, sixteen each. */
+enum { FIRST_SPRITE_COLOUR = 128, COLOURS_A_PALETTE = 16, FIRST_OBJECT_COLOUR = 1 };
+
+unsigned object_first_colour(const GameState *g, FieldObject obj)
+{
+    return FIRST_SPRITE_COLOUR + palette_slot(g, obj) * COLOURS_A_PALETTE;
+}
+
+void object_load_colours(GameState *g, FieldObject obj)
+{
+    unsigned to = object_first_colour(g, obj) + FIRST_OBJECT_COLOUR;
+    uint16_t from = field_object_colours(g, obj);
+    uint32_t mark = 0;
+    ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
+    for (unsigned n = 0; n < FIELD_SPRITE_COLOURS; n++) {
+        uint16_t colour = field_sprite_colour(g, from, n);
+        set_palette_base(g, to + n, colour);
+        set_palette_working(g, to + n, colour);
+    }
+    ORIGINAL_EFFECT(charge_uncounted_end(g, mark));
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * FIELD_SPRITE_COLOURS * 2));
+    (void)mark;
+}
+
+// $C0:3711
+void object_take_palette_slot(GameState *g, FieldObject obj, uint8_t slot)
+{
+    field_mode_flag(g, FIELD_PALETTES_SET_BY_SCRIPT, true);
+    set_field_object_palette(g, obj, (uint8_t)(slot << 1));
+    object_load_colours(g, obj);
+}
+
+bool object_palette_slot_is_one(const GameState *g, FieldObject obj)
+{
+    uint8_t stored = field_object_palette(g, obj);
+    return !(stored & 1) && palette_slot(g, obj) < PALETTE_SLOTS;
 }
 
 bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj)

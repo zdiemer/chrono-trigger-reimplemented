@@ -26,7 +26,6 @@ game/battle/window.h                         enum-types-nothing       1
 game/core/input.c                            return-address-pushed    1
 game/core/input.h                            enum-types-nothing       1
 game/event/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
-game/event/contact.c                         flag-note-in-logic       1  # the wrapper's entry state for the gift's call-out on that branch, not a note in the logic
 game/event/movement.c                        flag-note-in-logic       1
 game/field/bridge.c                          pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/field/display.c                         sibling-through-machine  1

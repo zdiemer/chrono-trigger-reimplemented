@@ -13,6 +13,20 @@
  * script has set the palettes itself. */
 void object_give_up_palette(GameState *g, FieldObject obj);
 
+/* A script gives the object one of the eight sprite palette slots for its
+ * own and loads its colours there (event $33); from then on, until the next
+ * map, objects keep out of the shared slots, the script having set the
+ * palettes itself. */
+void object_take_palette_slot(GameState *g, FieldObject obj, uint8_t slot);
+
+/* The object's twelve colours into its slot (above), where a script ends an
+ * effect on them (event $88); and the first of its slot's colours, in the
+ * game's 256. Whether the object keeps one of the eight slots, as the game
+ * always does (the guards'). */
+void object_load_colours(GameState *g, FieldObject obj);
+unsigned object_first_colour(const GameState *g, FieldObject obj);
+bool object_palette_slot_is_one(const GameState *g, FieldObject obj);
+
 /* Whether the object's palette slot and the sharers it links to are ones the
  * tables hold. */
 bool object_palette_links_in_the_tables(const GameState *g, FieldObject obj);

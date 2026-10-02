@@ -1519,6 +1519,84 @@ chest's entries' order mismatched 677 of 1,015, and the facing's flip 714 of
 (now also run as C from the tile copy) were calibrated over the library; no
 exception.
 
+## Phase 3, field and events: the screen effects and the credits
+
+The fourteenth chunk of bank `$C0`, and chunk 13's review folded in.
+
+**How it was chosen.** The plan named the screen effects' steps (`$C0:220E`).
+By concept that is the step the main loop runs every frame (`$C0:21E1` and its
+sixteen handlers), the event command that starts and waits on the effects
+(`$FF`, `$C0:3FAF`, and its sub-table at `$C0:400E`) and the searchlight's
+setup (`$FE`); and beside them in the main loop, the layer work scripts leave
+it (`$C0:274D`) with the commands that ask for it (`$29`, `$2A`, `$2B`, `$2C`,
+`$2F`, `$32`): BG2's halves cleared and the endings' credits written into BG3.
+That is the whole of the concept, 2.6 KiB, short of the plan's 8-12: the rest
+of `$C0`'s runs are other concepts (the characters' objects, the items and the
+party, the field's setup), and the fade in (`$C0:2824`) is the field's setup's
+caller more than an effect.
+
+**What it is.** `field/screen_effects.c`: an effect is a window's shape drawn
+into the per-line table the line effects aren't reading, and a cut (which
+layers the windows hide on which screen, where the colour blending applies),
+as data: a hole in BG1 and BG2, an oval of blending, both opening to a radius
+and closing; the searchlight's four moving corners; the curtain, window 2's
+ragged edge swept across by bank `$C3`'s routine (a call-out); BG3 in a circle
+at the top of the screen, or blended round it, drawn into both table sets over
+two frames; the ripple, a waving copy of BG1 through a circle; and the field's
+close into scene `$85`. The circles are `scene/circle.c`'s and the shape
+`field/window_shape.c`'s, run as C (`TIMED_AS` their entries).
+`field/script_layers.c`: the credits laid out a line a frame in BG3's staged
+row from the texts at `$FD:A000` (`field_data.h`) and sent by the vblank's BG3
+piece; BG2's halves asked of the vblank and the staging blanked (a call-out);
+and the message the field opened for a chest closed once the chest is off the
+screen. Event `$FF` (`event/screen.c`) is a bridge: below `$90` the field fades
+out a step a frame and goes dark, and the port stops where the original starts
+the scene on a fresh stack (`$C0:3FD6`); from `$90` a C table of the sixteen
+screen commands (start an effect, open a circle at a place, a curtain or the
+ripple waited on, the push ended), with the field's restart (`$96`) handed to
+the original at the command's dispatch and the menus' party routine 8 (`$9F`)
+called through the dispatch's frame. `$FE` decodes its sixteen operands into a
+record of the language (`SearchlightMove`); its leaves (the divider, the
+working cells, the overflow of the last distance) are `event/leaves.c`'s.
+
+**Chunk 13's review, folded in.** The tile copy's single-layer table is typed
+(`FieldLayer`, designated rows, the move as a `FieldMapMove`, BG3's own frame
+wait a column), and the queued maps no longer double as a transition; the map
+transitions' moves and sends are `field.h`'s (`nmi.c` used private copies);
+`field_is_dark`, one map-rows constant (`FIELD_MAP_ROWS`), the figure's size
+from the map, `field_step_kept_at` asked rather than the search repeated, the
+chest's kind forgotten in `ORIGINAL_EFFECT`, the party's keeping and its move
+split, the header's request order, `switch_tile_row` without a negative shift.
+The review's call to drop `field_frame_wait_leaves_a` was wrong and is
+answered in its comment: the frame wait leaves A the idle count's high byte,
+and where A held that before the wait shadow mode keeps the port's own A
+across the call, so without the line the battle's call mismatched (9 calls in
+`endings-bucket-lavos`). Removing the requests' `== 0` test the review called
+dead put five reads of the requests in every frame's estimate (+85% drift);
+it stays, as the test that skips the answers.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches: the step 190,882, the layer work 190,882, `$FF` 56 (32 inside the
+event engine's stretch), `$FE` 74, the credits' commands 36-38 each; no call
+interrupted, none refused. The curtain, the ripple, the field's close and the
+BG3 circles no movie reaches. Shadow mode found the scene's stop leaving the
+carry (the fade's last comparison clears it, now declared dead) and the
+credits line leaving its column in the scratch cell. Fuzzing (seeds 1 and 2)
+found the curtains' order wrong: `$93` uncovers leftward and `$94` covers
+rightward (57 of 10,154), and `$29` reading its operand before the letters'
+unpacking, which reaches the script's bank (79 of 2,525); fixed, every entry
+is 0 mismatched: the step 0 of 19,996 and 19,993 (one state of seed 1 differs
+in OAM bytes only, TODO.md), the curtain 0 of 5,000 each, the layer work 0 of
+20,000 each, `$FF` 0 of 10,154 and 9,999, the scene 0 of 9,986 and 10,054,
+`$FE` 0 of 9,943 and 10,091, `$29` 0 of 2,525 and 2,499, the rest 0 of
+9,987-10,133. `$C0` stands at 46.5 KiB ported, 22% left.
+
+**The timing gate.** The new rows and `event_run_init_scripts` (whose
+openings now run `$FF`'s and the credits' rows) were calibrated over the
+library. `field_move_screen_effect_on` carries `field_rasterize_quad`'s three
+exceptions: the searchlight's shape is timed as that routine and is off by
+what it is off by.
+
 ## Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out
