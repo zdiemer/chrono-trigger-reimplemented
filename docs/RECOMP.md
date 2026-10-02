@@ -3320,7 +3320,7 @@ played, the figures and stats (the original's `$C2:9137` and `$C2:A6F0`,
 called out to), the large portrait and the element's label (`$C2:A273`, the
 element now a `MenuElement` in `menu_data.h`). `menu/equipment.c` is the
 screen as the game sees it, no machine in it: each step is a decision
-(`equip_choose_member` returns `MEMBER_CHOSEN`, `MEMBER_LEFT_FOR_THE_MAIN_MENU`
+(`menu_equip_choose_member` returns `MEMBER_CHOSEN`, `MEMBER_LEFT_FOR_THE_MAIN_MENU`
 or `MEMBER_POINTED_AT`, and so on for the slots and the items) and each part
 between the original's calls an operation in the game's terms (the member list
 going round or sliding, the shoulder assignments switching members, the item
@@ -3330,7 +3330,7 @@ cursor, asks equipment.c, and sequences the sounds and the card as siblings
 (`menu_run`; `menu_run_any_widths` for the list's move, which leaves a 16-bit
 accumulator after a slide) and the original's drawings, inventory, paging
 and frame waits as call-outs, stopping where the original jumps on. The
-member slide's frames (`$C2:9DAF`) are a loop of `equip_slide_members_a_frame`
+member slide's frames (`$C2:9DAF`) are a loop of `menu_equip_slide_members_a_frame`
 around the task's yield; the slide's thumb follows the step's sign, where the
 original reads the line's carry (equal for the lines the slide's start
 sets, which its guard holds it to).

@@ -14,25 +14,25 @@
 /* ---- Opening it, and the main menu's panel ---------------------------------------------------- */
 
 /* The opening step leads on to choosing a member. */
-void equip_open(GameState *g);
+void menu_equip_open(GameState *g);
 
 /* The screen set up: its windows and colours, the member list's hidden rows
  * cleared, the cursor on the member the main menu had. */
-void equip_set_up_screen(GameState *g, Platform *pf);
+void menu_equip_set_up_screen(GameState *g, Platform *pf);
 /* The screen's colours and windows queued once the scroll bar is up. */
-void equip_show_screen(GameState *g);
+void menu_equip_show_screen(GameState *g);
 
 /* The main menu's panel for the screen: the member list and the card,
  * dimmed, beside the main menu. Its parts come between the frames it waits
  * for and the card's drawing. */
-void equip_panel_lay_out_list(GameState *g, Platform *pf);
-void equip_panel_draw_members(GameState *g, Platform *pf);
-void equip_panel_set_colour_math(GameState *g, Platform *pf);
-void equip_panel_dim(GameState *g);
+void menu_equip_panel_lay_out_list(GameState *g, Platform *pf);
+void menu_equip_panel_draw_members(GameState *g, Platform *pf);
+void menu_equip_panel_set_colour_math(GameState *g, Platform *pf);
+void menu_equip_panel_dim(GameState *g);
 
 /* A panel's colours: the screen's first 24 dimmed (each channel halved) into
  * the palette from colour `first`. */
-void equip_dim_colours(GameState *g, unsigned first);
+void menu_equip_dim_colours(GameState *g, unsigned first);
 
 /* ---- Choosing a member ------------------------------------------------------------------------ */
 
@@ -42,26 +42,26 @@ typedef enum { MEMBER_POINTED_AT, MEMBER_CHOSEN, MEMBER_LEFT_FOR_THE_MAIN_MENU }
  * its slots) moves on to the slots, with their list of what fits to be drawn
  * again; going back leaves for the main menu; otherwise the cursor points at
  * a member. */
-MemberChoice equip_choose_member(GameState *g);
+MemberChoice menu_equip_choose_member(GameState *g);
 
 /* Pointing at a member: with more members than the list shows, a push past
  * the list's top or bottom slides it a member along; with fewer, the cursor
  * goes round. Then the list's rows are coloured for the cursor, and whether
  * the cursor points at another member than before (the card is drawn for it
  * either way). */
-bool equip_member_list_scrolls(const GameState *g);
-bool equip_push_slides_members(const GameState *g);
-void equip_take_cursor_round_members(GameState *g);
-bool equip_point_at_member(GameState *g);
+bool menu_equip_member_list_scrolls(const GameState *g);
+bool menu_equip_push_slides_members(const GameState *g);
+void menu_equip_take_cursor_round_members(GameState *g);
+bool menu_equip_point_at_member(GameState *g);
 
 /* The member list sliding a member along (its start set by the original's
  * $C2:9D5B): the member coming in drawn beside the list and dimmed, then a
  * frame at a time the rows move four lines, the scroll bar's thumb with them;
  * then the three rows now in view put back in the list's place. A frame's
  * move returns whether frames are left. */
-void equip_start_member_slide(GameState *g, Platform *pf);
-bool equip_slide_members_a_frame(GameState *g);
-void equip_finish_member_slide(GameState *g);
+void menu_equip_start_member_slide(GameState *g, Platform *pf);
+bool menu_equip_slide_members_a_frame(GameState *g);
+void menu_equip_finish_member_slide(GameState *g);
 
 /* ---- Choosing a slot -------------------------------------------------------------------------- */
 
@@ -70,68 +70,68 @@ typedef enum { SLOT_POINTED_AT, SLOT_CHOSEN, SLOT_REFUSED, SLOT_LEFT_FOR_THE_MEM
 /* What the frame's input does: going back (or pushing left) returns to the
  * members; choosing a slot moves on to its list of what fits, or is refused
  * when nothing fits; otherwise the cursor points at a slot. */
-SlotChoice equip_choose_slot(GameState *g);
-void equip_start_choosing_an_item(GameState *g);
+SlotChoice menu_equip_choose_slot(GameState *g);
+void menu_equip_start_choosing_an_item(GameState *g);
 
 /* Pointing at a slot: the shoulder assignments switch to the next or the
  * previous member (whether they did), the slot kept (whether the cursor moved
  * to another), the slots shown, and whether the list of what fits is for
  * another slot or member than the one drawn. */
-bool equip_switch_member(GameState *g);
-bool equip_keep_slot(GameState *g);
-void equip_show_slots(GameState *g);
-bool equip_list_is_for_another_slot(GameState *g);
+bool menu_equip_switch_member(GameState *g);
+bool menu_equip_keep_slot(GameState *g);
+void menu_equip_show_slots(GameState *g);
+bool menu_equip_list_is_for_another_slot(GameState *g);
 
 /* ---- Choosing an item ------------------------------------------------------------------------- */
 
 typedef enum { ITEM_POINTED_AT, ITEM_CHOSEN, ITEM_LEFT_FOR_THE_SLOTS } ItemChoice;
-ItemChoice equip_choose_item(const GameState *g);
+ItemChoice menu_equip_choose_item(const GameState *g);
 
 /* Putting the chosen item on: what the member has on in the slot is named
  * to be given back to the party's items (one of it); then the chosen item,
  * the one the figures were drawn with, goes on, named to be taken from them.
  * A weapon changed clears the story's byte for the character. */
-void equip_name_what_comes_off(GameState *g);
-void equip_put_on_the_chosen_item(GameState *g);
-void equip_forget_weapon(GameState *g);
+void menu_equip_name_what_comes_off(GameState *g);
+void menu_equip_put_on_the_chosen_item(GameState *g);
+void menu_equip_forget_weapon(GameState *g);
 
 /* Back to the slots, the cursor on the one it left; then the list of what
  * fits to be drawn again for it. */
-void equip_return_to_the_kept_slot(GameState *g);
-void equip_back_to_the_slots(GameState *g);
+void menu_equip_return_to_the_kept_slot(GameState *g);
+void menu_equip_back_to_the_slots(GameState *g);
 
 /* The list of what fits, pointed along: a page on or back with the shoulder
  * assignments (its paging, the original's, says where to), or, pushed past
  * the rows it shows, a slide a row along, the row coming in drawn below the
  * list and the rows moved over frames, unless a held push repeats fast. Its
  * rows are queued once drawn. */
-void equip_queue_list_rows(GameState *g);
-void equip_note_list_top_for_paging(GameState *g);
-bool equip_list_paged(const GameState *g);
-void equip_turn_list_page(GameState *g);
-bool equip_list_slide_brings_a_row(GameState *g);
-void equip_set_up_list_slide(GameState *g);
-void equip_bring_in_list_row(GameState *g);
-bool equip_start_list_slide_frames(GameState *g);
-void equip_slide_list_a_frame(GameState *g);
-bool equip_list_slide_frames_left(GameState *g);
-void equip_finish_list_slide(GameState *g);
+void menu_equip_queue_list_rows(GameState *g);
+void menu_equip_note_list_top_for_paging(GameState *g);
+bool menu_equip_list_paged(const GameState *g);
+void menu_equip_turn_list_page(GameState *g);
+bool menu_equip_list_slide_brings_a_row(GameState *g);
+void menu_equip_set_up_list_slide(GameState *g);
+void menu_equip_bring_in_list_row(GameState *g);
+bool menu_equip_start_list_slide_frames(GameState *g);
+void menu_equip_slide_list_a_frame(GameState *g);
+bool menu_equip_list_slide_frames_left(GameState *g);
+void menu_equip_finish_list_slide(GameState *g);
 
 /* The list's rows moved a row along once it has slid: the way it slid. */
-void equip_move_list_rows(GameState *g);
+void menu_equip_move_list_rows(GameState *g);
 
 /* The main menu leaving the equipment: its colours and line effects back. */
-void equip_panel_colours_back(GameState *g);
-void equip_panel_line_effects_back(GameState *g);
+void menu_equip_panel_colours_back(GameState *g);
+void menu_equip_panel_line_effects_back(GameState *g);
 
 /* The list's rows' upload, queued as the list is drawn. */
-enum { EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };
+enum { MENU_EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };
 
 /* What the steps can run on, for their guards: the screen's set-up, the
  * member list's slide as its start (the original's) left it, the panel. */
-bool equip_screen_can_be_set_up(const GameState *g);
-bool equip_member_slide_can_run(const GameState *g);
-bool equip_panel_can_be_shown(const GameState *g);
+bool menu_equip_screen_can_be_set_up(const GameState *g);
+bool menu_equip_member_slide_can_run(const GameState *g);
+bool menu_equip_panel_can_be_shown(const GameState *g);
 
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
 

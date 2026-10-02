@@ -79,7 +79,7 @@ static void work_on_member(GameState *g, uint8_t member)
     set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
 }
 
-void equip_queue_list_rows(GameState *g) { queue_upload(g, EQUIP_LIST_ROWS_UPLOAD); }
+void menu_equip_queue_list_rows(GameState *g) { queue_upload(g, MENU_EQUIP_LIST_ROWS_UPLOAD); }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
@@ -91,10 +91,10 @@ enum { SCREEN_COLOURS = 4, FIRST_SCREEN_COLOUR = 0x70, SCREEN_LINE_EFFECTS = 0x6
 
 // $C2:9C31
 /* The screen's first step leads on to choosing a member, once it is set up. */
-void equip_open(GameState *g) { next_step(g); }
+void menu_equip_open(GameState *g) { next_step(g); }
 
 // $C2:A11A
-void equip_set_up_screen(GameState *g, Platform *pf)
+void menu_equip_set_up_screen(GameState *g, Platform *pf)
 {
     wram_fill8(g, 0x7E0000u | HIDDEN_ROWS_AT, HIDDEN_ROWS_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, HIDDEN_ROWS_BYTES));
@@ -108,7 +108,7 @@ void equip_set_up_screen(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2E923, menu_clear_sprites_but_cursor(g));
 }
 
-void equip_show_screen(GameState *g)
+void menu_equip_show_screen(GameState *g)
 {
     set_menu_line_effects(g, SCREEN_LINE_EFFECTS);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
@@ -118,7 +118,7 @@ void equip_show_screen(GameState *g)
 /* ---- Choosing a member ------------------------------------------------------------------------- */
 
 // $C2:9C39
-MemberChoice equip_choose_member(GameState *g)
+MemberChoice menu_equip_choose_member(GameState *g)
 {
     if (pushed(g, PUSHED_RIGHT) || chose(g)) {
         forget_the_list_shown(g);
@@ -130,13 +130,13 @@ MemberChoice equip_choose_member(GameState *g)
 
 /* The list scrolls where there are more members than its rows; then a push
  * that left its rows slides it. */
-bool equip_member_list_scrolls(const GameState *g) { return menu_member_scroll_most(g) != 0; }
-bool equip_push_slides_members(const GameState *g) { return pushed(g, PUSHED_PAST_AN_EDGE); }
+bool menu_equip_member_list_scrolls(const GameState *g) { return menu_member_scroll_most(g) != 0; }
+bool menu_equip_push_slides_members(const GameState *g) { return pushed(g, PUSHED_PAST_AN_EDGE); }
 
 /* With no more members than the rows, a push past the top goes round to the
  * last member and one past the bottom to the first; a cursor that moved onto
  * a row past the last member goes back to the first. */
-void equip_take_cursor_round_members(GameState *g)
+void menu_equip_take_cursor_round_members(GameState *g)
 {
     uint8_t at = menu_cursor_index(g), reachable = (uint8_t)menu_members_reachable(g);
     if (at >= reachable)
@@ -151,7 +151,7 @@ void equip_take_cursor_round_members(GameState *g)
 static void bring_list_to_rest(GameState *g) { set_menu_scroll_step(g, (uint16_t)(menu_scroll_step(g) & 0xFF00)); }
 
 // $C2:9D17
-bool equip_point_at_member(GameState *g)
+bool menu_equip_point_at_member(GameState *g)
 {
     bring_list_to_rest(g);
     TIMED_AS(g, 0xC29E76, menu_colour_member_rows(g));
@@ -200,7 +200,7 @@ static void copy_rows_on(GameState *g, uint16_t layer, MenuTilePlace from, MenuT
 enum { UPLOAD_BG1_SLID = 0xFBEA, UPLOAD_BG2_SLID = 0xFC06, UPLOAD_ROW_LINES = 0xFC45 };
 
 // $C2:9DAF
-void equip_start_member_slide(GameState *g, Platform *pf)
+void menu_equip_start_member_slide(GameState *g, Platform *pf)
 {
     work_on_member(g, (uint8_t)(menu_cursor_index(g) + menu_member_scroll(g)));
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member_worked_on(g)));
@@ -235,7 +235,7 @@ static void show_rows_from(GameState *g, uint16_t line)
         set_menu_row_line_values(g, band, line);
 }
 
-bool equip_slide_members_a_frame(GameState *g)
+bool menu_equip_slide_members_a_frame(GameState *g)
 {
     int16_t step = (int16_t)menu_scroll_step(g);
     set_menu_scroll_moved(g, (uint16_t)(menu_scroll_moved(g) + step));
@@ -254,7 +254,7 @@ bool equip_slide_members_a_frame(GameState *g)
  * and the original counts it down from where it is. */
 static void ask_for_a_fast_repeat(GameState *g) { set_menu_fast_repeat(g, (uint8_t)(menu_fast_repeat(g) - 1)); }
 
-void equip_finish_member_slide(GameState *g)
+void menu_equip_finish_member_slide(GameState *g)
 {
     copy_rows_on(g, LIST_BACK_LAYER, slid_place(g), ROWS_PLACE);
     copy_rows_on(g, LIST_FRONT_LAYER, slid_place(g), ROWS_PLACE);
@@ -266,7 +266,7 @@ void equip_finish_member_slide(GameState *g)
 /* ---- Choosing a slot --------------------------------------------------------------------------- */
 
 // $C2:9C70
-SlotChoice equip_choose_slot(GameState *g)
+SlotChoice menu_equip_choose_slot(GameState *g)
 {
     if (pushed(g, PUSHED_LEFT) || (!chose(g) && went_back(g))) {
         set_menu_screen_step(g, STEP_MEMBER);
@@ -278,7 +278,7 @@ SlotChoice equip_choose_slot(GameState *g)
     return menu_equip_choices(g) != 0 ? SLOT_CHOSEN : SLOT_REFUSED;
 }
 
-void equip_start_choosing_an_item(GameState *g) { next_step(g); }
+void menu_equip_start_choosing_an_item(GameState *g) { next_step(g); }
 
 /* The shoulder assignments switch to the next member, round from the last
  * to the first, or the previous one, round from the first to the last. The
@@ -304,7 +304,7 @@ static uint8_t member_before(uint8_t member, uint8_t reachable)
 }
 
 // $C2:A00B
-bool equip_switch_member(GameState *g)
+bool menu_equip_switch_member(GameState *g)
 {
     uint8_t asked = menu_cursor_buttons(g) & (NEXT_MEMBER | PREVIOUS_MEMBER);
     if (!asked)
@@ -324,7 +324,7 @@ bool equip_switch_member(GameState *g)
 }
 
 // $C2:9ECD
-bool equip_keep_slot(GameState *g)
+bool menu_equip_keep_slot(GameState *g)
 {
     uint8_t slot = menu_cursor_index(g);
     bool moved = slot != menu_equip_kept_slot(g);
@@ -336,14 +336,14 @@ bool equip_keep_slot(GameState *g)
  * queued. */
 enum { SLOTS_LINE_EFFECTS = 0x4D, UPLOAD_BG1_CARD = 0xFBE3 };
 
-void equip_show_slots(GameState *g)
+void menu_equip_show_slots(GameState *g)
 {
     set_menu_line_effects(g, SLOTS_LINE_EFFECTS);
     queue_upload(g, UPLOAD_BG1_CARD);
 }
 
 /* The list is drawn for a slot and member, recorded as their sum. */
-bool equip_list_is_for_another_slot(GameState *g)
+bool menu_equip_list_is_for_another_slot(GameState *g)
 {
     uint8_t shown = (uint8_t)(menu_equip_slot(g) + member_worked_on(g));
     bool another = shown != menu_equip_shown(g);
@@ -354,7 +354,7 @@ bool equip_list_is_for_another_slot(GameState *g)
 /* ---- Choosing an item -------------------------------------------------------------------------- */
 
 // $C2:9CA5
-ItemChoice equip_choose_item(const GameState *g)
+ItemChoice menu_equip_choose_item(const GameState *g)
 {
     if (chose(g))
         return ITEM_CHOSEN;
@@ -371,13 +371,13 @@ static uint8_t member_character(const GameState *g)
 static uint8_t slot_place(const GameState *g) { return (uint8_t)menu_equip_record_place(g); }
 
 // $C2:9CC1
-void equip_name_what_comes_off(GameState *g)
+void menu_equip_name_what_comes_off(GameState *g)
 {
     set_menu_item_operand_quantity(g, 1);
     set_menu_item_operand(g, character_records_record_byte(g, member_character(g), slot_place(g)));
 }
 
-void equip_put_on_the_chosen_item(GameState *g)
+void menu_equip_put_on_the_chosen_item(GameState *g)
 {
     uint8_t item = menu_status_record_bytes_byte(g, slot_place(g));
     set_menu_item_operand(g, item);
@@ -391,7 +391,7 @@ void equip_put_on_the_chosen_item(GameState *g)
 enum { WEAPON_SLOT = 0, CHARACTERS_WITH_A_WEAPON_BYTE = 6, WEAPON_BYTES = 0xB4 };
 
 // $C2:9CFC
-void equip_forget_weapon(GameState *g)
+void menu_equip_forget_weapon(GameState *g)
 {
     if (menu_equip_slot(g) != WEAPON_SLOT)
         return;
@@ -400,9 +400,9 @@ void equip_forget_weapon(GameState *g)
         set_event_memory_byte(g, WEAPON_BYTES + character, 0);
 }
 
-void equip_return_to_the_kept_slot(GameState *g) { set_menu_cursor_index(g, menu_equip_kept_slot(g)); }
+void menu_equip_return_to_the_kept_slot(GameState *g) { set_menu_cursor_index(g, menu_equip_kept_slot(g)); }
 
-void equip_back_to_the_slots(GameState *g)
+void menu_equip_back_to_the_slots(GameState *g)
 {
     forget_the_list_shown(g);
     set_menu_screen_step(g, STEP_SLOT);
@@ -413,7 +413,7 @@ void equip_back_to_the_slots(GameState *g)
 enum { FIRST_LIST_PLACE = 4 };
 
 // $C2:9F05
-void equip_note_list_top_for_paging(GameState *g) { set_menu_paging_top(g, menu_equip_list_top(g)); }
+void menu_equip_note_list_top_for_paging(GameState *g) { set_menu_paging_top(g, menu_equip_list_top(g)); }
 
 /* The scroll bar's thumb for the list's first row: four lines a row,
  * through the multiplier ($C2:8BA6), which it leaves with the product. */
@@ -428,11 +428,11 @@ static uint8_t thumb_at_row(GameState *g, uint8_t row)
 
 /* Whether the paging turned a page: it moved the first row a page on or
  * back. */
-bool equip_list_paged(const GameState *g) { return menu_paging_top(g) != menu_equip_list_top(g); }
+bool menu_equip_list_paged(const GameState *g) { return menu_paging_top(g) != menu_equip_list_top(g); }
 
 /* The paging moved the list's first row (and the thumb's place with it, as
  * the row) a page on or back. */
-void equip_turn_list_page(GameState *g)
+void menu_equip_turn_list_page(GameState *g)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
     set_menu_equip_list_top(g, menu_paging_top(g));
@@ -441,7 +441,7 @@ void equip_turn_list_page(GameState *g)
 /* A push past the list's rows (in a list that scrolls) slides a row in,
  * where there is one: not before the list's first item, nor past its last.
  * The row the cursor is on is noted for the slide either way. */
-bool equip_list_slide_brings_a_row(GameState *g)
+bool menu_equip_list_slide_brings_a_row(GameState *g)
 {
     if (menu_list_top(g) == 0 || !pushed(g, PUSHED_PAST_AN_EDGE))
         return false;
@@ -455,7 +455,7 @@ bool equip_list_slide_brings_a_row(GameState *g)
  * move takes the rows' lines from. */
 enum { LIST_LINE_TABLE = 0x9303, LIST_LINE_TABLE_BYTES = 0x25, LIST_ROWS_SLID = 9 };
 
-void equip_set_up_list_slide(GameState *g)
+void menu_equip_set_up_list_slide(GameState *g)
 {
     set_menu_block_move_dest(g, LIST_LINE_TABLE);
     set_menu_block_move_size(g, LIST_LINE_TABLE_BYTES);
@@ -464,7 +464,7 @@ void equip_set_up_list_slide(GameState *g)
 
 /* The list's first row a row on (or back), and the row coming in named for
  * its drawing: its item and how many of it the party has. */
-void equip_bring_in_list_row(GameState *g)
+void menu_equip_bring_in_list_row(GameState *g)
 {
     uint8_t top = menu_equip_list_top(g);
     top = pushed(g, PUSHED_DOWN) ? (uint8_t)(top + 1) : (uint8_t)(top - 1);
@@ -477,7 +477,7 @@ void equip_bring_in_list_row(GameState *g)
 /* A fast repeat (a push held down) skips the slide's frames. */
 enum { REPEATING_FAST = 0x80 };
 
-bool equip_start_list_slide_frames(GameState *g)
+bool menu_equip_start_list_slide_frames(GameState *g)
 {
     if (menu_fast_repeat(g) & REPEATING_FAST)
         return false;
@@ -487,14 +487,14 @@ bool equip_start_list_slide_frames(GameState *g)
 
 /* A frame of the list's slide: the rows moved a step, the thumb a line the
  * way the rows have moved. */
-void equip_slide_list_a_frame(GameState *g)
+void menu_equip_slide_list_a_frame(GameState *g)
 {
     uint16_t moved = (uint16_t)(menu_scroll_moved(g) + menu_scroll_step(g));
     set_menu_scroll_moved(g, moved);
     move_thumb(g, (int16_t)moved < 0);
 }
 
-bool equip_list_slide_frames_left(GameState *g)
+bool menu_equip_list_slide_frames_left(GameState *g)
 {
     uint16_t frames = (uint16_t)(menu_scroll_frames(g) - 1);
     set_menu_scroll_frames(g, frames);
@@ -506,15 +506,15 @@ bool equip_list_slide_frames_left(GameState *g)
  * lines in, the rows moved a row along and the list at rest. */
 enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
 
-void equip_finish_list_slide(GameState *g)
+void menu_equip_finish_list_slide(GameState *g)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_equip_list_top(g)));
     set_menu_vram_queue_bytes(g, 0);
     set_menu_block_move_source(g, LIST_LINES_FROM);
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
-    TIMED_AS(g, 0xC29FDE, equip_move_list_rows(g));
+    TIMED_AS(g, 0xC29FDE, menu_equip_move_list_rows(g));
     set_menu_scroll_step(g, 0);
-    equip_queue_list_rows(g);
+    menu_equip_queue_list_rows(g);
 }
 
 /* The list's rows are kept two tile rows apart in a buffer a row longer than
@@ -530,7 +530,7 @@ static void move_list_bytes(GameState *g, unsigned from, unsigned to)
 }
 
 // $C2:9FDE
-void equip_move_list_rows(GameState *g)
+void menu_equip_move_list_rows(GameState *g)
 {
     if (!((uint8_t)menu_scroll_step(g) & STEP_UP)) {
         for (unsigned i = 0; i < LIST_BYTES; i++)
@@ -559,7 +559,7 @@ enum { UPLOAD_PANEL_LINES = 0xFC3E };
 static uint8_t scroll_most(uint8_t reachable) { return reachable > ROWS_SHOWN ? (uint8_t)(reachable - ROWS_SHOWN) : 0; }
 
 // $C2:A051
-void equip_panel_lay_out_list(GameState *g, Platform *pf)
+void menu_equip_panel_lay_out_list(GameState *g, Platform *pf)
 {
     set_menu_tasks_countdown(g, PANEL_TASK, (uint8_t)(menu_tasks_countdown(g, PANEL_TASK) + 1));
     set_menu_member_scroll_most(g, scroll_most((uint8_t)menu_members_reachable(g)));
@@ -579,7 +579,7 @@ void equip_panel_lay_out_list(GameState *g, Platform *pf)
 
 enum { TIME_AT = 0x3390, CLOCK_DIGITS = 0x0402 };
 
-void equip_panel_draw_members(GameState *g, Platform *pf)
+void menu_equip_panel_draw_members(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_AT, CLOCK_DIGITS));
     TIMED_AS(g, 0xC2A1B2, menu_draw_member_rows(g, pf));
@@ -587,27 +587,27 @@ void equip_panel_draw_members(GameState *g, Platform *pf)
 
 /* The colour math table the panel's window list set up, built for the next
  * frame. */
-void equip_panel_set_colour_math(GameState *g, Platform *pf) { TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf)); }
+void menu_equip_panel_set_colour_math(GameState *g, Platform *pf) { TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf)); }
 
 /* The highlight's four colours into palette row 2's second half, and the
  * screen's first 24 dimmed into row 4. */
 enum { PANEL_LINE_EFFECTS = 0x64, HIGHLIGHT_COLOURS = 4, FIRST_HIGHLIGHT_COLOUR = 0x24, FIRST_DIMMED_COLOUR = 0x40 };
 
-void equip_panel_dim(GameState *g)
+void menu_equip_panel_dim(GameState *g)
 {
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     for (unsigned i = 0; i < HIGHLIGHT_COLOURS; i++)
         set_menu_palette(g, FIRST_HIGHLIGHT_COLOUR + i, menu_rom_colour(g, MENU_ROM_PANEL_HIGHLIGHT_COLOURS, i));
     TIMED_AS(g, 0xC29E76, menu_colour_member_rows(g));
-    TIMED_AS(g, 0xC2A0E7, equip_dim_colours(g, FIRST_DIMMED_COLOUR));
+    TIMED_AS(g, 0xC2A0E7, menu_equip_dim_colours(g, FIRST_DIMMED_COLOUR));
 }
 
 /* A colour dimmed: each of its five-bit channels halved. */
 enum { DIMMED_COLOURS = 24, CHANNELS_HALVED = 0x3DEF };
 
 // $C2:A0E7
-void equip_dim_colours(GameState *g, unsigned first)
+void menu_equip_dim_colours(GameState *g, unsigned first)
 {
     for (unsigned i = 0; i < DIMMED_COLOURS; i++)
         set_menu_palette(g, first + i, (uint16_t)((menu_palette(g, i) >> 1) & CHANNELS_HALVED));
@@ -620,17 +620,17 @@ void equip_dim_colours(GameState *g, unsigned first)
  * the main menu's line effects. */
 enum { PANEL_COLOURS = 8 };
 
-void equip_panel_colours_back(GameState *g)
+void menu_equip_panel_colours_back(GameState *g)
 {
     for (unsigned i = 0; i < PANEL_COLOURS; i++)
         set_menu_palette(g, FIRST_SCREEN_COLOUR + i, menu_rom_colour(g, MENU_ROM_ROW_7_COLOURS, i));
 }
 
-void equip_panel_line_effects_back(GameState *g) { set_menu_line_effects(g, PANEL_LINE_EFFECTS); }
+void menu_equip_panel_line_effects_back(GameState *g) { set_menu_line_effects(g, PANEL_LINE_EFFECTS); }
 
 /* ---- What the steps can run on (the guards') --------------------------------------------------- */
 
-bool equip_screen_can_be_set_up(const GameState *g)
+bool menu_equip_screen_can_be_set_up(const GameState *g)
 {
     return menu_palette_changes_have_room(g) && menu_member_row(g) < MENU_CURSOR_PLACES_COUNT
            && menu_window_list_drawable(g, SCREEN_WINDOWS);
@@ -642,7 +642,7 @@ bool equip_screen_can_be_set_up(const GameState *g)
  * the buffers. */
 enum { SLIDE_DOWN_FROM = 0x60EF, SLIDE_UP_FROM = 0x611F, SLIDE_STEP = 4, NEW_ROW_LIST = 0xBE0E };
 
-bool equip_member_slide_can_run(const GameState *g)
+bool menu_equip_member_slide_can_run(const GameState *g)
 {
     int16_t step = (int16_t)menu_scroll_step(g);
     uint16_t line = menu_slide_line(g);
@@ -661,7 +661,7 @@ bool equip_member_slide_can_run(const GameState *g)
 /* The panel: an active member to bring the cursor onto, the rows from the
  * list's first as it will scroll, the card, its window, and the dimming's
  * colours from the palette's first. */
-bool equip_panel_can_be_shown(const GameState *g)
+bool menu_equip_panel_can_be_shown(const GameState *g)
 {
     uint8_t reachable = (uint8_t)menu_members_reachable(g), active = menu_active_members(g);
     if (reachable > MENU_MEMBERS_COUNT || active == 0 || active > ROWS_SHOWN || menu_zero(g) != 0)

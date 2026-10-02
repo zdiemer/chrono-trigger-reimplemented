@@ -132,7 +132,7 @@ void menu_open_equipment(Snes *s)
 {
     if (!tick(s, 0xC29C31))
         return;
-    equip_open(state_of(s));
+    menu_equip_open(state_of(s));
     m_stop_at(s, SET_UP_SCREEN, READS_NOTHING);
 }
 
@@ -146,11 +146,11 @@ void menu_set_up_equipment(Snes *s)
     menu_set_widths(s, false, false);
     if (!call(s, 0xC2A11D, SET_ITEMS_ASIDE))
         return;
-    equip_set_up_screen(g, m_platform(s));
+    menu_equip_set_up_screen(g, m_platform(s));
     menu_set_widths(s, true, false);
     if (!call(s, 0xC2A15D, MEMBER_SCROLL_BAR))
         return;
-    equip_show_screen(g);
+    menu_equip_show_screen(g);
     menu_restore_p(s);
     m_stop_dont_care(s, 0xC2A16F, READS_NOTHING);
     m_rts(s);
@@ -165,7 +165,7 @@ void menu_choose_equipment_member(Snes *s)
 {
     GameState *g = state_of(s);
     read_cursor(s);
-    MemberChoice c = equip_choose_member(g);
+    MemberChoice c = menu_equip_choose_member(g);
     ORIGINAL_EFFECT(leave_member_step_tested(s));
     switch (c) {
     case MEMBER_CHOSEN:
@@ -173,7 +173,7 @@ void menu_choose_equipment_member(Snes *s)
             || !menu_call(s, 0xC29C58, MEMBER_SLOTS, MAY_READ_V_C) || !yield(s, 0xC29C5B) || !tick(s, 0xC29C5E)
             || !call(s, 0xC29C61, LIST_WHAT_FITS) || !menu_call(s, 0xC29C64, DRAW_LIST, MAY_READ_V))
             return;
-        equip_queue_list_rows(g);
+        menu_equip_queue_list_rows(g);
         m_rts(s);
         return;
     case MEMBER_LEFT_FOR_THE_MAIN_MENU: m_stop_at(s, MAIN_MENU, READS_NOTHING); return;
@@ -190,12 +190,12 @@ void menu_point_at_equipment_member(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, true);
-    if (!equip_member_list_scrolls(g))
-        equip_take_cursor_round_members(g);
-    else if (equip_push_slides_members(g) && !call(s, 0xC29D23, START_MEMBER_SLIDE))
+    if (!menu_equip_member_list_scrolls(g))
+        menu_equip_take_cursor_round_members(g);
+    else if (menu_equip_push_slides_members(g) && !call(s, 0xC29D23, START_MEMBER_SLIDE))
         return;
     uint8_t pointed_before = menu_member_pointed(g);
-    bool another = equip_point_at_member(g);
+    bool another = menu_equip_point_at_member(g);
     ORIGINAL_EFFECT(leave_member_pointed(s, pointed_before));
     if (another && !tick(s, 0xC29D54))
         return;
@@ -209,11 +209,11 @@ void menu_point_at_equipment_member(Snes *s)
 void menu_slide_equipment_members(Snes *s)
 {
     GameState *g = state_of(s);
-    equip_start_member_slide(g, m_platform(s));
-    while (equip_slide_members_a_frame(g))
+    menu_equip_start_member_slide(g, m_platform(s));
+    while (menu_equip_slide_members_a_frame(g))
         if (!yield(s, 0xC29E3C))
             return;
-    equip_finish_member_slide(g);
+    menu_equip_finish_member_slide(g);
     menu_set_widths(s, true, false);
     m_rts(s);
 }
@@ -232,7 +232,7 @@ void menu_choose_equipment_slot(Snes *s)
 {
     GameState *g = state_of(s);
     read_cursor(s);
-    SlotChoice c = equip_choose_slot(g);
+    SlotChoice c = menu_equip_choose_slot(g);
     ORIGINAL_EFFECT(leave_slot_step_tested(s, c));
     switch (c) {
     case SLOT_LEFT_FOR_THE_MEMBERS:
@@ -244,7 +244,7 @@ void menu_choose_equipment_slot(Snes *s)
     case SLOT_CHOSEN:
         if (!tick(s, 0xC29C90))
             return;
-        equip_start_choosing_an_item(g);
+        menu_equip_start_choosing_an_item(g);
         m_stop_at(s, ON_TO_THE_LIST, READS_NOTHING);
         return;
     case SLOT_POINTED_AT: m_stop_at(s, POINT_AT_SLOT, READS_NOTHING); return;
@@ -263,14 +263,14 @@ void menu_point_at_equipment_slot(Snes *s)
     if (!call(s, 0xC29ED0, SLOT_ON_CURSOR) || !menu_run(s, 0xC29ED3, 0xC2A00B, menu_switch_equipment_member))
         return;
     uint8_t kept_before = menu_equip_kept_slot(g);
-    bool moved = equip_keep_slot(g);
+    bool moved = menu_equip_keep_slot(g);
     ORIGINAL_EFFECT(leave_slot_kept(s, kept_before));
     if (moved && !tick(s, 0xC29EE0))
         return;
     if (!call(s, 0xC29EE3, SLOT_MARKS))
         return;
-    equip_show_slots(g);
-    bool another = equip_list_is_for_another_slot(g);
+    menu_equip_show_slots(g);
+    bool another = menu_equip_list_is_for_another_slot(g);
     ORIGINAL_EFFECT(leave_list_sum(s));
     if (another && (!yield(s, 0xC29EFD) || !menu_call(s, 0xC29F00, REDRAW_LIST, MAY_READ_V)))
         return;
@@ -287,7 +287,7 @@ void menu_switch_equipment_member(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, true);
-    bool switched = equip_switch_member(g);
+    bool switched = menu_equip_switch_member(g);
     ORIGINAL_EFFECT(leave_member_switched(s));
     if (switched
         && (!tick(s, 0xC2A043) || !menu_run(s, 0xC2A046, 0xC2A21F, menu_redraw_member_card) || !call(s, 0xC2A049, SLOT_MARKS)
@@ -309,10 +309,10 @@ static void back_to_the_slots(Snes *s)
     GameState *g = state_of(s);
     if (!tick(s, 0xC29CE4))
         return;
-    equip_return_to_the_kept_slot(g);
+    menu_equip_return_to_the_kept_slot(g);
     if (!menu_call(s, 0xC29CEC, SLOTS_AGAIN, MAY_READ_V_C))
         return;
-    equip_back_to_the_slots(g);
+    menu_equip_back_to_the_slots(g);
     m_set_a8(s, LIST_TASK);
     m_stop_at_own(s, STOP_TASKS, READS_A);
 }
@@ -326,19 +326,19 @@ void menu_choose_equipment_item(Snes *s)
 {
     GameState *g = state_of(s);
     read_cursor(s);
-    ItemChoice c = equip_choose_item(g);
+    ItemChoice c = menu_equip_choose_item(g);
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {
     case ITEM_CHOSEN:
-        equip_name_what_comes_off(g);
+        menu_equip_name_what_comes_off(g);
         if (!call(s, 0xC29CCE, GIVE_BACK))
             return;
-        equip_put_on_the_chosen_item(g);
+        menu_equip_put_on_the_chosen_item(g);
         if (!call(s, 0xC29CD9, TAKE))
             return;
         if (!play_sound(s, 0xC29CDE, PUT_ON_SOUND))
             return;
-        TIMED_AS(g, 0xC29CFC, equip_forget_weapon(g));
+        TIMED_AS(g, 0xC29CFC, menu_equip_forget_weapon(g));
         back_to_the_slots(s);
         return;
     case ITEM_LEFT_FOR_THE_SLOTS: back_to_the_slots(s); return;
@@ -365,46 +365,46 @@ void menu_point_along_equipment_list(Snes *s)
 {
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
-    equip_note_list_top_for_paging(g);
+    menu_equip_note_list_top_for_paging(g);
     if (!call(s, 0xC29F0D, TURN_PAGE))
         return;
-    if (equip_list_paged(g)) {
-        equip_turn_list_page(g);
+    if (menu_equip_list_paged(g)) {
+        menu_equip_turn_list_page(g);
         ORIGINAL_EFFECT(leave_page_turned(s));
         if (!menu_call(s, 0xC29F23, DRAW_LIST, MAY_READ_V) || !tick(s, 0xC29F26))
             return;
-        equip_queue_list_rows(g);
+        menu_equip_queue_list_rows(g);
         m_rts(s);
         return;
     }
     if (!call(s, 0xC29F2F, MOVE_IN_LIST))
         return;
-    if (!equip_list_slide_brings_a_row(g)) {
+    if (!menu_equip_list_slide_brings_a_row(g)) {
         m_rts(s);
         return;
     }
-    equip_set_up_list_slide(g);
+    menu_equip_set_up_list_slide(g);
     if (!call(s, 0xC29F5B, START_LIST_SLIDE))
         return;
-    equip_bring_in_list_row(g);
+    menu_equip_bring_in_list_row(g);
     ORIGINAL_EFFECT(leave_row_found(s));
     s->cpu.x = NEW_LIST_ROW_AT;
     if (!menu_call(s, 0xC29F84, DRAW_LIST_ROW, READS_X_MAY_READ_V))
         return;
-    equip_queue_list_rows(g);
+    menu_equip_queue_list_rows(g);
     ORIGINAL_EFFECT(leave_list_rows_queued(s));
     if (!tick(s, 0xC29F8D))
         return;
     menu_set_widths(s, false, false);
-    if (equip_start_list_slide_frames(g)) {
-        equip_slide_list_a_frame(g);
-        while (equip_list_slide_frames_left(g)) {
+    if (menu_equip_start_list_slide_frames(g)) {
+        menu_equip_slide_list_a_frame(g);
+        while (menu_equip_list_slide_frames_left(g)) {
             if (!call(s, 0xC29FB4, LIST_SLIDE_FRAME))
                 return;
-            equip_slide_list_a_frame(g);
+            menu_equip_slide_list_a_frame(g);
         }
     }
-    equip_finish_list_slide(g);
+    menu_equip_finish_list_slide(g);
     m_rts(s);
 }
 
@@ -412,7 +412,7 @@ void menu_point_along_equipment_list(Snes *s)
 /* It leaves a 16-bit accumulator. */
 void menu_move_equipment_list_rows(Snes *s)
 {
-    equip_move_list_rows(state_of(s));
+    menu_equip_move_list_rows(state_of(s));
     menu_set_widths(s, false, m_x8(s));
     m_rts(s);
 }
@@ -420,7 +420,7 @@ void menu_move_equipment_list_rows(Snes *s)
 // $C2:9CFC
 void menu_forget_weapon(Snes *s)
 {
-    equip_forget_weapon(state_of(s));
+    menu_equip_forget_weapon(state_of(s));
     m_rts(s);
 }
 
@@ -436,19 +436,19 @@ void menu_show_equipment_panel(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, true);
     uint8_t row_before = menu_member_row(g);
-    equip_panel_lay_out_list(g, pf);
+    menu_equip_panel_lay_out_list(g, pf);
     menu_set_widths(s, false, false);
     if (!yield(s, 0xC2A0AC))
         return;
     menu_set_widths(s, true, false);
-    equip_panel_draw_members(g, pf);
+    menu_equip_panel_draw_members(g, pf);
     if (!yield(s, 0xC2A0BD))
         return;
-    equip_panel_set_colour_math(g, pf);
+    menu_equip_panel_set_colour_math(g, pf);
     ORIGINAL_EFFECT(leave_panel_tested(s, row_before));
     if (!menu_run(s, 0xC2A0C3, MEMBER_CARD, menu_draw_member_card))
         return;
-    equip_panel_dim(g);
+    menu_equip_panel_dim(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -457,7 +457,7 @@ void menu_show_equipment_panel(Snes *s)
 /* The colours dimmed into the palette where Y points. */
 void menu_dim_panel_colours(Snes *s)
 {
-    equip_dim_colours(state_of(s), (unsigned)(s->cpu.y - RAM_ABS(RAM_MENU_PALETTE)) / 2u);
+    menu_equip_dim_colours(state_of(s), (unsigned)(s->cpu.y - RAM_ABS(RAM_MENU_PALETTE)) / 2u);
     m_rts(s);
 }
 
@@ -469,10 +469,10 @@ void menu_show_panel_colours(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    equip_panel_colours_back(g);
+    menu_equip_panel_colours_back(g);
     if (!call(s, 0xC2A110, PUT_ITEMS_BACK))
         return;
-    equip_panel_line_effects_back(g);
+    menu_equip_panel_line_effects_back(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -588,8 +588,8 @@ static void leave_row_found(Snes *s)
 /* The row's upload queued, its record's place loaded last. */
 static void leave_list_rows_queued(Snes *s)
 {
-    menu_leave_queued_upload(s, EQUIP_LIST_ROWS_UPLOAD);
-    menu_leave_load(s, (uint8_t)(EQUIP_LIST_ROWS_UPLOAD >> 8));
+    menu_leave_queued_upload(s, MENU_EQUIP_LIST_ROWS_UPLOAD);
+    menu_leave_load(s, (uint8_t)(MENU_EQUIP_LIST_ROWS_UPLOAD >> 8));
 }
 
 /* ---- The guards -------------------------------------------------------------------------------- */
@@ -630,7 +630,7 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
 
 bool menu_equipment_opens(Snes *s) { return on_the_screen(s); }
 
-static bool screen_sets_up(const GameState *g) { return queue_takes(g, 1) && equip_screen_can_be_set_up(g); }
+static bool screen_sets_up(const GameState *g) { return queue_takes(g, 1) && menu_equip_screen_can_be_set_up(g); }
 
 bool menu_equipment_sets_up(Snes *s) { return on_the_screen(s) && peek(s, screen_sets_up); }
 
@@ -651,7 +651,7 @@ static bool member_is_pointable(const GameState *g)
 
 bool menu_equipment_member_is_pointable(Snes *s) { return on_the_screen(s) && peek(s, member_is_pointable); }
 
-static bool members_slide(const GameState *g) { return queue_takes(g, 3) && equip_member_slide_can_run(g); }
+static bool members_slide(const GameState *g) { return queue_takes(g, 3) && menu_equip_member_slide_can_run(g); }
 
 bool menu_equipment_members_slide(Snes *s) { return on_the_screen(s) && peek(s, members_slide); }
 
@@ -704,7 +704,7 @@ bool menu_equipment_weapon_is_forgettable(Snes *s) { return menu_on_page_work_ra
  * it draws. */
 static bool panel_shows(const GameState *g)
 {
-    return queue_takes(g, 4) && menu_palette_changes_have_room(g) && equip_panel_can_be_shown(g);
+    return queue_takes(g, 4) && menu_palette_changes_have_room(g) && menu_equip_panel_can_be_shown(g);
 }
 
 bool menu_equipment_panel_shows(Snes *s) { return on_the_screen(s) && peek(s, panel_shows); }
