@@ -220,6 +220,15 @@ static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned 
                          rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
 }
 
+/* A demo battle's party's chosen actions, every turn: the three members'
+ * action records (battle_member_actions) a byte at a time, from where the
+ * demo's word says in bank FD ($FD:B957, a word a demo). */
+static inline uint8_t demo_party_actions_byte(const GameState *g, uint8_t demo, unsigned at)
+{
+    uint16_t from = rom_read16(g, 0xFDB957u + (uint8_t)(demo << 1));
+    return rom_read8(g, 0xFD0000u | (uint16_t)(from + at));
+}
+
 /* How long a combatant's first turn waits, before its speed takes its part
  * off, by the battle speed setting and its speed ($CC:2E31, sixteen a
  * setting from speed 1; the place is taken in a byte, so a speed of 0 reads

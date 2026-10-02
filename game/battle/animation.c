@@ -19,9 +19,9 @@
  * pass, and their group's order starts with the first of them next time.
  *
  * As they animate, the party members turn to face their nearest enemy, one
- * member at a time, and each enemy's animation may run an effect beside it
- * (the enemies' per-animation effects, at the end of this file), whose
- * handlers are still the original's. */
+ * member at a time, and each enemy's animation may move it about the
+ * battlefield (the enemies' movements, battle/enemy_movement.c), which the
+ * end of this file runs. */
 #include "battle/animation.h"
 
 #include "battle/animation_data.h"
@@ -502,9 +502,8 @@ uint8_t combatant_choose_pose(GameState *g, unsigned slot)
 
 /* ---- The enemies' animation effects ------------------------------------------------------- */
 
-/* An enemy's animation can run an effect beside it (following its target,
- * moving on a path), every few frames: its handler, chosen by the
- * animation's effect ($CC:FBAB), is still the original's. The resting
+/* An enemy's animation can move it, a step every few frames (its effect
+ * period): the movement the animation names ($CC:FBAB). The resting
  * animation has none, nor an animation with its top bit set. */
 enum { NO_EFFECT_ANIMATION = 0, NO_EFFECT_BIT = 0x80 };
 
@@ -669,21 +668,38 @@ bool battle_poses_combatant(Snes *s)
     return battle_on_page_a_high_clear(s) && named;
 }
 
-/* The handlers, as the original's table at $C1:3760 names them, by effect. */
-static const uint16_t effect_handlers[] = { 0x3772, 0x379A, 0x38BF, 0x3959, 0x3A3D, 0x3BC2, 0x3E33, 0x3F5A, 0x4021 };
-enum { EFFECTS = sizeof effect_handlers / sizeof effect_handlers[0] };
+/* The movements' routines in the original, by movement ($C1:3760's table),
+ * which each movement's work is timed as. */
+static const uint32_t movement_routines[ENEMY_MOVEMENTS] = {
+    0xC13772, 0xC1379A, 0xC138BF, 0xC13959, 0xC13A3D, 0xC13BC2, 0xC13E33, 0xC13F5A, 0xC14021,
+};
 
-/* Run the enemy's effect's handler: inside the original's subroutine, whose
- * return address is on the stack under the call. An effect past the table's
- * rows goes where the ROM's table does. */
+/* The movement runs as C unless the table names none for the animation (an
+ * animation past those the battle gives, where the original's table runs on
+ * into other code), or it goes by a target the enemy hasn't got. */
+static bool movement_runs(const GameState *g, unsigned enemy, uint8_t movement)
+{
+    if (movement >= ENEMY_MOVEMENTS)
+        return false;
+    return !battle_enemy_movement_needs_target((EnemyMovement)movement)
+           || battle_names_combatant(battle_enemy_target_seen(g, enemy));
+}
+
+/* Run the enemy's animation's movement. What doesn't run as C goes to the
+ * handler the ROM's table names, inside the original's subroutine, whose
+ * return address is on the stack under the call; the handler finds the
+ * enemy in its cell. */
 static bool run_effect(Snes *s, unsigned enemy)
 {
     GameState *g = state_of(s);
     uint8_t animation = battle_enemy_animation_loaded(g, enemy);
     set_battle_effect_kind(g, animation);
-    uint8_t effect = battle_enemy_animation_effect(g, animation);
-    uint16_t handler =
-        effect < EFFECTS ? effect_handlers[effect] : m_jump_table(s, 0xC1, 0x3760, (uint8_t)(effect * 2));
+    uint8_t movement = battle_enemy_animation_effect(g, animation);
+    if (movement_runs(g, enemy, movement)) {
+        NATIVE_TIME_AS(s, movement_routines[movement], battle_move_enemy(g, enemy, (EnemyMovement)movement, animation));
+        return true;
+    }
+    uint16_t handler = m_jump_table(s, 0xC1, 0x3760, (uint8_t)(movement * 2));
     m_push16(s, 0x3731);
     if (!battle_call(s, 0xC1375C, 0xC10000u | handler, DC_AL | DC_X | DC_Y | DC_FLAGS))
         return false;

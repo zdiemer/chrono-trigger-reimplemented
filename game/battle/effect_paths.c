@@ -690,7 +690,7 @@ static unsigned enemy_slot(unsigned enemy) { return BATTLE_FIRST_ENEMY + enemy; 
 
 static bool drift_due(GameState *g, unsigned enemy)
 {
-    if (!battle_orbit_active(g, enemy))
+    if (!battle_enemy_drifting(g, enemy))
         return false;
     uint8_t left = (uint8_t)(battle_orbit_countdown(g, enemy) - 1);
     set_battle_orbit_countdown(g, enemy, left ? left : battle_orbit_period(g, enemy));
@@ -708,13 +708,13 @@ static void step_drifts(GameState *g)
         uint8_t radius = (uint8_t)(battle_orbit_radius(g, slot) + battle_orbit_radius_step(g, (unsigned)enemy));
         set_battle_orbit_radius(g, slot, radius);
         if (radius == DRIFT_ENDS_AT) {
-            set_battle_orbit_active(g, (unsigned)enemy, false);
+            set_battle_enemy_drifting(g, (unsigned)enemy, false);
             set_battle_orbit_radius(g, slot, 0);
         }
-        Offset o = polar(g, battle_orbit_angle(g, (unsigned)enemy), radius, radius);
+        Offset o = polar(g, battle_enemy_heading(g, (unsigned)enemy), radius, radius);
         ORIGINAL_EFFECT(leave_cell(g, 0xC8, (uint8_t)o.dy));
         ORIGINAL_EFFECT(leave_cell(g, 0xC9, (uint8_t)o.dx));
-        BattlePoint center = { battle_orbit_center_x(g, (unsigned)enemy), battle_orbit_center_y(g, (unsigned)enemy) };
+        BattlePoint center = { battle_enemy_drift_from_x(g, (unsigned)enemy), battle_enemy_drift_from_y(g, (unsigned)enemy) };
         BattlePoint p = moved(center, o);
         place_combatant_y(g, enemy_slot((unsigned)enemy), p.y);
         place_combatant_x(g, enemy_slot((unsigned)enemy), p.x);

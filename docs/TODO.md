@@ -123,11 +123,10 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
-    (`$C1:0003`) and much of the turn's work (a member's `$FD:AB30`, the
-    rewards' gold `$C1:D0A2` and messages `$FD:AD17`); from a member's
-    chosen action carried out (RECOMP.md, "Phase 3, battle chunk 5"), the
-    targeting `$C1:C1DD`, the calling off of a combination tech one of its
-    members can't act in `$FD:A93C` and the messages `$CD:0021`; from an enemy's turn (RECOMP.md, "Phase 3, wave 2:
+    (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
+    from a member's chosen action carried out (RECOMP.md, "Phase 3, battle
+    chunk 5"), the targeting `$C1:C1DD` and the messages `$CD:0021`; from an
+    enemy's turn (RECOMP.md, "Phase 3, wave 2:
     the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
@@ -136,11 +135,12 @@ rest waits, is [PLAN.md](PLAN.md).
     out"): a hit that steals as well (no record has one); a member that comes back once when knocked out
     (from `$C1:B316`); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
-    pose's setup `$C1:308C`, the enemy animation effects' nine handlers
-    `$C1:3760`; an effect's next
+    pose's setup `$C1:308C`, and an animation that names no movement
+    (`$C1:3760`'s table past its nine rows, no animation the battle gives);
+    an effect's next
     frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
-    `$C1:1115`, `$CD:0027`/`$002D`/`$0030`, `$FD:A95F` from the menu window;
+    `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
     the name converter `$C1:01A9` from the setup; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
     `$CE:EE6E`, `$CE:E18E`, `$CD:1609`, `$CD:0B1E` and the wait tail's
@@ -517,9 +517,9 @@ rest waits, is [PLAN.md](PLAN.md).
     fills sets the byte, so the start never marks one: find whether anything
     sets it later and what the mark is for, or drop the test in a native build;
   - `battle_enemy_animation_work` (`$7E:5E1D`, sixteen bytes): the enemies'
-    animation commands (`$C1:3772`) index the first eight by enemy; what the
-    eight after them are, which the fight's start clears with them, isn't
-    known: find their reader when `$C1:3772` is ported, and split the name;
+    movements (`battle/enemy_movement.c`) keep the first eight, by enemy; no
+    ported code reads the eight after them, which the fight's start clears
+    with them: find their reader, and split the name;
   - the bytes the fight's start clears that no traced code reads, named for
     now as spares in `re/ram.toml` (`battle_fight_start_spares`,
     `battle_condition_target_spares`, `battle_effect_record_spares`,

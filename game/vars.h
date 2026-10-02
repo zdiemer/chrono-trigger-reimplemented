@@ -5208,7 +5208,9 @@ void set_battle_enemy_placement_y_offset(GameState *g, unsigned i, uint8_t v);
 /* Enemy number (index of the enemy's 10-byte entry at $E4:F600); high byte negative: no enemy */
 uint16_t battle_enemy_placement_enemy(const GameState *g, unsigned i);
 void set_battle_enemy_placement_enemy(GameState *g, unsigned i, uint16_t v);
-/* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden */
+/* Bits 0-2 the graphics kind, bit 7 the enemy starts hidden; at the battle's end all but bit 6
+ * is cleared, which marks an enemy to stay on the field afterwards (the field takes away an
+ * enemy whose kind is 0; game/battle/battle_end.c, game/field/battle_return.c) */
 uint8_t battle_enemy_placement_kind(const GameState *g, unsigned i);
 void set_battle_enemy_placement_kind(GameState *g, unsigned i, uint8_t v);
 /* Sprite palette (doubled into $9888/$993C) */
@@ -5362,8 +5364,9 @@ uint8_t battle_enemy_target(const GameState *g, unsigned i);
 void set_battle_enemy_target(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ENEMY_ANIMATION_WORK_COUNT = 16 };   /* by enemy, and past the eighth what follows */
-/* Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which
- * the fight's start clears with the enemies' animations and targets */
+/* The animation an enemy was moving with when it stopped to act, which it goes back to once its
+ * target moves (game/battle/enemy_movement.c); the fight's start clears sixteen bytes of it with
+ * the enemies' animations and targets */
 uint8_t battle_enemy_animation_work(const GameState *g, unsigned i);
 void set_battle_enemy_animation_work(GameState *g, unsigned i, uint8_t v);
 
@@ -5567,6 +5570,11 @@ uint8_t battle_number_sprite_high(const GameState *g, unsigned i);
 void set_battle_number_sprite_high(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_MEMBER_ACTIONS_COUNT = 3 };   /* by party slot */
+/* The whole record a byte at a time, as a demo battle's party has its records copied in
+ * ($C1:B725) [7 bytes, one at a time] */
+enum { BATTLE_MEMBER_ACTIONS_RECORD_BYTES = 7 };
+uint8_t battle_member_actions_record_byte(const GameState *g, unsigned slot, unsigned at);
+void set_battle_member_actions_record_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
 /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an
  * action chosen */
 uint8_t battle_member_actions_state(const GameState *g, unsigned slot);
@@ -5888,10 +5896,16 @@ enum { BATTLE_BOUNDS_BOTTOM_COUNT = 11 };   /* by battle slot */
 uint8_t battle_bounds_bottom(const GameState *g, unsigned slot);
 void set_battle_bounds_bottom(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_ORBIT_ANGLE_COUNT = 8 };   /* by enemy */
-/* Angle on the orbit (256 steps per turn) */
-uint8_t battle_orbit_angle(const GameState *g, unsigned i);
-void set_battle_orbit_angle(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_HEADING_COUNT = 8 };   /* by enemy */
+/* The heading the enemy drifts its step along, in 256ths of a turn (0 to the right, 64 down) */
+uint8_t battle_enemy_heading(const GameState *g, unsigned i);
+void set_battle_enemy_heading(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_TURNED_ASIDE_COUNT = 8 };   /* by enemy */
+/* How many steps in a row something has turned the enemy's walk aside (the grid or another
+ * combatant in the way); while it is nonzero the next step keeps the heading it was turned to */
+uint8_t battle_enemy_turned_aside(const GameState *g, unsigned i);
+void set_battle_enemy_turned_aside(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_ENEMY_FRAME_DELAYS_COUNT = 64 };   /* by enemy frame list offset ($CC:F82F by enemy) + frame */
 /* Enemies' loaded frame lists: each frame's delay (0 ends the list) */
@@ -5912,6 +5926,17 @@ enum { BATTLE_ENEMY_ACTS_ANYWAY_COUNT = 8 };   /* by enemy (battle slot - 3) */
 /* Set to have the enemy take its turn whatever animation it shows */
 uint8_t battle_enemy_acts_anyway(const GameState *g, unsigned i);
 void set_battle_enemy_acts_anyway(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_TARGET_SEEN_X_COUNT = 8 };   /* by enemy */
+/* Where the enemy's target stood, across, when the enemy stopped to act; the enemy moves on once
+ * its target is no longer there */
+uint8_t battle_enemy_target_seen_x(const GameState *g, unsigned i);
+void set_battle_enemy_target_seen_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_TARGET_SEEN_Y_COUNT = 8 };   /* by enemy */
+/* Where the enemy's target stood, down, when the enemy stopped to act */
+uint8_t battle_enemy_target_seen_y(const GameState *g, unsigned i);
+void set_battle_enemy_target_seen_y(GameState *g, unsigned i, uint8_t v);
 
 /* The place in battle_anim_order the enemies' animation step has reached (3 once through) */
 uint8_t battle_anim_order_place(const GameState *g);
@@ -6004,20 +6029,22 @@ enum { BATTLE_ENEMY_EFFECT_PERIOD_COUNT = 8 };   /* by enemy */
 uint8_t battle_enemy_effect_period(const GameState *g, unsigned i);
 void set_battle_enemy_effect_period(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ORBIT_ACTIVE_COUNT = 8 };   /* by enemy */
-/* Set while the enemy moves in a circle */
-uint8_t battle_orbit_active(const GameState *g, unsigned i);
-void set_battle_orbit_active(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_DRIFTING_COUNT = 8 };   /* by enemy */
+/* Set while the enemy drifts a step across the battlefield: its distance from where the step
+ * started (battle_enemy_drift_from_x, _y) grows along its heading until it comes to 8 pixels;
+ * the enemies' movements set it off when a step is free (game/battle/enemy_movement.c) */
+uint8_t battle_enemy_drifting(const GameState *g, unsigned i);
+void set_battle_enemy_drifting(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ORBIT_CENTER_X_COUNT = 8 };   /* by enemy */
-/* X of the orbit's center */
-uint8_t battle_orbit_center_x(const GameState *g, unsigned i);
-void set_battle_orbit_center_x(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_DRIFT_FROM_X_COUNT = 8 };   /* by enemy */
+/* X of where the enemy's drifting step started */
+uint8_t battle_enemy_drift_from_x(const GameState *g, unsigned i);
+void set_battle_enemy_drift_from_x(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_ORBIT_CENTER_Y_COUNT = 8 };   /* by enemy */
-/* Y of the orbit's center */
-uint8_t battle_orbit_center_y(const GameState *g, unsigned i);
-void set_battle_orbit_center_y(GameState *g, unsigned i, uint8_t v);
+enum { BATTLE_ENEMY_DRIFT_FROM_Y_COUNT = 8 };   /* by enemy */
+/* Y of where the enemy's drifting step started */
+uint8_t battle_enemy_drift_from_y(const GameState *g, unsigned i);
+void set_battle_enemy_drift_from_y(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_EFFECT_STEPS_START_COUNT = 3 };   /* by party slot */
 /* The effect steps (battle_effect_steps) a party member's effects start from when an action
@@ -7161,6 +7188,60 @@ void set_battle_object_shadow(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_sprite_attributes(const GameState *g);
 void set_battle_sprite_attributes(GameState *g, uint8_t v);
 
+enum { BATTLE_ENEMY_SPOT_X_COUNT = 8 };   /* by enemy */
+/* Across, the spot the enemy makes for at its distance from its target (keeping its distance, or
+ * circling) */
+uint8_t battle_enemy_spot_x(const GameState *g, unsigned i);
+void set_battle_enemy_spot_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_SPOT_Y_COUNT = 8 };   /* by enemy */
+/* Down, the spot the enemy makes for at its distance from its target */
+uint8_t battle_enemy_spot_y(const GameState *g, unsigned i);
+void set_battle_enemy_spot_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_CIRCLING_BACK_COUNT = 8 };   /* by enemy */
+/* Set while the enemy circles its target the other way round; it turns back each time its way is
+ * blocked */
+uint8_t battle_enemy_circling_back(const GameState *g, unsigned i);
+void set_battle_enemy_circling_back(GameState *g, unsigned i, uint8_t v);
+
+/* The distance from its target the last enemy to work its spot out circles at; an enemy turned
+ * aside circles at whatever the last one set */
+uint8_t battle_circle_radius(const GameState *g);
+void set_battle_circle_radius(GameState *g, uint8_t v);
+
+enum { BATTLE_ENEMY_WEAVING_COUNT = 8 };   /* by enemy */
+/* Set once the enemy's weave has its home; every other movement clears it, so the next weave
+ * starts afresh from where the enemy is */
+uint8_t battle_enemy_weaving(const GameState *g, unsigned i);
+void set_battle_enemy_weaving(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_WEAVE_HOME_X_COUNT = 8 };   /* by enemy */
+/* Across, the middle of the loop the enemy weaves round */
+uint8_t battle_enemy_weave_home_x(const GameState *g, unsigned i);
+void set_battle_enemy_weave_home_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_WEAVE_HOME_Y_COUNT = 8 };   /* by enemy */
+/* Down, the middle of the loop the enemy weaves round: 16 pixels below where it started */
+uint8_t battle_enemy_weave_home_y(const GameState *g, unsigned i);
+void set_battle_enemy_weave_home_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_WEAVE_ANGLE_COUNT = 8 };   /* by enemy */
+/* How far round its loop the enemy's weave has come, in 256ths of a turn */
+uint8_t battle_enemy_weave_angle(const GameState *g, unsigned i);
+void set_battle_enemy_weave_angle(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_ENEMY_WEAVE_BACK_COUNT = 8 };   /* by enemy */
+/* Set while the enemy weaves round its loop the other way; it turns back each time its way is
+ * blocked */
+uint8_t battle_enemy_weave_back(const GameState *g, unsigned i);
+void set_battle_enemy_weave_back(GameState *g, unsigned i, uint8_t v);
+
+/* The height of the loop a weave's step is worked out on, its width 32 more (scaffolding: only
+ * the step itself reads it) */
+uint8_t battle_weave_height(const GameState *g);
+void set_battle_weave_height(GameState *g, uint8_t v);
+
 enum { BATTLE_TARGETS_COUNT = 6 };   /* by target entry */
 /* The chosen targets, one battle slot per byte, negative for unused entries; a second entry
  * means the action hits a group */
@@ -7667,6 +7748,12 @@ void set_battle_steal_marks_unchecked(GameState *g, unsigned slot, uint8_t v);
  * left over the second and third combatants' steal marks */
 uint16_t battle_tech_mp_compared(const GameState *g);
 void set_battle_tech_mp_compared(GameState *g, uint16_t v);
+
+enum { BATTLE_ENEMY_BEATEN_BEFORE_COUNT = 8 };   /* by enemy */
+/* The enemies the action beat (battle_enemy_beaten), kept aside while the enemies it knocked out
+ * are seen to; those shown beaten then are cleared from it before it is put back */
+uint8_t battle_enemy_beaten_before(const GameState *g, unsigned i);
+void set_battle_enemy_beaten_before(GameState *g, unsigned i, uint8_t v);
 
 enum { BATTLE_PLACES_COUNT = 11 };   /* by battle slot */
 /* The place each combatant stands in its side's formation; an enemy brought in takes over the
@@ -9150,6 +9237,11 @@ void set_battle_wave_edges(GameState *g, unsigned line, uint16_t v);
 /* How the battle ended: 1 when the party was defeated, 0 when it won or ran away */
 uint8_t battle_result(const GameState *g);
 void set_battle_result(GameState *g, uint8_t v);
+
+/* The enemies the last battle beat, a bit each from the first enemy in bit 0, noted as the
+ * battle ends for the events to read (event memory $1EE) */
+uint8_t battle_enemies_beaten_for_the_story(const GameState *g);
+void set_battle_enemies_beaten_for_the_story(GameState *g, uint8_t v);
 
 /* The item a battle message names (the steal's) */
 uint8_t battle_message_item(const GameState *g);

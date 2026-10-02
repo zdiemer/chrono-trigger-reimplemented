@@ -256,6 +256,7 @@ void battle_note_enemy_attack(Snes *s);
 void battle_carry_out_member_action(Snes *s);
 bool battle_carry_out_member_action_ready(Snes *s);
 void battle_member_attacks(Snes *s);
+void battle_member_attacks_from_bank_fd(Snes *s);
 bool battle_member_attacks_ready(Snes *s);
 void battle_end_member_turn(Snes *s);
 bool battle_end_member_turn_ready(Snes *s);
@@ -616,6 +617,52 @@ bool battle_steps_animations(Snes *s);
 void battle_choose_status_pose(Snes *s);
 bool battle_poses_combatant(Snes *s);
 void battle_step_enemy_effects(Snes *s);
+
+/* battle/battle_end.c: the battle's end's bookkeeping */
+void battle_clear_party_statuses_entry(Snes *s);
+void battle_stand_party_up_entry(Snes *s);
+void battle_keep_party_records_entry(Snes *s);
+void battle_take_enemies_away_entry(Snes *s);
+void battle_keep_standing_enemies_entry(Snes *s);
+void battle_count_enemies_out_entry(Snes *s);
+void battle_note_beaten_enemies_entry(Snes *s);
+
+/* battle/party_turns.c */
+void battle_member_status_turn(Snes *s);
+bool battle_member_status_turn_ready(Snes *s);
+void battle_cancel_if_unable(Snes *s);
+bool battle_cancel_if_unable_ready(Snes *s);
+void battle_party_counters(Snes *s);
+bool battle_party_counters_ready(Snes *s);
+void battle_call_off_waiting_combination(Snes *s);
+void battle_call_off_waiting_member(Snes *s);
+bool battle_call_off_waiting_member_ready(Snes *s);
+void battle_call_off_combination_entry(Snes *s);
+void battle_see_to_knocked_out_enemies(Snes *s);
+bool battle_see_to_knocked_out_enemies_ready(Snes *s);
+void battle_demo_party_ready_entry(Snes *s);
+void battle_demo_next_turn_entry(Snes *s);
+void battle_party_stands_down(Snes *s);
+
+/* battle/enemy_movement.c: each movement's routine, $C1:3772-$C1:4021 */
+void battle_enemy_waits_for_target(Snes *s);
+bool battle_enemy_waits_for_target_ready(Snes *s);
+void battle_enemy_approaches(Snes *s);
+bool battle_enemy_approaches_ready(Snes *s);
+void battle_enemy_charges(Snes *s);
+bool battle_enemy_charges_ready(Snes *s);
+void battle_enemy_lines_up(Snes *s);
+bool battle_enemy_lines_up_ready(Snes *s);
+void battle_enemy_keeps_distance(Snes *s);
+bool battle_enemy_keeps_distance_ready(Snes *s);
+void battle_enemy_circles(Snes *s);
+bool battle_enemy_circles_ready(Snes *s);
+void battle_enemy_weaves(Snes *s);
+bool battle_enemy_weaves_ready(Snes *s);
+void battle_enemy_marches(Snes *s);
+bool battle_enemy_marches_ready(Snes *s);
+void battle_enemy_makes_for_the_middle(Snes *s);
+bool battle_enemy_makes_for_the_middle_ready(Snes *s);
 
 /* battle/timers.c */
 void battle_tick_timers(Snes *s);

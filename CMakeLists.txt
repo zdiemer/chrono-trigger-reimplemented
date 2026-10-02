@@ -207,6 +207,9 @@ add_library(ct_game STATIC
   game/battle/frame.c
   game/battle/main_loop.c
   game/battle/member_turn.c
+  game/battle/enemy_movement.c
+  game/battle/battle_end.c
+  game/battle/party_turns.c
   game/battle/menu_window.c
   game/battle/nmi.c
   game/battle/numbers.c

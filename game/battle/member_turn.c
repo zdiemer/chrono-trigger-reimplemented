@@ -32,6 +32,7 @@
 #include "battle/combatant.h"
 #include "battle/enemy_actions.h"
 #include "battle/entries.h"
+#include "battle/party_turns.h"
 #include "battle/targets.h"
 #include "battle/rules_data.h"
 #include "battle/timers.h"
@@ -311,9 +312,9 @@ static void pay_for_tech(GameState *g)
 /* ---- The entries ------------------------------------------------------------------------------- */
 
 /* The call-outs: the original's targeting, which reads the carry the code
- * before leaves; the calling off, the messages, and the battle's step. */
+ * before leaves; the messages, and the battle's step. */
 enum {
-    AIM = 0xC1C1DD, CALL_OFF = 0xFDA93C, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
+    AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
     USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
 };
 enum {
@@ -494,8 +495,7 @@ static bool carry_out_action(Snes *s)
     uint8_t member = take_waiting_member(g);
     mark_those_taking_part(g, member);
     if (!all_can_act(g)) {
-        if (!battle_call_long(s, 0xC1BA2C, CALL_OFF, READS_NOTHING))
-            return false;
+        TIMED_AS(g, 0xFDA93C, battle_call_off_combination(g));
         ORIGINAL_EFFECT(set_battle_member_turn_running(g, 0));
         return true;
     }
@@ -611,6 +611,15 @@ void battle_member_attacks(Snes *s)
     m_rts(s);
 }
 
+// $C1:FDC7
+/* The attack as bank $FD's code calls it, through a long call: a member's
+ * status turn and the party's counters (battle/party_turns.c). */
+void battle_member_attacks_from_bank_fd(Snes *s)
+{
+    if (battle_run(s, 0xC1FDC7, MEMBER_ATTACKS, battle_member_attacks))
+        m_rtl(s);
+}
+
 /* The main loop's end of a member's turn whose status picked its action,
  * entered with A's high byte clear, which the original indexes by. */
 bool battle_end_member_turn_ready(Snes *s)
@@ -652,7 +661,11 @@ void battle_members_wait_after_tech(Snes *s)
 void battle_member_called_off_step(Snes *s)
 {
     m_set_a8(s, BATTLE_STEP_CALLED_OFF);
-    /* the step's overflow flag is the caller's, passed on */
-    if (battle_call(s, 0xC1B963, BATTLE_STEP, DC_X | DC_Y | DC_N | DC_Z | DC_C))
+    /* the overflow flag the step saves with the flags across its frame waits
+     * is read by nothing after (dc-evidence: tools/v_readers.py C1:0003: V
+     * dead, its tables' indexes at most $FE (A's high byte known clear, on the
+     * battle's direct page $0000); ct_dev --poison-set V at each site over the
+     * library, calls with V inverted: C1B963 0; 0 differing) */
+    if (battle_call(s, 0xC1B963, BATTLE_STEP, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         m_rtl(s);
 }

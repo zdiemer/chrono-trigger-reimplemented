@@ -8983,7 +8983,7 @@ source = "game/battle/setup_enemies.c keep_start_positions, setup_enemies.c set_
   [[var.field]]
   name = "kind"
   offset = 7
-  meaning = "Bits 0-2 the graphics kind, bit 7 the enemy starts hidden"
+  meaning = "Bits 0-2 the graphics kind, bit 7 the enemy starts hidden; at the battle's end all but bit 6 is cleared, which marks an enemy to stay on the field afterwards (the field takes away an enemy whose kind is 0; game/battle/battle_end.c, game/field/battle_return.c)"
   [[var.field]]
   name = "palette"
   offset = 8
@@ -9265,6 +9265,11 @@ index = "party slot"
 subsystem = "battle"
 meaning = "Per party member action records"
 source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battle/stats.c battle_update_combo_members $C1:B575"
+  [[var.field]]
+  name = "record"
+  offset = 0
+  size = 7
+  meaning = "The whole record a byte at a time, as a demo battle's party has its records copied in ($C1:B725)"
   [[var.field]]
   name = "state"
   offset = 0
@@ -10371,6 +10376,134 @@ index = "enemy (battle slot - 3)"
 subsystem = "battle"
 meaning = "The battle slot of the combatant the enemy's chosen action is aimed at, which its attack takes for its target and its animation's effect follows: an enemy out of the fight whose target is out too forgets what it chose"
 source = "game/battle/combatants.c battle_update_all_combatants $C1:B223; game/battle/animation.c battle_step_enemy_effects $C1:3714; game/battle/enemy_actions.c ($C1:9810, $C1:983A, $C1:99BE)"
+
+[[var]]
+name = "battle_enemy_turned_aside"
+addr = "7E:9791"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "How many steps in a row something has turned the enemy's walk aside (the grid or another combatant in the way); while it is nonzero the next step keeps the heading it was turned to"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_target_seen_x"
+addr = "7E:9831"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Where the enemy's target stood, across, when the enemy stopped to act; the enemy moves on once its target is no longer there"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_target_seen_y"
+addr = "7E:9839"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Where the enemy's target stood, down, when the enemy stopped to act"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_spot_x"
+addr = "7E:A5E4"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Across, the spot the enemy makes for at its distance from its target (keeping its distance, or circling)"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_spot_y"
+addr = "7E:A5EC"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Down, the spot the enemy makes for at its distance from its target"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_circling_back"
+addr = "7E:A5F4"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Set while the enemy circles its target the other way round; it turns back each time its way is blocked"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_circle_radius"
+addr = "7E:A5FC"
+subsystem = "battle"
+meaning = "The distance from its target the last enemy to work its spot out circles at; an enemy turned aside circles at whatever the last one set"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_weaving"
+addr = "7E:A5FD"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Set once the enemy's weave has its home; every other movement clears it, so the next weave starts afresh from where the enemy is"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_weave_home_x"
+addr = "7E:A605"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Across, the middle of the loop the enemy weaves round"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_weave_home_y"
+addr = "7E:A60D"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Down, the middle of the loop the enemy weaves round: 16 pixels below where it started"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_weave_angle"
+addr = "7E:A615"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "How far round its loop the enemy's weave has come, in 256ths of a turn"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_enemy_weave_back"
+addr = "7E:A61D"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "Set while the enemy weaves round its loop the other way; it turns back each time its way is blocked"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+
+[[var]]
+name = "battle_weave_height"
+addr = "7E:A625"
+subsystem = "battle"
+meaning = "The height of the loop a weave's step is worked out on, its width 32 more (scaffolding: only the step itself reads it)"
+source = "game/battle/enemy_movement.c ($C1:3772-$C1:4040)"
+[[var]]
+name = "battle_enemies_beaten_for_the_story"
+addr = "7F:01EE"
+subsystem = "battle"
+meaning = "The enemies the last battle beat, a bit each from the first enemy in bit 0, noted as the battle ends for the events to read (event memory $1EE)"
+source = "game/battle/battle_end.c battle_note_beaten_enemies $FD:AAB0"
+
+[[var]]
+name = "battle_enemy_beaten_before"
+addr = "7E:AE65"
+count = 8
+index = "enemy"
+subsystem = "battle"
+meaning = "The enemies the action beat (battle_enemy_beaten), kept aside while the enemies it knocked out are seen to; those shown beaten then are cleared from it before it is put back"
+source = "game/battle/party_turns.c ($C1:B762)"
 
 [[var]]
 name = "battle_enemy_target_seen"
@@ -11891,30 +12024,30 @@ source = "game/battle/object_motion.c record_trails $CF:ED18; game/battle/draw_o
   meaning = "Y, by battle slot"
 
 [[var]]
-name = "battle_orbit_active"
+name = "battle_enemy_drifting"
 addr = "7E:98A7"
 count = 8
 index = "enemy"
 subsystem = "battle"
-meaning = "Set while the enemy moves in a circle"
+meaning = "Set while the enemy drifts a step across the battlefield: its distance from where the step started (battle_enemy_drift_from_x, _y) grows along its heading until it comes to 8 pixels; the enemies' movements set it off when a step is free (game/battle/enemy_movement.c)"
 source = "game/battle/effect_paths.c step_drifts $CF:F978"
 
 [[var]]
-name = "battle_orbit_center_x"
+name = "battle_enemy_drift_from_x"
 addr = "7E:98AF"
 count = 8
 index = "enemy"
 subsystem = "battle"
-meaning = "X of the orbit's center"
+meaning = "X of where the enemy's drifting step started"
 source = "game/battle/effect_paths.c step_drifts $CF:F978"
 
 [[var]]
-name = "battle_orbit_center_y"
+name = "battle_enemy_drift_from_y"
 addr = "7E:98B7"
 count = 8
 index = "enemy"
 subsystem = "battle"
-meaning = "Y of the orbit's center"
+meaning = "Y of where the enemy's drifting step started"
 source = "game/battle/effect_paths.c step_drifts $CF:F978"
 
 [[var]]
@@ -11945,12 +12078,12 @@ meaning = "Frames between orbit steps"
 source = "game/battle/effect_paths.c step_drifts $CF:F978; game/battle/setup_enemies.c set_up_enemy (high nibble of $E4:F609)"
 
 [[var]]
-name = "battle_orbit_angle"
+name = "battle_enemy_heading"
 addr = "7E:9786"
 count = 8
 index = "enemy"
 subsystem = "battle"
-meaning = "Angle on the orbit (256 steps per turn)"
+meaning = "The heading the enemy drifts its step along, in 256ths of a turn (0 to the right, 64 down)"
 source = "game/battle/effect_paths.c step_drifts $CF:F978"
 
 [[var]]
@@ -15747,7 +15880,7 @@ addr = "7E:5E1D"
 count = 16
 index = "enemy, and past the eighth what follows"
 subsystem = "battle"
-meaning = "Bytes the enemies' animation commands ($C1:3772, the original's) keep, indexed by enemy, which the fight's start clears with the enemies' animations and targets"
+meaning = "The animation an enemy was moving with when it stopped to act, which it goes back to once its target moves (game/battle/enemy_movement.c); the fight's start clears sixteen bytes of it with the enemies' animations and targets"
 source = "game/battle/fight_party.c ($FD:B555); $C1:3790"
 
 [[var]]
