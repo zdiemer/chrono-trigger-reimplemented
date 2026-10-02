@@ -649,6 +649,8 @@ int snes_state_read_with(Snes *s, const SnesStateExtra *extra, const uint8_t *da
     s->apu.host_ctx = keep.apu.host_ctx;
     s->apu.host_boot = keep.apu.host_boot;
     s->apu.host_command = keep.apu.host_command;
+    s->apu.host_mix = keep.apu.host_mix;
+    s->apu.host_take = keep.apu.host_take;
     s->on_line = keep.on_line;
     s->on_line_ctx = keep.on_line_ctx;
     s->on_frame_top = keep.on_frame_top;

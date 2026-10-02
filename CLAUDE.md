@@ -76,7 +76,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   the fast route, `--long-routes` all of them, which is worth doing before a change to timing or to
   the native runtime lands); the C sound driver matches the original's at every tick of every movie
   (`ct_dev --sound-lockstep --sound-lockstep-level state`, inside the shadow runs) and over a short
-  `ct_sound_fuzz` in both its modes (docs/SOUND.md); every
+  `ct_sound_fuzz` in both its modes, the hosted one with the native mixer making the S-DSP's every frame
+  (`--mixer check`; docs/SOUND.md, docs/PLATFORM.md "The native mixer, as built"); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
   (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk"); no
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before

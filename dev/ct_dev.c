@@ -11,7 +11,8 @@
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
- *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--scaffold-reads]
+ *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
+ *          [--scaffold-reads]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
@@ -93,6 +94,10 @@
  * it is for hearing the C driver over a movie (--wav) and for the host's own
  * checks: a run in which a sample was placed where the echo was writing, or a
  * command dropped from the host's full queue, exits 1 (sound_host_report).
+ * --mixer (with --sound-driver c) picks what makes the sound: dsp, the
+ * emulated S-DSP (the default); native, the native mixer in its place; check,
+ * both, the S-DSP heard (--wav) and the mixer compared with it frame by frame
+ * (a `mixer check:` line; a run in which a frame differs exits 1).
  * --shadow-details N describes up to N mismatches in the native report, and
  * apart from them up to N notes (abandoned comparisons, timing), mismatches
  * first (default 16 each, at most 256).
@@ -438,6 +443,7 @@ int main(int argc, char **argv)
     const char *rom_path = NULL, *movie_path = NULL, *trace_path = NULL, *coverage_path = NULL;
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     bool c_sound_driver = false;
+    SoundMixer mixer = SOUND_MIXER_DSP;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
@@ -507,6 +513,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--shot-dir")) shot_dir = v;
         else if (!strcmp(a, "--wav")) wav_path = v;
         else if (!strcmp(a, "--sound-driver")) c_sound_driver = !strcmp(v, "c");
+        else if (!strcmp(a, "--mixer")) {
+            if (!sound_mixer_named(v, &mixer)) {
+                fprintf(stderr, "--mixer must be dsp, native or check\n");
+                return 2;
+            }
+        }
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
         else if (!strcmp(a, "--sound-lockstep")) { lockstep_path = v; want_lockstep = true; }
@@ -851,7 +863,7 @@ int main(int argc, char **argv)
                             "it needs --native on with the ported routines (not --recomp only or --audio direct)\n");
             return 2;
         }
-        sound_host = sound_host_attach(&snes);
+        sound_host = sound_host_attach_mixer(&snes, mixer);
         if (!sound_host) {
             fprintf(stderr, "out of memory\n");
             return 1;
@@ -1004,6 +1016,8 @@ int main(int argc, char **argv)
     }
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
+            rc = 1;
+        if (!sound_host_mixer_report(sound_host, stderr))
             rc = 1;
         sound_host_detach(sound_host);
     }

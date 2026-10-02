@@ -395,10 +395,10 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
     return 0;
 }
 
-int player_start(Player *pl, bool audio_direct, bool c_sound_driver)
+int player_start(Player *pl, bool audio_direct, bool c_sound_driver, SoundMixer mixer)
 {
     if (c_sound_driver) {
-        pl->sound_host = sound_host_attach(&pl->snes);
+        pl->sound_host = sound_host_attach_mixer(&pl->snes, mixer);
         if (!pl->sound_host) {
             fprintf(stderr, "out of memory\n");
             return 1;
