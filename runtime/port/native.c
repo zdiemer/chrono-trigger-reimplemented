@@ -27,7 +27,7 @@ static void push16_raw(Snes *s, uint16_t v)
 #define MAX_DETAILS 256
 #define DEFAULT_DETAILS 16
 #define RESUME_SLOTS 4096
-#define MAX_SEGMENT_PARTS 32   /* distinct routines one stretch of a port attributes time to */
+#define MAX_SEGMENT_PARTS 48   /* distinct routines one stretch of a port attributes time to (the battle timers' dispatch, a whole turn, reaches more than 32) */
 
 /* A port's bus clocks in one stretch attributed to the routine at table index
  * `entry` (native_time_as). */

@@ -3280,6 +3280,9 @@ showing).
 **Timing.** The new entries were calibrated from the shadow runs; those no
 movie reaches take a sibling's cost. The effects' loop, the main loop's body,
 the turn, the timers' dispatch and the combination check were recalibrated.
+With the turn's callees timed as their own routines, the timers' dispatch (a
+whole turn) attributes its time to more than the 32 routines a stretch held,
+so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
 
 ### Phase 3, menus: the equipment screen and its member list (`$C2:9C31`-`$C2:A2C5`)
 
