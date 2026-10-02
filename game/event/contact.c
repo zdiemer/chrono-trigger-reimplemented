@@ -18,6 +18,7 @@
  * time, and not of an object running at the most urgent level already. */
 #include "event/contact.h"
 
+#include "battle/inventory.h"
 #include "charge.h"
 #include "core/input.h"
 #include "cpu_io.h"
@@ -317,14 +318,21 @@ void event_talk_to_contact(Snes *s)
     m_rts(s);
 }
 
-/* The confirm button, from the field's main loop with 16-bit index
- * registers on the field's page. A chest's gift goes to the party through
- * the original's inventory ($C1:8003: A what, 1 an item or 4 gold, and Y
- * which or how much), which keeps the flags as it found them; the entry
- * leaves the overflow as the press worked it out. */
-enum { GIVE_TO_THE_PARTY = 0xC18003, GIVES_AN_ITEM = 1, GIVES_GOLD = 4 };
-enum { THE_INVENTORY_IGNORES = DC_X | DC_N | DC_Z | DC_C | DC_AH };
+/* A chest's gift goes to the party: the item into its inventory, or the gold
+ * to its own (battle/inventory.h), each timed as the battle's routine that
+ * takes it; then the field announces it. */
+static void give_the_gift(GameState *g, ChestGift gift)
+{
+    if (gift.kind == GIFT_ITEM)
+        TIMED_AS(g, 0xC1D005, battle_inventory_add(g, (uint8_t)gift.amount));
+    else
+        TIMED_AS(g, 0xC1D0A2, battle_give_gold(g, gift.amount));
+    announce_the_gift(g, gift);
+}
 
+/* The confirm button, from the field's main loop with 16-bit index
+ * registers on the field's page; the entry leaves the overflow as the press
+ * worked it out. */
 static void leave_overflow(Snes *s) { m_set_flag(s, CPU_FLAG_V, event_overflow_left(m_flag(s, CPU_FLAG_V))); }
 
 void field_press_confirm(Snes *s)
@@ -332,21 +340,8 @@ void field_press_confirm(Snes *s)
     GameState *g = state_of(s);
     ORIGINAL_EFFECT(event_forget_overflow());
     ChestGift gift = press_confirm(g);
-    if (gift.kind != GIFT_NOTHING) {
-        ORIGINAL_EFFECT(leave_overflow(s));
-        s->cpu.y = gift.amount;
-        bool came_back;
-        if (gift.kind == GIFT_ITEM) {
-            s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | GIVES_AN_ITEM);
-            came_back = bridge_call_long(s, 0xC01E72, GIVE_TO_THE_PARTY, THE_INVENTORY_IGNORES, on_the_field_page(s, false));
-        } else {
-            s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | GIVES_GOLD);
-            came_back = bridge_call_long(s, 0xC01E84, GIVE_TO_THE_PARTY, THE_INVENTORY_IGNORES, on_the_field_page(s, false));
-        }
-        if (!came_back)
-            return;
-        announce_the_gift(g, gift);
-    }
+    if (gift.kind != GIFT_NOTHING)
+        give_the_gift(g, gift);
     ORIGINAL_EFFECT(leave_overflow(s));
     m_rts(s);
 }
@@ -433,7 +428,7 @@ static bool confirm_fits(const GameState *g)
     }
     if (field_link_is_object(talked_to) && !names_a_contact(g, talked_to, high))
         return false;
-    return dialog_on_screen(g) || chest_look_fits(g);
+    return dialog_on_screen(g) || (chest_look_fits(g) && chest_gift_fits(g));
 }
 
 bool field_confirm_can_run(Snes *s)

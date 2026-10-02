@@ -553,6 +553,8 @@ void object_start_walk(GameState *g, FieldObject obj, uint8_t steps)
 
 bool object_moving(const GameState *g, FieldObject obj) { return field_object_steps_left(g, obj) != 0; }
 
+void object_stop_moving_across(GameState *g, FieldObject obj) { set_field_object_velocity_x(g, obj, 0); }
+
 // $C0:5FBE (a call interrupting the object)
 void object_stop_moving(GameState *g, FieldObject obj)
 {

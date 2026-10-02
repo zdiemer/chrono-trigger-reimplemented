@@ -569,9 +569,9 @@ command with `sound_game_command`, runs the ticks on the APU's time (`Apu.host`,
 with the SPC700 left idle), waits out the echo's buffer after a change of its
 delay as the original does (holding what comes meanwhile, in order), shows the
 status on the ports, and still answers the commands the scene writes to the
-ports itself. The voices write the emulated S-DSP, which makes the sound, or
-with `--mixer native` the native mixer makes it in the S-DSP's place, frame
-for frame the same (PLATFORM.md, "The native mixer, as built"). A
+ports itself. The voices are made into sound by the native mixer (`ct_play`'s and
+`ct_drive`'s default), or with `--mixer dsp` by the emulated S-DSP, frame for
+frame the same (PLATFORM.md, "The native mixer, as built"). A
 command takes no time where the original's took frames over its uploads, so
 the game's timing is not the original's and the mode can't replay a movie
 (from power-on the title music starts about a second sooner). A saved state

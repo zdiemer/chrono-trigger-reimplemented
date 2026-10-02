@@ -31,9 +31,16 @@
 #ifndef CT_PLAYER_NO_INTERPRETER
 #define CT_PLAYER_NO_INTERPRETER 0
 #endif
-#if CT_PLAYER_NO_INTERPRETER
 #include "misses.h"
-#endif
+
+/* What the player does with an instruction no native code runs (--interpreted):
+ * run it on the interpreter unnoticed, run it and log it, or stop the game.
+ * A build without the interpreter always logs (FALLBACK) or stops (OFF). */
+typedef enum {
+    PLAYER_INTERPRETED_RUN,
+    PLAYER_INTERPRETED_LOG,
+    PLAYER_INTERPRETED_STOP,
+} PlayerInterpreted;
 
 /* What this build does with the interpreter, for --help, the title and stderr. */
 extern const char *const player_build_mode[3];
@@ -88,18 +95,17 @@ typedef struct {
     uint8_t *quick_save;                  /* a quick save taken, until the driver takes it */
     size_t quick_save_len;
     SoundHost *sound_host;                /* the C sound driver in the SPC700's place (the default) */
-#if CT_PLAYER_NO_INTERPRETER
-    Misses *misses;                       /* instructions without generated code */
+    PlayerInterpreted interpreted;        /* what a miss does; set before player_init */
+    Misses *misses;                       /* instructions no native code ran (NULL: not watched) */
     const char *misses_name;              /* where the driver keeps them, for messages */
     unsigned long miss_steps;             /* misses this session */
     unsigned long miss_steps_written;
     char halt_reason[256];                /* why the game stopped (snes.halted) */
-#endif
 } Player;
 
 /* Build the machine for a ROM (without a copier header; it must outlive the
  * player) and power it on. native_mode, scanline and track.record_name are set
- * first (and misses_name, without the interpreter). `recomp` uses the
+ * first (and interpreted and misses_name, when misses are watched). `recomp` uses the
  * generated blocks if they are for this ROM, `recomp_only` leaves the ported
  * routines out in on mode. Returns 0, or the exit status after printing why
  * not. */

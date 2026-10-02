@@ -86,6 +86,15 @@ first miss: the frame stays on screen, a message box and stderr name the
 address (`no generated code for 7E:1F00 m8 x8, RAM in no section`), `F7` loads
 the quick save and `Esc` quits; headless (`--frames`), it exits with status 1.
 
+The player built with the interpreter does either at run time with
+`--interpreted log` or `--interpreted stop` (with `--native on`), over what
+`--recomp` leaves the interpreter: with `--recomp on` or `only`, code nothing
+was generated for; with `--recomp off`, everything no hand port covers, which
+is how far the hand ports alone carry the game. The list goes to
+`<rom name>.interpreted.txt`, the same format, started afresh each session, and
+the title bar shows `[hand ports]` or `[generated code]` with the count. A
+build without `CT_ROM` is enough for `--recomp off`.
+
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:
 
@@ -171,10 +180,10 @@ original's code gets the original driver: replaying or recording a movie,
 `--load-zst`, `--audio direct`, `--native off` or `shadow` and `--recomp only`
 (the C driver takes the CPU half's calls in its ported entries, which run only
 with `--native on` and the ported routines); `--sound-driver c` with any of
-them is refused. `--mixer native` has the C driver's voices made into sound by
-the native mixer in the S-DSP's place ([PLATFORM.md](PLATFORM.md), "The native
-mixer, as built"), the same sound frame for frame; `--mixer dsp`, the S-DSP,
-is the default for now.
+them is refused. The C driver's voices are made into sound by the native mixer
+([PLATFORM.md](PLATFORM.md), "The native mixer, as built"), with no S-DSP;
+`--mixer dsp` plays them through the emulated S-DSP instead, the same sound
+frame for frame.
 
 The picture comes from the native renderer ([PLATFORM.md](PLATFORM.md), P3),
 which draws each frame from the video service's frame state rather than from the

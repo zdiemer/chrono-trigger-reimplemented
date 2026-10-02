@@ -71,6 +71,9 @@ void party_trail_regroup(GameState *g);
 /* A map's start: the trail starts afresh, the whole party at its first
  * footprint, with nothing behind it (field/walk.c). */
 void party_trail_start(GameState *g);
+/* A member put on the map takes the trail up with the rest of the party at
+ * its first footprint (field/cast.c); the way behind stays as it was. */
+void party_trail_rejoin(GameState *g);
 
 /* The party counted as on the move: not standing about (field_idle_frames). */
 void count_as_on_the_move(GameState *g);

@@ -2163,8 +2163,26 @@ name = "field_animation_queue_front"
 addr = "7E:0178"
 page = "field"
 subsystem = "field"
-meaning = "2: the next object in state 1 or 2 due a frame goes to the front of the animation queue (then cleared)"
+meaning = "Whether the next member of the party loaded onto the map shows its first frame at once: event $D3 sets it (1) as a character joins the party, the member's load makes it 2 with its frame's time up ($C0:4334), and at 2 the next object in state 1 or 2 due a frame goes to the front of the animation queue (then cleared)"
 source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
+
+
+[[var]]
+name = "field_unpacked_graphics_end"
+addr = "7E:0171"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "Where in bank $7F the next graphics set the map's scripts load unpacks to (events $82 and $83): the map's setup starts it at $8000 ($C0:58D7), each set unpacked moves it on by the set's size, and a set that would carry it past the bank's end stops the game ($C0:46D1, $C0:4838 to $C0:2E1E). Once the map runs, the leader's walk works out where it steps next in the same cells ($C0:9C65)"
+source = "game/field/cast.c, unpack_graphics ($C0:4590, $C0:46DF)"
+
+[[var]]
+name = "field_npc_graphics_count"
+addr = "7E:0173"
+page = "field"
+subsystem = "field"
+meaning = "How many people and creatures the map's scripts have loaded (event $82), which the map's setup clears ($C0:58DC); the first three note where their graphics are in battle_enemy_placement's graphics. The leader's walk uses the cell as its next place's row once the map runs ($C0:9D35)"
+source = "game/field/cast.c, note_npc_graphics ($C0:4590)"
 
 [[var]]
 name = "field_sprite_range_spare"
@@ -3033,6 +3051,16 @@ subsystem = "field"
 meaning = "The object that took each sprite palette slot last, the newest of those sharing it: a link, negative when no object has the slot ($C0:7170, $C0:734C)"
 source = "game/field/palettes.c object_give_up_palette $C0:734C"
 
+
+[[var]]
+name = "field_sprite_block_owner"
+addr = "7E:0B88"
+count = 26
+index = "block of sprite tiles in VRAM"
+subsystem = "field"
+meaning = "The object each block of sprite tiles in VRAM is given to, a link, negative for a free block: the party's three places have blocks 1-3 and an enemy the block its script names (events $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA). Block 0 is never given"
+source = "game/field/cast.c, take_sprite_block"
+
 [[var]]
 name = "field_object_sprite_tiles"
 addr = "7E:0D00"
@@ -3085,6 +3113,29 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Where the object's frame descriptions start: frame n's at n times a description's size, summed in 16 bits"
 source = "game/field/frames.c, frame_description ($C0:CAD9)"
+
+
+[[var]]
+name = "field_object_colours"
+addr = "7E:1400"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Where the object's twelve colours are in bank $E4 (its sprite record's palette times 24 bytes): loaded into the palette slot it takes coming into view ($C0:7170), or the one a script gives it (events $33, $88)"
+source = "game/field/cast.c, wear_record ($C0:448D); game/field/palettes.c object_load_colours"
+
+[[var]]
+name = "field_object_colour_effect"
+addr = "7F:0B80"
+size = 2
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "The palette animation slot running a script's effect on the object's colours (event $88), as the slot's place in palette_animations (slot * 12); negative for none"
+source = "game/event/colours.c, object_colour_effect ($C0:4892)"
 
 [[var]]
 name = "field_object_role"
@@ -9705,7 +9756,7 @@ source = "game/battle/setup_enemies.c keep_start_positions, setup_enemies.c set_
   name = "graphics"
   offset = 9
   size = 3
-  meaning = "Long pointer to the enemy's graphics set"
+  meaning = "Long pointer to the enemy's graphics set. On the field, the first three people and creatures a map's scripts load note in the first three where in bank $7F their graphics were unpacked, the address alone (event $82, $C0:4645)"
 
 [[var]]
 name = "battle_bg_scroll"
@@ -15572,7 +15623,7 @@ name = "field_built_sprite_object"
 addr = "7E:01AE"
 page = "field"
 subsystem = "field"
-meaning = "The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work RAM ($C0:47E7), and builds again when the field is set up after a menu ($C0:020B); negative for none. The command stores it with 16-bit X, so the byte after it (field_sprite_data_tables' first) takes the link's high byte, 0"
+meaning = "The object an event command gave the 24-sprite layout, whose graphics $C0:E12A builds in work RAM (event $83, $C0:47E7, a byte store), and builds again when the field is set up after a menu ($C0:020B); negative for none"
 source = "game/field/start.c, field_start $C0:0B86"
 
 [[var]]
@@ -15586,6 +15637,34 @@ index = "table"
 subsystem = "field"
 meaning = "Long pointers to the four tables in bank $E4 the commands that load an object's sprite read its entries from ($C0:448D-$C0:4830: the character loads at $C0:421E, events $81-$83); the field's start points them where the words at $E4:FFE0 say"
 source = "game/field/start.c, field_start $C0:0B86"
+
+
+[[var]]
+name = "field_sprite_record_place"
+addr = "7E:01BF"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "The place in its table of the last sprite record an event command loaded (its number times the record's size, events $81-$83): only that command reads it back"
+source = "game/field/cast.c, leave_record_place (scaffolding)"
+
+[[var]]
+name = "field_shared_graphics"
+addr = "7E:0920"
+count = 16
+index = "shared graphics entry"
+subsystem = "field"
+meaning = "The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a set already there shares it rather than unpacking it again ($C0:5C90)"
+source = "game/field/cast.c, graphics_already_unpacked"
+
+[[var]]
+name = "field_shared_graphics_object"
+addr = "7E:0930"
+count = 16
+index = "shared graphics entry"
+subsystem = "field"
+meaning = "The object that unpacked each of field_shared_graphics' sets, a link: one that shares the set takes that object's graphics"
+source = "game/field/cast.c, graphics_already_unpacked"
 
 [[var]]
 name = "field_map_has_no_bg3_set"

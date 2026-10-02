@@ -121,6 +121,12 @@ void object_restart_animation(GameState *g, FieldObject obj)
 
 void object_end_frame_time(GameState *g, FieldObject obj) { set_field_object_frame_delay(g, obj, 0); }
 
+void object_start_standing(GameState *g, FieldObject obj)
+{
+    set_looped_animation(g, obj, ANIMATION_STAND);
+    set_field_object_animation_frame(g, obj, 0);
+}
+
 /* ---- What a script does with it ------------------------------------------------------- */
 
 /* Leave what it was doing for a one-off animation or a held frame. An object
@@ -336,8 +342,20 @@ static bool queue_last(GameState *g, FieldObject obj)
     return true;
 }
 
-/* The frame builder asks for the rest of the party first, once, with this. */
-enum { PARTY_FIRST_ASKED = 2 };   /* field_animation_queue_front */
+/* A character joining the party (event $D3) marks the queue's front for the
+ * member it becomes; that member's load (field/cast.c) turns the mark into
+ * the asking, and the next of the party due a frame comes first, once. */
+enum { JOINING = 1, PARTY_FIRST_ASKED = 2 };   /* field_animation_queue_front */
+
+void field_character_joining(GameState *g) { set_field_animation_queue_front(g, JOINING); }
+
+void object_first_frame_if_joining(GameState *g, FieldObject obj)
+{
+    if (field_animation_queue_front(g) == 0)
+        return;
+    set_field_animation_queue_front(g, PARTY_FIRST_ASKED);
+    object_end_frame_time(g, obj);
+}
 
 /* Queue the object for the frame builder: the leader first, and the rest of
  * the party first when the builder has asked, so the party's frames are

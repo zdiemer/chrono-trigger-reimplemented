@@ -58,7 +58,7 @@ it counts as done may still be transliterated or welded to the machine, which
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
-| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the emulated S-DSP by default, or through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md); the original stays as the gate's reference | the mixer the default, and the original deleted |
+| SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 
 ### The two gaps this list exposed
@@ -73,7 +73,7 @@ and the game's side, whose commands are calls and whose samples the driver
 places itself), and now what `ct_play` plays. The voices' second
 implementation, a native mixer reading the same BRR samples, ADSR envelopes
 and echo settings in place of the emulated S-DSP, is built and makes the
-S-DSP's every frame; what is left is making it the default. The mixer is the
+S-DSP's every frame, and is what `ct_play` plays. The mixer is the
 audio engine, not an emulator; the SPC700 core is deleted with everything
 else under `runtime/`.
 
@@ -163,7 +163,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 190 files, 117 of 52,573 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 194 files, 117 of 53,841 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -172,8 +172,8 @@ call-outs to the original's code:
 |---|--:|--:|--:|
 | battle | 17,302 | 0.02 | 27% |
 | menu | 10,035 | 0.03 | 33% |
-| field | 7,983 | 0.01 | 22% |
-| event | 3,270 | 0.01 | 12% |
+| field | 9,028 | 0.01 | 21% |
+| event | 4,255 | 0.01 | 14% |
 | scene | 2,492 | 0.04 | 45% |
 | core, data, attract | 2,054 | 0.06 | 70% |
 | sound | 1,983 | 0.00 | 0% |
@@ -210,12 +210,12 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **33% of the code is still generated.**
+docstring says which way it is wrong). **32% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 57.0K | 20.3K | 12% | 383 |
-| field engine, events (`$C0`) | 59.4K | 46.5K | 10.4K | 22% | 300 |
+| field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
 | menus, text (`$C2`) | 59.3K | 24.2K | 7.0K | 59% | 261 |
 | scene program, RAM (`$7E`) | 24.9K | 10.2K | 0.8K | 59% | 71 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
@@ -227,10 +227,10 @@ docstring says which way it is wrong). **33% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **179.0K** | **45.5K** | **33%** | **1322** |
+| **total** | **268.5K** | **182.1K** | **45.6K** | **32%** | **1351** |
 
 The three big banks are the work; the entries are concentrated in small hot
-routines (and the 185 event command entries), which is why the shares are so high
+routines (and the 225 event command entries), which is why the shares are so high
 despite the count. The burndown follows the jump tables the analysis has sized,
 counts the registry's macro rows, and credits the callees a port inlines (no
 call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
@@ -372,14 +372,14 @@ load one stream named by a byte of the scene record at `$C6:FD00`, and without
 knowing what each stream holds their ports would be named after their
 destination addresses.
 
-**`$C0`: the field and events**, 22% left after fourteen chunks, and all of
-it routines the ports call out to: the event commands at `$C0:4186` (the
-party's characters' objects, `$57`-`$83`) and `$C0:3711` (items, gold and
-the party, `$C7`-`$D7`), the field's setup after a menu
-and a map (`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
+**`$C0`: the field and events**, 16% left after fifteen chunks, and all of
+it routines the ports call out to: the field's setup after a menu and a map
+(`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
 (`$C0:011B`), the fade in (`$C0:2824`), the sprite lists (`$C0:B192`), the
-frame work (`$C0:00BF`) and a choice's buttons (`$C0:1ADF`). Event's bridges
-still call the menus' party routines (`$C2:8004`), which go with `$C2`.
+frame work (`$C0:00BF`), a choice's buttons (`$C0:1ADF`) and the sprite
+blocks objects take coming into view (`$C0:6FBA`). Every event command has a
+row; event's bridges still call the menus' party routines (`$C2:8004`),
+which go with `$C2`, and the unpacker (`$C3:0002`, TODO.md).
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
@@ -418,21 +418,6 @@ Three things stand between a finished `game/` and a native build with nothing
 under it. None of them is optional for target 1, and none was scheduled before
 the audit that found them.
 
-- **The native mixer the default: next.** The sound driver is C and plays by
-  default (`game/sound/`, SOUND.md "The port as built" and "Playing it"): the
-  game's commands are calls, the driver places the songs' samples itself, and
-  saved states hold its fields. Its voices' second implementation, the native
-  mixer (PLATFORM.md, "The native mixer, as built"), makes every frame the
-  S-DSP makes over every movie and the fuzzer, and `dsp_test` and the gate's
-  sound fuzz hold it there; `ct_play --mixer native` plays it. What is left is
-  to make it `ct_play`'s default and the route check's (`ct_drive --mixer
-  native`), which takes the S-DSP out of the product as it ships: states saved
-  through the S-DSP then load with `--mixer dsp`. `runtime/apu/dsp.c` stays as
-  the mixer's reference while the mixer is checked against it. The original
-  driver stays as the driver's reference until then (the gate, the movies and
-  the lockstep run it, and `ct_play --sound-driver original` plays it); it
-  goes, with the CPU half's protocol (`game/core/sound_driver.c`'s uploads and
-  waits), the SPC700 core and APU-direct, when the gate retires for sound.
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
   takes `vid_*` calls rather than a decoded PPU register file. Widescreen and
@@ -444,7 +429,14 @@ the audit that found them.
   writes SNES registers. That backend is not waste: compiled for real hardware
   it is what target 3 runs on. What is missing is the host side of four of
   them. Input and save are small (`in_host_set` and `frontend/player.c` already
-  carry the host's half). Audio is Phase 4a's mixer, above.
+  carry the host's half). Audio is the native mixer (PLATFORM.md), which
+  already makes the sound from the voices with no S-DSP.
+- **Power-on and the interrupt entries.** `ct_play --recomp off --interpreted
+  stop` (PLAYING.md) stops at frame 0: the reset stub (`$00:FF00`), the boot
+  (`$FD:C000`), the vector stubs (`$00:FF10`) and the RAM trampolines the
+  game points them through (`$00:0500`, `$0504`) have no hand ports. They are
+  small, and one chunk in a later round; the meter only moves far past them
+  once the title's scene program (`$7E`) is ported.
 
   **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census
   behind it: 117 instructions, 49 ported). The game has no raster effect done

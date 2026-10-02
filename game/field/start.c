@@ -118,7 +118,7 @@ static void no_objects_yet(GameState *g)
 static void sprites_from_scratch(GameState *g)
 {
     sprites_hide_all_next_frame(g);
-    for (unsigned t = 0; t < FIELD_SPRITE_DATA_TABLES_COUNT; t++)
+    for (FieldSpriteTable t = FIELD_SPRITE_GRAPHICS_SETS; t < FIELD_SPRITE_TABLES; t++)
         set_field_sprite_data_tables(g, t, field_sprite_data_table(g, t));
 }
 

@@ -85,7 +85,9 @@ add_library(ct_game STATIC
   game/event/animation.c
   game/event/bridge.c
   game/event/calls.c
+  game/event/characters.c
   game/event/chests.c
+  game/event/colours.c
   game/event/contact.c
   game/event/dialog.c
   game/event/engine.c
@@ -93,6 +95,7 @@ add_library(ct_game STATIC
   game/event/facing.c
   game/event/flow.c
   game/event/input.c
+  game/event/items.c
   game/event/leaves.c
   game/event/locations.c
   game/event/memory.c
@@ -105,6 +108,7 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/animation.c
   game/field/battle_return.c
+  game/field/cast.c
   game/field/palettes.c
   game/field/menus.c
   game/field/start.c
@@ -411,10 +415,11 @@ endif()
 if(CT_SDL2)
   add_executable(ct_play frontend/ct_play.c frontend/player.c frontend/natives.c frontend/audio_fill.c frontend/window.c
     frontend/headless.c frontend/files.c frontend/bindings.c frontend/sound_host.c)
+  # The miss report (dev/misses.h) is the player's log of misses, and of what
+  # --interpreted finds.
+  target_sources(ct_play PRIVATE dev/misses.c)
+  target_include_directories(ct_play PRIVATE dev)
   if(NOT CT_PLAYER_INTERPRETER_MODE STREQUAL "ON")
-    # The miss report (dev/misses.h) is the player's log of misses.
-    target_sources(ct_play PRIVATE dev/misses.c)
-    target_include_directories(ct_play PRIVATE dev)
     target_compile_definitions(ct_play PRIVATE
       CT_PLAYER_NO_INTERPRETER=$<IF:$<STREQUAL:${CT_PLAYER_INTERPRETER_MODE},OFF>,2,1>)
   endif()
