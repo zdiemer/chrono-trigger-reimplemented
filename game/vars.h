@@ -2621,6 +2621,30 @@ void set_menu_scratch_member_row_place(GameState *g, uint16_t v);
  * byte), the last row's left */
 uint16_t menu_scratch_member_row_colour(const GameState *g);
 void set_menu_scratch_member_row_colour(GameState *g, uint16_t v);
+/* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here */
+uint8_t menu_scratch_list_rows(const GameState *g);
+void set_menu_scratch_list_rows(GameState *g, uint8_t v);
+/* The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it
+ * staged last */
+uint16_t menu_scratch_band_value(const GameState *g);
+void set_menu_scratch_band_value(GameState *g, uint16_t v);
+/* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's
+ * place in the table */
+uint16_t menu_scratch_slot_label(const GameState *g);
+void set_menu_scratch_slot_label(GameState *g, uint16_t v);
+/* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
+uint16_t menu_scratch_marked_slot(const GameState *g);
+void set_menu_scratch_marked_slot(GameState *g, uint16_t v);
+/* The same: how many slots it has marked, 4 once done */
+uint16_t menu_scratch_slots_marked(const GameState *g);
+void set_menu_scratch_slots_marked(GameState *g, uint16_t v);
+/* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted
+ * out from the top, 0 once done */
+uint8_t menu_scratch_users_bits(const GameState *g);
+void set_menu_scratch_users_bits(GameState *g, uint8_t v);
+/* The same: how many of the bits it looked at, the one past the last user */
+uint8_t menu_scratch_users_counted(const GameState *g);
+void set_menu_scratch_users_counted(GameState *g, uint8_t v);
 /* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
 uint8_t menu_scratch_portrait_attribute(const GameState *g);
 void set_menu_scratch_portrait_attribute(GameState *g, uint8_t v);
@@ -2700,6 +2724,28 @@ void set_menu_slide_line(GameState *g, uint16_t v);
 uint16_t menu_time_played_shown(const GameState *g);
 void set_menu_time_played_shown(GameState *g, uint16_t v);
 
+/* The slots window: the lines of its top band (the screen shown 32 lines up) */
+uint8_t menu_window_slide_top_lines(const GameState *g);
+void set_menu_window_slide_top_lines(GameState *g, uint8_t v);
+/* The slots window: the lines of its middle band (16 lines up) */
+uint8_t menu_window_slide_middle_lines(const GameState *g);
+void set_menu_window_slide_middle_lines(GameState *g, uint8_t v);
+/* The slots window: the lines of its bottom band (48 lines up), which grows as it slides in */
+uint8_t menu_window_slide_bottom_lines(const GameState *g);
+void set_menu_window_slide_bottom_lines(GameState *g, uint8_t v);
+/* The list window: the line its layer is shown from (menu_window_line_values') */
+uint16_t menu_window_slide_list_line(const GameState *g);
+void set_menu_window_slide_list_line(GameState *g, uint16_t v);
+/* The list window: the line the slots' rows are shown from (menu_row_line_values' and past) */
+uint16_t menu_window_slide_slots_line(const GameState *g);
+void set_menu_window_slide_slots_line(GameState *g, uint16_t v);
+/* The list window: the lines both move a frame (4 sliding in, -4 out) */
+uint16_t menu_window_slide_step(const GameState *g);
+void set_menu_window_slide_step(GameState *g, uint16_t v);
+/* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
+uint16_t menu_window_slide_rows_left(const GameState *g);
+void set_menu_window_slide_rows_left(GameState *g, uint16_t v);
+
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) */
 uint16_t menu_save_member_row(const GameState *g);
@@ -2732,10 +2778,11 @@ void set_menu_cursor_left_from(GameState *g, uint8_t v);
 uint8_t menu_cursor_flip(const GameState *g);
 void set_menu_cursor_flip(GameState *g, uint8_t v);
 
-/* The first row a scrolling list of the menus shows (the item and tech lists, $C2:EA81); cleared
- * as the menus open */
-uint8_t menu_list_top(const GameState *g);
-void set_menu_list_top(GameState *g, uint8_t v);
+/* How far a scrolling list of the menus scrolls: its places past the rows it shows, 0 for a list
+ * that doesn't scroll (the item and tech lists, set by their frame $C2:EA81); cleared as the
+ * menus open */
+uint8_t menu_list_scroll_most(const GameState *g);
+void set_menu_list_scroll_most(GameState *g, uint8_t v);
 
 /* The cursor sprite's tile and attributes */
 uint16_t menu_cursor_sprite(const GameState *g);
@@ -3099,6 +3146,16 @@ void set_menu_member_row(GameState *g, uint8_t v);
 uint8_t menu_member_scroll(const GameState *g);
 void set_menu_member_scroll(GameState *g, uint8_t v);
 
+/* The items screen's cursor on its list, the row (0-9) of the ten it shows, kept from one
+ * opening of the screen to the next */
+uint8_t menu_item_list_row(const GameState *g);
+void set_menu_item_list_row(GameState *g, uint8_t v);
+
+/* The first place of the party's items the items screen's list shows (0 to $E8), kept from one
+ * opening to the next */
+uint8_t menu_item_list_top(const GameState *g);
+void set_menu_item_list_top(GameState *g, uint8_t v);
+
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 uint8_t menu_item_operand(const GameState *g);
@@ -3238,10 +3295,24 @@ void set_menu_scroll_step(GameState *g, uint16_t v);
 uint16_t menu_scroll_frames(const GameState *g);
 void set_menu_scroll_frames(GameState *g, uint16_t v);
 
+/* The frames a window of the equipment screen has slid */
+uint8_t menu_window_frames_slid(const GameState *g);
+void set_menu_window_frames_slid(GameState *g, uint8_t v);
+
+/* The frame the member list's rows start (or stop) moving as the slots window slides: eight
+ * frames a row below the cursor's */
+uint8_t menu_window_rows_wait(const GameState *g);
+void set_menu_window_rows_wait(GameState *g, uint8_t v);
+
 /* Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the
  * armor, $29 the weapon, $2A the accessory, set by $C2:A4AF) */
 uint16_t menu_equip_record_place(const GameState *g);
 void set_menu_equip_record_place(GameState *g, uint16_t v);
+
+/* The place in the party's items of the item the items screen's cursor is on: the list's first
+ * place plus the cursor's row */
+uint16_t menu_item_list_place(const GameState *g);
+void set_menu_item_list_place(GameState *g, uint16_t v);
 
 /* Where the item last looked up has its data in bank $CC ($C2:88AD): the kind, the price, who
  * can use it */
@@ -3252,6 +3323,11 @@ void set_menu_item_data_at(GameState *g, uint16_t v);
  * armour's defence */
 uint16_t menu_item_figures_at(const GameState *g);
 void set_menu_item_figures_at(GameState *g, uint16_t v);
+
+/* A character's sprite record's offset from the first ($C2:F626: the character times $40), which
+ * the techs screen reads back for a record's place */
+uint16_t menu_record_offset(const GameState *g);
+void set_menu_record_offset(GameState *g, uint16_t v);
 
 /* Added to each $1800 record's X position when its sprites are drawn */
 uint16_t menu_record_origin_x(const GameState *g);
@@ -3291,10 +3367,23 @@ enum { MENU_SAVE_SLOT_IN_USE_COUNT = 4 };   /* by save slot */
 uint8_t menu_save_slot_in_use(const GameState *g, unsigned slot);
 void set_menu_save_slot_in_use(GameState *g, unsigned slot, uint8_t v);
 
+/* The attack or defence of the weapon or armour whose users the items screen shows, which the
+ * window shows beside them */
+uint8_t menu_item_power(const GameState *g);
+void set_menu_item_power(GameState *g, uint8_t v);
+
+/* The item the items screen's list drew last, which its row's number is drawn from */
+uint8_t menu_item_row_item(const GameState *g);
+void set_menu_item_row_item(GameState *g, uint8_t v);
+
 /* The character whose face and name a member row's window list draws, in the low bits, with bit
  * 5 set ($C2:A1EF) */
 uint16_t menu_member_face(const GameState *g);
 void set_menu_member_face(GameState *g, uint16_t v);
+
+/* How many of the item the items screen's list drew last the party has, the number its row shows */
+uint8_t menu_item_row_count(const GameState *g);
+void set_menu_item_row_count(GameState *g, uint8_t v);
 
 /* Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has
  * reached the value the table at $7E:0D38 holds for it, which the window then draws in another
@@ -3345,10 +3434,19 @@ void set_menu_record_block_limit(GameState *g, uint8_t v);
 uint8_t menu_wait_frames(const GameState *g);
 void set_menu_wait_frames(GameState *g, uint8_t v);
 
+/* The item whose description the description window shows ($C2:F2F3 draws another only for
+ * another item) */
+uint8_t menu_description_item(const GameState *g);
+void set_menu_description_item(GameState *g, uint8_t v);
+
 /* The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's
  * era), loaded again (through $C2:F90C) when a slot shows another */
 uint8_t menu_save_slot_era(const GameState *g);
 void set_menu_save_slot_era(GameState *g, uint8_t v);
+
+/* Bit 7 set has the description window drawn again whatever item it shows ($C2:F2F3 clears it) */
+uint8_t menu_description_stale(const GameState *g);
+void set_menu_description_stale(GameState *g, uint8_t v);
 
 enum { MENU_SAVE_SLOT_DESIGN_COUNT = 3 };   /* by save slot */
 /* The window design each save slot's game was saved with, which the load screen draws the slot's
@@ -3451,6 +3549,21 @@ void set_menu_scroll_bar_hidden(GameState *g, uint8_t v);
 uint8_t menu_cursor_hidden(const GameState *g);
 void set_menu_cursor_hidden(GameState *g, uint8_t v);
 
+/* Where a second cursor stays while the first moves (its task, $C2:89F2, draws it): the row of
+ * the item the items screen picked up, the first member row an item is used on */
+uint8_t menu_held_cursor(const GameState *g);
+void set_menu_held_cursor(GameState *g, uint8_t v);
+
+/* The list's first place when the second cursor was left, which its task takes from the list's
+ * first place now to keep it on its item */
+uint8_t menu_held_cursor_top(const GameState *g);
+void set_menu_held_cursor_top(GameState *g, uint8_t v);
+
+/* How many lines the second cursor is drawn off its row while the list slides (signed, 12 at the
+ * start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte */
+uint16_t menu_held_cursor_shift(const GameState *g);
+void set_menu_held_cursor_shift(GameState *g, uint16_t v);
+
 /* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
 uint8_t menu_slide_rows(const GameState *g);
 void set_menu_slide_rows(GameState *g, uint8_t v);
@@ -3460,10 +3573,44 @@ void set_menu_slide_rows(GameState *g, uint8_t v);
 uint16_t menu_scroll_moved(const GameState *g);
 void set_menu_scroll_moved(GameState *g, uint16_t v);
 
+/* How many lines the member list's rows move a frame as the slots window slides (0, then 6) */
+uint16_t menu_window_rows_step(const GameState *g);
+void set_menu_window_rows_step(GameState *g, uint16_t v);
+
+/* The cursor place of the first member row an item is used on (12): the member pointed at is the
+ * cursor less it */
+uint8_t menu_use_first_member(const GameState *g);
+void set_menu_use_first_member(GameState *g, uint8_t v);
+
 /* Sounds a screen has asked for and not yet played: bit 1 the menus' sound 6, bit 0 their sound
  * 7, played by $C2:EAD6 the first first */
 uint8_t menu_queued_sounds(const GameState *g);
 void set_menu_queued_sounds(GameState *g, uint8_t v);
+
+/* Nonzero where the item being used would do something for the member pointed at (HP or MP short
+ * of its greatest, a figure short of its cap), which choosing then uses it on */
+uint8_t menu_use_helps(const GameState *g);
+void set_menu_use_helps(GameState *g, uint8_t v);
+
+/* What the item being used does: for a tonic, bit 7 restores HP, bit 6 MP, bit 3 does it for
+ * every member at once (bits 2-3 from the item's targets); for a tab, which figure it raises (1
+ * power, 2 speed, 6 magic, an index into $FF:CF2B's offsets and $FF:CF32's caps) */
+uint8_t menu_use_effect(const GameState *g);
+void set_menu_use_effect(GameState *g, uint8_t v);
+
+/* Which member an item is being used on: the row the cursor points at, kept to tell when the
+ * cursor moves */
+uint8_t menu_use_member(const GameState *g);
+void set_menu_use_member(GameState *g, uint8_t v);
+
+/* How much a tonic restores: bit 7 a fixed amount (bits 0-6 times menu_heal_factor), else the
+ * power of the random amount; bit 6 all of it */
+uint8_t menu_heal_power(const GameState *g);
+void set_menu_heal_power(GameState *g, uint8_t v);
+
+/* What a tonic's power is multiplied by ($40 for an item whose figures say all, 15) */
+uint8_t menu_heal_factor(const GameState *g);
+void set_menu_heal_factor(GameState *g, uint8_t v);
 
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads */
 uint16_t menu_load_destination(const GameState *g);
@@ -3478,6 +3625,16 @@ void set_menu_graphic_first_tile(GameState *g, uint16_t v);
  * on or back */
 uint8_t menu_paging_top(const GameState *g);
 void set_menu_paging_top(GameState *g, uint8_t v);
+
+/* The cursor place of a scrolling list's first row, which its frame ($C2:EA81) counts the list's
+ * last place from */
+uint8_t menu_list_first_place(const GameState *g);
+void set_menu_list_first_place(GameState *g, uint8_t v);
+
+/* The place in the party's items of the item the items screen picked up to move, $FFFF while
+ * none is */
+uint16_t menu_item_picked(const GameState *g);
+void set_menu_item_picked(GameState *g, uint16_t v);
 
 /* The cursor position a screen keeps to come back to: the load screen's slot while it asks
  * whether to erase it */
@@ -3498,6 +3655,12 @@ enum { MENU_LIST_ITEM_COUNTS_COUNT = 98 };   /* by row of the list */
 /* How many of each of menu_list_items' items the party has */
 uint8_t menu_list_item_counts(const GameState *g, unsigned row);
 void set_menu_list_item_counts(GameState *g, unsigned row, uint8_t v);
+
+enum { MENU_HEAL_SHOWN_COUNT = 6 };   /* by the three members' HP, then their MP */
+/* The amounts restored that the members' rows show as an item is used ($C2:8F6C draws them):
+ * $FFFF where a member's shows none */
+uint16_t menu_heal_shown(const GameState *g, unsigned i);
+void set_menu_heal_shown(GameState *g, unsigned i, uint16_t v);
 
 /* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
 uint8_t menu_member_scroll_most(const GameState *g);
@@ -3669,11 +3832,23 @@ enum { MENU_CARRY_ON_QUESTION_COUNT = 256 };   /* by byte */
 uint8_t menu_carry_on_question(const GameState *g, unsigned i);
 void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
 
+enum { MENU_WINDOW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
+/* The equipment screen's windows' per-line table's values, a word a band of lines: the line
+ * their layer is shown from, which the slots and list windows move as they slide */
+uint16_t menu_window_line_values(const GameState *g, unsigned i);
+void set_menu_window_line_values(GameState *g, unsigned i, uint16_t v);
+
 enum { MENU_ROW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* The member list's per-line table's values, a word a band of lines: the line its rows are shown
  * from, which the member list's slide moves each frame and sets back to $61FF after */
 uint16_t menu_row_line_values(const GameState *g, unsigned i);
 void set_menu_row_line_values(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_ROW_LINE_VALUES_PAST_COUNT = 16 };   /* by band of lines past the member list's twelve */
+/* The words past the member list's per-line values (menu_row_line_values), which the list
+ * window's slide fills with them */
+uint16_t menu_row_line_values_past(const GameState *g, unsigned member);
+void set_menu_row_line_values_past(GameState *g, unsigned member, uint16_t v);
 
 enum { MENU_ROW_OTHER_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* A second per-line table's values beside menu_row_line_values, which the main menu's equipment
@@ -3714,6 +3889,11 @@ enum { MENU_ITEM_POWERS_COUNT = 148 };   /* by item */
 /* The first byte of each weapon's, armour's and helmet's figures: its attack or defence */
 uint8_t menu_item_powers(const GameState *g, unsigned i);
 void set_menu_item_powers(GameState *g, unsigned i, uint8_t v);
+/* The first byte of each weapon's, armour's and helmet's figures: its attack or defence
+ * Unchecked, for marked scaffolding only: the items screen's window of who can equip an
+ * accessory reads the byte past the table for its power, as the original does (docs/TODO.md) */
+uint8_t menu_item_powers_unchecked(const GameState *g, unsigned i);
+void set_menu_item_powers_unchecked(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_ITEM_NAME_PLACES_COUNT = 242 };   /* by item */
 /* Where each item's name starts in bank $CC, eleven bytes a name from $0B5E */
@@ -3832,6 +4012,14 @@ void set_menu_slot_row_table_lines(GameState *g, unsigned i, uint8_t v);
 uint16_t menu_slot_row_table_values(const GameState *g, unsigned i);
 void set_menu_slot_row_table_values(GameState *g, unsigned i, uint16_t v);
 
+enum { MENU_STAGED_LINE_TABLE_COUNT = 9 };   /* by band, the last one's lines 0 for the table's end */
+/* How many lines the band lasts (0 ends the table) */
+uint8_t menu_staged_line_table_lines(const GameState *g, unsigned i);
+void set_menu_staged_line_table_lines(GameState *g, unsigned i, uint8_t v);
+/* The value the band's lines take: the layer's vertical scroll ($1E0 shows it 32 lines up) */
+uint16_t menu_staged_line_table_value(const GameState *g, unsigned i);
+void set_menu_staged_line_table_value(GameState *g, unsigned i, uint16_t v);
+
 /* The byte after the load screen's per-line table's bands, copied with them */
 uint8_t menu_slot_row_table_end(const GameState *g);
 void set_menu_slot_row_table_end(GameState *g, uint8_t v);
@@ -3855,6 +4043,20 @@ enum { MENU_SLOT_ROW_VALUES_BYTES = 33 };
 uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at);
 void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_EQUIPPED_LIST_COUNT = 5 };   /* by slot: the weapon, the helmet, the armour, the accessory; then the record's byte after the accessory */
+/* What a member has on, in the order the card lists it, copied out of the status record as the
+ * card draws it ($C2:A6F0) */
+uint8_t menu_equipped_list(const GameState *g, unsigned slot);
+void set_menu_equipped_list(GameState *g, unsigned slot, uint8_t v);
+
+enum { MENU_ITEM_USERS_NAMES_COUNT = 7 };   /* by user */
+/* The names of the characters who can equip the item the items screen shows and have joined the
+ * party, one after another, the places past them clear, which the window lists ($C2:AEB6) [6
+ * bytes, one at a time] */
+enum { MENU_ITEM_USERS_NAMES_BYTES = 6 };
+uint8_t menu_item_users_names_byte(const GameState *g, unsigned i, unsigned at);
+void set_menu_item_users_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
 enum { MENU_RECORD_FRAME_TILE_LIST_COUNT = 96 };   /* by the tile's place in the frame */
 /* The tiles of the frame a record shows, a word each (bits 0-10 the tile in its graphics, 0 a
  * blank tile, bit 14 mirrored), copied from the frame's data over the save summary; the record's
@@ -3868,6 +4070,24 @@ void set_menu_record_frame_tile_list(GameState *g, unsigned i, uint16_t v);
 enum { MENU_SAVE_SUMMARY_BYTES = 64 };
 uint8_t menu_save_summary_byte(const GameState *g, unsigned at);
 void set_menu_save_summary_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_SORT_HELD_COUNT = 256 };   /* by item */
+/* The sorting of the party's items ($C2:AB62): each item the party holds, by the item's own
+ * number (0 for those it doesn't), cleared as an item is placed */
+uint8_t menu_sort_held(const GameState *g, unsigned i);
+void set_menu_sort_held(GameState *g, unsigned i, uint8_t v);
+
+/* The label of the figure the window of who can equip an item shows (attack or defence), copied
+ * from the ROM with an end byte after it [13 bytes, one at a time] */
+enum { MENU_ITEM_POWER_LABEL_BYTES = 13 };
+uint8_t menu_item_power_label_byte(const GameState *g, unsigned at);
+void set_menu_item_power_label_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_SORT_COUNTS_COUNT = 256 };   /* by item */
+/* The sorting of the party's items: how many of each item the party holds, the places holding it
+ * added up and held under 100 */
+uint8_t menu_sort_counts(const GameState *g, unsigned i);
+void set_menu_sort_counts(GameState *g, unsigned i, uint8_t v);
 
 /* The upload a record's frame queues: the VRAM word its tiles go to */
 uint16_t menu_record_upload_vram(const GameState *g);

@@ -12,6 +12,15 @@
  * Returns where the pen got to. */
 uint16_t menu_draw_string(GameState *g, uint32_t string, uint16_t pen, uint8_t settings);
 
+/* A colon in the text's colours (as a string leaves them), a number's
+ * value drawn as the number drawer's format byte says (its bytes, its digits,
+ * its blanking: menu_draw_number's), and a run of `tiles` blank tiles (the
+ * blanks the menus keep in work RAM, drawn as a string, so `tiles` is its
+ * settings byte). Each returns where the pen goes on. */
+uint16_t menu_draw_colon(GameState *g, uint16_t pen);
+uint16_t menu_draw_number_value(GameState *g, uint32_t value, uint8_t format, uint16_t pen);
+uint16_t menu_draw_blanks(GameState *g, uint16_t pen, uint8_t tiles);
+
 /* The time played, hours and minutes, from its digits at `digits` in bank
  * $7E, drawn at `pen`; returns where the pen goes on. */
 uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits);

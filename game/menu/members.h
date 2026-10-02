@@ -23,6 +23,21 @@ bool menu_load_member(GameState *g, uint8_t member);
  * scrolled. */
 uint8_t menu_member_on_the_cursor(const GameState *g);
 
+/* The member the menus work on (and load), as their screens keep it in the
+ * screen's argument's low byte. */
+uint8_t menu_member_worked_on(const GameState *g);
+void menu_work_on_member(GameState *g, uint8_t member);
+
+/* The character whose record the menus loaded last (menu_member_record_at
+ * says where it is), and whether that is one of the characters' records, for
+ * a screen that writes a change back to it. */
+uint8_t menu_member_character(const GameState *g);
+bool menu_member_record_is_a_characters(const GameState *g);
+
+/* What a member row's window list reads besides the record, noted for the
+ * record loaded: the character's face and name, and whether its HP is low. */
+void menu_note_member_face_and_hp(GameState *g);
+
 /* The loaded member's row of the list, drawn from the drawing origin; and
  * every row the list shows, from its first member. */
 void menu_draw_member_row(GameState *g, Platform *pf);

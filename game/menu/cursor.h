@@ -14,6 +14,18 @@
  * screen can queue (menu_queued_sounds). */
 typedef enum { MENU_SOUND_CURSOR = 0, MENU_SOUND_REFUSAL = 1, MENU_SOUND_6 = 6, MENU_SOUND_7 = 7 } MenuSound;
 
+/* What the frame's input asks for, as the cursor's reading leaves it
+ * (menu_cursor_buttons): choosing, going back, and the two shoulder
+ * assignments, which page a list (or switch the equipment screen's member);
+ * and the ways the direction pad pushed the cursor (menu_cursor_moves), with
+ * the bit for a push past the menu's places that way (a list's edge). */
+typedef enum { MENU_CHOOSE = 0x80, MENU_GO_BACK = 0x40, MENU_PAGE_ONE_WAY = 0x02, MENU_PAGE_THE_OTHER = 0x01 } MenuButton;
+typedef enum {
+    MENU_PUSHED_RIGHT = 0x01, MENU_PUSHED_LEFT = 0x02, MENU_PUSHED_DOWN = 0x04, MENU_PUSHED_UP = 0x08, MENU_PUSHED_PAST_AN_EDGE = 0x80,
+} MenuPush;
+bool menu_asked(const GameState *g, MenuButton b);
+bool menu_pushed(const GameState *g, MenuPush way);
+
 /* Every sprite out of sight; the menus' own hidden and the cursor placed, as
  * every frame; or every sprite hidden and the cursor placed facing its own
  * way. */

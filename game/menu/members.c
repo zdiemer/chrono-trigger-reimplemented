@@ -19,6 +19,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/equipment.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/tiles.h"
@@ -57,6 +58,26 @@ enum { RECORD_BYTES = 0x50, NAME_BYTES = 6, WAITING = 0xFF, ACTIVE = 0 };
 static uint16_t record_place(uint8_t character)
 {
     return (uint16_t)(RAM_ABS(RAM_CHARACTER_RECORDS) + character * RAM_CHARACTER_RECORDS_STRIDE);
+}
+
+uint8_t menu_member_worked_on(const GameState *g) { return (uint8_t)menu_screen_argument(g); }
+
+void menu_work_on_member(GameState *g, uint8_t member)
+{
+    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
+}
+
+/* The character whose record the menus loaded last, from where they noted
+ * it. */
+uint8_t menu_member_character(const GameState *g)
+{
+    return (uint8_t)((uint16_t)(menu_member_record_at(g) - RAM_ABS(RAM_CHARACTER_RECORDS)) / RAM_CHARACTER_RECORDS_STRIDE);
+}
+
+bool menu_member_record_is_a_characters(const GameState *g)
+{
+    uint16_t at = (uint16_t)(menu_member_record_at(g) - RAM_ABS(RAM_CHARACTER_RECORDS));
+    return at % RAM_CHARACTER_RECORDS_STRIDE == 0 && at / RAM_CHARACTER_RECORDS_STRIDE < CHARACTER_RECORDS_COUNT;
 }
 
 /* The original finds the record and the name with the multiplier, which it
@@ -98,7 +119,7 @@ uint8_t menu_member_on_the_cursor(const GameState *g) { return (uint8_t)(menu_me
 enum { FACE_BIT = 0x20, LOW_HP_COLOUR = 4 };
 
 // $C2:A1EF
-static void note_face_and_low_hp(GameState *g)
+void menu_note_member_face_and_hp(GameState *g)
 {
     uint8_t character = menu_status_record_character(g) & CHARACTER_BITS;
     bool low = menu_low_hp_marks(g, character) >= menu_status_record_hp(g);
@@ -114,7 +135,7 @@ enum { MEMBER_ROW = 0xBE0E, EMPTY_ROW = 0xBE15, MEMBER_CARD = 0xBE1C };
 // $C2:A216
 void menu_draw_member_row(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC2A1EF, note_face_and_low_hp(g));
+    TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
     draw_list(g, pf, MEMBER_ROW);
 }
 
@@ -128,7 +149,6 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
 {
     uint16_t member = menu_member_scroll(g);
     uint16_t at = FIRST_ROW;
-    set_menu_screen_argument(g, member);
     set_menu_draw_origin(g, at);
     for (;;) {
         bool loaded;
@@ -138,14 +158,14 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
         else
             TIMED_AS(g, 0xC2A1E9, draw_list(g, pf, EMPTY_ROW));
         member++;
-        set_menu_screen_argument(g, member);
         if (member >= menu_members_reachable(g))
-            return;
+            break;
         at = (uint16_t)(menu_draw_origin(g) + ROW_SPACING);
         set_menu_draw_origin(g, at);
         if (at >= ROWS_END)
-            return;
+            break;
     }
+    set_menu_screen_argument(g, member);
 }
 
 /* The rows' colours: a row is six tile rows of twelve tiles, from its second
@@ -226,7 +246,7 @@ void menu_start_member_card(GameState *g)
 {
     TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_AT, CLOCK_DIGITS));
     uint8_t member = menu_member_on_the_cursor(g);
-    set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
+    menu_work_on_member(g, member);
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
 }
 
@@ -235,10 +255,9 @@ void menu_draw_member_card_window(GameState *g, Platform *pf) { draw_list(g, pf,
 void menu_finish_member_card(GameState *g)
 {
     uint8_t character = menu_status_record_character(g);
-    set_menu_scratch_portrait_attribute(g, PORTRAIT_ATTRIBUTE);
     set_menu_portrait_character(g, character);
     set_menu_draw_origin(g, PORTRAIT_AT);
-    TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character));
+    TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character, PORTRAIT_ATTRIBUTE));
     TIMED_AS(g, 0xC2A273, show_element(g));
     queue_upload(g, UPLOAD_BG1_CARD);
 }
@@ -265,10 +284,28 @@ static bool character_is_drawable(const GameState *g, uint8_t member)
     return (character & NO_MEMBER) || character_records_record_byte(g, character, 0) < CHARACTERS;
 }
 
+/* What the card draws the member as having on is items of the game's: the
+ * record's, or (past the last member, where nothing is loaded) the status
+ * record's as it stands. */
+enum { EQUIPPED_FROM = 0x27, EQUIPPED_BYTES = 4 };
+
+static bool equipment_is_the_games(const GameState *g, uint8_t member)
+{
+    uint8_t character = menu_members(g, member);
+    for (unsigned i = 0; i < EQUIPPED_BYTES; i++) {
+        uint8_t item = (character & NO_MEMBER) ? menu_status_record_bytes_byte(g, EQUIPPED_FROM + i)
+                                               : character_records_record_byte(g, character, EQUIPPED_FROM + i);
+        if (item >= MENU_ITEM_NAME_PLACES_COUNT)
+            return false;
+    }
+    return true;
+}
+
 bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member)
 {
-    return menu_member_can_be_loaded(g, member) && character_is_drawable(g, member) && menu_palette_changes_have_room(g)
-           && menu_time_digits_are_decimal(g, CLOCK_DIGITS) && menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0;
+    return menu_member_can_be_loaded(g, member) && character_is_drawable(g, member) && equipment_is_the_games(g, member)
+           && menu_palette_changes_have_room(g) && menu_time_digits_are_decimal(g, CLOCK_DIGITS)
+           && menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0;
 }
 
 bool menu_member_card_can_be_drawn(const GameState *g)
@@ -316,7 +353,7 @@ void menu_load_member_entry(Snes *s)
 // $C2:A1EF
 void menu_note_member_face(Snes *s)
 {
-    note_face_and_low_hp(state_of(s));
+    menu_note_member_face_and_hp(state_of(s));
     m_rts(s);
 }
 
@@ -374,15 +411,11 @@ void menu_show_member_element(Snes *s)
 }
 
 /* The card calls out to the original's figures ($C2:9137), which works the
- * member's figures out with what it has on, and stats ($C2:A6F0), which
- * draws them where X says; neither reads the other registers or the flags. */
-enum { FIGURES_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, STATS_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-enum { STATS_AT = 0x30A2 };
-
-/* The member's place on the list (the cursor's row plus the scroll) is a sum
- * that never overflows, for the stats' drawing, which may read the
- * overflow. */
-static void leave_member_sum(Snes *s) { m_set_flag(s, CPU_FLAG_V, false); }
+ * member's figures out with what it has on, and which reads none of the
+ * registers or the flags; then what the member has on is drawn beside the
+ * card's figures. */
+enum { FIGURES_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { EQUIPPED_AT = 0x30A2 };
 
 // $C2:A22F
 /* The card of the member the cursor is on; false where a call-out came back
@@ -392,13 +425,10 @@ static bool draw_member_card(Snes *s)
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
     menu_start_member_card(g);
-    ORIGINAL_EFFECT(leave_member_sum(s));
     if (!menu_call(s, 0xC2A247, 0xC29137, FIGURES_IGNORES))
         return false;
     menu_draw_member_card_window(g, m_platform(s));
-    s->cpu.x = STATS_AT;
-    if (!menu_call(s, 0xC2A253, 0xC2A6F0, STATS_IGNORES))
-        return false;
+    TIMED_AS(g, 0xC2A6F0, menu_equip_draw_equipped(g, EQUIPPED_AT));
     menu_finish_member_card(g);
     return true;
 }

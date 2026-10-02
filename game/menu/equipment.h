@@ -109,9 +109,10 @@ void menu_equip_queue_list_rows(GameState *g);
 void menu_equip_note_list_top_for_paging(GameState *g);
 bool menu_equip_list_paged(const GameState *g);
 void menu_equip_turn_list_page(GameState *g);
-bool menu_equip_list_slide_brings_a_row(GameState *g);
+uint8_t menu_equip_list_row(const GameState *g);
+bool menu_equip_list_slide_brings_a_row(const GameState *g, uint8_t row);
 void menu_equip_set_up_list_slide(GameState *g);
-void menu_equip_bring_in_list_row(GameState *g);
+void menu_equip_bring_in_list_row(GameState *g, uint8_t row);
 bool menu_equip_start_list_slide_frames(GameState *g);
 void menu_equip_slide_list_a_frame(GameState *g);
 bool menu_equip_list_slide_frames_left(GameState *g);
@@ -133,6 +134,74 @@ bool menu_equip_screen_can_be_set_up(const GameState *g);
 bool menu_equip_member_slide_can_run(const GameState *g);
 bool menu_equip_panel_can_be_shown(const GameState *g);
 
+/* ---- The windows (game/menu/equipment_windows.c) ---------------------------------------------- */
+
+/* What the member has on, a row a slot from `at` (the card's and the slots
+ * window's). */
+void menu_equip_draw_equipped(GameState *g, uint16_t at);
+
+/* The slots window: the member's slots shown once chosen (its row at the
+ * list's top, the cursor on the first slot); the slot the cursor is on
+ * taken, its label drawn; the slots' marks, the cursor's slot undimmed. */
+void menu_equip_show_slots_of_member(GameState *g, Platform *pf);
+void menu_equip_take_slot(GameState *g);
+void menu_equip_mark_slots(GameState *g);
+void menu_equip_mark_slots_at(GameState *g, uint16_t at);
+
+/* A window's slide, a frame at a time: the slots window's band heights,
+ * frames and the member rows' wait and step; the list window's two lines
+ * and its step. The bridges keep it between the frames they wait. */
+typedef struct {
+    uint8_t top, middle, bottom;
+    uint8_t frame, rows_from;
+    uint16_t rows_step;
+} MenuWindowSlide;
+
+typedef struct {
+    uint16_t list_line, slots_line;
+    int16_t step;
+} MenuListSlide;
+
+/* The slots window sliding in (the member rows moving up), and out again
+ * once the slots are left (after the members' rows are drawn again); each
+ * frame returns whether frames are left. Then the members at rest: the
+ * member loaded and drawn on the card, and (once the original's member
+ * scroll bar is set up) the rows' table at rest. */
+void menu_equip_start_slots_slide(GameState *g, Platform *pf, MenuWindowSlide *w);
+bool menu_equip_slide_slots_a_frame(GameState *g, MenuWindowSlide *w);
+void menu_equip_clear_slot_labels(GameState *g, Platform *pf);
+void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w);
+bool menu_equip_slide_members_back_a_frame(GameState *g, MenuWindowSlide *w);
+void menu_equip_back_on_the_members(GameState *g, Platform *pf);
+void menu_equip_rest_the_member_rows(GameState *g);
+
+/* The list window: sliding in, its frame and scroll bar; the list of what
+ * fits laid out (once the original's $C2:8953 has made it), its bar (after
+ * the original's frame), drawn; the band table copied whole, the item the
+ * original describes as it opens, the cursor on the list; and sliding out,
+ * the bands back at rest. A row of the list for menu_item_operand. */
+void menu_equip_start_list_slide(GameState *g, Platform *pf, MenuListSlide *w);
+bool menu_equip_slide_list_in_a_frame(GameState *g, MenuListSlide *w);
+void menu_equip_show_list_window(GameState *g, Platform *pf);
+void menu_equip_place_list_bar(GameState *g, bool again);
+void menu_equip_lay_out_list(GameState *g);
+void menu_equip_set_list_bar(GameState *g);
+void menu_equip_draw_list(GameState *g);
+uint16_t menu_equip_list_end(void);
+void menu_equip_draw_list_row(GameState *g, uint16_t at);
+void menu_equip_open_the_list(GameState *g);
+uint8_t menu_equip_item_described_on_opening(const GameState *g);
+void menu_equip_settle_the_list(GameState *g);
+void menu_equip_start_list_closing(GameState *g, Platform *pf, MenuListSlide *w);
+bool menu_equip_slide_list_out_a_frame(GameState *g, MenuListSlide *w);
+void menu_equip_rest_the_list_bands(GameState *g);
+
+/* Back on the slots from the list: the member's row and the slots' marks
+ * drawn again (the card before them still the original's); then, once the
+ * list window has closed and the list is drawn again, the slots at rest. */
+void menu_equip_redraw_slots(GameState *g, Platform *pf);
+void menu_equip_slots_at_rest(GameState *g);
+
 /* ---- The entries (game/menu/equipment_bridge.c) ----------------------------------------------- */
 
 void menu_open_equipment(Snes *s);
@@ -150,6 +219,31 @@ void menu_forget_weapon(Snes *s);
 void menu_show_equipment_panel(Snes *s);
 void menu_dim_panel_colours(Snes *s);
 void menu_show_panel_colours(Snes *s);
+void menu_back_to_equipment_members(Snes *s);
+void menu_open_equipment_list(Snes *s);
+void menu_redraw_equipment_list(Snes *s);
+void menu_make_equipment_list(Snes *s);
+void menu_slide_equipment_list_in(Snes *s);
+void menu_slide_equipment_list_out(Snes *s);
+void menu_back_to_equipment_slots(Snes *s);
+void menu_open_slots_window(Snes *s);
+void menu_close_slots_window(Snes *s);
+void menu_show_member_slots(Snes *s);
+void menu_take_equipment_slot(Snes *s);
+void menu_mark_equipment_slots(Snes *s);
+void menu_draw_equipment_list(Snes *s);
+void menu_draw_equipment_list_row(Snes *s);
+void menu_draw_equipped_items(Snes *s);
+
+bool menu_equipment_members_come_back(Snes *s);
+bool menu_equipment_list_opens(Snes *s);
+bool menu_equipment_list_is_drawable(Snes *s);
+bool menu_equipment_list_slides(Snes *s);
+bool menu_equipment_slots_come_back(Snes *s);
+bool menu_equipment_slots_window_slides(Snes *s);
+bool menu_equipment_slots_are_showable(Snes *s);
+bool menu_equipment_slots_are_markable(Snes *s);
+bool menu_equipped_items_are_drawable(Snes *s);
 
 bool menu_equipment_opens(Snes *s);
 bool menu_equipment_sets_up(Snes *s);

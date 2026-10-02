@@ -566,10 +566,25 @@ uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits)
     }
     set_menu_time_played_shown(g, (uint16_t)(minutes << 8 | hours));
     pen = draw_value(g, hours, TWO_DIGITS, pen);
-    wram_write16(g, in_tilemap(pen, 0), (uint16_t)(menu_text_attribute(g) << 8 | COLON));
-    pen = (uint16_t)(pen + TILE_BYTES);
+    pen = menu_draw_colon(g, pen);
     return draw_value(g, minutes, TWO_DIGITS, pen);
 }
+
+uint16_t menu_draw_colon(GameState *g, uint16_t pen)
+{
+    wram_write16(g, in_tilemap(pen, 0), (uint16_t)(menu_text_attribute(g) << 8 | COLON));
+    return (uint16_t)(pen + TILE_BYTES);
+}
+
+uint16_t menu_draw_number_value(GameState *g, uint32_t value, uint8_t format, uint16_t pen)
+{
+    return draw_value(g, value, format, pen);
+}
+
+/* The blanks the menus keep in work RAM to draw as a string. */
+enum { BLANKS = 0x7E9B76 };
+
+uint16_t menu_draw_blanks(GameState *g, uint16_t pen, uint8_t tiles) { return menu_draw_string(g, BLANKS, pen, tiles); }
 
 uint16_t menu_draw_string(GameState *g, uint32_t string, uint16_t pen, uint8_t settings)
 {
