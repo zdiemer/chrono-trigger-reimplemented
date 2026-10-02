@@ -14,16 +14,20 @@
  * - a command carried out ($0BAC, with the command in $8D-$90), wherever
  *   that is: in either batch, between ticks, or in the wait for the echo's
  *   buffer. A song's command is announced there (sound_announce_song: the
- *   music stops and the echo moves), and the song started once its upload
- *   is in ($0C08), after anything that upload loaded; there the two are
- *   compared as at a tick's start, since what the command did must be done
- *   before the samples arrive;
+ *   music stops and the echo moves, the echo's buffer having been kept free
+ *   of samples first, as the CPU half does before it sends the command), and
+ *   the rest of the song done once its upload is in ($0C08): the two are
+ *   compared there as at a tick's start, since what the command did must be
+ *   done before the samples arrive, and then the C side places the song's
+ *   samples and starts it (sound_load_announced_song);
  * - the echo writing again after a delay change ($1397): sound_echo_drained;
  *   and its buffer ready ($0CE5 for a song's, $134B for command $FC's):
  *   sound_echo_ready;
  * - an upload's header ($1035): the set of effects (at $2F00, the set the CPU
- *   half's work RAM says it sent) or command $71's instrument (at $1F40
- *   outside a song's upload, the block its parameter names);
+ *   half's work RAM says it sent; during a song's upload, the set loaded
+ *   again if the C side finds a song ran over it) or command $71's
+ *   instrument (at $1F40 outside a song's upload, the block its parameter
+ *   names, with its sample where the C side places it);
  * - the tick it runs while data is uploaded ($0415);
  * - the voices' output levels its meter reads ($145C), which change every
  *   sample, handed to the C driver when it reads them.
@@ -54,6 +58,14 @@ void sound_lockstep_listen(SoundLockstep *l, SoundAudio *audio);
 /* From the APU's hooks (Apu.on_insn and Apu.on_dsp_write). */
 void sound_lockstep_insn(SoundLockstep *l, const Apu *apu);
 void sound_lockstep_dsp_write(SoundLockstep *l, const Apu *apu, uint8_t reg, uint8_t value);
+
+/* With the original's CPU half running (ct_dev, not ct_sound_fuzz, which plays
+ * a CPU half of its own that sends no samples): also compare the C side's
+ * places for the songs' samples (game/sound/loads.c) with the CPU half's
+ * tables in work RAM once it is done with each song, change of the echo's
+ * delay and instrument, and the samples and the song's directory entries in
+ * sound memory below the echo. A difference fails the report. */
+void sound_lockstep_check_places(SoundLockstep *l);
 
 /* Whether the drivers have differed at a tick so far. */
 bool sound_lockstep_diverged(const SoundLockstep *l);

@@ -61,13 +61,17 @@ typedef struct Apu {
      * (through $F3), before it takes effect; ctx is on_insn_ctx. */
     void (*on_dsp_write)(void *ctx, const struct Apu *apu, uint8_t reg, uint8_t value);
     /* Optional: a program on the host that runs in place of the SPC700's
-     * once the boot upload has started one (frontend/sound_host.h): given the
-     * SPC700 cycles to take, it answers the ports and plays through the S-DSP,
-     * and returns the cycles it took; the timers and the S-DSP run on them as
-     * ever. It hands back to the boot ROM by setting PC to $FFC0 with the ROM
-     * mapped, as the driver's reload command does. */
+     * once it has put the APU in APU_DRIVER (frontend/sound_host.h, at the
+     * CPU half's boot): given the SPC700 cycles to take, it answers the ports
+     * and plays through the S-DSP, and returns the cycles it took; the timers
+     * and the S-DSP run on them as ever. */
     unsigned (*host)(void *ctx, struct Apu *apu, unsigned cycles);
     void *host_ctx;
+    /* Optional, with `host`: the CPU half's boot upload and its commands
+     * taken by the host program as calls, in place of the upload and the
+     * ports (platform/audio.h, au_driver_boot_taken). */
+    void (*host_boot)(void *ctx, struct Apu *apu);
+    void (*host_command)(void *ctx, struct Apu *apu, const uint8_t command[4], uint8_t effects_asked);
 } Apu;
 
 /* SPC700 writes to $F1 that cleared the CPU-to-APU ports: [0] ports 0-1, [1]

@@ -4,9 +4,9 @@
 everything else runs on the development system (see [RUNTIME.md](RUNTIME.md)
 and [PORTING.md](PORTING.md)). It needs your own ROM (see the README) and SDL2.
 
-Sound comes from the game's own sound driver on the SPC700 and the S-DSP model
-(see the APU section of [RUNTIME.md](RUNTIME.md)), played through SDL audio.
-`--mute` turns it off.
+Sound comes from the game's sound driver reimplemented in C (`game/sound/`,
+[SOUND.md](SOUND.md)) playing through the S-DSP model (see the APU section of
+[RUNTIME.md](RUNTIME.md)), and out through SDL audio. `--mute` turns it off.
 
 ## Build
 
@@ -157,17 +157,21 @@ sound driver, so it implies `--recomp on`, and it can't be combined with
 game and then waits for it; the buffer absorbs short leads, and a long one can
 show up as a short gap. `--audio snes` (the default) keeps the original timing.
 
-`--sound-driver c` plays the sound driver's C port (`game/sound/`,
-[SOUND.md](SOUND.md) "The port as built") in place of the original on the
-SPC700. The CPU half still uploads the original and talks to it through the
-ports; once the boot upload starts it, the SPC700 stays idle and
-`frontend/sound_host.c` answers the ports as the original's loop and upload
-receivers would, runs the driver's ticks on its timer, and has it play into
-the same S-DSP model. The answers come sooner than the original's, so the
-game's timing is not the original's: the mode can't replay or record a movie,
-and since the driver's state isn't in a saved state, it can't save or load one
-either. `--sound-driver original` is the default. It combines with either
-`--audio` backend.
+The sound driver is the C one (`game/sound/`, [SOUND.md](SOUND.md) "The port as
+built") unless `--sound-driver original` asks for the game's own on the
+SPC700. The game's CPU half of the driver hands its boot and its commands to
+`frontend/sound_host.c` as calls: the driver boots, and each command is
+carried out as the CPU half took it, a song with its samples placed in sound
+memory by the driver itself, so nothing is uploaded and the SPC700 stays idle.
+The host runs the driver's ticks on the APU's time, waits out the echo's
+buffer as the original does, and has the driver play into the same S-DSP
+model. So a new song starts at once rather than after its upload, and the
+game's timing is not the original's. What needs that timing or the
+original's code gets the original driver: replaying or recording a movie,
+`--load-zst`, `--audio direct`, `--native off` or `shadow` and `--recomp only`
+(the C driver takes the CPU half's calls in its ported entries, which run only
+with `--native on` and the ported routines); `--sound-driver c` with any of
+them is refused.
 
 The picture comes from the native renderer ([PLATFORM.md](PLATFORM.md), P3),
 which draws each frame from the video service's frame state rather than from the
@@ -250,9 +254,13 @@ is the cartridge's 8 KiB SRAM, the format other emulators use.
 Quick saves go to `<rom name>.state` in the same place. A quick save made by
 one build loads in later builds too, including ones whose machine has changed
 since: the state is written field by field, and a field added since comes up at
-its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). A state that can't
-be read -- damaged, from another ROM, or from before this format -- is refused
-with a message, and the game goes on as it was. A quick save waits for the end
+its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). With the C sound
+driver the state holds the driver's fields beside the machine's
+(`sound_host_state`), so a state loads only with the driver it was saved with:
+one saved with `--sound-driver original` (or by `ct_dev`) needs that option to
+load. A state that can't be read -- damaged, from another ROM, from before
+this format, or from the other driver -- is refused with a message, and the
+game goes on as it was. A quick save waits for the end
 of a frame where the state keeps everything: no native routine suspended in a
 call-out, and no time the hand ports owe (their estimated time is charged
 after they run, so it can still be passing when a frame ends;

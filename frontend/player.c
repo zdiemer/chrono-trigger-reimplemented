@@ -193,31 +193,36 @@ uint64_t player_owed(const Player *pl)
     return pl->runtime_mode == NATIVE_ON ? native_owed(pl->natives) : 0;
 }
 
-/* A state holds the machine, and the C sound driver's state is the host's. */
-static const char no_state_with_c_sound_driver[] = "the C sound driver's state isn't in a saved state";
+/* A state holds the machine and, with the C sound driver playing, the
+ * driver's fields beside it (sound_host_state). */
+static const SnesStateExtra *sound_fields(Player *pl)
+{
+    return pl->sound_host ? sound_host_state(pl->sound_host) : NULL;
+}
 
 uint8_t *player_save_state(Player *pl, size_t *len)
 {
-    if (pl->sound_host) {
-        fprintf(stderr, "%s\n", no_state_with_c_sound_driver);
+    const SnesStateExtra *extra = sound_fields(pl);
+    if (pl->sound_host && !extra)
         return NULL;
-    }
-    return snes_state_write(&pl->snes, len);
+    return snes_state_write_with(&pl->snes, extra, len);
 }
 
-/* A state holds only the machine, so native routines suspended in call-outs when
- * it was saved can't resume, and time owed is lost; the player saves only where
- * player_save_ready allows. */
+/* A state holds only the machine (and the C sound driver's fields), so native
+ * routines suspended in call-outs when it was saved can't resume, and time owed
+ * is lost; the player saves only where player_save_ready allows. A state loads
+ * only with the sound driver it was saved with. */
 int player_load_state(Player *pl, const uint8_t *data, size_t len, char *why, size_t why_len)
 {
     Track *t = &pl->track;
     if (t->record_name && (!t->state_ours || ct_crc32(data, len) != t->state_crc))
         return PLAYER_NOT_OURS;
-    if (pl->sound_host) {
-        snprintf(why, why_len, "%s", no_state_with_c_sound_driver);
+    const SnesStateExtra *extra = sound_fields(pl);
+    if (pl->sound_host && !extra) {
+        snprintf(why, why_len, "out of memory");
         return -1;
     }
-    if (snes_state_read(&pl->snes, data, len, why, why_len) != 0)
+    if (snes_state_read_with(&pl->snes, extra, data, len, why, why_len) != 0)
         return -1;
     natives_start(pl, pl->runtime_mode);
     if (t->record_name && pl->snes.frame < t->frames) {
