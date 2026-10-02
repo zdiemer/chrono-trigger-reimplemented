@@ -19,6 +19,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/equipment.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/tiles.h"
@@ -387,15 +388,11 @@ void menu_show_member_element(Snes *s)
 }
 
 /* The card calls out to the original's figures ($C2:9137), which works the
- * member's figures out with what it has on, and stats ($C2:A6F0), which
- * draws them where X says; neither reads the other registers or the flags. */
-enum { FIGURES_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, STATS_IGNORES = DC_A | DC_Y | DC_N | DC_Z | DC_C };
-enum { STATS_AT = 0x30A2 };
-
-/* The member's place on the list (the cursor's row plus the scroll) is a sum
- * that never overflows, for the stats' drawing, which may read the
- * overflow. */
-static void leave_member_sum(Snes *s) { m_set_flag(s, CPU_FLAG_V, false); }
+ * member's figures out with what it has on, and which reads none of the
+ * registers or the flags; then what the member has on is drawn beside the
+ * card's figures. */
+enum { FIGURES_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { EQUIPPED_AT = 0x30A2 };
 
 // $C2:A22F
 /* The card of the member the cursor is on; false where a call-out came back
@@ -405,13 +402,10 @@ static bool draw_member_card(Snes *s)
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
     menu_start_member_card(g);
-    ORIGINAL_EFFECT(leave_member_sum(s));
     if (!menu_call(s, 0xC2A247, 0xC29137, FIGURES_IGNORES))
         return false;
     menu_draw_member_card_window(g, m_platform(s));
-    s->cpu.x = STATS_AT;
-    if (!menu_call(s, 0xC2A253, 0xC2A6F0, STATS_IGNORES))
-        return false;
+    TIMED_AS(g, 0xC2A6F0, menu_equip_draw_equipped(g, EQUIPPED_AT));
     menu_finish_member_card(g);
     return true;
 }

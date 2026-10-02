@@ -2570,6 +2570,20 @@ void set_menu_scratch_member_row_colour(GameState *g, uint16_t v);
 /* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here */
 uint8_t menu_scratch_list_rows(const GameState *g);
 void set_menu_scratch_list_rows(GameState *g, uint8_t v);
+/* The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it
+ * staged last */
+uint16_t menu_scratch_band_value(const GameState *g);
+void set_menu_scratch_band_value(GameState *g, uint16_t v);
+/* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's
+ * place in the table */
+uint16_t menu_scratch_slot_label(const GameState *g);
+void set_menu_scratch_slot_label(GameState *g, uint16_t v);
+/* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
+uint16_t menu_scratch_marked_slot(const GameState *g);
+void set_menu_scratch_marked_slot(GameState *g, uint16_t v);
+/* The same: how many slots it has marked, 4 once done */
+uint16_t menu_scratch_slots_marked(const GameState *g);
+void set_menu_scratch_slots_marked(GameState *g, uint16_t v);
 /* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted
  * out from the top, 0 once done */
 uint8_t menu_scratch_users_bits(const GameState *g);
@@ -2655,6 +2669,28 @@ void set_menu_slide_line(GameState *g, uint16_t v);
  * then the minutes */
 uint16_t menu_time_played_shown(const GameState *g);
 void set_menu_time_played_shown(GameState *g, uint16_t v);
+
+/* The slots window: the lines of its top band (the screen shown 32 lines up) */
+uint8_t menu_window_slide_top_lines(const GameState *g);
+void set_menu_window_slide_top_lines(GameState *g, uint8_t v);
+/* The slots window: the lines of its middle band (16 lines up) */
+uint8_t menu_window_slide_middle_lines(const GameState *g);
+void set_menu_window_slide_middle_lines(GameState *g, uint8_t v);
+/* The slots window: the lines of its bottom band (48 lines up), which grows as it slides in */
+uint8_t menu_window_slide_bottom_lines(const GameState *g);
+void set_menu_window_slide_bottom_lines(GameState *g, uint8_t v);
+/* The list window: the line its layer is shown from (menu_window_line_values') */
+uint16_t menu_window_slide_list_line(const GameState *g);
+void set_menu_window_slide_list_line(GameState *g, uint16_t v);
+/* The list window: the line the slots' rows are shown from (menu_row_line_values' and past) */
+uint16_t menu_window_slide_slots_line(const GameState *g);
+void set_menu_window_slide_slots_line(GameState *g, uint16_t v);
+/* The list window: the lines both move a frame (4 sliding in, -4 out) */
+uint16_t menu_window_slide_step(const GameState *g);
+void set_menu_window_slide_step(GameState *g, uint16_t v);
+/* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
+uint16_t menu_window_slide_rows_left(const GameState *g);
+void set_menu_window_slide_rows_left(GameState *g, uint16_t v);
 
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) */
@@ -3204,6 +3240,15 @@ void set_menu_scroll_step(GameState *g, uint16_t v);
 uint16_t menu_scroll_frames(const GameState *g);
 void set_menu_scroll_frames(GameState *g, uint16_t v);
 
+/* The frames a window of the equipment screen has slid */
+uint8_t menu_window_frames_slid(const GameState *g);
+void set_menu_window_frames_slid(GameState *g, uint8_t v);
+
+/* The frame the member list's rows start (or stop) moving as the slots window slides: eight
+ * frames a row below the cursor's */
+uint8_t menu_window_rows_wait(const GameState *g);
+void set_menu_window_rows_wait(GameState *g, uint8_t v);
+
 /* Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the
  * armor, $29 the weapon, $2A the accessory, set by $C2:A4AF) */
 uint16_t menu_equip_record_place(const GameState *g);
@@ -3473,6 +3518,10 @@ void set_menu_slide_rows(GameState *g, uint8_t v);
 uint16_t menu_scroll_moved(const GameState *g);
 void set_menu_scroll_moved(GameState *g, uint16_t v);
 
+/* How many lines the member list's rows move a frame as the slots window slides (0, then 6) */
+uint16_t menu_window_rows_step(const GameState *g);
+void set_menu_window_rows_step(GameState *g, uint16_t v);
+
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
 uint8_t menu_use_first_member(const GameState *g);
@@ -3728,11 +3777,23 @@ enum { MENU_CARRY_ON_QUESTION_COUNT = 256 };   /* by byte */
 uint8_t menu_carry_on_question(const GameState *g, unsigned i);
 void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
 
+enum { MENU_WINDOW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
+/* The equipment screen's windows' per-line table's values, a word a band of lines: the line
+ * their layer is shown from, which the slots and list windows move as they slide */
+uint16_t menu_window_line_values(const GameState *g, unsigned i);
+void set_menu_window_line_values(GameState *g, unsigned i, uint16_t v);
+
 enum { MENU_ROW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* The member list's per-line table's values, a word a band of lines: the line its rows are shown
  * from, which the member list's slide moves each frame and sets back to $61FF after */
 uint16_t menu_row_line_values(const GameState *g, unsigned i);
 void set_menu_row_line_values(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_ROW_LINE_VALUES_PAST_COUNT = 16 };   /* by band of lines past the member list's twelve */
+/* The words past the member list's per-line values (menu_row_line_values), which the list
+ * window's slide fills with them */
+uint16_t menu_row_line_values_past(const GameState *g, unsigned member);
+void set_menu_row_line_values_past(GameState *g, unsigned member, uint16_t v);
 
 enum { MENU_ROW_OTHER_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* A second per-line table's values beside menu_row_line_values, which the main menu's equipment
@@ -3896,6 +3957,14 @@ void set_menu_slot_row_table_lines(GameState *g, unsigned i, uint8_t v);
 uint16_t menu_slot_row_table_values(const GameState *g, unsigned i);
 void set_menu_slot_row_table_values(GameState *g, unsigned i, uint16_t v);
 
+enum { MENU_STAGED_LINE_TABLE_COUNT = 9 };   /* by band, the last one's lines 0 for the table's end */
+/* How many lines the band lasts (0 ends the table) */
+uint8_t menu_staged_line_table_lines(const GameState *g, unsigned i);
+void set_menu_staged_line_table_lines(GameState *g, unsigned i, uint8_t v);
+/* The value the band's lines take: the layer's vertical scroll ($1E0 shows it 32 lines up) */
+uint16_t menu_staged_line_table_value(const GameState *g, unsigned i);
+void set_menu_staged_line_table_value(GameState *g, unsigned i, uint16_t v);
+
 /* The byte after the load screen's per-line table's bands, copied with them */
 uint8_t menu_slot_row_table_end(const GameState *g);
 void set_menu_slot_row_table_end(GameState *g, uint8_t v);
@@ -3918,6 +3987,12 @@ void set_menu_slot_row_template_end(GameState *g, uint8_t v);
 enum { MENU_SLOT_ROW_VALUES_BYTES = 33 };
 uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at);
 void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_EQUIPPED_LIST_COUNT = 5 };   /* by slot: the weapon, the helmet, the armour, the accessory; then the record's byte after the accessory */
+/* What a member has on, in the order the card lists it, copied out of the status record as the
+ * card draws it ($C2:A6F0) */
+uint8_t menu_equipped_list(const GameState *g, unsigned slot);
+void set_menu_equipped_list(GameState *g, unsigned slot, uint8_t v);
 
 enum { MENU_ITEM_USERS_NAMES_COUNT = 7 };   /* by user */
 /* The names of the characters who can equip the item the items screen shows and have joined the

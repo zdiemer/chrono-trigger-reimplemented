@@ -587,6 +587,23 @@ static inline uint16_t menu_element_label_colour(const GameState *g, MenuElement
     return rom_read16(g, MENU_PORTRAIT_BANK | (uint16_t)(colours + 2u * i));
 }
 
+/* The equipment screen's slots: each slot's label, ten glyphs in bank C2
+ * ($C2:A3BA, ten bytes a slot: where the string starts), and the slot's
+ * item's place in a character's record ($C2:A4AB). */
+enum { MENU_SLOT_LABEL_BYTES = 10 };
+static inline uint32_t menu_slot_label(const GameState *g, uint8_t slot)
+{
+    (void)g;
+    return 0xC20000u | (uint16_t)(0xA3BA + slot * MENU_SLOT_LABEL_BYTES);
+}
+static inline uint8_t menu_slot_record_place(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC2A4ABu + slot); }
+
+/* The equipment screen's per-line band table at rest, as the slots window
+ * closes ($C2:AA06): six bands, three bytes each (the lines, the value),
+ * and the table's end. */
+enum { MENU_SLOTS_BANDS_AT_REST = 6 };
+static inline uint8_t menu_slots_bands_at_rest_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xC2AA06u + i); }
+
 /* The equipment screen's four colours ($FF:9C70) and the four the main
  * menu's panel for it highlights with ($FF:CBAC), in bank $FF for
  * menu_rom_colour. */

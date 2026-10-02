@@ -43,34 +43,29 @@ enum {
     SET_ITEMS_ASIDE = 0xC290FC,      /* the party's items set aside, where the menus keep them so ($0D7E) */
     PUT_ITEMS_BACK = 0xC29121,       /* ... and put back */
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
-    SLOTS_WINDOW = 0xC2A71E,         /* the slots' window drawn */
-    MEMBER_SLOTS = 0xC2A321,         /* the member's four slots drawn */
     LIST_WHAT_FITS = 0xC28953,       /* the list of what fits the slot made */
-    DRAW_LIST = 0xC2A569,            /* ... and drawn */
-    REDRAW_LIST = 0xC2A45D,          /* both again, for another slot or member */
-    MEMBERS_AGAIN = 0xC2A85C,        /* the member list drawn again, back from the slots */
-    SLOT_ON_CURSOR = 0xC2A38B,       /* the slot the cursor is on taken, and its place in a record */
-    SLOT_MARKS = 0xC2A3E2,           /* the slots' marks drawn */
+    FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
+    START_SCROLL_BAR = 0xC28B93,     /* the scroll bar's task started */
+    DESCRIBE = 0xC2F2F3,             /* the description window drawn for the item in A */
+    LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     GIVE_BACK = 0xC28791,            /* menu_item_operand added to the party's items */
     TAKE = 0xC287D5,                 /* ... and taken from them */
     PREVIEW_ITEM = 0xC2A5C3,         /* the list's item on the cursor put in the record, the figures with it */
-    SLOTS_AGAIN = 0xC2A64D,          /* the card, the rows and the slots drawn again, back from the list */
     TURN_PAGE = 0xC293BF,            /* the list's paging with the shoulder assignments */
     MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
     START_LIST_SLIDE = 0xC2EB9B,     /* a list's slide started */
-    DRAW_LIST_ROW = 0xC2A59A,        /* one row of the list drawn where X says */
     LIST_SLIDE_FRAME = 0xC2EB1F,     /* a frame of a list's slide, and the wait for the next */
     START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
 };
 
-/* Where a step jumps on to: the member list's move and the slots' pointing
- * (ports of this file), the screen's set-up, the card, back to the main
- * menu, back to the members, on to the list, the refusal's sound, and the
- * stop of the list's task. */
+/* Where a step jumps on to: the member list's move and the slots' pointing,
+ * the screen's set-up, the card, back to the members, on to the list (ports
+ * of these files), back to the main menu, the refusal's sound and the cursor
+ * sound as a step's last, and the stop of the list's task. */
 enum {
     POINT_AT_MEMBER = 0xC29D17, POINT_AT_SLOT = 0xC29ECD, SET_UP_SCREEN = 0xC2A11A, MEMBER_CARD = 0xC2A22F,
     MAIN_MENU = 0xC29A98, BACK_TO_MEMBERS = 0xC2A2CD, ON_TO_THE_LIST = 0xC2A41A, REFUSAL_SOUND = 0xC2EACC,
-    STOP_TASKS = 0xC28255,
+    CURSOR_SOUND = 0xC2EAC2, STOP_TASKS = 0xC28255,
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
@@ -85,6 +80,8 @@ enum {
     READS_X_MAY_READ_V = DC_A | DC_Y | DC_N | DC_Z | DC_C,
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+    READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
+    READS_A_LOW = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
 static bool call(Snes *s, uint32_t site, uint32_t routine) { return menu_call(s, site, routine, READS_NOTHING); }
@@ -116,7 +113,9 @@ static void leave_buttons_tested(Snes *s);
 static void leave_cursor_compared(Snes *s);
 static void leave_member_pointed(Snes *s, uint8_t pointed_before);
 static void leave_slot_kept(Snes *s, uint8_t kept_before);
-static void leave_list_sum(Snes *s);
+static void leave_list_sum(Snes *s, uint8_t shown_before);
+static void leave_label_copied(Snes *s);
+static void leave_list_drawn(Snes *s);
 static void leave_member_switched(Snes *s);
 static void leave_panel_tested(Snes *s, uint8_t row_before);
 static void leave_page_turned(Snes *s);
@@ -169,10 +168,12 @@ void menu_choose_equipment_member(Snes *s)
     ORIGINAL_EFFECT(leave_member_step_tested(s));
     switch (c) {
     case MEMBER_CHOSEN:
-        if (!tick(s, 0xC29C52) || !menu_call(s, 0xC29C55, SLOTS_WINDOW, MAY_READ_V_C)
-            || !menu_call(s, 0xC29C58, MEMBER_SLOTS, MAY_READ_V_C) || !yield(s, 0xC29C5B) || !tick(s, 0xC29C5E)
-            || !call(s, 0xC29C61, LIST_WHAT_FITS) || !menu_call(s, 0xC29C64, DRAW_LIST, MAY_READ_V))
+        if (!tick(s, 0xC29C52) || !menu_run(s, 0xC29C55, 0xC2A71E, menu_open_slots_window))
             return;
+        TIMED_AS(g, 0xC2A321, menu_equip_show_slots_of_member(g, m_platform(s)));
+        if (!yield(s, 0xC29C5B) || !tick(s, 0xC29C5E) || !call(s, 0xC29C61, LIST_WHAT_FITS))
+            return;
+        TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
         menu_equip_queue_list_rows(g);
         m_rts(s);
         return;
@@ -236,7 +237,7 @@ void menu_choose_equipment_slot(Snes *s)
     ORIGINAL_EFFECT(leave_slot_step_tested(s, c));
     switch (c) {
     case SLOT_LEFT_FOR_THE_MEMBERS:
-        if (!tick(s, 0xC29C9C) || !menu_call(s, 0xC29C9F, MEMBERS_AGAIN, MAY_READ_V_C))
+        if (!tick(s, 0xC29C9C) || !menu_run(s, 0xC29C9F, 0xC2A85C, menu_close_slots_window))
             return;
         m_stop_at(s, BACK_TO_MEMBERS, READS_NOTHING);
         return;
@@ -260,19 +261,21 @@ void menu_point_at_equipment_slot(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    if (!call(s, 0xC29ED0, SLOT_ON_CURSOR) || !menu_run(s, 0xC29ED3, 0xC2A00B, menu_switch_equipment_member))
+    TIMED_AS(g, 0xC2A38B, menu_equip_take_slot(g));
+    ORIGINAL_EFFECT(leave_label_copied(s));
+    if (!menu_run(s, 0xC29ED3, 0xC2A00B, menu_switch_equipment_member))
         return;
     uint8_t kept_before = menu_equip_kept_slot(g);
     bool moved = menu_equip_keep_slot(g);
     ORIGINAL_EFFECT(leave_slot_kept(s, kept_before));
     if (moved && !tick(s, 0xC29EE0))
         return;
-    if (!call(s, 0xC29EE3, SLOT_MARKS))
-        return;
+    TIMED_AS(g, 0xC2A3E2, menu_equip_mark_slots(g));
     menu_equip_show_slots(g);
+    uint8_t shown_before = menu_equip_shown(g);
     bool another = menu_equip_list_is_for_another_slot(g);
-    ORIGINAL_EFFECT(leave_list_sum(s));
-    if (another && (!yield(s, 0xC29EFD) || !menu_call(s, 0xC29F00, REDRAW_LIST, MAY_READ_V)))
+    ORIGINAL_EFFECT(leave_list_sum(s, shown_before));
+    if (another && (!yield(s, 0xC29EFD) || !menu_run(s, 0xC29F00, 0xC2A45D, menu_redraw_equipment_list)))
         return;
     menu_restore_p(s);
     m_stop_dont_care(s, 0xC29F04, READS_NOTHING);
@@ -289,10 +292,13 @@ void menu_switch_equipment_member(Snes *s)
     menu_set_widths(s, true, true);
     bool switched = menu_equip_switch_member(g);
     ORIGINAL_EFFECT(leave_member_switched(s));
-    if (switched
-        && (!tick(s, 0xC2A043) || !menu_run(s, 0xC2A046, 0xC2A21F, menu_redraw_member_card) || !call(s, 0xC2A049, SLOT_MARKS)
-            || !yield(s, 0xC2A04C)))
-        return;
+    if (switched) {
+        if (!tick(s, 0xC2A043) || !menu_run(s, 0xC2A046, 0xC2A21F, menu_redraw_member_card))
+            return;
+        TIMED_AS(g, 0xC2A3E2, menu_equip_mark_slots(g));
+        if (!yield(s, 0xC2A04C))
+            return;
+    }
     menu_restore_p(s);
     m_rts(s);
 }
@@ -310,7 +316,8 @@ static void back_to_the_slots(Snes *s)
     if (!tick(s, 0xC29CE4))
         return;
     menu_equip_return_to_the_kept_slot(g);
-    if (!menu_call(s, 0xC29CEC, SLOTS_AGAIN, MAY_READ_V_C))
+    ORIGINAL_EFFECT(menu_leave_load(s, menu_cursor_index(g)));
+    if (!menu_run(s, 0xC29CEC, 0xC2A64D, menu_back_to_equipment_slots))
         return;
     menu_equip_back_to_the_slots(g);
     m_set_a8(s, LIST_TASK);
@@ -371,7 +378,9 @@ void menu_point_along_equipment_list(Snes *s)
     if (menu_equip_list_paged(g)) {
         menu_equip_turn_list_page(g);
         ORIGINAL_EFFECT(leave_page_turned(s));
-        if (!menu_call(s, 0xC29F23, DRAW_LIST, MAY_READ_V) || !tick(s, 0xC29F26))
+        TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
+        ORIGINAL_EFFECT(leave_list_drawn(s));
+        if (!tick(s, 0xC29F26))
             return;
         menu_equip_queue_list_rows(g);
         m_rts(s);
@@ -388,9 +397,7 @@ void menu_point_along_equipment_list(Snes *s)
         return;
     menu_equip_bring_in_list_row(g);
     ORIGINAL_EFFECT(leave_row_found(s));
-    s->cpu.x = NEW_LIST_ROW_AT;
-    if (!menu_call(s, 0xC29F84, DRAW_LIST_ROW, READS_X_MAY_READ_V))
-        return;
+    TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, NEW_LIST_ROW_AT));
     menu_equip_queue_list_rows(g);
     ORIGINAL_EFFECT(leave_list_rows_queued(s));
     if (!tick(s, 0xC29F8D))
@@ -477,6 +484,238 @@ void menu_show_panel_colours(Snes *s)
     m_rts(s);
 }
 
+/* ---- The windows ------------------------------------------------------------------------------- */
+
+/* The description drawn for an item, A holding it. */
+static bool describe(Snes *s, uint32_t site, uint16_t a)
+{
+    s->cpu.a = a;
+    return menu_call(s, site, DESCRIBE, READS_A_LOW);
+}
+
+// $C2:A71E
+/* The slots window sliding in, a frame at a time after a wait for each. */
+void menu_open_slots_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    MenuWindowSlide w;
+    menu_equip_start_slots_slide(g, m_platform(s), &w);
+    menu_set_widths(s, true, false);
+    do {
+        if (!yield(s, 0xC2A785))
+            return;
+    } while (menu_equip_slide_slots_a_frame(g, &w));
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A85C
+/* The slots window going: a frame, the members' rows, a frame, then the
+ * slide out, a frame at a time after a wait for each. */
+void menu_close_slots_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    if (!yield(s, 0xC2A85F))
+        return;
+    menu_equip_clear_slot_labels(g, pf);
+    if (!yield(s, 0xC2A88F))
+        return;
+    MenuWindowSlide w;
+    menu_equip_start_members_slide(g, &w);
+    menu_set_widths(s, true, false);
+    do {
+        if (!yield(s, 0xC2A945))
+            return;
+    } while (menu_equip_slide_members_back_a_frame(g, &w));
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A2CD
+/* Back on the members, the member scroll bar set up (the original's)
+ * between. */
+void menu_back_to_equipment_members(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, true, m_x8(s));
+    menu_equip_back_on_the_members(g, m_platform(s));
+    if (!call(s, 0xC2A2ED, MEMBER_SCROLL_BAR))
+        return;
+    menu_equip_rest_the_member_rows(g);
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A4AF
+/* The list window sliding in: a frame at a time until its band is grown. */
+void menu_slide_equipment_list_in(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    MenuListSlide w;
+    menu_equip_start_list_slide(g, m_platform(s), &w);
+    menu_set_widths(s, true, false);
+    while (menu_equip_slide_list_in_a_frame(g, &w))
+        if (!yield(s, 0xC2A511))
+            return;
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A697
+/* The list window sliding out, and its bands at rest. */
+void menu_slide_equipment_list_out(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    MenuListSlide w;
+    menu_equip_start_list_closing(g, m_platform(s), &w);
+    menu_set_widths(s, true, false);
+    while (menu_equip_slide_list_out_a_frame(g, &w))
+        if (!yield(s, 0xC2A6DC))
+            return;
+    menu_equip_rest_the_list_bands(g);
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+/* The list of what fits made (the original's), laid out, its frame (the
+ * original's), its bar, the bar's task (the original's), and drawn. The
+ * drawing leaves the pen past the list in A. */
+static void make_the_list(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    if (!call(s, 0xC2A466, LIST_WHAT_FITS))
+        return;
+    menu_equip_lay_out_list(g);
+    menu_set_widths(s, true, true);
+    s->cpu.y = menu_equip_choices(g);
+    if (!menu_call(s, 0xC2A494, FRAME_THE_LIST, READS_Y))
+        return;
+    menu_equip_set_list_bar(g);
+    if (!call(s, 0xC2A4A3, START_SCROLL_BAR))
+        return;
+    TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
+    ORIGINAL_EFFECT(leave_list_drawn(s));
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A463
+void menu_make_equipment_list(Snes *s) { make_the_list(s); }
+
+// $C2:A45D
+/* The list drawn again, its bar a row lower. */
+void menu_redraw_equipment_list(Snes *s)
+{
+    menu_equip_place_list_bar(state_of(s), true);
+    ORIGINAL_EFFECT(menu_leave_load(s, 0x62));
+    make_the_list(s);
+}
+
+// $C2:A41A
+/* On to the list: the window slides in, its frame and bar, the list made
+ * and drawn, the item the original happens to point at described, the cursor
+ * on the list, and the cursor's sound last (its own, which the original
+ * jumps to). */
+void menu_open_equipment_list(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_save_p(s);
+    menu_set_widths(s, true, m_x8(s));
+    if (!menu_run(s, 0xC2A41D, 0xC2A4AF, menu_slide_equipment_list_in))
+        return;
+    menu_equip_show_list_window(g, m_platform(s));
+    ORIGINAL_EFFECT(menu_leave_load(s, 0x42));
+    if (!menu_run(s, 0xC2A432, 0xC2A463, menu_make_equipment_list))
+        return;
+    menu_equip_open_the_list(g);
+    if (!describe(s, 0xC2A44A, (uint16_t)((s->cpu.a & 0xFF00) | menu_equip_item_described_on_opening(g))))
+        return;
+    menu_equip_settle_the_list(g);
+    menu_restore_p(s);
+    m_stop_at_own(s, CURSOR_SOUND, READS_A);
+}
+
+// $C2:A64D
+/* Back on the slots: the card again (its own), the low-HP marks (the
+ * original's), the member's row and the marks, a frame, the list window
+ * sliding out and the list drawn again (both their own), and the slots at
+ * rest. */
+void menu_back_to_equipment_slots(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    menu_save_p(s);
+    menu_set_widths(s, false, false);
+    if (!menu_run(s, 0xC2A650, MEMBER_CARD, menu_draw_member_card) || !call(s, 0xC2A653, LOW_HP_MARKS))
+        return;
+    menu_equip_redraw_slots(g, pf);
+    if (!yield(s, 0xC2A661))
+        return;
+    ORIGINAL_EFFECT(menu_leave_load(s, 0x2E));
+    if (!menu_run(s, 0xC2A664, 0xC2A697, menu_slide_equipment_list_out)
+        || !menu_run(s, 0xC2A667, 0xC2A45D, menu_redraw_equipment_list))
+        return;
+    menu_equip_slots_at_rest(g);
+    menu_restore_p(s);
+    m_rts(s);
+}
+
+// $C2:A321
+void menu_show_member_slots(Snes *s)
+{
+    menu_equip_show_slots_of_member(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+// $C2:A38B
+void menu_take_equipment_slot(Snes *s)
+{
+    menu_equip_take_slot(state_of(s));
+    m_rts(s);
+}
+
+// $C2:A3E2
+void menu_mark_equipment_slots(Snes *s)
+{
+    menu_equip_mark_slots(state_of(s));
+    m_rts(s);
+}
+
+// $C2:A569
+void menu_draw_equipment_list(Snes *s)
+{
+    menu_equip_draw_list(state_of(s));
+    m_rts(s);
+}
+
+// $C2:A59A
+/* A row at X. */
+void menu_draw_equipment_list_row(Snes *s)
+{
+    menu_equip_draw_list_row(state_of(s), s->cpu.x);
+    m_rts(s);
+}
+
+// $C2:A6F0
+/* What the member has on, from X. */
+void menu_draw_equipped_items(Snes *s)
+{
+    menu_equip_draw_equipped(state_of(s), s->cpu.x);
+    m_rts(s);
+}
+
 /* ---- What the original's tests leave ----------------------------------------------------------- */
 
 /* The pushes the steps test first (menu_cursor_moves). */
@@ -536,9 +775,28 @@ static void leave_slot_kept(Snes *s, uint8_t kept_before)
     menu_leave_compare(s, menu_cursor_index(state_of(s)), kept_before);
 }
 
-/* The slot's and the member's sum the list is recorded by never overflows,
- * for the list's drawing, which may read it. */
-static void leave_list_sum(Snes *s) { m_set_flag(s, CPU_FLAG_V, false); }
+/* The slot's and the member's sum the list is recorded by, compared with
+ * the one recorded before; the sum never overflows. */
+static void leave_list_sum(Snes *s, uint8_t shown_before)
+{
+    const GameState *g = state_of(s);
+    menu_leave_compare(s, menu_equip_shown(g), shown_before);
+    m_set_flag(s, CPU_FLAG_V, false);
+}
+
+/* The slot's label copied to the other layer by a block move, which leaves
+ * A at $FFFF and the indexes past the copy. */
+enum { LABEL_COPY_FROM_END = 0x30C0, LABEL_COPY_TO_END = 0x38C0 };
+
+static void leave_label_copied(Snes *s)
+{
+    s->cpu.a = 0xFFFF;
+    s->cpu.x = LABEL_COPY_FROM_END;
+    s->cpu.y = LABEL_COPY_TO_END;
+}
+
+/* The list drawn: the pen past its last row in A. */
+static void leave_list_drawn(Snes *s) { s->cpu.a = menu_equip_list_end(); }
 
 /* The member switched to is compared with the list's last row as the list
  * is laid out for it: from the last row on the list scrolls (the row loaded),
@@ -727,3 +985,51 @@ bool menu_panel_colours_dim(Snes *s)
 }
 
 bool menu_panel_colours_show(Snes *s) { return menu_on_page_work_ram(s); }
+
+/* ---- The windows' guards ----------------------------------------------------------------------- */
+
+/* The slots: one of four, the cursor's for its label; the items a member has
+ * on, each one of the game's. */
+enum { SLOT_PLACES = 4, EQUIPPED_AT_0 = 0x27, EQUIPPED_BYTES = 4, LIST_ROWS_DRAWN = 8 };
+
+static bool equipped_are_items(const GameState *g)
+{
+    for (unsigned i = 0; i < EQUIPPED_BYTES; i++)
+        if (menu_status_record_bytes_byte(g, EQUIPPED_AT_0 + i) >= MENU_ITEM_NAME_PLACES_COUNT)
+            return false;
+    return true;
+}
+
+/* The list of what fits drawn from its first row: every place it reaches
+ * one of the list's, every item one of the game's. */
+static bool list_is_drawable(const GameState *g)
+{
+    if (menu_equip_slot(g) >= SLOT_PLACES || menu_equip_list_top(g) + LIST_ROWS_DRAWN > MENU_LIST_ITEMS_COUNT)
+        return false;
+    for (unsigned i = 0; i < LIST_ROWS_DRAWN; i++)
+        if (menu_list_items(g, menu_equip_list_top(g) + i) >= MENU_ITEM_NAME_PLACES_COUNT)
+            return false;
+    return menu_equip_choices(g) <= MENU_LIST_ITEMS_COUNT;
+}
+
+static bool member_shows(const GameState *g)
+{
+    return menu_member_row(g) < MENU_MEMBER_ROWS && menu_member_card_can_be_drawn_for(g, menu_member_on_the_cursor(g));
+}
+
+static bool members_come_back(const GameState *g) { return queue_takes(g, 1) && member_shows(g) && menu_window_list_drawable(g, 0xBDEF); }
+static bool list_opens(const GameState *g) { return queue_takes(g, 4) && list_is_drawable(g) && menu_window_list_drawable(g, 0xBEEC); }
+static bool slots_come_back(const GameState *g) { return queue_takes(g, 4) && member_shows(g) && list_is_drawable(g) && equipped_are_items(g); }
+static bool window_slides(const GameState *g) { return queue_takes(g, 3) && member_shows(g) && menu_member_rows_can_be_drawn(g); }
+static bool slots_show(const GameState *g) { return queue_takes(g, 3) && member_shows(g); }
+static bool slots_mark(const GameState *g) { return menu_equip_slot(g) < SLOT_PLACES && menu_cursor_index(g) < SLOT_PLACES; }
+
+bool menu_equipment_members_come_back(Snes *s) { return on_the_screen(s) && peek(s, members_come_back); }
+bool menu_equipment_list_opens(Snes *s) { return on_the_screen(s) && peek(s, list_opens); }
+bool menu_equipment_list_is_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, list_is_drawable); }
+bool menu_equipment_list_slides(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_show); }
+bool menu_equipment_slots_come_back(Snes *s) { return on_the_screen(s) && peek(s, slots_come_back); }
+bool menu_equipment_slots_window_slides(Snes *s) { return on_the_screen(s) && peek(s, window_slides); }
+bool menu_equipment_slots_are_showable(Snes *s) { return on_the_screen(s) && peek(s, slots_show); }
+bool menu_equipment_slots_are_markable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_mark); }
+bool menu_equipped_items_are_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, equipped_are_items); }

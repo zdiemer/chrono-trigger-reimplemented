@@ -138,6 +138,7 @@ add_library(ct_game STATIC
   game/menu/epoch.c
   game/menu/equipment.c
   game/menu/equipment_bridge.c
+  game/menu/equipment_windows.c
   game/menu/frame.c
   game/menu/glyphs.c
   game/menu/graphics.c

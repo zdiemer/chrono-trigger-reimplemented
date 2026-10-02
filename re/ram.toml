@@ -5136,6 +5136,26 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 0
   meaning = "A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here"
   [[var.field]]
+  name = "band_value"
+  offset = 0
+  size = 2
+  meaning = "The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it staged last"
+  [[var.field]]
+  name = "slot_label"
+  offset = 0
+  size = 2
+  meaning = "The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's place in the table"
+  [[var.field]]
+  name = "marked_slot"
+  offset = 0
+  size = 2
+  meaning = "The equipment screen's slots' marks ($C2:A3ED): the slot marked"
+  [[var.field]]
+  name = "slots_marked"
+  offset = 2
+  size = 2
+  meaning = "The same: how many slots it has marked, 4 once done"
+  [[var.field]]
   name = "users_bits"
   offset = 0
   meaning = "The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted out from the top, 0 once done"
@@ -6799,6 +6819,123 @@ size = 0x480
 subsystem = "menu"
 meaning = "The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows apart, and the row past the last where a slide draws the row coming in"
 source = "game/menu/equipment.c, the list's rows moved $C2:9FDE"
+
+[[var]]
+name = "menu_equipped_list"
+addr = "7E:9890"
+reuses = ["menu_record_frame_tile_list", "menu_save_summary", "menu_item_users_names", "menu_sort_held"]
+count = 5
+index = "slot: the weapon, the helmet, the armour, the accessory; then the record's byte after the accessory"
+subsystem = "menu"
+meaning = "What a member has on, in the order the card lists it, copied out of the status record as the card draws it ($C2:A6F0)"
+source = "game/menu/equipment_windows.c"
+
+[[var]]
+name = "menu_window_slide"
+addr = "7E:0022"
+reuses = ["menu_slide_line", "menu_opening_records_loaded", "menu_time_played_shown", "menu_save_member_row", "menu_slide_copy", "menu_save_era_width"]
+page = "menu"
+stride = 6
+subsystem = "menu"
+meaning = "A window of the equipment screen sliding in or out, frame by frame: the slots window's three bands of lines, or the list window's two per-line values and its step"
+source = "game/menu/equipment_windows.c"
+  [[var.field]]
+  name = "top_lines"
+  offset = 0
+  meaning = "The slots window: the lines of its top band (the screen shown 32 lines up)"
+  [[var.field]]
+  name = "middle_lines"
+  offset = 2
+  meaning = "The slots window: the lines of its middle band (16 lines up)"
+  [[var.field]]
+  name = "bottom_lines"
+  offset = 4
+  meaning = "The slots window: the lines of its bottom band (48 lines up), which grows as it slides in"
+  [[var.field]]
+  name = "list_line"
+  offset = 0
+  size = 2
+  meaning = "The list window: the line its layer is shown from (menu_window_line_values')"
+  [[var.field]]
+  name = "slots_line"
+  offset = 2
+  size = 2
+  meaning = "The list window: the line the slots' rows are shown from (menu_row_line_values' and past)"
+  [[var.field]]
+  name = "step"
+  offset = 4
+  size = 2
+  meaning = "The list window: the lines both move a frame (4 sliding in, -4 out)"
+  [[var.field]]
+  name = "rows_left"
+  offset = 0
+  size = 2
+  meaning = "The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done"
+
+[[var]]
+name = "menu_window_line_values"
+addr = "7E:5CC2"
+size = 2
+count = 12
+index = "band of lines"
+subsystem = "menu"
+meaning = "The equipment screen's windows' per-line table's values, a word a band of lines: the line their layer is shown from, which the slots and list windows move as they slide"
+source = "game/menu/equipment_windows.c"
+
+[[var]]
+name = "menu_row_line_values_past"
+addr = "7E:5D5A"
+size = 2
+count = 16
+index = "band of lines past the member list's twelve"
+subsystem = "menu"
+meaning = "The words past the member list's per-line values (menu_row_line_values), which the list window's slide fills with them"
+source = "game/menu/equipment_windows.c, $C2:A518"
+
+[[var]]
+name = "menu_staged_line_table"
+addr = "7E:969A"
+reuses = ["menu_slot_row_table", "menu_slot_row_table_end"]
+stride = 3
+count = 9
+index = "band, the last one's lines 0 for the table's end"
+subsystem = "menu"
+meaning = "The equipment screen's per-line table, staged for the vblank's block move to $7E:9300 (or a band on, $9303), where its per-line channel reads it: a band of lines each and the value it gives them"
+source = "game/menu/equipment_windows.c"
+  [[var.field]]
+  name = "lines"
+  offset = 0
+  meaning = "How many lines the band lasts (0 ends the table)"
+  [[var.field]]
+  name = "value"
+  offset = 1
+  size = 2
+  meaning = "The value the band's lines take: the layer's vertical scroll ($1E0 shows it 32 lines up)"
+
+[[var]]
+name = "menu_window_frames_slid"
+addr = "7E:0D24"
+reuses = "menu_scroll_frames"
+subsystem = "menu"
+meaning = "The frames a window of the equipment screen has slid"
+source = "game/menu/equipment_windows.c"
+
+[[var]]
+name = "menu_window_rows_wait"
+addr = "7E:0D25"
+reuses = "menu_scroll_frames"
+subsystem = "menu"
+meaning = "The frame the member list's rows start (or stop) moving as the slots window slides: eight frames a row below the cursor's"
+source = "game/menu/equipment_windows.c"
+
+[[var]]
+name = "menu_window_rows_step"
+addr = "7E:0DAB"
+reuses = "menu_scroll_moved"
+size = 2
+subsystem = "menu"
+meaning = "How many lines the member list's rows move a frame as the slots window slides (0, then 6)"
+source = "game/menu/equipment_windows.c"
 
 [[var]]
 name = "menu_item_list_row"

@@ -1961,6 +1961,10 @@
 #define RAM_MENU_SCRATCH_MEMBER_ROW_PLACE 0x7E0004u /* The same: where in the tilemap buffer the row it colours starts, a row past the last when done */
 #define RAM_MENU_SCRATCH_MEMBER_ROW_COLOUR 0x7E0006u /* The same: the tiles across a row it colours (low byte) and the colour it gives them (high byte), the last row's left */
 #define RAM_MENU_SCRATCH_LIST_ROWS 0x7E0000u /* A scrolling list's frame ($C2:EA81): the rows it shows, which its caller leaves here */
+#define RAM_MENU_SCRATCH_BAND_VALUE 0x7E0000u /* The equipment screen's per-line table as a window slides ($C2:AA19): the value of the band it staged last */
+#define RAM_MENU_SCRATCH_SLOT_LABEL 0x7E0000u /* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's place in the table */
+#define RAM_MENU_SCRATCH_MARKED_SLOT 0x7E0000u /* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
+#define RAM_MENU_SCRATCH_SLOTS_MARKED 0x7E0002u /* The same: how many slots it has marked, 4 once done */
 #define RAM_MENU_SCRATCH_USERS_BITS 0x7E0000u /* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted out from the top, 0 once done */
 #define RAM_MENU_SCRATCH_USERS_COUNTED 0x7E0001u /* The same: how many of the bits it looked at, the one past the last user */
 #define RAM_MENU_SCRATCH_PORTRAIT_ATTRIBUTE 0x7E0001u /* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
@@ -1993,6 +1997,17 @@
  * then the minutes [2 bytes] */
 #define RAM_MENU_TIME_PLAYED_SHOWN 0x7E0022u
 #define RAM_MENU_TIME_PLAYED_SHOWN_DP 0x22u  /* page menu */
+/* A window of the equipment screen sliding in or out, frame by frame: the slots window's three
+ * bands of lines, or the list window's two per-line values and its step [6 bytes] */
+#define RAM_MENU_WINDOW_SLIDE 0x7E0022u
+#define RAM_MENU_WINDOW_SLIDE_DP 0x22u       /* page menu */
+#define RAM_MENU_WINDOW_SLIDE_TOP_LINES 0x7E0022u /* The slots window: the lines of its top band (the screen shown 32 lines up) */
+#define RAM_MENU_WINDOW_SLIDE_MIDDLE_LINES 0x7E0024u /* The slots window: the lines of its middle band (16 lines up) */
+#define RAM_MENU_WINDOW_SLIDE_BOTTOM_LINES 0x7E0026u /* The slots window: the lines of its bottom band (48 lines up), which grows as it slides in */
+#define RAM_MENU_WINDOW_SLIDE_LIST_LINE 0x7E0022u /* The list window: the line its layer is shown from (menu_window_line_values') */
+#define RAM_MENU_WINDOW_SLIDE_SLOTS_LINE 0x7E0024u /* The list window: the line the slots' rows are shown from (menu_row_line_values' and past) */
+#define RAM_MENU_WINDOW_SLIDE_STEP 0x7E0026u /* The list window: the lines both move a frame (4 sliding in, -4 out) */
+#define RAM_MENU_WINDOW_SLIDE_ROWS_LEFT 0x7E0022u /* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) [2 bytes] */
 #define RAM_MENU_SAVE_MEMBER_ROW 0x7E0024u
@@ -2364,6 +2379,11 @@
 #define RAM_MENU_SCROLL_STEP 0x7E0D22u
 /* The frames a list's slide has left [2 bytes] */
 #define RAM_MENU_SCROLL_FRAMES 0x7E0D24u
+/* The frames a window of the equipment screen has slid */
+#define RAM_MENU_WINDOW_FRAMES_SLID 0x7E0D24u
+/* The frame the member list's rows start (or stop) moving as the slots window slides: eight
+ * frames a row below the cursor's */
+#define RAM_MENU_WINDOW_ROWS_WAIT 0x7E0D25u
 /* Where in a character's record the equipment screen's slot's item is ($27 the helmet, $28 the
  * armor, $29 the weapon, $2A the accessory, set by $C2:A4AF) [2 bytes] */
 #define RAM_MENU_EQUIP_RECORD_PLACE 0x7E0D26u
@@ -2534,6 +2554,9 @@
 /* How far a list's slide has moved so far (its steps summed), which the item lists' slide frame
  * ($C2:EB1F) moves the rows' lines by [2 bytes] */
 #define RAM_MENU_SCROLL_MOVED 0x7E0DABu
+/* How many lines the member list's rows move a frame as the slots window slides (0, then 6) [2
+ * bytes] */
+#define RAM_MENU_WINDOW_ROWS_STEP 0x7E0DABu
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
 #define RAM_MENU_USE_FIRST_MEMBER 0x7E0DBBu
@@ -2705,12 +2728,23 @@
 #define RAM_MENU_CARRY_ON_QUESTION 0x7E52C0u
 #define RAM_MENU_CARRY_ON_QUESTION_COUNT 256u
 #define RAM_MENU_CARRY_ON_QUESTION_STRIDE 0x01u
+/* The equipment screen's windows' per-line table's values, a word a band of lines: the line
+ * their layer is shown from, which the slots and list windows move as they slide [12 x $2 bytes,
+ * by band of lines] */
+#define RAM_MENU_WINDOW_LINE_VALUES 0x7E5CC2u
+#define RAM_MENU_WINDOW_LINE_VALUES_COUNT 12u
+#define RAM_MENU_WINDOW_LINE_VALUES_STRIDE 0x02u
 /* The member list's per-line table's values, a word a band of lines: the line its rows are shown
  * from, which the member list's slide moves each frame and sets back to $61FF after [12 x $2
  * bytes, by band of lines] */
 #define RAM_MENU_ROW_LINE_VALUES 0x7E5D42u
 #define RAM_MENU_ROW_LINE_VALUES_COUNT 12u
 #define RAM_MENU_ROW_LINE_VALUES_STRIDE 0x02u
+/* The words past the member list's per-line values (menu_row_line_values), which the list
+ * window's slide fills with them [16 x $2 bytes, by band of lines past the member list's twelve] */
+#define RAM_MENU_ROW_LINE_VALUES_PAST 0x7E5D5Au
+#define RAM_MENU_ROW_LINE_VALUES_PAST_COUNT 16u
+#define RAM_MENU_ROW_LINE_VALUES_PAST_STRIDE 0x02u
 /* A second per-line table's values beside menu_row_line_values, which the main menu's equipment
  * panel fills with $61FF too [12 x $2 bytes, by band of lines] */
 #define RAM_MENU_ROW_OTHER_LINE_VALUES 0x7E5DC2u
@@ -2821,6 +2855,14 @@
 #define RAM_MENU_SLOT_ROW_TABLE_STRIDE 0x03u
 #define RAM_MENU_SLOT_ROW_TABLE_LINES 0x7E969Au /* How many lines the band lasts */
 #define RAM_MENU_SLOT_ROW_TABLE_VALUES 0x7E969Bu /* Where in bank $7E the band's values are */
+/* The equipment screen's per-line table, staged for the vblank's block move to $7E:9300 (or a
+ * band on, $9303), where its per-line channel reads it: a band of lines each and the value it
+ * gives them [9 x $3 bytes, by band, the last one's lines 0 for the table's end] */
+#define RAM_MENU_STAGED_LINE_TABLE 0x7E969Au
+#define RAM_MENU_STAGED_LINE_TABLE_COUNT 9u
+#define RAM_MENU_STAGED_LINE_TABLE_STRIDE 0x03u
+#define RAM_MENU_STAGED_LINE_TABLE_LINES 0x7E969Au /* How many lines the band lasts (0 ends the table) */
+#define RAM_MENU_STAGED_LINE_TABLE_VALUE 0x7E969Bu /* The value the band's lines take: the layer's vertical scroll ($1E0 shows it 32 lines up) */
 /* The byte after the load screen's per-line table's bands, copied with them */
 #define RAM_MENU_SLOT_ROW_TABLE_END 0x7E96A9u
 /* The load screen's per-line table as its setup builds it, before a slot's row is marked [5 x $3
@@ -2835,6 +2877,12 @@
 /* The values the load screen's per-line effect gives its rows, a byte a line, as $C2:D044 has
  * them: 16 lines of one, 16 of another, then a last that a row of its own reads [33 bytes] */
 #define RAM_MENU_SLOT_ROW_VALUES 0x7E9720u
+/* What a member has on, in the order the card lists it, copied out of the status record as the
+ * card draws it ($C2:A6F0) [5 x $1 bytes, by slot: the weapon, the helmet, the armour, the
+ * accessory; then the record's byte after the accessory] */
+#define RAM_MENU_EQUIPPED_LIST 0x7E9890u
+#define RAM_MENU_EQUIPPED_LIST_COUNT 5u
+#define RAM_MENU_EQUIPPED_LIST_STRIDE 0x01u
 /* The names of the characters who can equip the item the items screen shows and have joined the
  * party, one after another, the places past them clear, which the window lists ($C2:AEB6) [7 x
  * $6 bytes, by user] */

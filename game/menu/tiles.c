@@ -54,7 +54,7 @@ void menu_draw_portrait(GameState *g, uint16_t origin, uint8_t character)
 
 /* A stretch of tiles of a row and the row below it given one attribute. */
 // $C2:ECAC
-static void set_row_pair_attribute(GameState *g, uint16_t at, uint32_t tiles, uint8_t attribute)
+void menu_colour_row_pair(GameState *g, uint16_t at, uint32_t tiles, uint8_t attribute)
 {
     for (uint32_t i = 0; i < tiles; i++) {
         set_attribute_at(g, (uint16_t)(at + i * TILE_BYTES), attribute);
@@ -98,7 +98,7 @@ void menu_draw_large_portrait(Snes *s)
 void menu_set_row_pair_attribute(Snes *s)
 {
     GameState *g = state_of(s);
-    set_row_pair_attribute(g, menu_draw_origin(g), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
+    menu_colour_row_pair(g, menu_draw_origin(g), tiles_asked(s), (uint8_t)(s->cpu.a >> 8));
     s->cpu.a = (uint16_t)(s->cpu.a << 8 | s->cpu.a >> 8);
     m_rts(s);
 }
