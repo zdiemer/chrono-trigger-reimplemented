@@ -44,7 +44,7 @@ struct SoundLockstep {
     Snes *snes;
     SoundCompareLevel level;
     SoundDriver driver;
-    AuVoices voices;
+    VoicesDsp voices;
     uint8_t regs[128];
     uint8_t memory[0x10000];
     uint8_t levels[8];         /* the voices' output levels the original's meter read this tick */
@@ -117,7 +117,7 @@ SoundLockstep *sound_lockstep_create(Snes *s, SoundCompareLevel level)
         return NULL;
     l->snes = s;
     l->level = level;
-    l->voices = (AuVoices){ l, read_register, write_register, write_memory, read_memory };
+    voices_dsp_init(&l->voices, l, read_register, write_register, write_memory, read_memory);
     return l;
 }
 
@@ -226,8 +226,8 @@ static void close_tick(SoundLockstep *l)
 
 static void fill_memory(uint8_t out[SOUND_COMPARED_MEMORY], const uint8_t *memory)
 {
-    memcpy(out, memory + VOICES_DSP_OWN_SAMPLE, VOICES_DSP_OWN_SAMPLE_BYTES);
-    memcpy(out + VOICES_DSP_OWN_SAMPLE_BYTES, memory + VOICES_DSP_DIRECTORY + 4 * 0x10, 4);
+    memcpy(out, memory + VOICES_OWN_SAMPLE, VOICES_OWN_SAMPLE_BYTES);
+    memcpy(out + VOICES_OWN_SAMPLE_BYTES, memory + VOICES_DIRECTORY + 4 * 0x10, 4);
 }
 
 static void compare(SoundLockstep *l)
@@ -366,7 +366,7 @@ static void boot(SoundLockstep *l, const Apu *apu)
     if (l->audio)
         sound_audio_boot(l->audio, &l->snes->apu);
     bool was = quiet_begin();
-    sound_boot(&l->driver, state_of(l->snes), &l->voices);
+    sound_boot(&l->driver, state_of(l->snes), &l->voices.voices);
     quiet_end(was);
     l->driver.echo_waits = true;
     l->booted = true;

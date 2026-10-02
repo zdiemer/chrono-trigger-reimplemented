@@ -1076,12 +1076,19 @@ rest waits, is [PLAN.md](PLAN.md).
     than the decoder, so it waits on the P2 and P3 leftovers above.
   - **Audio.** Output is already SDL2's audio device, which covers WASAPI,
     CoreAudio and ALSA/PipeWire, so another output layer buys little. The real
-    items are PLAN.md's Phase 4a, and they are no longer optional or later.
-    **A native mixer behind the voices** (`platform/audio.h`, "The voices",
-    and the sample memory the C driver places its samples in) that decodes the
-    same BRR samples and runs the same envelopes and echo, replacing
-    `runtime/apu/dsp.c` in the shipped product, and a note-stream comparison
-    (SOUND.md, "Validating the port") for when the lockstep reference is gone.
+    items are PLAN.md's Phase 4a, and they are no longer optional or later:
+    the native mixer as `ct_play`'s default (it is built and makes the S-DSP's
+    every frame: PLATFORM.md, "The native mixer, as built"), and a note-stream
+    comparison (SOUND.md, "Validating the port") for when the lockstep
+    reference is gone.
+  - **What the native mixer's check doesn't reach.** `dsp_test`'s random
+    samples never make the Gaussian sum wrap (the mixer keeps the S-DSP's
+    wrap; the movies' comparison is identical, but nothing shows a movie
+    reaches it either): a sample built to overshoot would. And the mixer's
+    sound memory is a copy of the SPC700's 64 KiB with the original driver's
+    layout, which is what keeps the echo's overwrites; a build that loads the
+    samples as assets will want them out of it, with the echo's buffer still
+    lying over the ones the original lets it reach.
   - **The effects check's scaffold reads with the C sound driver.** The route
     check plays the driver that ships, but the scaffold reads come from the
     vblank check's shipping-mode runs, which play the original driver because

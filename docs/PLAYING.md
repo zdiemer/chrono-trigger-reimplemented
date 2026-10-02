@@ -171,7 +171,10 @@ original's code gets the original driver: replaying or recording a movie,
 `--load-zst`, `--audio direct`, `--native off` or `shadow` and `--recomp only`
 (the C driver takes the CPU half's calls in its ported entries, which run only
 with `--native on` and the ported routines); `--sound-driver c` with any of
-them is refused.
+them is refused. `--mixer native` has the C driver's voices made into sound by
+the native mixer in the S-DSP's place ([PLATFORM.md](PLATFORM.md), "The native
+mixer, as built"), the same sound frame for frame; `--mixer dsp`, the S-DSP,
+is the default for now.
 
 The picture comes from the native renderer ([PLATFORM.md](PLATFORM.md), P3),
 which draws each frame from the video service's frame state rather than from the
@@ -256,7 +259,8 @@ one build loads in later builds too, including ones whose machine has changed
 since: the state is written field by field, and a field added since comes up at
 its power-on value ([RUNTIME.md](RUNTIME.md), "Save states"). With the C sound
 driver the state holds the driver's fields beside the machine's
-(`sound_host_state`), so a state loads only with the driver it was saved with:
+(`sound_host_state`), so a state loads only with the driver it was saved with,
+and through the mixer it was saved with (`--mixer`):
 one saved with `--sound-driver original` (or by `ct_dev`) needs that option to
 load, and so do quick saves made before the C driver became the default, which
 were all saved with the original's. A state that can't be read -- damaged, from another ROM, from before

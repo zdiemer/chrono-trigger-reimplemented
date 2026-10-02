@@ -341,6 +341,8 @@ driver to C, native mixer behind `au_*`":
 So the order is: the driver port against a voice-level interface whose first
 implementation writes the S-DSP registers (so it can be checked against the
 interpreted driver register for register), then the mixer behind that interface.
+Both are built: "The port as built", below, and PLATFORM.md, "The native
+mixer, as built", which makes every frame the S-DSP makes over every movie.
 
 ## Validating the port
 
@@ -567,7 +569,9 @@ command with `sound_game_command`, runs the ticks on the APU's time (`Apu.host`,
 with the SPC700 left idle), waits out the echo's buffer after a change of its
 delay as the original does (holding what comes meanwhile, in order), shows the
 status on the ports, and still answers the commands the scene writes to the
-ports itself. The voices write the emulated S-DSP, which makes the sound. A
+ports itself. The voices write the emulated S-DSP, which makes the sound, or
+with `--mixer native` the native mixer makes it in the S-DSP's place, frame
+for frame the same (PLATFORM.md, "The native mixer, as built"). A
 command takes no time where the original's took frames over its uploads, so
 the game's timing is not the original's and the mode can't replay a movie
 (from power-on the title music starts about a second sooner). A saved state
@@ -594,8 +598,9 @@ the movie, the timing not being the original's), with the same check: none
 over battle-magus and fair. `ct_drive --sound-driver c` plays it for the
 routes (MOVIES.md, "Routes as a test"), its machine copies and state files
 holding the host's half (`sound_host_copy`, `sound_host_restore`). A state
-names the host program that saved it (`apu.host`, the C driver's number), so
-a later one, the native mixer, can't load another's fields.
+names the host program that saved it (`apu.host`: the C driver's number, and
+another for the C driver through the native mixer), so a state loads only
+with the program, and the mixer, that saved it.
 
 **In the gate** (`tools/suite.py`; PLAN.md lists the gate):
 
@@ -605,8 +610,9 @@ a later one, the native mixer, can't load another's fields.
   lockstep's verdict fails (`lockstep`).
 - *`ct_sound_fuzz`*, ten runs of 400 commands from seed 1 of each of its four
   kinds (against the original at the `state` level, with the game's songs and
-  with made-up ones, and in the SPC700's place, likewise), two at a time,
-  about half a minute (`sound-fuzz`). It needs the ROM (the driver's program
+  with made-up ones, and in the SPC700's place, likewise, there with the native
+  mixer's every frame compared with the S-DSP's: `--mixer check`), two at a
+  time, about half a minute (`sound-fuzz`). It needs the ROM (the driver's program
   and data are the cartridge's), so CI runs only `sound_test`.
 - *The routes* in the shipping mode play the C driver (`route_check --mode
   on:on:c`), so the gate shows the game reaches its outcomes with the driver
