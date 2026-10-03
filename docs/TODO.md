@@ -277,6 +277,11 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
+  - the demo battle's party entries (`battle_demo_party_ready`,
+    `battle_demo_next_turn`) keep round `cost_milli` estimates (3000): no
+    movie plays a demo battle's party turns, so the timing gate has nothing to
+    calibrate them from (`battle_party_stands_down`, 3500, measured exact over
+    the library). A movie of the attract mode's battle would;
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the
