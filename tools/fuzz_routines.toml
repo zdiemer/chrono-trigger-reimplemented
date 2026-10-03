@@ -472,7 +472,7 @@ name = "scene_race_check_perspective"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a frame task on the scene's page; the perspective it stops at is the original's"
+why = "a frame task on the scene's page; the perspective it builds is the race's (scene_build_perspective)"
 
 [[routine]]
 name = "scene_race_turn_camera"
@@ -678,81 +678,77 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=3D45-3D45"]
 why = "the race's own table, since the guard refuses any other"
 
 [[routine]]
-name = "scene_race_clear_buffers"
+name = "scene_race_set_up"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "the race's setup from the program's mode table, the program kept (its code is the guard's hash, its resources' unpacking the original's); the driver's echo looped back for the song"
 
 [[routine]]
-name = "scene_race_setup_maps"
+name = "scene_race_sweep_curtain"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0350-7E0350=00-02", "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0353=E000", "--fill", "7E0354-7E0355=007E"]
+why = "a frame task of the race without its panel; the curtain's state as its setup leaves it and its sweep makes it (the step is the original's, and random state sends it through memory)"
 
 [[routine]]
-name = "scene_race_fill_map"
+name = "scene_build_perspective"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0A00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0C=00-DF", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A16-7E0A16=00-01", "--fill", "7E0A17-7E0A17=00-00"]
+why = "on channel 0's page, the race's start of the lines kept with the program; a horizon on the screen and the lines paired or not, as the race's camera script sets them (the guard refuses the rest, where the original's loop runs on through memory)"
 
 [[routine]]
-name = "scene_race_load_plane_graphics"
-at = "7E:3DC8"
+name = "scene_build_perspective"
+variant = "ending"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0B00", "--keep", "7E3000-7EC994", "--fill", "7E35FD-7E35FE=9B46", "--fill", "7E0B0C-7E0B0C=01-DF", "--fill", "7E0B0D-7E0B0D=00-00"]
+why = "on channel 1's page with the endings' start of the lines, from the line above the horizon, with the step the program has (the endings' start is the call's other operand)"
 
 [[routine]]
-name = "scene_race_load_plane_map"
-at = "7E:3DE1"
+name = "scene_race_place_bikes"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "a frame task on the scene's page with the carry clear, the program kept; the horizon ($38 in the race, $60-$7F raised in the demo) above the plane's top ($18), as the guard asks; the divisors' table as random as the rest (a kept divisor is taken as it is)"
 
 [[routine]]
-name = "scene_race_load_layer_tiles"
-at = "7E:3E01"
+name = "scene_race_place_bikes"
+variant = "searching"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1446-7E1545=00-00", "--fill", "7E1444-7E1445=0000,0001", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "the divisors forgotten, as a new camera height leaves them, so every distance is searched for; Johnny in the picture or gone"
 
 [[routine]]
-name = "scene_race_load_more_layer_tiles"
-at = "7E:3E20"
+name = "scene_race_scale_pictures"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
+why = "the main loop's call; the racers' requests' states as the race keeps them, and their row steps below $1000, the race's sizes halved (compared to the scaler's first row, where it stops)"
 
 [[routine]]
-name = "scene_race_load_sprite_graphics"
-at = "7E:3E30"
+name = "scene_race_scale_after_crono"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
+why = "back from Crono's picture gathered, A the request's new state (the guard asks for it); Johnny's request as the race keeps it"
 
 [[routine]]
-name = "scene_race_load_bg1_map"
-at = "7E:3E58"
+name = "scene_race_scale_after_johnny"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002"]
+why = "back from Johnny's picture gathered, A the request's new state"
 
 [[routine]]
-name = "scene_race_load_bg3_map"
-at = "7E:3E8A"
+name = "scene_race_gather_scaled"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_race_load_bg2_map"
-at = "7E:3EA0"
-subsystem = "scene"
-state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EC994"]
+why = "after the upload, the data bank the scaler's (the regrouping reads the picture through it)"
 
 [[routine]]
 name = "scene_race_move_camera"

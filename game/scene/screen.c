@@ -218,7 +218,7 @@ bool scene_transfer_present(Snes *s)
  * destination and length) into the register and in the mode the caller put in
  * the scene's scratch. Both are game data the loaders choose, so it goes
  * through the SNES-only escape; the movies' loaders all feed the VRAM data port. */
-static void transfer(const GameState *g, Platform *pf)
+void scene_send_unpacked(const GameState *g, Platform *pf)
 {
     SceneProgramPage scene = scene_program_own();
     const VidSnesTransfer t = { .dest = scene_call_transfer_register(g, scene), .source = decompress_dest(g),
@@ -230,7 +230,7 @@ static void transfer(const GameState *g, Platform *pf)
 /* Returns with RTL; nothing it leaves in the registers is read. */
 void scene_transfer(Snes *s)
 {
-    transfer(state_of(s), m_platform(s));
+    scene_send_unpacked(state_of(s), m_platform(s));
     m_rtl(s);
 }
 
@@ -295,7 +295,7 @@ bool scene_setup_line_effects_present(Snes *s)
  * The guard has walked the table and refused one a descriptor of which no
  * target names, so every descriptor decodes. Returns where the descriptors
  * end. */
-static uint16_t setup_line_effects(const GameState *g, Platform *pf, uint16_t at)
+uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at)
 {
     for (uint8_t channel = 0;; channel++) {
         LineEffectDescriptor d = read_descriptor(g, at);
@@ -324,7 +324,7 @@ static bool overflows_stepping_past(uint16_t at)
 void scene_setup_line_effects(Snes *s)
 {
     uint16_t start = s->cpu.y;
-    uint16_t end = setup_line_effects(state_of(s), m_platform(s), start);
+    uint16_t end = scene_set_up_line_effects(state_of(s), m_platform(s), start);
     if (end != start)
         m_set_flag(s, CPU_FLAG_V, overflows_stepping_past((uint16_t)(end - DESCRIPTOR_BYTES)));
     s->cpu.y = end;

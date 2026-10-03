@@ -418,6 +418,15 @@ meaning = "Bitmap scaler: pairs of 8-sample groups per output row (the row's wid
 source = "game/scene/scaler.c, scene_scale_bitmap_row $C3:0309"
 
 [[var]]
+name = "scene_scaler_request_state"
+addr = "7E:0021"
+size = 2
+page = "scene"
+subsystem = "scene"
+meaning = "Bitmap scaler: the cells between its width and its source, where the race's copy of a picture request leaves the request's state; nothing reads them"
+source = "game/scene/race_matrix.c, scene_race_scale_pictures $7E:51D1"
+
+[[var]]
 name = "scene_scaler_source_base"
 addr = "7E:0023"
 size = 2
@@ -775,11 +784,11 @@ name = "scene_race_view"
 addr = "7E:0090"
 size = 2
 count = 4
-index = "0 the cosine, 1 the sine, 2 and 3 their negatives"
+index = "0 the sine, 1 the cosine, 2 and 3 their negatives"
 page = "scene"
 subsystem = "scene"
-meaning = "The camera's turn as the bikes are placed on the screen: its cosine and sine, and their negatives"
-source = "game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+meaning = "The turn the bikes' places take as they are placed on the screen (a quarter turn less the camera's angle): its sine and cosine, and their negatives"
+source = "game/scene/race_projection.c, scene_race_place_bikes $7E:4D0D"
 
 [[var]]
 name = "scene_race_johnny_controls"
@@ -894,7 +903,7 @@ size = 2
 page = "scene"
 subsystem = "scene"
 meaning = "The divisor the race's distance scale was last found at, which the next search starts from"
-source = "game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+source = "game/scene/race_projection.c, scene_race_place_bikes $7E:4D0D"
 
 [[var]]
 name = "scene_race_steer_buttons"
@@ -1043,6 +1052,26 @@ name = "bump_push"
 offset = 0x6
 size = 4
 meaning = "The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte"
+[[var.field]]
+name = "race_edge_half_width"
+offset = 0x0
+size = 2
+meaning = "The race's placing of the bikes: the last bike's half width, over which its left edge is worked out; the field's controller read takes it over as the buttons newly pressed (input_pressed shares the cell)"
+[[var.field]]
+name = "race_edge_middle"
+offset = 0x2
+size = 2
+meaning = "The race's placing of the bikes: where across the screen the last bike's picture is centered; the field's controller read takes it over as the buttons held (input_held)"
+[[var.field]]
+name = "race_half_size"
+offset = 0xC
+size = 2
+meaning = "The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over; the field's controller read takes it over as the repeat delay (input_repeat_delay)"
+[[var.field]]
+name = "race_gap"
+offset = 0xE
+size = 2
+meaning = "The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there across the multiply that shifts the cell after the product; the field's controller read takes it over as the buttons of the frame before (input_previous)"
 [[var.field]]
 name = "race_pose"
 offset = 0xE
@@ -1309,6 +1338,120 @@ meaning = "The per-line tables the race's line effects read, cleared at setup"
 source = "game/scene/race.c, scene_race_clear_buffers $7E:3C09"
 
 [[var]]
+name = "scene_plane_matrix_top_row"
+addr = "7E:F100"
+count = 224
+stride = 4
+index = "screen line"
+subsystem = "scene"
+reuses = "scene_race_line_tables"
+meaning = "The first half of each screen line's Mode 7 matrix for the plane in perspective, which a per-line effect sends: the camera's cosine and sine times its height over the line's distance"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+[[var.field]]
+name = "a"
+offset = 0x0
+size = 2
+meaning = "The matrix's first entry: the cosine's"
+[[var.field]]
+name = "b"
+offset = 0x2
+size = 2
+meaning = "The matrix's second entry: the sine's"
+
+[[var]]
+name = "scene_plane_matrix_bottom_row"
+addr = "7E:F488"
+count = 224
+stride = 4
+index = "screen line"
+subsystem = "scene"
+reuses = "scene_race_line_tables"
+meaning = "The second half of each screen line's Mode 7 matrix for the plane in perspective (scene_plane_matrix_top_row)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+[[var.field]]
+name = "c"
+offset = 0x0
+size = 2
+meaning = "The matrix's third entry: the sine's, negated"
+[[var.field]]
+name = "d"
+offset = 0x2
+size = 2
+meaning = "The matrix's fourth entry: the cosine's, as the first"
+
+[[var]]
+name = "scene_perspective_start"
+addr = "7E:35FD"
+size = 2
+subsystem = "scene"
+meaning = "Which routine starts the plane's perspective lines, the operand of the program's own call: the race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from the line above it)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_line_step"
+addr = "7E:3634"
+size = 2
+subsystem = "scene"
+meaning = "The two instructions the perspective's loop runs after each line: a step to the next distance ($EAE8 as the program comes, $E8EA as the race writes it), or the branch the race copies from scene_perspective_pair_branch to give each line's matrix to the next; scenes no movie reaches write other steps"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_end"
+addr = "7E:3637"
+size = 2
+subsystem = "scene"
+meaning = "Where the perspective's lines end, the operand of the loop's compare: $380, past the 224th line's four bytes"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_pair_branch"
+addr = "7E:368F"
+size = 2
+subsystem = "scene"
+meaning = "The branch the race writes into the perspective's loop to build the lines in pairs (the program's data, $3680)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_along_product"
+addr = "7E:3623"
+size = 2
+subsystem = "scene"
+meaning = "The cosine's magnitude times the camera's height, as the perspective's loop loads it (the operand of its own load)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_across_product"
+addr = "7E:360B"
+size = 2
+subsystem = "scene"
+meaning = "The sine's magnitude times the camera's height, as the perspective's loop loads it (the operand of its own load)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_cosine_sign"
+addr = "7E:3616"
+size = 2
+subsystem = "scene"
+meaning = "The branch the perspective's loop takes over its negation of the cosine's entries ($0480) or into it ($0080, when the cosine is negative)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_across_entries"
+addr = "7E:362B"
+size = 2
+subsystem = "scene"
+meaning = "Where the perspective's loop stores each line's sine entry as it divides it out: the matrices' second entries ($F0FE, the sine not negative) or their third ($F484)"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_perspective_against_entries"
+addr = "7E:3632"
+size = 2
+subsystem = "scene"
+meaning = "Where the perspective's loop stores each line's sine entry negated: the other of scene_perspective_across_entries' two"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
 name = "scene_race_scaler_output"
 addr = "7F:0300"
 size = 0x700
@@ -1379,6 +1522,14 @@ addr = "7E:0381"
 subsystem = "scene"
 meaning = "What Crono's winning score earns, for the story to read: a prize for a lucky number in the low bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for reaching 1300, 1500 and 2000"
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_demo_showings"
+addr = "7E:0397"
+size = 2
+subsystem = "scene"
+meaning = "How many times the attract sequence's race has been shown, below the program's work RAM so it survives from one showing to the next: the camera takes one of its two scripts on odd showings and the other on even"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
 
 [[var]]
 name = "scene_race_final_score"
@@ -1531,7 +1682,7 @@ count = 0x100
 index = "the distance's high byte plus the camera's height (wrapping)"
 subsystem = "scene"
 meaning = "The divisor found for each of the race's distances from the camera, 0 where none has been yet; cleared whenever the camera's height changes"
-source = "game/scene/race_camera.c, scene_race_check_perspective $7E:42CE; game/scene/race_drawing.c, scene_race_place_bikes $7E:4D0D"
+source = "game/scene/race_camera.c, scene_race_check_perspective $7E:42CE; game/scene/race_projection.c, scene_race_place_bikes $7E:4D0D"
 
 [[var]]
 name = "scene_race_picture"
@@ -1637,6 +1788,49 @@ index = "which score, from 111 up"
 subsystem = "scene"
 meaning = "Scores that earn a prize as repdigits: 111 to 999, 1111, 2222 and 3333 (the program's data; the search runs down from the 11th)"
 source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
+
+[[var]]
+name = "scene_race_ending_sweep"
+addr = "7E:4259"
+subsystem = "scene"
+meaning = "Which way the curtain sweeps as the race ends (2, from the right): the operand of the program's own load, which the setup of the race without its panel writes again"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
+name = "scene_main_loop_call"
+addr = "7E:3024"
+size = 2
+subsystem = "scene"
+meaning = "The routine the program's main loop calls each pass, the operand of its own call, which a scene's setup points at its work (the race's: the racers' pictures scaled, $51D1)"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
+[[var]]
+name = "scene_race_panel_sprites"
+addr = "7E:5395"
+subsystem = "scene"
+meaning = "The count of the race panel's sprite list (the program's data): 7, six sprites with the score's label; the race without its panel makes it 6"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_bar_end_x"
+addr = "7E:53A0"
+subsystem = "scene"
+meaning = "Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8 without the panel)"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_bar_cap_x"
+addr = "7E:53A4"
+subsystem = "scene"
+meaning = "Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8; $E8 without the panel)"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
+
+[[var]]
+name = "scene_race_corner_sprites"
+addr = "7E:53AE"
+subsystem = "scene"
+meaning = "The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none, without the panel"
+source = "game/scene/race_rules.c, race_start $7E:45D6"
 
 [[var]]
 name = "scene_race_bar_right"
@@ -4314,6 +4508,15 @@ source = "game/field/screen_effects.c, event $FF $92-$95 ($C0:405D)"
 # loop state there rather than in registers, and other code on the page writes
 # the cells before it reads them, so the port keeps its state in locals and
 # writes the cells' final values for shadow mode (ORIGINAL_EFFECT).
+[[var]]
+name = "scene_curtain_table_bank_high"
+addr = "7E:0355"
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_radius"
+meaning = "The byte after the curtain's table's bank, which the curtain reads with it as a word (only the bank's low bit counts) and the race's setup writes 0 with it"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+
 [[var]]
 name = "scene_circle_count"
 addr = "7E:03F0"

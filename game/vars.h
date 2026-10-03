@@ -9866,6 +9866,11 @@ void set_scene_sprite_list_left(GameState *g, uint8_t v);
 uint16_t scene_scaler_pairs(const GameState *g);
 void set_scene_scaler_pairs(GameState *g, uint16_t v);
 
+/* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
+ * request leaves the request's state; nothing reads them */
+uint16_t scene_scaler_request_state(const GameState *g);
+void set_scene_scaler_request_state(GameState *g, uint16_t v);
+
 /* Bitmap scaler: base address added to a source row's position to point at it */
 uint16_t scene_scaler_source_base(const GameState *g);
 void set_scene_scaler_source_base(GameState *g, uint16_t v);
@@ -10036,9 +10041,9 @@ void set_scene_race_score(GameState *g, uint16_t v);
 uint16_t scene_race_lead(const GameState *g);
 void set_scene_race_lead(GameState *g, uint16_t v);
 
-enum { SCENE_RACE_VIEW_COUNT = 4 };   /* by 0 the cosine, 1 the sine, 2 and 3 their negatives */
-/* The camera's turn as the bikes are placed on the screen: its cosine and sine, and their
- * negatives */
+enum { SCENE_RACE_VIEW_COUNT = 4 };   /* by 0 the sine, 1 the cosine, 2 and 3 their negatives */
+/* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
+ * camera's angle): its sine and cosine, and their negatives */
 uint16_t scene_race_view(const GameState *g, unsigned i);
 void set_scene_race_view(GameState *g, unsigned i, uint16_t v);
 
@@ -10174,6 +10179,11 @@ void set_scene_circle_radius(GameState *g, uint16_t v);
 uint8_t scene_curtain_table_bank(const GameState *g);
 void set_scene_curtain_table_bank(GameState *g, uint8_t v);
 
+/* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
+ * bank's low bit counts) and the race's setup writes 0 with it */
+uint8_t scene_curtain_table_bank_high(const GameState *g);
+void set_scene_curtain_table_bank_high(GameState *g, uint8_t v);
+
 /* Address of the circle's per-line table (224 lines of left and right X) */
 uint16_t scene_circle_table(const GameState *g);
 void set_scene_circle_table(GameState *g, uint16_t v);
@@ -10247,6 +10257,12 @@ void set_scene_start_held(GameState *g, uint16_t v);
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 uint8_t scene_reset_disabled(const GameState *g);
 void set_scene_reset_disabled(GameState *g, uint8_t v);
+
+/* How many times the attract sequence's race has been shown, below the program's work RAM so it
+ * survives from one showing to the next: the camera takes one of its two scripts on odd showings
+ * and the other on even */
+uint16_t scene_race_demo_showings(const GameState *g);
+void set_scene_race_demo_showings(GameState *g, uint16_t v);
 
 /* Frames left before the race's scene ends, once a button has been pressed after it */
 uint16_t scene_race_end_wait(const GameState *g);
@@ -10458,6 +10474,59 @@ enum { SCENE_PALETTE_BYTES = 512 };
 uint8_t scene_palette_byte(const GameState *g, unsigned at);
 void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The routine the program's main loop calls each pass, the operand of its own call, which a
+ * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) */
+uint16_t scene_main_loop_call(const GameState *g);
+void set_scene_main_loop_call(GameState *g, uint16_t v);
+
+/* Which routine starts the plane's perspective lines, the operand of the program's own call: the
+ * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
+ * the line above it) */
+uint16_t scene_perspective_start(const GameState *g);
+void set_scene_perspective_start(GameState *g, uint16_t v);
+
+/* The sine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) */
+uint16_t scene_perspective_across_product(const GameState *g);
+void set_scene_perspective_across_product(GameState *g, uint16_t v);
+
+/* The branch the perspective's loop takes over its negation of the cosine's entries ($0480) or
+ * into it ($0080, when the cosine is negative) */
+uint16_t scene_perspective_cosine_sign(const GameState *g);
+void set_scene_perspective_cosine_sign(GameState *g, uint16_t v);
+
+/* The cosine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) */
+uint16_t scene_perspective_along_product(const GameState *g);
+void set_scene_perspective_along_product(GameState *g, uint16_t v);
+
+/* Where the perspective's loop stores each line's sine entry as it divides it out: the matrices'
+ * second entries ($F0FE, the sine not negative) or their third ($F484) */
+uint16_t scene_perspective_across_entries(const GameState *g);
+void set_scene_perspective_across_entries(GameState *g, uint16_t v);
+
+/* Where the perspective's loop stores each line's sine entry negated: the other of
+ * scene_perspective_across_entries' two */
+uint16_t scene_perspective_against_entries(const GameState *g);
+void set_scene_perspective_against_entries(GameState *g, uint16_t v);
+
+/* The two instructions the perspective's loop runs after each line: a step to the next distance
+ * ($EAE8 as the program comes, $E8EA as the race writes it), or the branch the race copies from
+ * scene_perspective_pair_branch to give each line's matrix to the next; scenes no movie reaches
+ * write other steps */
+uint16_t scene_perspective_line_step(const GameState *g);
+void set_scene_perspective_line_step(GameState *g, uint16_t v);
+
+/* Where the perspective's lines end, the operand of the loop's compare: $380, past the 224th
+ * line's four bytes */
+uint16_t scene_perspective_end(const GameState *g);
+void set_scene_perspective_end(GameState *g, uint16_t v);
+
+/* The branch the race writes into the perspective's loop to build the lines in pairs (the
+ * program's data, $3680) */
+uint16_t scene_perspective_pair_branch(const GameState *g);
+void set_scene_perspective_pair_branch(GameState *g, uint16_t v);
+
 enum { SCENE_NUMBER_DIGITS_COUNT = 21 };   /* by byte of the list */
 /* The sprite list the program draws a number with: the count byte (one more than the digits
  * shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20
@@ -10469,6 +10538,11 @@ enum { SCENE_RACE_OPENINGS_COUNT = 2 };   /* by which opening */
 /* The two openings the race's camera script can take, one picked at random (the program's data) */
 uint16_t scene_race_openings(const GameState *g, unsigned i);
 void set_scene_race_openings(GameState *g, unsigned i, uint16_t v);
+
+/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
+ * program's own load, which the setup of the race without its panel writes again */
+uint8_t scene_race_ending_sweep(const GameState *g);
+void set_scene_race_ending_sweep(GameState *g, uint8_t v);
 
 enum { SCENE_RACE_STEERING_BY_VIEW_COUNT = 16 };   /* by the way the camera faces (0-7, an eighth of a turn each), then 8 more for the other direction */
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
@@ -10560,6 +10634,26 @@ enum { SCENE_RACE_SPRITE_LIST_COUNTS_COUNT = 2 };   /* by racer: 0 Crono, 1 John
 uint8_t scene_race_sprite_list_counts(const GameState *g, unsigned i);
 void set_scene_race_sprite_list_counts(GameState *g, unsigned i, uint8_t v);
 
+/* The count of the race panel's sprite list (the program's data): 7, six sprites with the
+ * score's label; the race without its panel makes it 6 */
+uint8_t scene_race_panel_sprites(const GameState *g);
+void set_scene_race_panel_sprites(GameState *g, uint8_t v);
+
+/* Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8
+ * without the panel) */
+uint8_t scene_race_bar_end_x(const GameState *g);
+void set_scene_race_bar_end_x(GameState *g, uint8_t v);
+
+/* Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8;
+ * $E8 without the panel) */
+uint8_t scene_race_bar_cap_x(const GameState *g);
+void set_scene_race_bar_cap_x(GameState *g, uint8_t v);
+
+/* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
+ * without the panel */
+uint8_t scene_race_corner_sprites(const GameState *g);
+void set_scene_race_corner_sprites(GameState *g, uint8_t v);
+
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */
 enum { SCENE_RACE_PLANE_COLUMN_BYTES = 20 };
@@ -10575,6 +10669,22 @@ void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v);
 enum { SCENE_RACE_LINE_TABLES_BYTES = 4096 };
 uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at);
 void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_PLANE_MATRIX_TOP_ROW_COUNT = 224 };   /* by screen line */
+/* The matrix's first entry: the cosine's */
+uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line);
+void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v);
+/* The matrix's second entry: the sine's */
+uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line);
+void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v);
+
+enum { SCENE_PLANE_MATRIX_BOTTOM_ROW_COUNT = 224 };   /* by screen line */
+/* The matrix's third entry: the sine's, negated */
+uint16_t scene_plane_matrix_bottom_row_c(const GameState *g, unsigned line);
+void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v);
+/* The matrix's fourth entry: the cosine's, as the first */
+uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line);
+void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v);
 
 enum { SCENE_RACE_PICTURE_COUNT = 1152 };   /* by word of the picture, $10 a row */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
@@ -10667,6 +10777,25 @@ void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint
  * carries in from its third byte */
 uint32_t scene_call_bump_push(const GameState *g, SceneProgramPage page);
 void set_scene_call_bump_push(GameState *g, SceneProgramPage page, uint32_t v);
+/* The race's placing of the bikes: the last bike's half width, over which its left edge is
+ * worked out; the field's controller read takes it over as the buttons newly pressed
+ * (input_pressed shares the cell) */
+uint16_t scene_call_race_edge_half_width(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_half_width(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of the bikes: where across the screen the last bike's picture is centered;
+ * the field's controller read takes it over as the buttons held (input_held) */
+uint16_t scene_call_race_edge_middle(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_middle(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of Crono: his size halved, at least $40, which his picture's height and
+ * width are worked out over; the field's controller read takes it over as the repeat delay
+ * (input_repeat_delay) */
+uint16_t scene_call_race_half_size(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_half_size(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there
+ * across the multiply that shifts the cell after the product; the field's controller read takes
+ * it over as the buttons of the frame before (input_previous) */
+uint16_t scene_call_race_gap(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v);
 /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of
  * pictures */
 uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page);

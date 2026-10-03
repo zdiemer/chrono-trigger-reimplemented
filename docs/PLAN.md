@@ -163,7 +163,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 204 files, 117 of 58,688 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 207 files, 117 of 59,718 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -200,7 +200,7 @@ What the phase settled, and what still holds for every port:
   against the port it replaces.
 - **A rewrite that hits something the accessors can't say is a finding**: a
   buffer the game locates at run time reaches work RAM by address through
-  `game/wram.h`, and every such use (140 in 33 files) is a variable waiting for
+  `game/wram.h`, and every such use (146 in 34 files) is a variable waiting for
   a name in the map. Cells on a page the caller chooses have page kinds
   (DISASSEMBLY.md, "The accessors").
 
@@ -217,7 +217,7 @@ docstring says which way it is wrong). **28% of the code is still generated.**
 | battle (`$C1`, `$CE`) | 64.9K | 59.7K | 20.3K | 8% | 403 |
 | field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
 | menus, text (`$C2`) | 59.3K | 30.9K | 8.6K | 48% | 326 |
-| scene program, RAM (`$7E`) | 24.9K | 10.2K | 0.8K | 59% | 71 |
+| scene program, RAM (`$7E`) | 24.9K | 11.4K | 1.2K | 54% | 68 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
 | field graphics (`$FD`) | 15.3K | 11.7K | 0.7K | 23% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
@@ -227,7 +227,7 @@ docstring says which way it is wrong). **28% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **192.0K** | **47.3K** | **28%** | **1443** |
+| **total** | **268.5K** | **193.2K** | **47.8K** | **28%** | **1440** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
@@ -395,17 +395,16 @@ which go with `$C2`, and the unpacker (`$C3:0002`, TODO.md).
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
 and the endings; DISASSEMBLY.md's `[[ramcode]]`), on top of the scene engine
-in `$C3`. Its first chunk is the jet bike race while it runs: the bikes'
-rules, the camera, the drawing, and the routine the race generates to
-regroup its scaled pictures (`$7E:B574`), all as C (RECOMP.md, "Phase 3, the
-scene program: the jet bike race running"). **Next**, by what the library
-reaches: the rest of the race (the bikes placed in perspective, `$7E:4D0D`,
-583 bytes, with the main loop's scaling of the pictures `$7E:51D1`, the
-perspective table `$7E:357B` and its patched call, and the race's setup and
-loader, `$7E:3B48`-`$7E:3F13` and `$7E:45D6`, as one routine); then the
-endings that share `$7E:8538` (modes 10, 11, 14 and 15; both Beyond Time
-movies reach it: `$7E:8538`-`$7E:8E94` with its helpers from `$7E:7FC4`,
-about 3 KiB) and the telepod ending's (mode 13, `$7E:8EA8` on, about 2 KiB).
+in `$C3`. The jet bike race is C from its setup to its end: the bikes' rules,
+the camera, the drawing and the regrouping of its scaled pictures (history
+file, "Phase 3, the scene program: the jet bike race running"), then the bikes
+placed in perspective, the plane's perspective (shared with the endings), the
+main loop's scaling and the setup as one routine (RECOMP.md, "Phase 3, the
+scene program: the rest of the jet bike race"). **Next**, by what the library
+reaches: the endings that share `$7E:8538` (modes 10, 11, 14 and 15; both
+Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its helpers from
+`$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and its frame
+tasks) and the telepod ending's (mode 13, `$7E:8EA8` on, about 2 KiB).
 The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a

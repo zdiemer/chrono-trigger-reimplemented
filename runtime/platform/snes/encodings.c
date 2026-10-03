@@ -160,6 +160,8 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E3E71, 0, 0, 7, FROM_REGISTER, SCENE_TRANSFER_STEPS, 0 },
     { 0x7E3D41, 0, 0, 7, FROM_REGISTER, SCENE_TRANSFER_STEPS, 0 },   /* a read back out of VRAM */
     { 0x7E3DB0, 0, 0, 7, FILL_WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, GO), 0 },    /* the racers' maps blanked */
+    { 0x7E3D81, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* the race's curtain: its window's table on odd steps */
+    { 0x7E3D88, 0, 0, 0, 0, STEPS(SL, SH), 0 },   /* ... and on even ones */
     { 0x7E876E, 0, 0, 7, ONE_REGISTER, SCENE_TRANSFER_STEPS, 0 },    /* the plane's low bytes */
     { 0x7E4671, 0, 0, 7, ONE_REGISTER, STEPS(SL, SH, SB, C, D, P, TL, TH, ZL, ZH, GO), 0 },   /* a column */
     { 0x7E525B, 0, 0, 7, WORDS, RACE_UPLOAD_STEPS, 0 },   /* half a tilemap */

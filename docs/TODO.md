@@ -598,17 +598,29 @@ rest waits, is [PLAN.md](PLAN.md).
   runs before reading the gap as the checks' cost.
 
 - **What the jet bike race's review left** (none blocking after its fixes):
-  `race.h`'s `race_lane_high` reads two cells as one word (name the marker's
-  quirk there, and have `drive_johnny` use the lane); `+ 1` written to cells
-  that hold a state or a bool in `race_rules.c`; `race_camera.c`'s
-  `scene_call_first`/`second` writes that the next call overwrites (scaffolding,
-  or name a reader); `sprites.c` exports `scene_clipped_list_leaves_a`, a
+  `race_rules.c`'s `drive_johnny` reads the lane through `race_lane_high`
+  (the lane's high byte with the byte after it as a word, race.h) where the
+  lane would say it; `sprites.c` exports `scene_clipped_list_leaves_a`, a
   register derivation, from a logic file; `hw_divide_by_word`'s contract
   describes the word store spilling into the next register (prefer
   `hw_divide_by` plus a marked note of that byte); `math.c`, `sprites.c`,
   `race_camera.c` and `race_matrix.c` rated "mostly". Fuzz states for the
   scene program need `--keep 7E3000-7EC994` (the program's own code), which
   older entries' arguments stop short of at `B5FF`.
+
+- **What the race's second review left** (none blocking after its fixes):
+  `perspective.c`'s `start_lines` writes the line step to a cell the builder
+  reads back (return it), and `PerspectiveStart` keeps the patched call's ROM
+  addresses as its values (decode them to a scene kind once); `race.c`'s
+  graphics table keeps the `vram_site` origin tags in a column, with 0 also
+  meaning "carry on" (a parallel table, and "carry on" its own field), and
+  `crono_blocks` gives raw addresses where a picture, row and column would do;
+  `race.c`'s `on_page` duplicates `bridge.c`'s; `race_matrix.c` writes
+  `set_scene_scaler_request_state` plainly though nothing reads it
+  (ORIGINAL_EFFECT); `math.c`'s `scene_multiply16` and `scene_divide_8_8_by`
+  pass operands and results through `scene_call` cells between C functions;
+  `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
+  cells.
 
 - **What the techs screen's review left** (merged with the techs screen; none
   blocking): `tech_screen.c` takes the thumb's direction from an unsigned
@@ -1835,38 +1847,49 @@ waits on M5 rather than on a backend.
   entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
   rows as it goes; a check that every registered entry has one would say when
   the file is complete.
-- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 32 uses
-  in 7 files. The sequence scripts' bytes and the race's line-effect descriptor
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 34 uses
+  in 8 files. The sequence scripts' bytes and the race's line-effect descriptor
   table are fixed parts of the program image at `$7E:3000` and could be named
   buffers of it; the scaler's rows, the bank `$FE` copies' destination, the
   title's plane tiles, the sprites' sources and lists and a store command's target are
   wherever the caller points, and want the caller ported to say what they are;
-  the circle's table is the pilot's. The title loader's tile list at `$7F:0200`,
+  the circle's table is the pilot's. The race's setup's (its palette as
+  unpacked, the unpack buffer, the plane's rows, the racers' pictures and the
+  mirroring's two cells) are fixed and could be named. The title loader's
+  tile list at `$7F:0200`,
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The scene loaders are fragments.** The title's graphics loader
-  (`$7E:5978`-`$7E:5A00`) and the race's (`$7E:3DB3`-`$7E:3EB6`) are registered
-  a block at a time (`scene_title_load_*`, `scene_race_load_*`), each named for
-  what it puts in VRAM, because the loader around them calls the decompressor
-  and the program's own routines (`$7E:3691`, `$7E:37A6`, `$7E:38AF`,
-  `$7E:89ED`, `$7E:5E3C`). Porting each loader whole, as one routine that loads a
-  list of resources to VRAM addresses, would retire twelve entries.
+- **The title's loader is in fragments.** The title's graphics loader
+  (`$7E:5978`-`$7E:5A00`) is registered a block at a time
+  (`scene_title_load_*`), each named for what it puts in VRAM, because the
+  loader around them calls the program's unpacker and its own routines
+  (`$7E:3691`, `$7E:38AF`, `$7E:89ED`, `$7E:5E3C`). The race's setup was
+  ported whole as a list of graphics, each unpacked and sent (RECOMP.md,
+  "Phase 3, the scene program: the rest of the jet bike race"); the title's
+  would retire five entries the same way.
+- **The race's setup calls the original three times.** The program's unpacker
+  by resource (`$7E:3691`, before the decompressor `$C3:0557`), the camera
+  script's first step (`$7E:3749`, before the sequencer `$C3:0AFF`) and, for
+  the race without its panel, the curtain's step (`$C3:000E`, the field's
+  `$C3:01E4`) are call-outs; with the unpacker as C, the setup's machine
+  (the frames and the data bank and direct page it keeps on the stack around
+  them, `scene/bridge.c`) comes down. The setup's mirroring of the racers'
+  pictures runs long loops of its own, which is why it carries timing
+  exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
+  too) timed as their own routines would fit it better.
+- **The perspective's other scenes' steps are refused.** The plane's
+  perspective (`scene/perspective.c`) builds the race's lines and the endings'
+  (the routine at the program's call, `$7E:45B0` or `$7E:9B46`); modes 1 and
+  3-8, which no movie reaches, write other starts (`$7E:8042`, with a step of
+  two lines either way and an end at line 112) that the guard hands to the
+  original. Port them with those scenes.
+
 - **Scene work that is still the original's, beside its ports.** The title
   logo's sweep before it lands (`$7E:5CBA`, where `scene_title_move_logo`
   stops) and the ripple's new first offset each frame (`$7E:600E`, where
   `scene_title_ripple_columns` stops) are the program's code; porting them
   would end two stops mid-routine.
-- **The jet bike race's remainder** (RECOMP.md, "Phase 3, the scene program:
-  the jet bike race running"): the bikes placed in perspective (`$7E:4D0D`:
-  the signed multiply's leftover byte, the divisor search through the CPU's
-  divider and its cache `scene_race_divisors`, the carries of a dozen sums);
-  the main loop's scaling of the racers' pictures (`$7E:51D1`, `$7E:51F4`,
-  which stops at its wait `$7E:5211` and leaves a carry its loop reads); the
-  perspective table (`$7E:357B`, whose call at `$7E:35FC` and instructions at
-  `$7E:3634` the race's setup and the endings patch); and the setup
-  (`$7E:3B48`-`$7E:3F13`, `$7E:45D6`, the noise `$7E:3D72` through `$C3:000E`),
-  which ported whole retires the loader's block entries (above).
 - **What scene's second review accepted as later work** (RECOMP.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:
