@@ -31,7 +31,7 @@
  * command is dropped from the host's full queue (sound_host_commands_dropped).
  * --mixer picks what makes its sound (frontend/sound_host.h): check plays the
  * S-DSP and the native mixer side by side, and a run in which any frame of
- * theirs differs fails (sound_host_mixer_report).
+ * theirs differs fails (dev/mixer_check.h).
  *
  * The CPU half's work RAM the harness reads (the effect set sent, command
  * $71's block) is written here as the CPU half would have it. The data the
@@ -47,6 +47,7 @@
 #include "ram.h"
 #include "snes/system.h"
 #include "sound/sound.h"
+#include "mixer_check.h"
 #include "sound_host.h"
 #include "sound_lockstep.h"
 
@@ -56,6 +57,7 @@ static uint32_t *coverage;
 static SoundLockstep *lockstep;
 static bool hosted;           /* the C driver in the SPC700's place */
 static SoundHost *host;
+static MixerCheck *mixer_check;   /* --mixer check: the host's frames compared */
 static SoundMixer mixer = SOUND_MIXER_DSP;
 
 enum {
@@ -343,7 +345,9 @@ static void boot(void)
     a->on_dsp_write = on_dsp_write;
     if (hosted) {
         sound_host_detach(host);
+        mixer_check_free(mixer_check);
         host = sound_host_attach_mixer(&snes, mixer);
+        mixer_check = mixer == SOUND_MIXER_CHECK && host ? mixer_check_attach(host) : NULL;
     }
     start_driver();
 }
@@ -783,9 +787,9 @@ int main(int argc, char **argv)
             if (dropped)
                 fprintf(stderr, ", but %lu commands were dropped from the host's full queue", dropped);
             fprintf(stderr, "\n");
-            if (mixer == SOUND_MIXER_CHECK) {
+            if (mixer_check) {
                 fprintf(stderr, "  ");
-                same = sound_host_mixer_report(host, stderr) && same;
+                same = mixer_check_report(mixer_check, stderr) && same;
             }
         }
         else

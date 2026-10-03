@@ -121,13 +121,13 @@ static void set_work_word(GameState *g, unsigned cell, uint16_t v)
 /* The combatant whose pose is being chosen, and the enemy whose animation
  * effect runs: the original's routines the steps call (the pose's setup, the
  * effects' handlers) take them from their cells. */
-enum { POSING_CELL = 0x94 - 0x80, EFFECT_ENEMY_CELL = 0x9C - 0x80 };
+enum { POSING_CELL = 0x94 - 0x80 };
 static void give_posing(GameState *g, unsigned slot) { set_work_word(g, POSING_CELL, (uint16_t)slot); }
 static unsigned posing(const GameState *g)
 {
     return (unsigned)(battle_work(g, POSING_CELL) | battle_work(g, POSING_CELL + 1) << 8);
 }
-static void give_effect_enemy(GameState *g, unsigned enemy) { set_work_word(g, EFFECT_ENEMY_CELL, (uint16_t)enemy); }
+static void give_effect_enemy(GameState *g, unsigned enemy) { set_battle_effect_enemy(g, (uint16_t)enemy); }
 
 /* A member's frame lists are in bank $E4, four entries an animation, and
  * each facing's part of them a stride after the last. */
@@ -250,10 +250,7 @@ static uint8_t direction_to(GameState *g, unsigned member, uint8_t enemy)
     set_battle_member_facing_target(g, member, enemy);
     BattlePoint from = { battle_object_x(g, battle_combatant_object(member)), battle_object_y(g, battle_combatant_object(member)) };
     BattlePoint to = { battle_object_x(g, battle_combatant_object(enemy)), battle_object_y(g, battle_combatant_object(enemy)) };
-    set_battle_direction_cells(g, 0, from.x);
-    set_battle_direction_cells(g, 1, from.y);
-    set_battle_direction_cells(g, 2, to.x);
-    set_battle_direction_cells(g, 3, to.y);
+    battle_keep_direction_points(g, from, to);
     ORIGINAL_EFFECT(set_work_byte(g, LEFT_TURNED, 0));
     uint8_t direction = 0;
     TIMED_AS(g, 0xC10222, direction = battle_direction(g, from, to));

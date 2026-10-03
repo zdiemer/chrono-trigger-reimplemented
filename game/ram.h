@@ -3526,6 +3526,10 @@
  * at each frame ($C1:4231) */
 #define RAM_BATTLE_JUMP_LIFT 0x7E0090u
 #define RAM_BATTLE_JUMP_LIFT_DP 0x90u        /* page battle */
+/* The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and
+ * the effects' handlers take it from here [2 bytes] */
+#define RAM_BATTLE_EFFECT_ENEMY 0x7E009Cu
+#define RAM_BATTLE_EFFECT_ENEMY_DP 0x9Cu     /* page battle */
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
@@ -3536,6 +3540,10 @@
 /* The attribute bits of the effect whose sprites are being drawn */
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES 0x7E00A1u
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES_DP 0xA1u /* page battle */
+/* The party member a battle step is about (its menu opened or closed, its action called off), as
+ * the step's callers leave it for the step */
+#define RAM_BATTLE_STEP_MEMBER 0x7E00A1u
+#define RAM_BATTLE_STEP_MEMBER_DP 0xA1u      /* page battle */
 /* The stat block ($80 times the battle slot) of the combatant at hand: the party member the
  * window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status
  * pose was chosen for [2 bytes] */

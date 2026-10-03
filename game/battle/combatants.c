@@ -171,8 +171,8 @@ void set_combatant_turn_wait(GameState *g, unsigned slot, uint8_t wait)
         set_battle_turn_wait_unchecked(g, slot, wait);
 }
 
-/* The low HP flag is bit 0 of the stat block's first byte. */
-enum { LOW_HP = 0x01, LOW_HP_FRACTION = 8 };
+/* HP is low at an eighth of the most it can be or less. */
+enum { LOW_HP_FRACTION = 8 };
 
 bool combatant_hp_low(const GameState *g, unsigned slot)
 {
@@ -181,8 +181,8 @@ bool combatant_hp_low(const GameState *g, unsigned slot)
 
 void combatant_note_low_hp(GameState *g, unsigned slot)
 {
-    uint8_t flags = battle_stats_low_hp(g, slot) & (uint8_t)~LOW_HP;
-    set_battle_stats_low_hp(g, slot, combatant_hp_low(g, slot) ? flags | LOW_HP : flags);
+    uint8_t flags = battle_stats_low_hp(g, slot) & (uint8_t)~COMBATANT_LOW_HP_NOTED;
+    set_battle_stats_low_hp(g, slot, combatant_hp_low(g, slot) ? flags | COMBATANT_LOW_HP_NOTED : flags);
 }
 
 /* ---- The statuses that run on timers ------------------------------------------------------ */
@@ -304,7 +304,7 @@ static UpdateEnd leave_fight(GameState *g, unsigned slot)
     battle_stop_timer(g, BATTLE_TIMER_TURN, slot);
     set_battle_combatant_fighting(g, slot, COMBATANT_NONE);
     set_battle_stats_status(g, slot, 0);
-    set_battle_stats_low_hp(g, slot, battle_stats_low_hp(g, slot) & (uint8_t)~LOW_HP);
+    combatant_forget_low_hp(g, slot);
     if (!battle_slot_is_party(slot)) {
         count_enemy_beaten(g, slot - BATTLE_FIRST_ENEMY);
         return UPDATED;

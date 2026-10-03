@@ -113,6 +113,14 @@ static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { s
 enum { SCREEN_EFFECT_SETTINGS = 5 };
 void battle_set_screen_effect_to(GameState *g, const uint8_t settings[SCREEN_EFFECT_SETTINGS]);
 
+/* The first setting names the effect in its high bits, one of six; a caller
+ * that gives fewer than all five settings (the animation scripts' command)
+ * counts the ones it gives in its low bits. */
+enum { SCREEN_EFFECT_CHOICES = 6, SCREEN_EFFECT_SETTINGS_GIVEN = 0x0F };
+static inline unsigned screen_effect_choice(uint8_t first_setting) { return first_setting >> 4; }
+static inline bool screen_effect_known(uint8_t first_setting) { return screen_effect_choice(first_setting) < SCREEN_EFFECT_CHOICES; }
+static inline uint8_t screen_effect_settings_given(uint8_t first_setting) { return first_setting & SCREEN_EFFECT_SETTINGS_GIVEN; }
+
 /* A command's body returns with A 0, as the original's last TDC leaves it. */
 static inline void screen_command_done(Snes *s)
 {

@@ -11,6 +11,7 @@
 
 #include <stdint.h>
 
+#include "battle/battle.h"
 #include "rom.h"
 #include "state.h"
 
@@ -220,13 +221,14 @@ static inline DemoMember demo_member(const GameState *g, uint8_t demo, unsigned 
                          rom_read16(g, 0xFD0000u | (uint16_t)(at + 4)), rom_read16(g, 0xFD0000u | (uint16_t)(at + 6)) };
 }
 
-/* A demo battle's party's chosen actions, every turn: the three members'
- * action records (battle_member_actions) a byte at a time, from where the
- * demo's word says in bank FD ($FD:B957, a word a demo). */
-static inline uint8_t demo_party_actions_byte(const GameState *g, uint8_t demo, unsigned at)
+/* A demo battle's party's chosen actions, every turn: a member's action
+ * record (battle_member_actions, MEMBER_ACTION_RECORD_BYTES) a byte at a
+ * time, the members' one after another from where the demo's word says in
+ * bank FD ($FD:B957, a word a demo). */
+static inline uint8_t demo_member_action_byte(const GameState *g, uint8_t demo, unsigned member, unsigned at)
 {
     uint16_t from = rom_read16(g, 0xFDB957u + (uint8_t)(demo << 1));
-    return rom_read8(g, 0xFD0000u | (uint16_t)(from + at));
+    return rom_read8(g, 0xFD0000u | (uint16_t)(from + member * MEMBER_ACTION_RECORD_BYTES + at));
 }
 
 /* How long a combatant's first turn waits, before its speed takes its part

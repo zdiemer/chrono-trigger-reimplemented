@@ -91,7 +91,7 @@ static void drift(GameState *g, unsigned enemy, bool on) { set_battle_enemy_drif
 static void keep_heading(GameState *g, unsigned enemy, uint8_t heading)
 {
     set_battle_enemy_heading(g, enemy, heading);
-    set_battle_direction_cells(g, 8, heading);
+    battle_note_direction(g, heading);
 }
 
 static void face(GameState *g, unsigned enemy, uint8_t facing) { set_battle_object_facing(g, slot_of(enemy), facing); }
@@ -415,13 +415,20 @@ static uint8_t heading_round_target(GameState *g, unsigned enemy)
     return heading;
 }
 
+/* The enemy goes round its target the other way from now on. (The original
+ * flips the cell's low bit; the game only ever keeps 0 or 1 there.) */
+static void circle_the_other_way(GameState *g, unsigned enemy)
+{
+    set_battle_enemy_circling_back(g, enemy, (uint8_t)(battle_enemy_circling_back(g, enemy) ^ 1));
+}
+
 /* Go round the target, or, blocked, turn back the other way round. */
 static void circle_round(GameState *g, unsigned enemy, bool passes_through)
 {
     set_battle_enemy_turned_aside(g, enemy, 0);
     Step step = head_for(g, enemy, heading_round_target(g, enemy));
     if (way_blocked(g, enemy, step, passes_through))
-        set_battle_enemy_circling_back(g, enemy, (uint8_t)(battle_enemy_circling_back(g, enemy) ^ 1));
+        circle_the_other_way(g, enemy);
     else
         drift(g, enemy, true);
 }
@@ -483,6 +490,13 @@ static BattlePoint next_on_loop(GameState *g, unsigned enemy, bool small)
     return moved_by(home, (Step){ down, across });
 }
 
+/* The enemy weaves round its loop the other way from now on. (The original
+ * flips the cell's low bit; the game only ever keeps 0 or 1 there.) */
+static void weave_the_other_way(GameState *g, unsigned enemy)
+{
+    set_battle_enemy_weave_back(g, enemy, (uint8_t)(battle_enemy_weave_back(g, enemy) ^ 1));
+}
+
 /* What the original leaves of a blocked weave: how far it jumped back. */
 enum { LEFT_JUMP = 0x02 };
 
@@ -505,7 +519,7 @@ static void weave(GameState *g, unsigned enemy, uint8_t animation)
     bool back = battle_enemy_weave_back(g, enemy);
     uint8_t angle = battle_enemy_weave_angle(g, enemy);
     set_battle_enemy_weave_angle(g, enemy, (uint8_t)(back ? angle + jump : angle - jump));
-    set_battle_enemy_weave_back(g, enemy, (uint8_t)(battle_enemy_weave_back(g, enemy) ^ 1));
+    weave_the_other_way(g, enemy);
 }
 
 /* ---- Marching ($C1:3F5A) and making for the middle ($C1:4021) ---------------------------- */
@@ -592,23 +606,16 @@ void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uin
 /* ---- The entries ------------------------------------------------------------------------- */
 
 /* Each movement's routine entered by itself, as the original's table calls it:
- * the enemy in its cell (a word), the animation in battle_effect_kind, and A's
+ * the enemy in battle_effect_enemy, the animation in battle_effect_kind, and A's
  * high byte clear, as the movements' loop leaves it (the original finds the
  * target's place by the whole of A). It takes only the animations that name
  * its movement, as the table does, and an enemy with a target to go by where
  * the movement needs one. */
-enum { MOVING_ENEMY_CELL = 0x1C };
-
-static unsigned moving_enemy(const GameState *g)
-{
-    return (unsigned)(battle_work(g, MOVING_ENEMY_CELL) | battle_work(g, MOVING_ENEMY_CELL + 1) << 8);
-}
-
 static bool entry_ready(Snes *s, EnemyMovement movement)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    unsigned enemy = moving_enemy(g);
+    unsigned enemy = battle_effect_enemy(g);
     bool fits = enemy < BATTLE_ENEMIES && battle_enemy_animation_effect(g, battle_effect_kind(g)) == movement
                 && (!battle_enemy_movement_needs_target(movement) || battle_names_combatant(target_of(g, enemy)));
     vars_peek(false);
@@ -618,7 +625,7 @@ static bool entry_ready(Snes *s, EnemyMovement movement)
 static void entry(Snes *s, EnemyMovement movement)
 {
     GameState *g = state_of(s);
-    battle_move_enemy(g, moving_enemy(g), movement, battle_effect_kind(g));
+    battle_move_enemy(g, battle_effect_enemy(g), movement, battle_effect_kind(g));
     m_rts(s);
 }
 

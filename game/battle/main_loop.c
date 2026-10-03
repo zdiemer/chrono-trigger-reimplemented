@@ -112,11 +112,6 @@ enum {
     READS_Y_AND_OVERFLOW = DC_A | DC_X | DC_N | DC_Z | DC_C,
 };
 
-/* The member a step is about, in the cell the steps read it from (on the
- * battle's page, the one the objects' drawing keeps the effect's sprite
- * attributes in). */
-static void set_step_member(GameState *g, uint8_t member) { set_battle_effect_sprite_attributes(g, member); }
-
 static bool step(Snes *s, uint32_t site, BattleStep number)
 {
     m_set_a8(s, number);
@@ -618,10 +613,6 @@ static bool enemy_turn(Snes *s, uint8_t slot)
     return true;
 }
 
-/* A party member's action record: nothing yet, its menu open, then with bit 7
- * its action chosen. */
-enum { NO_ACTION = 0, MENU_OPEN = 1, ACTION_CHOSEN = 0x80 };
-
 static uint8_t member_action(const GameState *g, unsigned member) { return battle_member_actions_state(g, member); }
 static void set_member_action(GameState *g, unsigned member, uint8_t v) { set_battle_member_actions_state(g, member, v); }
 
@@ -629,7 +620,7 @@ static void set_member_action(GameState *g, unsigned member, uint8_t v) { set_ba
 static void note_members_ready(GameState *g)
 {
     for (unsigned member = 0; member < BATTLE_PARTY_SIZE; member++)
-        if (member_action(g, member) & ACTION_CHOSEN)
+        if (member_action(g, member) & MEMBER_ACTION_CHOSEN)
             set_battle_member_ready(g, member, member_action(g, member));
 }
 
@@ -661,15 +652,15 @@ static bool member_turn(Snes *s, uint8_t member, MemberTurn *turn)
         return check_combinations(s, 0xC18538) && battle_call(s, 0xC1853B, MEMBER_ACTS_FOR_ITSELF, READS_A_HIGH);
     }
     *turn = TO_THE_QUEUE;
-    if (member_action(g, member) != NO_ACTION)
+    if (member_action(g, member) != MEMBER_NO_ACTION)
         return true;
     if (battle_is_demo(g)) {
         *turn = DEMO_PICKED;
         TIMED_AS(g, 0xC1B70E, battle_demo_party_ready(g));
         return true;
     }
-    set_member_action(g, member, MENU_OPEN);
-    set_step_member(g, member);
+    set_member_action(g, member, MEMBER_MENU_OPEN);
+    set_battle_step_member(g, member);
     return step(s, 0xC1856D, BATTLE_STEP_OPEN_MENU);
 }
 
@@ -697,14 +688,14 @@ static const uint16_t carry_out_calls[BATTLE_PARTY_SIZE] = { 0x85CE, 0x85E7, 0x8
 static bool carry_out(Snes *s, uint8_t member, bool *carried)
 {
     GameState *g = state_of(s);
-    *carried = ((member_action(g, member) ^ battle_member_ready(g, member)) & ACTION_CHOSEN) != 0;
+    *carried = ((member_action(g, member) ^ battle_member_ready(g, member)) & MEMBER_ACTION_CHOSEN) != 0;
     if (!*carried)
         return true;
     set_battle_actor(g, member);
     if (!battle_call(s, 0xC10000u | carry_out_calls[member], CARRY_OUT_ACTION, READS_NOTHING))
         return false;
-    set_battle_member_ready(g, member, NO_ACTION);
-    set_member_action(g, member, NO_ACTION);
+    set_battle_member_ready(g, member, MEMBER_NO_ACTION);
+    set_member_action(g, member, MEMBER_NO_ACTION);
     return true;
 }
 
@@ -790,7 +781,7 @@ static bool give_turn(Snes *s, TurnGoesOn *next)
         if (combatant_in_fight(g, slot) && battle_timer_counts_byte(g, BATTLE_TIMER_TURN, slot) == 0
             && enemy_can_act(g, enemy) && combatant_in_fight(g, slot))
             return enemy_turn(s, slot);
-        if (!((battle_member_ready(g, 0) | battle_member_ready(g, 1) | battle_member_ready(g, 2)) & ACTION_CHOSEN)) {
+        if (!((battle_member_ready(g, 0) | battle_member_ready(g, 1) | battle_member_ready(g, 2)) & MEMBER_ACTION_CHOSEN)) {
             *next = TO_THE_END;
             return true;
         }

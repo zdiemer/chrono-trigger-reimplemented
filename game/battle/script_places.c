@@ -50,11 +50,22 @@ static BattlePoint aimed_at(const GameState *g, uint8_t slot)
                           kept_on_screen(combatant_y(g, slot), (int8_t)combatant_cursor_offset_y(g, slot)) };
 }
 
-/* A channel's subject, as a place names it by the channel. */
+/* A channel's subject, as a place or a facing names it by the channel. */
 static uint8_t subject(const GameState *g, unsigned channel)
 {
     return channel < BATTLE_SCRIPT_SUBJECTS_COUNT ? battle_script_subjects(g, channel) : battle_script_subjects_unchecked(g, channel);
 }
+
+/* What the first subjects are to the action, as the action's start sets them
+ * ($CC:F156): the one acting; its partners in a combination, or acting alone
+ * the other party members; and the target (the other targets follow,
+ * battle/script_language.h). The actor and its partners are the action's
+ * performers. */
+enum { THE_ACTOR = 0, FIRST_PARTNER = 1, SECOND_PARTNER = 2, THE_TARGET = 3 };
+
+static uint8_t performer(const GameState *g, unsigned n) { return battle_script_subjects(g, n); }
+static uint8_t the_actor(const GameState *g) { return performer(g, THE_ACTOR); }
+static uint8_t the_target(const GameState *g) { return battle_script_subjects(g, THE_TARGET); }
 
 /* An anchor's place as a point: its coordinates' low bytes. */
 static BattlePoint anchor_point(const GameState *g, unsigned anchor)
@@ -86,26 +97,55 @@ static BattlePoint last_found(const GameState *g)
 
 /* ---- The kinds of place ------------------------------------------------------------------ */
 
-/* The places, by their first number. */
-enum {
-    WHERE_A_SUBJECT_STANDS = 0x00,   /* 0-8: where channel n's subject stands */
-    WHERE_A_SUBJECT_IS_AIMED = 0x09, /* 9-$11: where channel n's subject is aimed at */
-    THE_PLACE_LAST_FOUND = 0x12,
-    HALFWAY_FROM_THE_FIRST = 0x13,   /* $13-$15: halfway between subject 0 and subject 3, 1 or 2 */
-    AMID_THE_FIRST_THREE = 0x16,
-    OUT_ALONG_THE_HEADING = 0x17,    /* 24 pixels out from the running channel's mover, along its angle */
-    THE_MIDDLE = 0x18,
-    WHERE_THE_FIRST_THREE_BEGAN = 0x19, /* $19-$1B */
-    WHERE_AN_ANCHOR_DRAWS = 0x1C,    /* $1C-$23 */
-    PART_WAY_FROM_THE_FIRST = 0x24,  /* $24-$29: part way from subject 0 to subject 3 */
-    A_POINT_IN_THE_VARIABLES = 0x2A, /* $2A-$31: the point in variables 2n and 2n+1 */
-    PART_WAY_FROM_THE_SECOND = 0x32, /* $32-$38: part way from subject 1 to subject 3 */
-    PART_WAY_BETWEEN_AIMS = 0x39,    /* $39-$3F: part way between subject 0's aim and subject 3's */
-    HALFWAY_ON_FROM_THE_SECOND = 0x40, /* halfway between subjects 1 and 2 */
-    PART_WAY_TO_THE_ANCHOR = 0x41,   /* $41-$47: part way from subject 0 to anchor 0 */
-};
+/* The kinds of place. A script names a place by a byte: each kind is a run of
+ * them, the byte's place in the run saying which subject, performer, anchor or
+ * blend of the two ends it takes (its n). */
+typedef enum {
+    WHERE_A_SUBJECT_STANDS,      /* channel n's subject */
+    WHERE_A_SUBJECT_IS_AIMED,    /* channel n's subject's cursor point */
+    THE_PLACE_LAST_FOUND,
+    HALFWAY_FROM_THE_ACTOR,      /* to the target, the first partner or the second */
+    AMID_THE_PERFORMERS,
+    OUT_ALONG_THE_HEADING,       /* 24 pixels out from the running channel's mover, along its angle */
+    THE_MIDDLE,
+    WHERE_A_PERFORMER_BEGAN,     /* performer n, where it stood as the action began */
+    WHERE_AN_ANCHOR_DRAWS,       /* anchor n */
+    PART_WAY_TO_THE_TARGET,      /* from the actor, by blend n */
+    A_POINT_IN_THE_VARIABLES,    /* variables 2n and 2n+1 */
+    PART_WAY_FROM_A_PARTNER,     /* from the first partner to the target, by blend n */
+    PART_WAY_BETWEEN_AIMS,       /* between the actor's cursor point and the target's, by blend n */
+    HALFWAY_BETWEEN_PARTNERS,
+    PART_WAY_TO_THE_ANCHOR,      /* from the actor to anchor 0, by blend n */
+} PlaceKind;
 
-enum { THE_FOURTH = 3, THE_ANCHOR = 0, MIDDLE = 0x80, OUT_ALONG = 24, QUARTER_TURN = 0x40, EIGHTHS = 3 };
+typedef struct {
+    PlaceKind kind;
+    uint8_t n;
+} Place;
+
+/* Each kind's first byte, in order; the last kind takes every byte past its
+ * first, as the original does. */
+static const struct {
+    uint8_t first;
+    PlaceKind kind;
+} place_runs[] = {
+    { 0x00, WHERE_A_SUBJECT_STANDS }, { 0x09, WHERE_A_SUBJECT_IS_AIMED }, { 0x12, THE_PLACE_LAST_FOUND },
+    { 0x13, HALFWAY_FROM_THE_ACTOR }, { 0x16, AMID_THE_PERFORMERS },     { 0x17, OUT_ALONG_THE_HEADING },
+    { 0x18, THE_MIDDLE },             { 0x19, WHERE_A_PERFORMER_BEGAN },  { 0x1C, WHERE_AN_ANCHOR_DRAWS },
+    { 0x24, PART_WAY_TO_THE_TARGET }, { 0x2A, A_POINT_IN_THE_VARIABLES }, { 0x32, PART_WAY_FROM_A_PARTNER },
+    { 0x39, PART_WAY_BETWEEN_AIMS },  { 0x40, HALFWAY_BETWEEN_PARTNERS }, { 0x41, PART_WAY_TO_THE_ANCHOR },
+};
+enum { PLACE_RUNS = sizeof place_runs / sizeof place_runs[0] };
+
+static Place decode_place(uint8_t place)
+{
+    unsigned run = PLACE_RUNS - 1;
+    while (place < place_runs[run].first)
+        run--;
+    return (Place){ place_runs[run].kind, (uint8_t)(place - place_runs[run].first) };
+}
+
+enum { THE_ANCHOR = 0, MIDDLE = 0x80, OUT_ALONG = 24, QUARTER_TURN = 0x40, EIGHTHS = 3 };
 
 /* What working out a place leaves in the work cells: the two ends' X and Y
  * as words (a halfway point's own), the three ends of the center, the
@@ -158,7 +198,7 @@ static BattlePoint halfway(GameState *g, BattlePoint a, BattlePoint b)
     return (BattlePoint){ (uint8_t)x, (uint8_t)y };
 }
 
-/* The middle of the first three subjects, by their sums over three. The
+/* The middle of the performers, by their sums over three. The
  * original divides the sum of their X twice, so the middle's Y is its X
  * too; the game sees that, so it is kept. */
 static BattlePoint amid(GameState *g, BattlePoint a, BattlePoint b, BattlePoint c)
@@ -220,52 +260,59 @@ static BattlePoint a_point_in_the_variables(const GameState *g, uint8_t n)
 }
 
 // $C1:762E
-BattlePoint script_find_place(GameState *g, uint8_t place)
+BattlePoint script_find_place(GameState *g, uint8_t named)
 {
-    if (place < WHERE_A_SUBJECT_IS_AIMED)
-        found_at(g, standing(g, subject(g, place)));
-    else if (place < THE_PLACE_LAST_FOUND)
-        found_at(g, aimed_at(g, subject(g, place - WHERE_A_SUBJECT_IS_AIMED)));
-    else if (place == THE_PLACE_LAST_FOUND)
-        ;
-    else if (place < AMID_THE_FIRST_THREE) {
-        static const uint8_t other_end[] = { 3, 1, 2 };
-        found_at(g, halfway(g, standing(g, subject(g, 0)), standing(g, subject(g, other_end[place - HALFWAY_FROM_THE_FIRST]))));
-    } else if (place == AMID_THE_FIRST_THREE)
-        found_at(g, amid(g, standing(g, subject(g, 0)), standing(g, subject(g, 1)), standing(g, subject(g, 2))));
-    else if (place == OUT_ALONG_THE_HEADING)
-        out_along_the_heading(g);
-    else if (place == THE_MIDDLE)
-        found_at(g, (BattlePoint){ MIDDLE, MIDDLE });
-    else if (place < WHERE_AN_ANCHOR_DRAWS) {
-        uint8_t n = (uint8_t)(place - WHERE_THE_FIRST_THREE_BEGAN);
-        found_at(g, (BattlePoint){ battle_script_start_x(g, n), battle_script_start_y(g, n) });
-    } else if (place < PART_WAY_FROM_THE_FIRST)
-        where_the_anchor_draws(g, (uint8_t)(place - WHERE_AN_ANCHOR_DRAWS));
-    else if (place < A_POINT_IN_THE_VARIABLES)
-        found_at(g, part_way(g, standing(g, subject(g, 0)), standing(g, subject(g, THE_FOURTH)), (uint8_t)(place - PART_WAY_FROM_THE_FIRST)));
-    else if (place < PART_WAY_FROM_THE_SECOND)
-        found_at(g, a_point_in_the_variables(g, (uint8_t)(place - A_POINT_IN_THE_VARIABLES)));
-    else if (place < PART_WAY_BETWEEN_AIMS)
-        found_at(g, part_way(g, standing(g, subject(g, 1)), standing(g, subject(g, THE_FOURTH)), (uint8_t)(place - PART_WAY_FROM_THE_SECOND)));
-    else if (place < HALFWAY_ON_FROM_THE_SECOND)
-        found_at(g, part_way(g, aimed_at(g, subject(g, 0)), aimed_at(g, subject(g, THE_FOURTH)), (uint8_t)(place - PART_WAY_BETWEEN_AIMS)));
-    else if (place == HALFWAY_ON_FROM_THE_SECOND)
-        found_at(g, halfway(g, standing(g, subject(g, 1)), standing(g, subject(g, 2))));
-    else
-        found_at(g, part_way(g, standing(g, subject(g, 0)), anchor_point(g, THE_ANCHOR), (uint8_t)(place - PART_WAY_TO_THE_ANCHOR)));
+    static const uint8_t halfway_to[] = { THE_TARGET, FIRST_PARTNER, SECOND_PARTNER };
+    Place place = decode_place(named);
+    switch (place.kind) {
+    case WHERE_A_SUBJECT_STANDS: found_at(g, standing(g, subject(g, place.n))); break;
+    case WHERE_A_SUBJECT_IS_AIMED: found_at(g, aimed_at(g, subject(g, place.n))); break;
+    case THE_PLACE_LAST_FOUND: break;
+    case HALFWAY_FROM_THE_ACTOR:
+        found_at(g, halfway(g, standing(g, the_actor(g)), standing(g, performer(g, halfway_to[place.n]))));
+        break;
+    case AMID_THE_PERFORMERS:
+        found_at(g, amid(g, standing(g, the_actor(g)), standing(g, performer(g, FIRST_PARTNER)), standing(g, performer(g, SECOND_PARTNER))));
+        break;
+    case OUT_ALONG_THE_HEADING: out_along_the_heading(g); break;
+    case THE_MIDDLE: found_at(g, (BattlePoint){ MIDDLE, MIDDLE }); break;
+    case WHERE_A_PERFORMER_BEGAN: found_at(g, (BattlePoint){ battle_script_start_x(g, place.n), battle_script_start_y(g, place.n) }); break;
+    case WHERE_AN_ANCHOR_DRAWS: where_the_anchor_draws(g, place.n); break;
+    case PART_WAY_TO_THE_TARGET:
+        found_at(g, part_way(g, standing(g, the_actor(g)), standing(g, the_target(g)), place.n));
+        break;
+    case A_POINT_IN_THE_VARIABLES: found_at(g, a_point_in_the_variables(g, place.n)); break;
+    case PART_WAY_FROM_A_PARTNER:
+        found_at(g, part_way(g, standing(g, performer(g, FIRST_PARTNER)), standing(g, the_target(g)), place.n));
+        break;
+    case PART_WAY_BETWEEN_AIMS: found_at(g, part_way(g, aimed_at(g, the_actor(g)), aimed_at(g, the_target(g)), place.n)); break;
+    case HALFWAY_BETWEEN_PARTNERS:
+        found_at(g, halfway(g, standing(g, performer(g, FIRST_PARTNER)), standing(g, performer(g, SECOND_PARTNER))));
+        break;
+    case PART_WAY_TO_THE_ANCHOR: found_at(g, part_way(g, standing(g, the_actor(g)), anchor_point(g, THE_ANCHOR), place.n)); break;
+    }
     return last_found(g);
 }
 
 bool script_place_known(const GameState *g, uint8_t place)
 {
-    return place <= LAST_PLACE && (place != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS);
+    return place <= LAST_PLACE
+           && (decode_place(place).kind != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS);
 }
 
 bool script_place_works_in_cells(uint8_t place)
 {
-    return (place >= HALFWAY_FROM_THE_FIRST && place <= OUT_ALONG_THE_HEADING)
-           || (place >= PART_WAY_FROM_THE_FIRST && place < A_POINT_IN_THE_VARIABLES) || place >= PART_WAY_FROM_THE_SECOND;
+    switch (decode_place(place).kind) {
+    case HALFWAY_FROM_THE_ACTOR:
+    case AMID_THE_PERFORMERS:
+    case OUT_ALONG_THE_HEADING:
+    case PART_WAY_TO_THE_TARGET:
+    case PART_WAY_FROM_A_PARTNER:
+    case PART_WAY_BETWEEN_AIMS:
+    case HALFWAY_BETWEEN_PARTNERS:
+    case PART_WAY_TO_THE_ANCHOR: return true;
+    default: return false;
+    }
 }
 
 BattlePoint script_point(const GameState *g) { return (BattlePoint){ battle_script_point_x(g), battle_script_point_y(g) }; }
@@ -403,6 +450,17 @@ static void leave_turned(GameState *g, BattlePoint at, bool a_combatant, uint8_t
     script_leave(g, LEFT_FACING, facing);
 }
 
+/* Of the combatants turned, the original's cells keep the last: where it
+ * stands and which it is (nothing, if none was). */
+static void leave_last_turned(GameState *g, ScriptChannel channel, unsigned turned, uint8_t facing)
+{
+    uint8_t last = 0;
+    if (turned == 0 || !script_each_combatant(g, channel, turned - 1, &last))
+        leave_turned(g, (BattlePoint){ 0, 0 }, true, 0, facing);
+    else
+        leave_turned(g, standing(g, last), true, last, facing);
+}
+
 // $C1:5FDE
 /* What the channel moves turns the way a facing code names: its combatant,
  * each of the other targets, or its effect's anchor. (The channel has
@@ -416,14 +474,11 @@ static ScriptFlow face(GameState *g, ScriptChannel channel, uint8_t facing)
         ORIGINAL_EFFECT(leave_turned(g, at, false, anchor, facing));
         return SCRIPT_NEXT_FRAME;
     }
-    BattlePoint at = { 0, 0 };
-    uint8_t slot, last = 0;
-    for (unsigned k = 0; script_each_combatant(g, channel, k, &slot); k++) {
-        at = standing(g, slot);
-        set_battle_object_facing(g, slot, script_find_facing(g, facing, at));
-        last = slot;
-    }
-    ORIGINAL_EFFECT(leave_turned(g, at, true, last, facing));
+    uint8_t slot;
+    unsigned turned = 0;
+    for (; script_each_combatant(g, channel, turned, &slot); turned++)
+        set_battle_object_facing(g, slot, script_find_facing(g, facing, standing(g, slot)));
+    ORIGINAL_EFFECT(leave_last_turned(g, channel, turned, facing));
     return SCRIPT_NEXT_FRAME;
 }
 SCRIPT_OPERATION(face, channel, facing)

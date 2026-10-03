@@ -94,6 +94,13 @@ typedef struct {
 } BattlePoint;
 uint8_t battle_direction(GameState *g, BattlePoint from, BattlePoint to);
 
+/* The battle keeps the two points a direction was last asked between, and the
+ * direction it found, where battle_direction leaves them: the next direction
+ * can be asked of the same points, and a mover that sets its own heading
+ * (an enemy's movement) notes it as the direction found. */
+void battle_keep_direction_points(GameState *g, BattlePoint from, BattlePoint to);
+void battle_note_direction(GameState *g, uint8_t angle);
+
 /* Whether a combatant's box is within `reach` of a point, as the reach tests
  * measure between two boxes (an enemy's spot, battle/enemy_movement.c). */
 bool battle_box_within_reach_of(GameState *g, uint8_t slot, BattlePoint at, uint16_t reach);

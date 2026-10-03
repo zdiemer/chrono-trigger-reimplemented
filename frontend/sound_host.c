@@ -54,19 +54,6 @@ typedef struct {
     uint8_t effects_asked;
 } Waiting;
 
-/* SOUND_MIXER_CHECK's comparison: frames, and their power in bands of the
- * spectrum, a block of frames at a time. */
-enum { CHECK_BLOCK = 1024, CHECK_BANDS = 7 };
-
-typedef struct {
-    unsigned long long compared, sounding, differing, first_difference;
-    int largest;
-    double power[2];                    /* the S-DSP's, and the difference's */
-    double band_power[CHECK_BANDS][2];
-    float block[2][CHECK_BLOCK];        /* the S-DSP's frames, and the differences, as mono */
-    unsigned filled;
-} MixerCheck;
-
 struct SoundHost {
     Snes *snes;
     SoundDriver driver;
@@ -87,7 +74,8 @@ struct SoundHost {
 
     unsigned long samples_into_echo;
     unsigned long commands_dropped;
-    MixerCheck *check;
+    SoundMixerCompare compare;  /* SOUND_MIXER_CHECK: who compares the frames, if anyone */
+    void *compare_ctx;
     SoundHost *loading;         /* a state read goes here first (sound_host_state) */
     SnesStateExtra extra;       /* what sound_host_state hands out */
 };
@@ -111,16 +99,13 @@ static void write_register(void *ctx, uint8_t reg, uint8_t value)
 /* Whether the S-DSP is writing its echo over an address: its writes are on,
  * and the address is in the buffer it writes now or the one its registers
  * name (which it moves to when its offset next wraps). */
-enum { ECHO_WRITES_OFF = 0x20, ECHO_UNIT_BYTES = 0x800 };
+enum { ECHO_WRITES_OFF = 0x20 };
 
 static bool in_echo(const Dsp *dsp, uint16_t at)
 {
-    if (dsp->regs[DSP_FLG] & ECHO_WRITES_OFF)
-        return false;
-    uint16_t now = (uint16_t)(dsp->echo_esa << 8), next = (uint16_t)(dsp->regs[DSP_ESA] << 8);
-    uint32_t now_length = dsp->echo_length ? dsp->echo_length : 4;
-    uint32_t next_length = (dsp->regs[DSP_EDL] & 0x0F) ? (dsp->regs[DSP_EDL] & 0x0F) * ECHO_UNIT_BYTES : 4;
-    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
+    VoicesEcho echo = { !(dsp->regs[DSP_FLG] & ECHO_WRITES_OFF), dsp->echo_esa, dsp->echo_length, dsp->regs[DSP_ESA],
+                        dsp->regs[DSP_EDL] };
+    return voices_echo_writes_over(echo, at);
 }
 
 /* (a sample placed past where the places' echo starts is the original's,
@@ -172,36 +157,6 @@ static uint8_t echo_delay_now(SoundHost *h)
 
 /* ---- The mixer, on the APU's time ------------------------------------------------------------ */
 
-static void check_block(MixerCheck *c);
-
-/* The S-DSP's frame and the mixer's, compared. */
-static void check_frame(MixerCheck *c, const int16_t dsp[2], const int16_t mixed[2])
-{
-    c->compared++;
-    c->sounding += dsp[0] || dsp[1];
-    int largest = 0;
-    for (int ch = 0; ch < 2; ch++) {
-        int d = mixed[ch] - dsp[ch];
-        if (d < 0)
-            d = -d;
-        if (d > largest)
-            largest = d;
-        c->power[0] += (double)dsp[ch] * dsp[ch];
-        c->power[1] += (double)d * d;
-    }
-    if (largest) {
-        if (!c->differing)
-            c->first_difference = c->compared - 1;
-        c->differing++;
-        if (largest > c->largest)
-            c->largest = largest;
-    }
-    c->block[0][c->filled] = (float)(dsp[0] + dsp[1]) / 2;
-    c->block[1][c->filled] = (float)((mixed[0] - dsp[0]) + (mixed[1] - dsp[1])) / 2;
-    if (++c->filled == CHECK_BLOCK)
-        check_block(c);
-}
-
 /* The machine's sound, frame by frame on the APU's clock: the mixer's, or
  * (CHECK) the S-DSP's with the mixer's compared beside it. */
 static void mix(void *ctx, Apu *apu, unsigned cycles)
@@ -219,7 +174,8 @@ static void mix(void *ctx, Apu *apu, unsigned cycles)
         dsp_sample(&apu->dsp, apu->ram);
         int16_t mixed[2];
         mixer_frame(&h->native, mixed);
-        check_frame(h->check, &apu->dsp.out[(apu->dsp.out_count - 1) * 2], mixed);
+        if (h->compare)
+            h->compare(h->compare_ctx, &apu->dsp.out[(apu->dsp.out_count - 1) * 2], mixed);
     }
 }
 
@@ -482,10 +438,6 @@ SoundHost *sound_host_attach_mixer(Snes *s, SoundMixer mixer)
     SoundHost *h = calloc(1, sizeof *h);
     if (!h)
         return NULL;
-    if (mixer == SOUND_MIXER_CHECK && !(h->check = calloc(1, sizeof *h->check))) {
-        free(h);
-        return NULL;
-    }
     h->snes = s;
     h->mixer = mixer;
     mixer_init(&h->native);
@@ -496,6 +448,12 @@ SoundHost *sound_host_attach_mixer(Snes *s, SoundMixer mixer)
 
 SoundHost *sound_host_attach(Snes *s) { return sound_host_attach_mixer(s, SOUND_MIXER_DSP); }
 
+void sound_host_compare_mixer(SoundHost *h, SoundMixerCompare compare, void *ctx)
+{
+    h->compare = compare;
+    h->compare_ctx = ctx;
+}
+
 bool sound_mixer_named(const char *name, SoundMixer *mixer)
 {
     static const char *const names[] = { "dsp", "native", "check" };
@@ -504,70 +462,6 @@ bool sound_mixer_named(const char *name, SoundMixer *mixer)
             *mixer = (SoundMixer)i;
             return true;
         }
-    return false;
-}
-
-/* ---- The check's report ---------------------------------------------------------------------- */
-
-/* The power in each band of a block of frames, an octave wide from 250 Hz up
- * to the 16 kHz the output reaches and everything below 250 Hz, by a Haar
- * wavelet's split of the block: each level halves the band, and the
- * differences of a level are the power in the upper half (the bands' edges
- * are soft, which is enough to say where a difference is). */
-static void band_powers(float *x, double power[CHECK_BANDS])
-{
-    const float root_half = 0.70710678f;
-    unsigned n = CHECK_BLOCK;
-    for (int band = CHECK_BANDS - 1; band > 0; band--) {
-        n /= 2;
-        double upper = 0;
-        for (unsigned i = 0; i < n; i++) {
-            float a = x[2 * i], b = x[2 * i + 1];
-            float d = (a - b) * root_half;
-            x[i] = (a + b) * root_half;
-            upper += (double)d * d;
-        }
-        power[band] += upper;
-    }
-    for (unsigned i = 0; i < n; i++)
-        power[0] += (double)x[i] * x[i];
-}
-
-static void check_block(MixerCheck *c)
-{
-    double power[2][CHECK_BANDS] = { { 0 } };
-    for (int which = 0; which < 2; which++)
-        band_powers(c->block[which], power[which]);
-    for (int b = 0; b < CHECK_BANDS; b++)
-        for (int which = 0; which < 2; which++)
-            c->band_power[b][which] += power[which][b];
-    c->filled = 0;
-}
-
-/* `of` as a percentage of `to`. */
-static double percent(double of, double to) { return to > 0 ? 100 * of / to : 0; }
-
-bool sound_host_mixer_report(const SoundHost *h, FILE *out)
-{
-    const MixerCheck *c = h->check;
-    if (!c)
-        return true;
-    fprintf(out, "mixer check: %llu frames compared (%llu sounding)", c->compared, c->sounding);
-    if (!c->differing) {
-        fprintf(out, ": identical\n");
-        return true;
-    }
-    fprintf(out, ": %llu differ (%.3f%%), the first at %.3f s; largest difference %d; the difference's power "
-                 "%.4f%% of the signal's; by band (Hz), the same:",
-            c->differing, 100.0 * (double)c->differing / (double)c->compared,
-            (double)c->first_difference / DSP_SAMPLE_RATE, c->largest, percent(c->power[1], c->power[0]));
-    for (int b = 0; b < CHECK_BANDS; b++) {
-        if (b)
-            fprintf(out, " %d-%d %.4f%%", 125 << b, 250 << b, percent(c->band_power[b][1], c->band_power[b][0]));
-        else
-            fprintf(out, " <250 %.4f%%", percent(c->band_power[b][1], c->band_power[b][0]));
-    }
-    fprintf(out, "\n");
     return false;
 }
 
@@ -598,7 +492,6 @@ void sound_host_detach(SoundHost *h)
         h->snes->apu.host_take = NULL;
     }
     free(h->loading);
-    free(h->check);
     free(h);
 }
 
@@ -864,14 +757,16 @@ static void loaded(void *fields, void *loading)
     Snes *snes = h->snes;
     SoundHost *scratch = h->loading;
     SoundMixer mixer = h->mixer;
-    MixerCheck *check = h->check;
+    SoundMixerCompare compare = h->compare;
+    void *compare_ctx = h->compare_ctx;
     SnesStateExtra extra = h->extra;
     unsigned long into_echo = h->samples_into_echo, dropped = h->commands_dropped;
     *h = *from;
     h->snes = snes;
     h->loading = scratch;
     h->mixer = mixer;
-    h->check = check;
+    h->compare = compare;
+    h->compare_ctx = compare_ctx;
     h->extra = extra;
     h->samples_into_echo = into_echo;
     h->commands_dropped = dropped;
@@ -885,13 +780,23 @@ static void loaded(void *fields, void *loading)
 
 /* A state played through the mixer holds the mixer's fields, and is a host
  * program of its own: it loads only with the mixer, as one played through
- * the S-DSP loads only with that (the S-DSP's fields are the machine's). */
+ * the S-DSP loads only with that (the S-DSP's fields are the machine's). One
+ * played with the mixer checked beside the S-DSP is a third: the check
+ * compares the mixer with an S-DSP that has played all along, which a state
+ * played through the mixer alone has left where it was. */
 static SnesStateExtra extra_of(SoundHost *h, void *loading)
 {
-    if (h->mixer == SOUND_MIXER_DSP)
+    switch (h->mixer) {
+    case SOUND_MIXER_DSP:
         return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER, "the C sound driver", visit_host, h, loading, loaded };
-    return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER_MIXER, "the C sound driver with the native mixer",
-                             visit_host, h, loading, loaded };
+    case SOUND_MIXER_NATIVE:
+        return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER_MIXER, "the C sound driver with the native mixer",
+                                 visit_host, h, loading, loaded };
+    default:
+        return (SnesStateExtra){ SNES_STATE_HOST_C_SOUND_DRIVER_MIXER_CHECK,
+                                 "the C sound driver with the native mixer checked against the S-DSP", visit_host, h,
+                                 loading, loaded };
+    }
 }
 
 const SnesStateExtra *sound_host_state(SoundHost *h)
@@ -916,7 +821,7 @@ SoundHost *sound_host_copy(const SoundHost *h)
         return NULL;
     *copy = *h;
     copy->loading = NULL;
-    copy->check = NULL;
+    copy->compare = NULL;
     return copy;
 }
 
