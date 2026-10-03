@@ -3462,7 +3462,11 @@ count in the scene's first cell, the mirroring's offset and count at the start
 of the unpack buffer, and the work RAM port's bank (the one bit the mirroring
 writes, then the unpacker's `$7F`); fuzzing the setup found the curtain's
 window on BG4 and the color window as well (the race without its panel, which
-no movie runs). Fuzzed from the `race` state with the program kept, seeds 1
+no movie runs). The gate's shipping-mode run with `--scaffold-reads` found the
+placing's working cells read after the race: the scene's cells share their
+page with the controller's (`input_held`, the repeat delay, the last frame's
+buttons), so what the last placing leaves there is what the field's first
+read of the controller takes over, and those writes are plain. Fuzzed from the `race` state with the program kept, seeds 1
 and 2 (`tools/fuzz_routines.toml`), 0 mismatched everywhere: the placing as it
 comes and with the divisors forgotten (Johnny shown or gone; under 2% refused,
 a camera height of `$FF`, where the search never ends, or nothing ahead of the
