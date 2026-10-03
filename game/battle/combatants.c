@@ -464,8 +464,7 @@ static bool comes_back_shown(Snes *s, uint8_t member)
     if (!battle_run(s, 0xC1B376, SHOWING, battle_start_action_showing))
         return false;
     name_in_message(g, member);
-    m_set_a8(s, MESSAGE_CAME_BACK);
-    s->cpu.a &= 0x00FF;
+    s->cpu.a = MESSAGE_CAME_BACK;
     if (!battle_call_long(s, 0xC1B386, SHOW_MESSAGE, DC_X | DC_Y | DC_FLAGS))
         return false;
     after_coming_back(g);
