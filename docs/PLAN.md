@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 212 files, 117 of 61,418 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 216 files, 117 of 62,584 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -211,16 +211,16 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **26% of the code is still generated.**
+docstring says which way it is wrong). **25% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 59.7K | 20.3K | 8% | 403 |
-| field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
+| field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
 | menus, text (`$C2`) | 59.3K | 30.9K | 8.6K | 48% | 326 |
 | scene program, RAM (`$7E`) | 24.9K | 11.4K | 1.2K | 54% | 68 |
 | battle frame work (`$CD`) | 15.5K | 9.4K | 3.9K | 39% | 134 |
-| field graphics (`$FD`) | 15.3K | 11.7K | 0.7K | 23% | 86 |
+| field graphics (`$FD`) | 15.3K | 11.8K | 0.7K | 23% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **26% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **198.0K** | **48.9K** | **26%** | **1547** |
+| **total** | **268.5K** | **200.6K** | **49.9K** | **25%** | **1572** |
 
 `$CD`, the battle's frame work, has the screen script language in C
 (RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122
@@ -400,14 +400,18 @@ load one stream named by a byte of the scene record at `$C6:FD00`, and without
 knowing what each stream holds their ports would be named after their
 destination addresses.
 
-**`$C0`: the field and events**, 16% left after fifteen chunks, and all of
-it routines the ports call out to: the field's setup after a menu and a map
-(`$C0:01A5`, `$C0:038F`, `$C0:0000`), the keeping of the field
-(`$C0:011B`), the fade in (`$C0:2824`), the sprite lists (`$C0:B192`), the
-frame work (`$C0:00BF`), a choice's buttons (`$C0:1ADF`) and the sprite
-blocks objects take coming into view (`$C0:6FBA`). Every event command has a
-row; event's bridges still call the menus' party routines (`$C2:8004`),
-which go with `$C2`, and the unpacker (`$C3:0002`, TODO.md).
+**`$C0`: the field and events**, 12% left after sixteen chunks, and all of
+it routines the ports call out to. **Next** is the screen's setup and fade in
+(`$C0:2824`-`$C0:2C40`, with `$C0:0A50` and `$C0:0B28`, whose wait on the
+vblank's flag is a `tm_wait_frame`; the window tile maps `$C0:29F7`/`$2B78`
+and the transfers `$C0:6E5C`-`$6F5E` it and the vblank's screen jobs run),
+then the objects' setup at a map's start (`$C0:56A6`) with the map's
+unpacking (`$C0:A33B`, `$C0:7399`, `$C0:A66B`), the dialog window's opening
+(`$C0:1F24`), the sprite lists (`$C0:B192`), a choice's buttons
+(`$C0:1ADF`) and the sprite blocks objects take coming into view
+(`$C0:6FBA`). Every event command has a row; event's bridges still call the
+menus' party routines (`$C2:8004`), which go with `$C2`, and the unpacker
+(`$C3:0002`, TODO.md).
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
@@ -458,12 +462,13 @@ by an audit; the fourth is the program itself.
   them. Input and save are small (`in_host_set` and `frontend/player.c` already
   carry the host's half). Audio is the native mixer (PLATFORM.md), which
   already makes the sound from the voices with no S-DSP.
-- **Power-on and the interrupt entries.** `ct_play --recomp off --interpreted
-  stop` (PLAYING.md) stops at frame 0: the reset stub (`$00:FF00`), the boot
-  (`$FD:C000`), the vector stubs (`$00:FF10`) and the RAM trampolines the
-  game points them through (`$00:0500`, `$0504`) have no hand ports. They are
-  small, and one chunk in a later round; the meter only moves far past them
-  once the title's scene program (`$7E`) is ported.
+- **The native frame.** The power-on path and the interrupts' entries are
+  hand ports (`core/console.c`; RECOMP.md, "Phase 3, field and events: the
+  console's start and the field's frame"), and so are the field's first start
+  and main loop: `ct_play --recomp off --interpreted stop` (PLAYING.md) runs
+  to frame 2 and stops at the menus' routine `$C2:8004`, which the field's
+  first start asks about the saves. The meter moves far past that only once the title's scene
+  program (`$7E`) is ported.
 
   **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census
   behind it: 117 instructions, 49 ported). The game has no raster effect done

@@ -433,6 +433,10 @@ void object_unmark_scripted_move(GameState *g, FieldObject obj) { set_field_obje
 
 FieldLink party_member_link(const GameState *g, unsigned place) { return field_link_stored(field_party_objects(g, place)); }
 void party_place_left_empty(GameState *g, unsigned place) { set_field_party_objects(g, place, field_link_byte(field_no_link())); }
+void party_place_marked_out(GameState *g, unsigned place)
+{
+    set_field_party_objects(g, place, (uint8_t)(field_party_objects(g, place) | LINK_NONE_BIT));
+}
 void party_place_taken_by(GameState *g, unsigned place, FieldObject obj)
 {
     set_field_party_objects(g, place, field_link_byte(field_link_to(obj)));

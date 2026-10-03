@@ -114,18 +114,20 @@ DEFAULT_CALLS = ("traces/calls-*.txt", "traces/saves/calls-*.txt")
 STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # The bridges' vocabulary (game/field/bridge.h, game/battle/bridge.h,
 # game/menu/bridge.h): bridge_call(s, site, target, set, machine) and
-# bridge_call_long(...) with field_run and field_run_long (a sibling port run as
+# bridge_call_long(...) and bridge_call_on_page (on another page) with field_run and field_run_long (a sibling port run as
 # C under the call's frame, or the same call where its guard refuses), the battle's battle_call(s, site, target, set) and
 # battle_call_long(...), and the menus' menu_call and menu_call_long, are
 # m_jsr_dc and m_jsl_dc and a stop of the bridge's own with no set at the
 # call's return; their arguments are read where they are called, and the
 # helpers' own bodies (BRIDGES) aren't declarations of their own.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
+             "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "menu_call", "menu_call_long", "menu_call_returning")
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
-                            "field_run_holding", "field_run_on_page", "run_entry"),
+                            "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
+                            "run_entry"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_stop_after_call"),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
 }

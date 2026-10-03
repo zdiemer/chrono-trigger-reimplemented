@@ -20,6 +20,7 @@
 #include "event/bridge.h"
 #include "event/calls.h"
 #include "event/party.h"
+#include "field/palettes.h"
 #include "event/variables.h"
 #include "field/field.h"
 #include "field/party.h"
@@ -323,18 +324,6 @@ void event_cmd_bring_into_the_party(Snes *s)
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
 
-/* The party's members wear the sprite palettes from slot 5 on, the leader's
- * first: a member moving up a place takes the palette of the place before. */
-enum { LEADERS_PALETTE = 5, COLOURS_A_PALETTE = 16, FIRST_SPRITE_COLOUR = 128 };
-
-static void palette_moves_up(GameState *g, PartyPlace from)
-{
-    unsigned to_colour = FIRST_SPRITE_COLOUR + (LEADERS_PALETTE + from - 1u) * COLOURS_A_PALETTE;
-    for (unsigned c = 0; c < COLOURS_A_PALETTE; c++)
-        set_palette_base(g, to_colour + c, palette_base(g, to_colour + COLOURS_A_PALETTE + c));
-    ORIGINAL_EFFECT(charge_block_move(g, 2 * COLOURS_A_PALETTE));
-}
-
 /* The members behind a place take the roles of the places before theirs, as
  * far as there are members. */
 static void roles_close_up(GameState *g, PartyPlace from)
@@ -353,7 +342,7 @@ static void places_close_up(GameState *g, PartyPlace from)
 {
     for (PartyPlace place = from; place + 1 < PARTY_PLACES; place++) {
         set_field_party_objects(g, place, field_party_objects(g, (PartyPlace)(place + 1)));
-        palette_moves_up(g, (PartyPlace)(place + 1));
+        party_palette_moves_up(g, (PartyPlace)(place + 1));
     }
     party_place_left_empty(g, PARTY_SECOND_MEMBER);
 }
@@ -389,8 +378,7 @@ static void member_steps_out(GameState *g, uint8_t character)
     }
     if (member_is(g, PARTY_SECOND_MEMBER, character)) {
         object_leave_the_party(g, member_object(g, PARTY_SECOND_MEMBER));
-        set_field_party_objects(g, PARTY_SECOND_MEMBER,
-                                (uint8_t)(field_party_objects(g, PARTY_SECOND_MEMBER) | LINK_NONE_BIT));
+        party_place_marked_out(g, PARTY_SECOND_MEMBER);
     }
 }
 
@@ -522,6 +510,12 @@ void party_script_go_to(GameState *g, PartyScript script, MapTile tile)
     set_event_script_byte(g, at + 1, tile.y);
 }
 
+MapTile party_script_destination(const GameState *g, PartyScript script)
+{
+    unsigned at = (unsigned)party_scripts[script].start + party_scripts[script].tile_operand;
+    return (MapTile){ event_script_byte(g, at), event_script_byte(g, at + 1) };
+}
+
 /* The facing command's operand is the way to face as the objects number the
  * facings (field/object.h). */
 void party_script_face(GameState *g, PartyScript script, Facing facing)
@@ -629,9 +623,8 @@ static void send_to_the_leader(GameState *g, FieldObject member)
     object_run_script_from(g, member, PARTY_SCRIPT_LEVEL, party_script_start(GATHERING_SCRIPT));
 }
 
-/* The count the gathering scripts reach once every member is with the
- * leader: it starts at one more for the second place empty. */
-enum { ALL_GATHERED = 3 };
+/* The gathering scripts count up to PARTY_ALL_GATHERED (event/party.h),
+ * starting at one more for the second place empty. */
 
 
 // $C0:345A
@@ -642,17 +635,17 @@ static EventFlow gather_party(GameState *g)
     if (!place_taken(g, PARTY_FIRST_MEMBER))
         return end_turn();
     if (field_party_gathering(g)) {
-        if (variable_byte(g, GATHERING_COUNT) < ALL_GATHERED)
+        if (variable_byte(g, GATHERING_COUNT) < PARTY_ALL_GATHERED)
             return stay();
         set_field_party_gathering(g, false);
         party_trail_regroup(g);
         return next_command();
     }
     send_to_the_leader(g, member_object(g, PARTY_FIRST_MEMBER));
-    uint8_t count = ALL_GATHERED - 1;
+    uint8_t count = PARTY_ALL_GATHERED - 1;
     if (place_taken(g, PARTY_SECOND_MEMBER)) {
         send_to_the_leader(g, member_object(g, PARTY_SECOND_MEMBER));
-        count = ALL_GATHERED - 2;
+        count = PARTY_ALL_GATHERED - 2;
     }
     set_variable_byte(g, GATHERING_COUNT, count);
     set_field_party_gathering(g, true);
@@ -700,15 +693,15 @@ static void leave_member_named(GameState *g, FieldObject member)
 void party_back_together(GameState *g)
 {
     if (battle_event_flags(g) & PARTY_STAYS_PUT) {
-        set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
+        set_variable_byte(g, GATHERING_COUNT, PARTY_ALL_GATHERED);
         return;
     }
     if (!place_taken(g, PARTY_FIRST_MEMBER)) {
         hand_the_party_to_the_player(g, true);
-        set_variable_byte(g, GATHERING_COUNT, ALL_GATHERED);
+        set_variable_byte(g, GATHERING_COUNT, PARTY_ALL_GATHERED);
         return;
     }
-    uint8_t gathered = ALL_GATHERED;
+    uint8_t gathered = PARTY_ALL_GATHERED;
     for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES && place_taken(g, place); place++) {
         FieldObject member = member_object(g, place);
         ORIGINAL_EFFECT(leave_member_named(g, member));

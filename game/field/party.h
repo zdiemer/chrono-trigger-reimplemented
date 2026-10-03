@@ -77,6 +77,10 @@ void party_trail_rejoin(GameState *g);
 
 /* The party counted as on the move: not standing about (field_idle_frames). */
 void count_as_on_the_move(GameState *g);
+/* One more frame counted of the party standing about, as the main loop
+ * finishes a frame: the count runs to its limit and starts again, and the
+ * leader's having fidgeted is kept. */
+void party_stands_another_frame(GameState *g);
 
 /* The party as it is now taken as the one the map's characters were set up
  * for (field_party_as_loaded): the field's start, and a menu that changed it. */

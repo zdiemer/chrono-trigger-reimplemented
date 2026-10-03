@@ -272,4 +272,56 @@ static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
     return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
+/* ---- Locations ------------------------------------------------------------------------------- */
+
+/* A location's record (MD2's location_records: 14 bytes a location from
+ * $F6:0000, by the location's nine-bit number), as far as the field's loading
+ * reads it here: the song it plays (one of $80 and up plays none), its tile
+ * set (BG1's and BG2's tiles: the graphics and how the map's tiles are made
+ * of them), and BG3's ($FF: none). The field keeps where the current
+ * location's record is (location_record_offset), which the other readers of
+ * the record take it from (core/palette_data.h). */
+enum { LOCATION_RECORD_BYTES = 14, LOCATION_NUMBER_BITS = 0x01FF, NO_LOCATION_SONG = 0x80, NO_TILE_SET = 0xFF };
+
+typedef struct {
+    uint8_t song;
+    uint8_t tile_set;
+    uint8_t bg3_tile_set;
+} LocationDescription;
+
+static inline uint16_t location_record_place(uint16_t location)
+{
+    return (uint16_t)(LOCATION_RECORD_BYTES * (location & LOCATION_NUMBER_BITS));
+}
+
+static inline LocationDescription location_description_at(const GameState *g, uint16_t place)
+{
+    uint32_t at = 0xF60000u + place;
+    return (LocationDescription){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+}
+
+/* A tile set's graphics: eight packed graphics blocks (data/packed_graphics.h),
+ * a byte each from $F6:1C00, $FF for none. The first six are BG1's and BG2's
+ * tiles in VRAM; the last two are kept in bank $7F. */
+enum { TILE_SET_BLOCKS = 8, TILE_SET_BLOCKS_IN_VRAM = 6 };
+
+static inline uint32_t tile_set_blocks_place(uint8_t set) { return 0xF61C00u + (uint16_t)(set * TILE_SET_BLOCKS); }
+static inline uint8_t tile_set_block(const GameState *g, uint8_t set, unsigned n)
+{
+    return rom_read8(g, tile_set_blocks_place(set) + n);
+}
+
+/* How a tile set's map tiles are made of its tiles, packed: a long pointer
+ * per set, BG1's and BG2's sets from $F6:2100, BG3's from $F6:21C0. */
+static inline uint32_t tile_looks_address(const GameState *g, uint8_t set)
+{
+    uint32_t at = 0xF62100u + 3u * set;
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+static inline uint32_t bg3_tile_looks_address(const GameState *g, uint8_t set)
+{
+    uint32_t at = 0xF621C0u + 3u * set;
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+
 #endif

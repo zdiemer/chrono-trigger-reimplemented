@@ -31,6 +31,13 @@ enum { TM_BEAM_LATCHED = 0x80 };
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources);
 /* The line the line handler (TM_INT_LINE) runs at, from the top of the frame. */
 PF_API void tm_set_line(Platform *pf, PfOrigin o, uint16_t line);
+/* Both timers' places (the dot and the line) back to the start of the frame,
+ * as the game does where it starts a mode: nothing enables them after, so a
+ * backend without them does nothing. */
+PF_API void tm_reset_timers(Platform *pf, PfOrigin o);
+/* Whether the cartridge's ROM is read at its fast speed: a matter of the SNES
+ * backend's timing alone. */
+PF_API void tm_fast_rom(Platform *pf, PfOrigin o, bool fast);
 /* Acknowledge the vblank interrupt; returns its status. */
 PF_API uint8_t tm_ack_vblank(Platform *pf, PfOrigin o);
 /* Acknowledge the line interrupt; returns its status. */

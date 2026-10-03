@@ -1,4 +1,4 @@
-/* Timing service, SNES backend: $4200, $4209-$420A, $4210-$4212, $2137, $213D and $213F. Included by
+/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D and $213F. Included by
  * platform/timing.h. */
 #ifndef CT_PLATFORM_SNES_TIMING_H
 #define CT_PLATFORM_SNES_TIMING_H
@@ -18,6 +18,21 @@ PF_API void tm_set_line(Platform *pf, PfOrigin o, uint16_t line)
     pf_snes_begin("tm_set_line", o);
     pf_snes_put(pf_snes(pf), 0x4209, (uint8_t)line);
     pf_snes_put(pf_snes(pf), 0x420A, (uint8_t)(line >> 8));
+    pf_snes_end();
+}
+
+PF_API void tm_reset_timers(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("tm_reset_timers", o);
+    for (uint16_t reg = 0x4207; reg <= 0x420A; reg++)
+        pf_snes_put(pf_snes(pf), reg, 0);
+    pf_snes_end();
+}
+
+PF_API void tm_fast_rom(Platform *pf, PfOrigin o, bool fast)
+{
+    pf_snes_begin("tm_fast_rom", o);
+    pf_snes_put(pf_snes(pf), 0x420D, fast ? 0x01 : 0x00);
     pf_snes_end();
 }
 

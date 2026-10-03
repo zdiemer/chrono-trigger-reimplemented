@@ -130,6 +130,44 @@ menu_step_record_animation vblank-tail as menu_animate_record, a frame on: mean 
 menu_run_record_task vblank-tail the menus' records' task: a pass over the nine records, carrying on their animations through menu_step_record_animation and the frame building, whose spread it carries: mean |error| 1.2% with no drift, at most 10872 clocks, writing RAM and the VRAM queue only
 menu_draw_item_rows vblank-worst draws the items list's ten rows into the menus' tilemap buffer in RAM, which a later vblank uploads; each row is charged at the row's calibrated rate, whose time follows the row (a name, a count and a label, or a row of blanks for an empty place), and the panel's few calls (5 over the library) land in vblank: mean |error| 13.7% with no drift, at most 25259 clocks, writing RAM only
 
+# The console's interrupt vectors (core/console.c): each is one long jump to its
+# RAM stub, which the port takes with no bus access of its own, so its estimate
+# is 0 against the 32 clocks the jump takes; no scalar can scale nothing. It
+# moves the start of every interrupt's handler by those 32 clocks, the same each
+# time, and the vblank check finds none of the handlers' writes moved.
+console_vblank_vector drift a long jump to the RAM stub with no access of its own: 32 clocks a call estimated as 0, the same at every vblank
+console_line_vector drift as console_vblank_vector, at the line interrupt
+# The field's frame and its loading (field/main_loop.c, field/location.c,
+# field/battle_return.c). These run nearly everything they do as C under their
+# own stretch, each piece at its own routine's calibrated time; what is left as
+# their own (cost_milli 1, or the frame's loop) is a remainder one scalar can't
+# fit, and the loadings unpack data-dependent graphics while a location change
+# or a menu has the screen blanked. They write work RAM and video memory the
+# screen is not showing; the vblank check finds none of their writes moved.
+field_frame vblank-tail the field's frame, the frame's work run inline and attributed; 2.93% of its vblank calls off by 1024 clocks or more, writing RAM the next vblank sends
+field_frame vblank-worst as for vblank-tail: its worst follows the frame's events and object scripts, run inline, writing RAM
+field_frame worst as for vblank-tail: at most 74413 clocks, in a frame whose scripts and objects run long
+field_enter drift a location's entry, its loading and setup attributed to their routines (cost_milli 1), with the screen blanked; what is left over-estimates by 1693 clocks a call on average
+field_load_tile_graphics vblank-worst unpacks a location's tile graphics while the screen is blanked, 7 frames a call on average; its time follows the packed data, as decompress
+field_load_tile_graphics worst as for vblank-worst: 2.4% error in calls of 1.9 million clocks, ending a load sooner or later
+field_load_bg3_graphics drift the BG3 graphics' unpacking attributed to the decompressor (cost_milli 1), with the screen blanked; the remainder follows the data
+field_load_bg3_graphics vblank-worst as for its drift: a load of 187382 clocks on average, ending sooner or later
+field_load_bg3_graphics worst as for its drift
+field_load_tile_looks vblank-worst unpacks the tiles' looks while the screen is blanked, a frame a call on average; its time follows the packed data, as decompress
+field_load_tile_looks worst as for vblank-worst: at most 52380 clocks against a 50468 limit
+field_load_bg3_tile_looks drift as field_load_bg3_graphics, for BG3's tile looks
+field_load_bg3_tile_looks vblank-worst as for its drift: a load of 97955 clocks on average
+field_set_up_after_a_menu vblank-worst brings the field back after a menu with the screen blanked, its loadings attributed; at most 125643 clocks in calls of 609034 on average
+field_after_battle vblank-tail brings the field back after a battle, its loadings and the frames it waits attributed; its error moves the end of the load, with the screen blanked
+field_after_battle vblank-worst as for vblank-tail: at most 30104 clocks
+field_refresh_effects drift runs the screen effects' and the layers' frame work inline, attributed (cost_milli 1); what is left over-estimates by 6%, writing RAM
+field_refresh_effects vblank-tail as for its drift: 2.94% of its vblank calls off by 1024 clocks or more, at most 2237 clocks
+field_walk_a_frame drift walks the party a frame inline, attributed (cost_milli 1); +0.77% over 1203 clocks a call, writing RAM
+# The leader's walk, now run as C under the frame's stretch: its own time has
+# two kinds of call, a step and a step that recentres the screen, and the
+# calibration that removes its drift (6755) leaves the short ones' tail; at its
+# old value (6288) it failed both drift (-6.92%) and the tail (1.20%).
+field_walk_the_leader vblank-tail the leader's step and the screen's recentring into RAM the next vblank sends; 11.6% of vblank calls off by 1024 clocks or more, at most 4436 clocks, with -0.01% drift
 # The techs screen's list (game/menu/tech_screen.c): the tech on the cursor
 # has its other members' rows drawn beside the list, and how many there are
 # follows the kind of tech -- none for a member's own (two empty rows), two for

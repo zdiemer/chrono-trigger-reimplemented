@@ -5268,6 +5268,144 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=10-10", "--fill", 
 why = "the 12-sprite layout with its tiles half way along a row ($68), each of its three parts"
 
 [[routine]]
+name = "field_first_start"
+subsystem = "field"
+state = "field"
+args = ["--stop-at-call", "C70000"]
+iterations = 2000
+why = "any state: compared up to the sound driver's start, which waits on the sound processor for frames (the clears and the interrupts' handlers before it)"
+
+[[routine]]
+name = "field_enter"
+subsystem = "field"
+state = "field"
+args = ["--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01", "--stop-at-call", "C0B192"]
+iterations = 2000
+why = "a location of the game's (the guard refuses a negative word), the menus' screens among them: compared up to the sprite lists, after the field's start and the location's loading"
+
+[[routine]]
+name = "field_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "the field's page: one pass of the main loop, which stops at its wait for the vblank"
+
+[[routine]]
+name = "field_frame_work"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 5000
+why = "the field's page"
+
+[[routine]]
+name = "field_refresh_effects"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page"
+
+[[routine]]
+name = "field_walk_a_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page: compared where it hands over to the frame wait"
+
+[[routine]]
+name = "field_finish_frame"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "any state with the data bank $00"
+
+[[routine]]
+name = "field_load_location"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01"]
+iterations = 1000
+why = "the field's page, any location: each location's record, song, tile set and loading"
+
+[[routine]]
+name = "field_start_location_song"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01FE-7E01FF:2=00-FF", "--fill", "7F01ED-7F01ED=00,01"]
+why = "the field's page, any record's place, a song kept or not"
+
+[[routine]]
+name = "field_load_tile_graphics"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01FE-7E01FE=00,0E,1C,2A,38,46,54,62,70,7E,8C,9A,A8,B6,C4,D2,E0,EE,FC", "--fill", "7E01FF-7E01FF=00-1B"]
+iterations = 1000
+why = "the field's page, a record's place (a multiple of 14): every tile set's blocks unpacked and sent"
+
+[[routine]]
+name = "field_load_bg3_graphics"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01FE-7E01FE=00,0E,1C,2A,38,46,54,62,70,7E,8C,9A,A8,B6,C4,D2,E0,EE,FC", "--fill", "7E01FF-7E01FF=00-1B"]
+iterations = 2000
+why = "as field_load_tile_graphics"
+
+[[routine]]
+name = "field_load_tile_looks"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01FE-7E01FE=00,0E,1C,2A,38,46,54,62,70,7E,8C,9A,A8,B6,C4,D2,E0,EE,FC", "--fill", "7E01FF-7E01FF=00-1B"]
+iterations = 2000
+why = "as field_load_tile_graphics"
+
+[[routine]]
+name = "field_load_bg3_tile_looks"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E01FE-7E01FE=00,0E,1C,2A,38,46,54,62,70,7E,8C,9A,A8,B6,C4,D2,E0,EE,FC", "--fill", "7E01FF-7E01FF=00-1B", "--fill", "7E01BB-7E01BB=00,01"]
+iterations = 2000
+why = "as field_load_tile_graphics, with BG3's set named or not"
+
+[[routine]]
+name = "field_put_aside_for_a_menu"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E019B:2=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,80", "--fill", "7E0198-7E019C:2=00", "--fill", "7E0129-7E0129=00,01,0D"]
+why = "the field's page, the party's places objects or none (the guard's), a dialog or none"
+
+[[routine]]
+name = "field_set_up_after_a_menu"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F03FE-7F03FE=00,01,02,03", "--fill", "7E01AE-7E01AE=80", "--fill", "7E0126-7E0126=00,01,02", "--fill", "7E0127-7E0127=00,16,28,40"]
+iterations = 2000
+why = "the field's page, a gathering cut short or not (the guard takes both members there); no built figure, which the figure's own entry is fuzzed for; the dialog window where the game puts it (at another place the line effects' builder runs off its table in the original)"
+
+[[routine]]
+name = "field_battle_begins"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=08-3F", "--fill", "7E0197-7E019B:2=00,02,04,06,80", "--fill", "7E0198-7E019C:2=00", "--fill", "7E1100-7E117F:2=00,03,05,06,85", "--fill", "7E0D00-7E0D7F:2=40,48,50,58,60,68,70,78,80,88,90,98,A0,A8,B0,C0,D0", "--fill", "7E1A81-7E1AFF:2=01,80", "--fill", "7E0F00-7E0F7F:2=00,80", "--stop-at-call", "C0034B"]
+iterations = 5000
+why = "the field's page, a map's object count inside the tables and the party's places objects or none (the guard's); the objects' roles the enemies among others, their sprite tiles at each enemy place's or the field's own, shown or not and in view or not: the enemies found and handed over, or the party's coming back together compared at its call"
+
+[[routine]]
+name = "field_after_battle"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F01EC-7F01EC=00,01,02", "--stop-at-call", "C0A33B", "--stop-at-call", "C000EB"]
+iterations = 2000
+why = "the field's page, each of the battle's results: compared up to the map's unpacking or the first frame of the leader's walk"
+
+[[routine]]
+name = "field_take_enemy_palette_slot"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E0B81-7E0B83=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,80"]
+why = "the field's page, any object, the enemies' slots taken by objects or free"
+
+[[routine]]
 name = "field_handle_requests"
 subsystem = "field"
 state = "field"
@@ -11780,11 +11918,46 @@ args = []
 why = "any state"
 
 [[routine]]
-name = "display_init_registers"
+name = "console_reset"
 subsystem = "core"
 state = "field"
 args = []
-why = "any state: the power-on block writes every register it sets and hands over to the boot"
+why = "any state, in native mode (the game's own resets): the switch, and on to the boot"
+
+[[routine]]
+name = "console_boot"
+subsystem = "core"
+state = "field"
+args = []
+why = "any state: the boot sets its stack, its widths and every register it writes, and hands over to the field's first start"
+
+[[routine]]
+name = "console_vblank_vector"
+subsystem = "core"
+state = "field"
+args = ["--interrupt"]
+why = "any state: on to the stub"
+
+[[routine]]
+name = "console_line_vector"
+subsystem = "core"
+state = "field"
+args = ["--interrupt"]
+why = "any state: on to the stub"
+
+[[routine]]
+name = "console_vblank_stub"
+subsystem = "core"
+state = "field"
+args = ["--interrupt", "--fill", "7E0500-7E0500=5C,40"]
+why = "a stub a mode set, a long jump to any handler or a return (the guard refuses what no mode writes)"
+
+[[routine]]
+name = "console_line_stub"
+subsystem = "core"
+state = "field"
+args = ["--interrupt", "--fill", "7E0504-7E0504=5C,40"]
+why = "as console_vblank_stub"
 
 # ---- battle: an effect worked out (game/battle/effect_*.c) -------------------------------------
 

@@ -230,12 +230,34 @@ static void vram_transfer(const GameState *g, Platform *pf)
  * transfer from that register copies it over the memory. The transfer reads
  * a register rather than writing one, so it goes through the SNES-only
  * escape; only the two matrix values it leaves behind are video state. */
-static void fill_memory(const GameState *g, Platform *pf)
+static void fill_memory(Platform *pf, uint32_t from, uint16_t bytes)
 {
     vid_set_mode7(pf, PF_AT(0xC02DF3), &(VidMode7){ .a = 0, .b = 0 }, VID_M7_MATRIX_AB);
-    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = field_transfer_source(g),
-                                .size = field_transfer_size(g) };
+    const VidSnesTransfer t = { .dest = VID_SNES_MULTIPLIER_PRODUCT, .source = from, .size = bytes };
     vid_snes_copy(pf, PF_AT(0xC02E01), &t);
+}
+
+/* The field describes a clear as it does a transfer, and the clear can reach
+ * the description itself: it is written first. */
+void field_clear_memory(GameState *g, Platform *pf, uint32_t from, uint16_t bytes)
+{
+    set_field_transfer_source(g, from);
+    set_field_transfer_size(g, bytes);
+    fill_memory(pf, from, bytes);
+}
+
+void field_describe_transfer(GameState *g, FieldTransfer t)
+{
+    set_field_transfer_vram(g, t.vram);
+    set_field_transfer_mode(g, t.mode);
+    set_field_transfer_source(g, t.source);
+    set_field_transfer_size(g, t.size);
+}
+
+void field_send_transfer(GameState *g, Platform *pf, FieldTransfer t)
+{
+    field_describe_transfer(g, t);
+    vram_transfer(g, pf);
 }
 
 /* ---- The line interrupt ---------------------------------------------------------------- */
@@ -309,8 +331,9 @@ void field_vram_transfer(Snes *s)
  * which can clear it). */
 void field_fill_memory(Snes *s)
 {
-    uint16_t size = field_transfer_size(state_of(s));
-    fill_memory(state_of(s), m_platform(s));
+    const GameState *g = state_of(s);
+    uint16_t size = field_transfer_size(g);
+    fill_memory(m_platform(s), field_transfer_source(g), size);
     s->cpu.x = size;
     m_rts(s);
 }

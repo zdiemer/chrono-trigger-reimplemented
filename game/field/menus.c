@@ -33,6 +33,7 @@
 #include "field/menus.h"
 #include "field/field.h"
 #include "field/line_effects.h"
+#include "field/main_loop.h"
 #include "field/object.h"
 #include "field/party.h"
 #include "field/walk.h"
@@ -124,9 +125,7 @@ static void script_menu_shown(GameState *g)
 /* The original's routines. */
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    KEEP_THE_FIELD = 0xC0011B,      /* keeps the party's places and the field's state for after the menu */
     MENUS = 0xC28000,               /* the menus, at the mode in A */
-    SET_THE_FIELD_UP = 0xC001A5,    /* the field's graphics, objects and display again */
     SPRITE_LISTS = 0xC0B192,
     FADE_IN = 0xC02824,
     CHOICE = 0xC01ADF,              /* a dialog's choice taking the buttons */
@@ -135,6 +134,7 @@ enum {
 
 /* Ports this file runs through field_run, by the routines they stand for. */
 enum { LINE_EFFECTS = 0xFDC2C1, PRESS_START = 0xC01985, BRING_THE_PARTY_BACK = 0xC01A03 };
+
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
@@ -148,6 +148,19 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 }
 
 static bool wait_frame(Snes *s, uint32_t site) { return call(s, site, FRAME_WAIT, READS_NOTHING); }
+
+/* The field put aside before a menu, and set up again after it
+ * (field/location.c). */
+static bool put_the_field_aside(Snes *s, uint32_t site)
+{
+    return field_run(s, site, FIELD_PUT_ASIDE_ENTRY, READS_NOTHING, field_put_aside_for_a_menu,
+                     on_the_field_page(s, false));
+}
+static bool set_the_field_up(Snes *s, uint32_t site)
+{
+    return field_run(s, site, FIELD_SET_UP_AGAIN_ENTRY, READS_NOTHING, field_set_up_after_a_menu,
+                     on_the_field_page(s, false));
+}
 
 /* The line effect tables are built with 8-bit index registers. */
 static bool rebuild_line_effects(Snes *s, uint32_t site)
@@ -246,7 +259,7 @@ static bool menu_and_back(Snes *s, MenuOpener opener)
         return false;
     display_go_dark(s);
     take_the_interrupts_back(g);
-    if (!call(s, opening_sites[opener].set_up, SET_THE_FIELD_UP, READS_NOTHING) ||
+    if (!set_the_field_up(s, opening_sites[opener].set_up) ||
         !field_run(s, opening_sites[opener].party, BRING_THE_PARTY_BACK, READS_THE_OVERFLOW,
                    field_bring_the_party_back, on_the_field_page(s, false)))
         return false;
@@ -267,7 +280,7 @@ static bool open_menu(Snes *s, MenuOpener opener)
         if (!rebuild_line_effects(s, opening_sites[opener].fade_effects) || !wait_frame(s, opening_sites[opener].fade_wait))
             return false;
     display_go_dark(s);
-    if (!call(s, opening_sites[opener].keep, KEEP_THE_FIELD, READS_NOTHING))
+    if (!put_the_field_aside(s, opening_sites[opener].keep))
         return false;
     return menu_and_back(s, opener);
 }
@@ -338,7 +351,7 @@ bool field_open_script_menu(Snes *s)
     if (!fade_out_walking(s))
         return false;
     display_go_dark(s);
-    if (!call(s, SCRIPT_KEEP, KEEP_THE_FIELD, READS_NOTHING))
+    if (!put_the_field_aside(s, SCRIPT_KEEP))
         return false;
     ScriptMenu asked = script_menu(g);
     if (asked.menu == START_MENU)
@@ -349,7 +362,7 @@ bool field_open_script_menu(Snes *s)
         return false;
     display_go_dark(s);
     take_the_interrupts_back(g);
-    if (!call(s, SCRIPT_SET_UP, SET_THE_FIELD_UP, READS_NOTHING) ||
+    if (!set_the_field_up(s, SCRIPT_SET_UP) ||
         !call(s, SCRIPT_SPRITES, SPRITE_LISTS, READS_NOTHING))
         return false;
     script_menu_shown(g);

@@ -33,6 +33,7 @@
  * line effects read: those are the one place the port spells where a variable
  * is (game/ram.h), as values it writes, never to reach memory. */
 #include "field/line_effects.h"
+#include "field/layers.h"
 
 #include "cpu_io.h"
 #include "field/bridge.h"
@@ -626,7 +627,7 @@ static void init_line_effect_values(GameState *g)
 {
     uint8_t maps[3];
     for (unsigned layer = 0; layer < 3; layer++)
-        maps[layer] = (uint8_t)((field_layer_map_base(g, layer) >> 8) | field_layer_map_size(g, layer));
+        maps[layer] = field_layer_map_setting(g, (FieldLayer)layer);
     set_field_line_bg_maps(g, 0, bytes4(maps[0], maps[1], maps[2], 0));
     uint8_t window_map = vid_line_bg_map(&WINDOW_MAP);
     set_field_line_bg_maps(g, 1, bytes4(window_map, (uint8_t)((field_layer_map_base(g, FIELD_BG2) >> 8) | FIELD_MAP_TWO_SCREENS_WIDE), window_map, 0));

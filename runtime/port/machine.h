@@ -442,6 +442,15 @@ static inline void m_stop_dont_care(Snes *s, uint32_t at, uint16_t dont_care)
     native_dont_care_at_stop(s, at, dont_care);
 }
 
+/* Go on at `at` (24-bit) where the original jumps through a target it reads
+ * at run time (an interrupt's stub in work RAM), with nothing declared dead
+ * there: a stop shadow mode compares as any other. */
+static inline void m_jump_to(Snes *s, uint32_t at)
+{
+    s->cpu.pb = (uint8_t)(at >> 16);
+    s->cpu.pc = (uint16_t)at;
+}
+
 /* Stop at the original's instruction `at` (24-bit), where the interpreter or
  * the next entry carries on, with `dont_care` dead there (m_stop_dont_care).
  * A routine whose entry has a don't-care set stops this way, so the check

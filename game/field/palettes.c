@@ -104,6 +104,112 @@ void object_load_colours(GameState *g, FieldObject obj)
     (void)mark;
 }
 
+/* The slots the enemies take: 1-3. */
+enum { FIRST_ENEMY_SLOT = 1, ENEMY_SLOTS_END = 4 };
+
+/* For the original's code and shadow mode: the slot it looked at last, in
+ * one of its work cells, and the newest sharer of the last taken slot it
+ * looked at for the same colours, in a scratch cell. */
+enum { SLOT_CELL = FIELD_WORK_CELLS + 2, SHARER_CELL = FIELD_SCRATCH_CELLS + 2 };
+typedef struct {
+    bool looked;
+    uint8_t slot;
+    FieldLink newest;
+} SlotLooked;
+static void leave_slot(GameState *g, uint8_t slot) { original_cell8(g, SLOT_CELL, slot); }
+static void leave_looked(GameState *g, SlotLooked l)
+{
+    if (!l.looked)
+        return;
+    leave_slot(g, l.slot);
+    original_cell8(g, SHARER_CELL, field_link_byte(l.newest));
+}
+
+/* The object becomes the slot's newest sharer, after `older` (or its only
+ * one), and its colours load into the slot. */
+static void join_slot(GameState *g, FieldObject obj, uint8_t slot, FieldLink older)
+{
+    set_sharer_before(g, obj, older);
+    set_sharer_after(g, obj, field_no_link());
+    if (field_link_is_object(older))
+        set_sharer_after(g, field_linked_object(older), field_link_to(obj));
+    set_field_palette_slot_newest(g, slot, field_link_byte(field_link_to(obj)));
+    set_field_object_palette(g, obj, (uint8_t)(slot << 1));
+    object_load_colours(g, obj);
+}
+
+// $C0:72B4
+/* An enemy takes one of the slots the enemies use: the first whose newest
+ * sharer has the same colours, joining its sharers, or else the first free
+ * one; with all three taken by other colours, none. */
+bool object_take_enemy_palette_slot(GameState *g, FieldObject obj)
+{
+    SlotLooked looked = { false, 0, { 0 } };
+    for (uint8_t slot = FIRST_ENEMY_SLOT; slot < ENEMY_SLOTS_END; slot++) {
+        FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
+        if (!field_link_is_object(newest))
+            continue;
+        looked = (SlotLooked){ true, slot, newest };
+        if (field_object_colours(g, field_linked_object(newest)) == field_object_colours(g, obj)) {
+            ORIGINAL_EFFECT(leave_looked(g, looked));
+            join_slot(g, obj, slot, newest);
+            return true;
+        }
+    }
+    ORIGINAL_EFFECT(leave_looked(g, looked));
+    for (uint8_t slot = FIRST_ENEMY_SLOT; slot < ENEMY_SLOTS_END; slot++)
+        if (!field_link_is_object(field_link_stored(field_palette_slot_newest(g, slot)))) {
+            ORIGINAL_EFFECT(leave_slot(g, slot));
+            join_slot(g, obj, slot, field_no_link());
+            return true;
+        }
+    return false;
+}
+
+/* The entry: the current object (8-bit index registers). The carry says
+ * whether it took a slot, and working out the slot's colours leaves the
+ * overflow clear; nothing else it leaves is read. */
+void field_take_enemy_palette_slot(Snes *s)
+{
+    if (object_take_enemy_palette_slot(state_of(s), (FieldObject)field_current_object_slot(s))) {
+        m_set_flag(s, CPU_FLAG_C, true);
+        m_set_flag(s, CPU_FLAG_V, false);
+    } else {
+        m_set_flag(s, CPU_FLAG_C, false);
+    }
+    m_rts(s);
+}
+
+/* The guard: the current object one the tables hold, on the field's page
+ * with the data bank $00, and the slots' newest sharers ones too. */
+bool field_enemy_palette_slot_can_be_taken(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = true;
+    for (uint8_t slot = FIRST_ENEMY_SLOT; ok && slot < ENEMY_SLOTS_END; slot++) {
+        FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
+        ok = !field_link_is_object(newest) || field_link_names_object(newest);
+    }
+    vars_peek(false);
+    return ok;
+}
+
+/* The party's members wear the sprite palettes from slot 5 on, the leader's
+ * first: a member moving up a place takes the palette of the place before
+ * (event $D4's closing up, event/party.c). */
+enum { LEADERS_PALETTE = 5 };
+
+void party_palette_moves_up(GameState *g, unsigned from)
+{
+    unsigned to = FIRST_SPRITE_COLOUR + (LEADERS_PALETTE + from - 1u) * COLOURS_A_PALETTE;
+    for (unsigned c = 0; c < COLOURS_A_PALETTE; c++)
+        set_palette_base(g, to + c, palette_base(g, to + COLOURS_A_PALETTE + c));
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * COLOURS_A_PALETTE));
+}
+
 // $C0:3711
 void object_take_palette_slot(GameState *g, FieldObject obj, uint8_t slot)
 {

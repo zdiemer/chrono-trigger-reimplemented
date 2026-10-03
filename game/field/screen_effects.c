@@ -27,6 +27,8 @@
  * the next vblank shows. The circles are scene/circle.c's, the four-cornered
  * shape field/window_shape.c's. */
 #include "field/screen_effects.h"
+#include "field/battle_start.h"
+#include "field/main_loop.h"
 
 #include "charge.h"
 #include "core/display.h"
@@ -527,10 +529,8 @@ static EffectStep move_on_a_step(GameState *g)
 enum {
     CURTAIN_SWEEP = 0xC3000E,     /* bank $C3's step of the curtain ($C3:01E4) */
     FRAME_WAIT = 0xC0EC60,        /* waits for the next frame */
-    REFRESH = 0xC000DE,           /* the line effects and the palette animation */
     DRAW_BG1 = 0xC075E9,          /* BG1's tiles drawn into the staging, on the layers' page */
     SEND_BG1 = 0xC074D4, SEND_BG2 = 0xC074E8, SEND_BG3 = 0xC074F7,   /* a staged tile map readied for its send */
-    FIELD_PUT_ASIDE = 0xC0024C,   /* the field's state kept to come back to, its dialog closed */
 };
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 /* The curtain's routine saves every register and its flags and puts them
@@ -542,6 +542,14 @@ enum { CURTAIN_READS_X = DC_A | DC_Y | DC_N | DC_V | DC_Z | DC_C, CURTAIN_INDEX 
 static bool call(Snes *s, uint32_t site, uint32_t routine)
 {
     return bridge_call(s, site, routine, READS_NOTHING, on_the_field_page(s, false));
+}
+
+/* The effects refreshed for the next frame, a port of the field's
+ * (field/main_loop.c) run as C. */
+static bool refresh(Snes *s, uint32_t site)
+{
+    return field_run(s, site, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
+                     on_the_field_page(s, false));
 }
 static bool draw_bg1(Snes *s, uint32_t site)
 {
@@ -575,10 +583,10 @@ static void field_hands_over(GameState *g, Platform *pf)
 static void close_into_the_scene(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!draw_bg1(s, 0xC02617) || !call(s, 0xC0261B, SEND_BG1) || !call(s, 0xC0261E, REFRESH))
+    if (!draw_bg1(s, 0xC02617) || !call(s, 0xC0261B, SEND_BG1) || !refresh(s, 0xC0261E))
         return;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    if (!call(s, 0xC02625, FRAME_WAIT) || !call(s, 0xC02628, FIELD_PUT_ASIDE) || !call(s, 0xC0262B, REFRESH) ||
+    if (!call(s, 0xC02625, FRAME_WAIT) || !field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)) || !refresh(s, 0xC0262B) ||
         !call(s, 0xC0262E, FRAME_WAIT))
         return;
     field_hands_over(g, m_platform(s));
@@ -601,7 +609,7 @@ static bool ripple_stretch(Snes *s, uint8_t frames, RippleCircle circle, int8_t 
             set_field_circle_radius(g, (uint8_t)(field_circle_radius(g) + growth));
         }
         ORIGINAL_EFFECT(set_field_ripple_frames_left(g, left));
-        if (!call(s, refresh_site, REFRESH) || !call(s, wait_site, FRAME_WAIT))
+        if (!refresh(s, refresh_site) || !call(s, wait_site, FRAME_WAIT))
             return false;
     }
     ORIGINAL_EFFECT(set_field_ripple_frames_left(g, 0));
@@ -617,7 +625,7 @@ static void play_the_ripple(Snes *s)
 {
     GameState *g = state_of(s);
     if (!draw_bg1(s, 0xC02658) || !call(s, 0xC0265C, SEND_BG2) || !call(s, 0xC0265F, SEND_BG3) ||
-        !call(s, 0xC02662, REFRESH))
+        !refresh(s, 0xC02662))
         return;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);
@@ -632,7 +640,7 @@ static void play_the_ripple(Snes *s)
         !ripple_stretch(s, RIPPLE_SHRINKS, CIRCLE_SHOWN, -RIPPLE_GROWTH, 0xC026EB, 0xC026EE))
         return;
     ripple_ends(g);
-    if (!call(s, 0xC0271F, REFRESH))
+    if (!refresh(s, 0xC0271F))
         return;
     m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
 }

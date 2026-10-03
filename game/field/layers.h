@@ -7,7 +7,9 @@
 #include <stdint.h>
 
 #include "snes/system.h"
+#include "field/field.h"
 #include "state.h"
+#include "vars.h"
 
 /* A layer's edge runs: the stretches of its tile map that come into view as
  * the layer scrolls, which field/layers.c works out every frame and the
@@ -140,5 +142,12 @@ void field_compute_layer_edges(Snes *s);
 void field_update_layer_scroll(Snes *s);
 void field_unpack_tile_maps(Snes *s);
 bool field_unpack_stays_clear(Snes *s);
+
+/* A layer's tile map setting: the high byte of its place in VRAM with its
+ * size's bits, as the line effects send it and a battle takes it over. */
+static inline uint8_t field_layer_map_setting(const GameState *g, FieldLayer layer)
+{
+    return (uint8_t)((field_layer_map_base(g, layer) >> 8) | field_layer_map_size(g, layer));
+}
 
 #endif

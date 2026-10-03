@@ -552,6 +552,10 @@
 
 /* ---- field --------------------------------------------------------------------------------- */
 
+/* The byte the field's return from a battle the party was sent back from tests the event's
+ * battle flags against ($C0:02D1, an absolute BIT where its neighbour tests an immediate bit):
+ * whatever the last mode left there */
+#define RAM_FIELD_AFTER_BATTLE_TEST_BYTE 0x7E0010u
 /* Negative: the field line interrupt does nothing */
 #define RAM_FIELD_IRQ_DISABLED 0x7E010Fu
 #define RAM_FIELD_IRQ_DISABLED_DP 0x0Fu      /* page field */
@@ -854,6 +858,13 @@
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_COUNT 3u
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_STRIDE 0x02u
 #define RAM_FIELD_PARTY_OBJECTS_HIGH_DP 0x98u /* page field */
+/* The enemies a battle on the field finds on the screen ($C0:0617), last object first, at most
+ * twelve and a none link after them; the battle's start takes the first six, writing its own
+ * list over the rest [13 x $1 bytes, by found, then the none link after the last] */
+#define RAM_FIELD_BATTLE_ENEMIES 0x7E019Du
+#define RAM_FIELD_BATTLE_ENEMIES_COUNT 13u
+#define RAM_FIELD_BATTLE_ENEMIES_STRIDE 0x01u
+#define RAM_FIELD_BATTLE_ENEMIES_DP 0x9Du    /* page field */
 /* The field object each of the battle's enemies is, which the battle's start keeps ($C0:0557)
  * and its end puts back ($C0:076B); negative for none [8 x $1 bytes, by enemy record
  * (battle_enemy_placement)] */
@@ -928,6 +939,10 @@
 #define RAM_FIELD_FRAME_ENTRY_DP 0xD6u       /* page field */
 #define RAM_FIELD_FRAME_ENTRY_ADDRESS 0x7E01D6u /* The entry's address: the facing's frame table plus animation * 4 + frame */
 #define RAM_FIELD_FRAME_ENTRY_BANK 0x7E01D8u /* The frame tables' bank */
+/* Where the loading of a tile set's graphics read the set's list of blocks (location_records'
+ * tile set, $F6:1C00 + 8 a set), left at its last block; nothing reads it after [3 bytes] */
+#define RAM_FIELD_TILE_SET_LIST_PLACE 0x7E01D6u
+#define RAM_FIELD_TILE_SET_LIST_PLACE_DP 0xD6u /* page field */
 /* Next free OAM entry of each sprite range while the sprite table is built (the cells are
  * scratch at other times) [3 x $2 bytes, by sprite range (0 priority bits clear, 1 bit 2 set, 2
  * bit 3 set)] */
@@ -1918,6 +1933,15 @@
 #define RAM_FIELD_KEPT_TRAIL_POSITIONS 0x7F1D1Bu
 #define RAM_FIELD_KEPT_TRAIL_POSITIONS_COUNT 3u
 #define RAM_FIELD_KEPT_TRAIL_POSITIONS_STRIDE 0x01u
+/* The tiles the party's scripts were told to walk to (their column in the low byte, their row in
+ * the high), kept while a menu is open: the script's unpacking after it writes over them [4 x $2
+ * bytes, by the formation's three scripts, then the push script's] */
+#define RAM_FIELD_KEPT_PARTY_SCRIPT_TILES 0x7F1D1Eu
+#define RAM_FIELD_KEPT_PARTY_SCRIPT_TILES_COUNT 4u
+#define RAM_FIELD_KEPT_PARTY_SCRIPT_TILES_STRIDE 0x02u
+/* BG3's wave (field_line_wave_bg3's low byte, which the line effects' builders test), kept while
+ * a menu is open */
+#define RAM_FIELD_KEPT_BG3_WAVE 0x7F1D26u
 /* A wave's per-line scroll, 16 lines long, which a waving layer's scroll table points into [64 x
  * $4 bytes, by table set * 32 + line (the second 16 of each set repeat the first)] */
 #define RAM_FIELD_LINE_WAVE 0x7F1D27u
@@ -4023,6 +4047,31 @@
 #define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES 0x7E2B23u
 #define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES_COUNT 256u
 #define RAM_BATTLE_LOCATION_LOWER_ATTRIBUTES_STRIDE 0x01u
+/* Each layer's tile map setting (its place in VRAM's high byte with its size bits) as the battle
+ * starts: the field's three, BG4 none ($C0:066D) [4 x $1 bytes, by layer (BG1-BG4)] */
+#define RAM_BATTLE_START_TILE_MAPS 0x7E2C56u
+#define RAM_BATTLE_START_TILE_MAPS_COUNT 4u
+#define RAM_BATTLE_START_TILE_MAPS_STRIDE 0x01u
+/* The layers' scroll as the battle starts: the field's ($C0:066D) [3 x $4 bytes, by layer
+ * (BG1-BG3)] */
+#define RAM_BATTLE_START_SCROLL 0x7E2C5Au
+#define RAM_BATTLE_START_SCROLL_COUNT 3u
+#define RAM_BATTLE_START_SCROLL_STRIDE 0x04u
+#define RAM_BATTLE_START_SCROLL_X 0x7E2C5Au  /* Horizontal */
+#define RAM_BATTLE_START_SCROLL_Y 0x7E2C5Cu  /* Vertical */
+/* The screens' settings as the battle starts, the field's ($C0:066D): in the registers' order,
+ * then the BG mode and the mosaic [10 bytes] */
+#define RAM_BATTLE_START_SCREENS 0x7E2C66u
+#define RAM_BATTLE_START_SCREENS_MAIN 0x7E2C66u /* The main screen's layers */
+#define RAM_BATTLE_START_SCREENS_SUB 0x7E2C67u /* The sub screen's layers */
+#define RAM_BATTLE_START_SCREENS_MAIN_WINDOW_MASK 0x7E2C68u /* The layers the windows mask on the main screen */
+#define RAM_BATTLE_START_SCREENS_SUB_WINDOW_MASK 0x7E2C69u /* ... and on the sub screen */
+#define RAM_BATTLE_START_SCREENS_MATH_CONTROL 0x7E2C6Au /* Color math's control (VidColorMath, VID_MATH_CONTROL) */
+#define RAM_BATTLE_START_SCREENS_MATH_LAYERS 0x7E2C6Bu /* The layers color math works on (VID_MATH_LAYERS) */
+#define RAM_BATTLE_START_SCREENS_FIXED_COLOR 0x7E2C6Cu /* The tint, as the field keeps it (field_fixed_color) */
+#define RAM_BATTLE_START_SCREENS_UNUSED 0x7E2C6Du /* Cleared with the rest; nothing reads it */
+#define RAM_BATTLE_START_SCREENS_MODE 0x7E2C6Eu /* The BG mode's byte */
+#define RAM_BATTLE_START_SCREENS_MOSAIC 0x7E2C6Fu /* The mosaic's byte */
 /* The three background layers' base scroll positions [3 x $4 bytes, by layer (BG1-BG3)] */
 #define RAM_BATTLE_BG_SCROLL 0x7E2C70u
 #define RAM_BATTLE_BG_SCROLL_COUNT 3u

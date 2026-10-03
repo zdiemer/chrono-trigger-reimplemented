@@ -619,6 +619,9 @@ FieldLink row_first_object(const GameState *g, unsigned row);
  * leaves. */
 FieldLink party_member_link(const GameState *g, unsigned place);
 void party_place_left_empty(GameState *g, unsigned place);
+/* A place marked empty with its object's link kept under the mark: what a
+ * second member sent to the reserve leaves (event $D4). */
+void party_place_marked_out(GameState *g, unsigned place);
 /* A member joins a place: its link, kept as a word whose high byte is clear
  * (the party's regrouping adds the whole word into a place's offset). */
 void party_place_taken_by(GameState *g, unsigned place, FieldObject obj);

@@ -3127,85 +3127,118 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
-### Phase 3, field and events: who the objects are, their colours, and the party's belongings
+### Phase 3, field and events: the console's start and the field's frame
 
-The fifteenth chunk of bank `$C0`: the event language's last commands, so
-every opcode a script uses now has a row (the ROM's handler table is only the
-fallback for a state a row's needs turn away), and the chest's gift as C.
+The sixteenth chunk of bank `$C0`, with the console's own entries: what runs
+from power-on to the field's main loop, the loop's frame, a location's
+loading, and the field put aside and taken up again around a menu and a
+battle.
 
-**How it was chosen.** The plan named the commands at `$C0:4186` (the
-characters' objects) and `$C0:3711` (items, gold and the party). By concept
-that is everything the language had left: an object's casting -- `$57`-`$6D`
-and `$80` (a playable character, in its party place or set aside), `$81` (one
-apart from the party), `$82` (one of the people and creatures), `$83` (an
-enemy), with the shared-graphics search `$C0:5C90` -- its colours (`$33`, a
-palette slot of its own; `$88` and `$2E`, effects on its colours and the
-screen's), the inventory and gold (`$C7`, `$C9`-`$CE`), the menu a script
-opens (`$C8`), and the party's record (`$CF`-`$D4`, `$D7`). About 3.2 KiB,
-short of the plan's 8-12 like chunk 14: what `$C0` has left besides is the
-field's setups and its keeping (`$C0:0000`, `$01A5`, `$038F`, `$011B`, the
-fade in `$2824`), another concept.
+**How it was chosen.** The plan named the power-on path and the interrupt
+entries (Phase 4a: `ct_play --recomp off --interpreted stop` stopped in frame
+0) and, for `$C0`, the field's setup and keeping (`$C0:0000`, `$01A5`,
+`$038F`, `$011B`). By concept that is the field mode's skeleton: its two
+starts, its frame, the location's loading the starts and the menus share, and
+both sides of the hand-over to a battle. The fade in (`$C0:2824`-`$2C40`)
+belongs to it too but is mostly calls into routines no port covers yet (the
+window tile maps, the screen jobs' transfers, the map's unpacking), so it was
+left for the next chunk; about 2.6 KiB in all, short of the plan's 8-12.
 
-**What it is.** `field/cast.c` casts an object: its role and character
-(`field/object.h` gained the operations: a member in a place, set aside, one of
-the other kinds, the enemies' two), a sprite record put on it (MD2's
-`field_sprite_records` and `battle_sprite_records`, `field_data.h`: graphics
-set, assembly, palette, animations, layout, through the four tables
-`field_sprite_data_tables` points at), its graphics -- a character's from the
-ROM, the others' unpacked into bank `$7F` after the sets already there or
-shared with an object that has the same set -- and its block of sprite tiles
-in VRAM (`field_sprite_block_owner`). A party member stands where the
-location says, or on the leader; a member put on the map right after a
-character joins shows its first frame at once (`field_character_joining`,
-the meaning `field_animation_queue_front` had half of). `event/characters.c`
-has the rows: `$57`-`$81` operations, `$82`/`$83` bridges whose unpacking
-(`$C3:0002`, a machine-shaped port) is a call-out between their halves of C.
-`event/colours.c`: `$33` (`field/palettes.c`, `object_take_palette_slot`),
-and `$88`/`$2E` decoded into a `ColourEffect` record by their form: a
-rotation stopped (the object's colours loaded again) or started, a fade, or
-colours of the script's written over the palette; with the first eight
-animation slots busy the effect is dropped and the object's turn ends there
-(`end_turn_after`, a flow the language didn't have). `event/items.c`: the
-inventory's and the gold's commands call `battle/inventory.c` as C, timed as
-its routines; `$C8` asks the main loop for a menu and waits. `event/party.c`:
-the party's record is the menus' (nine places, the active three and the
-reserve), so `$CF`-`$D4` and `$D7` are bridges to `$C2:8004`, now named by
-what each routine does (read from `$C2:8C75`-`$C2:8E1E`): whether a character
-is active or recruited, bring one in, send one to the reserve, recruit,
-dismiss, count an item. Bringing one in makes its object the next member's;
-sending one away has the members behind close up, roles, places and palettes
-(slots 5-7), with the original's two quirks kept (an empty first place closes
-up whatever it held; a second member sent away is only marked out). The
-chest's gift (`event/contact.c`) gives the item or the gold as C now, and its
-guard leaves an item past 255 to the original.
+**What it is.** `core/console.c`: the reset stub (`$00:FF00`, entered in
+emulation mode at power-on and in native mode by the game's own resets, and
+its copy at `$C0:FF00`), the boot (`$FD:C000`: the console's registers as the
+game starts them, three timing and input calls added for what had none,
+`tm_fast_rom`, `tm_reset_timers`, `in_set_io_lines`, and the picture's
+power-on screen, which moved here from `core/display.c`), the vectors
+(`$00:FF10`, `$FF14`) and the two stubs in work RAM (`$00:0500`, `$0504`),
+which go to the handler the running mode installed (`console_install_*`, the
+stub's encoding in one place now) or return where the mode turned the
+interrupt away. `field/main_loop.c`: the field's first start (`$C0:000E`:
+work RAM cleared, the sound driver started, the menus asked about the
+saves), its entry from the other modes (`$C0:0000`/`$005D`, the menus' sprite
+screens past location `$1F0` handed to them), one pass of the main loop
+(`$C0:0097`, a stop at its own head, so a save state never holds it), the
+frame's work (`$00BF`), the effects' refresh (`$00DE`), a frame of the
+leader's walk (`$00EB`) and the start of the frame wait (`$C0:EC60`).
+`field/location.c`: the location's record (MD2's `location_records`, named
+fields in `field_data.h`), its song (`$C0:1B53`), its tile set's graphics
+(`$C0:0960`/`$6D2F`/`$6D65`, `$6DCF`) and looks (`$09DD`, `$0A14`), and the
+field put aside for a menu (`$011B`) and set up after it (`$01A5`): the state
+block moved to the event script's place and back, the party's places, the
+party scripts' destinations the script's unpacking writes over, a gathering
+the menu cut short. `field/battle_start.c` (`$C0:024C`, `$038F`): the enemies
+on the screen found, the battle's ground, places, kinds and screen handed
+over; `field/battle_return.c` gained the field after the battle (`$C0:0283`:
+the game over, the place put aside, or the field taken up a frame at a time);
+`field/palettes.c` the enemies' palette slots (`$C0:72B4`).
 
-**Third trap, settled first.** The call-outs kept are the unpacker (it saves
-and restores every register: `DC_A | DC_X | DC_N | DC_Z | DC_C`, Y passed
-through to the engine, which leaves it to the menus' dispatcher) and the
-menus' routines, which the existing bridges already called. Shadow mode found
-one register those read that liveness can't drop: `$D4`'s carry at the call,
-which the dispatcher's `PLP` hands back as whether the object's turn goes on.
-It is the carry of the last character comparison the original makes, worked
-out as `$D6`'s already was (`goes_on_after_sending`), not threaded.
+**Third trap, settled first.** Every call-out was checked against liveness
+before the logic was written; three registers liveness keeps that the
+callees never use were given the original's value as marked scaffolding
+rather than threaded: A's high byte at the sound driver's start and the
+menus' routine (the field's page, which the original set D through), and at
+the song's driver calls (the record's place, which the original worked out
+in A). Where a callee reads the overflow (the scripts, the dialog window,
+the frame wait), the ports leave it as the steps before them do.
 
-**What shadow mode and fuzzing found.** Over the 26 movies every compared call
-matches: the engine's turns and openings with the new rows inline, and the
-entries the original's own loops reach (the casts 81-657 calls each, the
-colours 89-640, the menu 131, the record's 1-213, the chest 190,882). Shadow
-mode found the enemy's Y (the original works the block out with 8-bit index
-registers, which clear Y's high byte) and `$D4`'s carry. Fuzzing (seeds 1 and
-2, 20,000 states each, `tools/fuzz_routines.toml`) found the leader read
-through a word whose high byte the game keeps clear (now the guard's) and the
-enemy's scratch cell's high byte; every entry is then 0 mismatched on both
-seeds but the loose casts, `$82` 1 and 2 of ~8,600 and `$83` 8 and 8 of
-~6,700: random unpacking places that carry a set past bank `$7F`'s end into
-low RAM, where the original reads its cells again (an accepted divergence,
-written at `event_cmd_cast_enemy`; with the place in the bank's upper half the
-loose `$83` is 0 of 6,792). `$C7` and `$CB`, `$CD`, `$D7` no movie reaches.
-`$C0` stands at 49.6 KiB ported, 16% left.
+**What the shipping mode found.** Shadow mode passed a main loop that the
+long routes (`suite.py --long-routes`) did not. A pass that called the
+frame wait was a native routine held over every frame's end, which a
+machine copy can only rebuild by replaying input from the last frame where
+none was held (ct_drive, docs/MOVIES.md), so the routes' every probe
+replayed from the field's entry; the pass now stops at the wait
+(`$C0:00BA`), which sets A for the next pass itself. And a step the
+registry turns away (the requests' guard, at a location change it can't
+run) is a real call from the bottom of the field's stack, where the
+original's location change resets the stack to its top and goes back to the
+field's entry: that leaves the stack just as the call's return would, so
+the runtime couldn't tell it from one, and the pass waited under the next
+pass for good (eight deep after the Lavos cavern's fight in
+`bucket_lavos`, which then spun in replays). The main loop's steps are
+`field_run_or_hand_over` (`field/bridge.h`): where the sibling won't run as
+C, the port makes the call and stops at it, and the rest of the pass is the
+runtime's. The tile graphics' transfer cells are described
+for each of the six places whether the set has a block there or not. And a
+runtime limit: the object update run as C inside the frame's work, inside
+the frame, made the original's own entry into it a third nested comparison
+waiting at the same multi-pass call (the views' `$C0:A88D`) as the frame,
+which settles it as a mismatch; the update is a call of the frame's work's
+(docs/PORTING.md, "Call-outs"), and runs as its own port.
 
-**The timing gate.** The new rows were calibrated over the library, with the
-engine's two entries (whose turns now run the rows inline); no exception.
+**What fuzzing found and cost.** Each new entry has a `tools/fuzz_routines.toml`
+entry (seed 1; 0 mismatched on all of them, the counts in `docs/ports.tsv`).
+The battle's start was interrupted on all 31 of its library calls and the
+field after a battle on 25 of 26, so fuzzing is their check: it found the
+current object the original names before an enemy without a sprite takes its
+palette slot. The battle's start needed constraints to reach its body (the
+objects' roles, sprite tiles and view, the party's places); the setting up
+after a menu needs the dialog window where the game puts it, since elsewhere
+the original's line effects' builder runs off its table. The callers whose
+call-outs became C calls (the requests, the menus, the screen effects, the
+party commands) were fuzzed against `main` with the same seeds: the same
+counts.
+
+**What is left at the edges.** The fade in and the objects' and sprite
+lists' setup (`$C0:2848`, `$C0:56A6`, `$C0:B192`) are call-outs from the
+entry, the map's unpacking (`$C0:A33B`) and the script's (`$C0:56D4`) from
+both loadings, the dialog window's step (`$C0:1F87`) and the scheduler
+(`$C0:59D9`, `$C0:5A46`, `$C0:CA76`, beam-coupled, PLAN.md Phase 4b) from the
+frame; and the menus' routine `$C2:8004` from the first start, where
+`ct_play --recomp off --interpreted stop` now stops, in frame 2 (it stopped
+at the reset, in frame 0). The palettes' jumps `$FD:FFF4`/`$FFF7` stay
+call-outs: registering them as the routines they jump to would make the
+battle's own calls through them calls into a registered port. `$C0` stands
+at 52.1 KiB ported, 12% left.
+
+**The timing gate.** The new rows were calibrated over the library, and
+thirteen entries have exceptions (`tools/timing_exceptions.txt`). The console's
+vectors are a jump with no access of its own to scale. The field's frame, its
+entry, the loadings and the returns run nearly all their work as C at their
+callees' calibrated times, and what is left as their own is a remainder one
+scalar can't fit, or a data-dependent unpacking with the screen blanked. The
+leader's walk, now run as C under the frame, has two kinds of call: the
+value that removes its drift leaves the short ones' tail. The vblank check
+finds none of their writes moved.
 
 ### Phase 3, battle chunk 11: the screen script language (`$CD:1609`-`$CD:31A9`)
 

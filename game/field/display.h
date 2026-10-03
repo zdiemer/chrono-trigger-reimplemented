@@ -44,6 +44,23 @@ void field_fill_memory(Snes *s);
 bool field_display_bank_is_io(Snes *s);
 bool field_edge_runs_small(Snes *s);
 
+/* A transfer to VRAM the field describes (field_transfer) and sends at once
+ * ($C0:2DC8), its size 0 for 64 KiB; and a stretch of work RAM cleared
+ * ($C0:2DF1), described as a transfer's source and size. The routines they
+ * stand for, for the ports that run them as C. */
+typedef struct {
+    uint16_t vram;
+    uint8_t mode;
+    uint32_t source;
+    uint16_t size;
+} FieldTransfer;
+void field_send_transfer(GameState *g, Platform *pf, FieldTransfer t);
+/* The description alone, where the field describes a transfer it then
+ * doesn't make. */
+void field_describe_transfer(GameState *g, FieldTransfer t);
+void field_clear_memory(GameState *g, Platform *pf, uint32_t from, uint16_t bytes);
+enum { FIELD_VRAM_TRANSFER_ENTRY = 0xC02DC8, FIELD_FILL_MEMORY_ENTRY = 0xC02DF1 };
+
 /* The last queued transfer's second size, which the queue's upload leaves in
  * Y for the menus' per-frame routine; `none` where the queue is empty. */
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);

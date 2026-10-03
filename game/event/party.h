@@ -77,6 +77,7 @@ typedef enum {
 } PartyScript;
 uint16_t party_script_start(PartyScript script);
 void party_script_go_to(GameState *g, PartyScript script, MapTile tile);
+MapTile party_script_destination(const GameState *g, PartyScript script);
 void party_script_face(GameState *g, PartyScript script, Facing facing);
 static inline PartyScript formation_script(PartyPlace place)
 {
@@ -90,6 +91,8 @@ void formation_facing_bits(Facing facing, bool *column_bit, bool *row_bit);
 
 /* The counts the party's scripts keep, in two of the map's variables. */
 enum { FORMATION_COUNT = 0xFE, GATHERING_COUNT = 0xFF };
+/* The gathering count once every member is with the leader. */
+enum { PARTY_ALL_GATHERED = 3 };
 
 /* After a battle the party comes back together, each member going back to
  * the leader ($C0:034B, $C0:5B1F). */
