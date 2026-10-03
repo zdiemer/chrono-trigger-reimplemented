@@ -844,6 +844,12 @@ Each of these is a finding. Every example here comes from this repo.
      returned (`menu_equip_item_described_on_opening`, X left pointing at a
      place): it is a register derivation and belongs in the subsystem's
      leaves, worked out from the state, not named as a game concept.
+116. **One parameter list for a whole language.** An interpreter whose table
+     decodes every command into one shared set of fields (`value`, `which`,
+     `kind`) has items 55 and 10 at once: the names can't say what each
+     command's operand is, and no enum can be the type. Each row's
+     parameters are named for that command, and the enums it takes are the
+     types.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
