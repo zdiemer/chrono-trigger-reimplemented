@@ -5287,9 +5287,9 @@ why = "a location of the game's (the guard refuses a negative word), the menus' 
 name = "field_frame"
 subsystem = "field"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--stop-at-call", "C0EC60"]
+args = ["--d", "0100", "--db", "00"]
 iterations = 2000
-why = "the field's page: one pass of the main loop compared up to its wait for the vblank"
+why = "the field's page: one pass of the main loop, which stops at its wait for the vblank"
 
 [[routine]]
 name = "field_frame_work"

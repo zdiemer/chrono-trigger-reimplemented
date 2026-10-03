@@ -121,12 +121,13 @@ STOPS = ("m_stop_dont_care", "m_stop_at", "m_stop_at_own")
 # call's return; their arguments are read where they are called, and the
 # helpers' own bodies (BRIDGES) aren't declarations of their own.
 DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "field_run_holding", "field_run_on_page",
-             "bridge_call_on_page",
+             "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "menu_call", "menu_call_long", "menu_call_returning")
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
-                            "field_run_holding", "field_run_on_page", "bridge_call_on_page", "run_entry"),
+                            "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
+                            "run_entry"),
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_stop_after_call"),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
 }

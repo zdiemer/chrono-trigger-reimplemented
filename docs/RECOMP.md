@@ -3179,12 +3179,25 @@ rather than threaded: A's high byte at the sound driver's start and the
 menus' routine (the field's page, which the original set D through), and at
 the song's driver calls (the record's place, which the original worked out
 in A). Where a callee reads the overflow (the scripts, the dialog window,
-the frame wait's next pass), the ports leave it as the steps before them do.
+the frame wait), the ports leave it as the steps before them do.
 
-**What shadow mode found.** The main loop's stop at its head read A's high
-byte stale: where the frame wait leaves A as it found it, shadow mode keeps
-the port's own across the call, so the loop hands the wait's on itself (as
-the requests' battle did). The tile graphics' transfer cells are described
+**What the shipping mode found.** Shadow mode passed a main loop that the
+long routes (`suite.py --long-routes`) did not. A pass that called the
+frame wait was a native routine held over every frame's end, which a
+machine copy can only rebuild by replaying input from the last frame where
+none was held (ct_drive, docs/MOVIES.md), so the routes' every probe
+replayed from the field's entry; the pass now stops at the wait
+(`$C0:00BA`), which sets A for the next pass itself. And a step the
+registry turns away (the requests' guard, at a location change it can't
+run) is a real call from the bottom of the field's stack, where the
+original's location change resets the stack to its top and goes back to the
+field's entry: that leaves the stack just as the call's return would, so
+the runtime couldn't tell it from one, and the pass waited under the next
+pass for good (eight deep after the Lavos cavern's fight in
+`bucket_lavos`, which then spun in replays). The main loop's steps are
+`field_run_or_hand_over` (`field/bridge.h`): where the sibling won't run as
+C, the port makes the call and stops at it, and the rest of the pass is the
+runtime's. The tile graphics' transfer cells are described
 for each of the six places whether the set has a block there or not. And a
 runtime limit: the object update run as C inside the frame's work, inside
 the frame, made the original's own entry into it a third nested comparison

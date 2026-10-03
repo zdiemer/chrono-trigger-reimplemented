@@ -78,6 +78,17 @@ bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, voi
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m);
 
+/* field_run for a call made from the bottom of the field's stack (the main
+ * loop's steps): where the registry wouldn't run `entry`, the port makes the
+ * call and stops at the sibling's entry rather than waiting for it to return,
+ * and the rest of the pass is the runtime's. A routine reached that way may
+ * restart the field (a location change resets the stack to its top and goes
+ * back to the field's entry), which leaves the stack just as a return would:
+ * a port waiting on the call could not tell it from one, and would be left
+ * waiting under the field's next pass for good. */
+bool field_run_or_hand_over(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
+                            BridgeMachine m);
+
 /* A sibling the original goes on to with a jump rather than a call, which
  * returns for the routine: run as C where the registry would run it there,
  * timed as its routine. False where it wouldn't, and the port stops at it

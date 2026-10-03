@@ -228,14 +228,15 @@ bool field_location_is_a_number(Snes *s)
 void field_frame(Snes *s)
 {
     latch_presses(state_of(s));
-    if (field_run(s, 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, page(s)) &&
-        field_run(s, 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, page(s)) &&
-        field_run(s, 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, page(s)) &&
-        field_run(s, 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, page(s)) &&
-        bridge_call_long(s, 0xC000AD, DIALOG_WINDOW, READS_THE_OVERFLOW, page(s)) &&
-        field_run(s, 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, page(s)) &&
-        field_run(s, 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, page(s)) &&
-        field_run(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, page(s)))
+    BridgeMachine m = page(s);
+    if (field_run_or_hand_over(s, 0xC000A1, PAUSE_AND_MENUS, READS_A_HIGH_AND_THE_OVERFLOW, field_pause_and_menus, m) &&
+        field_run_or_hand_over(s, 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, m) &&
+        field_run_or_hand_over(s, 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, m) &&
+        field_run_or_hand_over(s, 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, m) &&
+        bridge_call_long(s, 0xC000AD, DIALOG_WINDOW, READS_THE_OVERFLOW, m) &&
+        field_run_or_hand_over(s, 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, m) &&
+        field_run_or_hand_over(s, 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, m) &&
+        field_run_or_hand_over(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, m))
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
 }
 
