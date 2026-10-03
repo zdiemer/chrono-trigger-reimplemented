@@ -1,4 +1,4 @@
-/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D and $213F. Included by
+/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D, $213E and $213F. Included by
  * platform/timing.h. */
 #ifndef CT_PLATFORM_SNES_TIMING_H
 #define CT_PLATFORM_SNES_TIMING_H
@@ -56,6 +56,17 @@ PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o)
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_reset_beam_latch", 0x213F);
+}
+
+/* A 16-bit read of $213E: the low byte $213E's, the high byte $213F's (whose
+ * read also restarts the beam position latch). */
+PF_API uint16_t tm_picture_status(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("tm_picture_status", o);
+    uint8_t low = pf_snes_get(pf_snes(pf), 0x213E);
+    uint8_t high = pf_snes_get(pf_snes(pf), 0x213F);
+    pf_snes_end();
+    return (uint16_t)(low | high << 8);
 }
 
 PF_API uint8_t tm_beam_line(Platform *pf, PfOrigin o)

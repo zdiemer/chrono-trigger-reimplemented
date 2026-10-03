@@ -24,6 +24,8 @@
  *                 routine the race writes to regroup them into tiles, and
  *                 that routine
  *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
+ *   staff_roll.c  the telepod ending's last scene: the staff credits over the
+ *                 stars, and The End
  *   bridge.c      where ports meet the program's calling conventions
  *   sound.c       the program's messages to the sound driver
  *   sprites.c, circle.c, scaler.c, math.c
@@ -31,9 +33,8 @@
  *                 scaler, the arithmetic
  *   guards.c      what the ports assume of the machine they're entered on
  *
- * The endings have no routines of their own here but the perspective: they
- * are the program's scripts, and they use the iris, the scaler and the
- * arithmetic.
+ * The endings are the program's scripts, using the iris, the scaler and the
+ * arithmetic, with the perspective and the staff roll's setup and tasks.
  *
  * game/attract/ holds more of the same program: its main loop ($7E:3023, which
  * waits for scene_program_over) and the ports of its idle waits, written
@@ -192,6 +193,9 @@ void scene_boot_line_irq_wait_hblank_loop(Snes *s);
 void scene_boot_line_irq_blank(Snes *s);
 void scene_copy_resource(Snes *s);
 void scene_copy_resource_to_upper_ram(Snes *s);
+/* `count` bytes of bank $FE from `from` into `bank` at `to`, as those two
+ * copy them. */
+void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count);
 
 /* scene/frame.c */
 void scene_nmi(Snes *s);
@@ -283,6 +287,24 @@ void scene_build_perspective_entry(Snes *s);
 bool scene_perspective_as_ported(Snes *s, uint16_t d);
 void scene_leave_perspective_registers(Snes *s, SceneChannel ch);
 
+/* scene/bridge.c: a scene's song, from the program's routine that starts one,
+ * called from a setup at `call`. */
+void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song);
+/* scene/staff_roll.c (the program in RAM) */
+bool scene_staff_roll_set_up_present(Snes *s);
+void scene_staff_roll_set_up(Snes *s);
+bool scene_credits_roll_present(Snes *s);
+void scene_roll_credits(Snes *s);
+bool scene_credits_scroll_present(Snes *s);
+void scene_scroll_credits_entry(Snes *s);
+bool scene_credits_upload_present(Snes *s);
+void scene_upload_credits(Snes *s);
+bool scene_clear_sprite_high_bits_present(Snes *s);
+void scene_clear_sprite_high_bits(Snes *s);
+bool scene_credits_test_present(Snes *s);
+void scene_go_on_after_the_credits(Snes *s);
+bool scene_fade_in_the_picture_present(Snes *s);
+void scene_fade_in_the_picture(Snes *s);
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);

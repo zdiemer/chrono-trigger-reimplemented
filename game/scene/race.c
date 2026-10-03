@@ -554,7 +554,7 @@ void scene_race_set_up(Snes *s)
     if (!(scene_flags(g) & SCENE_FLAG_NO_SONGS)) {
         set_scene_song(g, RACE_SONG);
         set_scene_song_playing(g, RACE_SONG);
-        scene_bridge_start_song(s, RACE_SONG);
+        scene_bridge_start_song(s, 0x7E3B5A, RACE_SONG);
     }
     scene_bridge_enter(s, 0x7E3B5D);
     load_race_graphics(s);

@@ -136,11 +136,9 @@ void race_start(GameState *g);
 void race_forget_divisors(GameState *g);
 
 /* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
- * entered and left, under the call-outs it makes; and the race's song, from
- * the program's routine that starts one. */
+ * entered and left, under the call-outs it makes. */
 void scene_bridge_enter(Snes *s, uint32_t call);
 void scene_bridge_leave(Snes *s);
-void scene_bridge_start_song(Snes *s, uint8_t song);
 
 /* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
  * in the original's scaler, with the carry its first row takes. */

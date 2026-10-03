@@ -23,6 +23,14 @@ static inline uint16_t scene_program_stream_offset(const GameState *g)
     return rom_read16(g, SCENE_RESOURCES + SCENE_RESOURCE_PROGRAM * SCENE_RESOURCE_SIZE);
 }
 
+/* Where a resource lies in bank $FE, by its number in the table: its
+ * pointer's low word (the program's copies of resources take the bank as
+ * $FE). */
+static inline uint16_t scene_resource_offset(const GameState *g, unsigned resource)
+{
+    return rom_read16(g, SCENE_RESOURCES + resource * SCENE_RESOURCE_SIZE);
+}
+
 /* Bank $FE's data (the resource table and what the scene program copies out
  * of the bank by address). */
 enum { SCENE_DATA_BANK = 0xFE };

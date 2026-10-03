@@ -342,22 +342,16 @@ void scene_frame_work(Snes *s)
         m_rtl(s);
 }
 
-/* The song's send, as the NMI handler makes it. False where the port stops. */
+/* The song's send, as the NMI handler makes it, with the data bank the frame's
+ * work leaves (0, which reaches the sound command buffer and the driver; the
+ * handler goes on only where it does). False where the port stops. */
 static bool send_song(Snes *s)
 {
     GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_M, true);
     uint8_t song;
-    uint8_t playing = scene_song_playing(g);
     if (!song_to_send(g, &song))
         return true;
-    if (!m_bank_reaches_io(s)) {
-        /* the command buffer isn't where the audio service writes it */
-        m_set_a8(s, song);
-        m_set_flag(s, CPU_FLAG_C, song >= playing);
-        m_stop_at(s, 0xC309C0, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_D | DC_AL);
-        return false;
-    }
     au_command(m_platform(s), PF_CALL_DC(0xC309D1, 0xC70004, DC_AL | DC_X | DC_N | DC_Z | DC_C),
                (AudioCommand){ .command = PLAY_SONG, .p1 = song, .p2 = SONG_VOLUME_AS_IS, .p3 = SONG_ECHO_AS_IS,
                                .count = 3 });

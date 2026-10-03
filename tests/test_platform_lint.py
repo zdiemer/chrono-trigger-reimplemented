@@ -36,6 +36,8 @@ ESCAPES = {
                            # and $7E:38E7, whose mode and destination are game data
     "scene/title.c": 2,    # $7E:5AEB, which writes the data port's low half alone, and $7E:59D5, which
                            # carries on from what the channel holds
+    "scene/staff_roll.c": 2,  # $7E:90A7 and $7E:8F77, which fill the data port's low half and its high half
+                              # alone
 }
 
 # Files whose calls still spell out the SNES backend's write order for a transfer
@@ -50,6 +52,7 @@ AUDIO_DRIVER = {
     "core/sound_driver.c",   # the CPU half of the sound driver in bank C7
     "scene/sound.c",         # the scene program's own send of a driver command
     "scene/race.c",          # the race's engine pitch, written to the driver's ports
+    "scene/staff_roll.c",    # the staff roll's own send of the music's fast forward
 }
 
 MATH = set(range(0x4202, 0x4207)) | set(range(0x4214, 0x4218))

@@ -646,7 +646,7 @@ agreement with `off` is the same as before conversion.
 |---|---|
 | `runtime/platform/platform.h` | `Platform`, `PfOrigin` (`PF_AT`, `PF_CALL`), `PfData` (`PF_GAME`), `PF_API` binding |
 | `runtime/platform/video.h` | display, BG mode, windows, color math, fixed color, line effects, VRAM/CGRAM/OAM uploads, decoders for SNES-format shadows, the `VidSnesXfer` step lists, the `vid_snes_transfer` escape |
-| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_sync` |
+| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_picture_status` (and `tm_odd_frame` over it), `tm_sync` |
 | `runtime/platform/audio.h` | `au_command` (`AudioCommand` with a parameter count), `au_play_song`, `au_status`, `au_take_samples` |
 | `runtime/platform/input.h` | `in_ready`, `in_read`, `in_read_low`, `in_read_high`, `in_host_set` |
 | `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_host_bytes` |
@@ -1943,8 +1943,8 @@ registers from 78 instructions, every one of them in the census. Six are in
 it only because of the width rule: five divider spills, and the second
 frame-parity read below.
 
-**117 instructions: 49 in hand ports, 68 still generated.** The ports reach
-them through 38 timing service calls, and through direct reads of `$4212` and
+**117 instructions: 50 in hand ports, 67 still generated.** The ports reach
+them through 39 timing service calls, and through direct reads of `$4212` and
 the counters in `attract/main_loop.c` and `battle/wait.c`, which predate the
 service. By what they are for:
 
@@ -1959,7 +1959,7 @@ service. By what they are for:
 | The battle's wait for a line | not established | 6 | 0 | `$CD:3B82` |
 | Beam budgets | how much deferrable work runs this frame | 0 | 8 | the event scheduler `$C0:5A46`, the sprite frame queue `$C0:CA76` |
 | Beam entropy | a random byte | 0 | 4 | `$C3:02DD` |
-| Frame parity from the PPU | odd or even frame | 0 | 2 | `$7E:9AB3`, `$7E:9EDF` (scene program) |
+| Frame parity from the PPU | odd or even frame | 1 | 1 | `$7E:9AB3`, `$7E:9EDF` (scene program; the second through `tm_odd_frame`) |
 | Latch reset | nothing | 1 | 0 | the battle's vblank handler, `$D1:E7CF` |
 | Divider spill | nothing: a 16-bit divisor write also writes the dot timer | 0 | 5 | the scene program, `$7E:3608` and four more |
 
@@ -2070,7 +2070,7 @@ compares what it compared before):
 | *new* `bool tm_frame_time_left(pf, o, line)` | True: a host has time for all of it. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true while it is above `line` or at line 240 or later |
 | *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
 | *new* `uint16_t tm_entropy(pf, o)` | A host generator the driver seeds, so a replay reproduces it. SNES backend: latch and read the counters as `$C3:02DD` does |
-| *new* `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: `$213F`'s field bit |
+| `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: `tm_picture_status`, the word the original reads from `$213E`-`$213F`, whose bit 15 is the field's (added with the staff roll, RECOMP.md, "Phase 3, the scene program: the staff roll") |
 | *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
 `tm_frame_time_left` is a budget, not a model of one. A SNES ROM compiled from
@@ -2088,7 +2088,7 @@ without a beam", tracks them):
 | The event scheduler `$C0:5A46` | generated, beam budget | run the due object scripts while `tm_frame_time_left(pf, o, limit)`; natively, all of them every frame |
 | The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
 | `$C3:02DD` and its callers `$C3:01E4`, `$7E:3443` | generated | the seed mixing as game code, over `tm_entropy` |
-| `$7E:9AB3`, `$7E:9EDF` | generated | `tm_odd_frame` |
+| `$7E:9AB3` | generated | `tm_odd_frame`, as the credits' scroll `$7E:9ED6` (ported) reads it |
 | The races `$C0:3B71` and `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; `$C0:0B28` and `$FD:EADA` before they enable the vblank handler; the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`, `$FD:EAEB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |

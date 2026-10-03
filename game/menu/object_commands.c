@@ -9,7 +9,8 @@
  *   (set in the story's flags), and the flag a scene clears as it ends;
  * - the song: whether the map screen that follows keeps the one playing;
  * - motion: an object that falls faster and faster, the layer over the map
- *   drifting with an object, the second plane bobbing up and down;
+ *   drifting with an object, the second plane bobbing up and down, an
+ *   object jolted a random step in a random direction;
  * - pictures: the scenes' Mode 7 graphics and colours, decompressed into
  *   the Mode 7 plane's buffer and the loaded palette.
  *
@@ -21,6 +22,7 @@
  * it leaves in those and declares the rest dead. */
 #include "menu/object_commands.h"
 
+#include "cpu_io.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
@@ -100,8 +102,6 @@ static bool drift(GameState *g, MenuObject o)
     return wrapped;
 }
 
-/* ---- objects put on the map at random ----------------------------------------------------------- */
-
 /* The menus' random bytes, taken in turn. */
 static uint8_t next_random(GameState *g)
 {
@@ -109,6 +109,60 @@ static uint8_t next_random(GameState *g)
     set_menu_random_index(g, (uint8_t)(at + 1));
     return menu_random_byte(g, at);
 }
+
+/* The sine of an angle of 256 steps a turn, from -128 to 128: the table's,
+ * whose bytes can't hold the quarter turns' 128, which are put in by hand. */
+enum { QUARTER_TURN = 0x40, THREE_QUARTER_TURN = 0xC0, SINE_PEAK = 128 };
+
+// $C2:2277
+static int16_t sine(const GameState *g, uint8_t angle)
+{
+    if (angle == QUARTER_TURN)
+        return SINE_PEAK;
+    if (angle == THREE_QUARTER_TURN)
+        return -SINE_PEAK;
+    return menu_sine_step(g, angle);
+}
+
+// $C2:2273
+static int16_t cosine(const GameState *g, uint8_t angle) { return sine(g, (uint8_t)(angle + QUARTER_TURN)); }
+
+/* A jolt's size is up to 63, and it moves the object that many 256ths of the
+ * sine along each axis, rounded toward zero. */
+enum { JOLT_SIZES = 0x40, JOLT_UNIT = 256 };
+
+static int16_t jolt_along(int16_t share, uint8_t size)
+{
+    int16_t moved = (int16_t)((share < 0 ? -share : share) * size / JOLT_UNIT);
+    return share < 0 ? (int16_t)-moved : moved;
+}
+
+/* The original works the jolt out in scratch cells and the CPU's multiplier,
+ * and leaves them: the direction and the size, and the multiplier holding the
+ * second axis's product. */
+static void leave_jolt(GameState *g, uint8_t angle, uint8_t size)
+{
+    set_menu_object_scratch_jolt_angle(g, angle);
+    set_menu_object_scratch_jolt_size(g, size);
+    int16_t s = sine(g, angle);
+    hw_set_multiplicand(g, (uint8_t)(s < 0 ? -s : s));
+    hw_multiply_by(g, size);
+}
+
+// $C6:E6D0
+/* The object jumps a random distance in a random direction: one of the
+ * menus' random bytes picks the direction, the next how far, up to 31 pixels
+ * along an axis. Its place moves by whole pixels; the fractions stay. */
+static void jolt(GameState *g, MenuObject o)
+{
+    uint8_t angle = next_random(g);
+    uint8_t size = next_random(g) & (JOLT_SIZES - 1);
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + jolt_along(cosine(g, angle), size)));
+    set_menu_object_slots_y_pixel(g, o, (uint16_t)(menu_object_slots_y_pixel(g, o) + jolt_along(sine(g, angle), size)));
+    ORIGINAL_EFFECT(leave_jolt(g, angle, size));
+}
+
+/* ---- objects put on the map at random ----------------------------------------------------------- */
 
 /* The view's top-left, in the map's tiles of 8 pixels: the second plane's,
  * which the objects on the map move with. A new object goes in just under
@@ -263,6 +317,22 @@ void menu_object_drift(Snes *s)
 {
     GameState *g = state_of(s);
     leave_moved(s, drift(g, menu_object_running(g)));
+}
+
+/* The jolt reads its sine table through the data bank, whose bank 0 reaches
+ * the cartridge's table. */
+bool menu_object_jolt_runs(Snes *s) { return s->cpu.db == 0x00 && menu_object_routine_runs(s); }
+
+// $C6:E6D0
+/* The carry: whether the object's place down wrapped round past the top of
+ * its 16 bits, as the jolt's add down leaves it. */
+void menu_object_jolt(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    uint16_t was = menu_object_slots_y_pixel(g, o);
+    jolt(g, o);
+    leave_moved(s, menu_object_slots_y_pixel(g, o) < was);
 }
 
 /* -- objects put on the map at random -- */

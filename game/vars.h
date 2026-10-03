@@ -4871,6 +4871,12 @@ void set_menu_object_scratch_iris_lower_from(GameState *g, uint16_t v);
 /* The squashed iris: the centre line, where its lower half starts */
 uint16_t menu_object_scratch_iris_lower_to(const GameState *g);
 void set_menu_object_scratch_iris_lower_to(GameState *g, uint16_t v);
+/* A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word */
+uint16_t menu_object_scratch_jolt_angle(const GameState *g);
+void set_menu_object_scratch_jolt_angle(GameState *g, uint16_t v);
+/* A random jolt: how far it went, 0-63 */
+uint8_t menu_object_scratch_jolt_size(const GameState *g);
+void set_menu_object_scratch_jolt_size(GameState *g, uint8_t v);
 
 /* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
  * brightness); while bit 7 of the first is set the wave handler also turns its effect off */
@@ -10256,6 +10262,11 @@ void set_scene_bg3_scroll_x(GameState *g, uint16_t v);
 uint16_t scene_race_demo(const GameState *g);
 void set_scene_race_demo(GameState *g, uint16_t v);
 
+/* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
+ * every other frame, or a row of 8 a frame when they roll fast */
+uint16_t scene_credits_scroll(const GameState *g);
+void set_scene_credits_scroll(GameState *g, uint16_t v);
+
 enum { SCENE_RACE_RACERS_COUNT = 2 };   /* by racer: 0 Crono, 1 Johnny */
 /* Where the bike is drawn across the screen: the left of its picture */
 uint16_t scene_race_racers_screen_x(const GameState *g, unsigned i);
@@ -10316,6 +10327,17 @@ void set_scene_race_racers_drift_up(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_race_racers_drift_down(const GameState *g, unsigned i);
 void set_scene_race_racers_drift_down(GameState *g, unsigned i, uint16_t v);
 
+/* Where in VRAM the staff credits' next row of text goes: a row of the 32x32 map at $4800, a row
+ * on each line and round again; the setup starts it a row before the map, which the first line's
+ * step brings to its first row */
+uint16_t scene_credits_row_vram(const GameState *g);
+void set_scene_credits_row_vram(GameState *g, uint16_t v);
+
+/* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
+ * character codes, a line ended by '/', the text by a backslash */
+uint16_t scene_credits_text(const GameState *g);
+void set_scene_credits_text(GameState *g, uint16_t v);
+
 /* Matrix parameter A */
 uint16_t scene_mode7_matrix_a(const GameState *g);
 void set_scene_mode7_matrix_a(GameState *g, uint16_t v);
@@ -10350,6 +10372,11 @@ void set_scene_title_timer(GameState *g, uint16_t v);
  * after Johnny wins */
 uint16_t scene_race_score(const GameState *g);
 void set_scene_race_score(GameState *g, uint16_t v);
+
+/* Nonzero once the staff credits' last line has rolled on, which the scene's script waits for to
+ * go on to The End (counted up as it is set) */
+uint8_t scene_credits_over(const GameState *g);
+void set_scene_credits_over(GameState *g, uint8_t v);
 
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed */
@@ -10414,6 +10441,17 @@ void set_scene_race_tilemap_ready_high(GameState *g, unsigned i, uint8_t v);
  * sent */
 uint8_t scene_race_tilemap_b_ready(const GameState *g);
 void set_scene_race_tilemap_b_ready(GameState *g, uint8_t v);
+
+/* Nonzero while the staff credits roll fast, a row of text every frame, as the telepod ending's
+ * do with its music played fast (its setup counts it up); 0, a pixel every other frame and a row
+ * every 16 frames, as the shared ending's */
+uint8_t scene_credits_fast(const GameState *g);
+void set_scene_credits_fast(GameState *g, uint8_t v);
+
+/* The byte after the credits' speed, which the roll's test for a line due reads with it as a
+ * word (its scroll reads the speed alone); 0 wherever the endings run */
+uint8_t scene_credits_fast_high(const GameState *g);
+void set_scene_credits_fast_high(GameState *g, uint8_t v);
 
 /* How Crono's bike leans this frame: 0 upright, 1 steering toward the higher lanes, 2 toward the
  * lower ones */
@@ -10721,6 +10759,13 @@ void set_scene_race_picture_requests_column_step(GameState *g, unsigned i, uint1
 uint16_t scene_race_picture_requests_source_limit(const GameState *g, unsigned i);
 void set_scene_race_picture_requests_source_limit(GameState *g, unsigned i, uint16_t v);
 
+/* A row of the staff credits as it is written, the low bytes of a row of their layer's map: a
+ * tile a column, the line's letters from the ninth column on, blank tiles around them [32 bytes,
+ * one at a time] */
+enum { SCENE_CREDITS_ROW_BYTES = 32 };
+uint8_t scene_credits_row_byte(const GameState *g, unsigned at);
+void set_scene_credits_row_byte(GameState *g, unsigned at, uint8_t v);
+
 /* How far the plane is turned on the screen: the camera's angle negated (after the finish, how
  * far the camera has come); the flat layers scroll across by a part of it */
 uint16_t scene_race_plane_turn(const GameState *g);
@@ -10968,6 +11013,19 @@ void set_scene_race_bar_cap_x(GameState *g, uint8_t v);
  * without the panel */
 uint8_t scene_race_corner_sprites(const GameState *g);
 void set_scene_race_corner_sprites(GameState *g, uint8_t v);
+
+/* The branch in the star field's drawing that puts the far stars in front of the layers (a BMI
+ * over its own load of the near stars' attributes); the staff roll's setup writes a branch to
+ * the next instruction over it ($0080), which draws every star behind them, behind the credits */
+uint16_t scene_stars_depth_branch(const GameState *g);
+void set_scene_stars_depth_branch(GameState *g, uint16_t v);
+
+enum { SCENE_CREDITS_SCROLL_REGISTER_COUNT = 2 };   /* by the store: 0 the scroll's low byte's, 1 its high byte's */
+/* The scroll register the credits' upload sends their scroll to, the low byte of its address as
+ * the operands of the upload's two stores: $10, BG2's vertical scroll, as the program comes;
+ * $12, BG3's, where the staff roll's setup has written it */
+uint8_t scene_credits_scroll_register(const GameState *g, unsigned i);
+void set_scene_credits_scroll_register(GameState *g, unsigned i, uint8_t v);
 
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */

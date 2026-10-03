@@ -5,6 +5,22 @@
 #include <stdbool.h>
 
 #include "snes/system.h"
+#include "state.h"
+
+/* Every palette animation stopped, as a scene does before it sets its own
+ * colors (the scene program's call through $FD:FFEE). */
+void palette_stop_animations(GameState *g);
+
+/* A fade a mode starts in a slot of its own, rather than from a location's
+ * set: `color_count` colors from `first_color`, lightened by a level that
+ * moves `step` every `period` frames from `from_level` to `to_level` (a level
+ * of 0 is the colors as loaded), on every channel. */
+typedef struct {
+    uint8_t first_color, color_count;
+    uint8_t step, period;
+    uint8_t from_level, to_level;
+} PaletteFade;
+void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade);
 
 void palette_animate(Snes *s);
 void palette_clear_animations(Snes *s);

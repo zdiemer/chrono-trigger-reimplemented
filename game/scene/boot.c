@@ -162,7 +162,7 @@ void scene_boot_line_irq_blank(Snes *s)
 // $C3:099C, $C3:09A0
 /* `count` bytes of a resource in bank $FE from `from` to `to`, a byte at a time
  * forward. */
-static void copy_resource(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
+void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++)
         wram_write8(g, (uint32_t)bank << 16 | (uint16_t)(to + i), scene_data_byte(g, (uint16_t)(from + i)));
@@ -174,7 +174,7 @@ static void copy_resource_entry(Snes *s, uint8_t bank)
 {
     uint16_t from = s->cpu.x, to = s->cpu.y;
     uint32_t count = (uint32_t)s->cpu.a + 1;
-    copy_resource(state_of(s), bank, from, to, count);
+    scene_copy_resource_bytes(state_of(s), bank, from, to, count);
     s->cpu.y = (uint16_t)(to + count);
     m_rtl(s);
 }

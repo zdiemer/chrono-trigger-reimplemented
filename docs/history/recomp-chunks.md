@@ -3016,3 +3016,125 @@ the turn, the timers' dispatch and the combination check were recalibrated.
 With the turn's callees timed as their own routines, the timers' dispatch (a
 whole turn) attributes its time to more than the 32 routines a stretch held,
 so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
+
+## Phase 3, the scene program: the rest of the jet bike race (`$7E:3B48`-`$7E:3F13`, `$7E:357B`, `$7E:4D0D`, `$7E:51D1`)
+
+The second chunk of bank `$7E`: what the first left at its edge (history
+file, "Phase 3, the scene program: the jet bike race running"), so that the
+race is C from its setup to its end.
+
+**How it was chosen.** The race's remainder, all reached by
+`events-jetbike-race`: the bikes placed in perspective (`$7E:4D0D`, with
+`$7E:4D4E`-`$7E:4F53`), the perspective table (`$7E:357B`, with its patched
+call's two targets, the race's `$7E:45B0` and the endings' `$7E:9B46`), the
+main loop's scaling of the racers' pictures (`$7E:51D1`-`$7E:5220`), and the
+setup (`$7E:3B48`-`$7E:3F13` with the bikes' start `$7E:45D6` and the
+divisors' clear `$7E:4309`) ported whole, which retires the eleven entries
+the first chunk had registered a block at a time (the buffers' clear, the
+flat layers, the racers' map and the loader's eight blocks). With it the
+curtain the race without its panel ends behind (`$7E:3D72`, a task no movie
+runs). Left at the edge: the program's unpacker by resource (`$7E:3691`,
+before the decompressor) and its first script step (`$7E:3749`, before the
+sequencer), both call-outs of the setup; the curtain's step (`$C3:000E`, the
+field's, still the original's); and the ending shared by modes 10, 11, 14
+and 15 (`$7E:8538` on), which is a loader of the same kind and the next
+chunk (PLAN.md). `$7E` stands at 11.4 KiB ported and 1.2 KiB inlined, 54%
+left (59% before).
+
+**What it is.** `scene/perspective.c` is the Mode 7 plane's perspective for
+any scene: each screen line's matrix, the camera's cosine and sine times its
+height over the line's distance, from the scene's first line (the routine the
+scene's setup writes into the program's call: the race's from the horizon,
+the endings' from the line above it) to the screen's bottom, a line at a time
+or in pairs. The loop's own operands (the products, the branch over the
+negation, the stores' tables) are variables in `re/ram.toml` and left as the
+loop leaves them; the steps and starts other scenes write (modes 1 and 3-8,
+which no movie reaches) are refused by the guard, so the original builds
+those. The race's camera check now builds it as C rather than stopping at it.
+`scene/race_projection.c` places the bikes: their places along and across the
+track turned by the camera's angle onto the plane, then each in perspective,
+the farther first: its distance ahead of the camera, the divisor kept for that
+distance (or searched for, from the last one found, through
+`scene_find_divisor_from`), the line under the horizon, and from the line the
+picture's size, height and width and the place across the screen. The main
+loop's scaling (`scene/race_matrix.c`) hands a waiting request to the bitmap
+scaler and, after the upload, gathers the picture: its four entries are the
+main loop's call (`$7E:51D1`), the two returns into it after each racer
+(`$7E:51DF`, `$7E:51F0`) and the gathering after the upload's wait
+(`$7E:5215`). The setup (`scene/race.c`) is a list of the race's graphics,
+each unpacked and sent where it goes, the racers' pictures (Crono's in two
+parts, one's blocks placed in the other, Johnny's mirrored from them), the
+buffers, the per-line effects, the bikes' start (`race_start`,
+`scene/race_rules.c`), the scripts and the race's song. Where the original's
+calls stay, `scene/bridge.c` holds the machine: the scaling routine's frames
+and data bank under the scaler's first row, the inlined loader's frame and the
+song routine's under their call-outs.
+
+**The registers, settled first.** Liveness has A's high byte and Y live
+after the placing (a frame task, as the first chunk's), and the carry after
+the main loop's call; the setup's callers read the overflow and the data
+bank. The placing hands its entry the bike it placed last and the distance it
+looked up, from which the wrapper leaves A (that bike's last edge, or
+Johnny's mark where he is gone) and Y; the perspective's registers are worked
+out from its tables after it; the main loop's carry is the last request's
+compare, worked out from the state, or the scaler's, untouched; the setup's
+overflow is the matrix code writer's, clear. The call-outs pass what their
+callees read: the unpacker its resource with the direct page, the data bank
+and the overflow the original has there (`$2100`, `$7F` and clear while the
+pictures are worked on, kept on the stack around the third part's
+unpacking), the first script step Y as the divisors' clear leaves it.
+
+**The carries.** The placing never clears the carry between its sums either.
+Those whose carry is the same wherever the horizon is above the plane's top
+(the gap's borrow, the screen line's unit) are plain arithmetic, a bike's top
+the line plus the horizon less the plane's top, and the entry's guard keeps
+the horizon there (the race has it at $38 over $18). The rest move a bike by a
+pixel or a distance step and are rules with one term each, worked out in one
+section, "The units the placing hands on", from the values the sums before
+used: Johnny's place across the plane takes a unit where Crono's place down it
+wrapped, and his place down one where his own place across did; a bike's
+distance takes a unit from the order's comparison (the first) or from the
+first bike's last edge running past the screen's coordinates (the second), and
+is a step farther where the camera's distance less the place wrapped; Johnny
+is a pixel to the right at his nearest (a size of 1). The rotation's products
+are plain arithmetic (the low word of the signed product), the program's own
+multiplies timed with the placing. What the last bike leaves in the scene's
+working cells is written once, plainly, after the placing: the field's
+controller read takes those cells over. The wrapper rebuilds A from the bike
+that comes last and Y from the distance it was looked up at, which the placing
+notes as scaffolding; the drawing, the next task, hands Y on where it draws
+nothing.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches, none refused: in `events-jetbike-race` the placing 2,640, the camera
+check (now building the perspective) 2,640, the perspective's own entry 66 (the
+camera script calls it), the main loop's call and its two returns 474 each
+(2 and 1 interrupted), the gathering 948 (372 interrupted), the setup 1; the
+perspective 1,521 in `endings-beyond-time` (1 interrupted). Shadow mode found
+the setup's scratch the shadow compares at its call-outs: the block copy's row
+count in the scene's first cell, the mirroring's offset and count at the start
+of the unpack buffer, and the work RAM port's bank (the one bit the mirroring
+writes, then the unpacker's `$7F`); fuzzing the setup found the curtain's
+window on BG4 and the color window as well (the race without its panel, which
+no movie runs). The gate's shipping-mode run with `--scaffold-reads` found the
+placing's working cells read after the race: the scene's cells share their
+page with the controller's (`input_held`, the repeat delay, the last frame's
+buttons), so what the last placing leaves there is what the field's first
+read of the controller takes over, and those writes are plain. The placing's
+fuzz runs keep the horizon above the plane's top, as the guard asks. Fuzzed from the `race` state with the program kept, seeds 1
+and 2 (`tools/fuzz_routines.toml`), 0 mismatched everywhere: the placing as it
+comes and with the divisors forgotten (Johnny shown or gone; under 2% refused,
+a camera height of `$FF`, where the search never ends, or nothing ahead of the
+camera to look up), the perspective on channel 0 with the race's start (about a
+quarter refused, a horizon off the screen or an odd count of paired lines) and
+on channel 1 with the endings', the scaling's four entries, the curtain's task
+(the curtain's state as its setup makes it), the setup 300 states (the driver's
+echo looped back), and the first chunk's rewritten tasks again.
+
+**Timing.** The new rows were calibrated over the library (the scene's rows
+only). Two entries carry timing exceptions (`tools/timing_exceptions.txt`):
+the perspective, which builds up to 224 lines' matrices in calls longer than
+vblank, writing only RAM (vblank-tail), and the setup, which runs with the
+display blanked and the frame's interrupt off, its error moving when the race
+starts (vblank-worst, worst); the camera check's exception now says it builds
+the perspective, timed as the perspective's own.

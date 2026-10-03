@@ -2386,9 +2386,11 @@ where no pass matched, and the comparison was right not to take one: a command
 the port gives up on (one no script has) has already written the scratch cell
 `$F0` and changed the flags, which the original does only once it runs the
 command, so at the loop's head, on every pass, the port's machine is one the
-original never has. The port is back to the call-out (which the fuzzer
-compares only at the return, after the original has run the command itself),
-and putting those back first is in docs/TODO.md.
+original never has. The port went back to the call-out (which the fuzzer
+compares only at the return, after the original has run the command itself);
+it now hands such a command to the original's code for that command, entered
+as its dispatch enters it (RECOMP.md, "Phase 3, the scene program: the staff
+roll").
 
 **An entry on another port's path.** An entry the original reached while it
 was catching up with a native routine started a comparison of its own, nested,
@@ -3406,127 +3408,128 @@ carries it), whose empty rows inherit the window lists' strings' spread (over
 by about 1600 clocks a row) while the triple techs' member rows fall under,
 holding the routine's own time at the floor.
 
-### Phase 3, the scene program: the rest of the jet bike race (`$7E:3B48`-`$7E:3F13`, `$7E:357B`, `$7E:4D0D`, `$7E:51D1`)
+### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 
-The second chunk of bank `$7E`: what the first left at its edge (history
-file, "Phase 3, the scene program: the jet bike race running"), so that the
-race is C from its setup to its end.
+The third chunk of bank `$7E`, after the scene engine's and the scene data's
+last unported runs (history file, "Phase 3, the scene program: the rest of
+the jet bike race", for the one before).
 
-**How it was chosen.** The race's remainder, all reached by
-`events-jetbike-race`: the bikes placed in perspective (`$7E:4D0D`, with
-`$7E:4D4E`-`$7E:4F53`), the perspective table (`$7E:357B`, with its patched
-call's two targets, the race's `$7E:45B0` and the endings' `$7E:9B46`), the
-main loop's scaling of the racers' pictures (`$7E:51D1`-`$7E:5220`), and the
-setup (`$7E:3B48`-`$7E:3F13` with the bikes' start `$7E:45D6` and the
-divisors' clear `$7E:4309`) ported whole, which retires the eleven entries
-the first chunk had registered a block at a time (the buffers' clear, the
-flat layers, the racers' map and the loader's eight blocks). With it the
-curtain the race without its panel ends behind (`$7E:3D72`, a task no movie
-runs). Left at the edge: the program's unpacker by resource (`$7E:3691`,
-before the decompressor) and its first script step (`$7E:3749`, before the
-sequencer), both call-outs of the setup; the curtain's step (`$C3:000E`, the
-field's, still the original's); and the ending shared by modes 10, 11, 14
-and 15 (`$7E:8538` on), which is a loader of the same kind and the next
-chunk (PLAN.md). `$7E` stands at 11.4 KiB ported and 1.2 KiB inlined, 54%
-left (59% before).
+**How it was chosen.** The brief: the last runs `tools/burndown.py --uncovered`
+listed in `$C3` and `$C6`, then the telepod ending. Finding out what each run
+was came first, and most were ported already:
 
-**What it is.** `scene/perspective.c` is the Mode 7 plane's perspective for
-any scene: each screen line's matrix, the camera's cosine and sine times its
-height over the line's distance, from the scene's first line (the routine the
-scene's setup writes into the program's call: the race's from the horizon,
-the endings' from the line above it) to the screen's bottom, a line at a time
-or in pairs. The loop's own operands (the products, the branch over the
-negation, the stores' tables) are variables in `re/ram.toml` and left as the
-loop leaves them; the steps and starts other scenes write (modes 1 and 3-8,
-which no movie reaches) are refused by the guard, so the original builds
-those. The race's camera check now builds it as C rather than stopping at it.
-`scene/race_projection.c` places the bikes: their places along and across the
-track turned by the camera's angle onto the plane, then each in perspective,
-the farther first: its distance ahead of the camera, the divisor kept for that
-distance (or searched for, from the last one found, through
-`scene_find_divisor_from`), the line under the horizon, and from the line the
-picture's size, height and width and the place across the screen. The main
-loop's scaling (`scene/race_matrix.c`) hands a waiting request to the bitmap
-scaler and, after the upload, gathers the picture: its four entries are the
-main loop's call (`$7E:51D1`), the two returns into it after each racer
-(`$7E:51DF`, `$7E:51F0`) and the gathering after the upload's wait
-(`$7E:5215`). The setup (`scene/race.c`) is a list of the race's graphics,
-each unpacked and sent where it goes, the racers' pictures (Crono's in two
-parts, one's blocks placed in the other, Johnny's mirrored from them), the
-buffers, the per-line effects, the bikes' start (`race_start`,
-`scene/race_rules.c`), the scripts and the race's song. Where the original's
-calls stay, `scene/bridge.c` holds the machine: the scaling routine's frames
-and data bank under the scaler's first row, the inlined loader's frame and the
-song routine's under their call-outs.
+- `$C3:0B03`, `$C3:0B95`, `$C3:0C41` (467 bytes) are the sequence interpreter
+  (`scene/script.c`), uncredited because the entry handed a command it doesn't
+  take back to the original's whole loop, a call-out to `$C3:0B03` the walk
+  can't go past. It no longer calls the loop. A command no script has (a store
+  outside low RAM, a video setting the service doesn't express, a task taken
+  off a list it isn't on or put on a full one) is handed to the original's
+  code for that command, entered as the dispatch enters it: the script past
+  the opcode, A and X the handler's place in the dispatch table with the flags
+  of the shift that made it, and the dispatch's scratch word kept, so the
+  stop is exactly the machine the original has there (what TODO.md asked for
+  at the loop's head, one step further on). A call-out that comes back with
+  the machine otherwise stops where the call returns. A script that never
+  ends its turn now hangs as the original's does (the old limit of 65536
+  commands, which handed it back, is gone: review item 113). What stays the
+  original's are those handlers and the task searches they call (about 160
+  bytes, which only what no script has reaches) and `$C3:0BEF`-`$C3:0C18`,
+  which nothing reaches (`re/hints.toml`, "unreached").
+- `$C3:09A4` (53 bytes) is the NMI's song send (`scene/frame.c`), uncredited
+  because the burndown read `PF_CALL_DC(site, target, set)` as `(target,
+  set)` and took the port as unreadable (fixed in the tool, which moved
+  several banks a little); its stop where the data bank doesn't reach the
+  registers was dead, since the handler goes on only where the frame's work
+  left a bank that does, and is gone.
+- `$C3:0A95` (106 bytes) is the frame's controller read past the console's
+  busy wait, ported, behind the stop at that wait; it stays the census's
+  `in_ready` rewrite (PLATFORM.md, "Timing without a beam").
+- `$C6:E6D0` (126 bytes) was unported: a sprite-object scene's routine that
+  jolts the running object a random step in a random direction, which a
+  script at `$C3:B5AF` calls and no movie reaches. `menu_object_jolt`
+  (`menu/object_commands.c`) takes two of the menus' random bytes, the
+  direction and the size, and moves the object's pixel along each axis by the
+  sine's size times the jolt's in 256ths; the menus' sine (`$C2:2273`/`$2277`,
+  the table at `$C0:F800` with the quarter turns put in by hand) is inlined.
+  The carry the scripts read is the place down wrapping, worked out in the
+  wrapper from before and after.
 
-**The registers, settled first.** Liveness has A's high byte and Y live
-after the placing (a frame task, as the first chunk's), and the carry after
-the main loop's call; the setup's callers read the overflow and the data
-bank. The placing hands its entry the bike it placed last and the distance it
-looked up, from which the wrapper leaves A (that bike's last edge, or
-Johnny's mark where he is gone) and Y; the perspective's registers are worked
-out from its tables after it; the main loop's carry is the last request's
-compare, worked out from the state, or the scaler's, untouched; the setup's
-overflow is the matrix code writer's, clear. The call-outs pass what their
-callees read: the unpacker its resource with the direct page, the data bank
-and the overflow the original has there (`$2100`, `$7F` and clear while the
-pictures are worked on, kept on the stack around the third part's
-unpacking), the first script step Y as the divisors' clear leaves it.
+Then the telepod ending, mode 13, which does not go through the shared ending
+at `$7E:8538`: its setup, the credits' roll and upload (which the Beyond Time
+ending shares, reaching them through `$7E:8538` at the slow speed), the
+sprites' high bits, and the two routines its script calls. Left at the edge:
+the stars (the scatter `$7E:5777`, the flight `$7E:579B`, and The End's drift
+`$7E:9897`/`$7E:98AC` with `$7E:98E3`), whose work is to hand the random mixer
+`$C3:02DD` the registers it mixes into the seed (A, X and the carry): they wait
+for the mixer as game code (TODO.md, "The scene program's randomness and
+parity"). The unpacker and the first script step stay call-outs, as in the
+race. `$7E` stands at 12.6 KiB ported and 1.9 KiB inlined, 49% left; `$C3` at
+8% and `$C6` at 0% (52%, 15% and 4% before, with the tool's fix).
 
-**The carries.** The placing never clears the carry between its sums either.
-Those whose carry is the same wherever the horizon is above the plane's top
-(the gap's borrow, the screen line's unit) are plain arithmetic, a bike's top
-the line plus the horizon less the plane's top, and the entry's guard keeps
-the horizon there (the race has it at $38 over $18). The rest move a bike by a
-pixel or a distance step and are rules with one term each, worked out in one
-section, "The units the placing hands on", from the values the sums before
-used: Johnny's place across the plane takes a unit where Crono's place down it
-wrapped, and his place down one where his own place across did; a bike's
-distance takes a unit from the order's comparison (the first) or from the
-first bike's last edge running past the screen's coordinates (the second), and
-is a step farther where the camera's distance less the place wrapped; Johnny
-is a pixel to the right at his nearest (a size of 1). The rotation's products
-are plain arithmetic (the low word of the signed product), the program's own
-multiplies timed with the placing. What the last bike leaves in the scene's
-working cells is written once, plainly, after the placing: the field's
-controller read takes those cells over. The wrapper rebuilds A from the bike
-that comes last and Y from the distance it was looked up at, which the placing
-notes as scaffolding; the drawing, the next task, hands Y on where it draws
-nothing.
+**What it is.** `scene/staff_roll.c` is the scene: the staff credits rolling up
+over a field of stars, then The End. The setup plays the music fast (the
+driver's fast forward through the program's own send), sets the stars coming
+and scatters them, stops the palette's animations (`palette_stop_animations`,
+the call through `$FD:FFEE` made C), copies two palettes out of the program's
+resources and unpacks four pictures into VRAM (a table, as the race's), sets
+the letters' colours, blanks the credits' map (both halves of each word
+filled, through the SNES-only escape, as the title's low-byte fill), sets up
+the per-line effect, patches the star field's drawing to put every star
+behind the layers and the credits' upload to scroll BG3 (both program
+operands, now variables in `re/ram.toml`), starts the script, sets the layers
+and starts the song (`scene_bridge_start_song`, now from any call). The roll
+writes the next line of text into a row buffer as tiles when one is due
+(every 16 frames, every frame fast) and moves the map's row on; at the end of
+the text it takes the upload off the vblank list and itself off the frame's.
+Its scroll (`$7E:9ED6`) is an entry of its own: a row a frame fast, otherwise a
+pixel on the odd frames, which it reads through a new timing call,
+`tm_picture_status` (the word the original reads from `$213E`-`$213F`) with
+`tm_odd_frame` over it, made only where the roll is slow, as the original
+makes it. The upload sends the row into the low bytes of its map row and the
+scroll. The script's test sends it on to The End once the credits are over;
+The End's routine starts a fade of the picture in from white
+(`palette_start_fade_to_white`, core/palette.c).
 
-**What shadow mode and fuzzing found.** Over the 26 movies every call
-matches, none refused: in `events-jetbike-race` the placing 2,640, the camera
-check (now building the perspective) 2,640, the perspective's own entry 66 (the
-camera script calls it), the main loop's call and its two returns 474 each
-(2 and 1 interrupted), the gathering 948 (372 interrupted), the setup 1; the
-perspective 1,521 in `endings-beyond-time` (1 interrupted). Shadow mode found
-the setup's scratch the shadow compares at its call-outs: the block copy's row
-count in the scene's first cell, the mirroring's offset and count at the start
-of the unpack buffer, and the work RAM port's bank (the one bit the mirroring
-writes, then the unpacker's `$7F`); fuzzing the setup found the curtain's
-window on BG4 and the color window as well (the race without its panel, which
-no movie runs). The gate's shipping-mode run with `--scaffold-reads` found the
-placing's working cells read after the race: the scene's cells share their
-page with the controller's (`input_held`, the repeat delay, the last frame's
-buttons), so what the last placing leaves there is what the field's first
-read of the controller takes over, and those writes are plain. The placing's
-fuzz runs keep the horizon above the plane's top, as the guard asks. Fuzzed from the `race` state with the program kept, seeds 1
-and 2 (`tools/fuzz_routines.toml`), 0 mismatched everywhere: the placing as it
-comes and with the divisors forgotten (Johnny shown or gone; under 2% refused,
-a camera height of `$FF`, where the search never ends, or nothing ahead of the
-camera to look up), the perspective on channel 0 with the race's start (about a
-quarter refused, a horizon off the screen or an odd count of paired lines) and
-on channel 1 with the endings', the scaling's four entries, the curtain's task
-(the curtain's state as its setup makes it), the setup 300 states (the driver's
-echo looped back), and the first chunk's rewritten tasks again.
+**The registers, settled first.** Every call-out's registers were settled
+before the logic was written. The setup's: the sound send reads nothing, and
+what it leaves in A and the carry is what the stars' scatter mixes in, so
+nothing touches them between the two; the unpacker takes its resource; the
+first script step reads Y where the per-line effects' descriptors end and the
+overflow clear, on the program's bank with the pushed word's other byte under
+it, and comes back on its channel's page (the setup puts the scene's back);
+the song's driver call takes A's high byte as the step left it. The roll
+leaves A's high byte and Y live after a frame task (the list's caller saves A
+for the sound driver), so the roll stops at its scroll rather than scroll
+itself: the line's Y and data bank are left there as scaffolding, and the
+scroll's own entry leaves the word it read, shifted, in A, where the slow roll
+reads the picture's status, and the scroll where the fast one doesn't. The
+overflow after both is dead (liveness), as is everything the vblank tasks and
+the script's routines leave but Y and the overflow, which they don't touch.
 
-**Timing.** The new rows were calibrated over the library (the scene's rows
-only). Two entries carry timing exceptions (`tools/timing_exceptions.txt`):
-the perspective, which builds up to 224 lines' matrices in calls longer than
-vblank, writing only RAM (vblank-tail), and the setup, which runs with the
-display blanked and the frame's interrupt off, its error moving when the race
-starts (vblank-worst, worst); the camera check's exception now says it builds
-the perspective, timed as the perspective's own.
+**What shadow mode and fuzzing found.** Over the 26 movies every call matches,
+none interrupted and none refused: in `endings-telepod-lavos` the setup 1,
+the roll 240, its scroll 239, the upload 240, the high bits' clear 3027, the
+script's test 242 and The End's fade 1; in `endings-beyond-time` the slow roll
+3281, its scroll 3280, the upload 3281, the clear 784; the interpreter 79996
+over the library, the NMI 61618, the frame's work 61649. Shadow mode found the
+clear's 16-bit A at its return and the direct page the first step leaves at
+the song's driver call; the don't-care check found that the scroll reads the
+data bank (its stop declares its own set). Fuzzed seed 1 from a state in the
+telepod ending's credits (`tools/fuzz_routines.toml`, `staff_roll`), the
+program kept: the roll 20000 (the text at one of the credits' lines, the last
+the end; the speed fast or slow), the scroll 20000, the upload 20000, the
+clear 20000, the test 20000, the fade 20000, the setup 300 (the driver's echo
+looped back), 0 mismatched; fuzzing found the scroll's overflow, dead after a
+frame task, declared. `menu_object_jolt` 20000 from the `objects` state, 0
+mismatched. Against main's ports (the same seed): the interpreter 0 of 17459
+and 0 of 17466 on its two channels (0 of 14061 and 0 of 14049 before, where
+the call-out to the loop left more states uncompared), the frame's work, the
+NMI, the race's setup, the resource copies and the palette's clear unchanged.
+
+**Timing.** The new rows and the NMI's (whose song send no longer reads the
+song playing) were calibrated over the library. The roll carries a timing
+exception (`tools/timing_exceptions.txt`, vblank-tail): its time follows the
+line it writes, every 16th frame, writing only RAM.
 
 ### The reading cost of a chunk
 
