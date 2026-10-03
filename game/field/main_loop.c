@@ -151,7 +151,7 @@ static void take_the_interrupts(GameState *g)
 
 /* Where the field's entry and its main loop start; the loop reads A's high
  * byte and the overflow as the last pass, or the field's entry, left them. */
-enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, LOOP_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
 
 /* For shadow mode: the sound driver's start hands A's high byte back as it
  * found it, and the menus' dispatcher moves it into the low byte, which it
@@ -219,8 +219,12 @@ bool field_location_is_a_number(Snes *s)
 }
 
 // $C0:0097
-/* One pass of the main loop, back to its start. A's high byte and the
- * overflow pass from each step to the next as the steps leave them. */
+/* One pass of the main loop, up to the wait for the next frame. A's high byte
+ * and the overflow pass from each step to the next as the steps leave them.
+ * The pass stops at the wait rather than calling it: the wait spans the
+ * frame's end, and a pass still running there would be a native routine held
+ * over every frame, which a machine copy can only rebuild by replaying input
+ * (ct_drive, docs/MOVIES.md). The wait sets A for the next pass itself. */
 void field_frame(Snes *s)
 {
     latch_presses(state_of(s));
@@ -231,14 +235,8 @@ void field_frame(Snes *s)
         bridge_call_long(s, 0xC000AD, DIALOG_WINDOW, READS_THE_OVERFLOW, page(s)) &&
         field_run(s, 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, page(s)) &&
         field_run(s, 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, page(s)) &&
-        field_run(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, page(s)) &&
-        bridge_call(s, 0xC000BA, FIELD_FRAME_WAIT, READS_NOTHING, page(s))) {
-        /* the next pass reads A's high byte as the wait leaves it; where A
-         * was already that before the wait, shadow mode keeps the port's own
-         * across the call (docs/PORTING.md, "Call-outs") */
-        s->cpu.a = field_frame_wait_leaves_a(state_of(s));
-        m_stop_at(s, MAIN_LOOP, LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
-    }
+        field_run(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, page(s)))
+        m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
 }
 
 // $C0:00BF
