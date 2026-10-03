@@ -2338,7 +2338,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 6051, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C | DC_D,
       .guard = scene_staff_roll_set_up_present },
     { .addr = 0x7E9E7B, .name = "scene_roll_credits", .fn = scene_roll_credits, NEEDS_M16_X16_BINARY,
-      .cost_milli = 7342, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = scene_credits_roll_present },
+      .cost_milli = 4518, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB, .guard = scene_credits_roll_present },
     { .addr = 0x7E9ED6, .name = "scene_scroll_credits", .fn = scene_scroll_credits_entry, NEEDS_M16_X16_BINARY,
       .cost_milli = 2497, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D, .guard = scene_credits_scroll_present },
     { .addr = 0x7E9EFC, .name = "scene_upload_credits", .fn = scene_upload_credits, NEEDS_M8_X16, .cost_milli = 3881,

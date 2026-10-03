@@ -646,7 +646,7 @@ agreement with `off` is the same as before conversion.
 |---|---|
 | `runtime/platform/platform.h` | `Platform`, `PfOrigin` (`PF_AT`, `PF_CALL`), `PfData` (`PF_GAME`), `PF_API` binding |
 | `runtime/platform/video.h` | display, BG mode, windows, color math, fixed color, line effects, VRAM/CGRAM/OAM uploads, decoders for SNES-format shadows, the `VidSnesXfer` step lists, the `vid_snes_transfer` escape |
-| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_picture_status` (and `tm_odd_frame` over it), `tm_sync` |
+| `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_odd_frame`, `tm_sync` |
 | `runtime/platform/audio.h` | `au_command` (`AudioCommand` with a parameter count), `au_play_song`, `au_status`, `au_take_samples` |
 | `runtime/platform/input.h` | `in_ready`, `in_read`, `in_read_low`, `in_read_high`, `in_host_set` |
 | `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_host_bytes` |
@@ -2070,7 +2070,7 @@ compares what it compared before):
 | *new* `bool tm_frame_time_left(pf, o, line)` | True: a host has time for all of it. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true while it is above `line` or at line 240 or later |
 | *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
 | *new* `uint16_t tm_entropy(pf, o)` | A host generator the driver seeds, so a replay reproduces it. SNES backend: latch and read the counters as `$C3:02DD` does |
-| `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: `tm_picture_status`, the word the original reads from `$213E`-`$213F`, whose bit 15 is the field's (added with the staff roll, RECOMP.md, "Phase 3, the scene program: the staff roll") |
+| `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, RECOMP.md, "Phase 3, the scene program: the staff roll") |
 | *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
 `tm_frame_time_left` is a budget, not a model of one. A SNES ROM compiled from

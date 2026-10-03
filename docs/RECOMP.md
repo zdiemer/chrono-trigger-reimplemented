@@ -3482,10 +3482,11 @@ writes the next line of text into a row buffer as tiles when one is due
 (every 16 frames, every frame fast) and moves the map's row on; at the end of
 the text it takes the upload off the vblank list and itself off the frame's.
 Its scroll (`$7E:9ED6`) is an entry of its own: a row a frame fast, otherwise a
-pixel on the odd frames, which it reads through a new timing call,
-`tm_picture_status` (the word the original reads from `$213E`-`$213F`) with
-`tm_odd_frame` over it, made only where the roll is slow, as the original
-makes it. The upload sends the row into the low bytes of its map row and the
+pixel on the odd frames, which it asks the timing service through
+`tm_odd_frame`, new, only where the roll is slow, as the original reads it
+(the SNES backend makes the original's 16-bit read of `$213E`-`$213F` and
+keeps the word for the scaffolding that leaves it in A, the SNES-only
+`tm_snes_odd_frame_read`). The upload sends the row into the low bytes of its map row and the
 scroll. The script's test sends it on to The End once the credits are over;
 The End's routine starts a fade of the picture in from white
 (`palette_start_fade_to_white`, core/palette.c).
@@ -3497,12 +3498,16 @@ nothing touches them between the two; the unpacker takes its resource; the
 first script step reads Y where the per-line effects' descriptors end and the
 overflow clear, on the program's bank with the pushed word's other byte under
 it, and comes back on its channel's page (the setup puts the scene's back);
-the song's driver call takes A's high byte as the step left it. The roll
-leaves A's high byte and Y live after a frame task (the list's caller saves A
-for the sound driver), so the roll stops at its scroll rather than scroll
-itself: the line's Y and data bank are left there as scaffolding, and the
-scroll's own entry leaves the word it read, shifted, in A, where the slow roll
-reads the picture's status, and the scroll where the fast one doesn't. The
+the song's driver call takes A's high byte as the step left it. Liveness has
+A's high byte and Y live after a frame task: the list's loop loads the next
+slot's task over A, but past its last slot the frame's work returns to the
+NMI with it, whose song send enters the sound driver, and the driver saves A
+(the NMI's own restore then overwrites it). An entry's set can't rest on
+evidence, so the roll stops at its scroll rather than scroll itself: the
+line's Y and data bank are left there as scaffolding, and the scroll's own
+entry leaves in A the word it read, shifted, where the roll is slow, and the
+scroll where it is fast. Which way the roll ended its wrapper works out from
+the state, the credits counted over or the text moved on. The
 overflow after both is dead (liveness), as is everything the vblank tasks and
 the script's routines leave but Y and the overflow, which they don't touch.
 

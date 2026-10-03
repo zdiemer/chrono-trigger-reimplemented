@@ -79,9 +79,6 @@ static bool line_due(const GameState *g)
  * top after the 32nd. */
 static uint16_t next_map_row(uint16_t row) { return (uint16_t)(((row + MAP_ROW_WORDS) & MAP_ROWS_WORDS) + CREDITS_MAP_VRAM); }
 
-/* What writing the next line did. */
-typedef enum { NO_LINE_DUE, LINE_WRITTEN, CREDITS_OVER } CreditsLine;
-
 /* The credits' upload, which goes with the roll on the vblank list. */
 enum { CREDITS_UPLOAD_TASK = 0x9EFC };
 
@@ -90,10 +87,10 @@ enum { CREDITS_UPLOAD_TASK = 0x9EFC };
  * letters written into it from the ninth tile, and the row of the map it goes
  * to moved on. The end of the text instead ends the credits: the upload is
  * taken off its list (the roll takes itself off its own, from its entry). */
-static CreditsLine write_next_line(GameState *g)
+static void write_next_line(GameState *g)
 {
     if (!line_due(g))
-        return NO_LINE_DUE;
+        return;
     for (unsigned tile = 0; tile < ROW_TILES; tile++)
         set_scene_credits_row_byte(g, tile, BLANK_TILE);
     uint16_t at = scene_credits_text(g);
@@ -110,11 +107,10 @@ static CreditsLine write_next_line(GameState *g)
     if (code == END_OF_CREDITS) {
         set_scene_credits_over(g, (uint8_t)(scene_credits_over(g) + 1));
         scene_remove_task(g, SCENE_VBLANK_TASKS, CREDITS_UPLOAD_TASK);
-        return CREDITS_OVER;
+        return;
     }
     set_scene_credits_text(g, at);
     set_scene_credits_row_vram(g, next_map_row(scene_credits_row_vram(g)));
-    return LINE_WRITTEN;
 }
 
 /* A row of text is 8 pixels. */
@@ -556,40 +552,45 @@ static void leave_credits_over(Snes *s)
 }
 
 /* A frame task, entered with 16-bit A: the line, then on to the scroll, or
- * at the credits' end out through the list's exit. */
+ * at the credits' end out through the list's exit. Which, the state says: the
+ * credits counted over, or the text moved on to the next line. */
 void scene_roll_credits(Snes *s)
 {
-    switch (write_next_line(state_of(s))) {
-    case NO_LINE_DUE:
-        m_stop_at_own(s, SCROLL_THE_CREDITS, SCROLL_IGNORES);
-        return;
-    case LINE_WRITTEN:
-        ORIGINAL_EFFECT(leave_line_written(s));
-        m_stop_at_own(s, SCROLL_THE_CREDITS, SCROLL_IGNORES);
-        return;
-    case CREDITS_OVER:
+    GameState *g = state_of(s);
+    uint16_t text = scene_credits_text(g);
+    uint8_t over = scene_credits_over(g);
+    write_next_line(g);
+    if (scene_credits_over(g) != over) {
         ORIGINAL_EFFECT(leave_line_written(s));
         ORIGINAL_EFFECT(leave_credits_over(s));
         m_stop_at(s, REMOVE_THIS_TASK, DC_X | DC_N | DC_V | DC_Z | DC_C);
         return;
     }
+    if (scene_credits_text(g) != text)
+        ORIGINAL_EFFECT(leave_line_written(s));
+    m_stop_at_own(s, SCROLL_THE_CREDITS, SCROLL_IGNORES);
 }
 
-/* What the scroll leaves in A: the fast roll's scroll, or the slow roll's
- * picture status, which the original reads as a word and shifts. */
-static void leave_scroll(Snes *s, uint16_t status)
+/* What the scroll leaves in A: the fast roll's scroll, or the word the slow
+ * roll read for the frame's parity, shifted, as the original reads it. Its high
+ * byte is what the liveness analysis has read after a frame task: past the
+ * list's last slot, the frame's work returns with it to the NMI, whose song
+ * send enters the sound driver, and the driver saves A (the NMI's restore then
+ * overwrites it). That reader is why the roll stops at its scroll, a routine of
+ * its own, rather than scroll itself. */
+static void leave_scroll(Snes *s)
 {
     const GameState *g = state_of(s);
-    s->cpu.a = roll_fast(g) ? scene_credits_scroll(g) : (uint16_t)(status << 1);
+    s->cpu.a = roll_fast(g) ? scene_credits_scroll(g) : (uint16_t)(tm_snes_odd_frame_read() << 1);
 }
 
-/* The slow roll reads the picture's status for the frame's parity. */
+/* The slow roll asks for the frame's parity. */
 void scene_scroll_credits_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t status = roll_fast(g) ? 0 : tm_picture_status(m_platform(s), PF_AT(0x7E9EDF));
-    scroll_credits(g, (status & TM_PICTURE_ODD_FRAME) != 0);
-    ORIGINAL_EFFECT(leave_scroll(s, status));
+    bool odd = !roll_fast(g) && tm_odd_frame(m_platform(s), PF_AT(0x7E9EDF));
+    scroll_credits(g, odd);
+    ORIGINAL_EFFECT(leave_scroll(s));
     m_rts(s);
 }
 

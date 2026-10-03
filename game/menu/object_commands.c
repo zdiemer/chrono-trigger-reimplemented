@@ -324,8 +324,9 @@ void menu_object_drift(Snes *s)
 bool menu_object_jolt_runs(Snes *s) { return s->cpu.db == 0x00 && menu_object_routine_runs(s); }
 
 // $C6:E6D0
-/* The carry: whether the object's place down wrapped round past the top of
- * its 16 bits, as the jolt's add down leaves it. */
+/* The carry: the carry of the jolt's add down to the object's place, which
+ * the place before and after say (the place comes out lower than it was
+ * exactly where the 16-bit add carries, whichever way the jolt went). */
 void menu_object_jolt(Snes *s)
 {
     GameState *g = state_of(s);

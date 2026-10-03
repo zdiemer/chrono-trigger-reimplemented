@@ -26,8 +26,7 @@ enum { TM_LINE_IRQ_PENDING = 0x80 };
 enum { TM_STATUS_VBLANK = 0x80, TM_STATUS_HBLANK = 0x40, TM_STATUS_JOYPAD_BUSY = 0x01 };
 /* Bits of tm_reset_beam_latch's result. */
 enum { TM_BEAM_LATCHED = 0x80 };
-/* Bits of tm_picture_status's result. */
-enum { TM_PICTURE_ODD_FRAME = 0x8000 };
+
 
 /* Which interrupts are delivered (TM_INT_* bits; others as given, SNES only). */
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources);
@@ -46,11 +45,9 @@ PF_API uint8_t tm_ack_vblank(Platform *pf, PfOrigin o);
 PF_API uint8_t tm_ack_line_irq(Platform *pf, PfOrigin o);
 /* Blanking and controller-read status now. */
 PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o);
-/* The picture's status, as the SNES reads both its status registers in one
- * word; what other backends answer is whether this frame is the odd one,
- * which the scenes use to move something every other frame. */
-PF_API uint16_t tm_picture_status(Platform *pf, PfOrigin o);
-static inline bool tm_odd_frame(Platform *pf, PfOrigin o) { return (tm_picture_status(pf, o) & TM_PICTURE_ODD_FRAME) != 0; }
+/* Whether this frame is the odd one, which the scenes use to move something
+ * every other frame. */
+PF_API bool tm_odd_frame(Platform *pf, PfOrigin o);
 /* Restart the beam position latch (the battle NMI does this every frame);
  * returns the status it had. */
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o);
