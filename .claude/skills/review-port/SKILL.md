@@ -866,6 +866,11 @@ Each of these is a finding. Every example here comes from this repo.
      question (`tm_odd_frame`); what the original's register held is
      scaffolding the SNES backend hands the wrapper, never part of the
      portable interface.
+119. **A carry explained for one sign only.** A kept carry from adding a
+     step that can be negative (a two's-complement slope) means a carry for
+     one sign and a no-borrow for the other, so it is set on nearly every
+     line in one direction. A comment that calls it an occasional rounding
+     misleads; say what it does for both signs, and name the step for it.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
