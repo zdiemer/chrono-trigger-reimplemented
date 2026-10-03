@@ -3217,8 +3217,15 @@ call-outs: registering them as the routines they jump to would make the
 battle's own calls through them calls into a registered port. `$C0` stands
 at 52.1 KiB ported, 12% left.
 
-**The timing gate.** The new rows were calibrated over the library; no
-exception.
+**The timing gate.** The new rows were calibrated over the library, and
+thirteen entries have exceptions (`tools/timing_exceptions.txt`). The console's
+vectors are a jump with no access of its own to scale. The field's frame, its
+entry, the loadings and the returns run nearly all their work as C at their
+callees' calibrated times, and what is left as their own is a remainder one
+scalar can't fit, or a data-dependent unpacking with the screen blanked. The
+leader's walk, now run as C under the frame, has two kinds of call: the
+value that removes its drift leaves the short ones' tail. The vblank check
+finds none of their writes moved.
 
 ### Phase 3, battle chunk 10: the enemies' movements and the main loop's last callees (`$C1:3772`, `$FD:AB30`)
 
