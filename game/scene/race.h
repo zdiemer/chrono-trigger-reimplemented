@@ -3,15 +3,20 @@
  * The race is Crono against Johnny along a track that is a Mode 7 plane seen
  * from a camera behind them. Its parts:
  *
- *   race_rules.c    the bikes: speed, steering, boosts, bumping, the finish,
- *                   the score and what it earns, the end of the scene
+ *   race_rules.c    the bikes: the start, speed, steering, boosts, bumping,
+ *                   the finish, the score and what it earns, the end of the
+ *                   scene
  *   race_camera.c   the camera: where it stands and looks, how the flat
  *                   layers and the horizon follow it
+ *   race_projection.c the bikes placed on the screen in perspective
  *   race_drawing.c  the racers drawn at their distance, the distance bar and
  *                   the numbers
- *   race.c          what the vblank sends: the camera, the plane's columns,
- *                   the racers' tiles, the road strip, the engine's pitch
- *   race_matrix.c   the racers' scaled pictures regrouped into tiles
+ *   race.c          the setup, and what the vblank sends: the camera, the
+ *                   plane's columns, the racers' tiles, the road strip, the
+ *                   engine's pitch
+ *   race_matrix.c   the racers' pictures scaled by the main loop and
+ *                   regrouped into tiles
+ *   perspective.c   the plane's perspective, which the endings share
  *
  * The race runs as the scene program's tasks (scene/frame.c) and its two
  * sequence channels' scripts, which set the camera through channel 0's

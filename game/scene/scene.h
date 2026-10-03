@@ -15,20 +15,25 @@
  *   script.c      the sequence scripts
  *   screen.c      the program's screen: its setup, and what it sends each frame
  *   title.c       the title screen: the pendulum, the logo, the ripple
- *   race.c        the jet bike race's display, and its sounds
- *   race_rules.c, race_camera.c, race_drawing.c
- *                 the race while it runs: the bikes, the camera, the racers
- *                 and the panel drawn (race.h, what they share)
- *   race_matrix.c the routine the race writes to regroup its scaled
- *                 pictures into tiles, and that routine
+ *   race.c        the jet bike race's setup and display, and its sounds
+ *   race_rules.c, race_camera.c, race_projection.c, race_drawing.c
+ *                 the race while it runs: the bikes, the camera, the bikes
+ *                 placed on the screen, the racers and the panel drawn
+ *                 (race.h, what they share)
+ *   race_matrix.c the main loop's scaling of the racers' pictures, the
+ *                 routine the race writes to regroup them into tiles, and
+ *                 that routine
+ *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
+ *   bridge.c      where ports meet the program's calling conventions
  *   sound.c       the program's messages to the sound driver
  *   sprites.c, circle.c, scaler.c, math.c
  *                 what the scenes share: sprites, the iris, the bitmap
  *                 scaler, the arithmetic
  *   guards.c      what the ports assume of the machine they're entered on
  *
- * The endings have no routines of their own here: they are the program's
- * scripts, and they use the iris, the scaler and the arithmetic.
+ * The endings have no routines of their own here but the perspective: they
+ * are the program's scripts, and they use the iris, the scaler and the
+ * arithmetic.
  *
  * game/attract/ holds more of the same program: its main loop ($7E:3023, which
  * waits for scene_program_over) and the ports of its idle waits, written

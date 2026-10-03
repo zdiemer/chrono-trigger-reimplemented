@@ -17,7 +17,12 @@
  * eight rows, the strips in the order a table of the generator's names them
  * ($C3:09D9), so the tiles land in the order the sprites ask for them.
  *
- * The generator keeps its offsets in the scene's cells (scene_call). */
+ * The generator keeps its offsets in the scene's cells (scene_call).
+ *
+ * While the race runs, the program's main loop drives the scaler for it: each
+ * racer's picture the race asks for is scaled and then gathered here, after
+ * the vblank has sent the racer's last tiles ("The main loop's scaling",
+ * below). */
 #include "scene/race.h"
 
 #include "charge.h"

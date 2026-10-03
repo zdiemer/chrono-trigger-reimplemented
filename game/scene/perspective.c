@@ -60,7 +60,7 @@ enum { LINE_BYTES = 4, SCREEN_LINES = 224, SCREEN_END = SCREEN_LINES * LINE_BYTE
 
 /* The page the loop moves the direct page to, the CPU's registers, to reach the
  * divider. */
-enum { CPU_REGISTERS_PAGE = 0x4200 };
+enum { CPU_REGISTERS_PAGE = M_DP_CPU };
 
 /* The first line's offset in the tables, 4 a line: the race's at the horizon
  * (a horizon of 0 counts as line 1), the endings' on the line above it. */

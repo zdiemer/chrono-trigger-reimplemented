@@ -1836,7 +1836,7 @@ waits on M5 rather than on a backend.
   entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
   rows as it goes; a check that every registered entry has one would say when
   the file is complete.
-- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 45 uses
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 34 uses
   in 8 files. The sequence scripts' bytes and the race's line-effect descriptor
   table are fixed parts of the program image at `$7E:3000` and could be named
   buffers of it; the scaler's rows, the bank `$FE` copies' destination, the

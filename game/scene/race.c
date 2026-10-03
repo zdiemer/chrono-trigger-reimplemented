@@ -1,24 +1,25 @@
-/* Scenes: the jet bike race's display.
+/* Scenes: the jet bike race's setup and display.
  *
  * The race is a Mode 7 plane -- the track, seen in perspective -- drawn on the
  * lines its per-line effects leave in mode 7, with flat layers (the sky, the
- * scenery) above it in mode 1. The program sets the race up: its work buffers
- * cleared, the flat layers' tilemaps and tiles placed, and its graphics loaded
- * a block at a time (the loader around the blocks decompresses the program's
- * resources and is still the original's, so each block is an entry of its own).
- * Then every frame it moves the camera (the plane's rotation center and the
- * flat layers' scroll), sends a column of the plane's name table where the
- * track scrolls in, the scaled road strip, and whichever half of the racers'
- * tilemap the race has finished drawing, and waits for that upload before it
- * draws the next. The engine's sound follows the bike: the race sets the pitch
- * of the effect voices every frame, and sends its own effects (the bikes
- * bumping, the button that ends the scene) and waits for the driver to take
- * them.
+ * scenery) above it in mode 1. The program sets the race up from its mode
+ * table: its graphics unpacked from the program's resources and sent to VRAM
+ * (the unpacker is still the original's, a call-out per resource), the racers'
+ * pictures arranged for the scaler, its work buffers cleared, its per-line
+ * effects, the bikes at the start, the scripts its two channels run, and the
+ * flat layers. Then every frame it moves the camera (the plane's rotation
+ * center and the flat layers' scroll), sends a column of the plane's name table
+ * where the track scrolls in, the scaled road strip, and whichever half of the
+ * racers' tilemap the race has finished drawing. The engine's sound follows the
+ * bike: the race sets the pitch of the effect voices every frame, and sends its
+ * own effects (the bikes bumping, the button that ends the scene) and waits for
+ * the driver to take them. Without its panel (the attract sequence's) the race
+ * ends behind a curtain.
  *
  * Only `events-jetbike-race` reaches any of it. It is the scene program's
  * code, in work RAM, so every entry is guarded by a hash of its code. What the
  * race does each frame -- the bikes, the camera, the drawing -- is in
- * race_rules.c, race_camera.c and race_drawing.c (race.h). */
+ * race_rules.c, race_camera.c, race_projection.c and race_drawing.c (race.h). */
 #include "scene/race.h"
 
 #include "platform/audio.h"
@@ -167,7 +168,7 @@ static void unpack(Snes *s, uint32_t site, uint16_t resource)
  * bank and the direct page on the stack, works through the work RAM port's
  * registers' page with the data bank on its pictures' bank, and its sums have
  * left the overflow clear. */
-enum { REGISTERS_PAGE = 0x2100 };
+enum { REGISTERS_PAGE = M_DP_PPU };
 
 static void unpack_holding(Snes *s, uint32_t site, uint16_t resource)
 {
@@ -533,6 +534,10 @@ static void mark_the_demo(GameState *g)
     }
 }
 
+/* The scaler's output taken as full before the first picture, which so clears
+ * all of it past its own end. */
+enum { SCALER_OUTPUT_AS_FULL = 0x0A00 };
+
 /* The main loop's call each pass, while the race runs: the racers' pictures
  * scaled (scene_race_scale_pictures). */
 enum { MAIN_LOOP_SCALES_PICTURES = 0x51D1, PERSPECTIVE_FROM_THE_HORIZON = 0x45B0 };
@@ -556,7 +561,7 @@ void scene_race_set_up(Snes *s)
     scene_bridge_leave(s);
     load_racers_pictures(s);
     clear_race_buffers(pf);
-    set_scene_scaler_output_end(g, 0x0A00);
+    set_scene_scaler_output_end(g, SCALER_OUTPUT_AS_FULL);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
     race_start(g);
