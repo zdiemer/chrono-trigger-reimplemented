@@ -304,7 +304,7 @@ static void load_graphics(Snes *s, uint32_t unpack_site, const RaceGraphics *r)
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
         return;
     case PLANE_MAP_PART:
-        TIMED_AS(g, 0x7E37A6, double_plane_rows(g));
+        double_plane_rows(g);
         TIMED_AS(g, 0x7E8752, upload_plane_half(pf));
         return;
     case LAYER_MAP:
@@ -559,7 +559,7 @@ void scene_race_set_up(Snes *s)
     set_scene_scaler_output_end(g, 0x0A00);
     TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, LINE_EFFECT_DESCRIPTORS));
     set_scene_line_effects(g, RACE_LINE_EFFECTS);
-    TIMED_AS(g, 0x7E45D6, race_start(g));
+    race_start(g);
     choose_scripts(g, pf);
     first_script_step(s);
     set_scene_perspective_start(g, PERSPECTIVE_FROM_THE_HORIZON);
