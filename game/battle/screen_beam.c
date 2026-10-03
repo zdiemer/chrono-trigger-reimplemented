@@ -153,19 +153,23 @@ static QuadSides sides_of(const Corner sorted[CORNERS])
 typedef uint16_t Column;
 
 /* The two sides go down a stretch as one running sum, the left side's column
- * below the right side's: what a side's step carries past its whole columns
- * goes into the next one stepped, the right side's on the same line and the
- * left side's on the line after, a 256th of a column (a stretch starts with
- * nothing carried). Where that 256th brings a fraction round, the side lands
- * a column further right on that line and the ones after it than its slope
- * alone would put it: on screen, a side of the quadrilateral that should run
- * straight steps out by a column partway down. */
+ * below the right side's: a 256th of a column carries from each side's step
+ * into the next one stepped, the right side's on the same line and the left
+ * side's on the line after (a stretch starts with nothing carried). A side
+ * stepping rightward carries only where its fraction comes round past a whole
+ * column, so the 256th comes now and then. A side stepping leftward (a slope
+ * that is a negative word) carries on nearly every line, since adding it
+ * wraps past $FFFF wherever it doesn't take the column below 0: so the next
+ * side stepped gains a 256th almost every line, and over a long stretch that
+ * adds up to whole columns. On screen, an edge lands a column or more to the
+ * right of where its slope alone would put it, more the longer a leftward
+ * side runs beside it. */
 typedef struct {
     Column left, right;
     bool carried;
 } Sides;
 
-static Column step(Column at, Slope slope, bool *carried)
+static Column step_carrying_a_256th(Column at, Slope slope, bool *carried)
 {
     uint32_t sum = (uint32_t)at + slope + *carried;
     *carried = sum > 0xFFFF;
@@ -174,8 +178,8 @@ static Column step(Column at, Slope slope, bool *carried)
 
 static void step_down_a_line(Sides *s, Slope left, Slope right)
 {
-    s->left = step(s->left, left, &s->carried);
-    s->right = step(s->right, right, &s->carried);
+    s->left = step_carrying_a_256th(s->left, left, &s->carried);
+    s->right = step_carrying_a_256th(s->right, right, &s->carried);
 }
 
 static uint8_t whole_column(Column c) { return (uint8_t)(c >> SLOPE_FRACTION_BITS); }

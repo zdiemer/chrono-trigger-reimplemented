@@ -62,7 +62,8 @@ static uint8_t direction_between(const GameState *g, Run across, Run down)
 
 /* The original works the direction out in the cells $23-$2A, which the
  * battle uses for other things between effects (battle_direction_work), and
- * leaves its last values there; the game keeps them. */
+ * leaves its last values there. They are written plainly until a reader of
+ * them is found or ruled out (docs/TODO.md, "What battle's rewrite left"). */
 static void keep_direction_work(GameState *g, Run across, Run down)
 {
     const uint8_t work[] = { across.from, down.from, across.to, down.to, (uint8_t)(across.from - across.to),
@@ -109,16 +110,16 @@ static BattlePoint pair_second(const GameState *g, uint8_t pair) { return positi
 static bool names_pairs_and_a_quad(const GameState *g, const ScreenCommand *c)
 {
     (void)g;
-    return c->pair < SCREEN_POSITION_PAIRS && c->aim < SCREEN_POSITION_PAIRS && c->kept < SCREEN_POSITION_PAIRS
+    return c->pair < SCREEN_POSITION_PAIRS && c->aim < SCREEN_POSITION_PAIRS && c->kept_pair < SCREEN_POSITION_PAIRS
            && c->quad < SCREEN_WINDOW_QUADS;
 }
 
 // $CD:1B22, $CD:1B1F
 /* Keep a pair on the battlefield, then measure the direction along another,
  * from its first position to its second, and keep it. */
-static uint8_t aim_along(GameState *g, uint8_t kept, uint8_t aim)
+static uint8_t aim_along(GameState *g, uint8_t kept_pair, uint8_t aim)
 {
-    screen_keep_pair_on_the_battlefield(g, kept);
+    screen_keep_pair_on_the_battlefield(g, kept_pair);
     uint8_t direction = measure_direction(g, pair_first(g, aim), pair_second(g, aim));
     set_battle_screen_direction(g, direction);
     return direction;
@@ -187,10 +188,10 @@ static void band_corners(BattlePoint first, BattlePoint second, BandSides s, Bat
 // $CD:2460, $CD:19B1, $CD:2466
 /* Screen commands $AC and $D9: draw window quadrilateral `quad` as a band
  * along a pair of positions, in the direction measured along `aim` once
- * `kept` is kept on the battlefield. */
-static ScreenFlow lay_band(GameState *g, uint8_t quad, uint8_t pair, uint8_t aim, uint8_t kept)
+ * `kept_pair` is kept on the battlefield. */
+static ScreenFlow lay_band(GameState *g, uint8_t quad, uint8_t pair, uint8_t aim, uint8_t kept_pair)
 {
-    BandSides s = band_sides(g, aim_along(g, kept, aim));
+    BandSides s = band_sides(g, aim_along(g, kept_pair, aim));
     BattlePoint c[SCREEN_QUAD_CORNERS];
     band_corners(pair_first(g, pair), pair_second(g, pair), s, c);
     for (unsigned corner = 0; corner < SCREEN_QUAD_CORNERS; corner++)
@@ -201,21 +202,21 @@ static ScreenFlow lay_band(GameState *g, uint8_t quad, uint8_t pair, uint8_t aim
 
 /* Whether the band the command would lay stays in the window table
  * (screen_quad_fits_the_table): its corners, worked out from the positions
- * as they will be once `kept` is kept on the battlefield. */
-static BattlePoint position_once_kept(const GameState *g, unsigned p, uint8_t kept)
+ * as they will be once `kept_pair` is kept on the battlefield. */
+static BattlePoint position_once_kept(const GameState *g, unsigned p, uint8_t kept_pair)
 {
     BattlePoint at = position(g, p);
-    return p / SCREEN_PAIR_POSITIONS == kept ? screen_kept_on_the_battlefield(at) : at;
+    return p / SCREEN_PAIR_POSITIONS == kept_pair ? screen_kept_on_the_battlefield(at) : at;
 }
 
 static bool band_fits(const GameState *g, const ScreenCommand *c)
 {
     unsigned first = SCREEN_PAIR_POSITIONS * c->pair;
-    BattlePoint from = position_once_kept(g, SCREEN_PAIR_POSITIONS * c->aim, c->kept);
-    BattlePoint to = position_once_kept(g, SCREEN_PAIR_POSITIONS * c->aim + 1u, c->kept);
+    BattlePoint from = position_once_kept(g, SCREEN_PAIR_POSITIONS * c->aim, c->kept_pair);
+    BattlePoint to = position_once_kept(g, SCREEN_PAIR_POSITIONS * c->aim + 1u, c->kept_pair);
     uint8_t direction = direction_between(g, run_between(from.x, to.x), run_between(from.y, to.y));
     BattlePoint corners[SCREEN_QUAD_CORNERS];
-    band_corners(position_once_kept(g, first, c->kept), position_once_kept(g, first + 1u, c->kept),
+    band_corners(position_once_kept(g, first, c->kept_pair), position_once_kept(g, first + 1u, c->kept_pair),
                  sides_across(g, direction, battle_script_variables(g, HALF_WIDTH_VARIABLE)), corners);
     return screen_quad_fits_the_table(g, corners);
 }
@@ -224,13 +225,13 @@ static bool lays_a_band_that_fits(const GameState *g, const ScreenCommand *c)
 {
     return names_pairs_and_a_quad(g, c) && band_fits(g, c);
 }
-SCREEN_OPERATION(lay_band, quad, pair, aim, kept)
+SCREEN_OPERATION(lay_band, quad, pair, aim, kept_pair)
 
 SCREEN_OPCODES(screen_between_opcodes,
     { 0xAC, OPERATION(lay_band), .needs = lays_a_band_that_fits, .length = 2, .quad = BYTE(0), .pair = BYTE(1),
-      .aim = CONSTANT(1), .kept = CONSTANT(0) },
+      .aim = CONSTANT(1), .kept_pair = CONSTANT(0) },
     { 0xD9, OPERATION(lay_band), .needs = lays_a_band_that_fits, .length = 2, .quad = BYTE(0), .pair = BYTE(1),
-      .aim = BYTE(1), .kept = BYTE(1) },
+      .aim = BYTE(1), .kept_pair = BYTE(1) },
 );
 
 /* ---- The entry ------------------------------------------------------------------------------ */

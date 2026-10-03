@@ -84,7 +84,10 @@ typedef struct {
     X(uint8_t, circle) X(uint8_t, shape) X(uint8_t, kind) X(uint8_t, x) X(uint8_t, y)           \
     X(uint8_t, radius) X(uint8_t, depth) X(uint8_t, size) X(uint8_t, scale_x)                    \
     X(uint8_t, scale_y) X(uint8_t, angle) X(uint8_t, limit) X(uint8_t, model) X(bool, spins)     \
-    X(bool, own_depth)                                                                                /* a window cut through the middle, rays between positions */                                    X(uint8_t, window) X(bool, sets_angle) X(uint8_t, turn) X(uint8_t, stray_bits)                   X(uint8_t, quad) X(uint8_t, pair) X(uint8_t, aim) X(uint8_t, kept)                           \
+    X(bool, own_depth)                                                                            \
+    /* a window cut through the middle, bands between positions */                                \
+    X(uint8_t, window) X(bool, sets_angle) X(uint8_t, turn) X(uint8_t, stray_bits)                \
+    X(uint8_t, quad) X(uint8_t, pair) X(uint8_t, aim) X(uint8_t, kept_pair)                       \
     /* the palette and the screen */                                                              \
     X(uint8_t, mode) X(uint8_t, first) X(uint8_t, count) X(uint8_t, level) X(uint8_t, target)    \
     X(uint8_t, step) X(uint8_t, delay) X(uint8_t, period) X(uint8_t, layers) X(bool, smaller)    \
