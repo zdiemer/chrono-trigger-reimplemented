@@ -3309,12 +3309,16 @@ uint8_t battle_work(const GameState *g, unsigned i) { IN_RANGE(g, 324, "battle_w
 void set_battle_work(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 324, "set_battle_work", "count", i, 30u); w8(g, 0x7E0080u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_jump_lift(const GameState *g) { return r8(g, 0x7E0090u); }
 void set_battle_jump_lift(GameState *g, uint8_t v) { w8(g, 0x7E0090u, v); }
+uint16_t battle_effect_enemy(const GameState *g) { return r16(g, 0x7E009Cu); }
+void set_battle_effect_enemy(GameState *g, uint16_t v) { w16(g, 0x7E009Cu, v); }
 uint8_t battle_frame_pending(const GameState *g) { return r8(g, 0x7E009Eu); }
 void set_battle_frame_pending(GameState *g, uint8_t v) { w8(g, 0x7E009Eu, v); }
 uint8_t battle_transfer_pending(const GameState *g) { return r8(g, 0x7E00A0u); }
 void set_battle_transfer_pending(GameState *g, uint8_t v) { w8(g, 0x7E00A0u, v); }
 uint8_t battle_effect_sprite_attributes(const GameState *g) { return r8(g, 0x7E00A1u); }
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v) { w8(g, 0x7E00A1u, v); }
+uint8_t battle_step_member(const GameState *g) { return r8(g, 0x7E00A1u); }
+void set_battle_step_member(GameState *g, uint8_t v) { w8(g, 0x7E00A1u, v); }
 uint16_t battle_current_stat_block(const GameState *g) { return r16(g, 0x7E00A2u); }
 void set_battle_current_stat_block(GameState *g, uint16_t v) { w16(g, 0x7E00A2u, v); }
 uint8_t battle_frame_phase(const GameState *g) { return r8(g, 0x7E00A4u); }

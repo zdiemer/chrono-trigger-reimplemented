@@ -5380,6 +5380,11 @@ void set_battle_work(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_jump_lift(const GameState *g);
 void set_battle_jump_lift(GameState *g, uint8_t v);
 
+/* The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and
+ * the effects' handlers take it from here */
+uint16_t battle_effect_enemy(const GameState *g);
+void set_battle_effect_enemy(GameState *g, uint16_t v);
+
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 uint8_t battle_frame_pending(const GameState *g);
 void set_battle_frame_pending(GameState *g, uint8_t v);
@@ -5392,6 +5397,11 @@ void set_battle_transfer_pending(GameState *g, uint8_t v);
 /* The attribute bits of the effect whose sprites are being drawn */
 uint8_t battle_effect_sprite_attributes(const GameState *g);
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v);
+
+/* The party member a battle step is about (its menu opened or closed, its action called off), as
+ * the step's callers leave it for the step */
+uint8_t battle_step_member(const GameState *g);
+void set_battle_step_member(GameState *g, uint8_t v);
 
 /* The stat block ($80 times the battle slot) of the combatant at hand: the party member the
  * window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status

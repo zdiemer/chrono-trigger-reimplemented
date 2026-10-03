@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "apu/dsp.h"
+#include "platform/audio.h"
 #include "platform/native/mixer.h"
 #include "platform/voices_dsp.h"
 
@@ -382,6 +383,52 @@ static void test_mixer(void)
     }
 }
 
+/* The interpolation's overflow, which random samples never reach: a block of
+ * the most negative samples there are (range 12, every nibble -8, no filter)
+ * played at one sample a frame, where the three weights that the S-DSP adds
+ * before it wraps come to more than 2048. Their sum passes -32768 and wraps to
+ * the top of the range, so the voice is heard loud and positive from a sample
+ * that is all negative; the mixer must wrap where the S-DSP does. */
+static void test_gaussian_wrap(void)
+{
+    static Pair p;
+    memset(&p, 0, sizeof p);
+    dsp_init(&p.dsp);
+    mixer_init(&p.mixer);
+    voices_dsp_init(&p.registers, &p, pair_read, pair_write, pair_memory_write, pair_memory_read);
+    au_voices_pair(&p.both, &p.registers.voices, mixer_voices(&p.mixer));
+    AuVoices *v = &p.both.voices;
+
+    enum { RANGE_12_LOOPING_LAST = 0xC3, EVERY_NIBBLE_MINUS_8 = 0x88, ONE_SAMPLE_A_FRAME = 0x1000 };
+    au_voices_start(v);
+    au_sample_memory_write(v, SAMPLE_BASE, RANGE_12_LOOPING_LAST);
+    for (int i = 1; i < 9; i++)
+        au_sample_memory_write(v, (uint16_t)(SAMPLE_BASE + i), EVERY_NIBBLE_MINUS_8);
+    au_sample_place(v, 0, SAMPLE_BASE, SAMPLE_BASE);
+    au_output_stopped(v, false);
+    au_echo_writes(v, false);
+    au_echo_volume(v, 0, 0);
+    au_master_volume(v, 127, 127);
+    au_voice_sample(v, 0, 0);
+    au_voice_pitch(v, 0, ONE_SAMPLE_A_FRAME);
+    au_voice_volume(v, 0, 127, 127);
+    au_voice_gain(v, 0, (AuGain){ AU_GAIN_DIRECT, 127 });
+    au_voice_envelope(v, 0, (AuEnvelope){ false, 0, 0, 0, 0 });
+    au_voices_key_on(v, 1);
+
+    long differ = 0, wrapped = 0;
+    for (int frame = 0; frame < 200; frame++) {
+        int16_t a[2], b[2];
+        dsp_sample(&p.dsp, p.ram);
+        dsp_take_samples(&p.dsp, a, 1);
+        mixer_frame(&p.mixer, b);
+        differ += a[0] != b[0] || a[1] != b[1];
+        wrapped += a[0] > 0 && b[0] > 0;
+    }
+    CHECK(!differ, "gaussian wrap: %ld frames differ from the S-DSP's", differ);
+    CHECK(wrapped > 100, "gaussian wrap: the sum wrapped on %ld frames of 200", wrapped);
+}
+
 int main(void)
 {
     test_rates();
@@ -389,6 +436,7 @@ int main(void)
     test_voice();
     test_echo();
     test_mixer();
+    test_gaussian_wrap();
     if (failures) {
         printf("%d failures\n", failures);
         return 1;

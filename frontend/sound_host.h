@@ -14,11 +14,11 @@
  * (platform/audio.h), made into sound by one of (SoundMixer):
  *
  * - DSP: S-DSP register writes (platform/voices_dsp.h) into the emulated
- *   S-DSP, which makes the sound as ever (ct_play's default);
+ *   S-DSP, which makes the sound as ever;
  * - NATIVE: the native mixer (platform/native/mixer.h), on the APU's time in
- *   the S-DSP's place, which isn't run;
+ *   the S-DSP's place, which isn't run (ct_play's default);
  * - CHECK: both, the S-DSP heard and the mixer made beside it, every frame of
- *   one compared with the other's (sound_host_mixer_report).
+ *   one handed to a comparison (sound_host_compare_mixer, dev/mixer_check.h).
  *
  * A command takes no time, where the original's took frames over its uploads,
  * so the game's timing is not the original's: this can't record or replay a
@@ -60,11 +60,12 @@ unsigned long sound_host_commands_dropped(const SoundHost *h);
  * none. ct_dev, ct_drive and ct_sound_fuzz fail a run with any. */
 bool sound_host_report(const SoundHost *h, FILE *out);
 
-/* SOUND_MIXER_CHECK: the frames compared so far, the mixer's against the
- * S-DSP's, on one line to `out` ("mixer check: ..."): how many differ, by how
- * much, and the difference's power in each band of the spectrum; true if
- * none differ. The other mixers print nothing and return true. */
-bool sound_host_mixer_report(const SoundHost *h, FILE *out);
+/* SOUND_MIXER_CHECK: each frame the S-DSP makes, with the mixer's beside it,
+ * handed to `compare` (dev/mixer_check.h; the check's arithmetic is the
+ * developer tools', so the host the player ships with stays integer-only).
+ * Without one the frames go uncompared. */
+typedef void (*SoundMixerCompare)(void *ctx, const int16_t dsp[2], const int16_t mixer[2]);
+void sound_host_compare_mixer(SoundHost *h, SoundMixerCompare compare, void *ctx);
 
 /* The song the driver has saved to resume (command $14), for ct_sound_fuzz,
  * which mustn't make up a song in its place. */

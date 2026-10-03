@@ -15898,6 +15898,15 @@ meaning = "The attribute bits of the effect whose sprites are being drawn"
 source = "game/battle/draw_objects.c draw_effect $CF:EEEB"
 
 [[var]]
+name = "battle_step_member"
+addr = "7E:00A1"
+page = "battle"
+reuses = "battle_effect_sprite_attributes"
+subsystem = "battle"
+meaning = "The party member a battle step is about (its menu opened or closed, its action called off), as the step's callers leave it for the step"
+source = "game/battle/main_loop.c member_turn $C1:856D; game/battle/party_turns.c ($C1:B3F9, $C1:B7F2, $FD:A8FE)"
+
+[[var]]
 name = "battle_effect_attribute_bits"
 addr = "7E:AB5F"
 count = 8
@@ -17917,6 +17926,16 @@ reuses = "battle_scratch"
 subsystem = "battle"
 meaning = "A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many as its first byte says; the effect reads five)"
 source = "game/battle/screen_motion.c battle_screen_effect_from_settings $D1:F67A; game/battle/script_sound.c screen_effect $C1:621B"
+
+[[var]]
+name = "battle_effect_enemy"
+addr = "7E:009C"
+page = "battle"
+size = 2
+reuses = "battle_work"
+subsystem = "battle"
+meaning = "The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and the effects' handlers take it from here"
+source = "game/battle/animation.c give_effect_enemy; game/battle/enemy_movement.c entry_ready"
 
 [[var]]
 name = "battle_jump_lift"

@@ -277,45 +277,17 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
-  - what battle chunk 9b's review left (none blocking): `script_moves.c`'s
-    orbit writes a scaffolding cell nearly every line, some of them cells
-    named for other uses (`LEFT_CENTER` holding the list's place); a line's
-    length is handed to the throw's rise through the low byte of
-    `battle_throw_wait_after`; the places are a byte where `{kind, n}` would
-    say which subject or anchor they take; the subjects are named by channel
-    number (`subject(g, 1)`) rather than for what they are to the action;
-    `script_language.c`'s needs keep their own copy of the screen effect's
-    settings and choices beside `screen_motion.c`'s; `face` in
-    `script_places.c` carries `at` and `last` through its loop only for the
-    cells it leaves.
-  - what battle chunk 10's review left (none blocking): `battle_end.c`'s
-    stat copy (around line 81) writes past the character records through an
-    `_unchecked` accessor when a party slot holds a character past the
-    seventh, which the game never makes -- guard it or keep the stray write in
-    one marked place; `party_turns.c` writes
-    `BATTLE_ITEM_RETURNING_FOR_AT` plainly before
-    `battle_return_chosen_item`, which takes the member already
-    (`inventory.c` writes it as `ORIGINAL_EFFECT`); `cancel_if_unable` runs
-    its "drop the waiting action" setters in the `Snes *` body -- a
-    `drop_waiting_action(g, member)` operation; `set_step_member` is in both
-    `party_turns.c` and `main_loop.c`, through
-    `set_battle_effect_sprite_attributes` -- name the cell's second use and
-    keep one; `enemy_movement.c` writes the direction finder's angle as
-    `set_battle_direction_cells(g, 8, ...)`; `give_step`'s `a_high_clear`
-    mirrors A (declare `DC_AH` or say why); `DEMO_READY`/`DEMO_ACTION_STATE`
-    and `battle_end.c`'s low-HP `~0x01` want named bits; `take_as_actor`
-    writes the actor every pass; `demo_party_actions_byte` takes a byte
-    offset; `^ 1` on bool cells in `enemy_movement.c`; the moving enemy read
-    as two `battle_work` bytes; the demo and stand-down entries' round
-    `cost_milli` (3000, 3500) want a calibration check.
+  - the demo battle's party entries (`battle_demo_party_ready`,
+    `battle_demo_next_turn`) keep round `cost_milli` estimates (3000): no
+    movie plays a demo battle's party turns, so the timing gate has nothing to
+    calibrate them from (`battle_party_stands_down`, 3500, measured exact over
+    the library). A movie of the attract mode's battle would;
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the
       script's place back from them, and push the acting enemy on the machine
       stack under the turn, whose call-outs compare it: the turn's results as
       values once its call-outs are ports;
-    - a cell used for a second meaning (`battle_effect_sprite_attributes` as
-      the step's member): declare it;
     - one fact defined several times: "out of the fight", the first combatant
       object, the graphics kinds
       (`kind != 3` in `sprites.c` against `kind < 3` in `animation.c`, which
@@ -1182,28 +1154,17 @@ rest waits, is [PLAN.md](PLAN.md).
     item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
     comparison (SOUND.md, "Validating the port") for when the lockstep
     reference is gone.
-  - **What the native mixer's check doesn't reach.** `dsp_test`'s random
-    samples never make the Gaussian sum wrap (the mixer keeps the S-DSP's
-    wrap; the movies' comparison is identical, but nothing shows a movie
-    reaches it either): a sample built to overshoot would. And the mixer's
-    sound memory is a copy of the SPC700's 64 KiB with the original driver's
-    layout, which is what keeps the echo's overwrites; a build that loads the
-    samples as assets will want them out of it, with the echo's buffer still
-    lying over the ones the original lets it reach.
-  - **What the native mixer's review left.** In `mixer.c`, `brr_sample`'s
-    `older`/`old` parameters are swapped in name, and the pitch-modulation
-    mask, the envelope limits and the BRR header offsets want names.
-    `sound_host.c`'s MixerCheck band report (floating point) is dev-only and
-    belongs in `dev/`, keeping the shipping host integer-only. `--mixer check`
-    after loading a state saved with the native mixer compares a stale S-DSP:
-    refuse it. `ct_dev` ignores `--mixer` without `--sound-driver c` where
-    `ct_play` reports it. `mixer_echo_writes_over` repeats `in_echo`'s test:
-    one helper over plain values. `mixer.h` needs only the voice types, not
-    `platform/snes/audio.h`. For a small target, `SoundHost` holds two
-    ~80 KiB mixers (live and loading scratch) beside the APU's 64 KiB, and the
-    output rate is fixed at 32 kHz. PLATFORM.md's "as built" section keeps
-    two stories (the first version's directory, the hand mutations) that
-    belong in docs/history/.
+  - **The native mixer's sound memory.** It is a copy of the SPC700's 64 KiB
+    with the original driver's layout, which is what keeps the echo's
+    overwrites; a build that loads the samples as assets will want them out of
+    it, with the echo's buffer still lying over the ones the original lets it
+    reach.
+  - **The native mixer on a small target.** `SoundHost` holds two ~80 KiB
+    mixers (the live one and a state read's scratch) beside the APU's 64 KiB,
+    and the output rate is fixed at 32 kHz. Left from the mixer's review: the
+    desktop host loses nothing by it, and what a small target needs instead (a
+    state read in place, a rate the host asks for and a resampler) is that
+    target's to decide when one is scoped.
   - **The effects check's scaffold reads with the C sound driver.** The route
     check plays the driver that ships, but the scaffold reads come from the
     vblank check's shipping-mode runs, which play the original driver because

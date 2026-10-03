@@ -139,13 +139,12 @@ static void save_animation_positions(GameState *g, uint8_t slot)
  * picking which), 4 the screen shake, 5 an end to it. */
 enum { SETTINGS_BYTES = SCREEN_EFFECT_SETTINGS };
 typedef enum { PALETTE_PRESET, START_SHAKE, STOP_SHAKE } ScreenEffectKind;
-enum { SCREEN_EFFECT_CHOICES = 6 };
 
 static const ScreenEffectKind effect_kinds[SCREEN_EFFECT_CHOICES] = {
     PALETTE_PRESET, PALETTE_PRESET, PALETTE_PRESET, PALETTE_PRESET, START_SHAKE, STOP_SHAKE,
 };
 
-static unsigned effect_choice(const uint8_t settings[SETTINGS_BYTES]) { return settings[0] >> 4; }
+static unsigned effect_choice(const uint8_t settings[SETTINGS_BYTES]) { return screen_effect_choice(settings[0]); }
 
 /* A palette preset: a pair of fades over palette animation slots 8 and 9. The
  * preset gives the colors they change and the levels they fade between; the
@@ -302,7 +301,7 @@ bool battle_screen_effect_is_one(Snes *s)
     vars_peek(true);
     settings_in_cells(state_of(s), settings);
     vars_peek(false);
-    return battle_screen_page_a_clear(s) && effect_choice(settings) < SCREEN_EFFECT_CHOICES;
+    return battle_screen_page_a_clear(s) && screen_effect_known(settings[0]);
 }
 
 // $D1:F474

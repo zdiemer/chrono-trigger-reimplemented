@@ -815,7 +815,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC15ADB, .name = "script_show_numbers", .fn = battle_script_command_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 7858, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = script_show_numbers_ready },
     { .addr = 0xC15FDE, .name = "script_face", .fn = battle_script_command_entry, NEEDS_M8_X16_BINARY,
-      .cost_milli = 5524, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = script_face_ready },
+      .cost_milli = 5351, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = script_face_ready },
     { .addr = 0xC16093, .name = "script_take_heading", .fn = battle_script_command_entry, NEEDS_M8_X16_BINARY,
       .cost_milli = 3308, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = script_take_heading_ready },
     { .addr = 0xC160E6, .name = "script_heading_between", .fn = battle_script_command_entry, NEEDS_M8_X16_BINARY,

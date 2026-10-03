@@ -69,18 +69,18 @@ bool script_weapon_sound_bridge(Snes *s, const ScriptCommand *command)
 
 /* ---- The screen effect ---------------------------------------------------------------------- */
 
-/* The settings' count is the first byte's low bits, and its high bits which
- * effect (battle/screen_motion.c); the command is the settings and its own
- * byte. The battle keeps the settings (battle_screen_effect_settings): a
- * command giving fewer than five takes the rest from the last. The original
- * counts the settings down in a work cell and keeps the count in the next. */
-enum { SETTINGS_GIVEN = 0x0F, LEFT_COUNTED = 0x00, LEFT_COUNT = 0x01 };
+/* The command is the settings and its own byte, the first setting counting
+ * them (battle/screen.h). The battle keeps the settings
+ * (battle_screen_effect_settings): a command giving fewer than five takes the
+ * rest from the last. The original counts the settings down in a work cell
+ * and keeps the count in the next. */
+enum { LEFT_COUNTED = 0x00, LEFT_COUNT = 0x01 };
 
 // $C1:621B
 /* A screen effect is set from the settings the command gives. */
 static ScriptFlow screen_effect(GameState *g, uint8_t first)
 {
-    uint8_t count = first & SETTINGS_GIVEN;
+    uint8_t count = screen_effect_settings_given(first);
     uint8_t settings[SCREEN_EFFECT_SETTINGS];
     for (uint8_t k = 0; k < SCREEN_EFFECT_SETTINGS; k++)
         settings[k] = battle_screen_effect_settings(g, k);

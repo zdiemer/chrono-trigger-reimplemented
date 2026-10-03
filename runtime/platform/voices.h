@@ -13,7 +13,7 @@
 #ifndef CT_PLATFORM_VOICES_H
 #define CT_PLATFORM_VOICES_H
 
-#include "platform/audio.h"
+#include "platform/voice_types.h"
 
 typedef struct AuVoicesOps {
     void (*start)(AuVoices *v);
@@ -66,6 +66,29 @@ enum {
 static inline uint8_t voices_echo_page(uint8_t delay)
 {
     return (uint8_t)(VOICES_ECHO_END_PAGE - VOICES_ECHO_UNIT_PAGES * delay);
+}
+
+/* Whether the echo writes over a byte of sound memory: in the buffer it is
+ * writing now (its page and length as it last took them up; a length of 0 is
+ * the one frame it writes before its first wrap) or in the one it moves to
+ * (the page and delay set last). Both implementations answer from it. */
+enum { VOICES_ECHO_FRAME_BYTES = 4, VOICES_ECHO_UNIT_BYTES = VOICES_ECHO_UNIT_PAGES << 8 };
+typedef struct {
+    bool writes;
+    uint8_t page_now;
+    uint16_t length_now;
+    uint8_t page_next, delay_next;
+} VoicesEcho;
+
+static inline bool voices_echo_writes_over(VoicesEcho e, uint16_t at)
+{
+    if (!e.writes)
+        return false;
+    uint16_t now = (uint16_t)(e.page_now << 8), next = (uint16_t)(e.page_next << 8);
+    uint32_t now_length = e.length_now ? e.length_now : VOICES_ECHO_FRAME_BYTES;
+    uint8_t units = e.delay_next & 0x0F;
+    uint32_t next_length = units ? units * (uint32_t)VOICES_ECHO_UNIT_BYTES : VOICES_ECHO_FRAME_BYTES;
+    return (uint16_t)(at - now) < now_length || (uint16_t)(at - next) < next_length;
 }
 
 typedef struct {
