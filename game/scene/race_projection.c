@@ -203,7 +203,7 @@ static Line line_of(GameState *g, uint16_t distance)
     l.unit = SCREEN_LINES >= (uint32_t)l.gap + gap_borrowed;
     set_scene_call_divisor_less_one(g, own(), l.gap);
     l.line = (uint16_t)(scene_multiply16(g, own(), (uint16_t)(divisor << 8), below) >> 16);
-    ORIGINAL_EFFECT(set_scene_call_race_gap(g, own(), l.gap));
+    set_scene_call_race_gap(g, own(), l.gap);
     return l;
 }
 
@@ -262,8 +262,10 @@ static Across across_screen(GameState *g, uint16_t across, uint16_t size)
 static uint16_t left_edge(uint16_t middle, uint16_t width) { return (uint16_t)(middle - (width >> 1) - !(width & 1)); }
 
 /* The program works the left edge out in its first two cells: the middle and
- * the half width. */
-static void leave_edge_cells(GameState *g, uint16_t middle, uint16_t width)
+ * the half width. The scene's cells are the controller's on the field's side
+ * (scene_call shares its page with the input), so what the race leaves there
+ * is what the field's first read of the controller takes over. */
+static void keep_edge_cells(GameState *g, uint16_t middle, uint16_t width)
 {
     set_scene_call_second(g, own(), middle);
     set_scene_call_first(g, own(), width >> 1);
@@ -296,8 +298,8 @@ static void place_crono(GameState *g, OnPlane p, Line l)
     set_scene_race_racers_width(g, RACER_CRONO, width);
     set_scene_race_racers_screen_x(g, RACER_CRONO, x);
     set_scene_race_racers_right(g, RACER_CRONO, (uint16_t)(x + width));
-    ORIGINAL_EFFECT(set_scene_call_race_half_size(g, own(), half));
-    ORIGINAL_EFFECT(leave_edge_cells(g, middle, width));
+    set_scene_call_race_half_size(g, own(), half);
+    keep_edge_cells(g, middle, width);
 }
 
 // $7E:4E7D
@@ -319,7 +321,7 @@ static void place_johnny(GameState *g, OnPlane p, Line l)
     set_scene_race_racers_screen_x(g, RACER_JOHNNY, x);
     set_scene_race_racers_right(g, RACER_JOHNNY, (uint16_t)(x + side + u.into_right));
     set_scene_race_racers_bottom(g, RACER_JOHNNY, (uint16_t)(y + side + u.into_bottom));
-    ORIGINAL_EFFECT(leave_edge_cells(g, middle, side));
+    keep_edge_cells(g, middle, side);
 }
 
 /* ---- The units the placing hands on ------------------------------------------------------------- */
