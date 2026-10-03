@@ -75,6 +75,7 @@ target_compile_definitions(ct_vars_checked PRIVATE CT_ACCESSOR_CHECKS)
 # Ported game code, organized by subsystem.
 add_library(ct_game STATIC
   game/registry.c
+  game/core/console.c
   game/core/display.c
   game/core/input.c
   game/core/memory.c
@@ -108,6 +109,7 @@ add_library(ct_game STATIC
   game/event/variables.c
   game/field/animation.c
   game/field/battle_return.c
+  game/field/battle_start.c
   game/field/cast.c
   game/field/palettes.c
   game/field/menus.c
@@ -117,6 +119,8 @@ add_library(ct_game STATIC
   game/field/frame.c
   game/field/frames.c
   game/field/requests.c
+  game/field/location.c
+  game/field/main_loop.c
   game/field/screen_effects.c
   game/field/script_layers.c
   game/field/graphics.c

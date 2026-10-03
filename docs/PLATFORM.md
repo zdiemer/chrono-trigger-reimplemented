@@ -430,6 +430,14 @@ uint16_t tm_beam_line(Platform *pf, PfOrigin o);
 void tm_sync(Platform *pf);
 ```
 
+The boot (`$FD:C000`, `core/console.c`) brought three more calls, each the
+console's start where the game had a register write and no call:
+`tm_reset_timers` (the dot and line timers back to 0, which nothing enables
+after), `tm_fast_rom` (the cartridge read at its fast speed, a matter of the
+SNES backend's timing alone) and, in input, `in_set_io_lines` (the controller
+port's programmable lines, all high). A native backend makes none of them do
+anything.
+
 Frame callbacks match how the game is built: each mode's main loop waits for a
 flag its NMI handler clears (`$0152` field, `$4B` menu, `$9E` battle), and the
 handler does the uploads. The fibers that run hand ports
@@ -1935,7 +1943,7 @@ service. By what they are for:
 | Kind | What it computes | Ported | Generated | Where |
 |---|---|---|---|---|
 | The frame tick | which handlers run, and acknowledging them | 31 | 31 | every mode's vblank handler, the three line handlers, mode starts and loads |
-| Timer reset | nothing: `$4207-$420A` cleared as a mode starts | 0 | 13 | `$C2:0043`, `$C2:940D`, `$FD:C000`, `$FD:EB13` |
+| Timer reset | nothing: `$4207-$420A` cleared as a mode starts | 4 | 9 | `$C2:0043`, `$C2:940D`, `$FD:EB13`; the boot `$FD:C000` through `tm_reset_timers` |
 | The line handler's line | line 211 | 1 | 3 | field `$C0:0B28`, battle `$D1:F1B0`, scene boot `$C3:0000` |
 | Hblank waits in the line handlers | nothing: the blank lands at a line's end | 4 | 0 | `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`, `$C3:0538` |
 | Waits for vblank | the frame boundary | 4 | 2 | the races `$C0:3B71`, `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; with the vblank handler off, before turning it on, `$C0:0B28` and `$FD:EADA` |
@@ -2077,7 +2085,7 @@ without a beam", tracks them):
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
 | `$CD:3B82` | idle entries reading the registers directly | `tm_wait_line`, or nothing once its purpose is known |
-| The timer resets in `$C2:0043`, `$C2:940D`, `$FD:C000`, `$FD:EB13`, and the line `$D1:F1B0` sets | generated | `tm_set_line` where a line is set; a reset of timers nothing enables has no call and goes |
+| The timer resets in `$C2:0043`, `$C2:940D`, `$FD:EB13`, and the line `$D1:F1B0` sets | generated (the boot's, `$FD:C000`, is `tm_reset_timers`) | `tm_set_line` where a line is set; a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
 
 **Validation.** A call that re-expresses a use keeps its accesses, so shadow
 mode compares it as it compares the ports now. The schedulers are the

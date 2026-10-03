@@ -1,4 +1,4 @@
-/* Input service, SNES backend: the auto-joypad registers $4218-$421F.
+/* Input service, SNES backend: the auto-joypad registers $4218-$421F and the I/O port $4201.
  * Included by platform/input.h. */
 #ifndef CT_PLATFORM_SNES_INPUT_H
 #define CT_PLATFORM_SNES_INPUT_H
@@ -31,6 +31,13 @@ PF_API uint8_t in_read_high(Platform *pf, PfOrigin o, uint8_t pad)
     uint8_t v = pf_snes_get(pf_snes(pf), (uint16_t)(0x4219 + 2 * (pad & 3)));
     pf_snes_end();
     return v;
+}
+
+PF_API void in_set_io_lines(Platform *pf, PfOrigin o, uint8_t lines)
+{
+    pf_snes_begin("in_set_io_lines", o);
+    pf_snes_put(pf_snes(pf), 0x4201, lines);
+    pf_snes_end();
 }
 
 PF_API void in_host_set(Platform *pf, uint8_t pad, PadBits buttons) { pf_snes(pf)->bus.pad[pad & 3] = buttons; }

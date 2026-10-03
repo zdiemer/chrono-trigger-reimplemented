@@ -25,6 +25,10 @@ PF_API PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad);
 PF_API uint8_t in_read_low(Platform *pf, PfOrigin o, uint8_t pad);
 PF_API uint8_t in_read_high(Platform *pf, PfOrigin o, uint8_t pad);
 
+/* The controller port's programmable lines (a light gun's latch among them),
+ * as a bit each; the game sets them all high and never reads them. */
+PF_API void in_set_io_lines(Platform *pf, PfOrigin o, uint8_t lines);
+
 /* Host side, once per frame. */
 PF_API void in_host_set(Platform *pf, uint8_t pad, PadBits buttons);
 

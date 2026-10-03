@@ -9,7 +9,13 @@
  * sprite table walks, showing the frame it showed (its tiles in VRAM are as
  * they were, field/frames.c); an enemy the battle took away is taken off
  * the map. The sprite table is built at once, and where the party was
- * defeated its members hold their frames. */
+ * defeated its members hold their frames.
+ *
+ * Before that, the field's state comes back from where the battle's start put
+ * it (field/battle_start.c), and the game goes on as the battle ended: on the
+ * field, taken up again a frame at a time; or with the game over, the leader
+ * walking until a button is pressed, then the title; or, for a result a
+ * script sets, back at the place put aside. */
 #include "field/battle_return.h"
 #include "field/field.h"
 #include "field/frames.h"
@@ -19,6 +25,13 @@
 
 #include "battle/battle.h"
 #include "charge.h"
+#include "core/console.h"
+#include "core/display.h"
+#include "core/input.h"
+#include "field/battle_start.h"
+#include "field/main_loop.h"
+#include "field/sprites.h"
+#include "field/walk.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
@@ -164,6 +177,10 @@ static void party_hold_frames_if_defeated(GameState *g)
 
 enum { BUILD_SPRITE_TABLE = 0xC0B271, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
+/* The sprites a battle shows at the start of the table, which the field
+ * hides as it comes back. */
+enum { BATTLE_SPRITES_SHOWN = 4 };
+
 // $C0:0715
 /* The field's page, 8-bit A. Nothing the original leaves in the registers
  * is read after it. */
@@ -187,6 +204,173 @@ void field_hold_party_if_defeated(Snes *s)
     party_hold_frames_if_defeated(state_of(s));
     m_rts(s);
 }
+
+/* ---- After the battle ($C0:0283) ----------------------------------------------------------- */
+
+/* How the game goes on after a battle: on the field, which a battle the party
+ * may lose (the event's flags' bit 5) does even when it was beaten; the game
+ * over, where it may not; or, for the result only a script sets (2), back to
+ * the place put aside (event $DC), unless the event's flags say otherwise.
+ * That test the original makes against the byte at $0010 rather than a bit
+ * (its neighbour tests bit 5 as #$20), and the port keeps it. */
+typedef enum { GO_ON_ON_THE_FIELD, GAME_OVER, BACK_TO_THE_PLACE_PUT_ASIDE } AfterBattle;
+enum { LOSING_GOES_ON = 0x20, RESULT_BACK_TO_THE_PLACE_PUT_ASIDE = 2 };
+
+static AfterBattle how_the_game_goes_on(const GameState *g)
+{
+    uint8_t flags = battle_event_flags(g);
+    switch (battle_result(g)) {
+    case BATTLE_DEFEATED: return flags & LOSING_GOES_ON ? GO_ON_ON_THE_FIELD : GAME_OVER;
+    case RESULT_BACK_TO_THE_PLACE_PUT_ASIDE:
+        return flags & field_after_battle_test_byte(g) ? GO_ON_ON_THE_FIELD : BACK_TO_THE_PLACE_PUT_ASIDE;
+    default: return GO_ON_ON_THE_FIELD;
+    }
+}
+
+/* The original's routines it calls, and the field's own that run frames. */
+enum {
+    MAP_UNPACKED = 0xC0A33B,        /* the location's map unpacked and its layers drawn */
+    WINDOW_FRAME_MAP = 0xC029F7,    /* the dialog window's frame built as a tile map at $7E:F000 */
+    SECOND_MAP = 0xC02B78,          /* the second tile map built there */
+    SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
+    MAP_SCRIPT_STARTS = 0xC0595C,   /* the map's own script (object 0) run to its first return */
+    LAYERS_SET = 0xC0A712,          /* the layers' places and sizes set up, on the layers' page */
+    PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
+    WALK = 0xC0881E,
+    TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14,
+};
+enum { READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+
+static bool call(Snes *s, uint32_t site, uint32_t routine)
+{
+    return bridge_call(s, site, routine, READS_NOTHING, on_the_field_page(s, false));
+}
+static bool walk_a_frame(Snes *s, uint32_t site) { return call(s, site, FIELD_WALK_A_FRAME_ENTRY); }
+
+/* A button pressed, the game's or an assignment's. */
+static bool a_button_pressed(const GameState *g)
+{
+    return (uint8_t)input_mapped(g, ASSIGNED_PRESSED) != 0 || (uint8_t)input_pressed(g) != 0;
+}
+
+/* The picture fading out a step a frame, the leader walking and the palettes
+ * animating, from each way's own calls. */
+typedef enum { GAME_OVER_FADE, PLACE_PUT_ASIDE_FADE } FadeOut;
+static const struct {
+    uint32_t walk, palettes, wait;
+} fade_sites[] = {
+    [GAME_OVER_FADE] = { 0xC002B7, 0xC002BA, 0xC002BE },
+    [PLACE_PUT_ASIDE_FADE] = { 0xC002DE, 0xC002E1, 0xC002E5 },
+};
+
+static bool fade_out(Snes *s, FadeOut way)
+{
+    GameState *g = state_of(s);
+    while (field_dims_a_step(g))
+        if (!field_run(s, fade_sites[way].walk, WALK, READS_NOTHING, field_walk_the_leader, on_the_field_page(s, false)) ||
+            !bridge_call_long(s, fade_sites[way].palettes, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
+            !call(s, fade_sites[way].wait, FIELD_FRAME_WAIT))
+            return false;
+    return true;
+}
+
+/* Where the game starts again: the field's first start (the title) after a
+ * game over, the field's entry for the place put aside; each on the game's
+ * fresh stack. What each reads of the registers first it sets. */
+enum { THE_TITLE = 0xC0000E, ENTER = 0xC0005D, STARTS_AFRESH = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_D };
+
+static void start_afresh(Snes *s, uint32_t at)
+{
+    display_go_dark(s);
+    s->cpu.s = CONSOLE_STACK_TOP;
+    m_stop_at_own(s, at, STARTS_AFRESH);
+}
+
+// $C0:02A0
+/* The game over: the leader walks on its own until a button is pressed, the
+ * picture fades out, and the game starts again from the title. */
+static void game_over(Snes *s)
+{
+    while (!a_button_pressed(state_of(s)))
+        if (!walk_a_frame(s, 0xC002AA))
+            return;
+    if (fade_out(s, GAME_OVER_FADE))
+        start_afresh(s, THE_TITLE);
+}
+
+/* The party goes back to the place put aside (event $DC's), where the field
+ * starts again. */
+static void party_goes_to_the_place_put_aside(GameState *g)
+{
+    set_location_id(g, location_stored_id(g));
+    set_location_x(g, location_stored_x(g));
+    set_location_y(g, location_stored_y(g));
+    set_location_flags(g, location_stored_flags(g));
+}
+
+// $C0:02CD
+static void back_to_the_place_put_aside(Snes *s)
+{
+    if (!fade_out(s, PLACE_PUT_ASIDE_FADE))
+        return;
+    party_goes_to_the_place_put_aside(state_of(s));
+    start_afresh(s, ENTER);
+}
+
+/* The field taken up again on its map, a frame at a time: the party and the
+ * enemies put back (field_return_from_battle), the map, the dialog window's
+ * tile maps and the tile looks again, the script and its start, the layers;
+ * then the party comes back together ($C0:034B, event/party.c), which the
+ * original goes on to. */
+enum { PARTY_BACK_TOGETHER = 0xC0034B, BACK_TOGETHER_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $C0:0304
+static void go_on_on_the_field(Snes *s)
+{
+    GameState *g = state_of(s);
+    sprites_hide_all_next_frame(g);
+    if (!field_run(s, 0xC00313, 0xC00715, READS_NOTHING, field_return_from_battle, on_the_field_page(s, false)) ||
+        !call(s, 0xC00316, MAP_UNPACKED) || !walk_a_frame(s, 0xC00319) ||
+        !bridge_call_long(s, 0xC0031C, WINDOW_FRAME_MAP, READS_NOTHING, on_the_field_page(s, false)))
+        return;
+    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_FIRST | FIELD_SEND_FOUR_TILES);
+    if (!field_run(s, 0xC00324, TILE_LOOKS, READS_NOTHING, field_load_tile_looks, on_the_field_page(s, false)) ||
+        !walk_a_frame(s, 0xC00327) ||
+        !field_run(s, 0xC0032A, BG3_TILE_LOOKS, READS_NOTHING, field_load_bg3_tile_looks, on_the_field_page(s, false)) ||
+        !call(s, 0xC0032D, SCRIPT_UNPACKED) ||
+        !bridge_call(s, 0xC00330, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, on_the_field_page(s, false)) ||
+        !bridge_call_on_page(s, 0xC0033C, LAYERS_SET, READS_NOTHING, FIELD_LAYERS_PAGE) || !walk_a_frame(s, 0xC00340) ||
+        !bridge_call_long(s, 0xC00343, SECOND_MAP, READS_NOTHING, on_the_field_page(s, false)))
+        return;
+    field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_SECOND);
+    m_stop_at(s, PARTY_BACK_TOGETHER, BACK_TOGETHER_READS);
+}
+
+/* For shadow mode: the original moves the state back with a block move,
+ * which leaves Y past the block's end; the field's first start after a game
+ * over hands Y to the menus' routine, which stores it. */
+enum { STATE_BLOCK_END = (RAM_FIELD_RIPPLE_FRAMES_LEFT + 1) & 0xFFFF };
+static void leave_y_past_the_state(Snes *s) { s->cpu.y = STATE_BLOCK_END; }
+
+// $C0:0283
+/* The field's page, 8-bit A and 16-bit index registers: the battle's sprites
+ * hidden, the field's state back from where the battle's start put it, and
+ * the game goes on as the battle ended. */
+void field_after_battle(Snes *s)
+{
+    GameState *g = state_of(s);
+    sprites_hide_the_first(g, BATTLE_SPRITES_SHOWN);
+    field_bring_the_state_back(g);
+    ORIGINAL_EFFECT(leave_y_past_the_state(s));
+    switch (how_the_game_goes_on(g)) {
+    case GAME_OVER: game_over(s); break;
+    case BACK_TO_THE_PLACE_PUT_ASIDE: back_to_the_place_put_aside(s); break;
+    default: go_on_on_the_field(s); break;
+    }
+}
+
+/* The guard: on the field's page with the data bank $00. */
+bool field_can_take_up_after_battle(Snes *s) { return field_on_page_bank_zero(s); }
 
 /* The guard: on the field's page with the data bank $00; the leader's place
  * an object (the original takes it without looking, so the party's loop

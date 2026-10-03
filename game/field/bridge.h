@@ -78,6 +78,13 @@ bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, voi
 bool field_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                     BridgeMachine m);
 
+/* A sibling the original goes on to with a jump rather than a call, which
+ * returns for the routine: run as C where the registry would run it there,
+ * timed as its routine. False where it wouldn't, and the port stops at it
+ * (m_stop_at, with what the port declares), for the runtime to run whatever
+ * it has there. */
+bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *));
+
 /* field_run with a byte the original keeps on the stack over the call (a
  * PHA before it, a PLA after): shadow mode compares the stack pointer at the
  * sibling's call-outs and stops, so the port pads the frame with the byte
@@ -91,6 +98,11 @@ bool field_run_holding(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
  * too, and the page is the field's again after. */
 bool field_run_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *),
                        uint16_t page);
+
+/* A call to the original's routine on another direct page, as the original
+ * makes one with its PHD keeping the field's page on the stack under the
+ * call; the page is the field's again after. */
+bool bridge_call_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint16_t page);
 
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the

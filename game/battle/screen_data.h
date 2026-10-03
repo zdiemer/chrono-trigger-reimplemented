@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "data/packed_graphics.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "rom.h"
@@ -56,20 +57,13 @@ static inline uint16_t background_row_start_color(const GameState *g, unsigned c
 
 /* ---- An effect's graphics ----------------------------------------------------------------- */
 
-/* The compressed graphics blocks an effect loads: four ids an effect, a byte
- * each ($D1:ECDB; an id of $FF is none). The list's index is a byte of four
- * times the effect. */
-enum { EFFECT_BLOCKS = 4, NO_GRAPHICS_BLOCK = 0xFF };
+/* The compressed graphics blocks an effect loads (data/packed_graphics.h):
+ * four ids an effect, a byte each ($D1:ECDB; an id of $FF is none). The
+ * list's index is a byte of four times the effect. */
+enum { EFFECT_BLOCKS = 4 };
 static inline uint8_t effect_graphics_block(const GameState *g, uint8_t effect, unsigned block)
 {
     return rom_read8(g, 0xD1ECDBu + (uint8_t)(effect * EFFECT_BLOCKS) + block);
-}
-
-/* Where a compressed graphics block is: a long pointer per id ($F6:2220). */
-static inline uint32_t graphics_block_address(const GameState *g, uint8_t id)
-{
-    uint32_t at = 0xF62220u + 3u * id;
-    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
 
 /* An effect's 48 colors: a byte offset per effect ($D1:ECCF, a word each, its

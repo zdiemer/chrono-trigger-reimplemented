@@ -680,12 +680,7 @@ rest waits, is [PLAN.md](PLAN.md).
   blocking): the palette animation kinds are defined twice (`engine.c`'s
   `*_FORM`, `core/palette.c`'s) and `ColourEffect.animation` carries the raw
   byte -- one kind enum in `core/palette.h`, typed fields for the kind and
-  fade channels; `party.c`'s `palette_moves_up` redefines the sprite palette
-  layout and copies colours from an event file -- a `field/palettes.h`
-  operation; `member_steps_out` sets `LINK_NONE_BIT` inline -- a `field/party.h`
-  operation; re/ram.toml `source` lines name functions that don't exist
-  (`unpack_graphics`, `take_sprite_block`, `leave_record_place`,
-  `graphics_already_unpacked`, `object_colour_effect`); `cast.c`/`cast.h` say
+  fade channels; `cast.c`/`cast.h` say
   the first three NPCs note their graphics where every NPC from the third
   overwrites the third record (`$C0:463D`); `characters.c`'s header calls the
   unpacker the original's code (it is `data/decompress.c`), and its
@@ -1542,6 +1537,18 @@ below. `python3 tools/timing_census.py` re-runs the census.
   (`field/object.c`, `object_set_sprite_priorities`); the tint is still
   written in the hardware's terms (`event/screen.c`, `tint_math`), until the
   field keeps it as a `VidColorMath` and converts it at its video calls.
+- **What the battle's hand-over reads past the field's tables**
+  (`field/battle_start.c`, `field/battle_return.c`). The battle's ground is
+  sixteen bytes a row of the map's attribute tables from the screen's corner
+  (`$C0:039B`): near the map's right edge a row runs on into the lower
+  attributes and the exits, near its bottom edge past the tables' last row
+  into the tile looks, through the `_unchecked` accessors. And the field after
+  a battle a script sent the party back from (`battle_result` 2) tests the
+  event's flags against whatever byte lies at `$7E:0010`
+  (`field_after_battle_test_byte`, an absolute `BIT` where `#$10` was
+  likely meant). Both are game state a native storage would not have: decide
+  the ground past the map (the bytes the battle reads there) and the test's
+  bit when the gate retires.
 - **The four windows' corner tiles** (`field/window_corners.c`) aren't known
   to be the party's windows: what they frame is still to be read.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
@@ -1602,10 +1609,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
   `$7E:9EDF` read `$213F`'s field bit (the second through a 16-bit read of
   `$213E`) to move something every other frame: `tm_odd_frame`.
 - **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
-  `$C2:94B8`, `$FD:C000` and `$FD:EB13` clear `$4207-$420A` in a run of CPU
-  register writes (where the menu ports stop). Nothing enables the timers after
-  them, so natively they are nothing; for shadow mode a port needs a call that
-  writes the zeros in the original's order, or the documented SNES escape.
+  `$C2:94B8` and `$FD:EB13` clear `$4207-$420A` in a run of CPU register
+  writes (where the menu ports stop). Nothing enables the timers after them, so
+  natively they are nothing; the boot (`$FD:C000`, `core/console.c`) makes the
+  same clear through `tm_reset_timers`, which these can take too.
 
 ## Targets beyond the desktop SNES build
 

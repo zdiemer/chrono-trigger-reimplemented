@@ -214,6 +214,14 @@ static void face_the_way(GameState *g, FieldObject obj, Pose p)
 /* On the move, the party isn't standing about. */
 void count_as_on_the_move(GameState *g) { set_field_idle_frames(g, 0); }
 
+/* The count is ten bits; the bits between it and the flag stay clear. */
+enum { IDLE_FRAMES_COUNTED = 0x03FF };
+void party_stands_another_frame(GameState *g)
+{
+    uint16_t stored = (uint16_t)(field_idle_frames(g) + 1);
+    set_field_idle_frames(g, (uint16_t)(stored & (FIDGETED_BIT | IDLE_FRAMES_COUNTED)));
+}
+
 /* The leader running with the pad but held where it is (against a wall, a
  * shut door) runs on the spot; not where a moving floor carries it. */
 static bool runs_on_the_spot(const GameState *g, FieldObject obj, bool carried)

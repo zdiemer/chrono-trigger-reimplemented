@@ -20,6 +20,8 @@
  * The field starts again on a fresh stack, which is the original's to do; so
  * are the routines the answers call out to. */
 #include "field/field.h"
+#include "field/battle_start.h"
+#include "field/main_loop.h"
 #include "field/menus.h"
 #include "field/party.h"
 #include "field/requests.h"
@@ -174,14 +176,15 @@ static bool answer_step_event(Snes *s)
 /* The original's routines the answers call. */
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    FRAME_WORK = 0xC000BF,          /* the objects' turns and sprites, and the line effects */
-    REFRESH = 0xC000DE,             /* the line effects and the palette animation */
     PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
     SCROLL_FOLLOWS = 0xC087F1,      /* the layers' scroll put where the screen is */
     SEND_BG1 = 0xC074D4, SEND_BG2 = 0xC074E8, SEND_BG3 = 0xC074F7,   /* a layer's tile map sent after a copy */
-    BATTLE_BEGINS = 0xC0024C,       /* the battle's setup on the field; carry set where none is fought */
     BATTLE = 0xC10000,
-    FIELD_AFTER_BATTLE = 0xC00283, OBJECTS_AFTER_BATTLE = 0xC028E1, FIELD_TURN = 0xC000EB,
+    /* the field taken up after the battle (field/battle_return.c): a port
+     * that runs frames and ends by going on into another, which only a call
+     * can run */
+    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY, OBJECTS_AFTER_BATTLE = 0xC028E1,
+    FIELD_TURN = FIELD_WALK_A_FRAME_ENTRY,   /* a port, which waits for the next frame: called */
 };
 /* The ports the answers run as C. */
 enum { RECENTRE = 0xC0885A, COPY_TILES = 0xC0AF4E, SCROLL_LAYERS = 0xC02C41, FREE_SPRITE_AREAS = 0xC0E935,
@@ -194,6 +197,13 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
     return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
 }
 static bool wait_frame(Snes *s, uint32_t site) { return call(s, site, FRAME_WAIT, READS_NOTHING); }
+
+/* The field's own steps (field/main_loop.c), run as C. */
+static bool refresh(Snes *s, uint32_t site)
+{
+    return field_run(s, site, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects,
+                     on_the_field_page(s, false));
+}
 
 /* ---- A location change ($C0:0C8F) --------------------------------------------------------- */
 
@@ -309,11 +319,11 @@ static bool send_one_layer(Snes *s, FieldLayer layer)
     if (!field_run_on_page(s, alone[layer].draw_site, alone[layer].draw_routine, READS_NOTHING, alone[layer].draw,
                            FIELD_LAYERS_PAGE) ||
         !call(s, alone[layer].prepare_site, alone[layer].prepare_routine, READS_NOTHING) ||
-        !call(s, alone[layer].refresh_site, REFRESH, READS_NOTHING))
+        !refresh(s, alone[layer].refresh_site))
         return false;
     set_field_map_transition(g, alone[layer].move);
     set_field_tile_copy_queued_maps(g, 0);
-    if (!wait_frame(s, alone[layer].wait_site) || !call(s, alone[layer].refresh_after_site, REFRESH, READS_NOTHING) ||
+    if (!wait_frame(s, alone[layer].wait_site) || !refresh(s, alone[layer].refresh_after_site) ||
         !call(s, alone[layer].scroll_site, SCROLL_FOLLOWS, READS_NOTHING))
         return false;
     if (alone[layer].waits_itself)
@@ -329,7 +339,7 @@ static bool send_bg1_and_bg2(Snes *s)
 {
     GameState *g = state_of(s);
     if (!field_run_on_page(s, 0xC017FE, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE) ||
-        !call(s, 0xC01802, REFRESH, READS_NOTHING))
+        !refresh(s, 0xC01802))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_THE_LOADERS_PLACE);
     set_field_tile_copy_queued_maps(g, 0);
@@ -338,17 +348,17 @@ static bool send_bg1_and_bg2(Snes *s)
         return false;
     trade_bg1_base(g);
     if (!call(s, 0xC01825, SEND_BG1, READS_NOTHING) || !call(s, 0xC01828, SEND_BG2, READS_NOTHING) ||
-        !call(s, 0xC0182B, REFRESH, READS_NOTHING))
+        !refresh(s, 0xC0182B))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     if (!wait_frame(s, 0xC01832) ||
         !field_run_on_page(s, 0xC0183E, DRAW_BG1, READS_NOTHING, field_draw_bg1_at_the_load, FIELD_LAYERS_PAGE))
         return false;
     trade_bg1_base(g);
-    if (!call(s, 0xC0184C, SEND_BG1, READS_NOTHING) || !call(s, 0xC0184F, REFRESH, READS_NOTHING))
+    if (!call(s, 0xC0184C, SEND_BG1, READS_NOTHING) || !refresh(s, 0xC0184F))
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
-    if (!wait_frame(s, 0xC01856) || !call(s, 0xC01859, REFRESH, READS_NOTHING) ||
+    if (!wait_frame(s, 0xC01856) || !refresh(s, 0xC01859) ||
         !call(s, 0xC0185C, SCROLL_FOLLOWS, READS_NOTHING))
         return false;
     m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
@@ -366,7 +376,8 @@ static bool answer_tile_copy(Snes *s)
     screen_starts_recentring(g);
     for (;;) {
         if (!field_run(s, 0xC01781, RECENTRE, READS_NOTHING, field_recentre_the_screen, on_the_field_page(s, false)) ||
-            !call(s, 0xC01784, FRAME_WORK, READS_THE_OVERFLOW))
+            !field_run(s, 0xC01784, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work,
+                       on_the_field_page(s, false)))
             return false;
         if (screen_is_recentred(g))
             break;
@@ -407,7 +418,7 @@ enum { NO_BATTLE_TURN = DC_A | DC_N | DC_Z };
 static bool answer_battle(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!call(s, 0xC01890, BATTLE_BEGINS, READS_NOTHING))
+    if (!field_run(s, 0xC01890, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)))
         return false;
     if (m_flag(s, CPU_FLAG_C)) {   /* the setup's answer: no battle */
         battle_over(g);
@@ -417,7 +428,7 @@ static bool answer_battle(Snes *s)
     if (!field_run_long(s, 0xC01895, SCROLL_LAYERS, READS_NOTHING, field_scroll_layers, on_the_field_page(s, false)))
         return false;
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) | FIELD_DISPLAY_SETUP));
-    if (!call(s, 0xC0189D, REFRESH, READS_NOTHING))
+    if (!refresh(s, 0xC0189D))
         return false;
     set_field_display_flags(g, (uint8_t)(field_display_flags(g) & ~FIELD_DISPLAY_SETUP));
     if (!wait_frame(s, 0xC018A4))

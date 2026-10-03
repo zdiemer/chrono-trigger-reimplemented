@@ -13,6 +13,7 @@ enum { FIELD_SPRITE_TABLE_ADDRESS = 0x0700 };
 
 /* field/sprites.c */
 void sprites_hide_all_next_frame(GameState *g);
+void sprites_hide_the_first(GameState *g, unsigned count);
 void field_build_sprite_table(Snes *s);
 void field_draw_object_sprites(Snes *s);
 void field_update_object_sprites(Snes *s);

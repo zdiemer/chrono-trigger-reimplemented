@@ -109,6 +109,7 @@ game/event/party.c event_member_back_to_the_leader field_leader_contact field_le
 game/event/script.h script_byte event_script_byte field_sprite_records
 game/event/script.h script_word event_script_byte field_sprite_records
 game/field/animation.c field_read_animation_frame field_frame_entry_bank field_frame_entry only               # the entry's calling convention: every caller of the frame read sets the tables' bank first (the builders); the C builder passes it
+game/field/animation.c field_read_animation_frame field_frame_entry_bank field_tile_set_list_place only # the entry's calling convention: every caller of the frame read sets the tables' bank first; the tile graphics' loading leaves its list place in the same cells as scaffolding
 game/field/field.h leader_contact field_leader_contact field_leader_contact                                   # the walk clears the contact before the confirm button or a touch reads it, every frame (field/walk.c leader_walks), so the native shape reads the same
 game/field/graphics.c graphics_left field_sprite_graphics_address event_source_pointer only                   # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
 game/field/graphics.c graphics_left field_sprite_graphics_address field_sprite_graphics only                  # the entry's calling convention: the original's callers set it every call (the frame builders, the immediate one $C0:CB0A and $C0:E12A still the original's); the C builder passes the set
@@ -405,3 +406,6 @@ game/menu/item_screen_bridge.c menu_use_item menu_item_operand menu_item_operand
 game/menu/item_screen_bridge.c menu_use_tab menu_item_operand menu_item_operand # the item a list's routines name, which their callers set plainly first; the scaffolding at the address is the equipment list's noted row
 game/menu/tiles.c menu_draw_large_portrait menu_scratch_portrait_tile menu_object_scratch # the entry's operand: the original's callers put the attribute in the cell, every call
 game/menu/tiles.c menu_draw_large_portrait menu_scratch_portrait_tile menu_scratch # the entry's operand: the original's callers put the attribute in the cell, every call
+game/event/party.c party_script_destination event_script_byte field_sprite_records # the party scripts' destination operands, which the party's commands write plainly (party_script_go_to); the scaffolding is a sprite record's place elsewhere in the script's bank
+game/field/animation.c field_read_animation_frame field_frame_entry_address field_tile_set_list_place # the frame read sets the address itself before it reads it; the tile graphics' loading leaves its list place in the same cells as scaffolding
+game/field/leaves.c field_frame_read_overflow field_frame_entry_address field_tile_set_list_place # as field_read_animation_frame: the address the frame read set

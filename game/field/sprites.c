@@ -155,6 +155,15 @@ static void hide_leftovers(GameState *g)
     }
 }
 
+// $C0:B262
+/* The table's first sprites hidden, as the field comes back from a battle
+ * (whose sprites the vblank sent from there). */
+void sprites_hide_the_first(GameState *g, unsigned count)
+{
+    for (unsigned n = 0; n < count; n++)
+        set_field_sprite_table_byte(g, n * OAM_ENTRY + VID_OAM_ENTRY_Y, VID_OAM_HIDDEN_Y);
+}
+
 /* A fresh start (the field's): each range taken as having used all its
  * entries last frame, so the first table built hides every entry it doesn't
  * fill. */

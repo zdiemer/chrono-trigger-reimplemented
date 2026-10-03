@@ -132,6 +132,17 @@ static inline void field_send_maps(GameState *g, uint8_t sends)
     set_field_map_transition(g, (uint8_t)(field_map_transition(g) | sends));
 }
 
+/* field_screen_transition: what the vblank sends over the next frames, a job
+ * a frame, the lowest first (field/nmi.c): the tile map staged at $7E:F000 to
+ * the first of its two places in VRAM or to the second, the tiles of the
+ * window style the player chose, and four tiles of bank $FF's. */
+enum { FIELD_SEND_STAGED_MAP_FIRST = 0x01, FIELD_SEND_STAGED_MAP_SECOND = 0x02, FIELD_SEND_WINDOW_STYLE = 0x04,
+       FIELD_SEND_FOUR_TILES = 0x08 };
+static inline void field_send_screen_jobs(GameState *g, uint8_t jobs)
+{
+    set_field_screen_transition(g, (uint8_t)(field_screen_transition(g) | jobs));
+}
+
 /* field_effect_status: what the field has running, or has finished, that a
  * script waits on. */
 enum {

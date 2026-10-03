@@ -2174,7 +2174,7 @@ page = "field"
 size = 2
 subsystem = "field"
 meaning = "Where in bank $7F the next graphics set the map's scripts load unpacks to (events $82 and $83): the map's setup starts it at $8000 ($C0:58D7), each set unpacked moves it on by the set's size, and a set that would carry it past the bank's end stops the game ($C0:46D1, $C0:4838 to $C0:2E1E). Once the map runs, the leader's walk works out where it steps next in the same cells ($C0:9C65)"
-source = "game/field/cast.c, unpack_graphics ($C0:4590, $C0:46DF)"
+source = "game/field/cast.c, ask_to_unpack and graphics_unpacked ($C0:4590, $C0:46DF)"
 
 [[var]]
 name = "field_npc_graphics_count"
@@ -2348,6 +2348,24 @@ index = "party place"
 subsystem = "field"
 meaning = "Where each of the party was on the leader's trail (field_trail_position), kept while a menu is open"
 source = "game/field/menus.c, bring_the_party_back $C0:1A03"
+
+[[var]]
+name = "field_kept_party_script_tiles"
+addr = "7F:1D1E"
+size = 2
+count = 4
+stride = 2
+index = "the formation's three scripts, then the push script's"
+subsystem = "field"
+meaning = "The tiles the party's scripts were told to walk to (their column in the low byte, their row in the high), kept while a menu is open: the script's unpacking after it writes over them"
+source = "game/field/location.c, field_put_aside $C0:011B, field_set_up_after_a_menu $C0:01A5"
+
+[[var]]
+name = "field_kept_bg3_wave"
+addr = "7F:1D26"
+subsystem = "field"
+meaning = "BG3's wave (field_line_wave_bg3's low byte, which the line effects' builders test), kept while a menu is open"
+source = "game/field/location.c, field_put_aside $C0:011B, field_set_up_after_a_menu $C0:01A5"
 
 [[var]]
 name = "field_player_control"
@@ -2702,6 +2720,16 @@ meaning = "The entry's address: the facing's frame table plus animation * 4 + fr
 name = "bank"
 offset = 2
 meaning = "The frame tables' bank"
+
+[[var]]
+name = "field_tile_set_list_place"
+addr = "7E:01D6"
+size = 3
+page = "field"
+subsystem = "field"
+reuses = "field_frame_entry"
+meaning = "Where the loading of a tile set's graphics read the set's list of blocks (location_records' tile set, $F6:1C00 + 8 a set), left at its last block; nothing reads it after"
+source = "game/field/location.c, field_load_tile_graphics $C0:0960"
 
 [[var]]
 name = "field_sprite_range_next"
@@ -3059,7 +3087,7 @@ count = 26
 index = "block of sprite tiles in VRAM"
 subsystem = "field"
 meaning = "The object each block of sprite tiles in VRAM is given to, a link, negative for a free block: the party's three places have blocks 1-3 and an enemy the block its script names (events $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA). Block 0 is never given"
-source = "game/field/cast.c, take_sprite_block"
+source = "game/field/cast.c, use_block, take_party_block and take_enemy_block"
 
 [[var]]
 name = "field_object_sprite_tiles"
@@ -3135,7 +3163,7 @@ stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "The palette animation slot running a script's effect on the object's colours (event $88), as the slot's place in palette_animations (slot * 12); negative for none"
-source = "game/event/colours.c, object_colour_effect ($C0:4892)"
+source = "game/event/colours.c, change_object_colours and stop_object_effect ($C0:4892)"
 
 [[var]]
 name = "field_object_role"
@@ -4156,7 +4184,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The second of the three bytes a map gives each tile (a row every 256 bytes, beside field_tile_lower_attributes'): bit 6 puts an object's upper half on the tile in front of the map (field_object_sprite_priority +1, where the object takes its priority from the map)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
-unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library); a battle's ground copied from a screen at the map's right or bottom edge runs on into the next table or past the last row (game/field/battle_start.c, keep_the_ground $C0:039B)"
 
 [[var]]
 name = "field_tile_lower_attributes"
@@ -4167,7 +4195,7 @@ row_stride = 0x100
 subsystem = "field"
 meaning = "The third of the three bytes a map gives each tile: bit 7 blocks an object's moves onto it, bit 6 puts an object's lower half on it in front of the map (field_object_sprite_priority +0)"
 source = "game/field/layers.c field_unpack_tile_maps $C0:A521; game/field/motion.c object_start_step $C0:ACFD; game/field/object.c object_layer_as_the_map $C0:4BA3"
-unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library)"
+unchecked = "an object that follows the map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map; 20 real calls over the movie library); a battle's ground copied from a screen at the map's right or bottom edge runs on into the next table or past the last row (game/field/battle_start.c, keep_the_ground $C0:039B)"
 
 [[var]]
 name = "field_layer_scroll_values"
@@ -16013,6 +16041,101 @@ size = 1
 meaning = "Its bank"
 
 [[var]]
+name = "field_battle_enemies"
+addr = "7E:019D"
+count = 13
+index = "found, then the none link after the last"
+page = "field"
+subsystem = "field"
+reuses = "field_battle_enemy_objects"
+meaning = "The enemies a battle on the field finds on the screen ($C0:0617), last object first, at most twelve and a none link after them; the battle's start takes the first six, writing its own list over the rest"
+source = "game/field/battle_start.c, find_the_enemies $C0:0617"
+
+[[var]]
+name = "field_after_battle_test_byte"
+addr = "7E:0010"
+subsystem = "field"
+meaning = "The byte the field's return from a battle the party was sent back from tests the event's battle flags against ($C0:02D1, an absolute BIT where its neighbour tests an immediate bit): whatever the last mode left there"
+source = "game/field/battle_return.c, how_the_game_goes_on $C0:0283"
+
+[[var]]
+name = "battle_start_tile_maps"
+addr = "7E:2C56"
+count = 4
+index = "layer (BG1-BG4)"
+subsystem = "battle"
+meaning = "Each layer's tile map setting (its place in VRAM's high byte with its size bits) as the battle starts: the field's three, BG4 none ($C0:066D)"
+source = "game/field/battle_start.c, hand_over_the_screen $C0:066D"
+
+[[var]]
+name = "battle_start_scroll"
+addr = "7E:2C5A"
+count = 3
+stride = 4
+index = "layer (BG1-BG3)"
+subsystem = "battle"
+meaning = "The layers' scroll as the battle starts: the field's ($C0:066D)"
+source = "game/field/battle_start.c, hand_over_the_screen $C0:066D"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Horizontal"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Vertical"
+
+[[var]]
+name = "battle_start_screens"
+addr = "7E:2C66"
+stride = 10
+subsystem = "battle"
+meaning = "The screens' settings as the battle starts, the field's ($C0:066D): in the registers' order, then the BG mode and the mosaic"
+source = "game/field/battle_start.c, hand_over_the_screen $C0:066D"
+  [[var.field]]
+  name = "main"
+  offset = 0
+  meaning = "The main screen's layers"
+  [[var.field]]
+  name = "sub"
+  offset = 1
+  meaning = "The sub screen's layers"
+  [[var.field]]
+  name = "main_window_mask"
+  offset = 2
+  meaning = "The layers the windows mask on the main screen"
+  [[var.field]]
+  name = "sub_window_mask"
+  offset = 3
+  meaning = "... and on the sub screen"
+  [[var.field]]
+  name = "math_control"
+  offset = 4
+  meaning = "Color math's control (VidColorMath, VID_MATH_CONTROL)"
+  [[var.field]]
+  name = "math_layers"
+  offset = 5
+  meaning = "The layers color math works on (VID_MATH_LAYERS)"
+  [[var.field]]
+  name = "fixed_color"
+  offset = 6
+  meaning = "The tint, as the field keeps it (field_fixed_color)"
+  [[var.field]]
+  name = "unused"
+  offset = 7
+  meaning = "Cleared with the rest; nothing reads it"
+  [[var.field]]
+  name = "mode"
+  offset = 8
+  meaning = "The BG mode's byte"
+  [[var.field]]
+  name = "mosaic"
+  offset = 9
+  meaning = "The mosaic's byte"
+
+[[var]]
 name = "field_battle_enemy_objects"
 addr = "7E:01A3"
 page = "field"
@@ -16131,7 +16254,7 @@ page = "field"
 size = 2
 subsystem = "field"
 meaning = "The place in its table of the last sprite record an event command loaded (its number times the record's size, events $81-$83): only that command reads it back"
-source = "game/field/cast.c, leave_record_place (scaffolding)"
+source = "game/field/cast.c, leave_record_read (scaffolding)"
 
 [[var]]
 name = "field_shared_graphics"
@@ -16140,7 +16263,7 @@ count = 16
 index = "shared graphics entry"
 subsystem = "field"
 meaning = "The graphics sets the map's people, creatures and enemies have unpacked into bank $7F (events $82, $83), $FF for an unused entry, as the map's setup leaves them ($C0:5929): an object of a set already there shares it rather than unpacking it again ($C0:5C90)"
-source = "game/field/cast.c, graphics_already_unpacked"
+source = "game/field/cast.c, share_graphics ($C0:5C90)"
 
 [[var]]
 name = "field_shared_graphics_object"
@@ -16149,7 +16272,7 @@ count = 16
 index = "shared graphics entry"
 subsystem = "field"
 meaning = "The object that unpacked each of field_shared_graphics' sets, a link: one that shares the set takes that object's graphics"
-source = "game/field/cast.c, graphics_already_unpacked"
+source = "game/field/cast.c, share_graphics ($C0:5C90)"
 
 [[var]]
 name = "field_map_has_no_bg3_set"

@@ -11,6 +11,7 @@
 #include "battle/screen.h"
 #include "battle/setup.h"
 #include "battle/sound.h"
+#include "core/console.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "core/memory.h"
@@ -26,7 +27,9 @@
 #include "field/field.h"
 #include "field/frames.h"
 #include "field/battle_return.h"
+#include "field/battle_start.h"
 #include "field/palettes.h"
+#include "field/main_loop.h"
 #include "field/menus.h"
 #include "field/start.h"
 #include "field/requests.h"
@@ -1357,8 +1360,19 @@ const NativeEntry game_natives[] = {
       .guard = input_map_buttons_runs, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS | DC_DB | DC_D },
     { .addr = 0xC00B4E, .name = "display_blank_and_stop_interrupts", .fn = display_blank_and_stop_interrupts,
       NEEDS_M8, .cost_milli = 5750, .dont_care = DC_X | DC_N | DC_Z | DC_C | DC_AL },
-    { .addr = 0xFDC036, .name = "display_init_registers", .fn = display_init_registers, NEEDS_M8_X16,
-      .cost_milli = 3694 },
+    /* the console: the reset (from power-on in emulation mode, and from the
+     * game's own resets in native mode), the boot, and the interrupts' vectors
+     * and stubs, which any width of the registers may reach */
+    { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .emulation = true, .cost_milli = 1000 },
+    { .addr = 0x00FF00, .name = "console_reset", .fn = console_reset, .cost_milli = 1000 },
+    { .addr = 0xC0FF00, .name = "console_reset", .fn = console_reset, .cost_milli = 1000 },
+    { .addr = 0xFDC000, .name = "console_boot", .fn = console_boot, .cost_milli = 3694 },
+    { .addr = 0x00FF10, .name = "console_vblank_vector", .fn = console_vblank_vector, .cost_milli = 1000 },
+    { .addr = 0x00FF14, .name = "console_line_vector", .fn = console_line_vector, .cost_milli = 1000 },
+    { .addr = 0x000500, .name = "console_vblank_stub", .fn = console_vblank_stub, .cost_milli = 1000,
+      .guard = console_vblank_stub_is_set },
+    { .addr = 0x000504, .name = "console_line_stub", .fn = console_line_stub, .cost_milli = 1000,
+      .guard = console_line_stub_is_set },
     { .addr = 0xFDE275, .name = "palette_clear_animations", .fn = palette_clear_animations,
       NEEDS_M8_X16, .cost_milli = 14150, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C | DC_AL },
     { .addr = 0xFDE292, .name = "palette_load_animations", .fn = palette_load_animations,
@@ -1946,6 +1960,44 @@ const NativeEntry game_natives[] = {
       .cost_milli = 6200, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_battle_return_can_run },
     { .addr = 0xC00B86, .name = "field_start", .fn = field_start, NEEDS_M8_X16, .cost_milli = 2784,
       .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_low_bank },
+    /* the field's start, its frame and a location's loading (field/main_loop.c, field/location.c) */
+    { .addr = 0xC0000E, .name = "field_first_start", .fn = field_first_start, NEEDS_M8_X16, .cost_milli = 3000 },
+    { .addr = 0xC00000, .name = "field_enter", .fn = field_enter, NEEDS_M8_X16, .cost_milli = 3000,
+      .guard = field_location_is_a_number },
+    { .addr = 0xC0005D, .name = "field_enter", .fn = field_enter, NEEDS_M8_X16, .cost_milli = 3000,
+      .guard = field_location_is_a_number },
+    { .addr = 0xC00097, .name = "field_frame", .fn = field_frame, NEEDS_M8_X16, .cost_milli = 3000,
+      .guard = field_on_page_bank_zero },
+    { .addr = 0xC000BF, .name = "field_frame_work", .fn = field_frame_work, NEEDS_M8_X16, .cost_milli = 3000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC000DE, .name = "field_refresh_effects", .fn = field_refresh_effects, NEEDS_M8_X16, .cost_milli = 3000,
+      .dont_care = DC_A | DC_N | DC_Z, .guard = field_on_page_bank_zero },
+    { .addr = 0xC000EB, .name = "field_walk_a_frame", .fn = field_walk_a_frame, NEEDS_M8_X16, .cost_milli = 3000,
+      .guard = field_on_page_bank_zero },
+    { .addr = 0xC0EC60, .name = "field_finish_frame", .fn = field_finish_frame, .cost_milli = 3000,
+      .guard = field_bank_low_ram },
+    { .addr = 0xC000F4, .name = "field_load_location", .fn = field_load_location, NEEDS_M8_X16, .cost_milli = 3000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC0011B, .name = "field_put_aside_for_a_menu", .fn = field_put_aside_for_a_menu, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_Y | DC_N | DC_Z, .guard = field_party_can_be_put_aside },
+    { .addr = 0xC001A5, .name = "field_set_up_after_a_menu", .fn = field_set_up_after_a_menu, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_can_be_set_up_again },
+    { .addr = 0xC01B53, .name = "field_start_location_song", .fn = field_start_location_song, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC00960, .name = "field_load_tile_graphics", .fn = field_load_tile_graphics, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC06DCF, .name = "field_load_bg3_graphics", .fn = field_load_bg3_graphics, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC009DD, .name = "field_load_tile_looks", .fn = field_load_tile_looks, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
+    { .addr = 0xC0024C, .name = "field_battle_begins", .fn = field_battle_begins, NEEDS_M8_X16, .cost_milli = 3000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = field_battle_can_begin },
+    { .addr = 0xC00283, .name = "field_after_battle", .fn = field_after_battle, NEEDS_M8_X16, .cost_milli = 3000,
+      .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_can_take_up_after_battle },
+    { .addr = 0xC072B4, .name = "field_take_enemy_palette_slot", .fn = field_take_enemy_palette_slot, NEEDS_M8_X8,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_Z, .guard = field_enemy_palette_slot_can_be_taken },
+    { .addr = 0xC00A14, .name = "field_load_bg3_tile_looks", .fn = field_load_bg3_tile_looks, NEEDS_M8_X16,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC018D9, .name = "field_pause_and_menus", .fn = field_pause_and_menus, NEEDS_M8_X16, .cost_milli = 2971,
       .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C, .guard = field_on_page_bank_zero },
     { .addr = 0xC01985, .name = "field_press_start", .fn = field_press_start, NEEDS_M8_X16, .cost_milli = 4126,

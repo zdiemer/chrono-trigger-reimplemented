@@ -267,6 +267,11 @@ static inline VidMode vid_mode_decode(uint8_t v)
 {
     return (VidMode){ .mode = v & 7, .bg3_priority = (v & 8) != 0, .large_tiles = (uint8_t)(v >> 4) };
 }
+/* ... and the byte a game keeps for one, for a shadow it hands on. */
+static inline uint8_t vid_mode_encode(const VidMode *m)
+{
+    return (uint8_t)((m->mode & 7) | (m->bg3_priority ? 8 : 0) | (m->large_tiles << 4));
+}
 
 static inline VidObjConfig vid_obj_config_decode(uint8_t v)
 {

@@ -771,6 +771,12 @@ void set_event_script_byte(GameState *g, unsigned at, uint8_t v);
 
 /* ---- field --------------------------------------------------------------------------------- */
 
+/* The byte the field's return from a battle the party was sent back from tests the event's
+ * battle flags against ($C0:02D1, an absolute BIT where its neighbour tests an immediate bit):
+ * whatever the last mode left there */
+uint8_t field_after_battle_test_byte(const GameState *g);
+void set_field_after_battle_test_byte(GameState *g, uint8_t v);
+
 /* Negative: the field line interrupt does nothing */
 uint8_t field_irq_disabled(const GameState *g);
 void set_field_irq_disabled(GameState *g, uint8_t v);
@@ -1142,6 +1148,13 @@ enum { FIELD_PARTY_OBJECTS_HIGH_COUNT = 3 };   /* by party member * 2 */
 uint8_t field_party_objects_high(const GameState *g, unsigned member);
 void set_field_party_objects_high(GameState *g, unsigned member, uint8_t v);
 
+enum { FIELD_BATTLE_ENEMIES_COUNT = 13 };   /* by found, then the none link after the last */
+/* The enemies a battle on the field finds on the screen ($C0:0617), last object first, at most
+ * twelve and a none link after them; the battle's start takes the first six, writing its own
+ * list over the rest */
+uint8_t field_battle_enemies(const GameState *g, unsigned i);
+void set_field_battle_enemies(GameState *g, unsigned i, uint8_t v);
+
 enum { FIELD_BATTLE_ENEMY_OBJECTS_COUNT = 8 };   /* by enemy record (battle_enemy_placement) */
 /* The field object each of the battle's enemies is, which the battle's start keeps ($C0:0557)
  * and its end puts back ($C0:076B); negative for none */
@@ -1227,6 +1240,11 @@ void set_field_frame_entry_address(GameState *g, uint16_t v);
 /* The frame tables' bank */
 uint8_t field_frame_entry_bank(const GameState *g);
 void set_field_frame_entry_bank(GameState *g, uint8_t v);
+
+/* Where the loading of a tile set's graphics read the set's list of blocks (location_records'
+ * tile set, $F6:1C00 + 8 a set), left at its last block; nothing reads it after */
+uint32_t field_tile_set_list_place(const GameState *g);
+void set_field_tile_set_list_place(GameState *g, uint32_t v);
 
 enum { FIELD_SPRITE_RANGE_NEXT_COUNT = 3 };   /* by sprite range (0 priority bits clear, 1 bit 2 set, 2 bit 3 set) */
 /* Next free OAM entry of each sprite range while the sprite table is built (the cells are
@@ -2216,7 +2234,9 @@ void set_field_tile_upper_attributes(GameState *g, unsigned row, unsigned column
  * byte by row and column] Unchecked, for marked scaffolding only: an object that follows the map
  * put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from the
  * bytes past the attribute tables' rows (game/field/layers.c, map_tile_attributes_past_the_map;
- * 20 real calls over the movie library) */
+ * 20 real calls over the movie library); a battle's ground copied from a screen at the map's
+ * right or bottom edge runs on into the next table or past the last row
+ * (game/field/battle_start.c, keep_the_ground $C0:039B) */
 uint8_t field_tile_upper_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_upper_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
@@ -2231,7 +2251,9 @@ void set_field_tile_lower_attributes(GameState *g, unsigned row, unsigned column
  * [a byte by row and column] Unchecked, for marked scaffolding only: an object that follows the
  * map put on a tile off it (column 64, or (255, 255) to take it out of the way) is layered from
  * the bytes past the attribute tables' rows (game/field/layers.c,
- * map_tile_attributes_past_the_map; 20 real calls over the movie library) */
+ * map_tile_attributes_past_the_map; 20 real calls over the movie library); a battle's ground
+ * copied from a screen at the map's right or bottom edge runs on into the next table or past the
+ * last row (game/field/battle_start.c, keep_the_ground $C0:039B) */
 uint8_t field_tile_lower_attributes_unchecked(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_lower_attributes_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
@@ -2472,6 +2494,17 @@ enum { FIELD_KEPT_TRAIL_POSITIONS_COUNT = 3 };   /* by party place */
  * open */
 uint8_t field_kept_trail_positions(const GameState *g, unsigned i);
 void set_field_kept_trail_positions(GameState *g, unsigned i, uint8_t v);
+
+enum { FIELD_KEPT_PARTY_SCRIPT_TILES_COUNT = 4 };   /* by the formation's three scripts, then the push script's */
+/* The tiles the party's scripts were told to walk to (their column in the low byte, their row in
+ * the high), kept while a menu is open: the script's unpacking after it writes over them */
+uint16_t field_kept_party_script_tiles(const GameState *g, unsigned i);
+void set_field_kept_party_script_tiles(GameState *g, unsigned i, uint16_t v);
+
+/* BG3's wave (field_line_wave_bg3's low byte, which the line effects' builders test), kept while
+ * a menu is open */
+uint8_t field_kept_bg3_wave(const GameState *g);
+void set_field_kept_bg3_wave(GameState *g, uint8_t v);
 
 enum { FIELD_LINE_WAVE_COUNT = 64 };   /* by table set * 32 + line (the second 16 of each set repeat the first) */
 /* Horizontal */
@@ -5520,6 +5553,51 @@ enum { BATTLE_LOCATION_LOWER_ATTRIBUTES_COUNT = 256 };   /* by battlefield cell 
  * battle starts ($C0:039B): bit 7 (the tile blocks a move) makes the grid's cell blocked */
 uint8_t battle_location_lower_attributes(const GameState *g, unsigned i);
 void set_battle_location_lower_attributes(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_START_TILE_MAPS_COUNT = 4 };   /* by layer (BG1-BG4) */
+/* Each layer's tile map setting (its place in VRAM's high byte with its size bits) as the battle
+ * starts: the field's three, BG4 none ($C0:066D) */
+uint8_t battle_start_tile_maps(const GameState *g, unsigned layer);
+void set_battle_start_tile_maps(GameState *g, unsigned layer, uint8_t v);
+
+enum { BATTLE_START_SCROLL_COUNT = 3 };   /* by layer (BG1-BG3) */
+/* Horizontal */
+uint16_t battle_start_scroll_x(const GameState *g, unsigned layer);
+void set_battle_start_scroll_x(GameState *g, unsigned layer, uint16_t v);
+/* Vertical */
+uint16_t battle_start_scroll_y(const GameState *g, unsigned layer);
+void set_battle_start_scroll_y(GameState *g, unsigned layer, uint16_t v);
+
+/* The main screen's layers */
+uint8_t battle_start_screens_main(const GameState *g);
+void set_battle_start_screens_main(GameState *g, uint8_t v);
+/* The sub screen's layers */
+uint8_t battle_start_screens_sub(const GameState *g);
+void set_battle_start_screens_sub(GameState *g, uint8_t v);
+/* The layers the windows mask on the main screen */
+uint8_t battle_start_screens_main_window_mask(const GameState *g);
+void set_battle_start_screens_main_window_mask(GameState *g, uint8_t v);
+/* ... and on the sub screen */
+uint8_t battle_start_screens_sub_window_mask(const GameState *g);
+void set_battle_start_screens_sub_window_mask(GameState *g, uint8_t v);
+/* Color math's control (VidColorMath, VID_MATH_CONTROL) */
+uint8_t battle_start_screens_math_control(const GameState *g);
+void set_battle_start_screens_math_control(GameState *g, uint8_t v);
+/* The layers color math works on (VID_MATH_LAYERS) */
+uint8_t battle_start_screens_math_layers(const GameState *g);
+void set_battle_start_screens_math_layers(GameState *g, uint8_t v);
+/* The tint, as the field keeps it (field_fixed_color) */
+uint8_t battle_start_screens_fixed_color(const GameState *g);
+void set_battle_start_screens_fixed_color(GameState *g, uint8_t v);
+/* Cleared with the rest; nothing reads it */
+uint8_t battle_start_screens_unused(const GameState *g);
+void set_battle_start_screens_unused(GameState *g, uint8_t v);
+/* The BG mode's byte */
+uint8_t battle_start_screens_mode(const GameState *g);
+void set_battle_start_screens_mode(GameState *g, uint8_t v);
+/* The mosaic's byte */
+uint8_t battle_start_screens_mosaic(const GameState *g);
+void set_battle_start_screens_mosaic(GameState *g, uint8_t v);
 
 enum { BATTLE_BG_SCROLL_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Horizontal scroll */

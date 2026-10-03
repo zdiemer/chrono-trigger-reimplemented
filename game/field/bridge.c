@@ -53,6 +53,16 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return returned && bridge_back(s, returns_to, m);
 }
 
+bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *))
+{
+    m_jump_to(s, routine);
+    const NativeEntry *e = native_hand_entry(s);
+    if (!e || e->fn != entry)
+        return false;
+    NATIVE_TIME_AS(s, routine, entry(s));
+    return true;
+}
+
 bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m)
 {
     return run_entry(s, site, routine, dont_care, entry, m, false);
@@ -84,6 +94,12 @@ bool field_run_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
         return false;
     s->cpu.d = m_pull16(s);
     return true;
+}
+
+/* No sibling at the routine: field_run_on_page's call made on the machine. */
+bool bridge_call_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint16_t page)
+{
+    return field_run_on_page(s, site, routine, dont_care, NULL, page);
 }
 
 unsigned field_current_object_slot(Snes *s)

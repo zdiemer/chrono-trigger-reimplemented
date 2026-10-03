@@ -1705,6 +1705,86 @@ library. `field_move_screen_effect_on` carries `field_rasterize_quad`'s three
 exceptions: the searchlight's shape is timed as that routine and is off by
 what it is off by.
 
+## Phase 3, field and events: who the objects are, their colours, and the party's belongings
+
+The fifteenth chunk of bank `$C0`: the event language's last commands, so
+every opcode a script uses now has a row (the ROM's handler table is only the
+fallback for a state a row's needs turn away), and the chest's gift as C.
+
+**How it was chosen.** The plan named the commands at `$C0:4186` (the
+characters' objects) and `$C0:3711` (items, gold and the party). By concept
+that is everything the language had left: an object's casting -- `$57`-`$6D`
+and `$80` (a playable character, in its party place or set aside), `$81` (one
+apart from the party), `$82` (one of the people and creatures), `$83` (an
+enemy), with the shared-graphics search `$C0:5C90` -- its colours (`$33`, a
+palette slot of its own; `$88` and `$2E`, effects on its colours and the
+screen's), the inventory and gold (`$C7`, `$C9`-`$CE`), the menu a script
+opens (`$C8`), and the party's record (`$CF`-`$D4`, `$D7`). About 3.2 KiB,
+short of the plan's 8-12 like chunk 14: what `$C0` has left besides is the
+field's setups and its keeping (`$C0:0000`, `$01A5`, `$038F`, `$011B`, the
+fade in `$2824`), another concept.
+
+**What it is.** `field/cast.c` casts an object: its role and character
+(`field/object.h` gained the operations: a member in a place, set aside, one of
+the other kinds, the enemies' two), a sprite record put on it (MD2's
+`field_sprite_records` and `battle_sprite_records`, `field_data.h`: graphics
+set, assembly, palette, animations, layout, through the four tables
+`field_sprite_data_tables` points at), its graphics -- a character's from the
+ROM, the others' unpacked into bank `$7F` after the sets already there or
+shared with an object that has the same set -- and its block of sprite tiles
+in VRAM (`field_sprite_block_owner`). A party member stands where the
+location says, or on the leader; a member put on the map right after a
+character joins shows its first frame at once (`field_character_joining`,
+the meaning `field_animation_queue_front` had half of). `event/characters.c`
+has the rows: `$57`-`$81` operations, `$82`/`$83` bridges whose unpacking
+(`$C3:0002`, a machine-shaped port) is a call-out between their halves of C.
+`event/colours.c`: `$33` (`field/palettes.c`, `object_take_palette_slot`),
+and `$88`/`$2E` decoded into a `ColourEffect` record by their form: a
+rotation stopped (the object's colours loaded again) or started, a fade, or
+colours of the script's written over the palette; with the first eight
+animation slots busy the effect is dropped and the object's turn ends there
+(`end_turn_after`, a flow the language didn't have). `event/items.c`: the
+inventory's and the gold's commands call `battle/inventory.c` as C, timed as
+its routines; `$C8` asks the main loop for a menu and waits. `event/party.c`:
+the party's record is the menus' (nine places, the active three and the
+reserve), so `$CF`-`$D4` and `$D7` are bridges to `$C2:8004`, now named by
+what each routine does (read from `$C2:8C75`-`$C2:8E1E`): whether a character
+is active or recruited, bring one in, send one to the reserve, recruit,
+dismiss, count an item. Bringing one in makes its object the next member's;
+sending one away has the members behind close up, roles, places and palettes
+(slots 5-7), with the original's two quirks kept (an empty first place closes
+up whatever it held; a second member sent away is only marked out). The
+chest's gift (`event/contact.c`) gives the item or the gold as C now, and its
+guard leaves an item past 255 to the original.
+
+**Third trap, settled first.** The call-outs kept are the unpacker (it saves
+and restores every register: `DC_A | DC_X | DC_N | DC_Z | DC_C`, Y passed
+through to the engine, which leaves it to the menus' dispatcher) and the
+menus' routines, which the existing bridges already called. Shadow mode found
+one register those read that liveness can't drop: `$D4`'s carry at the call,
+which the dispatcher's `PLP` hands back as whether the object's turn goes on.
+It is the carry of the last character comparison the original makes, worked
+out as `$D6`'s already was (`goes_on_after_sending`), not threaded.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every compared call
+matches: the engine's turns and openings with the new rows inline, and the
+entries the original's own loops reach (the casts 81-657 calls each, the
+colours 89-640, the menu 131, the record's 1-213, the chest 190,882). Shadow
+mode found the enemy's Y (the original works the block out with 8-bit index
+registers, which clear Y's high byte) and `$D4`'s carry. Fuzzing (seeds 1 and
+2, 20,000 states each, `tools/fuzz_routines.toml`) found the leader read
+through a word whose high byte the game keeps clear (now the guard's) and the
+enemy's scratch cell's high byte; every entry is then 0 mismatched on both
+seeds but the loose casts, `$82` 1 and 2 of ~8,600 and `$83` 8 and 8 of
+~6,700: random unpacking places that carry a set past bank `$7F`'s end into
+low RAM, where the original reads its cells again (an accepted divergence,
+written at `event_cmd_cast_enemy`; with the place in the bank's upper half the
+loose `$83` is 0 of 6,792). `$C7` and `$CB`, `$CD`, `$D7` no movie reaches.
+`$C0` stands at 49.6 KiB ported, 16% left.
+
+**The timing gate.** The new rows were calibrated over the library, with the
+engine's two entries (whose turns now run the rows inline); no exception.
+
 ## Phase 3, battle chunk 2: an effect worked out (`$C1:D132`-`$C1:F1EF`)
 
 An enemy's turn is C to its end now, but for the original's code it calls out
