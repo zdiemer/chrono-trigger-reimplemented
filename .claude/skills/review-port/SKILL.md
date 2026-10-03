@@ -859,6 +859,13 @@ Each of these is a finding. Every example here comes from this repo.
      aliasing whatever lies there without a `reuses`, and the accessor's
      range check can't catch them. Declare the table where it starts and
      index it by what the game counts.
+118. **A service result in the hardware's layout.** A call added to a
+     portable service (`runtime/platform/*.h`) whose result keeps the SNES
+     register's bits (`tm_picture_status`: `$213E` low, `$213F` high, bit 15
+     the field) so a wrapper can rebuild A. The service answers the game's
+     question (`tm_odd_frame`); what the original's register held is
+     scaffolding the SNES backend hands the wrapper, never part of the
+     portable interface.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
