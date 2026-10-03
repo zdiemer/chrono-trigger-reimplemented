@@ -19,6 +19,10 @@ enum { MENU_MEMBER_ROWS = 3 };
  * loaded, for a place past the last member. */
 bool menu_load_member(GameState *g, uint8_t member);
 
+/* The same for a character, whether or not it is a member: false, with
+ * nothing loaded, for a byte with its top bit set (no character). */
+bool menu_load_character(GameState *g, uint8_t character);
+
 /* The member the list's cursor is on: its row plus how far the list has
  * scrolled. */
 uint8_t menu_member_on_the_cursor(const GameState *g);

@@ -3286,91 +3286,74 @@ With the turn's callees timed as their own routines, the timers' dispatch (a
 whole turn) attributes its time to more than the 32 routines a stretch held,
 so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
 
-### Phase 3, menus: the items screen and the equipment screen's windows (`$C2:A2CD`-`$C2:B352`)
+### Phase 3, menus: the techs screen (`$C2:B35D`-`$C2:BF2E`)
 
-The rest of the equipment screen, which its steps called out to (`$C2:A2CD`-
-`$C2:AA3F`: the slots window and the list window, each sliding in and out),
-and the items screen beside it in the bank (`$C2:AA40`-`$C2:B352`, the menus'
-screen 2, with the main menu's panel for it): 3.9 KiB, the two screens that
-show the party's items. `$C2` went from 24.2 KiB ported (59% left, 261
-entries) to 28.1 KiB (53%, 300 entries). The plan's `$C2:B520` is the techs
-screen's, the next run along; it shares the member window and the list's
-slide written here, so it is the next chunk, taken whole.
+The menus' screen 3, the run the burndown had largest left in the bank
+(`$C2:B520`), taken whole with the main menu's panel for it: 2.8 KiB, and the
+pointing among the members a healing is used on (`$C2:B83E`, `$C2:B870`), which
+the items screen's tonics shared as a call-out. `$C2` went from 28.1 KiB ported
+(53% left, 300 entries) to 30.9 KiB (48%, 326 entries).
 
-**What it is.** `menu/item_screen.c` is the screen as the game sees it: the
-commands over the list (the list, the sort), the list with an item picked up
-and put down elsewhere (a second cursor holds its row), the sort (the party's
-items gathered, used-up places dropped, the categories in order with what the
-party keeps rather than uses after the rest), who can equip a weapon or
-armour (the names of those who have joined, its attack or defence), and an
-item used from the menu: what it does looked up in its figures (a tonic, one
-by chance, the party's rest, a tab), the member window it is used on, a tab's
-figure raised in the record, one more taken from the party's items each use.
-`menu/item_screen_bridge.c` runs the steps on the machine, the restoring of
-HP and MP (`$C2:8F55`), the cursor among the members a tonic is used on
-(`$C2:B83E`, the techs screen's too), the description (`$C2:F2F3`), the
-lists' frame, paging and slide, and the second cursor's and the scroll bar's
-tasks still the original's. `menu/equipment_windows.c` is the two windows:
-what a member has on (the card's too, which no longer calls out for it), the
-slot taken and the slots' marks, the slots window sliding in with the member
-rows moving aside (and back), the list window sliding in and out, the list of
-what fits laid out and drawn; their slides keep their state in a
-`MenuWindowSlide` or `MenuListSlide` the bridge holds between the frames it
-waits, and stage the band table a frame at a time. `menu/lists.c` holds what
-the two screens' lists share: whether a list scrolls, the way it slid, and
-its rows moved in their buffer once it has (the equipment's `$C2:9FDE` now
-one call of it). `menu/cursor.h` names the frame's buttons and pushes once
-(`MenuButton`, `MenuPush`, `menu_asked`, `menu_pushed`), which the two screens'
-three private copies became.
+**What it is.** `menu/techs.c` is the techs as the menus list them: a
+member's techs of a kind (each tech group the member is one of, in the groups'
+order, and each group's techs the party has learned), what one costs the
+member (its part's cost, which two accessories halve or quarter), whether it
+heals and what it restores, and a tech's row in a list in the colours of one
+usable here or still being learned. `menu/tech_screen.c` is the screen as the
+game sees it: the member rows down the left (and their slide past the ends,
+the view moved four lines a frame through the screen's offset-per-tile
+table), the kinds' tabs, the list of eight rows with its slide and paging, the
+tech on the cursor with its other members' rows and their costs, the
+description, a healing tech used on the window of active members (the user's
+casting pose, the cost taken from its MP), and the panel. `tech_screen_bridge.c`
+runs it on the machine: the scroll bars' frames and task, the cursor's moves
+within a list, the paging, the list's slide frames, the description's
+setting, the stopping of tasks, the restoring and the cursors on every member
+stay the original's. The rows' drawing reuses the shared vocabulary
+(`menu_draw_windows` and `menu_queue_fixed_upload`, now in `windows.h` and
+`vram.h` for every screen; `menu_load_character` beside `menu_load_member`).
 
-**The flags, settled first.** Every call-out was checked against the strict
-solve before the logic: all of them read nothing but memory, Y (the list's
-frame) or A (the description, the tasks' stop, the members' pointing, whose
-sound reads A's high byte). What liveness can't declare is again the P a
-routine saves as it starts, compared under its own calls out: the screens'
-ticks, and here every routine a step reaches with a JSR that calls out
-itself. Those are entries of their own run through `menu_run` (the
-description of the cursor's item `$C2:AD2E` and its caller `$C2:AC59`, the
-use of an item `$C2:B0AB` and its four handlers, the member window `$C2:AF42`,
-a tab's member `$C2:B24A`/`$C2:B275`, a tab's raise `$C2:B2A7`, one more used
-`$C2:B31C`, the windows' slides), so the original's frames stand under their
-calls; before each, one leaves helper per decision (`leave_use_found`,
-`leave_member_choice_started`, `leave_slide_frames`, ...) sets what the
-original's last test left. The equipment screen's preview of an item's
-figures (`$C2:A5C3`) would need its P after the list's move returns, which
-that port's paths don't work out, so it stays the original's (TODO.md).
+**The flags, settled first.** Every call-out the chunk keeps was checked
+before the logic: they read memory, Y (the lists' frames) or A (the stopping
+of tasks, the wait for frames); the one register a port reads back from one
+(`$C2:EA53`'s N, a push past a list's edge) is worked out from the state. What
+needed care is the P each routine saves as it starts, compared under its
+calls out, and the flags a call-out declared don't-care carries through
+unchanged where its callee saves and restores them (`$C2:8255`, `$C2:8AD5`,
+`$C2:F643`): the bridge leaves the original's flags before each (the leaves at
+the end of `tech_screen_bridge.c`), with the shifts in the healing's targets
+(the carry clear), the kind's switch (the carry of the compare before it goes
+round) and the rows' copies (the accumulator's high byte, `$34` down the list
+and `$FF` up it) the ones shadow mode and fuzzing found.
 
-**What shadow mode and fuzzing found.** Over the 26 movies every call
-matches, none refused (each entry's counts are its ports.tsv row): the
-commands' step 336 calls, the list's 417, an item picked up 190, the cursor's
-item described 599 (inside those steps), a slot taken 462 and the slots'
-marks 468, a row of what fits 272, what a member has on 225. The library opens the
-items screen twice (`menu` and `menus-field-menu`), sorts once, picks up,
-swaps and uses a tonic, and goes through the equipment screen's windows
-eight times; it never slides the list of items, shows who can equip an item,
-or uses a tab, an item by chance or the party's rest. Fuzzed from two states
-of `menus-field-menu` (the `items` state, frame 5150, and the `equipment`
-state), seed 1, 2,000 states each, the menus' tables (`$7E:7700`-`$7FFF`) kept
-with low RAM and the tilemaps, every routine up to its first wait for a
-frame. The first runs found: the slide's end leaving a 16-bit accumulator and
-the step's both bytes clear (the rows' move returns 16-bit); the list
-window's slide filling 28 words of the rows' table, not 27; the original's
-16-bit count of the scroll bar's hold and the cursor's hiding taken down
-together as the slots window closes; the carry an item's use leaves its
-handlers (the bit search's, not the handler's own) and the overflow a tonic's
-strength test leaves; the drawing entries needing 16-bit index registers.
-Random item tables made the original's strings run anywhere, which the kept
-tables answer; the equipment screen's own entries now keep them too, and
-their counts are unchanged against main's (`tools/fuzz_compare.py --before`:
-0 of 326 routines differ).
+**What shadow mode and fuzzing found.** Two movies reach the screen (`menu`
+and `menus-field-menu`): every call matches, none refused (each entry's counts
+are its ports.tsv row), among them 403 frames among the members, 390 on the
+list, 222 in the window a tech is used from and 430 pointings at a member to
+restore. The library never slides the member list or the tech list. Fuzzed
+from four states of `menus-field-menu` (on the members, on the list, in the
+window, on the triple techs), seed 1, 2,000 states each, the menus' tables
+(`$7E:7700`-`$7FFF`) kept with low RAM and the tilemaps, every entry up to its
+first wait for a frame: 0 mismatching. The first runs found the double and
+triple techs' cost read and kept a word wide (the next part's cost lands in
+the byte after, now `menu_tech_cost_beside`), the list's slide copying with
+the copy's direction swapped, and entries the fuzzer entered with 8-bit index
+registers where the game never does. The parts table is declared from
+`$7E:1607` so a tech's index into it needs no subtraction; a stale list as the
+screen opens can't read past it. Changing the items screen's call-out into a
+`menu_run` of the shared pointing, and its two member-window loops into one,
+left its fuzz counts unchanged against main's (`tools/fuzz_compare.py
+--before`).
 
-**Timing.** The new entries were calibrated over the library (the menus'
-rows only); the drawings charge their text at their own rates rather than
-the text drawer's, which their few long strings fit better, and the
-equipment screen's rows' move charges a block move for its copy. One
-exception: the item list's ten rows (`menu_draw_item_rows`), whose time
-follows which rows are empty, on the panel's five calls in vblank
-(`tools/timing_exceptions.txt`).
+**Timing.** The rows' drawing is charged at registered entries of its own
+(`menu_show_member_tech_list` `$C2:BC6F`, `menu_draw_tech_rows` `$C2:BD6B`,
+`menu_show_pointed_tech` `$C2:BB1F`, `menu_draw_tech_member_row` `$C2:BA2F`,
+0.2% error), which took the members' step's worst vblank error from 48518
+clocks to 10470. Two exceptions remain (`tools/timing_exceptions.txt`): the
+pointed tech's rows (`menu_show_pointed_tech`, and `menu_choose_tech`, which
+carries it), whose empty rows inherit the window lists' strings' spread (over
+by about 1600 clocks a row) while the triple techs' member rows fall under,
+holding the routine's own time at the floor.
 
 ### Phase 3, the scene program: the jet bike race running (`$7E:416D`-`$7E:5220`, `$7E:B574`)
 

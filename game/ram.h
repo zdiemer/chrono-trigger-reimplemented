@@ -342,6 +342,7 @@
 #define RAM_CHARACTER_RECORDS_MAX_HP 0x7E2605u /* Maximum HP */
 #define RAM_CHARACTER_RECORDS_MP 0x7E2607u   /* Current MP */
 #define RAM_CHARACTER_RECORDS_MAX_MP 0x7E2609u /* Maximum MP */
+#define RAM_CHARACTER_RECORDS_HP_CAP 0x7E263Fu /* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over the movie library); the battle's stat block has its element affinities here */
 /* How many of its single techs the character has learned, which are its first that many [7 x $1
  * bytes, by character] */
 #define RAM_PARTY_SINGLE_TECHS_KNOWN 0x7E2830u
@@ -2013,6 +2014,23 @@
 #define RAM_MENU_SCRATCH_SLOT_LABEL 0x7E0000u /* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's place in the table */
 #define RAM_MENU_SCRATCH_MARKED_SLOT 0x7E0000u /* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
 #define RAM_MENU_SCRATCH_SLOTS_MARKED 0x7E0002u /* The same: how many slots it has marked, 4 once done */
+#define RAM_MENU_SCRATCH_TECH_CHARACTER_BIT 0x7E0000u /* The techs screen's listing of a member's techs ($C2:BCCD): the member's bit among a group's members */
+#define RAM_MENU_SCRATCH_TECH_GROUPS_LEFT 0x7E0001u /* The same: the kind's groups it has still to look at, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_GROUP_AT 0x7E0000u /* The listing's walk through the member's groups ($C2:BD00): the place in their list it got to, the end's */
+#define RAM_MENU_SCRATCH_TECH_LEARNED_BITS 0x7E0001u /* The same: the last group's learned bits, shifted up past the techs it looked at */
+#define RAM_MENU_SCRATCH_TECH_GROUP_END 0x7E0002u /* The same: the first tech of the group after the last one walked, which ends it */
+#define RAM_MENU_SCRATCH_TECH_NEXT 0x7E0003u /* The same: the tech after the last it looked at */
+#define RAM_MENU_SCRATCH_TECH_RECORD_OFFSET 0x7E0000u /* A tech chosen from the techs screen ($C2:B3AE): its effect record's offset, the tech times twelve */
+#define RAM_MENU_SCRATCH_TECH_TAB_OFFSET 0x7E0000u /* The techs screen's kinds' tabs ($C2:B6AE): the kind doubled, on the way to the chosen tab's place */
+#define RAM_MENU_SCRATCH_TECH_LIST_PLACE 0x7E0000u /* The techs screen's list's rows ($C2:BD6B): the place of menu_tech_list it draws next, left past the last row's */
+#define RAM_MENU_SCRATCH_TECH_LIST_PLACE_HIGH 0x7E0001u /* The byte after it, which the rows' drawing counts with it as a word (a page turned clears it first) */
+#define RAM_MENU_SCRATCH_TECH_ROWS_LEFT 0x7E0002u /* The same: the rows it has still to draw, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_PARTNER_BITS 0x7E0000u /* The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members' bits, shifted out from the top, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_PARTNERS_COUNTED 0x7E0001u /* The same: how many characters' bits it looked at */
+#define RAM_MENU_SCRATCH_RESTORING_MEMBERS_LEFT 0x7E0000u /* The look at whether a restoring helps ($C2:B870): the members it has still to look at */
+#define RAM_MENU_SCRATCH_TECH_ROWS_FROM 0x7E0000u /* The techs screen's list slid up ($C2:B7CC): where the row it copies down next ends, left a row above the first */
+#define RAM_MENU_SCRATCH_TECH_ROWS_TO 0x7E0002u /* The same: where that row's copy ends */
+#define RAM_MENU_SCRATCH_TECH_ROWS_STILL 0x7E0004u /* The same: the rows it has still to copy, 0 once done */
 #define RAM_MENU_SCRATCH_USERS_BITS 0x7E0000u /* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted out from the top, 0 once done */
 #define RAM_MENU_SCRATCH_USERS_COUNTED 0x7E0001u /* The same: how many of the bits it looked at, the one past the last user */
 #define RAM_MENU_SCRATCH_PORTRAIT_ATTRIBUTE 0x7E0001u /* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
@@ -2033,6 +2051,13 @@
 #define RAM_MENU_SCRATCH_FRAME_BLOCKS_LEFT 0x7E0000u /* A record's frame ($C2:F75C): its blocks, counted down as they are queued when they are an odd number, which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_FRAME_TILES_END 0x7E0002u /* A record's frame: the end of its tile list, a word a tile (its blocks times 32) */
 #define RAM_MENU_SCRATCH_FRAME_MIRROR_BYTES 0x7E0006u /* A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0 */
+/* The characters of the tech on the techs screen's cursor: the member whose techs are listed
+ * first, then the tech group's others, $FF where it has none [3 x $1 bytes, by member of the
+ * tech] */
+#define RAM_MENU_TECH_MEMBERS 0x7E0016u
+#define RAM_MENU_TECH_MEMBERS_COUNT 3u
+#define RAM_MENU_TECH_MEMBERS_STRIDE 0x01u
+#define RAM_MENU_TECH_MEMBERS_DP 0x16u       /* page menu */
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
@@ -2041,6 +2066,10 @@
  * rows' per-line table each frame, moving by menu_scroll_step [2 bytes] */
 #define RAM_MENU_SLIDE_LINE 0x7E0022u
 #define RAM_MENU_SLIDE_LINE_DP 0x22u         /* page menu */
+/* The techs screen's member row being drawn, which places its sprite (3 and 4: the rows a slide
+ * brings in from above and from below); left past the last [2 bytes] */
+#define RAM_MENU_TECH_ROW_DRAWN 0x7E0022u
+#define RAM_MENU_TECH_ROW_DRAWN_DP 0x22u     /* page menu */
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes [2 bytes] */
 #define RAM_MENU_TIME_PLAYED_SHOWN 0x7E0022u
@@ -2060,6 +2089,14 @@
  * palette is 4 on from it) [2 bytes] */
 #define RAM_MENU_SAVE_MEMBER_ROW 0x7E0024u
 #define RAM_MENU_SAVE_MEMBER_ROW_DP 0x24u    /* page menu */
+/* How many member rows the techs screen draws (three, or fewer members), counted down as it
+ * draws the empty rows after them [2 bytes] */
+#define RAM_MENU_TECH_ROWS_TO_DRAW 0x7E0024u
+#define RAM_MENU_TECH_ROWS_TO_DRAW_DP 0x24u  /* page menu */
+/* The line the techs screen's member rows are shown from as their list slides, a step a frame [2
+ * bytes] */
+#define RAM_MENU_TECH_SLIDE_LINE 0x7E0024u
+#define RAM_MENU_TECH_SLIDE_LINE_DP 0x24u    /* page menu */
 /* How wide, in pixels, the era label the load screen shows is */
 #define RAM_MENU_SAVE_ERA_WIDTH 0x7E0026u
 #define RAM_MENU_SAVE_ERA_WIDTH_DP 0x26u     /* page menu */
@@ -2067,6 +2104,11 @@
  * low byte, the row in the high), out of sight below the list's place on the tilemap [2 bytes] */
 #define RAM_MENU_SLIDE_COPY 0x7E0026u
 #define RAM_MENU_SLIDE_COPY_DP 0x26u         /* page menu */
+/* Where the techs screen's member slide copies the rows out of view, as a window copy names a
+ * place: the column, then the row (the same with $06 in the row is where the slid rows are
+ * copied back from) [2 bytes] */
+#define RAM_MENU_TECH_SLIDE_COPY 0x7E0026u
+#define RAM_MENU_TECH_SLIDE_COPY_DP 0x26u    /* page menu */
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in [2 bytes] */
 #define RAM_MENU_ZERO 0x7E0051u
@@ -2178,10 +2220,18 @@
  * the cursor's sound when it points at another */
 #define RAM_MENU_MEMBER_POINTED 0x7E0083u
 #define RAM_MENU_MEMBER_POINTED_DP 0x83u     /* page menu */
+/* menu_tech_list_shown as the frame found it, which the techs screen compares with to tick the
+ * cursor's sound when the member or the kind changes */
+#define RAM_MENU_TECH_LIST_SHOWN_BEFORE 0x7E0083u
+#define RAM_MENU_TECH_LIST_SHOWN_BEFORE_DP 0x83u /* page menu */
 /* The slot and member (their sum) the equipment screen's list of what fits was drawn for last;
  * $FF has it drawn again */
 #define RAM_MENU_EQUIP_SHOWN 0x7E0084u
 #define RAM_MENU_EQUIP_SHOWN_DP 0x84u        /* page menu */
+/* Which list the techs screen's list was built for: the member (its place of menu_members) times
+ * 16 plus menu_tech_category; $FF has it built again */
+#define RAM_MENU_TECH_LIST_SHOWN 0x7E0084u
+#define RAM_MENU_TECH_LIST_SHOWN_DP 0x84u    /* page menu */
 /* How many of the party's members the menus' screens let the player choose among: the active
  * ones, or all of them once the story lets the party be switched ($FF:F813, which clears the
  * high byte) [2 bytes] */
@@ -2342,6 +2392,15 @@
 /* The first place of the party's items the items screen's list shows (0 to $E8), kept from one
  * opening to the next */
 #define RAM_MENU_ITEM_LIST_TOP 0x7E0416u
+/* The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple
+ * techs; kept from one opening to the next */
+#define RAM_MENU_TECH_CATEGORY 0x7E0418u
+/* The row of the techs screen's member list (0-2) its cursor was on, kept from one opening to
+ * the next */
+#define RAM_MENU_TECH_MEMBER_ROW 0x7E0419u
+/* The first member the techs screen's member list shows: how far it has slid along the reachable
+ * members */
+#define RAM_MENU_TECH_MEMBER_SCROLL 0x7E041Au
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 #define RAM_MENU_ITEM_OPERAND 0x7E04C9u
@@ -2452,6 +2511,9 @@
 #define RAM_MENU_RECORD_ORIGIN_X 0x7E0D2Eu
 /* Added to each $1800 record's Y position when its sprites are drawn */
 #define RAM_MENU_RECORD_ORIGIN_Y 0x7E0D30u
+/* The byte after menu_record_origin_y, which the techs screen's member slide moves with it as a
+ * word and clears with it; the sprites' drawing doesn't read it */
+#define RAM_MENU_RECORD_ORIGIN_Y_HIGH 0x7E0D31u
 /* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
  * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF [3 x $2 bytes, by
  * which] */
@@ -2627,11 +2689,22 @@
 #define RAM_MENU_HEAL_POWER 0x7E0DBFu
 /* What a tonic's power is multiplied by ($40 for an item whose figures say all, 15) */
 #define RAM_MENU_HEAL_FACTOR 0x7E0DC0u
+/* Where in the tilemap buffers the description window's text starts, its row (the address's tile
+ * row) cleared before the description is set ($C2:FA49) [2 bytes] */
+#define RAM_MENU_DESCRIPTION_LINE 0x7E0DC5u
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads [2 bytes] */
 #define RAM_MENU_LOAD_DESTINATION 0x7E0DC5u
 /* The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the
  * load screen's slot labels, the text loader's graphics) [2 bytes] */
 #define RAM_MENU_GRAPHIC_FIRST_TILE 0x7E0DC7u
+/* How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's
+ * budget) */
+#define RAM_MENU_DESCRIPTION_PACE 0x7E0DC9u
+/* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
+ * reads it [2 bytes] */
+#define RAM_MENU_DESCRIPTION_TILES 0x7E0DCCu
+/* How many bytes of the description's row a new description clears ($C2:FA49) [2 bytes] */
+#define RAM_MENU_DESCRIPTION_CLEAR_BYTES 0x7E0DD0u
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
  * on or back */
 #define RAM_MENU_PAGING_TOP 0x7E0DD9u
@@ -2649,11 +2722,40 @@
 #define RAM_MENU_LIST_ITEMS 0x7E0F00u
 #define RAM_MENU_LIST_ITEMS_COUNT 98u
 #define RAM_MENU_LIST_ITEMS_STRIDE 0x01u
+/* The techs the techs screen lists for a member and a kind, in their order, $FF after the last
+ * [48 x $1 bytes, by row of the list] */
+#define RAM_MENU_TECH_LIST 0x7E0F00u
+#define RAM_MENU_TECH_LIST_COUNT 48u
+#define RAM_MENU_TECH_LIST_STRIDE 0x01u
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
 #define RAM_MENU_GATE_SCREEN_STATE_COUNT 14u
 #define RAM_MENU_GATE_SCREEN_STATE_STRIDE 0x01u
+/* The tech group (whose members do it together) of each tech of menu_tech_list [24 x $1 bytes,
+ * by row of the list] */
+#define RAM_MENU_TECH_LIST_GROUPS 0x7E0F30u
+#define RAM_MENU_TECH_LIST_GROUPS_COUNT 24u
+#define RAM_MENU_TECH_LIST_GROUPS_STRIDE 0x01u
+/* The row of the techs screen's list (0-7) the cursor is on, or was left on */
+#define RAM_MENU_TECH_LIST_ROW 0x7E0F48u
+/* How many techs menu_tech_list has */
+#define RAM_MENU_TECHS_LISTED 0x7E0F49u
+/* The first tech of menu_tech_list the techs screen's list shows */
+#define RAM_MENU_TECH_LIST_TOP 0x7E0F4Au
+/* The tech the techs screen is on: the one on the list's cursor (or the row being drawn), $FF
+ * past the list's last */
+#define RAM_MENU_TECH_POINTED 0x7E0F4Cu
+/* The member (a place of menu_members) using the tech chosen from the techs screen */
+#define RAM_MENU_TECH_USER 0x7E0F4Du
+/* Set to $FF as a tech is chosen; no code traced reads it */
+#define RAM_MENU_TECH_SPARE 0x7E0F4Eu
+/* The MP the tech chosen from the techs screen costs its user, taken from its MP each time it is
+ * used */
+#define RAM_MENU_TECH_COST 0x7E0F4Fu
+/* The other two members of the tech on the cursor (menu_tech_members' second and third), noted
+ * as their rows are drawn; no code traced reads it [2 bytes] */
+#define RAM_MENU_TECH_ROW_PARTNERS 0x7E0F51u
 /* How many of each of menu_list_items' items the party has [98 x $1 bytes, by row of the list] */
 #define RAM_MENU_LIST_ITEM_COUNTS 0x7E0F62u
 #define RAM_MENU_LIST_ITEM_COUNTS_COUNT 98u
@@ -2663,6 +2765,13 @@
 #define RAM_MENU_HEAL_SHOWN 0x7E0F63u
 #define RAM_MENU_HEAL_SHOWN_COUNT 6u
 #define RAM_MENU_HEAL_SHOWN_STRIDE 0x02u
+/* Each member's part of the tech on the cursor, as the MP costs' table takes it, noted as its
+ * row is drawn; no code traced reads it [3 x $1 bytes, by member of the tech] */
+#define RAM_MENU_TECH_PART_COSTS 0x7E0F6Fu
+#define RAM_MENU_TECH_PART_COSTS_COUNT 3u
+#define RAM_MENU_TECH_PART_COSTS_STRIDE 0x01u
+/* Set to $0F75 as the techs screen's description is asked for; no code traced reads it [2 bytes] */
+#define RAM_MENU_TECH_DESCRIPTION_SPARE 0x7E0F73u
 /* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
 #define RAM_MENU_MEMBER_SCROLL_MOST 0x7E0FC4u
 /* The equipment screen's slot the cursor was on, kept while the list of what fits is chosen
@@ -2673,6 +2782,13 @@
 #define RAM_MENU_EQUIP_CHOICES 0x7E0FC6u
 /* The first of the equipment screen's list's items it shows */
 #define RAM_MENU_EQUIP_LIST_TOP 0x7E0FC8u
+/* Each character's part in each double and triple tech (the techs from $39 on, so the table
+ * proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as
+ * the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of
+ * the game's asks for [505 x $1 bytes, by character * $40 + the tech] */
+#define RAM_MENU_TECH_PARTS 0x7E1607u
+#define RAM_MENU_TECH_PARTS_COUNT 505u
+#define RAM_MENU_TECH_PARTS_STRIDE 0x01u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
@@ -2789,6 +2905,13 @@
 #define RAM_MENU_ROW_LINE_VALUES 0x7E5D42u
 #define RAM_MENU_ROW_LINE_VALUES_COUNT 12u
 #define RAM_MENU_ROW_LINE_VALUES_STRIDE 0x02u
+/* The techs screen's member list's offsets, a word a band of the screen's offset-per-tile table:
+ * bit 13 that it offsets the front layer, the low bits the line its rows are shown from, which
+ * the list's slide moves each frame and sets back to $1FF after [12 x $2 bytes, by band of
+ * lines] */
+#define RAM_MENU_TECH_MEMBER_LINES 0x7E5D44u
+#define RAM_MENU_TECH_MEMBER_LINES_COUNT 12u
+#define RAM_MENU_TECH_MEMBER_LINES_STRIDE 0x02u
 /* The words past the member list's per-line values (menu_row_line_values), which the list
  * window's slide fills with them [16 x $2 bytes, by band of lines past the member list's twelve] */
 #define RAM_MENU_ROW_LINE_VALUES_PAST 0x7E5D5Au
@@ -2799,6 +2922,17 @@
 #define RAM_MENU_ROW_OTHER_LINE_VALUES 0x7E5DC2u
 #define RAM_MENU_ROW_OTHER_LINE_VALUES_COUNT 12u
 #define RAM_MENU_ROW_OTHER_LINE_VALUES_STRIDE 0x02u
+/* The second per-line table beside menu_tech_member_lines, which the techs screen fills with the
+ * same values [12 x $2 bytes, by band of lines] */
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES 0x7E5DC4u
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES_COUNT 12u
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES_STRIDE 0x02u
+/* The offsets of the window of members a tech is used on, in the screen's offset-per-tile table:
+ * the front layer from line $C7 ($20C7) a band while it is open, 0 once it closes [12 x $2
+ * bytes, by band of lines] */
+#define RAM_MENU_TECH_TARGET_LINES 0x7E5DE0u
+#define RAM_MENU_TECH_TARGET_LINES_COUNT 12u
+#define RAM_MENU_TECH_TARGET_LINES_STRIDE 0x02u
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
@@ -2806,6 +2940,12 @@
 #define RAM_MENU_ITEM_KINDS 0x7E7700u
 #define RAM_MENU_ITEM_KINDS_COUNT 242u
 #define RAM_MENU_ITEM_KINDS_STRIDE 0x01u
+/* Each tech's marks, set over the items' kinds in the same table as the menus open ($FF:F813):
+ * bit 7 it can be used from the menus (a healing tech), bit 6 it is a member's next single tech,
+ * still being learned [117 x $1 bytes, by tech] */
+#define RAM_MENU_TECH_MARKS 0x7E7700u
+#define RAM_MENU_TECH_MARKS_COUNT 117u
+#define RAM_MENU_TECH_MARKS_STRIDE 0x01u
 /* Each item's price, its data's second and third bytes [242 x $2 bytes, by item] */
 #define RAM_MENU_ITEM_PRICES 0x7E7800u
 #define RAM_MENU_ITEM_PRICES_COUNT 242u
@@ -2831,6 +2971,13 @@
 #define RAM_MENU_ITEM_NAME_PLACES 0x7E7D00u
 #define RAM_MENU_ITEM_NAME_PLACES_COUNT 242u
 #define RAM_MENU_ITEM_NAME_PLACES_STRIDE 0x02u
+/* Each tech group's techs the menus list, a bit a tech from bit 7: the party's techs learned for
+ * the groups whose members it has ($FF:F813), the triple techs the rocks give refreshed as the
+ * techs screen opens [37 x $1 bytes, by tech group: the seven characters' own, then the double
+ * techs' fifteen, then the triple techs' fifteen] */
+#define RAM_MENU_TECH_GROUPS_LISTED 0x7E7F00u
+#define RAM_MENU_TECH_GROUPS_LISTED_COUNT 37u
+#define RAM_MENU_TECH_GROUPS_LISTED_STRIDE 0x01u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */
 #define RAM_MENU_MAP_GRAPHICS 0x7E8621u
@@ -2953,6 +3100,19 @@
 #define RAM_MENU_SORT_HELD 0x7E9890u
 #define RAM_MENU_SORT_HELD_COUNT 256u
 #define RAM_MENU_SORT_HELD_STRIDE 0x01u
+/* The MP a member row's member needs for the tech on the techs screen's cursor (0 where none
+ * is): the row draws the member's MP in the short colour where it has less, and the list's MP
+ * figure shows it */
+#define RAM_MENU_TECH_COST_NEEDED 0x7E9890u
+/* The tech groups of the kind the techs screen lists that the member is one of, in their order,
+ * $FF after the last [16 x $1 bytes, by group of the member's] */
+#define RAM_MENU_TECH_MEMBER_GROUPS 0x7E9890u
+#define RAM_MENU_TECH_MEMBER_GROUPS_COUNT 16u
+#define RAM_MENU_TECH_MEMBER_GROUPS_STRIDE 0x01u
+/* The byte after menu_tech_cost_needed: a double or triple tech's cost is read and kept a word
+ * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
+ * Nothing reads it */
+#define RAM_MENU_TECH_COST_BESIDE 0x7E9891u
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes] */
 #define RAM_MENU_ITEM_POWER_LABEL 0x7E9990u
@@ -3098,6 +3258,9 @@
 #define RAM_MENU_RECORD_Y_DP 0x0Eu           /* page menu_record, D per instance */
 /* The record's X position [2 bytes] */
 #define RAM_MENU_RECORD_X_DP 0x0Fu           /* page menu_record, D per instance */
+/* menu_record_x's low byte, which a screen that places a record on the screen sets alone,
+ * leaving the high byte (whether it is off the screen's left) */
+#define RAM_MENU_RECORD_X_LOW_DP 0x0Fu       /* page menu_record, D per instance */
 /* The animation the record is asked to play: bits 0-6 its number, bit 7 that it loops from
  * menu_record_loop_frame rather than from its start */
 #define RAM_MENU_RECORD_ANIMATION_DP 0x11u   /* page menu_record, D per instance */
@@ -3116,6 +3279,9 @@
 #define RAM_MENU_RECORD_HIDDEN_DP 0x18u      /* page menu_record, D per instance */
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more [2 bytes] */
 #define RAM_MENU_RECORD_TILE_DP 0x19u        /* page menu_record, D per instance */
+/* menu_record_tile's high byte: the attributes (palette, priority, flips) the record's sprites
+ * are drawn with */
+#define RAM_MENU_RECORD_COLOURS_DP 0x1Au     /* page menu_record, D per instance */
 /* Where the record's current animation's frames are, a byte each [3 bytes] */
 #define RAM_MENU_RECORD_FRAME_LIST_DP 0x1Bu  /* page menu_record, D per instance */
 /* Where the record's current animation's frame times are, a byte each (0 ends the animation) [3
