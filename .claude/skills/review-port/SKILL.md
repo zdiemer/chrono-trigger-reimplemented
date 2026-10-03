@@ -497,7 +497,10 @@ Each of these is a finding. Every example here comes from this repo.
     remedy is a guard that refuses those inputs, so the original runs them;
     the logic keeps only the arithmetic the game actually needs (`n / d`). An
     emulation with a comment explaining that nothing reaches it is still an
-    emulation.
+    emulation. The same holds for a carry or borrow that is constant over
+    every input the game produces (a subtraction that can't borrow on any
+    real camera): the guard refuses the rest and the sum is written plainly,
+    rather than the bit worked out and handed on.
 35. **Leftover records that carry the CPU.** A file-static `*_leaves` record is
     acceptable for a value the wrapper can't derive from the inputs and the
     final state. A register-shaped record (carry, overflow, A) that the logic
