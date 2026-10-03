@@ -24,6 +24,11 @@ typedef struct {
 enum { MENU_UPLOAD_BYTES = 8 };
 void menu_queue_upload(GameState *g, MenuUpload u);
 
+/* Queue one of the menus' own uploads by its record in bank C2
+ * (menu_data.h's MENU_UPLOAD_*), as the original's queueing ($C2:8385) does,
+ * its time that routine's. */
+void menu_queue_fixed_upload(GameState *g, uint16_t record);
+
 /* The sprite-object mode's queue (its own, on its direct page): uploads from
  * anywhere in memory, each record holding how the VRAM address steps as it
  * goes -- a word at a time along a tilemap row, or a tilemap row at a time

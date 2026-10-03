@@ -82,6 +82,7 @@
 #include "natives.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "mixer_check.h"
 #include "sound_host.h"
 
 #define SLOTS 4096
@@ -617,7 +618,9 @@ int main(int argc, char **argv)
     render_init(&renderer);
     restore_hooks();
     snes_power_on(&snes);
-    if (c_sound_driver && !(sound_host = sound_host_attach_mixer(&snes, mixer))) {
+    MixerCheck *mixer_check = NULL;
+    if (c_sound_driver && (!(sound_host = sound_host_attach_mixer(&snes, mixer))
+                           || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host))))) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }
@@ -773,8 +776,9 @@ int main(int argc, char **argv)
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
             rc = 1;
-        if (!sound_host_mixer_report(sound_host, stderr))
+        if (mixer_check && !mixer_check_report(mixer_check, stderr))
             rc = 1;
+        mixer_check_free(mixer_check);
         sound_host_detach(sound_host);
     }
     return rc;

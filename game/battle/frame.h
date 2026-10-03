@@ -16,8 +16,8 @@
  *               battle's graphics, and the vblank handler of the battle's end
  *
  * Their logic takes the game's state and the platform; what reaches the
- * original's code (the battle's routines not ported yet) is in the bridges
- * and entry wrappers at the end of each file. */
+ * original's code (the battle's routines still generated from the ROM) is in
+ * the bridges and entry wrappers at the end of each file. */
 #ifndef CT_GAME_BATTLE_FRAME_H
 #define CT_GAME_BATTLE_FRAME_H
 

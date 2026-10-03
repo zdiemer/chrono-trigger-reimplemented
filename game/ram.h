@@ -342,6 +342,7 @@
 #define RAM_CHARACTER_RECORDS_MAX_HP 0x7E2605u /* Maximum HP */
 #define RAM_CHARACTER_RECORDS_MP 0x7E2607u   /* Current MP */
 #define RAM_CHARACTER_RECORDS_MAX_MP 0x7E2609u /* Maximum MP */
+#define RAM_CHARACTER_RECORDS_HP_CAP 0x7E263Fu /* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over the movie library); the battle's stat block has its element affinities here */
 /* How many of its single techs the character has learned, which are its first that many [7 x $1
  * bytes, by character] */
 #define RAM_PARTY_SINGLE_TECHS_KNOWN 0x7E2830u
@@ -2037,6 +2038,23 @@
 #define RAM_MENU_SCRATCH_SLOT_LABEL 0x7E0000u /* The equipment screen's slot's label ($C2:A38B): the slot doubled, on the way to the label's place in the table */
 #define RAM_MENU_SCRATCH_MARKED_SLOT 0x7E0000u /* The equipment screen's slots' marks ($C2:A3ED): the slot marked */
 #define RAM_MENU_SCRATCH_SLOTS_MARKED 0x7E0002u /* The same: how many slots it has marked, 4 once done */
+#define RAM_MENU_SCRATCH_TECH_CHARACTER_BIT 0x7E0000u /* The techs screen's listing of a member's techs ($C2:BCCD): the member's bit among a group's members */
+#define RAM_MENU_SCRATCH_TECH_GROUPS_LEFT 0x7E0001u /* The same: the kind's groups it has still to look at, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_GROUP_AT 0x7E0000u /* The listing's walk through the member's groups ($C2:BD00): the place in their list it got to, the end's */
+#define RAM_MENU_SCRATCH_TECH_LEARNED_BITS 0x7E0001u /* The same: the last group's learned bits, shifted up past the techs it looked at */
+#define RAM_MENU_SCRATCH_TECH_GROUP_END 0x7E0002u /* The same: the first tech of the group after the last one walked, which ends it */
+#define RAM_MENU_SCRATCH_TECH_NEXT 0x7E0003u /* The same: the tech after the last it looked at */
+#define RAM_MENU_SCRATCH_TECH_RECORD_OFFSET 0x7E0000u /* A tech chosen from the techs screen ($C2:B3AE): its effect record's offset, the tech times twelve */
+#define RAM_MENU_SCRATCH_TECH_TAB_OFFSET 0x7E0000u /* The techs screen's kinds' tabs ($C2:B6AE): the kind doubled, on the way to the chosen tab's place */
+#define RAM_MENU_SCRATCH_TECH_LIST_PLACE 0x7E0000u /* The techs screen's list's rows ($C2:BD6B): the place of menu_tech_list it draws next, left past the last row's */
+#define RAM_MENU_SCRATCH_TECH_LIST_PLACE_HIGH 0x7E0001u /* The byte after it, which the rows' drawing counts with it as a word (a page turned clears it first) */
+#define RAM_MENU_SCRATCH_TECH_ROWS_LEFT 0x7E0002u /* The same: the rows it has still to draw, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_PARTNER_BITS 0x7E0000u /* The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members' bits, shifted out from the top, 0 once done */
+#define RAM_MENU_SCRATCH_TECH_PARTNERS_COUNTED 0x7E0001u /* The same: how many characters' bits it looked at */
+#define RAM_MENU_SCRATCH_RESTORING_MEMBERS_LEFT 0x7E0000u /* The look at whether a restoring helps ($C2:B870): the members it has still to look at */
+#define RAM_MENU_SCRATCH_TECH_ROWS_FROM 0x7E0000u /* The techs screen's list slid up ($C2:B7CC): where the row it copies down next ends, left a row above the first */
+#define RAM_MENU_SCRATCH_TECH_ROWS_TO 0x7E0002u /* The same: where that row's copy ends */
+#define RAM_MENU_SCRATCH_TECH_ROWS_STILL 0x7E0004u /* The same: the rows it has still to copy, 0 once done */
 #define RAM_MENU_SCRATCH_USERS_BITS 0x7E0000u /* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted out from the top, 0 once done */
 #define RAM_MENU_SCRATCH_USERS_COUNTED 0x7E0001u /* The same: how many of the bits it looked at, the one past the last user */
 #define RAM_MENU_SCRATCH_PORTRAIT_ATTRIBUTE 0x7E0001u /* A member's card ($C2:A22F): the portrait's attribute, portrait_tile's high byte */
@@ -2057,6 +2075,13 @@
 #define RAM_MENU_SCRATCH_FRAME_BLOCKS_LEFT 0x7E0000u /* A record's frame ($C2:F75C): its blocks, counted down as they are queued when they are an odd number, which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_FRAME_TILES_END 0x7E0002u /* A record's frame: the end of its tile list, a word a tile (its blocks times 32) */
 #define RAM_MENU_SCRATCH_FRAME_MIRROR_BYTES 0x7E0006u /* A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0 */
+/* The characters of the tech on the techs screen's cursor: the member whose techs are listed
+ * first, then the tech group's others, $FF where it has none [3 x $1 bytes, by member of the
+ * tech] */
+#define RAM_MENU_TECH_MEMBERS 0x7E0016u
+#define RAM_MENU_TECH_MEMBERS_COUNT 3u
+#define RAM_MENU_TECH_MEMBERS_STRIDE 0x01u
+#define RAM_MENU_TECH_MEMBERS_DP 0x16u       /* page menu */
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
@@ -2065,6 +2090,10 @@
  * rows' per-line table each frame, moving by menu_scroll_step [2 bytes] */
 #define RAM_MENU_SLIDE_LINE 0x7E0022u
 #define RAM_MENU_SLIDE_LINE_DP 0x22u         /* page menu */
+/* The techs screen's member row being drawn, which places its sprite (3 and 4: the rows a slide
+ * brings in from above and from below); left past the last [2 bytes] */
+#define RAM_MENU_TECH_ROW_DRAWN 0x7E0022u
+#define RAM_MENU_TECH_ROW_DRAWN_DP 0x22u     /* page menu */
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes [2 bytes] */
 #define RAM_MENU_TIME_PLAYED_SHOWN 0x7E0022u
@@ -2084,6 +2113,14 @@
  * palette is 4 on from it) [2 bytes] */
 #define RAM_MENU_SAVE_MEMBER_ROW 0x7E0024u
 #define RAM_MENU_SAVE_MEMBER_ROW_DP 0x24u    /* page menu */
+/* How many member rows the techs screen draws (three, or fewer members), counted down as it
+ * draws the empty rows after them [2 bytes] */
+#define RAM_MENU_TECH_ROWS_TO_DRAW 0x7E0024u
+#define RAM_MENU_TECH_ROWS_TO_DRAW_DP 0x24u  /* page menu */
+/* The line the techs screen's member rows are shown from as their list slides, a step a frame [2
+ * bytes] */
+#define RAM_MENU_TECH_SLIDE_LINE 0x7E0024u
+#define RAM_MENU_TECH_SLIDE_LINE_DP 0x24u    /* page menu */
 /* How wide, in pixels, the era label the load screen shows is */
 #define RAM_MENU_SAVE_ERA_WIDTH 0x7E0026u
 #define RAM_MENU_SAVE_ERA_WIDTH_DP 0x26u     /* page menu */
@@ -2091,6 +2128,11 @@
  * low byte, the row in the high), out of sight below the list's place on the tilemap [2 bytes] */
 #define RAM_MENU_SLIDE_COPY 0x7E0026u
 #define RAM_MENU_SLIDE_COPY_DP 0x26u         /* page menu */
+/* Where the techs screen's member slide copies the rows out of view, as a window copy names a
+ * place: the column, then the row (the same with $06 in the row is where the slid rows are
+ * copied back from) [2 bytes] */
+#define RAM_MENU_TECH_SLIDE_COPY 0x7E0026u
+#define RAM_MENU_TECH_SLIDE_COPY_DP 0x26u    /* page menu */
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in [2 bytes] */
 #define RAM_MENU_ZERO 0x7E0051u
@@ -2202,10 +2244,18 @@
  * the cursor's sound when it points at another */
 #define RAM_MENU_MEMBER_POINTED 0x7E0083u
 #define RAM_MENU_MEMBER_POINTED_DP 0x83u     /* page menu */
+/* menu_tech_list_shown as the frame found it, which the techs screen compares with to tick the
+ * cursor's sound when the member or the kind changes */
+#define RAM_MENU_TECH_LIST_SHOWN_BEFORE 0x7E0083u
+#define RAM_MENU_TECH_LIST_SHOWN_BEFORE_DP 0x83u /* page menu */
 /* The slot and member (their sum) the equipment screen's list of what fits was drawn for last;
  * $FF has it drawn again */
 #define RAM_MENU_EQUIP_SHOWN 0x7E0084u
 #define RAM_MENU_EQUIP_SHOWN_DP 0x84u        /* page menu */
+/* Which list the techs screen's list was built for: the member (its place of menu_members) times
+ * 16 plus menu_tech_category; $FF has it built again */
+#define RAM_MENU_TECH_LIST_SHOWN 0x7E0084u
+#define RAM_MENU_TECH_LIST_SHOWN_DP 0x84u    /* page menu */
 /* How many of the party's members the menus' screens let the player choose among: the active
  * ones, or all of them once the story lets the party be switched ($FF:F813, which clears the
  * high byte) [2 bytes] */
@@ -2366,6 +2416,15 @@
 /* The first place of the party's items the items screen's list shows (0 to $E8), kept from one
  * opening to the next */
 #define RAM_MENU_ITEM_LIST_TOP 0x7E0416u
+/* The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple
+ * techs; kept from one opening to the next */
+#define RAM_MENU_TECH_CATEGORY 0x7E0418u
+/* The row of the techs screen's member list (0-2) its cursor was on, kept from one opening to
+ * the next */
+#define RAM_MENU_TECH_MEMBER_ROW 0x7E0419u
+/* The first member the techs screen's member list shows: how far it has slid along the reachable
+ * members */
+#define RAM_MENU_TECH_MEMBER_SCROLL 0x7E041Au
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 #define RAM_MENU_ITEM_OPERAND 0x7E04C9u
@@ -2476,6 +2535,9 @@
 #define RAM_MENU_RECORD_ORIGIN_X 0x7E0D2Eu
 /* Added to each $1800 record's Y position when its sprites are drawn */
 #define RAM_MENU_RECORD_ORIGIN_Y 0x7E0D30u
+/* The byte after menu_record_origin_y, which the techs screen's member slide moves with it as a
+ * word and clears with it; the sprites' drawing doesn't read it */
+#define RAM_MENU_RECORD_ORIGIN_Y_HIGH 0x7E0D31u
 /* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
  * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF [3 x $2 bytes, by
  * which] */
@@ -2651,11 +2713,22 @@
 #define RAM_MENU_HEAL_POWER 0x7E0DBFu
 /* What a tonic's power is multiplied by ($40 for an item whose figures say all, 15) */
 #define RAM_MENU_HEAL_FACTOR 0x7E0DC0u
+/* Where in the tilemap buffers the description window's text starts, its row (the address's tile
+ * row) cleared before the description is set ($C2:FA49) [2 bytes] */
+#define RAM_MENU_DESCRIPTION_LINE 0x7E0DC5u
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads [2 bytes] */
 #define RAM_MENU_LOAD_DESTINATION 0x7E0DC5u
 /* The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the
  * load screen's slot labels, the text loader's graphics) [2 bytes] */
 #define RAM_MENU_GRAPHIC_FIRST_TILE 0x7E0DC7u
+/* How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's
+ * budget) */
+#define RAM_MENU_DESCRIPTION_PACE 0x7E0DC9u
+/* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
+ * reads it [2 bytes] */
+#define RAM_MENU_DESCRIPTION_TILES 0x7E0DCCu
+/* How many bytes of the description's row a new description clears ($C2:FA49) [2 bytes] */
+#define RAM_MENU_DESCRIPTION_CLEAR_BYTES 0x7E0DD0u
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
  * on or back */
 #define RAM_MENU_PAGING_TOP 0x7E0DD9u
@@ -2673,11 +2746,40 @@
 #define RAM_MENU_LIST_ITEMS 0x7E0F00u
 #define RAM_MENU_LIST_ITEMS_COUNT 98u
 #define RAM_MENU_LIST_ITEMS_STRIDE 0x01u
+/* The techs the techs screen lists for a member and a kind, in their order, $FF after the last
+ * [48 x $1 bytes, by row of the list] */
+#define RAM_MENU_TECH_LIST 0x7E0F00u
+#define RAM_MENU_TECH_LIST_COUNT 48u
+#define RAM_MENU_TECH_LIST_STRIDE 0x01u
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
 #define RAM_MENU_GATE_SCREEN_STATE_COUNT 14u
 #define RAM_MENU_GATE_SCREEN_STATE_STRIDE 0x01u
+/* The tech group (whose members do it together) of each tech of menu_tech_list [24 x $1 bytes,
+ * by row of the list] */
+#define RAM_MENU_TECH_LIST_GROUPS 0x7E0F30u
+#define RAM_MENU_TECH_LIST_GROUPS_COUNT 24u
+#define RAM_MENU_TECH_LIST_GROUPS_STRIDE 0x01u
+/* The row of the techs screen's list (0-7) the cursor is on, or was left on */
+#define RAM_MENU_TECH_LIST_ROW 0x7E0F48u
+/* How many techs menu_tech_list has */
+#define RAM_MENU_TECHS_LISTED 0x7E0F49u
+/* The first tech of menu_tech_list the techs screen's list shows */
+#define RAM_MENU_TECH_LIST_TOP 0x7E0F4Au
+/* The tech the techs screen is on: the one on the list's cursor (or the row being drawn), $FF
+ * past the list's last */
+#define RAM_MENU_TECH_POINTED 0x7E0F4Cu
+/* The member (a place of menu_members) using the tech chosen from the techs screen */
+#define RAM_MENU_TECH_USER 0x7E0F4Du
+/* Set to $FF as a tech is chosen; no code traced reads it */
+#define RAM_MENU_TECH_SPARE 0x7E0F4Eu
+/* The MP the tech chosen from the techs screen costs its user, taken from its MP each time it is
+ * used */
+#define RAM_MENU_TECH_COST 0x7E0F4Fu
+/* The other two members of the tech on the cursor (menu_tech_members' second and third), noted
+ * as their rows are drawn; no code traced reads it [2 bytes] */
+#define RAM_MENU_TECH_ROW_PARTNERS 0x7E0F51u
 /* How many of each of menu_list_items' items the party has [98 x $1 bytes, by row of the list] */
 #define RAM_MENU_LIST_ITEM_COUNTS 0x7E0F62u
 #define RAM_MENU_LIST_ITEM_COUNTS_COUNT 98u
@@ -2687,6 +2789,13 @@
 #define RAM_MENU_HEAL_SHOWN 0x7E0F63u
 #define RAM_MENU_HEAL_SHOWN_COUNT 6u
 #define RAM_MENU_HEAL_SHOWN_STRIDE 0x02u
+/* Each member's part of the tech on the cursor, as the MP costs' table takes it, noted as its
+ * row is drawn; no code traced reads it [3 x $1 bytes, by member of the tech] */
+#define RAM_MENU_TECH_PART_COSTS 0x7E0F6Fu
+#define RAM_MENU_TECH_PART_COSTS_COUNT 3u
+#define RAM_MENU_TECH_PART_COSTS_STRIDE 0x01u
+/* Set to $0F75 as the techs screen's description is asked for; no code traced reads it [2 bytes] */
+#define RAM_MENU_TECH_DESCRIPTION_SPARE 0x7E0F73u
 /* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
 #define RAM_MENU_MEMBER_SCROLL_MOST 0x7E0FC4u
 /* The equipment screen's slot the cursor was on, kept while the list of what fits is chosen
@@ -2697,6 +2806,13 @@
 #define RAM_MENU_EQUIP_CHOICES 0x7E0FC6u
 /* The first of the equipment screen's list's items it shows */
 #define RAM_MENU_EQUIP_LIST_TOP 0x7E0FC8u
+/* Each character's part in each double and triple tech (the techs from $39 on, so the table
+ * proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as
+ * the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of
+ * the game's asks for [505 x $1 bytes, by character * $40 + the tech] */
+#define RAM_MENU_TECH_PARTS 0x7E1607u
+#define RAM_MENU_TECH_PARTS_COUNT 505u
+#define RAM_MENU_TECH_PARTS_STRIDE 0x01u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
@@ -2813,6 +2929,13 @@
 #define RAM_MENU_ROW_LINE_VALUES 0x7E5D42u
 #define RAM_MENU_ROW_LINE_VALUES_COUNT 12u
 #define RAM_MENU_ROW_LINE_VALUES_STRIDE 0x02u
+/* The techs screen's member list's offsets, a word a band of the screen's offset-per-tile table:
+ * bit 13 that it offsets the front layer, the low bits the line its rows are shown from, which
+ * the list's slide moves each frame and sets back to $1FF after [12 x $2 bytes, by band of
+ * lines] */
+#define RAM_MENU_TECH_MEMBER_LINES 0x7E5D44u
+#define RAM_MENU_TECH_MEMBER_LINES_COUNT 12u
+#define RAM_MENU_TECH_MEMBER_LINES_STRIDE 0x02u
 /* The words past the member list's per-line values (menu_row_line_values), which the list
  * window's slide fills with them [16 x $2 bytes, by band of lines past the member list's twelve] */
 #define RAM_MENU_ROW_LINE_VALUES_PAST 0x7E5D5Au
@@ -2823,6 +2946,17 @@
 #define RAM_MENU_ROW_OTHER_LINE_VALUES 0x7E5DC2u
 #define RAM_MENU_ROW_OTHER_LINE_VALUES_COUNT 12u
 #define RAM_MENU_ROW_OTHER_LINE_VALUES_STRIDE 0x02u
+/* The second per-line table beside menu_tech_member_lines, which the techs screen fills with the
+ * same values [12 x $2 bytes, by band of lines] */
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES 0x7E5DC4u
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES_COUNT 12u
+#define RAM_MENU_TECH_MEMBER_OTHER_LINES_STRIDE 0x02u
+/* The offsets of the window of members a tech is used on, in the screen's offset-per-tile table:
+ * the front layer from line $C7 ($20C7) a band while it is open, 0 once it closes [12 x $2
+ * bytes, by band of lines] */
+#define RAM_MENU_TECH_TARGET_LINES 0x7E5DE0u
+#define RAM_MENU_TECH_TARGET_LINES_COUNT 12u
+#define RAM_MENU_TECH_TARGET_LINES_STRIDE 0x02u
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
@@ -2830,6 +2964,12 @@
 #define RAM_MENU_ITEM_KINDS 0x7E7700u
 #define RAM_MENU_ITEM_KINDS_COUNT 242u
 #define RAM_MENU_ITEM_KINDS_STRIDE 0x01u
+/* Each tech's marks, set over the items' kinds in the same table as the menus open ($FF:F813):
+ * bit 7 it can be used from the menus (a healing tech), bit 6 it is a member's next single tech,
+ * still being learned [117 x $1 bytes, by tech] */
+#define RAM_MENU_TECH_MARKS 0x7E7700u
+#define RAM_MENU_TECH_MARKS_COUNT 117u
+#define RAM_MENU_TECH_MARKS_STRIDE 0x01u
 /* Each item's price, its data's second and third bytes [242 x $2 bytes, by item] */
 #define RAM_MENU_ITEM_PRICES 0x7E7800u
 #define RAM_MENU_ITEM_PRICES_COUNT 242u
@@ -2855,6 +2995,13 @@
 #define RAM_MENU_ITEM_NAME_PLACES 0x7E7D00u
 #define RAM_MENU_ITEM_NAME_PLACES_COUNT 242u
 #define RAM_MENU_ITEM_NAME_PLACES_STRIDE 0x02u
+/* Each tech group's techs the menus list, a bit a tech from bit 7: the party's techs learned for
+ * the groups whose members it has ($FF:F813), the triple techs the rocks give refreshed as the
+ * techs screen opens [37 x $1 bytes, by tech group: the seven characters' own, then the double
+ * techs' fifteen, then the triple techs' fifteen] */
+#define RAM_MENU_TECH_GROUPS_LISTED 0x7E7F00u
+#define RAM_MENU_TECH_GROUPS_LISTED_COUNT 37u
+#define RAM_MENU_TECH_GROUPS_LISTED_STRIDE 0x01u
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 [1024 x $1 bytes, by
  * byte] */
 #define RAM_MENU_MAP_GRAPHICS 0x7E8621u
@@ -2977,6 +3124,19 @@
 #define RAM_MENU_SORT_HELD 0x7E9890u
 #define RAM_MENU_SORT_HELD_COUNT 256u
 #define RAM_MENU_SORT_HELD_STRIDE 0x01u
+/* The MP a member row's member needs for the tech on the techs screen's cursor (0 where none
+ * is): the row draws the member's MP in the short colour where it has less, and the list's MP
+ * figure shows it */
+#define RAM_MENU_TECH_COST_NEEDED 0x7E9890u
+/* The tech groups of the kind the techs screen lists that the member is one of, in their order,
+ * $FF after the last [16 x $1 bytes, by group of the member's] */
+#define RAM_MENU_TECH_MEMBER_GROUPS 0x7E9890u
+#define RAM_MENU_TECH_MEMBER_GROUPS_COUNT 16u
+#define RAM_MENU_TECH_MEMBER_GROUPS_STRIDE 0x01u
+/* The byte after menu_tech_cost_needed: a double or triple tech's cost is read and kept a word
+ * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
+ * Nothing reads it */
+#define RAM_MENU_TECH_COST_BESIDE 0x7E9891u
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes] */
 #define RAM_MENU_ITEM_POWER_LABEL 0x7E9990u
@@ -3122,6 +3282,9 @@
 #define RAM_MENU_RECORD_Y_DP 0x0Eu           /* page menu_record, D per instance */
 /* The record's X position [2 bytes] */
 #define RAM_MENU_RECORD_X_DP 0x0Fu           /* page menu_record, D per instance */
+/* menu_record_x's low byte, which a screen that places a record on the screen sets alone,
+ * leaving the high byte (whether it is off the screen's left) */
+#define RAM_MENU_RECORD_X_LOW_DP 0x0Fu       /* page menu_record, D per instance */
 /* The animation the record is asked to play: bits 0-6 its number, bit 7 that it loops from
  * menu_record_loop_frame rather than from its start */
 #define RAM_MENU_RECORD_ANIMATION_DP 0x11u   /* page menu_record, D per instance */
@@ -3140,6 +3303,9 @@
 #define RAM_MENU_RECORD_HIDDEN_DP 0x18u      /* page menu_record, D per instance */
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more [2 bytes] */
 #define RAM_MENU_RECORD_TILE_DP 0x19u        /* page menu_record, D per instance */
+/* menu_record_tile's high byte: the attributes (palette, priority, flips) the record's sprites
+ * are drawn with */
+#define RAM_MENU_RECORD_COLOURS_DP 0x1Au     /* page menu_record, D per instance */
 /* Where the record's current animation's frames are, a byte each [3 bytes] */
 #define RAM_MENU_RECORD_FRAME_LIST_DP 0x1Bu  /* page menu_record, D per instance */
 /* Where the record's current animation's frame times are, a byte each (0 ends the animation) [3
@@ -3550,6 +3716,10 @@
  * at each frame ($C1:4231) */
 #define RAM_BATTLE_JUMP_LIFT 0x7E0090u
 #define RAM_BATTLE_JUMP_LIFT_DP 0x90u        /* page battle */
+/* The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and
+ * the effects' handlers take it from here [2 bytes] */
+#define RAM_BATTLE_EFFECT_ENEMY 0x7E009Cu
+#define RAM_BATTLE_EFFECT_ENEMY_DP 0x9Cu     /* page battle */
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
@@ -3560,6 +3730,10 @@
 /* The attribute bits of the effect whose sprites are being drawn */
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES 0x7E00A1u
 #define RAM_BATTLE_EFFECT_SPRITE_ATTRIBUTES_DP 0xA1u /* page battle */
+/* The party member a battle step is about (its menu opened or closed, its action called off), as
+ * the step's callers leave it for the step */
+#define RAM_BATTLE_STEP_MEMBER 0x7E00A1u
+#define RAM_BATTLE_STEP_MEMBER_DP 0xA1u      /* page battle */
 /* The stat block ($80 times the battle slot) of the combatant at hand: the party member the
  * window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status
  * pose was chosen for [2 bytes] */
@@ -3644,6 +3818,14 @@
 #define RAM_BATTLE_TARGET_DISPLAY 0x7E0200u
 #define RAM_BATTLE_TARGET_DISPLAY_COUNT 5u
 #define RAM_BATTLE_TARGET_DISPLAY_STRIDE 0x01u
+/* In the scroll modes the screen scripts set, offsets added to the scroll of the layers
+ * battle_line_scroll_layers names, one per scroll table entry [64 x $4 bytes, by scroll table
+ * entry (BG3's 64 in the finer mode, the first 32 for every layer otherwise)] */
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS 0x7E0A00u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_COUNT 64u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_STRIDE 0x04u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_ACROSS 0x7E0A00u /* Added to the layer's scroll across */
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_DOWN 0x7E0A02u /* Down: the scroll modes don't read it; the sway clears it */
 /* Per-line amounts added to the window edges of lines 48-175 [128 x $1 bytes, by table * 32 +
  * line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)] */
 #define RAM_BATTLE_WINDOW_LINE_DELTAS 0x7E0A00u
@@ -6258,12 +6440,28 @@
 #define RAM_BATTLE_SCROLL_TABLES_STRIDE 0x04u
 #define RAM_BATTLE_SCROLL_TABLES_X 0x7EBC89u /* Horizontal scroll */
 #define RAM_BATTLE_SCROLL_TABLES_Y 0x7EBC8Bu /* Vertical scroll */
+/* The screen's layer settings in the split's first two values, as bytes: which layers make the
+ * main and the sub screen, and which of them the windows mask [4 x $1 bytes, by setting (main
+ * screen layers, sub screen layers, main screen's window layers, sub screen's)] */
+#define RAM_BATTLE_SCREEN_SETTINGS 0x7EBE89u
+#define RAM_BATTLE_SCREEN_SETTINGS_COUNT 4u
+#define RAM_BATTLE_SCREEN_SETTINGS_STRIDE 0x01u
 /* Words the per-line effects read through their tables; each frame the NMI copies the first two
  * of each group of four over the next two, so the lines after a split take the new values [8 x
  * $2 bytes, by word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7)] */
 #define RAM_BATTLE_SPLIT_LINE_VALUES 0x7EBE89u
 #define RAM_BATTLE_SPLIT_LINE_VALUES_COUNT 8u
 #define RAM_BATTLE_SPLIT_LINE_VALUES_STRIDE 0x02u
+/* The color math's settings in the split's fifth value, as bytes: how it is done and to which
+ * layers [2 x $1 bytes, by setting (how, which layers)] */
+#define RAM_BATTLE_COLOR_MATH_SETTINGS 0x7EBE91u
+#define RAM_BATTLE_COLOR_MATH_SETTINGS_COUNT 2u
+#define RAM_BATTLE_COLOR_MATH_SETTINGS_STRIDE 0x01u
+/* The background mode the per-line effects set below the split (command $B0) */
+#define RAM_BATTLE_SCREEN_MODE 0x7EBE99u
+/* The mosaic the per-line effects set below the split: the block size in the high nibble, the
+ * layers in the low */
+#define RAM_BATTLE_MOSAIC 0x7EBE9Au
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
  * from $E8 or rising from $E0 (all color channels), four bytes apart [288 x $1 bytes, by byte
  * (four tables of one-line entries: $C030, $C090, $C0F0, $C120)] */
@@ -6349,6 +6547,16 @@
 #define RAM_BATTLE_VRAM_REQUEST_BANK 0x7ECA29u /* Source bank */
 #define RAM_BATTLE_VRAM_REQUEST_VRAM 0x7ECA2Au /* VRAM word address */
 #define RAM_BATTLE_VRAM_REQUEST_SIZE 0x7ECA2Cu /* Size in bytes */
+/* The screen script's two channels: where each is in its script and how fast it goes [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_CHANNELS 0x7ECA32u
+#define RAM_BATTLE_SCREEN_CHANNELS_COUNT 2u
+#define RAM_BATTLE_SCREEN_CHANNELS_STRIDE 0x10u
+#define RAM_BATTLE_SCREEN_CHANNELS_RUNNING 0x7ECA32u /* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
+#define RAM_BATTLE_SCREEN_CHANNELS_PLACE 0x7ECA35u /* Where the channel is in its script (bank $D1), kept while it waits */
+#define RAM_BATTLE_SCREEN_CHANNELS_PACE 0x7ECA38u /* Frames between the channel's steps (command $81 sets it) */
+#define RAM_BATTLE_SCREEN_CHANNELS_COUNTDOWN 0x7ECA39u /* Frames until the channel's next step */
+#define RAM_BATTLE_SCREEN_CHANNELS_FRAME_OFFSET 0x7ECA3Au /* Added to each graphics frame the channel shows; the counting loop ($85, $86) steps it each time round */
 /* The layer a screen script channel moves, as its commands jitter and swing it; channel 0's
  * position and offset are BG3's moving scroll, used instead of its base scroll in the moving
  * mode [2 x $10 bytes, by screen script channel] */
@@ -6361,6 +6569,39 @@
 #define RAM_BATTLE_SCREEN_LAYER_Y 0x7ECA5Cu  /* The layer's position down */
 #define RAM_BATTLE_SCREEN_LAYER_OFFSET_X 0x7ECA5Eu /* Offset added to the position across */
 #define RAM_BATTLE_SCREEN_LAYER_OFFSET_Y 0x7ECA60u /* Offset added to the position down, which the swing sets */
+/* Where a screen script channel's loop starts again: at the loop command's operand [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_LOOP_PLACE 0x7ECA72u
+#define RAM_BATTLE_SCREEN_LOOP_PLACE_COUNT 2u
+#define RAM_BATTLE_SCREEN_LOOP_PLACE_STRIDE 0x10u
+/* Times a screen script channel's loop has still to run, counting the one under way [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_LOOP_COUNT 0x7ECA74u
+#define RAM_BATTLE_SCREEN_LOOP_COUNT_COUNT 2u
+#define RAM_BATTLE_SCREEN_LOOP_COUNT_STRIDE 0x10u
+/* Where a screen script channel goes back to from a call: at the call's last operand [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_RETURN_PLACE 0x7ECA75u
+#define RAM_BATTLE_SCREEN_RETURN_PLACE_COUNT 2u
+#define RAM_BATTLE_SCREEN_RETURN_PLACE_STRIDE 0x10u
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
+ * ($97) [2 x $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_KEPT_WORD 0x7ECA77u
+#define RAM_BATTLE_SCREEN_KEPT_WORD_COUNT 2u
+#define RAM_BATTLE_SCREEN_KEPT_WORD_STRIDE 0x10u
+/* How far a channel's wave ($80's effects $0A and $0B) has got through its table of steps [2 x
+ * $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_WAVE_STEP 0x7ECA79u
+#define RAM_BATTLE_SCREEN_WAVE_STEP_COUNT 2u
+#define RAM_BATTLE_SCREEN_WAVE_STEP_STRIDE 0x10u
+/* Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the
+ * swing keeps its speed and position in [6 x $1 bytes, by amount (the first and fourth across,
+ * the others by the command's operand), by screen script channel] [2 rows, $10 bytes apart] */
+#define RAM_BATTLE_SCREEN_DRIFT 0x7ECA7Au
+#define RAM_BATTLE_SCREEN_DRIFT_COUNT 6u
+#define RAM_BATTLE_SCREEN_DRIFT_STRIDE 0x01u
+#define RAM_BATTLE_SCREEN_DRIFT_ROWS 2u
+#define RAM_BATTLE_SCREEN_DRIFT_ROW_STRIDE 0x10u
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame [2 x $10 bytes, by screen script
  * channel] */
 #define RAM_BATTLE_SCREEN_SWING_SPEED 0x7ECA7Au
@@ -6374,24 +6615,134 @@
 #define RAM_BATTLE_SCREEN_SWING_POSITION 0x7ECA7Eu
 #define RAM_BATTLE_SCREEN_SWING_POSITION_COUNT 2u
 #define RAM_BATTLE_SCREEN_SWING_POSITION_STRIDE 0x10u
+/* The phase of the circle a channel's layer goes round on its orbit (commands $C4, $C5), across
+ * and down; on 2 a frame [2 x $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE 0x7ECA7Fu
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE_STRIDE 0x10u
+/* The phase of the layer's bob up and down on its orbit; on 5 a frame [2 x $10 bytes, by screen
+ * script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_BOB 0x7ECA80u
+#define RAM_BATTLE_SCREEN_ORBIT_BOB_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_BOB_STRIDE 0x10u
+/* The phase of the layer's sway across on its orbit; on 6 a frame [2 x $10 bytes, by screen
+ * script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY 0x7ECA81u
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY_STRIDE 0x10u
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 #define RAM_BATTLE_SCROLL_MODE 0x7ECA92u
+/* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
+ * $FF for none [2 x $1 bytes, by which (first, second)] */
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS 0x7ECA95u
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_COUNT 2u
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_STRIDE 0x01u
+/* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
+ * shrink it by their variables and wait for it [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS 0x7ECAA4u
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS_STRIDE 0x01u
+/* The center across of a circle the screen script draws as a window [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_X 0x7ECAA6u
+#define RAM_BATTLE_SCREEN_CIRCLE_X_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_X_STRIDE 0x01u
+/* The center down of a circle the screen script draws as a window [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_Y 0x7ECAA8u
+#define RAM_BATTLE_SCREEN_CIRCLE_Y_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_Y_STRIDE 0x01u
+/* How a circle is drawn into the window table (one of six ways, through $CD:319E) [2 x $1 bytes,
+ * by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND 0x7ECAD1u
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND_STRIDE 0x01u
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
  * (battle_load_graphics) */
 #define RAM_BATTLE_GRAPHICS_LOAD_IN_VBLANK 0x7ECAD3u
-/* The three animation positions, saved by the screen script into one of two interleaved slots
- * [12 x $1 bytes, by position byte * 2 + slot] */
-#define RAM_BATTLE_SAVED_POSITIONS 0x7ECAEAu
-#define RAM_BATTLE_SAVED_POSITIONS_COUNT 12u
-#define RAM_BATTLE_SAVED_POSITIONS_STRIDE 0x01u
-/* Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points
- * the work RAM port at */
+/* Where a triangle the screen script draws as a window is centered, across [2 x $1 bytes, by
+ * shape] */
+#define RAM_BATTLE_SHAPE_CENTER_X 0x7ECAD4u
+#define RAM_BATTLE_SHAPE_CENTER_X_COUNT 2u
+#define RAM_BATTLE_SHAPE_CENTER_X_STRIDE 0x01u
+/* Where a triangle the screen script draws as a window is centered, down [2 x $1 bytes, by
+ * shape] */
+#define RAM_BATTLE_SHAPE_CENTER_Y 0x7ECAD6u
+#define RAM_BATTLE_SHAPE_CENTER_Y_COUNT 2u
+#define RAM_BATTLE_SHAPE_CENTER_Y_STRIDE 0x01u
+/* How far a turning triangle's corners lie out of the screen's plane before it is turned [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_DEPTH 0x7ECAD8u
+#define RAM_BATTLE_SHAPE_DEPTH_COUNT 2u
+#define RAM_BATTLE_SHAPE_DEPTH_STRIDE 0x01u
+/* How far each corner of a triangle lies from its center [6 x $1 bytes, by corner * 2 + shape] */
+#define RAM_BATTLE_SHAPE_RADII 0x7ECADAu
+#define RAM_BATTLE_SHAPE_RADII_COUNT 6u
+#define RAM_BATTLE_SHAPE_RADII_STRIDE 0x01u
+/* A flat triangle's stretch across, as an angle whose sine is the scale ($40 full size) [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SCALE_X 0x7ECAE0u
+#define RAM_BATTLE_SHAPE_SCALE_X_COUNT 2u
+#define RAM_BATTLE_SHAPE_SCALE_X_STRIDE 0x01u
+/* A flat triangle's stretch down, as an angle whose sine is the scale ($40 full size) [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SCALE_Y 0x7ECAE2u
+#define RAM_BATTLE_SHAPE_SCALE_Y_COUNT 2u
+#define RAM_BATTLE_SHAPE_SCALE_Y_STRIDE 0x01u
+/* The angle each corner of a triangle lies at about its center (a turn is 256) [6 x $1 bytes, by
+ * corner * 2 + shape] */
+#define RAM_BATTLE_SHAPE_ANGLES 0x7ECAE4u
+#define RAM_BATTLE_SHAPE_ANGLES_COUNT 6u
+#define RAM_BATTLE_SHAPE_ANGLES_STRIDE 0x01u
+/* The corners of the two triangles the screen script draws as windows, across and down, the
+ * shapes' bytes interleaved; a script sets them from the animation positions, or turns and
+ * places them about a center [12 x $1 bytes, by (corner * 2 + axis) * 2 + shape] */
+#define RAM_BATTLE_SHAPE_CORNERS 0x7ECAEAu
+#define RAM_BATTLE_SHAPE_CORNERS_COUNT 12u
+#define RAM_BATTLE_SHAPE_CORNERS_STRIDE 0x01u
+/* How far a triangle is turned about each of three axes before it is drawn (a turn is 256) [6 x
+ * $1 bytes, by axis * 2 + shape] */
+#define RAM_BATTLE_SHAPE_TURNS 0x7ECAF6u
+#define RAM_BATTLE_SHAPE_TURNS_COUNT 6u
+#define RAM_BATTLE_SHAPE_TURNS_STRIDE 0x01u
+/* How large a triangle is drawn, in 256ths of its corners' distance from its center ($FF about
+ * full size) [2 x $1 bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SIZE 0x7ECAFCu
+#define RAM_BATTLE_SHAPE_SIZE_COUNT 2u
+#define RAM_BATTLE_SHAPE_SIZE_STRIDE 0x01u
+/* A corner of a turning triangle once it is turned, as signed bytes [3 x $2 bytes, by axis
+ * (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_TURNED_POINT 0x7ECAFEu
+#define RAM_BATTLE_SHAPE_TURNED_POINT_COUNT 3u
+#define RAM_BATTLE_SHAPE_TURNED_POINT_STRIDE 0x02u
+/* A corner of a turning triangle before it is turned, as signed bytes [3 x $2 bytes, by axis
+ * (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_POINT 0x7ECB06u
+#define RAM_BATTLE_SHAPE_POINT_COUNT 3u
+#define RAM_BATTLE_SHAPE_POINT_STRIDE 0x02u
+/* The bytes after battle_shape_point's: a model's points are written as words, these 0 [3 x $2
+ * bytes, by axis (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_POINT_HIGH 0x7ECB07u
+#define RAM_BATTLE_SHAPE_POINT_HIGH_COUNT 3u
+#define RAM_BATTLE_SHAPE_POINT_HIGH_STRIDE 0x02u
+/* Triangles put aside to be brought back (commands $A5 and $A6): everything from
+ * battle_shape_center_x to battle_shape_size [8 x $2A bytes, by slot] */
+#define RAM_BATTLE_SAVED_SHAPES 0x7ECB0Eu
+#define RAM_BATTLE_SAVED_SHAPES_COUNT 8u
+#define RAM_BATTLE_SAVED_SHAPES_STRIDE 0x2Au
+/* Which window quadrilateral or screen script triangle is being rasterized; its bit 0 picks the
+ * window, the table half $CD:38B6 points the work RAM port at */
 #define RAM_BATTLE_WINDOW_QUAD_INDEX 0x7ECC64u
 /* Direct page bytes $00-$2A, saved by the NMI handler around its work [43 x $1 bytes, by direct
  * page byte] */
 #define RAM_BATTLE_SAVED_DIRECT_PAGE 0x7ECC65u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_COUNT 43u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_STRIDE 0x01u
+/* Where the screen script's wave of line offsets is in its turn (command $8F) */
+#define RAM_BATTLE_LINE_WAVE_PHASE 0x7ECC90u
+/* Nonzero for each layer that takes battle_line_scroll_offsets in the line offset scroll modes
+ * [3 x $2 bytes, by layer (BG1, BG2, BG3)] */
+#define RAM_BATTLE_LINE_SCROLL_LAYERS 0x7ECC91u
+#define RAM_BATTLE_LINE_SCROLL_LAYERS_COUNT 3u
+#define RAM_BATTLE_LINE_SCROLL_LAYERS_STRIDE 0x02u
 /* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
  * delay runs out [2 bytes] */
 #define RAM_BATTLE_REPEAT_BUTTONS 0x7ECC97u
@@ -6406,6 +6757,9 @@
 #define RAM_BATTLE_TILE_ROW_PALETTES 0x7ECC9Du
 #define RAM_BATTLE_TILE_ROW_PALETTES_COUNT 2u
 #define RAM_BATTLE_TILE_ROW_PALETTES_STRIDE 0x02u
+/* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
+ * while the screen scripts run [2 bytes] */
+#define RAM_BATTLE_BACKGROUND 0x7ECCA2u
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers
  * selects [6 x $2 bytes, by layer * 2 + axis (BG1-BG3, X then Y)] */
 #define RAM_BATTLE_SHAKE_OFFSETS 0x7ECCA4u
@@ -6475,9 +6829,18 @@
 #define RAM_BATTLE_BLOCK_UPLOADED_ROW 0x7ECD1Fu
 /* Source of the last block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOADED_SOURCE 0x7ECD20u
+/* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
+#define RAM_BATTLE_SCRIPT_SOUND_REQUEST 0x7ECD23u
+/* The sound battle_script_sound_request asks for */
+#define RAM_BATTLE_SCRIPT_SOUND 0x7ECD24u
+/* Where across the screen the sound battle_script_sound_request asks for plays ($80 the middle)
+ * [2 bytes] */
+#define RAM_BATTLE_SCRIPT_SOUND_PAN 0x7ECD25u
 /* The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle)
  * keeps Start from pausing */
 #define RAM_BATTLE_SETUP_FLAGS_COPY 0x7ECD27u
+/* How wide the widening orbit (command $C4) has grown: one more every fourth frame */
+#define RAM_BATTLE_SCREEN_ORBIT_GROWTH 0x7ECD28u
 /* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
  * frame */
 #define RAM_BATTLE_SPRITES_FROZEN_SETTING 0x7ECD29u
@@ -6492,6 +6855,8 @@
 #define RAM_BATTLE_SAVED_PALETTE_TYPES 0x7ECD2Fu
 #define RAM_BATTLE_SAVED_PALETTE_TYPES_COUNT 8u
 #define RAM_BATTLE_SAVED_PALETTE_TYPES_STRIDE 0x01u
+/* How far every line of the layers is moved across by the screen script's sway (command $E7) */
+#define RAM_BATTLE_LINE_SWAY 0x7ECD37u
 /* Half the height of the column band window 1 draws around line $6A */
 #define RAM_BATTLE_COLUMN_BAND_HALF_HEIGHT 0x7ECD38u
 /* The column band's left edge; its right edge is 255 less it */
@@ -6502,6 +6867,9 @@
 #define RAM_BATTLE_WINDOW_STEPS 0x7ECD3Au
 #define RAM_BATTLE_WINDOW_STEPS_COUNT 2u
 #define RAM_BATTLE_WINDOW_STEPS_STRIDE 0x01u
+/* Counted up by command $EF; when it comes round to 0 the screen script stops the battle's
+ * palette animations 8-11 */
+#define RAM_BATTLE_SCREEN_PALETTE_STOP_COUNT 0x7ECD3Cu
 /* Offset of the next block id in the effect's list of four ($D1:ECDB) [2 bytes] */
 #define RAM_BATTLE_EFFECT_GRAPHICS_LIST 0x7ECD3Du
 /* VRAM word address the next effect graphics block goes to ($2000 on, $800 apart) [2 bytes] */
@@ -6518,6 +6886,9 @@
 #define RAM_BATTLE_EFFECT_GRAPHICS_WANTED 0x7ECD44u
 /* The effect whose graphics battle_effect_graphics_wanted asks for */
 #define RAM_BATTLE_EFFECT_GRAPHICS_EFFECT 0x7ECD45u
+/* The layers the screen script may turn on in the screen's settings (command $F5); its commands
+ * for them keep to these */
+#define RAM_BATTLE_SCREEN_LAYER_MASK 0x7ECD46u
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
 #define RAM_BATTLE_PALETTE_ROWS_MOVED 0x7ECDC8u
@@ -6629,6 +7000,10 @@
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
 #define RAM_SCENE_SCALER_PAIRS_DP 0x1Fu      /* page scene */
+/* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
+ * request leaves the request's state; nothing reads them [2 bytes] */
+#define RAM_SCENE_SCALER_REQUEST_STATE 0x7E0021u
+#define RAM_SCENE_SCALER_REQUEST_STATE_DP 0x21u /* page scene */
 /* Bitmap scaler: base address added to a source row's position to point at it [2 bytes] */
 #define RAM_SCENE_SCALER_SOURCE_BASE 0x7E0023u
 #define RAM_SCENE_SCALER_SOURCE_BASE_DP 0x23u /* page scene */
@@ -6736,8 +7111,9 @@
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
 #define RAM_SCENE_RACE_LEAD_DP 0x8Eu         /* page scene */
-/* The camera's turn as the bikes are placed on the screen: its cosine and sine, and their
- * negatives [4 x $2 bytes, by 0 the cosine, 1 the sine, 2 and 3 their negatives] */
+/* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
+ * camera's angle): its sine and cosine, and their negatives [4 x $2 bytes, by 0 the sine, 1 the
+ * cosine, 2 and 3 their negatives] */
 #define RAM_SCENE_RACE_VIEW 0x7E0090u
 #define RAM_SCENE_RACE_VIEW_COUNT 4u
 #define RAM_SCENE_RACE_VIEW_STRIDE 0x02u
@@ -6851,6 +7227,10 @@
 /* The curtain table's bank; bit 0 picks bank $7F */
 #define RAM_SCENE_CURTAIN_TABLE_BANK 0x7E0354u
 #define RAM_SCENE_CURTAIN_TABLE_BANK_DP 0x54u /* page decompress */
+/* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
+ * bank's low bit counts) and the race's setup writes 0 with it */
+#define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH 0x7E0355u
+#define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH_DP 0x55u /* page decompress */
 /* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
 #define RAM_SCENE_CIRCLE_TABLE 0x7E0356u
 #define RAM_SCENE_CIRCLE_TABLE_DP 0x56u      /* page decompress */
@@ -6895,6 +7275,10 @@
 #define RAM_SCENE_START_HELD 0x7E0394u
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 #define RAM_SCENE_RESET_DISABLED 0x7E0396u
+/* How many times the attract sequence's race has been shown, below the program's work RAM so it
+ * survives from one showing to the next: the camera takes one of its two scripts on odd showings
+ * and the other on even [2 bytes] */
+#define RAM_SCENE_RACE_DEMO_SHOWINGS 0x7E0397u
 /* Frames left before the race's scene ends, once a button has been pressed after it [2 bytes] */
 #define RAM_SCENE_RACE_END_WAIT 0x7E0399u
 /* Where the scene program is in the game's table of random bytes ($C0:FE00): each draw steps it
@@ -7039,6 +7423,39 @@
 #define RAM_SCENE_RACE_DIVISORS_STRIDE 0x01u
 /* The scene's working palette, 256 colors, sent to CGRAM [512 bytes] */
 #define RAM_SCENE_PALETTE 0x7E2200u
+/* The routine the program's main loop calls each pass, the operand of its own call, which a
+ * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) [2 bytes] */
+#define RAM_SCENE_MAIN_LOOP_CALL 0x7E3024u
+/* Which routine starts the plane's perspective lines, the operand of the program's own call: the
+ * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
+ * the line above it) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_START 0x7E35FDu
+/* The sine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ACROSS_PRODUCT 0x7E360Bu
+/* The branch the perspective's loop takes over its negation of the cosine's entries ($0480) or
+ * into it ($0080, when the cosine is negative) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_COSINE_SIGN 0x7E3616u
+/* The cosine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ALONG_PRODUCT 0x7E3623u
+/* Where the perspective's loop stores each line's sine entry as it divides it out: the matrices'
+ * second entries ($F0FE, the sine not negative) or their third ($F484) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_ACROSS_ENTRIES 0x7E362Bu
+/* Where the perspective's loop stores each line's sine entry negated: the other of
+ * scene_perspective_across_entries' two [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_AGAINST_ENTRIES 0x7E3632u
+/* The two instructions the perspective's loop runs after each line: a step to the next distance
+ * ($EAE8 as the program comes, $E8EA as the race writes it), or the branch the race copies from
+ * scene_perspective_pair_branch to give each line's matrix to the next; scenes no movie reaches
+ * write other steps [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_LINE_STEP 0x7E3634u
+/* Where the perspective's lines end, the operand of the loop's compare: $380, past the 224th
+ * line's four bytes [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_END 0x7E3637u
+/* The branch the race writes into the perspective's loop to build the lines in pairs (the
+ * program's data, $3680) [2 bytes] */
+#define RAM_SCENE_PERSPECTIVE_PAIR_BRANCH 0x7E368Fu
 /* The sprite list the program draws a number with: the count byte (one more than the digits
  * shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20
  * and the digit) [21 x $1 bytes, by byte of the list] */
@@ -7050,6 +7467,9 @@
 #define RAM_SCENE_RACE_OPENINGS 0x7E3F66u
 #define RAM_SCENE_RACE_OPENINGS_COUNT 2u
 #define RAM_SCENE_RACE_OPENINGS_STRIDE 0x02u
+/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
+ * program's own load, which the setup of the race without its panel writes again */
+#define RAM_SCENE_RACE_ENDING_SWEEP 0x7E4259u
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
  * then the one toward the higher lanes (the program's data) [16 x $2 bytes, by the way the
  * camera faces (0-7, an eighth of a turn each), then 8 more for the other direction] */
@@ -7129,6 +7549,18 @@
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS 0x7E531Bu
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_COUNT 2u
 #define RAM_SCENE_RACE_SPRITE_LIST_COUNTS_STRIDE 0x41u
+/* The count of the race panel's sprite list (the program's data): 7, six sprites with the
+ * score's label; the race without its panel makes it 6 */
+#define RAM_SCENE_RACE_PANEL_SPRITES 0x7E5395u
+/* Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8
+ * without the panel) */
+#define RAM_SCENE_RACE_BAR_END_X 0x7E53A0u
+/* Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8;
+ * $E8 without the panel) */
+#define RAM_SCENE_RACE_BAR_CAP_X 0x7E53A4u
+/* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
+ * without the panel */
+#define RAM_SCENE_RACE_CORNER_SPRITES 0x7E53AEu
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u
@@ -7136,6 +7568,21 @@
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes] */
 #define RAM_SCENE_RACE_LINE_TABLES 0x7EF000u
+/* The first half of each screen line's Mode 7 matrix for the plane in perspective, which a
+ * per-line effect sends: the camera's cosine and sine times its height over the line's distance
+ * [224 x $4 bytes, by screen line] */
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW 0x7EF100u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_COUNT 224u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_STRIDE 0x04u
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_A 0x7EF100u /* The matrix's first entry: the cosine's */
+#define RAM_SCENE_PLANE_MATRIX_TOP_ROW_B 0x7EF102u /* The matrix's second entry: the sine's */
+/* The second half of each screen line's Mode 7 matrix for the plane in perspective
+ * (scene_plane_matrix_top_row) [224 x $4 bytes, by screen line] */
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW 0x7EF488u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_COUNT 224u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_STRIDE 0x04u
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_C 0x7EF488u /* The matrix's third entry: the sine's, negated */
+#define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_D 0x7EF48Au /* The matrix's fourth entry: the cosine's, as the first */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
  * after another, before it is gathered into tiles [1152 x $2 bytes, by word of the picture, $10
  * a row] */
@@ -7174,6 +7621,10 @@
 #define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
 #define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
 #define RAM_SCENE_CALL_BUMP_PUSH_DP 0xF6u    /* The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte */
+#define RAM_SCENE_CALL_RACE_EDGE_HALF_WIDTH_DP 0xF0u /* The race's placing of the bikes: the last bike's half width, over which its left edge is worked out; the field's controller read takes it over as the buttons newly pressed (input_pressed shares the cell) */
+#define RAM_SCENE_CALL_RACE_EDGE_MIDDLE_DP 0xF2u /* The race's placing of the bikes: where across the screen the last bike's picture is centered; the field's controller read takes it over as the buttons held (input_held) */
+#define RAM_SCENE_CALL_RACE_HALF_SIZE_DP 0xFCu /* The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over; the field's controller read takes it over as the repeat delay (input_repeat_delay) */
+#define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there across the multiply that shifts the cell after the product; the field's controller read takes it over as the buttons of the frame before (input_previous) */
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 

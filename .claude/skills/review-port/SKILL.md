@@ -497,7 +497,10 @@ Each of these is a finding. Every example here comes from this repo.
     remedy is a guard that refuses those inputs, so the original runs them;
     the logic keeps only the arithmetic the game actually needs (`n / d`). An
     emulation with a comment explaining that nothing reaches it is still an
-    emulation.
+    emulation. The same holds for a carry or borrow that is constant over
+    every input the game produces (a subtraction that can't borrow on any
+    real camera): the guard refuses the rest and the sum is written plainly,
+    rather than the bit worked out and handed on.
 35. **Leftover records that carry the CPU.** A file-static `*_leaves` record is
     acceptable for a value the wrapper can't derive from the inputs and the
     final state. A register-shaped record (carry, overflow, A) that the logic
@@ -844,6 +847,18 @@ Each of these is a finding. Every example here comes from this repo.
      returned (`menu_equip_item_described_on_opening`, X left pointing at a
      place): it is a register derivation and belongs in the subsystem's
      leaves, worked out from the state, not named as a game concept.
+116. **One parameter list for a whole language.** An interpreter whose table
+     decodes every command into one shared set of fields (`value`, `which`,
+     `kind`) has items 55 and 10 at once: the names can't say what each
+     command's operand is, and no enum can be the type. Each row's
+     parameters are named for that command, and the enums it takes are the
+     types.
+117. **A table declared from below its start.** A map entry whose base is
+     moved down so the original's index needs no subtraction (`menu_tech_parts`
+     from `$7E:1607`) makes the indices below the real start look valid,
+     aliasing whatever lies there without a `reuses`, and the accessor's
+     range check can't catch them. Declare the table where it starts and
+     index it by what the game counts.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean

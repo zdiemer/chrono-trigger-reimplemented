@@ -10,7 +10,7 @@
  * palette animation freezes the animations that step through frames while
  * the battle asks for it. A palette row is 16 colors: rows 0-7 are the
  * background's, 8-15 the sprites' palettes 0-7. */
-#include "battle/screen.h"
+#include "battle/screen_script.h"
 
 #include "battle/bridge.h"
 
@@ -113,7 +113,6 @@ static void swap_sprite_palettes(GameState *g)
     }
     for (unsigned c = 0; c < SWAPPED_ROWS * ROW_COLORS; c++)
         swap_color(g, row_color(SWAPPED_LOW, c), row_color(SWAPPED_HIGH, c));
-    screen_command_took(g, 0);
 }
 
 // $D1:E899
@@ -213,6 +212,19 @@ static void pause_palette_animation(GameState *g)
     }
 }
 
+/* ---- The commands' rows (battle/screen_script.h) --------------------------------------------------- */
+
+static ScreenFlow swap_palettes(GameState *g)
+{
+    swap_sprite_palettes(g);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(swap_palettes)
+
+SCREEN_OPCODES(screen_palette_opcodes,
+    { 0xE1, OPERATION(swap_palettes), .length = 0 },
+);
+
 /* ---- The entries ------------------------------------------------------------------------ */
 
 bool battle_screen_page(Snes *s) { return battle_on_page(s); }
@@ -220,7 +232,9 @@ bool battle_screen_page_a_clear(Snes *s) { return battle_on_page_a_high_clear(s)
 
 void battle_screen_swap_palette_rows(Snes *s)
 {
-    swap_sprite_palettes(state_of(s));
+    GameState *g = state_of(s);
+    swap_sprite_palettes(g);
+    screen_command_took(g, 0);
     screen_command_done(s);
 }
 

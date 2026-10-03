@@ -41,11 +41,6 @@
 
 /* ---- The member and its partners ------------------------------------------------------------ */
 
-/* A member's action waits its turn to be carried out with bit 6 of its record's
- * state; what it chose is its choice's bits (battle.h). The record is seven
- * bytes. */
-enum { ACTION_WAITING = 0x40, MEMBER_RECORD_BYTES = 7 };
-
 // $C1:B978
 /* The member whose action is carried out: from the one the loop names (the
  * third for any past it) round the party, the first whose action is waiting,
@@ -53,9 +48,9 @@ enum { ACTION_WAITING = 0x40, MEMBER_RECORD_BYTES = 7 };
 static uint8_t take_waiting_member(GameState *g)
 {
     uint8_t member = battle_actor(g) < BATTLE_PARTY_SIZE ? battle_actor(g) : BATTLE_PARTY_SIZE - 1;
-    while (!(battle_member_actions_state(g, member) & ACTION_WAITING))
+    while (!(battle_member_actions_state(g, member) & MEMBER_ACTION_WAITING))
         member = (uint8_t)((member + 1) % BATTLE_PARTY_SIZE);
-    set_battle_member_actions_state(g, member, (uint8_t)(battle_member_actions_state(g, member) & ~ACTION_WAITING));
+    set_battle_member_actions_state(g, member, (uint8_t)(battle_member_actions_state(g, member) & ~MEMBER_ACTION_WAITING));
     set_battle_actor(g, member);
     return member;
 }
@@ -206,7 +201,7 @@ static void member_waits_after_tech(GameState *g, uint8_t tech, unsigned part)
     if (battle_timer_running(g, BATTLE_TIMER_TURN, slot)) {
         battle_restart_timer(g, BATTLE_TIMER_TURN, slot);
         set_battle_member_ready(g, slot, 0);
-        (void)effect_times(g, MEMBER_RECORD_BYTES, slot);
+        (void)effect_times(g, MEMBER_ACTION_RECORD_BYTES, slot);
         ORIGINAL_EFFECT(battle_leave_multiply_carry(g, ran_past));
         set_battle_member_actions_state(g, slot, 0);
     }
@@ -527,7 +522,7 @@ bool battle_carry_out_member_action_ready(Snes *s)
     const GameState *g = state_of(s);
     bool waiting = false, partners_fit = true;
     for (unsigned m = 0; m < BATTLE_PARTY_SIZE; m++) {
-        if (battle_member_actions_state(g, m) & ACTION_WAITING)
+        if (battle_member_actions_state(g, m) & MEMBER_ACTION_WAITING)
             waiting = true;
         uint8_t partners = battle_member_actions_partners(g, m);
         if (partners != NO_PARTNERS

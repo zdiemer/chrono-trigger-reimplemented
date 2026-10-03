@@ -35,7 +35,7 @@ resolves through here:
 |---|---|
 | [history/recomp-waves.md](history/recomp-waves.md) | the `$C7` pilot and Phase 3's waves 1 and 2, bank by bank |
 | [history/recomp-phase3a.md](history/recomp-phase3a.md) | Phase 3a: each subsystem taken off the machine |
-| [history/recomp-chunks.md](history/recomp-chunks.md) | Phase 3's per-chunk sections for the menus, the field and the battle |
+| [history/recomp-chunks.md](history/recomp-chunks.md) | Phase 3's per-chunk sections for the menus, the field, the battle and the scene program |
 
 A new as-built section goes in **this** file, under the phase it belongs to;
 when the next chunk of the same stream lands, the one before it moves to its
@@ -3227,297 +3227,293 @@ leader's walk, now run as C under the frame, has two kinds of call: the
 value that removes its drift leaves the short ones' tail. The vblank check
 finds none of their writes moved.
 
-### Phase 3, battle chunk 10: the enemies' movements and the main loop's last callees (`$C1:3772`, `$FD:AB30`)
+### Phase 3, battle chunk 11: the screen script language (`$CD:1609`-`$CD:31A9`)
 
-What was left of the battle in bank `$C1` after chunk 9b, and of its routines
-in bank `$FD`, by `python3 tools/burndown.py --uncovered C1`: the enemies'
-per-animation effects (`$C1:3772`-`$C1:4021`, 2,278 bytes, the bank's largest
-run), and every callee the main loop still called out to but the steps, the
-messages and the rewards': a member's status turn (`$FD:AB30`), the counters
-(`$FD:AC6E`), the calling off of a combination (`$FD:A8CE`-`$A95F`), the
-dropped action (`$C1:B3F9`), the enemies an action knocked out (`$C1:B762`),
-the demo's party (`$C1:B70E`, `$B725`), the standing down (`$C1:B7F2`) and the
-battle's end's bookkeeping (`$C1:EA9D`, `$EAE8`, `$B442`, `$B3BB`, `$B3D2`,
-`$FD:AA98`, `$AAB0`): about 3.4 KiB, all there was by concept. The bank's
-burndown went from 7% left to 3%; what remains are runs inside ports that hand
-back to the original (PLAN.md).
+The largest runs `python3 tools/burndown.py --uncovered CD` listed in the
+battle's frame work, `$CD:17A9`-`$CD:319D`, are one thing: the 122 handlers
+of the screen script language, whose runner (`$CD:1609`) the frame work
+called out to, and whose window, motion and palette bodies in bank `$D1`
+were already C (battle chunk on the screen effects, docs/ports.tsv). The
+chunk is the runner and every command whose handler stays in that range;
+it stops where a command leaves the language for a renderer (the circles'
+and shapes' at `$CD:31AA`-`$CD:3656`, the triangles' rasterizer `$CD:367C`)
+or for bank `$CE`. `$CD` went from 70% left to 39% (4.7K of code).
 
-What it is, in the game's terms:
+What it is, in the game's terms (`battle/screen_script.h` says it at
+length): a spell that dresses the whole screen runs a script from bank `$D1`
+on one of two channels, each with a layer of its own. A byte below `$7F`
+shows a frame of the effect's animated graphics and ends the channel's step,
+`$7F` ends it, `$FF` ends the script, and the rest are commands that run
+within the step: the channel's pace, loops (one counts the frames on),
+calls, jumps and switches on the animation scripts' variables, and waits
+that jump back to the step's end; the layer nudged eight ways, put at an
+animation position, swung, or set on an orbit of three sines
+(`screen_layers.c`); two circles placed, widened and narrowed by the
+animation scripts' variables, and two triangles, flat (corners at angles
+and distances about a center, stretched) or turning in space, or one of the
+ROM's models of three points, laid out for the rasterizer with their size
+(`screen_shapes.c`); waves and a sway across the layers' lines, and a ripple
+down both windows (`screen_waves.c`, `screen_window.c`); and the screen's
+settings, colors, palette animations, sounds and the frame work's switches
+(`screen_settings.c`). The language is a C table: each file ends with its
+rows, which decode the operands into named parameters (a shape, an angle per
+corner, a distance back) and say what an operation needs to run as the
+original does (a shape one of the two, a position one of the six); the rows
+of the commands that are still the original's have no operation, and the
+runner calls their handlers as the original's dispatch does.
 
-- **The enemies' movements** (`battle/enemy_movement.c`): an animation names
-  a movement, a step of eight pixels every few frames, looked at before it is
-  taken (the grid, the other combatants' boxes) and then drifted
-  (`battle/effect_paths.c`): approaching to a reach, charging, lining up,
-  keeping a distance from the target (the spot on the enemy's side, backed
-  away from or closed in on), circling, weaving round a loop below where the
-  weave started, marching one way, making for the middle; and stopping to act,
-  with waiting for the target to move on. The animation picks each one's
-  variant; the drift's cells were renamed for what they hold
-  (`battle_enemy_drifting`, `_heading`, `_drift_from_*`). The loop in
-  `battle/animation.c` runs them as C, each timed as its routine, with the
-  ROM's table only for an animation that names no movement.
-- **The party's turns** (`battle/party_turns.c`): a member driven to fight or
-  confused attacks at random; a member kept from acting loses its waiting
-  action; the counters; the combination called off; the knocked-out enemies
-  with no last reaction counted and shown beaten; the demo's party; standing
-  down. The steps and the attack run between decisions, so these are bridges,
-  run by the main loop as siblings (`battle_run`), each registered.
-- **The battle's end** (`battle/battle_end.c`): the statuses cleared, the
-  party stood up and kept in its records, the enemies taken off the field but
-  for those marked to stay (bit 6 of the placement's kind, which the field
-  reads), the enemies counted out when the party runs, and the beaten noted for
-  the story (`battle_enemies_beaten_for_the_story`, event memory `$1EE`), all
-  C the main loop calls as C.
+**The third trap, settled first.** `tools/v_readers.py` found V dead into
+every handler that stays the original's and into the rasterizer, and after
+the runner returns; they are called with A, X, Y, the carry and N and Z as
+the dispatch leaves them, V declared. What the runner reads back of a
+command is A's high byte, which the original shifts into the next frame's
+place in the graphics: `tools/disasm/high_byte.py` shows every handler
+returning it clear but the window fill, the beam and the quadrilaterals,
+and of the fills only filling window 1 sets it, which no script of the game's
+asks for (a scan of the scripts the table at `$D1:646C` points at), so the
+runner hands that fill to the original's handler; where a handler
+that is still the original's leaves the byte set, the C runner hands the
+step to the original's from the dispatch's return. A byte past the last
+command sends the original's dispatch past its table; the runner hands it
+back at the loop's head.
 
-**The third trap, settled first.** `tools/v_readers.py` found V dead into the
-steps (`$C1:0003`), the called-off step (`$C1:B961`), the attack (`$C1:BFAA`)
-and the reactions' finding (`$C1:B488`), and after every routine the main loop
-called. The library reaches the steps' sites too seldom for a run there to
-count (19 calls at the most), so each step's V rests on a `ct_fuzz
---poison-dc` run of its routine, the called-off step's with A's high byte
-clear as its callers leave it: random high bytes send the step's dispatch
-where V is read (the notes in `party_turns.c` and `member_turn.c`). Where
-the main loop's next call-out reads A's high byte after a routine that is now
-C, the loop clears it as the original's code there does (the victory's step,
-the running away's message, the field's return).
+**Call-outs where the original makes them.** The commands' call-outs (the
+original's handlers, the rasterizer) are compared at the original's stack, so
+the runner's three routines are siblings run through `battle_run`, each
+registered: the frame's run (`$CD:1609`) pushes the count of ended channels
+as the original's `PHY` does, a channel's step (`$CD:1654`) keeps its offset
+on the stack, and the dispatch (`$CD:16A6`) runs one command, so a call from
+a command meets the original's at `$CD:16AF`. The generic entry
+`battle_screen_command` stands at each of the 104 C handlers, so each is
+fuzzed alone; one that draws stops at the rasterizer, as the handler's jump
+does.
 
-**What the gate found.** Shadow mode found that a sibling run through
-another sibling must keep the original's stack: the called-off member
-(`$FD:A8FE`) became its own entry so the step's call meets the original's at
-its depth. Fuzzing found that the movements and the dropped action find their
-cells with A's high byte, clear as their callers leave it (now their guards'),
-and that the charge leaves three past the slot the boxes' test handed back.
+**What the gate found.** Shadow mode found the original's leftovers in the
+battle page's cells: a wait's distance back as a word in `$45`, the operand
+the change of a variable and the corners' limit leave there, and the
+palette animation's raw operands. The triangles' sizing (`$CD:211B`) stores
+its operands to the multiplier as words where the corner moves out: the
+product is read as a word, so the controller's low byte (`$4218`) comes along
+as the high byte of the corner's word in `$4B`, and the size's word store
+puts `$22` in the divider; the runner reads the controller for that one
+cell, as scaffolding. The models' rotation is handed the size as a word whose
+high byte clears the low byte of `battle_turn_slot` (`$22`), a real write the
+port keeps. Fuzzing found that the runner must hand a channel's step the pace
+in A, as the original's `TDC` leaves its high byte, and that the jitter takes
+the dispatch's carry into its first pick, which the commands' guard now
+requires.
 
-**Validation.** The library's 26 movies in shadow mode, none mismatching: the
-movements' loop 55,081 calls (27 interrupted), the movements 1,985 (waiting
-473, approaching 1,244, circling 155, weaving 93, keeping a distance 20; no
-movie charges, lines up, marches or makes for the middle); the dropped action
-39,836, the combination called off 15,580 and its members 2,522, the knocked
-out 4,611 (350 interrupted), the counters 4,154, the status turn 2,810, the
-end's bookkeeping 26-29 each (one running away). **Fuzzing**, seed 1, none
-mismatching: every entry, 5,000 or 8,000 states (the status turn 666 and the
-attack from bank `$FD` 24 compared, the rest past the budget in the attack's
-showing).
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the frame's run 431,221 calls, the channels' steps 129,354, the dispatch
+403,323, the commands 1,260,637 in all, none interrupted; 22 commands no
+movie reaches (the ones the scripts of the library's battles don't use, among
+them the orbits, the swing's start and the models that spin). **Fuzzing**,
+seed 1, 5,000 states each, from the `battle` state, with the operands as
+random bytes in work RAM and the guards' bounds kept (the shape, circle,
+slot and position one the language has): every command 0 mismatching of
+about 2,500 compared (half of the states turned away by the dispatch's carry);
+the dispatch 0 of 4,778; the frame's run 0 of 4,819 and a channel's step 0
+of 4,876 over random scripts. The step's first run had one mismatch: a
+random `$8C` with an operand of `$0F`, whose original handler jumps through
+its table of four swing words by the operand and on to `$CD:6020`, code that
+isn't a handler, which ran off with the interrupt flag cleared; no script of
+the game's has `$8C` or `$8D`, so a step that comes to one naming no word is
+handed to the original's runner at the dispatch's call. The commands' constraints are in `tools/fuzz_routines.toml`.
 
-**Timing.** The new entries were calibrated from the shadow runs; those no
-movie reaches take a sibling's cost. The effects' loop, the main loop's body,
-the turn, the timers' dispatch and the combination check were recalibrated.
-With the turn's callees timed as their own routines, the timers' dispatch (a
-whole turn) attributes its time to more than the 32 routines a stretch held,
-so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
+**Timing.** The new entries were calibrated from the shadow runs; the 23 no
+movie reaches (or whose stretches end in the rasterizer) take a sibling's
+cost.
 
-### Phase 3, menus: the items screen and the equipment screen's windows (`$C2:A2CD`-`$C2:B352`)
+### Phase 3, menus: the techs screen (`$C2:B35D`-`$C2:BF2E`)
 
-The rest of the equipment screen, which its steps called out to (`$C2:A2CD`-
-`$C2:AA3F`: the slots window and the list window, each sliding in and out),
-and the items screen beside it in the bank (`$C2:AA40`-`$C2:B352`, the menus'
-screen 2, with the main menu's panel for it): 3.9 KiB, the two screens that
-show the party's items. `$C2` went from 24.2 KiB ported (59% left, 261
-entries) to 28.1 KiB (53%, 300 entries). The plan's `$C2:B520` is the techs
-screen's, the next run along; it shares the member window and the list's
-slide written here, so it is the next chunk, taken whole.
+The menus' screen 3, the run the burndown had largest left in the bank
+(`$C2:B520`), taken whole with the main menu's panel for it: 2.8 KiB, and the
+pointing among the members a healing is used on (`$C2:B83E`, `$C2:B870`), which
+the items screen's tonics shared as a call-out. `$C2` went from 28.1 KiB ported
+(53% left, 300 entries) to 30.9 KiB (48%, 326 entries).
 
-**What it is.** `menu/item_screen.c` is the screen as the game sees it: the
-commands over the list (the list, the sort), the list with an item picked up
-and put down elsewhere (a second cursor holds its row), the sort (the party's
-items gathered, used-up places dropped, the categories in order with what the
-party keeps rather than uses after the rest), who can equip a weapon or
-armour (the names of those who have joined, its attack or defence), and an
-item used from the menu: what it does looked up in its figures (a tonic, one
-by chance, the party's rest, a tab), the member window it is used on, a tab's
-figure raised in the record, one more taken from the party's items each use.
-`menu/item_screen_bridge.c` runs the steps on the machine, the restoring of
-HP and MP (`$C2:8F55`), the cursor among the members a tonic is used on
-(`$C2:B83E`, the techs screen's too), the description (`$C2:F2F3`), the
-lists' frame, paging and slide, and the second cursor's and the scroll bar's
-tasks still the original's. `menu/equipment_windows.c` is the two windows:
-what a member has on (the card's too, which no longer calls out for it), the
-slot taken and the slots' marks, the slots window sliding in with the member
-rows moving aside (and back), the list window sliding in and out, the list of
-what fits laid out and drawn; their slides keep their state in a
-`MenuWindowSlide` or `MenuListSlide` the bridge holds between the frames it
-waits, and stage the band table a frame at a time. `menu/lists.c` holds what
-the two screens' lists share: whether a list scrolls, the way it slid, and
-its rows moved in their buffer once it has (the equipment's `$C2:9FDE` now
-one call of it). `menu/cursor.h` names the frame's buttons and pushes once
-(`MenuButton`, `MenuPush`, `menu_asked`, `menu_pushed`), which the two screens'
-three private copies became.
+**What it is.** `menu/techs.c` is the techs as the menus list them: a
+member's techs of a kind (each tech group the member is one of, in the groups'
+order, and each group's techs the party has learned), what one costs the
+member (its part's cost, which two accessories halve or quarter), whether it
+heals and what it restores, and a tech's row in a list in the colours of one
+usable here or still being learned. `menu/tech_screen.c` is the screen as the
+game sees it: the member rows down the left (and their slide past the ends,
+the view moved four lines a frame through the screen's offset-per-tile
+table), the kinds' tabs, the list of eight rows with its slide and paging, the
+tech on the cursor with its other members' rows and their costs, the
+description, a healing tech used on the window of active members (the user's
+casting pose, the cost taken from its MP), and the panel. `tech_screen_bridge.c`
+runs it on the machine: the scroll bars' frames and task, the cursor's moves
+within a list, the paging, the list's slide frames, the description's
+setting, the stopping of tasks, the restoring and the cursors on every member
+stay the original's. The rows' drawing reuses the shared vocabulary
+(`menu_draw_windows` and `menu_queue_fixed_upload`, now in `windows.h` and
+`vram.h` for every screen; `menu_load_character` beside `menu_load_member`).
 
-**The flags, settled first.** Every call-out was checked against the strict
-solve before the logic: all of them read nothing but memory, Y (the list's
-frame) or A (the description, the tasks' stop, the members' pointing, whose
-sound reads A's high byte). What liveness can't declare is again the P a
-routine saves as it starts, compared under its own calls out: the screens'
-ticks, and here every routine a step reaches with a JSR that calls out
-itself. Those are entries of their own run through `menu_run` (the
-description of the cursor's item `$C2:AD2E` and its caller `$C2:AC59`, the
-use of an item `$C2:B0AB` and its four handlers, the member window `$C2:AF42`,
-a tab's member `$C2:B24A`/`$C2:B275`, a tab's raise `$C2:B2A7`, one more used
-`$C2:B31C`, the windows' slides), so the original's frames stand under their
-calls; before each, one leaves helper per decision (`leave_use_found`,
-`leave_member_choice_started`, `leave_slide_frames`, ...) sets what the
-original's last test left. The equipment screen's preview of an item's
-figures (`$C2:A5C3`) would need its P after the list's move returns, which
-that port's paths don't work out, so it stays the original's (TODO.md).
+**The flags, settled first.** Every call-out the chunk keeps was checked
+before the logic: they read memory, Y (the lists' frames) or A (the stopping
+of tasks, the wait for frames); the one register a port reads back from one
+(`$C2:EA53`'s N, a push past a list's edge) is worked out from the state. What
+needed care is the P each routine saves as it starts, compared under its
+calls out, and the flags a call-out declared don't-care carries through
+unchanged where its callee saves and restores them (`$C2:8255`, `$C2:8AD5`,
+`$C2:F643`): the bridge leaves the original's flags before each (the leaves at
+the end of `tech_screen_bridge.c`), with the shifts in the healing's targets
+(the carry clear), the kind's switch (the carry of the compare before it goes
+round) and the rows' copies (the accumulator's high byte, `$34` down the list
+and `$FF` up it) the ones shadow mode and fuzzing found.
+
+**What shadow mode and fuzzing found.** Two movies reach the screen (`menu`
+and `menus-field-menu`): every call matches, none refused (each entry's counts
+are its ports.tsv row), among them 403 frames among the members, 390 on the
+list, 222 in the window a tech is used from and 430 pointings at a member to
+restore. The library never slides the member list or the tech list. Fuzzed
+from four states of `menus-field-menu` (on the members, on the list, in the
+window, on the triple techs), seed 1, 2,000 states each, the menus' tables
+(`$7E:7700`-`$7FFF`) kept with low RAM and the tilemaps, every entry up to its
+first wait for a frame: 0 mismatching. The first runs found the double and
+triple techs' cost read and kept a word wide (the next part's cost lands in
+the byte after, now `menu_tech_cost_beside`), the list's slide copying with
+the copy's direction swapped, and entries the fuzzer entered with 8-bit index
+registers where the game never does. The parts table is declared from
+`$7E:1607` so a tech's index into it needs no subtraction; a stale list as the
+screen opens can't read past it. Changing the items screen's call-out into a
+`menu_run` of the shared pointing, and its two member-window loops into one,
+left its fuzz counts unchanged against main's (`tools/fuzz_compare.py
+--before`).
+
+**Timing.** The rows' drawing is charged at registered entries of its own
+(`menu_show_member_tech_list` `$C2:BC6F`, `menu_draw_tech_rows` `$C2:BD6B`,
+`menu_show_pointed_tech` `$C2:BB1F`, `menu_draw_tech_member_row` `$C2:BA2F`,
+0.2% error), which took the members' step's worst vblank error from 48518
+clocks to 10470. Two exceptions remain (`tools/timing_exceptions.txt`): the
+pointed tech's rows (`menu_show_pointed_tech`, and `menu_choose_tech`, which
+carries it), whose empty rows inherit the window lists' strings' spread (over
+by about 1600 clocks a row) while the triple techs' member rows fall under,
+holding the routine's own time at the floor.
+
+### Phase 3, the scene program: the rest of the jet bike race (`$7E:3B48`-`$7E:3F13`, `$7E:357B`, `$7E:4D0D`, `$7E:51D1`)
+
+The second chunk of bank `$7E`: what the first left at its edge (history
+file, "Phase 3, the scene program: the jet bike race running"), so that the
+race is C from its setup to its end.
+
+**How it was chosen.** The race's remainder, all reached by
+`events-jetbike-race`: the bikes placed in perspective (`$7E:4D0D`, with
+`$7E:4D4E`-`$7E:4F53`), the perspective table (`$7E:357B`, with its patched
+call's two targets, the race's `$7E:45B0` and the endings' `$7E:9B46`), the
+main loop's scaling of the racers' pictures (`$7E:51D1`-`$7E:5220`), and the
+setup (`$7E:3B48`-`$7E:3F13` with the bikes' start `$7E:45D6` and the
+divisors' clear `$7E:4309`) ported whole, which retires the eleven entries
+the first chunk had registered a block at a time (the buffers' clear, the
+flat layers, the racers' map and the loader's eight blocks). With it the
+curtain the race without its panel ends behind (`$7E:3D72`, a task no movie
+runs). Left at the edge: the program's unpacker by resource (`$7E:3691`,
+before the decompressor) and its first script step (`$7E:3749`, before the
+sequencer), both call-outs of the setup; the curtain's step (`$C3:000E`, the
+field's, still the original's); and the ending shared by modes 10, 11, 14
+and 15 (`$7E:8538` on), which is a loader of the same kind and the next
+chunk (PLAN.md). `$7E` stands at 11.4 KiB ported and 1.2 KiB inlined, 54%
+left (59% before).
+
+**What it is.** `scene/perspective.c` is the Mode 7 plane's perspective for
+any scene: each screen line's matrix, the camera's cosine and sine times its
+height over the line's distance, from the scene's first line (the routine the
+scene's setup writes into the program's call: the race's from the horizon,
+the endings' from the line above it) to the screen's bottom, a line at a time
+or in pairs. The loop's own operands (the products, the branch over the
+negation, the stores' tables) are variables in `re/ram.toml` and left as the
+loop leaves them; the steps and starts other scenes write (modes 1 and 3-8,
+which no movie reaches) are refused by the guard, so the original builds
+those. The race's camera check now builds it as C rather than stopping at it.
+`scene/race_projection.c` places the bikes: their places along and across the
+track turned by the camera's angle onto the plane, then each in perspective,
+the farther first: its distance ahead of the camera, the divisor kept for that
+distance (or searched for, from the last one found, through
+`scene_find_divisor_from`), the line under the horizon, and from the line the
+picture's size, height and width and the place across the screen. The main
+loop's scaling (`scene/race_matrix.c`) hands a waiting request to the bitmap
+scaler and, after the upload, gathers the picture: its four entries are the
+main loop's call (`$7E:51D1`), the two returns into it after each racer
+(`$7E:51DF`, `$7E:51F0`) and the gathering after the upload's wait
+(`$7E:5215`). The setup (`scene/race.c`) is a list of the race's graphics,
+each unpacked and sent where it goes, the racers' pictures (Crono's in two
+parts, one's blocks placed in the other, Johnny's mirrored from them), the
+buffers, the per-line effects, the bikes' start (`race_start`,
+`scene/race_rules.c`), the scripts and the race's song. Where the original's
+calls stay, `scene/bridge.c` holds the machine: the scaling routine's frames
+and data bank under the scaler's first row, the inlined loader's frame and the
+song routine's under their call-outs.
+
+**The registers, settled first.** Liveness has A's high byte and Y live
+after the placing (a frame task, as the first chunk's), and the carry after
+the main loop's call; the setup's callers read the overflow and the data
+bank. The placing hands its entry the bike it placed last and the distance it
+looked up, from which the wrapper leaves A (that bike's last edge, or
+Johnny's mark where he is gone) and Y; the perspective's registers are worked
+out from its tables after it; the main loop's carry is the last request's
+compare, worked out from the state, or the scaler's, untouched; the setup's
+overflow is the matrix code writer's, clear. The call-outs pass what their
+callees read: the unpacker its resource with the direct page, the data bank
+and the overflow the original has there (`$2100`, `$7F` and clear while the
+pictures are worked on, kept on the stack around the third part's
+unpacking), the first script step Y as the divisors' clear leaves it.
+
+**The carries.** The placing never clears the carry between its sums either.
+Those whose carry is the same wherever the horizon is above the plane's top
+(the gap's borrow, the screen line's unit) are plain arithmetic, a bike's top
+the line plus the horizon less the plane's top, and the entry's guard keeps
+the horizon there (the race has it at $38 over $18). The rest move a bike by a
+pixel or a distance step and are rules with one term each, worked out in one
+section, "The units the placing hands on", from the values the sums before
+used: Johnny's place across the plane takes a unit where Crono's place down it
+wrapped, and his place down one where his own place across did; a bike's
+distance takes a unit from the order's comparison (the first) or from the
+first bike's last edge running past the screen's coordinates (the second), and
+is a step farther where the camera's distance less the place wrapped; Johnny
+is a pixel to the right at his nearest (a size of 1). The rotation's products
+are plain arithmetic (the low word of the signed product), the program's own
+multiplies timed with the placing. What the last bike leaves in the scene's
+working cells is written once, plainly, after the placing: the field's
+controller read takes those cells over. The wrapper rebuilds A from the bike
+that comes last and Y from the distance it was looked up at, which the placing
+notes as scaffolding; the drawing, the next task, hands Y on where it draws
+nothing.
 
 **What shadow mode and fuzzing found.** Over the 26 movies every call
-matches, none refused (each entry's counts are its ports.tsv row): the
-commands' step 336 calls, the list's 417, an item picked up 190, the cursor's
-item described 599 (inside those steps), a slot taken 462 and the slots'
-marks 468, a row of what fits 272, what a member has on 225. The library opens the
-items screen twice (`menu` and `menus-field-menu`), sorts once, picks up,
-swaps and uses a tonic, and goes through the equipment screen's windows
-eight times; it never slides the list of items, shows who can equip an item,
-or uses a tab, an item by chance or the party's rest. Fuzzed from two states
-of `menus-field-menu` (the `items` state, frame 5150, and the `equipment`
-state), seed 1, 2,000 states each, the menus' tables (`$7E:7700`-`$7FFF`) kept
-with low RAM and the tilemaps, every routine up to its first wait for a
-frame. The first runs found: the slide's end leaving a 16-bit accumulator and
-the step's both bytes clear (the rows' move returns 16-bit); the list
-window's slide filling 28 words of the rows' table, not 27; the original's
-16-bit count of the scroll bar's hold and the cursor's hiding taken down
-together as the slots window closes; the carry an item's use leaves its
-handlers (the bit search's, not the handler's own) and the overflow a tonic's
-strength test leaves; the drawing entries needing 16-bit index registers.
-Random item tables made the original's strings run anywhere, which the kept
-tables answer; the equipment screen's own entries now keep them too, and
-their counts are unchanged against main's (`tools/fuzz_compare.py --before`:
-0 of 326 routines differ).
+matches, none refused: in `events-jetbike-race` the placing 2,640, the camera
+check (now building the perspective) 2,640, the perspective's own entry 66 (the
+camera script calls it), the main loop's call and its two returns 474 each
+(2 and 1 interrupted), the gathering 948 (372 interrupted), the setup 1; the
+perspective 1,521 in `endings-beyond-time` (1 interrupted). Shadow mode found
+the setup's scratch the shadow compares at its call-outs: the block copy's row
+count in the scene's first cell, the mirroring's offset and count at the start
+of the unpack buffer, and the work RAM port's bank (the one bit the mirroring
+writes, then the unpacker's `$7F`); fuzzing the setup found the curtain's
+window on BG4 and the color window as well (the race without its panel, which
+no movie runs). The gate's shipping-mode run with `--scaffold-reads` found the
+placing's working cells read after the race: the scene's cells share their
+page with the controller's (`input_held`, the repeat delay, the last frame's
+buttons), so what the last placing leaves there is what the field's first
+read of the controller takes over, and those writes are plain. The placing's
+fuzz runs keep the horizon above the plane's top, as the guard asks. Fuzzed from the `race` state with the program kept, seeds 1
+and 2 (`tools/fuzz_routines.toml`), 0 mismatched everywhere: the placing as it
+comes and with the divisors forgotten (Johnny shown or gone; under 2% refused,
+a camera height of `$FF`, where the search never ends, or nothing ahead of the
+camera to look up), the perspective on channel 0 with the race's start (about a
+quarter refused, a horizon off the screen or an odd count of paired lines) and
+on channel 1 with the endings', the scaling's four entries, the curtain's task
+(the curtain's state as its setup makes it), the setup 300 states (the driver's
+echo looped back), and the first chunk's rewritten tasks again.
 
-**Timing.** The new entries were calibrated over the library (the menus'
-rows only); the drawings charge their text at their own rates rather than
-the text drawer's, which their few long strings fit better, and the
-equipment screen's rows' move charges a block move for its copy. One
-exception: the item list's ten rows (`menu_draw_item_rows`), whose time
-follows which rows are empty, on the panel's five calls in vblank
-(`tools/timing_exceptions.txt`).
-
-### Phase 3, the scene program: the jet bike race running (`$7E:416D`-`$7E:5220`, `$7E:B574`)
-
-The first chunk of bank `$7E`, the program the field and the game over
-decompress to `$7E:3000` and run there (DISASSEMBLY.md, `[[ramcode]]`), on
-top of the scene engine (`game/scene/`).
-
-**How it was chosen.** The program dispatches sixteen modes through its table
-at `$7E:3043`: 0 and 9 the race (9 the attract demo's), 2 the title, 10, 11, 14
-and 15 one ending's code (`$7E:8538`), 12 and 13 another's, and modes 1 and 3-8
-no movie reaches. Of `$7E`'s 24.9 KiB, 92% was generated; by the coverage
-files the race is reached by `events-jetbike-race`, the two endings by three
-movies. The race while it runs is the largest coherent piece: the tasks its
-scripts put on the two lists between `$7E:416D` and `$7E:5220`, and the
-routine it generates at `$7E:B574` to regroup its scaled pictures (5,153
-bytes, which the endings run too). Left at the edge, to be the race's next
-chunk (PLAN.md): the bikes placed in perspective (`$7E:4D0D`, which searches
-for its divisors through the CPU's divider with the carries of a dozen sums
-running through it), the main loop's scaling of the pictures (`$7E:51D1`,
-which stops at its own wait and hands a carry to a loop that reads it), the
-perspective table (`$7E:357B`, whose code the race and the endings patch), and
-the setup and its loader.
-
-**What it is.** `scene/race.h` names what the parts share: the two bikes as a
-record of `$25` bytes each on the scene's page (`scene_race_racers`), channel
-0's registers as the camera (height, place, distance, angle, pitch, speed,
-lean) and channel 1's as the racers' sizes. `scene/race_rules.c` is the bikes:
-speed lost and gained toward a top speed that the lead picks (Johnny's is
-higher behind), the boosts on B with the gauge flashing in the road strip,
-Johnny's controls (blocking while he leads, swerving away when Crono comes
-alongside ahead), the drifts across the track, the lead in 32nds, whether they
-touch and how they bump (a bump along swaps speeds, across swaps drifts), the
-score, both finishes (Johnny's: the markers stopped, the camera following and
-the score drained; Crono's: the result and what the score earns kept for the
-story at `$0380`-`$0383`, the victory song, the coast to a lane), and the end
-of the scene. `scene/race_camera.c` is the camera: its place along the track,
-its offset turned by its angle (`scene_multiply_signed16`, the program's
-`$7E:33D6`, now in `math.c`), the flat layers' scroll and the horizon's split
-of the per-line tables, the pad's directions given to the lanes by the eighth
-of a turn the camera faces, the demo's turning and raising, the perspective's
-check (it stops at `$7E:357B`), the controller kept, the settling after the
-finish and the opening picked at random. `scene/race_drawing.c` asks for each
-racer's scaled picture and draws its sprite list over the tiles, the nearer
-first, and the panel: the distance bar's markers (placed by the multiplier),
-the boosts, the distance to go and the score (`$7E:39F5`, a number as
-sprites). `scene/race_matrix.c` gains the generated routine itself: the
-regrouping of a scaled picture into sprite tiles, as a loop over the
-generator's own table (its header's account of what the code is for was
-wrong, and is rewritten). `scene_race_move_camera` now runs to its return (it
-stopped at `$7E:442E`). The race's effects are the platform's driver call
-from `race.c`, the one file of the race the lint allows it; the sprite
-routines and the arithmetic are C calls, each timed as its own entry
-(`TIMED_AS`).
-
-**The registers, settled first.** Liveness has A's high byte and Y live after
-every frame task: the next task on the list may read Y, and the last slot's A
-goes out through the frame's work. So each task leaves A as the original does,
-worked out after the logic from the state it left (scaffolding), and Y alone
-but where the drawing's sprite routines leave the next free sprite. Two tasks
-take in the carry the list's loop leaves, which is clear but in its first
-slot; the drawing's guard asks for it clear (the race's list never puts it
-first). The effects' calls through the program's send (`$7E:377E`, which waits
-for the driver) declare A, X and the flags dead, which liveness proves at both
-sites. The stops into the list's own code (`$7E:39B1`, `$7E:39A7`) and the
-perspective's keep what those read, as their own sets (`m_stop_at_own`).
-
-**The carries.** The race never clears the carry between the sums of a frame's
-motion, so a drift's build-up and loss, the lead, the touching band, the boost
-and both kinds of bump each take a unit from the sum or comparison before
-them. The first version threaded that carry through the rules; the review
-rated `race_rules.c` a translation for it, and it was rewritten. Each rule is
-plain arithmetic with one term for its unit (a drift a unit stronger or slower
-to die, the lead a 32nd shorter, a bumped bike a unit farther), and one
-section, "The units the motion hands on", works each unit out from the values
-the step before used, in the order the original's sums run (`drift_units`,
-`contact_units`, `bump_along_units`, `bump_across_units`). A bump along is one
-32-bit distance; the original also takes the push's high word, 0 in any real
-bump, off both halves of the other bike's distance, which stays as a term.
-Three units that are constant wherever the game's values are became accepted
-divergences, written at the entries and held by the fuzz constraints: the
-boost's (whether Johnny is still speeding up, where the original compares his
-speeds unsigned), pulling over after the finish, and the markers' place on
-the distance bar. The same review had `race_drawing.c` work out the
-arithmetic cells it leaves from the state afterwards instead of threading
-them, compute the markers' product in C (the multiplier's last state left as
-scaffolding before the panel's numbers use the divider), and name the pose's
-backward turn that lengthens the bar by a pixel.
-
-**Program data and patched code.** The race's tables live in the program
-image, and the race and its setup write some of its operands: the demo's
-finish lanes (`$7E:46CE`, `$7E:46E4`), the distance bar's ends (`$7E:4F74`,
-`$7E:50DA`), the distance shown's lag (`$7E:5171`), the return Johnny's win
-writes over the markers' call (`$7E:510D`), the horizon's line counts in the
-per-line tables. Each is a variable in `re/ram.toml`, as are the racers'
-record and the arithmetic cells' fields for the bump's push and the pose; the
-guards hash the code around them.
-
-**What shadow mode and fuzzing found.** Over the 26 movies every call matches,
-none refused: in `events-jetbike-race` the camera's tasks, the horizon and the
-drawing 2,640 calls each, the ride 2,276, the pad's directions 2,349, the
-following camera 163, the score's draining 3, the opening 1; the regrouping
-948 there and 3,025 in `endings-beyond-time`, of which 1,389 are interrupted.
-The movie loses the race, so Crono's finish, the coasting, the victory song,
-the settling, the end of the scene and the demo's race are fuzzed only.
-Shadow mode found the accumulator's width at two returns (the bump's call
-leaves 8 bits, the follower returns in 16; the two waits after the finish,
-which no movie reaches, return in 8 too). The first fuzz runs found
-the demo's turning clamped unsigned (the original compares by the sign), the
-opening's guard on a data bank of 0 (the script calls it with the program's,
-`$7E`, and the fuzz runs now do), and the drawing indexing the program's data
-with a lean past 2 (the guard refuses it). Fuzzed from the `race` state with
-the program kept (`--keep 7E3000-7EC994`; `tools/fuzz_routines.toml`), seeds 1
-and 2, 20,000 states each, none mismatching: every entry, the ride three ways
-(as it comes, with both bikes' distances at the finish's word, the bikes level
-so they bump every way; at most 3 states refused, a task list without room),
-the coast with the finish margin near 0 and Crono's lane at the middle, the
-victory song's wait with the music playing (two thirds of its states reach
-its arrival), the leaving at its last frame, the drawing with up to three
-boosts. Johnny's speeds are kept within $8000 of his top speeds and the
-coast's lanes in the game's, where the accepted divergences hold.
-
-**Timing.** The new rows were calibrated over the library, with
-`scene_race_move_camera` and `scene_race_set_engine_pitch` (which now reads
-the speed's high byte as a word). Two vblank-tail exceptions: the drawing
-(22-line calls, the sprite routines timed as theirs) and the perspective's
-check (the divisors' clear charged as the block move it is), both writing
-RAM. `$7E` stands at 10.2 KiB ported, 59% left.
+**Timing.** The new rows were calibrated over the library (the scene's rows
+only). Two entries carry timing exceptions (`tools/timing_exceptions.txt`):
+the perspective, which builds up to 224 lines' matrices in calls longer than
+vblank, writing only RAM (vblank-tail), and the setup, which runs with the
+display blanked and the frame's interrupt off, its error moving when the race
+starts (vblank-worst, worst); the camera check's exception now says it builds
+the perspective, timed as the perspective's own.
 
 ### The reading cost of a chunk
 

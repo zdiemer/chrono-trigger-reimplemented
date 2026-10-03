@@ -472,7 +472,7 @@ name = "scene_race_check_perspective"
 subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a frame task on the scene's page; the perspective it stops at is the original's"
+why = "a frame task on the scene's page; the perspective it builds is the race's (scene_build_perspective)"
 
 [[routine]]
 name = "scene_race_turn_camera"
@@ -678,81 +678,77 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=3D45-3D45"]
 why = "the race's own table, since the guard refuses any other"
 
 [[routine]]
-name = "scene_race_clear_buffers"
+name = "scene_race_set_up"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "the race's setup from the program's mode table, the program kept (its code is the guard's hash, its resources' unpacking the original's); the driver's echo looped back for the song"
 
 [[routine]]
-name = "scene_race_setup_maps"
+name = "scene_race_sweep_curtain"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0350-7E0350=00-02", "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0353=E000", "--fill", "7E0354-7E0355=007E"]
+why = "a frame task of the race without its panel; the curtain's state as its setup leaves it and its sweep makes it (the step is the original's, and random state sends it through memory)"
 
 [[routine]]
-name = "scene_race_fill_map"
+name = "scene_build_perspective"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0A00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0C=00-DF", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A16-7E0A16=00-01", "--fill", "7E0A17-7E0A17=00-00"]
+why = "on channel 0's page, the race's start of the lines kept with the program; a horizon on the screen and the lines paired or not, as the race's camera script sets them (the guard refuses the rest, where the original's loop runs on through memory)"
 
 [[routine]]
-name = "scene_race_load_plane_graphics"
-at = "7E:3DC8"
+name = "scene_build_perspective"
+variant = "ending"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0B00", "--keep", "7E3000-7EC994", "--fill", "7E35FD-7E35FE=9B46", "--fill", "7E0B0C-7E0B0C=01-DF", "--fill", "7E0B0D-7E0B0D=00-00"]
+why = "on channel 1's page with the endings' start of the lines, from the line above the horizon, with the step the program has (the endings' start is the call's other operand)"
 
 [[routine]]
-name = "scene_race_load_plane_map"
-at = "7E:3DE1"
+name = "scene_race_place_bikes"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "a frame task on the scene's page with the carry clear, the program kept; the horizon ($38 in the race, $60-$7F raised in the demo) above the plane's top ($18), as the guard asks; the divisors' table as random as the rest (a kept divisor is taken as it is)"
 
 [[routine]]
-name = "scene_race_load_layer_tiles"
-at = "7E:3E01"
+name = "scene_race_place_bikes"
+variant = "searching"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1446-7E1545=00-00", "--fill", "7E1444-7E1445=0000,0001", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "the divisors forgotten, as a new camera height leaves them, so every distance is searched for; Johnny in the picture or gone"
 
 [[routine]]
-name = "scene_race_load_more_layer_tiles"
-at = "7E:3E20"
+name = "scene_race_scale_pictures"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1402-7E1402=00-02", "--fill", "7E1403-7E1403=00-00", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1409-7E1409=00-0F", "--fill", "7E1417-7E1417=00-0F"]
+why = "the main loop's call; the racers' requests' states as the race keeps them, and their row steps below $1000, the race's sizes halved (compared to the scaler's first row, where it stops)"
 
 [[routine]]
-name = "scene_race_load_sprite_graphics"
-at = "7E:3E30"
+name = "scene_race_scale_after_crono"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002", "--fill", "7E1410-7E1410=00-02", "--fill", "7E1411-7E1411=00-00", "--fill", "7E1417-7E1417=00-0F"]
+why = "back from Crono's picture gathered, A the request's new state (the guard asks for it); Johnny's request as the race keeps it"
 
 [[routine]]
-name = "scene_race_load_bg1_map"
-at = "7E:3E58"
+name = "scene_race_scale_after_johnny"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-iterations = 2000
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--range", "A=0002-0002"]
+why = "back from Johnny's picture gathered, A the request's new state"
 
 [[routine]]
-name = "scene_race_load_bg3_map"
-at = "7E:3E8A"
+name = "scene_race_gather_scaled"
 subsystem = "scene"
 state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
-
-[[routine]]
-name = "scene_race_load_bg2_map"
-at = "7E:3EA0"
-subsystem = "scene"
-state = "race"
-args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EC994"]
+why = "after the upload, the data bank the scaler's (the regrouping reads the picture through it)"
 
 [[routine]]
 name = "scene_race_move_camera"
@@ -10883,6 +10879,761 @@ args = ["--d", "0000", "--db", "7E", "--fill", "7E2989-7E2989=20-20"]
 iterations = 5000
 why = "a demo battle, which skips the step: the beaten enemies counted at random"
 
+
+# ---- battle: the screen script (bank CD) ------------------------------------------------------
+
+[[routine]]
+name = "battle_run_screen_scripts"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E5D9B-7E5D9B=01-01", "--fill", "7ECCEA-7ECCEA=00-00", "--fill", "7ECA32-7ECA32=00-01", "--fill", "7ECA42-7ECA42=00-01", "--fill", "7ECA39-7ECA39=01-02", "--fill", "7ECA49-7ECA49=01-02", "--fill", "7ECA35-7ECA35=00-00", "--fill", "7ECA36-7ECA36=01-01", "--fill", "7ECA37-7ECA37=7E-7E", "--fill", "7ECA45-7ECA45=60-60", "--fill", "7ECA46-7ECA46=01-01", "--fill", "7ECA47-7ECA47=7E-7E", "--fill", "7E0100-7E01BF=00-FF"]
+iterations = 5000
+why = "the scripts running and the battlefield in place, both channels' steps coming round soon, their scripts random bytes in work RAM (the commands' operands at random, the bridged commands' handlers the original's)"
+
+[[routine]]
+name = "battle_run_screen_channel"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-0010/0010", "--fill", "7ECA35-7ECA35=00-00", "--fill", "7ECA36-7ECA36=01-01", "--fill", "7ECA37-7ECA37=7E-7E", "--fill", "7ECA45-7ECA45=60-60", "--fill", "7ECA46-7ECA46=01-01", "--fill", "7ECA47-7ECA47=7E-7E", "--fill", "7E0100-7E01BF=00-FF"]
+iterations = 5000
+why = "a channel one of the two, A's high byte clear, its script random bytes in work RAM"
+
+[[routine]]
+name = "battle_run_screen_command"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0080-00F9", "--range", "X=0000-0010/0010", "--fill", "7E0040-7E0040=00-00", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0100-7E011F=00-FF"]
+iterations = 10000
+why = "a command byte in A, the channel one of the two, the command's operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_pace"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0002-0002", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=81-81", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $81's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_begin_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0006-0006", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=83-83", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $83's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_end_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0008-0008", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=84-84", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $84's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_begin_counting_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000A-000A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=85-85", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $85's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_end_counting_loop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000C-000C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=86-86", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $86's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_call"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0022-0022", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=91-91", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $91's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_come_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0024-0024", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=92-92", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $92's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_jump"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0094-0094", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=CA-CA", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $CA's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_jump_in_the_first_rule"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0096-0096", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=CB-CB", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $CB's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_switch_on_low_nibble"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00A0-00A0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D0-D0", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $D0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_switch_on_high_nibble"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00A2-00A2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D1-D1", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $D1's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wait_for_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0052-0052", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A9-A9", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $A9's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_change_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00B0-00B0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D8-D8", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $D8's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_count_variable_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00CA-00CA", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E5-E5", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E5's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_count_variable_15_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0086-0086", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C3-C3", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wait_for_effect_graphics"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00E2-00E2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F1-F1", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F1's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wait_for_palette_animations"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=007E-007E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BF-BF", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $BF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wait_for_signal"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00EC-00EC", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F6-F6", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F6's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_put_layer_at_position"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0054-0054", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AA-AA", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,01,02,03,04,05,80,81,82,83,84,85"]
+why = "entered as the dispatch enters command $AA's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the position one of the six"
+
+[[routine]]
+name = "battle_screen_script_nudge_layer"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0004-0004", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=82-82", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $82's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_drop_layer_by_effect_object"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0090-0090", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C8-C8", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C8's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_start_swing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=009A-009A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=CD-CD", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $CD's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_kept_word_to_swing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0018-0018", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8C-8C", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,01,02,03,80,81,82,83"]
+why = "entered as the dispatch enters command $8C's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the swing word one of the four"
+
+[[routine]]
+name = "battle_screen_script_swing_word_kept"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001A-001A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8D-8D", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,01,02,03,80,81,82,83"]
+why = "entered as the dispatch enters command $8D's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the swing word one of the four"
+
+[[routine]]
+name = "battle_screen_script_orbit_position"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=008A-008A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C5-C5", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C5's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_orbit_middle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0088-0088", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C4-C4", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C4's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_place_circle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0014-0014", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8A-8A", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $8A's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_circle_kind"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=007A-007A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BD-BD", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $BD's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_move_circle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0012-0012", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=89-89", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $89's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_center_circle_on_position"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0056-0056", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AB-AB", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,01,02,03,04,05,80,81,82,83,84,85"]
+why = "entered as the dispatch enters command $AB's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the position one of the six"
+
+[[routine]]
+name = "battle_screen_script_widen_circle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00A6-00A6", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D3-D3", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $D3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_narrow_circle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00A8-00A8", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D4-D4", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $D4's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_set_circle_radius"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00E0-00E0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F0-F0", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $F0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_wait_for_circle_closed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00AA-00AA", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D5-D5", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $D5's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_wait_for_circle_open"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00AC-00AC", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D6-D6", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $D6's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the circle one of the two"
+
+[[routine]]
+name = "battle_screen_script_put_shapes_aside"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=004A-004A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A5-A5", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-07"]
+why = "entered as the dispatch enters command $A5's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the slot one of the eight"
+
+[[routine]]
+name = "battle_screen_script_bring_shapes_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=004C-004C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A6-A6", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-07"]
+why = "entered as the dispatch enters command $A6's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the slot one of the eight"
+
+[[routine]]
+name = "battle_screen_script_make_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0044-0044", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A2-A2", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A2's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_shape_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0048-0048", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A4-A4", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A4's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_move_flat_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0046-0046", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A3-A3", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_grow_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0084-0084", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C2-C2", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $C2's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_set_turning_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=004E-004E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A7-A7", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A7's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_move_turning_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0050-0050", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A8-A8", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A8's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_turn_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0078-0078", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BC-BC", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $BC's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_resize_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0062-0062", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B1-B1", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $B1's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_rock_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=008C-008C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C6-C6", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $C6's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_raise_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=008E-008E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C7-C7", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $C7's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_corners_at_effect_objects"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005E-005E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AF-AF", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $AF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_draw_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005C-005C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AE-AE", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $AE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_spin_model"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0074-0074", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BA-BA", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $BA's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_draw_model"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0076-0076", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BB-BB", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $BB's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_draw_third_model"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=007C-007C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BE-BE", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $BE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_show_main_layers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=003A-003A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9D-9D", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9D's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_sub_layers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=003C-003C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9E-9E", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9E's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_main_windowed_layers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=003E-003E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9F-9F", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9F's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_sub_windowed_layers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0040-0040", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A0-A0", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $A0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_color_math_layers"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0036-0036", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9B-9B", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9B's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_layer_mask"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00EA-00EA", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F5-F5", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F5's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_color_math"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0034-0034", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9A-9A", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9A's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_sub_screen_and_color_math"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0026-0026", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=93-93", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $93's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_screen_mode"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0060-0060", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B0-B0", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $B0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_change_mosaic"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0020-0020", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=90-90", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $90's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_bg3_bg4_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002A-002A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=95-95", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $95's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_object_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002C-002C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=96-96", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $96's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_object_window_logic"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0032-0032", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=99-99", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $99's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_bg_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0028-0028", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=94-94", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $94's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_window_logic"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0030-0030", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=98-98", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $98's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_change_fixed_color"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0038-0038", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=9C-9C", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $9C's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_backdrop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00D4-00D4", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=EA-EA", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $EA's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_copy_color"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00F0-00F0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F8-F8", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F8's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_background_colors"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0072-0072", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B9-B9", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $B9's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_show_background_colors_of_variable"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00A4-00A4", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D2-D2", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $D2's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_flip_sprite_palettes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0092-0092", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C9-C9", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C9's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_start_palette_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001C-001C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8E-8E", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $8E's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_count_toward_palette_stop"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00DE-00DE", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=EF-EF", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $EF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_play_sound"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00B8-00B8", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DC-DC", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $DC's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_play_sound_at_position"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00C8-00C8", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E4-E4", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E4's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_load_effect_graphics"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00E4-00E4", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F2-F2", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F2's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_frame_row"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=006E-006E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B7-B7", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $B7's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_rebase_arrangement"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000E-000E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=87-87", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $87's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_sprites_frozen"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00BC-00BC", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DE-DE", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $DE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_keep_sprites"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00C0-00C0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E0-E0", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_no_line_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00C4-00C4", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E2-E2", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E2's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_palettes_paused"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00CC-00CC", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E6-E6", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E6's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_set_gradient_level"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00EE-00EE", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F7-F7", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F7's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wave_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001E-001E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8F-8F", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $8F's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_sway_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00CE-00CE", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E7-E7", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E7's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_ripple_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0066-0066", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B3-B3", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $B3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_open_band"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00DC-00DC", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=EE-EE", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $EE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the band across or down"
+
+[[routine]]
+name = "battle_screen_script_wipe"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00D8-00D8", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=EC-EC", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $EC's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wave_about_edges"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00DA-00DA", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=ED-ED", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $ED's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wave_counted"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00E6-00E6", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F3-F3", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $F3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_wave_with_frames"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00D6-00D6", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=EB-EB", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $EB's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_move_band"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00D2-00D2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E9-E9", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E9's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_draw_band"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00D0-00D0", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E8-E8", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-10"]
+why = "entered as the dispatch enters command $E8's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, a band that stays in the battlefield's top half"
+
+[[routine]]
+name = "battle_screen_script_copy_window_across"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00B6-00B6", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DB-DB", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $DB's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_copy_window_inside_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=009E-009E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=CF-CF", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,80"]
+why = "entered as the dispatch enters command $CF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, no shift"
+
+[[routine]]
+name = "battle_screen_script_fill_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0010-0010", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=88-88", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00,01,02,80,81,82"]
+why = "entered as the dispatch enters command $88's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, one of the three fills that leave A clear"
+
+[[routine]]
+name = "battle_screen_script_jitter"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00BE-00BE", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DF-DF", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $DF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_swing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=009C-009C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=CE-CE", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $CE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_save_positions"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00BA-00BA", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DD-DD", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $DD's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the slot one of the two"
+
+[[routine]]
+name = "battle_screen_script_corners_at_positions"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00C6-00C6", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E3-E3", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $E3's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the slot one of the two"
+
+[[routine]]
+name = "battle_screen_script_shake_screen"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0080-0080", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=C0-C0", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $C0's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
+[[routine]]
+name = "battle_screen_script_swap_palettes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00C2-00C2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=E1-E1", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered as the dispatch enters command $E1's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
+
 # ---- core: the controller and the play time clock ----------------------------------------------
 
 [[routine]]
@@ -13895,3 +14646,258 @@ state = "equipment"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0085-7E0085=01-07", "--fill", "7E0086-7E0086=00-00", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0412-7E0412=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0077-7E0077=00-03", "--fill", "7E0FC8-7E0FC8=00-50", "--fill", "7E0FC6-7E0FC6=00-62", "--fill", "7E9AB7-7E9ABA=00-F1", "--range", "X=30A2-30A2"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the items' tables the menus built as they opened as the state has them; the menus' page and data bank, room in the queue; the party's characters, one to three active, the cursor's member row and the list's scroll near them; the slot one of the four, the list of what fits within its 98 places; the member's four items the game's, drawn at the card's place"
+
+# ---- menu: the techs screen (chunk 7) -----------------------------------------------------------
+#
+# Four states of menus-field-menu: on the member rows (the members' own techs), on the list, the
+# window a healing tech is used from, and on the triple techs.
+
+[state.techs_members]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6260
+
+[state.techs_list]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6400
+
+[state.techs_targets]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6600
+
+[state.techs_triples]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 7200
+
+[[routine]]
+name = "menu_open_techs"
+at = "C2:B35D"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0D15-7E0D15=00-EF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the kind, the member row and the list's slide random, the palette's change count"
+
+[[routine]]
+name = "menu_lay_out_tech_members"
+at = "C2:B365"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the kind, the row and the slide random, the list built for any member and kind, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_choose_tech_member"
+at = "C2:B36D"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the kind, the row and the slide random, the list built for any member and kind, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_move_among_tech_members"
+at = "C2:B520"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_slide_tech_members"
+at = "C2:B568"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a push past the rows down or up, the list's slide random; compared up to the slide's first wait for the next frame"
+
+[[routine]]
+name = "menu_slide_tech_member_rows"
+at = "C2:B5C8"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0022-7E0022=03,04", "--fill", "7E0023-7E0023=00", "--fill", "7E0026-7E0027=05", "--fill", "7E0027-7E0027=20,26", "--fill", "7E0D22-7E0D23=04,FC", "--fill", "7E0D23-7E0D23=00,FF", "--fill", "7E0024-7E0025=EF,1F", "--fill", "7E0025-7E0025=20,21", "--fill", "7E0061-7E0062=4A,CA", "--fill", "7E0062-7E0062=36,3A", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a slide as its start ($C2:B568) sets it up, either way; compared up to its first wait for the next frame"
+
+[[routine]]
+name = "menu_draw_tech_member_rows"
+at = "C2:BA4F"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the member row and the slide random"
+
+[[routine]]
+name = "menu_describe_tech_kind"
+at = "C2:BE16"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the kind random, the description shown and its request random"
+
+[[routine]]
+name = "menu_show_techs_panel"
+at = "C2:B8DA"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame"
+
+[[routine]]
+name = "menu_put_techs_panel_away"
+at = "C2:B960"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue"
+
+[[routine]]
+name = "menu_choose_tech"
+at = "C2:B3AE"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=03", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_show_tech_lister"
+at = "C2:B9E1"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_load_tech_lister_sprite"
+at = "C2:BA09"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E19C0-7E19C0=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the lister's record's sprite random among the characters"
+
+[[routine]]
+name = "menu_show_tech_list"
+at = "C2:BB50"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_describe_pointed_tech"
+at = "C2:BE01"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the description shown and its request random"
+
+[[routine]]
+name = "menu_describe_tech"
+at = "C2:BE33"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the description shown and its request random"
+
+[[routine]]
+name = "menu_slide_tech_list"
+at = "C2:B72F"
+subsystem = "menu"
+state = "techs_triples"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0054-7E0054=00,07", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0057-7E0057=0A", "--fill", "7E0F4A-7E0F4A=00-0A", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a list of eighteen double techs, its first row within it, the cursor on its first or last row pushed past it; compared up to the slide's first frame's wait"
+
+[[routine]]
+name = "menu_choose_tech_target"
+at = "C2:B48E"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=04", "--fill", "7E0054-7E0054=08-0A", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the window's members, the buttons and pushes random; compared up to a wait for frames"
+
+[[routine]]
+name = "menu_point_at_tech_target"
+at = "C2:B823"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=06-0C", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0DBE-7E0DBE=00-02"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor about the window's members, the push random"
+
+[[routine]]
+name = "menu_point_at_member_to_restore"
+at = "C2:B83E"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=06-0C", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0DBD-7E0DBD=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor about the window's members, the push and the healing's effect random"
+
+[[routine]]
+name = "menu_note_member_to_restore"
+at = "C2:B870"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=08-0A", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0DBD-7E0DBD=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the window's members, the healing's effect random"
+
+[[routine]]
+name = "menu_open_tech_targets"
+at = "C2:BE79"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame"
+
+[[routine]]
+name = "menu_show_member_tech_list"
+at = "C2:BC6F"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0084-7E0084=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the member and the kind random, the list built for any member and kind"
+
+[[routine]]
+name = "menu_draw_tech_rows"
+at = "C2:BD6B"
+subsystem = "menu"
+state = "techs_triples"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0000-7E0000=00-0A", "--fill", "7E0001-7E0001=00", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0F4A-7E0F4A=00-0A"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a list of eighteen double techs, drawn from a place within it"
+
+[[routine]]
+name = "menu_show_pointed_tech"
+at = "C2:BB1F"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_draw_tech_member_row"
+at = "C2:BA2F"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0061-7E0062=00-FF", "--fill", "7E0062-7E0062=2E-3A", "--fill", "7E9890-7E9890=00-30"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the drawing origin within the front layer's rows, the cost the row compares with random"

@@ -8,6 +8,8 @@
  * the record goes into the queue as it is. */
 #include "menu/vram.h"
 
+#include "charge.h"
+
 #include "menu/menu_data.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -29,6 +31,11 @@ void menu_queue_upload(GameState *g, MenuUpload u)
     set_menu_vram_queue_size(g, entry, u.size);
     set_menu_vram_queue_spare(g, entry, u.spare);
     set_menu_vram_queue_bytes(g, (uint8_t)(menu_vram_queue_bytes(g) + RECORD_BYTES));
+}
+
+void menu_queue_fixed_upload(GameState *g, uint16_t record)
+{
+    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
 }
 
 /* An upload record built in work RAM, at `at` in bank $7E. */

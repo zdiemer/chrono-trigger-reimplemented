@@ -101,8 +101,9 @@ static uint32_t magnitude_with_leftover(uint32_t magnitude, uint8_t leftover)
 
 // $C3:094C
 /* The first operand, signed, times the second's low byte, signed: the
- * magnitudes multiplied, and the product negated when the signs differ. */
-static void multiply_signed(GameState *g, SceneProgramPage page)
+ * magnitudes multiplied, and the product negated when the signs differ.
+ * Returns the product. */
+static uint32_t multiply_signed(GameState *g, SceneProgramPage page)
 {
     uint16_t a = scene_call_first(g, page);
     uint8_t b = (uint8_t)scene_call_second(g, page);
@@ -111,8 +112,11 @@ static void multiply_signed(GameState *g, SceneProgramPage page)
     uint16_t size_a = magnitude16(a);
     uint8_t size_b = magnitude8(b);
     uint32_t product = magnitude_with_leftover((uint32_t)size_a * size_b, leftover);
-    set_scene_call_product(g, page, negative ? (uint32_t)-product : product);
+    if (negative)
+        product = (uint32_t)-product;
+    set_scene_call_product(g, page, product);
     ORIGINAL_EFFECT(leave_multiplier(g, size_b, (uint8_t)(size_a >> 8)));
+    return product;
 }
 
 /* ---- multiply_signed16 --------------------------------------------------------------------- */
@@ -134,6 +138,34 @@ uint32_t scene_multiply_signed16(GameState *g, SceneProgramPage page, uint16_t a
         set_scene_call_product(g, page, product);
     }
     return product;
+}
+
+/* ---- The arithmetic as C calls -------------------------------------------------------------- */
+
+/* For the ports that do the program's arithmetic where it calls it: each sets
+ * the operands' cells as the caller does, works on the page's cells as the
+ * routine does (its quirks and its leftovers with it) and is timed as it. */
+
+/* A product of two 16-bit operands whose middle partial sums fit
+ * (multiplies_exactly), as every caller here gives it. */
+uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b)
+{
+    set_scene_call_first(g, page, a);
+    set_scene_call_second(g, page, b);
+    uint32_t product;
+    TIMED_AS(g, 0x7E31BF, product = multiply(g, page));
+    return product;
+}
+
+/* A signed 16-bit value times the signed low byte of `b` (whose whole word the
+ * caller leaves in the second operand's cell); the product's low word. */
+int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b)
+{
+    set_scene_call_first(g, page, a);
+    set_scene_call_second(g, page, b);
+    uint32_t product;
+    TIMED_AS(g, 0xC3094C, product = multiply_signed(g, page));
+    return (int16_t)product;
 }
 
 /* ---- divide ----------------------------------------------------------------------------------- */
@@ -174,6 +206,16 @@ static void divide_8_8(GameState *g, SceneProgramPage page, uint16_t dividend)
     set_scene_call_divisor_less_one(g, page, (uint16_t)(divisor - 1));
 }
 
+/* The 8.8 fraction of `dividend`'s high byte over `divisor`. The original also
+ * leaves the dividend in the first operand's cell, shifted, which every caller
+ * here writes over before anything reads it, so this doesn't. */
+uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor)
+{
+    set_scene_call_second(g, page, divisor);
+    TIMED_AS(g, 0x7E32E2, divide_8_8(g, page, dividend));
+    return scene_call_fraction(g, page);
+}
+
 /* The original keeps the dividend in the first operand's cell and shifts its
  * high byte out as it goes, bringing the caller's carry in first. */
 static void leave_dividend_high_byte_shifted_out(GameState *g, SceneProgramPage page, uint16_t dividend, bool carry)
@@ -183,8 +225,7 @@ static void leave_dividend_high_byte_shifted_out(GameState *g, SceneProgramPage 
 
 /* ---- find_divisor --------------------------------------------------------------------------- */
 
-/* The CPU's divider gives $FFFF for a divisor of 0. */
-static uint16_t quotient_of(uint16_t dividend, uint8_t divisor) { return divisor ? dividend / divisor : 0xFFFF; }
+static uint16_t quotient_of(uint16_t dividend, uint8_t divisor) { return scene_divider_quotient(dividend, divisor); }
 
 /* The 8-bit divisors wrap after 256: a search that goes round finds nothing. */
 enum { DIVISORS = 0x100 };
@@ -223,6 +264,16 @@ static void leave_divider_after(GameState *g, const FoundDivisor *f)
 {
     charge_as(g, FIND_DIVISOR, f->tried * ACCESSES_PER_PASS);
     hw_divide_by(g, (uint8_t)(f->divisor + 1));
+}
+
+/* The first divisor from `from`, which the caller has started dividing
+ * `dividend` by, whose quotient falls under `limit`; the caller makes sure there
+ * is one (a search with none loops forever in the original). */
+uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, uint16_t limit)
+{
+    FoundDivisor f = find_divisor(dividend, from, quotient_of(dividend, from), limit);
+    ORIGINAL_EFFECT(leave_divider_after(g, &f));
+    return f.divisor;
 }
 
 /* ---- Guards: the helpers run from the program in RAM ----------------------------------------- */

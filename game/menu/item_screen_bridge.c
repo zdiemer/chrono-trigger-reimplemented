@@ -29,6 +29,7 @@
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/tech_screen.h"
 #include "menu/menu_data.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
@@ -59,7 +60,6 @@ enum {
     RESET_RECORDS = 0xC2F566,        /* the members' sprite records reset */
     START_RECORDS = 0xC2F643,        /* the records' task started */
     CURSOR_ON_EVERY_MEMBER = 0xC28AD5, /* the cursors' task for an item used on every member */
-    POINT_AT_A_MEMBER = 0xC2B83E,    /* the cursor among the members a tonic is used on */
     RESTORE = 0xC28F55,              /* the tonic's HP and MP restored, shown, and waited out */
     SHOW_AMOUNTS = 0xC28F6C,         /* the amounts a member gets shown, and waited out */
     WORK_OUT_FIGURES = 0xC29137,     /* the member's figures worked out again */
@@ -112,8 +112,6 @@ static void leave_slide_frames(Snes *s, bool took_frames);
 static void leave_effect_tested(Snes *s);
 static void leave_use_found(Snes *s);
 
-/* The uploads the steps queue, as their leaves name them. */
-enum { UPLOAD_LIST = 0xFBE3, UPLOAD_PANEL = 0xFBFF };
 
 /* The tasks a step stops: the second cursor's (the fourth's bit). */
 enum { HELD_CURSOR_TASK = 0x40 };
@@ -215,7 +213,7 @@ static void point_at_listed_item(Snes *s)
     if (moved && !tick(s, 0xC2AC65))
         return;
     menu_items_queue_rows(g);
-    ORIGINAL_EFFECT(leave_rows_queued(s, UPLOAD_LIST));
+    ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
     m_rts(s);
 }
 
@@ -233,7 +231,7 @@ static void slide_the_list(Snes *s)
     if (!call(s, 0xC2AC8A, START_LIST_SLIDE))
         return;
     menu_items_bring_in_a_row(g);
-    ORIGINAL_EFFECT(leave_rows_queued(s, UPLOAD_LIST));
+    ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
     if (!tick(s, 0xC2ACB9))
         return;
     menu_set_widths(s, false, false);
@@ -271,7 +269,7 @@ static void point_along_the_list(Snes *s)
         if (moved && !tick(s, 0xC2AC65))
             return;
         menu_items_queue_rows(g);
-        ORIGINAL_EFFECT(leave_rows_queued(s, UPLOAD_LIST));
+        ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
         m_rts(s);
         return;
     }
@@ -337,7 +335,7 @@ void menu_move_picked_item(Snes *s)
         if (!yield(s, 0xC2AAFF))
             return;
         menu_items_back_to_the_list(g);
-        ORIGINAL_EFFECT(leave_rows_queued(s, UPLOAD_LIST));
+        ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
         stop_tasks(s, HELD_CURSOR_TASK);
         return;
     case MOVE_ON_ITSELF:
@@ -492,23 +490,43 @@ static void leave_member_window(Snes *s)
     m_rts(s);
 }
 
-/* The members a tonic is used on, a frame at a time: the cursor among them
- * (the original's), and choosing uses it where it helps (the restoring and
- * one more used), or refuses; going back closes the window. */
-static void choose_members_to_restore(Snes *s, ItemUseKind kind)
+/* The member window an item is used from, the same for a tonic and a tab,
+ * at the original's sites of each: opened, then a frame at a time the cursor
+ * among the members (the tonic's pointing is the techs screen's, $C2:B83E;
+ * the tab's looks at the member's figure), and choosing uses the item where
+ * it helps -- a tonic's restoring (the original's), or a tab's raise --
+ * then one more of it used; or refuses. Going back closes the window. */
+enum { TONIC, TAB };
+static const struct {
+    uint32_t open, wait, point, point_routine, refuse;
+} SITES[] = {
+    [TONIC] = { 0xC2B198, 0xC2B1A5, 0xC2B1AB, 0xC2B83E, 0xC2B1BA },
+    [TAB] = { 0xC2B225, 0xC2B228, 0xC2B22E, 0xC2B24A, 0xC2B23D },
+};
+static void (*const POINTING[])(Snes *) = { [TONIC] = menu_point_at_member_to_restore, [TAB] = menu_point_at_tab_member };
+
+static bool use_on_the_member(Snes *s, ItemUseKind kind)
+{
+    if (kind == USE_RAISES_A_FIGURE)
+        return menu_run(s, 0xC2B242, 0xC2B2A7, menu_raise_figure) && menu_run(s, 0xC2B245, 0xC2B31C, menu_use_one_more);
+    return call(s, 0xC2B1BF, RESTORE) && menu_run(s, 0xC2B1C2, 0xC2B31C, menu_use_one_more);
+}
+
+static void choose_members_to_use_on(Snes *s, ItemUseKind kind)
 {
     GameState *g = state_of(s);
+    unsigned w = kind == USE_RAISES_A_FIGURE ? TAB : TONIC;
     menu_items_start_member_choice(g);
     ORIGINAL_EFFECT(leave_member_choice_started(s, kind));
-    if (!menu_run(s, 0xC2B198, 0xC2AF42, menu_open_member_window))
+    if (!menu_run(s, SITES[w].open, 0xC2AF42, menu_open_member_window))
         return;
-    if (menu_items_restores_every_member(g) && !call(s, 0xC2B1A2, CURSOR_ON_EVERY_MEMBER))
+    if (kind != USE_RAISES_A_FIGURE && menu_items_restores_every_member(g) && !call(s, 0xC2B1A2, CURSOR_ON_EVERY_MEMBER))
         return;
     for (;;) {
-        if (!yield(s, 0xC2B1A5))
+        if (!yield(s, SITES[w].wait))
             return;
         read_cursor(s);
-        if (!menu_call(s, 0xC2B1AB, POINT_AT_A_MEMBER, READS_A))
+        if (!menu_run(s, SITES[w].point, SITES[w].point_routine, POINTING[w]))
             return;
         ItemsMemberChoice c = menu_items_choose_member(g);
         ORIGINAL_EFFECT(leave_buttons_tested(s));
@@ -520,11 +538,11 @@ static void choose_members_to_restore(Snes *s, ItemUseKind kind)
             continue;
         if (!menu_items_use_helps(g)) {
             ORIGINAL_EFFECT(leave_load(s, menu_use_helps(g)));
-            if (!refuse(s, 0xC2B1BA))
+            if (!refuse(s, SITES[w].refuse))
                 return;
             continue;
         }
-        if (!call(s, 0xC2B1BF, RESTORE) || !menu_run(s, 0xC2B1C2, 0xC2B31C, menu_use_one_more))
+        if (!use_on_the_member(s, kind))
             return;
     }
 }
@@ -534,7 +552,7 @@ static void choose_members_to_restore(Snes *s, ItemUseKind kind)
 void menu_use_restoring_item(Snes *s)
 {
     menu_items_set_restore_strength(state_of(s));
-    choose_members_to_restore(s, USE_RESTORES);
+    choose_members_to_use_on(s, USE_RESTORES);
 }
 
 // $C2:B107
@@ -551,7 +569,7 @@ void menu_use_item_by_chance(Snes *s)
 void menu_rest_the_party(Snes *s)
 {
     menu_items_set_party_rest(state_of(s));
-    choose_members_to_restore(s, USE_RESTS_THE_PARTY);
+    choose_members_to_use_on(s, USE_RESTS_THE_PARTY);
 }
 
 // $C2:B275
@@ -607,41 +625,14 @@ void menu_raise_figure(Snes *s)
 }
 
 // $C2:B200
-/* A tab: its figure, the members, then a frame at a time the cursor among
- * them, and choosing raises the figure where it is short of its cap. */
+/* A tab: its figure, then the members it raises it for. */
 void menu_use_tab(Snes *s)
 {
     GameState *g = state_of(s);
     menu_set_widths(s, true, true);
     menu_items_set_figure_raised(g, menu_item_operand(g));
     menu_set_widths(s, true, false);
-    menu_items_start_member_choice(g);
-    ORIGINAL_EFFECT(leave_member_choice_started(s, USE_RAISES_A_FIGURE));
-    if (!menu_run(s, 0xC2B225, 0xC2AF42, menu_open_member_window))
-        return;
-    for (;;) {
-        if (!yield(s, 0xC2B228))
-            return;
-        read_cursor(s);
-        if (!menu_run(s, 0xC2B22E, 0xC2B24A, menu_point_at_tab_member))
-            return;
-        ItemsMemberChoice c = menu_items_choose_member(g);
-        ORIGINAL_EFFECT(leave_buttons_tested(s));
-        if (c == MEMBERS_LEFT) {
-            leave_member_window(s);
-            return;
-        }
-        if (c == MEMBER_POINTED_AT_TO_USE_ON)
-            continue;
-        if (!menu_items_use_helps(g)) {
-            ORIGINAL_EFFECT(leave_load(s, menu_use_helps(g)));
-            if (!refuse(s, 0xC2B23D))
-                return;
-            continue;
-        }
-        if (!menu_run(s, 0xC2B242, 0xC2B2A7, menu_raise_figure) || !menu_run(s, 0xC2B245, 0xC2B31C, menu_use_one_more))
-            return;
-    }
+    choose_members_to_use_on(s, USE_RAISES_A_FIGURE);
 }
 
 // $C2:B0AB
@@ -848,7 +839,7 @@ static bool peek(Snes *s, bool (*test)(const GameState *))
 
 static bool opens(const GameState *g)
 {
-    return queue_takes(g, 1) && menu_palette_changes_have_room(g) && menu_window_list_drawable(g, 0xC0A6)
+    return queue_takes(g, 1) && menu_palette_changes_have_room(g) && menu_window_list_drawable(g, MENU_WINDOWS_ITEMS_SCREEN)
            && menu_item_list_row(g) < MENU_CURSOR_PLACES_COUNT;
 }
 
@@ -878,7 +869,7 @@ bool menu_item_users_step_runs(Snes *s) { return on_the_screen(s) && menu_cursor
 
 static bool panel_shows(const GameState *g)
 {
-    return queue_takes(g, 3) && menu_items_rows_can_be_drawn(g) && menu_window_list_drawable(g, 0xC05D);
+    return queue_takes(g, 3) && menu_items_rows_can_be_drawn(g) && menu_window_list_drawable(g, MENU_WINDOWS_ITEMS_PANEL);
 }
 
 bool menu_items_panel_shows(Snes *s) { return on_the_screen(s) && peek(s, panel_shows); }
@@ -901,7 +892,7 @@ static bool members_are_drawable(const GameState *g)
     for (uint8_t member = 0; member < active; member++)
         if (!menu_member_card_can_be_drawn_for(g, member))
             return false;
-    return menu_window_list_drawable(g, 0xC0E4);
+    return menu_window_list_drawable(g, MENU_WINDOWS_ITEMS_MEMBERS);
 }
 
 static bool use_runs(const GameState *g)

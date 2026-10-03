@@ -469,6 +469,10 @@ void set_character_records_mp(GameState *g, unsigned i, uint16_t v);
 /* Maximum MP */
 uint16_t character_records_max_mp(const GameState *g, unsigned i);
 void set_character_records_max_mp(GameState *g, unsigned i, uint16_t v);
+/* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over
+ * the movie library); the battle's stat block has its element affinities here */
+uint16_t character_records_hp_cap(const GameState *g, unsigned i);
+void set_character_records_hp_cap(GameState *g, unsigned i, uint16_t v);
 /* The record a byte at a time, by the stat block's offsets (battle/combatant.h) [80 bytes, one
  * at a time] Unchecked, for marked scaffolding only: the demo battle's party writes eight
  * records' HP and MP, the eighth over the learned techs after the seventh
@@ -495,6 +499,12 @@ void set_character_records_mp_unchecked(GameState *g, unsigned i, uint16_t v);
  * (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_max_mp_unchecked(const GameState *g, unsigned i);
 void set_character_records_max_mp_unchecked(GameState *g, unsigned i, uint16_t v);
+/* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over
+ * the movie library); the battle's stat block has its element affinities here Unchecked, for
+ * marked scaffolding only: the demo battle's party writes eight records' HP and MP, the eighth
+ * over the learned techs after the seventh (game/battle/fight_party.c, $FD:B2DE) */
+uint16_t character_records_hp_cap_unchecked(const GameState *g, unsigned i);
+void set_character_records_hp_cap_unchecked(GameState *g, unsigned i, uint16_t v);
 
 enum { PARTY_SINGLE_TECHS_KNOWN_COUNT = 7 };   /* by character */
 /* How many of its single techs the character has learned, which are its first that many */
@@ -2671,6 +2681,65 @@ void set_menu_scratch_marked_slot(GameState *g, uint16_t v);
 /* The same: how many slots it has marked, 4 once done */
 uint16_t menu_scratch_slots_marked(const GameState *g);
 void set_menu_scratch_slots_marked(GameState *g, uint16_t v);
+/* The techs screen's listing of a member's techs ($C2:BCCD): the member's bit among a group's
+ * members */
+uint8_t menu_scratch_tech_character_bit(const GameState *g);
+void set_menu_scratch_tech_character_bit(GameState *g, uint8_t v);
+/* The same: the kind's groups it has still to look at, 0 once done */
+uint8_t menu_scratch_tech_groups_left(const GameState *g);
+void set_menu_scratch_tech_groups_left(GameState *g, uint8_t v);
+/* The listing's walk through the member's groups ($C2:BD00): the place in their list it got to,
+ * the end's */
+uint8_t menu_scratch_tech_group_at(const GameState *g);
+void set_menu_scratch_tech_group_at(GameState *g, uint8_t v);
+/* The same: the last group's learned bits, shifted up past the techs it looked at */
+uint8_t menu_scratch_tech_learned_bits(const GameState *g);
+void set_menu_scratch_tech_learned_bits(GameState *g, uint8_t v);
+/* The same: the first tech of the group after the last one walked, which ends it */
+uint8_t menu_scratch_tech_group_end(const GameState *g);
+void set_menu_scratch_tech_group_end(GameState *g, uint8_t v);
+/* The same: the tech after the last it looked at */
+uint8_t menu_scratch_tech_next(const GameState *g);
+void set_menu_scratch_tech_next(GameState *g, uint8_t v);
+/* A tech chosen from the techs screen ($C2:B3AE): its effect record's offset, the tech times
+ * twelve */
+uint16_t menu_scratch_tech_record_offset(const GameState *g);
+void set_menu_scratch_tech_record_offset(GameState *g, uint16_t v);
+/* The techs screen's kinds' tabs ($C2:B6AE): the kind doubled, on the way to the chosen tab's
+ * place */
+uint16_t menu_scratch_tech_tab_offset(const GameState *g);
+void set_menu_scratch_tech_tab_offset(GameState *g, uint16_t v);
+/* The techs screen's list's rows ($C2:BD6B): the place of menu_tech_list it draws next, left
+ * past the last row's */
+uint8_t menu_scratch_tech_list_place(const GameState *g);
+void set_menu_scratch_tech_list_place(GameState *g, uint8_t v);
+/* The byte after it, which the rows' drawing counts with it as a word (a page turned clears it
+ * first) */
+uint8_t menu_scratch_tech_list_place_high(const GameState *g);
+void set_menu_scratch_tech_list_place_high(GameState *g, uint8_t v);
+/* The same: the rows it has still to draw, 0 once done */
+uint16_t menu_scratch_tech_rows_left(const GameState *g);
+void set_menu_scratch_tech_rows_left(GameState *g, uint16_t v);
+/* The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members'
+ * bits, shifted out from the top, 0 once done */
+uint8_t menu_scratch_tech_partner_bits(const GameState *g);
+void set_menu_scratch_tech_partner_bits(GameState *g, uint8_t v);
+/* The same: how many characters' bits it looked at */
+uint8_t menu_scratch_tech_partners_counted(const GameState *g);
+void set_menu_scratch_tech_partners_counted(GameState *g, uint8_t v);
+/* The look at whether a restoring helps ($C2:B870): the members it has still to look at */
+uint8_t menu_scratch_restoring_members_left(const GameState *g);
+void set_menu_scratch_restoring_members_left(GameState *g, uint8_t v);
+/* The techs screen's list slid up ($C2:B7CC): where the row it copies down next ends, left a row
+ * above the first */
+uint16_t menu_scratch_tech_rows_from(const GameState *g);
+void set_menu_scratch_tech_rows_from(GameState *g, uint16_t v);
+/* The same: where that row's copy ends */
+uint16_t menu_scratch_tech_rows_to(const GameState *g);
+void set_menu_scratch_tech_rows_to(GameState *g, uint16_t v);
+/* The same: the rows it has still to copy, 0 once done */
+uint16_t menu_scratch_tech_rows_still(const GameState *g);
+void set_menu_scratch_tech_rows_still(GameState *g, uint16_t v);
 /* The items screen's users of an item ($C2:AEB6): the characters' bits left to look at, shifted
  * out from the top, 0 once done */
 uint8_t menu_scratch_users_bits(const GameState *g);
@@ -2742,6 +2811,12 @@ void set_menu_scratch_frame_tiles_end(GameState *g, uint16_t v);
 uint16_t menu_scratch_frame_mirror_bytes(const GameState *g);
 void set_menu_scratch_frame_mirror_bytes(GameState *g, uint16_t v);
 
+enum { MENU_TECH_MEMBERS_COUNT = 3 };   /* by member of the tech */
+/* The characters of the tech on the techs screen's cursor: the member whose techs are listed
+ * first, then the tech group's others, $FF where it has none */
+uint8_t menu_tech_members(const GameState *g, unsigned member);
+void set_menu_tech_members(GameState *g, unsigned member, uint8_t v);
+
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
 uint8_t menu_opening_records_loaded(const GameState *g);
@@ -2751,6 +2826,11 @@ void set_menu_opening_records_loaded(GameState *g, uint8_t v);
  * rows' per-line table each frame, moving by menu_scroll_step */
 uint16_t menu_slide_line(const GameState *g);
 void set_menu_slide_line(GameState *g, uint16_t v);
+
+/* The techs screen's member row being drawn, which places its sprite (3 and 4: the rows a slide
+ * brings in from above and from below); left past the last */
+uint16_t menu_tech_row_drawn(const GameState *g);
+void set_menu_tech_row_drawn(GameState *g, uint16_t v);
 
 /* The time played a save slot's header shows, as the numbers it draws: the hours (99 at most),
  * then the minutes */
@@ -2784,6 +2864,15 @@ void set_menu_window_slide_rows_left(GameState *g, uint16_t v);
 uint16_t menu_save_member_row(const GameState *g);
 void set_menu_save_member_row(GameState *g, uint16_t v);
 
+/* How many member rows the techs screen draws (three, or fewer members), counted down as it
+ * draws the empty rows after them */
+uint16_t menu_tech_rows_to_draw(const GameState *g);
+void set_menu_tech_rows_to_draw(GameState *g, uint16_t v);
+
+/* The line the techs screen's member rows are shown from as their list slides, a step a frame */
+uint16_t menu_tech_slide_line(const GameState *g);
+void set_menu_tech_slide_line(GameState *g, uint16_t v);
+
 /* How wide, in pixels, the era label the load screen shows is */
 uint8_t menu_save_era_width(const GameState *g);
 void set_menu_save_era_width(GameState *g, uint8_t v);
@@ -2792,6 +2881,12 @@ void set_menu_save_era_width(GameState *g, uint8_t v);
  * low byte, the row in the high), out of sight below the list's place on the tilemap */
 uint16_t menu_slide_copy(const GameState *g);
 void set_menu_slide_copy(GameState *g, uint16_t v);
+
+/* Where the techs screen's member slide copies the rows out of view, as a window copy names a
+ * place: the column, then the row (the same with $06 in the row is where the slid rows are
+ * copied back from) */
+uint16_t menu_tech_slide_copy(const GameState *g);
+void set_menu_tech_slide_copy(GameState *g, uint16_t v);
 
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in */
@@ -2931,10 +3026,20 @@ void set_menu_cursor_frame_start(GameState *g, uint8_t v);
 uint8_t menu_member_pointed(const GameState *g);
 void set_menu_member_pointed(GameState *g, uint8_t v);
 
+/* menu_tech_list_shown as the frame found it, which the techs screen compares with to tick the
+ * cursor's sound when the member or the kind changes */
+uint8_t menu_tech_list_shown_before(const GameState *g);
+void set_menu_tech_list_shown_before(GameState *g, uint8_t v);
+
 /* The slot and member (their sum) the equipment screen's list of what fits was drawn for last;
  * $FF has it drawn again */
 uint8_t menu_equip_shown(const GameState *g);
 void set_menu_equip_shown(GameState *g, uint8_t v);
+
+/* Which list the techs screen's list was built for: the member (its place of menu_members) times
+ * 16 plus menu_tech_category; $FF has it built again */
+uint8_t menu_tech_list_shown(const GameState *g);
+void set_menu_tech_list_shown(GameState *g, uint8_t v);
 
 /* How many of the party's members the menus' screens let the player choose among: the active
  * ones, or all of them once the story lets the party be switched ($FF:F813, which clears the
@@ -3189,6 +3294,21 @@ void set_menu_item_list_row(GameState *g, uint8_t v);
 uint8_t menu_item_list_top(const GameState *g);
 void set_menu_item_list_top(GameState *g, uint8_t v);
 
+/* The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple
+ * techs; kept from one opening to the next */
+uint8_t menu_tech_category(const GameState *g);
+void set_menu_tech_category(GameState *g, uint8_t v);
+
+/* The row of the techs screen's member list (0-2) its cursor was on, kept from one opening to
+ * the next */
+uint8_t menu_tech_member_row(const GameState *g);
+void set_menu_tech_member_row(GameState *g, uint8_t v);
+
+/* The first member the techs screen's member list shows: how far it has slid along the reachable
+ * members */
+uint8_t menu_tech_member_scroll(const GameState *g);
+void set_menu_tech_member_scroll(GameState *g, uint8_t v);
+
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 uint8_t menu_item_operand(const GameState *g);
@@ -3369,6 +3489,11 @@ void set_menu_record_origin_x(GameState *g, uint16_t v);
 /* Added to each $1800 record's Y position when its sprites are drawn */
 uint8_t menu_record_origin_y(const GameState *g);
 void set_menu_record_origin_y(GameState *g, uint8_t v);
+
+/* The byte after menu_record_origin_y, which the techs screen's member slide moves with it as a
+ * word and clears with it; the sprites' drawing doesn't read it */
+uint8_t menu_record_origin_y_high(const GameState *g);
+void set_menu_record_origin_y_high(GameState *g, uint8_t v);
 
 enum { MENU_PLACE_ITEMS_COUNT = 3 };   /* by which */
 /* Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34
@@ -3645,6 +3770,11 @@ void set_menu_heal_power(GameState *g, uint8_t v);
 uint8_t menu_heal_factor(const GameState *g);
 void set_menu_heal_factor(GameState *g, uint8_t v);
 
+/* Where in the tilemap buffers the description window's text starts, its row (the address's tile
+ * row) cleared before the description is set ($C2:FA49) */
+uint16_t menu_description_line(const GameState *g);
+void set_menu_description_line(GameState *g, uint16_t v);
+
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads */
 uint16_t menu_load_destination(const GameState *g);
 void set_menu_load_destination(GameState *g, uint16_t v);
@@ -3653,6 +3783,20 @@ void set_menu_load_destination(GameState *g, uint16_t v);
  * load screen's slot labels, the text loader's graphics) */
 uint16_t menu_graphic_first_tile(const GameState *g);
 void set_menu_graphic_first_tile(GameState *g, uint16_t v);
+
+/* How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's
+ * budget) */
+uint8_t menu_description_pace(const GameState *g);
+void set_menu_description_pace(GameState *g, uint8_t v);
+
+/* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
+ * reads it */
+uint16_t menu_description_tiles(const GameState *g);
+void set_menu_description_tiles(GameState *g, uint16_t v);
+
+/* How many bytes of the description's row a new description clears ($C2:FA49) */
+uint16_t menu_description_clear_bytes(const GameState *g);
+void set_menu_description_clear_bytes(GameState *g, uint16_t v);
 
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
  * on or back */
@@ -3679,10 +3823,55 @@ enum { MENU_LIST_ITEMS_COUNT = 98 };   /* by row of the list */
 uint8_t menu_list_items(const GameState *g, unsigned row);
 void set_menu_list_items(GameState *g, unsigned row, uint8_t v);
 
+enum { MENU_TECH_LIST_COUNT = 48 };   /* by row of the list */
+/* The techs the techs screen lists for a member and a kind, in their order, $FF after the last */
+uint8_t menu_tech_list(const GameState *g, unsigned row);
+void set_menu_tech_list(GameState *g, unsigned row, uint8_t v);
+
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
 uint8_t menu_gate_screen_state(const GameState *g, unsigned i);
 void set_menu_gate_screen_state(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_TECH_LIST_GROUPS_COUNT = 24 };   /* by row of the list */
+/* The tech group (whose members do it together) of each tech of menu_tech_list */
+uint8_t menu_tech_list_groups(const GameState *g, unsigned row);
+void set_menu_tech_list_groups(GameState *g, unsigned row, uint8_t v);
+
+/* The row of the techs screen's list (0-7) the cursor is on, or was left on */
+uint8_t menu_tech_list_row(const GameState *g);
+void set_menu_tech_list_row(GameState *g, uint8_t v);
+
+/* How many techs menu_tech_list has */
+uint8_t menu_techs_listed(const GameState *g);
+void set_menu_techs_listed(GameState *g, uint8_t v);
+
+/* The first tech of menu_tech_list the techs screen's list shows */
+uint8_t menu_tech_list_top(const GameState *g);
+void set_menu_tech_list_top(GameState *g, uint8_t v);
+
+/* The tech the techs screen is on: the one on the list's cursor (or the row being drawn), $FF
+ * past the list's last */
+uint8_t menu_tech_pointed(const GameState *g);
+void set_menu_tech_pointed(GameState *g, uint8_t v);
+
+/* The member (a place of menu_members) using the tech chosen from the techs screen */
+uint8_t menu_tech_user(const GameState *g);
+void set_menu_tech_user(GameState *g, uint8_t v);
+
+/* Set to $FF as a tech is chosen; no code traced reads it */
+uint8_t menu_tech_spare(const GameState *g);
+void set_menu_tech_spare(GameState *g, uint8_t v);
+
+/* The MP the tech chosen from the techs screen costs its user, taken from its MP each time it is
+ * used */
+uint8_t menu_tech_cost(const GameState *g);
+void set_menu_tech_cost(GameState *g, uint8_t v);
+
+/* The other two members of the tech on the cursor (menu_tech_members' second and third), noted
+ * as their rows are drawn; no code traced reads it */
+uint16_t menu_tech_row_partners(const GameState *g);
+void set_menu_tech_row_partners(GameState *g, uint16_t v);
 
 enum { MENU_LIST_ITEM_COUNTS_COUNT = 98 };   /* by row of the list */
 /* How many of each of menu_list_items' items the party has */
@@ -3694,6 +3883,16 @@ enum { MENU_HEAL_SHOWN_COUNT = 6 };   /* by the three members' HP, then their MP
  * $FFFF where a member's shows none */
 uint16_t menu_heal_shown(const GameState *g, unsigned i);
 void set_menu_heal_shown(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_TECH_PART_COSTS_COUNT = 3 };   /* by member of the tech */
+/* Each member's part of the tech on the cursor, as the MP costs' table takes it, noted as its
+ * row is drawn; no code traced reads it */
+uint8_t menu_tech_part_costs(const GameState *g, unsigned member);
+void set_menu_tech_part_costs(GameState *g, unsigned member, uint8_t v);
+
+/* Set to $0F75 as the techs screen's description is asked for; no code traced reads it */
+uint16_t menu_tech_description_spare(const GameState *g);
+void set_menu_tech_description_spare(GameState *g, uint16_t v);
 
 /* The furthest a member list scrolls: the reachable members past three, 0 with three or fewer */
 uint8_t menu_member_scroll_most(const GameState *g);
@@ -3712,6 +3911,14 @@ void set_menu_equip_choices(GameState *g, uint8_t v);
 /* The first of the equipment screen's list's items it shows */
 uint8_t menu_equip_list_top(const GameState *g);
 void set_menu_equip_list_top(GameState *g, uint8_t v);
+
+enum { MENU_TECH_PARTS_COUNT = 505 };   /* by character * $40 + the tech */
+/* Each character's part in each double and triple tech (the techs from $39 on, so the table
+ * proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as
+ * the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of
+ * the game's asks for */
+uint8_t menu_tech_parts(const GameState *g, unsigned i);
+void set_menu_tech_parts(GameState *g, unsigned i, uint8_t v);
 
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 uint8_t menu_random_index(const GameState *g);
@@ -3877,6 +4084,13 @@ enum { MENU_ROW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 uint16_t menu_row_line_values(const GameState *g, unsigned i);
 void set_menu_row_line_values(GameState *g, unsigned i, uint16_t v);
 
+enum { MENU_TECH_MEMBER_LINES_COUNT = 12 };   /* by band of lines */
+/* The techs screen's member list's offsets, a word a band of the screen's offset-per-tile table:
+ * bit 13 that it offsets the front layer, the low bits the line its rows are shown from, which
+ * the list's slide moves each frame and sets back to $1FF after */
+uint16_t menu_tech_member_lines(const GameState *g, unsigned i);
+void set_menu_tech_member_lines(GameState *g, unsigned i, uint16_t v);
+
 enum { MENU_ROW_LINE_VALUES_PAST_COUNT = 16 };   /* by band of lines past the member list's twelve */
 /* The words past the member list's per-line values (menu_row_line_values), which the list
  * window's slide fills with them */
@@ -3889,6 +4103,18 @@ enum { MENU_ROW_OTHER_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 uint16_t menu_row_other_line_values(const GameState *g, unsigned i);
 void set_menu_row_other_line_values(GameState *g, unsigned i, uint16_t v);
 
+enum { MENU_TECH_MEMBER_OTHER_LINES_COUNT = 12 };   /* by band of lines */
+/* The second per-line table beside menu_tech_member_lines, which the techs screen fills with the
+ * same values */
+uint16_t menu_tech_member_other_lines(const GameState *g, unsigned i);
+void set_menu_tech_member_other_lines(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_TECH_TARGET_LINES_COUNT = 12 };   /* by band of lines */
+/* The offsets of the window of members a tech is used on, in the screen's offset-per-tile table:
+ * the front layer from line $C7 ($20C7) a band while it is open, 0 once it closes */
+uint16_t menu_tech_target_lines(const GameState *g, unsigned i);
+void set_menu_tech_target_lines(GameState *g, unsigned i, uint16_t v);
+
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes, one at a
  * time] */
@@ -3900,6 +4126,13 @@ enum { MENU_ITEM_KINDS_COUNT = 242 };   /* by item */
 /* Each item's kind, its data's first byte's bits 1-4 */
 uint8_t menu_item_kinds(const GameState *g, unsigned i);
 void set_menu_item_kinds(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_TECH_MARKS_COUNT = 117 };   /* by tech */
+/* Each tech's marks, set over the items' kinds in the same table as the menus open ($FF:F813):
+ * bit 7 it can be used from the menus (a healing tech), bit 6 it is a member's next single tech,
+ * still being learned */
+uint8_t menu_tech_marks(const GameState *g, unsigned i);
+void set_menu_tech_marks(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_ITEM_PRICES_COUNT = 242 };   /* by item */
 /* Each item's price, its data's second and third bytes */
@@ -3932,6 +4165,13 @@ enum { MENU_ITEM_NAME_PLACES_COUNT = 242 };   /* by item */
 /* Where each item's name starts in bank $CC, eleven bytes a name from $0B5E */
 uint16_t menu_item_name_places(const GameState *g, unsigned i);
 void set_menu_item_name_places(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_TECH_GROUPS_LISTED_COUNT = 37 };   /* by tech group: the seven characters' own, then the double techs' fifteen, then the triple techs' fifteen */
+/* Each tech group's techs the menus list, a bit a tech from bit 7: the party's techs learned for
+ * the groups whose members it has ($FF:F813), the triple techs the rocks give refreshed as the
+ * techs screen opens */
+uint8_t menu_tech_groups_listed(const GameState *g, unsigned i);
+void set_menu_tech_groups_listed(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_MAP_GRAPHICS_COUNT = 1024 };   /* by byte */
 /* The map view's sprite graphics, decompressed here and sent to VRAM $6200 */
@@ -4109,6 +4349,24 @@ enum { MENU_SORT_HELD_COUNT = 256 };   /* by item */
  * number (0 for those it doesn't), cleared as an item is placed */
 uint8_t menu_sort_held(const GameState *g, unsigned i);
 void set_menu_sort_held(GameState *g, unsigned i, uint8_t v);
+
+/* The MP a member row's member needs for the tech on the techs screen's cursor (0 where none
+ * is): the row draws the member's MP in the short colour where it has less, and the list's MP
+ * figure shows it */
+uint8_t menu_tech_cost_needed(const GameState *g);
+void set_menu_tech_cost_needed(GameState *g, uint8_t v);
+
+enum { MENU_TECH_MEMBER_GROUPS_COUNT = 16 };   /* by group of the member's */
+/* The tech groups of the kind the techs screen lists that the member is one of, in their order,
+ * $FF after the last */
+uint8_t menu_tech_member_groups(const GameState *g, unsigned member);
+void set_menu_tech_member_groups(GameState *g, unsigned member, uint8_t v);
+
+/* The byte after menu_tech_cost_needed: a double or triple tech's cost is read and kept a word
+ * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
+ * Nothing reads it */
+uint8_t menu_tech_cost_beside(const GameState *g);
+void set_menu_tech_cost_beside(GameState *g, uint8_t v);
 
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes, one at a time] */
@@ -4331,6 +4589,11 @@ void set_menu_record_y(GameState *g, unsigned record, uint8_t v);
 uint16_t menu_record_x(const GameState *g, unsigned record);
 void set_menu_record_x(GameState *g, unsigned record, uint16_t v);
 
+/* menu_record_x's low byte, which a screen that places a record on the screen sets alone,
+ * leaving the high byte (whether it is off the screen's left) */
+uint8_t menu_record_x_low(const GameState *g, unsigned record);
+void set_menu_record_x_low(GameState *g, unsigned record, uint8_t v);
+
 /* The animation the record is asked to play: bits 0-6 its number, bit 7 that it loops from
  * menu_record_loop_frame rather than from its start */
 uint8_t menu_record_animation(const GameState *g, unsigned record);
@@ -4364,6 +4627,11 @@ void set_menu_record_hidden(GameState *g, unsigned record, uint8_t v);
 /* Tile and attributes of the record's first sprite; each next sprite's tile is 2 more */
 uint16_t menu_record_tile(const GameState *g, unsigned record);
 void set_menu_record_tile(GameState *g, unsigned record, uint16_t v);
+
+/* menu_record_tile's high byte: the attributes (palette, priority, flips) the record's sprites
+ * are drawn with */
+uint8_t menu_record_colours(const GameState *g, unsigned record);
+void set_menu_record_colours(GameState *g, unsigned record, uint8_t v);
 
 /* Where the record's current animation's frames are, a byte each */
 uint32_t menu_record_frame_list(const GameState *g, unsigned record);
@@ -5145,6 +5413,11 @@ void set_battle_work(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_jump_lift(const GameState *g);
 void set_battle_jump_lift(GameState *g, uint8_t v);
 
+/* The enemy whose animation effect runs, a word: the enemies' movements ($C1:3772 and on) and
+ * the effects' handlers take it from here */
+uint16_t battle_effect_enemy(const GameState *g);
+void set_battle_effect_enemy(GameState *g, uint16_t v);
+
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 uint8_t battle_frame_pending(const GameState *g);
 void set_battle_frame_pending(GameState *g, uint8_t v);
@@ -5157,6 +5430,11 @@ void set_battle_transfer_pending(GameState *g, uint8_t v);
 /* The attribute bits of the effect whose sprites are being drawn */
 uint8_t battle_effect_sprite_attributes(const GameState *g);
 void set_battle_effect_sprite_attributes(GameState *g, uint8_t v);
+
+/* The party member a battle step is about (its menu opened or closed, its action called off), as
+ * the step's callers leave it for the step */
+uint8_t battle_step_member(const GameState *g);
+void set_battle_step_member(GameState *g, uint8_t v);
 
 /* The stat block ($80 times the battle slot) of the combatant at hand: the party member the
  * window is drawing, or whose menu is open ($CF:FD9E notes it there), or the combatant a status
@@ -5246,6 +5524,14 @@ enum { BATTLE_TARGET_DISPLAY_COUNT = 5 };   /* by byte: the enemy ($0200), its H
  * where the party can see it, its HP */
 uint8_t battle_target_display(const GameState *g, unsigned i);
 void set_battle_target_display(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_LINE_SCROLL_OFFSETS_COUNT = 64 };   /* by scroll table entry (BG3's 64 in the finer mode, the first 32 for every layer otherwise) */
+/* Added to the layer's scroll across */
+uint16_t battle_line_scroll_offsets_across(const GameState *g, unsigned i);
+void set_battle_line_scroll_offsets_across(GameState *g, unsigned i, uint16_t v);
+/* Down: the scroll modes don't read it; the sway clears it */
+uint16_t battle_line_scroll_offsets_down(const GameState *g, unsigned i);
+void set_battle_line_scroll_offsets_down(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 128 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones) */
 /* Per-line amounts added to the window edges of lines 48-175 */
@@ -9095,11 +9381,32 @@ void set_battle_scroll_tables_x(GameState *g, unsigned layer, uint16_t v);
 uint16_t battle_scroll_tables_y(const GameState *g, unsigned layer);
 void set_battle_scroll_tables_y(GameState *g, unsigned layer, uint16_t v);
 
+enum { BATTLE_SCREEN_SETTINGS_COUNT = 4 };   /* by setting (main screen layers, sub screen layers, main screen's window layers, sub screen's) */
+/* The screen's layer settings in the split's first two values, as bytes: which layers make the
+ * main and the sub screen, and which of them the windows mask */
+uint8_t battle_screen_settings(const GameState *g, unsigned i);
+void set_battle_screen_settings(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_SPLIT_LINE_VALUES_COUNT = 8 };   /* by word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7) */
 /* Words the per-line effects read through their tables; each frame the NMI copies the first two
  * of each group of four over the next two, so the lines after a split take the new values */
 uint16_t battle_split_line_values(const GameState *g, unsigned i);
 void set_battle_split_line_values(GameState *g, unsigned i, uint16_t v);
+
+enum { BATTLE_COLOR_MATH_SETTINGS_COUNT = 2 };   /* by setting (how, which layers) */
+/* The color math's settings in the split's fifth value, as bytes: how it is done and to which
+ * layers */
+uint8_t battle_color_math_settings(const GameState *g, unsigned i);
+void set_battle_color_math_settings(GameState *g, unsigned i, uint8_t v);
+
+/* The background mode the per-line effects set below the split (command $B0) */
+uint8_t battle_screen_mode(const GameState *g);
+void set_battle_screen_mode(GameState *g, uint8_t v);
+
+/* The mosaic the per-line effects set below the split: the block size in the high nibble, the
+ * layers in the low */
+uint8_t battle_mosaic(const GameState *g);
+void set_battle_mosaic(GameState *g, uint8_t v);
 
 enum { BATTLE_FADE_LINE_DATA_COUNT = 288 };   /* by byte (four tables of one-line entries: $C030, $C090, $C0F0, $C120) */
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
@@ -9231,6 +9538,24 @@ void set_battle_vram_request_vram(GameState *g, uint16_t v);
 uint16_t battle_vram_request_size(const GameState *g);
 void set_battle_vram_request_size(GameState *g, uint16_t v);
 
+enum { BATTLE_SCREEN_CHANNELS_COUNT = 2 };   /* by screen script channel */
+/* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
+uint8_t battle_screen_channels_running(const GameState *g, unsigned channel);
+void set_battle_screen_channels_running(GameState *g, unsigned channel, uint8_t v);
+/* Where the channel is in its script (bank $D1), kept while it waits */
+uint32_t battle_screen_channels_place(const GameState *g, unsigned channel);
+void set_battle_screen_channels_place(GameState *g, unsigned channel, uint32_t v);
+/* Frames between the channel's steps (command $81 sets it) */
+uint8_t battle_screen_channels_pace(const GameState *g, unsigned channel);
+void set_battle_screen_channels_pace(GameState *g, unsigned channel, uint8_t v);
+/* Frames until the channel's next step */
+uint8_t battle_screen_channels_countdown(const GameState *g, unsigned channel);
+void set_battle_screen_channels_countdown(GameState *g, unsigned channel, uint8_t v);
+/* Added to each graphics frame the channel shows; the counting loop ($85, $86) steps it each
+ * time round */
+uint8_t battle_screen_channels_frame_offset(const GameState *g, unsigned channel);
+void set_battle_screen_channels_frame_offset(GameState *g, unsigned channel, uint8_t v);
+
 enum { BATTLE_SCREEN_LAYER_COUNT = 2 };   /* by screen script channel */
 /* Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving
  * down */
@@ -9252,6 +9577,39 @@ void set_battle_screen_layer_offset_x(GameState *g, unsigned channel, uint16_t v
 uint16_t battle_screen_layer_offset_y(const GameState *g, unsigned channel);
 void set_battle_screen_layer_offset_y(GameState *g, unsigned channel, uint16_t v);
 
+enum { BATTLE_SCREEN_LOOP_PLACE_COUNT = 2 };   /* by screen script channel */
+/* Where a screen script channel's loop starts again: at the loop command's operand */
+uint16_t battle_screen_loop_place(const GameState *g, unsigned channel);
+void set_battle_screen_loop_place(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_LOOP_COUNT_COUNT = 2 };   /* by screen script channel */
+/* Times a screen script channel's loop has still to run, counting the one under way */
+uint8_t battle_screen_loop_count(const GameState *g, unsigned channel);
+void set_battle_screen_loop_count(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_RETURN_PLACE_COUNT = 2 };   /* by screen script channel */
+/* Where a screen script channel goes back to from a call: at the call's last operand */
+uint16_t battle_screen_return_place(const GameState *g, unsigned channel);
+void set_battle_screen_return_place(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_KEPT_WORD_COUNT = 2 };   /* by screen script channel */
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
+ * ($97) */
+uint16_t battle_screen_kept_word(const GameState *g, unsigned channel);
+void set_battle_screen_kept_word(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_WAVE_STEP_COUNT = 2 };   /* by screen script channel */
+/* How far a channel's wave ($80's effects $0A and $0B) has got through its table of steps */
+uint8_t battle_screen_wave_step(const GameState *g, unsigned channel);
+void set_battle_screen_wave_step(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_DRIFT_COUNT = 6 };   /* by amount (the first and fourth across, the others by the command's operand), by screen script channel */
+/* Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the
+ * swing keeps its speed and position in [a byte by row and column] */
+enum { BATTLE_SCREEN_DRIFT_ROWS = 2, BATTLE_SCREEN_DRIFT_COLUMNS = 1 };
+uint8_t battle_screen_drift(const GameState *g, unsigned i, unsigned row, unsigned column);
+void set_battle_screen_drift(GameState *g, unsigned i, unsigned row, unsigned column, uint8_t v);
+
 enum { BATTLE_SCREEN_SWING_SPEED_COUNT = 2 };   /* by screen script channel */
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame */
 uint16_t battle_screen_swing_speed(const GameState *g, unsigned channel);
@@ -9267,22 +9625,135 @@ enum { BATTLE_SCREEN_SWING_POSITION_COUNT = 2 };   /* by screen script channel *
 uint32_t battle_screen_swing_position(const GameState *g, unsigned channel);
 void set_battle_screen_swing_position(GameState *g, unsigned channel, uint32_t v);
 
+enum { BATTLE_SCREEN_ORBIT_CIRCLE_COUNT = 2 };   /* by screen script channel */
+/* The phase of the circle a channel's layer goes round on its orbit (commands $C4, $C5), across
+ * and down; on 2 a frame */
+uint8_t battle_screen_orbit_circle(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_circle(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_ORBIT_BOB_COUNT = 2 };   /* by screen script channel */
+/* The phase of the layer's bob up and down on its orbit; on 5 a frame */
+uint8_t battle_screen_orbit_bob(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_bob(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_ORBIT_SWAY_COUNT = 2 };   /* by screen script channel */
+/* The phase of the layer's sway across on its orbit; on 6 a frame */
+uint8_t battle_screen_orbit_sway(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_sway(GameState *g, unsigned channel, uint8_t v);
+
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 uint8_t battle_scroll_mode(const GameState *g);
 void set_battle_scroll_mode(GameState *g, uint8_t v);
+
+enum { BATTLE_SCREEN_BACKGROUND_COLORS_COUNT = 2 };   /* by which (first, second) */
+/* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
+ * $FF for none */
+uint8_t battle_screen_background_colors(const GameState *g, unsigned i);
+void set_battle_screen_background_colors(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_RADIUS_COUNT = 2 };   /* by circle */
+/* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
+ * shrink it by their variables and wait for it */
+uint8_t battle_screen_circle_radius(const GameState *g, unsigned i);
+void set_battle_screen_circle_radius(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_X_COUNT = 2 };   /* by circle */
+/* The center across of a circle the screen script draws as a window */
+uint8_t battle_screen_circle_x(const GameState *g, unsigned i);
+void set_battle_screen_circle_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_Y_COUNT = 2 };   /* by circle */
+/* The center down of a circle the screen script draws as a window */
+uint8_t battle_screen_circle_y(const GameState *g, unsigned i);
+void set_battle_screen_circle_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_KIND_COUNT = 2 };   /* by circle */
+/* How a circle is drawn into the window table (one of six ways, through $CD:319E) */
+uint8_t battle_screen_circle_kind(const GameState *g, unsigned i);
+void set_battle_screen_circle_kind(GameState *g, unsigned i, uint8_t v);
 
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
  * (battle_load_graphics) */
 uint8_t battle_graphics_load_in_vblank(const GameState *g);
 void set_battle_graphics_load_in_vblank(GameState *g, uint8_t v);
 
-enum { BATTLE_SAVED_POSITIONS_COUNT = 12 };   /* by position byte * 2 + slot */
-/* The three animation positions, saved by the screen script into one of two interleaved slots */
-uint8_t battle_saved_positions(const GameState *g, unsigned slot);
-void set_battle_saved_positions(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_SHAPE_CENTER_X_COUNT = 2 };   /* by shape */
+/* Where a triangle the screen script draws as a window is centered, across */
+uint8_t battle_shape_center_x(const GameState *g, unsigned i);
+void set_battle_shape_center_x(GameState *g, unsigned i, uint8_t v);
 
-/* Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points
- * the work RAM port at */
+enum { BATTLE_SHAPE_CENTER_Y_COUNT = 2 };   /* by shape */
+/* Where a triangle the screen script draws as a window is centered, down */
+uint8_t battle_shape_center_y(const GameState *g, unsigned i);
+void set_battle_shape_center_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_DEPTH_COUNT = 2 };   /* by shape */
+/* How far a turning triangle's corners lie out of the screen's plane before it is turned */
+uint8_t battle_shape_depth(const GameState *g, unsigned i);
+void set_battle_shape_depth(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_RADII_COUNT = 6 };   /* by corner * 2 + shape */
+/* How far each corner of a triangle lies from its center */
+uint8_t battle_shape_radii(const GameState *g, unsigned corner);
+void set_battle_shape_radii(GameState *g, unsigned corner, uint8_t v);
+
+enum { BATTLE_SHAPE_SCALE_X_COUNT = 2 };   /* by shape */
+/* A flat triangle's stretch across, as an angle whose sine is the scale ($40 full size) */
+uint8_t battle_shape_scale_x(const GameState *g, unsigned i);
+void set_battle_shape_scale_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_SCALE_Y_COUNT = 2 };   /* by shape */
+/* A flat triangle's stretch down, as an angle whose sine is the scale ($40 full size) */
+uint8_t battle_shape_scale_y(const GameState *g, unsigned i);
+void set_battle_shape_scale_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_ANGLES_COUNT = 6 };   /* by corner * 2 + shape */
+/* The angle each corner of a triangle lies at about its center (a turn is 256) */
+uint8_t battle_shape_angles(const GameState *g, unsigned corner);
+void set_battle_shape_angles(GameState *g, unsigned corner, uint8_t v);
+
+enum { BATTLE_SHAPE_CORNERS_COUNT = 12 };   /* by (corner * 2 + axis) * 2 + shape */
+/* The corners of the two triangles the screen script draws as windows, across and down, the
+ * shapes' bytes interleaved; a script sets them from the animation positions, or turns and
+ * places them about a center */
+uint8_t battle_shape_corners(const GameState *g, unsigned i);
+void set_battle_shape_corners(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_TURNS_COUNT = 6 };   /* by axis * 2 + shape */
+/* How far a triangle is turned about each of three axes before it is drawn (a turn is 256) */
+uint8_t battle_shape_turns(const GameState *g, unsigned i);
+void set_battle_shape_turns(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_SIZE_COUNT = 2 };   /* by shape */
+/* How large a triangle is drawn, in 256ths of its corners' distance from its center ($FF about
+ * full size) */
+uint8_t battle_shape_size(const GameState *g, unsigned i);
+void set_battle_shape_size(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_TURNED_POINT_COUNT = 3 };   /* by axis (across, down, depth) */
+/* A corner of a turning triangle once it is turned, as signed bytes */
+uint8_t battle_shape_turned_point(const GameState *g, unsigned i);
+void set_battle_shape_turned_point(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_POINT_COUNT = 3 };   /* by axis (across, down, depth) */
+/* A corner of a turning triangle before it is turned, as signed bytes */
+uint8_t battle_shape_point(const GameState *g, unsigned i);
+void set_battle_shape_point(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_POINT_HIGH_COUNT = 3 };   /* by axis (across, down, depth) */
+/* The bytes after battle_shape_point's: a model's points are written as words, these 0 */
+uint8_t battle_shape_point_high(const GameState *g, unsigned i);
+void set_battle_shape_point_high(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SAVED_SHAPES_COUNT = 8 };   /* by slot */
+/* Triangles put aside to be brought back (commands $A5 and $A6): everything from
+ * battle_shape_center_x to battle_shape_size [42 bytes, one at a time] */
+enum { BATTLE_SAVED_SHAPES_BYTES = 42 };
+uint8_t battle_saved_shapes_byte(const GameState *g, unsigned slot, unsigned at);
+void set_battle_saved_shapes_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+
+/* Which window quadrilateral or screen script triangle is being rasterized; its bit 0 picks the
+ * window, the table half $CD:38B6 points the work RAM port at */
 uint8_t battle_window_quad_index(const GameState *g);
 void set_battle_window_quad_index(GameState *g, uint8_t v);
 
@@ -9290,6 +9761,15 @@ enum { BATTLE_SAVED_DIRECT_PAGE_COUNT = 43 };   /* by direct page byte */
 /* Direct page bytes $00-$2A, saved by the NMI handler around its work */
 uint8_t battle_saved_direct_page(const GameState *g, unsigned i);
 void set_battle_saved_direct_page(GameState *g, unsigned i, uint8_t v);
+
+/* Where the screen script's wave of line offsets is in its turn (command $8F) */
+uint8_t battle_line_wave_phase(const GameState *g);
+void set_battle_line_wave_phase(GameState *g, uint8_t v);
+
+enum { BATTLE_LINE_SCROLL_LAYERS_COUNT = 3 };   /* by layer (BG1, BG2, BG3) */
+/* Nonzero for each layer that takes battle_line_scroll_offsets in the line offset scroll modes */
+uint16_t battle_line_scroll_layers(const GameState *g, unsigned layer);
+void set_battle_line_scroll_layers(GameState *g, unsigned layer, uint16_t v);
 
 /* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
  * delay runs out */
@@ -9310,6 +9790,11 @@ enum { BATTLE_TILE_ROW_PALETTES_COUNT = 2 };   /* by copy */
  * can be taken for every eight tiles */
 uint16_t battle_tile_row_palettes(const GameState *g, unsigned i);
 void set_battle_tile_row_palettes(GameState *g, unsigned i, uint16_t v);
+
+/* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
+ * while the screen scripts run */
+uint16_t battle_background(const GameState *g);
+void set_battle_background(GameState *g, uint16_t v);
 
 enum { BATTLE_SHAKE_OFFSETS_COUNT = 6 };   /* by layer * 2 + axis (BG1-BG3, X then Y) */
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers
@@ -9434,10 +9919,26 @@ void set_battle_block_uploaded_row(GameState *g, uint8_t v);
 uint16_t battle_block_uploaded_source(const GameState *g);
 void set_battle_block_uploaded_source(GameState *g, uint16_t v);
 
+/* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
+uint8_t battle_script_sound_request(const GameState *g);
+void set_battle_script_sound_request(GameState *g, uint8_t v);
+
+/* The sound battle_script_sound_request asks for */
+uint8_t battle_script_sound(const GameState *g);
+void set_battle_script_sound(GameState *g, uint8_t v);
+
+/* Where across the screen the sound battle_script_sound_request asks for plays ($80 the middle) */
+uint16_t battle_script_sound_pan(const GameState *g);
+void set_battle_script_sound_pan(GameState *g, uint16_t v);
+
 /* The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle)
  * keeps Start from pausing */
 uint8_t battle_setup_flags_copy(const GameState *g);
 void set_battle_setup_flags_copy(GameState *g, uint8_t v);
+
+/* How wide the widening orbit (command $C4) has grown: one more every fourth frame */
+uint8_t battle_screen_orbit_growth(const GameState *g);
+void set_battle_screen_orbit_growth(GameState *g, uint8_t v);
 
 /* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
  * frame */
@@ -9459,6 +9960,10 @@ enum { BATTLE_SAVED_PALETTE_TYPES_COUNT = 8 };   /* by palette animation slot */
 uint8_t battle_saved_palette_types(const GameState *g, unsigned slot);
 void set_battle_saved_palette_types(GameState *g, unsigned slot, uint8_t v);
 
+/* How far every line of the layers is moved across by the screen script's sway (command $E7) */
+uint8_t battle_line_sway(const GameState *g);
+void set_battle_line_sway(GameState *g, uint8_t v);
+
 /* Half the height of the column band window 1 draws around line $6A */
 uint8_t battle_column_band_half_height(const GameState *g);
 void set_battle_column_band_half_height(GameState *g, uint8_t v);
@@ -9472,6 +9977,11 @@ enum { BATTLE_WINDOW_STEPS_COUNT = 2 };   /* by count (A, B) */
  * operand or the wipe's steps; B the band's half height or the counted wave's calls */
 uint8_t battle_window_steps(const GameState *g, unsigned i);
 void set_battle_window_steps(GameState *g, unsigned i, uint8_t v);
+
+/* Counted up by command $EF; when it comes round to 0 the screen script stops the battle's
+ * palette animations 8-11 */
+uint8_t battle_screen_palette_stop_count(const GameState *g);
+void set_battle_screen_palette_stop_count(GameState *g, uint8_t v);
 
 /* Offset of the next block id in the effect's list of four ($D1:ECDB) */
 uint16_t battle_effect_graphics_list(const GameState *g);
@@ -9502,6 +10012,11 @@ void set_battle_effect_graphics_wanted(GameState *g, uint8_t v);
 /* The effect whose graphics battle_effect_graphics_wanted asks for */
 uint8_t battle_effect_graphics_effect(const GameState *g);
 void set_battle_effect_graphics_effect(GameState *g, uint8_t v);
+
+/* The layers the screen script may turn on in the screen's settings (command $F5); its commands
+ * for them keep to these */
+uint8_t battle_screen_layer_mask(const GameState *g);
+void set_battle_screen_layer_mask(GameState *g, uint8_t v);
 
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
@@ -9665,6 +10180,11 @@ void set_scene_sprite_list_left(GameState *g, uint8_t v);
 /* Bitmap scaler: pairs of 8-sample groups per output row (the row's width in 16-pixel units) */
 uint16_t scene_scaler_pairs(const GameState *g);
 void set_scene_scaler_pairs(GameState *g, uint16_t v);
+
+/* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
+ * request leaves the request's state; nothing reads them */
+uint16_t scene_scaler_request_state(const GameState *g);
+void set_scene_scaler_request_state(GameState *g, uint16_t v);
 
 /* Bitmap scaler: base address added to a source row's position to point at it */
 uint16_t scene_scaler_source_base(const GameState *g);
@@ -9836,9 +10356,9 @@ void set_scene_race_score(GameState *g, uint16_t v);
 uint16_t scene_race_lead(const GameState *g);
 void set_scene_race_lead(GameState *g, uint16_t v);
 
-enum { SCENE_RACE_VIEW_COUNT = 4 };   /* by 0 the cosine, 1 the sine, 2 and 3 their negatives */
-/* The camera's turn as the bikes are placed on the screen: its cosine and sine, and their
- * negatives */
+enum { SCENE_RACE_VIEW_COUNT = 4 };   /* by 0 the sine, 1 the cosine, 2 and 3 their negatives */
+/* The turn the bikes' places take as they are placed on the screen (a quarter turn less the
+ * camera's angle): its sine and cosine, and their negatives */
 uint16_t scene_race_view(const GameState *g, unsigned i);
 void set_scene_race_view(GameState *g, unsigned i, uint16_t v);
 
@@ -9974,6 +10494,11 @@ void set_scene_circle_radius(GameState *g, uint16_t v);
 uint8_t scene_curtain_table_bank(const GameState *g);
 void set_scene_curtain_table_bank(GameState *g, uint8_t v);
 
+/* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
+ * bank's low bit counts) and the race's setup writes 0 with it */
+uint8_t scene_curtain_table_bank_high(const GameState *g);
+void set_scene_curtain_table_bank_high(GameState *g, uint8_t v);
+
 /* Address of the circle's per-line table (224 lines of left and right X) */
 uint16_t scene_circle_table(const GameState *g);
 void set_scene_circle_table(GameState *g, uint16_t v);
@@ -10047,6 +10572,12 @@ void set_scene_start_held(GameState *g, uint16_t v);
 /* Nonzero keeps L+R+Select+Start from resetting the console during a scene */
 uint8_t scene_reset_disabled(const GameState *g);
 void set_scene_reset_disabled(GameState *g, uint8_t v);
+
+/* How many times the attract sequence's race has been shown, below the program's work RAM so it
+ * survives from one showing to the next: the camera takes one of its two scripts on odd showings
+ * and the other on even */
+uint16_t scene_race_demo_showings(const GameState *g);
+void set_scene_race_demo_showings(GameState *g, uint16_t v);
 
 /* Frames left before the race's scene ends, once a button has been pressed after it */
 uint16_t scene_race_end_wait(const GameState *g);
@@ -10258,6 +10789,59 @@ enum { SCENE_PALETTE_BYTES = 512 };
 uint8_t scene_palette_byte(const GameState *g, unsigned at);
 void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The routine the program's main loop calls each pass, the operand of its own call, which a
+ * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) */
+uint16_t scene_main_loop_call(const GameState *g);
+void set_scene_main_loop_call(GameState *g, uint16_t v);
+
+/* Which routine starts the plane's perspective lines, the operand of the program's own call: the
+ * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
+ * the line above it) */
+uint16_t scene_perspective_start(const GameState *g);
+void set_scene_perspective_start(GameState *g, uint16_t v);
+
+/* The sine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) */
+uint16_t scene_perspective_across_product(const GameState *g);
+void set_scene_perspective_across_product(GameState *g, uint16_t v);
+
+/* The branch the perspective's loop takes over its negation of the cosine's entries ($0480) or
+ * into it ($0080, when the cosine is negative) */
+uint16_t scene_perspective_cosine_sign(const GameState *g);
+void set_scene_perspective_cosine_sign(GameState *g, uint16_t v);
+
+/* The cosine's magnitude times the camera's height, as the perspective's loop loads it (the
+ * operand of its own load) */
+uint16_t scene_perspective_along_product(const GameState *g);
+void set_scene_perspective_along_product(GameState *g, uint16_t v);
+
+/* Where the perspective's loop stores each line's sine entry as it divides it out: the matrices'
+ * second entries ($F0FE, the sine not negative) or their third ($F484) */
+uint16_t scene_perspective_across_entries(const GameState *g);
+void set_scene_perspective_across_entries(GameState *g, uint16_t v);
+
+/* Where the perspective's loop stores each line's sine entry negated: the other of
+ * scene_perspective_across_entries' two */
+uint16_t scene_perspective_against_entries(const GameState *g);
+void set_scene_perspective_against_entries(GameState *g, uint16_t v);
+
+/* The two instructions the perspective's loop runs after each line: a step to the next distance
+ * ($EAE8 as the program comes, $E8EA as the race writes it), or the branch the race copies from
+ * scene_perspective_pair_branch to give each line's matrix to the next; scenes no movie reaches
+ * write other steps */
+uint16_t scene_perspective_line_step(const GameState *g);
+void set_scene_perspective_line_step(GameState *g, uint16_t v);
+
+/* Where the perspective's lines end, the operand of the loop's compare: $380, past the 224th
+ * line's four bytes */
+uint16_t scene_perspective_end(const GameState *g);
+void set_scene_perspective_end(GameState *g, uint16_t v);
+
+/* The branch the race writes into the perspective's loop to build the lines in pairs (the
+ * program's data, $3680) */
+uint16_t scene_perspective_pair_branch(const GameState *g);
+void set_scene_perspective_pair_branch(GameState *g, uint16_t v);
+
 enum { SCENE_NUMBER_DIGITS_COUNT = 21 };   /* by byte of the list */
 /* The sprite list the program draws a number with: the count byte (one more than the digits
  * shown), then the digits from the ones up, four bytes each whose first is the digit's tile ($20
@@ -10269,6 +10853,11 @@ enum { SCENE_RACE_OPENINGS_COUNT = 2 };   /* by which opening */
 /* The two openings the race's camera script can take, one picked at random (the program's data) */
 uint16_t scene_race_openings(const GameState *g, unsigned i);
 void set_scene_race_openings(GameState *g, unsigned i, uint16_t v);
+
+/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
+ * program's own load, which the setup of the race without its panel writes again */
+uint8_t scene_race_ending_sweep(const GameState *g);
+void set_scene_race_ending_sweep(GameState *g, uint8_t v);
 
 enum { SCENE_RACE_STEERING_BY_VIEW_COUNT = 16 };   /* by the way the camera faces (0-7, an eighth of a turn each), then 8 more for the other direction */
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
@@ -10360,6 +10949,26 @@ enum { SCENE_RACE_SPRITE_LIST_COUNTS_COUNT = 2 };   /* by racer: 0 Crono, 1 John
 uint8_t scene_race_sprite_list_counts(const GameState *g, unsigned i);
 void set_scene_race_sprite_list_counts(GameState *g, unsigned i, uint8_t v);
 
+/* The count of the race panel's sprite list (the program's data): 7, six sprites with the
+ * score's label; the race without its panel makes it 6 */
+uint8_t scene_race_panel_sprites(const GameState *g);
+void set_scene_race_panel_sprites(GameState *g, uint8_t v);
+
+/* Where across the screen the distance bar's right end sprite is, in the panel's list ($B8; $D8
+ * without the panel) */
+uint8_t scene_race_bar_end_x(const GameState *g);
+void set_scene_race_bar_end_x(GameState *g, uint8_t v);
+
+/* Where across the screen the sprite after the distance bar's end is, in the panel's list ($C8;
+ * $E8 without the panel) */
+uint8_t scene_race_bar_cap_x(const GameState *g);
+void set_scene_race_bar_cap_x(GameState *g, uint8_t v);
+
+/* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
+ * without the panel */
+uint8_t scene_race_corner_sprites(const GameState *g);
+void set_scene_race_corner_sprites(GameState *g, uint8_t v);
+
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes, one at a time] */
 enum { SCENE_RACE_PLANE_COLUMN_BYTES = 20 };
@@ -10375,6 +10984,22 @@ void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v);
 enum { SCENE_RACE_LINE_TABLES_BYTES = 4096 };
 uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at);
 void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_PLANE_MATRIX_TOP_ROW_COUNT = 224 };   /* by screen line */
+/* The matrix's first entry: the cosine's */
+uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line);
+void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v);
+/* The matrix's second entry: the sine's */
+uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line);
+void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v);
+
+enum { SCENE_PLANE_MATRIX_BOTTOM_ROW_COUNT = 224 };   /* by screen line */
+/* The matrix's third entry: the sine's, negated */
+uint16_t scene_plane_matrix_bottom_row_c(const GameState *g, unsigned line);
+void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v);
+/* The matrix's fourth entry: the cosine's, as the first */
+uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line);
+void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v);
 
 enum { SCENE_RACE_PICTURE_COUNT = 1152 };   /* by word of the picture, $10 a row */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
@@ -10467,6 +11092,25 @@ void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint
  * carries in from its third byte */
 uint32_t scene_call_bump_push(const GameState *g, SceneProgramPage page);
 void set_scene_call_bump_push(GameState *g, SceneProgramPage page, uint32_t v);
+/* The race's placing of the bikes: the last bike's half width, over which its left edge is
+ * worked out; the field's controller read takes it over as the buttons newly pressed
+ * (input_pressed shares the cell) */
+uint16_t scene_call_race_edge_half_width(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_half_width(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of the bikes: where across the screen the last bike's picture is centered;
+ * the field's controller read takes it over as the buttons held (input_held) */
+uint16_t scene_call_race_edge_middle(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_middle(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of Crono: his size halved, at least $40, which his picture's height and
+ * width are worked out over; the field's controller read takes it over as the repeat delay
+ * (input_repeat_delay) */
+uint16_t scene_call_race_half_size(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_half_size(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there
+ * across the multiply that shifts the cell after the product; the field's controller read takes
+ * it over as the buttons of the frame before (input_previous) */
+uint16_t scene_call_race_gap(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v);
 /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of
  * pictures */
 uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page);

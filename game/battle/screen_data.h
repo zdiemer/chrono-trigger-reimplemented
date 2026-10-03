@@ -100,6 +100,51 @@ static inline uint8_t shake_rate_choice(const GameState *g, unsigned choice) { r
 static inline uint8_t shake_layers_across(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6ACu + choice); }
 static inline uint8_t shake_layers_down(const GameState *g, unsigned choice) { return rom_read8(g, 0xD1F6B0u + choice); }
 
+/* The screen script's two orbits ($CD:1C5B), four sizes each: the circle's
+ * across and down, the sway's and the bob's. The orbit's index is a byte of
+ * four times it, as the original's indexing takes it. */
+static inline uint8_t orbit_size(const GameState *g, uint8_t orbit, unsigned size)
+{
+    return rom_read8(g, 0xCD1C5Bu + (uint8_t)(orbit * 4) + size);
+}
+
+/* ---- The screen script's triangles -------------------------------------------------------- */
+
+/* The triangles a screen script turns in space ($D1:EC5F): a model is three
+ * points, four bytes each (across, down, depth, and one unused), sixteen
+ * bytes a model. `at` is the point's byte offset, which wraps as a byte. */
+typedef struct {
+    uint8_t across, down, depth;
+} ShapeModelPoint;
+
+static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t at)
+{
+    return (ShapeModelPoint){ rom_read8(g, 0xD1EC5Fu + at), rom_read8(g, 0xD1EC60u + at), rom_read8(g, 0xD1EC61u + at) };
+}
+
+/* Where each of the eight slots for triangles put aside is, in bytes from
+ * the first ($CD:26B0, a word a slot). The slot's index is a byte of twice
+ * it. */
+static inline uint16_t saved_shape_offset(const GameState *g, uint8_t slot)
+{
+    return rom_read16(g, 0xCD26B0u + (uint8_t)(slot * 2));
+}
+
+/* ---- Palette ------------------------------------------------------------------------------ */
+
+/* The sets of background colors a screen script picks ($D1:6002): four
+ * colors a set, of which the scripts use three. */
+enum { BACKGROUND_SET_COLORS = 3 };
+static inline uint16_t background_set_color(const GameState *g, uint8_t set, unsigned color)
+{
+    return rom_read16(g, 0xD16002u + 8u * set + 2u * color);
+}
+
+/* The palette animation slots a screen script starts one in, by the three
+ * bits of its operand that choose ($CD:2A42): each the slot's byte offset
+ * from slot 4. */
+static inline uint8_t script_palette_slot_offset(const GameState *g, unsigned choice) { return rom_read8(g, 0xCD2A42u + choice); }
+
 /* ---- Palette presets ---------------------------------------------------------------------- */
 
 /* A palette preset: a pair of fades, eight bytes a slot, sixteen presets

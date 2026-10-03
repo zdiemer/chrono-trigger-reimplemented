@@ -90,11 +90,16 @@ static void leave_multiplier(GameState *g, uint8_t character, uint8_t named)
     (void)hw_multiply_by(g, NAME_BYTES);
 }
 
-// $C2:8820, $C2:8839
+// $C2:8820
 bool menu_load_member(GameState *g, uint8_t member)
 {
     set_menu_member_waiting(g, member >= menu_active_members(g) ? WAITING : ACTIVE);
-    uint8_t character = menu_members(g, member);
+    return menu_load_character(g, menu_members(g, member));
+}
+
+// $C2:8816, $C2:8839
+bool menu_load_character(GameState *g, uint8_t character)
+{
     if (character & NO_MEMBER) {
         ORIGINAL_EFFECT(hw_set_multiplicand(g, character));
         return false;

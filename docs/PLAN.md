@@ -54,12 +54,13 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 37% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 26% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
+| Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
+| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 ### The two gaps this list exposed
 
@@ -163,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 205 files, 117 of 58,083 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 212 files, 117 of 61,418 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -200,7 +201,7 @@ What the phase settled, and what still holds for every port:
   against the port it replaces.
 - **A rewrite that hits something the accessors can't say is a finding**: a
   buffer the game locates at run time reaches work RAM by address through
-  `game/wram.h`, and every such use (140 in 33 files) is a variable waiting for
+  `game/wram.h`, and every such use (146 in 34 files) is a variable waiting for
   a name in the map. Cells on a page the caller chooses have page kinds
   (DISASSEMBLY.md, "The accessors").
 
@@ -210,16 +211,16 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **29% of the code is still generated.**
+docstring says which way it is wrong). **26% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 59.7K | 20.3K | 8% | 403 |
-| field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.3K | 28.1K | 8.1K | 53% | 300 |
-| scene program, RAM (`$7E`) | 24.9K | 10.2K | 0.8K | 59% | 71 |
-| battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
-| field graphics (`$FD`) | 15.3K | 11.8K | 0.7K | 23% | 86 |
+| field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
+| menus, text (`$C2`) | 59.3K | 30.9K | 8.6K | 48% | 326 |
+| scene program, RAM (`$7E`) | 24.9K | 11.4K | 1.2K | 54% | 68 |
+| battle frame work (`$CD`) | 15.5K | 9.4K | 3.9K | 39% | 134 |
+| field graphics (`$FD`) | 15.3K | 11.7K | 0.7K | 23% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
 | battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
@@ -227,7 +228,23 @@ docstring says which way it is wrong). **29% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **191.7K** | **47.8K** | **29%** | **1442** |
+| **total** | **268.5K** | **198.0K** | **48.9K** | **26%** | **1547** |
+
+`$CD`, the battle's frame work, has the screen script language in C
+(RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122
+commands. What is left there, in the order to take it: the window shapes'
+rasterizers the commands still call (`$CD:367C`-`$CD:3923`, the triangles'
+fill into the window table through the work RAM port, and `$CD:31AA`-`$CD:3656`,
+the circles' and the other shapes' that commands `$8B`, `$B5`, `$B6` and `$B8`
+draw), which would take the screen scripts off the machine but for bank
+`$CE`'s angle and setup routines; then the special effects of command `$80`
+(`$CD:2A8B`-`$CD:2D4A`, one-off effects whose tables want names: the fixed
+color's per-line tables at `$BB06`, the wave marks at `$E850`); then the
+triangle centred on its own corners (`$CD:21C0`, with the 8.8 slope and
+division routines it shares with the rasterizer, `$CD:38E5`, `$CD:3BAB`); and
+last the frame work's own remainder (the Lavos scroll modes `$CD:07B9`/`$07E2`,
+the slide's line moves, the frame wait's callees `$CD:0516`, `$CD:039E`,
+`$CD:01B3`).
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
@@ -366,12 +383,14 @@ language, the cursor and sounds, the typesetter, the menus' opening, the
 characters in the records, the records' task, the frame's input, the
 tilemap touches, the equipment screen (its steps with the member list and
 card, and its two windows: the slots and the list of what fits, sliding in
-and out), and the items screen with its panel (the list of the party's items,
-moving and sorting them, who can equip one, an item used on the members).
-Next is the techs screen (`$C2:B353`-`$C2:BF34`, with the largest run left,
-`$C2:B520`, 1530 bytes), which shares the items screen's member window and
-the lists' slide; then `$C2:42F8` (1441), `$C2:2826` (1313), `$C2:D52B`
-(1290, the shop) and `$C2:3B8C` (1116). The equipment screen's preview of an
+and out), the items screen with its panel (the list of the party's items,
+moving and sorting them, who can equip one, an item used on the members), and
+the techs screen with its panel (a member's techs of each kind, the member
+list's and the tech list's slides, a healing tech used on the members).
+Next is the settings screen beside it (`$C2:BF35`-`$C2:C620`, its options
+through a table of handlers, the buttons' assignment, the window's design);
+then `$C2:42F8` (1441), `$C2:2826` (1313), `$C2:D52B` (1290, the shop) and
+`$C2:3B8C` (1116). The equipment screen's preview of an
 item's figures (`$C2:A5C3`, `$C2:A5E7`, 138 bytes) is still the original's:
 the flags it saves come after the list's move returns, which leaves them as
 none of its paths work out yet (TODO.md). `$C2:27DE` goes with
@@ -397,17 +416,16 @@ menus' party routines (`$C2:8004`), which go with `$C2`, and the unpacker
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
 and the endings; DISASSEMBLY.md's `[[ramcode]]`), on top of the scene engine
-in `$C3`. Its first chunk is the jet bike race while it runs: the bikes'
-rules, the camera, the drawing, and the routine the race generates to
-regroup its scaled pictures (`$7E:B574`), all as C (RECOMP.md, "Phase 3, the
-scene program: the jet bike race running"). **Next**, by what the library
-reaches: the rest of the race (the bikes placed in perspective, `$7E:4D0D`,
-583 bytes, with the main loop's scaling of the pictures `$7E:51D1`, the
-perspective table `$7E:357B` and its patched call, and the race's setup and
-loader, `$7E:3B48`-`$7E:3F13` and `$7E:45D6`, as one routine); then the
-endings that share `$7E:8538` (modes 10, 11, 14 and 15; both Beyond Time
-movies reach it: `$7E:8538`-`$7E:8E94` with its helpers from `$7E:7FC4`,
-about 3 KiB) and the telepod ending's (mode 13, `$7E:8EA8` on, about 2 KiB).
+in `$C3`. The jet bike race is C from its setup to its end: the bikes' rules,
+the camera, the drawing and the regrouping of its scaled pictures (history
+file, "Phase 3, the scene program: the jet bike race running"), then the bikes
+placed in perspective, the plane's perspective (shared with the endings), the
+main loop's scaling and the setup as one routine (RECOMP.md, "Phase 3, the
+scene program: the rest of the jet bike race"). **Next**, by what the library
+reaches: the endings that share `$7E:8538` (modes 10, 11, 14 and 15; both
+Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its helpers from
+`$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and its frame
+tasks) and the telepod ending's (mode 13, `$7E:8EA8` on, about 2 KiB).
 The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a
@@ -427,9 +445,9 @@ short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
-Three things stand between a finished `game/` and a native build with nothing
-under it. None of them is optional for target 1, and none was scheduled before
-the audit that found them.
+Four things stand between a finished `game/` and a native build with nothing
+under it. None of them is optional for target 1. The first three were found
+by an audit; the fourth is the program itself.
 
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
@@ -463,6 +481,53 @@ the audit that found them.
   `tm_video_status` has no native answer, so its six call sites are rewritten
   to those. The work is the backend, the calls, and the rewrites TODO.md lists
   under "Timing without a beam"; the main thread runs as one coroutine.
+
+- **The native program, and the registry taken down.** Today the emulated
+  CPU walks the ROM from its reset vector, and a port runs because the
+  intercept finds its address in `game/registry.c`; its entry wrapper turns
+  the machine's registers into C arguments and back. That is what lets the
+  gate run the original beside the port, and it is scaffolding like the rest:
+  a shipped build has a `main()` that boots the game and callers that call
+  ports. It is taken down in deliberate steps, each its own commit, none of
+  them by accident:
+  1. **Measure it.** A census from a shipping-mode run (`ct_dev --native on
+     --recomp on`): for each registered entry, how often it was entered by
+     the machine (from generated code, the interpreter or a vector) and how
+     often a port called it as C. The count entered by the machine is the
+     number this item drives to 0, and goes in the table above. The census
+     names which caller still holds each entry to the registry.
+  2. **Ports call ports.** Where a port reaches another port through a
+     call-out (`portsmell`'s `sibling-through-machine` already finds these), it
+     calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
+     This happens anyway as subsystems finish; the census says where it is
+     still owed.
+  3. **The skeleton.** `game/` gets the program's top: a boot function, the
+     main thread as the one coroutine (`runtime/port/fiber.h`) whose frame
+     waits yield to the driver, and the frame's work -- the vblank handler,
+     the line handler -- as functions the driver calls each frame, in place
+     of the interrupt vectors and the RAM trampolines the game points them
+     through. The power-on item above ports what those entries do; this
+     step makes them functions the driver calls rather than addresses the
+     CPU jumps to.
+  4. **A slice with nothing under it, early.** A build target (`ct_native`)
+     that links `game/`, `runtime/platform/` with its host backends and
+     `fiber.h`, and none of the emulator, the generated C or the registry,
+     run as soon as boot, the title and a few field maps are ported. Its
+     link errors and its first frames are the list of what still assumes a
+     machine -- a wait on the beam, code run from RAM, a port that reads a
+     register -- found while there is time to change course, not after the
+     last port. It is a measurement, not the product, until the rest
+     arrives.
+  5. **Per subsystem, the registry goes with the gate.** When a subsystem
+     retires the gate ("Retiring the gate, deliberately", above), its rows
+     leave `game/registry.c`, its entry wrappers and leaves files are
+     deleted, its entries become ordinary functions its callers call, and
+     its guards become assertions. The dev build keeps the registry for the
+     subsystems still under the gate.
+  6. **Last, the machine leaves the product.** When no subsystem is under
+     the gate, `game/registry.c`, the intercept, the entry macros and
+     `runtime/`'s emulator are deleted from what ships; `ct_play` is
+     `ct_native`.
 
 **The asset seam's other half comes forward to here.** The ports reach ROM
 data through named accessors (`*_data.h`) now, all but `battle/scripts.c`'s

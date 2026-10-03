@@ -8,8 +8,8 @@
  * above the horizon scroll across by the angle, BG3 by half of it and BG2 by a
  * quarter, and the horizon's line splits the per-line tables between them and
  * the plane. When the camera's height, angle or pitch changes, the plane's
- * perspective is built again (still the original's, at $7E:357B), and the
- * distances the bikes are scaled by are forgotten.
+ * perspective is built again (scene/perspective.c), and the distances the
+ * bikes are scaled by are forgotten.
  *
  * Which way the control pad steers depends on the camera: the pad's directions
  * are given to the lanes by the eighth of a turn it faces. In the attract
@@ -107,7 +107,9 @@ static void follow_finish(GameState *g)
     set_scene_race_bg2_scroll_x(g, turn >> 2);
     uint16_t quarter = turn >> 2;
     set_scene_race_bg3_scroll_x(g, (uint16_t)((quarter >> 1) + quarter + (quarter & 1)));
-    set_scene_call_first(g, scene_program_own(), quarter);
+    /* the program works the three eighths out in its first cell, which the
+     * next routine to use the cells writes over */
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), quarter));
 }
 
 /* ---- The horizon ------------------------------------------------------------------------------ */
@@ -133,14 +135,14 @@ static void set_horizon(GameState *g)
 
 /* The camera the perspective is built for, as scene_race_perspective_camera
  * keeps it. */
-static const unsigned perspective_registers[] = { CAMERA_HEIGHT, CAMERA_ANGLE, CAMERA_PITCH, CAMERA_PLANE_TOP, CAMERA_MIRRORED };
+static const unsigned perspective_registers[] = { CAMERA_HEIGHT, CAMERA_ANGLE, CAMERA_PITCH, CAMERA_PLANE_TOP, CAMERA_LINES_PAIRED };
 enum { PERSPECTIVE_REGISTERS = sizeof perspective_registers / sizeof perspective_registers[0] };
 
 /* The original clears the divisors with a block move of 255 bytes after
  * storing the first word. */
 enum { DIVISORS = 0x100, DIVISORS_MOVED = DIVISORS - 1 };
 
-static void forget_divisors(GameState *g)
+void race_forget_divisors(GameState *g)
 {
     uint32_t mark = 0;
     ORIGINAL_EFFECT(mark = charge_uncounted_begin(g));
@@ -164,7 +166,7 @@ static bool camera_changed(GameState *g)
         return false;
     if (first == 0) {
         set_scene_race_perspective_camera(g, 0, race_camera(g, CAMERA_HEIGHT));
-        forget_divisors(g);
+        race_forget_divisors(g);
     }
     for (unsigned i = first ? first : 1; i < PERSPECTIVE_REGISTERS; i++)
         set_scene_race_perspective_camera(g, i, race_camera(g, perspective_registers[i]));
@@ -226,9 +228,10 @@ static void turn_camera(GameState *g)
         uint16_t other_way = ramp(scene_race_turning(g, 1), pad & IN_BUTTON_L);
         set_scene_race_turning(g, 0, one_way);
         set_scene_race_turning(g, 1, other_way);
-        SceneProgramPage camera = scene_program_channel(0);
-        set_scene_call_first(g, camera, one_way >> TURNING_SHIFT);
-        set_scene_call_second(g, camera, other_way >> TURNING_SHIFT);
+        /* the program sums the turn in channel 0's first two cells, which the
+         * camera's next multiply writes over */
+        ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_channel(0), one_way >> TURNING_SHIFT));
+        ORIGINAL_EFFECT(set_scene_call_second(g, scene_program_channel(0), other_way >> TURNING_SHIFT));
         set_race_camera(g, CAMERA_ANGLE, (uint16_t)(race_camera(g, CAMERA_ANGLE) + (one_way >> TURNING_SHIFT) -
                                                    (other_way >> TURNING_SHIFT)));
     }
@@ -288,11 +291,12 @@ static bool settle_camera(GameState *g)
 /* The race keeps the controller of this frame and the last. The original
  * rotates the three words, which leaves the scene's copy of the controller
  * holding the one from two frames ago until the next read; and the controller
- * passes through the arithmetic's first cell on the way. */
+ * passes through the arithmetic's first cell on the way, which the next
+ * routine to use the cells writes over. */
 static void keep_controller(GameState *g)
 {
     PadBits now = scene_joypad(g);
-    set_scene_call_first(g, scene_program_own(), now);
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), now));
     set_scene_joypad(g, scene_race_buttons_before(g));
     set_scene_race_buttons_before(g, scene_race_buttons(g));
     set_scene_race_buttons(g, now);
@@ -386,21 +390,28 @@ void scene_race_keep_controller(Snes *s)
     m_rts(s);
 }
 
-/* The perspective is the original's ($7E:357B), on channel 0's page; it reads
- * none of the registers but the page. Unchanged, A is the last register
- * compared. */
+/* The perspective is built on channel 0's page (scene/perspective.c), where
+ * the original jumps on to it; where the port doesn't build it (another
+ * scene's step written into its loop), the original does, and it reads none
+ * of the registers but the page. Unchanged, A is the last register compared. */
 enum { BUILD_PERSPECTIVE = 0x7E357B };
 
 void scene_race_check_perspective(Snes *s)
 {
     GameState *g = state_of(s);
     if (!camera_changed(g)) {
-        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_MIRRORED));
+        ORIGINAL_EFFECT(s->cpu.a = race_camera(g, CAMERA_LINES_PAIRED));
         m_rts(s);
         return;
     }
-    s->cpu.d = CHANNEL_0_PAGE;
-    m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    if (!scene_perspective_as_ported(s, CHANNEL_0_PAGE)) {
+        s->cpu.d = CHANNEL_0_PAGE;
+        m_stop_at_own(s, BUILD_PERSPECTIVE, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+        return;
+    }
+    TIMED_AS(g, BUILD_PERSPECTIVE, scene_build_perspective(g, 0));
+    ORIGINAL_EFFECT(scene_leave_perspective_registers(s, 0));
+    m_rts(s);
 }
 
 void scene_race_turn_camera(Snes *s)

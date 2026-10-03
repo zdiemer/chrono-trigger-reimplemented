@@ -3,15 +3,20 @@
  * The race is Crono against Johnny along a track that is a Mode 7 plane seen
  * from a camera behind them. Its parts:
  *
- *   race_rules.c    the bikes: speed, steering, boosts, bumping, the finish,
- *                   the score and what it earns, the end of the scene
+ *   race_rules.c    the bikes: the start, speed, steering, boosts, bumping,
+ *                   the finish, the score and what it earns, the end of the
+ *                   scene
  *   race_camera.c   the camera: where it stands and looks, how the flat
  *                   layers and the horizon follow it
+ *   race_projection.c the bikes placed on the screen in perspective
  *   race_drawing.c  the racers drawn at their distance, the distance bar and
  *                   the numbers
- *   race.c          what the vblank sends: the camera, the plane's columns,
- *                   the racers' tiles, the road strip, the engine's pitch
- *   race_matrix.c   the racers' scaled pictures regrouped into tiles
+ *   race.c          the setup, and what the vblank sends: the camera, the
+ *                   plane's columns, the racers' tiles, the road strip, the
+ *                   engine's pitch
+ *   race_matrix.c   the racers' pictures scaled by the main loop and
+ *                   regrouped into tiles
+ *   perspective.c   the plane's perspective, which the endings share
  *
  * The race runs as the scene program's tasks (scene/frame.c) and its two
  * sequence channels' scripts, which set the camera through channel 0's
@@ -36,7 +41,7 @@ enum {
     CAMERA_PLANE_TOP = 8,  /* where below the horizon the plane's perspective starts */
     CAMERA_SPEED = 9,      /* how far it moves along each frame */
     RACE_ANIMATION = 10,   /* the bikes' animation: they change frame every other count */
-    CAMERA_MIRRORED = 11,  /* nonzero while the perspective is built mirrored */
+    CAMERA_LINES_PAIRED = 11, /* nonzero while the perspective is built a pair of lines at a time */
     CAMERA_LEAN = 12,      /* turned into the bikes' poses with the angle */
 };
 
@@ -62,11 +67,23 @@ static inline bool race_in_attract_mode(const GameState *g) { return (scene_flag
  * high word reaches 8. */
 #define RACE_FINISH 0x80000ul
 
-/* A bike's lane's high byte as the race reads it: as a word, with the byte
- * after the lane on top. */
+/* A bike's lane in 256ths, as Johnny's steering, the distance bar's markers
+ * and the bikes' placing read it: the lane's high byte, which the program
+ * reads as a word, with the byte after the lane on top. Nothing writes that
+ * byte and the program's clear of its work RAM leaves it 0, so in the game the
+ * word is the high byte alone. */
 static inline uint16_t race_lane_high(const GameState *g, Racer r)
 {
     return (uint16_t)(scene_race_racers_lane(g, r) >> 8 | scene_race_racers_after_lane(g, r) << 8);
+}
+
+/* Where a racer's picture request is (scene_race_picture_requests' state):
+ * nothing asked, asked and waiting for the main loop to scale it, or scaled
+ * and gathered into the tilemap buffer. */
+typedef enum { PICTURE_NONE = 0, PICTURE_WAITING = 1, PICTURE_GATHERED = 2 } PictureState;
+static inline PictureState race_picture_state(const GameState *g, Racer r)
+{
+    return (PictureState)scene_race_picture_requests_state(g, r);
 }
 
 /* Where the race is (scene_race_stage). */
@@ -110,6 +127,24 @@ void scene_draw_sprite(GameState *g, uint16_t source);
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
 uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
+
+/* scene/race_rules.c: the bikes as the race starts. */
+void race_start(GameState *g);
+
+/* scene/race_camera.c: the distances' divisors forgotten, for the perspective
+ * of a new camera height. */
+void race_forget_divisors(GameState *g);
+
+/* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
+ * entered and left, under the call-outs it makes; and the race's song, from
+ * the program's routine that starts one. */
+void scene_bridge_enter(Snes *s, uint32_t call);
+void scene_bridge_leave(Snes *s);
+void scene_bridge_start_song(Snes *s, uint8_t song);
+
+/* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
+ * in the original's scaler, with the carry its first row takes. */
+void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge);
 
 /* scene/math.c: the program's signed 16-bit multiply ($7E:33D6), on a page's
  * cells; returns the product. */

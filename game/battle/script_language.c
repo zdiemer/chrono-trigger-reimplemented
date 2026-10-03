@@ -4,6 +4,7 @@
 
 #include "battle/battle.h"
 #include "battle/effects.h"
+#include "battle/screen.h"
 #include "rom.h"
 #include "vars.h"
 #include "wram.h"
@@ -140,15 +141,12 @@ static bool colors_in_range(const GameState *g)
            && list_of_combatants(g, OTHER_TARGETS_START, false) && battle_background_cycle(g) < BACKGROUND_COLORS;
 }
 
-/* The screen effect's settings: how many of them the command gives (its
- * first operand's low bits; the original copies 256 for none), and which
- * effect (its high bits), one of the six the original's table has. */
-enum { SETTINGS_GIVEN = 0x0F, SCREEN_EFFECTS = 6 };
-
+/* The screen effect's command gives at least one setting (the original
+ * copies 256 for none), and names one of the effects there are. */
 static bool a_screen_effect(const GameState *g)
 {
-    uint8_t settings = script_operand(g, 1);
-    return (settings & SETTINGS_GIVEN) != 0 && settings >> 4 < SCREEN_EFFECTS;
+    uint8_t first = script_operand(g, 1);
+    return screen_effect_settings_given(first) != 0 && screen_effect_known(first);
 }
 
 static bool needs_met(const GameState *g, const ScriptOpcode *row)

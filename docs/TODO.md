@@ -143,8 +143,23 @@ rest waits, is [PLAN.md](PLAN.md).
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
     the name converter `$C1:01A9` from the setup; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
-    `$CE:EE6E`, `$CE:E18E`, `$CD:1609`, `$CD:0B1E` and the wait tail's
+    `$CE:EE6E`, `$CE:E18E`, `$CD:0B1E` and the wait tail's
     callees from the frame work.
+  - The screen script commands whose handlers are still the original's
+    (RECOMP.md, "Phase 3, battle chunk 11"; `battle/screen_script.c`'s rows
+    with no operation): the special effects `$80`; the circles' drawing `$8B`
+    and the shapes of `$B5`, `$B6`, `$B8`; `$A1`, which runs the rasterizer's
+    own setup; `$AC`, `$CC`, `$D9` and `$DA` through bank `$CE`'s angle routine
+    `$CE:E7CF`; `$AD` and `$B4`, the triangle centred on its corners; `$97` and
+    `$B2` into bank `$CE`; the layer's random drift `$D7`, which adds a byte
+    the original leaves in its cell `$46`; the beam `$F4`; the wait for a line
+    `$C1`; and the poke `$F9`. And the rasterizer `$CD:367C` the triangles are
+    drawn with, a call-out from the C commands.
+  - The screen script's model triangles (`$BA`, `$BB`, `$BE`) clear the low
+    byte of `battle_turn_slot` ($22): the original hands its rotation the
+    triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
+    `clear_the_turn_slots_low_byte`). Find whether any turn reads the slot
+    after an effect draws a model; if none does, the store is scaffolding.
   - Meanings not worked out: `battle_tech_records.menu_detail`; the setup's
     `battle_start_mark`, `battle_menu_mark`, `battle_action_queue_end`,
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
@@ -277,45 +292,36 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
-  - what battle chunk 9b's review left (none blocking): `script_moves.c`'s
-    orbit writes a scaffolding cell nearly every line, some of them cells
-    named for other uses (`LEFT_CENTER` holding the list's place); a line's
-    length is handed to the throw's rise through the low byte of
-    `battle_throw_wait_after`; the places are a byte where `{kind, n}` would
-    say which subject or anchor they take; the subjects are named by channel
-    number (`subject(g, 1)`) rather than for what they are to the action;
-    `script_language.c`'s needs keep their own copy of the screen effect's
-    settings and choices beside `screen_motion.c`'s; `face` in
-    `script_places.c` carries `at` and `last` through its loop only for the
-    cells it leaves.
-  - what battle chunk 10's review left (none blocking): `battle_end.c`'s
-    stat copy (around line 81) writes past the character records through an
-    `_unchecked` accessor when a party slot holds a character past the
-    seventh, which the game never makes -- guard it or keep the stray write in
-    one marked place; `party_turns.c` writes
-    `BATTLE_ITEM_RETURNING_FOR_AT` plainly before
-    `battle_return_chosen_item`, which takes the member already
-    (`inventory.c` writes it as `ORIGINAL_EFFECT`); `cancel_if_unable` runs
-    its "drop the waiting action" setters in the `Snes *` body -- a
-    `drop_waiting_action(g, member)` operation; `set_step_member` is in both
-    `party_turns.c` and `main_loop.c`, through
-    `set_battle_effect_sprite_attributes` -- name the cell's second use and
-    keep one; `enemy_movement.c` writes the direction finder's angle as
-    `set_battle_direction_cells(g, 8, ...)`; `give_step`'s `a_high_clear`
-    mirrors A (declare `DC_AH` or say why); `DEMO_READY`/`DEMO_ACTION_STATE`
-    and `battle_end.c`'s low-HP `~0x01` want named bits; `take_as_actor`
-    writes the actor every pass; `demo_party_actions_byte` takes a byte
-    offset; `^ 1` on bool cells in `enemy_movement.c`; the moving enemy read
-    as two `battle_work` bytes; the demo and stand-down entries' round
-    `cost_milli` (3000, 3500) want a calibration check.
+  - the demo battle's party entries (`battle_demo_party_ready`,
+    `battle_demo_next_turn`) keep round `cost_milli` estimates (3000): no
+    movie plays a demo battle's party turns, so the timing gate has nothing to
+    calibrate them from (`battle_party_stands_down`, 3500, measured exact over
+    the library). A movie of the attract mode's battle would;
+  - what the screen script language's review left (none blocking after its
+    fixes): `screen_script.h`'s language-wide parameter list forces generic
+    names and bare `uint8_t` (`value` means about ten things, `which` four,
+    `kind` three), so `show_layers` casts to `LayerSetting` and
+    `set_frame_switch`, `wave` and `fill` fold several operations into one
+    switch -- name the parameters, declare the enums the table uses, one
+    operation per case; `run_screen_scripts` and `step_channel` keep the
+    scroll mode, the ended-channel count and the restore request in `Snes *`
+    bodies, and the script cursor goes through `battle_screen_script` every
+    byte (needed while 18 handlers are the original's); `RULE_NUMBER` defined
+    in `screen_script.c` and `screen_waves.c`; `shape_model_point`,
+    `saved_shape_offset` and `script_palette_slot_offset` work in byte
+    offsets, and the put-aside `array_starts` table carries a record's
+    layout; literal axes 1/0/2 in `screen_shapes.c` where `ACROSS/DOWN/DEPTH`
+    exist; the BG3 line-scroll flag written `(bg3 & 0xFF00) | value`;
+    `battle_screen_command_ready` takes the carry for every command only for
+    the jitter; the old `$D1` entries' positional `screen_command_operand`
+    wrappers duplicate the rows once every row is C.
+
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the
       script's place back from them, and push the acting enemy on the machine
       stack under the turn, whose call-outs compare it: the turn's results as
       values once its call-outs are ports;
-    - a cell used for a second meaning (`battle_effect_sprite_attributes` as
-      the step's member): declare it;
     - one fact defined several times: "out of the fight", the first combatant
       object, the graphics kinds
       (`kind != 3` in `sprites.c` against `kind < 3` in `animation.c`, which
@@ -626,17 +632,50 @@ rest waits, is [PLAN.md](PLAN.md).
   runs before reading the gap as the checks' cost.
 
 - **What the jet bike race's review left** (none blocking after its fixes):
-  `race.h`'s `race_lane_high` reads two cells as one word (name the marker's
-  quirk there, and have `drive_johnny` use the lane); `+ 1` written to cells
-  that hold a state or a bool in `race_rules.c`; `race_camera.c`'s
-  `scene_call_first`/`second` writes that the next call overwrites (scaffolding,
-  or name a reader); `sprites.c` exports `scene_clipped_list_leaves_a`, a
+  `race_rules.c`'s `drive_johnny` reads the lane through `race_lane_high`
+  (the lane's high byte with the byte after it as a word, race.h) where the
+  lane would say it; `sprites.c` exports `scene_clipped_list_leaves_a`, a
   register derivation, from a logic file; `hw_divide_by_word`'s contract
   describes the word store spilling into the next register (prefer
   `hw_divide_by` plus a marked note of that byte); `math.c`, `sprites.c`,
   `race_camera.c` and `race_matrix.c` rated "mostly". Fuzz states for the
   scene program need `--keep 7E3000-7EC994` (the program's own code), which
   older entries' arguments stop short of at `B5FF`.
+
+- **What the race's second review left** (none blocking after its fixes):
+  `perspective.c`'s `start_lines` writes the line step to a cell the builder
+  reads back (return it), and `PerspectiveStart` keeps the patched call's ROM
+  addresses as its values (decode them to a scene kind once); `race.c`'s
+  graphics table keeps the `vram_site` origin tags in a column, with 0 also
+  meaning "carry on" (a parallel table, and "carry on" its own field), and
+  `crono_blocks` gives raw addresses where a picture, row and column would do;
+  `race.c`'s `on_page` duplicates `bridge.c`'s; `race_matrix.c` writes
+  `set_scene_scaler_request_state` plainly though nothing reads it
+  (ORIGINAL_EFFECT); `math.c`'s `scene_multiply16` and `scene_divide_8_8_by`
+  pass operands and results through `scene_call` cells between C functions;
+  `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
+  cells.
+
+- **What the techs screen's review left** (merged with the techs screen; none
+  blocking): `tech_screen.c` takes the thumb's direction from an unsigned
+  carry (`step < 0`), `scroll == 0` as a signed test and `NOBODY` through
+  bit 7; `WRAPS_TO_THE_LAST` reproduces a sign test for kinds the guard
+  refuses (a plain wrap); `menu_techs_after_casting` returns the old MP only
+  for the leave and subtracts a byte that can't borrow; `MenuTechCost.part`
+  is read only in `ORIGINAL_EFFECT`; `techs.c`'s `TechWalk` is rebuilt every
+  pass for scaffolding (once, after the loop); the cost is read back from
+  `tech_cost_needed` right after `menu_tech_cost_for` returned it; the
+  list's rows move by `wram_copy` on raw tilemap addresses; `menu_tech_parts`
+  is declared from `$7E:1607` so indices 0-$38 alias the field object tables
+  with no `reuses` (declare it from `$1640`, index by character and double
+  tech, and refuse a single tech in a double or triple list);
+  `menu_tech_effect_byte` takes a byte offset (`{factor, restores}`); the
+  status record's `MP_AT`, `MAGIC_AT` and `ACCESSORY_AT` want map fields;
+  the bridge repeats constants `tech_screen.c` names, and `TECH_RECORD_BYTES`
+  is in two files; `item_screen_bridge.c`'s `SITES[w]` runs a local enum
+  beside `ItemUseKind`; the extra empty member rows' comment should say what
+  the player sees; the members step's guard should check the list only when
+  `menu_tech_list_shown` matches the member and kind.
 
 - **What the items screen's review left** (merged with the item and
   equipment screens; none blocking): `item_screen.c` reads the names through
@@ -646,22 +685,37 @@ rest waits, is [PLAN.md](PLAN.md).
   figures are read as `figures + FIGURES_*` and through cells `menu_item_place`
   just wrote -- an accessor returning the place's figures record;
   `raise_the_figure` adds a word across two record bytes for a figure the cap
-  rules out (`+1`, and a guard refusing 255); upload records and window-list
-  ids carry several names or literals (`0xFBE3`, `0xFBEA`, the guards in
-  `item_screen_bridge.c`) -- name each once in `menu_data.h`;
-  `choose_members_to_restore` and `menu_use_tab` are one loop, and
+  rules out (`+1`, and a guard refusing 255); `item_screen.c`'s private
+  upload records and window lists can take the names `menu_data.h` now has
+  (`MENU_UPLOAD_*`, `MENU_WINDOWS_ITEMS_*`), as its bridge does;
   `point_along_the_list` repeats `point_at_listed_item`'s tail;
   `leave_use_found` re-runs `use_of` and the slide leave repeats
   `slide_brings_a_row` with `0xF0`; `hide_the_scroll_bar_and_cursor` takes
   two cells down as one word with a borrow; `menu_equip_item_described_on_opening`
-  exports the X the original leaves as a header query (rubric 115);
-  `queue_upload`, `draw_list`, `hide_the_scroll_bar` and the equipped-slot
-  layout `0x27` are copied in three files; also the scroll bar's hidden flag
+  exports the X the original leaves as a header query (rubric 115); the six
+  screens' private `queue_upload` and `draw_list` can call `vram.h`'s
+  `menu_queue_fixed_upload` and `windows.h`'s `menu_draw_windows`, and
+  `hide_the_scroll_bar`, the scroll bar's thumb at a row (`thumb_at_row`,
+  also the techs screen's) and the equipped-slot layout `0x27` are copied
+  between files; also the scroll bar's hidden flag
   set to `FIRST_MEMBER_PLACE`, `menu_leave_load(s, 0x62/0x42/0x2E)` literals,
   `& 0xFF00` merges, `hw_set_dividend` and the list-rows scratch in logic
   files, `menu_items_after_*` named by position, `put_bands_at_rest` taking
   byte offsets, `menu_items_used_up`'s ignored result, and the cursor's item
   written to a cell and read back.
+
+- **What the techs screen left** (`menu/tech_screen.c`; none blocking): its
+  description's request (`$C2:BE44`) is the items' `$C2:F2F3` with another
+  table, row and pace -- one `menu_ask_for_description` once F2F3 is ported;
+  the member step's guard wants the list made for the member and kind it
+  shows (`menu_tech_list_shown`), which a screen just opened only has by
+  chance, where choosing on that very frame reads the list as it stands (the
+  original reads it too; the library's openings pass); the member list's and
+  the tech list's slides and the techs' paging are reached only by fuzzing
+  (no movie scrolls past three members or eight techs); two timing exceptions
+  follow from the window lists' strings' spread (`menu_show_pointed_tech`,
+  `menu_choose_tech`), which a calibration of the empty member row's list
+  alone would take back.
 
 - **What the screen effects' review left** (merged with field's
   screen-effects chunk; none blocking): `draw_circle` and
@@ -1162,28 +1216,17 @@ rest waits, is [PLAN.md](PLAN.md).
     item is PLAN.md's Phase 4a, no longer optional or later: a note-stream
     comparison (SOUND.md, "Validating the port") for when the lockstep
     reference is gone.
-  - **What the native mixer's check doesn't reach.** `dsp_test`'s random
-    samples never make the Gaussian sum wrap (the mixer keeps the S-DSP's
-    wrap; the movies' comparison is identical, but nothing shows a movie
-    reaches it either): a sample built to overshoot would. And the mixer's
-    sound memory is a copy of the SPC700's 64 KiB with the original driver's
-    layout, which is what keeps the echo's overwrites; a build that loads the
-    samples as assets will want them out of it, with the echo's buffer still
-    lying over the ones the original lets it reach.
-  - **What the native mixer's review left.** In `mixer.c`, `brr_sample`'s
-    `older`/`old` parameters are swapped in name, and the pitch-modulation
-    mask, the envelope limits and the BRR header offsets want names.
-    `sound_host.c`'s MixerCheck band report (floating point) is dev-only and
-    belongs in `dev/`, keeping the shipping host integer-only. `--mixer check`
-    after loading a state saved with the native mixer compares a stale S-DSP:
-    refuse it. `ct_dev` ignores `--mixer` without `--sound-driver c` where
-    `ct_play` reports it. `mixer_echo_writes_over` repeats `in_echo`'s test:
-    one helper over plain values. `mixer.h` needs only the voice types, not
-    `platform/snes/audio.h`. For a small target, `SoundHost` holds two
-    ~80 KiB mixers (live and loading scratch) beside the APU's 64 KiB, and the
-    output rate is fixed at 32 kHz. PLATFORM.md's "as built" section keeps
-    two stories (the first version's directory, the hand mutations) that
-    belong in docs/history/.
+  - **The native mixer's sound memory.** It is a copy of the SPC700's 64 KiB
+    with the original driver's layout, which is what keeps the echo's
+    overwrites; a build that loads the samples as assets will want them out of
+    it, with the echo's buffer still lying over the ones the original lets it
+    reach.
+  - **The native mixer on a small target.** `SoundHost` holds two ~80 KiB
+    mixers (the live one and a state read's scratch) beside the APU's 64 KiB,
+    and the output rate is fixed at 32 kHz. Left from the mixer's review: the
+    desktop host loses nothing by it, and what a small target needs instead (a
+    state read in place, a rate the host asks for and a resampler) is that
+    target's to decide when one is scoped.
   - **The effects check's scaffold reads with the C sound driver.** The route
     check plays the driver that ships, but the scaffold reads come from the
     vblank check's shipping-mode runs, which play the original driver because
@@ -1598,8 +1641,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
   established: the frame work waits for line 64 before the screen script
   channels run while the timed effect slots do (`$CD:09AC`), and screen script
   command `$C1` (`$CD:1D93`, in no movie) waits for a line from the script.
-  Neither is followed by a register write. Find out when `$CD:1609` is ported;
-  if it is pacing, the wait goes.
+  Neither is followed by a register write: the channels (`$CD:1609`, now C)
+  write only work RAM after the wait, the window table's coming buffer among
+  it, so the wait looks like pacing; take it out when the frame work's own
+  remainder is ported.
 - **The scene program's randomness and parity**: `$C3:02DD` mixes the beam
   counters into its seed and stays generated, with `$C3:01E4` (the noise
   effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through
@@ -1845,38 +1890,49 @@ waits on M5 rather than on a backend.
   entries.** Each subsystem's Phase 3a rewrite adds its own from its PORTING.md
   rows as it goes; a check that every registered entry has one would say when
   the file is complete.
-- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 32 uses
-  in 7 files. The sequence scripts' bytes and the race's line-effect descriptor
+- **Scene buffers reached by address** (`grep -rn wram_ game/scene`): 34 uses
+  in 8 files. The sequence scripts' bytes and the race's line-effect descriptor
   table are fixed parts of the program image at `$7E:3000` and could be named
   buffers of it; the scaler's rows, the bank `$FE` copies' destination, the
   title's plane tiles, the sprites' sources and lists and a store command's target are
   wherever the caller points, and want the caller ported to say what they are;
-  the circle's table is the pilot's. The title loader's tile list at `$7F:0200`,
+  the circle's table is the pilot's. The race's setup's (its palette as
+  unpacked, the unpack buffer, the plane's rows, the racers' pictures and the
+  mirroring's two cells) are fixed and could be named. The title loader's
+  tile list at `$7F:0200`,
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The scene loaders are fragments.** The title's graphics loader
-  (`$7E:5978`-`$7E:5A00`) and the race's (`$7E:3DB3`-`$7E:3EB6`) are registered
-  a block at a time (`scene_title_load_*`, `scene_race_load_*`), each named for
-  what it puts in VRAM, because the loader around them calls the decompressor
-  and the program's own routines (`$7E:3691`, `$7E:37A6`, `$7E:38AF`,
-  `$7E:89ED`, `$7E:5E3C`). Porting each loader whole, as one routine that loads a
-  list of resources to VRAM addresses, would retire twelve entries.
+- **The title's loader is in fragments.** The title's graphics loader
+  (`$7E:5978`-`$7E:5A00`) is registered a block at a time
+  (`scene_title_load_*`), each named for what it puts in VRAM, because the
+  loader around them calls the program's unpacker and its own routines
+  (`$7E:3691`, `$7E:38AF`, `$7E:89ED`, `$7E:5E3C`). The race's setup was
+  ported whole as a list of graphics, each unpacked and sent (RECOMP.md,
+  "Phase 3, the scene program: the rest of the jet bike race"); the title's
+  would retire five entries the same way.
+- **The race's setup calls the original three times.** The program's unpacker
+  by resource (`$7E:3691`, before the decompressor `$C3:0557`), the camera
+  script's first step (`$7E:3749`, before the sequencer `$C3:0AFF`) and, for
+  the race without its panel, the curtain's step (`$C3:000E`, the field's
+  `$C3:01E4`) are call-outs; with the unpacker as C, the setup's machine
+  (the frames and the data bank and direct page it keeps on the stack around
+  them, `scene/bridge.c`) comes down. The setup's mirroring of the racers'
+  pictures runs long loops of its own, which is why it carries timing
+  exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
+  too) timed as their own routines would fit it better.
+- **The perspective's other scenes' steps are refused.** The plane's
+  perspective (`scene/perspective.c`) builds the race's lines and the endings'
+  (the routine at the program's call, `$7E:45B0` or `$7E:9B46`); modes 1 and
+  3-8, which no movie reaches, write other starts (`$7E:8042`, with a step of
+  two lines either way and an end at line 112) that the guard hands to the
+  original. Port them with those scenes.
+
 - **Scene work that is still the original's, beside its ports.** The title
   logo's sweep before it lands (`$7E:5CBA`, where `scene_title_move_logo`
   stops) and the ripple's new first offset each frame (`$7E:600E`, where
   `scene_title_ripple_columns` stops) are the program's code; porting them
   would end two stops mid-routine.
-- **The jet bike race's remainder** (RECOMP.md, "Phase 3, the scene program:
-  the jet bike race running"): the bikes placed in perspective (`$7E:4D0D`:
-  the signed multiply's leftover byte, the divisor search through the CPU's
-  divider and its cache `scene_race_divisors`, the carries of a dozen sums);
-  the main loop's scaling of the racers' pictures (`$7E:51D1`, `$7E:51F4`,
-  which stops at its wait `$7E:5211` and leaves a carry its loop reads); the
-  perspective table (`$7E:357B`, whose call at `$7E:35FC` and instructions at
-  `$7E:3634` the race's setup and the endings patch); and the setup
-  (`$7E:3B48`-`$7E:3F13`, `$7E:45D6`, the noise `$7E:3D72` through `$C3:000E`),
-  which ported whole retires the loader's block entries (above).
 - **What scene's second review accepted as later work** (RECOMP.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:
