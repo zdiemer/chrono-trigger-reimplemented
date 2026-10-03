@@ -27,6 +27,7 @@ enum { TM_STATUS_VBLANK = 0x80, TM_STATUS_HBLANK = 0x40, TM_STATUS_JOYPAD_BUSY =
 /* Bits of tm_reset_beam_latch's result. */
 enum { TM_BEAM_LATCHED = 0x80 };
 
+
 /* Which interrupts are delivered (TM_INT_* bits; others as given, SNES only). */
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources);
 /* The line the line handler (TM_INT_LINE) runs at, from the top of the frame. */
@@ -44,6 +45,9 @@ PF_API uint8_t tm_ack_vblank(Platform *pf, PfOrigin o);
 PF_API uint8_t tm_ack_line_irq(Platform *pf, PfOrigin o);
 /* Blanking and controller-read status now. */
 PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o);
+/* Whether this frame is the odd one, which the scenes use to move something
+ * every other frame. */
+PF_API bool tm_odd_frame(Platform *pf, PfOrigin o);
 /* Restart the beam position latch (the battle NMI does this every frame);
  * returns the status it had. */
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o);

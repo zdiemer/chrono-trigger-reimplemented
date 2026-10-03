@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 223 files, 117 of 64,494 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 224 files, 117 of 64,952 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -201,7 +201,7 @@ What the phase settled, and what still holds for every port:
   against the port it replaces.
 - **A rewrite that hits something the accessors can't say is a finding**: a
   buffer the game locates at run time reaches work RAM by address through
-  `game/wram.h`, and every such use (146 in 34 files) is a variable waiting for
+  `game/wram.h`, and every such use (147 in 35 files) is a variable waiting for
   a name in the map. Cells on a page the caller chooses have page kinds
   (DISASSEMBLY.md, "The accessors").
 
@@ -211,24 +211,24 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **22% of the code is still generated.**
+docstring says which way it is wrong). **21% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.1K | 30.8K | 8.6K | 48% | 326 |
-| scene program, RAM (`$7E`) | 24.9K | 11.4K | 1.2K | 54% | 68 |
+| menus, text (`$C2`) | 59.1K | 30.9K | 8.7K | 48% | 326 |
+| scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 9.9K | 4.1K | 36% | 139 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.4K | 0% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.3K | 0% | 9 |
-| scene engine (`$C3`) | 3.8K | 3.3K | 0.6K | 15% | 28 |
-| scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 25 |
+| scene engine (`$C3`) | 3.8K | 3.6K | 0.9K | 7% | 28 |
+| scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **208.1K** | **53.0K** | **22%** | **1600** |
+| **total** | **266.5K** | **209.7K** | **54.0K** | **21%** | **1608** |
 
 `$CD`, the battle's frame work, has the screen script language in C
 (RECOMP.md, "Phase 3, battle chunk 11", and "Phase 3, battle: cuts, bands
@@ -421,13 +421,16 @@ in `$C3`. The jet bike race is C from its setup to its end: the bikes' rules,
 the camera, the drawing and the regrouping of its scaled pictures (history
 file, "Phase 3, the scene program: the jet bike race running"), then the bikes
 placed in perspective, the plane's perspective (shared with the endings), the
-main loop's scaling and the setup as one routine (RECOMP.md, "Phase 3, the
-scene program: the rest of the jet bike race"). **Next**, by what the library
-reaches: the endings that share `$7E:8538` (modes 10, 11, 14 and 15; both
-Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its helpers from
-`$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and its frame
-tasks) and the telepod ending's (mode 13, `$7E:8EA8` on, about 2 KiB).
-The program's other scenes (modes 1 and 3-8, whose routines lie around the
+main loop's scaling and the setup as one routine (history file, "Phase 3, the
+scene program: the rest of the jet bike race"); and so is the telepod
+ending's staff roll, mode 13, with the credits' roll the Beyond Time ending
+shares (RECOMP.md, "Phase 3, the scene program: the staff roll"). **Next**, by
+what the library reaches: the endings that share `$7E:8538` (modes 10, 11, 14
+and 15; both Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its
+helpers from `$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and
+its frame tasks). The stars the endings show (`$7E:5777`, `$7E:579B`,
+`$7E:9897`) wait for the program's random numbers as game code (TODO.md, "The
+scene program's randomness and parity"). The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a
 port there would rest on fuzzing alone.

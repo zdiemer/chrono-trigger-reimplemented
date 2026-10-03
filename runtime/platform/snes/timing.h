@@ -1,4 +1,4 @@
-/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D and $213F. Included by
+/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D, $213E and $213F. Included by
  * platform/timing.h. */
 #ifndef CT_PLATFORM_SNES_TIMING_H
 #define CT_PLATFORM_SNES_TIMING_H
@@ -57,6 +57,25 @@ PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_reset_beam_latch", 0x213F);
 }
+
+/* The field's parity, bit 7 of $213F, read as the scenes read it: a 16-bit
+ * read of $213E, whose high byte is $213F's (and which restarts the beam
+ * position latch). The word read is kept for tm_snes_odd_frame_read. */
+extern uint16_t pf_snes_odd_frame_word;
+
+PF_API bool tm_odd_frame(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("tm_odd_frame", o);
+    uint8_t low = pf_snes_get(pf_snes(pf), 0x213E);
+    uint8_t high = pf_snes_get(pf_snes(pf), 0x213F);
+    pf_snes_end();
+    pf_snes_odd_frame_word = (uint16_t)(low | high << 8);
+    return (high & 0x80) != 0;
+}
+
+/* SNES only: the word the last tm_odd_frame read, $213E's byte low and
+ * $213F's high, for scaffolding that leaves it where the original's read did. */
+static inline uint16_t tm_snes_odd_frame_read(void) { return pf_snes_odd_frame_word; }
 
 PF_API uint8_t tm_beam_line(Platform *pf, PfOrigin o)
 {

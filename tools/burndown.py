@@ -207,6 +207,8 @@ def _call_values(dc, ev, src, f, call):
             if origin[0] != "call" or origin[1] != "PF_CALL":
                 return None
             nodes = [origin[2][0], origin[2][1]]
+        elif call.name == "PF_CALL_DC":
+            nodes = [dc.parse(call.args[0]), dc.parse(call.args[1])]   # (site, target, set)
         else:
             nodes = [dc.parse(call.args[1]), dc.parse(call.args[2])]
         try:

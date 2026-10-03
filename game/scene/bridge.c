@@ -52,15 +52,15 @@ void scene_bridge_enter(Snes *s, uint32_t call) { m_push16(s, (uint16_t)(call + 
 
 void scene_bridge_leave(Snes *s) { (void)m_pull16(s); }
 
-/* The race's song, from the program's routine that starts one ($7E:375F,
- * called from the setup at $7E:3B5A): the driver's command, with its volume
- * and echo parameters at $FF. */
-enum { SONG_CALL = 0x7E3B5A, SONG_DRIVER_SITE = 0x7E3775, SOUND_DRIVER = 0xC70004 };
+/* A scene's song, from the program's routine that starts one ($7E:375F,
+ * called from a setup at `call`): the driver's command, with its volume and
+ * echo parameters at $FF. */
+enum { SONG_DRIVER_SITE = 0x7E3775, SOUND_DRIVER = 0xC70004 };
 enum { SONG_DRIVER_IGNORES = DC_AL | DC_X | DC_N | DC_Z | DC_C };
 
-void scene_bridge_start_song(Snes *s, uint8_t song)
+void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song)
 {
-    scene_bridge_enter(s, SONG_CALL);
+    scene_bridge_enter(s, call);
     au_command(m_platform(s), PF_CALL_DC(SONG_DRIVER_SITE, SOUND_DRIVER, SONG_DRIVER_IGNORES),
                (AudioCommand){ .command = AU_START_SONG, .p1 = song, .p2 = AU_FULL_VOLUME, .p3 = AU_FULL_VOLUME,
                                .count = 3 });

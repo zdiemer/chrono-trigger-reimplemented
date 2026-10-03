@@ -27,8 +27,10 @@
  * routine of the program, and the sound driver's entry -- so the loop that runs
  * them is a bridge on the machine. A command the port doesn't take (one no
  * script has: a store outside low RAM, a video setting no call expresses, a task
- * that isn't on its list) is left to the original, as is a script that runs
- * COMMAND_LIMIT commands without ending its turn, which would hang it. */
+ * to take off that isn't on its list or to put on a list that is full) is handed
+ * to the original's code for that command, which carries on with the rest of
+ * the turn. A script that never ends its turn hangs the game, in the port as in
+ * the original. */
 #include "scene/scene.h"
 
 #include "original_effects.h"
@@ -46,8 +48,6 @@ enum { SCRIPT_BANK = SCENE_LOWER_WORK_RAM };
 /* Low RAM, which the store commands write: the rest of bank 0 is the I/O
  * registers and the cartridge. */
 enum { LOW_RAM_END = 0x2000 };
-
-enum { COMMAND_LIMIT = 0x10000 };
 
 /* ---- The channel ------------------------------------------------------------------------------ */
 
@@ -592,20 +592,46 @@ static bool send_sound(Snes *s, SceneChannel *ch)
 }
 
 /* After a command's call-out, the script moves on past the operand word it was
- * on, on the page the callee left in D: a channel's, or, where the callee left
- * the machine other than the port expects, wherever D is, as the original's
- * does. */
-enum { SCRIPT_CELL = 0x20, OPERAND_WORD = 2 };
+ * on. Where the callee left the machine other than the port expects, the port
+ * stops where the call returns and the original's code moves the script on,
+ * on whatever page the callee left in D. */
+enum { OPERAND_WORD = 2 };
 
-static bool past_the_call(Snes *s, SceneChannel ch, bool go_on)
+static void past_the_call(GameState *g, SceneChannel ch)
 {
-    if (go_on) {
-        set_script(state_of(s), ch, (uint16_t)(script(state_of(s), ch) + OPERAND_WORD));
-        return true;
-    }
-    uint16_t cell = (uint16_t)(s->cpu.d + SCRIPT_CELL);
-    m_write16(s, cell, (uint16_t)(m_read16(s, cell) + OPERAND_WORD));
-    return false;
+    set_script(g, ch, (uint16_t)(script(g, ch) + OPERAND_WORD));
+}
+
+/* Where each call-out returns, in the original's code. */
+enum { ROUTINE_CALL_RETURN = 0xC30C5C, SOUND_CALL_RETURN = 0xC30BED };
+
+/* ---- A command the port hands over -------------------------------------------------------------
+ *
+ * The original's code for each command the port may hand over (those whose
+ * rows have a `takes`): where its dispatch jumps, by the opcode's low nibble. */
+static const uint32_t handlers[] = {
+    0xC30C19, 0xC30C41,                       /* the stores, a byte and a word */
+    0xC30BCC, 0xC30BC4, 0xC30BBC, 0xC30BAB,   /* the tasks: off and on the vblank list, off and on the frame's */
+    0xC30C5F,                                 /* the video setting */
+};
+static const uint8_t handler_of[16] = { [0x1] = 0, [0x2] = 1, [0x7] = 2, [0x8] = 3, [0x9] = 4, [0xA] = 5, [0xB] = 6 };
+
+/* The original's code for the command takes over as its dispatch enters it:
+ * the script past the opcode, and A and X the handler's place in the dispatch
+ * table, with the flags of the shift that made it (N and the carry clear). The
+ * scratch word the dispatch keeps is the command's. */
+static void hand_over(Snes *s, const Command *c, const ScriptRow *row)
+{
+    unsigned n = low_nibble(c);
+    uint16_t index = (uint16_t)(2 * n);
+    ORIGINAL_EFFECT(keep_word(c, row));
+    set_script(c->g, c->ch, after(c, 1));
+    set_widths16(s);
+    s->cpu.a = index;
+    s->cpu.x = index;
+    m_set_nz16(s, index);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_stop_at(s, handlers[handler_of[n]], 0);
 }
 
 /* A where a command ends the turn: the loop's and the jump's the script's new
@@ -623,26 +649,28 @@ static uint16_t a_at_end_of_turn(const GameState *g, SceneChannel ch, const Scri
     }
 }
 
-/* How the run ends. */
-typedef enum { RUN_ENDED_TURN, RUN_WAITING, RUN_HANDED_BACK } RunEnd;
+/* How the run ends: the turn over, or the port stopped where the original
+ * carries on (the wait for the music, a command handed over, a call-out that
+ * came back other than expected). */
+typedef enum { RUN_ENDED_TURN, RUN_STOPPED } RunEnd;
 
 /* The wait for the music's registers: A and X its handler's place in the
  * interpreter's table. */
 enum { WAIT_TABLE_INDEX = 0x000A };
 
 // $C3:0B03
-/* Run commands until one ends the channel's turn. Otherwise the script is left
- * on the command the original is to carry on from (RUN_HANDED_BACK), or the port
- * has stopped at the wait for the music (RUN_WAITING). */
+/* Run commands until one ends the channel's turn. */
 static RunEnd run(Snes *s, SceneChannel ch)
 {
     GameState *g = state_of(s);
-    for (uint32_t i = 0; i < COMMAND_LIMIT; i++) {
+    for (;;) {
         uint16_t at = script(g, ch);
         Command c = { g, m_platform(s), ch, at, script_byte(g, at) };
         const ScriptRow *row = row_of(c.opcode);
-        if (row->takes && !row->takes(&c, row))
-            return RUN_HANDED_BACK;
+        if (row->takes && !row->takes(&c, row)) {
+            hand_over(s, &c, row);
+            return RUN_STOPPED;
+        }
         ORIGINAL_EFFECT(keep_word(&c, row));
         Before was = { 0, 0 };
         ORIGINAL_EFFECT(was = before(&c, row));
@@ -659,18 +687,23 @@ static RunEnd run(Snes *s, SceneChannel ch)
             s->cpu.x = WAIT_TABLE_INDEX;
             set_widths16(s);
             m_stop_at(s, 0xC30C2A, DC_X | DC_N | DC_Z | DC_C);
-            return RUN_WAITING;
+            return RUN_STOPPED;
         case ROUTINE_CALL:
-            if (!past_the_call(s, ch, call_routine(s, &ch, flow.routine)))
-                return RUN_HANDED_BACK;
+            if (!call_routine(s, &ch, flow.routine)) {
+                m_stop_at(s, ROUTINE_CALL_RETURN, 0);
+                return RUN_STOPPED;
+            }
+            past_the_call(g, ch);
             continue;
         case SOUND_SEND:
-            if (!past_the_call(s, ch, send_sound(s, &ch)))
-                return RUN_HANDED_BACK;
+            if (!send_sound(s, &ch)) {
+                m_stop_at(s, SOUND_CALL_RETURN, 0);
+                return RUN_STOPPED;
+            }
+            past_the_call(g, ch);
             continue;
         }
     }
-    return RUN_HANDED_BACK;
 }
 
 /* The JSR at $C3:0AFF pushes this as its return address. */
@@ -682,18 +715,11 @@ void scene_run_sequence(Snes *s)
 {
     SceneChannel ch = 0;
     machine_as_expected(s, &ch);
-    m_push16(s, INTERPRETER_RETURN);   /* the JSR's frame, there at every call-out */
-    RunEnd end = run(s, ch);
-    if (end == RUN_WAITING)
+    m_push16(s, INTERPRETER_RETURN);   /* the JSR's frame, there at every call-out and stop */
+    if (run(s, ch) == RUN_STOPPED)
         return;
     m_pull16(s);
     s->cpu.p &= (uint8_t)~CPU_FLAG_M;
-    if (end == RUN_HANDED_BACK) {
-        /* the original's own loop, from the command the port left. Not a
-         * stop at the loop's head, which shadow mode and the fuzzer could now
-         * compare at the right pass; docs/TODO.md */
-        m_jsr_dc(s, 0xC30AFF, 0xC30B03, DC_A | DC_X | DC_N | DC_Z);
-    }
     m_rtl(s);
 }
 

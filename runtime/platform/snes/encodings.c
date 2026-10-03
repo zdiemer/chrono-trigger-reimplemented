@@ -170,6 +170,10 @@ static const PfSnesEncoding encodings[] = {
     { 0x7E59DD, 0, 0, 7, FILL_WORDS, STEPS(C, TL, TH, ZL, ZH, GO), 0 },   /* a fill that keeps the channel's source */
     { 0x7E5AEB, 0, 0, 7, FIXED_BYTE, SCENE_TRANSFER_STEPS, 0 },          /* low bytes filled */
     { 0x7E6215, 0, 0, 7, WORDS, STEPS(TL, TH, C, D, SL, SH, SB, ZL, ZH, P, GO), 0 },   /* BG3's offset rows */
+    /* the staff roll */
+    { 0x7E90BD, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, P, ZL, ZH, C, D, SL, SH, SB, GO), 0 },   /* the credits' tiles blanked */
+    { 0x7E8F77, 0, 0, 7, FIXED_BYTE, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, P, GO), 0 },       /* ... and set in front */
+    { 0x7E9F1D, 0, 0, 7, ONE_REGISTER, STEPS(TL, TH, ZL, ZH, C, D, SL, SH, SB, P, GO), 0 },  /* a row of the credits */
 };
 
 void pf_snes_encoding_mismatch(uint32_t site, const char *call)

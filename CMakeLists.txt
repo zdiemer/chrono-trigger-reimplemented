@@ -206,6 +206,7 @@ add_library(ct_game STATIC
   game/scene/script.c
   game/scene/sound.c
   game/scene/sprites.c
+  game/scene/staff_roll.c
   game/scene/title.c
   game/battle/animation.c
   game/battle/arith.c

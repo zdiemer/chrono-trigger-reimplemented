@@ -355,10 +355,28 @@ static void run_animations(GameState *g)
 }
 
 // $FD:E275
-static void stop_all(GameState *g)
+void palette_stop_animations(GameState *g)
 {
     for (unsigned slot = 0; slot < SLOTS; slot++)
         stop(g, slot);
+}
+
+/* Every channel of the colors, as a fade's mode. */
+enum { ALL_CHANNELS = 0 };
+
+/* The scene program's start of the telepod ending's fade ($7E:9FA9). The
+ * frame counter starts at 0, so the first step comes a period on. */
+void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade)
+{
+    set_palette_animations_kind(g, slot, FADE_TO_WHITE << TYPE_SHIFT);
+    set_palette_animations_first_color(g, slot, fade.first_color);
+    set_palette_animations_color_count(g, slot, fade.color_count);
+    set_palette_animations_step(g, slot, fade.step);
+    set_palette_animations_delay(g, slot, 0);
+    set_palette_animations_period(g, slot, fade.period);
+    set_palette_animations_fade_mode(g, slot, ALL_CHANNELS);
+    set_palette_animations_fade_level(g, slot, fade.from_level);
+    set_palette_animations_fade_target(g, slot, fade.to_level);
 }
 
 /* ---- A location's animations ---------------------------------------------------------------- */
@@ -663,7 +681,7 @@ void palette_animate(Snes *s)
 
 void palette_clear_animations(Snes *s)
 {
-    stop_all(state_of(s));
+    palette_stop_animations(state_of(s));
     m_rtl(s);
 }
 

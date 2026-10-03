@@ -410,6 +410,11 @@ static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { retu
  * step, 1024 steps a turn, of which the second half is read below zero. */
 static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return rom_read8(g, 0xC0F900u + step); }
 
+/* A sine wave of 256 steps a turn ($C0:F800), as signed bytes: the table the
+ * field reads as its directions' velocity factors, read whole by the scenes'
+ * objects, through the data bank. */
+static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
+
 /* The menus' random bytes ($C0:FE00, 256 of them), which the sprite-object
  * mode's scenes take in turn. */
 static inline uint8_t menu_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }

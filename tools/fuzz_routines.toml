@@ -787,6 +787,65 @@ state = "race"
 args = ["--db", "00", "--keep", "7E3000-7EB5FF"]
 iterations = 2000
 
+# The telepod ending's staff roll (game/scene/staff_roll.c), from the movie during the credits: the program
+# kept, the scene's page and the data bank on the registers, as the frame's lists call the tasks.
+
+[state.staff_roll]
+movie = "oracle/movies/saves/endings-telepod-lavos.ctm"
+frames = 130000
+
+[[routine]]
+name = "scene_staff_roll_set_up"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"]
+iterations = 300
+why = "the staff roll's setup from the program's mode table, the program kept (its code is the guard's hash, its resources' unpacking, the stars' scatter and the first script step the original's); the driver's echo looped back for the sends"
+
+[[routine]]
+name = "scene_roll_credits"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E004A-7E004B=AB1A,AB95,ABFD,AC61,ACE1,AD6C,ADD3,AE47,AF3B,AFC0,B05D,B071,B098",
+        "--fill", "7E0940-7E0941=9EFC", "--fill", "7E00AD-7E00AD=00-01", "--fill", "7E00AE-7E00AE=00-00"]
+why = "the text at one of the credits' lines (the last the end), the upload on the vblank list and the speed's high byte 0, as the guard asks; the speed fast or slow"
+
+[[routine]]
+name = "scene_scroll_credits"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E00AD-7E00AD=00-01",
+        "--fill", "7E00AE-7E00AE=00-00"]
+why = "the speed fast or slow, its high byte 0 as the guard asks"
+
+[[routine]]
+name = "scene_upload_credits"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0049-7E0049=48-4B"]
+why = "the row in the credits' map, the program kept (the setup has named BG3's scroll in it)"
+
+[[routine]]
+name = "scene_clear_sprite_high_bits"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--keep", "7E3000-7EC994"]
+why = "the program kept"
+
+[[routine]]
+name = "scene_go_on_after_the_credits"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by the script's call command on channel 0's page"
+
+[[routine]]
+name = "scene_fade_in_the_picture"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by the script's call command"
+
 # ---- event: bank C0 (the event script's engine and command handlers) ---------------------------------
 #
 # The handlers run on the field's page (D = $0100) with the data bank $00; the
@@ -8135,6 +8194,14 @@ state = "objects"
 args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
 iterations = 2000
 why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_jolt"
+at = "C6:E6D0"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+why = "called by JSL from a script command ($4E) on the object mode's page, the running object a slot; the data bank 0, where the sine table lies, as the guard asks"
 
 [[routine]]
 name = "menu_epoch_outside_sides"

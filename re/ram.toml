@@ -1399,6 +1399,90 @@ meaning = "Which routine starts the plane's perspective lines, the operand of th
 source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
 
 [[var]]
+name = "scene_credits_scroll"
+addr = "7E:0046"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel every other frame, or a row of 8 a frame when they roll fast"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B and their upload $7E:9EFC"
+
+[[var]]
+name = "scene_credits_row_vram"
+addr = "7E:0048"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "Where in VRAM the staff credits' next row of text goes: a row of the 32x32 map at $4800, a row on each line and round again; the setup starts it a row before the map, which the first line's step brings to its first row"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B and their upload $7E:9EFC"
+
+[[var]]
+name = "scene_credits_text"
+addr = "7E:004A"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "Where the staff credits' next line of text is, in the program (bank $7E): letters as their character codes, a line ended by '/', the text by a backslash"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B"
+
+[[var]]
+name = "scene_credits_over"
+addr = "7E:006A"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_race_score"]
+meaning = "Nonzero once the staff credits' last line has rolled on, which the scene's script waits for to go on to The End (counted up as it is set)"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B and the script's test $7E:996F"
+
+[[var]]
+name = "scene_credits_fast"
+addr = "7E:00AD"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_tilemap_ready_high"
+meaning = "Nonzero while the staff credits roll fast, a row of text every frame, as the telepod ending's do with its music played fast (its setup counts it up); 0, a pixel every other frame and a row every 16 frames, as the shared ending's"
+source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 and the credits' roll $7E:9E7B"
+
+[[var]]
+name = "scene_credits_fast_high"
+addr = "7E:00AE"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_crono_lean"
+meaning = "The byte after the credits' speed, which the roll's test for a line due reads with it as a word (its scroll reads the speed alone); 0 wherever the endings run"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B"
+
+[[var]]
+name = "scene_credits_row"
+addr = "7E:1414"
+size = 32
+subsystem = "scene"
+reuses = ["scene_race_picture_requests", "scene_race_plane_turn", "scene_race_horizon", "scene_race_view_position", "scene_race_view_sent", "scene_race_center_x", "scene_race_center_y", "scene_race_bg2_scroll_x"]
+meaning = "A row of the staff credits as it is written, the low bytes of a row of their layer's map: a tile a column, the line's letters from the ninth column on, blank tiles around them"
+source = "game/scene/staff_roll.c, the credits' roll $7E:9E7B and their upload $7E:9EFC"
+
+[[var]]
+name = "scene_credits_scroll_register"
+addr = "7E:9F23"
+count = 2
+stride = 5
+index = "the store: 0 the scroll's low byte's, 1 its high byte's"
+subsystem = "scene"
+meaning = "The scroll register the credits' upload sends their scroll to, the low byte of its address as the operands of the upload's two stores: $10, BG2's vertical scroll, as the program comes; $12, BG3's, where the staff roll's setup has written it"
+source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 and the credits' upload $7E:9EFC"
+
+[[var]]
+name = "scene_stars_depth_branch"
+addr = "7E:582E"
+size = 2
+subsystem = "scene"
+meaning = "The branch in the star field's drawing that puts the far stars in front of the layers (a BMI over its own load of the near stars' attributes); the staff roll's setup writes a branch to the next instruction over it ($0080), which draws every star behind them, behind the credits"
+source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 (the program's $7E:5640); the star field $7E:579B"
+
+[[var]]
 name = "scene_perspective_line_step"
 addr = "7E:3634"
 size = 2
@@ -9555,7 +9639,7 @@ stride = 0x1C
 page = "menu"
 subsystem = "menu_object"
 meaning = "Direct-page cells the sprite object mode's routines share at $00-$1B, below the display shadows: each routine's operands, pointers and loop counts, handed from one to the next"
-source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c; game/menu/epoch.c (the CELL_ names at the top say what each holds there)"
+source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/menu/object_commands.c; game/menu/epoch.c (the CELL_ names at the top say what each holds there)"
   [[var.field]]
   name = "bytes"
   offset = 0
@@ -9891,6 +9975,15 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c; game/
   offset = 0x19
   size = 2
   meaning = "The squashed iris: the centre line, where its lower half starts"
+  [[var.field]]
+  name = "jolt_angle"
+  offset = 0x08
+  size = 2
+  meaning = "A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word"
+  [[var.field]]
+  name = "jolt_size"
+  offset = 0x0A
+  meaning = "A random jolt: how far it went, 0-63"
 [[var]]
 name = "menu_text"
 addr = "7E:020C"

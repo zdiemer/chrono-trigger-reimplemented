@@ -3501,6 +3501,8 @@
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_UPPER_TO 0x7E0013u /* The squashed iris: the line its upper half starts copying to */
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_FROM 0x7E0016u /* The squashed iris: the line its lower half starts copying from */
 #define RAM_MENU_OBJECT_SCRATCH_IRIS_LOWER_TO 0x7E0019u /* The squashed iris: the centre line, where its lower half starts */
+#define RAM_MENU_OBJECT_SCRATCH_JOLT_ANGLE 0x7E0008u /* A random jolt ($C6:E6D0): the direction it took, 256 steps a turn, as a word */
+#define RAM_MENU_OBJECT_SCRATCH_JOLT_SIZE 0x7E000Au /* A random jolt: how far it went, 0-63 */
 /* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
  * brightness); while bit 7 of the first is set the wave handler also turns its effect off [2
  * bytes] */
@@ -7309,6 +7311,10 @@
  * there are no boosts [2 bytes] */
 #define RAM_SCENE_RACE_DEMO 0x7E0044u
 #define RAM_SCENE_RACE_DEMO_DP 0x44u         /* page scene */
+/* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
+ * every other frame, or a row of 8 a frame when they roll fast [2 bytes] */
+#define RAM_SCENE_CREDITS_SCROLL 0x7E0046u
+#define RAM_SCENE_CREDITS_SCROLL_DP 0x46u    /* page scene */
 /* The two jet bikes: where each is on the screen and on the track, how fast it goes and how it
  * drifts across [2 x $25 bytes, by racer: 0 Crono, 1 Johnny] */
 #define RAM_SCENE_RACE_RACERS 0x7E0046u
@@ -7332,6 +7338,15 @@
 #define RAM_SCENE_RACE_RACERS_OUT_OF_SIGHT 0x7E0063u /* Nonzero when the bike isn't drawn: Johnny's when Crono is $1000 or more ahead */
 #define RAM_SCENE_RACE_RACERS_DRIFT_UP 0x7E0065u /* How fast the bike drifts toward the higher lanes: it builds up while the bike steers that way and dies away by $10 a frame */
 #define RAM_SCENE_RACE_RACERS_DRIFT_DOWN 0x7E0067u /* How fast the bike drifts toward the lower lanes */
+/* Where in VRAM the staff credits' next row of text goes: a row of the 32x32 map at $4800, a row
+ * on each line and round again; the setup starts it a row before the map, which the first line's
+ * step brings to its first row [2 bytes] */
+#define RAM_SCENE_CREDITS_ROW_VRAM 0x7E0048u
+#define RAM_SCENE_CREDITS_ROW_VRAM_DP 0x48u  /* page scene */
+/* Where the staff credits' next line of text is, in the program (bank $7E): letters as their
+ * character codes, a line ended by '/', the text by a backslash [2 bytes] */
+#define RAM_SCENE_CREDITS_TEXT 0x7E004Au
+#define RAM_SCENE_CREDITS_TEXT_DP 0x4Au      /* page scene */
 /* The Mode 7 matrix the scene keeps and copies to the hardware [8 bytes] */
 #define RAM_SCENE_MODE7_MATRIX 0x7E005Au
 #define RAM_SCENE_MODE7_MATRIX_DP 0x5Au      /* page scene */
@@ -7357,6 +7372,10 @@
  * after Johnny wins [2 bytes] */
 #define RAM_SCENE_RACE_SCORE 0x7E0069u
 #define RAM_SCENE_RACE_SCORE_DP 0x69u        /* page scene */
+/* Nonzero once the staff credits' last line has rolled on, which the scene's script waits for to
+ * go on to The End (counted up as it is set) */
+#define RAM_SCENE_CREDITS_OVER 0x7E006Au
+#define RAM_SCENE_CREDITS_OVER_DP 0x6Au      /* page scene */
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
@@ -7412,6 +7431,15 @@
  * sent */
 #define RAM_SCENE_RACE_TILEMAP_B_READY 0x7E00ACu
 #define RAM_SCENE_RACE_TILEMAP_B_READY_DP 0xACu /* page scene */
+/* Nonzero while the staff credits roll fast, a row of text every frame, as the telepod ending's
+ * do with its music played fast (its setup counts it up); 0, a pixel every other frame and a row
+ * every 16 frames, as the shared ending's */
+#define RAM_SCENE_CREDITS_FAST 0x7E00ADu
+#define RAM_SCENE_CREDITS_FAST_DP 0xADu      /* page scene */
+/* The byte after the credits' speed, which the roll's test for a line due reads with it as a
+ * word (its scroll reads the speed alone); 0 wherever the endings run */
+#define RAM_SCENE_CREDITS_FAST_HIGH 0x7E00AEu
+#define RAM_SCENE_CREDITS_FAST_HIGH_DP 0xAEu /* page scene */
 /* How Crono's bike leans this frame: 0 upright, 1 steering toward the higher lanes, 2 toward the
  * lower ones [2 bytes] */
 #define RAM_SCENE_RACE_CRONO_LEAN 0x7E00AEu
@@ -7626,6 +7654,9 @@
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_ROW_STEP 0x7E1408u /* How far down the picture each scaled row steps: half the racer's size on the screen */
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_COLUMN_STEP 0x7E140Au /* How far across each scaled pixel steps (the main loop sets it from the row step) */
 #define RAM_SCENE_RACE_PICTURE_REQUESTS_SOURCE_LIMIT 0x7E140Cu /* Where the picture's rows end; past it the scaler clears the rest */
+/* A row of the staff credits as it is written, the low bytes of a row of their layer's map: a
+ * tile a column, the line's letters from the ninth column on, blank tiles around them [32 bytes] */
+#define RAM_SCENE_CREDITS_ROW 0x7E1414u
 /* How far the plane is turned on the screen: the camera's angle negated (after the finish, how
  * far the camera has come); the flat layers scroll across by a part of it [2 bytes] */
 #define RAM_SCENE_RACE_PLANE_TURN 0x7E141Cu
@@ -7811,6 +7842,18 @@
 /* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
  * without the panel */
 #define RAM_SCENE_RACE_CORNER_SPRITES 0x7E53AEu
+/* The branch in the star field's drawing that puts the far stars in front of the layers (a BMI
+ * over its own load of the near stars' attributes); the staff roll's setup writes a branch to
+ * the next instruction over it ($0080), which draws every star behind them, behind the credits
+ * [2 bytes] */
+#define RAM_SCENE_STARS_DEPTH_BRANCH 0x7E582Eu
+/* The scroll register the credits' upload sends their scroll to, the low byte of its address as
+ * the operands of the upload's two stores: $10, BG2's vertical scroll, as the program comes;
+ * $12, BG3's, where the staff roll's setup has written it [2 x $5 bytes, by the store: 0 the
+ * scroll's low byte's, 1 its high byte's] */
+#define RAM_SCENE_CREDITS_SCROLL_REGISTER 0x7E9F23u
+#define RAM_SCENE_CREDITS_SCROLL_REGISTER_COUNT 2u
+#define RAM_SCENE_CREDITS_SCROLL_REGISTER_STRIDE 0x05u
 /* A column of the race's Mode 7 name table: read back from VRAM $0B00 at setup and sent back
  * down the column later [20 bytes] */
 #define RAM_SCENE_RACE_PLANE_COLUMN 0x7EC995u

@@ -18,6 +18,8 @@ void menu_object_bob_second_plane(Snes *s);
 void menu_object_raise_second_plane(Snes *s);
 void menu_object_accelerate(Snes *s);
 void menu_object_drift(Snes *s);
+bool menu_object_jolt_runs(Snes *s);
+void menu_object_jolt(Snes *s);
 bool menu_object_can_be_placed(Snes *s);
 void menu_object_place_under_the_view(Snes *s);
 void menu_object_place_under_the_stretch(Snes *s);

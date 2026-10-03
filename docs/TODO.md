@@ -53,6 +53,13 @@ rest waits, is [PLAN.md](PLAN.md).
   differs. No movie reaches these; they are the port's to fix or to declare
   out of reach (`ct_fuzz --routine battle_draw_objects --range A=0000-00FF
   --db 7E`).
+- **`$213F`'s bit 7 is the beam latch's flag in the runtime's PPU**
+  (`runtime/snes/ppu.c`), where the hardware has the field's parity (and the
+  latch's flag in bit 6). The scenes read it as the frame's parity
+  (`tm_odd_frame`: the endings' slow credits, `$7E:9AB3`), so on the runtime
+  they move on the frames after the random mixer latched the beam, not every
+  other frame. Shadow mode compares the runtime with itself; the oracle's
+  traces of the Beyond Time ending would show it.
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
@@ -699,6 +706,24 @@ rest waits, is [PLAN.md](PLAN.md).
   scene program need `--keep 7E3000-7EC994` (the program's own code), which
   older entries' arguments stop short of at `B5FF`.
 
+- **What the staff roll's review left** (merged with the telepod ending;
+  none blocking): `staff_roll.c` tables origin tags with `vram_site` inside
+  the game record (a parallel site table); sets the screen with nine
+  `vid_set_*` calls in the original's order where one `VidScreen` through
+  `vid_apply_screen` would do; `copies_bank` is always the lower bank once
+  the destination's bank is cleared; the high-half fill takes its byte from
+  the program's code (`$7E:9E7A`) without naming the priority byte; `+1`
+  where guarded cells would make `true`; 17 where `PICTURE_PALETTE + 1` is
+  meant; a palette copy by address beside accessor writes to the same
+  palette. `script.c` maps an unlisted nibble silently to the byte store's
+  handler (a per-row column or an assertion), declares nothing dead at the
+  hand-over stop, and with the command limit gone a script that never ends
+  its turn spins the host's frame in C. A half-word VRAM fill
+  (`vid_send_vram_fill` taking a `VidVramHalf`) would retire the staff
+  roll's two `vid_snes_copy` escapes and the title's `$7E:5AEB`; until then
+  PLATFORM.md's as-built escapes should list them. `tests/test_burndown.py`
+  has no case for `PF_CALL_DC` call-outs.
+
 - **What the race's second review left** (none blocking after its fixes):
   `perspective.c`'s `start_lines` writes the line step to a cell the builder
   reads back (return it), and `PerspectiveStart` keeps the patched call's ROM
@@ -998,16 +1023,6 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
-- **The scene sequence interpreter's hand-back** (`scene/script.c`): a
-  command the port doesn't take is given back as a call-out to the loop from
-  the entry's `JSR` site, which shadow mode compares at the loop's first pass,
-  right only when no command ran before it (no movie has such a command).
-  Stopping at the loop's head `$C3:0B03` instead is what shadow mode can now
-  compare at the right pass (RECOMP.md, "Between the waves: the validator"),
-  and since the rework the port decides whether it takes a command before it
-  writes anything, and the flags the machine should have there are in P after
-  every command (`note_flags`); so the stop is what is left to try, with
-  a fuzz comparison against the call-out.
 - **What the menus' sixth chunk left** (RECOMP.md, "Phase 3, menus: the
   items screen and the equipment screen's windows"):
   - the window of who can equip an item reads an accessory's power past the
@@ -1761,9 +1776,13 @@ below. `python3 tools/timing_census.py` re-runs the census.
   effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through
   `$C3:000E`, which no movie runs) and `$7E:3443`. Port the mixing as game code
   over `tm_entropy`, validated by `--native on` rather than fuzzing (a port
-  reads other counters, and the output is cosmetic). `$7E:9AB3` and
-  `$7E:9EDF` read `$213F`'s field bit (the second through a 16-bit read of
-  `$213E`) to move something every other frame: `tm_odd_frame`.
+  reads other counters, and the output is cosmetic). The mixer reads the
+  registers its callers have (A, X and the carry), so the routines that only
+  hand it on stay the original's with it: the stars' scatter, flight and
+  drift (`$7E:5777`, `$7E:579B`, and The End's `$7E:9897`/`$7E:98AC` with
+  `$7E:98E3`; RECOMP.md, "Phase 3, the scene program: the staff roll").
+  `$7E:9AB3` reads `$213F`'s field bit to move something every other frame:
+  `tm_odd_frame`, as the credits' scroll (`$7E:9ED6`) now does.
 - **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
   `$C2:94B8` and `$FD:EB13` clear `$4207-$420A` in a run of CPU register
   writes (where the menu ports stop). Nothing enables the timers after them, so
