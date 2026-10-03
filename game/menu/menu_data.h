@@ -703,4 +703,111 @@ static inline uint16_t menu_math_ramp_color(const GameState *g, unsigned i) { re
 /* The values of the window line table's sixteen groups ($FF:FC57). */
 static inline uint8_t menu_window_line_value(const GameState *g, unsigned group) { return rom_read8(g, 0xFFFC57u + group); }
 
+/* ---- The save code ------------------------------------------------------------------------ */
+
+/* What a saved game holds: eight runs of work RAM, stored one after the other
+ * from the slot's start ($FF:FA7B, five bytes a run: where it is, a 24-bit
+ * address, then its length). */
+enum { MENU_SAVED_RUNS = 8, MENU_SAVED_RUN_BYTES = 5 };
+typedef struct {
+    uint32_t at;
+    uint16_t bytes;
+} MenuSavedRun;
+static inline uint8_t menu_saved_runs_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xFFFA7Bu + i); }
+static inline MenuSavedRun menu_saved_run(const GameState *g, unsigned run)
+{
+    uint32_t at = 0xFFFA7Bu + run * MENU_SAVED_RUN_BYTES;
+    return (MenuSavedRun){ (uint32_t)rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16, rom_read16(g, at + 3) };
+}
+
+/* What a New Game+ takes over from the game it carries on from: two runs
+ * ($FF:FBC1, seven bytes a run: where it starts in the saved game, where it
+ * goes in work RAM, a 24-bit address, and its length). */
+enum { MENU_CARRIED_RUNS = 2, MENU_CARRIED_RUN_BYTES = 7 };
+typedef struct {
+    uint16_t from;
+    uint32_t at;
+    uint16_t bytes;
+} MenuCarriedRun;
+static inline uint8_t menu_carried_runs_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xFFFBC1u + i); }
+static inline MenuCarriedRun menu_carried_run(const GameState *g, unsigned run)
+{
+    uint32_t at = 0xFFFBC1u + run * MENU_CARRIED_RUN_BYTES;
+    return (MenuCarriedRun){ rom_read16(g, at), (uint32_t)rom_read16(g, at + 2) | (uint32_t)rom_read8(g, at + 4) << 16,
+                             rom_read16(g, at + 5) };
+}
+
+/* Where each slot's game is in save memory, as the original's code addresses
+ * it on the bus ($FF:FBE1, a word a slot). */
+static inline uint16_t menu_saved_game_on_the_bus(const GameState *g, uint8_t slot) { return rom_read16(g, 0xFFFBE1u + 2u * slot); }
+
+/* A character's record as a new game starts it ($CC:0000, $50 bytes a
+ * character), and the places in it of the equipment a New Game+ puts back on
+ * ($FF:FBCF, four bytes: the helmet's, the armour's, the accessory's and the
+ * weapon's, taken from the last). */
+enum { MENU_STARTING_RECORD_BYTES = 0x50, MENU_STARTING_EQUIPMENT = 4 };
+static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t character, uint8_t at)
+{
+    return rom_read8(g, 0xCC0000u + (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
+}
+static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned which) { return rom_read8(g, 0xFFFBCFu + which); }
+
+/* ---- The techs as the menus open ---------------------------------------------------------- */
+
+/* The double techs' characters: two for each of the fifteen groups
+ * ($CC:24B3, three bytes a group, the characters in the second and third). */
+static inline uint8_t menu_double_tech_character(const GameState *g, uint8_t group, unsigned which)
+{
+    return rom_read8(g, 0xCC24B4u + 3u * group + which);
+}
+/* Each character's part in each of a double group's three techs ($CC:28DB,
+ * six bytes a group: a tech's first character's part, then its second's). */
+static inline uint8_t menu_double_tech_part(const GameState *g, uint8_t group, unsigned tech, unsigned which)
+{
+    return rom_read8(g, 0xCC28DBu + 6u * group + 2u * tech + which);
+}
+/* The triple techs' parts, one after another: each tech's characters' in the
+ * order of their bits from Crono's ($CC:2935). */
+static inline uint8_t menu_triple_tech_part(const GameState *g, unsigned n) { return rom_read8(g, 0xCC2935u + n); }
+
+/* The single techs each of the five triple techs a rock gives needs learned
+ * by its characters ($CC:2953, three a rock: the tech's number from 1). */
+enum { MENU_ROCKS = 5 };
+static inline uint8_t menu_rock_tech_needs(const GameState *g, unsigned rock, unsigned which)
+{
+    return rom_read8(g, 0xCC2953u + 3u * rock + which);
+}
+
+/* How many of a character's single techs show in the menus before its
+ * locked ones are unlocked ($FF:F951, a byte a character; $FF none locked). */
+static inline uint8_t menu_techs_before_the_lock(const GameState *g, uint8_t character) { return rom_read8(g, 0xFFF951u + character); }
+
+/* ---- The screens' digits ------------------------------------------------------------------ */
+
+/* Two sets of the ten digits in four-colour tiles: the small digits a
+ * screen's number tiles are made from ($FF:CAFC), and the items screen's
+ * amounts' ($FF:9390), sixteen bytes a digit. */
+enum { MENU_DIGITS = 10, MENU_DIGIT_BYTES = 16 };
+static inline uint8_t menu_small_digit_byte(const GameState *g, unsigned digit, unsigned at)
+{
+    return rom_read8(g, 0xFFCAFCu + digit * MENU_DIGIT_BYTES + at);
+}
+static inline uint8_t menu_amount_digit_byte(const GameState *g, unsigned digit, unsigned at)
+{
+    return rom_read8(g, 0xFF9390u + digit * MENU_DIGIT_BYTES + at);
+}
+
+/* ---- The End of Time's gate screen -------------------------------------------------------- */
+
+/* The swirl's graphics, packed ($FF:E8DC); the first tile of each of its six
+ * rows ($FF:F6F2, a tilemap word each); its eight colours ($FF:F706) and four
+ * more ($FF:F6FE); and the wave its bands of lines follow ($FF:F759, 64
+ * words). */
+enum { MENU_GATE_PACKED_GRAPHICS = 0xFFE8DC, MENU_GATE_ROWS = 6, MENU_GATE_PALETTE_COLOURS = 8, MENU_GATE_COLOURS = 4,
+       MENU_GATE_WAVE = 64 };
+static inline uint16_t menu_gate_row_first_tile(const GameState *g, unsigned row) { return rom_read16(g, 0xFFF6F2u + 2u * row); }
+static inline uint16_t menu_gate_palette_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF706u + 2u * i); }
+static inline uint16_t menu_gate_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF6FEu + 2u * i); }
+static inline uint16_t menu_gate_wave(const GameState *g, unsigned i) { return rom_read16(g, 0xFFF759u + 2u * i); }
+
 #endif

@@ -155,6 +155,17 @@ instances = [
 ]
 
 [[page]]
+name = "save_check"
+subsystem = "menu"
+meaning = "The page the save code's check of a slot ($FF:F9C4) runs on: the menus' own as they open, or the clock's ($0400), where the menus' services ($C2:8C36) look for a slot to go on from at power-on ($C2:8D6A)"
+source = "PEA #$0400 : PLD at $C2:8C40 (the services, which call the check from $C2:8D6E); the menus' page at $C2:D16D (menu_read_save_slots). Measured over the library (ct_dev --page-report): the check entered with D = $0000 and $0400, nothing else"
+why = "the check has no page of its own: it reads the slot from, and leaves its answer and the slot's place in, its caller's page"
+instances = [
+  { name = "menu", d = 0x0000 },
+  { name = "clock", d = 0x0400 },
+]
+
+[[page]]
 name = "sound"
 d = 0x1E00
 subsystem = "core"
@@ -6315,6 +6326,113 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 6
   size = 2
   meaning = "A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0"
+  [[var.field]]
+  name = "tech_parts_first_row"
+  offset = 0
+  size = 2
+  meaning = "Noting the party's techs ($FF:F813): a double tech's first character's row in the parts table (the character times $40), then in its low byte a triple tech's characters, shifted out a bit at a time"
+  [[var.field]]
+  name = "tech_parts_second_row"
+  offset = 2
+  size = 2
+  meaning = "Noting the party's techs: a double tech's second character's row; for a triple tech, the character counted in its high byte"
+  [[var.field]]
+  name = "tech_parts_placed"
+  offset = 4
+  size = 2
+  meaning = "Noting the party's techs: a double tech's parts left to place, then the triple techs' parts placed, counted in the low byte of a word whose high byte (0 whenever the menus open) the noting leaves as it finds it"
+  [[var.field]]
+  name = "tech_parts_group"
+  offset = 6
+  size = 2
+  meaning = "Noting the party's techs: the double or triple tech group it has got to"
+  [[var.field]]
+  name = "tech_parts_from"
+  offset = 8
+  size = 2
+  meaning = "Noting the party's techs: where the double tech's parts start in their table, six a group"
+  [[var.field]]
+  name = "number_tiles_digit"
+  offset = 0
+  size = 2
+  meaning = "Building the number tiles ($FF:F548): the digit it has got to, sixteen bytes a digit"
+  [[var.field]]
+  name = "number_tiles_bytes_left"
+  offset = 2
+  meaning = "Building the number tiles: the bytes of the tile left to draw"
+  [[var.field]]
+  name = "number_tiles_pixels"
+  offset = 4
+  meaning = "Building the number tiles: the font's byte being shifted into the tile"
+  [[var.field]]
+  name = "number_tiles_hundreds_byte"
+  offset = 6
+  meaning = "Building the number tiles: the byte of the hundreds digit it reads, then (first) the tiles of a block left"
+  [[var.field]]
+  name = "number_tiles_blocks_left"
+  offset = 7
+  meaning = "Building the number tiles: the tiles of a block of ten left"
+  [[var.field]]
+  name = "amount_digit_at"
+  offset = 0
+  size = 2
+  meaning = "Building the amounts' digits ($FF:F7D9): where the tile it builds is"
+  [[var.field]]
+  name = "amount_digit_rows_left"
+  offset = 2
+  meaning = "Building the amounts' digits: the tile's rows left"
+  [[var.field]]
+  name = "gate_row"
+  offset = 0
+  size = 2
+  meaning = "Drawing the gate screen ($FF:F677): the row of the swirl it has got to, two bytes a row"
+  [[var.field]]
+  name = "gate_row_at"
+  offset = 2
+  size = 2
+  meaning = "Drawing the gate screen: where the row goes in the tilemap"
+  [[var.field]]
+  name = "gate_rows_left"
+  offset = 4
+  size = 2
+  meaning = "Drawing the gate screen: the rows left"
+  [[var.field]]
+  name = "colours_character"
+  offset = 0
+  meaning = "A character's sprite colours put in its palette ($FF:F628): the character"
+  [[var.field]]
+  name = "colours_dimmed"
+  offset = 3
+  meaning = "A character's sprite colours: nonzero to put them in dimmed"
+  [[var.field]]
+  name = "dimmed_colours_left"
+  offset = 0
+  size = 2
+  meaning = "A member's sprite colours dimmed ($FF:F628): the colours left"
+  [[var.field]]
+  name = "sum_from"
+  offset = 0
+  size = 2
+  meaning = "The save code's sum of a slot's game ($FF:FBE7): where the game is, as menu_slot_game_at"
+  [[var.field]]
+  name = "run_at"
+  offset = 0
+  size = 2
+  meaning = "The save code's save and loads: where in its bank the run of work RAM it has got to is"
+  [[var.field]]
+  name = "gate_across"
+  offset = 0
+  size = 2
+  meaning = "The gate screen's swirl turned ($FF:F716): BG3's scroll across, which each band adds"
+  [[var.field]]
+  name = "carried_character"
+  offset = 0
+  meaning = "A New Game+'s load ($FF:FAED): the character whose starting equipment it puts on"
+  [[var.field]]
+  name = "carried_slot"
+  offset = 4
+  size = 2
+  meaning = "A New Game+'s load: the place in the character's equipment it has got to (a word as each character starts)"
 
 [[var]]
 name = "menu_save_member_row"
@@ -8379,12 +8497,13 @@ source = "game/menu/tech_screen.c, $C2:B36D"
 
 [[var]]
 name = "menu_tech_parts"
-addr = "7E:1607"
-count = 0x1F9
-index = "character * $40 + the tech"
+addr = "7E:1640"
+size = 0x3C
+rows = 7
+row_stride = 0x40
 subsystem = "menu"
-meaning = "Each character's part in each double and triple tech (the techs from $39 on, so the table proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of the game's asks for"
-source = "game/menu/techs.c, $C2:BC22"
+meaning = "Each character's part in each double and triple tech, as the table of MP costs ($CC:253B) numbers the parts: a row a character, a column each of the techs from the first double ($39) on (the doubles' 45, then the triples' 15); built as the menus open ($FF:F813), and a character who isn't one of a tech's members has nothing written in its column"
+source = "game/menu/techs.c, menu_note_party_techs $FF:F813, menu_tech_cost_for $C2:BC22"
 
 [[var]]
 name = "menu_tech_row_drawn"
@@ -8549,6 +8668,181 @@ size = 0x40
 subsystem = "menu"
 meaning = "The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member records first"
 source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C"
+
+# ------------------------------------------------------------------------------
+# menu: the save code, the techs noted as the menus open, and the screens'
+# helpers in bank $FF
+# ------------------------------------------------------------------------------
+
+[[var]]
+name = "save_check_slot"
+page = "save_check"
+reuses = "menu_save_slot_shown"
+dp = 0x79
+subsystem = "menu"
+meaning = "The save slot the check looks at: on the menus' page the slot the load screen shows (menu_save_slot_shown), on the clock's the slot the power-on search has got to"
+source = "game/menu/saves.c, menu_check_save_slot $FF:F9C4"
+
+[[var]]
+name = "save_check_game_at"
+page = "save_check"
+reuses = "menu_slot_game_at"
+dp = 0x7B
+size = 2
+subsystem = "menu"
+meaning = "Where the slot checked keeps its game, as the original's code addresses save memory on the bus ($6000 on): on the menus' page, menu_slot_game_at"
+source = "game/menu/saves.c, menu_check_save_slot $FF:F9C4"
+
+[[var]]
+name = "save_check_answer"
+page = "save_check"
+reuses = "menu_scratch"
+dp = 0x00
+size = 2
+subsystem = "menu"
+meaning = "The check's answer, as the original leaves it in its caller's first cell: 0 for a slot that holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong (on the menus' page, menu_scratch.slot_check)"
+source = "game/menu/saves.c, menu_check_save_slot $FF:F9C4"
+
+[[var]]
+name = "times_saved"
+addr = "7E:299C"
+size = 2
+subsystem = "core"
+meaning = "How many times the game has been saved: each save counts one, and the count stops at $FFFF (a slot's summary shows at most 999)"
+source = "game/menu/saves.c, menu_save_game $FF:F9FB; game/menu/save_screen.c, the summary's reading $C2:D19F"
+
+[[var]]
+name = "menu_save_region_table"
+addr = "7E:9890"
+size = 0x28
+reuses = ["menu_save_summary", "menu_record_frame_tile_list", "menu_equipped_list", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_tech_cost_beside"]
+subsystem = "menu"
+meaning = "The save code's table of the work RAM a save holds, which a save or a load copies here from the ROM as it starts and reads its regions from; nothing reads it after"
+source = "game/menu/saves.c, $FF:F9FB, $FF:FAA3, $FF:FAED"
+
+[[var]]
+name = "menu_rock_techs_ready"
+addr = "7E:04A4"
+count = 5
+index = "rock: the five triple techs a rock gives, in the order of their groups"
+subsystem = "menu"
+meaning = "1 where the party could do the rock's triple tech: its three characters in the party, each with the single tech it takes learned; 0 otherwise"
+source = "game/menu/techs.c, menu_note_rock_techs $FF:F958"
+
+[[var]]
+name = "menu_rock_tech_search"
+addr = "7E:04A0"
+stride = 4
+subsystem = "menu"
+meaning = "The cells the search for the rocks' triple techs works in ($FF:F958), left as it ends"
+source = "game/menu/techs.c, menu_note_rock_techs $FF:F958"
+  [[var.field]]
+  name = "rock"
+  offset = 0
+  meaning = "The rock it has got to: five, past the last, as it ends"
+  [[var.field]]
+  name = "techs_left"
+  offset = 1
+  meaning = "The techs of the last rock whose characters are all in the party still to be found learned (0 where all three are)"
+  [[var.field]]
+  name = "tech"
+  offset = 2
+  meaning = "The last tech looked at, less one"
+  [[var.field]]
+  name = "missing"
+  offset = 3
+  meaning = "The characters the party doesn't have, a bit each from Crono's bit 7 to Magus's bit 1"
+
+[[var]]
+name = "menu_tech_parts_column"
+addr = "7E:0016"
+page = "menu"
+size = 4
+reuses = "menu_tech_members"
+subsystem = "menu"
+meaning = "Noting the party's techs ($FF:F813): where the next tech's column of the parts table is (menu_tech_parts), a long address whose low byte steps on a column a tech, left past the last triple's, and the byte after it, which the bank's word store clears"
+source = "game/menu/techs.c, menu_note_party_techs $FF:F813"
+
+[[var]]
+name = "menu_starting_record_at"
+addr = "7E:0016"
+page = "menu"
+size = 3
+reuses = ["menu_tech_members", "menu_tech_parts_column"]
+subsystem = "menu"
+meaning = "A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long address into the ROM"
+source = "game/menu/saves.c, menu_load_carried_over $FF:FAED"
+
+[[var]]
+name = "menu_hundreds_digits"
+addr = "7E:9890"
+size = 0x30
+reuses = ["menu_save_region_table"]
+subsystem = "menu"
+meaning = "Building the number tiles ($FF:F548): the hundreds digits it reads from, sixteen bytes each, none (blank), 1 and 2; nothing reads them after"
+source = "game/menu/digits.c, menu_build_number_tiles $FF:F548"
+
+[[var]]
+name = "menu_number_tiles"
+addr = "7E:B000"
+size = 0x20
+count = 110
+index = "number: 0-99 (the tens digit's last three columns, then the units digit), then 100-109 the digits alone"
+subsystem = "menu"
+meaning = "Small number tiles a screen builds for its counts ($FF:F548): a sixteen-colour tile each of the numbers 0-99, two digits to a tile, and the ten digits; only the first two bitplanes are drawn, the other two left as the buffer had them"
+source = "game/menu/digits.c, menu_build_number_tiles $FF:F548"
+
+[[var]]
+name = "menu_hundreds_tiles"
+addr = "7E:BDC0"
+size = 0x20
+count = 30
+index = "hundreds (none, 1, 2) * 10 + the tens digit"
+reuses = "menu_gate_palette_copy"
+subsystem = "menu"
+meaning = "The tiles that start a three-digit number ($FF:F548): the hundreds digit, and the first columns of the tens digit, whose last columns begin the number's tile in menu_number_tiles; the first is blank. Only the first two bitplanes are drawn"
+source = "game/menu/digits.c, menu_build_number_tiles $FF:F548"
+
+[[var]]
+name = "menu_amount_digit_tiles"
+addr = "7E:8E80"
+size = 0x20
+count = 10
+index = "digit"
+subsystem = "menu"
+meaning = "The ten digits the items screen shows amounts in ($FF:F7D9): sixteen-colour tiles whose third bitplane is the ink of the first two, so the digits take colours 5-7; the fourth bitplane is left as the buffer had it"
+source = "game/menu/digits.c, menu_build_amount_digits $FF:F7D9"
+
+[[var]]
+name = "menu_gate_tilemap"
+addr = "7E:4E00"
+size = 2
+count = 0x400
+index = "tile (32 to a row)"
+reuses = "menu_equip_list_rows"
+subsystem = "menu"
+meaning = "The End of Time's gate screen's swirl, BG3's tilemap: six rows of sixteen tiles, each row twice across, repeated down the map"
+source = "game/menu/gate_screen.c, menu_draw_gate_screen $FF:F677"
+
+[[var]]
+name = "menu_gate_swirl"
+addr = "7E:9240"
+size = 2
+count = 16
+index = "band of lines"
+subsystem = "menu"
+meaning = "The gate screen's swirl: BG3's horizontal scroll for each of sixteen bands of lines, the layer's scroll plus the band's place on a wave that moves on every frame"
+source = "game/menu/gate_screen.c, menu_turn_gate_swirl $FF:F716"
+
+[[var]]
+name = "menu_gate_colours"
+addr = "7E:9100"
+size = 2
+count = 4
+index = "colour"
+subsystem = "menu"
+meaning = "Four colours the gate screen sets out as it is drawn ($FF:F677)"
+source = "game/menu/gate_screen.c, menu_draw_gate_screen $FF:F677"
 
 # ------------------------------------------------------------------------------
 # menu: the sprite object mode at $C2:0000 (direct page 0)

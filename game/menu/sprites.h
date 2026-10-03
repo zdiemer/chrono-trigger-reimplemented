@@ -42,4 +42,10 @@ bool menu_record_sprites_are_loadable(Snes *s);
 bool menu_record_sprite_is_loadable(Snes *s);
 bool menu_record_is_animatable(Snes *s);
 
+/* A character's sprite colours put in its sprite palette, dimmed to half
+ * where `dim` (a screen of the party's members dims those not chosen). */
+void menu_put_character_colours(GameState *g, uint8_t character, bool dim);
+void menu_put_character_colours_entry(Snes *s);
+bool menu_character_colours_are_puttable(Snes *s);
+
 #endif

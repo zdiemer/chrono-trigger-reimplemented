@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "snes/system.h"
 #include "state.h"
 
 /* The kinds of tech, as the techs screen's tabs show them: a character's
@@ -17,6 +18,18 @@ typedef enum { MENU_SINGLE_TECHS = 0, MENU_DOUBLE_TECHS = 1, MENU_TRIPLE_TECHS =
 /* No tech: a list's place past its last, the techs screen with none on its
  * cursor. */
 enum { MENU_NO_TECH = 0xFF };
+
+/* The first double tech: the techs from it on are the doubles' and the
+ * triples', whose parts the characters take. The five triple techs a rock
+ * gives are the last five groups, from the eleventh triple tech. */
+enum { MENU_FIRST_DOUBLE_TECH = 0x39, MENU_FIRST_ROCK_GROUP = 32, MENU_FIRST_ROCK_TECH = 10 };
+
+/* As the menus open, note how many members the screens let the player choose
+ * among and what of the party's techs they list (menu/techs.c); and which of
+ * the rocks' triple techs the party could do (menu_rock_techs_ready), which
+ * the menus' services work out again as they change the party. */
+void menu_note_party_techs(GameState *g);
+void menu_note_rock_techs(GameState *g);
 
 /* List the techs of `kind` the character has learned, the groups' techs in
  * their order (menu_tech_list, with each one's group, and how many there
@@ -54,8 +67,15 @@ MenuTechHealing menu_tech_healing(GameState *g, uint8_t tech);
  * for no tech. */
 void menu_draw_tech_row(GameState *g, uint16_t at, uint8_t tech, bool waiting);
 
-/* Whether the menus' tables hold what the techs screen reads of `tech`: a
- * tech of the game's, and for a double or triple tech the member's part. */
-bool menu_tech_is_the_games(uint8_t tech);
+/* Whether the menus' tables hold what the techs screen reads of `tech` in a
+ * list of `kind`: a tech of the game's, and for a double or triple tech one
+ * from the first double on, whose parts the members have. */
+bool menu_tech_is_the_games(uint8_t tech, MenuTechKind kind);
+
+/* The registered entries ($FF:F813, $FF:F958) and their guards. */
+void menu_note_party_techs_entry(Snes *s);
+void menu_note_rock_techs_entry(Snes *s);
+bool menu_party_techs_are_notable(Snes *s);
+bool menu_rock_techs_are_notable(Snes *s);
 
 #endif

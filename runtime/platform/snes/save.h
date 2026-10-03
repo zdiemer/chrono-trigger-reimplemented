@@ -18,6 +18,11 @@ PF_API void sv_write8(Platform *pf, PfOrigin o, uint16_t offset, uint8_t v)
     m_write8(pf_snes(pf), 0x306000 + (uint32_t)(offset % SAVE_SIZE), v);
 }
 
+PF_API uint8_t sv_peek8(Platform *pf, uint16_t offset)
+{
+    return snes_bus_peek(&pf_snes(pf)->bus, 0x306000 + (uint32_t)(offset % SAVE_SIZE));
+}
+
 PF_API const uint8_t *sv_host_bytes(Platform *pf, bool *dirty)
 {
     if (dirty)

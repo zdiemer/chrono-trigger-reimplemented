@@ -21,6 +21,9 @@
 /* menu_record: record 0-8 (D = $1800 + $40 each) */
 bool menu_record_page_of(uint16_t d, unsigned *record);
 
+/* save_check: menu (D = $0000); clock (D = $0400) */
+bool save_check_page_of(uint16_t d, SaveCheckPage *page);
+
 /* scene_program: own (D = $0000); channel 0-1 (D = $0A00 + $100 each) */
 bool scene_program_page_of(uint16_t d, SceneProgramPage *page);
 

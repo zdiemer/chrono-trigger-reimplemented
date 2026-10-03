@@ -1,5 +1,5 @@
-/* The Epoch: its two Mode 7 screens, where it may fly, and the End of Time's
- * gate screen (game/menu/epoch.c). */
+/* The Epoch: its two Mode 7 screens, and where it may fly
+ * (game/menu/epoch.c). */
 #ifndef CT_GAME_MENU_EPOCH_H
 #define CT_GAME_MENU_EPOCH_H
 
@@ -33,9 +33,6 @@ void menu_epoch_expand_gate_nibbles(Snes *s);
 /* Where the Epoch may fly */
 void menu_epoch_outside_sides(Snes *s);
 void menu_epoch_in_area(Snes *s);
-
-/* The End of Time's gate screen */
-void menu_start_gate_screen(Snes *s);
 
 /* Guards */
 bool menu_epoch_page_is_menu(Snes *s);

@@ -49,6 +49,13 @@
 /* D is not fixed: D walks a table of records, so an offset names a field of whichever record is
  * current. Instances: record 0-8 (D = $1800 + $40 each) */
 /* (no RAM_PAGE_MENU_RECORD: variables in it have offsets only) */
+/* save_check: The page the save code's check of a slot ($FF:F9C4) runs on: the menus' own as
+ * they open, or the clock's ($0400), where the menus' services ($C2:8C36) look for a slot to go
+ * on from at power-on ($C2:8D6A) */
+/* D is not fixed: the check has no page of its own: it reads the slot from, and leaves its
+ * answer and the slot's place in, its caller's page. Instances: menu (D = $0000); clock (D =
+ * $0400) */
+/* (no RAM_PAGE_SAVE_CHECK: variables in it have offsets only) */
 /* scene_program: The page the scene program's shared routines run on: the scene's own, or, when
  * a sequence script calls one, its channel's */
 /* D is not fixed: the routines have no page of their own: they work on the cells of whichever
@@ -388,6 +395,9 @@
 #define RAM_BUTTON_ASSIGNMENTS 0x7E2993u
 #define RAM_BUTTON_ASSIGNMENTS_COUNT 8u
 #define RAM_BUTTON_ASSIGNMENTS_STRIDE 0x01u
+/* How many times the game has been saved: each save counts one, and the count stops at $FFFF (a
+ * slot's summary shows at most 999) [2 bytes] */
+#define RAM_TIMES_SAVED 0x7E299Cu
 /* How many times the game on the cartridge has been finished, as a new game starts with it (the
  * cartridge's count at $30:7FE1) */
 #define RAM_TIMES_FINISHED 0x7E299Eu
@@ -2075,6 +2085,33 @@
 #define RAM_MENU_SCRATCH_FRAME_BLOCKS_LEFT 0x7E0000u /* A record's frame ($C2:F75C): its blocks, counted down as they are queued when they are an odd number, which the loop leaves at 0 */
 #define RAM_MENU_SCRATCH_FRAME_TILES_END 0x7E0002u /* A record's frame: the end of its tile list, a word a tile (its blocks times 32) */
 #define RAM_MENU_SCRATCH_FRAME_MIRROR_BYTES 0x7E0006u /* A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0 */
+#define RAM_MENU_SCRATCH_TECH_PARTS_FIRST_ROW 0x7E0000u /* Noting the party's techs ($FF:F813): a double tech's first character's row in the parts table (the character times $40), then in its low byte a triple tech's characters, shifted out a bit at a time */
+#define RAM_MENU_SCRATCH_TECH_PARTS_SECOND_ROW 0x7E0002u /* Noting the party's techs: a double tech's second character's row; for a triple tech, the character counted in its high byte */
+#define RAM_MENU_SCRATCH_TECH_PARTS_PLACED 0x7E0004u /* Noting the party's techs: a double tech's parts left to place, then the triple techs' parts placed, counted in the low byte of a word whose high byte (0 whenever the menus open) the noting leaves as it finds it */
+#define RAM_MENU_SCRATCH_TECH_PARTS_GROUP 0x7E0006u /* Noting the party's techs: the double or triple tech group it has got to */
+#define RAM_MENU_SCRATCH_TECH_PARTS_FROM 0x7E0008u /* Noting the party's techs: where the double tech's parts start in their table, six a group */
+#define RAM_MENU_SCRATCH_NUMBER_TILES_DIGIT 0x7E0000u /* Building the number tiles ($FF:F548): the digit it has got to, sixteen bytes a digit */
+#define RAM_MENU_SCRATCH_NUMBER_TILES_BYTES_LEFT 0x7E0002u /* Building the number tiles: the bytes of the tile left to draw */
+#define RAM_MENU_SCRATCH_NUMBER_TILES_PIXELS 0x7E0004u /* Building the number tiles: the font's byte being shifted into the tile */
+#define RAM_MENU_SCRATCH_NUMBER_TILES_HUNDREDS_BYTE 0x7E0006u /* Building the number tiles: the byte of the hundreds digit it reads, then (first) the tiles of a block left */
+#define RAM_MENU_SCRATCH_NUMBER_TILES_BLOCKS_LEFT 0x7E0007u /* Building the number tiles: the tiles of a block of ten left */
+#define RAM_MENU_SCRATCH_AMOUNT_DIGIT_AT 0x7E0000u /* Building the amounts' digits ($FF:F7D9): where the tile it builds is */
+#define RAM_MENU_SCRATCH_AMOUNT_DIGIT_ROWS_LEFT 0x7E0002u /* Building the amounts' digits: the tile's rows left */
+#define RAM_MENU_SCRATCH_GATE_ROW 0x7E0000u  /* Drawing the gate screen ($FF:F677): the row of the swirl it has got to, two bytes a row */
+#define RAM_MENU_SCRATCH_GATE_ROW_AT 0x7E0002u /* Drawing the gate screen: where the row goes in the tilemap */
+#define RAM_MENU_SCRATCH_GATE_ROWS_LEFT 0x7E0004u /* Drawing the gate screen: the rows left */
+#define RAM_MENU_SCRATCH_COLOURS_CHARACTER 0x7E0000u /* A character's sprite colours put in its palette ($FF:F628): the character */
+#define RAM_MENU_SCRATCH_COLOURS_DIMMED 0x7E0003u /* A character's sprite colours: nonzero to put them in dimmed */
+#define RAM_MENU_SCRATCH_DIMMED_COLOURS_LEFT 0x7E0000u /* A member's sprite colours dimmed ($FF:F628): the colours left */
+#define RAM_MENU_SCRATCH_SUM_FROM 0x7E0000u  /* The save code's sum of a slot's game ($FF:FBE7): where the game is, as menu_slot_game_at */
+#define RAM_MENU_SCRATCH_RUN_AT 0x7E0000u    /* The save code's save and loads: where in its bank the run of work RAM it has got to is */
+#define RAM_MENU_SCRATCH_GATE_ACROSS 0x7E0000u /* The gate screen's swirl turned ($FF:F716): BG3's scroll across, which each band adds */
+#define RAM_MENU_SCRATCH_CARRIED_CHARACTER 0x7E0000u /* A New Game+'s load ($FF:FAED): the character whose starting equipment it puts on */
+#define RAM_MENU_SCRATCH_CARRIED_SLOT 0x7E0004u /* A New Game+'s load: the place in the character's equipment it has got to (a word as each character starts) */
+/* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
+ * address into the ROM [3 bytes] */
+#define RAM_MENU_STARTING_RECORD_AT 0x7E0016u
+#define RAM_MENU_STARTING_RECORD_AT_DP 0x16u /* page menu */
 /* The characters of the tech on the techs screen's cursor: the member whose techs are listed
  * first, then the tech group's others, $FF where it has none [3 x $1 bytes, by member of the
  * tech] */
@@ -2082,6 +2119,11 @@
 #define RAM_MENU_TECH_MEMBERS_COUNT 3u
 #define RAM_MENU_TECH_MEMBERS_STRIDE 0x01u
 #define RAM_MENU_TECH_MEMBERS_DP 0x16u       /* page menu */
+/* Noting the party's techs ($FF:F813): where the next tech's column of the parts table is
+ * (menu_tech_parts), a long address whose low byte steps on a column a tech, left past the last
+ * triple's, and the byte after it, which the bank's word store clears [4 bytes] */
+#define RAM_MENU_TECH_PARTS_COLUMN 0x7E0016u
+#define RAM_MENU_TECH_PARTS_COLUMN_DP 0x16u  /* page menu */
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
@@ -2425,6 +2467,19 @@
 /* The first member the techs screen's member list shows: how far it has slid along the reachable
  * members */
 #define RAM_MENU_TECH_MEMBER_SCROLL 0x7E041Au
+/* The cells the search for the rocks' triple techs works in ($FF:F958), left as it ends [4
+ * bytes] */
+#define RAM_MENU_ROCK_TECH_SEARCH 0x7E04A0u
+#define RAM_MENU_ROCK_TECH_SEARCH_ROCK 0x7E04A0u /* The rock it has got to: five, past the last, as it ends */
+#define RAM_MENU_ROCK_TECH_SEARCH_TECHS_LEFT 0x7E04A1u /* The techs of the last rock whose characters are all in the party still to be found learned (0 where all three are) */
+#define RAM_MENU_ROCK_TECH_SEARCH_TECH 0x7E04A2u /* The last tech looked at, less one */
+#define RAM_MENU_ROCK_TECH_SEARCH_MISSING 0x7E04A3u /* The characters the party doesn't have, a bit each from Crono's bit 7 to Magus's bit 1 */
+/* 1 where the party could do the rock's triple tech: its three characters in the party, each
+ * with the single tech it takes learned; 0 otherwise [5 x $1 bytes, by rock: the five triple
+ * techs a rock gives, in the order of their groups] */
+#define RAM_MENU_ROCK_TECHS_READY 0x7E04A4u
+#define RAM_MENU_ROCK_TECHS_READY_COUNT 5u
+#define RAM_MENU_ROCK_TECHS_READY_STRIDE 0x01u
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 #define RAM_MENU_ITEM_OPERAND 0x7E04C9u
@@ -2806,13 +2861,14 @@
 #define RAM_MENU_EQUIP_CHOICES 0x7E0FC6u
 /* The first of the equipment screen's list's items it shows */
 #define RAM_MENU_EQUIP_LIST_TOP 0x7E0FC8u
-/* Each character's part in each double and triple tech (the techs from $39 on, so the table
- * proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as
- * the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of
- * the game's asks for [505 x $1 bytes, by character * $40 + the tech] */
-#define RAM_MENU_TECH_PARTS 0x7E1607u
-#define RAM_MENU_TECH_PARTS_COUNT 505u
-#define RAM_MENU_TECH_PARTS_STRIDE 0x01u
+/* Each character's part in each double and triple tech, as the table of MP costs ($CC:253B)
+ * numbers the parts: a row a character, a column each of the techs from the first double ($39)
+ * on (the doubles' 45, then the triples' 15); built as the menus open ($FF:F813), and a
+ * character who isn't one of a tech's members has nothing written in its column [60 bytes] [7
+ * rows, $40 bytes apart] */
+#define RAM_MENU_TECH_PARTS 0x7E1640u
+#define RAM_MENU_TECH_PARTS_ROWS 7u
+#define RAM_MENU_TECH_PARTS_ROW_STRIDE 0x40u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
@@ -2903,6 +2959,11 @@
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
+/* The End of Time's gate screen's swirl, BG3's tilemap: six rows of sixteen tiles, each row
+ * twice across, repeated down the map [1024 x $2 bytes, by tile (32 to a row)] */
+#define RAM_MENU_GATE_TILEMAP 0x7E4E00u
+#define RAM_MENU_GATE_TILEMAP_COUNT 1024u
+#define RAM_MENU_GATE_TILEMAP_STRIDE 0x02u
 /* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
  * apart, and the row past the last where a slide draws the row coming in [1152 bytes] */
 #define RAM_MENU_EQUIP_LIST_ROWS 0x7E4F80u
@@ -3026,6 +3087,22 @@
 #define RAM_MENU_OBJECT_LINE_SLOTS_SECOND_LINES 0x7E8A38u /* The second entry's line count */
 #define RAM_MENU_OBJECT_LINE_SLOTS_SECOND 0x7E8A39u /* Address of the second entry's per-line values */
 #define RAM_MENU_OBJECT_LINE_SLOTS_END 0x7E8A3Bu /* 0, which ends the table */
+/* The ten digits the items screen shows amounts in ($FF:F7D9): sixteen-colour tiles whose third
+ * bitplane is the ink of the first two, so the digits take colours 5-7; the fourth bitplane is
+ * left as the buffer had it [10 x $20 bytes, by digit] */
+#define RAM_MENU_AMOUNT_DIGIT_TILES 0x7E8E80u
+#define RAM_MENU_AMOUNT_DIGIT_TILES_COUNT 10u
+#define RAM_MENU_AMOUNT_DIGIT_TILES_STRIDE 0x20u
+/* Four colours the gate screen sets out as it is drawn ($FF:F677) [4 x $2 bytes, by colour] */
+#define RAM_MENU_GATE_COLOURS 0x7E9100u
+#define RAM_MENU_GATE_COLOURS_COUNT 4u
+#define RAM_MENU_GATE_COLOURS_STRIDE 0x02u
+/* The gate screen's swirl: BG3's horizontal scroll for each of sixteen bands of lines, the
+ * layer's scroll plus the band's place on a wave that moves on every frame [16 x $2 bytes, by
+ * band of lines] */
+#define RAM_MENU_GATE_SWIRL 0x7E9240u
+#define RAM_MENU_GATE_SWIRL_COUNT 16u
+#define RAM_MENU_GATE_SWIRL_STRIDE 0x02u
 /* Where the cursor sprite goes for each cursor position of the current menu; the load screen
  * moves its fourth row's between two choices [42 x $6 bytes, by cursor position of the current
  * menu (the table runs up to the palette at $9480)] */
@@ -3103,6 +3180,9 @@
 #define RAM_MENU_EQUIPPED_LIST 0x7E9890u
 #define RAM_MENU_EQUIPPED_LIST_COUNT 5u
 #define RAM_MENU_EQUIPPED_LIST_STRIDE 0x01u
+/* Building the number tiles ($FF:F548): the hundreds digits it reads from, sixteen bytes each,
+ * none (blank), 1 and 2; nothing reads them after [48 bytes] */
+#define RAM_MENU_HUNDREDS_DIGITS 0x7E9890u
 /* The names of the characters who can equip the item the items screen shows and have joined the
  * party, one after another, the places past them clear, which the window lists ($C2:AEB6) [7 x
  * $6 bytes, by user] */
@@ -3116,6 +3196,9 @@
 #define RAM_MENU_RECORD_FRAME_TILE_LIST 0x7E9890u
 #define RAM_MENU_RECORD_FRAME_TILE_LIST_COUNT 96u
 #define RAM_MENU_RECORD_FRAME_TILE_LIST_STRIDE 0x02u
+/* The save code's table of the work RAM a save holds, which a save or a load copies here from
+ * the ROM as it starts and reads its regions from; nothing reads it after [40 bytes] */
+#define RAM_MENU_SAVE_REGION_TABLE 0x7E9890u
 /* The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member
  * records first [64 bytes] */
 #define RAM_MENU_SAVE_SUMMARY 0x7E9890u
@@ -3224,6 +3307,20 @@
 #define RAM_MENU_MAP_COLOURS 0x7EAB25u
 #define RAM_MENU_MAP_COLOURS_COUNT 896u
 #define RAM_MENU_MAP_COLOURS_STRIDE 0x01u
+/* Small number tiles a screen builds for its counts ($FF:F548): a sixteen-colour tile each of
+ * the numbers 0-99, two digits to a tile, and the ten digits; only the first two bitplanes are
+ * drawn, the other two left as the buffer had them [110 x $20 bytes, by number: 0-99 (the tens
+ * digit's last three columns, then the units digit), then 100-109 the digits alone] */
+#define RAM_MENU_NUMBER_TILES 0x7EB000u
+#define RAM_MENU_NUMBER_TILES_COUNT 110u
+#define RAM_MENU_NUMBER_TILES_STRIDE 0x20u
+/* The tiles that start a three-digit number ($FF:F548): the hundreds digit, and the first
+ * columns of the tens digit, whose last columns begin the number's tile in menu_number_tiles;
+ * the first is blank. Only the first two bitplanes are drawn [30 x $20 bytes, by hundreds (none,
+ * 1, 2) * 10 + the tens digit] */
+#define RAM_MENU_HUNDREDS_TILES 0x7EBDC0u
+#define RAM_MENU_HUNDREDS_TILES_COUNT 30u
+#define RAM_MENU_HUNDREDS_TILES_STRIDE 0x20u
 /* The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which
  * also goes to the mode's own palette buffer with one colour set to white first [256 x $2 bytes,
  * by color] */
@@ -3258,6 +3355,10 @@
 #define RAM_MENU_GATE_TILES_STRIDE 0x01u
 /* The sprite the record shows, its number in its set ($FF: none; the task passes the record by) */
 #define RAM_MENU_RECORD_SPRITE_DP 0x00u      /* page menu_record, D per instance */
+/* The check's answer, as the original leaves it in its caller's first cell: 0 for a slot that
+ * holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong (on the
+ * menus' page, menu_scratch.slot_check) [2 bytes] */
+#define RAM_SAVE_CHECK_ANSWER_DP 0x00u       /* page save_check, D per instance */
 /* Which set of sprites the record's is from: 0 the playable characters' (their graphics as they
  * are in the ROM), 1 and up the others' (their graphics packed, unpacked at the record's load);
  * 2 and up take ten-byte assignments where the first two take five */
@@ -3316,6 +3417,12 @@
 /* Each sprite's offset across and down from the record's place, a signed byte each, up to the
  * record's end [30 bytes] */
 #define RAM_MENU_RECORD_SPRITE_OFFSETS_DP 0x22u /* page menu_record, D per instance */
+/* The save slot the check looks at: on the menus' page the slot the load screen shows
+ * (menu_save_slot_shown), on the clock's the slot the power-on search has got to */
+#define RAM_SAVE_CHECK_SLOT_DP 0x79u         /* page save_check, D per instance */
+/* Where the slot checked keeps its game, as the original's code addresses save memory on the bus
+ * ($6000 on): on the menus' page, menu_slot_game_at [2 bytes] */
+#define RAM_SAVE_CHECK_GAME_AT_DP 0x7Bu      /* page save_check, D per instance */
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 

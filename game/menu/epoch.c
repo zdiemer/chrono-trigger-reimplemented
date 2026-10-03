@@ -1331,29 +1331,6 @@ static bool in_area(GameState *g, MenuObject o)
     return sides == 0;
 }
 
-/* ---- The End of Time's gate screen ------------------------------------------------------------ */
-
-/* The menus proper start the End of Time's gate screen: its third layer's
- * tilemap moves to its own place, the screen's frame task is added to the
- * menus' tasks, and the screen's state is set up from the ROM, where the task
- * reads it. The task and the rest of the screen are still the original's. */
-enum { GATE_SCREEN_TILEMAP = 0x6800, TILEMAP_TILES = 32 };
-
-/* The screen's state: two bytes the screen counts from zero, then its setup. */
-enum { GATE_SCREEN_COUNTS = 2, GATE_SCREEN_SETUP_BYTES = MENU_GATE_SCREEN_STATE_COUNT - GATE_SCREEN_COUNTS };
-
-static void start_counting(GameState *g)
-{
-    for (unsigned i = 0; i < GATE_SCREEN_COUNTS; i++)
-        set_menu_gate_screen_state(g, i, 0);
-}
-
-static void set_up_gate_screen(GameState *g)
-{
-    for (unsigned i = 0; i < GATE_SCREEN_SETUP_BYTES; i++)
-        set_menu_gate_screen_state(g, GATE_SCREEN_COUNTS + i, menu_gate_screen_setup(g, i));
-}
-
 /* ---- The bridges: the screens on the machine -------------------------------------------------- */
 
 /* Registers the original's routines the screens call don't read
@@ -1942,35 +1919,4 @@ void menu_epoch_in_area(Snes *s)
     m_set_flag(s, CPU_FLAG_C, in_area(g, menu_object_running(g)));
     m_sep(s, CPU_FLAG_M);
     m_rtl(s);
-}
-
-/* The gate screen's frame task ($C2:CECE), added in the menus' task slot $10
- * by $C2:8249, the original's. The setup is copied with a block move, which
- * leaves the data bank on work RAM's and Y past the state, which the caller
- * reads. */
-enum { GATE_SCREEN_TASK = 0xCECE, GATE_SCREEN_TASK_SLOT = 0x0010 };
-
-// $C2:CE9D
-/* The original keeps its caller's P on the stack round the task's call, and
- * puts it back as it returns. */
-void menu_start_gate_screen(Snes *s)
-{
-    GameState *g = state_of(s);
-    m_push8(s, s->cpu.p);
-    const VidBg bg3 = { .map_base = GATE_SCREEN_TILEMAP, .map_w = TILEMAP_TILES, .map_h = TILEMAP_TILES };
-    vid_set_bg_map(m_platform(s), PF_AT(0xC2CEA2), VID_BG3, &bg3);
-    start_counting(g);
-    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    s->cpu.a = GATE_SCREEN_TASK;
-    s->cpu.x = GATE_SCREEN_TASK_SLOT;
-    m_jsr_dc(s, 0xC2CEB1, 0xC28249, DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_DB);
-    set_up_gate_screen(g);
-    s->cpu.db = WORK_RAM_BANK;
-    s->cpu.y = (uint16_t)(RAM_ABS(RAM_MENU_GATE_SCREEN_STATE) + MENU_GATE_SCREEN_STATE_COUNT);
-    s->cpu.p = m_pull8(s);
-    if (m_x8(s)) {
-        s->cpu.x &= 0xFF;
-        s->cpu.y &= 0xFF;
-    }
-    m_rts(s);
 }

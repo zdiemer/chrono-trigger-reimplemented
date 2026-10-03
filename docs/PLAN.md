@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 218 files, 117 of 63,020 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 221 files, 117 of 63,751 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -229,8 +229,8 @@ still generated.**
 | scene engine (`$C3`) | 3.8K | 3.3K | 0.6K | 15% | 28 |
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
-| misc (`$FF`) | 1.5K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **266.5K** | **201.9K** | **50.0K** | **24%** | **1576** |
+| misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
+| **total** | **266.5K** | **203.3K** | **50.0K** | **24%** | **1587** |
 
 `$CD`, the battle's frame work, has the screen script language in C
 (RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122

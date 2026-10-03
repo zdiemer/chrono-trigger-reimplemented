@@ -29,11 +29,9 @@
 
 /* ---- The party, as the menus list it ------------------------------------------------------------ */
 
-/* The party's nine places: three active, six waiting; a place without a
- * member holds a negative byte. */
-enum { ACTIVE_PLACES = 3, PARTY_PLACES = 9, NO_MEMBER = 0x80 };
+enum { ACTIVE_PLACES = 3 };
 
-static uint8_t member_in_place(const GameState *g, unsigned place)
+uint8_t menu_member_in_place(const GameState *g, unsigned place)
 {
     return place < ACTIVE_PLACES ? party_members(g, place) : party_waiting(g, place - ACTIVE_PLACES);
 }
@@ -44,9 +42,9 @@ static uint8_t member_in_place(const GameState *g, unsigned place)
 void menu_list_party(GameState *g)
 {
     uint8_t listed = 0, active = 0;
-    for (unsigned place = 0; place < PARTY_PLACES; place++) {
-        uint8_t member = member_in_place(g, place);
-        if (member & NO_MEMBER)
+    for (unsigned place = 0; place < MENU_PARTY_PLACES; place++) {
+        uint8_t member = menu_member_in_place(g, place);
+        if (member & MENU_NO_MEMBER)
             continue;
         set_menu_members(g, listed, member);
         set_menu_member_places(g, listed, (uint8_t)place);

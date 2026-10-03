@@ -289,11 +289,11 @@ logs hold the measurement, and a page kind declares exactly the D values those
 show, plus any the code proves (a table's length), with its `source` saying
 which. An instance is named for where its cells are, not for the code that uses
 it: two modes on one D share one set of bytes, so the map rejects two instances
-at one D, and a kind with a single named instance is just a fixed page. Two
-page kinds are in the map: `scene_program`, the page the scene program's
-shared routines run on, the scene's own or a sequence channel's; and
+at one D, and a kind with a single named instance is just a fixed page. Three page kinds are in the map: `scene_program`, the page the scene program's
+shared routines run on, the scene's own or a sequence channel's;
 `menu_record`, the eight `$40`-byte records at `$1800` the menus point D at to
-draw each. Variables on a page kind have an offset (`dp`) and no address. The
+draw each; and `save_check`, the menus' page or the clock's (`$0400`) the save
+code's check of a slot runs on. Variables on a page kind have an offset (`dp`) and no address. The
 controller reader's cells were thought to be a third, since the reader is
 entered with eight different D's; it sets D = `$0000` itself, and the measurement
 agrees (RECOMP.md, "Page kinds"), so they are on the fixed page `input`.

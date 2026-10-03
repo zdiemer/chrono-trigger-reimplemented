@@ -1,0 +1,23 @@
+/* The End of Time's gate screen (game/menu/gate_screen.c): its swirl drawn,
+ * turned every frame, and the screen started. */
+#ifndef CT_GAME_MENU_GATE_SCREEN_H
+#define CT_GAME_MENU_GATE_SCREEN_H
+
+#include <stdbool.h>
+
+#include "snes/system.h"
+#include "state.h"
+
+/* The swirl's tilemap, colours and scroll, once its graphics are unpacked;
+ * and its turn for a frame. */
+void menu_draw_gate_swirl(GameState *g);
+void menu_turn_gate_swirl(GameState *g);
+
+/* The registered entries ($FF:F677, $FF:F716, $C2:CE9D) and their guard. */
+void menu_draw_gate_screen(Snes *s);
+void menu_turn_gate_swirl_entry(Snes *s);
+void menu_start_gate_screen(Snes *s);
+bool menu_gate_screen_runs(Snes *s);
+bool menu_gate_swirl_turns(Snes *s);
+
+#endif
