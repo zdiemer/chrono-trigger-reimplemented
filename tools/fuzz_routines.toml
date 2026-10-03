@@ -711,15 +711,15 @@ why = "on channel 1's page with the endings' start of the lines, from the line a
 name = "scene_race_place_bikes"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
-why = "a frame task on the scene's page with the carry clear, the program kept; the divisors' table as random as the rest (a kept divisor is taken as it is)"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "a frame task on the scene's page with the carry clear, the program kept; the horizon ($38 in the race, $60-$7F raised in the demo) above the plane's top ($18), as the guard asks; the divisors' table as random as the rest (a kept divisor is taken as it is)"
 
 [[routine]]
 name = "scene_race_place_bikes"
 variant = "searching"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1446-7E1545=00-00", "--fill", "7E1444-7E1445=0000,0001"]
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1446-7E1545=00-00", "--fill", "7E1444-7E1445=0000,0001", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
 why = "the divisors forgotten, as a new camera height leaves them, so every distance is searched for; Johnny in the picture or gone"
 
 [[routine]]

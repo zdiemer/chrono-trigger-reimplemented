@@ -138,6 +138,13 @@ bool scene_music_reached(MusicStatus music, uint8_t level);
 enum { SCENE_CIRCLE_ROUND = 0, SCENE_CIRCLE_SQUASHED = 1, SCENE_CIRCLE_KEEPS_OUTSIDE = 0x80 };
 void scene_circle_draw(GameState *g, uint8_t mode);
 
+/* The CPU's divider, as the scene programs divide by it: a 16-bit dividend
+ * over a byte, $FFFF for a divisor of 0. */
+static inline uint16_t scene_divider_quotient(uint16_t dividend, uint8_t divisor)
+{
+    return divisor ? (uint16_t)(dividend / divisor) : 0xFFFF;
+}
+
 /* scene/math.c: the program's arithmetic as C calls, on a page's cells, each
  * timed as the routine it stands for: a 16 x 16-bit product; a signed 16-bit
  * value times a signed byte (the low word of the product); the 8.8 fraction of

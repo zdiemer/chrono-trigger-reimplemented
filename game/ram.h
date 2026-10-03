@@ -7201,8 +7201,10 @@
 #define RAM_SCENE_CALL_MATRIX_SOURCE_DP 0xF8u /* The race's matrix code generator: the base the generated loads add their offsets to */
 #define RAM_SCENE_CALL_MATRIX_DESTINATION_DP 0xFAu /* The race's matrix code generator: the page the generated stores start on, which it leaves moved on past the last */
 #define RAM_SCENE_CALL_BUMP_PUSH_DP 0xF6u    /* The race's bump: how far the bike behind is pushed on, left here where the next multiply carries in from its third byte */
-#define RAM_SCENE_CALL_RACE_HALF_SIZE_DP 0xFCu /* The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over */
-#define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap below the plane's top, less one, kept there across the multiply that shifts the cell after the product */
+#define RAM_SCENE_CALL_RACE_EDGE_HALF_WIDTH_DP 0xF0u /* The race's placing of the bikes: the last bike's half width, over which its left edge is worked out; the field's controller read takes it over as the buttons newly pressed (input_pressed shares the cell) */
+#define RAM_SCENE_CALL_RACE_EDGE_MIDDLE_DP 0xF2u /* The race's placing of the bikes: where across the screen the last bike's picture is centered; the field's controller read takes it over as the buttons held (input_held) */
+#define RAM_SCENE_CALL_RACE_HALF_SIZE_DP 0xFCu /* The race's placing of Crono: his size halved, at least $40, which his picture's height and width are worked out over; the field's controller read takes it over as the repeat delay (input_repeat_delay) */
+#define RAM_SCENE_CALL_RACE_GAP_DP 0xFEu     /* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there across the multiply that shifts the cell after the product; the field's controller read takes it over as the buttons of the frame before (input_previous) */
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 

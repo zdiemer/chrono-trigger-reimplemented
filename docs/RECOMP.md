@@ -3440,16 +3440,25 @@ pictures are worked on, kept on the stack around the third part's
 unpacking), the first script step Y as the divisors' clear leaves it.
 
 **The carries.** The placing never clears the carry between its sums either.
-Four of them move a bike by a pixel or a distance step: Johnny's place across
-the plane takes a unit where Crono's place down it wrapped, and his place down
-one where his own place across did (each through the lane sum before it); the
-second bike placed is a distance farther where the first's last edge wrapped;
-Johnny is a pixel to the right where his picture is at its largest. Each rule
-has one term, and one section, "The units the placing hands on", works them
-out from the values the sum before used, as `race_rules.c` does. The rotation's
-products are plain arithmetic (the low word of the signed product); the
-program's own multiplies are left for their time only, since the
-perspective's later arithmetic writes over every cell they touch.
+Those whose carry is the same wherever the horizon is above the plane's top
+(the gap's borrow, the screen line's unit) are plain arithmetic, a bike's top
+the line plus the horizon less the plane's top, and the entry's guard keeps
+the horizon there (the race has it at $38 over $18). The rest move a bike by a
+pixel or a distance step and are rules with one term each, worked out in one
+section, "The units the placing hands on", from the values the sums before
+used: Johnny's place across the plane takes a unit where Crono's place down it
+wrapped, and his place down one where his own place across did; a bike's
+distance takes a unit from the order's comparison (the first) or from the
+first bike's last edge running past the screen's coordinates (the second), and
+is a step farther where the camera's distance less the place wrapped; Johnny
+is a pixel to the right at his nearest (a size of 1). The rotation's products
+are plain arithmetic (the low word of the signed product), the program's own
+multiplies timed with the placing. What the last bike leaves in the scene's
+working cells is written once, plainly, after the placing: the field's
+controller read takes those cells over. The wrapper rebuilds A from the bike
+that comes last and Y from the distance it was looked up at, which the placing
+notes as scaffolding; the drawing, the next task, hands Y on where it draws
+nothing.
 
 **What shadow mode and fuzzing found.** Over the 26 movies every call
 matches, none refused: in `events-jetbike-race` the placing 2,640, the camera
@@ -3466,7 +3475,8 @@ no movie runs). The gate's shipping-mode run with `--scaffold-reads` found the
 placing's working cells read after the race: the scene's cells share their
 page with the controller's (`input_held`, the repeat delay, the last frame's
 buttons), so what the last placing leaves there is what the field's first
-read of the controller takes over, and those writes are plain. Fuzzed from the `race` state with the program kept, seeds 1
+read of the controller takes over, and those writes are plain. The placing's
+fuzz runs keep the horizon above the plane's top, as the guard asks. Fuzzed from the `race` state with the program kept, seeds 1
 and 2 (`tools/fuzz_routines.toml`), 0 mismatched everywhere: the placing as it
 comes and with the divisors forgotten (Johnny shown or gone; under 2% refused,
 a camera height of `$FF`, where the search never ends, or nothing ahead of the

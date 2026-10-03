@@ -225,8 +225,7 @@ static void leave_dividend_high_byte_shifted_out(GameState *g, SceneProgramPage 
 
 /* ---- find_divisor --------------------------------------------------------------------------- */
 
-/* The CPU's divider gives $FFFF for a divisor of 0. */
-static uint16_t quotient_of(uint16_t dividend, uint8_t divisor) { return divisor ? dividend / divisor : 0xFFFF; }
+static uint16_t quotient_of(uint16_t dividend, uint8_t divisor) { return scene_divider_quotient(dividend, divisor); }
 
 /* The 8-bit divisors wrap after 256: a search that goes round finds nothing. */
 enum { DIVISORS = 0x100 };

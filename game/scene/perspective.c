@@ -86,12 +86,9 @@ static void start_lines(GameState *g, SceneChannel ch)
     set_scene_perspective_line_step(g, paired ? scene_perspective_pair_branch(g) : STEP_RACE);
 }
 
-/* The CPU's divider, which the original uses: a byte divisor, and $FFFF for 0. */
-static uint16_t over_distance(uint16_t value, uint16_t distance)
-{
-    uint8_t by = (uint8_t)distance;
-    return by ? (uint16_t)(value / by) : 0xFFFF;
-}
+/* Through the CPU's divider, as the original divides: by the distance's low
+ * byte. */
+static uint16_t over_distance(uint16_t value, uint16_t distance) { return scene_divider_quotient(value, (uint8_t)distance); }
 
 static uint16_t magnitude(int16_t v) { return v < 0 ? (uint16_t)-v : (uint16_t)v; }
 

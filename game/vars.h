@@ -10499,12 +10499,23 @@ void set_scene_call_matrix_destination(GameState *g, SceneProgramPage page, uint
  * carries in from its third byte */
 uint32_t scene_call_bump_push(const GameState *g, SceneProgramPage page);
 void set_scene_call_bump_push(GameState *g, SceneProgramPage page, uint32_t v);
+/* The race's placing of the bikes: the last bike's half width, over which its left edge is
+ * worked out; the field's controller read takes it over as the buttons newly pressed
+ * (input_pressed shares the cell) */
+uint16_t scene_call_race_edge_half_width(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_half_width(GameState *g, SceneProgramPage page, uint16_t v);
+/* The race's placing of the bikes: where across the screen the last bike's picture is centered;
+ * the field's controller read takes it over as the buttons held (input_held) */
+uint16_t scene_call_race_edge_middle(const GameState *g, SceneProgramPage page);
+void set_scene_call_race_edge_middle(GameState *g, SceneProgramPage page, uint16_t v);
 /* The race's placing of Crono: his size halved, at least $40, which his picture's height and
- * width are worked out over */
+ * width are worked out over; the field's controller read takes it over as the repeat delay
+ * (input_repeat_delay) */
 uint16_t scene_call_race_half_size(const GameState *g, SceneProgramPage page);
 void set_scene_call_race_half_size(GameState *g, SceneProgramPage page, uint16_t v);
-/* The race's placing of a bike: the horizon's gap below the plane's top, less one, kept there
- * across the multiply that shifts the cell after the product */
+/* The race's placing of a bike: the horizon's gap to the plane's top, less one, kept there
+ * across the multiply that shifts the cell after the product; the field's controller read takes
+ * it over as the buttons of the frame before (input_previous) */
 uint16_t scene_call_race_gap(const GameState *g, SceneProgramPage page);
 void set_scene_call_race_gap(GameState *g, SceneProgramPage page, uint16_t v);
 /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of

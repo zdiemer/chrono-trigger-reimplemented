@@ -2107,7 +2107,7 @@ const NativeEntry game_natives[] = {
       .cost_milli = 3408, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C, .guard = scene_race_ride_lists_fit },
     { .addr = 0x7E4D0D, .name = "scene_race_place_bikes", .fn = scene_race_place_bikes,
       .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D | CPU_FLAG_C, .p_value = 0,
-      .cost_milli = 7956, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D,
+      .cost_milli = 11472, .dont_care = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C | DC_DB | DC_D,
       .guard = scene_race_place_bikes_present },
     { .addr = 0x7E4F54, .name = "scene_race_draw", .fn = scene_race_draw,
       .p_mask = CPU_FLAG_M | CPU_FLAG_X | CPU_FLAG_D | CPU_FLAG_C, .p_value = 0,
