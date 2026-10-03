@@ -11072,7 +11072,7 @@ source = "game/battle/menu_window.c header, mark_tech_list $C1:0EE1, draw_tech_p
 [[var]]
 name = "battle_menu_list_tiles"
 addr = "7E:99E3"
-count = 0x1F9
+count = 0x280
 stride = 2
 index = "tile"
 subsystem = "battle"
@@ -13235,7 +13235,7 @@ source = "game/battle/setup_reset.c take_settings in battle_setup_state $CC:E2E4
 [[var]]
 name = "battle_menu_list_attributes"
 addr = "7E:99E4"
-count = 0x1F9
+count = 0x280
 stride = 2
 index = "tile"
 subsystem = "battle"

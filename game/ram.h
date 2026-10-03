@@ -4654,14 +4654,14 @@
 /* Set to upload the window frames tilemap ($0B40) at the next vblank */
 #define RAM_BATTLE_FRAMES_UPLOAD_REQUEST 0x7E99E2u
 /* (tile, attribute) pairs the tech page's list is laid out in and copied from into the menu
- * tilemap [505 x $2 bytes, by tile] */
+ * tilemap [640 x $2 bytes, by tile] */
 #define RAM_BATTLE_MENU_LIST_TILES 0x7E99E3u
-#define RAM_BATTLE_MENU_LIST_TILES_COUNT 505u
+#define RAM_BATTLE_MENU_LIST_TILES_COUNT 640u
 #define RAM_BATTLE_MENU_LIST_TILES_STRIDE 0x02u
-/* The attributes of battle_menu_list_tiles' tiles, the second byte of each pair [505 x $2 bytes,
+/* The attributes of battle_menu_list_tiles' tiles, the second byte of each pair [640 x $2 bytes,
  * by tile] */
 #define RAM_BATTLE_MENU_LIST_ATTRIBUTES 0x7E99E4u
-#define RAM_BATTLE_MENU_LIST_ATTRIBUTES_COUNT 505u
+#define RAM_BATTLE_MENU_LIST_ATTRIBUTES_COUNT 640u
 #define RAM_BATTLE_MENU_LIST_ATTRIBUTES_STRIDE 0x02u
 /* Copy of the record (battle_tech_records) of the tech under the tech list's cursor, every byte
  * $FF when the row is blank [7 bytes] */

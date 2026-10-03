@@ -3889,10 +3889,10 @@ uint8_t battle_lists_hold_timers(const GameState *g) { return r8(g, 0x7E99E1u); 
 void set_battle_lists_hold_timers(GameState *g, uint8_t v) { w8(g, 0x7E99E1u, v); }
 uint8_t battle_frames_upload_request(const GameState *g) { return r8(g, 0x7E99E2u); }
 void set_battle_frames_upload_request(GameState *g, uint8_t v) { w8(g, 0x7E99E2u, v); }
-uint8_t battle_menu_list_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 456, "battle_menu_list_tiles", "count", i, 505u); return r8(g, 0x7E99E3u + (uint32_t)i * 0x02u); }
-void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 456, "set_battle_menu_list_tiles", "count", i, 505u); w8(g, 0x7E99E3u + (uint32_t)i * 0x02u, v); }
-uint8_t battle_menu_list_attributes(const GameState *g, unsigned i) { IN_RANGE(g, 457, "battle_menu_list_attributes", "count", i, 505u); return r8(g, 0x7E99E4u + (uint32_t)i * 0x02u); }
-void set_battle_menu_list_attributes(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 457, "set_battle_menu_list_attributes", "count", i, 505u); w8(g, 0x7E99E4u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_menu_list_tiles(const GameState *g, unsigned i) { IN_RANGE(g, 456, "battle_menu_list_tiles", "count", i, 640u); return r8(g, 0x7E99E3u + (uint32_t)i * 0x02u); }
+void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 456, "set_battle_menu_list_tiles", "count", i, 640u); w8(g, 0x7E99E3u + (uint32_t)i * 0x02u, v); }
+uint8_t battle_menu_list_attributes(const GameState *g, unsigned i) { IN_RANGE(g, 457, "battle_menu_list_attributes", "count", i, 640u); return r8(g, 0x7E99E4u + (uint32_t)i * 0x02u); }
+void set_battle_menu_list_attributes(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 457, "set_battle_menu_list_attributes", "count", i, 640u); w8(g, 0x7E99E4u + (uint32_t)i * 0x02u, v); }
 uint8_t battle_selected_tech_id(const GameState *g) { return r8(g, 0x7E9EE3u); }
 void set_battle_selected_tech_id(GameState *g, uint8_t v) { w8(g, 0x7E9EE3u, v); }
 uint8_t battle_selected_tech_menu_detail(const GameState *g) { return r8(g, 0x7E9EE4u); }

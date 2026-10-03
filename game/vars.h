@@ -6766,13 +6766,13 @@ void set_battle_lists_hold_timers(GameState *g, uint8_t v);
 uint8_t battle_frames_upload_request(const GameState *g);
 void set_battle_frames_upload_request(GameState *g, uint8_t v);
 
-enum { BATTLE_MENU_LIST_TILES_COUNT = 505 };   /* by tile */
+enum { BATTLE_MENU_LIST_TILES_COUNT = 640 };   /* by tile */
 /* (tile, attribute) pairs the tech page's list is laid out in and copied from into the menu
  * tilemap */
 uint8_t battle_menu_list_tiles(const GameState *g, unsigned i);
 void set_battle_menu_list_tiles(GameState *g, unsigned i, uint8_t v);
 
-enum { BATTLE_MENU_LIST_ATTRIBUTES_COUNT = 505 };   /* by tile */
+enum { BATTLE_MENU_LIST_ATTRIBUTES_COUNT = 640 };   /* by tile */
 /* The attributes of battle_menu_list_tiles' tiles, the second byte of each pair */
 uint8_t battle_menu_list_attributes(const GameState *g, unsigned i);
 void set_battle_menu_list_attributes(GameState *g, unsigned i, uint8_t v);
