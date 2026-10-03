@@ -61,5 +61,11 @@ void hw_port_seek_address(GameState *g, uint16_t at);
 void hw_port_seek_bank(GameState *g, uint8_t bank);
 uint8_t hw_port_read(GameState *g);
 void hw_port_write(GameState *g, uint8_t v);
+/* A 16-bit store at the address just below the port sends its high byte
+ * through the port and leaves its low byte on the sound CPU's port 3, which
+ * that address mirrors (no message: the driver reads port 3 only after a
+ * message's other bytes; docs/PLATFORM.md, "P1 as built"). This leaves that
+ * low byte on port 3, as such a store would: scaffolding only. */
+void hw_port_leave_spill(GameState *g, uint8_t low);
 
 #endif

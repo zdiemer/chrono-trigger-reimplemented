@@ -54,6 +54,33 @@ static inline uint16_t battle_animated_color(const GameState *g, uint16_t phase_
     return rom_read16(g, 0xD15980u + phase_offset);
 }
 
+/* ---- The line effects' arrangements -------------------------------------------------------- */
+
+/* The ways the screen is laid out for the per-line effects, 32 of them
+ * ($CE:F24E, a word each, its index a byte of twice the arrangement): each the
+ * byte offset of its ten lists of runs of lines among the lists' places at
+ * $CE:F58E (a word each, the place in bank $CE of the list's 30 bytes). The
+ * first nine are the nine per-line tables' (the seven effects' and the
+ * window's two); the tenth stands in for the BG2 scroll's on a battlefield
+ * whose background ripples. */
+enum { LINE_ARRANGEMENT_LISTS = 10, LINE_ARRANGEMENT_LIST_BYTES = 30, RIPPLING_BG2_SCROLL_LIST = 9 };
+
+static inline uint8_t line_arrangement_byte(const GameState *g, uint8_t arrangement, unsigned list, unsigned i)
+{
+    uint16_t lists = rom_read16(g, 0xCEF24Eu + (uint8_t)(arrangement * 2));
+    uint16_t at = rom_read16(g, 0xCEF58Eu + (uint16_t)(lists + 2u * list));
+    return rom_read8(g, 0xCE0000u + (uint16_t)(at + i));
+}
+
+/* ---- The background's ripple -------------------------------------------------------------- */
+
+/* The sway of a rippling background ($CE:E08E): 128 signed words, two
+ * periods of a wave a column or two either way, which the ripple shows 64 at
+ * a time. */
+enum { RIPPLE_SWAYS = 128 };
+
+static inline uint16_t background_ripple_sway(const GameState *g, unsigned i) { return rom_read16(g, 0xCEE08Eu + 2u * i); }
+
 /* ---- What the uploads send from the ROM -------------------------------------------------- */
 
 /* A zero byte, which tiles are cleared from ($CD:06B2). */

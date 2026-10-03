@@ -69,6 +69,52 @@ void battle_show_window_table(GameState *g, Platform *pf)
     vid_set_line_slot(pf, PF_AT(0xCD0AF0), WINDOW_SLOT, &e);
 }
 
+/* ---- The line effects' arrangements --------------------------------------------------------- */
+
+/* Each of the nine per-line tables (the seven effects' and the window's two)
+ * is a short list of runs of lines, which says where the battlefield's lines
+ * end and the battle window's begin and what each run takes. */
+enum { LINE_TABLES = BATTLE_LINE_TABLES_COUNT, WINDOW_LINE_TABLES = BATTLE_WINDOW_LINE_TABLES_COUNT };
+enum { BG2_SCROLL_TABLE = 2 };
+
+// $CE:EE6E
+void battle_arrange_line_effects(GameState *g, uint8_t arrangement)
+{
+    bool ripples = battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT;
+    for (unsigned table = 0; table < LINE_TABLES + WINDOW_LINE_TABLES; table++) {
+        unsigned list = table == BG2_SCROLL_TABLE && ripples ? RIPPLING_BG2_SCROLL_LIST : table;
+        for (unsigned i = 0; i < LINE_ARRANGEMENT_LIST_BYTES; i++) {
+            uint8_t v = line_arrangement_byte(g, arrangement, list, i);
+            if (table < LINE_TABLES)
+                set_battle_line_tables_byte(g, table, i, v);
+            else
+                set_battle_window_line_tables_byte(g, table - LINE_TABLES, i, v);
+        }
+    }
+}
+
+/* ---- The background's ripple ------------------------------------------------------------- */
+
+/* BG2's scroll on a rippling background's lines (battle_background_ripple)
+ * takes 64 sways of the wave, a step further along it every fourth frame,
+ * round its 32 steps. */
+enum { RIPPLE_LINES = BATTLE_BACKGROUND_RIPPLE_COUNT, FRAMES_A_RIPPLE_STEP = 4, RIPPLE_STEPS = 32, SWAYS_A_STEP = 2 };
+
+// $CE:E18E
+void battle_ripple_background(GameState *g)
+{
+    if (battle_palette_rows_moved(g)) {
+        for (unsigned line = 0; line < RIPPLE_LINES; line++)
+            set_battle_background_ripple(g, line, 0);
+        return;
+    }
+    uint8_t frames = battle_ripple_frames(g);
+    set_battle_ripple_frames(g, (uint8_t)(frames + 1));
+    unsigned step = frames / FRAMES_A_RIPPLE_STEP % RIPPLE_STEPS;
+    for (unsigned line = 0; line < RIPPLE_LINES; line++)
+        set_battle_background_ripple(g, line, background_ripple_sway(g, step * SWAYS_A_STEP + line));
+}
+
 /* ---- The battle's graphics ----------------------------------------------------------------- */
 
 /* The loads, three steps of them: the ROM's graphics for the message and
@@ -187,6 +233,30 @@ void battle_setup_display(Snes *s)
 void battle_load_graphics(Snes *s)
 {
     load_the_next_step(state_of(s), m_platform(s));
+    m_rtl(s);
+}
+
+void battle_leave_arrangement_registers(Snes *s)
+{
+    s->cpu.a = 0;
+    s->cpu.y = (uint16_t)(RAM_BATTLE_WINDOW_LINE_TABLES + RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE + LINE_ARRANGEMENT_LIST_BYTES);
+}
+
+/* The arrangement in A; the carry comes back as the arrangement's top bit,
+ * which the original's indexing shifts out. */
+void battle_load_line_arrangement(Snes *s)
+{
+    uint8_t arrangement = (uint8_t)s->cpu.a;
+    battle_arrange_line_effects(state_of(s), arrangement);
+    battle_leave_arrangement_registers(s);
+    m_set_flag(s, CPU_FLAG_C, arrangement & 0x80);
+    m_rtl(s);
+}
+
+void battle_step_ripple(Snes *s)
+{
+    battle_ripple_background(state_of(s));
+    s->cpu.a = 0;
     m_rtl(s);
 }
 

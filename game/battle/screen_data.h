@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/positions.h"
 #include "data/packed_graphics.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -88,6 +89,25 @@ static inline uint32_t effect_tilemap_graphics_address(const GameState *g, uint8
 /* The battle's sine table ($CE:F48E): 256 steps a turn, the magnitude 0-255
  * of each; the second half of the turn is the negative one. */
 static inline uint8_t battle_sine_magnitude(const GameState *g, uint8_t angle) { return rom_read8(g, 0xCEF48Eu + angle); }
+
+/* Where a line from the middle of the screen at each angle (256 a turn, 0
+ * pointing right, a quarter turn down) meets the screen's edge ($CE:F28E,
+ * across then down, a word an angle). */
+static inline BattlePoint screen_edge_toward(const GameState *g, uint8_t angle)
+{
+    uint32_t at = 0xCEF28Eu + 2u * angle;
+    return (BattlePoint){ rom_read8(g, at), rom_read8(g, at + 1) };
+}
+
+/* The angle of a slope from the horizontal, 0 to a quarter turn ($40), for a
+ * run of `across` eighths of 256 across and `down` eighths down, each 0-32
+ * ($C0:F300, a row of 32 a run down). A run of 32 across reads the next row's
+ * first, as the original's indexing does. */
+enum { SLOPE_STEPS = 32 };
+static inline uint8_t slope_angle(const GameState *g, uint8_t across, uint8_t down)
+{
+    return rom_read8(g, 0xC0F300u + (uint16_t)(down * SLOPE_STEPS + across));
+}
 
 /* The random bytes the battle picks from ($C0:FE00), 256 of them. */
 static inline uint8_t battle_random_table(const GameState *g, uint8_t pick) { return rom_read8(g, 0xC0FE00u + pick); }

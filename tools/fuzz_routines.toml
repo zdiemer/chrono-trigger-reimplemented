@@ -8696,8 +8696,8 @@ name = "battle_apply_alternate_frame"
 at = "D1:FE4C"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E"]
-why = "as the line handler calls it on even frames"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "as the line handler calls it on even frames, A's high byte clear (the arrangement's index takes it along)"
 
 [[routine]]
 name = "battle_restore_math_operands"
@@ -9114,7 +9114,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E0040-7E0040=00-00", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0100-7E0100=00-01"]
 iterations = 2000
-why = "the quadrilateral (the operand, put in work RAM) one of the two; the rasterizer is a call-out"
+why = "the quadrilateral (the operand, put in work RAM) one of the two"
 
 [[routine]]
 name = "battle_screen_open_band"
@@ -9332,7 +9332,7 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0001"]
 iterations = 2000
-why = "the quadrilateral in X one of the two; the rasterizer is a call-out"
+why = "the quadrilateral in X one of the two"
 
 [[routine]]
 name = "battle_screen_jitter"
@@ -9748,8 +9748,8 @@ why = "on the battle's page; its steps are call-outs"
 name = "battle_step_window_slide"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E"]
-why = "on the battle's page; each line of the slide is a call-out"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "on the battle's page, A's high byte clear (the arrangement's index takes it along); each line of the slide is a call-out"
 
 [[routine]]
 name = "battle_step_gradient_phase"
@@ -15046,3 +15046,97 @@ state = "techs_list"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0061-7E0062=00-FF", "--fill", "7E0062-7E0062=2E-3A", "--fill", "7E9890-7E9890=00-30"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the drawing origin within the front layer's rows, the cost the row compares with random"
+
+# ---- battle: cuts, bands, the window quadrilaterals and the screen at the start (banks CE, D1) -----
+
+[[routine]]
+name = "battle_screen_script_turn_cut"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002E-002E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=97-97", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0103-7E0103=00,02,80,82"]
+why = "entered as the dispatch enters command $97's handler, its operands random bytes in work RAM, the last one naming a window and setting or turning the angle (the row's need refuses the stray bits no script sets)"
+
+[[routine]]
+name = "battle_screen_script_carry_window_over"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0064-0064", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B2-B2", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $B2's handler, the window one of the two"
+
+[[routine]]
+name = "battle_screen_script_lay_band"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0058-0058", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AC-AC", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01", "--fill", "7E0102-7E0102=00-02"]
+why = "entered as the dispatch enters command $AC's handler, the quadrilateral one of the two and the pair one of the three; the positions random"
+
+[[routine]]
+name = "battle_screen_script_lay_band_along"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00B2-00B2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D9-D9", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01", "--fill", "7E0102-7E0102=00-02"]
+why = "entered as the dispatch enters command $D9's handler, the quadrilateral one of the two and the pair one of the three; the positions random"
+
+[[routine]]
+name = "battle_screen_script_beam"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00E8-00E8", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F4-F4", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $F4's handler, the quadrilateral one of the two"
+
+[[routine]]
+name = "battle_cut_window"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-0002/2", "--fill", "7E004F-7E004F=00-FF", "--fill", "7E0051-7E0051=00-70", "--fill", "7ECA9F-7ECA9F=00,01,FF", "--fill", "7ECAA1-7ECAA1=00-80", "--fill", "7ECAA2-7ECAA2=00-70", "--fill", "7ECAA3-7ECAA3=00-FF"]
+why = "the line in the cells $97 hands it over in, within what a line from the screen's edge to its middle can run; the guard refuses a line that would leave the screen or run further down than its run across leaves room to share out"
+
+[[routine]]
+name = "battle_carry_window_over"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0040-7E0040=00-00", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0100-7E0100=00-01"]
+why = "the window (the operand at the script's place, put in work RAM) one of the two"
+
+[[routine]]
+name = "battle_measure_direction"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "any two points in the cells $23-$26"
+
+[[routine]]
+name = "battle_load_line_arrangement"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "any arrangement in A, its high byte clear (the original's indexing takes it along)"
+
+[[routine]]
+name = "battle_step_ripple"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+why = "on the battle's page, A's high byte clear (the step's index takes it along)"
+
+[[routine]]
+name = "battle_copy_circle_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "X=C161-C85F/2", "--range", "Y=B900-BAFE/2", "--fill", "7E004B-7E004B=00-FF", "--fill", "7E004C-7E004C=E2-E7"]
+why = "a run into the window table from the circles' worked edges; the guard refuses a start in the unrolled copy that isn't one, and a run past either table"
+
+[[routine]]
+name = "battle_rasterize_window_quad"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "00", "--range", "A=0000-00FF", "--fill", "7E0013-7E0013=00-3F", "--fill", "7E0015-7E0015=40-7F", "--fill", "7E0017-7E0017=80-BF", "--fill", "7E0019-7E0019=C0-E0"]
+why = "as the quadrilateral's drawing calls it: the data bank on the I/O registers, the corners in their cells sorted by line and within the screen (the guard refuses the rest)"
+
+[[routine]]
+name = "battle_set_the_screen_up"
+subsystem = "battle"
+state = "battle"
+args = ["--long"]
+why = "from anywhere: the setup sets its own page and data bank (a state whose random field state keeps the map layers' scroll or the music's start past the budget is skipped)"
+iterations = 2000

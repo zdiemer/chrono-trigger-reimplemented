@@ -136,7 +136,7 @@ rest waits, is [PLAN.md](PLAN.md).
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the window rasterizer `$D1:F9E7`; the decompressor and
+    the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
     the name converter `$C1:01A9` from the setup (through `$CC:F063` and
@@ -147,18 +147,39 @@ rest waits, is [PLAN.md](PLAN.md).
     closing `$CD:0006` and the frame wait `$CF:FCFB`, and from the setup's
     end the party's poses `$C1:35DD`; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
-    `$CE:EE6E`, `$CE:E18E`, `$CD:0B1E` and the wait tail's
-    callees from the frame work.
+    `$CD:0B1E` and the wait tail's callees from the frame work; and from the
+    screen's start (RECOMP.md, "Phase 3, battle: cuts, bands and the screen's
+    start"), the start settings' copy `$CD:0C9D`, the message tiles' clear
+    `$CD:0235` and the battle music's start `$C0:0008`.
   - The screen script commands whose handlers are still the original's
     (RECOMP.md, "Phase 3, battle chunk 11"; `battle/screen_script.c`'s rows
     with no operation): the special effects `$80`; the circles' drawing `$8B`
     and the shapes of `$B5`, `$B6`, `$B8`; `$A1`, which runs the rasterizer's
-    own setup; `$AC`, `$CC`, `$D9` and `$DA` through bank `$CE`'s angle routine
-    `$CE:E7CF`; `$AD` and `$B4`, the triangle centred on its corners; `$97` and
-    `$B2` into bank `$CE`; the layer's random drift `$D7`, which adds a byte
-    the original leaves in its cell `$46`; the beam `$F4`; the wait for a line
-    `$C1`; and the poke `$F9`. And the rasterizer `$CD:367C` the triangles are
-    drawn with, a call-out from the C commands.
+    own setup; `$AD` and `$B4`, the triangle centred on its corners; `$DA`,
+    the wedge between two positions, which calls the triangles' rasterizer
+    from inside its handler (a JSR, where the other triangles end with it) and
+    so waits for that rasterizer; `$CC`, which measures a direction along the
+    cells the dispatch's index reaches past the positions (no script has
+    `$CC` or `$DA`); the layer's random drift `$D7`, which adds a byte the
+    original leaves in its cell `$46`; the wait for a line `$C1`; and the poke
+    `$F9`. And the rasterizer `$CD:367C` the triangles are drawn with, a
+    call-out from the C commands, with the circles' drawing (`$CD:31AA`-`$CD:3656`)
+    around the copy `$CE:E7C8` it makes.
+  - The direction between two positions (`$CE:E7CF`, `battle/screen_between.c`)
+    is worked out in the cells `$23`-`$2A`, over the turn slot's high byte,
+    the party's defeat, the random cells and the wide arithmetic's first
+    word (`battle_direction_work`), and the port writes them plainly as the
+    original leaves them. Find whether any of those is read before it is
+    written again after a band; if none is, the writes are scaffolding.
+  - The screen's start (`$D1:F1B0`) clears cells no routine of the battle
+    reads (`battle_start_cleared`, `battle_start_cleared_byte`, the bytes after
+    `battle_message_by_id` and `battle_frame_advance_count`) and keeps the
+    layout it starts in where nothing reads it back (`battle_start_layout`):
+    find a reader (the field's code, a script's poke) or call them dead.
+    `battle_restore_keeps_screen` is read and never set but there.
+  - `$CE:E1C7`-`$CE:E292`, an unrolled byte copy next to the ripple's step,
+    is code nothing the analysis knows reaches (`re/hints.toml` keeps it
+    `unreached`); the burndown counts it as bank `$CE`'s 5% left.
   - The screen script's model triangles (`$BA`, `$BB`, `$BE`) clear the low
     byte of `battle_turn_slot` ($22): the original hands its rotation the
     triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
@@ -301,6 +322,19 @@ rest waits, is [PLAN.md](PLAN.md).
     movie plays a demo battle's party turns, so the timing gate has nothing to
     calibrate them from (`battle_party_stands_down`, 3500, measured exact over
     the library). A movie of the attract mode's battle would;
+  - what the screen effects' second half's review left (none blocking):
+    `frame.h` exports `battle_leave_arrangement_registers(Snes*)` from a
+    logic header (to entries.h or the leaves); `screen_setup.c` writes the
+    window settings as register values (`0x78787878`, `0x05050505`, mode 9)
+    where layer bits and named fields would do, with an unnamed
+    `short_window_down` and `0xFFDF`/`0xFFFC` for -33 and -4, and its
+    starting resets read as flat setter lists; `screen_lines.h`'s
+    `line_edge` takes `unsigned` where the others take `TableLine`;
+    `screen_beam.c` names the window table's address a third time
+    (`0xC161`); the screen language's shared list gained `window` and `quad`
+    as bare bytes converted at each use and `stray_bits` only for a guard
+    (rubric 116, worse by those).
+
   - what the battle's start and leftovers' review left (none blocking):
     `effect_animation.c`'s `TakenFrame` is returned and carried through the
     loop only for `leave_taken_frame` -- work it out afterwards from the
@@ -1403,16 +1437,14 @@ rest waits, is [PLAN.md](PLAN.md).
   GBA's constraints.
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code
   (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
-  which writes `$7F:0400` through the work RAM port that way; another is the
-  battle's window quadrilateral rasterizer `$D1:F9E7`, which writes the window
-  table through the work RAM port with 16-bit stores, so each edge's low byte
-  also lands on APU port 3; RECOMP.md, "Phase 3, wave 1"),
+  which writes `$7F:0400` through the work RAM port that way; the others are
+  the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
+  write the window table through the work RAM port with 16-bit stores, so each
+  edge's low byte also lands on APU port 3, as the quadrilaterals' `$D1:F9E7`
+  did before it was C and left that byte as scaffolding, `hw_port_leave_spill`;
+  RECOMP.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
-- **The battle's screen setup `$D1:F1B0`** (609 bytes, the largest unported run
-  in `$D1`) sets the line interrupt's line, 211 as the field and the scenes do,
-  which is `tm_set_line` now (the scene boot added it), and reads some 30 cells
-  of the `$CD` frame work that aren't named yet.
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
   the boot's countdown at `$C7:011B` ($0800 passes, time for the SPC700 to start
   the driver) and every echo wait stay loops on the machine as idle entries.

@@ -19,6 +19,7 @@
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/frame.h"
 #include "battle/screen_data.h"
 #include "cpu_io.h"
 #include "original_effects.h"
@@ -203,9 +204,10 @@ void battle_restore_math_operands(Snes *s)
 
 /* ---- The line handler ------------------------------------------------------------------- */
 
-/* The alternating-frame setting, applied by $CE:EE6E: its base plus the
- * request, offset by the VRAM copy mode. */
-enum { APPLY_ALTERNATE = 0xCEEE6E, TILE_ANIMATION_UPLOADS = 0xFDFFFD };
+/* The alternating-frame setting: an arrangement of the line effects
+ * (battle_arrange_line_effects), its base plus the request, offset by the
+ * VRAM copy mode. */
+enum { ARRANGE_LINE_EFFECTS = 0xCEEE6E, TILE_ANIMATION_UPLOADS = 0xFDFFFD };
 
 /* Whether the alternating-frame setting must be applied: the request changed
  * (and is latched), or an application was asked for. */
@@ -221,29 +223,15 @@ static bool alternate_wanted(GameState *g)
 
 // $D1:FE4C
 /* On the line handler's even frames: apply the alternating-frame setting when
- * it is wanted, and clear the ask. The setting is handed over with the carry
- * and overflow of its sum, which the callee carries back to our caller; with
- * nothing to apply, A is the ask (0) and the carry that of the compare. */
+ * it is wanted, and clear the ask. */
 void battle_apply_alternate_frame(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!alternate_wanted(g)) {
-        m_set_a8(s, 0);
-        m_set_nz8(s, 0);
-        m_set_flag(s, CPU_FLAG_C, true);
-        m_rts(s);
-        return;
+    if (alternate_wanted(g)) {
+        uint8_t arrangement = (uint8_t)(battle_alternate_base(g) + battle_alternate_latched(g) + battle_vram_copy_mode(g));
+        NATIVE_TIME_AS(s, ARRANGE_LINE_EFFECTS, battle_arrange_line_effects(g, arrangement));
+        set_battle_alternate_apply(g, 0);
     }
-    uint8_t setting = (uint8_t)(battle_alternate_base(g) + battle_alternate_latched(g));
-    uint8_t mode = battle_vram_copy_mode(g);
-    uint16_t sum = (uint16_t)(setting + mode);
-    m_set_a8(s, (uint8_t)sum);
-    m_set_flag(s, CPU_FLAG_C, sum > 0xFF);
-    m_set_flag(s, CPU_FLAG_V, (~(setting ^ mode) & (setting ^ sum) & 0x80) != 0);
-    m_jsl_dc(s, 0xD1FE69, APPLY_ALTERNATE, DC_X | DC_Y | DC_N | DC_Z);
-    if (!battle_widths_m8_x16(s))
-        return;
-    set_battle_alternate_apply(g, 0);
     m_rts(s);
 }
 

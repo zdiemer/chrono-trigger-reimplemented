@@ -5502,6 +5502,13 @@ void set_battle_low_scratch(GameState *g, unsigned i, uint8_t v);
 uint16_t battle_turn_slot(const GameState *g);
 void set_battle_turn_slot(GameState *g, uint16_t v);
 
+enum { BATTLE_DIRECTION_WORK_COUNT = 8 };   /* by byte: the two points brought down by the first's distance past an eighth (the first across and down, then the second), the run across and its sign ($00 or $FF), the run down and its sign */
+/* Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF)
+ * takes its points and works the runs out, over cells the battle uses for other things between
+ * effects */
+uint8_t battle_direction_work(const GameState *g, unsigned i);
+void set_battle_direction_work(GameState *g, unsigned i, uint8_t v);
+
 /* Set when all three party slots are out of the fight ($AEFF negative); the main loop then takes
  * the defeat exit */
 uint8_t battle_party_defeated(const GameState *g);
@@ -9580,6 +9587,13 @@ enum { BATTLE_MESSAGE_TILES_BYTES = 512 };
 uint8_t battle_message_tiles_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_message_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
+enum { BATTLE_CIRCLE_EDGES_COUNT = 256 };   /* by line the circle's drawing works out, from its first */
+/* A screen script circle's edges a line at a time as its drawing ($CD:31AA-$CD:3656) works them
+ * out, a window's left edge in the low byte and its right in the high, before a run of them goes
+ * into the window table ($CE:E7C8) */
+uint16_t battle_circle_edges(const GameState *g, unsigned line);
+void set_battle_circle_edges(GameState *g, unsigned line, uint16_t v);
+
 /* Screen brightness the battle's handlers set each frame (halved while paused); counted down to
  * 0 when a demo battle exits */
 uint8_t battle_brightness(const GameState *g);
@@ -9589,6 +9603,12 @@ enum { BATTLE_BG_OFFSET_COUNT = 2 };   /* by axis (X, Y) */
 /* Extra offset added to BG1's scroll, across and down */
 uint16_t battle_bg_offset(const GameState *g, unsigned i);
 void set_battle_bg_offset(GameState *g, unsigned i, uint16_t v);
+
+enum { BATTLE_EFFECT_LINE_WORK_COUNT = 384 };   /* by byte */
+/* What the screen scripts' special effects ($80) keep for the lines they move
+ * ($CD:2B49-$CD:2DAC), which the battle's start clears */
+uint8_t battle_effect_line_work(const GameState *g, unsigned i);
+void set_battle_effect_line_work(GameState *g, unsigned i, uint8_t v);
 
 /* Set to $80 as a demo battle exits to the reset code */
 uint8_t battle_leaving(const GameState *g);
@@ -9629,11 +9649,49 @@ void set_battle_screen_mode(GameState *g, uint8_t v);
 uint8_t battle_mosaic(const GameState *g);
 void set_battle_mosaic(GameState *g, uint8_t v);
 
+/* The layers' map settings on the battle window's lines, as the line effects' arrangements take
+ * them: $78 for each, the window's maps */
+uint32_t battle_window_line_maps(const GameState *g);
+void set_battle_window_line_maps(GameState *g, uint32_t v);
+
+enum { BATTLE_WINDOW_LINE_BG1_SCROLL_COUNT = 2 };   /* by the window's layout (battle_alternate_frame) */
+/* Across */
+uint16_t battle_window_line_bg1_scroll_x(const GameState *g, unsigned i);
+void set_battle_window_line_bg1_scroll_x(GameState *g, unsigned i, uint16_t v);
+/* Down */
+uint16_t battle_window_line_bg1_scroll_y(const GameState *g, unsigned i);
+void set_battle_window_line_bg1_scroll_y(GameState *g, unsigned i, uint16_t v);
+
+/* Across */
+uint16_t battle_window_line_bg2_scroll_x(const GameState *g);
+void set_battle_window_line_bg2_scroll_x(GameState *g, uint16_t v);
+/* Down */
+uint16_t battle_window_line_bg2_scroll_y(const GameState *g);
+void set_battle_window_line_bg2_scroll_y(GameState *g, uint16_t v);
+
+enum { BATTLE_WINDOW_LINE_BG3_SCROLL_COUNT = 96 };   /* by layout * 48 + line of the battle window */
+/* Across */
+uint16_t battle_window_line_bg3_scroll_x(const GameState *g, unsigned line);
+void set_battle_window_line_bg3_scroll_x(GameState *g, unsigned line, uint16_t v);
+/* Down */
+uint16_t battle_window_line_bg3_scroll_y(const GameState *g, unsigned line);
+void set_battle_window_line_bg3_scroll_y(GameState *g, unsigned line, uint16_t v);
+
+/* The screens' settings on the battle window's lines, as the line effects' arrangements take
+ * them: BG1 and BG3 on each */
+uint32_t battle_window_line_screens(const GameState *g);
+void set_battle_window_line_screens(GameState *g, uint32_t v);
+
 enum { BATTLE_FADE_LINE_DATA_COUNT = 288 };   /* by byte (four tables of one-line entries: $C030, $C090, $C0F0, $C120) */
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
  * from $E8 or rising from $E0 (all color channels), four bytes apart */
 uint8_t battle_fade_line_data(const GameState *g, unsigned i);
 void set_battle_fade_line_data(GameState *g, unsigned i, uint8_t v);
+
+/* The background mode on the battle window's lines (mode 1, BG3 in front) and the mosaic (none),
+ * as the line effects' arrangements take them */
+uint16_t battle_window_line_mode(const GameState *g);
+void set_battle_window_line_mode(GameState *g, uint16_t v);
 
 enum { BATTLE_WINDOW_TOP_LINES_COUNT = 4 };   /* by line (the four above the first buffer's first) */
 /* Window 1's edges as one word, the left in the low byte */
@@ -9687,6 +9745,14 @@ enum { BATTLE_WINDOW_LINE_TABLES_COUNT = 2 };   /* by frame parity (even, odd) *
 enum { BATTLE_WINDOW_LINE_TABLES_BYTES = 45 };
 uint8_t battle_window_line_tables_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_window_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { BATTLE_SHORT_WINDOW_SCROLL_COUNT = 5 };   /* by 0 BG1 in layout 0, 1 BG1 in layout 1, 2 BG2, 3 BG3 in layout 0, 4 BG3 in layout 1 */
+/* Across */
+uint16_t battle_short_window_scroll_x(const GameState *g, unsigned i);
+void set_battle_short_window_scroll_x(GameState *g, unsigned i, uint16_t v);
+/* Down */
+uint16_t battle_short_window_scroll_y(const GameState *g, unsigned i);
+void set_battle_short_window_scroll_y(GameState *g, unsigned i, uint16_t v);
 
 /* Which of the four VRAM places (through $CD:05FF) a requested block of sixteen tiles goes to */
 uint8_t battle_block_upload_row(const GameState *g);
@@ -9814,8 +9880,9 @@ uint16_t battle_screen_return_place(const GameState *g, unsigned channel);
 void set_battle_screen_return_place(GameState *g, unsigned channel, uint16_t v);
 
 enum { BATTLE_SCREEN_KEPT_WORD_COUNT = 2 };   /* by screen script channel */
-/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
- * ($97) */
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or the angles of the
+ * channel's cuts through the middle of the screen ($97: window 1's in the low byte, window 2's
+ * in the high) */
 uint16_t battle_screen_kept_word(const GameState *g, unsigned channel);
 void set_battle_screen_kept_word(GameState *g, unsigned channel, uint16_t v);
 
@@ -9871,6 +9938,29 @@ enum { BATTLE_SCREEN_BACKGROUND_COLORS_COUNT = 2 };   /* by which (first, second
  * $FF for none */
 uint8_t battle_screen_background_colors(const GameState *g, unsigned i);
 void set_battle_screen_background_colors(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_CUT_ENDS_COUNT = 2 };   /* by end: 0 the upper, 1 the lower */
+/* Column */
+uint8_t battle_cut_ends_across(const GameState *g, unsigned i);
+void set_battle_cut_ends_across(GameState *g, unsigned i, uint8_t v);
+/* Line */
+uint8_t battle_cut_ends_down(const GameState *g, unsigned i);
+void set_battle_cut_ends_down(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_CUT_STEPS_COUNT = 2 };   /* by 0 across, 1 down */
+/* Which way the cut's line runs from its upper end: across $FF left, 1 right, 0 straight down;
+ * down 1, or 0 for a level line */
+uint8_t battle_cut_steps(const GameState *g, unsigned i);
+void set_battle_cut_steps(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_CUT_RUN_COUNT = 2 };   /* by 0 across, 1 down */
+/* How far the cut's line runs from end to end, in columns across and lines down */
+uint8_t battle_cut_run(const GameState *g, unsigned i);
+void set_battle_cut_run(GameState *g, unsigned i, uint8_t v);
+
+/* The angle the cut being drawn is at, which says the side of the line the window takes */
+uint8_t battle_cut_angle(const GameState *g);
+void set_battle_cut_angle(GameState *g, uint8_t v);
 
 enum { BATTLE_SCREEN_CIRCLE_RADIUS_COUNT = 2 };   /* by circle */
 /* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
@@ -10012,6 +10102,11 @@ enum { BATTLE_TILE_ROW_PALETTES_COUNT = 2 };   /* by copy */
 uint16_t battle_tile_row_palettes(const GameState *g, unsigned i);
 void set_battle_tile_row_palettes(GameState *g, unsigned i, uint16_t v);
 
+/* The battle window's layout the battle started in (battle_alternate_frame's bit 0); no routine
+ * of the battle reads it back */
+uint8_t battle_start_layout(const GameState *g);
+void set_battle_start_layout(GameState *g, uint8_t v);
+
 /* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
  * while the screen scripts run */
 uint16_t battle_background(const GameState *g);
@@ -10110,6 +10205,12 @@ void set_battle_vram_copy_mode(GameState *g, uint8_t v);
 uint8_t battle_message_timed(const GameState *g);
 void set_battle_message_timed(GameState *g, uint8_t v);
 
+enum { BATTLE_KEPT_ROW_COLORS_COUNT = 8 };   /* by color, from background row 1's ninth */
+/* Background row 1's last eight colors as the battle started, which putting the battlefield back
+ * restores ($CD:0E23) */
+uint16_t battle_kept_row_colors(const GameState *g, unsigned i);
+void set_battle_kept_row_colors(GameState *g, unsigned i, uint16_t v);
+
 /* Nonzero while the battle is paused: the frame work, the frame wait tail and the IRQ's
  * odd-frame transfers stop, and the sound pauses */
 uint8_t battle_paused(const GameState *g);
@@ -10119,6 +10220,36 @@ void set_battle_paused(GameState *g, uint8_t v);
  * advance runs only while it is set */
 uint8_t battle_pause_held(const GameState *g);
 void set_battle_pause_held(GameState *g, uint8_t v);
+
+/* Set while a battle message asked for ($CD:02D8, $CD:0310) is still to be drawn: the frame wait
+ * draws it through the menus' text code and keeps what is left to draw here ($CD:04DF) */
+uint8_t battle_message_drawing(const GameState *g);
+void set_battle_message_drawing(GameState *g, uint8_t v);
+
+/* The battle message last asked for ($CD:02E4, $CD:0316), so that the same one isn't drawn again
+ * while it shows; $FF for none */
+uint8_t battle_message_asked(const GameState *g);
+void set_battle_message_asked(GameState *g, uint8_t v);
+
+/* Nonzero to have putting the battlefield back ($CD:0453) stop once its tiles are back, keeping
+ * the rest of the screen as the effects left it; the battle's start clears it, and no routine of
+ * the battle sets it */
+uint8_t battle_restore_keeps_screen(const GameState *g);
+void set_battle_restore_keeps_screen(GameState *g, uint8_t v);
+
+/* The direction last measured between two animation positions (256 a turn, 0 right, a quarter
+ * turn down), along which the screen scripts lay a band */
+uint8_t battle_screen_direction(const GameState *g);
+void set_battle_screen_direction(GameState *g, uint8_t v);
+
+/* A word the battle's start clears and no routine of the battle reads */
+uint16_t battle_start_cleared(const GameState *g);
+void set_battle_start_cleared(GameState *g, uint16_t v);
+
+/* Set when an effect's graphics have gone over the battlefield's tiles in VRAM ($CD:0FDD), so
+ * that putting the battlefield back loads them again ($CD:03C1) */
+uint8_t battle_battlefield_tiles_replaced(const GameState *g);
+void set_battle_battlefield_tiles_replaced(GameState *g, uint8_t v);
 
 enum { BATTLE_WINDOW_QUADS_COUNT = 16 };   /* by coordinate * 2 + quadrilateral (two, their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3) */
 /* The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the
@@ -10130,6 +10261,11 @@ void set_battle_window_quads(GameState *g, unsigned i, uint8_t v);
  * it is */
 uint8_t battle_message_by_id(const GameState *g);
 void set_battle_message_by_id(GameState *g, uint8_t v);
+
+/* The byte after battle_message_by_id, which the message calls test with it as a word ($CD:02D8,
+ * $CD:0310); only the battle's start writes it */
+uint8_t battle_message_by_id_high(const GameState *g);
+void set_battle_message_by_id_high(GameState *g, uint8_t v);
 
 /* The last block of tiles sent, as its offset into the table of their places (twice its number):
  * the same block from the same source isn't sent again */
@@ -10239,6 +10375,17 @@ void set_battle_effect_graphics_effect(GameState *g, uint8_t v);
 uint8_t battle_screen_layer_mask(const GameState *g);
 void set_battle_screen_layer_mask(GameState *g, uint8_t v);
 
+enum { BATTLE_BACKGROUND_RIPPLE_COUNT = 64 };   /* by sway, in the order the line effect takes them down the lines */
+/* BG2's horizontal scroll, signed, on the lines of a background that ripples (one with the HP
+ * gradient): 64 sways of the ripple's wave, which the line effect's BG2 scroll list takes in
+ * that arrangement */
+uint16_t battle_background_ripple(const GameState *g, unsigned i);
+void set_battle_background_ripple(GameState *g, unsigned i, uint16_t v);
+
+/* Frames the background's ripple has run, counting round: every fourth moves its wave a step */
+uint8_t battle_ripple_frames(const GameState *g);
+void set_battle_ripple_frames(GameState *g, uint8_t v);
+
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
 uint8_t battle_palette_rows_moved(const GameState *g);
@@ -10302,6 +10449,10 @@ void set_battle_gradient_frame_mask(GameState *g, uint8_t v);
 uint8_t battle_vram_alternate(const GameState *g);
 void set_battle_vram_alternate(GameState *g, uint8_t v);
 
+/* A byte the battle's start clears and no routine of the battle reads */
+uint8_t battle_start_cleared_byte(const GameState *g);
+void set_battle_start_cleared_byte(GameState *g, uint8_t v);
+
 /* Nonzero while Start can't pause the battle ($FF from the start, cleared at $CD:05F8) */
 uint8_t battle_pause_blocked(const GameState *g);
 void set_battle_pause_blocked(GameState *g, uint8_t v);
@@ -10314,6 +10465,11 @@ void set_battle_message_shown(GameState *g, uint8_t v);
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 uint8_t battle_frame_advance_count(const GameState *g);
 void set_battle_frame_advance_count(GameState *g, uint8_t v);
+
+/* The byte after battle_frame_advance_count, which the battle's start clears with it as a word;
+ * no routine of the battle reads it */
+uint8_t battle_frame_advance_count_high(const GameState *g);
+void set_battle_frame_advance_count_high(GameState *g, uint8_t v);
 
 /* Nonzero to pause palette animation; clearing it restores the saved slot types */
 uint8_t battle_palette_pause_request(const GameState *g);

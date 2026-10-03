@@ -13,7 +13,7 @@
 #include "port/vars_ram.h"
 
 enum { WRMPYA = 0x004202, WRMPYB = 0x004203, WRDIVL = 0x004204, WRDIVB = 0x004206, RDDIV = 0x004214, RDMPY = 0x004216 };
-enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183 };
+enum { WMDATA = 0x002180, WMADDL = 0x002181, WMADDB = 0x002183, WMDATA_LESS_ONE = 0x00217F };
 
 void hw_set_multiplicand(GameState *g, uint8_t a) { m_write8(state_snes(g), WRMPYA, a); }
 
@@ -50,6 +50,8 @@ void hw_port_seek_bank(GameState *g, uint8_t bank) { m_write8(state_snes(g), WMA
 uint8_t hw_port_read(GameState *g) { return m_read8(state_snes(g), WMDATA); }
 
 void hw_port_write(GameState *g, uint8_t v) { m_write8(state_snes(g), WMDATA, v); }
+
+void hw_port_leave_spill(GameState *g, uint8_t low) { m_write8(state_snes(g), WMDATA_LESS_ONE, low); }
 
 uint8_t rom_read8(const GameState *g, uint32_t at)
 {

@@ -99,8 +99,13 @@ void screen_leave_sine_product(GameState *g, uint8_t angle, uint8_t amount);
 /* ---- The animation positions and the effect object ------------------------------------------ */
 
 /* Keep the first two animation positions inside the battlefield, as the
- * original does before a script takes one up (screen_layers.c). */
+ * original does before a script takes one up (screen_layers.c); or another
+ * pair of them (positions 2 * pair and 2 * pair + 1, a pair below
+ * SCREEN_POSITION_PAIRS). */
+enum { SCREEN_PAIR_POSITIONS = 2, SCREEN_POSITION_PAIRS = BATTLE_ANIMATION_POSITIONS_COUNT / SCREEN_PAIR_POSITIONS };
 void screen_keep_positions_on_the_battlefield(GameState *g);
+void screen_keep_pair_on_the_battlefield(GameState *g, uint8_t pair);
+BattlePoint screen_kept_on_the_battlefield(BattlePoint p);
 uint8_t screen_position_across(const GameState *g, uint8_t position);
 uint8_t screen_position_down(const GameState *g, uint8_t position);
 bool screen_names_a_position(uint8_t position);
@@ -149,6 +154,28 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
 /* The scaffolding's writes, by the same cells. */
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
+
+/* ---- At the battle's start ------------------------------------------------------------------ */
+
+/* The HP gradient's phase, found from where the background starts
+ * (screen_gradient.c); the first eight palette animation slots' kinds kept
+ * aside (screen_palette.c). */
+void battle_start_gradient_phase(GameState *g);
+void battle_keep_palette_kinds(GameState *g);
+
+/* ---- The window quadrilaterals (screen_beam.c) -------------------------------------------- */
+
+/* Two quadrilaterals of four corners each, shaped by the scripts and drawn
+ * into the coming frame's window table as the window of their own number. */
+enum { SCREEN_WINDOW_QUADS = 2, SCREEN_QUAD_CORNERS = 4 };
+void screen_set_quad_corner(GameState *g, unsigned quad, unsigned corner, BattlePoint c);
+void screen_draw_window_quad(GameState *g, unsigned quad);
+/* Whether corners drawn this frame stay in the window table: on an odd frame
+ * the coming buffer is the table's second, and a quadrilateral reaching below
+ * the screen's last line would be drawn on past its end, as the original
+ * does into the window's registers' images after it. No quadrilateral the
+ * game draws goes there; the commands and entries that draw one ask this. */
+bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[SCREEN_QUAD_CORNERS]);
 
 /* Set a screen effect from its five settings bytes (screen_motion.c says
  * what they mean). */
@@ -200,6 +227,14 @@ bool battle_screen_nudge_dispatched(Snes *s);
 bool battle_quad_is_one(Snes *s);
 bool battle_beam_quad_is_one(Snes *s);
 bool battle_quad_page(Snes *s);
+bool battle_quad_corners_fit(Snes *s);
+/* ... a cut through the middle that fits the screen, a window carried over
+ * one of the two (screen_divide.c). */
+bool battle_cut_fits(Snes *s);
+bool battle_carried_window_is_one(Snes *s);
+/* ... a run of a circle's edges within the window table and the worked edges
+ * (screen_shapes.c). */
+bool battle_circle_run_fits(Snes *s);
 
 /* ... the screen script's channels, its dispatch and its commands
  * (screen_script.c). */
@@ -258,7 +293,18 @@ void battle_screen_draw_beam(Snes *s);
 void battle_sort_quad_corners(Snes *s);
 void battle_quad_edge_slope(Snes *s);
 void battle_quad_edge_slopes(Snes *s);
+void battle_rasterize_window_quad(Snes *s);
 void battle_draw_window_quad(Snes *s);
+
+/* screen_divide.c */
+void battle_cut_window(Snes *s);
+void battle_carry_window_over(Snes *s);
+
+/* screen_between.c */
+void battle_measure_direction(Snes *s);
+
+/* screen_shapes.c */
+void battle_copy_circle_lines(Snes *s);
 
 /* screen_motion.c */
 void battle_screen_random_byte(Snes *s);
@@ -272,5 +318,6 @@ void battle_set_palette_preset(Snes *s);
 
 /* screen_setup.c */
 void battle_build_fade_tables(Snes *s);
+void battle_set_the_screen_up(Snes *s);
 
 #endif
