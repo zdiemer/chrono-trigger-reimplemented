@@ -3207,84 +3207,99 @@ loose `$83` is 0 of 6,792). `$C7` and `$CB`, `$CD`, `$D7` no movie reaches.
 **The timing gate.** The new rows were calibrated over the library, with the
 engine's two entries (whose turns now run the rows inline); no exception.
 
-### Phase 3, battle chunk 10: the enemies' movements and the main loop's last callees (`$C1:3772`, `$FD:AB30`)
+### Phase 3, battle chunk 11: the screen script language (`$CD:1609`-`$CD:31A9`)
 
-What was left of the battle in bank `$C1` after chunk 9b, and of its routines
-in bank `$FD`, by `python3 tools/burndown.py --uncovered C1`: the enemies'
-per-animation effects (`$C1:3772`-`$C1:4021`, 2,278 bytes, the bank's largest
-run), and every callee the main loop still called out to but the steps, the
-messages and the rewards': a member's status turn (`$FD:AB30`), the counters
-(`$FD:AC6E`), the calling off of a combination (`$FD:A8CE`-`$A95F`), the
-dropped action (`$C1:B3F9`), the enemies an action knocked out (`$C1:B762`),
-the demo's party (`$C1:B70E`, `$B725`), the standing down (`$C1:B7F2`) and the
-battle's end's bookkeeping (`$C1:EA9D`, `$EAE8`, `$B442`, `$B3BB`, `$B3D2`,
-`$FD:AA98`, `$AAB0`): about 3.4 KiB, all there was by concept. The bank's
-burndown went from 7% left to 3%; what remains are runs inside ports that hand
-back to the original (PLAN.md).
+The largest runs `python3 tools/burndown.py --uncovered CD` listed in the
+battle's frame work, `$CD:17A9`-`$CD:319D`, are one thing: the 122 handlers
+of the screen script language, whose runner (`$CD:1609`) the frame work
+called out to, and whose window, motion and palette bodies in bank `$D1`
+were already C (battle chunk on the screen effects, docs/ports.tsv). The
+chunk is the runner and every command whose handler stays in that range;
+it stops where a command leaves the language for a renderer (the circles'
+and shapes' at `$CD:31AA`-`$CD:3656`, the triangles' rasterizer `$CD:367C`)
+or for bank `$CE`. `$CD` went from 70% left to 39% (4.7K of code).
 
-What it is, in the game's terms:
+What it is, in the game's terms (`battle/screen_script.h` says it at
+length): a spell that dresses the whole screen runs a script from bank `$D1`
+on one of two channels, each with a layer of its own. A byte below `$7F`
+shows a frame of the effect's animated graphics and ends the channel's step,
+`$7F` ends it, `$FF` ends the script, and the rest are commands that run
+within the step: the channel's pace, loops (one counts the frames on),
+calls, jumps and switches on the animation scripts' variables, and waits
+that jump back to the step's end; the layer nudged eight ways, put at an
+animation position, swung, or set on an orbit of three sines
+(`screen_layers.c`); two circles placed, widened and narrowed by the
+animation scripts' variables, and two triangles, flat (corners at angles
+and distances about a center, stretched) or turning in space, or one of the
+ROM's models of three points, laid out for the rasterizer with their size
+(`screen_shapes.c`); waves and a sway across the layers' lines, and a ripple
+down both windows (`screen_waves.c`, `screen_window.c`); and the screen's
+settings, colors, palette animations, sounds and the frame work's switches
+(`screen_settings.c`). The language is a C table: each file ends with its
+rows, which decode the operands into named parameters (a shape, an angle per
+corner, a distance back) and say what an operation needs to run as the
+original does (a shape one of the two, a position one of the six); the rows
+of the commands that are still the original's have no operation, and the
+runner calls their handlers as the original's dispatch does.
 
-- **The enemies' movements** (`battle/enemy_movement.c`): an animation names
-  a movement, a step of eight pixels every few frames, looked at before it is
-  taken (the grid, the other combatants' boxes) and then drifted
-  (`battle/effect_paths.c`): approaching to a reach, charging, lining up,
-  keeping a distance from the target (the spot on the enemy's side, backed
-  away from or closed in on), circling, weaving round a loop below where the
-  weave started, marching one way, making for the middle; and stopping to act,
-  with waiting for the target to move on. The animation picks each one's
-  variant; the drift's cells were renamed for what they hold
-  (`battle_enemy_drifting`, `_heading`, `_drift_from_*`). The loop in
-  `battle/animation.c` runs them as C, each timed as its routine, with the
-  ROM's table only for an animation that names no movement.
-- **The party's turns** (`battle/party_turns.c`): a member driven to fight or
-  confused attacks at random; a member kept from acting loses its waiting
-  action; the counters; the combination called off; the knocked-out enemies
-  with no last reaction counted and shown beaten; the demo's party; standing
-  down. The steps and the attack run between decisions, so these are bridges,
-  run by the main loop as siblings (`battle_run`), each registered.
-- **The battle's end** (`battle/battle_end.c`): the statuses cleared, the
-  party stood up and kept in its records, the enemies taken off the field but
-  for those marked to stay (bit 6 of the placement's kind, which the field
-  reads), the enemies counted out when the party runs, and the beaten noted for
-  the story (`battle_enemies_beaten_for_the_story`, event memory `$1EE`), all
-  C the main loop calls as C.
+**The third trap, settled first.** `tools/v_readers.py` found V dead into
+every handler that stays the original's and into the rasterizer, and after
+the runner returns; they are called with A, X, Y, the carry and N and Z as
+the dispatch leaves them, V declared. What the runner reads back of a
+command is A's high byte, which the original shifts into the next frame's
+place in the graphics: `tools/disasm/high_byte.py` shows every handler
+returning it clear but the window fill, the beam and the quadrilaterals,
+and of the fills only filling window 1 sets it, which no script of the game's
+asks for (a scan of the scripts the table at `$D1:646C` points at), so its
+row needs the others and the original's handler runs it; where a handler
+that is still the original's leaves the byte set, the C runner hands the
+step to the original's from the dispatch's return. A byte past the last
+command sends the original's dispatch past its table; the runner hands it
+back at the loop's head.
 
-**The third trap, settled first.** `tools/v_readers.py` found V dead into the
-steps (`$C1:0003`), the called-off step (`$C1:B961`), the attack (`$C1:BFAA`)
-and the reactions' finding (`$C1:B488`), and after every routine the main loop
-called. The library reaches the steps' sites too seldom for a run there to
-count (19 calls at the most), so each step's V rests on a `ct_fuzz
---poison-dc` run of its routine, the called-off step's with A's high byte
-clear as its callers leave it: random high bytes send the step's dispatch
-where V is read (the notes in `party_turns.c` and `member_turn.c`). Where
-the main loop's next call-out reads A's high byte after a routine that is now
-C, the loop clears it as the original's code there does (the victory's step,
-the running away's message, the field's return).
+**Call-outs where the original makes them.** The commands' call-outs (the
+original's handlers, the rasterizer) are compared at the original's stack, so
+the runner's three routines are siblings run through `battle_run`, each
+registered: the frame's run (`$CD:1609`) pushes the count of ended channels
+as the original's `PHY` does, a channel's step (`$CD:1654`) keeps its offset
+on the stack, and the dispatch (`$CD:16A6`) runs one command, so a call from
+a command meets the original's at `$CD:16AF`. The generic entry
+`battle_screen_command` stands at each of the 104 C handlers, so each is
+fuzzed alone; one that draws stops at the rasterizer, as the handler's jump
+does.
 
-**What the gate found.** Shadow mode found that a sibling run through
-another sibling must keep the original's stack: the called-off member
-(`$FD:A8FE`) became its own entry so the step's call meets the original's at
-its depth. Fuzzing found that the movements and the dropped action find their
-cells with A's high byte, clear as their callers leave it (now their guards'),
-and that the charge leaves three past the slot the boxes' test handed back.
+**What the gate found.** Shadow mode found the original's leftovers in the
+battle page's cells: a wait's distance back as a word in `$45`, the operand
+the change of a variable and the corners' limit leave there, and the
+palette animation's raw operands. The triangles' sizing (`$CD:211B`) stores
+its operands to the multiplier as words where the corner moves out: the
+product is read as a word, so the controller's low byte (`$4218`) comes along
+as the high byte of the corner's word in `$4B`, and the size's word store
+puts `$22` in the divider; the runner reads the controller for that one
+cell, as scaffolding. The models' rotation is handed the size as a word whose
+high byte clears the low byte of `battle_turn_slot` (`$22`), a real write the
+port keeps. Fuzzing found that the runner must hand a channel's step the pace
+in A, as the original's `TDC` leaves its high byte, and that the jitter takes
+the dispatch's carry into its first pick, which the commands' guard now
+requires.
 
-**Validation.** The library's 26 movies in shadow mode, none mismatching: the
-movements' loop 55,081 calls (27 interrupted), the movements 1,985 (waiting
-473, approaching 1,244, circling 155, weaving 93, keeping a distance 20; no
-movie charges, lines up, marches or makes for the middle); the dropped action
-39,836, the combination called off 15,580 and its members 2,522, the knocked
-out 4,611 (350 interrupted), the counters 4,154, the status turn 2,810, the
-end's bookkeeping 26-29 each (one running away). **Fuzzing**, seed 1, none
-mismatching: every entry, 5,000 or 8,000 states (the status turn 666 and the
-attack from bank `$FD` 24 compared, the rest past the budget in the attack's
-showing).
+**Validation.** The library's 26 movies in shadow mode, none mismatching:
+the frame's run 431,221 calls, the channels' steps 129,354, the dispatch
+403,323, the commands 1,260,637 in all, none interrupted; 22 commands no
+movie reaches (the ones the scripts of the library's battles don't use, among
+them the orbits, the swing's start and the models that spin). **Fuzzing**,
+seed 1, 5,000 states each, from the `battle` state, with the operands as
+random bytes in work RAM and the guards' bounds kept (the shape, circle,
+slot and position one the language has): every command 0 mismatching of
+about 2,500 compared (half of the states turned away by the dispatch's carry);
+the dispatch 0 of 4,778; the frame's run 0 of 4,819 and a channel's step 1
+of 4,828 over random scripts, the one a state where the original ran a
+random byte's handler off into code that isn't one (its interrupt flag
+cleared). The commands' constraints are in `tools/fuzz_routines.toml`.
 
-**Timing.** The new entries were calibrated from the shadow runs; those no
-movie reaches take a sibling's cost. The effects' loop, the main loop's body,
-the turn, the timers' dispatch and the combination check were recalibrated.
-With the turn's callees timed as their own routines, the timers' dispatch (a
-whole turn) attributes its time to more than the 32 routines a stretch held,
-so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
+**Timing.** The new entries were calibrated from the shadow runs; the 23 no
+movie reaches (or whose stretches end in the rasterizer) take a sibling's
+cost.
 
 ### Phase 3, menus: the items screen and the equipment screen's windows (`$C2:A2CD`-`$C2:B352`)
 

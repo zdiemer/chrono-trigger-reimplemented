@@ -3620,6 +3620,14 @@
 #define RAM_BATTLE_TARGET_DISPLAY 0x7E0200u
 #define RAM_BATTLE_TARGET_DISPLAY_COUNT 5u
 #define RAM_BATTLE_TARGET_DISPLAY_STRIDE 0x01u
+/* In the scroll modes the screen scripts set, offsets added to the scroll of the layers
+ * battle_line_scroll_layers names, one per scroll table entry [64 x $4 bytes, by scroll table
+ * entry (BG3's 64 in the finer mode, the first 32 for every layer otherwise)] */
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS 0x7E0A00u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_COUNT 64u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_STRIDE 0x04u
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_ACROSS 0x7E0A00u /* Added to the layer's scroll across */
+#define RAM_BATTLE_LINE_SCROLL_OFFSETS_DOWN 0x7E0A02u /* Down: the scroll modes don't read it; the sway clears it */
 /* Per-line amounts added to the window edges of lines 48-175 [128 x $1 bytes, by table * 32 +
  * line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)] */
 #define RAM_BATTLE_WINDOW_LINE_DELTAS 0x7E0A00u
@@ -6209,12 +6217,28 @@
 #define RAM_BATTLE_SCROLL_TABLES_STRIDE 0x04u
 #define RAM_BATTLE_SCROLL_TABLES_X 0x7EBC89u /* Horizontal scroll */
 #define RAM_BATTLE_SCROLL_TABLES_Y 0x7EBC8Bu /* Vertical scroll */
+/* The screen's layer settings in the split's first two values, as bytes: which layers make the
+ * main and the sub screen, and which of them the windows mask [4 x $1 bytes, by setting (main
+ * screen layers, sub screen layers, main screen's window layers, sub screen's)] */
+#define RAM_BATTLE_SCREEN_SETTINGS 0x7EBE89u
+#define RAM_BATTLE_SCREEN_SETTINGS_COUNT 4u
+#define RAM_BATTLE_SCREEN_SETTINGS_STRIDE 0x01u
 /* Words the per-line effects read through their tables; each frame the NMI copies the first two
  * of each group of four over the next two, so the lines after a split take the new values [8 x
  * $2 bytes, by word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7)] */
 #define RAM_BATTLE_SPLIT_LINE_VALUES 0x7EBE89u
 #define RAM_BATTLE_SPLIT_LINE_VALUES_COUNT 8u
 #define RAM_BATTLE_SPLIT_LINE_VALUES_STRIDE 0x02u
+/* The color math's settings in the split's fifth value, as bytes: how it is done and to which
+ * layers [2 x $1 bytes, by setting (how, which layers)] */
+#define RAM_BATTLE_COLOR_MATH_SETTINGS 0x7EBE91u
+#define RAM_BATTLE_COLOR_MATH_SETTINGS_COUNT 2u
+#define RAM_BATTLE_COLOR_MATH_SETTINGS_STRIDE 0x01u
+/* The background mode the per-line effects set below the split (command $B0) */
+#define RAM_BATTLE_SCREEN_MODE 0x7EBE99u
+/* The mosaic the per-line effects set below the split: the block size in the high nibble, the
+ * layers in the low */
+#define RAM_BATTLE_MOSAIC 0x7EBE9Au
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
  * from $E8 or rising from $E0 (all color channels), four bytes apart [288 x $1 bytes, by byte
  * (four tables of one-line entries: $C030, $C090, $C0F0, $C120)] */
@@ -6300,6 +6324,16 @@
 #define RAM_BATTLE_VRAM_REQUEST_BANK 0x7ECA29u /* Source bank */
 #define RAM_BATTLE_VRAM_REQUEST_VRAM 0x7ECA2Au /* VRAM word address */
 #define RAM_BATTLE_VRAM_REQUEST_SIZE 0x7ECA2Cu /* Size in bytes */
+/* The screen script's two channels: where each is in its script and how fast it goes [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_CHANNELS 0x7ECA32u
+#define RAM_BATTLE_SCREEN_CHANNELS_COUNT 2u
+#define RAM_BATTLE_SCREEN_CHANNELS_STRIDE 0x10u
+#define RAM_BATTLE_SCREEN_CHANNELS_RUNNING 0x7ECA32u /* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
+#define RAM_BATTLE_SCREEN_CHANNELS_PLACE 0x7ECA35u /* Where the channel is in its script (bank $D1), kept while it waits */
+#define RAM_BATTLE_SCREEN_CHANNELS_PACE 0x7ECA38u /* Frames between the channel's steps (command $81 sets it) */
+#define RAM_BATTLE_SCREEN_CHANNELS_COUNTDOWN 0x7ECA39u /* Frames until the channel's next step */
+#define RAM_BATTLE_SCREEN_CHANNELS_FRAME_OFFSET 0x7ECA3Au /* Added to each graphics frame the channel shows; the counting loop ($85, $86) steps it each time round */
 /* The layer a screen script channel moves, as its commands jitter and swing it; channel 0's
  * position and offset are BG3's moving scroll, used instead of its base scroll in the moving
  * mode [2 x $10 bytes, by screen script channel] */
@@ -6312,6 +6346,39 @@
 #define RAM_BATTLE_SCREEN_LAYER_Y 0x7ECA5Cu  /* The layer's position down */
 #define RAM_BATTLE_SCREEN_LAYER_OFFSET_X 0x7ECA5Eu /* Offset added to the position across */
 #define RAM_BATTLE_SCREEN_LAYER_OFFSET_Y 0x7ECA60u /* Offset added to the position down, which the swing sets */
+/* Where a screen script channel's loop starts again: at the loop command's operand [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_LOOP_PLACE 0x7ECA72u
+#define RAM_BATTLE_SCREEN_LOOP_PLACE_COUNT 2u
+#define RAM_BATTLE_SCREEN_LOOP_PLACE_STRIDE 0x10u
+/* Times a screen script channel's loop has still to run, counting the one under way [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_LOOP_COUNT 0x7ECA74u
+#define RAM_BATTLE_SCREEN_LOOP_COUNT_COUNT 2u
+#define RAM_BATTLE_SCREEN_LOOP_COUNT_STRIDE 0x10u
+/* Where a screen script channel goes back to from a call: at the call's last operand [2 x $10
+ * bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_RETURN_PLACE 0x7ECA75u
+#define RAM_BATTLE_SCREEN_RETURN_PLACE_COUNT 2u
+#define RAM_BATTLE_SCREEN_RETURN_PLACE_STRIDE 0x10u
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
+ * ($97) [2 x $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_KEPT_WORD 0x7ECA77u
+#define RAM_BATTLE_SCREEN_KEPT_WORD_COUNT 2u
+#define RAM_BATTLE_SCREEN_KEPT_WORD_STRIDE 0x10u
+/* How far a channel's wave ($80's effects $0A and $0B) has got through its table of steps [2 x
+ * $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_WAVE_STEP 0x7ECA79u
+#define RAM_BATTLE_SCREEN_WAVE_STEP_COUNT 2u
+#define RAM_BATTLE_SCREEN_WAVE_STEP_STRIDE 0x10u
+/* Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the
+ * swing keeps its speed and position in [6 x $1 bytes, by amount (the first and fourth across,
+ * the others by the command's operand), by screen script channel] [2 rows, $10 bytes apart] */
+#define RAM_BATTLE_SCREEN_DRIFT 0x7ECA7Au
+#define RAM_BATTLE_SCREEN_DRIFT_COUNT 6u
+#define RAM_BATTLE_SCREEN_DRIFT_STRIDE 0x01u
+#define RAM_BATTLE_SCREEN_DRIFT_ROWS 2u
+#define RAM_BATTLE_SCREEN_DRIFT_ROW_STRIDE 0x10u
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame [2 x $10 bytes, by screen script
  * channel] */
 #define RAM_BATTLE_SCREEN_SWING_SPEED 0x7ECA7Au
@@ -6325,24 +6392,134 @@
 #define RAM_BATTLE_SCREEN_SWING_POSITION 0x7ECA7Eu
 #define RAM_BATTLE_SCREEN_SWING_POSITION_COUNT 2u
 #define RAM_BATTLE_SCREEN_SWING_POSITION_STRIDE 0x10u
+/* The phase of the circle a channel's layer goes round on its orbit (commands $C4, $C5), across
+ * and down; on 2 a frame [2 x $10 bytes, by screen script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE 0x7ECA7Fu
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_CIRCLE_STRIDE 0x10u
+/* The phase of the layer's bob up and down on its orbit; on 5 a frame [2 x $10 bytes, by screen
+ * script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_BOB 0x7ECA80u
+#define RAM_BATTLE_SCREEN_ORBIT_BOB_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_BOB_STRIDE 0x10u
+/* The phase of the layer's sway across on its orbit; on 6 a frame [2 x $10 bytes, by screen
+ * script channel] */
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY 0x7ECA81u
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY_COUNT 2u
+#define RAM_BATTLE_SCREEN_ORBIT_SWAY_STRIDE 0x10u
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 #define RAM_BATTLE_SCROLL_MODE 0x7ECA92u
+/* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
+ * $FF for none [2 x $1 bytes, by which (first, second)] */
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS 0x7ECA95u
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_COUNT 2u
+#define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_STRIDE 0x01u
+/* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
+ * shrink it by their variables and wait for it [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS 0x7ECAA4u
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_RADIUS_STRIDE 0x01u
+/* The center across of a circle the screen script draws as a window [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_X 0x7ECAA6u
+#define RAM_BATTLE_SCREEN_CIRCLE_X_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_X_STRIDE 0x01u
+/* The center down of a circle the screen script draws as a window [2 x $1 bytes, by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_Y 0x7ECAA8u
+#define RAM_BATTLE_SCREEN_CIRCLE_Y_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_Y_STRIDE 0x01u
+/* How a circle is drawn into the window table (one of six ways, through $CD:319E) [2 x $1 bytes,
+ * by circle] */
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND 0x7ECAD1u
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND_COUNT 2u
+#define RAM_BATTLE_SCREEN_CIRCLE_KIND_STRIDE 0x01u
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
  * (battle_load_graphics) */
 #define RAM_BATTLE_GRAPHICS_LOAD_IN_VBLANK 0x7ECAD3u
-/* The three animation positions, saved by the screen script into one of two interleaved slots
- * [12 x $1 bytes, by position byte * 2 + slot] */
-#define RAM_BATTLE_SAVED_POSITIONS 0x7ECAEAu
-#define RAM_BATTLE_SAVED_POSITIONS_COUNT 12u
-#define RAM_BATTLE_SAVED_POSITIONS_STRIDE 0x01u
-/* Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points
- * the work RAM port at */
+/* Where a triangle the screen script draws as a window is centered, across [2 x $1 bytes, by
+ * shape] */
+#define RAM_BATTLE_SHAPE_CENTER_X 0x7ECAD4u
+#define RAM_BATTLE_SHAPE_CENTER_X_COUNT 2u
+#define RAM_BATTLE_SHAPE_CENTER_X_STRIDE 0x01u
+/* Where a triangle the screen script draws as a window is centered, down [2 x $1 bytes, by
+ * shape] */
+#define RAM_BATTLE_SHAPE_CENTER_Y 0x7ECAD6u
+#define RAM_BATTLE_SHAPE_CENTER_Y_COUNT 2u
+#define RAM_BATTLE_SHAPE_CENTER_Y_STRIDE 0x01u
+/* How far a turning triangle's corners lie out of the screen's plane before it is turned [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_DEPTH 0x7ECAD8u
+#define RAM_BATTLE_SHAPE_DEPTH_COUNT 2u
+#define RAM_BATTLE_SHAPE_DEPTH_STRIDE 0x01u
+/* How far each corner of a triangle lies from its center [6 x $1 bytes, by corner * 2 + shape] */
+#define RAM_BATTLE_SHAPE_RADII 0x7ECADAu
+#define RAM_BATTLE_SHAPE_RADII_COUNT 6u
+#define RAM_BATTLE_SHAPE_RADII_STRIDE 0x01u
+/* A flat triangle's stretch across, as an angle whose sine is the scale ($40 full size) [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SCALE_X 0x7ECAE0u
+#define RAM_BATTLE_SHAPE_SCALE_X_COUNT 2u
+#define RAM_BATTLE_SHAPE_SCALE_X_STRIDE 0x01u
+/* A flat triangle's stretch down, as an angle whose sine is the scale ($40 full size) [2 x $1
+ * bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SCALE_Y 0x7ECAE2u
+#define RAM_BATTLE_SHAPE_SCALE_Y_COUNT 2u
+#define RAM_BATTLE_SHAPE_SCALE_Y_STRIDE 0x01u
+/* The angle each corner of a triangle lies at about its center (a turn is 256) [6 x $1 bytes, by
+ * corner * 2 + shape] */
+#define RAM_BATTLE_SHAPE_ANGLES 0x7ECAE4u
+#define RAM_BATTLE_SHAPE_ANGLES_COUNT 6u
+#define RAM_BATTLE_SHAPE_ANGLES_STRIDE 0x01u
+/* The corners of the two triangles the screen script draws as windows, across and down, the
+ * shapes' bytes interleaved; a script sets them from the animation positions, or turns and
+ * places them about a center [12 x $1 bytes, by (corner * 2 + axis) * 2 + shape] */
+#define RAM_BATTLE_SHAPE_CORNERS 0x7ECAEAu
+#define RAM_BATTLE_SHAPE_CORNERS_COUNT 12u
+#define RAM_BATTLE_SHAPE_CORNERS_STRIDE 0x01u
+/* How far a triangle is turned about each of three axes before it is drawn (a turn is 256) [6 x
+ * $1 bytes, by axis * 2 + shape] */
+#define RAM_BATTLE_SHAPE_TURNS 0x7ECAF6u
+#define RAM_BATTLE_SHAPE_TURNS_COUNT 6u
+#define RAM_BATTLE_SHAPE_TURNS_STRIDE 0x01u
+/* How large a triangle is drawn, in 256ths of its corners' distance from its center ($FF about
+ * full size) [2 x $1 bytes, by shape] */
+#define RAM_BATTLE_SHAPE_SIZE 0x7ECAFCu
+#define RAM_BATTLE_SHAPE_SIZE_COUNT 2u
+#define RAM_BATTLE_SHAPE_SIZE_STRIDE 0x01u
+/* A corner of a turning triangle once it is turned, as signed bytes [3 x $2 bytes, by axis
+ * (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_TURNED_POINT 0x7ECAFEu
+#define RAM_BATTLE_SHAPE_TURNED_POINT_COUNT 3u
+#define RAM_BATTLE_SHAPE_TURNED_POINT_STRIDE 0x02u
+/* A corner of a turning triangle before it is turned, as signed bytes [3 x $2 bytes, by axis
+ * (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_POINT 0x7ECB06u
+#define RAM_BATTLE_SHAPE_POINT_COUNT 3u
+#define RAM_BATTLE_SHAPE_POINT_STRIDE 0x02u
+/* The bytes after battle_shape_point's: a model's points are written as words, these 0 [3 x $2
+ * bytes, by axis (across, down, depth)] */
+#define RAM_BATTLE_SHAPE_POINT_HIGH 0x7ECB07u
+#define RAM_BATTLE_SHAPE_POINT_HIGH_COUNT 3u
+#define RAM_BATTLE_SHAPE_POINT_HIGH_STRIDE 0x02u
+/* Triangles put aside to be brought back (commands $A5 and $A6): everything from
+ * battle_shape_center_x to battle_shape_size [8 x $2A bytes, by slot] */
+#define RAM_BATTLE_SAVED_SHAPES 0x7ECB0Eu
+#define RAM_BATTLE_SAVED_SHAPES_COUNT 8u
+#define RAM_BATTLE_SAVED_SHAPES_STRIDE 0x2Au
+/* Which window quadrilateral or screen script triangle is being rasterized; its bit 0 picks the
+ * window, the table half $CD:38B6 points the work RAM port at */
 #define RAM_BATTLE_WINDOW_QUAD_INDEX 0x7ECC64u
 /* Direct page bytes $00-$2A, saved by the NMI handler around its work [43 x $1 bytes, by direct
  * page byte] */
 #define RAM_BATTLE_SAVED_DIRECT_PAGE 0x7ECC65u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_COUNT 43u
 #define RAM_BATTLE_SAVED_DIRECT_PAGE_STRIDE 0x01u
+/* Where the screen script's wave of line offsets is in its turn (command $8F) */
+#define RAM_BATTLE_LINE_WAVE_PHASE 0x7ECC90u
+/* Nonzero for each layer that takes battle_line_scroll_offsets in the line offset scroll modes
+ * [3 x $2 bytes, by layer (BG1, BG2, BG3)] */
+#define RAM_BATTLE_LINE_SCROLL_LAYERS 0x7ECC91u
+#define RAM_BATTLE_LINE_SCROLL_LAYERS_COUNT 3u
+#define RAM_BATTLE_LINE_SCROLL_LAYERS_STRIDE 0x02u
 /* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
  * delay runs out [2 bytes] */
 #define RAM_BATTLE_REPEAT_BUTTONS 0x7ECC97u
@@ -6357,6 +6534,9 @@
 #define RAM_BATTLE_TILE_ROW_PALETTES 0x7ECC9Du
 #define RAM_BATTLE_TILE_ROW_PALETTES_COUNT 2u
 #define RAM_BATTLE_TILE_ROW_PALETTES_STRIDE 0x02u
+/* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
+ * while the screen scripts run [2 bytes] */
+#define RAM_BATTLE_BACKGROUND 0x7ECCA2u
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers
  * selects [6 x $2 bytes, by layer * 2 + axis (BG1-BG3, X then Y)] */
 #define RAM_BATTLE_SHAKE_OFFSETS 0x7ECCA4u
@@ -6426,9 +6606,18 @@
 #define RAM_BATTLE_BLOCK_UPLOADED_ROW 0x7ECD1Fu
 /* Source of the last block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOADED_SOURCE 0x7ECD20u
+/* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
+#define RAM_BATTLE_SCRIPT_SOUND_REQUEST 0x7ECD23u
+/* The sound battle_script_sound_request asks for */
+#define RAM_BATTLE_SCRIPT_SOUND 0x7ECD24u
+/* Where across the screen the sound battle_script_sound_request asks for plays ($80 the middle)
+ * [2 bytes] */
+#define RAM_BATTLE_SCRIPT_SOUND_PAN 0x7ECD25u
 /* The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle)
  * keeps Start from pausing */
 #define RAM_BATTLE_SETUP_FLAGS_COPY 0x7ECD27u
+/* How wide the widening orbit (command $C4) has grown: one more every fourth frame */
+#define RAM_BATTLE_SCREEN_ORBIT_GROWTH 0x7ECD28u
 /* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
  * frame */
 #define RAM_BATTLE_SPRITES_FROZEN_SETTING 0x7ECD29u
@@ -6443,6 +6632,8 @@
 #define RAM_BATTLE_SAVED_PALETTE_TYPES 0x7ECD2Fu
 #define RAM_BATTLE_SAVED_PALETTE_TYPES_COUNT 8u
 #define RAM_BATTLE_SAVED_PALETTE_TYPES_STRIDE 0x01u
+/* How far every line of the layers is moved across by the screen script's sway (command $E7) */
+#define RAM_BATTLE_LINE_SWAY 0x7ECD37u
 /* Half the height of the column band window 1 draws around line $6A */
 #define RAM_BATTLE_COLUMN_BAND_HALF_HEIGHT 0x7ECD38u
 /* The column band's left edge; its right edge is 255 less it */
@@ -6453,6 +6644,9 @@
 #define RAM_BATTLE_WINDOW_STEPS 0x7ECD3Au
 #define RAM_BATTLE_WINDOW_STEPS_COUNT 2u
 #define RAM_BATTLE_WINDOW_STEPS_STRIDE 0x01u
+/* Counted up by command $EF; when it comes round to 0 the screen script stops the battle's
+ * palette animations 8-11 */
+#define RAM_BATTLE_SCREEN_PALETTE_STOP_COUNT 0x7ECD3Cu
 /* Offset of the next block id in the effect's list of four ($D1:ECDB) [2 bytes] */
 #define RAM_BATTLE_EFFECT_GRAPHICS_LIST 0x7ECD3Du
 /* VRAM word address the next effect graphics block goes to ($2000 on, $800 apart) [2 bytes] */
@@ -6469,6 +6663,9 @@
 #define RAM_BATTLE_EFFECT_GRAPHICS_WANTED 0x7ECD44u
 /* The effect whose graphics battle_effect_graphics_wanted asks for */
 #define RAM_BATTLE_EFFECT_GRAPHICS_EFFECT 0x7ECD45u
+/* The layers the screen script may turn on in the screen's settings (command $F5); its commands
+ * for them keep to these */
+#define RAM_BATTLE_SCREEN_LAYER_MASK 0x7ECD46u
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
 #define RAM_BATTLE_PALETTE_ROWS_MOVED 0x7ECDC8u

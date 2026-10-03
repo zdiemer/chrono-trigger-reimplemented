@@ -163,7 +163,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 201 files, 117 of 56,917 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 206 files, 117 of 58,599 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -210,7 +210,7 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **30% of the code is still generated.**
+docstring says which way it is wrong). **28% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
@@ -218,7 +218,7 @@ docstring says which way it is wrong). **30% of the code is still generated.**
 | field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
 | menus, text (`$C2`) | 59.3K | 28.1K | 8.1K | 53% | 300 |
 | scene program, RAM (`$7E`) | 24.9K | 10.2K | 0.8K | 59% | 71 |
-| battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
+| battle frame work (`$CD`) | 15.5K | 9.4K | 3.9K | 39% | 134 |
 | field graphics (`$FD`) | 15.3K | 11.7K | 0.7K | 23% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
@@ -227,7 +227,23 @@ docstring says which way it is wrong). **30% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **189.2K** | **46.8K** | **30%** | **1417** |
+| **total** | **268.5K** | **193.9K** | **47.9K** | **28%** | **1524** |
+
+`$CD`, the battle's frame work, has the screen script language in C
+(RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122
+commands. What is left there, in the order to take it: the window shapes'
+rasterizers the commands still call (`$CD:367C`-`$CD:3923`, the triangles'
+fill into the window table through the work RAM port, and `$CD:31AA`-`$CD:3656`,
+the circles' and the other shapes' that commands `$8B`, `$B5`, `$B6` and `$B8`
+draw), which would take the screen scripts off the machine but for bank
+`$CE`'s angle and setup routines; then the special effects of command `$80`
+(`$CD:2A8B`-`$CD:2D4A`, one-off effects whose tables want names: the fixed
+color's per-line tables at `$BB06`, the wave marks at `$E850`); then the
+triangle centred on its own corners (`$CD:21C0`, with the 8.8 slope and
+division routines it shares with the rasterizer, `$CD:38E5`, `$CD:3BAB`); and
+last the frame work's own remainder (the Lavos scroll modes `$CD:07B9`/`$07E2`,
+the slide's line moves, the frame wait's callees `$CD:0516`, `$CD:039E`,
+`$CD:01B3`).
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high

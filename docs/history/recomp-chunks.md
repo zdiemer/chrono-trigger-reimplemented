@@ -2644,3 +2644,82 @@ own routine (`TIMED_AS`, `$C1:4A71` registered for it, 10,757), and so are the
 screen effect's three kinds, which put its worst stretch and the channel
 runner's within the gate's limits; the runner and the slots' places loop were
 recalibrated. The full gate then passes with no new exception.
+
+## Phase 3, battle chunk 10: the enemies' movements and the main loop's last callees (`$C1:3772`, `$FD:AB30`)
+
+What was left of the battle in bank `$C1` after chunk 9b, and of its routines
+in bank `$FD`, by `python3 tools/burndown.py --uncovered C1`: the enemies'
+per-animation effects (`$C1:3772`-`$C1:4021`, 2,278 bytes, the bank's largest
+run), and every callee the main loop still called out to but the steps, the
+messages and the rewards': a member's status turn (`$FD:AB30`), the counters
+(`$FD:AC6E`), the calling off of a combination (`$FD:A8CE`-`$A95F`), the
+dropped action (`$C1:B3F9`), the enemies an action knocked out (`$C1:B762`),
+the demo's party (`$C1:B70E`, `$B725`), the standing down (`$C1:B7F2`) and the
+battle's end's bookkeeping (`$C1:EA9D`, `$EAE8`, `$B442`, `$B3BB`, `$B3D2`,
+`$FD:AA98`, `$AAB0`): about 3.4 KiB, all there was by concept. The bank's
+burndown went from 7% left to 3%; what remains are runs inside ports that hand
+back to the original (PLAN.md).
+
+What it is, in the game's terms:
+
+- **The enemies' movements** (`battle/enemy_movement.c`): an animation names
+  a movement, a step of eight pixels every few frames, looked at before it is
+  taken (the grid, the other combatants' boxes) and then drifted
+  (`battle/effect_paths.c`): approaching to a reach, charging, lining up,
+  keeping a distance from the target (the spot on the enemy's side, backed
+  away from or closed in on), circling, weaving round a loop below where the
+  weave started, marching one way, making for the middle; and stopping to act,
+  with waiting for the target to move on. The animation picks each one's
+  variant; the drift's cells were renamed for what they hold
+  (`battle_enemy_drifting`, `_heading`, `_drift_from_*`). The loop in
+  `battle/animation.c` runs them as C, each timed as its routine, with the
+  ROM's table only for an animation that names no movement.
+- **The party's turns** (`battle/party_turns.c`): a member driven to fight or
+  confused attacks at random; a member kept from acting loses its waiting
+  action; the counters; the combination called off; the knocked-out enemies
+  with no last reaction counted and shown beaten; the demo's party; standing
+  down. The steps and the attack run between decisions, so these are bridges,
+  run by the main loop as siblings (`battle_run`), each registered.
+- **The battle's end** (`battle/battle_end.c`): the statuses cleared, the
+  party stood up and kept in its records, the enemies taken off the field but
+  for those marked to stay (bit 6 of the placement's kind, which the field
+  reads), the enemies counted out when the party runs, and the beaten noted for
+  the story (`battle_enemies_beaten_for_the_story`, event memory `$1EE`), all
+  C the main loop calls as C.
+
+**The third trap, settled first.** `tools/v_readers.py` found V dead into the
+steps (`$C1:0003`), the called-off step (`$C1:B961`), the attack (`$C1:BFAA`)
+and the reactions' finding (`$C1:B488`), and after every routine the main loop
+called. The library reaches the steps' sites too seldom for a run there to
+count (19 calls at the most), so each step's V rests on a `ct_fuzz
+--poison-dc` run of its routine, the called-off step's with A's high byte
+clear as its callers leave it: random high bytes send the step's dispatch
+where V is read (the notes in `party_turns.c` and `member_turn.c`). Where
+the main loop's next call-out reads A's high byte after a routine that is now
+C, the loop clears it as the original's code there does (the victory's step,
+the running away's message, the field's return).
+
+**What the gate found.** Shadow mode found that a sibling run through
+another sibling must keep the original's stack: the called-off member
+(`$FD:A8FE`) became its own entry so the step's call meets the original's at
+its depth. Fuzzing found that the movements and the dropped action find their
+cells with A's high byte, clear as their callers leave it (now their guards'),
+and that the charge leaves three past the slot the boxes' test handed back.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching: the
+movements' loop 55,081 calls (27 interrupted), the movements 1,985 (waiting
+473, approaching 1,244, circling 155, weaving 93, keeping a distance 20; no
+movie charges, lines up, marches or makes for the middle); the dropped action
+39,836, the combination called off 15,580 and its members 2,522, the knocked
+out 4,611 (350 interrupted), the counters 4,154, the status turn 2,810, the
+end's bookkeeping 26-29 each (one running away). **Fuzzing**, seed 1, none
+mismatching: every entry, 5,000 or 8,000 states (the status turn 666 and the
+attack from bank `$FD` 24 compared, the rest past the budget in the attack's
+showing).
+
+**Timing.** The new entries were calibrated from the shadow runs; those no
+movie reaches take a sibling's cost. The effects' loop, the main loop's body,
+the turn, the timers' dispatch and the combination check were recalibrated.
+With the turn's callees timed as their own routines, the timers' dispatch (a
+whole turn) attributes its time to more than the 32 routines a stretch held,
+so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.

@@ -7,7 +7,7 @@
  * set a screen effect from five settings bytes: the screen shake, which the
  * frame work runs per axis on the layers it names, or a palette preset, a
  * pair of fades the frame work copies over palette animation slots 8 and 9. */
-#include "battle/screen.h"
+#include "battle/screen_script.h"
 
 #include "charge.h"
 #include "original_effects.h"
@@ -15,11 +15,7 @@
 
 /* ---- The channel's layer ----------------------------------------------------------------- */
 
-/* A screen script channel: 0 or 1, whose records are $10 bytes apart. */
-typedef uint8_t ScreenChannel;
-enum { SCREEN_CHANNELS = 2, CHANNEL_RECORD_BYTES = 0x10 };
-
-static ScreenChannel running_channel(const GameState *g) { return (ScreenChannel)(battle_screen_channel(g) / CHANNEL_RECORD_BYTES); }
+static ScreenChannel running_channel(const GameState *g) { return (ScreenChannel)(battle_screen_channel(g) / SCREEN_CHANNEL_RECORD_BYTES); }
 
 // $D1:F474
 /* A random byte, picked from the battle's table by a seed moved on by the
@@ -117,7 +113,7 @@ enum { SAVED_POSITIONS = 3, SAVED_POSITION_SLOTS = 2 };
 
 static void save_position_byte(GameState *g, uint8_t slot, unsigned byte, uint8_t v)
 {
-    set_battle_saved_positions(g, byte * SAVED_POSITION_SLOTS + slot, v);
+    set_battle_shape_corners(g, byte * SAVED_POSITION_SLOTS + slot, v);
 }
 
 // $D1:F5CD
@@ -263,6 +259,71 @@ static void set_palette_preset_from(GameState *g, const uint8_t settings[SETTING
     set_palette_preset(g, &p);
 }
 
+/* ---- The script's shake ------------------------------------------------------------------- */
+
+// $CD:1D98
+/* A screen script's shake, set straight from its settings: on each axis an
+ * amplitude to start at, one to settle to and a rate, a new magnitude every
+ * frame; or the shake stops. */
+static ScreenFlow shake_screen(GameState *g, bool stop, ScreenTriple across, ScreenTriple down, uint8_t layers)
+{
+    if (stop) {
+        stop_shake(g);
+        return screen_on();
+    }
+    const ScreenTriple *axes[SHAKE_AXES] = { &across, &down };
+    for (unsigned axis = 0; axis < SHAKE_AXES; axis++) {
+        uint8_t amplitude = axes[axis]->of[0], settles_to = axes[axis]->of[1];
+        set_battle_shake_elapsed(g, axis, 0);
+        set_battle_shake_rate_elapsed(g, axis, 0);
+        set_battle_shake_period(g, axis, 1);
+        set_battle_shake_amplitude(g, axis, amplitude);
+        set_battle_shake_target(g, axis, settles_to);
+        set_battle_shake_rate(g, axis, axes[axis]->of[2]);
+        set_battle_shake_on(g, axis, amplitude | settles_to);
+    }
+    set_battle_shake_layers(g, layers);
+    return screen_on();
+}
+SCREEN_OPERATION(shake_screen, stop, shake_across, shake_down, layers)
+
+/* ---- The commands' rows (battle/screen_script.h) --------------------------------------------------- */
+
+static ScreenFlow jitter_about(GameState *g, ScreenChannel channel, uint8_t across, uint8_t down, uint8_t spread)
+{
+    jitter_layer(g, channel, across, down, spread);
+    return screen_on();
+}
+SCREEN_OPERATION(jitter_about, channel, across, down, spread)
+
+static ScreenFlow swing(GameState *g, ScreenChannel channel)
+{
+    swing_layer(g, channel);
+    return screen_on();
+}
+SCREEN_OPERATION(swing, channel)
+
+static ScreenFlow save_positions(GameState *g, uint8_t slot)
+{
+    save_animation_positions(g, slot);
+    return screen_on();
+}
+SCREEN_OPERATION(save_positions, slot)
+
+static bool names_a_slot(const GameState *g, const ScreenCommand *c)
+{
+    (void)g;
+    return c->slot < SAVED_POSITION_SLOTS;
+}
+
+SCREEN_OPCODES(screen_motion_opcodes,
+    { 0xDF, OPERATION(jitter_about), .length = 3, .across = BYTE(0), .down = BYTE(1), .spread = BYTE(2) },
+    { 0xCE, OPERATION(swing), .length = 1 },
+    { 0xDD, OPERATION(save_positions), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
+    { 0xE3, OPERATION(save_positions), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
+    { 0xC0, OPERATION(shake_screen), .length = 8, .stop = TOP_BIT(0), .shake_across = TRIPLE(1), .shake_down = TRIPLE(4), .layers = BYTE(7) },
+);
+
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The guards. The screen script's dispatch calls its commands' bodies with
@@ -271,7 +332,7 @@ static bool on_a_channel(Snes *s)
 {
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool on_one = battle_screen_channel(g) % CHANNEL_RECORD_BYTES == 0 && running_channel(g) < SCREEN_CHANNELS;
+    bool on_one = battle_screen_channel(g) % SCREEN_CHANNEL_RECORD_BYTES == 0 && running_channel(g) < SCREEN_CHANNELS;
     vars_peek(false);
     return battle_screen_page_a_clear(s) && on_one;
 }

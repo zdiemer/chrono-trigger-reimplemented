@@ -14,8 +14,10 @@
  * windows, per-line nudges, a band about the middle of the battlefield,
  * copies between the windows and plain fills. A few of them (the waves, the
  * wipe) always write the first buffer, and start a line early, in the border. */
-#include "battle/screen.h"
+#include "battle/screen_script.h"
 
+#include "battle/screen_data.h"
+#include "charge.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/native.h"
@@ -407,6 +409,8 @@ static Edges inside_out(Edges e) { return (Edges)(((uint16_t)~e & 0xFF) << 8 | (
 // $D1:FD7E
 /* Screen command $CF: as $DB, with window 1 turned inside out. The operand
  * shifts the lines taken, which the guard keeps to no shift. */
+enum { NO_SHIFT = 0x7F };
+
 static void copy_window_1_inside_out(GameState *g)
 {
     for (unsigned line = 0; line < SCREEN_LINES; line++)
@@ -442,6 +446,170 @@ static void fill_windows(GameState *g, Fill f)
     }
 }
 
+/* ---- The ripple ----------------------------------------------------------------------------------- */
+
+/* The ripple's two waves: window 1's, 50 pixels deep, its phase four steps
+ * on each frame; window 2's, 15 deep and a step on, about 32 below channel
+ * 0's layer. */
+enum { RIPPLE_PAIRS = 106, RIPPLE_DEPTH = 0x32, RIPPLE_SPEED = 4, SWELL_DEPTH = 0x0F, SWELL_BELOW = 0x20 };
+
+static uint8_t wave_at(const GameState *g, uint8_t phase, uint8_t depth)
+{
+    uint8_t v = (uint8_t)(battle_sine_magnitude(g, phase) * depth >> 8);
+    return (phase & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
+}
+
+static Edges widened(uint8_t v) { return (Edges)(int16_t)(int8_t)v; }
+
+static void leave_ripple(GameState *g, uint8_t frame, uint16_t base)
+{
+    screen_leave_word(g, 0x45, (uint8_t)(frame + RIPPLE_PAIRS));
+    screen_leave_word(g, 0x47, (uint8_t)(frame * RIPPLE_SPEED + RIPPLE_PAIRS));
+    screen_leave_word(g, 0x49, base);
+    hw_set_multiplicand(g, battle_sine_magnitude(g, (uint8_t)(frame + RIPPLE_PAIRS - 1)));
+    hw_multiply_by(g, SWELL_DEPTH);
+}
+
+// $CD:1FC8
+/* Screen command $B3: ripple both windows down the first buffer's lines, a
+ * pair at a time from the border's last: window 1 from the ripple's offset to
+ * the screen's edge on its side (its edges the offset as a signed word), and
+ * window 2 at channel 0's layer's height, the swell's offset and 32 below
+ * it. */
+static void ripple_windows(GameState *g)
+{
+    uint8_t frame = (uint8_t)battle_frame_count(g);
+    uint16_t base = (uint16_t)(battle_screen_layer_y(g, 0) + battle_screen_layer_offset_y(g, 0));
+    for (unsigned pair = 0; pair < RIPPLE_PAIRS; pair++) {
+        Edges w1 = widened(wave_at(g, (uint8_t)(frame * RIPPLE_SPEED + pair), RIPPLE_DEPTH));
+        Edges w2 = (Edges)(widened((uint8_t)(wave_at(g, (uint8_t)(frame + pair), SWELL_DEPTH) + SWELL_BELOW)) + base);
+        for (TableLine line = 2 * (TableLine)pair - 1; line <= 2 * (TableLine)pair; line++) {
+            set_line_edges(g, line, WINDOW_1, w1);
+            set_line_edges(g, line, WINDOW_2, w2);
+        }
+    }
+    ORIGINAL_EFFECT(leave_ripple(g, frame, base));
+}
+
+/* ---- The commands' rows (battle/screen_script.h) --------------------------------------------------- */
+
+static ScreenFlow ripple(GameState *g)
+{
+    ripple_windows(g);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(ripple)
+
+static ScreenFlow open_the_band(GameState *g, uint8_t value)
+{
+    open_band(g, value == 0);
+    return screen_on();
+}
+SCREEN_OPERATION(open_the_band, value)
+
+static bool band_fits(const GameState *g, const ScreenCommand *c)
+{
+    return c->value == 0 || position_down(g) <= BATTLEFIELD_LINES + band_half_height(g);
+}
+
+static ScreenFlow wipe(GameState *g)
+{
+    wipe_diagonally(g);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(wipe)
+
+/* The waves, about the window's own edges, by a count of calls, and by the
+ * frames: each damped by the operand. */
+typedef enum { WAVE_ABOUT_EDGES, WAVE_COUNTED, WAVE_WITH_FRAMES } WaveKind;
+
+static ScreenFlow wave(GameState *g, uint8_t kind, uint8_t amount)
+{
+    switch ((WaveKind)kind) {
+    case WAVE_ABOUT_EDGES: wave_about_edges(g, amount); break;
+    case WAVE_COUNTED: wave_counted(g, amount); break;
+    case WAVE_WITH_FRAMES: wave_with_frames(g, amount); break;
+    }
+    return screen_on();
+}
+SCREEN_OPERATION(wave, kind, amount)
+
+static ScreenFlow move_band(GameState *g, uint8_t by)
+{
+    move_middle_band(g, by);
+    return screen_on();
+}
+SCREEN_OPERATION(move_band, by)
+
+static ScreenFlow draw_band(GameState *g, uint8_t by)
+{
+    draw_middle_band(g, by);
+    return screen_on();
+}
+SCREEN_OPERATION(draw_band, by)
+
+static bool middle_band_fits(const GameState *g, const ScreenCommand *c)
+{
+    return (uint8_t)(battle_column_band_half_height(g) + c->by) <= BAND_MIDDLE_LINE;
+}
+
+static ScreenFlow copy_across(GameState *g)
+{
+    copy_window_1_across(g);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(copy_across)
+
+static ScreenFlow copy_inside_out(GameState *g)
+{
+    copy_window_1_inside_out(g);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(copy_inside_out)
+
+static bool unshifted(const GameState *g, const ScreenCommand *c)
+{
+    (void)g;
+    return (c->value & NO_SHIFT) == 0;
+}
+
+/* Each fill's work is timed as its own routine's. */
+static ScreenFlow fill(GameState *g, uint8_t fill)
+{
+    switch ((Fill)fill) {
+    case BOTH_EMPTY: TIMED_AS(g, 0xD1FCF4, fill_windows(g, BOTH_EMPTY)); break;
+    case WINDOW_1_EMPTY: TIMED_AS(g, 0xD1FC38, fill_windows(g, WINDOW_1_EMPTY)); break;
+    case WINDOW_2_EMPTY: TIMED_AS(g, 0xD1FC96, fill_windows(g, WINDOW_2_EMPTY)); break;
+    default: TIMED_AS(g, 0xD1FBDA, fill_windows(g, WINDOW_1_FULL)); break;
+    }
+    return screen_on();
+}
+SCREEN_OPERATION(fill, fill)
+
+/* Filling window 1 leaves A's high byte set, which the original takes into
+ * the place of the next frame of the effect's graphics, should one follow;
+ * no script of the game's asks for it (battle/screen_script.c), and the
+ * original's handler runs it. */
+static bool fill_leaves_a_clear(const GameState *g, const ScreenCommand *c)
+{
+    (void)g;
+    return c->fill < WINDOW_1_FULL;
+}
+
+SCREEN_OPCODES(screen_window_opcodes,
+    { 0xB3, OPERATION(ripple), .length = 1 },
+    { 0xEE, OPERATION(open_the_band), .needs = band_fits, .length = 1, .value = BYTE(0) },
+    { 0xEC, OPERATION(wipe), .length = 1 },
+    { 0xED, OPERATION(wave), .length = 1, .kind = CONSTANT(WAVE_ABOUT_EDGES), .amount = BYTE(0) },
+    { 0xF3, OPERATION(wave), .length = 1, .kind = CONSTANT(WAVE_COUNTED), .amount = BYTE(0) },
+    { 0xEB, OPERATION(wave), .length = 1, .kind = CONSTANT(WAVE_WITH_FRAMES), .amount = BYTE(0) },
+    { 0xE9, OPERATION(move_band), .length = 1, .by = BYTE(0) },
+    { 0xE8, OPERATION(draw_band), .needs = middle_band_fits, .length = 1, .by = BYTE(0) },
+    { 0xDB, OPERATION(copy_across), .length = 1 },
+    { 0xCF, OPERATION(copy_inside_out), .needs = unshifted, .length = 1, .value = BYTE(0) },
+    { 0x88, OPERATION(fill), .needs = fill_leaves_a_clear, .length = 1, .fill = LOW_SEVEN(0) },
+);
+
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The guards. The band down stays above the position's reach of the
@@ -467,8 +635,6 @@ bool battle_screen_middle_band_fits(Snes *s)
     vars_peek(false);
     return battle_screen_page_a_clear(s) && fits;
 }
-
-enum { NO_SHIFT = 0x7F };
 
 bool battle_screen_copy_unshifted(Snes *s)
 {
