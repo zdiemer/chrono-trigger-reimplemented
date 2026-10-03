@@ -107,7 +107,9 @@ static void follow_finish(GameState *g)
     set_scene_race_bg2_scroll_x(g, turn >> 2);
     uint16_t quarter = turn >> 2;
     set_scene_race_bg3_scroll_x(g, (uint16_t)((quarter >> 1) + quarter + (quarter & 1)));
-    set_scene_call_first(g, scene_program_own(), quarter);
+    /* the program works the three eighths out in its first cell, which the
+     * next routine to use the cells writes over */
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), quarter));
 }
 
 /* ---- The horizon ------------------------------------------------------------------------------ */
@@ -226,9 +228,10 @@ static void turn_camera(GameState *g)
         uint16_t other_way = ramp(scene_race_turning(g, 1), pad & IN_BUTTON_L);
         set_scene_race_turning(g, 0, one_way);
         set_scene_race_turning(g, 1, other_way);
-        SceneProgramPage camera = scene_program_channel(0);
-        set_scene_call_first(g, camera, one_way >> TURNING_SHIFT);
-        set_scene_call_second(g, camera, other_way >> TURNING_SHIFT);
+        /* the program sums the turn in channel 0's first two cells, which the
+         * camera's next multiply writes over */
+        ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_channel(0), one_way >> TURNING_SHIFT));
+        ORIGINAL_EFFECT(set_scene_call_second(g, scene_program_channel(0), other_way >> TURNING_SHIFT));
         set_race_camera(g, CAMERA_ANGLE, (uint16_t)(race_camera(g, CAMERA_ANGLE) + (one_way >> TURNING_SHIFT) -
                                                    (other_way >> TURNING_SHIFT)));
     }
@@ -288,11 +291,12 @@ static bool settle_camera(GameState *g)
 /* The race keeps the controller of this frame and the last. The original
  * rotates the three words, which leaves the scene's copy of the controller
  * holding the one from two frames ago until the next read; and the controller
- * passes through the arithmetic's first cell on the way. */
+ * passes through the arithmetic's first cell on the way, which the next
+ * routine to use the cells writes over. */
 static void keep_controller(GameState *g)
 {
     PadBits now = scene_joypad(g);
-    set_scene_call_first(g, scene_program_own(), now);
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), now));
     set_scene_joypad(g, scene_race_buttons_before(g));
     set_scene_race_buttons_before(g, scene_race_buttons(g));
     set_scene_race_buttons(g, now);

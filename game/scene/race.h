@@ -62,8 +62,11 @@ static inline bool race_in_attract_mode(const GameState *g) { return (scene_flag
  * high word reaches 8. */
 #define RACE_FINISH 0x80000ul
 
-/* A bike's lane's high byte as the race reads it: as a word, with the byte
- * after the lane on top. */
+/* A bike's lane in 256ths, as Johnny's steering, the distance bar's markers
+ * and the bikes' placing read it: the lane's high byte, which the program
+ * reads as a word, with the byte after the lane on top. Nothing writes that
+ * byte and the program's clear of its work RAM leaves it 0, so in the game the
+ * word is the high byte alone. */
 static inline uint16_t race_lane_high(const GameState *g, Racer r)
 {
     return (uint16_t)(scene_race_racers_lane(g, r) >> 8 | scene_race_racers_after_lane(g, r) << 8);
@@ -127,18 +130,12 @@ void race_start(GameState *g);
  * of a new camera height. */
 void race_forget_divisors(GameState *g);
 
-/* scene/bridge.c: where the race's setup calls the original's code -- the
- * program's unpacker for a resource, the song's start, the camera script's
- * first step -- with the machine as the original has it there: a subroutine
- * it runs inline entered and left (its frame on the stack under the
- * call-outs), and the unpacking it does while it works on the pictures, with
- * the data bank and the direct page kept on the stack. */
+/* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
+ * entered and left, under the call-outs it makes; and the race's song, from
+ * the program's routine that starts one. */
 void scene_bridge_enter(Snes *s, uint32_t call);
 void scene_bridge_leave(Snes *s);
-void scene_bridge_unpack(Snes *s, uint32_t site, uint16_t resource);
-void scene_bridge_unpack_holding(Snes *s, uint32_t site, uint16_t resource);
 void scene_bridge_start_song(Snes *s, uint8_t song);
-void scene_bridge_first_script_step(Snes *s);
 
 /* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
  * in the original's scaler, with the carry its first row takes. */

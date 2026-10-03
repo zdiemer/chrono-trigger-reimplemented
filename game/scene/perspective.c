@@ -48,6 +48,8 @@ static uint16_t plane_register(const GameState *g, SceneChannel ch, unsigned reg
  * their address, as the call holds it. */
 typedef enum { START_RACE = 0x45B0, START_ENDING = 0x9B46 } PerspectiveStart;
 
+static PerspectiveStart start_routine(const GameState *g) { return (PerspectiveStart)scene_perspective_start(g); }
+
 /* The instructions the loop runs after each line, as words: one step farther
  * (the image's INX; NOP, or the race's NOP; INX), or the branch the race writes
  * to copy each line into the next (the word at scene_perspective_pair_branch). */
@@ -65,7 +67,7 @@ enum { CPU_REGISTERS_PAGE = 0x4200 };
 static uint16_t first_line(const GameState *g, SceneChannel ch)
 {
     uint16_t horizon = plane_register(g, ch, PLANE_HORIZON);
-    if (scene_perspective_start(g) == START_RACE)
+    if (start_routine(g) == START_RACE)
         return (uint16_t)((horizon ? horizon : 1) * LINE_BYTES);
     return (uint16_t)((horizon - 1) * LINE_BYTES);
 }
@@ -76,7 +78,7 @@ static uint16_t first_line(const GameState *g, SceneChannel ch)
  * nothing. Both start at the plane's top. */
 static void start_lines(GameState *g, SceneChannel ch)
 {
-    if (scene_perspective_start(g) != START_RACE)
+    if (start_routine(g) != START_RACE)
         return;
     if (plane_register(g, ch, PLANE_HORIZON) == 0)
         set_scene_channel_register(g, ch, PLANE_HORIZON, 1);
@@ -183,7 +185,7 @@ static bool perspective_code_present(Snes *s)
 }
 
 /* The scenes' first lines, the race's and the endings', and their code. */
-static bool start_known(Snes *s, uint16_t start)
+static bool start_known(Snes *s, PerspectiveStart start)
 {
     if (start == START_RACE)
         return m_code_matches(s, 0x7E45B0, 0x26, 0xCF140E55949D99BFull);
@@ -198,7 +200,7 @@ static bool lines_known(const GameState *g, SceneChannel ch)
 {
     uint16_t step = scene_perspective_line_step(g);
     bool paired = step == STEP_PAIRS;
-    if (scene_perspective_start(g) == START_RACE) {
+    if (start_routine(g) == START_RACE) {
         paired = plane_register(g, ch, PLANE_LINES_PAIRED) != 0;
         if (paired && scene_perspective_pair_branch(g) != STEP_PAIRS)
             return false;
@@ -220,7 +222,7 @@ bool scene_perspective_as_ported(Snes *s, uint16_t d)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool known = start_known(s, scene_perspective_start(g)) && lines_known(g, ch);
+    bool known = start_known(s, start_routine(g)) && lines_known(g, ch);
     vars_peek(false);
     return known;
 }

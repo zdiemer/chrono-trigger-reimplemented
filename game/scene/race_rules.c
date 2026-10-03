@@ -60,6 +60,12 @@ static bool finished(const GameState *g, Racer r) { return (distance(g, r) >> 16
 
 static RaceStage stage(const GameState *g) { return (RaceStage)scene_race_stage(g); }
 
+/* The race on to its next stage. The original counts the stage up, and its
+ * marks (Johnny gone, the cartridge's column, the program over) the same way,
+ * so a mark already set is left set. */
+static void next_stage(GameState *g) { set_scene_race_stage(g, (uint16_t)(stage(g) + 1)); }
+static uint16_t marked(uint16_t mark) { return (uint16_t)(mark + 1); }
+
 /* Compared as the race compares: by the sign of the difference. */
 static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
 
@@ -742,8 +748,8 @@ static void crono_finishes(GameState *g)
 
     scene_remove_task(g, SCENE_FRAME_TASKS, TASK_TURN_CAMERA);
     scene_add_task(g, SCENE_FRAME_TASKS, TASK_AWAIT_VICTORY_SONG);
-    set_scene_race_cartridge_column(g, (uint16_t)(scene_race_cartridge_column(g) + 1));
-    set_scene_race_stage(g, (uint16_t)(scene_race_stage(g) + 1));
+    set_scene_race_cartridge_column(g, marked(scene_race_cartridge_column(g)));
+    next_stage(g);
     set_scene_pause_enabled(g, 0);
     set_scene_race_racers_drift_up(g, RACER_CRONO, 0);
     set_scene_race_racers_drift_down(g, RACER_CRONO, 0);
@@ -925,8 +931,8 @@ static void coast(GameState *g)
     if (scene_race_racers_out_of_sight(g, RACER_JOHNNY) != 0 && (lane(g, RACER_CRONO) & 0xFFFE) == CRONO_FINISH_LANE) {
         set_scene_race_racers_drift_up(g, RACER_CRONO, 0);
         set_scene_race_racers_drift_down(g, RACER_CRONO, 0);
-        set_scene_race_stage(g, (uint16_t)(scene_race_stage(g) + 1));
-        set_scene_race_johnny_gone(g, (uint16_t)(scene_race_johnny_gone(g) + 1));
+        next_stage(g);
+        set_scene_race_johnny_gone(g, marked(scene_race_johnny_gone(g)));
     }
 }
 
@@ -974,7 +980,7 @@ static void leave(GameState *g)
     uint16_t left = (uint16_t)(scene_race_end_wait(g) - 1);
     set_scene_race_end_wait(g, left);
     if (left == 0)
-        set_scene_program_over(g, (uint16_t)(scene_program_over(g) + 1));
+        set_scene_program_over(g, marked(scene_program_over(g)));
 }
 
 // $7E:44CE
