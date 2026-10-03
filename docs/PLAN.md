@@ -54,12 +54,13 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 37% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 26% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
-| Ports off the machine (`portstyle.py`) | 28% of functions take a `Snes *` | entry wrappers only |
+| Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
+| How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
 
 ### The two gaps this list exposed
 
@@ -440,9 +441,9 @@ short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
 
-Three things stand between a finished `game/` and a native build with nothing
-under it. None of them is optional for target 1, and none was scheduled before
-the audit that found them.
+Four things stand between a finished `game/` and a native build with nothing
+under it. None of them is optional for target 1. The first three were found
+by an audit; the fourth is the program itself.
 
 - **Video fed by service calls.** P3's leftover: the observer fills in the
   per-span memory pointers the register decoder fills in now, so the renderer
@@ -475,6 +476,53 @@ the audit that found them.
   `tm_video_status` has no native answer, so its six call sites are rewritten
   to those. The work is the backend, the calls, and the rewrites TODO.md lists
   under "Timing without a beam"; the main thread runs as one coroutine.
+
+- **The native program, and the registry taken down.** Today the emulated
+  CPU walks the ROM from its reset vector, and a port runs because the
+  intercept finds its address in `game/registry.c`; its entry wrapper turns
+  the machine's registers into C arguments and back. That is what lets the
+  gate run the original beside the port, and it is scaffolding like the rest:
+  a shipped build has a `main()` that boots the game and callers that call
+  ports. It is taken down in deliberate steps, each its own commit, none of
+  them by accident:
+  1. **Measure it.** A census from a shipping-mode run (`ct_dev --native on
+     --recomp on`): for each registered entry, how often it was entered by
+     the machine (from generated code, the interpreter or a vector) and how
+     often a port called it as C. The count entered by the machine is the
+     number this item drives to 0, and goes in the table above. The census
+     names which caller still holds each entry to the registry.
+  2. **Ports call ports.** Where a port reaches another port through a
+     call-out (`portsmell`'s `sibling-through-machine` already finds these), it
+     calls the C function, keeping the callee's time with `NATIVE_TIME_AS`.
+     This happens anyway as subsystems finish; the census says where it is
+     still owed.
+  3. **The skeleton.** `game/` gets the program's top: a boot function, the
+     main thread as the one coroutine (`runtime/port/fiber.h`) whose frame
+     waits yield to the driver, and the frame's work -- the vblank handler,
+     the line handler -- as functions the driver calls each frame, in place
+     of the interrupt vectors and the RAM trampolines the game points them
+     through. The power-on item above ports what those entries do; this
+     step makes them functions the driver calls rather than addresses the
+     CPU jumps to.
+  4. **A slice with nothing under it, early.** A build target (`ct_native`)
+     that links `game/`, `runtime/platform/` with its host backends and
+     `fiber.h`, and none of the emulator, the generated C or the registry,
+     run as soon as boot, the title and a few field maps are ported. Its
+     link errors and its first frames are the list of what still assumes a
+     machine -- a wait on the beam, code run from RAM, a port that reads a
+     register -- found while there is time to change course, not after the
+     last port. It is a measurement, not the product, until the rest
+     arrives.
+  5. **Per subsystem, the registry goes with the gate.** When a subsystem
+     retires the gate ("Retiring the gate, deliberately", above), its rows
+     leave `game/registry.c`, its entry wrappers and leaves files are
+     deleted, its entries become ordinary functions its callers call, and
+     its guards become assertions. The dev build keeps the registry for the
+     subsystems still under the gate.
+  6. **Last, the machine leaves the product.** When no subsystem is under
+     the gate, `game/registry.c`, the intercept, the entry macros and
+     `runtime/`'s emulator are deleted from what ships; `ct_play` is
+     `ct_native`.
 
 **The asset seam's other half comes forward to here.** The ports reach ROM
 data through named accessors (`*_data.h`) now, all but `battle/scripts.c`'s
