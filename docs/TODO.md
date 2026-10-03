@@ -610,6 +610,27 @@ rest waits, is [PLAN.md](PLAN.md).
   scene program need `--keep 7E3000-7EC994` (the program's own code), which
   older entries' arguments stop short of at `B5FF`.
 
+- **What the techs screen's review left** (merged with the techs screen; none
+  blocking): `tech_screen.c` takes the thumb's direction from an unsigned
+  carry (`step < 0`), `scroll == 0` as a signed test and `NOBODY` through
+  bit 7; `WRAPS_TO_THE_LAST` reproduces a sign test for kinds the guard
+  refuses (a plain wrap); `menu_techs_after_casting` returns the old MP only
+  for the leave and subtracts a byte that can't borrow; `MenuTechCost.part`
+  is read only in `ORIGINAL_EFFECT`; `techs.c`'s `TechWalk` is rebuilt every
+  pass for scaffolding (once, after the loop); the cost is read back from
+  `tech_cost_needed` right after `menu_tech_cost_for` returned it; the
+  list's rows move by `wram_copy` on raw tilemap addresses; `menu_tech_parts`
+  is declared from `$7E:1607` so indices 0-$38 alias the field object tables
+  with no `reuses` (declare it from `$1640`, index by character and double
+  tech, and refuse a single tech in a double or triple list);
+  `menu_tech_effect_byte` takes a byte offset (`{factor, restores}`); the
+  status record's `MP_AT`, `MAGIC_AT` and `ACCESSORY_AT` want map fields;
+  the bridge repeats constants `tech_screen.c` names, and `TECH_RECORD_BYTES`
+  is in two files; `item_screen_bridge.c`'s `SITES[w]` runs a local enum
+  beside `ItemUseKind`; the extra empty member rows' comment should say what
+  the player sees; the members step's guard should check the list only when
+  `menu_tech_list_shown` matches the member and kind.
+
 - **What the items screen's review left** (merged with the item and
   equipment screens; none blocking): `item_screen.c` reads the names through
   `wram_read8(MENU_NAMES_BANK|...)` where `character_names_byte` exists; the

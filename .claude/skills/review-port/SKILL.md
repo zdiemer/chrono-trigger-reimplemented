@@ -853,6 +853,12 @@ Each of these is a finding. Every example here comes from this repo.
      command's operand is, and no enum can be the type. Each row's
      parameters are named for that command, and the enums it takes are the
      types.
+117. **A table declared from below its start.** A map entry whose base is
+     moved down so the original's index needs no subtraction (`menu_tech_parts`
+     from `$7E:1607`) makes the indices below the real start look valid,
+     aliasing whatever lies there without a `reuses`, and the accessor's
+     range check can't catch them. Declare the table where it starts and
+     index it by what the game counts.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
