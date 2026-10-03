@@ -80,6 +80,12 @@ void battle_build_frame_graphics(GameState *g, unsigned object, uint8_t frame);
  * largest enemies' don't). */
 bool battle_object_builds_graphics(const GameState *g, unsigned object);
 
+/* Whether an object's graphics are ones the battle builds: a combatant's,
+ * of a graphics kind with a layout, whose frame's part offsets stay in the
+ * table (a large kind's run on into the next objects'). Every object the
+ * battle builds is one. */
+bool battle_object_graphics_known(const GameState *g, unsigned object);
+
 /* Put a color set of three colors, or of seven, into the first sprite
  * palette, from color 1 of the quarter (0-7: a quarter past the palette's
  * four runs on into the next). */

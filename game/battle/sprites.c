@@ -488,15 +488,17 @@ void battle_build_object_graphics_checked(Snes *s)
  * smallest); and A's high byte clear, as the game has it, since the original
  * picks the kind's sizes with the whole of A as its index. */
 enum { GRAPHICS_KINDS = 5, PART_OFFSET_WORDS = BATTLE_COMBATANTS * PARTS_PER_OBJECT * OFFSETS_PER_PART };
+bool battle_object_graphics_known(const GameState *g, unsigned object)
+{
+    return battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
+           && object * PARTS_PER_OBJECT * OFFSETS_PER_PART + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
+                  <= PART_OFFSET_WORDS;
+}
+
 bool battle_builds_known_object(Snes *s)
 {
     vars_peek(true);
-    GameState *g = state_of(s);
-    unsigned object = graphics_object(s);
-    bool known = battle_names_combatant((uint16_t)object) && battle_object_kind(g, object) < GRAPHICS_KINDS
-                 && object * PARTS_PER_OBJECT * OFFSETS_PER_PART
-                            + battle_frame_part_offset_bytes(g, battle_object_kind(g, object))
-                        <= PART_OFFSET_WORDS;
+    bool known = battle_object_graphics_known(state_of(s), graphics_object(s));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && known;
 }

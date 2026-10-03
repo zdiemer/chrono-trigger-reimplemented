@@ -242,4 +242,11 @@ static inline uint8_t first_turn_wait(const GameState *g, uint8_t setting, uint8
     return rom_read8(g, 0xCC2E31u + (uint8_t)(speed - 1 + setting * SPEEDS_A_SETTING));
 }
 
+/* The characters' records, each one's place among them in bytes ($CC:FC1E,
+ * a word a character), as the battle's return to the field goes round them. */
+static inline uint16_t battle_character_record_place(const GameState *g, unsigned character)
+{
+    return rom_read16(g, 0xCCFC1Eu + character * 2u);
+}
+
 #endif

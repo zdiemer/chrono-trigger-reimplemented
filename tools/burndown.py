@@ -55,6 +55,11 @@ the port reaches the same code another way.
   port covers by other means than a call the analysis sees.
 - *Stops* at an indirect jump the analysis doesn't resolve.
 
+**Dead code.** Code only an `unreached` entry of re/hints.toml starts
+(docs/MATCHING.md, C6: bytes between known code that decode as code, which
+nothing in the ROM calls and no movie runs) isn't counted at all: the game
+never runs it, so it needs no port.
+
 It is a burndown, not an accounting: useful for "which subsystem is barely
 started", not for "this bank is 61.3% done".
 """
@@ -69,6 +74,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from tools.disasm import hints as hints_mod
 from tools.disasm.analyze import Analyzer
+from tools.disasm.closure import reached_code
 from tools.disasm.cpu import Mode
 from tools.disasm.memmap import Rom
 
@@ -355,10 +361,13 @@ def main():
     ports = read_ports(args.tree, an)
     covered, inlined, entries = coverage(an, ports)
 
-    # The analysis's own code, which is what the generator builds blocks from.
+    # The analysis's own code, which is what the generator builds blocks from,
+    # but for what only an `unreached` entry starts: nothing in the game runs it.
+    live = reached_code(an)
     all_code = set()
     for pc, variants in an.code.items():
-        all_code.update(range(pc, pc + max(i.size for i in variants.values())))
+        if pc in live:
+            all_code.update(range(pc, pc + max(i.size for i in variants.values())))
     covered &= all_code
     inlined &= all_code
 

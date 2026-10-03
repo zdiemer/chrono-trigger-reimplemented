@@ -279,9 +279,12 @@ static bool start_battle(Snes *s)
     set_demo_aside(g);
     if (!step(s, 0xC1802D, BATTLE_STEP_SET_UP))
         return false;
-    /* a battle without enemies (none is set up so) is the original's */
+    /* No battle is set up without enemies, or with more than there are
+     * places for: the original's lists would run on through memory for one.
+     * Such a setup is the original's from the step's return, with the machine
+     * as the step left it. */
     if (battle_enemy_count(g) == 0 || battle_enemy_count(g) > BATTLE_ENEMIES) {
-        m_stop_at(s, 0xC18030, DC_A | DC_X | DC_Y | DC_FLAGS);
+        m_stop_at(s, 0xC18030, 0);
         return false;
     }
     list_combatants_for_the_order(g);

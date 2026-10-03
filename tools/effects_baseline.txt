@@ -67,7 +67,7 @@ game/battle/enemy_turn.c script_enemy battle_enemy_turn battle_enemy_turn
 game/battle/frame.c update_the_frame battle_effect_sprite_attributes battle_effect_sprite_attributes
 game/battle/menu_window.c tech_page_carry battle_digits[3] battle_digits
 game/battle/positions.c battle_distance_along battle_multiply_factors[1] battle_multiply_factors              # the entry's operand (the radius): the original's callers put it in the cell, every call
-game/battle/positions.c combatant_in_work battle_work[0] battle_work
+game/battle/positions.c combatant_in_work battle_work[0] battle_work only # the entry's operand: the original's callers put the combatant there first, every call
 game/battle/positions.c reach_entry battle_product battle_product                                             # the product the reach test just kept plainly (positions.c distance_squared)
 game/battle/positions.c search_carry battle_product battle_product                                            # the product the search just kept plainly (positions.c distance_squared); the menu window's scaffolding reuses the cell between
 game/battle/screen.h screen_cell battle_low_scratch battle_low_scratch
@@ -84,8 +84,8 @@ game/battle/screen_beam.c battle_quad_edge_slope battle_low_scratch[13] battle_l
 game/battle/screen_beam.c corners_in_cells battle_low_scratch battle_low_scratch
 game/battle/screen_motion.c settings_in_cells battle_screen_effect_settings battle_scratch # the effect's settings: its callers (the original's, and the scripts' $80) give them first, every call
 game/battle/script_sound.c screen_effect battle_screen_effect_settings battle_scratch # the settings a command does not give: the scripts' $80 give every setting their effect reads, as the original's callers do
-game/battle/script_walk.c battle_find_the_way battle_work[0] battle_work # the entry's operands: the original's walk puts the two points there first, every call
-game/battle/script_walk.c battle_find_the_way battle_work[1] battle_work # the entry's operands: the original's walk puts the two points there first, every call
+game/battle/script_walk.c battle_find_the_way battle_work[0] battle_work only # the entry's operands: the original's walk puts the two points there first, every call
+game/battle/script_walk.c battle_find_the_way battle_work[1] battle_work only # the entry's operands: the original's walk puts the two points there first, every call
 game/battle/script_walk.c battle_find_the_way battle_work[2] battle_work only # the entry's operands: the original's walk puts the two points there first, every call
 game/battle/script_walk.c battle_find_the_way battle_work[3] battle_work only # the entry's operands: the original's walk puts the two points there first, every call
 game/battle/targets.c battle_select_by battle_enemy_turn battle_enemy_turn
@@ -100,8 +100,8 @@ game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch o
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch only
 game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch only
 game/battle/wait.c battle_wait_line_loop battle_scratch[0] battle_scratch only
-game/battle/window.h battle_work16 battle_work[0] battle_work
-game/battle/window.h battle_work16 battle_work[1] battle_work
+game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
+game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits
 game/core/memory.c memory_move_stub menu_block_move_stub menu_block_move_stub only                            # the stub's own port reads the banks its caller, the original's code, writes into it; the menus' block move writes the stub only for shadow mode and never calls it
 game/event/contact.c contact_is_one field_leader_contact_high field_leader_contact_high                       # a guard; the walk's search past the tables writes the contact in scaffolding (field/walk.c, stopped_past_the_tables), and its high byte 0 as the plain write before it does
@@ -497,3 +497,5 @@ game/menu/tech_screen_bridge.c restoring_is_pointable menu_cursor_index menu_obj
 game/menu/tech_screen_bridge.c targets_step_runs menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/top_layer.c count_a_frame menu_object_slots_phase menu_tech_row_partners # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is the techs screen's, a cell it writes and nothing reads
 game/menu/top_layer.c wave menu_object_slots_phase menu_tech_row_partners # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is the techs screen's, a cell it writes and nothing reads
+game/battle/effect_animation.c stepping battle_work[0] battle_work only # the entry's operand: the original's effects' loop ($CC:F278), its only caller, puts the effect there first, every call
+game/battle/effect_animation.c stepping battle_work[1] battle_work only # the entry's operand: the original's effects' loop ($CC:F278), its only caller, puts the effect there first, every call

@@ -132,16 +132,20 @@ rest waits, is [PLAN.md](PLAN.md).
     `$FD:A990`, the message `$CD:0033` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
     original (RECOMP.md, "Phase 3, battle chunk 4: the party's working
-    out"): a hit that steals as well (no record has one); a member that comes back once when knocked out
-    (from `$C1:B316`); the effect's start a status's timer asks for
+    out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    an effect's next
-    frame `$CC:F2A9`; the window rasterizer `$D1:F9E7`; the decompressor and
+    the window rasterizer `$D1:F9E7`; the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
-    the name converter `$C1:01A9` from the setup; the Lavos scroll modes
+    the name converter `$C1:01A9` from the setup (through `$CC:F063` and
+    `$C1:0065`); from a member that comes back once (RECOMP.md, "Phase 3,
+    battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
+    the message `$CD:0021`; from the battle's start and its return to the
+    field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
+    closing `$CD:0006` and the frame wait `$CF:FCFB`, and from the setup's
+    end the party's poses `$C1:35DD`; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
     `$CE:EE6E`, `$CE:E18E`, `$CD:0B1E` and the wait tail's
     callees from the frame work.
@@ -1858,7 +1862,14 @@ waits on M5 rather than on a backend.
   passes on them without looking. What checks them today is `--native on
   --recomp off` tracing identically to a known-good build (DISASSEMBLY.md,
   "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
-  when the interrupt touches none of their state, would close it.
+  when the interrupt touches none of their state, would close it. The same
+  holds for the battle's start from the field (`battle_start_from_field`,
+  `$C1:0000`): its call to the battle screen's setup waits for frames, so all
+  its calls are interrupted, and fuzzing compares it only up to that call; what
+  it does after (clearing the battle's memory, taking in the story's rules)
+  is checked by the shipping-mode traces and routes alone. A member that comes
+  back once is fuzzed up to its showing, which `ct_fuzz` can't run as a sibling
+  (no runtime), so the registers at that call differ there.
 - **Snes9x agreement tables** in RUNTIME.md were re-measured after the timing
   fix for `new-game`, `menu` and `field` only; `fair` and `fair-companion` got
   worse and are unexplained.

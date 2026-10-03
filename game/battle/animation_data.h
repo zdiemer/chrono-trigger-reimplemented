@@ -188,6 +188,26 @@ static inline uint8_t battle_effect_record_marks(const GameState *g, uint16_t at
     return rom_read8(g, 0xCE0000u + at);
 }
 
+/* The whole record, as a frame of the effect's animation: its marks (any of
+ * them, BATTLE_EFFECT_FRAME_ENDS, makes it the animation's last) over the
+ * low bits of its sprite set, its offset from the anchor, and how many frames
+ * it shows, whose top bit is the sprite set's high bit. The record is read
+ * on past the bank's end as the original's long reads are. */
+enum { BATTLE_EFFECT_FRAME_BYTES = 4, BATTLE_EFFECT_FRAME_ENDS = 0xE0 };
+typedef struct {
+    uint8_t marks;
+    int8_t x, y;
+    uint8_t time;
+    bool high_set;
+} BattleEffectFrame;
+static inline BattleEffectFrame battle_effect_frame_record(const GameState *g, uint16_t at)
+{
+    uint32_t from = 0xCE0000u + at;
+    uint8_t time = rom_read8(g, from + 3);
+    return (BattleEffectFrame){ rom_read8(g, from), (int8_t)rom_read8(g, from + 1), (int8_t)rom_read8(g, from + 2),
+                                (uint8_t)(time & 0x7F), (time & 0x80) != 0 };
+}
+
 /* Where in the effect sprite data each effect sprite set starts ($CC:F7C0,
  * by set), and the position of a bitmap shape's column or row ($CC:F820). */
 static inline uint16_t battle_sprite_set_start(const GameState *g, uint16_t set)

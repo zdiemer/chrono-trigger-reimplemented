@@ -3,8 +3,8 @@
  * Once a turn the main loop updates every combatant (battle/main_loop.c):
  * each one in a filled slot is put back in the fight -- a combatant revived
  * since stands up again -- and one whose HP is gone is knocked out: out of the
- * fight with its statuses gone, an enemy beaten. A member that comes back once
- * when knocked out is still the original's code (docs/TODO.md). Then an enemy out of the fight
+ * fight with its statuses gone, an enemy beaten, and a member that comes back
+ * once when knocked out gets up again at once. Then an enemy out of the fight
  * whose other part is out too loses its turn's script, and the party all out
  * is a defeat. Between turns the loop keeps each combatant's status timers
  * running while it has the status they time (combatant.h, battle/timers.h),
@@ -12,9 +12,13 @@
 #include "battle/combatant.h"
 
 #include "battle/bridge.h"
+#include "battle/effect_parts.h"
+#include "battle/effect_work.h"
 #include "battle/entries.h"
 #include "battle/rules_data.h"
+#include "battle/targets.h"
 #include "battle/timers.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "port/native.h"
 #include "vars.h"
@@ -298,7 +302,7 @@ bool combatant_comes_back(const GameState *g, unsigned slot) { return (battle_st
 /* The combatant leaves the fight, knocked out or taken off: out of the fight
  * with its turn timer stopped and its statuses and low HP gone. An enemy is
  * beaten; a party member's gauge starts over from its turn wait -- unless it
- * comes back, which is the original's code still (docs/TODO.md). */
+ * comes back. */
 static UpdateEnd leave_fight(GameState *g, unsigned slot)
 {
     battle_stop_timer(g, BATTLE_TIMER_TURN, slot);
@@ -412,34 +416,77 @@ void battle_update_status_flags(Snes *s)
     m_rts(s);
 }
 
-/* A member that comes back is the original's from its test of the revival
- * byte, with the byte in A (its high byte clear), the carry clear and X and Y
- * as they came. The update leaves A clear otherwise. */
-enum { COMES_BACK_TEST = 0xC1B316 };
+/* ---- A member coming back -------------------------------------------------------------- */
 
-static void finish_update(Snes *s, unsigned slot, UpdateEnd end)
+/* The member's coming back is shown as a tech on it, and told. */
+enum { SHOWN_AS_TECH = 0x02, COMING_BACK_TECH = 0x7A, MESSAGE_CAME_BACK = 0x09 };
+enum { COMING_BACK_HP_PER_MAGIC = 5 };
+
+// $C1:B316
+/* A member knocked out that comes back once gets up again: the revival is
+ * used up, five times its magic in HP comes back to it, which shows over it
+ * as healing, and its coming back is shown as a tech performed on it from the
+ * first member's place. */
+static void come_back(GameState *g, uint8_t member)
 {
-    if (end == COMES_BACK_ONCE) {
-        s->cpu.a = battle_stats_revival(state_of(s), slot);
-        m_set_flag(s, CPU_FLAG_C, false);
-        m_stop_at_own(s, COMES_BACK_TEST, DC_N | DC_V | DC_Z);
+    set_battle_stats_revival(g, member, battle_stats_revival(g, member) & (uint8_t)~COMES_BACK);
+    uint16_t hp = effect_times(g, combatant_stat_byte(g, member, STAT_MAGIC), COMING_BACK_HP_PER_MAGIC);
+    set_battle_damage_hit(g, 0);
+    effect_show_hp_regained(g, member, hp);
+    set_battle_action_actor(g, 0);
+    set_battle_action_type(g, SHOWN_AS_TECH);
+    set_battle_action_what(g, COMING_BACK_TECH);
+    set_battle_action_extra(g, 0);
+    set_battle_candidates(g, 0, member);
+    battle_mark_first_target(g);
+}
+
+/* The message names the member. */
+static void name_in_message(GameState *g, uint8_t member) { set_battle_target_display(g, 0, battle_combatant_id(g, member)); }
+
+/* The numbers shown are cleared, and the party isn't defeated after all. */
+static void after_coming_back(GameState *g)
+{
+    TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
+    set_battle_party_defeated(g, false);
+}
+
+/* The showing and the message are the original's (the showing, a sibling,
+ * calls on to them): the showing takes A's high byte along, clear as the
+ * targets' marking leaves it, and the message the message's number in A. */
+enum { SHOWING = 0xC1AC57, SHOW_MESSAGE = 0xCD0021 };
+
+static bool comes_back_shown(Snes *s, uint8_t member)
+{
+    GameState *g = state_of(s);
+    come_back(g, member);
+    s->cpu.a = 0;
+    if (!battle_run(s, 0xC1B376, SHOWING, battle_start_action_showing))
+        return false;
+    name_in_message(g, member);
+    m_set_a8(s, MESSAGE_CAME_BACK);
+    s->cpu.a &= 0x00FF;
+    if (!battle_call_long(s, 0xC1B386, SHOW_MESSAGE, DC_X | DC_Y | DC_FLAGS))
+        return false;
+    after_coming_back(g);
+    return true;
+}
+
+/* The update leaves A clear. */
+void battle_update_combatant(Snes *s)
+{
+    unsigned slot = combatant_in_x(s);
+    if (combatant_update(state_of(s), slot) == COMES_BACK_ONCE && !comes_back_shown(s, (uint8_t)slot))
         return;
-    }
     s->cpu.a = 0;
     m_rts(s);
 }
 
-void battle_update_combatant(Snes *s)
-{
-    unsigned slot = combatant_in_x(s);
-    finish_update(s, slot, combatant_update(state_of(s), slot));
-}
-
 // $C1:B223
 /* Update every combatant for the turn, a combatant at a time with its place
- * in the loop in its cell. A member that comes back is updated by the
- * original's code, called as its loop calls it with the combatant in X and Y;
- * the rest is C. What the callers read back is the carry of the last compare
+ * in the loop in its cell. A member that comes back is updated as the
+ * original's loop calls it, with the combatant in X and Y, since its coming
+ * back is shown by the original's code; the rest is C. What the callers read back is the carry of the last compare
  * of the search for a party member in the fight: clear when it found the
  * second or the third. */
 void battle_update_all_combatants(Snes *s)
@@ -451,7 +498,7 @@ void battle_update_all_combatants(Snes *s)
             s->cpu.y = (uint16_t)slot;
             s->cpu.x = (uint16_t)(slot * BATTLE_STAT_BLOCK_BYTES);
             s->cpu.a = 0;
-            if (!battle_call(s, 0xC1B234, 0xC1B279, DC_A | DC_FLAGS))
+            if (!battle_run(s, 0xC1B234, 0xC1B279, battle_update_combatant))
                 return;
         } else {
             NATIVE_TIME_AS(s, 0xC1B279, combatant_update(g, slot));

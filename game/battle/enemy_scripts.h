@@ -169,6 +169,15 @@ typedef struct {
 } DrawnAction;
 DrawnAction enemy_draw_one_of_four(GameState *g, ScriptPlace at);
 
+/* The choosing goes on from a draw: the action drawn is chosen as
+ * enemy_choose_actions chooses, drawing again where it is a draw itself. */
+void enemy_choose_after_draw(GameState *g, ScriptChoosing *c, DrawnAction drawn);
+
+/* What the choosing hands its caller in A: the action's byte where the
+ * actions had run out, the enemy's number where it names none, or the mark
+ * that it chose. */
+uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy);
+
 /* Whether a condition of `kind`, or the action, at `at` is one the tables
  * have, naming only selectors and searches there are (the guards'): a place
  * the game never leaves a script at can land on bytes that aren't. */

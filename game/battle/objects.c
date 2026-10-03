@@ -16,10 +16,13 @@
  * scripts name (battle/script_places.c). */
 #include "battle/animation.h"
 
+#include "battle/animation_data.h"
+#include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/script_language.h"
+#include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -98,6 +101,98 @@ static unsigned find_due_animation(GameState *g)
     return BATTLE_COMBATANTS;
 }
 
+/* An object's frames are in bank $E4: its animation's list of frame times
+ * and its list of frames, each facing's part of the frame list a stride after
+ * the last. A time of 0 ends the animation. */
+enum { OBJECT_LISTS_BANK = 0xE4 };
+
+static uint8_t list_byte(const GameState *g, uint16_t at) { return battle_frame_list_byte(g, battle_at(OBJECT_LISTS_BANK, at)); }
+
+static uint16_t facing_stride(const GameState *g, unsigned slot)
+{
+    return (uint16_t)(battle_facing_stride_low(g, slot) | battle_facing_stride_high(g, slot) << 8);
+}
+
+/* The object whose graphics the upload takes. */
+static void name_upload_object(GameState *g, unsigned slot)
+{
+    set_battle_graphics_object(g, (uint16_t)((battle_graphics_object(g) & 0xFF00) | (uint8_t)slot));
+}
+
+/* What the original leaves in its cells: the object, and its facing's part
+ * of the frame list. */
+enum { LEFT_OBJECT = 0x00, LEFT_FACING_PART = 0x02 };
+static void leave_step(GameState *g, unsigned slot, uint16_t facing_part)
+{
+    set_battle_work(g, LEFT_OBJECT, (uint8_t)slot);
+    set_battle_work(g, LEFT_OBJECT + 1, 0);
+    set_battle_work(g, LEFT_FACING_PART, (uint8_t)facing_part);
+    set_battle_work(g, LEFT_FACING_PART + 1, (uint8_t)(facing_part >> 8));
+}
+
+static void build_graphics(GameState *g, unsigned slot, uint8_t frame)
+{
+    if (battle_object_builds_graphics(g, slot))
+        battle_build_frame_graphics(g, slot, frame);
+}
+
+/* The frame after `frame` that has a time: a looping animation comes round
+ * to its first frame past its last, one played once ends there (NO_FRAME).
+ * An animation whose first frame had no time would start over for ever in
+ * the original; none has one, and the port ends it. */
+enum { NO_FRAME = 0x100 };
+
+static unsigned frame_with_time(GameState *g, unsigned slot, uint8_t frame)
+{
+    uint16_t times = battle_scheduled_delay_lists(g, slot);
+    if (list_byte(g, (uint16_t)(times + frame)) != 0)
+        return frame;
+    if (battle_animating(g, slot) != PLAY_LOOPING || list_byte(g, times) == 0) {
+        set_battle_animating(g, slot, 0);
+        return NO_FRAME;
+    }
+    set_battle_animation_frame(g, slot, 0);
+    return 0;
+}
+
+// $C1:4269
+/* The object due takes its animation's next frame: the frame's time, and
+ * its graphics, built for the frame list's part for the way it faces, to be
+ * uploaded at the frame after next. The scheduler goes on from the next
+ * object. While the sprites are frozen, or graphics already wait for their
+ * upload, the object waits for the next pass. While a script waits on the
+ * object's animation it holds the frame the wait's mark names (one past it)
+ * and the animation ends there. */
+enum { UPLOAD_AFTER_NEXT_FRAME = 2 };
+
+static void take_animation_step(GameState *g, unsigned slot)
+{
+    if (battle_sprites_frozen(g) || battle_graphics_upload_request(g))
+        return;
+    set_battle_animation_cursor(g, (uint8_t)((slot + 1) % BATTLE_COMBATANTS));
+    uint8_t facing = battle_object_facing(g, slot);
+    set_battle_object_facing_shown(g, slot, facing);
+    uint16_t facing_part = (uint16_t)battle_multiply_long(g, facing, facing_stride(g, slot));
+    name_upload_object(g, slot);
+    ORIGINAL_EFFECT(leave_step(g, slot, facing_part));
+
+    uint8_t frame = (uint8_t)(battle_animation_frame(g, slot) + 1);
+    uint8_t held = battle_animation_wait(g, slot);
+    if (held != 0) {
+        frame = (uint8_t)(held - 1);
+        set_battle_animating(g, slot, 0);
+    }
+    set_battle_animation_frame(g, slot, frame);
+    unsigned next = frame_with_time(g, slot, frame);
+    if (next == NO_FRAME)
+        return;
+    set_battle_animation_delay(g, slot, list_byte(g, (uint16_t)(battle_scheduled_delay_lists(g, slot) + next)));
+    uint8_t graphics = list_byte(g, (uint16_t)(battle_scheduled_frame_lists(g, slot) + facing_part + next));
+    set_battle_graphics_frame(g, graphics);
+    TIMED_AS(g, 0xC11C4A, build_graphics(g, slot, graphics));
+    set_battle_graphics_upload_request(g, UPLOAD_AFTER_NEXT_FRAME);
+}
+
 /* ---- The animation slots' positions ------------------------------------------------------- */
 
 enum { POSITION_SLOTS = 6 };
@@ -157,28 +252,43 @@ void battle_update_all_object_bounds(Snes *s)
 
 bool battle_names_bounds_object(Snes *s) { return battle_on_page(s) && battle_names_combatant(s->cpu.x); }
 
-/* The scheduler goes on with the object due at $C1:4269, with it in X; with
- * none due it returns. */
-enum { TAKE_ANIMATION_STEP = 0xC14269 };
-
+/* The scheduler's pass: the object due, if any, takes its step. It leaves A's
+ * high byte clear. */
 void battle_find_due_animation(Snes *s)
 {
-    unsigned slot = find_due_animation(state_of(s));
+    GameState *g = state_of(s);
+    unsigned slot = find_due_animation(g);
+    if (slot != BATTLE_COMBATANTS)
+        take_animation_step(g, slot);
     s->cpu.a = 0;
-    if (slot == BATTLE_COMBATANTS) {
-        m_rts(s);
-        return;
-    }
-    s->cpu.x = (uint16_t)slot;
-    m_stop_at_own(s, TAKE_ANIMATION_STEP, DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AL);
+    m_rts(s);
 }
 
+/* The object the pass will find due, without counting the times down: one
+ * whose time is up now or runs out this frame. */
+static unsigned due_after_count(const GameState *g)
+{
+    unsigned slot = battle_animation_cursor(g);
+    for (unsigned n = 0; n < BATTLE_COMBATANTS; n++) {
+        if (battle_animating(g, slot) && battle_animation_delay(g, slot) <= 1)
+            return slot;
+        if (++slot == BATTLE_COMBATANTS)
+            slot = 0;
+    }
+    return BATTLE_COMBATANTS;
+}
+
+/* The scheduler's place names an object, and the object due has graphics the
+ * battle builds, as every object the game animates has. */
 bool battle_scheduler_in_place(Snes *s)
 {
     vars_peek(true);
-    bool in_place = battle_names_combatant(battle_animation_cursor(state_of(s)));
+    GameState *g = state_of(s);
+    bool in_place = battle_names_combatant(battle_animation_cursor(g));
+    unsigned due = in_place ? due_after_count(g) : BATTLE_COMBATANTS;
+    bool known = due == BATTLE_COMBATANTS || !battle_object_builds_graphics(g, due) || battle_object_graphics_known(g, due);
     vars_peek(false);
-    return battle_on_page(s) && in_place;
+    return battle_on_page(s) && in_place && known;
 }
 
 /* Each slot's position is the place its mode names (battle/script_places.c),

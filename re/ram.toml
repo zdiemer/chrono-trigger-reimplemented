@@ -10359,6 +10359,22 @@ meaning = "Nonzero until the frame's update has run; the wait-for-next-frame loo
 source = "game/battle/wait.c battle_wait_for_frame_loop $C1:0080; game/battle/frame.c battle_frame_update $CF:E58A"
 
 [[var]]
+name = "battle_frame_pending_next"
+addr = "7E:009F"
+page = "battle"
+subsystem = "battle"
+meaning = "The byte after battle_frame_pending, which the battle's start clears with it; nothing reads it"
+source = "game/battle/from_field.c battle_start_from_field $C1:0000 ($CF:FB7F)"
+
+[[var]]
+name = "battle_entry_mark"
+addr = "7E:00B9"
+page = "battle"
+subsystem = "battle"
+meaning = "Set to $0F as the battle starts; nothing reads it"
+source = "game/battle/from_field.c battle_start_from_field $C1:0000 ($CF:FBAC)"
+
+[[var]]
 name = "battle_transfer_pending"
 addr = "7E:00A0"
 page = "battle"
@@ -10846,6 +10862,33 @@ index = "script channel"
 subsystem = "battle"
 meaning = "Each animation script channel's wait counter"
 source = "game/battle/scripts.c header and battle_run_script_channel $C1:4C9E"
+
+[[var]]
+name = "battle_party_scene_animation"
+addr = "7E:5DF1"
+size = 2
+count = 3
+index = "party member"
+reuses = ["battle_script_pointers", "battle_script_pointer_pads"]
+subsystem = "battle"
+meaning = "Where the party's poses at the battle's opening or close start in each member's frame and delay lists (an animation times four: $30 the opening, $28 the victory, $20 the defeat, 0 for a member sitting out), which $C1:35DD takes them from; the script channels' bytes, which no script runs over then"
+source = "game/battle/opening.c battle_party_faces_the_enemies $C1:0042; $C1:356D, $C1:354D"
+
+[[var]]
+name = "battle_party_scene_opening"
+addr = "7E:5DDD"
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "Set for the party's poses at the battle's opening, clear for the victory's and the defeat's; $C1:369A tests it where a member's poses run out, going on the same way either way"
+source = "game/battle/opening.c battle_party_faces_the_enemies $C1:0042; $C1:354D, $C1:35D7"
+
+[[var]]
+name = "battle_party_scene_poses_all"
+addr = "7E:5DDE"
+reuses = "battle_script_pointers"
+subsystem = "battle"
+meaning = "Nonzero to have the party's poses ($C1:369A) pose a knocked-out member too (the defeat); 0 leaves it lying"
+source = "game/battle/opening.c battle_party_faces_the_enemies $C1:0042; $C1:354D"
 
 [[var]]
 name = "battle_stats"
@@ -12962,6 +13005,13 @@ index = "battle slot"
 subsystem = "battle"
 meaning = "Set for a party member that takes no part in the fight (from $7F:00B4 by character when bit 0 of $7F:00BA is set, $CF:FBD0): the targeting passes it over, and it stands in its field stance with no weak pose; the enemies' entries stay 0"
 source = "game/battle/animation.c battle_choose_status_pose $C1:2F97"
+
+[[var]]
+name = "battle_some_sit_out"
+addr = "7E:A0A6"
+subsystem = "battle"
+meaning = "Bit 0 of the story's battle rules ($7F:00BA): some members sit the fight out (battle_member_sitting_out); kept as the battle starts, and read by nothing after"
+source = "game/battle/from_field.c battle_start_from_field $C1:0000 ($CF:FBBE)"
 
 [[var]]
 name = "battle_fight_flags"

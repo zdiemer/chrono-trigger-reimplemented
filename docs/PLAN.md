@@ -54,7 +54,7 @@ it counts as done may still be transliterated or welded to the machine, which
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 26% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 24% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 216 files, 117 of 62,584 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 218 files, 117 of 63,020 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -211,24 +211,26 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **25% of the code is still generated.**
+docstring says which way it is wrong; it leaves out the code only an
+`unreached` hint starts, which nothing in the game runs). **24% of the code is
+still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 64.9K | 59.7K | 20.3K | 8% | 403 |
+| battle (`$C1`, `$CE`) | 63.9K | 60.6K | 20.3K | 5% | 406 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.3K | 30.9K | 8.6K | 48% | 326 |
+| menus, text (`$C2`) | 59.1K | 30.8K | 8.6K | 48% | 326 |
 | scene program, RAM (`$7E`) | 24.9K | 11.4K | 1.2K | 54% | 68 |
-| battle frame work (`$CD`) | 15.5K | 9.4K | 3.9K | 39% | 134 |
-| field graphics (`$FD`) | 15.3K | 11.8K | 0.7K | 23% | 86 |
-| battle sprites (`$CF`) | 6.8K | 6.4K | 0.4K | 6% | 44 |
+| battle frame work (`$CD`) | 15.4K | 9.4K | 3.9K | 39% | 134 |
+| field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
+| battle sprites (`$CF`) | 6.8K | 6.8K | 0.4K | 0% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 4.8K | 0.0K | 17% | 52 |
-| battle setup (`$CC`) | 4.9K | 4.6K | 0.3K | 6% | 8 |
-| scene engine (`$C3`) | 3.9K | 3.3K | 0.6K | 16% | 28 |
-| scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
+| battle setup (`$CC`) | 4.8K | 4.8K | 0.3K | 0% | 9 |
+| scene engine (`$C3`) | 3.8K | 3.3K | 0.6K | 15% | 28 |
+| scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
-| misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **200.6K** | **49.9K** | **25%** | **1572** |
+| misc (`$FF`) | 1.5K | 0.1K | 0.0K | 95% | 1 |
+| **total** | **266.5K** | **201.9K** | **50.0K** | **24%** | **1576** |
 
 `$CD`, the battle's frame work, has the screen script language in C
 (RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122
@@ -355,7 +357,7 @@ the accumulated diff of its chunks, before it merges
 accounts are in docs/history/recomp-waves.md and recomp-chunks.md, the latest
 in RECOMP.md.
 
-**`$C1`: the battle.** Ten chunks are in: the enemies' scripts, the
+**`$C1`: the battle.** The bank is in: the enemies' scripts, the
 target search, the random numbers, an enemy's turn, the statuses' timers,
 every action's effect, a party member's action carried out, the setup's party
 helpers with the inventory and gold service (`$C1:8003`), the fight's start
@@ -367,13 +369,13 @@ the flow, values, poses, drawing, effects and colors; the places and facings,
 every move, the grid walk, the sound commands and the screen effect), and
 chunk 10: the enemies' movements (`$C1:3772`-`$C1:4021`), the party's turns as statuses, counters and called-off combinations decide
 them (`$FD:AB30`, `$FD:AC6E`, `$FD:A8CE`-`$A95F`, `$C1:B3F9`, `$C1:B762`), the
-demo's party, and the battle's end's bookkeeping. **Next**, by `python3
-tools/burndown.py --uncovered C1` (3% of the bank left), what is left are runs
-inside ports that hand back to the original: the scheduler's animation step
-(`$C1:4269`), a member that comes back once when knocked out (`$C1:B316`, which
-goes through the effect showing), an action past the enemies' table
-(`$C1:8D88`) and a battle without enemies (`$C1:8030`), neither of which the
-game makes. In bank `$FD` the rewards' messages (`$FD:AD17`) wait for the
+demo's party, and the battle's end's bookkeeping; and the leftovers: the
+battle's start from the field and its return there, the setup's last part,
+the scheduler's animation step, an effect's next frame and a member that comes
+back once. `python3 tools/burndown.py --uncovered C1` (and `CF`, `CC`) leaves
+only jump stubs into ports and the name converter's dispatch (`$C1:0065`, from
+`$CC:F063`, which waits for the text's port). **Next** for the battle is bank
+`$CD`'s remainder (above); in bank `$FD` the rewards' messages (`$FD:AD17`) wait for the
 battle messages' port, since each waits for the player (TODO.md), and the
 turn state's clearing (`$FD:A982`) for a name for the block it clears.
 

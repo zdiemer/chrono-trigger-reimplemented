@@ -695,8 +695,19 @@ bool battle_barrier_timer_ran_out_ready(Snes *s);
 void battle_timer_11_ran_out(Snes *s);
 bool battle_timer_11_ran_out_ready(Snes *s);
 
+/* battle/from_field.c */
+void battle_start_from_field(Snes *s);
+void battle_return_to_field(Snes *s);
+bool battle_return_ready(Snes *s);
+
+/* battle/opening.c */
+void battle_party_faces_the_enemies(Snes *s);
+bool battle_opening_ready(Snes *s);
+
 /* battle/effect_animation.c */
 void battle_animate_effects(Snes *s);
+void battle_take_effect_frame(Snes *s);
+bool battle_names_stepping_effect(Snes *s);
 
 /* battle/effect_paths.c */
 void battle_step_effect_slots(Snes *s);
