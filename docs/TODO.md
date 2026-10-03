@@ -301,6 +301,25 @@ rest waits, is [PLAN.md](PLAN.md).
     movie plays a demo battle's party turns, so the timing gate has nothing to
     calibrate them from (`battle_party_stands_down`, 3500, measured exact over
     the library). A movie of the attract mode's battle would;
+  - what the battle's start and leftovers' review left (none blocking):
+    `effect_animation.c`'s `TakenFrame` is returned and carried through the
+    loop only for `leave_taken_frame` -- work it out afterwards from the
+    effect's state; `objects.c`'s `due_after_count` re-runs the due search to
+    predict the next object where the guard could state its invariant, joins
+    the stride's cells by hand, and stores a bare 0 for "not animating";
+    `nearest_enemy` is in both `opening.c` and `animation.c`, and
+    `combatants.c`'s `come_back` repeats `status_timers.c`'s
+    `set_up_status_showing` (with `SHOWN_AS_TECH` beside `ACTION_TECH`);
+    `from_field.c` names fight-flags bit 1 locally where the map says it
+    blocks the stance poses, divides a byte place by `0x50`, and its member
+    palette arithmetic doesn't say the byte is in attribute form; `opening.c`
+    writes `LEFT_MEMBER` as address arithmetic and 1/0 for bools;
+    `enemy_turn.c`'s unreachable `no_turn` row's comment is wrong;
+    `m_return_to_caller_long` wants its own comment; `burndown.py` should
+    report code neither reached nor started by an `unreached` entry rather
+    than drop it; `hints.toml` should note the dead veneers at
+    `$C1:FF53`/`FFAE`/`FFCC` beside `$C1:C09A`.
+
   - what the screen script language's review left (none blocking after its
     fixes): `screen_script.h`'s language-wide parameter list forces generic
     names and bare `uint8_t` (`value` means about ten things, `which` four,
