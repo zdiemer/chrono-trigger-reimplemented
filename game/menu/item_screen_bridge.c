@@ -496,13 +496,14 @@ static void leave_member_window(Snes *s)
  * the tab's looks at the member's figure), and choosing uses the item where
  * it helps -- a tonic's restoring (the original's), or a tab's raise --
  * then one more of it used; or refuses. Going back closes the window. */
-typedef struct {
+enum { TONIC, TAB };
+static const struct {
     uint32_t open, wait, point, point_routine, refuse;
-    void (*point_entry)(Snes *);
-} MemberWindowSites;
-
-static const MemberWindowSites TONIC_SITES = { 0xC2B198, 0xC2B1A5, 0xC2B1AB, 0xC2B83E, 0xC2B1BA, menu_point_at_member_to_restore };
-static const MemberWindowSites TAB_SITES = { 0xC2B225, 0xC2B228, 0xC2B22E, 0xC2B24A, 0xC2B23D, menu_point_at_tab_member };
+} SITES[] = {
+    [TONIC] = { 0xC2B198, 0xC2B1A5, 0xC2B1AB, 0xC2B83E, 0xC2B1BA },
+    [TAB] = { 0xC2B225, 0xC2B228, 0xC2B22E, 0xC2B24A, 0xC2B23D },
+};
+static void (*const POINTING[])(Snes *) = { [TONIC] = menu_point_at_member_to_restore, [TAB] = menu_point_at_tab_member };
 
 static bool use_on_the_member(Snes *s, ItemUseKind kind)
 {
@@ -514,18 +515,18 @@ static bool use_on_the_member(Snes *s, ItemUseKind kind)
 static void choose_members_to_use_on(Snes *s, ItemUseKind kind)
 {
     GameState *g = state_of(s);
-    const MemberWindowSites *at = kind == USE_RAISES_A_FIGURE ? &TAB_SITES : &TONIC_SITES;
+    unsigned w = kind == USE_RAISES_A_FIGURE ? TAB : TONIC;
     menu_items_start_member_choice(g);
     ORIGINAL_EFFECT(leave_member_choice_started(s, kind));
-    if (!menu_run(s, at->open, 0xC2AF42, menu_open_member_window))
+    if (!menu_run(s, SITES[w].open, 0xC2AF42, menu_open_member_window))
         return;
     if (kind != USE_RAISES_A_FIGURE && menu_items_restores_every_member(g) && !call(s, 0xC2B1A2, CURSOR_ON_EVERY_MEMBER))
         return;
     for (;;) {
-        if (!yield(s, at->wait))
+        if (!yield(s, SITES[w].wait))
             return;
         read_cursor(s);
-        if (!menu_run(s, at->point, at->point_routine, at->point_entry))
+        if (!menu_run(s, SITES[w].point, SITES[w].point_routine, POINTING[w]))
             return;
         ItemsMemberChoice c = menu_items_choose_member(g);
         ORIGINAL_EFFECT(leave_buttons_tested(s));
@@ -537,7 +538,7 @@ static void choose_members_to_use_on(Snes *s, ItemUseKind kind)
             continue;
         if (!menu_items_use_helps(g)) {
             ORIGINAL_EFFECT(leave_load(s, menu_use_helps(g)));
-            if (!refuse(s, at->refuse))
+            if (!refuse(s, SITES[w].refuse))
                 return;
             continue;
         }
