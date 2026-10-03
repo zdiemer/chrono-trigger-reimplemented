@@ -2,6 +2,8 @@
  * AuVoices is (platform/voices.h); and a pair of implementations played as one. */
 #include "platform/voices.h"
 
+#include "platform/audio.h"
+
 void au_voices_start(AuVoices *v) { v->ops->start(v); }
 void au_voice_sample(AuVoices *v, uint8_t voice, uint8_t sample) { v->ops->sample(v, voice, sample); }
 void au_voice_envelope(AuVoices *v, uint8_t voice, AuEnvelope e) { v->ops->envelope(v, voice, e); }

@@ -448,6 +448,17 @@ static void test_host_state(void)
     }
     free(c.covered);
     sound_host_detach(h);
+
+    /* A state saved with the mixer alone has an S-DSP left where it was,
+     * which the check would compare the mixer with: each mixer's states are
+     * a host program of their own, and load only with it. */
+    SoundHost *native = sound_host_attach_mixer(&machine, SOUND_MIXER_NATIVE);
+    uint8_t native_id = sound_host_state(native)->id;
+    sound_host_detach(native);
+    SoundHost *checked = sound_host_attach_mixer(&machine, SOUND_MIXER_CHECK);
+    uint8_t checked_id = sound_host_state(checked)->id;
+    sound_host_detach(checked);
+    CHECK(native_id != checked_id, "a state saved with the native mixer would load with the mixer check");
 }
 
 int main(void)

@@ -3,7 +3,7 @@
  * Some battles color three rows of the background after the first enemy's
  * HP: a gradient of 14 colors, one set for each of eight HP levels (eighths
  * of the enemy's maximum HP), which turns through the rows so that the
- * background seems to flow. When the enemy's level changes the gradient fades
+ * background flows. When the enemy's level changes the gradient fades
  * from the colors shown to the next level's over 32 frames, one level at a
  * time (a script can set the level outright, in one fade). The frame work
  * steps it once a frame where the background has it, while no screen script

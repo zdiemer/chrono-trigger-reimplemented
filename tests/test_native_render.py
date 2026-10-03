@@ -23,6 +23,7 @@ ALLOWED_INCLUDES = {
     "platform/video.h",
     "platform/native/mixer.h",
     "platform/voices.h",
+    "platform/voice_types.h",
     "platform/audio.h",
     "platform/platform.h",
 }

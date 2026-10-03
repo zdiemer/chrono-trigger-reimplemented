@@ -163,7 +163,8 @@ typedef struct SnesStateVisitor SnesStateVisitor;
 enum {
     SNES_STATE_NO_HOST = 0,                 /* the SPC700 ran */
     SNES_STATE_HOST_C_SOUND_DRIVER = 1,     /* frontend/sound_host.h, through the S-DSP */
-    SNES_STATE_HOST_C_SOUND_DRIVER_MIXER = 2   /* ... through the native mixer */
+    SNES_STATE_HOST_C_SOUND_DRIVER_MIXER = 2,   /* ... through the native mixer */
+    SNES_STATE_HOST_C_SOUND_DRIVER_MIXER_CHECK = 3   /* ... through both, the mixer checked */
 };
 typedef struct {
     uint8_t id;                             /* SNES_STATE_HOST_*: never SNES_STATE_NO_HOST */

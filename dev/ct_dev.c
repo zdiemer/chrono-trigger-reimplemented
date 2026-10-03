@@ -94,7 +94,7 @@
  * it is for hearing the C driver over a movie (--wav) and for the host's own
  * checks: a run in which a sample was placed where the echo was writing, or a
  * command dropped from the host's full queue, exits 1 (sound_host_report).
- * --mixer (with --sound-driver c) picks what makes the sound: dsp, the
+ * --mixer (only with --sound-driver c) picks what makes the sound: dsp, the
  * emulated S-DSP (the default); native, the native mixer in its place; check,
  * both, the S-DSP heard (--wav) and the mixer compared with it frame by frame
  * (a `mixer check:` line; a run in which a frame differs exits 1).
@@ -133,6 +133,7 @@
 #include "range_report.h"
 #include "sound_lockstep.h"
 #include "sound_audio.h"
+#include "mixer_check.h"
 #include "sound_host.h"
 #include "vid_check.h"
 #include "media.h"
@@ -444,6 +445,7 @@ int main(int argc, char **argv)
     const char *calls_path = NULL, *load_state = NULL, *save_state = NULL, *sram_path = NULL;
     bool c_sound_driver = false;
     SoundMixer mixer = SOUND_MIXER_DSP;
+    bool mixer_given = false;
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
@@ -518,6 +520,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "--mixer must be dsp, native or check\n");
                 return 2;
             }
+            mixer_given = true;
         }
         else if (!strcmp(a, "--spc-coverage")) spc_coverage_path = v;
         else if (!strcmp(a, "--dsp-log")) dsp_log_path = v;
@@ -852,7 +855,12 @@ int main(int argc, char **argv)
         }
     }
 
+    if (mixer_given && !c_sound_driver) {
+        fprintf(stderr, "--mixer picks what plays the C sound driver, which this run doesn't (see --sound-driver)\n");
+        return 2;
+    }
     SoundHost *sound_host = NULL;
+    MixerCheck *mixer_check = NULL;
     if (c_sound_driver) {
         if (load_state || zst_path || want_lockstep || spc_coverage_path || dsp_log_path) {
             fprintf(stderr, "--sound-driver c runs from power-on, without the SPC700's hooks\n");
@@ -864,7 +872,7 @@ int main(int argc, char **argv)
             return 2;
         }
         sound_host = sound_host_attach_mixer(&snes, mixer);
-        if (!sound_host) {
+        if (!sound_host || (mixer == SOUND_MIXER_CHECK && !(mixer_check = mixer_check_attach(sound_host)))) {
             fprintf(stderr, "out of memory\n");
             return 1;
         }
@@ -1017,8 +1025,9 @@ int main(int argc, char **argv)
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
             rc = 1;
-        if (!sound_host_mixer_report(sound_host, stderr))
+        if (mixer_check && !mixer_check_report(mixer_check, stderr))
             rc = 1;
+        mixer_check_free(mixer_check);
         sound_host_detach(sound_host);
     }
     sound_lockstep_destroy(spc.lockstep);
