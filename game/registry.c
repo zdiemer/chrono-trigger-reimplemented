@@ -1067,7 +1067,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xCD3EB4, .name = "battle_flush_vram_transfer", .fn = battle_flush_vram_transfer, NEEDS_M8_X16,
       .cost_milli = 2831, .dont_care = DC_A | DC_X | DC_FLAGS, .guard = battle_queued_transfer_ready },
     { .addr = 0xCD05B2, .name = "battle_step_window_slide", .fn = battle_step_window_slide, NEEDS_M8_X16,
-      .cost_milli = 3361, .dont_care = DC_X | DC_FLAGS | DC_AL, .guard = battle_on_page_a_high_clear },
+      .cost_milli = 3502, .dont_care = DC_X | DC_FLAGS | DC_AL, .guard = battle_on_page_a_high_clear },
     { .addr = 0xCD06B4, .name = "battle_update_scroll_dispatch", .fn = battle_update_scroll_dispatch, NEEDS_M8_X16,
       .cost_milli = 5738, .dont_care = DC_X | DC_Y | DC_FLAGS | DC_AL, .guard = battle_scroll_mode_is_one },
     { .addr = 0xCD0ADE, .name = "battle_step_gradient_phase", .fn = battle_step_gradient_phase, NEEDS_M8, .cost_milli = 3485, .dont_care = DC_A | DC_X | DC_FLAGS, .guard = battle_on_page },

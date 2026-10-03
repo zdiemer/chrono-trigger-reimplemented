@@ -3331,7 +3331,13 @@ registers' images: the quadrilaterals' entries and the commands that draw
 them refuse that (`screen_quad_fits_the_table`), and no real call is
 refused.
 
-**Timing.** The new entries were calibrated from the shadow runs.
+**Timing.** The new entries were calibrated from the shadow runs; the beam,
+which no movie reaches, takes the quadrilateral's cost. The cut is in
+`tools/timing_exceptions.txt` for the vblank's limits, with `$97` and the
+command dispatch it runs under: the original's time follows the line's run
+across, a step of its loop a column, where the port works each line's column
+out at once (5.4% error, at most 19,014 clocks, writing RAM; the vblank check
+finds no video write moved).
 
 ### Phase 3, menus: the techs screen (`$C2:B35D`-`$C2:BF2E`)
 
