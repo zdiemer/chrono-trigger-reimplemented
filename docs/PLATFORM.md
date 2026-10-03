@@ -1943,7 +1943,7 @@ registers from 78 instructions, every one of them in the census. Six are in
 it only because of the width rule: five divider spills, and the second
 frame-parity read below.
 
-**117 instructions: 49 in hand ports, 68 still generated.** The ports reach
+**117 instructions: 51 in hand ports, 66 still generated.** The ports reach
 them through 38 timing service calls, and through direct reads of `$4212` and
 the counters in `attract/main_loop.c` and `battle/wait.c`, which predate the
 service. By what they are for:
@@ -1952,7 +1952,7 @@ service. By what they are for:
 |---|---|---|---|---|
 | The frame tick | which handlers run, and acknowledging them | 31 | 31 | every mode's vblank handler, the three line handlers, mode starts and loads |
 | Timer reset | nothing: `$4207-$420A` cleared as a mode starts | 4 | 9 | `$C2:0043`, `$C2:940D`, `$FD:EB13`; the boot `$FD:C000` through `tm_reset_timers` |
-| The line handler's line | line 211 | 1 | 3 | field `$C0:0B28`, battle `$D1:F1B0`, scene boot `$C3:0000` |
+| The line handler's line | line 211 | 3 | 1 | field `$C0:0B28`, battle `$D1:F1B0`, scene boot `$C3:0000` |
 | Hblank waits in the line handlers | nothing: the blank lands at a line's end | 4 | 0 | `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`, `$C3:0538` |
 | Waits for vblank | the frame boundary | 4 | 2 | the races `$C0:3B71`, `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; with the vblank handler off, before turning it on, `$C0:0B28` and `$FD:EADA` |
 | Controller read busy | nothing | 2 | 0 | `$C2:84EC`, `$C3:0A8E` |
@@ -2093,7 +2093,7 @@ without a beam", tracks them):
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
 | `$CD:3B82` | idle entries reading the registers directly | `tm_wait_line`, or nothing once its purpose is known |
-| The timer resets in `$C2:0043`, `$C2:940D`, `$FD:EB13`, and the line `$D1:F1B0` sets | generated (the boot's, `$FD:C000`, is `tm_reset_timers`) | `tm_set_line` where a line is set; a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
+| The timer resets in `$C2:0043`, `$C2:940D`, `$FD:EB13` | generated (the boot's, `$FD:C000`, is `tm_reset_timers`; the battle's line, `$D1:F1B0`, is `tm_set_line`) | a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
 
 **Validation.** A call that re-expresses a use keeps its accesses, so shadow
 mode compares it as it compares the ports now. The schedulers are the

@@ -79,6 +79,24 @@ bool battle_transfers_apart(const GameState *g, uint16_t stack);
 /* Point the window's per-line effect at this frame's table. */
 void battle_show_window_table(GameState *g, Platform *pf);
 
+/* A battlefield whose background has the HP gradient (battle_background_flags
+ * bit 0) also ripples. */
+enum { BATTLE_BACKGROUND_HAS_GRADIENT = 0x01 };
+
+/* Lay the screen out for the per-line effects in one of the ROM's
+ * arrangements (the battlefield alone, the battle window in view, a line of
+ * the window's slide): each per-line table takes the arrangement's runs of
+ * lines. */
+void battle_arrange_line_effects(GameState *g, uint8_t arrangement);
+
+/* The rippling background's frame: its lines' sways a step on every fourth
+ * frame, or none while background rows 2-4 are moved. */
+void battle_ripple_background(GameState *g);
+/* What the arrangement's block moves leave of the registers, for the
+ * original's code after it: A clear, and Y just past the window's second
+ * table. */
+void battle_leave_arrangement_registers(Snes *s);
+
 /* ---- frame.c ------------------------------------------------------------------------------- */
 
 /* Hide every sprite but the menu's cursors, before the objects draw. */

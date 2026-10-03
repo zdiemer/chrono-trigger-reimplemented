@@ -19,21 +19,29 @@
 
 /* ---- The animation positions ------------------------------------------------------------ */
 
-/* The first two animation positions are kept inside the battlefield before a
- * script takes one up: 8 to 248 across and 8 to 212 down. */
-enum { POSITIONS_KEPT_IN = 2, EDGE_LOW = 8, EDGE_RIGHT = 0xF8, EDGE_BOTTOM = 0xD4 };
+/* Animation positions are kept inside the battlefield, a pair at a time,
+ * before a script takes one up: 8 to 248 across and 8 to 212 down. The first
+ * pair is the one most commands keep. */
+enum { EDGE_LOW = 8, EDGE_RIGHT = 0xF8, EDGE_BOTTOM = 0xD4 };
 
 static uint8_t kept_between(uint8_t v, uint8_t high) { return v < EDGE_LOW ? EDGE_LOW : v >= high ? high : v; }
 
-// $CD:2436
-void screen_keep_positions_on_the_battlefield(GameState *g)
+BattlePoint screen_kept_on_the_battlefield(BattlePoint p)
 {
-    for (unsigned p = 0; p < POSITIONS_KEPT_IN; p++) {
+    return (BattlePoint){ kept_between(p.x, EDGE_RIGHT), kept_between(p.y, EDGE_BOTTOM) };
+}
+
+// $CD:2433, $CD:2436
+void screen_keep_pair_on_the_battlefield(GameState *g, uint8_t pair)
+{
+    for (unsigned p = SCREEN_PAIR_POSITIONS * pair; p < SCREEN_PAIR_POSITIONS * (pair + 1u); p++) {
         uint16_t at = battle_animation_positions(g, p);
-        uint8_t across = kept_between((uint8_t)at, EDGE_RIGHT), down = kept_between((uint8_t)(at >> 8), EDGE_BOTTOM);
-        set_battle_animation_positions(g, p, (uint16_t)(down << 8 | across));
+        BattlePoint kept = screen_kept_on_the_battlefield((BattlePoint){ (uint8_t)at, (uint8_t)(at >> 8) });
+        set_battle_animation_positions(g, p, (uint16_t)(kept.y << 8 | kept.x));
     }
 }
+
+void screen_keep_positions_on_the_battlefield(GameState *g) { screen_keep_pair_on_the_battlefield(g, 0); }
 
 uint8_t screen_position_across(const GameState *g, uint8_t position) { return (uint8_t)battle_animation_positions(g, position); }
 uint8_t screen_position_down(const GameState *g, uint8_t position) { return (uint8_t)(battle_animation_positions(g, position) >> 8); }

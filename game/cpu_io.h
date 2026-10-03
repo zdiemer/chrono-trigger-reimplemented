@@ -61,5 +61,12 @@ void hw_port_seek_address(GameState *g, uint16_t at);
 void hw_port_seek_bank(GameState *g, uint8_t bank);
 uint8_t hw_port_read(GameState *g);
 void hw_port_write(GameState *g, uint8_t v);
+/* A word written to the port from the address just below it, as the battle's
+ * rasterizers write the window table: the high byte goes through the port,
+ * and the low byte lands on the sound CPU's port 3, which that address
+ * mirrors (it isn't a message: the driver reads port 3 only after a message's
+ * other bytes; docs/PLATFORM.md, "P1 as built"). What a port leaves of it is
+ * the last such low byte on port 3. */
+void hw_port_leave_spill(GameState *g, uint8_t low);
 
 #endif

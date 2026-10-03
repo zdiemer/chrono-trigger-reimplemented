@@ -497,3 +497,11 @@ game/menu/tech_screen_bridge.c restoring_is_pointable menu_cursor_index menu_obj
 game/menu/tech_screen_bridge.c targets_step_runs menu_cursor_index menu_object_sprite_script # the menus proper's cursor, which their cursor's reading writes plainly; the scaffolding at the address is the sprite-object mode's
 game/menu/top_layer.c count_a_frame menu_object_slots_phase menu_tech_row_partners # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is the techs screen's, a cell it writes and nothing reads
 game/menu/top_layer.c wave menu_object_slots_phase menu_tech_row_partners # the sprite-object mode's slot, which its objects' starts write plainly; the scaffolding at the address is the techs screen's, a cell it writes and nothing reads
+game/battle/screen.h screen_cell battle_scratch[6] battle_scratch only # $CE:E7C8's start in its unrolled copy, read by its entry's wrapper alone: the circles' drawing ($CD:3616) puts it in the cell before every call
+game/battle/screen.h screen_cell battle_scratch[7] battle_scratch only # $CE:E7C8's start in its unrolled copy, read by its entry's wrapper alone: the circles' drawing ($CD:3616) puts it in the cell before every call
+game/battle/screen_beam.c battle_rasterize_window_quad battle_window_quad_index battle_window_quad_index # the entry's window: its caller ($D1:F9AF, as the original runs it) sets it before every call
+game/battle/screen_between.c battle_measure_direction battle_direction_work[2] battle_random_lowest # the entry's second point: its caller ($CD:1B22, as the original's $CC runs it) puts it in the cell before every call
+game/battle/screen_divide.c battle_cut_window battle_cut_steps[0] battle_cut_steps only # the entry's line: the original's $97 handler puts it in the cells before every call
+game/battle/screen_divide.c battle_cut_window battle_cut_run[0] battle_cut_run only # the entry's line: the original's $97 handler puts it in the cells before every call
+game/battle/screen_divide.c battle_cut_window battle_cut_run[1] battle_cut_run only # the entry's line: the original's $97 handler puts it in the cells before every call
+game/battle/screen_divide.c battle_cut_window battle_cut_angle battle_cut_angle only # the entry's line: the original's $97 handler puts it in the cells before every call

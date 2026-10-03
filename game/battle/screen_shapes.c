@@ -4,9 +4,11 @@
  *
  * A circle is a center and a radius (battle_screen_circle_*), and a kind that
  * says how it is drawn into the window table (the drawing is still the
- * original's: command $8B). Scripts place a circle, center it on an
- * animation position, widen and narrow it by the animation scripts'
- * variables, and wait for it to open fully or to close.
+ * original's: command $8B; it works a circle's edges out a line at a time
+ * into battle_circle_edges, and the copy of a run of them into the window
+ * table is here). Scripts place a circle, center it on an animation
+ * position, widen and narrow it by the animation scripts' variables, and wait
+ * for it to open fully or to close.
  *
  * A triangle is kept as a center and, for each corner, a distance and an
  * angle about it: flat, stretched across and down by two scales; or turned
@@ -25,9 +27,12 @@
  * what the original leaves in the multiplier and its cells as scaffolding. */
 #include "battle/screen_script.h"
 
+#include "battle/bridge.h"
 #include "battle/screen_data.h"
+#include "battle/screen_lines.h"
 #include "cpu_io.h"
 #include "original_effects.h"
+#include "ram.h"
 
 /* ---- The scripts' variables the circles follow ------------------------------------------------- */
 
@@ -46,6 +51,15 @@ static bool names_a_circle(const GameState *g, const ScreenCommand *c)
 {
     (void)g;
     return c->circle < SCREEN_CIRCLES;
+}
+
+// $CE:E7C8
+/* A run of a circle's worked edges, from `worked` on, into the window table
+ * from line `line` of window `w` on, `lines` of them. */
+static void copy_circle_lines(GameState *g, unsigned worked, TableLine line, Window w, unsigned lines)
+{
+    for (unsigned i = 0; i < lines; i++)
+        set_line_edges(g, line + (TableLine)i, w, battle_circle_edges(g, worked + i));
 }
 
 // $CD:2FED
@@ -705,3 +719,48 @@ SCREEN_OPCODES(screen_shape_opcodes,
     { 0xBB, OPERATION(draw_model), .length = 1, .shape = LOW_BIT(0), .model = BYTE(0), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
     { 0xBE, OPERATION(draw_model), .needs = names_a_shape, .length = 1, .shape = BYTE(0), .model = CONSTANT(2), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
 );
+
+/* ---- The circles' copy ------------------------------------------------------------------- */
+
+/* $CE:E7C8, entered with 16-bit registers as the circles' drawing ($CD:3616)
+ * calls it: X the place in the window table of the run's first line and
+ * window, Y the place of its first worked edges, and the cell $4B where in the
+ * original's unrolled copy to start, which counts the lines back from its end,
+ * six bytes a line. */
+enum { UNROLLED_COPY_END = 0xE7C7, UNROLLED_LINE_BYTES = 6, UNROLLED_LINES = 222 };
+
+typedef struct {
+    unsigned worked, lines;
+    TableLine line;
+    Window w;
+} CircleRun;
+
+static bool circle_run(const Snes *s, CircleRun *r)
+{
+    const GameState *g = state_of((Snes *)s);
+    uint16_t start = screen_cell_word(g, 0x4B), to = s->cpu.x, from = s->cpu.y;
+    unsigned table_byte = (uint16_t)(to - RAM_BATTLE_WINDOW_LINES), worked_byte = (uint16_t)(from - RAM_BATTLE_CIRCLE_EDGES);
+    unsigned back = (uint16_t)(UNROLLED_COPY_END - start);
+    if (back % UNROLLED_LINE_BYTES || back / UNROLLED_LINE_BYTES > UNROLLED_LINES || table_byte % 2 || worked_byte % 2)
+        return false;
+    *r = (CircleRun){ worked_byte / 2, back / UNROLLED_LINE_BYTES, (TableLine)(table_byte / LINE_BYTES),
+                      table_byte % LINE_BYTES ? WINDOW_2 : WINDOW_1 };
+    return r->line + r->lines <= TABLE_LINES && r->worked + r->lines <= BATTLE_CIRCLE_EDGES_COUNT;
+}
+
+bool battle_circle_run_fits(Snes *s)
+{
+    CircleRun r = { 0, 0, 0, WINDOW_1 };
+    vars_peek(true);
+    bool fits = circle_run(s, &r);
+    vars_peek(false);
+    return m_direct_page(s) == BATTLE_PAGE && s->cpu.db == BATTLE_DATA_BANK && fits;
+}
+
+void battle_copy_circle_lines(Snes *s)
+{
+    CircleRun r = { 0, 0, 0, WINDOW_1 };
+    circle_run(s, &r);
+    copy_circle_lines(state_of(s), r.worked, r.line, r.w, r.lines);
+    m_rtl(s);
+}

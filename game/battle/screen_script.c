@@ -62,6 +62,7 @@ static uint32_t handler_of(uint8_t opcode) { return handlers[opcode - FIRST_COMM
 static const ScreenOpcodes *const every_file[] = {
     &screen_flow_opcodes,    &screen_layer_opcodes,  &screen_shape_opcodes,  &screen_setting_opcodes,
     &screen_wave_opcodes,    &screen_window_opcodes, &screen_motion_opcodes, &screen_palette_opcodes,
+    &screen_cut_opcodes,     &screen_between_opcodes, &screen_beam_opcodes,
 };
 
 const ScreenOpcode *screen_opcode(uint8_t opcode)
@@ -96,6 +97,7 @@ static uint16_t decoded(const GameState *g, uint16_t at, ScreenArg a)
     case ARG_LOW_NIBBLE: return byte & 0x0F;
     case ARG_HIGH_NIBBLE: return byte >> 4;
     case ARG_MASKED: return byte & a.value;
+    case ARG_BIT: return (byte >> a.value) & 1;
     }
     return 0;
 }
@@ -379,17 +381,15 @@ SCREEN_OPCODES(screen_flow_opcodes,
     { 0xF6, OPERATION(wait_for_signal), .length = 1, .back = BYTE(0) },
     /* The commands still the original's: the special effects ($80); drawing
        the circles ($8B, and $B5, $B6 and $B8, which draw other shapes); the
-       triangles worked out from animation positions through the battle's
-       angle routine ($CE:E7CF: $AC, $CC, $D9, $DA), and centred on their own
-       corners ($AD, $B4); a triangle drawn as its corners are, through the
-       rasterizer's own setup ($A1); the beam of light ($F4); the layer's
-       random drift ($D7), which adds a byte the original leaves in its cells;
-       the commands that call into bank $CE ($97, $B2); a wait for a line of
-       the picture ($C1); and a poke into work RAM ($F9). */
-    { .opcode = 0x80 }, { .opcode = 0x8B }, { .opcode = 0x97 }, { .opcode = 0xA1 }, { .opcode = 0xAC },
-    { .opcode = 0xAD }, { .opcode = 0xB2 }, { .opcode = 0xB4 }, { .opcode = 0xB5 }, { .opcode = 0xB6 },
-    { .opcode = 0xB8 }, { .opcode = 0xC1 }, { .opcode = 0xCC }, { .opcode = 0xD7 }, { .opcode = 0xD9 },
-    { .opcode = 0xDA }, { .opcode = 0xF4 }, { .opcode = 0xF9 },
+       triangles centred on their own corners ($AD, $B4); a triangle drawn as
+       its corners are, through the rasterizer's own setup ($A1); measuring a
+       direction alone ($CC) and the wedge between positions ($DA), which
+       screen_between.c says why; the layer's random drift ($D7), which adds a
+       byte the original leaves in its cells; a wait for a line of the picture
+       ($C1); and a poke into work RAM ($F9). */
+    { .opcode = 0x80 }, { .opcode = 0x8B }, { .opcode = 0xA1 }, { .opcode = 0xAD }, { .opcode = 0xB4 },
+    { .opcode = 0xB5 }, { .opcode = 0xB6 }, { .opcode = 0xB8 }, { .opcode = 0xC1 }, { .opcode = 0xCC },
+    { .opcode = 0xD7 }, { .opcode = 0xDA }, { .opcode = 0xF9 },
 );
 
 /* ---- A command ---------------------------------------------------------------------------- */

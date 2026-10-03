@@ -3626,6 +3626,15 @@
 /* The battle slot whose turn it is (a word) [2 bytes] */
 #define RAM_BATTLE_TURN_SLOT 0x7E0022u
 #define RAM_BATTLE_TURN_SLOT_DP 0x22u        /* page battle */
+/* Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF)
+ * takes its points and works the runs out, over cells the battle uses for other things between
+ * effects [8 x $1 bytes, by byte: the two points brought down by the first's distance past an
+ * eighth (the first across and down, then the second), the run across and its sign ($00 or $FF),
+ * the run down and its sign] */
+#define RAM_BATTLE_DIRECTION_WORK 0x7E0023u
+#define RAM_BATTLE_DIRECTION_WORK_COUNT 8u
+#define RAM_BATTLE_DIRECTION_WORK_STRIDE 0x01u
+#define RAM_BATTLE_DIRECTION_WORK_DP 0x23u   /* page battle */
 /* Set when all three party slots are out of the fight ($AEFF negative); the main loop then takes
  * the defeat exit */
 #define RAM_BATTLE_PARTY_DEFEATED 0x7E0024u
@@ -6424,6 +6433,13 @@
 #define RAM_BATTLE_MESSAGE_TILES 0x7EB400u
 #define RAM_BATTLE_MESSAGE_TILES_COUNT 2u
 #define RAM_BATTLE_MESSAGE_TILES_STRIDE 0x200u
+/* A screen script circle's edges a line at a time as its drawing ($CD:31AA-$CD:3656) works them
+ * out, a window's left edge in the low byte and its right in the high, before a run of them goes
+ * into the window table ($CE:E7C8) [256 x $2 bytes, by line the circle's drawing works out, from
+ * its first] */
+#define RAM_BATTLE_CIRCLE_EDGES 0x7EB900u
+#define RAM_BATTLE_CIRCLE_EDGES_COUNT 256u
+#define RAM_BATTLE_CIRCLE_EDGES_STRIDE 0x02u
 /* Screen brightness the battle's handlers set each frame (halved while paused); counted down to
  * 0 when a demo battle exits */
 #define RAM_BATTLE_BRIGHTNESS 0x7EBB00u
@@ -6431,6 +6447,11 @@
 #define RAM_BATTLE_BG_OFFSET 0x7EBB01u
 #define RAM_BATTLE_BG_OFFSET_COUNT 2u
 #define RAM_BATTLE_BG_OFFSET_STRIDE 0x02u
+/* What the screen scripts' special effects ($80) keep for the lines they move
+ * ($CD:2B49-$CD:2DAC), which the battle's start clears [384 x $1 bytes, by byte] */
+#define RAM_BATTLE_EFFECT_LINE_WORK 0x7EBB05u
+#define RAM_BATTLE_EFFECT_LINE_WORK_COUNT 384u
+#define RAM_BATTLE_EFFECT_LINE_WORK_STRIDE 0x01u
 /* Set to $80 as a demo battle exits to the reset code */
 #define RAM_BATTLE_LEAVING 0x7EBB80u
 /* The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's
@@ -6462,12 +6483,40 @@
 /* The mosaic the per-line effects set below the split: the block size in the high nibble, the
  * layers in the low */
 #define RAM_BATTLE_MOSAIC 0x7EBE9Au
+/* The layers' map settings on the battle window's lines, as the line effects' arrangements take
+ * them: $78 for each, the window's maps [4 bytes] */
+#define RAM_BATTLE_WINDOW_LINE_MAPS 0x7EBE9Bu
+/* BG1's scroll on the battle window's lines, in each of its two layouts [2 x $4 bytes, by the
+ * window's layout (battle_alternate_frame)] */
+#define RAM_BATTLE_WINDOW_LINE_BG1_SCROLL 0x7EBE9Fu
+#define RAM_BATTLE_WINDOW_LINE_BG1_SCROLL_COUNT 2u
+#define RAM_BATTLE_WINDOW_LINE_BG1_SCROLL_STRIDE 0x04u
+#define RAM_BATTLE_WINDOW_LINE_BG1_SCROLL_X 0x7EBE9Fu /* Across */
+#define RAM_BATTLE_WINDOW_LINE_BG1_SCROLL_Y 0x7EBEA1u /* Down */
+/* BG2's scroll on the battle window's lines [4 bytes] */
+#define RAM_BATTLE_WINDOW_LINE_BG2_SCROLL 0x7EBEA7u
+#define RAM_BATTLE_WINDOW_LINE_BG2_SCROLL_X 0x7EBEA7u /* Across */
+#define RAM_BATTLE_WINDOW_LINE_BG2_SCROLL_Y 0x7EBEA9u /* Down */
+/* BG3's scroll on each of the battle window's 48 lines, in each of its two layouts: the window's
+ * text is on BG3, its rows spaced by these [96 x $4 bytes, by layout * 48 + line of the battle
+ * window] */
+#define RAM_BATTLE_WINDOW_LINE_BG3_SCROLL 0x7EBEABu
+#define RAM_BATTLE_WINDOW_LINE_BG3_SCROLL_COUNT 96u
+#define RAM_BATTLE_WINDOW_LINE_BG3_SCROLL_STRIDE 0x04u
+#define RAM_BATTLE_WINDOW_LINE_BG3_SCROLL_X 0x7EBEABu /* Across */
+#define RAM_BATTLE_WINDOW_LINE_BG3_SCROLL_Y 0x7EBEADu /* Down */
+/* The screens' settings on the battle window's lines, as the line effects' arrangements take
+ * them: BG1 and BG3 on each [4 bytes] */
+#define RAM_BATTLE_WINDOW_LINE_SCREENS 0x7EC02Bu
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
  * from $E8 or rising from $E0 (all color channels), four bytes apart [288 x $1 bytes, by byte
  * (four tables of one-line entries: $C030, $C090, $C0F0, $C120)] */
 #define RAM_BATTLE_FADE_LINE_DATA 0x7EC02Fu
 #define RAM_BATTLE_FADE_LINE_DATA_COUNT 288u
 #define RAM_BATTLE_FADE_LINE_DATA_STRIDE 0x01u
+/* The background mode on the battle window's lines (mode 1, BG3 in front) and the mosaic (none),
+ * as the line effects' arrangements take them [2 bytes] */
+#define RAM_BATTLE_WINDOW_LINE_MODE 0x7EC14Fu
 /* The top border's lines of the window table, just before battle_window_lines: the window
  * effects that start a line early (the waves, the wipe) write into the last of them [4 x $4
  * bytes, by line (the four above the first buffer's first)] */
@@ -6509,6 +6558,14 @@
 #define RAM_BATTLE_WINDOW_LINE_TABLES 0x7EC9A2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_COUNT 2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE 0x2Du
+/* The layers' scroll on the 24 lines of the battle window in the arrangements that show it short
+ * (18-27) [5 x $4 bytes, by 0 BG1 in layout 0, 1 BG1 in layout 1, 2 BG2, 3 BG3 in layout 0, 4
+ * BG3 in layout 1] */
+#define RAM_BATTLE_SHORT_WINDOW_SCROLL 0x7ECA02u
+#define RAM_BATTLE_SHORT_WINDOW_SCROLL_COUNT 5u
+#define RAM_BATTLE_SHORT_WINDOW_SCROLL_STRIDE 0x04u
+#define RAM_BATTLE_SHORT_WINDOW_SCROLL_X 0x7ECA02u /* Across */
+#define RAM_BATTLE_SHORT_WINDOW_SCROLL_Y 0x7ECA04u /* Down */
 /* Which of the four VRAM places (through $CD:05FF) a requested block of sixteen tiles goes to */
 #define RAM_BATTLE_BLOCK_UPLOAD_ROW 0x7ECA16u
 /* Set to send a block of sixteen 32-byte tiles from battle_block_upload_source at the next frame */
@@ -6584,8 +6641,9 @@
 #define RAM_BATTLE_SCREEN_RETURN_PLACE 0x7ECA75u
 #define RAM_BATTLE_SCREEN_RETURN_PLACE_COUNT 2u
 #define RAM_BATTLE_SCREEN_RETURN_PLACE_STRIDE 0x10u
-/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
- * ($97) [2 x $10 bytes, by screen script channel] */
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or the angles of the
+ * channel's cuts through the middle of the screen ($97: window 1's in the low byte, window 2's
+ * in the high) [2 x $10 bytes, by screen script channel] */
 #define RAM_BATTLE_SCREEN_KEPT_WORD 0x7ECA77u
 #define RAM_BATTLE_SCREEN_KEPT_WORD_COUNT 2u
 #define RAM_BATTLE_SCREEN_KEPT_WORD_STRIDE 0x10u
@@ -6637,6 +6695,26 @@
 #define RAM_BATTLE_SCREEN_BACKGROUND_COLORS 0x7ECA95u
 #define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_COUNT 2u
 #define RAM_BATTLE_SCREEN_BACKGROUND_COLORS_STRIDE 0x01u
+/* The two ends of a window's cut through the middle of the screen, as command $97 hands the line
+ * to its drawing ($CE:EA7E): where it leaves the screen's edge and the middle [2 x $2 bytes, by
+ * end: 0 the upper, 1 the lower] */
+#define RAM_BATTLE_CUT_ENDS 0x7ECA9Bu
+#define RAM_BATTLE_CUT_ENDS_COUNT 2u
+#define RAM_BATTLE_CUT_ENDS_STRIDE 0x02u
+#define RAM_BATTLE_CUT_ENDS_ACROSS 0x7ECA9Bu /* Column */
+#define RAM_BATTLE_CUT_ENDS_DOWN 0x7ECA9Cu   /* Line */
+/* Which way the cut's line runs from its upper end: across $FF left, 1 right, 0 straight down;
+ * down 1, or 0 for a level line [2 x $1 bytes, by 0 across, 1 down] */
+#define RAM_BATTLE_CUT_STEPS 0x7ECA9Fu
+#define RAM_BATTLE_CUT_STEPS_COUNT 2u
+#define RAM_BATTLE_CUT_STEPS_STRIDE 0x01u
+/* How far the cut's line runs from end to end, in columns across and lines down [2 x $1 bytes,
+ * by 0 across, 1 down] */
+#define RAM_BATTLE_CUT_RUN 0x7ECAA1u
+#define RAM_BATTLE_CUT_RUN_COUNT 2u
+#define RAM_BATTLE_CUT_RUN_STRIDE 0x01u
+/* The angle the cut being drawn is at, which says the side of the line the window takes */
+#define RAM_BATTLE_CUT_ANGLE 0x7ECAA3u
 /* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
  * shrink it by their variables and wait for it [2 x $1 bytes, by circle] */
 #define RAM_BATTLE_SCREEN_CIRCLE_RADIUS 0x7ECAA4u
@@ -6757,6 +6835,9 @@
 #define RAM_BATTLE_TILE_ROW_PALETTES 0x7ECC9Du
 #define RAM_BATTLE_TILE_ROW_PALETTES_COUNT 2u
 #define RAM_BATTLE_TILE_ROW_PALETTES_STRIDE 0x02u
+/* The battle window's layout the battle started in (battle_alternate_frame's bit 0); no routine
+ * of the battle reads it back */
+#define RAM_BATTLE_START_LAYOUT 0x7ECCA1u
 /* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
  * while the screen scripts run [2 bytes] */
 #define RAM_BATTLE_BACKGROUND 0x7ECCA2u
@@ -6809,12 +6890,35 @@
 #define RAM_BATTLE_VRAM_COPY_MODE 0x7ECCECu
 /* Set while a timed battle message is up; the NMI counts its frames down and closes it */
 #define RAM_BATTLE_MESSAGE_TIMED 0x7ECCEDu
+/* Background row 1's last eight colors as the battle started, which putting the battlefield back
+ * restores ($CD:0E23) [8 x $2 bytes, by color, from background row 1's ninth] */
+#define RAM_BATTLE_KEPT_ROW_COLORS 0x7ECCEEu
+#define RAM_BATTLE_KEPT_ROW_COLORS_COUNT 8u
+#define RAM_BATTLE_KEPT_ROW_COLORS_STRIDE 0x02u
 /* Nonzero while the battle is paused: the frame work, the frame wait tail and the IRQ's
  * odd-frame transfers stop, and the sound pauses */
 #define RAM_BATTLE_PAUSED 0x7ECD02u
 /* Set while Start is held after it toggled the pause, so one press toggles once; the debug frame
  * advance runs only while it is set */
 #define RAM_BATTLE_PAUSE_HELD 0x7ECD03u
+/* Set while a battle message asked for ($CD:02D8, $CD:0310) is still to be drawn: the frame wait
+ * draws it through the menus' text code and keeps what is left to draw here ($CD:04DF) */
+#define RAM_BATTLE_MESSAGE_DRAWING 0x7ECD05u
+/* The battle message last asked for ($CD:02E4, $CD:0316), so that the same one isn't drawn again
+ * while it shows; $FF for none */
+#define RAM_BATTLE_MESSAGE_ASKED 0x7ECD06u
+/* Nonzero to have putting the battlefield back ($CD:0453) stop once its tiles are back, keeping
+ * the rest of the screen as the effects left it; the battle's start clears it, and no routine of
+ * the battle sets it */
+#define RAM_BATTLE_RESTORE_KEEPS_SCREEN 0x7ECD07u
+/* The direction last measured between two animation positions (256 a turn, 0 right, a quarter
+ * turn down), along which the screen scripts lay a band */
+#define RAM_BATTLE_SCREEN_DIRECTION 0x7ECD08u
+/* A word the battle's start clears and no routine of the battle reads [2 bytes] */
+#define RAM_BATTLE_START_CLEARED 0x7ECD0Au
+/* Set when an effect's graphics have gone over the battlefield's tiles in VRAM ($CD:0FDD), so
+ * that putting the battlefield back loads them again ($CD:03C1) */
+#define RAM_BATTLE_BATTLEFIELD_TILES_REPLACED 0x7ECD0Cu
 /* The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the
  * beam's: its top edge, then its foot) [16 x $1 bytes, by coordinate * 2 + quadrilateral (two,
  * their bytes interleaved; the coordinates X0, Y0, X1, Y1, X2, Y2, X3, Y3)] */
@@ -6824,6 +6928,9 @@
 /* Set while a battle message opened by id ($CD:0295) is up; the other message calls return while
  * it is */
 #define RAM_BATTLE_MESSAGE_BY_ID 0x7ECD1Du
+/* The byte after battle_message_by_id, which the message calls test with it as a word ($CD:02D8,
+ * $CD:0310); only the battle's start writes it */
+#define RAM_BATTLE_MESSAGE_BY_ID_HIGH 0x7ECD1Eu
 /* The last block of tiles sent, as its offset into the table of their places (twice its number):
  * the same block from the same source isn't sent again */
 #define RAM_BATTLE_BLOCK_UPLOADED_ROW 0x7ECD1Fu
@@ -6889,6 +6996,15 @@
 /* The layers the screen script may turn on in the screen's settings (command $F5); its commands
  * for them keep to these */
 #define RAM_BATTLE_SCREEN_LAYER_MASK 0x7ECD46u
+/* BG2's horizontal scroll, signed, on the lines of a background that ripples (one with the HP
+ * gradient): 64 sways of the ripple's wave, which the line effect's BG2 scroll list takes in
+ * that arrangement [64 x $2 bytes, by sway, in the order the line effect takes them down the
+ * lines] */
+#define RAM_BATTLE_BACKGROUND_RIPPLE 0x7ECD47u
+#define RAM_BATTLE_BACKGROUND_RIPPLE_COUNT 64u
+#define RAM_BATTLE_BACKGROUND_RIPPLE_STRIDE 0x02u
+/* Frames the background's ripple has run, counting round: every fourth moves its wave a step */
+#define RAM_BATTLE_RIPPLE_FRAMES 0x7ECDC7u
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
 #define RAM_BATTLE_PALETTE_ROWS_MOVED 0x7ECDC8u
@@ -6925,6 +7041,8 @@
 #define RAM_BATTLE_GRADIENT_FRAME_MASK 0x7ECE13u
 /* Counted each frame; bit 0 picks VRAM $5800 or $5980 for the alternating clear or copy */
 #define RAM_BATTLE_VRAM_ALTERNATE 0x7ECE14u
+/* A byte the battle's start clears and no routine of the battle reads */
+#define RAM_BATTLE_START_CLEARED_BYTE 0x7ECE15u
 /* Nonzero while Start can't pause the battle ($FF from the start, cleared at $CD:05F8) */
 #define RAM_BATTLE_PAUSE_BLOCKED 0x7ECE16u
 /* Id of the battle message last opened by id ($FF once it has closed), so the same one doesn't
@@ -6932,6 +7050,9 @@
 #define RAM_BATTLE_MESSAGE_SHOWN 0x7ECE17u
 /* Frames counted by the debug frame advance, whose every fourth frame can run */
 #define RAM_BATTLE_FRAME_ADVANCE_COUNT 0x7ECE19u
+/* The byte after battle_frame_advance_count, which the battle's start clears with it as a word;
+ * no routine of the battle reads it */
+#define RAM_BATTLE_FRAME_ADVANCE_COUNT_HIGH 0x7ECE1Au
 /* Nonzero to pause palette animation; clearing it restores the saved slot types */
 #define RAM_BATTLE_PALETTE_PAUSE_REQUEST 0x7ECFFFu
 /* Window 1's edges (left, right) per pair of lines, which the wave effect moves [106 x $8 bytes,

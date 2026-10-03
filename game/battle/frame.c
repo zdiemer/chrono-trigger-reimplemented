@@ -178,9 +178,8 @@ static bool slide_the_window(Snes *s)
         return true;
     if (slide == SLIDE_STARTING_IN) {
         set_battle_alternate_base(g, BATTLEFIELD_ARRANGEMENT);
-        m_set_a8(s, battle_alternate_latched(g));
-        if (!battle_call_long(s, 0xCD05DA, 0xCEEE6E, DC_X | DC_Y | DC_FLAGS))
-            return false;
+        NATIVE_TIME_AS(s, 0xCEEE6E, battle_arrange_line_effects(g, battle_alternate_latched(g)));
+        battle_leave_arrangement_registers(s);
         set_battle_window_slide(g, SLIDE_IN_STARTED);
         return true;
     }
@@ -450,19 +449,18 @@ static bool read_the_buttons(Snes *s, uint32_t read_site, uint32_t repeat_site)
     return battle_call_long(s, read_site, 0xC28002, READS_Y) && battle_call(s, repeat_site, 0xCD0340, READS_NOTHING);
 }
 
-/* The HP gradient, where the battle's background has one: its colors each
- * frame, and its step on the frames its pace allows. */
-enum { HAS_HP_GRADIENT = 0x01 };
-
+/* The HP gradient, where the battle's background has one: the background's
+ * ripple each frame, and the gradient's step on the frames its pace allows.
+ * The step takes A's high byte along, which the ripple leaves clear. */
 static bool run_the_gradient(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!(battle_background_flags(g) & HAS_HP_GRADIENT))
+    if (!(battle_background_flags(g) & BATTLE_BACKGROUND_HAS_GRADIENT))
         return true;
-    if (!battle_call_long(s, 0xCD097A, 0xCEE18E, READS_A_HIGH))
-        return false;
+    NATIVE_TIME_AS(s, 0xCEE18E, battle_ripple_background(g));
     if ((uint8_t)battle_frame_count(g) & battle_gradient_frame_mask(g))
         return true;
+    s->cpu.a = 0;
     return battle_call_long(s, 0xCD0985, 0xD1EA4B, READS_A_HIGH);
 }
 

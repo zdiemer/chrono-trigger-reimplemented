@@ -226,10 +226,11 @@ void battle_step_hp_gradient(Snes *s)
     m_rtl(s);
 }
 
+void battle_start_gradient_phase(GameState *g) { set_battle_gradient_phase(g, starting_phase(g)); }
+
 void battle_find_gradient_phase(Snes *s)
 {
-    GameState *g = state_of(s);
-    set_battle_gradient_phase(g, starting_phase(g));
+    battle_start_gradient_phase(state_of(s));
     m_rts(s);
 }
 

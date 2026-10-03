@@ -84,7 +84,7 @@ typedef struct {
     X(uint8_t, circle) X(uint8_t, shape) X(uint8_t, kind) X(uint8_t, x) X(uint8_t, y)           \
     X(uint8_t, radius) X(uint8_t, depth) X(uint8_t, size) X(uint8_t, scale_x)                    \
     X(uint8_t, scale_y) X(uint8_t, angle) X(uint8_t, limit) X(uint8_t, model) X(bool, spins)     \
-    X(bool, own_depth)                                                                            \
+    X(bool, own_depth)                                                                                /* a window cut through the middle, rays between positions */                                    X(uint8_t, window) X(bool, sets_angle) X(uint8_t, turn) X(uint8_t, stray_bits)                   X(uint8_t, quad) X(uint8_t, pair) X(uint8_t, aim) X(uint8_t, kept)                           \
     /* the palette and the screen */                                                              \
     X(uint8_t, mode) X(uint8_t, first) X(uint8_t, count) X(uint8_t, level) X(uint8_t, target)    \
     X(uint8_t, step) X(uint8_t, delay) X(uint8_t, period) X(uint8_t, layers) X(bool, smaller)    \
@@ -158,6 +158,7 @@ typedef enum {
     ARG_LOW_NIBBLE,   /* bits 0-3 */
     ARG_HIGH_NIBBLE,  /* bits 4-7, down to 0-15 */
     ARG_MASKED,       /* the bits of the row's mask, in place */
+    ARG_BIT,          /* the row's bit of operand n, down to 0-1 */
 } ScreenArgKind;
 
 typedef struct {
@@ -178,6 +179,7 @@ typedef struct {
 #define LOW_NIBBLE(n) { ARG_LOW_NIBBLE, (n), 0 }
 #define HIGH_NIBBLE(n) { ARG_HIGH_NIBBLE, (n), 0 }
 #define MASKED(n, mask) { ARG_MASKED, (n), (mask) }
+#define BIT(n, bit) { ARG_BIT, (n), (bit) }
 
 /* What an operation needs of the state to run as the original does; where a
  * row's isn't met, the original's handler runs the command. */
@@ -212,7 +214,7 @@ typedef struct {
 /* The files' rows. */
 extern const ScreenOpcodes screen_flow_opcodes, screen_layer_opcodes, screen_shape_opcodes,
     screen_setting_opcodes, screen_wave_opcodes, screen_window_opcodes, screen_motion_opcodes,
-    screen_palette_opcodes;
+    screen_palette_opcodes, screen_cut_opcodes, screen_between_opcodes, screen_beam_opcodes;
 
 /* The row of a command byte, or none past the language's last. */
 const ScreenOpcode *screen_opcode(uint8_t opcode);

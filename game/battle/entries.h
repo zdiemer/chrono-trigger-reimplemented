@@ -582,6 +582,8 @@ void battle_reset_object_state(Snes *s);
 void battle_setup_display(Snes *s);
 void battle_setup_window_hdma(Snes *s);
 void battle_load_graphics(Snes *s);
+void battle_load_line_arrangement(Snes *s);
+void battle_step_ripple(Snes *s);
 void battle_nmi_alternate(Snes *s);
 
 /* battle/scroll.c */

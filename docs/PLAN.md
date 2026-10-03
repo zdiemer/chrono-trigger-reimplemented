@@ -231,13 +231,14 @@ docstring says which way it is wrong). **25% of the code is still generated.**
 | **total** | **268.5K** | **200.6K** | **49.9K** | **25%** | **1572** |
 
 `$CD`, the battle's frame work, has the screen script language in C
-(RECOMP.md, "Phase 3, battle chunk 11"): its runner and 104 of its 122
-commands. What is left there, in the order to take it: the window shapes'
-rasterizers the commands still call (`$CD:367C`-`$CD:3923`, the triangles'
-fill into the window table through the work RAM port, and `$CD:31AA`-`$CD:3656`,
-the circles' and the other shapes' that commands `$8B`, `$B5`, `$B6` and `$B8`
-draw), which would take the screen scripts off the machine but for bank
-`$CE`'s angle and setup routines; then the special effects of command `$80`
+(RECOMP.md, "Phase 3, battle chunk 11", and "Phase 3, battle: cuts, bands
+and the screen's start", which took banks `$CE` and `$D1` with it): its runner
+and 109 of its 122 commands. What is left there, in the order to take it: the
+window shapes' rasterizers the commands still call (`$CD:367C`-`$CD:3923`, the
+triangles' fill into the window table through the work RAM port, and
+`$CD:31AA`-`$CD:3656`, the circles' and the other shapes' that commands `$8B`,
+`$B5`, `$B6` and `$B8` draw), which take the screen scripts off the machine
+(with them `$DA`, which calls the triangles' rasterizer); then the special effects of command `$80`
 (`$CD:2A8B`-`$CD:2D4A`, one-off effects whose tables want names: the fixed
 color's per-line tables at `$BB06`, the wave marks at `$E850`); then the
 triangle centred on its own corners (`$CD:21C0`, with the 8.8 slope and

@@ -10325,6 +10325,17 @@ subsystem = "battle"
 meaning = "Where the original's callers hand $C1:C90B (a word times a word) and $C1:C92A (a long divided by a word) their numbers, and those leave the results"
 source = "game/battle/arith.c battle_multiply_16x16 $C1:C90B, battle_divide $C1:C92A"
 
+
+[[var]]
+name = "battle_direction_work"
+addr = "7E:0023"
+page = "battle"
+count = 8
+index = "byte: the two points brought down by the first's distance past an eighth (the first across and down, then the second), the run across and its sign ($00 or $FF), the run down and its sign"
+subsystem = "battle"
+reuses = ["battle_turn_slot", "battle_party_defeated", "battle_random_lowest", "battle_random_position", "battle_loop_count", "battle_wide_math"]
+meaning = "Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF) takes its points and works the runs out, over cells the battle uses for other things between effects"
+source = "game/battle/screen_between.c battle_measure_direction $CE:E7CF"
 [[var]]
 name = "battle_frame_count"
 addr = "7E:007C"
@@ -14587,6 +14598,16 @@ subsystem = "battle"
 meaning = "Extra offset added to BG1's scroll, across and down"
 source = "game/battle/scroll.c offset_scroll in battle_update_scroll_tables $CD:06C4"
 
+
+[[var]]
+name = "battle_effect_line_work"
+addr = "7E:BB05"
+count = 0x180
+index = "byte"
+subsystem = "battle"
+reuses = "battle_leaving"
+meaning = "What the screen scripts' special effects ($80) keep for the lines they move ($CD:2B49-$CD:2DAC), which the battle's start clears"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_scroll_tables"
 addr = "7E:BC89"
@@ -14629,6 +14650,26 @@ subsystem = "battle"
 meaning = "The window's indirect per-line tables, one used on even frames and one on odd"
 source = "game/battle/display.c battle_setup_window_hdma $CD:0AEE"
 
+
+[[var]]
+name = "battle_short_window_scroll"
+addr = "7E:CA02"
+count = 5
+stride = 4
+index = "0 BG1 in layout 0, 1 BG1 in layout 1, 2 BG2, 3 BG3 in layout 0, 4 BG3 in layout 1"
+subsystem = "battle"
+meaning = "The layers' scroll on the 24 lines of the battle window in the arrangements that show it short (18-27)"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
 [[var]]
 name = "battle_window_registers"
 addr = "7E:C861"
@@ -14793,6 +14834,13 @@ subsystem = "battle"
 meaning = "The palette word of the battlefield tile row being decoded, twice over, so that a byte of it can be taken for every eight tiles"
 source = "game/battle/tiles.c battle_decode_tile_row $CD:1368"
 
+
+[[var]]
+name = "battle_start_layout"
+addr = "7E:CCA1"
+subsystem = "battle"
+meaning = "The battle window's layout the battle started in (battle_alternate_frame's bit 0); no routine of the battle reads it back"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_block_uploaded_row"
 addr = "7E:CD1F"
@@ -14822,6 +14870,13 @@ subsystem = "battle"
 meaning = "Counted each frame; bit 0 picks VRAM $5800 or $5980 for the alternating clear or copy"
 source = "game/battle/uploads.c battle_upload_alternating_vram $CD:0607"
 
+
+[[var]]
+name = "battle_start_cleared_byte"
+addr = "7E:CE15"
+subsystem = "battle"
+meaning = "A byte the battle's start clears and no routine of the battle reads"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_scroll_mode"
 addr = "7E:CA92"
@@ -15180,6 +15235,23 @@ subsystem = "battle"
 meaning = "Set while background rows 2-4 are moved back to their place with their starting colors ($D1:E984); moving them up clears it"
 source = "game/battle/screen_palette.c battle_screen_move_rows_up $D1:E91A, battle_screen_move_rows_down $D1:E984"
 
+
+[[var]]
+name = "battle_background_ripple"
+addr = "7E:CD47"
+count = 64
+size = 2
+index = "sway, in the order the line effect takes them down the lines"
+subsystem = "battle"
+meaning = "BG2's horizontal scroll, signed, on the lines of a background that ripples (one with the HP gradient): 64 sways of the ripple's wave, which the line effect's BG2 scroll list takes in that arrangement"
+source = "game/battle/display.c battle_ripple_background $CE:E18E"
+
+[[var]]
+name = "battle_ripple_frames"
+addr = "7E:CDC7"
+subsystem = "battle"
+meaning = "Frames the background's ripple has run, counting round: every fourth moves its wave a step"
+source = "game/battle/display.c battle_ripple_background $CE:E18E"
 [[var]]
 name = "battle_gradient_phase"
 addr = "7E:CDC9"
@@ -15354,6 +15426,28 @@ subsystem = "battle"
 meaning = "The corners of the two window quadrilaterals $D1:F9AF rasterizes into the window table (the beam's: its top edge, then its foot)"
 source = "game/battle/screen_beam.c battle_screen_draw_beam $D1:EBFF, battle_draw_window_quad $D1:F9AF; $CD:2495"
 
+
+[[var]]
+name = "battle_screen_direction"
+addr = "7E:CD08"
+subsystem = "battle"
+meaning = "The direction last measured between two animation positions (256 a turn, 0 right, a quarter turn down), along which the screen scripts lay a band"
+source = "game/battle/screen_between.c aim_along $CD:1B22"
+
+[[var]]
+name = "battle_start_cleared"
+addr = "7E:CD0A"
+size = 2
+subsystem = "battle"
+meaning = "A word the battle's start clears and no routine of the battle reads"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+
+[[var]]
+name = "battle_battlefield_tiles_replaced"
+addr = "7E:CD0C"
+subsystem = "battle"
+meaning = "Set when an effect's graphics have gone over the battlefield's tiles in VRAM ($CD:0FDD), so that putting the battlefield back loads them again ($CD:03C1)"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_screen_layer"
 addr = "7E:CA52"
@@ -15507,9 +15601,62 @@ count = 2
 stride = 0x10
 index = "screen script channel"
 subsystem = "battle"
-meaning = "A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by ($97)"
-source = "game/battle/screen_layers.c, commands $8C and $8D; $CD:30BE"
+meaning = "A word a screen script keeps aside from its channel's swing ($8C, $8D), or the angles of the channel's cuts through the middle of the screen ($97: window 1's in the low byte, window 2's in the high)"
+source = "game/battle/screen_layers.c, commands $8C and $8D; game/battle/screen_divide.c, command $97"
 
+
+[[var]]
+name = "battle_cut_ends"
+addr = "7E:CA9B"
+count = 2
+stride = 2
+index = "end: 0 the upper, 1 the lower"
+subsystem = "battle"
+meaning = "The two ends of a window's cut through the middle of the screen, as command $97 hands the line to its drawing ($CE:EA7E): where it leaves the screen's edge and the middle"
+source = "game/battle/screen_divide.c turn_cut $CD:30BE"
+  [[var.field]]
+  name = "across"
+  offset = 0
+  meaning = "Column"
+  [[var.field]]
+  name = "down"
+  offset = 1
+  meaning = "Line"
+
+[[var]]
+name = "battle_cut_steps"
+addr = "7E:CA9F"
+count = 2
+index = "0 across, 1 down"
+subsystem = "battle"
+meaning = "Which way the cut's line runs from its upper end: across $FF left, 1 right, 0 straight down; down 1, or 0 for a level line"
+source = "game/battle/screen_divide.c turn_cut $CD:3134; battle_cut_window $CE:EA7E"
+
+[[var]]
+name = "battle_cut_run"
+addr = "7E:CAA1"
+count = 2
+index = "0 across, 1 down"
+subsystem = "battle"
+meaning = "How far the cut's line runs from end to end, in columns across and lines down"
+source = "game/battle/screen_divide.c turn_cut $CD:3134; battle_cut_window $CE:EA7E"
+
+[[var]]
+name = "battle_cut_angle"
+addr = "7E:CAA3"
+subsystem = "battle"
+meaning = "The angle the cut being drawn is at, which says the side of the line the window takes"
+source = "game/battle/screen_divide.c turn_cut $CD:30BE; battle_cut_window $CE:EA7E"
+
+[[var]]
+name = "battle_circle_edges"
+addr = "7E:B900"
+count = 256
+size = 2
+index = "line the circle's drawing works out, from its first"
+subsystem = "battle"
+meaning = "A screen script circle's edges a line at a time as its drawing ($CD:31AA-$CD:3656) works them out, a window's left edge in the low byte and its right in the high, before a run of them goes into the window table ($CE:E7C8)"
+source = "game/battle/screen_shapes.c battle_copy_circle_lines $CE:E7C8"
 [[var]]
 name = "battle_screen_wave_step"
 addr = "7E:CA79"
@@ -15861,6 +16008,80 @@ subsystem = "battle"
 meaning = "The mosaic the per-line effects set below the split: the block size in the high nibble, the layers in the low"
 source = "game/battle/screen_settings.c, command $90"
 
+
+[[var]]
+name = "battle_window_line_maps"
+addr = "7E:BE9B"
+size = 4
+subsystem = "battle"
+meaning = "The layers' map settings on the battle window's lines, as the line effects' arrangements take them: $78 for each, the window's maps"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+
+[[var]]
+name = "battle_window_line_bg1_scroll"
+addr = "7E:BE9F"
+count = 2
+stride = 4
+index = "the window's layout (battle_alternate_frame)"
+subsystem = "battle"
+meaning = "BG1's scroll on the battle window's lines, in each of its two layouts"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+
+[[var]]
+name = "battle_window_line_bg2_scroll"
+addr = "7E:BEA7"
+stride = 4
+subsystem = "battle"
+meaning = "BG2's scroll on the battle window's lines"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+
+[[var]]
+name = "battle_window_line_bg3_scroll"
+addr = "7E:BEAB"
+count = 96
+stride = 4
+index = "layout * 48 + line of the battle window"
+subsystem = "battle"
+meaning = "BG3's scroll on each of the battle window's 48 lines, in each of its two layouts: the window's text is on BG3, its rows spaced by these"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+
+[[var]]
+name = "battle_window_line_screens"
+addr = "7E:C02B"
+size = 4
+subsystem = "battle"
+meaning = "The screens' settings on the battle window's lines, as the line effects' arrangements take them: BG1 and BG3 on each"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_fade_line_data"
 addr = "7E:C02F"
@@ -15870,6 +16091,14 @@ subsystem = "battle"
 meaning = "The fade tables built at the start of a battle: entries of a line count and a value falling from $E8 or rising from $E0 (all color channels), four bytes apart"
 source = "game/battle/screen_setup.c battle_build_fade_tables $D1:F83D"
 
+
+[[var]]
+name = "battle_window_line_mode"
+addr = "7E:C14F"
+size = 2
+subsystem = "battle"
+meaning = "The background mode on the battle window's lines (mode 1, BG3 in front) and the mosaic (none), as the line effects' arrangements take them"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_low_scratch"
 addr = "7E:0000"
@@ -15904,6 +16133,27 @@ subsystem = "battle"
 meaning = "Set while Start is held after it toggled the pause, so one press toggles once; the debug frame advance runs only while it is set"
 source = "game/battle/nmi.c battle_nmi $D1:E77C"
 
+
+[[var]]
+name = "battle_message_drawing"
+addr = "7E:CD05"
+subsystem = "battle"
+meaning = "Set while a battle message asked for ($CD:02D8, $CD:0310) is still to be drawn: the frame wait draws it through the menus' text code and keeps what is left to draw here ($CD:04DF)"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+
+[[var]]
+name = "battle_message_asked"
+addr = "7E:CD06"
+subsystem = "battle"
+meaning = "The battle message last asked for ($CD:02E4, $CD:0316), so that the same one isn't drawn again while it shows; $FF for none"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
+
+[[var]]
+name = "battle_restore_keeps_screen"
+addr = "7E:CD07"
+subsystem = "battle"
+meaning = "Nonzero to have putting the battlefield back ($CD:0453) stop once its tiles are back, keeping the rest of the screen as the effects left it; the battle's start clears it, and no routine of the battle sets it"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_setup_flags_copy"
 addr = "7E:CD27"
@@ -15925,6 +16175,13 @@ subsystem = "battle"
 meaning = "Frames counted by the debug frame advance, whose every fourth frame can run"
 source = "game/battle/nmi.c battle_nmi $D1:E77C"
 
+
+[[var]]
+name = "battle_frame_advance_count_high"
+addr = "7E:CE1A"
+subsystem = "battle"
+meaning = "The byte after battle_frame_advance_count, which the battle's start clears with it as a word; no routine of the battle reads it"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_message_frames"
 addr = "7E:CCEB"
@@ -15939,6 +16196,16 @@ subsystem = "battle"
 meaning = "Set while a timed battle message is up; the NMI counts its frames down and closes it"
 source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:0215 and $CD:0295 set it"
 
+
+[[var]]
+name = "battle_kept_row_colors"
+addr = "7E:CCEE"
+count = 8
+size = 2
+index = "color, from background row 1's ninth"
+subsystem = "battle"
+meaning = "Background row 1's last eight colors as the battle started, which putting the battlefield back restores ($CD:0E23)"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_message_by_id"
 addr = "7E:CD1D"
@@ -15946,6 +16213,13 @@ subsystem = "battle"
 meaning = "Set while a battle message opened by id ($CD:0295) is up; the other message calls return while it is"
 source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:0295, $CD:02CB, $CD:02D8"
 
+
+[[var]]
+name = "battle_message_by_id_high"
+addr = "7E:CD1E"
+subsystem = "battle"
+meaning = "The byte after battle_message_by_id, which the message calls test with it as a word ($CD:02D8, $CD:0310); only the battle's start writes it"
+source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_message_shown"
 addr = "7E:CE17"

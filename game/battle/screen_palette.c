@@ -262,6 +262,8 @@ void battle_screen_move_rows_down(Snes *s)
     screen_command_done(s);
 }
 
+void battle_keep_palette_kinds(GameState *g) { keep_kinds(g); }
+
 void battle_save_palette_kinds(Snes *s)
 {
     keep_kinds(state_of(s));

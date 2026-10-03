@@ -241,6 +241,8 @@ add_library(ct_game STATIC
   game/battle/random.c
   game/battle/reset.c
   game/battle/screen_beam.c
+  game/battle/screen_between.c
+  game/battle/screen_divide.c
   game/battle/screen_gradient.c
   game/battle/screen_graphics.c
   game/battle/screen_layers.c
