@@ -3250,8 +3250,8 @@ command is A's high byte, which the original shifts into the next frame's
 place in the graphics: `tools/disasm/high_byte.py` shows every handler
 returning it clear but the window fill, the beam and the quadrilaterals,
 and of the fills only filling window 1 sets it, which no script of the game's
-asks for (a scan of the scripts the table at `$D1:646C` points at), so its
-row needs the others and the original's handler runs it; where a handler
+asks for (a scan of the scripts the table at `$D1:646C` points at), so the
+runner hands that fill to the original's handler; where a handler
 that is still the original's leaves the byte set, the C runner hands the
 step to the original's from the dispatch's return. A byte past the last
 command sends the original's dispatch past its table; the runner hands it
@@ -3292,10 +3292,13 @@ seed 1, 5,000 states each, from the `battle` state, with the operands as
 random bytes in work RAM and the guards' bounds kept (the shape, circle,
 slot and position one the language has): every command 0 mismatching of
 about 2,500 compared (half of the states turned away by the dispatch's carry);
-the dispatch 0 of 4,778; the frame's run 0 of 4,819 and a channel's step 1
-of 4,828 over random scripts, the one a state where the original ran a
-random byte's handler off into code that isn't one (its interrupt flag
-cleared). The commands' constraints are in `tools/fuzz_routines.toml`.
+the dispatch 0 of 4,778; the frame's run 0 of 4,819 and a channel's step 0
+of 4,876 over random scripts. The step's first run had one mismatch: a
+random `$8C` with an operand of `$0F`, whose original handler jumps through
+its table of four swing words by the operand and on to `$CD:6020`, code that
+isn't a handler, which ran off with the interrupt flag cleared; no script of
+the game's has `$8C` or `$8D`, so a step that comes to one naming no word is
+handed to the original's runner at the dispatch's call. The commands' constraints are in `tools/fuzz_routines.toml`.
 
 **Timing.** The new entries were calibrated from the shadow runs; the 23 no
 movie reaches (or whose stretches end in the rasterizer) take a sibling's

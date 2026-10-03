@@ -105,26 +105,26 @@ static void swing_layer(GameState *g, ScreenChannel ch)
     set_battle_screen_layer_offset_y(g, ch, (uint16_t)(ch == 0 ? center + by : center - by));
 }
 
-/* ---- Where the animation positions were ------------------------------------------------ */
+/* ---- A triangle strung between the animation positions ---------------------------------- */
 
-/* The saved positions: two slots, each the three positions' across and down
- * bytes, the slots' bytes interleaved. */
-enum { SAVED_POSITIONS = 3, SAVED_POSITION_SLOTS = 2 };
+/* The screen script's two triangles (screen_shapes.c) keep their corners
+ * across and down, the triangles' bytes interleaved. */
+enum { TRIANGLE_CORNERS = 3, TRIANGLES = 2 };
 
-static void save_position_byte(GameState *g, uint8_t slot, unsigned byte, uint8_t v)
+static void set_corner_byte(GameState *g, uint8_t triangle, unsigned byte, uint8_t v)
 {
-    set_battle_shape_corners(g, byte * SAVED_POSITION_SLOTS + slot, v);
+    set_battle_shape_corners(g, byte * TRIANGLES + triangle, v);
 }
 
 // $D1:F5CD
-/* Screen command $DD: remember where the first three animation positions are,
- * in the slot the operand names, for a later command to bring back. */
-static void save_animation_positions(GameState *g, uint8_t slot)
+/* Screen commands $DD and $E3: put a triangle's corners at the first three
+ * animation positions, for the triangle to be drawn there. */
+static void corners_at_animation_positions(GameState *g, uint8_t triangle)
 {
-    for (unsigned p = 0; p < SAVED_POSITIONS; p++) {
+    for (unsigned p = 0; p < TRIANGLE_CORNERS; p++) {
         uint16_t at = battle_animation_positions(g, p);
-        save_position_byte(g, slot, 2 * p, (uint8_t)at);
-        save_position_byte(g, slot, 2 * p + 1, (uint8_t)(at >> 8));
+        set_corner_byte(g, triangle, 2 * p, (uint8_t)at);
+        set_corner_byte(g, triangle, 2 * p + 1, (uint8_t)(at >> 8));
     }
 }
 
@@ -303,24 +303,24 @@ static ScreenFlow swing(GameState *g, ScreenChannel channel)
 }
 SCREEN_OPERATION(swing, channel)
 
-static ScreenFlow save_positions(GameState *g, uint8_t slot)
+static ScreenFlow corners_at_positions(GameState *g, uint8_t shape)
 {
-    save_animation_positions(g, slot);
+    corners_at_animation_positions(g, shape);
     return screen_on();
 }
-SCREEN_OPERATION(save_positions, slot)
+SCREEN_OPERATION(corners_at_positions, shape)
 
-static bool names_a_slot(const GameState *g, const ScreenCommand *c)
+static bool names_a_triangle(const GameState *g, const ScreenCommand *c)
 {
     (void)g;
-    return c->slot < SAVED_POSITION_SLOTS;
+    return c->shape < TRIANGLES;
 }
 
 SCREEN_OPCODES(screen_motion_opcodes,
     { 0xDF, OPERATION(jitter_about), .length = 3, .across = BYTE(0), .down = BYTE(1), .spread = BYTE(2) },
     { 0xCE, OPERATION(swing), .length = 1 },
-    { 0xDD, OPERATION(save_positions), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
-    { 0xE3, OPERATION(save_positions), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
+    { 0xDD, OPERATION(corners_at_positions), .needs = names_a_triangle, .length = 1, .shape = BYTE(0) },
+    { 0xE3, OPERATION(corners_at_positions), .needs = names_a_triangle, .length = 1, .shape = BYTE(0) },
     { 0xC0, OPERATION(shake_screen), .length = 8, .stop = TOP_BIT(0), .shake_across = TRIPLE(1), .shake_down = TRIPLE(4), .layers = BYTE(7) },
 );
 
@@ -344,7 +344,7 @@ bool battle_screen_dispatched_jitter(Snes *s) { return on_a_channel(s) && m_flag
 bool battle_screen_saves_positions(Snes *s)
 {
     vars_peek(true);
-    bool a_slot = screen_command_operand(state_of(s), 0) < SAVED_POSITION_SLOTS;
+    bool a_slot = screen_command_operand(state_of(s), 0) < TRIANGLES;
     vars_peek(false);
     return battle_screen_page_a_clear(s) && a_slot;
 }
@@ -389,7 +389,7 @@ void battle_screen_swing(Snes *s)
 void battle_screen_save_positions(Snes *s)
 {
     GameState *g = state_of(s);
-    save_animation_positions(g, screen_command_operand(g, 0));
+    corners_at_animation_positions(g, screen_command_operand(g, 0));
     screen_command_done(s);
 }
 

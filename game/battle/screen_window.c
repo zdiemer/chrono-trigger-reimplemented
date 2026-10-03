@@ -586,15 +586,6 @@ static ScreenFlow fill(GameState *g, uint8_t fill)
 }
 SCREEN_OPERATION(fill, fill)
 
-/* Filling window 1 leaves A's high byte set, which the original takes into
- * the place of the next frame of the effect's graphics, should one follow;
- * no script of the game's asks for it (battle/screen_script.c), and the
- * original's handler runs it. */
-static bool fill_leaves_a_clear(const GameState *g, const ScreenCommand *c)
-{
-    (void)g;
-    return c->fill < WINDOW_1_FULL;
-}
 
 SCREEN_OPCODES(screen_window_opcodes,
     { 0xB3, OPERATION(ripple), .length = 1 },
@@ -607,7 +598,7 @@ SCREEN_OPCODES(screen_window_opcodes,
     { 0xE8, OPERATION(draw_band), .needs = middle_band_fits, .length = 1, .by = BYTE(0) },
     { 0xDB, OPERATION(copy_across), .length = 1 },
     { 0xCF, OPERATION(copy_inside_out), .needs = unshifted, .length = 1, .value = BYTE(0) },
-    { 0x88, OPERATION(fill), .needs = fill_leaves_a_clear, .length = 1, .fill = LOW_SEVEN(0) },
+    { 0x88, OPERATION(fill), .length = 1, .fill = LOW_SEVEN(0) },
 );
 
 /* ---- The entries ------------------------------------------------------------------------ */

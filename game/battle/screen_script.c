@@ -29,6 +29,7 @@
 
 #include "battle/bridge.h"
 #include "battle/frame.h"
+#include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "port/native.h"
@@ -122,11 +123,20 @@ static ScreenCommand decode(const GameState *g, const ScreenOpcode *row, ScreenC
     return c;
 }
 
-/* Whether a command runs here: it has an operation, and the state meets its
- * needs. */
+/* Filling window 1 ($88's fills from the fourth) returns A's high byte set,
+ * which the original's runner takes into the place of the next frame of the
+ * effect's graphics, should one follow: no script of the game's asks for it,
+ * and the original's handler runs it, so that the runner's machine is the
+ * original's. */
+enum { FILL_WINDOWS = 0x88, FILL_WINDOW_1 = 3 };
+
+static bool leaves_a_high_byte(const ScreenCommand *c, uint8_t opcode) { return opcode == FILL_WINDOWS && c->fill >= FILL_WINDOW_1; }
+
+/* Whether a command runs here: it has an operation, the state meets its
+ * needs, and the original's runner reads nothing of the machine after it. */
 static bool runs_here(const GameState *g, const ScreenOpcode *row, const ScreenCommand *c)
 {
-    return row && row->operation && (!row->needs || row->needs(g, c));
+    return row && row->operation && (!row->needs || row->needs(g, c)) && !leaves_a_high_byte(c, row->opcode);
 }
 
 /* Where the channel's place is left once a command is done: on its last
@@ -400,17 +410,37 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t opcode)
     m_set_flag(s, CPU_FLAG_Z, place == 0);
 }
 
-/* What the sizing leaves of the controller, as the original read it. */
-static void leave_the_controller(Snes *s)
+/* What the triangle's sizing ($CD:211B) leaves of the machine, before the
+ * rasterizer: the last corner down's word in the cell $4B, as the sized
+ * corner, but where the size moves the corner out from the center (or leaves
+ * it on it) the original reads its product as a word, and the controller's
+ * low byte (as the console last read it) comes along as the word's high byte;
+ * and where any corner does, its word store of the size puts the byte after
+ * it, the turn slot's low byte, in the divider. */
+static void leave_the_sizing(Snes *s)
 {
-    screen_leave_controller_in_sizing(state_of(s), in_read_low(m_platform(s), PF_AT(0xCD2162), 0));
+    GameState *g = state_of(s);
+    uint8_t shape = battle_window_quad_index(g) & 1, size = battle_shape_size(g, shape);
+    uint8_t across = battle_shape_center_x(g, shape), down = battle_shape_center_y(g, shape);
+    bool any_out = false;
+    for (unsigned corner = 0; corner < 3; corner++)
+        any_out |= battle_shape_corners(g, (corner * 2) * 2 + shape) >= across
+                   || battle_shape_corners(g, (corner * 2 + 1) * 2 + shape) >= down;
+    if (any_out)
+        hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)battle_turn_slot(g)));
+    uint8_t last = battle_shape_corners(g, (2 * 2 + 1) * 2 + shape);
+    uint8_t moved = (uint8_t)((uint8_t)(last >= down ? last - down : down - last) * size >> 8);
+    uint16_t word = last >= down
+                        ? (uint16_t)((in_read_low(m_platform(s), PF_AT(0xCD2162), 0) << 8 | moved) + down)
+                        : (uint16_t)(down - moved);
+    screen_leave_word(g, 0x4B, word);
 }
 
 /* Draw the triangle an operation laid out, as the original's handler does
  * at its end: the rasterizer returns where the handler would. */
 static bool draw_the_triangle(Snes *s)
 {
-    ORIGINAL_EFFECT(leave_the_controller(s));
+    ORIGINAL_EFFECT(leave_the_sizing(s));
     return battle_call(s, 0xCD16AF, 0xCD367C, DC_A | DC_X | DC_Y | DC_FLAGS);
 }
 
@@ -510,6 +540,27 @@ static bool run_command_as_the_original_calls_it(Snes *s, uint8_t opcode, Screen
     return true;
 }
 
+/* The swing's kept word ($8C, $8D) names one of four words; the original's
+ * handler jumps through a table of four by the operand's low seven bits, and
+ * past it into code that isn't a handler. No script of the game's has either
+ * command (their rows' needs refuse the rest); a step that comes to one
+ * naming no word is the original runner's from the command on, as its
+ * dispatch is called with the byte in A. */
+enum { KEEP_SWING_WORD = 0x8C, KEEP_WORD_ASIDE = 0x8D, SWING_WORDS = 4 };
+
+static bool runs_past_its_table(const GameState *g, uint8_t byte, uint16_t at)
+{
+    return (byte == KEEP_SWING_WORD || byte == KEEP_WORD_ASIDE)
+           && (screen_script_byte_at(g, (uint16_t)(at + 1)) & 0x7F) >= SWING_WORDS;
+}
+
+static void hand_the_command_back(Snes *s, uint8_t byte, ScreenChannel channel)
+{
+    s->cpu.a = byte;
+    s->cpu.x = (uint16_t)(channel * SCREEN_CHANNEL_RECORD_BYTES);
+    m_stop_at_own(s, 0xCD1695, DC_Y | DC_N | DC_V | DC_Z | DC_C);
+}
+
 // $CD:1654
 /* Take a channel's step: run its commands until it shows a frame, ends its
  * step or ends its script. False where the original's code carried on. */
@@ -526,6 +577,10 @@ static bool step_channel(Snes *s, ScreenChannel channel)
         case NEXT_WAIT: wait_after(g, channel, at); return true;
         case NEXT_UNKNOWN: hand_the_byte_back(s, channel); return false;
         case NEXT_COMMAND:
+            if (runs_past_its_table(g, byte, at)) {
+                hand_the_command_back(s, byte, channel);
+                return false;
+            }
             if (!run_command_as_the_original_calls_it(s, byte, channel))
                 return false;
             set_battle_screen_script(g, (battle_screen_script(g) & 0xFF0000u) | (uint16_t)(screen_place(g) + 1));
@@ -642,7 +697,7 @@ void battle_screen_command(Snes *s)
     finish_command(g, row, &c, flow);
     s->cpu.a = 0;
     if (flow.kind == SCREEN_ON_AND_DRAW) {
-        ORIGINAL_EFFECT(leave_the_controller(s));
+        ORIGINAL_EFFECT(leave_the_sizing(s));
         m_stop_at(s, 0xCD367C, DC_A | DC_X | DC_Y | DC_FLAGS);
         return;
     }

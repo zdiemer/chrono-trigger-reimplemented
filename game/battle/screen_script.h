@@ -241,10 +241,6 @@ typedef struct {
  * operation that returns screen_on_and_draw. */
 void screen_lay_out_triangle(GameState *g, uint8_t window, const ScreenTriangle *t);
 
-/* What the sizing of a triangle drawn leaves that comes from the controller
- * (screen_shapes.c): scaffolding, for the runner, which reads the controller. */
-void screen_leave_controller_in_sizing(GameState *g, uint8_t controller);
-
 /* The running channel, as the dispatch leaves it for the commands. */
 static inline ScreenChannel screen_running_channel(const GameState *g)
 {

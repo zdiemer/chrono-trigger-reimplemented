@@ -155,6 +155,11 @@ rest waits, is [PLAN.md](PLAN.md).
     the original leaves in its cell `$46`; the beam `$F4`; the wait for a line
     `$C1`; and the poke `$F9`. And the rasterizer `$CD:367C` the triangles are
     drawn with, a call-out from the C commands.
+  - The screen script's model triangles (`$BA`, `$BB`, `$BE`) clear the low
+    byte of `battle_turn_slot` ($22): the original hands its rotation the
+    triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
+    `clear_the_turn_slots_low_byte`). Find whether any turn reads the slot
+    after an effect draws a model; if none does, the store is scaffolding.
   - Meanings not worked out: `battle_tech_records.menu_detail`; the setup's
     `battle_start_mark`, `battle_menu_mark`, `battle_action_queue_end`,
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten

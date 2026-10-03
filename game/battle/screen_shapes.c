@@ -396,27 +396,28 @@ typedef struct {
     uint8_t across, down, depth;
 } SpacePoint;
 
-/* What the turn's last product was, which the original leaves: its term,
- * and the angle and amount it multiplied. */
-typedef struct {
-    uint8_t term, angle, amount;
-} LastProduct;
-
 // $CD:3C8F
-/* Turn a point about the down axis, then the across axis, then the depth
- * axis, by the triangle's three turns (about across, down and depth): each a
- * rotation of two of the point's coordinates, a term at a time, every term a
- * signed byte. */
-static SpacePoint turn_point(const GameState *g, SpacePoint p, const uint8_t turns[AXES], LastProduct *last)
+/* Turn a point about the down axis, then about the across axis, by two of
+ * the triangle's turns: each a rotation of two of the point's coordinates, a
+ * term at a time, every term a signed byte. */
+static SpacePoint turn_about_down_and_across(const GameState *g, SpacePoint p, const uint8_t turns[AXES])
 {
-    uint8_t about_across = turns[ACROSS], about_down = turns[DOWN], about_depth = turns[DEPTH];
+    uint8_t about_across = turns[ACROSS], about_down = turns[DOWN];
     uint8_t x = (uint8_t)(screen_signed_cosine(g, about_down, p.across) + screen_signed_sine(g, about_down, p.depth));
     uint8_t z = (uint8_t)(screen_signed_cosine(g, about_down, p.depth) + screen_signed_sine(g, about_down, (uint8_t)-p.across));
     uint8_t y = (uint8_t)(screen_signed_cosine(g, about_across, p.down) - screen_signed_sine(g, about_across, z));
     z = (uint8_t)(screen_signed_cosine(g, about_across, z) + screen_signed_sine(g, about_across, p.down));
-    uint8_t down = (uint8_t)(screen_signed_cosine(g, about_depth, y) + screen_signed_sine(g, about_depth, x));
-    *last = (LastProduct){ screen_signed_sine(g, about_depth, y), (uint8_t)(about_depth + SCREEN_QUARTER_TURN), x };
-    return (SpacePoint){ (uint8_t)(screen_signed_cosine(g, about_depth, x) - last->term), down, z };
+    return (SpacePoint){ x, y, z };
+}
+
+/* ... and then about the depth axis, by the third. */
+static SpacePoint turn_point(const GameState *g, SpacePoint p, const uint8_t turns[AXES])
+{
+    SpacePoint q = turn_about_down_and_across(g, p, turns);
+    uint8_t about_depth = turns[DEPTH];
+    return (SpacePoint){ (uint8_t)(screen_signed_cosine(g, about_depth, q.across) - screen_signed_sine(g, about_depth, q.down)),
+                         (uint8_t)(screen_signed_cosine(g, about_depth, q.down) + screen_signed_sine(g, about_depth, q.across)),
+                         q.depth };
 }
 
 /* The point as the original hands it to the turn, in battle_shape_point: a
@@ -431,27 +432,29 @@ static void leave_point(GameState *g, SpacePoint p, bool whole_words)
     }
 }
 
-/* What the original leaves of a turn: the point before and after it, the
- * last term in its cell and the last product in the multiplier. */
-static void leave_turn(GameState *g, SpacePoint before, SpacePoint after, const LastProduct *last, bool whole_words)
+/* What the original leaves of a turn: the point before and after it, its
+ * last term (the sine of the depth turn's down part) in its cell, and its
+ * last product (the cosine of that turn times the across part) in the
+ * multiplier. */
+static void leave_turn(GameState *g, SpacePoint before, SpacePoint after, const uint8_t turns[AXES], bool whole_words)
 {
+    SpacePoint q = turn_about_down_and_across(g, before, turns);
     leave_point(g, before, whole_words);
     set_battle_shape_turned_point(g, ACROSS, after.across);
     set_battle_shape_turned_point(g, DOWN, after.down);
     set_battle_shape_turned_point(g, DEPTH, after.depth);
-    screen_leave_cell(g, 0x47, last->term);
-    screen_leave_sine_product(g, last->angle, last->amount);
+    screen_leave_cell(g, 0x47, screen_signed_sine(g, turns[DEPTH], q.down));
+    screen_leave_sine_product(g, (uint8_t)(turns[DEPTH] + SCREEN_QUARTER_TURN), q.across);
 }
 
 /* Turn a corner by the triangle's turns and place it about its center. */
 static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, SpacePoint p, bool whole_words)
 {
     const uint8_t turns[AXES] = { turn_of(g, shape, 0), turn_of(g, shape, 1), turn_of(g, shape, 2) };
-    LastProduct last;
-    SpacePoint turned = turn_point(g, p, turns, &last);
+    SpacePoint turned = turn_point(g, p, turns);
     set_corner(g, shape, corner, (uint8_t)(turned.across + battle_shape_center_x(g, shape)),
                (uint8_t)(turned.down + battle_shape_center_y(g, shape)));
-    ORIGINAL_EFFECT(leave_turn(g, p, turned, &last, whole_words));
+    ORIGINAL_EFFECT(leave_turn(g, p, turned, turns, whole_words));
 }
 
 /* What the original leaves of the turns it hands the rotation, and of the
@@ -597,8 +600,9 @@ static uint16_t sized(uint8_t corner, uint8_t center, uint8_t size)
 }
 
 /* What the original leaves of the sizing: the size, the last corner down
- * with the center and their difference, the corner's word, and the last
- * product in the multiplier. */
+ * with the center and their difference, and the last product in the
+ * multiplier. (The corner's own word, which takes in the controller, the
+ * runner leaves: screen_script.c.) */
 static void leave_sizing(GameState *g, uint8_t size, uint8_t center_down, uint8_t corner_down)
 {
     int16_t from_center = (int16_t)(corner_down - center_down);
@@ -606,33 +610,8 @@ static void leave_sizing(GameState *g, uint8_t size, uint8_t center_down, uint8_
     screen_leave_word(g, 0x45, corner_down);
     screen_leave_word(g, 0x47, center_down);
     screen_leave_word(g, 0x49, (uint16_t)from_center);
-    screen_leave_word(g, 0x4B, sized(corner_down, center_down, size));
     hw_set_multiplicand(g, (uint8_t)(from_center < 0 ? -from_center : from_center));
     hw_multiply_by(g, size);
-}
-
-/* The sizing's leftovers that come from the machine. A corner the size moves
- * out from the center (or leaves on it) has the original read its product as
- * a word, which takes the controller's low byte (as the console last read
- * it) along as the high byte of the corner's word; and its word store of the
- * size puts the byte after it, the low byte of the slot whose turn it is, in
- * the divider. The runner reads the controller (screen_script.c). */
-void screen_leave_controller_in_sizing(GameState *g, uint8_t controller)
-{
-    uint8_t shape = battle_window_quad_index(g) & 1;
-    uint8_t size = battle_shape_size(g, shape);
-    uint8_t across = battle_shape_center_x(g, shape), down = battle_shape_center_y(g, shape);
-    ScreenTriangle t = corners_of(g, shape);
-    bool any_out = false;
-    for (unsigned corner = 0; corner < CORNERS; corner++)
-        any_out |= t.x[corner] >= across || t.y[corner] >= down;
-    if (any_out)
-        hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)battle_turn_slot(g)));
-    uint8_t last = t.y[CORNERS - 1];
-    if (last >= down) {
-        uint8_t moved = (uint8_t)((uint8_t)(last - down) * size >> 8);
-        screen_leave_word(g, 0x4B, (uint16_t)((controller << 8 | moved) + down));
-    }
 }
 
 // $CD:2173, $CD:211B
@@ -653,6 +632,15 @@ static ScreenFlow draw_triangle(GameState *g, uint8_t shape)
     return screen_on_and_draw();
 }
 SCREEN_OPERATION(draw_triangle, shape)
+
+/* The original hands the models' rotation the triangle's size as a word, in
+ * the battle page's cells $21-$22, and its high byte, 0, lands on the low byte
+ * of the slot whose turn it is ($22). The game reads that cell (it is the
+ * battle's), so the store is kept, here, as what it is (docs/TODO.md). */
+static void clear_the_turn_slots_low_byte(GameState *g)
+{
+    set_battle_turn_slot(g, battle_turn_slot(g) & 0xFF00);
+}
 
 /* A model's three points, four bytes apart, from the model's own sixteen. */
 enum { MODEL_BYTES = 16, MODEL_POINT_BYTES = 4 };
@@ -684,9 +672,7 @@ static ScreenFlow draw_model(GameState *g, uint8_t shape, uint8_t model, bool ow
     }
     ORIGINAL_EFFECT(leave_turns(g, shape, true));
     ORIGINAL_EFFECT(leave_model(g, model_at, added));
-    /* The original hands the rotation the size as a word, whose high byte
-       lands on the low byte of the slot whose turn it is: it clears it. */
-    set_battle_turn_slot(g, battle_turn_slot(g) & 0xFF00);
+    clear_the_turn_slots_low_byte(g);
     return draw_triangle(g, (uint8_t)(shape & 1));
 }
 SCREEN_OPERATION(draw_model, shape, model, own_depth, spins)
