@@ -165,6 +165,9 @@ add_library(ct_game STATIC
   game/menu/script_bridge.c
   game/menu/sound.c
   game/menu/sprites.c
+  game/menu/tech_screen.c
+  game/menu/tech_screen_bridge.c
+  game/menu/techs.c
   game/menu/text.c
   game/menu/tiles.c
   game/menu/typeset.c

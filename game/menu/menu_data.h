@@ -107,6 +107,11 @@ enum { MENU_ITEM_NAMES = 0x0B5E };
 
 /* ---- The items screen ----------------------------------------------------------------------- */
 
+/* The items screen's window command lists (bank $FF, menu/windows.h): the
+ * screen's, the main menu's panel for it, and the window of members an item
+ * is used on. */
+enum { MENU_WINDOWS_ITEMS_SCREEN = 0xC0A6, MENU_WINDOWS_ITEMS_PANEL = 0xC05D, MENU_WINDOWS_ITEMS_MEMBERS = 0xC0E4 };
+
 /* The label of an item's kind its row shows ("Weapon", "Item" and the
  * rest): where the string is in bank $FF, from a word an item at $FF:B310. */
 static inline uint32_t menu_item_kind_label(const GameState *g, uint8_t item)
@@ -322,6 +327,21 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
     return (MenuUpload){ (uint16_t)(b[0] | b[1] << 8), (uint32_t)b[4] << 16 | (uint16_t)(b[2] | b[3] << 8),
                          (uint16_t)(b[5] | b[6] << 8), b[7] };
 }
+
+/* The screens' uploads of their tilemap buffers and line tables, by what
+ * they send: the front layer's rows from the third ($7E:2E80, $640 bytes),
+ * its lower half ($7E:3600), the back layer's rows from the third
+ * ($7E:3E80), the text layer's ($7E:4E00, $680 bytes), the window line
+ * tables ($7E:5D00), and the text layer's first two rows ($7E:4E00, $80
+ * bytes) where a window over the list keeps its lines. */
+enum {
+    MENU_UPLOAD_FRONT_LAYER = 0xFBE3,
+    MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = 0xFBEA,
+    MENU_UPLOAD_BACK_LAYER = 0xFBFF,
+    MENU_UPLOAD_TEXT_LAYER = 0xFC1B,
+    MENU_UPLOAD_LINE_TABLES = 0xFC3E,
+    MENU_UPLOAD_WINDOW_LINES = 0xFC37,
+};
 
 /* The load screen's uploads: the era label's graphic, and the slot's tilemap
  * in three parts. */
@@ -608,6 +628,71 @@ static inline uint8_t menu_slots_bands_at_rest_byte(const GameState *g, unsigned
  * menu's panel for it highlights with ($FF:CBAC), in bank $FF for
  * menu_rom_colour. */
 enum { MENU_ROM_EQUIPMENT_COLOURS = 0x9C70, MENU_ROM_PANEL_HIGHLIGHT_COLOURS = 0xCBAC };
+
+/* ---- The techs ------------------------------------------------------------------------------ */
+
+/* The techs come in groups whose members do them together: each character's
+ * own eight (groups 0-6), then fifteen groups of three double techs, then
+ * fifteen triple techs, a group each. Each group's first tech is a byte at
+ * $C2:BD40; the next group's first ends it, so the last group's end is read
+ * from the byte past the table, the first of the kinds' table that follows. */
+enum { MENU_TECH_GROUPS = 37 };
+static inline uint8_t menu_tech_group_first(const GameState *g, uint8_t group) { return rom_read8(g, 0xC2BD40u + group); }
+
+/* Each kind of tech's groups (the characters' own, the doubles, the triples):
+ * its first group and how many it has ($C2:BD65, two bytes a kind). */
+static inline uint8_t menu_tech_kind_first_group(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC2BD65u + 2u * kind); }
+static inline uint8_t menu_tech_kind_groups(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC2BD66u + 2u * kind); }
+
+/* A group's members, a bit a character from Crono's bit 7 ($CC:2963); and a
+ * character's bit in such a byte ($FF:F9BB, nine entries, the last 0). */
+static inline uint8_t menu_tech_group_members(const GameState *g, uint8_t group) { return rom_read8(g, 0xCC2963u + group); }
+static inline uint8_t menu_character_bit(const GameState *g, uint8_t character) { return rom_read8(g, 0xFFF9BBu + character); }
+
+/* A tech's effect record ($CC:213F, twelve bytes a tech, as the battle reads
+ * it): for a healing tech, the second byte's low five bits are its restoring's
+ * factor and the third's top two bits what it restores (HP, MP). */
+enum { MENU_TECH_EFFECT_BYTES = 12, MENU_TECH_EFFECT_FACTOR = 1, MENU_TECH_EFFECT_RESTORES = 2 };
+static inline uint8_t menu_tech_effect_byte(const GameState *g, uint8_t tech, unsigned n)
+{
+    return rom_read8(g, 0xCC213Fu + (uint32_t)(tech * MENU_TECH_EFFECT_BYTES) + n);
+}
+
+/* Who a tech is used on: the first of its two bytes at $CC:1ACB, bit 0 set
+ * for every member at once. */
+static inline uint8_t menu_tech_targets(const GameState *g, uint8_t tech)
+{
+    return rom_read8(g, 0xCC0000u | (uint16_t)(0x1ACB + 2u * tech));
+}
+
+/* What each member's part of a tech costs in MP ($CC:253B), by the part's
+ * number: a single tech's is the tech itself. */
+static inline uint8_t menu_tech_part_mp(const GameState *g, uint16_t part) { return rom_read8(g, 0xCC0000u | (uint16_t)(0x253B + part)); }
+
+/* The techs' descriptions: a table of where each string starts, a word each
+ * in bank $CC ($CC:3A09); after the techs' come the captions of the kinds,
+ * from $76. */
+enum { MENU_TECH_DESCRIPTIONS_BANK = 0xCC, MENU_TECH_DESCRIPTIONS = 0x3A09, MENU_TECH_KIND_CAPTIONS = 0x76 };
+
+/* The techs screen's member rows: the sprite beside each row stands this far
+ * down the screen ($C2:BB1A, a byte a row: the three rows, then the row a
+ * slide brings in from above and the one from below). */
+static inline uint8_t menu_tech_row_sprite_y(const GameState *g, uint16_t row) { return rom_read8(g, 0xC2BB1Au + row); }
+
+/* The window of members a tech is used on: each member's sprite's place
+ * ($C2:BF2F, a row's Y then its X's low byte). */
+static inline MenuSpritePlace menu_tech_target_sprite_place(const GameState *g, uint8_t member)
+{
+    return (MenuSpritePlace){ rom_read8(g, 0xC2BF2Fu + 2u * member), rom_read8(g, 0xC2BF30u + 2u * member) };
+}
+
+/* The frame a character's sprite holds while it uses a healing tech
+ * ($C2:B519, a byte a character). */
+static inline uint8_t menu_tech_casting_frame(const GameState *g, uint8_t character) { return rom_read8(g, 0xC2B519u + character); }
+
+/* The main menu's panel for the techs: the colours of its kinds' tabs and
+ * its list ($FF:CE04 and $FF:CDF4, eight each), for menu_rom_colour. */
+enum { MENU_ROM_TECH_PANEL_COLOURS = 0xCE04, MENU_ROM_TECH_PANEL_LIST_COLOURS = 0xCDF4 };
 
 /* ---- The menus' display ------------------------------------------------------------------- */
 

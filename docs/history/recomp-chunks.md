@@ -529,6 +529,92 @@ routine's (a row is the window language's, the colouring the rows') carry
 large scalars on few accesses of their own. `$C2` stands at 24.2 KiB
 ported, 59% left.
 
+## Phase 3, menus: the items screen and the equipment screen's windows (`$C2:A2CD`-`$C2:B352`)
+
+The rest of the equipment screen, which its steps called out to (`$C2:A2CD`-
+`$C2:AA3F`: the slots window and the list window, each sliding in and out),
+and the items screen beside it in the bank (`$C2:AA40`-`$C2:B352`, the menus'
+screen 2, with the main menu's panel for it): 3.9 KiB, the two screens that
+show the party's items. `$C2` went from 24.2 KiB ported (59% left, 261
+entries) to 28.1 KiB (53%, 300 entries). The plan's `$C2:B520` is the techs
+screen's, the next run along; it shares the member window and the list's
+slide written here, so it is the next chunk, taken whole.
+
+**What it is.** `menu/item_screen.c` is the screen as the game sees it: the
+commands over the list (the list, the sort), the list with an item picked up
+and put down elsewhere (a second cursor holds its row), the sort (the party's
+items gathered, used-up places dropped, the categories in order with what the
+party keeps rather than uses after the rest), who can equip a weapon or
+armour (the names of those who have joined, its attack or defence), and an
+item used from the menu: what it does looked up in its figures (a tonic, one
+by chance, the party's rest, a tab), the member window it is used on, a tab's
+figure raised in the record, one more taken from the party's items each use.
+`menu/item_screen_bridge.c` runs the steps on the machine, the restoring of
+HP and MP (`$C2:8F55`), the cursor among the members a tonic is used on
+(`$C2:B83E`, the techs screen's too), the description (`$C2:F2F3`), the
+lists' frame, paging and slide, and the second cursor's and the scroll bar's
+tasks still the original's. `menu/equipment_windows.c` is the two windows:
+what a member has on (the card's too, which no longer calls out for it), the
+slot taken and the slots' marks, the slots window sliding in with the member
+rows moving aside (and back), the list window sliding in and out, the list of
+what fits laid out and drawn; their slides keep their state in a
+`MenuWindowSlide` or `MenuListSlide` the bridge holds between the frames it
+waits, and stage the band table a frame at a time. `menu/lists.c` holds what
+the two screens' lists share: whether a list scrolls, the way it slid, and
+its rows moved in their buffer once it has (the equipment's `$C2:9FDE` now
+one call of it). `menu/cursor.h` names the frame's buttons and pushes once
+(`MenuButton`, `MenuPush`, `menu_asked`, `menu_pushed`), which the two screens'
+three private copies became.
+
+**The flags, settled first.** Every call-out was checked against the strict
+solve before the logic: all of them read nothing but memory, Y (the list's
+frame) or A (the description, the tasks' stop, the members' pointing, whose
+sound reads A's high byte). What liveness can't declare is again the P a
+routine saves as it starts, compared under its own calls out: the screens'
+ticks, and here every routine a step reaches with a JSR that calls out
+itself. Those are entries of their own run through `menu_run` (the
+description of the cursor's item `$C2:AD2E` and its caller `$C2:AC59`, the
+use of an item `$C2:B0AB` and its four handlers, the member window `$C2:AF42`,
+a tab's member `$C2:B24A`/`$C2:B275`, a tab's raise `$C2:B2A7`, one more used
+`$C2:B31C`, the windows' slides), so the original's frames stand under their
+calls; before each, one leaves helper per decision (`leave_use_found`,
+`leave_member_choice_started`, `leave_slide_frames`, ...) sets what the
+original's last test left. The equipment screen's preview of an item's
+figures (`$C2:A5C3`) would need its P after the list's move returns, which
+that port's paths don't work out, so it stays the original's (TODO.md).
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches, none refused (each entry's counts are its ports.tsv row): the
+commands' step 336 calls, the list's 417, an item picked up 190, the cursor's
+item described 599 (inside those steps), a slot taken 462 and the slots'
+marks 468, a row of what fits 272, what a member has on 225. The library opens the
+items screen twice (`menu` and `menus-field-menu`), sorts once, picks up,
+swaps and uses a tonic, and goes through the equipment screen's windows
+eight times; it never slides the list of items, shows who can equip an item,
+or uses a tab, an item by chance or the party's rest. Fuzzed from two states
+of `menus-field-menu` (the `items` state, frame 5150, and the `equipment`
+state), seed 1, 2,000 states each, the menus' tables (`$7E:7700`-`$7FFF`) kept
+with low RAM and the tilemaps, every routine up to its first wait for a
+frame. The first runs found: the slide's end leaving a 16-bit accumulator and
+the step's both bytes clear (the rows' move returns 16-bit); the list
+window's slide filling 28 words of the rows' table, not 27; the original's
+16-bit count of the scroll bar's hold and the cursor's hiding taken down
+together as the slots window closes; the carry an item's use leaves its
+handlers (the bit search's, not the handler's own) and the overflow a tonic's
+strength test leaves; the drawing entries needing 16-bit index registers.
+Random item tables made the original's strings run anywhere, which the kept
+tables answer; the equipment screen's own entries now keep them too, and
+their counts are unchanged against main's (`tools/fuzz_compare.py --before`:
+0 of 326 routines differ).
+
+**Timing.** The new entries were calibrated over the library (the menus'
+rows only); the drawings charge their text at their own rates rather than
+the text drawer's, which their few long strings fit better, and the
+equipment screen's rows' move charges a block move for its copy. One
+exception: the item list's ten rows (`menu_draw_item_rows`), whose time
+follows which rows are empty, on the panel's five calls in vblank
+(`tools/timing_exceptions.txt`).
+
 ## Phase 3, field and events: the party on the map
 
 The first chunk of bank `$C0` in wave 2. PLAN.md's table of what event's

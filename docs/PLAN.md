@@ -163,7 +163,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 201 files, 117 of 56,917 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 204 files, 117 of 58,688 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -210,13 +210,13 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **30% of the code is still generated.**
+docstring says which way it is wrong). **28% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 64.9K | 59.7K | 20.3K | 8% | 403 |
 | field engine, events (`$C0`) | 59.4K | 49.6K | 10.6K | 16% | 329 |
-| menus, text (`$C2`) | 59.3K | 28.1K | 8.1K | 53% | 300 |
+| menus, text (`$C2`) | 59.3K | 30.9K | 8.6K | 48% | 326 |
 | scene program, RAM (`$7E`) | 24.9K | 10.2K | 0.8K | 59% | 71 |
 | battle frame work (`$CD`) | 15.5K | 4.7K | 2.8K | 70% | 27 |
 | field graphics (`$FD`) | 15.3K | 11.7K | 0.7K | 23% | 86 |
@@ -227,7 +227,7 @@ docstring says which way it is wrong). **30% of the code is still generated.**
 | scene data (`$C6`) | 3.5K | 3.4K | 2.3K | 4% | 25 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.7K | 0.1K | 0.0K | 95% | 1 |
-| **total** | **268.5K** | **189.2K** | **46.8K** | **30%** | **1417** |
+| **total** | **268.5K** | **192.0K** | **47.3K** | **28%** | **1443** |
 
 The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
@@ -366,12 +366,14 @@ language, the cursor and sounds, the typesetter, the menus' opening, the
 characters in the records, the records' task, the frame's input, the
 tilemap touches, the equipment screen (its steps with the member list and
 card, and its two windows: the slots and the list of what fits, sliding in
-and out), and the items screen with its panel (the list of the party's items,
-moving and sorting them, who can equip one, an item used on the members).
-Next is the techs screen (`$C2:B353`-`$C2:BF34`, with the largest run left,
-`$C2:B520`, 1530 bytes), which shares the items screen's member window and
-the lists' slide; then `$C2:42F8` (1441), `$C2:2826` (1313), `$C2:D52B`
-(1290, the shop) and `$C2:3B8C` (1116). The equipment screen's preview of an
+and out), the items screen with its panel (the list of the party's items,
+moving and sorting them, who can equip one, an item used on the members), and
+the techs screen with its panel (a member's techs of each kind, the member
+list's and the tech list's slides, a healing tech used on the members).
+Next is the settings screen beside it (`$C2:BF35`-`$C2:C620`, its options
+through a table of handlers, the buttons' assignment, the window's design);
+then `$C2:42F8` (1441), `$C2:2826` (1313), `$C2:D52B` (1290, the shop) and
+`$C2:3B8C` (1116). The equipment screen's preview of an
 item's figures (`$C2:A5C3`, `$C2:A5E7`, 138 bytes) is still the original's:
 the flags it saves come after the list's move returns, which leaves them as
 none of its paths work out yet (TODO.md). `$C2:27DE` goes with

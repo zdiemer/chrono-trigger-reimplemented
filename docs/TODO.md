@@ -646,22 +646,37 @@ rest waits, is [PLAN.md](PLAN.md).
   figures are read as `figures + FIGURES_*` and through cells `menu_item_place`
   just wrote -- an accessor returning the place's figures record;
   `raise_the_figure` adds a word across two record bytes for a figure the cap
-  rules out (`+1`, and a guard refusing 255); upload records and window-list
-  ids carry several names or literals (`0xFBE3`, `0xFBEA`, the guards in
-  `item_screen_bridge.c`) -- name each once in `menu_data.h`;
-  `choose_members_to_restore` and `menu_use_tab` are one loop, and
+  rules out (`+1`, and a guard refusing 255); `item_screen.c`'s private
+  upload records and window lists can take the names `menu_data.h` now has
+  (`MENU_UPLOAD_*`, `MENU_WINDOWS_ITEMS_*`), as its bridge does;
   `point_along_the_list` repeats `point_at_listed_item`'s tail;
   `leave_use_found` re-runs `use_of` and the slide leave repeats
   `slide_brings_a_row` with `0xF0`; `hide_the_scroll_bar_and_cursor` takes
   two cells down as one word with a borrow; `menu_equip_item_described_on_opening`
-  exports the X the original leaves as a header query (rubric 115);
-  `queue_upload`, `draw_list`, `hide_the_scroll_bar` and the equipped-slot
-  layout `0x27` are copied in three files; also the scroll bar's hidden flag
+  exports the X the original leaves as a header query (rubric 115); the six
+  screens' private `queue_upload` and `draw_list` can call `vram.h`'s
+  `menu_queue_fixed_upload` and `windows.h`'s `menu_draw_windows`, and
+  `hide_the_scroll_bar`, the scroll bar's thumb at a row (`thumb_at_row`,
+  also the techs screen's) and the equipped-slot layout `0x27` are copied
+  between files; also the scroll bar's hidden flag
   set to `FIRST_MEMBER_PLACE`, `menu_leave_load(s, 0x62/0x42/0x2E)` literals,
   `& 0xFF00` merges, `hw_set_dividend` and the list-rows scratch in logic
   files, `menu_items_after_*` named by position, `put_bands_at_rest` taking
   byte offsets, `menu_items_used_up`'s ignored result, and the cursor's item
   written to a cell and read back.
+
+- **What the techs screen left** (`menu/tech_screen.c`; none blocking): its
+  description's request (`$C2:BE44`) is the items' `$C2:F2F3` with another
+  table, row and pace -- one `menu_ask_for_description` once F2F3 is ported;
+  the member step's guard wants the list made for the member and kind it
+  shows (`menu_tech_list_shown`), which a screen just opened only has by
+  chance, where choosing on that very frame reads the list as it stands (the
+  original reads it too; the library's openings pass); the member list's and
+  the tech list's slides and the techs' paging are reached only by fuzzing
+  (no movie scrolls past three members or eight techs); two timing exceptions
+  follow from the window lists' strings' spread (`menu_show_pointed_tech`,
+  `menu_choose_tech`), which a calibration of the empty member row's list
+  alone would take back.
 
 - **What the screen effects' review left** (merged with field's
   screen-effects chunk; none blocking): `draw_circle` and

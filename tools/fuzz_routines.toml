@@ -13722,3 +13722,258 @@ state = "equipment"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0085-7E0085=01-07", "--fill", "7E0086-7E0086=00-00", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0412-7E0412=00-02", "--fill", "7E0413-7E0413=00-04", "--fill", "7E0077-7E0077=00-03", "--fill", "7E0FC8-7E0FC8=00-50", "--fill", "7E0FC6-7E0FC6=00-62", "--fill", "7E9AB7-7E9ABA=00-F1", "--range", "X=30A2-30A2"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the items' tables the menus built as they opened as the state has them; the menus' page and data bank, room in the queue; the party's characters, one to three active, the cursor's member row and the list's scroll near them; the slot one of the four, the list of what fits within its 98 places; the member's four items the game's, drawn at the card's place"
+
+# ---- menu: the techs screen (chunk 7) -----------------------------------------------------------
+#
+# Four states of menus-field-menu: on the member rows (the members' own techs), on the list, the
+# window a healing tech is used from, and on the triple techs.
+
+[state.techs_members]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6260
+
+[state.techs_list]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6400
+
+[state.techs_targets]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 6600
+
+[state.techs_triples]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 7200
+
+[[routine]]
+name = "menu_open_techs"
+at = "C2:B35D"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0D15-7E0D15=00-EF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the kind, the member row and the list's slide random, the palette's change count"
+
+[[routine]]
+name = "menu_lay_out_tech_members"
+at = "C2:B365"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the kind, the row and the slide random, the list built for any member and kind, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_choose_tech_member"
+at = "C2:B36D"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the kind, the row and the slide random, the list built for any member and kind, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_move_among_tech_members"
+at = "C2:B520"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E0084-7E0084=00-FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the member rows, the pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_slide_tech_members"
+at = "C2:B568"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=0B-0D", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a push past the rows down or up, the list's slide random; compared up to the slide's first wait for the next frame"
+
+[[routine]]
+name = "menu_slide_tech_member_rows"
+at = "C2:B5C8"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0022-7E0022=03,04", "--fill", "7E0023-7E0023=00", "--fill", "7E0026-7E0027=05", "--fill", "7E0027-7E0027=20,26", "--fill", "7E0D22-7E0D23=04,FC", "--fill", "7E0D23-7E0D23=00,FF", "--fill", "7E0024-7E0025=EF,1F", "--fill", "7E0025-7E0025=20,21", "--fill", "7E0061-7E0062=4A,CA", "--fill", "7E0062-7E0062=36,3A", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a slide as its start ($C2:B568) sets it up, either way; compared up to its first wait for the next frame"
+
+[[routine]]
+name = "menu_draw_tech_member_rows"
+at = "C2:BA4F"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the member row and the slide random"
+
+[[routine]]
+name = "menu_describe_tech_kind"
+at = "C2:BE16"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the kind random, the description shown and its request random"
+
+[[routine]]
+name = "menu_show_techs_panel"
+at = "C2:B8DA"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame"
+
+[[routine]]
+name = "menu_put_techs_panel_away"
+at = "C2:B960"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue"
+
+[[routine]]
+name = "menu_choose_tech"
+at = "C2:B3AE"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=03", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows, the buttons and pushes random; compared up to a wait for the next frame"
+
+[[routine]]
+name = "menu_show_tech_lister"
+at = "C2:B9E1"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_load_tech_lister_sprite"
+at = "C2:BA09"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E19C0-7E19C0=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the lister's record's sprite random among the characters"
+
+[[routine]]
+name = "menu_show_tech_list"
+at = "C2:BB50"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_describe_pointed_tech"
+at = "C2:BE01"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the description shown and its request random"
+
+[[routine]]
+name = "menu_describe_tech"
+at = "C2:BE33"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07", "--fill", "7E0D77-7E0D78=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the description shown and its request random"
+
+[[routine]]
+name = "menu_slide_tech_list"
+at = "C2:B72F"
+subsystem = "menu"
+state = "techs_triples"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0054-7E0054=00,07", "--fill", "7E005A-7E005A=84,88", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0057-7E0057=0A", "--fill", "7E0F4A-7E0F4A=00-0A", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a list of eighteen double techs, its first row within it, the cursor on its first or last row pushed past it; compared up to the slide's first frame's wait"
+
+[[routine]]
+name = "menu_choose_tech_target"
+at = "C2:B48E"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0068-7E0068=04", "--fill", "7E0054-7E0054=08-0A", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the window's members, the buttons and pushes random; compared up to a wait for frames"
+
+[[routine]]
+name = "menu_point_at_tech_target"
+at = "C2:B823"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=06-0C", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0DBE-7E0DBE=00-02"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor about the window's members, the push random"
+
+[[routine]]
+name = "menu_point_at_member_to_restore"
+at = "C2:B83E"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=06-0C", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0DBD-7E0DBD=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor about the window's members, the push and the healing's effect random"
+
+[[routine]]
+name = "menu_note_member_to_restore"
+at = "C2:B870"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=08-0A", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0DBD-7E0DBD=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the window's members, the healing's effect random"
+
+[[routine]]
+name = "menu_open_tech_targets"
+at = "C2:BE79"
+subsystem = "menu"
+state = "techs_targets"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--stop-at-call", "C2821E", "--stop-at-call", "C2822B", "--stop-at-call", "C2EB1F"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame"
+
+[[routine]]
+name = "menu_show_member_tech_list"
+at = "C2:BC6F"
+subsystem = "menu"
+state = "techs_members"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=00-02", "--fill", "7E0419-7E0419=00-02", "--fill", "7E041A-7E041A=00-04", "--fill", "7E0084-7E0084=00-FF"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the member and the kind random, the list built for any member and kind"
+
+[[routine]]
+name = "menu_draw_tech_rows"
+at = "C2:BD6B"
+subsystem = "menu"
+state = "techs_triples"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0418-7E0418=01", "--fill", "7E0000-7E0000=00-0A", "--fill", "7E0001-7E0001=00", "--fill", "7E0F00-7E0F11=39-65", "--fill", "7E0F12-7E0F17=FF", "--fill", "7E0F30-7E0F41=07-15", "--fill", "7E0F49-7E0F49=12", "--fill", "7E0F4A-7E0F4A=00-0A"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; a list of eighteen double techs, drawn from a place within it"
+
+[[routine]]
+name = "menu_show_pointed_tech"
+at = "C2:BB1F"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F48-7E0F48=00-07", "--fill", "7E0054-7E0054=00-07"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the cursor on the list's rows"
+
+[[routine]]
+name = "menu_draw_tech_member_row"
+at = "C2:BA2F"
+subsystem = "menu"
+state = "techs_list"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9380-7E967F", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0061-7E0062=00-FF", "--fill", "7E0062-7E0062=2E-3A", "--fill", "7E9890-7E9890=00-30"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menus' item and tech tables as the state has them; the menus' page and data bank, room in the queue; the drawing origin within the front layer's rows, the cost the row compares with random"

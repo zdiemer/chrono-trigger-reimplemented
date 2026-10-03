@@ -27,6 +27,10 @@ typedef struct {
  * the menus' tilemaps, from the drawing origin it sets. */
 void menu_draw_window_list(GameState *g, Platform *pf, uint16_t list);
 
+/* The same as a screen draws its windows, its time the original's list
+ * runner's ($C2:ED31). */
+void menu_draw_windows(GameState *g, Platform *pf, uint16_t list);
+
 /* Whether the list can be drawn from the drawing origin as it is: its
  * commands whole, in the tilemap buffers, and its strings convertible (for a
  * port's guard, before it draws the list as C). */

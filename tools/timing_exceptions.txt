@@ -123,3 +123,15 @@ menu_animate_record vblank-tail carries on a menu record's animation, and on a c
 menu_step_record_animation vblank-tail as menu_animate_record, a frame on: mean |error| 5.8% with no drift, at most 10785 clocks, writing RAM only
 menu_run_record_task vblank-tail the menus' records' task: a pass over the nine records, carrying on their animations through menu_step_record_animation and the frame building, whose spread it carries: mean |error| 1.2% with no drift, at most 10872 clocks, writing RAM and the VRAM queue only
 menu_draw_item_rows vblank-worst draws the items list's ten rows into the menus' tilemap buffer in RAM, which a later vblank uploads; each row is charged at the row's calibrated rate, whose time follows the row (a name, a count and a label, or a row of blanks for an empty place), and the panel's few calls (5 over the library) land in vblank: mean |error| 13.7% with no drift, at most 25259 clocks, writing RAM only
+
+# The techs screen's list (game/menu/tech_screen.c): the tech on the cursor
+# has its other members' rows drawn beside the list, and how many there are
+# follows the kind of tech -- none for a member's own (two empty rows), two for
+# a triple tech (two member rows). The rows are charged as their window lists
+# and the member rows at their own calibrated rate (menu_draw_tech_member_row,
+# 0.2% error), so the empty rows carry the window lists' strings' spread (over
+# by about 1600 clocks each) and the member rows' loads and costs fall to the
+# routine's own time, which the empty rows' overestimate holds at cost_milli 1.
+menu_show_pointed_tech drift draws the pointed tech's members' rows into the menus' tilemap buffer in RAM, which the next vblank uploads; +2.58% at cost_milli 1 (the empty rows over by 3190 clocks a call, the triple techs' member rows under by 9513), writing RAM only
+menu_show_pointed_tech vblank-tail as for its drift: every call starts in the frame's vblank, its error at most 9513 clocks, writing RAM only
+menu_choose_tech vblank-tail the techs list's step, which draws the pointed tech's rows (menu_show_pointed_tech) and carries their spread: 28.8% of its vblank calls off by 1024 clocks or more (the common still frame over by 2586 clocks), at most 10023 clocks, writing RAM and the VRAM queue only

@@ -620,6 +620,11 @@ void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, Men
     ORIGINAL_EFFECT(leave_command(g, COPY_AREA_COMMAND, &o));
 }
 
+void menu_draw_windows(GameState *g, Platform *pf, uint16_t list)
+{
+    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
+}
+
 /* ---- Where a list may draw ---------------------------------------------------------------------- */
 
 /* The menus draw above low RAM, where their cells and the tasks' stacks are,
