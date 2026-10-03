@@ -143,8 +143,23 @@ rest waits, is [PLAN.md](PLAN.md).
     `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
     the name converter `$C1:01A9` from the setup; the Lavos scroll modes
     `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
-    `$CE:EE6E`, `$CE:E18E`, `$CD:1609`, `$CD:0B1E` and the wait tail's
+    `$CE:EE6E`, `$CE:E18E`, `$CD:0B1E` and the wait tail's
     callees from the frame work.
+  - The screen script commands whose handlers are still the original's
+    (RECOMP.md, "Phase 3, battle chunk 11"; `battle/screen_script.c`'s rows
+    with no operation): the special effects `$80`; the circles' drawing `$8B`
+    and the shapes of `$B5`, `$B6`, `$B8`; `$A1`, which runs the rasterizer's
+    own setup; `$AC`, `$CC`, `$D9` and `$DA` through bank `$CE`'s angle routine
+    `$CE:E7CF`; `$AD` and `$B4`, the triangle centred on its corners; `$97` and
+    `$B2` into bank `$CE`; the layer's random drift `$D7`, which adds a byte
+    the original leaves in its cell `$46`; the beam `$F4`; the wait for a line
+    `$C1`; and the poke `$F9`. And the rasterizer `$CD:367C` the triangles are
+    drawn with, a call-out from the C commands.
+  - The screen script's model triangles (`$BA`, `$BB`, `$BE`) clear the low
+    byte of `battle_turn_slot` ($22): the original hands its rotation the
+    triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
+    `clear_the_turn_slots_low_byte`). Find whether any turn reads the slot
+    after an effect draws a model; if none does, the store is scaffolding.
   - Meanings not worked out: `battle_tech_records.menu_detail`; the setup's
     `battle_start_mark`, `battle_menu_mark`, `battle_action_queue_end`,
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
@@ -282,6 +297,25 @@ rest waits, is [PLAN.md](PLAN.md).
     movie plays a demo battle's party turns, so the timing gate has nothing to
     calibrate them from (`battle_party_stands_down`, 3500, measured exact over
     the library). A movie of the attract mode's battle would;
+  - what the screen script language's review left (none blocking after its
+    fixes): `screen_script.h`'s language-wide parameter list forces generic
+    names and bare `uint8_t` (`value` means about ten things, `which` four,
+    `kind` three), so `show_layers` casts to `LayerSetting` and
+    `set_frame_switch`, `wave` and `fill` fold several operations into one
+    switch -- name the parameters, declare the enums the table uses, one
+    operation per case; `run_screen_scripts` and `step_channel` keep the
+    scroll mode, the ended-channel count and the restore request in `Snes *`
+    bodies, and the script cursor goes through `battle_screen_script` every
+    byte (needed while 18 handlers are the original's); `RULE_NUMBER` defined
+    in `screen_script.c` and `screen_waves.c`; `shape_model_point`,
+    `saved_shape_offset` and `script_palette_slot_offset` work in byte
+    offsets, and the put-aside `array_starts` table carries a record's
+    layout; literal axes 1/0/2 in `screen_shapes.c` where `ACROSS/DOWN/DEPTH`
+    exist; the BG3 line-scroll flag written `(bg3 & 0xFF00) | value`;
+    `battle_screen_command_ready` takes the carry for every command only for
+    the jitter; the old `$D1` entries' positional `screen_command_operand`
+    wrappers duplicate the rows once every row is C.
+
   - what battle's review rated "mostly" (no file rated translation):
     - the reactions (`main_loop.c`'s `react()`) hand their choosing to the
       enemy's turn through the choosing's cells and take its outcome and the
@@ -1600,8 +1634,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
   established: the frame work waits for line 64 before the screen script
   channels run while the timed effect slots do (`$CD:09AC`), and screen script
   command `$C1` (`$CD:1D93`, in no movie) waits for a line from the script.
-  Neither is followed by a register write. Find out when `$CD:1609` is ported;
-  if it is pacing, the wait goes.
+  Neither is followed by a register write: the channels (`$CD:1609`, now C)
+  write only work RAM after the wait, the window table's coming buffer among
+  it, so the wait looks like pacing; take it out when the frame work's own
+  remainder is ported.
 - **The scene program's randomness and parity**: `$C3:02DD` mixes the beam
   counters into its seed and stays generated, with `$C3:01E4` (the noise
   effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through

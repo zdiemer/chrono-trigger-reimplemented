@@ -34,6 +34,12 @@
 #include "state.h"
 #include "vars.h"
 
+/* ---- The channels ------------------------------------------------------------------------ */
+
+/* A screen script channel: 0 or 1, whose records are $10 bytes apart. */
+typedef uint8_t ScreenChannel;
+enum { SCREEN_CHANNELS = 2, SCREEN_CHANNEL_RECORD_BYTES = 0x10 };
+
 /* ---- The running command ---------------------------------------------------------------- */
 
 /* The running command's `n`th operand, from its first. */
@@ -67,10 +73,46 @@ static inline uint8_t screen_scaled_sine(const GameState *g, uint8_t angle, uint
     return (angle & SCREEN_HALF_TURN) ? (uint8_t)-v : v;
 }
 
+/* A signed amount times the sine of an angle, as a signed byte: the amount's
+ * magnitude scaled by the sine's, its sign the product of the two signs. The
+ * cosine is the sine a quarter turn on. */
+enum { SCREEN_QUARTER_TURN = 0x40 };
+
+static inline uint8_t screen_magnitude_of(uint8_t amount) { return (amount & SCREEN_HALF_TURN) ? (uint8_t)-amount : amount; }
+
+static inline uint8_t screen_signed_sine(const GameState *g, uint8_t angle, uint8_t amount)
+{
+    uint8_t v = (uint8_t)(battle_sine_magnitude(g, angle) * screen_magnitude_of(amount) >> SCREEN_SINE_FRACTION_BITS);
+    bool negative = ((angle & SCREEN_HALF_TURN) != 0) != ((amount & SCREEN_HALF_TURN) != 0);
+    return negative ? (uint8_t)-v : v;
+}
+
+static inline uint8_t screen_signed_cosine(const GameState *g, uint8_t angle, uint8_t amount)
+{
+    return screen_signed_sine(g, (uint8_t)(angle + SCREEN_QUARTER_TURN), amount);
+}
+
+/* What the original's sine routines leave in the multiplier: the sine's
+ * magnitude times the amount's (scaffolding, for ORIGINAL_EFFECT). */
+void screen_leave_sine_product(GameState *g, uint8_t angle, uint8_t amount);
+
+/* ---- The animation positions and the effect object ------------------------------------------ */
+
+/* Keep the first two animation positions inside the battlefield, as the
+ * original does before a script takes one up (screen_layers.c). */
+void screen_keep_positions_on_the_battlefield(GameState *g);
+uint8_t screen_position_across(const GameState *g, uint8_t position);
+uint8_t screen_position_down(const GameState *g, uint8_t position);
+bool screen_names_a_position(uint8_t position);
+
+/* How far the effect object is above the battlefield's middle line, as a
+ * byte. */
+uint8_t screen_effect_object_rise(const GameState *g);
+
 /* ---- The cells the original works in -------------------------------------------------------
  *
  * The effects' routines keep values in the battle page's scratch cells as they
- * work ($00-$1F and $45-$5B); a port keeps them in C and writes the final
+ * work ($00-$21 and $45-$5B); a port keeps them in C and writes the final
  * values once, as scaffolding (ORIGINAL_EFFECT): nothing but the original's
  * next use of a cell, which writes it first, and shadow mode read them. `cell`
  * is the cell's offset on the page, as the original spells it. A few cells are
@@ -78,7 +120,7 @@ static inline uint8_t screen_scaled_sine(const GameState *g, uint8_t angle, uint
  * result the original's code reads -- which only the entry wrappers and the
  * bridges read or write, through screen_cell and screen_set_cell, each saying
  * which. */
-enum { SCREEN_LOW_CELLS_END = 0x20, SCREEN_CELLS = 0x45 };
+enum { SCREEN_LOW_CELLS_END = BATTLE_LOW_SCRATCH_COUNT, SCREEN_CELLS = 0x45 };
 
 static inline uint8_t screen_cell(const GameState *g, uint8_t cell)
 {
@@ -159,7 +201,19 @@ bool battle_quad_is_one(Snes *s);
 bool battle_beam_quad_is_one(Snes *s);
 bool battle_quad_page(Snes *s);
 
+/* ... the screen script's channels, its dispatch and its commands
+ * (screen_script.c). */
+bool battle_screen_channel_ready(Snes *s);
+bool battle_screen_dispatch_ready(Snes *s);
+bool battle_screen_command_ready(Snes *s);
+
 /* ---- The entries (game/registry.c) --------------------------------------------------------- */
+
+/* screen_script.c */
+void battle_run_screen_scripts(Snes *s);
+void battle_run_screen_channel(Snes *s);
+void battle_run_screen_command(Snes *s);
+void battle_screen_command(Snes *s);
 
 /* screen_palette.c */
 void battle_screen_swap_palette_rows(Snes *s);

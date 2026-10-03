@@ -26,6 +26,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "battle/screen.h"
 #include "battle/screen_data.h"
 #include "original_effects.h"
 #include "platform/input.h"
@@ -568,7 +569,7 @@ static bool work_the_frame(Snes *s)
     if (!run_the_gradient(s))
         return false;
     hide_the_sprites(s);
-    if (!update_the_battlefield(s) || !wait_for_the_line(s) || !battle_call(s, 0xCD09AF, 0xCD1609, READS_NOTHING))
+    if (!update_the_battlefield(s) || !wait_for_the_line(s) || !battle_run(s, 0xCD09AF, 0xCD1609, battle_run_screen_scripts))
         return false;
     set_battle_sprites_frozen(g, battle_sprites_frozen_setting(g));
     if (!animate_the_palettes(s))

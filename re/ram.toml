@@ -15400,13 +15400,438 @@ meaning = "Position of the swing, 16.16 fixed point"
 source = "game/battle/screen_motion.c battle_screen_swing $D1:F559"
 
 [[var]]
-name = "battle_saved_positions"
+name = "battle_shape_corners"
 addr = "7E:CAEA"
 count = 12
-index = "position byte * 2 + slot"
+index = "(corner * 2 + axis) * 2 + shape"
 subsystem = "battle"
-meaning = "The three animation positions, saved by the screen script into one of two interleaved slots"
-source = "game/battle/screen_motion.c battle_screen_save_positions $D1:F5CD"
+meaning = "The corners of the two triangles the screen script draws as windows, across and down, the shapes' bytes interleaved; a script sets them from the animation positions, or turns and places them about a center"
+source = "game/battle/screen_motion.c battle_screen_save_positions $D1:F5CD; game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_screen_channels"
+addr = "7E:CA32"
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "The screen script's two channels: where each is in its script and how fast it goes"
+source = "game/battle/screen_script.c battle_run_screen_scripts $CD:1609, battle_run_screen_channel $CD:1654; started at $CD:15D5"
+  [[var.field]]
+  name = "running"
+  offset = 0
+  meaning = "Nonzero while the channel runs its script; cleared by the script's end ($FF)"
+  [[var.field]]
+  name = "place"
+  offset = 3
+  size = 3
+  meaning = "Where the channel is in its script (bank $D1), kept while it waits"
+  [[var.field]]
+  name = "pace"
+  offset = 6
+  meaning = "Frames between the channel's steps (command $81 sets it)"
+  [[var.field]]
+  name = "countdown"
+  offset = 7
+  meaning = "Frames until the channel's next step"
+  [[var.field]]
+  name = "frame_offset"
+  offset = 8
+  meaning = "Added to each graphics frame the channel shows; the counting loop ($85, $86) steps it each time round"
+
+[[var]]
+name = "battle_screen_loop_place"
+addr = "7E:CA72"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Where a screen script channel's loop starts again: at the loop command's operand"
+source = "game/battle/screen_script.c, commands $83-$86"
+
+[[var]]
+name = "battle_screen_loop_count"
+addr = "7E:CA74"
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Times a screen script channel's loop has still to run, counting the one under way"
+source = "game/battle/screen_script.c, commands $83-$86"
+
+[[var]]
+name = "battle_screen_return_place"
+addr = "7E:CA75"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "Where a screen script channel goes back to from a call: at the call's last operand"
+source = "game/battle/screen_script.c, commands $91 and $92"
+
+[[var]]
+name = "battle_screen_kept_word"
+addr = "7E:CA77"
+size = 2
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by ($97)"
+source = "game/battle/screen_layers.c, commands $8C and $8D; $CD:30BE"
+
+[[var]]
+name = "battle_screen_wave_step"
+addr = "7E:CA79"
+count = 2
+stride = 0x10
+index = "screen script channel"
+subsystem = "battle"
+meaning = "How far a channel's wave ($80's effects $0A and $0B) has got through its table of steps"
+source = "$CD:2BA8, $CD:2BD2"
+
+[[var]]
+name = "battle_screen_orbit_circle"
+addr = "7E:CA7F"
+count = 2
+stride = 0x10
+index = "screen script channel"
+reuses = "battle_screen_swing_position"
+subsystem = "battle"
+meaning = "The phase of the circle a channel's layer goes round on its orbit (commands $C4, $C5), across and down; on 2 a frame"
+source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
+
+[[var]]
+name = "battle_screen_orbit_bob"
+addr = "7E:CA80"
+count = 2
+stride = 0x10
+index = "screen script channel"
+reuses = "battle_screen_swing_position"
+subsystem = "battle"
+meaning = "The phase of the layer's bob up and down on its orbit; on 5 a frame"
+source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
+
+[[var]]
+name = "battle_screen_orbit_sway"
+addr = "7E:CA81"
+count = 2
+stride = 0x10
+index = "screen script channel"
+reuses = "battle_screen_swing_position"
+subsystem = "battle"
+meaning = "The phase of the layer's sway across on its orbit; on 6 a frame"
+source = "game/battle/screen_layers.c orbit_layer $CD:1CD5"
+
+[[var]]
+name = "battle_screen_drift"
+addr = "7E:CA7A"
+count = 6
+rows = 2
+row_stride = 0x10
+index = "amount (the first and fourth across, the others by the command's operand), by screen script channel"
+reuses = ["battle_screen_swing_speed", "battle_screen_swing_step", "battle_screen_swing_position", "battle_screen_orbit_circle"]
+subsystem = "battle"
+meaning = "Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the swing keeps its speed and position in"
+source = "game/battle/screen_layers.c drift_layer $CD:19E5"
+
+[[var]]
+name = "battle_screen_circle_radius"
+addr = "7E:CAA4"
+count = 2
+index = "circle"
+subsystem = "battle"
+meaning = "The radius of a circle the screen script draws as a window (0 for none); scripts grow and shrink it by their variables and wait for it"
+source = "game/battle/screen_shapes.c; drawn by $CD:3189 (command $8B)"
+
+[[var]]
+name = "battle_screen_circle_x"
+addr = "7E:CAA6"
+count = 2
+index = "circle"
+subsystem = "battle"
+meaning = "The center across of a circle the screen script draws as a window"
+source = "game/battle/screen_shapes.c; drawn by $CD:3189 (command $8B)"
+
+[[var]]
+name = "battle_screen_circle_y"
+addr = "7E:CAA8"
+count = 2
+index = "circle"
+subsystem = "battle"
+meaning = "The center down of a circle the screen script draws as a window"
+source = "game/battle/screen_shapes.c; drawn by $CD:3189 (command $8B)"
+
+[[var]]
+name = "battle_screen_circle_kind"
+addr = "7E:CAD1"
+count = 2
+index = "circle"
+subsystem = "battle"
+meaning = "How a circle is drawn into the window table (one of six ways, through $CD:319E)"
+source = "game/battle/screen_shapes.c, commands $8A and $BD; $CD:3189"
+
+[[var]]
+name = "battle_shape_center_x"
+addr = "7E:CAD4"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "Where a triangle the screen script draws as a window is centered, across"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_shape_center_y"
+addr = "7E:CAD6"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "Where a triangle the screen script draws as a window is centered, down"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_shape_depth"
+addr = "7E:CAD8"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "How far a turning triangle's corners lie out of the screen's plane before it is turned"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_shape_radii"
+addr = "7E:CADA"
+count = 6
+index = "corner * 2 + shape"
+subsystem = "battle"
+meaning = "How far each corner of a triangle lies from its center"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_shape_scale_x"
+addr = "7E:CAE0"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "A flat triangle's stretch across, as an angle whose sine is the scale ($40 full size)"
+source = "game/battle/screen_shapes.c place_flat_corners $CD:28D2"
+
+[[var]]
+name = "battle_shape_scale_y"
+addr = "7E:CAE2"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "A flat triangle's stretch down, as an angle whose sine is the scale ($40 full size)"
+source = "game/battle/screen_shapes.c place_flat_corners $CD:28D2"
+
+[[var]]
+name = "battle_shape_angles"
+addr = "7E:CAE4"
+count = 6
+index = "corner * 2 + shape"
+subsystem = "battle"
+meaning = "The angle each corner of a triangle lies at about its center (a turn is 256)"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_shape_turns"
+addr = "7E:CAF6"
+count = 6
+index = "axis * 2 + shape"
+subsystem = "battle"
+meaning = "How far a triangle is turned about each of three axes before it is drawn (a turn is 256)"
+source = "game/battle/screen_shapes.c turn_point $CD:3C8F"
+
+[[var]]
+name = "battle_shape_size"
+addr = "7E:CAFC"
+count = 2
+index = "shape"
+subsystem = "battle"
+meaning = "How large a triangle is drawn, in 256ths of its corners' distance from its center ($FF about full size)"
+source = "game/battle/screen_shapes.c draw_shape $CD:2173"
+
+[[var]]
+name = "battle_shape_turned_point"
+addr = "7E:CAFE"
+count = 3
+stride = 2
+index = "axis (across, down, depth)"
+subsystem = "battle"
+meaning = "A corner of a turning triangle once it is turned, as signed bytes"
+source = "game/battle/screen_shapes.c turn_point $CD:3C8F"
+
+[[var]]
+name = "battle_shape_point"
+addr = "7E:CB06"
+count = 3
+stride = 2
+index = "axis (across, down, depth)"
+subsystem = "battle"
+meaning = "A corner of a turning triangle before it is turned, as signed bytes"
+source = "game/battle/screen_shapes.c turn_point $CD:3C8F"
+
+[[var]]
+name = "battle_shape_point_high"
+addr = "7E:CB07"
+count = 3
+stride = 2
+index = "axis (across, down, depth)"
+subsystem = "battle"
+meaning = "The bytes after battle_shape_point's: a model's points are written as words, these 0"
+source = "game/battle/screen_shapes.c draw_model $CD:1EF7"
+
+[[var]]
+name = "battle_saved_shapes"
+addr = "7E:CB0E"
+size = 0x2A
+count = 8
+index = "slot"
+subsystem = "battle"
+meaning = "Triangles put aside to be brought back (commands $A5 and $A6): everything from battle_shape_center_x to battle_shape_size"
+source = "game/battle/screen_shapes.c"
+
+[[var]]
+name = "battle_screen_background_colors"
+addr = "7E:CA95"
+count = 2
+index = "which (first, second)"
+subsystem = "battle"
+meaning = "Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette, $FF for none"
+source = "game/battle/screen_script.c, commands $B9 and $D2; $CD:1004"
+
+[[var]]
+name = "battle_background"
+addr = "7E:CCA2"
+size = 2
+subsystem = "battle"
+meaning = "Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still while the screen scripts run"
+source = "$CD:0EBD; game/battle/screen_script.c battle_run_screen_scripts $CD:1609 ($CD:0E9D)"
+
+[[var]]
+name = "battle_line_scroll_offsets"
+addr = "7E:0A00"
+count = 64
+stride = 4
+index = "scroll table entry (BG3's 64 in the finer mode, the first 32 for every layer otherwise)"
+reuses = "battle_window_line_deltas"
+subsystem = "battle"
+meaning = "In the scroll modes the screen scripts set, offsets added to the scroll of the layers battle_line_scroll_layers names, one per scroll table entry"
+source = "game/battle/screen_waves.c, commands $8F and $E7; $CD:07B9, $CD:07E2"
+  [[var.field]]
+  name = "across"
+  offset = 0
+  size = 2
+  meaning = "Added to the layer's scroll across"
+  [[var.field]]
+  name = "down"
+  offset = 2
+  size = 2
+  meaning = "Down: the scroll modes don't read it; the sway clears it"
+
+[[var]]
+name = "battle_line_scroll_layers"
+addr = "7E:CC91"
+size = 2
+count = 3
+index = "layer (BG1, BG2, BG3)"
+subsystem = "battle"
+meaning = "Nonzero for each layer that takes battle_line_scroll_offsets in the line offset scroll modes"
+source = "game/battle/screen_waves.c, command $8F; $CD:07E2"
+
+[[var]]
+name = "battle_line_wave_phase"
+addr = "7E:CC90"
+subsystem = "battle"
+meaning = "Where the screen script's wave of line offsets is in its turn (command $8F)"
+source = "game/battle/screen_waves.c"
+
+[[var]]
+name = "battle_line_sway"
+addr = "7E:CD37"
+subsystem = "battle"
+meaning = "How far every line of the layers is moved across by the screen script's sway (command $E7)"
+source = "game/battle/screen_waves.c"
+
+[[var]]
+name = "battle_screen_orbit_growth"
+addr = "7E:CD28"
+subsystem = "battle"
+meaning = "How wide the widening orbit (command $C4) has grown: one more every fourth frame"
+source = "game/battle/screen_layers.c"
+
+[[var]]
+name = "battle_screen_layer_mask"
+addr = "7E:CD46"
+subsystem = "battle"
+meaning = "The layers the screen script may turn on in the screen's settings (command $F5); its commands for them keep to these"
+source = "game/battle/screen_settings.c"
+
+[[var]]
+name = "battle_screen_palette_stop_count"
+addr = "7E:CD3C"
+subsystem = "battle"
+meaning = "Counted up by command $EF; when it comes round to 0 the screen script stops the battle's palette animations 8-11"
+source = "game/battle/screen_settings.c"
+
+[[var]]
+name = "battle_script_sound_request"
+addr = "7E:CD23"
+subsystem = "battle"
+meaning = "Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has"
+source = "game/battle/screen_settings.c, commands $DC and $E4; $CD:3B5F"
+
+[[var]]
+name = "battle_script_sound"
+addr = "7E:CD24"
+subsystem = "battle"
+meaning = "The sound battle_script_sound_request asks for"
+source = "game/battle/screen_settings.c, commands $DC and $E4; $CD:3B5F"
+
+[[var]]
+name = "battle_script_sound_pan"
+addr = "7E:CD25"
+size = 2
+subsystem = "battle"
+meaning = "Where across the screen the sound battle_script_sound_request asks for plays ($80 the middle)"
+source = "game/battle/screen_settings.c, commands $DC and $E4; $CD:3B5F"
+
+[[var]]
+name = "battle_screen_settings"
+addr = "7E:BE89"
+count = 4
+index = "setting (main screen layers, sub screen layers, main screen's window layers, sub screen's)"
+reuses = "battle_split_line_values"
+subsystem = "battle"
+meaning = "The screen's layer settings in the split's first two values, as bytes: which layers make the main and the sub screen, and which of them the windows mask"
+source = "game/battle/screen_settings.c, commands $93, $9D-$A0"
+
+[[var]]
+name = "battle_color_math_settings"
+addr = "7E:BE91"
+count = 2
+index = "setting (how, which layers)"
+reuses = "battle_split_line_values"
+subsystem = "battle"
+meaning = "The color math's settings in the split's fifth value, as bytes: how it is done and to which layers"
+source = "game/battle/screen_settings.c, commands $93, $9A, $9B"
+
+[[var]]
+name = "battle_screen_mode"
+addr = "7E:BE99"
+subsystem = "battle"
+meaning = "The background mode the per-line effects set below the split (command $B0)"
+source = "$CD:0D11; game/battle/screen_settings.c"
+
+[[var]]
+name = "battle_mosaic"
+addr = "7E:BE9A"
+subsystem = "battle"
+meaning = "The mosaic the per-line effects set below the split: the block size in the high nibble, the layers in the low"
+source = "game/battle/screen_settings.c, command $90"
 
 [[var]]
 name = "battle_fade_line_data"
@@ -15431,7 +15856,7 @@ source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF, battle_qua
 name = "battle_window_quad_index"
 addr = "7E:CC64"
 subsystem = "battle"
-meaning = "Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points the work RAM port at"
+meaning = "Which window quadrilateral or screen script triangle is being rasterized; its bit 0 picks the window, the table half $CD:38B6 points the work RAM port at"
 source = "game/battle/screen_beam.c battle_draw_window_quad $D1:F9AF; $CD:38B6"
 
 [[var]]

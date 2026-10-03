@@ -5492,6 +5492,14 @@ enum { BATTLE_TARGET_DISPLAY_COUNT = 5 };   /* by byte: the enemy ($0200), its H
 uint8_t battle_target_display(const GameState *g, unsigned i);
 void set_battle_target_display(GameState *g, unsigned i, uint8_t v);
 
+enum { BATTLE_LINE_SCROLL_OFFSETS_COUNT = 64 };   /* by scroll table entry (BG3's 64 in the finer mode, the first 32 for every layer otherwise) */
+/* Added to the layer's scroll across */
+uint16_t battle_line_scroll_offsets_across(const GameState *g, unsigned i);
+void set_battle_line_scroll_offsets_across(GameState *g, unsigned i, uint16_t v);
+/* Down: the scroll modes don't read it; the sway clears it */
+uint16_t battle_line_scroll_offsets_down(const GameState *g, unsigned i);
+void set_battle_line_scroll_offsets_down(GameState *g, unsigned i, uint16_t v);
+
 enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 128 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones) */
 /* Per-line amounts added to the window edges of lines 48-175 */
 uint8_t battle_window_line_deltas(const GameState *g, unsigned line);
@@ -9295,11 +9303,32 @@ void set_battle_scroll_tables_x(GameState *g, unsigned layer, uint16_t v);
 uint16_t battle_scroll_tables_y(const GameState *g, unsigned layer);
 void set_battle_scroll_tables_y(GameState *g, unsigned layer, uint16_t v);
 
+enum { BATTLE_SCREEN_SETTINGS_COUNT = 4 };   /* by setting (main screen layers, sub screen layers, main screen's window layers, sub screen's) */
+/* The screen's layer settings in the split's first two values, as bytes: which layers make the
+ * main and the sub screen, and which of them the windows mask */
+uint8_t battle_screen_settings(const GameState *g, unsigned i);
+void set_battle_screen_settings(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_SPLIT_LINE_VALUES_COUNT = 8 };   /* by word (the NMI copies words 0, 1, 4 and 5 to 2, 3, 6 and 7) */
 /* Words the per-line effects read through their tables; each frame the NMI copies the first two
  * of each group of four over the next two, so the lines after a split take the new values */
 uint16_t battle_split_line_values(const GameState *g, unsigned i);
 void set_battle_split_line_values(GameState *g, unsigned i, uint16_t v);
+
+enum { BATTLE_COLOR_MATH_SETTINGS_COUNT = 2 };   /* by setting (how, which layers) */
+/* The color math's settings in the split's fifth value, as bytes: how it is done and to which
+ * layers */
+uint8_t battle_color_math_settings(const GameState *g, unsigned i);
+void set_battle_color_math_settings(GameState *g, unsigned i, uint8_t v);
+
+/* The background mode the per-line effects set below the split (command $B0) */
+uint8_t battle_screen_mode(const GameState *g);
+void set_battle_screen_mode(GameState *g, uint8_t v);
+
+/* The mosaic the per-line effects set below the split: the block size in the high nibble, the
+ * layers in the low */
+uint8_t battle_mosaic(const GameState *g);
+void set_battle_mosaic(GameState *g, uint8_t v);
 
 enum { BATTLE_FADE_LINE_DATA_COUNT = 288 };   /* by byte (four tables of one-line entries: $C030, $C090, $C0F0, $C120) */
 /* The fade tables built at the start of a battle: entries of a line count and a value falling
@@ -9431,6 +9460,24 @@ void set_battle_vram_request_vram(GameState *g, uint16_t v);
 uint16_t battle_vram_request_size(const GameState *g);
 void set_battle_vram_request_size(GameState *g, uint16_t v);
 
+enum { BATTLE_SCREEN_CHANNELS_COUNT = 2 };   /* by screen script channel */
+/* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
+uint8_t battle_screen_channels_running(const GameState *g, unsigned channel);
+void set_battle_screen_channels_running(GameState *g, unsigned channel, uint8_t v);
+/* Where the channel is in its script (bank $D1), kept while it waits */
+uint32_t battle_screen_channels_place(const GameState *g, unsigned channel);
+void set_battle_screen_channels_place(GameState *g, unsigned channel, uint32_t v);
+/* Frames between the channel's steps (command $81 sets it) */
+uint8_t battle_screen_channels_pace(const GameState *g, unsigned channel);
+void set_battle_screen_channels_pace(GameState *g, unsigned channel, uint8_t v);
+/* Frames until the channel's next step */
+uint8_t battle_screen_channels_countdown(const GameState *g, unsigned channel);
+void set_battle_screen_channels_countdown(GameState *g, unsigned channel, uint8_t v);
+/* Added to each graphics frame the channel shows; the counting loop ($85, $86) steps it each
+ * time round */
+uint8_t battle_screen_channels_frame_offset(const GameState *g, unsigned channel);
+void set_battle_screen_channels_frame_offset(GameState *g, unsigned channel, uint8_t v);
+
 enum { BATTLE_SCREEN_LAYER_COUNT = 2 };   /* by screen script channel */
 /* Nonzero while the channel's swing gathers speed back up the screen; 0 while it slows moving
  * down */
@@ -9452,6 +9499,39 @@ void set_battle_screen_layer_offset_x(GameState *g, unsigned channel, uint16_t v
 uint16_t battle_screen_layer_offset_y(const GameState *g, unsigned channel);
 void set_battle_screen_layer_offset_y(GameState *g, unsigned channel, uint16_t v);
 
+enum { BATTLE_SCREEN_LOOP_PLACE_COUNT = 2 };   /* by screen script channel */
+/* Where a screen script channel's loop starts again: at the loop command's operand */
+uint16_t battle_screen_loop_place(const GameState *g, unsigned channel);
+void set_battle_screen_loop_place(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_LOOP_COUNT_COUNT = 2 };   /* by screen script channel */
+/* Times a screen script channel's loop has still to run, counting the one under way */
+uint8_t battle_screen_loop_count(const GameState *g, unsigned channel);
+void set_battle_screen_loop_count(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_RETURN_PLACE_COUNT = 2 };   /* by screen script channel */
+/* Where a screen script channel goes back to from a call: at the call's last operand */
+uint16_t battle_screen_return_place(const GameState *g, unsigned channel);
+void set_battle_screen_return_place(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_KEPT_WORD_COUNT = 2 };   /* by screen script channel */
+/* A word a screen script keeps aside from its channel's swing ($8C, $8D), or turns the beam by
+ * ($97) */
+uint16_t battle_screen_kept_word(const GameState *g, unsigned channel);
+void set_battle_screen_kept_word(GameState *g, unsigned channel, uint16_t v);
+
+enum { BATTLE_SCREEN_WAVE_STEP_COUNT = 2 };   /* by screen script channel */
+/* How far a channel's wave ($80's effects $0A and $0B) has got through its table of steps */
+uint8_t battle_screen_wave_step(const GameState *g, unsigned channel);
+void set_battle_screen_wave_step(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_DRIFT_COUNT = 6 };   /* by amount (the first and fourth across, the others by the command's operand), by screen script channel */
+/* Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the
+ * swing keeps its speed and position in [a byte by row and column] */
+enum { BATTLE_SCREEN_DRIFT_ROWS = 2, BATTLE_SCREEN_DRIFT_COLUMNS = 1 };
+uint8_t battle_screen_drift(const GameState *g, unsigned i, unsigned row, unsigned column);
+void set_battle_screen_drift(GameState *g, unsigned i, unsigned row, unsigned column, uint8_t v);
+
 enum { BATTLE_SCREEN_SWING_SPEED_COUNT = 2 };   /* by screen script channel */
 /* Speed of the channel's swing, in 1/65536 of a pixel a frame */
 uint16_t battle_screen_swing_speed(const GameState *g, unsigned channel);
@@ -9467,22 +9547,135 @@ enum { BATTLE_SCREEN_SWING_POSITION_COUNT = 2 };   /* by screen script channel *
 uint32_t battle_screen_swing_position(const GameState *g, unsigned channel);
 void set_battle_screen_swing_position(GameState *g, unsigned channel, uint32_t v);
 
+enum { BATTLE_SCREEN_ORBIT_CIRCLE_COUNT = 2 };   /* by screen script channel */
+/* The phase of the circle a channel's layer goes round on its orbit (commands $C4, $C5), across
+ * and down; on 2 a frame */
+uint8_t battle_screen_orbit_circle(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_circle(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_ORBIT_BOB_COUNT = 2 };   /* by screen script channel */
+/* The phase of the layer's bob up and down on its orbit; on 5 a frame */
+uint8_t battle_screen_orbit_bob(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_bob(GameState *g, unsigned channel, uint8_t v);
+
+enum { BATTLE_SCREEN_ORBIT_SWAY_COUNT = 2 };   /* by screen script channel */
+/* The phase of the layer's sway across on its orbit; on 6 a frame */
+uint8_t battle_screen_orbit_sway(const GameState *g, unsigned channel);
+void set_battle_screen_orbit_sway(GameState *g, unsigned channel, uint8_t v);
+
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 uint8_t battle_scroll_mode(const GameState *g);
 void set_battle_scroll_mode(GameState *g, uint8_t v);
+
+enum { BATTLE_SCREEN_BACKGROUND_COLORS_COUNT = 2 };   /* by which (first, second) */
+/* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
+ * $FF for none */
+uint8_t battle_screen_background_colors(const GameState *g, unsigned i);
+void set_battle_screen_background_colors(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_RADIUS_COUNT = 2 };   /* by circle */
+/* The radius of a circle the screen script draws as a window (0 for none); scripts grow and
+ * shrink it by their variables and wait for it */
+uint8_t battle_screen_circle_radius(const GameState *g, unsigned i);
+void set_battle_screen_circle_radius(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_X_COUNT = 2 };   /* by circle */
+/* The center across of a circle the screen script draws as a window */
+uint8_t battle_screen_circle_x(const GameState *g, unsigned i);
+void set_battle_screen_circle_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_Y_COUNT = 2 };   /* by circle */
+/* The center down of a circle the screen script draws as a window */
+uint8_t battle_screen_circle_y(const GameState *g, unsigned i);
+void set_battle_screen_circle_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SCREEN_CIRCLE_KIND_COUNT = 2 };   /* by circle */
+/* How a circle is drawn into the window table (one of six ways, through $CD:319E) */
+uint8_t battle_screen_circle_kind(const GameState *g, unsigned i);
+void set_battle_screen_circle_kind(GameState *g, unsigned i, uint8_t v);
 
 /* Nonzero while the display setup loads a step of the battle's graphics each frame
  * (battle_load_graphics) */
 uint8_t battle_graphics_load_in_vblank(const GameState *g);
 void set_battle_graphics_load_in_vblank(GameState *g, uint8_t v);
 
-enum { BATTLE_SAVED_POSITIONS_COUNT = 12 };   /* by position byte * 2 + slot */
-/* The three animation positions, saved by the screen script into one of two interleaved slots */
-uint8_t battle_saved_positions(const GameState *g, unsigned slot);
-void set_battle_saved_positions(GameState *g, unsigned slot, uint8_t v);
+enum { BATTLE_SHAPE_CENTER_X_COUNT = 2 };   /* by shape */
+/* Where a triangle the screen script draws as a window is centered, across */
+uint8_t battle_shape_center_x(const GameState *g, unsigned i);
+void set_battle_shape_center_x(GameState *g, unsigned i, uint8_t v);
 
-/* Which window quadrilateral is being rasterized; its bit 0 picks the table half $CD:38B6 points
- * the work RAM port at */
+enum { BATTLE_SHAPE_CENTER_Y_COUNT = 2 };   /* by shape */
+/* Where a triangle the screen script draws as a window is centered, down */
+uint8_t battle_shape_center_y(const GameState *g, unsigned i);
+void set_battle_shape_center_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_DEPTH_COUNT = 2 };   /* by shape */
+/* How far a turning triangle's corners lie out of the screen's plane before it is turned */
+uint8_t battle_shape_depth(const GameState *g, unsigned i);
+void set_battle_shape_depth(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_RADII_COUNT = 6 };   /* by corner * 2 + shape */
+/* How far each corner of a triangle lies from its center */
+uint8_t battle_shape_radii(const GameState *g, unsigned corner);
+void set_battle_shape_radii(GameState *g, unsigned corner, uint8_t v);
+
+enum { BATTLE_SHAPE_SCALE_X_COUNT = 2 };   /* by shape */
+/* A flat triangle's stretch across, as an angle whose sine is the scale ($40 full size) */
+uint8_t battle_shape_scale_x(const GameState *g, unsigned i);
+void set_battle_shape_scale_x(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_SCALE_Y_COUNT = 2 };   /* by shape */
+/* A flat triangle's stretch down, as an angle whose sine is the scale ($40 full size) */
+uint8_t battle_shape_scale_y(const GameState *g, unsigned i);
+void set_battle_shape_scale_y(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_ANGLES_COUNT = 6 };   /* by corner * 2 + shape */
+/* The angle each corner of a triangle lies at about its center (a turn is 256) */
+uint8_t battle_shape_angles(const GameState *g, unsigned corner);
+void set_battle_shape_angles(GameState *g, unsigned corner, uint8_t v);
+
+enum { BATTLE_SHAPE_CORNERS_COUNT = 12 };   /* by (corner * 2 + axis) * 2 + shape */
+/* The corners of the two triangles the screen script draws as windows, across and down, the
+ * shapes' bytes interleaved; a script sets them from the animation positions, or turns and
+ * places them about a center */
+uint8_t battle_shape_corners(const GameState *g, unsigned i);
+void set_battle_shape_corners(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_TURNS_COUNT = 6 };   /* by axis * 2 + shape */
+/* How far a triangle is turned about each of three axes before it is drawn (a turn is 256) */
+uint8_t battle_shape_turns(const GameState *g, unsigned i);
+void set_battle_shape_turns(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_SIZE_COUNT = 2 };   /* by shape */
+/* How large a triangle is drawn, in 256ths of its corners' distance from its center ($FF about
+ * full size) */
+uint8_t battle_shape_size(const GameState *g, unsigned i);
+void set_battle_shape_size(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_TURNED_POINT_COUNT = 3 };   /* by axis (across, down, depth) */
+/* A corner of a turning triangle once it is turned, as signed bytes */
+uint8_t battle_shape_turned_point(const GameState *g, unsigned i);
+void set_battle_shape_turned_point(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_POINT_COUNT = 3 };   /* by axis (across, down, depth) */
+/* A corner of a turning triangle before it is turned, as signed bytes */
+uint8_t battle_shape_point(const GameState *g, unsigned i);
+void set_battle_shape_point(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SHAPE_POINT_HIGH_COUNT = 3 };   /* by axis (across, down, depth) */
+/* The bytes after battle_shape_point's: a model's points are written as words, these 0 */
+uint8_t battle_shape_point_high(const GameState *g, unsigned i);
+void set_battle_shape_point_high(GameState *g, unsigned i, uint8_t v);
+
+enum { BATTLE_SAVED_SHAPES_COUNT = 8 };   /* by slot */
+/* Triangles put aside to be brought back (commands $A5 and $A6): everything from
+ * battle_shape_center_x to battle_shape_size [42 bytes, one at a time] */
+enum { BATTLE_SAVED_SHAPES_BYTES = 42 };
+uint8_t battle_saved_shapes_byte(const GameState *g, unsigned slot, unsigned at);
+void set_battle_saved_shapes_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+
+/* Which window quadrilateral or screen script triangle is being rasterized; its bit 0 picks the
+ * window, the table half $CD:38B6 points the work RAM port at */
 uint8_t battle_window_quad_index(const GameState *g);
 void set_battle_window_quad_index(GameState *g, uint8_t v);
 
@@ -9490,6 +9683,15 @@ enum { BATTLE_SAVED_DIRECT_PAGE_COUNT = 43 };   /* by direct page byte */
 /* Direct page bytes $00-$2A, saved by the NMI handler around its work */
 uint8_t battle_saved_direct_page(const GameState *g, unsigned i);
 void set_battle_saved_direct_page(GameState *g, unsigned i, uint8_t v);
+
+/* Where the screen script's wave of line offsets is in its turn (command $8F) */
+uint8_t battle_line_wave_phase(const GameState *g);
+void set_battle_line_wave_phase(GameState *g, uint8_t v);
+
+enum { BATTLE_LINE_SCROLL_LAYERS_COUNT = 3 };   /* by layer (BG1, BG2, BG3) */
+/* Nonzero for each layer that takes battle_line_scroll_offsets in the line offset scroll modes */
+uint16_t battle_line_scroll_layers(const GameState *g, unsigned layer);
+void set_battle_line_scroll_layers(GameState *g, unsigned layer, uint16_t v);
 
 /* This frame's buttons for the menus: newly pressed, or all held ones again once the repeat
  * delay runs out */
@@ -9510,6 +9712,11 @@ enum { BATTLE_TILE_ROW_PALETTES_COUNT = 2 };   /* by copy */
  * can be taken for every eight tiles */
 uint16_t battle_tile_row_palettes(const GameState *g, unsigned i);
 void set_battle_tile_row_palettes(GameState *g, unsigned i, uint16_t v);
+
+/* Which battlefield the battle is fought on, as its setup chose it; a few of them keep BG3 still
+ * while the screen scripts run */
+uint16_t battle_background(const GameState *g);
+void set_battle_background(GameState *g, uint16_t v);
 
 enum { BATTLE_SHAKE_OFFSETS_COUNT = 6 };   /* by layer * 2 + axis (BG1-BG3, X then Y) */
 /* Offsets added to the three layers' scroll: the screen shake, on the layers battle_shake_layers
@@ -9634,10 +9841,26 @@ void set_battle_block_uploaded_row(GameState *g, uint8_t v);
 uint16_t battle_block_uploaded_source(const GameState *g);
 void set_battle_block_uploaded_source(GameState *g, uint16_t v);
 
+/* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
+uint8_t battle_script_sound_request(const GameState *g);
+void set_battle_script_sound_request(GameState *g, uint8_t v);
+
+/* The sound battle_script_sound_request asks for */
+uint8_t battle_script_sound(const GameState *g);
+void set_battle_script_sound(GameState *g, uint8_t v);
+
+/* Where across the screen the sound battle_script_sound_request asks for plays ($80 the middle) */
+uint16_t battle_script_sound_pan(const GameState *g);
+void set_battle_script_sound_pan(GameState *g, uint16_t v);
+
 /* The battle's setup flags (battle_setup_flags), copied at the start; bit 5 (a demo battle)
  * keeps Start from pausing */
 uint8_t battle_setup_flags_copy(const GameState *g);
 void set_battle_setup_flags_copy(GameState *g, uint8_t v);
+
+/* How wide the widening orbit (command $C4) has grown: one more every fourth frame */
+uint8_t battle_screen_orbit_growth(const GameState *g);
+void set_battle_screen_orbit_growth(GameState *g, uint8_t v);
 
 /* What an animation script sets battle_sprites_frozen to; the frame work copies it over each
  * frame */
@@ -9659,6 +9882,10 @@ enum { BATTLE_SAVED_PALETTE_TYPES_COUNT = 8 };   /* by palette animation slot */
 uint8_t battle_saved_palette_types(const GameState *g, unsigned slot);
 void set_battle_saved_palette_types(GameState *g, unsigned slot, uint8_t v);
 
+/* How far every line of the layers is moved across by the screen script's sway (command $E7) */
+uint8_t battle_line_sway(const GameState *g);
+void set_battle_line_sway(GameState *g, uint8_t v);
+
 /* Half the height of the column band window 1 draws around line $6A */
 uint8_t battle_column_band_half_height(const GameState *g);
 void set_battle_column_band_half_height(GameState *g, uint8_t v);
@@ -9672,6 +9899,11 @@ enum { BATTLE_WINDOW_STEPS_COUNT = 2 };   /* by count (A, B) */
  * operand or the wipe's steps; B the band's half height or the counted wave's calls */
 uint8_t battle_window_steps(const GameState *g, unsigned i);
 void set_battle_window_steps(GameState *g, unsigned i, uint8_t v);
+
+/* Counted up by command $EF; when it comes round to 0 the screen script stops the battle's
+ * palette animations 8-11 */
+uint8_t battle_screen_palette_stop_count(const GameState *g);
+void set_battle_screen_palette_stop_count(GameState *g, uint8_t v);
 
 /* Offset of the next block id in the effect's list of four ($D1:ECDB) */
 uint16_t battle_effect_graphics_list(const GameState *g);
@@ -9702,6 +9934,11 @@ void set_battle_effect_graphics_wanted(GameState *g, uint8_t v);
 /* The effect whose graphics battle_effect_graphics_wanted asks for */
 uint8_t battle_effect_graphics_effect(const GameState *g);
 void set_battle_effect_graphics_effect(GameState *g, uint8_t v);
+
+/* The layers the screen script may turn on in the screen's settings (command $F5); its commands
+ * for them keep to these */
+uint8_t battle_screen_layer_mask(const GameState *g);
+void set_battle_screen_layer_mask(GameState *g, uint8_t v);
 
 /* Set while background rows 2-4 are moved back to their place with their starting colors
  * ($D1:E984); moving them up clears it */
