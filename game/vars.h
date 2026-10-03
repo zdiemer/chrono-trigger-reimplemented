@@ -35,6 +35,13 @@
  * on each, drawing their sprites. The instances: record. */
 enum { MENU_RECORD_COUNT = 9 };   /* by record */
 
+/* ---- page kind save_check ------------------------------------------------------------------ */
+
+/* The page the save code's check of a slot ($FF:F9C4) runs on: the menus' own as they open, or
+ * the clock's ($0400), where the menus' services ($C2:8C36) look for a slot to go on from at
+ * power-on ($C2:8D6A). The instances: menu; clock. */
+typedef enum { SAVE_CHECK_MENU, SAVE_CHECK_CLOCK } SaveCheckPage;
+
 /* ---- page kind scene_program --------------------------------------------------------------- */
 
 /* The page the scene program's shared routines run on: the scene's own, or, when a sequence
@@ -561,6 +568,11 @@ enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: which of the game's b
  * of the remapped buttons */
 uint8_t button_assignments(const GameState *g, unsigned i);
 void set_button_assignments(GameState *g, unsigned i, uint8_t v);
+
+/* How many times the game has been saved: each save counts one, and the count stops at $FFFF (a
+ * slot's summary shows at most 999) */
+uint16_t times_saved(const GameState *g);
+void set_times_saved(GameState *g, uint16_t v);
 
 /* How many times the game on the cartridge has been finished, as a new game starts with it (the
  * cartridge's count at $30:7FE1) */
@@ -2810,12 +2822,99 @@ void set_menu_scratch_frame_tiles_end(GameState *g, uint16_t v);
 /* A record's frame: the bytes of a mirrored tile left to turn round, which the loop leaves at 0 */
 uint16_t menu_scratch_frame_mirror_bytes(const GameState *g);
 void set_menu_scratch_frame_mirror_bytes(GameState *g, uint16_t v);
+/* Noting the party's techs ($FF:F813): a double tech's first character's row in the parts table
+ * (the character times $40), then in its low byte a triple tech's characters, shifted out a bit
+ * at a time */
+uint16_t menu_scratch_tech_parts_first_row(const GameState *g);
+void set_menu_scratch_tech_parts_first_row(GameState *g, uint16_t v);
+/* Noting the party's techs: a double tech's second character's row; for a triple tech, the
+ * character counted in its high byte */
+uint16_t menu_scratch_tech_parts_second_row(const GameState *g);
+void set_menu_scratch_tech_parts_second_row(GameState *g, uint16_t v);
+/* Noting the party's techs: a double tech's parts left to place, then the triple techs' parts
+ * placed, counted in the low byte of a word whose high byte (0 whenever the menus open) the
+ * noting leaves as it finds it */
+uint16_t menu_scratch_tech_parts_placed(const GameState *g);
+void set_menu_scratch_tech_parts_placed(GameState *g, uint16_t v);
+/* Noting the party's techs: the double or triple tech group it has got to */
+uint16_t menu_scratch_tech_parts_group(const GameState *g);
+void set_menu_scratch_tech_parts_group(GameState *g, uint16_t v);
+/* Noting the party's techs: where the double tech's parts start in their table, six a group */
+uint16_t menu_scratch_tech_parts_from(const GameState *g);
+void set_menu_scratch_tech_parts_from(GameState *g, uint16_t v);
+/* Building the number tiles ($FF:F548): the digit it has got to, sixteen bytes a digit */
+uint16_t menu_scratch_number_tiles_digit(const GameState *g);
+void set_menu_scratch_number_tiles_digit(GameState *g, uint16_t v);
+/* Building the number tiles: the bytes of the tile left to draw */
+uint8_t menu_scratch_number_tiles_bytes_left(const GameState *g);
+void set_menu_scratch_number_tiles_bytes_left(GameState *g, uint8_t v);
+/* Building the number tiles: the font's byte being shifted into the tile */
+uint8_t menu_scratch_number_tiles_pixels(const GameState *g);
+void set_menu_scratch_number_tiles_pixels(GameState *g, uint8_t v);
+/* Building the number tiles: the byte of the hundreds digit it reads, then (first) the tiles of
+ * a block left */
+uint8_t menu_scratch_number_tiles_hundreds_byte(const GameState *g);
+void set_menu_scratch_number_tiles_hundreds_byte(GameState *g, uint8_t v);
+/* Building the number tiles: the tiles of a block of ten left */
+uint8_t menu_scratch_number_tiles_blocks_left(const GameState *g);
+void set_menu_scratch_number_tiles_blocks_left(GameState *g, uint8_t v);
+/* Building the amounts' digits ($FF:F7D9): where the tile it builds is */
+uint16_t menu_scratch_amount_digit_at(const GameState *g);
+void set_menu_scratch_amount_digit_at(GameState *g, uint16_t v);
+/* Building the amounts' digits: the tile's rows left */
+uint8_t menu_scratch_amount_digit_rows_left(const GameState *g);
+void set_menu_scratch_amount_digit_rows_left(GameState *g, uint8_t v);
+/* Drawing the gate screen ($FF:F677): the row of the swirl it has got to, two bytes a row */
+uint16_t menu_scratch_gate_row(const GameState *g);
+void set_menu_scratch_gate_row(GameState *g, uint16_t v);
+/* Drawing the gate screen: where the row goes in the tilemap */
+uint16_t menu_scratch_gate_row_at(const GameState *g);
+void set_menu_scratch_gate_row_at(GameState *g, uint16_t v);
+/* Drawing the gate screen: the rows left */
+uint16_t menu_scratch_gate_rows_left(const GameState *g);
+void set_menu_scratch_gate_rows_left(GameState *g, uint16_t v);
+/* A character's sprite colours put in its palette ($FF:F628): the character */
+uint8_t menu_scratch_colours_character(const GameState *g);
+void set_menu_scratch_colours_character(GameState *g, uint8_t v);
+/* A character's sprite colours: nonzero to put them in dimmed */
+uint8_t menu_scratch_colours_dimmed(const GameState *g);
+void set_menu_scratch_colours_dimmed(GameState *g, uint8_t v);
+/* A member's sprite colours dimmed ($FF:F628): the colours left */
+uint16_t menu_scratch_dimmed_colours_left(const GameState *g);
+void set_menu_scratch_dimmed_colours_left(GameState *g, uint16_t v);
+/* The save code's sum of a slot's game ($FF:FBE7): where the game is, as menu_slot_game_at */
+uint16_t menu_scratch_sum_from(const GameState *g);
+void set_menu_scratch_sum_from(GameState *g, uint16_t v);
+/* The save code's save and loads: where in its bank the run of work RAM it has got to is */
+uint16_t menu_scratch_run_at(const GameState *g);
+void set_menu_scratch_run_at(GameState *g, uint16_t v);
+/* The gate screen's swirl turned ($FF:F716): BG3's scroll across, which each band adds */
+uint16_t menu_scratch_gate_across(const GameState *g);
+void set_menu_scratch_gate_across(GameState *g, uint16_t v);
+/* A New Game+'s load ($FF:FAED): the character whose starting equipment it puts on */
+uint8_t menu_scratch_carried_character(const GameState *g);
+void set_menu_scratch_carried_character(GameState *g, uint8_t v);
+/* A New Game+'s load: the place in the character's equipment it has got to (a word as each
+ * character starts) */
+uint16_t menu_scratch_carried_slot(const GameState *g);
+void set_menu_scratch_carried_slot(GameState *g, uint16_t v);
+
+/* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
+ * address into the ROM */
+uint32_t menu_starting_record_at(const GameState *g);
+void set_menu_starting_record_at(GameState *g, uint32_t v);
 
 enum { MENU_TECH_MEMBERS_COUNT = 3 };   /* by member of the tech */
 /* The characters of the tech on the techs screen's cursor: the member whose techs are listed
  * first, then the tech group's others, $FF where it has none */
 uint8_t menu_tech_members(const GameState *g, unsigned member);
 void set_menu_tech_members(GameState *g, unsigned member, uint8_t v);
+
+/* Noting the party's techs ($FF:F813): where the next tech's column of the parts table is
+ * (menu_tech_parts), a long address whose low byte steps on a column a tech, left past the last
+ * triple's, and the byte after it, which the bank's word store clears */
+uint32_t menu_tech_parts_column(const GameState *g);
+void set_menu_tech_parts_column(GameState *g, uint32_t v);
 
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
@@ -3308,6 +3407,26 @@ void set_menu_tech_member_row(GameState *g, uint8_t v);
  * members */
 uint8_t menu_tech_member_scroll(const GameState *g);
 void set_menu_tech_member_scroll(GameState *g, uint8_t v);
+
+/* The rock it has got to: five, past the last, as it ends */
+uint8_t menu_rock_tech_search_rock(const GameState *g);
+void set_menu_rock_tech_search_rock(GameState *g, uint8_t v);
+/* The techs of the last rock whose characters are all in the party still to be found learned (0
+ * where all three are) */
+uint8_t menu_rock_tech_search_techs_left(const GameState *g);
+void set_menu_rock_tech_search_techs_left(GameState *g, uint8_t v);
+/* The last tech looked at, less one */
+uint8_t menu_rock_tech_search_tech(const GameState *g);
+void set_menu_rock_tech_search_tech(GameState *g, uint8_t v);
+/* The characters the party doesn't have, a bit each from Crono's bit 7 to Magus's bit 1 */
+uint8_t menu_rock_tech_search_missing(const GameState *g);
+void set_menu_rock_tech_search_missing(GameState *g, uint8_t v);
+
+enum { MENU_ROCK_TECHS_READY_COUNT = 5 };   /* by rock: the five triple techs a rock gives, in the order of their groups */
+/* 1 where the party could do the rock's triple tech: its three characters in the party, each
+ * with the single tech it takes learned; 0 otherwise */
+uint8_t menu_rock_techs_ready(const GameState *g, unsigned i);
+void set_menu_rock_techs_ready(GameState *g, unsigned i, uint8_t v);
 
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
@@ -3912,13 +4031,14 @@ void set_menu_equip_choices(GameState *g, uint8_t v);
 uint8_t menu_equip_list_top(const GameState *g);
 void set_menu_equip_list_top(GameState *g, uint8_t v);
 
-enum { MENU_TECH_PARTS_COUNT = 505 };   /* by character * $40 + the tech */
-/* Each character's part in each double and triple tech (the techs from $39 on, so the table
- * proper starts at $7E:1640), as the table of MP costs ($CC:253B) numbers the parts; built as
- * the menus open ($FF:F813). A single tech's index reads the bytes before it, which nothing of
- * the game's asks for */
-uint8_t menu_tech_parts(const GameState *g, unsigned i);
-void set_menu_tech_parts(GameState *g, unsigned i, uint8_t v);
+/* Each character's part in each double and triple tech, as the table of MP costs ($CC:253B)
+ * numbers the parts: a row a character, a column each of the techs from the first double ($39)
+ * on (the doubles' 45, then the triples' 15); built as the menus open ($FF:F813), and a
+ * character who isn't one of a tech's members has nothing written in its column [a byte by row
+ * and column] */
+enum { MENU_TECH_PARTS_ROWS = 7, MENU_TECH_PARTS_COLUMNS = 60 };
+uint8_t menu_tech_parts(const GameState *g, unsigned row, unsigned column);
+void set_menu_tech_parts(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 uint8_t menu_random_index(const GameState *g);
@@ -4052,6 +4172,12 @@ void set_menu_past_the_names(GameState *g, uint32_t v);
 enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
 uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at);
 void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_GATE_TILEMAP_COUNT = 1024 };   /* by tile (32 to a row) */
+/* The End of Time's gate screen's swirl, BG3's tilemap: six rows of sixteen tiles, each row
+ * twice across, repeated down the map */
+uint16_t menu_gate_tilemap(const GameState *g, unsigned i);
+void set_menu_gate_tilemap(GameState *g, unsigned i, uint16_t v);
 
 /* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
  * apart, and the row past the last where a slide draws the row coming in [1152 bytes, one at a
@@ -4201,6 +4327,25 @@ void set_menu_object_line_slots_second(GameState *g, unsigned slot, uint16_t v);
 uint8_t menu_object_line_slots_end(const GameState *g, unsigned slot);
 void set_menu_object_line_slots_end(GameState *g, unsigned slot, uint8_t v);
 
+enum { MENU_AMOUNT_DIGIT_TILES_COUNT = 10 };   /* by digit */
+/* The ten digits the items screen shows amounts in ($FF:F7D9): sixteen-colour tiles whose third
+ * bitplane is the ink of the first two, so the digits take colours 5-7; the fourth bitplane is
+ * left as the buffer had it [32 bytes, one at a time] */
+enum { MENU_AMOUNT_DIGIT_TILES_BYTES = 32 };
+uint8_t menu_amount_digit_tiles_byte(const GameState *g, unsigned i, unsigned at);
+void set_menu_amount_digit_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { MENU_GATE_COLOURS_COUNT = 4 };   /* by colour */
+/* Four colours the gate screen sets out as it is drawn ($FF:F677) */
+uint16_t menu_gate_colours(const GameState *g, unsigned i);
+void set_menu_gate_colours(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_GATE_SWIRL_COUNT = 16 };   /* by band of lines */
+/* The gate screen's swirl: BG3's horizontal scroll for each of sixteen bands of lines, the
+ * layer's scroll plus the band's place on a wave that moves on every frame */
+uint16_t menu_gate_swirl(const GameState *g, unsigned i);
+void set_menu_gate_swirl(GameState *g, unsigned i, uint16_t v);
+
 enum { MENU_CURSOR_PLACES_COUNT = 42 };   /* by cursor position of the current menu (the table runs up to the palette at $9480) */
 /* The cursor's X */
 uint8_t menu_cursor_places_x(const GameState *g, unsigned i);
@@ -4322,6 +4467,12 @@ enum { MENU_EQUIPPED_LIST_COUNT = 5 };   /* by slot: the weapon, the helmet, the
 uint8_t menu_equipped_list(const GameState *g, unsigned slot);
 void set_menu_equipped_list(GameState *g, unsigned slot, uint8_t v);
 
+/* Building the number tiles ($FF:F548): the hundreds digits it reads from, sixteen bytes each,
+ * none (blank), 1 and 2; nothing reads them after [48 bytes, one at a time] */
+enum { MENU_HUNDREDS_DIGITS_BYTES = 48 };
+uint8_t menu_hundreds_digits_byte(const GameState *g, unsigned at);
+void set_menu_hundreds_digits_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { MENU_ITEM_USERS_NAMES_COUNT = 7 };   /* by user */
 /* The names of the characters who can equip the item the items screen shows and have joined the
  * party, one after another, the places past them clear, which the window lists ($C2:AEB6) [6
@@ -4337,6 +4488,13 @@ enum { MENU_RECORD_FRAME_TILE_LIST_COUNT = 96 };   /* by the tile's place in the
  * (menu_save_summary) */
 uint16_t menu_record_frame_tile_list(const GameState *g, unsigned i);
 void set_menu_record_frame_tile_list(GameState *g, unsigned i, uint16_t v);
+
+/* The save code's table of the work RAM a save holds, which a save or a load copies here from
+ * the ROM as it starts and reads its regions from; nothing reads it after [40 bytes, one at a
+ * time] */
+enum { MENU_SAVE_REGION_TABLE_BYTES = 40 };
+uint8_t menu_save_region_table_byte(const GameState *g, unsigned at);
+void set_menu_save_region_table_byte(GameState *g, unsigned at, uint8_t v);
 
 /* The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member
  * records first [64 bytes, one at a time] */
@@ -4506,6 +4664,22 @@ void set_menu_map_colours(GameState *g, unsigned i, uint8_t v);
 uint8_t menu_map_colours_unchecked(const GameState *g, unsigned i);
 void set_menu_map_colours_unchecked(GameState *g, unsigned i, uint8_t v);
 
+enum { MENU_NUMBER_TILES_COUNT = 110 };   /* by number: 0-99 (the tens digit's last three columns, then the units digit), then 100-109 the digits alone */
+/* Small number tiles a screen builds for its counts ($FF:F548): a sixteen-colour tile each of
+ * the numbers 0-99, two digits to a tile, and the ten digits; only the first two bitplanes are
+ * drawn, the other two left as the buffer had them [32 bytes, one at a time] */
+enum { MENU_NUMBER_TILES_BYTES = 32 };
+uint8_t menu_number_tiles_byte(const GameState *g, unsigned i, unsigned at);
+void set_menu_number_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+enum { MENU_HUNDREDS_TILES_COUNT = 30 };   /* by hundreds (none, 1, 2) * 10 + the tens digit */
+/* The tiles that start a three-digit number ($FF:F548): the hundreds digit, and the first
+ * columns of the tens digit, whose last columns begin the number's tile in menu_number_tiles;
+ * the first is blank. Only the first two bitplanes are drawn [32 bytes, one at a time] */
+enum { MENU_HUNDREDS_TILES_BYTES = 32 };
+uint8_t menu_hundreds_tiles_byte(const GameState *g, unsigned i, unsigned at);
+void set_menu_hundreds_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
 enum { MENU_GATE_PALETTE_COPY_COUNT = 256 };   /* by color */
 /* The time dial's palette as the mode keeps it, copied out of the loaded one at $7F:8C00, which
  * also goes to the mode's own palette buffer with one colour set to white first */
@@ -4650,6 +4824,22 @@ void set_menu_record_loop_frame(GameState *g, unsigned record, uint8_t v);
 enum { MENU_RECORD_SPRITE_OFFSETS_BYTES = 30 };
 uint8_t menu_record_sprite_offsets_byte(const GameState *g, unsigned record, unsigned at);
 void set_menu_record_sprite_offsets_byte(GameState *g, unsigned record, unsigned at, uint8_t v);
+
+/* The check's answer, as the original leaves it in its caller's first cell: 0 for a slot that
+ * holds a game, $8080 for one without the save's mark, $4040 for one whose sum is wrong (on the
+ * menus' page, menu_scratch.slot_check) */
+uint16_t save_check_answer(const GameState *g, SaveCheckPage page);
+void set_save_check_answer(GameState *g, SaveCheckPage page, uint16_t v);
+
+/* The save slot the check looks at: on the menus' page the slot the load screen shows
+ * (menu_save_slot_shown), on the clock's the slot the power-on search has got to */
+uint8_t save_check_slot(const GameState *g, SaveCheckPage page);
+void set_save_check_slot(GameState *g, SaveCheckPage page, uint8_t v);
+
+/* Where the slot checked keeps its game, as the original's code addresses save memory on the bus
+ * ($6000 on): on the menus' page, menu_slot_game_at */
+uint16_t save_check_game_at(const GameState *g, SaveCheckPage page);
+void set_save_check_game_at(GameState *g, SaveCheckPage page, uint16_t v);
 
 /* ---- menu_object --------------------------------------------------------------------------- */
 

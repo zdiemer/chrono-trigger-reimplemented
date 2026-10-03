@@ -3016,3 +3016,72 @@ the turn, the timers' dispatch and the combination check were recalibrated.
 With the turn's callees timed as their own routines, the timers' dispatch (a
 whole turn) attributes its time to more than the 32 routines a stretch held,
 so `MAX_SEGMENT_PARTS` (`runtime/port/native.c`) is 48.
+
+## Phase 3, menus: the techs screen (`$C2:B35D`-`$C2:BF2E`)
+
+The menus' screen 3, the run the burndown had largest left in the bank
+(`$C2:B520`), taken whole with the main menu's panel for it: 2.8 KiB, and the
+pointing among the members a healing is used on (`$C2:B83E`, `$C2:B870`), which
+the items screen's tonics shared as a call-out. `$C2` went from 28.1 KiB ported
+(53% left, 300 entries) to 30.9 KiB (48%, 326 entries).
+
+**What it is.** `menu/techs.c` is the techs as the menus list them: a
+member's techs of a kind (each tech group the member is one of, in the groups'
+order, and each group's techs the party has learned), what one costs the
+member (its part's cost, which two accessories halve or quarter), whether it
+heals and what it restores, and a tech's row in a list in the colours of one
+usable here or still being learned. `menu/tech_screen.c` is the screen as the
+game sees it: the member rows down the left (and their slide past the ends,
+the view moved four lines a frame through the screen's offset-per-tile
+table), the kinds' tabs, the list of eight rows with its slide and paging, the
+tech on the cursor with its other members' rows and their costs, the
+description, a healing tech used on the window of active members (the user's
+casting pose, the cost taken from its MP), and the panel. `tech_screen_bridge.c`
+runs it on the machine: the scroll bars' frames and task, the cursor's moves
+within a list, the paging, the list's slide frames, the description's
+setting, the stopping of tasks, the restoring and the cursors on every member
+stay the original's. The rows' drawing reuses the shared vocabulary
+(`menu_draw_windows` and `menu_queue_fixed_upload`, now in `windows.h` and
+`vram.h` for every screen; `menu_load_character` beside `menu_load_member`).
+
+**The flags, settled first.** Every call-out the chunk keeps was checked
+before the logic: they read memory, Y (the lists' frames) or A (the stopping
+of tasks, the wait for frames); the one register a port reads back from one
+(`$C2:EA53`'s N, a push past a list's edge) is worked out from the state. What
+needed care is the P each routine saves as it starts, compared under its
+calls out, and the flags a call-out declared don't-care carries through
+unchanged where its callee saves and restores them (`$C2:8255`, `$C2:8AD5`,
+`$C2:F643`): the bridge leaves the original's flags before each (the leaves at
+the end of `tech_screen_bridge.c`), with the shifts in the healing's targets
+(the carry clear), the kind's switch (the carry of the compare before it goes
+round) and the rows' copies (the accumulator's high byte, `$34` down the list
+and `$FF` up it) the ones shadow mode and fuzzing found.
+
+**What shadow mode and fuzzing found.** Two movies reach the screen (`menu`
+and `menus-field-menu`): every call matches, none refused (each entry's counts
+are its ports.tsv row), among them 403 frames among the members, 390 on the
+list, 222 in the window a tech is used from and 430 pointings at a member to
+restore. The library never slides the member list or the tech list. Fuzzed
+from four states of `menus-field-menu` (on the members, on the list, in the
+window, on the triple techs), seed 1, 2,000 states each, the menus' tables
+(`$7E:7700`-`$7FFF`) kept with low RAM and the tilemaps, every entry up to its
+first wait for a frame: 0 mismatching. The first runs found the double and
+triple techs' cost read and kept a word wide (the next part's cost lands in
+the byte after, now `menu_tech_cost_beside`), the list's slide copying with
+the copy's direction swapped, and entries the fuzzer entered with 8-bit index
+registers where the game never does. The parts table is declared from
+`$7E:1607` so a tech's index into it needs no subtraction; a stale list as the
+screen opens can't read past it. Changing the items screen's call-out into a
+`menu_run` of the shared pointing, and its two member-window loops into one,
+left its fuzz counts unchanged against main's (`tools/fuzz_compare.py
+--before`).
+
+**Timing.** The rows' drawing is charged at registered entries of its own
+(`menu_show_member_tech_list` `$C2:BC6F`, `menu_draw_tech_rows` `$C2:BD6B`,
+`menu_show_pointed_tech` `$C2:BB1F`, `menu_draw_tech_member_row` `$C2:BA2F`,
+0.2% error), which took the members' step's worst vblank error from 48518
+clocks to 10470. Two exceptions remain (`tools/timing_exceptions.txt`): the
+pointed tech's rows (`menu_show_pointed_tech`, and `menu_choose_tech`, which
+carries it), whose empty rows inherit the window lists' strings' spread (over
+by about 1600 clocks a row) while the triple techs' member rows fall under,
+holding the routine's own time at the floor.

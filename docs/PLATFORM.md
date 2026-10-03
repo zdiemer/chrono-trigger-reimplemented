@@ -649,7 +649,7 @@ agreement with `off` is the same as before conversion.
 | `runtime/platform/timing.h` | `tm_enable_interrupts`, `tm_set_line`, `tm_ack_vblank`, `tm_ack_line_irq`, `tm_video_status`, `tm_reset_beam_latch`, `tm_sync` |
 | `runtime/platform/audio.h` | `au_command` (`AudioCommand` with a parameter count), `au_play_song`, `au_status`, `au_take_samples` |
 | `runtime/platform/input.h` | `in_ready`, `in_read`, `in_read_low`, `in_read_high`, `in_host_set` |
-| `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_host_bytes` |
+| `runtime/platform/save.h` | `sv_read8`, `sv_write8`, `sv_peek8` (a guard's look, without the machine's time), `sv_host_bytes` |
 | `runtime/platform/snes/` | the SNES backend: `static inline` definitions writing through `m_write8`, and the service call marker `--io-log` reads |
 | `runtime/port/machine.h` | `m_platform(s)` (the machine is the platform), `m_io_bank` |
 | `dev/io_log.c` | `ct_dev --io-log` |

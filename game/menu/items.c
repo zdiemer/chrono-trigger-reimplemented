@@ -9,16 +9,16 @@
  * copy what their lists show of every item into tables of their own: the
  * kind, the price, who can use it, an amount, an attack or defence, where its
  * name is. The inventory loses the entries no item of the game's fills. Then
- * the story's and the place's say in what the lists offer is noted, the save
- * code's list of what the party carries is made ($FF:F813, still the
- * original's), and each member's figures worked out ($C2:99B2, the
- * original's too). */
+ * the story's and the place's say in what the lists offer is noted, the
+ * party's techs are noted (menu/techs.c), and each member's figures worked
+ * out ($C2:99B2, still the original's). */
 #include "menu/items.h"
 
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
+#include "menu/techs.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -255,9 +255,9 @@ static void leave_tables_built(Snes *s)
     m_set_flag(s, CPU_FLAG_C, true);
 }
 
-/* What the save code's list ($FF:F813) and each member's figures ($C2:99B2)
- * don't read (tools/dontcare_check.py checks both). */
-enum { LIST_IGNORES = DC_A | DC_X | DC_Y, MEMBERS_IGNORES = DC_A | DC_X | DC_Y };
+/* What each member's figures ($C2:99B2) don't read (tools/dontcare_check.py
+ * checks it). */
+enum { MEMBERS_IGNORES = DC_A | DC_X | DC_Y };
 
 // $C2:9875
 void menu_build_items(Snes *s)
@@ -268,7 +268,8 @@ void menu_build_items(Snes *s)
     menu_set_widths(s, true, false);
     s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
     ORIGINAL_EFFECT(leave_tables_built(s));
-    if (!menu_call_long(s, 0xC29973, 0xFFF813, LIST_IGNORES) || !menu_call(s, 0xC29977, 0xC299B2, MEMBERS_IGNORES))
+    TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
+    if (!menu_call(s, 0xC29977, 0xC299B2, MEMBERS_IGNORES))
         return;
     menu_copy_past_the_names_now(g);
     menu_restore_p(s);
@@ -312,10 +313,11 @@ void menu_find_item_figures(Snes *s)
 }
 
 /* The tables run on the menus' page with the data bank on work RAM's, their
- * name places counted from the zero word the menus keep 0. */
+ * name places counted from the zero word the menus keep 0; the party's techs
+ * are noted after them (menu/techs.c, whose guard this takes). */
 bool menu_items_are_buildable(Snes *s)
 {
-    if (!menu_on_page_work_ram(s))
+    if (!menu_party_techs_are_notable(s))
         return false;
     vars_peek(true);
     bool ok = menu_zero(state_of(s)) == 0;

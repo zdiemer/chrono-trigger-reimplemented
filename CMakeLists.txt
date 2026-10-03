@@ -144,12 +144,14 @@ add_library(ct_game STATIC
   game/field/window_shape.c
   game/menu/bridge.c
   game/menu/cursor.c
+  game/menu/digits.c
   game/menu/display.c
   game/menu/epoch.c
   game/menu/equipment.c
   game/menu/equipment_bridge.c
   game/menu/equipment_windows.c
   game/menu/frame.c
+  game/menu/gate_screen.c
   game/menu/glyphs.c
   game/menu/graphics.c
   game/menu/item_screen.c
@@ -165,6 +167,7 @@ add_library(ct_game STATIC
   game/menu/objects.c
   game/menu/opening.c
   game/menu/save_screen.c
+  game/menu/saves.c
   game/menu/script.c
   game/menu/script_bridge.c
   game/menu/sound.c

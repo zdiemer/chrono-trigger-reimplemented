@@ -277,15 +277,13 @@ static void put_member_lines_at_rest(GameState *g)
     ORIGINAL_EFFECT(charge_block_move(g, 4 * LINE_BANDS));
 }
 
-/* The triple techs the rocks give are the groups from 32, the party's
- * learned bytes from its eleventh triple tech's. */
-enum { ROCK_GROUPS = 5, FIRST_ROCK_GROUP = 32, FIRST_ROCK_TECH = 10 };
-
+/* The triple techs the rocks give (menu/techs.h) listed as the party has
+ * learned them. */
 void menu_techs_note_rock_techs(GameState *g)
 {
-    for (unsigned i = 0; i < ROCK_GROUPS; i++)
-        set_menu_tech_groups_listed(g, FIRST_ROCK_GROUP + i, party_triple_techs_learned(g, FIRST_ROCK_TECH + i));
-    ORIGINAL_EFFECT(charge_block_move(g, ROCK_GROUPS));
+    for (unsigned i = 0; i < MENU_ROCKS; i++)
+        set_menu_tech_groups_listed(g, MENU_FIRST_ROCK_GROUP + i, party_triple_techs_learned(g, MENU_FIRST_ROCK_TECH + i));
+    ORIGINAL_EFFECT(charge_block_move(g, MENU_ROCKS));
     put_member_lines_at_rest(g);
 }
 
@@ -1211,7 +1209,7 @@ bool menu_techs_member_is_listable(const GameState *g)
         || member_on_the_cursor(g) >= (uint8_t)menu_members_reachable(g) || listed >= MENU_TECH_LIST_GROUPS_COUNT)
         return false;
     for (unsigned at = 0; at < listed; at++)
-        if (!menu_tech_is_the_games(menu_tech_list(g, at)) || menu_tech_list_groups(g, at) >= MENU_TECH_GROUPS)
+        if (!menu_tech_is_the_games(menu_tech_list(g, at), kind_listed(g)) || menu_tech_list_groups(g, at) >= MENU_TECH_GROUPS)
             return false;
     return true;
 }
@@ -1225,7 +1223,8 @@ bool menu_techs_list_is_pointable(const GameState *g)
         return false;
     for (unsigned at = 0; at < MENU_TECH_LIST_GROUPS_COUNT; at++) {
         uint8_t tech = menu_tech_list(g, at);
-        if (at < listed ? !menu_tech_is_the_games(tech) || menu_tech_list_groups(g, at) >= MENU_TECH_GROUPS : tech != MENU_NO_TECH)
+        if (at < listed ? !menu_tech_is_the_games(tech, kind_listed(g)) || menu_tech_list_groups(g, at) >= MENU_TECH_GROUPS
+                        : tech != MENU_NO_TECH)
             return false;
     }
     return menu_tech_list_row(g) + top < (listed > 0 ? listed : 1);

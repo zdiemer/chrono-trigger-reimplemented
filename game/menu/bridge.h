@@ -65,6 +65,9 @@ bool menu_back(Snes *s, uint32_t returns_to, MenuMachine m);
  * one whose work is C on the game's state is called as C. */
 bool menu_run(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
 
+/* The same for a sibling the original reaches with a JSL. */
+bool menu_run_long(Snes *s, uint32_t site, uint32_t routine, void (*entry)(Snes *));
+
 /* The same for a sibling that comes back with widths that depend on what it
  * did (the equipment list's move leaves a 16-bit accumulator after a slide):
  * the widths it came back with stand. */

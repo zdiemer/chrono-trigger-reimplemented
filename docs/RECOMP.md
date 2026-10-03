@@ -3337,74 +3337,81 @@ handed to the original's runner at the dispatch's call. The commands' constraint
 movie reaches (or whose stretches end in the rasterizer) take a sibling's
 cost.
 
-### Phase 3, menus: the techs screen (`$C2:B35D`-`$C2:BF2E`)
+### Phase 3, menus: the save code and the rest of bank `$FF` (`$FF:F548`-`$FF:FBE7`)
 
-The menus' screen 3, the run the burndown had largest left in the bank
-(`$C2:B520`), taken whole with the main menu's panel for it: 2.8 KiB, and the
-pointing among the members a healing is used on (`$C2:B83E`, `$C2:B870`), which
-the items screen's tonics shared as a call-out. `$C2` went from 28.1 KiB ported
-(53% left, 300 entries) to 30.9 KiB (48%, 326 entries).
+The whole of bank `$FF`'s code but one routine nothing reaches: 1.6 KiB in 11
+entries. `$FF` went from 0.1 KiB ported (95% left, 1 entry) to 1.5 KiB (10%
+left, 12 entries); what is left is `$FF:FF3E`-`$FFF4`, a menu record's routine
+behind a return that the analysis finds no caller of (docs/TODO.md).
 
-**What it is.** `menu/techs.c` is the techs as the menus list them: a
-member's techs of a kind (each tech group the member is one of, in the groups'
-order, and each group's techs the party has learned), what one costs the
-member (its part's cost, which two accessories halve or quarter), whether it
-heals and what it restores, and a tech's row in a list in the colours of one
-usable here or still being learned. `menu/tech_screen.c` is the screen as the
-game sees it: the member rows down the left (and their slide past the ends,
-the view moved four lines a frame through the screen's offset-per-tile
-table), the kinds' tabs, the list of eight rows with its slide and paging, the
-tech on the cursor with its other members' rows and their costs, the
-description, a healing tech used on the window of active members (the user's
-casting pose, the cost taken from its MP), and the panel. `tech_screen_bridge.c`
-runs it on the machine: the scroll bars' frames and task, the cursor's moves
-within a list, the paging, the list's slide frames, the description's
-setting, the stopping of tasks, the restoring and the cursors on every member
-stay the original's. The rows' drawing reuses the shared vocabulary
-(`menu_draw_windows` and `menu_queue_fixed_upload`, now in `windows.h` and
-`vram.h` for every screen; `menu_load_character` beside `menu_load_member`).
+**What it is.** Five things that share a bank:
 
-**The flags, settled first.** Every call-out the chunk keeps was checked
-before the logic: they read memory, Y (the lists' frames) or A (the stopping
-of tasks, the wait for frames); the one register a port reads back from one
-(`$C2:EA53`'s N, a push past a list's edge) is worked out from the state. What
-needed care is the P each routine saves as it starts, compared under its
-calls out, and the flags a call-out declared don't-care carries through
-unchanged where its callee saves and restores them (`$C2:8255`, `$C2:8AD5`,
-`$C2:F643`): the bridge leaves the original's flags before each (the leaves at
-the end of `tech_screen_bridge.c`), with the shifts in the healing's targets
-(the carry clear), the kind's switch (the carry of the compare before it goes
-round) and the rows' copies (the accumulator's high byte, `$34` down the list
-and `$FF` up it) the ones shadow mode and fuzzing found.
+- `menu/saves.c`, the save code: a slot's check (`$FF:F9C4`), the save
+  (`$FF:F9FB`), the load (`$FF:FAA3`) and a New Game+'s load (`$FF:FAED`),
+  with the sum (`$FF:FBE7`) and the slots' places (`$FF:FBD3`) inline. A saved
+  game is the eight runs of work RAM the ROM's table lists, one after the other
+  from the slot's start; the save marks the slot and keeps a sum beside the
+  mark. Save memory is reached through the save service only (a guard's look
+  through the new `sv_peek8`), and the layout and the sum are kept to the bit,
+  so a cartridge's saves load and the original loads ours. The menus'
+  opening, the load screen and the save point call it as C now; the New
+  Game+'s load is a bridge, since equipping each character's starting
+  equipment and filling HP and MP are the menus' services (`$C2:8004`), still
+  the original's.
+- `menu/techs.c`, the party's techs as the menus open (`$FF:F813`): how many
+  members the screens offer, the healing techs marked, the techs listed of
+  every group whose characters are all present, each character's next single
+  tech, each character's part in each double and triple tech, and which of
+  the rocks' triple techs the party could do (`$FF:F958`, which the services
+  also run). The parts table is now declared where it starts (`$7E:1640`, a
+  row a character), not from below it.
+- `menu/digits.c`: a screen's small number tiles, two digits to a tile
+  (`$FF:F548`), and the items screen's amounts' digits (`$FF:F7D9`).
+- `menu/sprites.c`: a character's sprite colours, dimmed or not (`$FF:F628`).
+- `menu/gate_screen.c`: the End of Time's gate screen, its swirl drawn
+  (`$FF:F677`) and turned every frame (`$FF:F716`), with the screen's start
+  (`$C2:CE9D`) moved out of `epoch.c`, which it was never part of.
 
-**What shadow mode and fuzzing found.** Two movies reach the screen (`menu`
-and `menus-field-menu`): every call matches, none refused (each entry's counts
-are its ports.tsv row), among them 403 frames among the members, 390 on the
-list, 222 in the window a tech is used from and 430 pointings at a member to
-restore. The library never slides the member list or the tech list. Fuzzed
-from four states of `menus-field-menu` (on the members, on the list, in the
-window, on the triple techs), seed 1, 2,000 states each, the menus' tables
-(`$7E:7700`-`$7FFF`) kept with low RAM and the tilemaps, every entry up to its
-first wait for a frame: 0 mismatching. The first runs found the double and
-triple techs' cost read and kept a word wide (the next part's cost lands in
-the byte after, now `menu_tech_cost_beside`), the list's slide copying with
-the copy's direction swapped, and entries the fuzzer entered with 8-bit index
-registers where the game never does. The parts table is declared from
-`$7E:1607` so a tech's index into it needs no subtraction; a stale list as the
-screen opens can't read past it. Changing the items screen's call-out into a
-`menu_run` of the shared pointing, and its two member-window loops into one,
-left its fuzz counts unchanged against main's (`tools/fuzz_compare.py
---before`).
+**The registers, settled first.** The check hands its answer back in A, a
+real result. The loads and the swirl leave A's high byte to the menus' exit
+and the screen's task: the wrapper derives it (the load's is clear, the
+swirl's the last band's scroll); their low bytes are declared dead. The New
+Game+'s calls to the services can't drop A's high byte (the equipping stores
+it where an item is no equipment), so the bridge leaves the original's, the
+high byte of the character's starting record's place, in the one scaffolding
+call that also leaves the multiplier and the record's place; the flags the
+services save and restore are declared dead, which liveness agrees with. The
+check runs on its caller's page, the menus' or the clock's (`$0400`, the
+power-on search), a new page kind (`save_check`).
 
-**Timing.** The rows' drawing is charged at registered entries of its own
-(`menu_show_member_tech_list` `$C2:BC6F`, `menu_draw_tech_rows` `$C2:BD6B`,
-`menu_show_pointed_tech` `$C2:BB1F`, `menu_draw_tech_member_row` `$C2:BA2F`,
-0.2% error), which took the members' step's worst vblank error from 48518
-clocks to 10470. Two exceptions remain (`tools/timing_exceptions.txt`): the
-pointed tech's rows (`menu_show_pointed_tech`, and `menu_choose_tech`, which
-carries it), whose empty rows inherit the window lists' strings' spread (over
-by about 1600 clocks a row) while the triple techs' member rows fall under,
-holding the routine's own time at the floor.
+**What shadow mode and fuzzing found.** Over the 26 movies every call matches and
+none is refused: the check 152 calls on both its pages, the techs' noting 37
+and the rocks' 590, the swirl's turn 270, the load 19, the amounts' digits 6,
+the save 2. The New Game+'s load and a character's colours are reached by no
+movie, and the number tiles' and the swirl's drawing once each, interrupted;
+for those fuzzing is the check. Fuzzed from the `menus` state, seed 1, 2,000
+states each (500 for the swirl's drawing, which unpacks its graphics every
+time), 0 mismatching. The first runs found what shadow mode couldn't: the
+number tiles' start tiles shifted a bit short (their only call is
+interrupted); the New Game+'s count of a character's equipment stored a word
+wide; and three inputs the game always gives the same, now the guards': the
+menus' zero word, which the save code and the tiles start their tables from,
+the high byte of the word the triple techs' parts are counted in, and a
+palette change count with room. The rewritten callers against main's
+(`tools/fuzz_compare.py --before`, seed 1): the load screen's steps, the slots'
+reading, the items' tables and the gate screen's start match the same states
+as before; the techs screen's member steps now refuse the fuzzed states whose
+list holds techs of another kind than the one it shows (no game state), which
+read the parts table from below its start.
+
+**Timing.** Each new entry is calibrated on its own calls (`menu_load_game`
+25141, `menu_note_party_techs` 17807, `menu_note_rock_techs` 11016, the rest
+between 3400 and 6780), and the callers that now run them as C carry their
+time tagged as theirs (`TIMED_AS`): `menu_open` went from 15116 to 4737 and
+`menu_read_save_slots` from 3477 to 27720 as the work moved between them. The
+runs copied to and from save memory are charged at the block move's rate, as
+the original moves them with it. No exception was needed; the two entries no
+movie reaches keep the default.
 
 ### Phase 3, the scene program: the rest of the jet bike race (`$7E:3B48`-`$7E:3F13`, `$7E:357B`, `$7E:4D0D`, `$7E:51D1`)
 

@@ -6,8 +6,11 @@
  * note, for every group whose members the party has, which of its techs the
  * party has learned (menu_tech_groups_listed, a bit a tech), and mark the
  * techs that heal and so can be used from the menus, and each member's next
- * single tech, the one still being learned (menu_tech_marks; both $FF:F813,
- * still the original's).
+ * single tech, the one still being learned (menu_tech_marks); they note each
+ * character's part in each double and triple tech (menu_tech_parts), and
+ * which of the triple techs the rocks give the party could do
+ * (menu_rock_techs_ready, worked out again whenever the menus' services
+ * change the party).
  *
  * A member's list of one kind is then every group of that kind the member is
  * one of, in the groups' order, and each group's techs learned, in theirs.
@@ -17,9 +20,13 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "menu/bridge.h"
 #include "menu/menu_data.h"
+#include "menu/opening.h"
 #include "menu/text.h"
 #include "original_effects.h"
+#include "port/machine.h"
+#include "ram.h"
 #include "vars.h"
 
 /* ---- A member's techs of a kind ---------------------------------------------------------------- */
@@ -107,9 +114,8 @@ void menu_list_techs(GameState *g, uint8_t character, MenuTechKind kind)
 /* ---- What a tech costs ------------------------------------------------------------------------- */
 
 /* The status record's accessory, and the two that cut a tech's cost; the
- * character in the record's first byte's low four bits; each character's
- * row of parts. */
-enum { ACCESSORY_AT = 0x2A, MP_HALVED = 0xA2, MP_QUARTERED = 0xA3, CHARACTER_IN_RECORD = 0x0F, PARTS_A_CHARACTER = 0x40 };
+ * character in the record's first byte's low four bits. */
+enum { ACCESSORY_AT = 0x2A, MP_HALVED = 0xA2, MP_QUARTERED = 0xA3, CHARACTER_IN_RECORD = 0x0F };
 
 static uint8_t half_rounded_up(uint8_t mp) { return (uint8_t)((mp >> 1) + (mp & 1)); }
 
@@ -132,7 +138,7 @@ MenuTechCost menu_tech_cost_for(GameState *g, uint8_t tech, MenuTechKind kind)
     uint16_t part = tech;
     if (kind != MENU_SINGLE_TECHS) {
         uint8_t character = (uint8_t)(menu_status_record_character(g) & CHARACTER_IN_RECORD);
-        part = menu_tech_parts(g, (unsigned)(character * PARTS_A_CHARACTER + tech));
+        part = menu_tech_parts(g, character, (unsigned)(tech - MENU_FIRST_DOUBLE_TECH));
     }
     uint8_t mp = cut_by_the_accessory(g, menu_tech_part_mp(g, part));
     set_menu_tech_cost_needed(g, mp);
@@ -202,4 +208,284 @@ void menu_draw_tech_row(GameState *g, uint16_t at, uint8_t tech, bool waiting)
     (void)menu_draw_string(g, menu_tech_name(g, tech), at, NAME_SETTINGS);
 }
 
-bool menu_tech_is_the_games(uint8_t tech) { return tech < MENU_TECH_MARKS_COUNT; }
+bool menu_tech_is_the_games(uint8_t tech, MenuTechKind kind)
+{
+    return tech < MENU_TECH_MARKS_COUNT && (kind == MENU_SINGLE_TECHS || tech >= MENU_FIRST_DOUBLE_TECH);
+}
+
+/* ---- As the menus open: the party's techs noted ------------------------------------------------- */
+
+/* Which characters the party doesn't have: a bit each, Crono's bit 7 to
+ * Magus's bit 1, as the groups' characters are kept. */
+enum { NO_CHARACTERS = 0xFE };
+
+static uint8_t characters_missing(const GameState *g)
+{
+    uint8_t missing = NO_CHARACTERS;
+    for (unsigned place = 0; place < MENU_PARTY_PLACES; place++) {
+        uint8_t member = menu_member_in_place(g, place);
+        if (!(member & MENU_NO_MEMBER))
+            missing &= (uint8_t)~menu_character_bit(g, member);
+    }
+    return missing;
+}
+
+static bool party_has_all_of(const GameState *g, uint8_t group, uint8_t missing)
+{
+    return (menu_tech_group_members(g, group) & missing) == 0;
+}
+
+/* A single tech, numbered from 1, eight a character from Crono's; the seven
+ * characters. */
+enum { SINGLE_TECHS_A_CHARACTER = 8, CHARACTERS = 7 };
+
+static bool single_tech_learned(const GameState *g, uint8_t tech)
+{
+    uint8_t index = (uint8_t)(tech - 1);
+    return (party_single_techs_learned(g, index / SINGLE_TECHS_A_CHARACTER)
+            & menu_character_bit(g, index % SINGLE_TECHS_A_CHARACTER)) != 0;
+}
+
+/* The single techs a rock's triple tech needs. */
+enum { TECHS_A_ROCK_NEEDS = 3 };
+
+/* How many of the rock's techs, from its first, are learned before the
+ * first that isn't. */
+static unsigned rock_techs_learned(const GameState *g, unsigned rock)
+{
+    unsigned learned = 0;
+    while (learned < TECHS_A_ROCK_NEEDS && single_tech_learned(g, menu_rock_tech_needs(g, rock, learned)))
+        learned++;
+    return learned;
+}
+
+/* What the original's search leaves in its cells: past the last rock, the
+ * characters missing, and from the last rock whose characters are all there,
+ * how many of its techs it still had to find learned and the last it looked
+ * at (less one). */
+static void leave_rock_search(GameState *g, uint8_t missing)
+{
+    set_menu_rock_tech_search_rock(g, MENU_ROCKS);
+    set_menu_rock_tech_search_missing(g, missing);
+    for (int rock = MENU_ROCKS - 1; rock >= 0; rock--) {
+        if (!party_has_all_of(g, (uint8_t)(MENU_FIRST_ROCK_GROUP + rock), missing))
+            continue;
+        unsigned learned = rock_techs_learned(g, (unsigned)rock);
+        unsigned last = learned < TECHS_A_ROCK_NEEDS ? learned : TECHS_A_ROCK_NEEDS - 1;
+        set_menu_rock_tech_search_techs_left(g, (uint8_t)(TECHS_A_ROCK_NEEDS - learned));
+        set_menu_rock_tech_search_tech(g, (uint8_t)(menu_rock_tech_needs(g, (unsigned)rock, last) - 1));
+        return;
+    }
+}
+
+// $FF:F958
+/* Which of the five triple techs the rocks give the party could do now: the
+ * tech's three characters in the party, each with the single tech it takes
+ * learned. */
+void menu_note_rock_techs(GameState *g)
+{
+    uint8_t missing = characters_missing(g);
+    for (unsigned rock = 0; rock < MENU_ROCKS; rock++) {
+        bool ready = party_has_all_of(g, (uint8_t)(MENU_FIRST_ROCK_GROUP + rock), missing)
+                     && rock_techs_learned(g, rock) == TECHS_A_ROCK_NEEDS;
+        set_menu_rock_techs_ready(g, rock, ready ? 1 : 0);
+    }
+    ORIGINAL_EFFECT(leave_rock_search(g, missing));
+}
+
+/* How many members the screens let the player choose among: the active
+ * ones, or all of them once the story lets the party be switched and
+ * nothing holds it as it is (the story's note at $BA, bit 0). */
+enum { PARTY_SWITCHED_FROM = 0x49, PARTY_HELD_NOTE = 0xBA, PARTY_HELD = 0x01 };
+
+static uint8_t members_reachable(const GameState *g)
+{
+    bool switchable = event_memory_byte(g, 0) >= PARTY_SWITCHED_FROM && !(event_memory_byte(g, PARTY_HELD_NOTE) & PARTY_HELD);
+    return switchable ? menu_member_count(g) : menu_active_members(g);
+}
+
+/* The techs that heal, which can be used from the menus: Marle's Aura, Cure
+ * and Cure 2, Robo's Cure Beam and Heal Beam, Frog's Slurp, Heal and Cure 2,
+ * and Ayla's Kiss. */
+static const uint8_t HEALING_TECHS[] = { 0x09, 0x0C, 0x0F, 0x1A, 0x1D, 0x21, 0x24, 0x27, 0x29 };
+
+static void mark_healing_techs(GameState *g)
+{
+    for (unsigned i = 0; i < sizeof HEALING_TECHS; i++)
+        set_menu_tech_marks(g, HEALING_TECHS[i], (uint8_t)(menu_tech_marks(g, HEALING_TECHS[i]) | HEALS));
+}
+
+/* The party's techs learned of a group: the characters' own, the doubles'
+ * and the triples' are kept apart. */
+enum { FIRST_DOUBLE_GROUP = 7, FIRST_TRIPLE_GROUP = 22 };
+
+static uint8_t group_techs_learned(const GameState *g, uint8_t group)
+{
+    if (group < FIRST_DOUBLE_GROUP)
+        return party_single_techs_learned(g, group);
+    if (group < FIRST_TRIPLE_GROUP)
+        return party_double_techs_learned(g, (unsigned)(group - FIRST_DOUBLE_GROUP));
+    return party_triple_techs_learned(g, (unsigned)(group - FIRST_TRIPLE_GROUP));
+}
+
+/* Every group whose characters are all in the party lists the techs the
+ * party has learned of it; the others keep what they listed before. */
+static void list_learned_techs(GameState *g, uint8_t missing)
+{
+    for (int group = MENU_TECH_GROUPS - 1; group >= 0; group--)
+        if (party_has_all_of(g, (uint8_t)group, missing))
+            set_menu_tech_groups_listed(g, (unsigned)group, group_techs_learned(g, (uint8_t)group));
+}
+
+/* A character learns its techs in order, its first in bit 7: how many it
+ * knows is how far its last one learned is from the first. */
+static uint8_t techs_known(uint8_t learned)
+{
+    uint8_t known = SINGLE_TECHS_A_CHARACTER;
+    while (known != 0 && !(learned & 1)) {
+        learned >>= 1;
+        known--;
+    }
+    return known;
+}
+
+/* The bits of a tech's marks the table's other use, the items' kinds,
+ * keeps. */
+enum { ITEM_KIND_BITS = 0x1E };
+
+/* Each character's next single tech, the one it is learning, is listed too,
+ * marked as such, and can't be used from the menus until it is learned; one
+ * whose locked techs aren't unlocked yet shows no more than its first few,
+ * and one who knows all eight has none to show. */
+static void list_techs_being_learned(GameState *g)
+{
+    uint8_t unlocked = party_techs_unlocked(g);
+    for (uint8_t character = 0; character < CHARACTERS; character++, unlocked >>= 1) {
+        uint8_t listed = menu_tech_groups_listed(g, character), known = techs_known(listed);
+        if (!(unlocked & 1) && known >= menu_techs_before_the_lock(g, character))
+            continue;
+        uint8_t next = menu_character_bit(g, known);
+        if (next == 0)
+            continue;
+        set_menu_tech_groups_listed(g, character, (uint8_t)(listed | next));
+        uint8_t tech = (uint8_t)(character * SINGLE_TECHS_A_CHARACTER + known + 1);
+        set_menu_tech_marks(g, tech, (uint8_t)((menu_tech_marks(g, tech) & ITEM_KIND_BITS) | BEING_LEARNED));
+    }
+}
+
+/* The parts table's columns: the double groups' techs, three a group, then
+ * the triple techs. */
+enum { DOUBLE_GROUPS = 15, TECHS_A_DOUBLE_GROUP = 3, TRIPLE_TECHS = 15, FIRST_TRIPLE_COLUMN = DOUBLE_GROUPS * TECHS_A_DOUBLE_GROUP };
+
+/* Each double tech's two characters take their parts in it. */
+static void note_double_tech_parts(GameState *g)
+{
+    for (uint8_t group = 0; group < DOUBLE_GROUPS; group++) {
+        uint8_t first = menu_double_tech_character(g, group, 0), second = menu_double_tech_character(g, group, 1);
+        for (unsigned tech = 0; tech < TECHS_A_DOUBLE_GROUP; tech++) {
+            unsigned column = group * TECHS_A_DOUBLE_GROUP + tech;
+            set_menu_tech_parts(g, first, column, menu_double_tech_part(g, group, tech, 0));
+            set_menu_tech_parts(g, second, column, menu_double_tech_part(g, group, tech, 1));
+        }
+    }
+}
+
+/* Each triple tech's three characters take the next three parts, in the
+ * order of their bits. */
+enum { CHARACTER_BITS = 8, FIRST_CHARACTER_BIT = 0x80 };
+
+static void note_triple_tech_parts(GameState *g)
+{
+    unsigned part = 0;
+    for (uint8_t tech = 0; tech < TRIPLE_TECHS; tech++) {
+        uint8_t characters = menu_tech_group_members(g, (uint8_t)(FIRST_TRIPLE_GROUP + tech));
+        for (uint8_t character = 0; character < CHARACTER_BITS; character++)
+            if (characters & (FIRST_CHARACTER_BIT >> character))
+                set_menu_tech_parts(g, character, FIRST_TRIPLE_COLUMN + tech, menu_triple_tech_part(g, part++));
+    }
+}
+
+/* What the original's noting of the parts leaves in its cells: the last
+ * double group's first character's row (its low byte taken by the triples'
+ * shifting, run out), the last triple tech's last character counted, the
+ * triples' parts placed, the groups and the last double's parts' start, and
+ * where the next column would be. */
+enum { PARTS_ROW_SHIFT = 6, DOUBLE_PARTS_A_GROUP = 6 };
+
+static uint8_t last_character_counted(uint8_t characters)
+{
+    uint8_t counted = 0;
+    while (characters != 0) {
+        characters = (uint8_t)(characters << 1);
+        counted++;
+    }
+    return counted;
+}
+
+static void leave_parts_noted(GameState *g)
+{
+    unsigned parts = 0;
+    for (uint8_t tech = 0; tech < TRIPLE_TECHS; tech++)
+        for (uint8_t characters = menu_tech_group_members(g, (uint8_t)(FIRST_TRIPLE_GROUP + tech)); characters != 0;
+             characters &= (uint8_t)(characters - 1))
+            parts++;
+    uint8_t last_triple = menu_tech_group_members(g, FIRST_TRIPLE_GROUP + TRIPLE_TECHS - 1);
+    set_menu_scratch_tech_parts_first_row(g, (uint16_t)((menu_double_tech_character(g, DOUBLE_GROUPS - 1, 0) << PARTS_ROW_SHIFT) & 0xFF00));
+    set_menu_scratch_tech_parts_second_row(g, (uint16_t)(last_character_counted(last_triple) << 8));
+    set_menu_scratch_tech_parts_placed(g, (uint16_t)parts);
+    set_menu_scratch_tech_parts_group(g, TRIPLE_TECHS);
+    set_menu_scratch_tech_parts_from(g, (DOUBLE_GROUPS - 1) * DOUBLE_PARTS_A_GROUP);
+    set_menu_tech_parts_column(g, RAM_MENU_TECH_PARTS + FIRST_TRIPLE_COLUMN + TRIPLE_TECHS);
+}
+
+// $FF:F813
+/* As the menus open: how many members the screens let the player choose
+ * among, and what of the party's techs they list -- the healing techs marked
+ * usable, the rocks' triple techs the party could do, the techs learned of
+ * every group whose characters are all in the party, each character's next
+ * single tech, and each character's part in each double and triple tech. */
+void menu_note_party_techs(GameState *g)
+{
+    set_menu_members_reachable(g, members_reachable(g));
+    mark_healing_techs(g);
+    menu_note_rock_techs(g);
+    list_learned_techs(g, characters_missing(g));
+    list_techs_being_learned(g);
+    note_double_tech_parts(g);
+    note_triple_tech_parts(g);
+    ORIGINAL_EFFECT(leave_parts_noted(g));
+}
+
+/* ---- The registered entries ---------------------------------------------------------------------- */
+
+// $FF:F813
+void menu_note_party_techs_entry(Snes *s)
+{
+    menu_note_party_techs(state_of(s));
+    m_rtl(s);
+}
+
+// $FF:F958
+/* Entered with any widths, which it puts back; it works on a page of its own
+ * and puts the caller's back. */
+void menu_note_rock_techs_entry(Snes *s)
+{
+    menu_note_rock_techs(state_of(s));
+    m_rtl(s);
+}
+
+/* The noting reads the party and its techs through a data bank on work
+ * RAM's, and the noting of the techs works on the menus' page, where it
+ * counts the triple techs' parts in a word whose high byte it never sets:
+ * 0 whenever the menus open. */
+bool menu_rock_techs_are_notable(Snes *s) { return s->cpu.db == MENU_DATA_BANK; }
+
+bool menu_party_techs_are_notable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_scratch_tech_parts_placed(state_of(s)) >> 8 == 0;
+    vars_peek(false);
+    return ok;
+}

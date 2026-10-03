@@ -1074,16 +1074,29 @@ rest waits, is [PLAN.md](PLAN.md).
     go;
   - the save screen's `menu_scratch_save_member_*` fields renamed for what
     they hold;
-  - the save code's list of what the party carries (`$FF:F813`) and each
-    member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which the
-    items' tables call, are the original's;
+  - each member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which
+    the items' tables call, are the original's;
   - what the three bytes at `$7E:2C53` the menus copy as they open are, and
     the story's bits the item lists read (`menu_story_items`,
     `menu_place_items`), is not worked out.
+- **What the save code's chunk left** (RECOMP.md, "Phase 3, menus: the save
+  code and the rest of bank `$FF`"):
+  - `$FF:FF3E`-`$FFF4`, a menu record's routine with a jump table at
+    `$FF:FFE2`, behind a return the analysis finds nothing reaching, is not
+    ported (bank `$FF`'s 10% left);
+  - no movie starts a New Game+ (`menu_load_carried_over`, and the load
+    screen's carry-on step with it) or reaches a character's sprite colours
+    (`menu_put_character_colours`), and the number tiles' and the gate's
+    drawing are interrupted on their only calls: fuzzing is their check, and
+    a movie through a New Game+ would add shadow mode's;
+  - a New Game+'s load calls the menus' services (`$C2:8004`: equip, fill HP,
+    fill MP) as the original's, leaving them A's high byte as scaffolding;
+    porting the equipping service would take it out;
+  - what the cartridge's count at save memory's `$1FE1`
+    (`SAVES_TIMES_FINISHED`) counts: the save moves it on when the game's
+    `times_finished` equals it, which doesn't read as a count of finishes.
 - **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
-  - the opening's and the load screen's call-outs into the save code in bank
-    `$FF` (the slot's check `$FF:F9C4`, the load `$FF:FAED`) and the new
-    game's state (`$C2:956E`);
+  - the load screen's call-out to the new game's state (`$C2:956E`);
   - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
     frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
     none mismatching), and no movie erases a slot: a movie that erases one on

@@ -5645,9 +5645,9 @@ name = "menu_build_items"
 at = "C2:9875"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0005-7E0005=00-00"]
 iterations = 500
-why = "the menus' page and data bank, the zero word 0 as the menus keep it; the inventory, the story's bytes, the location and the rest random (the save code's list and the members' figures after the tables are the original's, which read them too)"
+why = "the menus' page and data bank, the zero word 0 as the menus keep it, the high byte of the triple techs' parts count 0 (menu_note_party_techs's guard); the inventory, the story's bytes, the location, the party and its techs random (the members' figures after the tables are the original's, which read them too)"
 
 [[routine]]
 name = "menu_look_up_item"
@@ -5990,6 +5990,114 @@ state = "menus"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E005B-7E005B=00-00", "--fill", "7E005C-7E005C=43-43"]
 iterations = 2000
 why = "the menus' page and data bank, the effect's channel the first one ($4300) as the windows set it; the control and destination random, the guard taking those the video service knows"
+
+[[routine]]
+name = "menu_check_save_slot"
+at = "FF:F9C4"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02"]
+iterations = 2000
+why = "on the menus' page, one of the three slots (the guard's), the cartridge's saves as the state has them (two hold a game)"
+
+[[routine]]
+name = "menu_check_save_slot"
+variant = "clock"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0400", "--db", "7E", "--fill", "7E0479-7E0479=00-02"]
+iterations = 2000
+why = "on the clock's page, as the services' search at power-on calls it, one of the three slots"
+
+[[routine]]
+name = "menu_save_game"
+at = "FF:F9FB"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' zero word 0; the menus' page and data bank, one of the three slots; the game saved random"
+
+[[routine]]
+name = "menu_load_game"
+at = "FF:FAA3"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' zero word 0; the menus' page and data bank, one of the three slots, the cartridge's saves as the state has them"
+
+[[routine]]
+name = "menu_load_carried_over"
+at = "FF:FAED"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' zero word 0; the menus' page and data bank, one of the three slots; the inventory and the items' kinds random (the services that equip and fill HP and MP are the original's)"
+
+[[routine]]
+name = "menu_note_party_techs"
+at = "FF:F813"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0005-7E0005=00-00"]
+iterations = 2000
+why = "the menus' page and data bank, the high byte of the triple techs' parts count 0 (the guard's: it is whenever the menus open); the party, its techs, the story's bytes and the menus' tables random"
+
+[[routine]]
+name = "menu_note_rock_techs"
+at = "FF:F958"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the data bank on work RAM's (it works on a page of its own); the party and its techs random"
+
+[[routine]]
+name = "menu_build_number_tiles"
+at = "FF:F548"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' zero word 0; the menus' page and data bank; the buffers random (the tiles' last two planes keep what they held)"
+
+[[routine]]
+name = "menu_build_amount_digits"
+at = "FF:F7D9"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 2000
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_put_character_colours"
+at = "FF:F628"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0000-7E0000=00-06", "--fill", "7E0D15-7E0D15=00-EF"]
+iterations = 2000
+why = "the menus' page and data bank, one of the seven characters and a palette change the count has room for (the guard's); dimmed or not random"
+
+[[routine]]
+name = "menu_draw_gate_screen"
+at = "FF:F677"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 500
+why = "the menus' page and data bank; the swirl's graphics unpacked by the original's unpacker from the ROM (500 states: each unpacks them)"
+
+[[routine]]
+name = "menu_turn_gate_swirl"
+at = "FF:F716"
+subsystem = "menu"
+state = "menus"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00"]
+iterations = 2000
+why = "the menus' zero word 0; the menus' page and data bank; the screen's counts and the layer's scroll random"
 
 [[routine]]
 name = "menu_window_build_line_table"

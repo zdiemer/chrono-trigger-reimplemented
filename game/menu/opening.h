@@ -6,6 +6,11 @@
 #include "snes/system.h"
 #include "state.h"
 
+/* The party's nine places: three active, six waiting; a place without a
+ * member holds a negative byte. The character in a place. */
+enum { MENU_PARTY_PLACES = 9, MENU_NO_MEMBER = 0x80 };
+uint8_t menu_member_in_place(const GameState *g, unsigned place);
+
 /* The party's members as the menus list them (menu_members): the active
  * ones, then the waiting ones. */
 void menu_list_party(GameState *g);

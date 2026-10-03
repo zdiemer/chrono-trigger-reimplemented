@@ -2,7 +2,7 @@
  * shown on the load screen (menu/load_screen.c) as the cursor moves.
  *
  * As the menus open, each of the three slots is checked on the cartridge (by
- * the save code, $FF:F9C4, still the original's); a slot that holds a game
+ * the save code, menu/saves.c); a slot that holds a game
  * gets a summary ($7E:7600, save_slot_summaries): a record for each party
  * member -- the character, the start of its figures, its name -- and a header
  * -- how many times the game was saved, where the party is, its gold, the
@@ -450,9 +450,11 @@ enum { LOCATION_BITS = 0x01FF, MOST_TIMES_SAVED = 999, NO_GOLD_SHOWN = 0x80, EMP
 
 /* Where the slot the save code has just checked keeps its game, in the save
  * memory: the check leaves it for the summary's reading. */
-enum { SAVE_MEMORY_ON_THE_BUS = 0x6000, SAVED_GAME_BYTES = 0x800 };
+/* The span of a game the summary reads from, which the guard keeps in save
+ * memory. */
+enum { SUMMARY_SPAN = 0x800 };
 
-static uint16_t checked_game(const GameState *g) { return (uint16_t)(menu_slot_game_at(g) - SAVE_MEMORY_ON_THE_BUS); }
+static uint16_t checked_game(const GameState *g) { return saves_game_in_memory(menu_slot_game_at(g)); }
 
 static uint8_t saved_byte(Platform *pf, uint16_t game, uint16_t at) { return sv_read8(pf, PF_AT(0xC2D1C1), (uint16_t)(game + at)); }
 /* A member's place in the saved party: the original steps from the game's
@@ -700,9 +702,11 @@ void menu_read_slot_summary(Snes *s)
     m_rts(s);
 }
 
-/* The save code's check of a slot ($FF:F9C4, the original's) leaves its answer
- * in the menus' first cell: 0 for a slot that holds a game. */
-enum { CHECK_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, NO_FOURTH_ROW_YET = 0xFF };
+/* The save code's check of a slot leaves its answer in the menus' first
+ * cell, which nothing here reads again. */
+enum { NO_FOURTH_ROW_YET = 0xFF };
+
+static void leave_checked(GameState *g, SavedGameCheck check) { set_menu_scratch_slot_check(g, saves_check_answer(check)); }
 
 /* The flags before each slot's label and summary: a count's, not zero. */
 static void leave_counted(Snes *s) { menu_leave_load(s, 1); }
@@ -713,6 +717,7 @@ static void leave_counted(Snes *s) { menu_leave_load(s, 1); }
 void menu_read_save_slots(Snes *s)
 {
     GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++)
@@ -722,9 +727,11 @@ void menu_read_save_slots(Snes *s)
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++) {
         set_menu_save_slot_shown(g, slot);
         set_menu_save_slot_in_use(g, slot, 0);
-        if (!menu_call_long(s, 0xC2D16D, 0xFFF9C4, CHECK_IGNORES))
-            return;
-        bool holds_a_game = (uint8_t)menu_scratch_slot_check(g) == 0;
+        SavedGameCheck check = SAVED_GAME_NONE;
+        TIMED_AS(g, 0xFFF9C4, check = saves_check_slot(g, pf, slot));
+        set_menu_slot_game_at(g, saves_slot_on_the_bus(g, slot));
+        ORIGINAL_EFFECT(leave_checked(g, check));
+        bool holds_a_game = check == SAVED_GAME_HELD;
         ORIGINAL_EFFECT(leave_counted(s));
         if (holds_a_game) {
             set_menu_save_slot_in_use(g, slot, 1);
@@ -881,12 +888,10 @@ bool menu_chapter_label_is_drawable(Snes *s)
  * whose party holds characters (the save memory looked at where the bus has
  * it, without the machine's time), and with the menus' zero word 0: the gold
  * a summary hides is written from it. */
-enum { SAVE_MEMORY = 0x300000 };
-
 static bool saved_party_is_characters(Snes *s, uint16_t at)
 {
     for (unsigned row = 0; row < MEMBER_ROWS; row++) {
-        uint8_t member = snes_bus_peek(&s->bus, SAVE_MEMORY + SAVE_MEMORY_ON_THE_BUS + party_place((uint16_t)(at - SAVE_MEMORY_ON_THE_BUS), row));
+        uint8_t member = sv_peek8(m_platform(s), party_place(saves_game_in_memory(at), row));
         if (!(member & NO_MEMBER) && member >= MENU_PORTRAITS)
             return false;
     }
@@ -902,6 +907,6 @@ bool menu_slot_summary_is_readable(Snes *s)
     uint16_t at = menu_slot_game_at(g);
     bool zero = menu_zero(g) == 0;
     vars_peek(false);
-    return zero && at >= SAVE_MEMORY_ON_THE_BUS && (uint32_t)at + SAVED_GAME_BYTES <= SAVE_MEMORY_ON_THE_BUS + SAVE_SIZE
+    return zero && at >= SAVES_ON_THE_BUS && (uint32_t)at + SUMMARY_SPAN <= SAVES_ON_THE_BUS + SAVE_SIZE
            && saved_party_is_characters(s, at);
 }

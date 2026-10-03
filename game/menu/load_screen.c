@@ -19,9 +19,9 @@
  *   ask whether to erase it, and a yes spoils the slot's mark on the
  *   cartridge. No movie reaches it.
  *
- * Loading a game, and the state a new one starts from, are the save code's
- * and this file's; leaving the menus for the game is the menus' own exit
- * ($C2:8320), where the port stops. */
+ * Loading a game is the save code's (menu/saves.c), the state a new one
+ * starts from this file's and the original's ($C2:956E); leaving the menus
+ * for the game is the menus' own exit ($C2:8320), where the port stops. */
 #include "menu/load_screen.h"
 
 #include "charge.h"
@@ -345,7 +345,7 @@ static void show_question_label(GameState *g)
  * stereo (the settings' bit 3), the menus' frame count kept for the battle's
  * random numbers; then the menus' exit ($C2:8320), where the port stops. */
 enum { SOUND_OUTPUT = 0xF3, STEREO_SETTING = 0x08 };
-enum { DRIVER_IGNORES = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C };
+enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 enum { EXIT_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void leave_for_the_game(Snes *s)
@@ -363,14 +363,13 @@ static void leave_for_the_game(Snes *s)
 /* ---- The steps on the machine ------------------------------------------------------------------ */
 
 /* The steps are bridges: they run the menus' routines that make calls of
- * their own (the cursor's reading, the slot's showing, the sounds) as the
- * original's JSRs reach them, and call the save code and the new game's
+ * their own (the cursor's reading, the slot's showing, the sounds, a New
+ * Game+'s load) as the original's JSRs reach them, and call the new game's
  * state, still the original's. Where one of those routines saves P as it
  * starts, the flags the original has there are on the stack under the call
  * that follows, where shadow mode compares them, so each step leaves them
  * first, from the comparison or test the original has just made. */
-enum { NEW_GAME_STATE_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-       SAVE_CODE_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+enum { NEW_GAME_STATE_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void leave_compare(Snes *s, uint8_t a, uint8_t b) { menu_leave_compare(s, a, b); }
 static void leave_load(Snes *s, uint8_t v) { menu_leave_load(s, v); }
@@ -408,14 +407,32 @@ static bool show_and_tick(Snes *s, uint32_t show_at, uint32_t tick_at)
     return tick(s, tick_at);
 }
 
-/* A slot chosen: its game loaded by the save code's routine for it, from the
- * JSL at `site`; then out to the game. */
-static void load_and_leave(Snes *s, uint8_t slot, uint32_t site, uint32_t loader)
+/* A slot chosen: the game goes on in it. */
+static void choose_slot(GameState *g, uint8_t slot)
 {
-    GameState *g = state_of(s);
     set_menu_save_slot_shown(g, slot);
     set_save_slot_chosen(g, slot);
-    if (!menu_call_long(s, site, loader, SAVE_CODE_READS))
+}
+
+/* The load comes back with A's high byte clear, which the sound command's
+ * call carries on to the menus' exit. */
+static void leave_loaded(Snes *s) { s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF); }
+
+/* Its game loaded; then out to the game. */
+static void load_and_leave(Snes *s, uint8_t slot)
+{
+    GameState *g = state_of(s);
+    choose_slot(g, slot);
+    TIMED_AS(g, 0xFFFAA3, saves_load_game(g, m_platform(s), slot));
+    ORIGINAL_EFFECT(leave_loaded(s));
+    leave_for_the_game(s);
+}
+
+/* A New Game+ carries on from the slot's game; then out to the game. */
+static void carry_on_and_leave(Snes *s, uint8_t slot)
+{
+    choose_slot(state_of(s), slot);
+    if (!menu_run_long(s, 0xC2E6D8, 0xFFFAED, menu_load_carried_over))
         return;
     leave_for_the_game(s);
 }
@@ -473,7 +490,7 @@ void menu_choose_on_load_screen(Snes *s)
     menu_set_widths(s, true, true);
     slot = menu_cursor_index(g);
     if (slot < FOURTH_ROW)
-        load_and_leave(s, slot, 0xC2E657, 0xFFFAA3);
+        load_and_leave(s, slot);
     else
         start_new_game(s);
 }
@@ -517,7 +534,7 @@ void menu_choose_game_to_carry_on_from(Snes *s)
     menu_set_widths(s, true, true);
     uint8_t slot = menu_cursor_index(g);
     if (slot < FOURTH_ROW) {
-        load_and_leave(s, slot, 0xC2E6D8, 0xFFFAED);
+        carry_on_and_leave(s, slot);
         return;
     }
     set_save_slot_chosen(g, slot_for_a_new_game(g));
@@ -665,7 +682,6 @@ void menu_draw_slot_window(Snes *s)
  * with a game and summaries whose members are characters (menu/save_screen.c),
  * the sounds' cells, and room in the upload queue for what a step queues. */
 enum { QUEUE_BYTES = 0x100, MOST_UPLOADS_A_STEP = 6, MOST_UPLOADS_OPENING = 8 };
-enum { SAVE_MEMORY = 0x306000 };
 
 static bool queue_takes(Snes *s, unsigned uploads)
 {
@@ -730,14 +746,14 @@ bool menu_load_screen_draws(Snes *s)
     if (!menu_on_page_work_ram(s) || !queue_takes(s, MOST_UPLOADS_OPENING))
         return false;
     vars_peek(true);
-    bool ok = snes_bus_peek(&s->bus, SAVE_MEMORY + SAVES_LAST_SLOT) <= FOURTH_ROW && menu_save_slots_can_show(state_of(s));
+    bool ok = sv_peek8(m_platform(s), SAVES_LAST_SLOT) <= FOURTH_ROW && menu_save_slots_can_show(state_of(s));
     vars_peek(false);
     return ok;
 }
 
 /* A slot's window is one of the three rows', and the colours it loads can be
  * counted as a change (menu/windows.c). The guards look at the save memory
- * where the bus has it, without the machine's time. */
+ * without the machine's time. */
 bool menu_slot_window_is_drawable(Snes *s)
 {
     if (!menu_on_page_work_ram(s) || !menu_palette_change_counts(s))

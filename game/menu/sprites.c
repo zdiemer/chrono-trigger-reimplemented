@@ -38,6 +38,7 @@
 #include "menu/object.h"
 #include "menu/objects.h"
 #include "menu/vram.h"
+#include "menu/windows.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/native.h"
@@ -833,6 +834,43 @@ static void put_colours(GameState *g, unsigned record, uint16_t from)
         set_menu_palette(g, first + i, (uint16_t)(menu_sprite_colour_byte(g, at) | menu_sprite_colour_byte(g, (uint16_t)(at + 1)) << 8));
     }
     ORIGINAL_EFFECT(charge_block_move(g, 2 * SPRITE_COLOURS));
+}
+
+/* A character's sprite colours ($FF:F628): the twelve its sprites have,
+ * in the character's own sprite palette (the second on, a character each),
+ * at half their brightness where the screen dims the characters it hasn't
+ * chosen. The character's sprite is its colours' first entry. */
+enum { FIRST_CHARACTER_PALETTE = 1, CHARACTER_BITS = 7, HALF_EACH_CHANNEL = 0x3DEF };
+
+static uint16_t sprite_colour(const GameState *g, uint16_t at)
+{
+    return (uint16_t)(menu_sprite_colour_byte(g, at) | menu_sprite_colour_byte(g, (uint16_t)(at + 1)) << 8);
+}
+
+static uint16_t dimmed(uint16_t colour) { return (uint16_t)((colour >> 1) & HALF_EACH_CHANNEL); }
+
+/* The original dims the colours one by one, which leaves its count of them
+ * run out in its cell, and moves them in undimmed with a block move. */
+static void leave_colours_put(GameState *g, bool dim)
+{
+    if (dim)
+        set_menu_scratch_dimmed_colours_left(g, 0);
+    else
+        charge_block_move(g, 2 * SPRITE_COLOURS);
+}
+
+// $FF:F628
+void menu_put_character_colours(GameState *g, uint8_t character, bool dim)
+{
+    set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
+    uint8_t which = (uint8_t)(character & CHARACTER_BITS);
+    unsigned first = SPRITE_PALETTES + (FIRST_CHARACTER_PALETTE + which) * PALETTE_COLOURS + 1;
+    uint16_t from = menu_sprite_table_word(g, (uint16_t)(which * 2 + menu_sprite_colours_table(g)));
+    for (unsigned i = 0; i < SPRITE_COLOURS; i++) {
+        uint16_t colour = sprite_colour(g, (uint16_t)(from + 2 * i));
+        set_menu_palette(g, first + i, dim ? dimmed(colour) : colour);
+    }
+    ORIGINAL_EFFECT(leave_colours_put(g, dim));
 }
 
 /* Where a record's packed graphics are unpacked to: $800 bytes a record. */
@@ -1684,6 +1722,29 @@ bool menu_record_sprites_are_loadable(Snes *s)
         return false;
     vars_peek(true);
     bool ok = opening_records_fit(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+/* The character in the caller's first cell; the fourth nonzero dims it. X is
+ * the caller's, kept. */
+// $FF:F628
+void menu_put_character_colours_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    menu_put_character_colours(g, menu_scratch_colours_character(g), menu_scratch_colours_dimmed(g) != 0);
+    m_rtl(s);
+}
+
+/* The colours go in one of the seven characters' palettes, on the menus'
+ * page with the data bank on work RAM's, and the change can be counted
+ * (menu/windows.c). */
+bool menu_character_colours_are_puttable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s) || !menu_palette_change_counts(s))
+        return false;
+    vars_peek(true);
+    bool ok = (menu_scratch_colours_character(state_of(s)) & CHARACTER_BITS) < CHARACTER_BITS;
     vars_peek(false);
     return ok;
 }
