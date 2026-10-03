@@ -717,6 +717,35 @@ rest waits, is [PLAN.md](PLAN.md).
   `menu_choose_tech`), which a calibration of the empty member row's list
   alone would take back.
 
+- **What the field's frame and loading review left** (merged with power-on
+  and the field's frame; none blocking): scaffolding written through
+  accessors named for another use (`battle_start.c` and `battle_return.c`
+  write the screen corner through `set_field_own_tile_x/y`, the enemy's kind
+  through `set_field_direction`) -- name the second use in the map or use
+  `original_cell8`; `location_description_at` takes a byte offset (take the
+  location, return the record); the dialog states are local to `location.c`
+  while `battle_start.c` writes a bare 0 in a near-twin of
+  `close_the_dialog_for_now` (one dialog operation in the header);
+  `screen_corner` is in `battle_start.c` and `battle_return.c`, and
+  `refresh()` in `requests.c` and `screen_effects.c`; BG3's tiles at VRAM
+  `0x5000` and the bank `$7F` buffers (`0x7F5080`, `0x7F6000`, `0x7F7000`)
+  are literals, and `main_loop.c`'s `power_on_clears` uses raw ranges;
+  `location.c` tests `field_map_has_no_bg3_set(g) == 0` where a bool query
+  wants to sit beside `field_map_names_a_bg3_set`; `palettes.c`'s
+  `SlotLooked` shapes only scaffolding, and `slot << 1`/`>> 1` is an
+  unnamed palette encoding; `field_kept_party_script_tiles` packs `y<<8|x` by
+  hand; `battle_return.c` names `0xC00715` bare; `console_install_*_handler`
+  takes a ROM address where a later target wants a handler identity.
+  `field_walk_the_leader`'s vblank-tail timing exception (11.6% of calls) has
+  a real cause, the step that recentres the screen: give that path its own
+  `charge_as` in `walk.c` and drop the exception.
+- **Shadow mode can't see a held-over native routine.** The field's main
+  loop once stayed suspended across every frame's end, and later stacked
+  eight deep when the original's location change reset the stack under it;
+  shadow mode passed both, and only the long routes found them, as a hang
+  with no message. `ct_dev` and `ct_drive` should warn when `native_suspended`
+  stays above 0 for many frames or an entry nests inside itself.
+
 - **What the screen effects' review left** (merged with field's
   screen-effects chunk; none blocking): `draw_circle` and
   `draw_the_searchlight` hand `scene_circle_draw`/`field_draw_window_shape`
