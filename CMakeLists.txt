@@ -228,6 +228,7 @@ add_library(ct_game STATIC
   game/battle/inventory.c
   game/battle/party_work.c
   game/battle/frame.c
+  game/battle/from_field.c
   game/battle/main_loop.c
   game/battle/member_turn.c
   game/battle/enemy_movement.c
@@ -237,6 +238,7 @@ add_library(ct_game STATIC
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c
+  game/battle/opening.c
   game/battle/positions.c
   game/battle/random.c
   game/battle/reset.c

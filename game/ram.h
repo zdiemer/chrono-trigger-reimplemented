@@ -3723,6 +3723,9 @@
 /* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
+/* The byte after battle_frame_pending, which the battle's start clears with it; nothing reads it */
+#define RAM_BATTLE_FRAME_PENDING_NEXT 0x7E009Fu
+#define RAM_BATTLE_FRAME_PENDING_NEXT_DP 0x9Fu /* page battle */
 /* Nonzero when the transfer described at $9EEA is to be made at the next vblank; cleared once it
  * is */
 #define RAM_BATTLE_TRANSFER_PENDING 0x7E00A0u
@@ -3766,6 +3769,9 @@
 #define RAM_BATTLE_DIVISION_COUNT 8u
 #define RAM_BATTLE_DIVISION_STRIDE 0x01u
 #define RAM_BATTLE_DIVISION_DP 0xB1u         /* page battle */
+/* Set to $0F as the battle starts; nothing reads it */
+#define RAM_BATTLE_ENTRY_MARK 0x7E00B9u
+#define RAM_BATTLE_ENTRY_MARK_DP 0xB9u       /* page battle */
 /* Long pointers the battle's routines read the ROM through, each routine its own: a frame's tile
  * list ($BA) and the offset of the object's graphics ($BD), an enemy's frame list ($C0) and
  * delay list ($C3) [12 x $1 bytes, by byte] */
@@ -4141,6 +4147,19 @@
 #define RAM_BATTLE_SCRIPT_POINTERS 0x7E5DBDu
 #define RAM_BATTLE_SCRIPT_POINTERS_COUNT 16u
 #define RAM_BATTLE_SCRIPT_POINTERS_STRIDE 0x04u
+/* Set for the party's poses at the battle's opening, clear for the victory's and the defeat's;
+ * $C1:369A tests it where a member's poses run out, going on the same way either way */
+#define RAM_BATTLE_PARTY_SCENE_OPENING 0x7E5DDDu
+/* Nonzero to have the party's poses ($C1:369A) pose a knocked-out member too (the defeat); 0
+ * leaves it lying */
+#define RAM_BATTLE_PARTY_SCENE_POSES_ALL 0x7E5DDEu
+/* Where the party's poses at the battle's opening or close start in each member's frame and
+ * delay lists (an animation times four: $30 the opening, $28 the victory, $20 the defeat, 0 for
+ * a member sitting out), which $C1:35DD takes them from; the script channels' bytes, which no
+ * script runs over then [3 x $2 bytes, by party member] */
+#define RAM_BATTLE_PARTY_SCENE_ANIMATION 0x7E5DF1u
+#define RAM_BATTLE_PARTY_SCENE_ANIMATION_COUNT 3u
+#define RAM_BATTLE_PARTY_SCENE_ANIMATION_STRIDE 0x02u
 /* Each animation script channel's wait counter [16 x $1 bytes, by script channel] */
 #define RAM_BATTLE_SCRIPT_WAITS 0x7E5DFDu
 #define RAM_BATTLE_SCRIPT_WAITS_COUNT 16u
@@ -4872,6 +4891,9 @@
 #define RAM_BATTLE_MEMBER_SITTING_OUT 0x7EA09Bu
 #define RAM_BATTLE_MEMBER_SITTING_OUT_COUNT 11u
 #define RAM_BATTLE_MEMBER_SITTING_OUT_STRIDE 0x01u
+/* Bit 0 of the story's battle rules ($7F:00BA): some members sit the fight out
+ * (battle_member_sitting_out); kept as the battle starts, and read by nothing after */
+#define RAM_BATTLE_SOME_SIT_OUT 0x7EA0A6u
 /* Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; bit 0
  * ORed in at the battle's start when an enemy in it keeps the party from running away,
  * $CC:ECAA); bit 0 changes the menu's first command ($C1:12BC), and any set keeps the status

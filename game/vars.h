@@ -5422,6 +5422,10 @@ void set_battle_effect_enemy(GameState *g, uint16_t v);
 uint8_t battle_frame_pending(const GameState *g);
 void set_battle_frame_pending(GameState *g, uint8_t v);
 
+/* The byte after battle_frame_pending, which the battle's start clears with it; nothing reads it */
+uint8_t battle_frame_pending_next(const GameState *g);
+void set_battle_frame_pending_next(GameState *g, uint8_t v);
+
 /* Nonzero when the transfer described at $9EEA is to be made at the next vblank; cleared once it
  * is */
 uint8_t battle_transfer_pending(const GameState *g);
@@ -5467,6 +5471,10 @@ enum { BATTLE_DIVISION_COUNT = 8 };   /* by byte: the dividend, a word ($B1), th
  * the quotient and remainder */
 uint8_t battle_division(const GameState *g, unsigned i);
 void set_battle_division(GameState *g, unsigned i, uint8_t v);
+
+/* Set to $0F as the battle starts; nothing reads it */
+uint8_t battle_entry_mark(const GameState *g);
+void set_battle_entry_mark(GameState *g, uint8_t v);
 
 enum { BATTLE_DATA_POINTERS_COUNT = 12 };   /* by byte */
 /* Long pointers the battle's routines read the ROM through, each routine its own: a frame's tile
@@ -5977,6 +5985,24 @@ enum { BATTLE_SCRIPT_POINTERS_COUNT = 16 };   /* by script channel */
 /* Each animation script channel's program pointer (24-bit) */
 uint32_t battle_script_pointers(const GameState *g, unsigned channel);
 void set_battle_script_pointers(GameState *g, unsigned channel, uint32_t v);
+
+/* Set for the party's poses at the battle's opening, clear for the victory's and the defeat's;
+ * $C1:369A tests it where a member's poses run out, going on the same way either way */
+uint8_t battle_party_scene_opening(const GameState *g);
+void set_battle_party_scene_opening(GameState *g, uint8_t v);
+
+/* Nonzero to have the party's poses ($C1:369A) pose a knocked-out member too (the defeat); 0
+ * leaves it lying */
+uint8_t battle_party_scene_poses_all(const GameState *g);
+void set_battle_party_scene_poses_all(GameState *g, uint8_t v);
+
+enum { BATTLE_PARTY_SCENE_ANIMATION_COUNT = 3 };   /* by party member */
+/* Where the party's poses at the battle's opening or close start in each member's frame and
+ * delay lists (an animation times four: $30 the opening, $28 the victory, $20 the defeat, 0 for
+ * a member sitting out), which $C1:35DD takes them from; the script channels' bytes, which no
+ * script runs over then */
+uint16_t battle_party_scene_animation(const GameState *g, unsigned member);
+void set_battle_party_scene_animation(GameState *g, unsigned member, uint16_t v);
 
 enum { BATTLE_SCRIPT_WAITS_COUNT = 16 };   /* by script channel */
 /* Each animation script channel's wait counter */
@@ -7091,6 +7117,11 @@ enum { BATTLE_MEMBER_SITTING_OUT_COUNT = 11 };   /* by battle slot */
  * with no weak pose; the enemies' entries stay 0 */
 uint8_t battle_member_sitting_out(const GameState *g, unsigned slot);
 void set_battle_member_sitting_out(GameState *g, unsigned slot, uint8_t v);
+
+/* Bit 0 of the story's battle rules ($7F:00BA): some members sit the fight out
+ * (battle_member_sitting_out); kept as the battle starts, and read by nothing after */
+uint8_t battle_some_sit_out(const GameState *g);
+void set_battle_some_sit_out(GameState *g, uint8_t v);
 
 /* Flags the fight sets at its start (bit 1 from bit 1 of $7F:00BA, inverted, $CF:FBDE; bit 0
  * ORed in at the battle's start when an enemy in it keeps the party from running away,

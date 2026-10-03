@@ -390,6 +390,43 @@ static inline void m_return_to_interrupted_bank_first(Snes *s)
     m_rti(s);
 }
 
+/* A routine reached by a long call that keeps its caller's registers on the
+ * stack while it runs, flags first: P, the data bank, D, then 16-bit A, X and
+ * Y (PHP, REP #$30, PHB, PHD, PHA, PHX, PHY), leaving 16-bit registers; and
+ * gives them back and returns (PLY and PLX at the index width it has then,
+ * then 16-bit A, D, the data bank and P, and RTL). */
+static inline void m_save_caller_registers(Snes *s)
+{
+    m_push8(s, s->cpu.p);
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_push8(s, s->cpu.db);
+    m_push16(s, s->cpu.d);
+    m_push16(s, s->cpu.a);
+    m_push16(s, s->cpu.x);
+    m_push16(s, s->cpu.y);
+}
+
+static inline void m_return_to_caller_long(Snes *s)
+{
+    if (m_x8(s)) {
+        s->cpu.y = m_pull8(s);
+        s->cpu.x = m_pull8(s);
+    } else {
+        s->cpu.y = m_pull16(s);
+        s->cpu.x = m_pull16(s);
+    }
+    m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
+    s->cpu.a = m_pull16(s);
+    s->cpu.d = m_pull16(s);
+    s->cpu.db = m_pull8(s);
+    s->cpu.p = m_pull8(s);
+    if (m_x8(s)) {
+        s->cpu.x &= 0xFF;
+        s->cpu.y &= 0xFF;
+    }
+    m_rtl(s);
+}
+
 /* An MVN of `bytes` bytes (at least 1) from src_bank:from to dst_bank:to,
  * with the registers it leaves: X and Y past the ends, A $FFFF, the data bank
  * dst_bank. */

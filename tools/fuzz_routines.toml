@@ -9498,6 +9498,42 @@ args = ["--d", "0000", "--db", "7E", "--fill", "7EA21F-7EA21F=00-0A"]
 why = "the scheduler's place on a combatant; the guard refuses one past them"
 
 [[routine]]
+name = "battle_take_effect_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0080-7E0080=00-07", "--fill", "7E0081-7E0081=00-00"]
+why = "an effect in the stepping's cell, as the effects' loop leaves it; the guard refuses one past them"
+
+[[routine]]
+name = "battle_party_faces_the_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9870-7E9871=00-0A", "--fill", "7E9873-7E9873=00-0A"]
+why = "the setup's end as its wait for the window leaves it, A's high byte clear; the search's other combatants and its last find on combatants, as the guard takes them"
+
+[[routine]]
+name = "battle_update_combatant"
+variant = "comes_back"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "X=0000-0100/80", "--range", "Y=0000-0002", "--fill", "7EAF0A-7EAF0C=00-06", "--fill", "7E5E30-7E5E31=00-00", "--fill", "7E5EB0-7E5EB1=00-00", "--fill", "7E5F30-7E5F31=00-00", "--fill", "7E5E4F-7E5E4F=80-FF", "--fill", "7E5ECF-7E5ECF=80-FF", "--fill", "7E5F4F-7E5F4F=80-FF", "--stop-at-call", "C1AC57"]
+why = "a party member present with no HP left that comes back once, up to the showing (a sibling, which waits for frames): ct_fuzz has no runtime to run it as C, so the call is a real one, declaring nothing, and X, Y and the flags it doesn't read differ there; memory is the comparison"
+
+[[routine]]
+name = "battle_start_from_field"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--stop-at-call", "CD0000"]
+why = "from any state the field calls it in, up to the battle screen's setup, which waits for frames"
+
+[[routine]]
+name = "battle_return_to_field"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E2980-7E2982=00-06", "--stop-at-call", "CFFCFB"]
+why = "the battle's last step as it leaves the machine, A's high byte clear, with characters in the party as the guard takes them; up to the first frame waited for"
+
+[[routine]]
 name = "battle_update_animation_positions"
 subsystem = "battle"
 state = "battle"
@@ -10660,6 +10696,7 @@ name = "battle_enemy_draw_one_of_four"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--fill", "7EB252-7EB252=00-07", "--fill", "7EAEC8-7EAEC8=00-07", "--fill", "7EB18B-7EB18B=00-0A", "--fill", "7EB1D3-7EB1D3=8D-CB", "--fill", "7EB274-7EB274=8D-CB", "--fill", "7EB1D5-7EB1D5=8D-CB", "--fill", "7EB1D7-7EB1D7=8D-CB", "--fill", "7EB1D9-7EB1D9=8D-CB", "--fill", "7EB1DB-7EB1DB=8D-CB", "--fill", "7EB1DD-7EB1DD=8D-CB", "--fill", "7EB1DF-7EB1DF=8D-CB", "--fill", "7EB1E1-7EB1E1=8D-CB", "--fill", "7EB1E3-7EB1E3=8D-CB", "--fill", "7E9870-7E9871=00-0A", "--fill", "7EAECB-7EAECB=00-0B", "--fill", "7EAED8-7EAED8=00-0A", "--range", "A=0000-00FF"]
+iterations = 80000
 why = "an enemy at work and acting, an actor, and the script read and the actions kept somewhere in the scripts, as the guard takes them; the candidates counted, the condition's target and the search's other two combatants as the game leaves them; the rest of the battle's state at random"
 
 [[routine]]

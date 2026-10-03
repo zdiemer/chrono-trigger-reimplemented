@@ -775,43 +775,32 @@ CHOICE_ENTRY(battle_enemy_forgive_block, FORGIVE, ACTION_CHANGE_INTO)
 CHOICE_ENTRY(battle_enemy_note_number, NOTE_NUMBER, ACTION_LEAVE)
 CHOICE_ENTRY(battle_enemy_need_beaten, NEED_BEATEN, ACTION_BRING_BACK)
 
-/* The draw doesn't return: it drops its own return address and goes on with
- * the choosing's loop at $C1:8C90 ($C1:8C63's, battle/enemy_scripts.c), with
- * A's high byte clear, which the loop indexes with. */
-enum { CHOOSING_GOES_ON = 0xC18C90 };
-
-/* On its way it leaves the place the script is read at wrong, which the loop
- * puts right at once: the byte of the last action it stepped over, or, where
- * it drew the first, the word the random draw leaves in X (the long
- * division's quotient cell, battle/random.c). */
-enum { QUOTIENT_CELL = 4 };
-
-static uint16_t place_left_by_draw(const GameState *g, ScriptPlace at, uint8_t quarter)
-{
-    if (quarter == 0)
-        return (uint16_t)(battle_wide_math(g, QUOTIENT_CELL) | battle_wide_math(g, QUOTIENT_CELL + 1) << 8);
-    ScriptPlace place = (ScriptPlace)(at + 1);
-    for (uint8_t q = 1; q < quarter; q++)
-        place = (ScriptPlace)(place + enemy_action_length(g, enemy_script_byte(g, place)));
-    return enemy_script_byte(g, place);
-}
-
+/* The draw doesn't return: it drops its own return address into the
+ * choosing's dispatch ($C1:8C63's, battle/enemy_scripts.c) and goes on with
+ * the choosing from the action it drew, returning for it to its caller with
+ * what the choosing leaves in A. */
 void battle_enemy_draw_one_of_four(Snes *s)
 {
     GameState *g = state_of(s);
     ScriptChoosing c = enemy_choosing_in_cells(g);
-    ScriptPlace at = c.place;
-    DrawnAction drawn = enemy_draw_one_of_four(g, at);
-    c.actions_from = drawn.place;
-    c.place = place_left_by_draw(g, at, drawn.quarter);
+    DrawnAction drawn = enemy_draw_one_of_four(g, c.place);
+    (void)m_pull16(s);
+    TIMED_AS(g, 0xC18C63, enemy_choose_after_draw(g, &c, drawn));
     enemy_hand_back_choosing(g, &c);
-    s->cpu.y = m_pull16(s);
-    s->cpu.x = c.place;
-    s->cpu.a = battle_action_pose_kind(g);
-    m_stop_at_own(s, CHOOSING_GOES_ON, DC_AL | DC_X | DC_Y | DC_FLAGS);
+    s->cpu.a = enemy_choosing_result(g, c.enemy);
+    m_rts(s);
 }
 
-bool battle_enemy_draw_one_of_four_ready(Snes *s) { return battle_script_entry_ready(s, TAKES_ACTION, ACTION_ONE_OF_FOUR); }
+/* The script is read at the draw, as the choosing always has it there: the
+ * guard then sees that the four it draws among are actions the table has. */
+bool battle_enemy_draw_one_of_four_ready(Snes *s)
+{
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool at_the_draw = enemy_script_byte(g, battle_script_place(g)) == ACTION_ONE_OF_FOUR;
+    vars_peek(false);
+    return at_the_draw && battle_script_entry_ready(s, TAKES_ACTION, ACTION_ONE_OF_FOUR);
+}
 
 void battle_enemy_record_action(Snes *s)
 {

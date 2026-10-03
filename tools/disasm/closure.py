@@ -213,38 +213,50 @@ def check_c5(an) -> Check:
     return c
 
 
-def check_c6(an) -> Check:
-    c = Check("C6 reachability", True)
+def _callees(an):
+    """Each context's callees: the contexts its instructions call or jump to."""
     by_pc = {}
     for key, ctx in an.contexts.items():
         for pc in ctx.insns:
             by_pc.setdefault(pc, []).append(key)
-    reached = set()
-    work = [k for k, ctx in an.contexts.items() if ctx.kinds & ROOT_KINDS]
     callees = {}
     for key, ctx in an.contexts.items():
         for site in ctx.callers:
             for caller in by_pc.get(site, ()):
                 callees.setdefault(caller, []).append(key)
+    return callees
+
+
+def _reach(work, callees):
+    reached = set()
+    work = list(work)
     while work:
         k = work.pop()
         if k in reached:
             continue
         reached.add(k)
         work += callees.get(k, [])
+    return reached
+
+
+def reached_code(an) -> set:
+    """The instructions (their addresses) of the contexts reachable from the
+    roots (vectors, hints other than `unreached`, coverage, patches): the code
+    something in the game runs, which an `unreached` entry's alone isn't."""
+    reached = _reach((k for k, ctx in an.contexts.items() if ctx.kinds & ROOT_KINDS), _callees(an))
+    return {pc for k in reached for pc in an.contexts[k].insns}
+
+
+def check_c6(an) -> Check:
+    c = Check("C6 reachability", True)
+    callees = _callees(an)
+    reached = _reach((k for k, ctx in an.contexts.items() if ctx.kinds & ROOT_KINDS), callees)
     code_reached = {pc for k in reached for pc in an.contexts[k].insns}
     only_unreached = set(an.code) - code_reached
     # a context nothing reaches is fine only when an `unreached` entry starts it, or
     # when it is called from such code
     starts = {k for k, ctx in an.contexts.items() if "unreached" in ctx.kinds}
-    closed = set()
-    work = list(starts)
-    while work:
-        k = work.pop()
-        if k in closed:
-            continue
-        closed.add(k)
-        work += callees.get(k, [])
+    closed = _reach(starts, callees)
     orphans = [k for k in an.contexts if k not in reached and k not in closed]
     c.counts = {"instructions": len(an.code), "reachable from the roots": len(code_reached & set(an.code)),
                 "only from `unreached` entries": len(only_unreached), "`unreached` entries": len(starts),

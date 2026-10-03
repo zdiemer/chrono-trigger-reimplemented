@@ -84,9 +84,11 @@ bool effect_modifier_is_charm_chance(const GameState *g, uint8_t modifier);
 
 /* What a status's timer does to a combatant (battle/status_timers.c), put
  * where the action's showing shows it: poison's damage and the MP regained
- * shown as numbers over it, and a point of HP lost recorded without one. */
+ * shown as numbers over it, and a point of HP lost recorded without one; and
+ * the HP a member that comes back once regains (battle/combatants.c). */
 void effect_show_status_damage(GameState *g, uint8_t slot, uint16_t damage);
 void effect_show_magic_regained(GameState *g, uint8_t slot, uint16_t magic);
+void effect_show_hp_regained(GameState *g, uint8_t slot, uint16_t hp);
 void effect_record_status_damage(GameState *g, uint8_t slot, uint16_t damage);
 
 /* ---- The pieces the kinds share -------------------------------------------------------------- */

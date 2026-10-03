@@ -514,19 +514,19 @@ static const ActionTurnRow turns[ACTION_KINDS] = {
 };
 
 /* The action's dispatch, which the original makes with the action doubled in
- * X and A: an action past the table (none in the scripts) is the original's
- * from there. */
+ * X and A. The scripts hold no action past the table, and the turn's guard
+ * (battle_enemy_turn_ready) takes none: the original would take a word past
+ * its table for a routine. One would do nothing here. */
 enum { DISPATCH = 0xC18D88 };
+
+static const ActionTurnRow no_turn = { battle_enemy_no_turn, 0xC19B46 };
 
 static bool carry_out_action(Snes *s, uint8_t action)
 {
     s->cpu.x = (uint8_t)(action * 2);
     s->cpu.a = (uint8_t)(action * 2);
-    if (action >= ACTION_KINDS) {
-        m_stop_at_own(s, DISPATCH, DC_Y | DC_FLAGS);
-        return false;
-    }
-    return battle_run(s, DISPATCH, turns[action].routine, turns[action].entry);
+    const ActionTurnRow *row = action < ACTION_KINDS ? &turns[action] : &no_turn;
+    return battle_run(s, DISPATCH, row->routine, row->entry);
 }
 
 /* The action shown, from the turn's JSR at $C1:8E47. */

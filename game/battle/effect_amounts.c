@@ -179,6 +179,11 @@ void effect_show_magic_regained(GameState *g, uint8_t slot, uint16_t magic)
     status_amount(g, slot, magic, NUMBER_MP_RESTORED, DAMAGE_HEALS | DAMAGE_TO_MP);
 }
 
+void effect_show_hp_regained(GameState *g, uint8_t slot, uint16_t hp)
+{
+    status_amount(g, slot, hp, NUMBER_HP_RESTORED, DAMAGE_HEALS);
+}
+
 void effect_record_status_damage(GameState *g, uint8_t slot, uint16_t damage)
 {
     set_battle_effect_amount(g, damage);

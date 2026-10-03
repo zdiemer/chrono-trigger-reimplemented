@@ -119,11 +119,21 @@ static ScriptPlace action_to_choose(GameState *g, uint8_t enemy, ScriptPlace fir
     return at;
 }
 
-// $C1:8C63
-void enemy_choose_actions(GameState *g, ScriptChoosing *c)
+/* After a draw among four, the one drawn is the block's actions' place from
+ * then on, and the enemy is at it. */
+static ScriptPlace after_draw(GameState *g, ScriptChoosing *c, DrawnAction drawn)
+{
+    c->actions_from = drawn.place;
+    ScriptPlace at = take_next_action(g, c->enemy, drawn.place);
+    if (is_end_of_actions(g, at))
+        at = start_block_actions(g, c->enemy, drawn.place);
+    return at;
+}
+
+/* Choose the action at `at`, drawing again where it is a draw among four. */
+static void choose_from(GameState *g, ScriptChoosing *c, ScriptPlace at)
 {
     uint8_t enemy = c->enemy;
-    ScriptPlace at = action_to_choose(g, enemy, c->actions_from);
     for (;;) {
         c->place = at;
         uint8_t action = enemy_script_byte(g, at);
@@ -134,18 +144,19 @@ void enemy_choose_actions(GameState *g, ScriptChoosing *c)
             enemy_choose_action(g, c, action, at);
             break;
         }
-        /* the one drawn is the block's actions' place from then on, and the
-         * enemy is at it */
         DrawnAction drawn;
         TIMED_AS(g, 0xC198C5, drawn = enemy_draw_one_of_four(g, at));
-        c->actions_from = drawn.place;
-        at = take_next_action(g, enemy, drawn.place);
-        if (is_end_of_actions(g, at))
-            at = start_block_actions(g, enemy, drawn.place);
+        at = after_draw(g, c, drawn);
     }
     if (enemy < BATTLE_ENEMIES)
         set_battle_enemy_action_chosen(g, enemy, true);
 }
+
+// $C1:8C63
+void enemy_choose_actions(GameState *g, ScriptChoosing *c) { choose_from(g, c, action_to_choose(g, c->enemy, c->actions_from)); }
+
+// $C1:8C90
+void enemy_choose_after_draw(GameState *g, ScriptChoosing *c, DrawnAction drawn) { choose_from(g, c, after_draw(g, c, drawn)); }
 
 /* ---- Testing a block ------------------------------------------------------------------------ */
 
@@ -358,11 +369,9 @@ void battle_enemy_script_choose(Snes *s)
     m_rts(s);
 }
 
-/* What the choosing leaves in A: the action's byte where the actions had run
- * out, the enemy's number where it names none, or the mark that it chose. */
 enum { CHOSEN_MARK = 1 };
 
-static uint8_t chosen_a(const GameState *g, uint8_t enemy)
+uint8_t enemy_choosing_result(const GameState *g, uint8_t enemy)
 {
     uint8_t action = battle_action_kind(g);
     if (action >= SCRIPT_ACTIONS)
@@ -377,7 +386,7 @@ void battle_enemy_condition_held(Snes *s)
     bool first_of_two = c.pair == PAIR_FIRST_HELD;
     condition_held(g, &c);
     enemy_hand_back_choosing(g, &c);
-    s->cpu.a = first_of_two ? PAIR_FIRST_HELD : chosen_a(g, c.enemy);
+    s->cpu.a = first_of_two ? PAIR_FIRST_HELD : enemy_choosing_result(g, c.enemy);
     m_rts(s);
 }
 
@@ -387,7 +396,7 @@ void battle_enemy_choose_actions(Snes *s)
     ScriptChoosing c = enemy_choosing_in_cells(g);
     enemy_choose_actions(g, &c);
     enemy_hand_back_choosing(g, &c);
-    s->cpu.a = chosen_a(g, c.enemy);
+    s->cpu.a = enemy_choosing_result(g, c.enemy);
     m_rts(s);
 }
 
