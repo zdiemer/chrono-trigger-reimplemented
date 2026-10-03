@@ -297,6 +297,10 @@ static bool set_the_screen_up(Snes *s)
     s->cpu.d = BATTLE_PAGE;
     console_install_vblank_handler(g, BATTLE_VBLANK_HANDLER);
     console_install_line_handler(g, BATTLE_LINE_HANDLER);
+    /* the map layers' scroll keeps the flags on the stack around its call:
+       N and Z as the original's last store of the vectors leaves them, the
+       line handler's stub's first byte */
+    m_set_nz8(s, (uint8_t)irq_vector(g));
     if (!battle_run_long(s, 0xD1F1D7, SCROLL_MAP_LAYERS, battle_scroll_map_layers)
         || !battle_call_long(s, 0xD1F1DB, LOAD_START_SETTINGS, READS_NOTHING))
         return false;

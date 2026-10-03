@@ -3313,15 +3313,16 @@ lines (the run starts partway in), so `battle_circle_edges` holds 256.
 8,004 calls and its command 8,062, the carrying 11,546, the bands 2,482 and
 1,690 (the direction 4,172 from the original's own handlers, the rasterizer
 4,172), the circles' copy 49,528, the ripple 141,044, the arrangements 3,233,
-the line handler's step 216,480; the beam (`$F4`) no movie reaches. The
-screen's start, 31 calls, is interrupted on every one (the music's start runs
-over frames), so fuzzing is what checks it.
+the line handler's step 216,480, the screen's start 31; the beam (`$F4`) no
+movie reaches.
 
 **Fuzzing.** Seed 1, from the `battle` state
 (`tools/fuzz_routines.toml`): every new entry 0 mismatching, 20,000 states
 where nothing is refused. Fuzzing found three things the library never
 showed: the setup called the map layers' scroll, a JSL, as a JSR's sibling
-(`battle_run_long` now; the shadow runs never compared that stretch); the
+(`battle_run_long` now: until then shadow mode counted every setup as
+interrupted, compared none, and the next run found the flags the scroll keeps
+on the stack, which the setup now leaves as the original's last store does); the
 arrangement's and the ripple's indexes take A's high byte along, which the
 game always has clear there, so their entries' guards and the window slide's
 and the line handler's ask it; and random corners reach past the window
