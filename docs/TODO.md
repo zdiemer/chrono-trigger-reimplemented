@@ -336,6 +336,24 @@ rest waits, is [PLAN.md](PLAN.md).
     movie plays a demo battle's party turns, so the timing gate has nothing to
     calibrate them from (`battle_party_stands_down`, 3500, measured exact over
     the library). A movie of the attract mode's battle would;
+  - what the triangles, circles and special effects' review left (none
+    blocking): `screen_triangles.c` works out the bit-serial divider's
+    leftover (`last_bit_scaled_out`, `left_of_the_dividend`) outside
+    `ORIGINAL_EFFECT` and keeps it plainly in `battle_direction_work`, landing
+    `$80` on `battle_party_defeated` -- find the reader or prove the cells
+    dead, then move it to a leaves helper; `screen_script.c`'s
+    `draws_a_sized_triangle` lists opcodes in the runner to decide which
+    scaffolding to leave (a row column, or `draw_triangle`'s own
+    `ORIGINAL_EFFECT`); the shared parameter list now holds both `kind` and
+    `circle_kind`; `screen_specials.c` names the wedge corners as bare
+    coordinates, splits an animation position with `>> 8`/`& 0xFF`, and reads
+    the effect's sprite records by offset; `display.c`'s `move_run_values`
+    joins byte accessors into a word; `screen_triangles.c` tests
+    `slope & 0x8000` for a negative slope; `screen_shapes.c`'s `model_fits`
+    re-turns and re-sizes the model to predict whether it fits; the
+    `battle_run_screen_scripts` and `battle_run_screen_channel` vblank-tail
+    exceptions lost their "at most N clocks" bound.
+
   - what the screen effects' second half's review left (none blocking):
     `frame.h` exports `battle_leave_arrangement_registers(Snes*)` from a
     logic header (to entries.h or the leaves); `screen_setup.c` writes the

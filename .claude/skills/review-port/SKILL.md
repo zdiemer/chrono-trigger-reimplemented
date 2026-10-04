@@ -871,6 +871,14 @@ Each of these is a finding. Every example here comes from this repo.
      one sign and a no-borrow for the other, so it is set on nearly every
      line in one direction. A comment that calls it an occasional rounding
      misleads; say what it does for both signs, and name the step for it.
+120. **A leftover kept plainly on another variable's bytes.** A logic file
+     working out what the original leaves (a divider's remainder) and
+     writing it plainly into a cell that another named variable reuses
+     (`battle_direction_work` over `battle_party_defeated`). Writing it
+     plainly is right while a reader may exist, since `ORIGINAL_EFFECT` could
+     split the two builds (item 71); but then the work belongs in a leaves
+     helper, the overlap is named in the map, and TODO says which reader is
+     still to be found or ruled out.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
