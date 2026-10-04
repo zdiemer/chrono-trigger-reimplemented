@@ -884,6 +884,16 @@ Each of these is a finding. Every example here comes from this repo.
      caller, then answers the drift with a timing exception. Wrap the call in
      `NATIVE_TIME_AS` with the sibling's address, so its own calibrated value
      is charged, and drop the exception.
+122. **A dispatcher kept as the calling convention between ports.** A C
+     function that takes the original's dispatch number and its registers'
+     contents (`party_run_service(g, pf, service, character, item)`, A/X/Y
+     in, A out), which other ports call instead of the operations it picks
+     among, passing whatever their registers held so a leaves helper can
+     record it. Nothing goes through the machine, so item 102 doesn't see it,
+     but the original's convention is now the interface between two ports.
+     Callers call the operations; the dispatch stays at the registered entry
+     for the original's callers, and the cells the dispatcher leaves are one
+     leaves helper the caller runs under `ORIGINAL_EFFECT`.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
