@@ -11,15 +11,15 @@
  *
  * A command is run through its row (battle/screen_script.h): decoded once,
  * its operation called with the parameters it takes, timed as the original's
- * handler, and the channel moved on as the operation says. A command whose row
- * has no operation, or whose operation's needs the state doesn't meet, runs
- * as the original's handler, called as the original's dispatch calls it. The
- * commands here are the ones that steer the channel: its pace, loops, calls
- * and jumps, the waits, and the scripts' variables. The others are in the
- * files of what they work on (screen_layers.c, screen_shapes.c,
- * screen_settings.c, screen_waves.c, and the window, motion and palette
- * effects of the D1 bank in screen_window.c, screen_motion.c and
- * screen_palette.c).
+ * handler, and the channel moved on as the operation says. A command whose
+ * operation's needs the state doesn't meet runs as the original's handler,
+ * called as the original's dispatch calls it. The commands here are the ones
+ * that steer the channel: its pace, loops, calls and jumps, the waits, the
+ * scripts' variables and a poke into work RAM. The others are in the files of
+ * what they work on (screen_layers.c, screen_shapes.c, screen_circles.c,
+ * screen_settings.c, screen_waves.c, screen_specials.c, and the window,
+ * motion and palette effects of the D1 bank in screen_window.c,
+ * screen_motion.c and screen_palette.c).
  *
  * While a command runs, battle_screen_script is its place: at its first
  * operand, and at its last byte once it is done, the channel stepping on from
@@ -33,6 +33,7 @@
 #include "original_effects.h"
 #include "platform/input.h"
 #include "port/native.h"
+#include "wram.h"
 
 /* ---- The language ----------------------------------------------------------------------- */
 
@@ -60,7 +61,7 @@ static const uint32_t handlers[COMMANDS] = {
 static uint32_t handler_of(uint8_t opcode) { return handlers[opcode - FIRST_COMMAND]; }
 
 static const ScreenOpcodes *const every_file[] = {
-    &screen_flow_opcodes,    &screen_layer_opcodes,  &screen_shape_opcodes,  &screen_setting_opcodes,
+    &screen_flow_opcodes,    &screen_layer_opcodes,  &screen_shape_opcodes,  &screen_circle_opcodes,  &screen_special_opcodes, &screen_setting_opcodes,
     &screen_wave_opcodes,    &screen_window_opcodes, &screen_motion_opcodes, &screen_palette_opcodes,
     &screen_cut_opcodes,     &screen_between_opcodes, &screen_beam_opcodes,
 };
@@ -134,11 +135,13 @@ enum { FILL_WINDOWS = 0x88, FILL_WINDOW_1 = 3 };
 
 static bool leaves_a_high_byte(const ScreenCommand *c, uint8_t opcode) { return opcode == FILL_WINDOWS && c->fill >= FILL_WINDOW_1; }
 
-/* Whether a command runs here: it has an operation, the state meets its
- * needs, and the original's runner reads nothing of the machine after it. */
+/* Whether a command runs here: it has an operation (or a bridge), the state
+ * meets its needs, and the original's runner reads nothing of the machine
+ * after it. */
 static bool runs_here(const GameState *g, const ScreenOpcode *row, const ScreenCommand *c)
 {
-    return row && row->operation && (!row->needs || row->needs(g, c)) && !leaves_a_high_byte(c, row->opcode);
+    return row && (row->operation || row->bridge) && (!row->needs || row->needs(g, c))
+           && !leaves_a_high_byte(c, row->opcode);
 }
 
 /* Where the channel's place is left once a command is done: on its last
@@ -147,8 +150,7 @@ static void finish_command(GameState *g, const ScreenOpcode *row, const ScreenCo
 {
     uint32_t bank = battle_screen_script(g) & 0xFF0000u;
     switch (flow.kind) {
-    case SCREEN_ON:
-    case SCREEN_ON_AND_DRAW: set_battle_screen_script(g, bank | (uint16_t)(c->at + row->length - 1)); break;
+    case SCREEN_ON: set_battle_screen_script(g, bank | (uint16_t)(c->at + row->length - 1)); break;
     case SCREEN_GO_TO: set_battle_screen_script(g, bank | (uint16_t)(flow.to - 1)); break;
     case SCREEN_MOVED: break;
     }
@@ -161,23 +163,6 @@ ScreenFlow screen_wait_back(GameState *g, bool waiting, uint16_t at, uint8_t bac
         return screen_on();
     ORIGINAL_EFFECT(screen_leave_word(g, 0x45, back));
     return screen_go_to((uint16_t)(at + 1 - back));
-}
-
-/* ---- Laying a triangle out for the rasterizer ------------------------------------------------ */
-
-/* The original's rasterizer ($CD:367C) takes the corners in the battle page's
- * cells $12-$17, across then down, the window in battle_window_quad_index and
- * a cleared $20: its calling convention, which only this writes. */
-enum { CORNER_CELLS = 0x12, RASTERIZER_FLAG_CELL = 0x20 };
-
-void screen_lay_out_triangle(GameState *g, uint8_t window, const ScreenTriangle *t)
-{
-    set_battle_window_quad_index(g, window);
-    for (unsigned corner = 0; corner < 3; corner++) {
-        set_battle_low_scratch(g, CORNER_CELLS + 2 * corner, t->x[corner]);
-        set_battle_low_scratch(g, CORNER_CELLS + 2 * corner + 1, t->y[corner]);
-    }
-    set_battle_low_scratch(g, RASTERIZER_FLAG_CELL, 0);
 }
 
 /* ---- The channel's pace, loops, calls and jumps ---------------------------------------------- */
@@ -249,15 +234,13 @@ static ScreenFlow jump(GameState *g, uint16_t to)
 }
 SCREEN_OPERATION(jump, to)
 
-/* The battle's rule ($E1:DE00) that some fights bring in, whose number its
- * low seven bits hold. A script takes another way in the fight that has the
- * first. */
-enum { RULE_NUMBER = 0x7F, THE_FIRST_RULE = 1 };
+/* The battle's rule ($E1:DE00) that some fights bring in: a script takes
+ * another way in the fight that has the first. */
 
 // $CD:1B5E
 static ScreenFlow jump_in_the_first_rule(GameState *g, uint16_t to)
 {
-    return (battle_enemy_rule(g) & RULE_NUMBER) == THE_FIRST_RULE ? screen_go_to(to) : screen_on();
+    return (battle_enemy_rule(g) & BATTLE_RULE_NUMBER) == BATTLE_THE_FIRST_RULE ? screen_go_to(to) : screen_on();
 }
 SCREEN_OPERATION(jump_in_the_first_rule, to)
 
@@ -320,6 +303,49 @@ static ScreenFlow count_variable_up(GameState *g, uint8_t variable)
 }
 SCREEN_OPERATION(count_variable_up, variable)
 
+/* ---- Work RAM -------------------------------------------------------------------------------- */
+
+/* Work RAM's first bank, where the scripts' pokes land, and the cells that
+ * hold the running channel's place, which the runner sets once the command is
+ * done (a poke there would be the runner's to undo). */
+enum { WORK_RAM_BANK = 0x7E, PLACE_CELLS_FROM = 0x40, PLACE_CELLS_TO = 0x42 };
+
+// $CD:17A9
+/* Write a byte into work RAM at an address the script gives. The original
+ * steps on past the byte and the address's low byte only, so the address's
+ * high byte is the next the channel runs (no script of the game's has the
+ * command). */
+static ScreenFlow poke(GameState *g, uint8_t poked, uint16_t address)
+{
+    wram_write8(g, (uint32_t)WORK_RAM_BANK << 16 | address, poked);
+    return screen_on();
+}
+SCREEN_OPERATION(poke, poked, address)
+
+static bool pokes_past_the_place(const GameState *g, const ScreenCommand *c)
+{
+    (void)g;
+    return c->address < PLACE_CELLS_FROM || c->address > PLACE_CELLS_TO;
+}
+
+/* ---- Waiting for the beam --------------------------------------------------------------------- */
+
+/* The original's wait for a line of the picture, and the dispatch's call of
+ * the handler it stands in for. */
+enum { WAIT_FOR_LINE = 0xCD3B82, DISPATCH_CALL = 0xCD16AF };
+
+// $CD:1D93
+/* Wait for the beam to reach a line of the picture before the channel goes
+ * on. The wait is still the original's ($CD:3B82, whose passes battle/wait.c
+ * runs): it works nothing out, and what it waits for is the console's beam,
+ * which a native build draws a frame at a time (docs/TODO.md). No script of
+ * the game's has the command. */
+static bool wait_for_line(Snes *s, const ScreenCommand *c)
+{
+    s->cpu.a = c->line;
+    return battle_call(s, DISPATCH_CALL, WAIT_FOR_LINE, DC_X | DC_Y | DC_FLAGS);
+}
+
 /* ---- Waiting on the rest of the battle -------------------------------------------------------- */
 
 // $CD:1813
@@ -330,13 +356,10 @@ static ScreenFlow wait_for_effect_graphics(GameState *g, uint16_t at, uint8_t ba
 }
 SCREEN_OPERATION(wait_for_effect_graphics, at, back)
 
-/* The battle's own palette animations, in slots 8-11. */
-enum { FIRST_BATTLE_ANIMATION = 8, BATTLE_ANIMATIONS = 4 };
-
 static bool battle_palettes_animating(const GameState *g)
 {
     uint8_t kinds = 0;
-    for (unsigned slot = FIRST_BATTLE_ANIMATION; slot < FIRST_BATTLE_ANIMATION + BATTLE_ANIMATIONS; slot++)
+    for (unsigned slot = BATTLE_FIRST_OWN_ANIMATION; slot < BATTLE_FIRST_OWN_ANIMATION + BATTLE_OWN_ANIMATIONS; slot++)
         kinds |= palette_animations_kind(g, slot);
     return kinds != 0;
 }
@@ -379,17 +402,8 @@ SCREEN_OPCODES(screen_flow_opcodes,
     { 0xF1, OPERATION(wait_for_effect_graphics), .length = 1, .back = BYTE(0) },
     { 0xBF, OPERATION(wait_for_palette_animations), .length = 1, .back = BYTE(0) },
     { 0xF6, OPERATION(wait_for_signal), .length = 1, .back = BYTE(0) },
-    /* The commands still the original's: the special effects ($80); drawing
-       the circles ($8B, and $B5, $B6 and $B8, which draw other shapes); the
-       triangles centred on their own corners ($AD, $B4); a triangle drawn as
-       its corners are, through the rasterizer's own setup ($A1); measuring a
-       direction alone ($CC) and the wedge between positions ($DA), which
-       screen_between.c says why; the layer's random drift ($D7), which adds a
-       byte the original leaves in its cells; a wait for a line of the picture
-       ($C1); and a poke into work RAM ($F9). */
-    { .opcode = 0x80 }, { .opcode = 0x8B }, { .opcode = 0xA1 }, { .opcode = 0xAD }, { .opcode = 0xB4 },
-    { .opcode = 0xB5 }, { .opcode = 0xB6 }, { .opcode = 0xB8 }, { .opcode = 0xC1 }, { .opcode = 0xCC },
-    { .opcode = 0xD7 }, { .opcode = 0xDA }, { .opcode = 0xF9 },
+    { 0xF9, OPERATION(poke), .needs = pokes_past_the_place, .length = 2, .poked = BYTE(0), .address = WORD(1) },
+    { 0xC1, BRIDGE(wait_for_line), .length = 1, .line = BYTE(0) },
 );
 
 /* ---- A command ---------------------------------------------------------------------------- */
@@ -410,24 +424,17 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t opcode)
     m_set_flag(s, CPU_FLAG_Z, place == 0);
 }
 
-/* What the triangle's sizing ($CD:211B) leaves of the machine, before the
- * rasterizer: the last corner down's word in the cell $4B, as the sized
- * corner, but where the size moves the corner out from the center (or leaves
- * it on it) the original reads its product as a word, and the controller's
- * low byte (as the console last read it) comes along as the word's high byte;
- * and where any corner does, its word store of the size puts the byte after
- * it, the turn slot's low byte, in the divider. */
-static void leave_the_sizing(Snes *s)
+/* What a triangle's sizing ($CD:211B) leaves that only the machine knows:
+ * the last corner down's word in the cell $4B, as the sized corner, but where
+ * the size moves the corner out from the center (or leaves it on it) the
+ * original reads its product as a word, and the controller's low byte (as the
+ * console last read it) comes along as the word's high byte. Every command
+ * that draws a triangle at its size leaves it. */
+static void leave_the_sizing(Snes *s, const ScreenCommand *c)
 {
     GameState *g = state_of(s);
-    uint8_t shape = battle_window_quad_index(g) & 1, size = battle_shape_size(g, shape);
-    uint8_t across = battle_shape_center_x(g, shape), down = battle_shape_center_y(g, shape);
-    bool any_out = false;
-    for (unsigned corner = 0; corner < 3; corner++)
-        any_out |= battle_shape_corners(g, (corner * 2) * 2 + shape) >= across
-                   || battle_shape_corners(g, (corner * 2 + 1) * 2 + shape) >= down;
-    if (any_out)
-        hw_set_dividend(g, (uint16_t)((hw_dividend(g) & 0xFF00) | (uint8_t)battle_turn_slot(g)));
+    uint8_t shape = c->shape & 1, size = battle_shape_size(g, shape);
+    uint8_t down = battle_shape_center_y(g, shape);
     uint8_t last = battle_shape_corners(g, (2 * 2 + 1) * 2 + shape);
     uint8_t moved = (uint8_t)((uint8_t)(last >= down ? last - down : down - last) * size >> 8);
     uint16_t word = last >= down
@@ -436,12 +443,21 @@ static void leave_the_sizing(Snes *s)
     screen_leave_word(g, 0x4B, word);
 }
 
-/* Draw the triangle an operation laid out, as the original's handler does
- * at its end: the rasterizer returns where the handler would. */
-static bool draw_the_triangle(Snes *s)
+static bool draws_a_sized_triangle(uint8_t opcode)
 {
-    ORIGINAL_EFFECT(leave_the_sizing(s));
-    return battle_call(s, 0xCD16AF, 0xCD367C, DC_A | DC_X | DC_Y | DC_FLAGS);
+    static const uint8_t drawing[] = { 0xAE, 0xBA, 0xBB, 0xBE };
+    for (unsigned i = 0; i < sizeof drawing; i++)
+        if (drawing[i] == opcode)
+            return true;
+    return false;
+}
+
+/* What the original's handler leaves of the machine beside what its
+ * operation does. */
+static void leave_the_machine(Snes *s, uint8_t opcode, const ScreenCommand *c)
+{
+    if (draws_a_sized_triangle(opcode))
+        leave_the_sizing(s, c);
 }
 
 // $CD:16A6
@@ -463,12 +479,15 @@ static bool run_command(Snes *s, uint8_t opcode, ScreenChannel channel)
            command before it left */
         return battle_call(s, 0xCD16AF, handler_of(opcode), DC_V);
     }
+    if (row->bridge) {
+        finish_command(g, row, &c, screen_on());
+        return row->bridge(s, &c);
+    }
     ScreenFlow flow;
     NATIVE_TIME_AS(s, handler_of(opcode), flow = row->operation(g, &c));
     finish_command(g, row, &c, flow);
+    ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
     s->cpu.a = 0;
-    if (flow.kind == SCREEN_ON_AND_DRAW)
-        return draw_the_triangle(s);
     return true;
 }
 
@@ -685,8 +704,7 @@ void battle_run_screen_command(Snes *s)
 }
 
 /* A command whose operation is C, entered as its handler: the command found
- * from its table's index in X, its operands at the place. One that draws a
- * triangle goes on into the rasterizer, as the original's handler does. */
+ * from its table's index in X, its operands at the place. */
 void battle_screen_command(Snes *s)
 {
     GameState *g = state_of(s);
@@ -695,12 +713,8 @@ void battle_screen_command(Snes *s)
     ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
     ScreenFlow flow = row->operation(g, &c);
     finish_command(g, row, &c, flow);
+    ORIGINAL_EFFECT(leave_the_machine(s, opcode, &c));
     s->cpu.a = 0;
-    if (flow.kind == SCREEN_ON_AND_DRAW) {
-        ORIGINAL_EFFECT(leave_the_sizing(s));
-        m_stop_at(s, 0xCD367C, DC_A | DC_X | DC_Y | DC_FLAGS);
-        return;
-    }
     m_rts(s);
 }
 
@@ -738,7 +752,7 @@ bool battle_screen_command_ready(Snes *s)
     bool ready = false;
     if (row && on_a_channel(g, battle_screen_channel(g))) {
         ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
-        ready = runs_here(g, row, &c);
+        ready = runs_here(g, row, &c) && !row->bridge;
     }
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && m_flag(s, CPU_FLAG_C) && ready;

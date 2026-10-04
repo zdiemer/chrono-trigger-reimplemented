@@ -585,11 +585,18 @@ void battle_load_graphics(Snes *s);
 void battle_load_line_arrangement(Snes *s);
 void battle_step_ripple(Snes *s);
 void battle_nmi_alternate(Snes *s);
+void battle_slide_split_in(Snes *s);
+void battle_slide_split_out(Snes *s);
+
+/* battle/frame.c */
+void battle_keep_animations_off_the_cycle_entry(Snes *s);
 
 /* battle/scroll.c */
 void battle_update_scroll_dispatch(Snes *s);
 void battle_update_scroll_tables(Snes *s);
 void battle_update_scroll_tables_bg3_moving(Snes *s);
+void battle_update_scroll_tables_line_wave(Snes *s);
+void battle_update_scroll_tables_finer_line_wave(Snes *s);
 void battle_update_screen_shake(Snes *s);
 
 /* battle/uploads.c */

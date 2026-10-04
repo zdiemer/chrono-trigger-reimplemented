@@ -12,6 +12,7 @@
 
 #include "battle/bridge.h"
 #include "battle/screen_lines.h"
+#include "battle/screen_sides.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "port/native.h"
@@ -57,32 +58,14 @@ static void sort_corners_by_line(Corner c[CORNERS])
                 swap_corners(&c[i], &c[i + 1]);
 }
 
-/* An edge's slope: the columns it moves a line, 8.8 fixed point, leftward
- * negative. */
-typedef uint16_t Slope;
-enum { SLOPE_FRACTION_BITS = 8, EDGES = 4 };
-
-/* An edge along one line has no slope: the division by no lines gives the
- * divider's answer for nothing, $FFFF, and the rasterizer is handed that. */
-enum { DIVIDED_BY_NOTHING = 0xFFFF };
-
-// $D1:F972
-static Slope slope_across(uint8_t from_x, uint8_t to_x, uint8_t lines)
-{
-    bool leftward = to_x < from_x;
-    uint8_t columns = leftward ? (uint8_t)(from_x - to_x) : (uint8_t)(to_x - from_x);
-    uint16_t per_line = lines ? (uint16_t)((columns << SLOPE_FRACTION_BITS) / lines) : (uint16_t)DIVIDED_BY_NOTHING;
-    return leftward ? (Slope)-per_line : per_line;
-}
-
 static uint8_t lines_between(Corner from, Corner to) { return (uint8_t)(to.y - from.y); }
 
-static Slope edge_slope(Corner from, Corner to) { return slope_across(from.x, to.x, lines_between(from, to)); }
+static Slope edge_slope(Corner from, Corner to) { return sides_slope(from.x, to.x, lines_between(from, to)); }
 
 /* The four edges: down the left side from the top corner to the third and
  * from the third to the bottom one, and down the right side from the top
  * corner to the second and from the second to the bottom one. */
-typedef enum { TOP_TO_THIRD, THIRD_TO_BOTTOM, TOP_TO_SECOND, SECOND_TO_BOTTOM } QuadEdge;
+typedef enum { TOP_TO_THIRD, THIRD_TO_BOTTOM, TOP_TO_SECOND, SECOND_TO_BOTTOM, EDGES } QuadEdge;
 
 static const struct {
     uint8_t from, to;
@@ -97,98 +80,51 @@ static void edge_slopes(const Corner c[CORNERS], Slope slopes[EDGES])
 
 /* ---- Rasterizing ------------------------------------------------------------------------------ */
 
-/* A stretch of lines down which each side follows one edge. */
-typedef struct {
-    uint8_t lines;
-    QuadEdge left, right;
-} Stretch;
-
-enum { MAX_STRETCHES = 3 };
-
-typedef struct {
-    Corner c[CORNERS];   /* as the rasterizer orders them */
-    uint8_t left_from, right_from;
-    Stretch stretch[MAX_STRETCHES];
-    unsigned stretches;
-} QuadSides;
-
-/* The sides of corners sorted by line. A quadrilateral with a flat top is
- * drawn down to its third corner's line only, from its top corners taken
- * left to right, with its bottom ones left to right too; the bottom is
- * assumed flat as well (the beam's is). Otherwise both sides start at the top
- * corner, the left one turning at the left one of the middle corners and the
- * right one at the right one. */
-static QuadSides sides_of(const Corner sorted[CORNERS])
+static SidesStretch stretch_along(uint8_t lines, const Slope slopes[EDGES], QuadEdge left, QuadEdge right)
 {
-    QuadSides q = { .stretches = 0 };
-    for (unsigned i = 0; i < CORNERS; i++)
-        q.c[i] = sorted[i];
-    Corner *c = q.c;
+    return (SidesStretch){ lines, slopes[left], slopes[right] };
+}
+
+/* The sides of corners sorted by line, put in the rasterizer's order. A
+ * quadrilateral with a flat top is drawn down to its third corner's line
+ * only, from its top corners taken left to right, with its bottom ones left
+ * to right too; the bottom is assumed flat as well (the beam's is). Otherwise
+ * both sides start at the top corner, the left one turning at the left one of
+ * the middle corners and the right one at the right one. */
+static WindowSides sides_of(Corner c[CORNERS], Slope slopes[EDGES])
+{
+    WindowSides q = { .top = c[0].y, .stretches = 0 };
     if (c[0].y == c[1].y) {
         if (c[0].x >= c[1].x)
             swap_corners(&c[0], &c[1]);
         if (c[2].x >= c[3].x)
             swap_corners(&c[2], &c[3]);
+        edge_slopes(c, slopes);
         q.left_from = c[0].x;
         q.right_from = c[1].x;
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[1], c[2]), TOP_TO_THIRD, SECOND_TO_BOTTOM };
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[1], c[2]), slopes, TOP_TO_THIRD, SECOND_TO_BOTTOM);
         return q;
     }
     if (c[2].x >= c[1].x)
         swap_corners(&c[1], &c[2]);
+    edge_slopes(c, slopes);
     q.left_from = q.right_from = c[0].x;
     if (c[2].y <= c[1].y) {
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[0], c[2]), TOP_TO_THIRD, TOP_TO_SECOND };
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[2], c[1]), THIRD_TO_BOTTOM, TOP_TO_SECOND };
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[1], c[3]), THIRD_TO_BOTTOM, SECOND_TO_BOTTOM };
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[0], c[2]), slopes, TOP_TO_THIRD, TOP_TO_SECOND);
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[2], c[1]), slopes, THIRD_TO_BOTTOM, TOP_TO_SECOND);
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[1], c[3]), slopes, THIRD_TO_BOTTOM, SECOND_TO_BOTTOM);
     } else {
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[0], c[1]), TOP_TO_THIRD, TOP_TO_SECOND };
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[1], c[2]), TOP_TO_THIRD, SECOND_TO_BOTTOM };
-        q.stretch[q.stretches++] = (Stretch){ lines_between(c[2], c[3]), THIRD_TO_BOTTOM, SECOND_TO_BOTTOM };
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[0], c[1]), slopes, TOP_TO_THIRD, TOP_TO_SECOND);
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[1], c[2]), slopes, TOP_TO_THIRD, SECOND_TO_BOTTOM);
+        q.stretch[q.stretches++] = stretch_along(lines_between(c[2], c[3]), slopes, THIRD_TO_BOTTOM, SECOND_TO_BOTTOM);
     }
     return q;
 }
-
-/* A side's column, 8.8 fixed point. */
-typedef uint16_t Column;
-
-/* The two sides go down a stretch as one running sum, the left side's column
- * below the right side's: a 256th of a column carries from each side's step
- * into the next one stepped, the right side's on the same line and the left
- * side's on the line after (a stretch starts with nothing carried). A side
- * stepping rightward carries only where its fraction comes round past a whole
- * column, so the 256th comes now and then. A side stepping leftward (a slope
- * that is a negative word) carries on nearly every line, since adding it
- * wraps past $FFFF wherever it doesn't take the column below 0: so the next
- * side stepped gains a 256th almost every line, and over a long stretch that
- * adds up to whole columns. On screen, an edge lands a column or more to the
- * right of where its slope alone would put it, more the longer a leftward
- * side runs beside it. */
-typedef struct {
-    Column left, right;
-    bool carried;
-} Sides;
-
-static Column step_carrying_a_256th(Column at, Slope slope, bool *carried)
-{
-    uint32_t sum = (uint32_t)at + slope + *carried;
-    *carried = sum > 0xFFFF;
-    return (Column)sum;
-}
-
-static void step_down_a_line(Sides *s, Slope left, Slope right)
-{
-    s->left = step_carrying_a_256th(s->left, left, &s->carried);
-    s->right = step_carrying_a_256th(s->right, right, &s->carried);
-}
-
-static uint8_t whole_column(Column c) { return (uint8_t)(c >> SLOPE_FRACTION_BITS); }
 
 /* What the original leaves of the drawing: the corners in their order, the
  * slopes and the top line in its cells, and of the work RAM port it draws
  * through, where it stops and what its word writes leave on port 3. */
 enum { CORNER_CELLS = 0x12, SLOPE_CELLS = 0x03, TOP_LINE_CELL = 0x0F, EDGE_CELLS = 0x0B };
-enum { WINDOW_TABLE_BANK = 0x7E, WINDOW_TABLE = 0xC161 };
 
 static void leave_corners(GameState *g, const Corner c[CORNERS])
 {
@@ -219,21 +155,17 @@ static void leave_last_edge(GameState *g, Corner from, Corner to)
     hw_divide_by(g, lines_between(from, to));
 }
 
-static void leave_drawing(GameState *g, Window w, const QuadSides *q, const Slope slopes[EDGES], unsigned lines,
-                          Sides last)
+static void leave_drawing(GameState *g, Window w, const Corner c[CORNERS], const Slope slopes[EDGES],
+                          const WindowSides *q, SidesDrawn drawn)
 {
-    uint8_t top = q->c[0].y;
-    leave_corners(g, q->c);
-    leave_slopes(g, q->c, slopes);
-    leave_last_edge(g, q->c[edges[EDGES - 1].from], q->c[edges[EDGES - 1].to]);
+    leave_corners(g, c);
+    leave_slopes(g, c, slopes);
+    leave_last_edge(g, c[edges[EDGES - 1].from], c[edges[EDGES - 1].to]);
     screen_leave_word(g, 0x45, 0);
     screen_leave_word(g, 0x47, q->stretches == 1 ? (uint16_t)(odd_frame(g) * 2) : 0);
     if (q->stretches > 1)
         screen_leave_word(g, 0x49, 0);
-    uint16_t buffer = (uint16_t)(WINDOW_TABLE + (odd_frame(g) ? SCREEN_LINES * LINE_BYTES : 0) + w * 2);
-    hw_port_seek(g, (uint16_t)(buffer + (top + lines) * LINE_BYTES), WINDOW_TABLE_BANK);
-    if (lines)
-        hw_port_leave_spill(g, (uint8_t)last.right);
+    sides_leave_port(g, w, q->top + drawn.lines, drawn);
 }
 
 // $D1:F9E7
@@ -242,19 +174,13 @@ static void leave_drawing(GameState *g, Window w, const QuadSides *q, const Slop
  * third's) gets the two sides' whole columns as its edges. */
 static void rasterize(GameState *g, Window w, const Corner sorted[CORNERS])
 {
-    QuadSides q = sides_of(sorted);
+    Corner c[CORNERS];
+    for (unsigned i = 0; i < CORNERS; i++)
+        c[i] = sorted[i];
     Slope slopes[EDGES];
-    edge_slopes(q.c, slopes);
-    Sides s = { (Column)(q.left_from << SLOPE_FRACTION_BITS), (Column)(q.right_from << SLOPE_FRACTION_BITS), false };
-    unsigned line = q.c[0].y;
-    for (unsigned i = 0; i < q.stretches; i++) {
-        s.carried = false;
-        for (unsigned n = 0; n < q.stretch[i].lines; n++, line++) {
-            step_down_a_line(&s, slopes[q.stretch[i].left], slopes[q.stretch[i].right]);
-            set_line_edges(g, coming_line(g, line), w, edges_between(whole_column(s.left), whole_column(s.right)));
-        }
-    }
-    ORIGINAL_EFFECT(leave_drawing(g, w, &q, slopes, line - q.c[0].y, s));
+    WindowSides q = sides_of(c, slopes);
+    SidesDrawn drawn = draw_window_sides(g, w, &q);
+    ORIGINAL_EFFECT(leave_drawing(g, w, c, slopes, &q, drawn));
 }
 
 bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[CORNERS])
@@ -263,7 +189,7 @@ bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[CORNERS]
     for (unsigned i = 0; i < CORNERS; i++)
         if (c[i].y > lowest)
             lowest = c[i].y;
-    return !odd_frame(g) || lowest <= SCREEN_LINES;
+    return sides_fit_the_table(g, lowest);
 }
 
 // $D1:F9AF
@@ -390,7 +316,7 @@ void battle_quad_edge_slope(Snes *s)
     GameState *g = state_of(s);
     uint8_t to_x = battle_low_scratch(g, EDGE_CELLS), from_x = battle_low_scratch(g, EDGE_CELLS + 1);
     uint8_t lines = battle_low_scratch(g, EDGE_CELLS + 2);
-    s->cpu.y = slope_across(from_x, to_x, lines);
+    s->cpu.y = sides_slope(from_x, to_x, lines);
     ORIGINAL_EFFECT(hw_set_dividend(g, (uint16_t)((to_x < from_x ? from_x - to_x : to_x - from_x) << SLOPE_FRACTION_BITS)));
     ORIGINAL_EFFECT(hw_divide_by(g, lines));
     s->cpu.a = 0;

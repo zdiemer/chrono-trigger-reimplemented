@@ -525,7 +525,9 @@ game/menu/tech_screen.c tech_cost_needed menu_tech_cost_needed menu_hundreds_dig
 game/menu/tech_screen.c tech_cost_needed menu_tech_cost_needed menu_save_region_table                   # the cost: menu_tech_cost_for writes it plainly before every read
 game/battle/screen.h screen_cell battle_scratch[6] battle_scratch only # $CE:E7C8's start in its unrolled copy, read by its entry's wrapper alone: the circles' drawing ($CD:3616) puts it in the cell before every call
 game/battle/screen.h screen_cell battle_scratch[7] battle_scratch only # $CE:E7C8's start in its unrolled copy, read by its entry's wrapper alone: the circles' drawing ($CD:3616) puts it in the cell before every call
-game/battle/screen_beam.c battle_rasterize_window_quad battle_window_quad_index battle_window_quad_index # the entry's window: its caller ($D1:F9AF, as the original runs it) sets it before every call
+game/battle/screen_beam.c battle_rasterize_window_quad battle_window_quad_index battle_window_quad_index only # the entry's window: its caller ($D1:F9AF, as the original runs it) sets it before every call
+game/battle/screen_triangles.c battle_draw_window_triangle battle_window_quad_index battle_window_quad_index only # the entry's window: its callers (the original's triangle commands, where a row turns them away) set it before every call
+game/battle/screen_motion.c drift_high_byte battle_scratch[1] battle_scratch only # the drift's guard: what the last effect's working left in $46, which the original adds the drift with; no script has $D7, and a native build takes it as clear (docs/TODO.md)
 game/battle/screen_between.c battle_measure_direction battle_direction_work[2] battle_random_lowest # the entry's second point: its caller ($CD:1B22, as the original's $CC runs it) puts it in the cell before every call
 game/battle/screen_divide.c battle_cut_window battle_cut_steps[0] battle_cut_steps only # the entry's line: the original's $97 handler puts it in the cells before every call
 game/battle/screen_divide.c battle_cut_window battle_cut_run[0] battle_cut_run only # the entry's line: the original's $97 handler puts it in the cells before every call

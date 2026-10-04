@@ -248,6 +248,7 @@ add_library(ct_game STATIC
   game/battle/reset.c
   game/battle/screen_beam.c
   game/battle/screen_between.c
+  game/battle/screen_circles.c
   game/battle/screen_divide.c
   game/battle/screen_gradient.c
   game/battle/screen_graphics.c
@@ -258,6 +259,9 @@ add_library(ct_game STATIC
   game/battle/screen_settings.c
   game/battle/screen_setup.c
   game/battle/screen_shapes.c
+  game/battle/screen_specials.c
+  game/battle/screen_sides.c
+  game/battle/screen_triangles.c
   game/battle/screen_waves.c
   game/battle/screen_window.c
   game/battle/scripts.c

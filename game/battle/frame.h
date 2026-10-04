@@ -41,13 +41,19 @@ typedef enum {
     BATTLE_SCROLL_MODES
 } BattleScrollMode;
 
-bool battle_scroll_mode_filled_here(BattleScrollMode mode);
-/* Fill the layers' per-line scroll tables for this frame, in one of the modes
- * filled here. */
+/* Slide where the battlefield's lines meet the window's by a line, in
+ * (up) or out (down), in the per-line tables (battle/display.c). */
+void battle_slide_the_split(GameState *g, bool out);
+
+/* Keep the battle's own palette animations off the colors an enemy's rule
+ * cycles (battle/frame.c). */
+void battle_keep_animations_off_the_cycle(GameState *g);
+
+/* Fill the layers' per-line scroll tables for this frame, in a mode. */
 void battle_scroll_layers(GameState *g, BattleScrollMode mode);
-/* The frame work's scroll, in whichever mode the battle is in: the call to the
- * original's dispatch, as the frame work makes it, for the modes that are
- * still its. False where the call didn't come back as the battle runs. */
+/* The frame work's scroll, in whichever mode the battle is in (the call to the
+ * original's dispatch where A's high byte, which it indexes with, isn't
+ * clear). False where the call didn't come back as the battle runs. */
 bool battle_scroll_the_layers(Snes *s);
 
 /* This frame's screen shake, across and down, put on the layers it moves;

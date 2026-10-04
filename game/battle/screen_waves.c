@@ -29,7 +29,7 @@ static void set_offset(GameState *g, unsigned entry, uint16_t across)
 }
 
 /* In the fight with the first of the battle's rules, BG1 keeps still. */
-enum { RULE_NUMBER = 0x7F, THE_FIRST_RULE = 1 };
+
 
 static void leave_wave(GameState *g, uint8_t amplitude, uint8_t every, uint8_t speed, bool fine, uint8_t last_phase)
 {
@@ -60,7 +60,7 @@ static ScreenFlow wave_lines(GameState *g, uint8_t layers, uint8_t every, uint8_
     set_battle_scroll_mode(g, fine ? BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3 : BATTLE_SCROLL_LINE_OFFSETS);
     for (unsigned layer = 0; layer < LINE_OFFSET_LAYERS; layer++)
         set_battle_line_scroll_layers(g, layer, (layers >> layer) & 1);
-    if ((battle_enemy_rule(g) & RULE_NUMBER) == THE_FIRST_RULE)
+    if ((battle_enemy_rule(g) & BATTLE_RULE_NUMBER) == BATTLE_THE_FIRST_RULE)
         set_battle_line_scroll_layers(g, BG1, 0);
     ORIGINAL_EFFECT(leave_wave(g, amplitude, every, speed, fine, (uint8_t)(phase - step)));
     return screen_on();

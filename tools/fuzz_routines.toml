@@ -9847,6 +9847,41 @@ args = ["--d", "0000", "--db", "7E"]
 why = "on the battle's page"
 
 [[routine]]
+name = "battle_update_scroll_tables_line_wave"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_update_scroll_tables_finer_line_wave"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_slide_split_in"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_slide_split_out"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_keep_animations_off_the_cycle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
 name = "battle_update_scroll_tables_bg3_moving"
 subsystem = "battle"
 state = "battle"
@@ -11453,6 +11488,288 @@ subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005E-005E", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AF-AF", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
 why = "entered as the dispatch enters command $AF's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_draw_circle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0016-0016", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=8B-8B", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01", "--fill", "7ECAD1-7ECAD2=00-05", "--fill", "7ECAA4-7ECAA5=00-7F", "--fill", "7ECAA8-7ECAA9=00-D3"]
+why = "entered as the dispatch enters command $8B's handler, the circle one of the two, its kind one of the six, its radius below 128 and its line on the battlefield"
+
+[[routine]]
+name = "battle_screen_script_draw_square"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=006A-006A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B5-B5", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01", "--fill", "7ECAA4-7ECAA5=00-80", "--fill", "7ECAA8-7ECAA9=00-D3"]
+why = "entered as the dispatch enters command $B5's handler, the circle one of the two, the radii up to 128 and the first circle's line on the battlefield"
+
+[[routine]]
+name = "battle_screen_script_special_effect"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-0000", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=80-80", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-1C"]
+why = "entered as the dispatch enters command $80's handler, the effect one of the 29"
+
+[[routine]]
+name = "battle_screen_script_poke"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00F2-00F2", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=F9-F9", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0103-7E0103=20-FF"]
+why = "entered as the dispatch enters command $F9's handler, the address in work RAM past the low 8 KiB"
+
+[[routine]]
+name = "battle_screen_script_drift"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00AE-00AE", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=D7-D7", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0046-7E0046=00-00"]
+why = "entered as the dispatch enters command $D7's handler, the cell $46 clear as the drift needs"
+
+[[routine]]
+name = "battle_screen_script_lay_wedge"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=00B4-00B4", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=DA-DA", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0102-7E0102=00-02"]
+why = "entered as the dispatch enters command $DA's handler, the pair one of the three"
+
+[[routine]]
+name = "battle_special_bands_of_light_at_full"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-0000", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_roll_the_bands"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0002-0002", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_close_wedge_in_the_middle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0004-0004", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_open_wedge_in_the_middle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0006-0006", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_close_the_windows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0008-0008", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_turn_the_corners_round"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000A-000A", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_wedge_from_the_left"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000C-000C", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_close_wedge_from_the_left"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=000E-000E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_straighten_the_angles"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0010-0010", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_show_effect_sprites_in_front"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0012-0012", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_bob_layer_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0014-0014", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_bob_layer_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0016-0016", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_lay_out_the_nudge_wave"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0018-0018", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_nudge_the_window_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001A-001A", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_bands_of_light"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001C-001C", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_clear_the_ended_objects_attributes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=001E-001E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_put_out_the_bands"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0020-0020", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_cycle_the_background"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0022-0022", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_keep_the_position_on_the_battlefield"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0024-0024", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_tall_bands_of_light"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0026-0026", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_restart_the_wipe"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0028-0028", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_clear_the_wave_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002A-002A", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_shift_marked_lines"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002C-002C", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_move_the_band_down"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=002E-002E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_move_the_band_up"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0030-0030", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_give_the_signal"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0032-0032", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_whiten_the_scene"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0034-0034", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_hide_the_enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0036-0036", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+[[routine]]
+name = "battle_special_whiten_the_high_sprite_palettes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0038-0038", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00"]
+why = "entered as $80's handler jumps to it: its number doubled in X, running a channel"
+
+# -- the triangles' drawing and center (battle/screen_triangles.c)
+
+[[routine]]
+name = "battle_draw_window_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "the corners in the cells random, the window in battle_window_quad_index random"
+
+[[routine]]
+name = "battle_screen_script_draw_triangle_at_its_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0042-0042", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=A1-A1", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $A1's handler, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_hang_wedge"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0070-0070", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B8-B8", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $B8's handler, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_center_triangle_on_its_corners"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005A-005A", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AD-AD", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $AD's handler, the triangle one of the two"
+
+[[routine]]
+name = "battle_screen_script_center_layer_on_triangle"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0068-0068", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=B4-B4", "--fill", "7E0101-7E010F=00-FF", "--fill", "7E0101-7E0101=00-01"]
+why = "entered as the dispatch enters command $B4's handler, the triangle one of the two"
 
 [[routine]]
 name = "battle_screen_script_draw_triangle"

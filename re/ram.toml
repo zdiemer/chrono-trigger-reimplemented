@@ -10721,8 +10721,8 @@ count = 8
 index = "byte: the two points brought down by the first's distance past an eighth (the first across and down, then the second), the run across and its sign ($00 or $FF), the run down and its sign"
 subsystem = "battle"
 reuses = ["battle_turn_slot", "battle_party_defeated", "battle_random_lowest", "battle_random_position", "battle_loop_count", "battle_wide_math"]
-meaning = "Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF) takes its points and works the runs out, over cells the battle uses for other things between effects"
-source = "game/battle/screen_between.c battle_measure_direction $CE:E7CF"
+meaning = "Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF) takes its points and works the runs out, and where a triangle's center is divided and multiplied out ($CD:21C0: the center's column, what the division leaves above it, the first median's slope, the slope times the column with the intercept added, the remainder's high byte), over cells the battle uses for other things between effects"
+source = "game/battle/screen_between.c battle_measure_direction $CE:E7CF; game/battle/screen_triangles.c screen_triangle_center $CD:21C0"
 [[var]]
 name = "battle_frame_count"
 addr = "7E:007C"
@@ -15048,9 +15048,9 @@ source = "game/battle/screen_setup.c battle_set_the_screen_up $D1:F1B0"
 [[var]]
 name = "battle_scroll_tables"
 addr = "7E:BC89"
-count = 96
+count = 128
 stride = 4
-index = "layer (BG1-BG3) * 32 + entry"
+index = "layer (BG1-BG3) * 32 + entry (BG3's run on to 64 in the finer line wave)"
 subsystem = "battle"
 meaning = "The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's scroll"
 source = "game/battle/scroll.c battle_update_scroll_tables $CD:06C4 ($CD:0706)"
@@ -15814,22 +15814,65 @@ source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4, battl
 [[var]]
 name = "battle_window_line_deltas"
 addr = "7E:0A00"
-count = 0x80
-index = "table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones)"
+count = 0x100
+index = "table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones; the special effect that lays them out as a wave lays 256)"
 subsystem = "battle"
 meaning = "Per-line amounts added to the window edges of lines 48-175"
 source = "game/battle/screen_window.c battle_screen_add_line_deltas $D1:F108"
 
 [[var]]
-name = "battle_wave_edges"
+name = "battle_wave_lines"
 addr = "7E:E500"
-size = 2
-count = 106
-stride = 8
-index = "line pair"
+count = 212
+stride = 4
+index = "line of the battlefield (the waves take every other one, for a pair of lines)"
 subsystem = "battle"
-meaning = "Window 1's edges (left, right) per pair of lines, which the wave effect moves"
-source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4"
+meaning = "The lines the waves ripple window 1 about, which the special effects mark and shift"
+source = "game/battle/screen_window.c battle_screen_wave_windows $D1:EEC4; game/battle/screen_specials.c $CD:2AC6, $CD:2AEF"
+  [[var.field]]
+  name = "edges"
+  offset = 0
+  size = 2
+  meaning = "Window 1's edges (left, right)"
+  [[var.field]]
+  name = "spare"
+  offset = 2
+  size = 2
+  meaning = "Nothing reads it; the special effects' clear of the lines clears it ($CD:2AEF)"
+
+[[var]]
+name = "battle_wave_marks"
+addr = "7E:E850"
+count = 256
+stride = 4
+index = "line (the marks are picked from the ROM's random bytes, up to 255; nothing reads those past the battlefield's 212)"
+subsystem = "battle"
+meaning = "The marks the special effects put on the waves' lines at random, each line marked moving its window 16 columns left"
+source = "game/battle/screen_specials.c $CD:2AAF, $CD:2AC6, $CD:2AEF"
+  [[var.field]]
+  name = "mark"
+  offset = 0
+  size = 2
+  meaning = "How many times the line was picked"
+  [[var.field]]
+  name = "spare"
+  offset = 2
+  size = 2
+  meaning = "Nothing reads it; the clear of the lines clears it"
+
+[[var]]
+name = "battle_band_fade"
+addr = "7E:CD04"
+subsystem = "battle"
+meaning = "How far below their full the special effects' bands of light still are; each laying of the bands brings them up a level ($CD:2D51), and $CD:0F86 sets it to $1F"
+source = "game/battle/screen_specials.c $CD:2D51"
+
+[[var]]
+name = "battle_ended_effect_object"
+addr = "7E:CD00"
+subsystem = "battle"
+meaning = "The object $CD:0024 was last called with, as an effect ends on it ($CF:FE76); the special effect 15 clears its sprites' attribute bits"
+source = "$CD:0043; game/battle/screen_specials.c $CD:2B5C"
 
 [[var]]
 name = "battle_window_steps"
@@ -16092,8 +16135,24 @@ count = 256
 size = 2
 index = "line the circle's drawing works out, from its first"
 subsystem = "battle"
-meaning = "A screen script circle's edges a line at a time as its drawing ($CD:31AA-$CD:3656) works them out, a window's left edge in the low byte and its right in the high, before a run of them goes into the window table ($CE:E7C8)"
-source = "game/battle/screen_shapes.c battle_copy_circle_lines $CE:E7C8"
+meaning = "A screen script circle's rows as its drawing ($CD:31AA-$CD:3656) works them out, a window's left edge in the low byte and its right in the high: the middle row at 128, the rows above going up from 127 and the rows below going down from 128, before a run of them goes into the window table ($CE:E7C8)"
+source = "game/battle/screen_circles.c draw_circle $CD:2FB7, draw_square $CD:1F53, battle_copy_circle_lines $CE:E7C8"
+
+[[var]]
+name = "battle_circle_widths"
+addr = "7E:B800"
+count = 128
+index = "row from the circle's middle, over the first eighth of the turn; the last ended by a 0"
+subsystem = "battle"
+meaning = "A screen script circle's half widths as its drawing works them out ($CD:31AA), before it lays the rows out; nothing reads them after"
+source = "game/battle/screen_circles.c draw_circle $CD:2FB7"
+
+[[var]]
+name = "battle_circle_drawn"
+addr = "7E:CAAA"
+subsystem = "battle"
+meaning = "The screen script circle being drawn, 0 or 1, which the original's drawing hands its routines (the square's drawing sets 0); nothing reads it after"
+source = "game/battle/screen_circles.c draw_circle $CD:2FB7, draw_square $CD:1F53"
 [[var]]
 name = "battle_screen_wave_step"
 addr = "7E:CA79"
@@ -16147,7 +16206,7 @@ index = "amount (the first and fourth across, the others by the command's operan
 reuses = ["battle_screen_swing_speed", "battle_screen_swing_step", "battle_screen_swing_position", "battle_screen_orbit_circle"]
 subsystem = "battle"
 meaning = "Six random amounts, 0-31 each, a channel's layer drifts by (command $D7), in the bytes the swing keeps its speed and position in"
-source = "game/battle/screen_layers.c drift_layer $CD:19E5"
+source = "game/battle/screen_motion.c drift_layer $CD:19E5, pick_drifts $CD:1A14"
 
 [[var]]
 name = "battle_screen_circle_radius"
