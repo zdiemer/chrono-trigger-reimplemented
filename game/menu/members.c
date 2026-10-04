@@ -20,6 +20,7 @@
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/equipment.h"
+#include "menu/figures.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/tiles.h"
@@ -66,6 +67,8 @@ void menu_work_on_member(GameState *g, uint8_t member)
 {
     set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
 }
+
+void menu_work_on_member_only(GameState *g, uint8_t member) { set_menu_screen_argument(g, member); }
 
 /* The character whose record the menus loaded last, from where they noted
  * it. */
@@ -415,11 +418,8 @@ void menu_show_member_element(Snes *s)
     m_rts(s);
 }
 
-/* The card calls out to the original's figures ($C2:9137), which works the
- * member's figures out with what it has on, and which reads none of the
- * registers or the flags; then what the member has on is drawn beside the
- * card's figures. */
-enum { FIGURES_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+/* The card works the member's figures out with what it has on (and writes
+ * them back), then draws what the member has on beside them. */
 enum { EQUIPPED_AT = 0x30A2 };
 
 // $C2:A22F
@@ -430,8 +430,7 @@ static bool draw_member_card(Snes *s)
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
     menu_start_member_card(g);
-    if (!menu_call(s, 0xC2A247, 0xC29137, FIGURES_IGNORES))
-        return false;
+    TIMED_AS(g, 0xC29137, menu_note_member_figures(g));
     menu_draw_member_card_window(g, m_platform(s));
     TIMED_AS(g, 0xC2A6F0, menu_equip_draw_equipped(g, EQUIPPED_AT));
     menu_finish_member_card(g);

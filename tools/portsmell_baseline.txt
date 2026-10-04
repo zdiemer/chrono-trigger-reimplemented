@@ -28,7 +28,6 @@ game/field/bridge.c                          pc-identity              1  # a bri
 game/field/display.c                         sibling-through-machine  1
 game/menu/bridge.c                           pc-identity              1  # a bridge asking whether its call-out returned to the site it called from, not entry identity
 game/menu/cursor.c                           return-address-pushed    3
-game/menu/cursor.h                           enum-types-nothing       1
 game/menu/display.c                          sibling-through-machine  4
 game/menu/epoch.c                            enum-types-nothing       1
 game/menu/epoch.c                            sibling-through-machine  7

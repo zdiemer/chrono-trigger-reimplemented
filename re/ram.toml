@@ -6681,6 +6681,72 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 4
   size = 2
   meaning = "A New Game+'s load: the place in the character's equipment it has got to (a word as each character starts)"
+  [[var.field]]
+  name = "figures_weapon_part"
+  offset = 0
+  size = 2
+  meaning = "The figures' working out ($C2:916E): the weapon's part of the attack's sum, five times its attack, or an aimed weapon's attack"
+  [[var.field]]
+  name = "characters_noted"
+  offset = 2
+  size = 2
+  meaning = "Every character's figures written back as the menus open ($C2:99B2): the characters done"
+  [[var.field]]
+  name = "colours_loaded"
+  offset = 0
+  size = 2
+  meaning = "Every character's sprite colours loaded ($C2:F5A7): the characters whose weapons' colours are in, counted"
+  [[var.field]]
+  name = "cursors_out_left"
+  offset = 0
+  size = 2
+  meaning = "A frame of the cursors on every member ($C2:8AFD): which of those still to draw are out, a bit each"
+  [[var.field]]
+  name = "cursors_left"
+  offset = 2
+  size = 2
+  meaning = "A frame of the cursors on every member: the members still to draw"
+  [[var.field]]
+  name = "cursor_place"
+  offset = 4
+  meaning = "A frame of the cursors on every member: the cursor place of the next member's cursor"
+  [[var.field]]
+  name = "amounts_listed_at"
+  offset = 0
+  size = 2
+  meaning = "The healing's showing ($C2:8F6C): the members listed with a number so far, doubled"
+  [[var.field]]
+  name = "member_amounts"
+  offset = 4
+  size = 2
+  meaning = "The healing's showing: how many numbers the member it looks at has, its HP's and its MP's"
+  [[var.field]]
+  name = "amount_digit"
+  offset = 0
+  meaning = "A rising number being drawn ($C2:9093): its digit, from the highest, left past the units"
+  [[var.field]]
+  name = "amount_offset"
+  offset = 1
+  meaning = "A rising number being drawn: the next digit's place across from the member's sprite"
+  [[var.field]]
+  name = "amount_drawn"
+  offset = 2
+  meaning = "A rising number being drawn: its digits drawn"
+  [[var.field]]
+  name = "amount_height"
+  offset = 4
+  size = 2
+  meaning = "A frame of the rising numbers: how high above the members' sprites they are"
+  [[var.field]]
+  name = "heal_drawn"
+  offset = 2
+  size = 6
+  meaning = "A healing drawn at random ($C2:8ECC): the six random bytes, the members' MP's first"
+  [[var.field]]
+  name = "heal_base"
+  offset = 8
+  size = 2
+  meaning = "A healing drawn at random: the amount every draw starts from"
 
 [[var]]
 name = "menu_save_member_row"
@@ -7075,7 +7141,7 @@ source = "game/menu/save_screen.c, the slots read $C2:D19F, $C2:D266"
 name = "menu_setting_spare"
 addr = "7E:0D91"
 subsystem = "menu"
-meaning = "The byte after the unpacked settings, which their clearing clears with them; nothing in bank C2 reads it"
+meaning = "The byte after the unpacked settings, which their clearing clears with them; the speeds option's description reads it as the settings screen asks for it"
 source = "game/menu/opening.c, the settings unpacked $C2:92F4"
 
 [[var]]
@@ -7357,6 +7423,28 @@ meaning = "The shop's cursor on its list, put aside while the quantity window ha
 source = "game/menu/shop.c, the quantity window $C2:DF76, $C2:DFCF"
 
 [[var]]
+name = "menu_heal_amounts"
+addr = "7E:0022"
+page = "menu"
+size = 2
+count = 6
+index = "the three members' HP amounts, then their MP amounts"
+reuses = ["menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn", "menu_save_member_row", "menu_save_era_width", "menu_slide_copy", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_tech_slide_copy"]
+subsystem = "menu"
+meaning = "The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn at random"
+source = "game/menu/healing.c, work_out_amounts $C2:8ECC"
+
+[[var]]
+name = "menu_amounts_left"
+addr = "7E:0022"
+page = "menu"
+size = 2
+reuses = ["menu_heal_amounts", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+subsystem = "menu"
+meaning = "A frame of the rising numbers: the listed members it has still to draw"
+source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
+
+[[var]]
 name = "menu_shop_work"
 addr = "7E:0022"
 size = 2
@@ -7423,12 +7511,28 @@ meaning = "The shop's cursor places as it opens, kept while the equipping from t
 source = "game/menu/shop.c, the shop's opening $C2:DACA, the slots left $C2:D745"
 
 [[var]]
+name = "menu_cursors_out"
+addr = "7E:0DA0"
+subsystem = "menu"
+meaning = "Which of the cursors a screen holds are out in their blink, a bit each: the held cursor's bit 0, the members' cursors' bits 0-2"
+source = "game/menu/held_cursors.c ($C2:8ABA, $C2:8AFD)"
+
+[[var]]
 name = "menu_held_cursor_sprite"
 addr = "7E:0DA1"
 size = 2
 subsystem = "menu"
 meaning = "The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at menu_held_cursor's place"
 source = "game/menu/shop.c, the shop's opening $C2:D52B; the held cursor's start $C2:8A98"
+
+[[var]]
+name = "menu_cursor_blinks"
+addr = "7E:0DA3"
+count = 3
+index = "held cursor (the first is the held cursor's, or the first member's)"
+subsystem = "menu"
+meaning = "Each held cursor's countdown to its next blink"
+source = "game/menu/held_cursors.c ($C2:8AD5, $C2:8B69, $C2:8AFD)"
 
 [[var]]
 name = "menu_held_cursor_blink"
@@ -7466,15 +7570,54 @@ source = "game/menu/shop.c, the panel $C2:DD7C; the item's users $C2:93A8"
 [[var]]
 name = "menu_figures_slot"
 addr = "7E:0DAD"
+subsystem = "menu"
+meaning = "Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory; the shop's panel leaves the item's category here as it starts, a word with menu_figures_boosts' first"
+source = "game/menu/shop.c, the panel $C2:DD7C; the figures $C2:916E"
+
+[[var]]
+name = "menu_figures_boosts"
+addr = "7E:0DAE"
+count = 7
+index = "stat, by its place in the record"
+reuses = "menu_figures_slot"
+subsystem = "menu"
+meaning = "What the equipment a member wears adds to each of its stats, as the figures' working out ($C2:916E) adds it up"
+source = "game/menu/figures.c, menu_work_out_figures $C2:916E"
+
+[[var]]
+name = "menu_figures_weapon_attack"
+addr = "7E:0DB5"
+subsystem = "menu"
+meaning = "The attack of the weapon a member wears, as the figures' working out ($C2:916E) takes it"
+source = "game/menu/figures.c, menu_work_out_figures $C2:916E"
+
+[[var]]
+name = "menu_figures_armour_defence"
+addr = "7E:0DB6"
+subsystem = "menu"
+meaning = "The defence of the armour and helmet a member wears, added up by the figures' working out ($C2:916E)"
+source = "game/menu/figures.c, menu_work_out_figures $C2:916E"
+
+[[var]]
+name = "menu_figures_greatest_hp"
+addr = "7E:9B25"
 size = 2
 subsystem = "menu"
-meaning = "Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory; the shop's panel leaves the item's category here as it starts"
-source = "game/menu/shop.c, the panel $C2:DD7C; the figures $C2:916E"
+meaning = "A member's greatest HP as the figures' working out finds it, raised by an earring it wears (the record's hp_cap)"
+source = "game/menu/figures.c, menu_work_out_figures $C2:9295"
+
+[[var]]
+name = "menu_items_set_aside"
+addr = "7E:9B96"
+size = 0x200
+subsystem = "menu"
+meaning = "The party's items and their counts set aside while the story holds the party to what it has ($C2:90FC), put back after ($C2:9121)"
+source = "game/menu/figures.c, menu_set_items_aside $C2:90FC"
 
 [[var]]
 name = "menu_figures_worked_out"
 addr = "7E:9B1C"
-count = 11
+count = 9
 index = "figure: the stats at their places in the figures' table, then attack (7) and defence (8)"
 subsystem = "menu"
 meaning = "A member's figures as the menus work them out from its record and what it has on ($C2:916E), which the screens compare with the record's own; the shop's panel puts the record's attack and defence here first, for a member who can't use the item"
@@ -7486,6 +7629,13 @@ addr = "7E:104B"
 subsystem = "menu"
 meaning = "The byte after the shop's goods' count, which nothing in bank C2 writes: the goods' list's frame loads the count with it as a word"
 source = "game/menu/shop.c, the goods' list $C2:DCAA"
+
+[[var]]
+name = "menu_paging_last_top"
+addr = "7E:0DDA"
+subsystem = "menu"
+meaning = "The last first row a scrolling list can show, as its frame ($C2:EA81) lays it out for the paging ($C2:93BF)"
+source = "game/menu/lists.c, menu_turn_page $C2:93BF"
 
 [[var]]
 name = "menu_list_last_place"
@@ -7785,6 +7935,11 @@ source = "game/menu/text.c, menu_number_to_bcd $C2:F13F, the control code dispat
   offset = 2
   size = 2
   meaning = "The window command lists' drawing: the rows it has left to draw or copy, which the last command leaves at 0 or at a frame's inside rows"
+  [[var.field]]
+  name = "number_low"
+  offset = 0
+  size = 2
+  meaning = "The number's low four digits, which the healing's rising numbers read as a word"
 
 [[var]]
 name = "menu_draw_origin"
@@ -8389,6 +8544,30 @@ source = "game/menu/save_screen.c, menu_draw_save_slot $C2:D36C; game/menu/membe
   offset = 0x12
   size = 2
   meaning = "The last byte a save's summary has of the record, as a word with the byte after it"
+  [[var.field]]
+  name = "max_hp"
+  offset = 5
+  size = 2
+  meaning = "The character's greatest HP, before an earring"
+  [[var.field]]
+  name = "stats"
+  offset = 0x0B
+  size = 7
+  meaning = "The character's stats as they are: power, stamina, speed, magic, hit, evade and magic defence"
+  [[var.field]]
+  name = "level"
+  offset = 0x12
+  meaning = "The character's level"
+  [[var.field]]
+  name = "figures"
+  offset = 0x36
+  size = 9
+  meaning = "The stats with what the character wears added (menu_figures_worked_out), then its attack and defence"
+  [[var.field]]
+  name = "hp_cap"
+  offset = 0x3F
+  size = 2
+  meaning = "The character's greatest HP, raised by an earring"
 
 [[var]]
 name = "menu_status_record_tail"
@@ -8587,6 +8766,58 @@ source = "game/menu/equipment.c; the member list's bar $C2:A170"
   meaning = "Nonzero while the bar is hidden"
 
 [[var]]
+name = "menu_service_character"
+addr = "7E:04C0"
+subsystem = "menu"
+meaning = "The character the menus' services ($C2:8004) were last asked to work on, as their caller gives it in Y; the dispatcher keeps it, and the services take it as their argument"
+source = "game/menu/party_bridge.c, the services $C2:8C36"
+
+[[var]]
+name = "menu_service_answer"
+addr = "7E:04C1"
+subsystem = "menu"
+meaning = "What the last of the menus' services answered, which the dispatcher hands back in A: its low byte (menu_service_places_searched holds the high byte of a service that works 16 bits wide)"
+source = "game/menu/party_bridge.c, the services $C2:8C36"
+
+[[var]]
+name = "menu_service_places_searched"
+addr = "7E:04C2"
+subsystem = "menu"
+meaning = "How many of the party's places the last of the services' searches for a character looked through (3 the active party's, 9 all); a service that works 16 bits wide leaves its answer's high byte here instead"
+source = "game/menu/party_bridge.c, the services $C2:8C75, $C2:8CCF"
+
+[[var]]
+name = "menu_service_record_at"
+addr = "7E:04C3"
+size = 2
+subsystem = "menu"
+meaning = "Where in work RAM the record of the character the equipping service ($C2:8D8F) works on is"
+source = "game/menu/party.c, party_equip $C2:8D8F"
+
+[[var]]
+name = "menu_service_item"
+addr = "7E:04C5"
+subsystem = "menu"
+meaning = "The item the equipping service ($C2:8D8F) was asked to put on, kept while what comes off goes back to the party's items"
+source = "game/menu/party.c, party_equip $C2:8D8F"
+
+[[var]]
+name = "menu_item_place_found"
+addr = "7E:04C7"
+size = 2
+subsystem = "menu"
+meaning = "The place in the inventory where the last search for an item the party has some of found it ($C2:87FA), a word; the item count service reads it right after"
+source = "game/menu/items.c, place_holding $C2:87FA"
+
+[[var]]
+name = "menu_weapon_looked_up"
+addr = "7E:041B"
+size = 2
+subsystem = "menu"
+meaning = "The weapon whose colours the menus last looked up for its wearer's sprite palette ($C2:F5ED), a word; nothing reads it"
+source = "game/menu/party.c, show_weapon_colours $C2:F5ED"
+
+[[var]]
 name = "menu_item_operand"
 addr = "7E:04C9"
 subsystem = "menu"
@@ -8672,6 +8903,13 @@ addr = "7E:0DAA"
 subsystem = "menu"
 meaning = "The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over"
 source = "game/menu/equipment.c, the list's move $C2:9F05"
+
+[[var]]
+name = "menu_paging_rows"
+addr = "7E:0DD8"
+subsystem = "menu"
+meaning = "How many rows a page of a scrolling list is, as its frame ($C2:EA81) lays it out for the paging ($C2:93BF)"
+source = "game/menu/lists.c, menu_turn_page $C2:93BF"
 
 [[var]]
 name = "menu_paging_top"
@@ -8983,6 +9221,59 @@ meaning = "What a tonic's power is multiplied by ($40 for an item whose figures 
 source = "game/menu/item_screen.c; the amount worked out at $C2:8ECC"
 
 [[var]]
+name = "menu_amounts_listed"
+addr = "7E:0F53"
+size = 2
+reuses = ["menu_list_items"]
+subsystem = "menu"
+meaning = "How many members' numbers the healing's showing raises ($C2:8F6C): those it gave an amount"
+source = "game/menu/healing.c, menu_ready_the_amounts $C2:8F6C"
+
+[[var]]
+name = "menu_amounts_places"
+addr = "7E:0F57"
+count = 3
+stride = 2
+index = "member listed"
+reuses = ["menu_list_items"]
+subsystem = "menu"
+meaning = "Where each listed member's sprite stands, which its number rises from"
+source = "game/menu/healing.c, menu_ready_the_amounts $C2:8F6C"
+  [[var.field]]
+  name = "y"
+  offset = 0
+  meaning = "Its Y"
+  [[var.field]]
+  name = "x"
+  offset = 1
+  meaning = "Its X"
+
+[[var]]
+name = "menu_amounts_kinds"
+addr = "7E:0F5D"
+size = 2
+reuses = ["menu_list_items"]
+subsystem = "menu"
+meaning = "Which kinds of number the healing's showing raises: bit 0 the HP's, bit 1 the MP's; its task shifts each out as it takes it"
+source = "game/menu/healing.c, menu_ready_the_amounts $C2:8F6C; game/menu/healing_bridge.c, the task $C2:9016"
+
+[[var]]
+name = "menu_amounts_step"
+addr = "7E:0F60"
+reuses = ["menu_list_items"]
+subsystem = "menu"
+meaning = "Where the rising numbers are along their path of heights ($FF:CEBA), a step a frame"
+source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
+
+[[var]]
+name = "menu_amounts_last_digit"
+addr = "7E:0F61"
+reuses = ["menu_list_items"]
+subsystem = "menu"
+meaning = "The rising numbers' last digit, counted from the units: 3 for the HP's four, 1 for the MP's two"
+source = "game/menu/healing_bridge.c, the task $C2:9016"
+
+[[var]]
 name = "menu_heal_shown"
 addr = "7E:0F63"
 reuses = ["menu_list_item_counts", "menu_list_items", "menu_gate_screen_state"]
@@ -9134,6 +9425,25 @@ size = 2
 subsystem = "menu"
 meaning = "Set to $0F75 as the techs screen's description is asked for; no code traced reads it"
 source = "game/menu/tech_screen.c, $C2:BE33"
+
+[[var]]
+name = "menu_amounts_from"
+addr = "7E:0016"
+page = "menu"
+reuses = ["menu_tech_members", "menu_tech_parts_column", "menu_starting_record_at"]
+subsystem = "menu"
+meaning = "Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the HP's, 6 the MP's"
+source = "game/menu/healing_bridge.c, the task $C2:9016"
+
+[[var]]
+name = "menu_amounts_place"
+addr = "7E:0019"
+page = "menu"
+size = 2
+reuses = ["menu_tech_parts_column"]
+subsystem = "menu"
+meaning = "A frame of the rising numbers: the listed member it is drawing, doubled, left past the last"
+source = "game/menu/healing_bridge.c, a kind's rise $C2:9047"
 
 [[var]]
 name = "menu_tech_members"
@@ -19372,6 +19682,11 @@ source = "game/battle/fight_party.c ($FD:AE52, $FD:B2DE, $FD:B33F)"
   offset = 0x3F
   size = 2
   meaning = "The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over the movie library); the battle's stat block has its element affinities here"
+  [[var.field]]
+  name = "figures"
+  offset = 0x36
+  size = 9
+  meaning = "The stats with what the character wears added, then its attack and defence, as the menus work them out ($C2:9137)"
 
 [[var]]
 name = "party_single_techs_learned"

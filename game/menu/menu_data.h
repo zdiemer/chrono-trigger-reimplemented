@@ -72,6 +72,17 @@ enum {
     MENU_ROM_FIRST_COLOURS = 0x9C68, MENU_ROM_SECOND_COLOURS = 0x9C78, MENU_ROM_THIRD_COLOURS = 0xCBBC,
     MENU_ROM_ROW_7_COLOURS = 0xCBC4, MENU_ROM_ROW_8_COLOURS = 0x9DF0,
 };
+
+/* The healing's rising numbers: their four colours ($FF:CB9C), the first
+ * sprite palette's fifth to eighth, and the upload of their digits' tiles
+ * ($C2:FC5A, a record of menu_upload_record's). */
+enum { MENU_ROM_AMOUNT_COLOURS = 0xCB9C, MENU_AMOUNT_COLOURS = 4, MENU_FIRST_AMOUNT_COLOUR = 0x84,
+       MENU_UPLOAD_AMOUNT_DIGITS = 0xFC5A };
+
+/* The heights the healing's numbers rise to, a frame at a time, above
+ * their member's sprite: the HP's path from its start, the MP's from the
+ * 43rd, each ending with a negative height ($FF:CEBA). */
+static inline uint8_t menu_amount_height(const GameState *g, uint8_t step) { return rom_read8(g, 0xFFCEBAu + step); }
 static inline uint16_t menu_rom_colour(const GameState *g, uint16_t from, unsigned i)
 {
     return rom_read16(g, MENU_ROM_BANK | (uint16_t)(from + 2u * i));
@@ -146,6 +157,18 @@ static inline uint8_t menu_chance_limit(const GameState *g, unsigned outcome) { 
 static inline uint8_t menu_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF2Bu + figure); }
 static inline uint8_t menu_figure_cap(const GameState *g, uint8_t figure) { return rom_read8(g, 0xFFCF32u + figure); }
 static inline uint8_t menu_base_figure_offset(const GameState *g, uint8_t figure) { return rom_read8(g, 0xC2B315u + figure); }
+
+/* The same tables by stat: a character's seven stats in the order of their
+ * caps, each one's place among the record's stats ($FF:CF2C) and the most it
+ * comes to with what the character wears ($FF:CF33, the speed's 16 and the
+ * others' 99; the text's limits are the same bytes, menu_number_limit). */
+enum { MENU_STATS = 7 };
+static inline uint8_t menu_stat_place(const GameState *g, unsigned stat) { return rom_read8(g, 0xFFCF2Cu + stat); }
+static inline uint8_t menu_stat_cap(const GameState *g, unsigned stat) { return rom_read8(g, 0xFFCF33u + stat); }
+
+/* Ayla's fists' part of her attack, by her level ($CC:2D69, a word a
+ * level; the original doubles the level in a byte). */
+static inline uint16_t menu_fist_power(const GameState *g, uint8_t level) { return rom_read16(g, 0xCC2D69u + (uint8_t)(level * 2)); }
 
 /* Where each member's sprite stands beside its row of the window an item is
  * used on ($C2:B045, its Y and its X's low byte). */
@@ -416,8 +439,9 @@ static inline uint8_t menu_wave_size(const GameState *g, uint16_t step) { return
 static inline int8_t menu_sine_step(const GameState *g, uint8_t angle) { return (int8_t)rom_read8(g, 0xC0F800u + angle); }
 
 /* The menus' random bytes ($C0:FE00, 256 of them), which the sprite-object
- * mode's scenes take in turn. */
-static inline uint8_t menu_random_byte(const GameState *g, uint8_t index) { return rom_read8(g, 0xC0FE00u + index); }
+ * mode's scenes take in turn; the healing draws six from a frame's place,
+ * the last few reading on past the table. */
+static inline uint8_t menu_random_byte(const GameState *g, unsigned index) { return rom_read8(g, 0xC0FE00u + index); }
 
 /* The sixteen velocities a scene's object may be given at random ($C6:F640):
  * across, then down, each 16.16 fixed point. */
@@ -756,6 +780,24 @@ static inline uint8_t menu_starting_record_byte(const GameState *g, uint8_t char
     return rom_read8(g, 0xCC0000u + (uint32_t)(character * MENU_STARTING_RECORD_BYTES) + at);
 }
 static inline uint8_t menu_starting_equipment_place(const GameState *g, unsigned which) { return rom_read8(g, 0xFFFBCFu + which); }
+
+/* What a new game starts the characters' records and what they have learned
+ * from ($CC:0000: the seven records, then the techs learned); and the
+ * settings it starts with ($C2:FCA6, before the button assignments). */
+enum { MENU_NEW_GAME_RECORDS_BYTES = 0x280 };
+static inline uint8_t menu_new_game_record_byte(const GameState *g, unsigned i) { return rom_read8(g, 0xCC0000u + i); }
+static inline uint8_t menu_new_game_setting(const GameState *g, unsigned i) { return rom_read8(g, 0xC2FCA6u + i); }
+
+/* A weapon's colours: its colour set ($CD:6CEC, a byte a weapon) and the
+ * set's three colours ($D1:4B00, three words a set), which go in its
+ * wearer's sprite palette -- the battle's colours for its members too
+ * (battle/setup_data.h). */
+enum { MENU_WEAPON_COLOURS = 3 };
+static inline uint8_t menu_weapon_colour_set(const GameState *g, uint8_t weapon) { return rom_read8(g, 0xCD6CECu + weapon); }
+static inline uint16_t menu_weapon_colour(const GameState *g, uint8_t set, unsigned i)
+{
+    return rom_read16(g, 0xD14B00u + (uint32_t)(set * MENU_WEAPON_COLOURS + i) * 2u);
+}
 
 /* ---- The techs as the menus open ---------------------------------------------------------- */
 

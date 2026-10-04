@@ -150,10 +150,14 @@ add_library(ct_game STATIC
   game/menu/equipment.c
   game/menu/equipment_bridge.c
   game/menu/equipment_windows.c
+  game/menu/figures.c
   game/menu/frame.c
   game/menu/gate_screen.c
   game/menu/glyphs.c
   game/menu/graphics.c
+  game/menu/healing.c
+  game/menu/healing_bridge.c
+  game/menu/held_cursors.c
   game/menu/item_screen.c
   game/menu/item_screen_bridge.c
   game/menu/items.c
@@ -166,6 +170,8 @@ add_library(ct_game STATIC
   game/menu/object_script.c
   game/menu/objects.c
   game/menu/opening.c
+  game/menu/party.c
+  game/menu/party_bridge.c
   game/menu/save_screen.c
   game/menu/saves.c
   game/menu/script.c

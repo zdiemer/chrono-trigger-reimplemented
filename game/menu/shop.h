@@ -95,9 +95,8 @@ ShopListChoice menu_shop_choose_on_the_list(const GameState *g);
  * table's move set up, the row coming in drawn, the frames (whether the
  * slide takes any), the rows at rest. Then the row taken, the panel to be
  * drawn again where its place is another, and the list queued. */
-void menu_shop_note_top_for_paging(GameState *g, bool selling);
-bool menu_shop_paged(const GameState *g, bool selling);
-void menu_shop_turn_page(GameState *g, bool selling);
+uint8_t menu_shop_list_top(const GameState *g, bool selling);
+void menu_shop_turn_page(GameState *g, bool selling, uint8_t top);
 bool menu_shop_list_slide_brings_a_row(GameState *g, bool selling);
 void menu_shop_set_up_list_slide(GameState *g);
 void menu_shop_bring_in_a_row(GameState *g, bool selling);
@@ -129,12 +128,12 @@ ShopQuantityChoice menu_shop_choose_quantity(const GameState *g);
 bool menu_shop_change_quantity(GameState *g, Platform *pf);
 bool menu_shop_quantity_pushed(const GameState *g);
 
-/* The deal: the gold paid and the goods counted again (the original has
- * added them to the party's items), or the gold received (the original
- * has taken them), at most the most the party holds. */
+/* The deal: the goods the quantity window shows added to the party's items,
+ * the gold paid and the goods counted again; or the items taken and the
+ * gold received, at most the most the party holds. */
 void menu_shop_pay(GameState *g);
-void menu_shop_receive(GameState *g);
 void menu_shop_bought(GameState *g);
+void menu_shop_sold(GameState *g);
 
 /* Back on the list, the window closed: on the goods; on the list for sale,
  * the bar's blink started over first, its rows drawn once it is made again. */

@@ -95,6 +95,9 @@ void menu_leave_compare(Snes *s, uint8_t a, uint8_t b);
 void menu_leave_bit_test(Snes *s, uint8_t a, uint8_t v);
 void menu_leave_load(Snes *s, uint8_t v);
 
+/* ... and A's high byte clear, as the save code's loads leave it. */
+void menu_leave_a_high_byte_clear(Snes *s);
+
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 
 /* On the menus' page; and with the data bank on work RAM's as well. */

@@ -356,6 +356,7 @@
 #define RAM_CHARACTER_RECORDS_MP 0x7E2607u   /* Current MP */
 #define RAM_CHARACTER_RECORDS_MAX_MP 0x7E2609u /* Maximum MP */
 #define RAM_CHARACTER_RECORDS_HP_CAP 0x7E263Fu /* The HP the menus' restoring stops at, which holds the maximum HP again (equal to max_hp over the movie library); the battle's stat block has its element affinities here */
+#define RAM_CHARACTER_RECORDS_FIGURES 0x7E2636u /* The stats with what the character wears added, then its attack and defence, as the menus work them out ($C2:9137) */
 /* How many of its single techs the character has learned, which are its first that many [7 x $1
  * bytes, by character] */
 #define RAM_PARTY_SINGLE_TECHS_KNOWN 0x7E2830u
@@ -2160,6 +2161,24 @@
 #define RAM_MENU_SCRATCH_GATE_ACROSS 0x7E0000u /* The gate screen's swirl turned ($FF:F716): BG3's scroll across, which each band adds */
 #define RAM_MENU_SCRATCH_CARRIED_CHARACTER 0x7E0000u /* A New Game+'s load ($FF:FAED): the character whose starting equipment it puts on */
 #define RAM_MENU_SCRATCH_CARRIED_SLOT 0x7E0004u /* A New Game+'s load: the place in the character's equipment it has got to (a word as each character starts) */
+#define RAM_MENU_SCRATCH_FIGURES_WEAPON_PART 0x7E0000u /* The figures' working out ($C2:916E): the weapon's part of the attack's sum, five times its attack, or an aimed weapon's attack */
+#define RAM_MENU_SCRATCH_CHARACTERS_NOTED 0x7E0002u /* Every character's figures written back as the menus open ($C2:99B2): the characters done */
+#define RAM_MENU_SCRATCH_COLOURS_LOADED 0x7E0000u /* Every character's sprite colours loaded ($C2:F5A7): the characters whose weapons' colours are in, counted */
+#define RAM_MENU_SCRATCH_CURSORS_OUT_LEFT 0x7E0000u /* A frame of the cursors on every member ($C2:8AFD): which of those still to draw are out, a bit each */
+#define RAM_MENU_SCRATCH_CURSORS_LEFT 0x7E0002u /* A frame of the cursors on every member: the members still to draw */
+#define RAM_MENU_SCRATCH_CURSOR_PLACE 0x7E0004u /* A frame of the cursors on every member: the cursor place of the next member's cursor */
+#define RAM_MENU_SCRATCH_AMOUNTS_LISTED_AT 0x7E0000u /* The healing's showing ($C2:8F6C): the members listed with a number so far, doubled */
+#define RAM_MENU_SCRATCH_MEMBER_AMOUNTS 0x7E0004u /* The healing's showing: how many numbers the member it looks at has, its HP's and its MP's */
+#define RAM_MENU_SCRATCH_AMOUNT_DIGIT 0x7E0000u /* A rising number being drawn ($C2:9093): its digit, from the highest, left past the units */
+#define RAM_MENU_SCRATCH_AMOUNT_OFFSET 0x7E0001u /* A rising number being drawn: the next digit's place across from the member's sprite */
+#define RAM_MENU_SCRATCH_AMOUNT_DRAWN 0x7E0002u /* A rising number being drawn: its digits drawn */
+#define RAM_MENU_SCRATCH_AMOUNT_HEIGHT 0x7E0004u /* A frame of the rising numbers: how high above the members' sprites they are */
+#define RAM_MENU_SCRATCH_HEAL_DRAWN 0x7E0002u /* A healing drawn at random ($C2:8ECC): the six random bytes, the members' MP's first */
+#define RAM_MENU_SCRATCH_HEAL_BASE 0x7E0008u /* A healing drawn at random: the amount every draw starts from */
+/* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
+ * HP's, 6 the MP's */
+#define RAM_MENU_AMOUNTS_FROM 0x7E0016u
+#define RAM_MENU_AMOUNTS_FROM_DP 0x16u       /* page menu */
 /* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
  * address into the ROM [3 bytes] */
 #define RAM_MENU_STARTING_RECORD_AT 0x7E0016u
@@ -2176,6 +2195,19 @@
  * triple's, and the byte after it, which the bank's word store clears [4 bytes] */
 #define RAM_MENU_TECH_PARTS_COLUMN 0x7E0016u
 #define RAM_MENU_TECH_PARTS_COLUMN_DP 0x16u  /* page menu */
+/* A frame of the rising numbers: the listed member it is drawing, doubled, left past the last [2
+ * bytes] */
+#define RAM_MENU_AMOUNTS_PLACE 0x7E0019u
+#define RAM_MENU_AMOUNTS_PLACE_DP 0x19u      /* page menu */
+/* A frame of the rising numbers: the listed members it has still to draw [2 bytes] */
+#define RAM_MENU_AMOUNTS_LEFT 0x7E0022u
+#define RAM_MENU_AMOUNTS_LEFT_DP 0x22u       /* page menu */
+/* The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn
+ * at random [6 x $2 bytes, by the three members' HP amounts, then their MP amounts] */
+#define RAM_MENU_HEAL_AMOUNTS 0x7E0022u
+#define RAM_MENU_HEAL_AMOUNTS_COUNT 6u
+#define RAM_MENU_HEAL_AMOUNTS_STRIDE 0x02u
+#define RAM_MENU_HEAL_AMOUNTS_DP 0x22u       /* page menu */
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
@@ -2407,6 +2439,7 @@
 #define RAM_MENU_TEXT_WORK_CODE_HANDLER 0x7E008Au /* The last control code's handler, which its dispatch jumps through; nothing else reads it */
 #define RAM_MENU_TEXT_WORK_WINDOW_COLUMNS 0x7E008Au /* The window command lists' drawing: how many columns wide (or bytes, less one, of a row it copies) what it draws is, as the last command left it */
 #define RAM_MENU_TEXT_WORK_WINDOW_ROWS 0x7E008Cu /* The window command lists' drawing: the rows it has left to draw or copy, which the last command leaves at 0 or at a frame's inside rows */
+#define RAM_MENU_TEXT_WORK_NUMBER_LOW 0x7E008Au /* The number's low four digits, which the healing's rising numbers read as a word */
 /* How many digits of the number to write (also the byte being converted while converting) */
 #define RAM_MENU_NUMBER_DIGITS 0x7E008Eu
 #define RAM_MENU_NUMBER_DIGITS_DP 0x8Eu      /* page menu */
@@ -2558,6 +2591,9 @@
 /* The first member the techs screen's member list shows: how far it has slid along the reachable
  * members */
 #define RAM_MENU_TECH_MEMBER_SCROLL 0x7E041Au
+/* The weapon whose colours the menus last looked up for its wearer's sprite palette ($C2:F5ED),
+ * a word; nothing reads it [2 bytes] */
+#define RAM_MENU_WEAPON_LOOKED_UP 0x7E041Bu
 /* The cells the search for the rocks' triple techs works in ($FF:F958), left as it ends [4
  * bytes] */
 #define RAM_MENU_ROCK_TECH_SEARCH 0x7E04A0u
@@ -2571,6 +2607,25 @@
 #define RAM_MENU_ROCK_TECHS_READY 0x7E04A4u
 #define RAM_MENU_ROCK_TECHS_READY_COUNT 5u
 #define RAM_MENU_ROCK_TECHS_READY_STRIDE 0x01u
+/* The character the menus' services ($C2:8004) were last asked to work on, as their caller gives
+ * it in Y; the dispatcher keeps it, and the services take it as their argument */
+#define RAM_MENU_SERVICE_CHARACTER 0x7E04C0u
+/* What the last of the menus' services answered, which the dispatcher hands back in A: its low
+ * byte (menu_service_places_searched holds the high byte of a service that works 16 bits wide) */
+#define RAM_MENU_SERVICE_ANSWER 0x7E04C1u
+/* How many of the party's places the last of the services' searches for a character looked
+ * through (3 the active party's, 9 all); a service that works 16 bits wide leaves its answer's
+ * high byte here instead */
+#define RAM_MENU_SERVICE_PLACES_SEARCHED 0x7E04C2u
+/* Where in work RAM the record of the character the equipping service ($C2:8D8F) works on is [2
+ * bytes] */
+#define RAM_MENU_SERVICE_RECORD_AT 0x7E04C3u
+/* The item the equipping service ($C2:8D8F) was asked to put on, kept while what comes off goes
+ * back to the party's items */
+#define RAM_MENU_SERVICE_ITEM 0x7E04C5u
+/* The place in the inventory where the last search for an item the party has some of found it
+ * ($C2:87FA), a word; the item count service reads it right after [2 bytes] */
+#define RAM_MENU_ITEM_PLACE_FOUND 0x7E04C7u
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
 #define RAM_MENU_ITEM_OPERAND 0x7E04C9u
@@ -2811,8 +2866,8 @@
 #define RAM_MENU_SETTING_DESCRIPTIONS 0x7E0D8Fu
 /* How fast the dialog's messages go (the second byte's bits 3-5) */
 #define RAM_MENU_SETTING_MESSAGE_SPEED 0x7E0D90u
-/* The byte after the unpacked settings, which their clearing clears with them; nothing in bank
- * C2 reads it */
+/* The byte after the unpacked settings, which their clearing clears with them; the speeds
+ * option's description reads it as the settings screen asks for it */
 #define RAM_MENU_SETTING_SPARE 0x7E0D91u
 /* The scroll bar beside a list that scrolls, which its task ($C2:8BB8) draws as a sprite [9
  * bytes] */
@@ -2836,9 +2891,17 @@
  * start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte [2
  * bytes] */
 #define RAM_MENU_HELD_CURSOR_SHIFT 0x7E0D9Eu
+/* Which of the cursors a screen holds are out in their blink, a bit each: the held cursor's bit
+ * 0, the members' cursors' bits 0-2 */
+#define RAM_MENU_CURSORS_OUT 0x7E0DA0u
 /* The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at
  * menu_held_cursor's place [2 bytes] */
 #define RAM_MENU_HELD_CURSOR_SPRITE 0x7E0DA1u
+/* Each held cursor's countdown to its next blink [3 x $1 bytes, by held cursor (the first is the
+ * held cursor's, or the first member's)] */
+#define RAM_MENU_CURSOR_BLINKS 0x7E0DA3u
+#define RAM_MENU_CURSOR_BLINKS_COUNT 3u
+#define RAM_MENU_CURSOR_BLINKS_STRIDE 0x01u
 /* How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn
  * ($FC a blink every four frames, $F8 every eight) [2 bytes] */
 #define RAM_MENU_HELD_CURSOR_BLINK 0x7E0DA6u
@@ -2851,8 +2914,19 @@
  * bytes] */
 #define RAM_MENU_WINDOW_ROWS_STEP 0x7E0DABu
 /* Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory;
- * the shop's panel leaves the item's category here as it starts [2 bytes] */
+ * the shop's panel leaves the item's category here as it starts, a word with
+ * menu_figures_boosts' first */
 #define RAM_MENU_FIGURES_SLOT 0x7E0DADu
+/* What the equipment a member wears adds to each of its stats, as the figures' working out
+ * ($C2:916E) adds it up [7 x $1 bytes, by stat, by its place in the record] */
+#define RAM_MENU_FIGURES_BOOSTS 0x7E0DAEu
+#define RAM_MENU_FIGURES_BOOSTS_COUNT 7u
+#define RAM_MENU_FIGURES_BOOSTS_STRIDE 0x01u
+/* The attack of the weapon a member wears, as the figures' working out ($C2:916E) takes it */
+#define RAM_MENU_FIGURES_WEAPON_ATTACK 0x7E0DB5u
+/* The defence of the armour and helmet a member wears, added up by the figures' working out
+ * ($C2:916E) */
+#define RAM_MENU_FIGURES_ARMOUR_DEFENCE 0x7E0DB6u
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
 #define RAM_MENU_USE_FIRST_MEMBER 0x7E0DBBu
@@ -2899,9 +2973,15 @@
 #define RAM_MENU_SETTINGS_DESCRIPTION 0x7E0DCFu
 /* How many bytes of the description's row a new description clears ($C2:FA49) [2 bytes] */
 #define RAM_MENU_DESCRIPTION_CLEAR_BYTES 0x7E0DD0u
+/* How many rows a page of a scrolling list is, as its frame ($C2:EA81) lays it out for the
+ * paging ($C2:93BF) */
+#define RAM_MENU_PAGING_ROWS 0x7E0DD8u
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
  * on or back */
 #define RAM_MENU_PAGING_TOP 0x7E0DD9u
+/* The last first row a scrolling list can show, as its frame ($C2:EA81) lays it out for the
+ * paging ($C2:93BF) */
+#define RAM_MENU_PAGING_LAST_TOP 0x7E0DDAu
 /* The cursor place of a scrolling list's first row, which its frame ($C2:EA81) counts the list's
  * last place from */
 #define RAM_MENU_LIST_FIRST_PLACE 0x7E0DDBu
@@ -2966,6 +3046,24 @@
 /* The other two members of the tech on the cursor (menu_tech_members' second and third), noted
  * as their rows are drawn; no code traced reads it [2 bytes] */
 #define RAM_MENU_TECH_ROW_PARTNERS 0x7E0F51u
+/* How many members' numbers the healing's showing raises ($C2:8F6C): those it gave an amount [2
+ * bytes] */
+#define RAM_MENU_AMOUNTS_LISTED 0x7E0F53u
+/* Where each listed member's sprite stands, which its number rises from [3 x $2 bytes, by member
+ * listed] */
+#define RAM_MENU_AMOUNTS_PLACES 0x7E0F57u
+#define RAM_MENU_AMOUNTS_PLACES_COUNT 3u
+#define RAM_MENU_AMOUNTS_PLACES_STRIDE 0x02u
+#define RAM_MENU_AMOUNTS_PLACES_Y 0x7E0F57u  /* Its Y */
+#define RAM_MENU_AMOUNTS_PLACES_X 0x7E0F58u  /* Its X */
+/* Which kinds of number the healing's showing raises: bit 0 the HP's, bit 1 the MP's; its task
+ * shifts each out as it takes it [2 bytes] */
+#define RAM_MENU_AMOUNTS_KINDS 0x7E0F5Du
+/* Where the rising numbers are along their path of heights ($FF:CEBA), a step a frame */
+#define RAM_MENU_AMOUNTS_STEP 0x7E0F60u
+/* The rising numbers' last digit, counted from the units: 3 for the HP's four, 1 for the MP's
+ * two */
+#define RAM_MENU_AMOUNTS_LAST_DIGIT 0x7E0F61u
 /* How many of each of menu_list_items' items the party has [98 x $1 bytes, by row of the list] */
 #define RAM_MENU_LIST_ITEM_COUNTS 0x7E0F62u
 #define RAM_MENU_LIST_ITEM_COUNTS_COUNT 98u
@@ -3468,21 +3566,32 @@
 #define RAM_MENU_STATUS_RECORD_CHARACTER 0x7E9A90u /* The character, in the low three bits */
 #define RAM_MENU_STATUS_RECORD_HP 0x7E9A93u  /* The character's HP */
 #define RAM_MENU_STATUS_RECORD_LAST 0x7E9AA2u /* The last byte a save's summary has of the record, as a word with the byte after it */
+#define RAM_MENU_STATUS_RECORD_MAX_HP 0x7E9A95u /* The character's greatest HP, before an earring */
+#define RAM_MENU_STATUS_RECORD_STATS 0x7E9A9Bu /* The character's stats as they are: power, stamina, speed, magic, hit, evade and magic defence */
+#define RAM_MENU_STATUS_RECORD_LEVEL 0x7E9AA2u /* The character's level */
+#define RAM_MENU_STATUS_RECORD_FIGURES 0x7E9AC6u /* The stats with what the character wears added (menu_figures_worked_out), then its attack and defence */
+#define RAM_MENU_STATUS_RECORD_HP_CAP 0x7E9ACFu /* The character's greatest HP, raised by an earring */
 /* The six bytes after the record: on the load screen the summary's, for a party member the
  * character's name record (character_names) [6 bytes] */
 #define RAM_MENU_STATUS_RECORD_TAIL 0x7E9AE0u
 /* A member's figures as the menus work them out from its record and what it has on ($C2:916E),
  * which the screens compare with the record's own; the shop's panel puts the record's attack and
- * defence here first, for a member who can't use the item [11 x $1 bytes, by figure: the stats
- * at their places in the figures' table, then attack (7) and defence (8)] */
+ * defence here first, for a member who can't use the item [9 x $1 bytes, by figure: the stats at
+ * their places in the figures' table, then attack (7) and defence (8)] */
 #define RAM_MENU_FIGURES_WORKED_OUT 0x7E9B1Cu
-#define RAM_MENU_FIGURES_WORKED_OUT_COUNT 11u
+#define RAM_MENU_FIGURES_WORKED_OUT_COUNT 9u
 #define RAM_MENU_FIGURES_WORKED_OUT_STRIDE 0x01u
+/* A member's greatest HP as the figures' working out finds it, raised by an earring it wears
+ * (the record's hp_cap) [2 bytes] */
+#define RAM_MENU_FIGURES_GREATEST_HP 0x7E9B25u
 /* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
  * a list has nothing to name [32 x $1 bytes, by tile] */
 #define RAM_MENU_BLANK_STRING 0x7E9B76u
 #define RAM_MENU_BLANK_STRING_COUNT 32u
 #define RAM_MENU_BLANK_STRING_STRIDE 0x01u
+/* The party's items and their counts set aside while the story holds the party to what it has
+ * ($C2:90FC), put back after ($C2:9121) [512 bytes] */
+#define RAM_MENU_ITEMS_SET_ASIDE 0x7E9B96u
 /* A copy the menus take as they open of menu_past_the_names (what the three bytes are is not
  * worked out) [3 bytes] */
 #define RAM_MENU_COPY_PAST_THE_NAMES 0x7E9D96u

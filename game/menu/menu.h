@@ -21,7 +21,10 @@
 #include "vars.h"
 
 /* The menus' tasks (menu_tasks), which their scheduler runs a turn of each
- * frame: a task started runs from `start` on its next turn ($C2:8249). */
+ * frame: a task started runs from `start` on its next turn ($C2:8249). Some
+ * have places of their own: the scroll bar's, the records', the cursors a
+ * screen holds and the healing's rising numbers. */
+enum { MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5, MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7 };
 enum { MENU_TASK_STARTING = 1 };
 static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
 {

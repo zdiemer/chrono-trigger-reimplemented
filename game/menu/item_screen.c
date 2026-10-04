@@ -415,13 +415,9 @@ void menu_items_after_sorting(GameState *g)
 /* ---- Pointing along the list ------------------------------------------------------------------- */
 
 // $C2:AC3A
-void menu_items_note_top_for_paging(GameState *g) { set_menu_paging_top(g, menu_item_list_top(g)); }
-
-bool menu_items_paged(const GameState *g) { return menu_paging_top(g) != menu_item_list_top(g); }
-
-void menu_items_turn_page(GameState *g)
+void menu_items_turn_page(GameState *g, uint8_t top)
 {
-    set_menu_item_list_top(g, menu_paging_top(g));
+    set_menu_item_list_top(g, top);
     TIMED_AS(g, 0xC2AE43, menu_items_draw_rows(g));
 }
 
@@ -936,29 +932,28 @@ void menu_items_raise_the_figure(GameState *g)
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
 }
 
-/* One of the item to be taken from the party's items; an item used by
- * chance draws its next use's outcome now. */
+/* An item used by chance draws its next use's outcome as one is used. */
 enum { CHANCE_ITEM = 0xC9 };
 
-// $C2:B31C
-void menu_items_name_one_used(GameState *g)
+/* For the original's code and shadow mode: the item and how many the
+ * inventory's take is handed in the menus' cells. */
+static void leave_one_to_take(GameState *g, uint8_t item)
 {
     set_menu_item_operand_quantity(g, 1);
-    uint8_t item = inventory_items(g, menu_item_picked(g));
     set_menu_item_operand(g, item);
-    if (item == CHANCE_ITEM)
-        menu_items_draw_a_chance(g);
 }
 
-/* Once taken: the row drawn again, and where none are left the item does
- * nothing more (the member window stays). */
-bool menu_items_used_up(GameState *g)
+// $C2:B31C
+void menu_items_use_one(GameState *g)
 {
+    uint8_t item = inventory_items(g, menu_item_picked(g));
+    ORIGINAL_EFFECT(leave_one_to_take(g, item));
+    if (item == CHANCE_ITEM)
+        menu_items_draw_a_chance(g);
+    TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));
     menu_items_redraw_the_cursors_row(g);
-    bool used_up = inventory_counts(g, menu_item_picked(g)) == 0;
-    if (used_up)
+    if (inventory_counts(g, menu_item_picked(g)) == 0)
         set_menu_use_effect(g, 0);
-    return used_up;
 }
 
 uint8_t menu_items_picked_item(const GameState *g) { return inventory_items(g, menu_item_picked(g)); }

@@ -40,6 +40,7 @@
 #include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
+#include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/tiles.h"
 #include "menu/vram.h"
@@ -86,7 +87,7 @@ static bool loaded_member_waits(const GameState *g) { return (menu_member_waitin
 
 /* The loaded member's MP, as the screen compares it with a cost: its low
  * byte (a member has no more than 99). */
-enum { MP_AT = 7, MAGIC_AT = 0x39 };
+enum { MP_AT = 7, MAGIC_FIGURE = 3 };
 static uint8_t loaded_mp(const GameState *g) { return menu_status_record_bytes_byte(g, MP_AT); }
 static bool loaded_member_short_of(const GameState *g, uint8_t cost) { return loaded_mp(g) < cost; }
 static uint8_t tech_cost_needed(const GameState *g) { return menu_tech_cost_needed(g); }
@@ -111,22 +112,12 @@ static void forget_the_list(GameState *g) { set_menu_tech_list_shown(g, NOTHING_
 /* Each character's sprite is the record of its own number; the eighth
  * record (7) is the member whose list the screen shows, standing to the
  * list's right, and the ninth is the one the opening leaves empty. */
-enum { LISTER = 7, LAST_RECORD = 8, RECORDS_RESET = 7, RECORD_BYTES = 0x40, HIDDEN = 0xFF, SHOWN = 0 };
+enum { LISTER = 7, LAST_RECORD = 8, RECORD_BYTES = 0x40, HIDDEN = 0xFF, SHOWN = 0, STILL = 0 };
 
-/* The records' reset ($C2:F566): the seven characters' each showing its
- * own character's sprite, still, kept hidden but animating until a row
- * places it. */
-enum { RESET_HIDDEN = 0x40, STILL = 0 };
-
-// $C2:F566
-static void reset_records(GameState *g)
-{
-    for (unsigned r = 0; r < RECORDS_RESET; r++) {
-        set_menu_record_sprite(g, r, (uint8_t)r);
-        set_menu_record_animation(g, r, STILL);
-        set_menu_record_hidden(g, r, RESET_HIDDEN);
-    }
-}
+/* The records' reset: the seven characters' each showing its own
+ * character's sprite, still, kept hidden but animating until a row places
+ * it (menu/sprites.h). */
+static void reset_records(GameState *g) { TIMED_AS(g, 0xC2F566, menu_reset_character_records(g)); }
 
 /* Where a character's record is, as the original works it out ($C2:F626,
  * with the multiplier) and notes it. */
@@ -694,20 +685,18 @@ TechsListChoice menu_techs_choose_on_the_list(const GameState *g)
 }
 
 // $C2:B6D3
-void menu_techs_note_top_for_paging(GameState *g)
+/* The member on the cursor loaded, and the list's first row, to page. */
+uint8_t menu_techs_list_top_for_paging(GameState *g)
 {
     (void)load_member(g, member_on_the_cursor(g));
-    set_menu_paging_top(g, menu_tech_list_top(g));
+    return menu_tech_list_top(g);
 }
-
-bool menu_techs_paged(const GameState *g) { return menu_paging_top(g) != menu_tech_list_top(g); }
 
 /* The paging put the thumb at the new first row; it is drawn four lines a
  * row, and the list's rows drawn again from there. */
-void menu_techs_turn_page(GameState *g)
+void menu_techs_turn_page(GameState *g, uint8_t top)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
-    uint8_t top = menu_paging_top(g);
     set_menu_tech_list_top(g, top);
     ORIGINAL_EFFECT(set_menu_scratch_tech_list_place_high(g, 0));
     TIMED_AS(g, 0xC2BD6B, menu_techs_draw_list_rows(g, top));
@@ -940,7 +929,7 @@ void menu_techs_choose_targets(GameState *g)
     set_menu_use_effect(g, h.effect);
     set_menu_heal_factor(g, h.factor);
     set_menu_tasks_state(g, SCROLL_BAR_TASK, TASK_STOPPED);
-    set_menu_heal_power(g, menu_status_record_bytes_byte(g, MAGIC_AT));
+    set_menu_heal_power(g, menu_status_record_figures_byte(g, MAGIC_FIGURE));
     next_step(g);
     set_menu_cursor_index(g, FIRST_TARGET_PLACE);
     set_menu_held_cursor(g, FIRST_TARGET_PLACE);

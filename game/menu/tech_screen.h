@@ -125,9 +125,8 @@ void menu_techs_hold_the_description(GameState *g);
 
 /* Pointing along the list: a page turned with the shoulder buttons, drawn
  * again; or a push past its rows slides it a row where there is one. */
-void menu_techs_note_top_for_paging(GameState *g);
-bool menu_techs_paged(const GameState *g);
-void menu_techs_turn_page(GameState *g);
+uint8_t menu_techs_list_top_for_paging(GameState *g);
+void menu_techs_turn_page(GameState *g, uint8_t top);
 bool menu_techs_list_slide_brings_a_tech(const GameState *g);
 void menu_techs_set_up_list_slide(GameState *g);
 void menu_techs_bring_in_a_tech(GameState *g);

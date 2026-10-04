@@ -27,6 +27,9 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/healing.h"
+#include "menu/held_cursors.h"
+#include "menu/party.h"
 #include "menu/items.h"
 #include "menu/item_screen.h"
 #include "menu/lists.h"
@@ -49,18 +52,11 @@ enum {
     YIELD = 0xC2821E,                  /* the task waits for the next frame */
     WAIT_FRAMES = 0xC2822B,            /* ... for the frames in A */
     STOP_TASKS = 0xC28255,             /* the tasks in A stopped */
-    CHECK_ROCK_TECHS = 0xC282E1,       /* the triple techs the party's rocks give, worked out */
-    CURSOR_ON_EVERY_MEMBER = 0xC28AD5, /* the cursors' task for a healing of every member */
-    START_SCROLL_BAR = 0xC28B93,       /* the scroll bar's task started */
-    RESTORE = 0xC28F55,                /* the healing's HP and MP restored, shown, and waited out */
-    TURN_PAGE = 0xC293BF,              /* a list's paging with the shoulder buttons */
     MAIN_MENU = 0xC29A98,              /* back to the main menu */
     MOVE_IN_LIST = 0xC2EA53,           /* the cursor kept within a list's rows */
     FRAME_THE_LIST = 0xC2EA81,         /* a scrolling list's frame laid out: Y places, rows shown */
     LIST_SLIDE_FRAME = 0xC2EB1F,       /* a frame of a list's slide, and the wait for the next */
     START_LIST_SLIDE = 0xC2EB9B,       /* a list's slide started */
-    LOAD_SPRITE_COLOURS = 0xC2F5A7,    /* the members' sprites' colours loaded */
-    START_RECORDS = 0xC2F643,          /* the records' task started */
     SET_DESCRIPTION = 0xC2FA49,        /* the description's task started on the text asked for */
 };
 
@@ -141,12 +137,10 @@ void menu_open_techs(Snes *s)
     ORIGINAL_EFFECT(leave_load(s, menu_screen_step(g)));
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    if (!call(s, 0xC2B9AB, CHECK_ROCK_TECHS))
-        return;
+    TIMED_AS(g, 0xC282E1, party_rocks_teach(g));
     menu_techs_note_rock_techs(g);
     menu_set_widths(s, false, false);
-    if (!call(s, 0xC2B9DA, START_SCROLL_BAR))
-        return;
+    TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     menu_restore_p(s);
     menu_techs_show(g);
     m_rts(s);
@@ -433,11 +427,10 @@ static void point_along_the_list(Snes *s)
     Platform *pf = m_platform(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    menu_techs_note_top_for_paging(g);
-    if (!call(s, 0xC2B6E8, TURN_PAGE))
-        return;
-    if (menu_techs_paged(g)) {
-        menu_techs_turn_page(g);
+    uint8_t top = menu_techs_list_top_for_paging(g), to = top;
+    TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
+    if (to != top) {
+        menu_techs_turn_page(g, to);
         if (!yield(s, 0xC2B705))
             return;
     } else {
@@ -493,8 +486,8 @@ static void use_the_tech(Snes *s)
         return;
     menu_techs_choose_targets(g);
     ORIGINAL_EFFECT(leave_tech_used(s, menu_techs_heal_every_member(g)));
-    if (menu_techs_heal_every_member(g) && !call(s, 0xC2B485, CURSOR_ON_EVERY_MEMBER))
-        return;
+    if (menu_techs_heal_every_member(g))
+        TIMED_AS(g, 0xC28AD5, menu_put_cursors_on_every_member(g));
     if (!menu_run(s, 0xC2B488, 0xC2BE79, menu_open_tech_targets))
         return;
     menu_techs_hold_the_description(g);
@@ -625,7 +618,7 @@ void menu_choose_tech_target(Snes *s)
         ORIGINAL_EFFECT(s->cpu.a = 0);
         m_set_a8(s, CAST_FRAMES);
         ORIGINAL_EFFECT(leave_load(s, CAST_FRAMES));
-        if (!menu_call(s, 0xC2B4F9, WAIT_FRAMES, READS_A) || !call(s, 0xC2B4FC, RESTORE))
+        if (!menu_call(s, 0xC2B4F9, WAIT_FRAMES, READS_A) || !menu_run(s, 0xC2B4FC, 0xC28F55, menu_heal_and_show))
             return;
         uint8_t mp_before = menu_techs_after_casting(g);
         (void)mp_before;
@@ -652,8 +645,10 @@ void menu_show_techs_panel(Snes *s)
     menu_techs_panel_lay_out(g, pf);
     ORIGINAL_EFFECT(leave_panel_member_chosen(s, row));
     (void)row;
-    if (!call(s, 0xC2B8EF, LOAD_SPRITE_COLOURS) || !yield(s, 0xC2B8F2) || !call(s, 0xC2B8F5, START_RECORDS))
+    TIMED_AS(g, 0xC2F5A7, menu_load_character_colours(g));
+    if (!yield(s, 0xC2B8F2))
         return;
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     if (!menu_run(s, 0xC2B8F8, 0xC2BA4F, menu_draw_tech_member_rows))
         return;
     menu_techs_panel_show(g, pf);
@@ -662,16 +657,15 @@ void menu_show_techs_panel(Snes *s)
 }
 
 // $C2:B960
-/* The main menu leaving the techs: its line effects, the records' task
- * (the original's), and its windows back. */
+/* The main menu leaving the techs: its line effects, the records' task,
+ * and its windows back. */
 void menu_put_techs_panel_away(Snes *s)
 {
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     menu_techs_panel_hold(g);
-    if (!call(s, 0xC2B968, START_RECORDS))
-        return;
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     menu_techs_panel_put_away(g, m_platform(s));
     menu_restore_p(s);
     m_rts(s);

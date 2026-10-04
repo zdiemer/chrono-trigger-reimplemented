@@ -29,6 +29,11 @@ uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits);
  * unless the clock has run past them. For the guards of whatever draws it. */
 bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits);
 
+/* A number of `bytes` bytes (the value's low ones) as decimal digits, four
+ * bits each from the units, as the menus convert one to show it ($C2:F13F;
+ * menu_text_work's number holds them after). */
+uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes);
+
 void menu_number_to_bcd(Snes *s);
 void menu_draw_time(Snes *s);
 bool menu_time_is_drawable(Snes *s);

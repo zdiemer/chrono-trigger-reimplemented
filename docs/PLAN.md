@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 232 files, 117 of 68,832 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 238 files, 117 of 70,264 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -217,7 +217,7 @@ docstring says which way it is wrong). **18% of the code is still generated.**
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.1K | 33.9K | 9.2K | 43% | 358 |
+| menus, text (`$C2`) | 59.1K | 36.4K | 10.3K | 38% | 385 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
@@ -384,36 +384,34 @@ characters in the records, the records' task, the frame's input, the
 tilemap touches, the equipment screen, the items screen, the techs screen,
 the settings screen (its options through a table, the buttons' assignment,
 the meters, the gauge and the window's design, and the main menu's panel for
-it) and the shop (its tabs, the goods and the party's items for sale, the
+it), the shop (its tabs, the goods and the party's items for sale, the
 panel of who could use an item and how their figures change, the quantity
-and the deal). What is left, in the order to take it
-(`python3 tools/burndown.py --uncovered C2`):
+and the deal), the party's services the field's scripts, the power-on and a
+New Game+ call (the party's record, equipping, filling HP and MP), the
+figures, the healing and its rising numbers, the inventory's add and take,
+the paging, the records' sprites and colours and the held cursors. What is
+left, in the order to take it (`python3 tools/burndown.py --uncovered C2`):
 
-1. **The party's services and figures** (about 2.3K): the services every
-   screen and a New Game+'s load call (`$C2:8004`, `$C2:8C75`-`$C2:8DDE`:
-   equip, fill HP and MP), the healing (`$C2:8DE3`-`$C2:90F7`), a member's
-   figures worked out (`$C2:90FC`-`$C2:91DA`, the shop's panel's call-out)
-   and the paging (`$C2:93A8`, `$C2:93BF`). First, because it takes out the
-   most call-outs of the screens already in C.
-2. **The rest of the menu screens** (about 4K): the main menu
+1. **The rest of the menu screens** (about 3.5K): the list slide
+   (`$C2:EB1F`-`$C2:EC37`, which every list screen calls) and the
+   description's typing (`$C2:F943`-`$C2:FB96`) first, since they take out
+   the most call-outs of the screens already in C; then the main menu
    (`$C2:99CE`-`$C2:9B64`), the party's exchange screens 5 and 7
    (`$C2:C627`-`$C2:CDCA`), the save screen's opening
    (`$C2:D065`-`$C2:D155`), name entry (screen 13, `$C2:E2A0`-`$C2:E53D`),
-   the description's typing (`$C2:F943`-`$C2:FB96`), the list slide
-   (`$C2:EB1F`-`$C2:EC37`), the records' sprites and colours
-   (`$C2:F588`-`$C2:F625`), the cursors' tasks (`$C2:8A98`-`$C2:8BA5`) and
-   the shop's equipping of what was just bought (its steps 6-8,
-   `$C2:E017`-`$C2:E18A` with `$C2:D6C3`-`$C2:D778`; no movie takes it, so
-   record one with the route tools first).
-3. **The overworld on foot** (about 4.4K): the leader's walking
+   the cursor's task for one member (`$C2:89E4`, `$C2:8A31`) and the shop's
+   equipping of what was just bought (its steps 6-8, `$C2:E017`-`$C2:E18A`
+   with `$C2:D6C3`-`$C2:D778`; no movie takes it, so record one with the
+   route tools first).
+2. **The overworld on foot** (about 4.4K): the leader's walking
    (`$C2:34AB`-`$C2:3AB9`), the followers (`$C2:3B8C`-`$C2:42E5`), the
    tiles that trigger events (`$C2:3279`-`$C2:337D`), the region's music
    (`$C2:2FA5`-`$C2:30C0`), the place's sign (`$C2:563F`-`$C2:57AF`) and the
    round trip to the menus (`$C2:250D`-`$C2:26A7`).
-4. **The overworld's vehicles** (about 4K): the Epoch flown over the map
+3. **The overworld's vehicles** (about 4K): the Epoch flown over the map
    (`$C2:42F8`-`$C2:4A9A`) and the second vehicle (`$C2:4CDA`-`$C2:5627`,
    which no movie reaches yet).
-5. **The overworld's setup and colours** (about 3.1K, last): the palettes
+4. **The overworld's setup and colours** (about 3.1K, last): the palettes
    (`$C2:1D06`-`$C2:2061`) and the scene stream loaders
    (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
    `menu/display.c`'s loader half, and only once the streams it decompresses
@@ -437,8 +435,7 @@ unpacking (`$C0:A33B`, `$C0:7399`, `$C0:A66B`), the dialog window's opening
 (`$C0:1F24`), the sprite lists (`$C0:B192`), a choice's buttons
 (`$C0:1ADF`) and the sprite blocks objects take coming into view
 (`$C0:6FBA`). Every event command has a row; event's bridges still call the
-menus' party routines (`$C2:8004`), which go with `$C2`, and the unpacker
-(`$C3:0002`, TODO.md).
+unpacker (`$C3:0002`, TODO.md).
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race
@@ -496,8 +493,8 @@ by an audit; the fourth is the program itself.
   hand ports (`core/console.c`; RECOMP.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
   and main loop: `ct_play --recomp off --interpreted stop` (PLAYING.md) runs
-  to frame 2 and stops at the menus' routine `$C2:8004`, which the field's
-  first start asks about the saves. The meter moves far past that only once the title's scene
+  to frame 2 and stops at `$C0:7084`, in the field's code after its first
+  start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
   program (`$7E`) is ported.
 
   **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census

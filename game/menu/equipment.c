@@ -30,6 +30,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/items.h"
 #include "menu/display.h"
 #include "menu/lists.h"
 #include "menu/members.h"
@@ -352,18 +353,25 @@ ItemChoice menu_equip_choose_item(const GameState *g)
 /* The slot's place in the member's record. */
 static uint8_t slot_place(const GameState *g) { return (uint8_t)menu_equip_record_place(g); }
 
-// $C2:9CC1
-void menu_equip_name_what_comes_off(GameState *g)
+/* For the original's code and shadow mode: the item and how many the
+ * inventory's routines are handed in the menus' cells. */
+static void leave_operand(GameState *g, uint8_t item)
 {
     set_menu_item_operand_quantity(g, 1);
-    set_menu_item_operand(g, character_records_record_byte(g, menu_member_character(g), slot_place(g)));
+    set_menu_item_operand(g, item);
 }
 
+// $C2:9CC1
 void menu_equip_put_on_the_chosen_item(GameState *g)
 {
-    uint8_t item = menu_status_record_bytes_byte(g, slot_place(g));
-    set_menu_item_operand(g, item);
-    set_character_records_record_byte(g, menu_member_character(g), slot_place(g), item);
+    uint8_t character = menu_member_character(g), place = slot_place(g);
+    uint8_t was = character_records_record_byte(g, character, place);
+    ORIGINAL_EFFECT(leave_operand(g, was));
+    TIMED_AS(g, 0xC28791, (void)menu_add_items(g, was, 1));
+    uint8_t item = menu_status_record_bytes_byte(g, place);
+    ORIGINAL_EFFECT(leave_operand(g, item));
+    set_character_records_record_byte(g, character, place, item);
+    TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, item, 1));
 }
 
 /* A weapon changed on one of the first six characters clears the story's
@@ -394,8 +402,6 @@ void menu_equip_back_to_the_slots(GameState *g)
  * leaves a row of the list past the last shown or before the first. */
 enum { FIRST_LIST_PLACE = 4 };
 
-// $C2:9F05
-void menu_equip_note_list_top_for_paging(GameState *g) { set_menu_paging_top(g, menu_equip_list_top(g)); }
 
 /* The scroll bar's thumb for the list's first row: four lines a row,
  * through the multiplier ($C2:8BA6), which it leaves with the product. */
@@ -408,16 +414,12 @@ static uint8_t thumb_at_row(GameState *g, uint8_t row)
     return (uint8_t)(row * THUMB_LINES_A_ROW);
 }
 
-/* Whether the paging turned a page: it moved the first row a page on or
- * back. */
-bool menu_equip_list_paged(const GameState *g) { return menu_paging_top(g) != menu_equip_list_top(g); }
-
 /* The paging moved the list's first row (and the thumb's place with it, as
  * the row) a page on or back. */
-void menu_equip_turn_list_page(GameState *g)
+void menu_equip_turn_list_page(GameState *g, uint8_t top)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_scroll_bar_thumb(g)));
-    set_menu_equip_list_top(g, menu_paging_top(g));
+    set_menu_equip_list_top(g, top);
 }
 
 /* The row of the list the cursor is on. */

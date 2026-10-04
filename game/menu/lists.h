@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "snes/system.h"
 #include "state.h"
 
 /* Whether the scrolling list on the screen scrolls at all: it has places
@@ -28,5 +29,16 @@ bool menu_list_slid_up(const GameState *g);
  * up the list, each row a row down and the new one from the last to the
  * first. */
 void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, unsigned row_bytes, bool up);
+
+/* A scrolling list paged with the shoulder assignments, its first row at
+ * `top`: back a page or on a page, its rows as its frame laid them out
+ * (menu_paging_rows, menu_paging_last_top). The new first row, `top` where
+ * no page turns; a page that turns moves the scroll bar's thumb there and
+ * ticks, and paging past an end puts the cursor on the end's place. */
+uint8_t menu_turn_page(GameState *g, uint8_t top);
+
+/* Its entry ($C2:93BF): the first row in menu_paging_top, the answer in A
+ * $FF where a page turned. */
+void menu_turn_page_entry(Snes *s);
 
 #endif

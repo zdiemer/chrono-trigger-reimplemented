@@ -3965,8 +3965,8 @@ name = "event_cmd_party_routine_6_7"
 at = "C0:3E5C"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_6_7"
@@ -3974,16 +3974,16 @@ variant = "loose"
 at = "C0:3E5C"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_6"
 at = "C0:3E6E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_6"
@@ -3991,16 +3991,16 @@ variant = "loose"
 at = "C0:3E6E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_7"
 at = "C0:3E75"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_7"
@@ -4008,16 +4008,16 @@ variant = "loose"
 at = "C0:3E75"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_0a"
 at = "C0:3A68"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_party_routine_0a"
@@ -4025,8 +4025,8 @@ variant = "loose"
 at = "C0:3A68"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_take_out_of_party"
@@ -4460,56 +4460,56 @@ name = "event_cmd_if_in_the_active_party"
 at = "C0:38E8"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_if_recruited"
 at = "C0:388D"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_recruit"
 at = "C0:38BE"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_dismiss"
 at = "C0:38D3"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_note_item_count"
 at = "C0:37F9"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0000-7FFF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_bring_into_the_party"
 at = "C0:3919"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0199-7E0199=02,04,80"]
-why = "the field's page and data bank, the running object a slot, the character one of the seven or past them (the guard's), the first member's place taken or empty"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0199-7E0199=02,04,80", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the character one of the seven or past them (the guard's), the first member's place taken or empty; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 [[routine]]
 name = "event_cmd_send_to_the_reserve"
 at = "C0:394E"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0197-7E019B:2=00,02,04,06,08,0A,80", "--fill", "7E0198-7E019C:2=00-00", "--fill", "7E1101-7E117F:2=00-07"]
-why = "the field's page and data bank, the running object a slot, the character one of the seven or past them, the party's places objects or empty, each object's character one of the seven or past them"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--range", "Y=0100-0100", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F2102-7F2102=00-07", "--fill", "7E0197-7E019B:2=00,02,04,06,08,0A,80", "--fill", "7E0198-7E019C:2=00-00", "--fill", "7E1101-7E117F:2=00-07", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the field's page and data bank, the running object a slot, the character one of the seven or past them, the party's places objects or empty, each object's character one of the seven or past them; the active party characters or empty places, as the menus' services read it (their guard refuses others)"
 
 # ---- field: banks C0, C3 and FD (the field's own routines) -----------------------------------------
 #
@@ -5704,9 +5704,9 @@ name = "menu_build_items"
 at = "C2:9875"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0005-7E0005=00-00"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0005-7E0005=00-00", "--fill", "7E2627-7E2629=00-93", "--fill", "7E262A-7E262A=00-F1", "--fill", "7E2677-7E2679=00-93", "--fill", "7E267A-7E267A=00-F1", "--fill", "7E26C7-7E26C9=00-93", "--fill", "7E26CA-7E26CA=00-F1", "--fill", "7E2717-7E2719=00-93", "--fill", "7E271A-7E271A=00-F1", "--fill", "7E2767-7E2769=00-93", "--fill", "7E276A-7E276A=00-F1", "--fill", "7E27B7-7E27B9=00-93", "--fill", "7E27BA-7E27BA=00-F1", "--fill", "7E2807-7E2809=00-93", "--fill", "7E280A-7E280A=00-F1"]
 iterations = 500
-why = "the menus' page and data bank, the zero word 0 as the menus keep it, the high byte of the triple techs' parts count 0 (menu_note_party_techs's guard); the inventory, the story's bytes, the location, the party and its techs random (the members' figures after the tables are the original's, which read them too)"
+why = "the menus' page and data bank, the zero word 0 as the menus keep it, the high byte of the triple techs' parts count 0 (menu_note_party_techs's guard), each character's weapon, armour and helmet one with a power in the menus' table and its accessory one with data (menu_everyones_figures_are_notable's guard); the inventory, the story's bytes, the location, the party, its techs and the rest of the characters' records random"
 
 [[routine]]
 name = "menu_look_up_item"
@@ -6091,9 +6091,9 @@ name = "menu_load_carried_over"
 at = "FF:FAED"
 subsystem = "menu"
 state = "menus"
-args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0051-7E0052=00-00"]
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0051-7E0052=00-00", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
 iterations = 2000
-why = "the menus' zero word 0; the menus' page and data bank, one of the three slots; the inventory and the items' kinds random (the services that equip and fill HP and MP are the original's)"
+why = "the menus' zero word 0; the menus' page and data bank, one of the three slots; the active party characters or empty places (menu_carry_over_runs's guard; the party isn't carried over); the inventory and the items' kinds random"
 
 [[routine]]
 name = "menu_note_party_techs"
@@ -15935,3 +15935,238 @@ subsystem = "menu"
 state = "shop_selling"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=04", "--fill", "7E04C9-7E04C9=01-F1", "--fill", "7E0054-7E0054=0A", "--fill", "7E04CA-7E04CA=02-64", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E1044-7E1048=00-FF", "--fill", "7E007F-7E007F=00-07", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
 why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the quantity window's step, the limit, the quantity and the price anywhere; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
+
+# ---- menu: the party's services, its figures and the healing (game/menu/party.c, figures.c, healing.c) ----
+
+[[routine]]
+name = "menu_party_services"
+at = "C2:8004"
+subsystem = "menu"
+state = "field"
+args = ["--long", "--keep", "7E2400-7E29FF", "--keep", "7E0400-7E04FF", "--keep", "7E2C50-7E2CFF", "--keep", "7F0000-7F01FF", "--range", "A=0000-000C", "--range", "X=0000-00F1", "--range", "Y=0000-0008"]
+why = "the inventory, the characters' records, the party's record and the settings, the clock's page and the story as the field has them; a service of the thirteen, an item the game has and one of the nine places' characters (the guard refuses the equipping of a character past the seven, and of an item that is no equipment with A's high byte set)"
+
+[[routine]]
+name = "menu_party_services"
+at = "C2:8004"
+variant = "loose"
+subsystem = "menu"
+state = "field"
+args = ["--long", "--keep", "7E2600-7E287F", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80,81,82,83,84,85,86", "--range", "A=0000-000C"]
+why = "the records as the field has them and the active party any of the characters or empty places; the reserve, the inventory, the clock's page and the arguments random, so the record's searches and shifts meet every arrangement"
+
+[[routine]]
+name = "menu_show_what_the_party_wears"
+at = "C2:834D"
+subsystem = "menu"
+state = "field"
+args = ["--db", "7E", "--keep", "7E2600-7E287F", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80,81,82,83,84,85,86"]
+why = "the records as the field has them, the active party any characters or empty places; the rocks' readiness and their marks random"
+
+[[routine]]
+name = "menu_rocks_teach"
+at = "C2:82E1"
+subsystem = "menu"
+state = "field"
+args = ["--db", "7E", "--fill", "7E262A-7E262A=94-BB", "--fill", "7E267A-7E267A=AA-B4", "--fill", "7E26CA-7E26CA=AA-B4", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
+why = "the records random, three characters' accessories around the rocks, so some wear one and some don't; the active party characters or empty places (the guard refuses others)"
+
+[[routine]]
+name = "menu_power_on"
+at = "C2:8D6A"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0400", "--db", "7E"]
+why = "the clock's page and the data bank on work RAM's (the guard's); the slots as the state's cartridge holds them, work RAM random"
+
+[[routine]]
+name = "menu_start_a_new_game"
+at = "C2:956E"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E"]
+why = "anything: the new game's state writes over what it sets up"
+
+[[routine]]
+name = "menu_add_operand_items"
+at = "C2:8791"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E2400-7E24FF:2=00", "--fill", "7E2500-7E25FF:3=00"]
+why = "the item any byte, how many 1-99; the inventory random with a share of its places empty and of its counts none, so the add finds the item, an empty place, or no room"
+
+[[routine]]
+name = "menu_take_operand_items"
+at = "C2:87D5"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E2500-7E25FF:3=00"]
+why = "the item any byte, how many 1-99; the inventory random with a share of its counts none"
+
+[[routine]]
+name = "menu_ask_who_can_use"
+at = "C2:93A8"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--keep", "7E7A00-7E7AF1", "--fill", "7E04C9-7E04C9=00-F1", "--fill", "7E9A90-7E9A90=00-08"]
+why = "the menus' table of users as they built it; an item of the game's, and a loaded character of the bits' nine (the guard refuses others)"
+
+[[routine]]
+name = "menu_turn_page"
+at = "C2:93BF"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank; the list's rows, its first row and last, the shoulders random"
+
+[[routine]]
+name = "menu_work_out_figures"
+at = "C2:916E"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7A00-7E7DFF", "--fill", "7E9AB9-7E9AB9=00-59", "--fill", "7E9AB8-7E9AB8=5A-7A", "--fill", "7E9AB7-7E9AB7=7B-93", "--fill", "7E9ABA-7E9ABA=94-BB"]
+why = "the menus' item tables as they built them; the loaded record's weapon, armour, helmet and accessory each of its category, its stats, level and HP random"
+
+[[routine]]
+name = "menu_note_member_figures"
+at = "C2:9137"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7A00-7E7DFF", "--fill", "7E9AB9-7E9AB9=00-59", "--fill", "7E9AB8-7E9AB8=5A-7A", "--fill", "7E9AB7-7E9AB7=7B-93", "--fill", "7E9ABA-7E9ABA=94-BB", "--fill", "7E006F-7E006F=00", "--fill", "7E0070-7E0070=26"]
+why = "as menu_work_out_figures, the loaded member one of the characters' records"
+
+[[routine]]
+name = "menu_note_everyones_figures"
+at = "C2:99B2"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E7A00-7E7DFF", "--keep", "7E2600-7E287F", "--keep", "7E2C23-7E2C52"]
+why = "the menus' item tables, the characters' records and names as the menus have them"
+
+[[routine]]
+name = "menu_set_items_aside"
+at = "C2:90FC"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D7E-7E0D7F=0000,FFFF"]
+why = "the menus' page and data bank; the story holding the party's items or not"
+
+[[routine]]
+name = "menu_put_items_back"
+at = "C2:9121"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D7E-7E0D7F=0000,FFFF"]
+why = "as menu_set_items_aside"
+
+[[routine]]
+name = "menu_heal"
+at = "C2:8E2D"
+subsystem = "menu"
+state = "items"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--keep", "7E2600-7E287F", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0D00-7E0D00=00-FF"]
+why = "the characters' records as the menus have them, the party's characters listed, one to three active and the member healed one of them; what heals, its power and factor, and the frame's place in the random numbers random"
+
+[[routine]]
+name = "menu_heal_and_show"
+at = "C2:8F55"
+subsystem = "menu"
+state = "items"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E2600-7E287F", "--keep", "7E1800-7E1A3F", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0074-7E0074=00", "--fill", "7E0DBE-7E0DBE=00-02", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00E8-7E00EF=00", "--stop-at-call", "C2821E"]
+why = "as menu_heal, the sprite records as the menus have them, room in the queue and the numbers' task free; compared at the first yield, the numbers' task started"
+
+[[routine]]
+name = "menu_show_amounts"
+at = "C2:8F6C"
+subsystem = "menu"
+state = "items"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--keep", "7E2600-7E287F", "--keep", "7E1800-7E1A3F", "--fill", "7E0D5F-7E0D67=00,01,02,03,04,05,06", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0074-7E0074=00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F64-7E0F6E:2=00,01,02,03,FF", "--fill", "7E00E8-7E00EF=00", "--stop-at-call", "C2821E"]
+why = "the records, the sprite records, the party's characters listed, one to three active; the amounts shown random, a share none, room in the queue and the task free; compared at the first yield"
+
+[[routine]]
+name = "menu_raise_amounts"
+at = "C2:9016"
+subsystem = "menu"
+state = "items"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--apu-loopback", "--fill", "7E0F5D-7E0F5D=01-03", "--fill", "7E0F5E-7E0F5E=00", "--fill", "7E0F53-7E0F53=01-03", "--fill", "7E0F54-7E0F54=00", "--fill", "7E0073-7E0073=01-03", "--fill", "7E0F64-7E0F6E:2=00,01,09,10,99,FF", "--stop-at-call", "C2821E"]
+why = "the kinds that rise one or both, one to three members listed, their numbers random digits or none; compared at the first yield, after the first kind's sound and frame"
+
+[[routine]]
+name = "menu_raise_amount_kind"
+at = "C2:9047"
+subsystem = "menu"
+state = "items"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--apu-loopback", "--range", "A=0006-0007", "--fill", "7E0016-7E0016=00,06", "--fill", "7E0F61-7E0F61=01,03", "--fill", "7E0F60-7E0F60=00-4C", "--fill", "7E0F53-7E0F53=01-03", "--fill", "7E0F54-7E0F54=00", "--fill", "7E0F64-7E0F6E:2=00,01,09,10,99,FF", "--stop-at-call", "C2821E"]
+why = "a kind's sound, where its amounts start and its last digit (the guard refuses a mix the task never sets up), anywhere along the paths; one to three members listed; compared at the first yield"
+
+[[routine]]
+name = "menu_reset_character_records"
+at = "C2:F566"
+subsystem = "menu"
+state = "menus"
+args = []
+why = "anything: the reset writes the records' cells it sets"
+
+[[routine]]
+name = "menu_empty_the_records"
+at = "C2:F588"
+subsystem = "menu"
+state = "menus"
+args = []
+why = "anything: the emptying writes the records' cells it sets"
+
+[[routine]]
+name = "menu_start_the_records"
+at = "C2:F643"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_load_character_colours"
+at = "C2:F5A7"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E2629-7E2629=00-59", "--fill", "7E2679-7E2679=00-59", "--fill", "7E26C9-7E26C9=00-59", "--fill", "7E2719-7E2719=00-59", "--fill", "7E2769-7E2769=00-59", "--fill", "7E27B9-7E27B9=00-59", "--fill", "7E2809-7E2809=00-59"]
+why = "the menus' page and data bank; each character's weapon one of the weapons (the guard refuses others), the rest random"
+
+[[routine]]
+name = "menu_hold_a_cursor"
+at = "C2:8A98"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank; the cursor's sprite random"
+
+[[routine]]
+name = "menu_draw_the_held_cursor"
+at = "C2:8ABA"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D9C-7E0D9C=00-29"]
+why = "the menus' page and data bank; the held cursor at one of the cursor's 42 places (the guard refuses others); its blink and countdowns random"
+
+[[routine]]
+name = "menu_put_cursors_on_every_member"
+at = "C2:8AD5"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank"
+
+[[routine]]
+name = "menu_draw_cursors_on_every_member"
+at = "C2:8AFD"
+subsystem = "menu"
+state = "menus"
+args = ["--fill", "7E0051-7E0052=00-00", "--d", "0000", "--db", "7E", "--fill", "7E0D9C-7E0D9C=00-26", "--fill", "7E0073-7E0073=01-03"]
+why = "the menus' page and data bank; one to three active members from a place of the cursor's 42 (the guard refuses none, whose loop the original runs round 65536 times); the countdowns and which are out random"
+
+[[routine]]
+name = "menu_start_the_scroll_bar"
+at = "C2:8B93"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E"]
+why = "the menus' page and data bank"

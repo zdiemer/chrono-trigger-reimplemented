@@ -87,12 +87,9 @@ void menu_items_after_sorting(GameState *g);
 
 /* ---- Pointing along the list ------------------------------------------------------------------ */
 
-/* The list pages with the shoulder assignments (the original's paging,
- * $C2:93BF, takes the list's first place from where it is noted); a page
- * turned draws every row again. */
-void menu_items_note_top_for_paging(GameState *g);
-bool menu_items_paged(const GameState *g);
-void menu_items_turn_page(GameState *g);
+/* The list pages with the shoulder assignments (menu_turn_page); a page
+ * turned to a new first row draws every row again. */
+void menu_items_turn_page(GameState *g, uint8_t top);
 
 /* A push past the list's rows slides it a row along, where there is a row:
  * not before the first of the party's items nor past the last. The row
@@ -189,12 +186,11 @@ void menu_items_after_looking(GameState *g);
 void menu_items_show_the_raise(GameState *g);
 void menu_items_raise_the_figure(GameState *g);
 
-/* One more used: one to be taken from the party's items (its next chance
- * drawn, for an item used by chance); once taken, the row drawn again, and
- * where none are left the item does nothing more; the picked item for its
- * description; and after the members' rows are drawn again, their sprites. */
-void menu_items_name_one_used(GameState *g);
-bool menu_items_used_up(GameState *g);
+/* One more used: one taken from the party's items (its next chance drawn
+ * first, for an item used by chance), the row drawn again, and where none
+ * are left the item does nothing more; the picked item for its description;
+ * and after the members' rows are drawn again, their sprites. */
+void menu_items_use_one(GameState *g);
 uint8_t menu_items_picked_item(const GameState *g);
 void menu_items_after_one_used(GameState *g);
 

@@ -12,6 +12,7 @@
 #include "platform/save.h"
 #include "snes/system.h"
 #include "state.h"
+#include "vars.h"
 
 enum { MENU_SAVE_SLOTS = 3 };
 
@@ -33,6 +34,7 @@ static inline uint8_t saves_times_finished(Platform *pf, PfOrigin o) { return sv
 /* Once the game has been finished, the load screen offers a New Game+. */
 static inline bool saves_finished(Platform *pf, PfOrigin o) { return sv_read8(pf, o, SAVES_FINISHED) != 0; }
 static inline void saves_forget_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0); }
+static inline void saves_note_finished(Platform *pf, PfOrigin o) { sv_write8(pf, o, SAVES_FINISHED, 0xFF); }
 
 /* A slot holds a game while its mark (a word) is the one the save writes; the
  * erase writes over the mark's first byte. */
@@ -57,9 +59,28 @@ void saves_save_game(GameState *g, Platform *pf, uint8_t slot);
 // $FF:FAA3
 void saves_load_game(GameState *g, Platform *pf, uint8_t slot);
 
-/* The answer as the original's code is handed it, in A and in its caller's
- * first cell: 0 for a game held. */
-uint16_t saves_check_answer(SavedGameCheck check);
+/* A New Game+ from the finished game in a slot (menu/saves.c). */
+void saves_carry_over(GameState *g, Platform *pf, uint8_t slot);
+
+/* How the game's first moments go, which the story's memory keeps: at
+ * power on, with a game on the cartridge the load screen comes first, and
+ * with none a new game starts; the load screen marks the new game it starts. */
+typedef enum { SAVES_NOTHING_SAVED = 0, SAVES_NEW_GAME = 1, SAVES_GAME_TO_LOAD = 2 } SavesAtPowerOn;
+enum { SAVES_HOW_IT_STARTS = 0x61 };
+static inline void saves_note_how_it_starts(GameState *g, SavesAtPowerOn how) { set_event_memory_byte(g, SAVES_HOW_IT_STARTS, (uint8_t)how); }
+
+/* The check as the menus make it, from the menus' page or the clock's: the
+ * slot's place noted there (menu_slot_game_at on the menus'), for the slot's
+ * summary to read. */
+SavedGameCheck saves_check_slot_noting(GameState *g, Platform *pf, SaveCheckPage page, uint8_t slot);
+
+// $C2:8D6A
+SavesAtPowerOn saves_power_on(GameState *g, Platform *pf);
+
+/* What a game starts from before it is loaded or begun ($C2:95BB), and a new
+ * game's state ($C2:956E). */
+void saves_clear_the_game(GameState *g);
+void saves_start_a_new_game(GameState *g);
 
 /* Where the slot's game is, as the menus keep it for the slot's summary
  * (menu_slot_game_at): the save and the loads note it there; the check's
@@ -72,6 +93,11 @@ void menu_check_save_slot(Snes *s);
 void menu_save_game(Snes *s);
 void menu_load_game(Snes *s);
 void menu_load_carried_over(Snes *s);
+void menu_start_a_new_game(Snes *s);
+bool menu_new_game_can_start(Snes *s);
+void menu_power_on(Snes *s);
+bool menu_power_on_runs(Snes *s);
+bool menu_carry_over_runs(Snes *s);
 bool menu_save_slot_is_checkable(Snes *s);
 bool menu_save_code_runs(Snes *s);
 

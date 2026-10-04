@@ -20,6 +20,8 @@
 #include "event/leaves.h"
 #include "event/script.h"
 #include "field/bridge.h"
+#include "menu/party.h"
+#include "menu/party_leaves.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 
@@ -53,11 +55,11 @@ static inline uint16_t event_command_offset(const Snes *s) { return s->cpu.y; }
 EventCommand event_command_of(Snes *s, uint8_t opcode);
 void event_return(Snes *s, EventStep st);
 
-/* The menus' party routines ($C2:8004), from the JSL at `site`: the routine
- * in A's low byte, its arguments in X and Y as the caller has them, and the
- * carry the routine leaves (event/party.c). True if it came back as the
- * engine runs. */
-bool event_call_party_routine(Snes *s, uint32_t site, uint8_t routine);
+/* For the original's code and shadow mode, after one of the menus'
+ * services a command calls where the original makes its long call to them
+ * ($C2:8004): the dispatcher's answer kept, and Y left as it leaves it
+ * (event/party.c, menu/party_leaves.h). */
+void event_menus_answered(Snes *s, PartyService service, const PartyServiceCall *call);
 
 /* How a command runs on the machine: 8-bit A, 16-bit X and Y (`x8` for the
  * calls made with 8-bit index registers), on the field's page, with the data

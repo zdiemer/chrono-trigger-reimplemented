@@ -34,12 +34,14 @@
 #include "menu/cursor.h"
 #include "menu/digits.h"
 #include "menu/display.h"
+#include "menu/held_cursors.h"
 #include "menu/equipment.h"
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
+#include "menu/sprites.h"
 #include "menu/text.h"
 #include "menu/vram.h"
 #include "menu/windows.h"
@@ -76,10 +78,10 @@ static uint32_t within_the_most(uint32_t sum)
 static uint32_t total(const GameState *g) { return menu_shop_total(g) & 0xFFFFFF; }
 
 // $C2:FDBB
-void menu_shop_pay(GameState *g) { set_gold(g, within_the_most((gold(g) - total(g)) & 0x1FFFFFF)); }
+void menu_shop_pay(GameState *g) { set_gold(g, within_the_most(gold(g) - total(g))); }
 
 // $C2:FD97
-void menu_shop_receive(GameState *g) { set_gold(g, within_the_most(gold(g) + total(g))); }
+static void receive(GameState *g) { set_gold(g, within_the_most(gold(g) + total(g))); }
 
 /* ---- The shop's arithmetic, as its cells are left -------------------------------------------- */
 
@@ -279,16 +281,6 @@ static unsigned record_of(GameState *g, uint8_t character)
  * could use. */
 enum { NO_SPRITE = 0xFF, STANDING = 0x00, CHEERING = 0x0B };
 
-// $C2:F588
-/* Every sprite record emptied. */
-static void empty_the_records(GameState *g)
-{
-    for (unsigned record = RECORDS; record-- > 0;) {
-        set_menu_record_sprite(g, record, NO_SPRITE);
-        set_menu_record_animation(g, record, STANDING);
-        set_menu_record_hidden(g, record, 0);
-    }
-}
 
 /* The members' tiles along the window: an icon of the kind of weapon each
  * uses over its figures, two tile rows, eight bytes a member. */
@@ -315,7 +307,7 @@ static void put_tile_attribute(GameState *g, uint16_t at, uint8_t attribute)
 /* The members' sprites standing along the window, each over its icon. */
 static void stand_the_members(GameState *g)
 {
-    empty_the_records(g);
+    TIMED_AS(g, 0xC2F588, menu_empty_the_records(g));
     enum { BLOCKS_A_FRAME = 7 };
     set_menu_record_block_limit(g, BLOCKS_A_FRAME);
     unsigned m = 0;
@@ -346,14 +338,11 @@ static void stand_everyone(GameState *g)
     ORIGINAL_EFFECT(set_menu_scratch_shop_characters_left(g, 0xFF));
 }
 
-// $C2:93A8
-/* Whether the character whose record is loaded can use the item; the
- * item's users noted. */
 static bool can_use(GameState *g, uint8_t item)
 {
-    uint8_t users = menu_item_users(g, item);
-    set_menu_item_users_noted(g, users);
-    return (users & menu_character_bit(g, menu_status_record_character(g))) != 0;
+    bool can = false;
+    TIMED_AS(g, 0xC293A8, can = menu_loaded_member_can_use(g, item));
+    return can;
 }
 
 /* The slot in a character's record an item of the category goes in. */
@@ -437,6 +426,15 @@ enum { MARKS_TILES = 28, MARK_BLANK = 0x2000, OWNED_AT = 0x3192, OWNED_TAIL_AT =
 enum { OWNED_FORMAT = 0x11, WORN_FORMAT = 0x01 };
 
 // $C2:DD7C
+/* For the original's code and shadow mode: the panel leaves the item's
+ * category where the figures' working out counts its slots, a word over the
+ * first stat's boost. */
+static void leave_category_for_the_figures(GameState *g)
+{
+    set_menu_figures_slot(g, (uint8_t)menu_item_category(g));
+    set_menu_figures_boosts(g, 0, (uint8_t)(menu_item_category(g) >> 8));
+}
+
 void menu_shop_start_panel(GameState *g)
 {
     for (unsigned i = 0; i < MARKS_TILES; i++)
@@ -448,7 +446,7 @@ void menu_shop_start_panel(GameState *g)
     uint8_t item = menu_item_operand(g);
     MenuItemPlace p = menu_item_place(g, item);
     count_the_item_worn(g, item, p.category);
-    ORIGINAL_EFFECT(set_menu_figures_slot(g, menu_item_category(g)));
+    ORIGINAL_EFFECT(leave_category_for_the_figures(g));
     ORIGINAL_EFFECT(set_menu_shop_work(g, slot_place(g, p.category)));
     if (item != 0) {
         (void)menu_draw_number_value(g, menu_item_operand_count(g), OWNED_FORMAT, OWNED_AT);
@@ -565,17 +563,12 @@ void menu_shop_open_colours(GameState *g)
     TIMED_AS(g, 0xFFF548, menu_build_number_tiles(g));
 }
 
-/* The members standing, the records' task started (the original's, with
- * the records' origin at the screen's), the panel's item nothing. */
-enum { RECORDS_TASK = 5, RECORDS_TASK_START = 0xF657 };
-
+/* The members standing, the records' task started, the panel's item
+ * nothing. */
 void menu_shop_open_members(GameState *g)
 {
     stand_the_members(g);
-    set_menu_record_origin_x(g, 0);
-    set_menu_record_origin_y(g, 0);
-    set_menu_record_origin_y_high(g, 0);
-    menu_start_task(g, RECORDS_TASK, RECORDS_TASK_START);
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     set_menu_item_operand(g, 0);
 }
 
@@ -596,16 +589,16 @@ void menu_shop_open_last(GameState *g, Platform *pf)
     set_menu_line_effects(g, SHOP_LINE_EFFECTS);
 }
 
-// $C2:D52E, $C2:8A98
-/* The second cursor holds on the buying tab and blinks slowly, as its task
- * (the original's) draws it; on to the tabs. */
-enum { HELD_ON_THE_TABS = 0x0B, HELD_CURSOR_TASK = 6, HELD_CURSOR_TASK_START = 0x8AB2 };
+// $C2:D52E
+/* The second cursor holds on the buying tab and blinks slowly, its own
+ * sprite (menu/held_cursors.h); on to the tabs. */
+enum { HELD_ON_THE_TABS = 0x0B };
 enum { SLOW_BLINK = 0x00F8, HELD_CURSOR_SPRITE = 0xB022 };
 
 void menu_shop_hold_a_cursor_on_the_tabs(GameState *g)
 {
     set_menu_held_cursor(g, HELD_ON_THE_TABS);
-    menu_start_task(g, HELD_CURSOR_TASK, HELD_CURSOR_TASK_START);
+    TIMED_AS(g, 0xC28A98, menu_hold_a_cursor(g));
     set_menu_held_cursor_blink(g, SLOW_BLINK);
     set_menu_held_cursor_sprite(g, HELD_CURSOR_SPRITE);
     go_to_step(g, SHOP_ON_THE_TABS);
@@ -633,7 +626,7 @@ ShopTabChoice menu_shop_choose_tab(const GameState *g)
  * going on from where it waited once it is back. */
 enum { TASK_STOPPED = 0, TASK_WAITING = 2 };
 
-void menu_shop_stop_holding(GameState *g) { set_menu_tasks_state(g, HELD_CURSOR_TASK, TASK_STOPPED); }
+void menu_shop_stop_holding(GameState *g) { set_menu_tasks_state(g, MENU_HELD_CURSORS_TASK, TASK_STOPPED); }
 
 /* A tab chosen: the held cursor stops and the panel forgets its place. */
 enum { NO_PLACE_SHOWN = 0xFF };
@@ -705,15 +698,10 @@ void menu_shop_draw_rows(GameState *g, bool selling)
     set_menu_draw_origin(g, INCOMING_ROW_AT);
 }
 
-/* The scroll bar beside the list, its task started (the original's). */
-enum { LIST_BAR_PLACE = 0x2AF0, SCROLL_BAR_TASK = 4, SCROLL_BAR_TASK_START = 0x8BB8 };
+/* The scroll bar beside the list (menu/held_cursors.h). */
+enum { LIST_BAR_PLACE = 0x2AF0 };
 
-// $C2:8B93
-static void start_the_scroll_bar(GameState *g)
-{
-    set_menu_scroll_bar_hidden(g, 0);
-    menu_start_task(g, SCROLL_BAR_TASK, SCROLL_BAR_TASK_START);
-}
+static void start_the_scroll_bar(GameState *g) { TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g)); }
 
 /* A list opens on the row it was left on where the settings keep the
  * menus' cursors, else on its first. */
@@ -826,15 +814,13 @@ ShopListChoice menu_shop_choose_on_the_list(const GameState *g)
 }
 
 /* Pointing along: the top noted for the paging (the original's). */
-void menu_shop_note_top_for_paging(GameState *g, bool selling) { set_menu_paging_top(g, list_top(g, selling)); }
-
-bool menu_shop_paged(const GameState *g, bool selling) { return menu_paging_top(g) != list_top(g, selling); }
+uint8_t menu_shop_list_top(const GameState *g, bool selling) { return list_top(g, selling); }
 
 /* A page turned: the list's top where the paging put it, the rows drawn
  * again. */
-void menu_shop_turn_page(GameState *g, bool selling)
+void menu_shop_turn_page(GameState *g, bool selling, uint8_t top)
 {
-    set_list_top(g, selling, menu_paging_top(g));
+    set_list_top(g, selling, top);
     menu_shop_draw_rows(g, selling);
 }
 
@@ -1162,12 +1148,19 @@ bool menu_shop_change_quantity(GameState *g, Platform *pf)
     return menu_item_operand_quantity(g) != before;
 }
 
-/* The deal made: the goods held counted again (the original has added
- * them to the party's items first). */
+// $C2:D618
 void menu_shop_bought(GameState *g)
 {
+    TIMED_AS(g, 0xC28791, (void)menu_add_items(g, menu_item_operand(g), menu_item_operand_quantity(g)));
     menu_shop_pay(g);
     count_the_goods_held(g);
+}
+
+// $C2:D690
+void menu_shop_sold(GameState *g)
+{
+    TIMED_AS(g, 0xC287D5, (void)menu_take_items(g, menu_item_operand(g), menu_item_operand_quantity(g)));
+    receive(g);
 }
 
 /* The quantity window closed: the list's cursor back, the window's bands
@@ -1232,9 +1225,9 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf)
     stand_everyone(g);
     menu_draw_windows(g, pf, TABS_WINDOWS);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
-    set_menu_tasks_state(g, SCROLL_BAR_TASK, TASK_STOPPED);
+    set_menu_tasks_state(g, MENU_SCROLL_BAR_TASK, TASK_STOPPED);
     ORIGINAL_EFFECT(set_menu_scratch_tasks_to_stop(g, 0));
-    set_menu_tasks_state(g, HELD_CURSOR_TASK, TASK_WAITING);
+    set_menu_tasks_state(g, MENU_HELD_CURSORS_TASK, TASK_WAITING);
     go_to_step(g, SHOP_ON_THE_TABS);
 }
 
