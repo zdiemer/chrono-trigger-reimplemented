@@ -219,7 +219,7 @@ docstring says which way it is wrong). **20% of the code is still generated.**
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
 | menus, text (`$C2`) | 59.1K | 30.9K | 8.7K | 48% | 326 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
-| battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 155 |
+| battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.4K | 0% | 44 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **20% of the code is still generated.**
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **214.3K** | **56.1K** | **20%** | **1624** |
+| **total** | **266.5K** | **214.3K** | **56.1K** | **20%** | **1653** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
