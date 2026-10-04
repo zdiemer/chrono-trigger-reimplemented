@@ -57,7 +57,7 @@ it counts as done may still be transliterated or welded to the machine, which
 | ROM code reimplemented (`burndown.py`) | 24% left | 0% |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
-| ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by extracted data |
+| ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
@@ -532,15 +532,44 @@ by an audit; the fourth is the program itself.
      `runtime/`'s emulator are deleted from what ships; `ct_play` is
      `ct_native`.
 
-**The asset seam's other half comes forward to here.** The ports reach ROM
-data through named accessors (`*_data.h`) now, all but `battle/scripts.c`'s
-one read, which goes first. But the accessors themselves still read a mapped
-4 MiB ROM image by address, which a GBA cannot map at all (target 2) and which
-makes "load from a user's own ROM into a data directory" impossible (TODO.md,
-"Platform"). So what is left is their backing: each resource extracted from
-the user's ROM once and loaded, behind the same accessors.
-The pipeline half -- a layout meant to be read rather than reassembled, the
-scripts as text -- follows in Phase 5 with MD3.
+**Assets: imported once from the user's ROM, then loaded by name.** The
+ports reach ROM data through named accessors (`*_data.h`), all but
+`battle/scripts.c`'s one read, which goes first. The accessors still read a
+mapped 4 MiB ROM image by address, which a GBA cannot map (target 2), and
+which keeps the ROM's layout in every build. The plan:
+
+1. **One catalogue of resources.** Every resource the accessors read gets a
+   row: its name, its type (MD2's types, MATCHING.md), where it lies in the
+   ROM and its codec. It is built from the typed regions the matching build
+   already extracts. The importer, the accessors and a check that every
+   accessor read lands inside a catalogued resource all come from it.
+2. **An import, once.** On first launch, or with `ct_play --import <rom>`,
+   the importer checks the ROM's CRC32 and writes every resource into a
+   versioned asset pack in the user data directory beside the saves. Later
+   runs load the pack and never need the ROM. The same importer runs on a PC
+   to build the image for a target that can't afford the ROM or the decoding
+   (GBA, Wii, GameCube). Nothing it writes enters the repository: the pack is
+   ROM-derived (CLAUDE.md).
+3. **Loaded by name, through the driver.** The game asks an asset store for a
+   resource by name and type; the driver supplies the store (a file, a
+   linked-in image, a browser's storage), as it does saves. Nothing in
+   `game/` opens a file or knows a path.
+4. **Raw first.** The pack holds each resource's original bytes, and the
+   accessors read the pack instead of ROM addresses. No port changes, and
+   shadow mode still compares bytes, so the gate proves the move. This is the
+   step a build with no emulator needs ("The native program", above): the
+   mapped ROM image leaves with it.
+5. **Decoded next, a resource at a time.** The pack holds the structured
+   form: streams decompressed, tiles in a neutral format, palettes as
+   colours, text as UTF-8, scripts readable (MATCHING.md's codecs and the
+   text and event-script decodings are the start). Each port stops calling
+   the original's decoder for that resource, a reviewed change per resource,
+   in step with its subsystem retiring the gate. Widescreen, translations and
+   replaceable assets come from here; the readable layout as a whole is
+   Phase 5's MD3.
+
+Steps 1-4 belong to this phase and can start now: the seam exists, and they
+change no port.
 
 ## Phase 4b: the platform milestones
 
@@ -562,8 +591,9 @@ wait behind 4a.
 
 ## Phase 5: the long tail
 
-- **MD3**, and the asset pipeline it enables: a layout meant to be read rather
-  than reassembled, and the scripts as text. **MD3 is the prerequisite for
+- **MD3**, and the decoded half of the assets it enables (Phase 4a,
+  "Assets", step 5): a layout meant to be read rather than reassembled, and
+  the scripts as text. **MD3 is the prerequisite for
   target 3**, the SNES ROM compiled from the reimplementation -- every pointer
   symbolic, so a routine that differs in length can move -- so it comes forward
   with that target rather than waiting here.

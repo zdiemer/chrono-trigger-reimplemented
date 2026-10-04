@@ -1452,22 +1452,12 @@ rest waits, is [PLAN.md](PLAN.md).
   - **Controllers.** `in_host_set` is already the one host entry point per
     frame, so this is an SDL GameController call into it plus bindings (see
     Player and tooling).
-- **Assets as data files rather than ROM reads.** The matching build already
-  extracts every typed data region from the user's ROM (MATCHING.md,
-  "Build-time extraction"): raw blobs, and decoded forms where a type has one -
-  decompressed streams, BRR as is, graphics as planar tiles. Three things are
-  missing before that is an asset pipeline. A layout meant to be *read* rather
-  than reassembled, and stable enough to depend on. The script as text: the
-  strings and the event scripts that name them decode to a readable form now
-  (MATCHING.md, "The string encodings" and "The event scripts"), the battle
-  scripts don't. And a decision about whether the runtime
-  should load from such a directory at all, since APPROACH.md's conventions
-  have assets loading from the ROM image at run time and every reader today
-  assumes that. A GBA build is what forces the question, because it can't map a
-  4 MiB SNES image the way the recompilation does; widescreen and translation
-  want it too. Extracted assets are ROM-derived and stay out of the repository
-  wherever they live (CLAUDE.md), so a user data directory beside the saves is
-  the shape.
+- **Assets as data files rather than ROM reads** (PLAN.md, Phase 4a,
+  "Assets", which decides the shape: a catalogue, an import once into a pack
+  in the user data directory, loaded by name through the driver, raw before
+  decoded). Still open: the pack's format and its versioning; whether the
+  battle scripts get a readable form before MD3; which codecs the importer
+  needs beyond MATCHING.md's ("Build-time extraction").
 - **Open questions** in PLATFORM.md: battles playing out differently once
   timing changes, widescreen's exposed assumptions (the 0-255 object window at
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and

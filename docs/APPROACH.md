@@ -129,5 +129,6 @@ what to work on next is [PLAN.md](PLAN.md).
 - Game code in C17, host in C17 or C++20, built with CMake.
 - Tools in Python 3 (stdlib first).
 - Nothing copyrighted or ROM-derived gets committed: no ROM bytes, extracted
-  assets, SPC dumps, or traces. Assets load from the user's ROM at runtime.
+  assets, SPC dumps, or traces. Assets come from the user's own ROM, imported
+  once into a local asset pack (PLAN.md, Phase 4a, "Assets").
 - Routines are named and addressed: `// $C0:1234` above every ported function.
