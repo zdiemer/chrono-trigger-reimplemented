@@ -1,0 +1,197 @@
+/* The settings screen and the main menu's panel for it: what the game does
+ * (game/menu/settings_screen.c) and the entries that run it on the original's
+ * machine (game/menu/settings_screen_bridge.c). */
+#ifndef CT_GAME_MENU_SETTINGS_SCREEN_H
+#define CT_GAME_MENU_SETTINGS_SCREEN_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "platform/video.h"
+#include "snes/system.h"
+#include "state.h"
+
+/* The screen's options, as its cursor's places number them: the ten in the
+ * left window, then the two speeds' meters the speeds option leads to. The
+ * battle gauge's three layouts and the six button rows are places of their
+ * own after them, which the screen's other steps move the cursor among. */
+typedef enum {
+    SETTINGS_STEREO = 0,
+    SETTINGS_ACTIVE_TIME = 1,
+    SETTINGS_KEEP_MENU_CURSORS = 2,
+    SETTINGS_KEEP_BATTLE_COMMAND = 3,
+    SETTINGS_KEEP_BATTLE_LISTS = 4,
+    SETTINGS_SPEEDS = 5,
+    SETTINGS_WINDOW_DESIGN = 6,
+    SETTINGS_BATTLE_GAUGE = 7,
+    SETTINGS_CONTROLS = 8,
+    SETTINGS_DESCRIPTIONS = 9,
+    SETTINGS_BATTLE_SPEED = 10,
+    SETTINGS_MESSAGE_SPEED = 11,
+    SETTINGS_OPTION_COUNT = 12,
+} SettingsOption;
+
+enum { SETTINGS_FIRST_GAUGE_PLACE = 12, SETTINGS_GAUGE_LAYOUTS = 3, SETTINGS_FIRST_BUTTON_ROW = 15 };
+
+/* The screen's steps, as its main task runs them (menu_screen_step). */
+typedef enum {
+    SETTINGS_OPENING = 0,
+    SETTINGS_ON_THE_OPTIONS = 1,
+    SETTINGS_ON_THE_BUTTONS = 2,
+    SETTINGS_ON_THE_GAUGE = 3,
+} SettingsStep;
+
+/* ---- Opening it --------------------------------------------------------------------------------- */
+
+/* The screen's windows, the cursor on the option it was left on, the
+ * description to be typed afresh, the third layer scrolled into place, and
+ * the sprites cleared but the cursor. */
+void menu_settings_open(GameState *g, Platform *pf);
+
+/* ---- The options -------------------------------------------------------------------------------- */
+
+/* The options' line effects, held every frame. Going back leaves for the
+ * main menu unless a speed or the window design is being set, which the
+ * option then takes back itself; leaving packs the settings into the
+ * player's own. */
+void menu_settings_hold_line_effects(GameState *g);
+bool menu_settings_leaving(const GameState *g);
+void menu_settings_leave(GameState *g);
+
+/* The option the cursor is on is kept, then what the frame's input does to
+ * it: each option is one of a few kinds (the table in settings_screen.c),
+ * and then it is shown (its description, the boxes). */
+SettingsOption menu_settings_take_option(GameState *g);
+void menu_settings_show_option(GameState *g);
+
+/* An on-off option chosen flips, its box with it (whether it was chosen);
+ * the sound output's mode, which the sound driver is then told. */
+bool menu_settings_flip_option(GameState *g, SettingsOption option);
+uint8_t menu_settings_sound_output(const GameState *g);
+
+/* The speeds: chosen, the cursor goes to the battle speed's meter. On a
+ * meter, left and right step its speed round the eight (whether it moved:
+ * a tick), and choosing or going back returns to the speeds. */
+void menu_settings_take_speeds(GameState *g);
+bool menu_settings_step_meter(GameState *g, SettingsOption meter);
+void menu_settings_leave_the_meters(GameState *g);
+
+/* The window design: while it is being chosen left and right step through
+ * the eight designs and the windows take each at once; choosing or going
+ * back starts or ends the choosing (whether it did: a tick), and the
+ * cursor holds against pushes meanwhile. */
+bool menu_settings_choosing_design(const GameState *g);
+bool menu_settings_step_design(GameState *g);
+void menu_settings_show_design(GameState *g);
+bool menu_settings_toggle_design_choice(GameState *g);
+void menu_settings_hold_cursor_on_the_design(GameState *g);
+
+/* The battle gauge: chosen, the cursor goes to the layout in use (the
+ * gauge's step). */
+void menu_settings_take_gauge(GameState *g);
+
+/* The controls: choosing flips between the game's buttons and the
+ * player's own, going straight to the button rows for the player's own; a
+ * push right from the controls goes there too (or, with the game's
+ * buttons, to the option to the right). Whether the cursor went to the
+ * rows. */
+bool menu_settings_take_controls(GameState *g);
+
+/* ---- The battle gauge's layouts (the gauge's step) -------------------------------------------- */
+
+typedef enum { GAUGE_POINTED_AT, GAUGE_CHOSEN, GAUGE_MOVED } SettingsGaugeChoice;
+SettingsGaugeChoice menu_settings_choose_gauge_layout(const GameState *g);
+
+/* Back to the options; or the layout the cursor moved to taken, described
+ * and shown. */
+void menu_settings_back_from_the_gauge(GameState *g);
+void menu_settings_take_gauge_layout(GameState *g);
+
+/* ---- The button rows (the buttons' step) --------------------------------------------------------- */
+
+/* The assignment the first shoulder pages lists with (button_assignments'
+ * order). */
+enum { SETTINGS_PAGE_ONE_WAY = 6 };
+
+typedef enum {
+    BUTTONS_KEPT_AND_LEFT, /* a push left keeps the rows' changes and leaves them */
+    BUTTONS_LEFT,          /* going back leaves them, the change not kept */
+    BUTTONS_RESET,         /* Start puts the game's own buttons back */
+    BUTTONS_KEPT,          /* up and down keep the row's change */
+    BUTTONS_UNTOUCHED,
+} SettingsButtonsInput;
+SettingsButtonsInput menu_settings_take_buttons_input(const GameState *g);
+
+/* The rows' changes kept as the player's own buttons; back to the controls
+ * option, the buttons in use and the rows shown. */
+void menu_settings_keep_the_rows(GameState *g);
+void menu_settings_leave_the_buttons(GameState *g);
+
+/* The game's buttons put back as the player's own, or the rows' changes
+ * kept; then the buttons in use and the rows shown. */
+void menu_settings_reset_buttons(GameState *g);
+void menu_settings_keep_buttons(GameState *g);
+
+/* Left and right step the cursor's row through the buttons it can be
+ * given, and the assignment that had the button takes the row's (whether
+ * the row changed: a tick); then the shoulders keep paging and the rows
+ * show the changes. */
+bool menu_settings_give_row_button(GameState *g);
+void menu_settings_show_row_change(GameState *g);
+
+/* The buttons in use (the player's own where the settings say, else the
+ * game's) and the rows drawn from them; a button's glyph on a row. */
+void menu_settings_use_buttons(GameState *g);
+uint16_t menu_button_glyph_of(const GameState *g, uint8_t button);
+
+/* ---- The main menu's panel ----------------------------------------------------------------------- */
+
+/* With the main menu's cursor on the settings, the screen is drawn beside
+ * it: its frame first and the boxes taken from the settings; a frame later
+ * its windows, the boxes, the meters, the gauge, the buttons, its colours
+ * and the colour math. The main menu leaving it takes the description's
+ * icon back. */
+void menu_settings_panel_frame(GameState *g, Platform *pf);
+void menu_settings_panel_show(GameState *g, Platform *pf);
+void menu_settings_panel_put_away(GameState *g);
+
+/* ---- What the steps can run on (the guards') ----------------------------------------------------- */
+
+bool menu_settings_on_an_option(const GameState *g);
+bool menu_settings_on_a_layout(const GameState *g);
+bool menu_settings_on_a_button_row(const GameState *g);
+bool menu_settings_describable(const GameState *g);
+
+/* ---- The entries (game/menu/settings_screen_bridge.c) ------------------------------------------- */
+
+void menu_open_settings(Snes *s);
+void menu_choose_setting(Snes *s);
+void menu_choose_buttons(Snes *s);
+void menu_choose_gauge_layout(Snes *s);
+void menu_take_setting_option(Snes *s);
+void menu_set_sound_output(Snes *s);
+void menu_flip_active_time(Snes *s);
+void menu_flip_keep_menu_cursors(Snes *s);
+void menu_flip_keep_battle_command(Snes *s);
+void menu_flip_keep_battle_lists(Snes *s);
+void menu_flip_descriptions(Snes *s);
+void menu_choose_speeds(Snes *s);
+void menu_step_battle_speed(Snes *s);
+void menu_step_message_speed(Snes *s);
+void menu_step_window_design(Snes *s);
+void menu_choose_battle_gauge(Snes *s);
+void menu_take_controls(Snes *s);
+void menu_step_setting_meter(Snes *s);
+void menu_show_settings_panel(Snes *s);
+void menu_put_settings_panel_away(Snes *s);
+
+bool menu_settings_screen_opens(Snes *s);
+bool menu_settings_options_step_runs(Snes *s);
+bool menu_setting_option_is_takeable(Snes *s);
+bool menu_settings_buttons_step_runs(Snes *s);
+bool menu_settings_gauge_step_runs(Snes *s);
+bool menu_setting_meter_steps(Snes *s);
+bool menu_settings_panel_shows(Snes *s);
+bool menu_settings_panel_goes(Snes *s);
+
+#endif

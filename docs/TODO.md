@@ -761,11 +761,7 @@ rest waits, is [PLAN.md](PLAN.md).
   cells.
 
 - **What the save code's review left** (merged with bank `$FF`; none
-  blocking): story bytes defined privately by offset again (`$1CF` as
-  `CARRIED_OVER_NOTE` in `saves.c`, `STORY_WORD_HIGH` in `items.c`; `$BA` as
-  `PARTY_HELD_NOTE` in `techs.c`, `STORY_BYTE` in `items.c` and
-  `STORY_BATTLE_RULES` in `battle/from_field.c`) -- name them once in the map;
-  `SAVED_TECHS_UNLOCKED = 0x7E3` is a magic offset into a saved game (derive
+  blocking): `SAVED_TECHS_UNLOCKED = 0x7E3` is a magic offset into a saved game (derive
   it from the run table); two identical "clear A's high byte" helpers
   (`saves.c`, `load_screen.c`); `saves_check_answer` exports the original's
   `$8080`/`$4040` answer from the logic header (leaves); `menu_slot_game_at`
@@ -1045,6 +1041,32 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
+- **What the menus' seventh chunk left** (RECOMP.md, "Phase 3, menus: the
+  settings screen and the shop"):
+  - the settings screen's eighth button assignment (the shoulder buttons'
+    row) reads its list of rivals past the table's end, into the code after
+    it, and the game swaps the places that list names as it does the other
+    assignments': the boxes' first two cells and cells past them, reached
+    only by giving confirm or cancel the L button. `swap_stray_places`
+    reproduces it through `menu_settings_buttons_unchecked`; a native
+    storage has to decide whether the settings keep it;
+  - the description's typing (`$C2:F943`'s task, the letters put down a
+    frame at a time) is still the original's: the screen starts it as task
+    2 and the items, techs and settings screens all wait on it;
+  - the shop's equipping of what was just bought (steps 6-8 of the shop's
+    screen: `$C2:E017`, `$C2:E058`, `$C2:E072`, `$C2:E0A5`, `$C2:E0F1`,
+    `$C2:E108`, `$C2:E150`, `$C2:E162`, `$C2:E18A`, with `$C2:D6C3`,
+    `$C2:D715`, `$C2:D778`) is still generated; no movie takes it. Its
+    entry is picked by a step number, so the call into it declares V and C
+    live (`READS_FLAGS_V_C`) until it is ported;
+  - the shop and the settings call out to the list slide (`$C2:EB1F`,
+    `$C2:EB9B`), the paging (`$C2:93BF`), the description (`$C2:F2F3`), the
+    members' services (`$C2:916E`) and the cursor's places (`$C2:8791`,
+    `$C2:87D5`), which wait for the next chunks (PLAN.md);
+  - the library buys and sells at one shop (`menus-shop-inn`) without
+    paging or sliding the list; fuzzing is the check for the slide, the
+    quantity's limits and a full purse, and a movie through a big shop's
+    list would add shadow mode's.
 - **What the menus' sixth chunk left** (RECOMP.md, "Phase 3, menus: the
   items screen and the equipment screen's windows"):
   - the window of who can equip an item reads an accessory's power past the

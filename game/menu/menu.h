@@ -17,6 +17,18 @@
 #define CT_GAME_MENU_H
 
 #include "snes/system.h"
+#include "state.h"
+#include "vars.h"
+
+/* The menus' tasks (menu_tasks), which their scheduler runs a turn of each
+ * frame: a task started runs from `start` on its next turn ($C2:8249). */
+enum { MENU_TASK_STARTING = 1 };
+static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
+{
+    set_menu_tasks_state(g, task, MENU_TASK_STARTING);
+    set_menu_tasks_countdown(g, task, 1);
+    set_menu_tasks_start(g, task, start);
+}
 
 /* menu/frame.c */
 void menu_wait_for_frame_loop(Snes *s);

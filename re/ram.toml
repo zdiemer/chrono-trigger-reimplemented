@@ -6289,6 +6289,170 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   size = 2
   meaning = "The same: the rows it has still to draw, 0 once done"
   [[var.field]]
+  name = "shop_divided"
+  offset = 0
+  size = 2
+  meaning = "The shop's quantity ($C2:FCB2, $C2:FCE1): the gold (or the room under the cap) divided, its low word"
+  [[var.field]]
+  name = "shop_divided_high"
+  offset = 2
+  meaning = "The same: its high byte"
+  [[var.field]]
+  name = "shop_divisor"
+  offset = 4
+  size = 2
+  meaning = "The same: the price it is divided by"
+  [[var.field]]
+  name = "shop_multiplier"
+  offset = 0
+  size = 2
+  meaning = "The shop's multiplications ($C2:FD58, $C2:FD68): the first operand, a price or a quantity's step"
+  [[var.field]]
+  name = "shop_multiplicand_bytes"
+  offset = 2
+  size = 2
+  meaning = "The same: how many bytes of the second operand it takes"
+  [[var.field]]
+  name = "shop_multiplicand"
+  offset = 4
+  size = 2
+  meaning = "The same: the second operand's low word, the scale or the price (negative to take it off)"
+  [[var.field]]
+  name = "shop_multiplicand_high"
+  offset = 6
+  size = 2
+  meaning = "The same: the price's high byte (the negative's sign), as a word with the byte after it"
+  [[var.field]]
+  name = "shop_member_row"
+  offset = 0
+  size = 2
+  meaning = "The shop's members' rows ($C2:E058): the row coloured last"
+  [[var.field]]
+  name = "shop_colouring"
+  offset = 2
+  size = 2
+  meaning = "The same: the tiles across a row (low byte) and the colour (high byte)"
+  [[var.field]]
+  name = "shop_colour_kept"
+  offset = 5
+  meaning = "The shop's members' colouring ($C2:E072): the colour, kept while the chosen member's row takes none"
+  [[var.field]]
+  name = "shop_reachable_left"
+  offset = 4
+  size = 2
+  meaning = "The shop's dimming of the members it can't equip ($C2:E017): the member it got to, the count's"
+  [[var.field]]
+  name = "shop_figure_before"
+  offset = 1
+  meaning = "The shop's members' figures ($C2:DE21): the figure the member has now, which the one with the item is compared with"
+  [[var.field]]
+  name = "shop_figure_with"
+  offset = 0
+  meaning = "The same: the figure with the item"
+  [[var.field]]
+  name = "shop_rows_shown"
+  offset = 0
+  meaning = "A shop's list's frame ($C2:DD40): the rows it shows"
+  [[var.field]]
+  name = "shop_step"
+  offset = 0
+  meaning = "The shop's quantity's step ($C2:DA3D-$C2:DA83): how many it adds or takes"
+  [[var.field]]
+  name = "shop_last_place"
+  offset = 0
+  meaning = "A shop's list's slide ($C2:D82B): its count less two, the last place a row slides in from"
+  [[var.field]]
+  name = "shop_slot_doubled"
+  offset = 0
+  meaning = "The worn items' count ($C2:8900): the slot's place in the record for the item's category"
+  [[var.field]]
+  name = "shop_slot_high"
+  offset = 1
+  meaning = "The same: cleared above it"
+  [[var.field]]
+  name = "shop_spare_count"
+  offset = 2
+  meaning = "The same: a byte of the game's state it copies here and nothing reads"
+  [[var.field]]
+  name = "shop_last_reachable"
+  offset = 0
+  meaning = "The shop's members ($C2:DBE8): twice the last reachable member's place"
+  [[var.field]]
+  name = "shop_characters_left"
+  offset = 0
+  meaning = "The shop's characters standing again ($C2:D605): the characters left to stand, $FF once done"
+  [[var.field]]
+  name = "shop_held"
+  offset = 0
+  meaning = "The shop's offer to buy ($C2:D598): how many of the item the party has and has on, a byte"
+  [[var.field]]
+  name = "tasks_to_stop"
+  offset = 0
+  meaning = "The menus' stop of tasks ($C2:8255): the tasks' bits, shifted out to 0 once done"
+  [[var.field]]
+  name = "shop_rows_from"
+  offset = 0
+  size = 2
+  meaning = "A shop's list's rows moved after a slide ($C2:D995): where the next tile row would be copied from, a tile row past the last"
+  [[var.field]]
+  name = "shop_rows_to"
+  offset = 2
+  size = 2
+  meaning = "The same: where it would be copied to"
+  [[var.field]]
+  name = "shop_rows_left"
+  offset = 4
+  size = 2
+  meaning = "The same: the tile rows left to copy, 0 once done"
+  [[var.field]]
+  name = "shop_members_placed"
+  offset = 2
+  size = 2
+  meaning = "The shop's members' sprites ($C2:DC1E): how many it placed"
+  [[var.field]]
+  name = "settings_boxes_left"
+  offset = 0
+  size = 2
+  meaning = "The settings screen's boxes ($C2:C3E4): the boxes it has still to draw, counted down past the first to $FFFF"
+  [[var.field]]
+  name = "settings_meter_cells"
+  offset = 0
+  size = 2
+  meaning = "The settings screen's meters ($C2:C456): the setting the last meter shows, a word wide, the window design's with the cell after it"
+  [[var.field]]
+  name = "settings_gauge_offset"
+  offset = 0
+  size = 2
+  meaning = "The settings screen's battle gauge ($C2:C495): the chosen layout's two bytes a tile into the row of choices, halfway to its place"
+  [[var.field]]
+  name = "settings_rows_drawn"
+  offset = 0
+  size = 2
+  meaning = "The settings screen's button rows ($C2:C57A): how many it drew, 6"
+  [[var.field]]
+  name = "settings_rows_left"
+  offset = 0
+  size = 2
+  meaning = "The settings screen's button rows as they are changed ($C2:C5C7): the rows it has still to draw, counted down past the first to $FFFF"
+  [[var.field]]
+  name = "settings_conflicts_last"
+  offset = 2
+  size = 2
+  meaning = "The settings screen's giving a button to an assignment ($C2:C23A): the last place in the list of assignments it looks through for the button, of the second pass"
+  [[var.field]]
+  name = "settings_row_button"
+  offset = 2
+  meaning = "The settings screen's button rows as they are changed ($C2:C5C7): the first row's button, the last it looked at"
+  [[var.field]]
+  name = "settings_row_mark"
+  offset = 4
+  size = 2
+  meaning = "The same: the first row's mark between its button before and after, $FFFF where they are the same"
+  [[var.field]]
+  name = "settings_packed"
+  offset = 0
+  meaning = "The settings packed back into the player's settings ($C2:934F): the second byte's bits but the window design"
+  [[var.field]]
   name = "tech_partner_bits"
   offset = 0
   meaning = "The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members' bits, shifted out from the top, 0 once done"
@@ -6913,6 +7077,422 @@ addr = "7E:0D91"
 subsystem = "menu"
 meaning = "The byte after the unpacked settings, which their clearing clears with them; nothing in bank C2 reads it"
 source = "game/menu/opening.c, the settings unpacked $C2:92F4"
+
+[[var]]
+name = "menu_settings_cursor"
+addr = "7E:0417"
+subsystem = "menu"
+meaning = "The settings screen's option the cursor is on (0-11), kept from one opening of the screen to the next: the speeds' two meters are options 10 and 11"
+source = "game/menu/settings_screen.c, the options $C2:BFD4, the screen's opening $C2:C3B5"
+
+[[var]]
+name = "menu_settings_option_before"
+addr = "7E:007F"
+page = "menu"
+reuses = "menu_save_slot_next"
+subsystem = "menu"
+meaning = "The settings screen's option the cursor was on when the last frame's input was taken, which tells a push right on the controls from one that brought the cursor there"
+source = "game/menu/settings_screen.c, the options $C2:BFD4, the controls $C2:C0E9"
+
+[[var]]
+name = "menu_settings_buttons"
+addr = "7E:0F00"
+count = 9
+index = "assignment, in button_assignments' order (and a ninth)"
+reuses = ["menu_kept_cursor", "menu_list_items", "menu_gate_screen_state", "menu_item_picked", "menu_tech_list"]
+unchecked = "the eighth assignment's list of the assignments it shares buttons with runs past the ROM's table into its code, whose bytes the settings screen's giving a button takes as places past the assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when confirm or cancel takes L)"
+subsystem = "menu"
+meaning = "The button assignments the settings screen shows while its cursor is on them: the player's own, with the change the cursor's row is making"
+source = "game/menu/settings_screen.c, the button rows $C2:C183, $C2:C20F"
+
+[[var]]
+name = "menu_settings_boxes"
+addr = "7E:0F09"
+count = 10
+index = "box, in the settings' cells' order"
+reuses = ["menu_list_items", "menu_gate_screen_state", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The settings screen's ten boxes, ticked or not: the on-off settings' (the sound output's ticked for stereo, its cell 0), and in the places of the gauge, the battle speed and the window design whether the cursor is choosing that setting"
+source = "game/menu/settings_screen.c, the boxes $C2:C43A, $C2:C3E4"
+
+[[var]]
+name = "own_button_assignments"
+addr = "7E:0408"
+count = 9
+index = "assignment, in button_assignments' order (and a ninth, which nothing reads)"
+subsystem = "core"
+meaning = "The player's own button assignments, which the settings screen makes and which the menus take as button_assignments where the settings say to use them"
+source = "game/menu/settings_screen.c, the button rows $C2:C183, the assignments in use $C2:C555"
+
+[[var]]
+name = "button_assignment_spare"
+addr = "7E:299B"
+subsystem = "core"
+meaning = "The byte after button_assignments, which the settings screen copies with them (the ninth of own_button_assignments, or of the defaults); nothing reads it"
+source = "game/menu/settings_screen.c, the assignments in use $C2:C555"
+
+[[var]]
+name = "menu_settings_described_option"
+addr = "7E:0DCE"
+subsystem = "menu"
+meaning = "The settings screen's option whose description the screen asks for: the description window types it again where it shows another"
+source = "game/menu/settings_screen.c, the description $C2:C4BC, $C2:F943"
+
+[[var]]
+name = "menu_settings_description"
+addr = "7E:0DCF"
+subsystem = "menu"
+meaning = "Which of the settings' value texts the description window is asked to show beside the option's: the option's first, plus the setting's value"
+source = "game/menu/settings_screen.c, the description $C2:C4BC, $C2:F943"
+
+[[var]]
+name = "menu_description_typed"
+addr = "7E:0DC1"
+size = 2
+subsystem = "menu"
+meaning = "How far along the description's row its task has typed, in bytes of the row's tilemap: a new value for the same option clears the row from there"
+source = "game/menu/settings_screen.c, the description $C2:F943; its task $C2:F9B2"
+
+[[var]]
+name = "menu_settings_buttons_before"
+addr = "7E:9890"
+count = 8
+index = "assignment"
+reuses = ["menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_save_summary", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_save_region_table", "menu_hundreds_digits"]
+subsystem = "menu"
+meaning = "The settings screen's button rows as a row is changed ($C2:C5C7): the player's own assignments, the cursor's row's made $FF, which each row is compared with to show its change; nothing reads them after"
+source = "game/menu/settings_screen.c, the button rows $C2:C5C7"
+
+[[var]]
+name = "menu_settings_conflicts"
+addr = "7E:969A"
+count = 8
+index = "byte"
+reuses = ["menu_slot_row_table", "menu_staged_line_table"]
+subsystem = "menu"
+meaning = "The settings screen's giving a button to an assignment ($C2:C23A): the assignments it may take the button from, copied here from the ROM's list for the assignment, the second pass's over the first's; nothing reads them after"
+source = "game/menu/settings_screen.c, the button rows $C2:C23A"
+
+[[var]]
+name = "menu_front_tilemap"
+addr = "7E:2E00"
+size = 2
+count = 0x800
+index = "tile: 32 a row, two maps of 32 rows one after the other"
+reuses = "menu_save_slot_tilemap"
+subsystem = "menu"
+meaning = "The menus' front layer's tilemap buffers, which the screens draw their windows into and queue for VRAM ($C2:FBCE, $C2:FBE3, $C2:FBEA)"
+source = "game/menu/settings_screen.c; the upload records $C2:FBCE, $C2:FBE3"
+
+[[var]]
+name = "menu_text_tilemap"
+addr = "7E:4E00"
+size = 2
+count = 0x400
+index = "tile: 32 a row"
+reuses = ["menu_gate_tilemap", "menu_carry_on_question", "menu_era_label_tiles"]
+subsystem = "menu"
+meaning = "The menus' text layer's tilemap buffer, where the description window's rows are typed and the screens draw what goes over the windows ($C2:FC1B, $C2:FC4C)"
+source = "game/menu/settings_screen.c, the description $C2:F943 and the panel $C2:C2FF"
+
+[[var]]
+name = "menu_shop_goods"
+addr = "7E:1000"
+count = 32
+index = "place in the shop's list"
+subsystem = "menu"
+meaning = "The goods the shop sells, copied from the shop's list in the ROM as it opens, 0 past the last"
+source = "game/menu/shop.c, the shop's opening $C2:DACA, $C2:DCBE"
+
+[[var]]
+name = "menu_shop_goods_owned"
+addr = "7E:1020"
+count = 32
+index = "place in the shop's list"
+subsystem = "menu"
+meaning = "How many of each of the shop's goods the party holds, as the list shows it beside the gold ($C2:DCDA)"
+source = "game/menu/shop.c, the goods' counts $C2:DCDA"
+
+[[var]]
+name = "menu_shop_buy_row"
+addr = "7E:1040"
+subsystem = "menu"
+meaning = "The row of the shop's list of goods the cursor is on, kept from one opening of the list to the next where the settings keep the menus' cursors"
+source = "game/menu/shop.c, the goods' list $C2:DC7B, $C2:D7CF"
+
+[[var]]
+name = "menu_shop_buy_top"
+addr = "7E:1041"
+subsystem = "menu"
+meaning = "The first of the shop's goods its list shows"
+source = "game/menu/shop.c, the goods' list $C2:DC7B, $C2:D7CF"
+
+[[var]]
+name = "menu_shop_sell_row"
+addr = "7E:1042"
+subsystem = "menu"
+meaning = "The row of the list of what the party can sell the cursor is on, kept as menu_shop_buy_row is"
+source = "game/menu/shop.c, the selling list $C2:DE98, $C2:D8B2"
+
+[[var]]
+name = "menu_shop_sell_top"
+addr = "7E:1043"
+subsystem = "menu"
+meaning = "The first of the party's items for sale the selling list shows"
+source = "game/menu/shop.c, the selling list $C2:DE98, $C2:D8B2"
+
+[[var]]
+name = "menu_shop_row_price"
+addr = "7E:1044"
+size = 2
+subsystem = "menu"
+meaning = "The price a row of a shop's list shows, set as the row is drawn ($C2:DD20, $C2:DF51)"
+source = "game/menu/shop.c, the lists' rows $C2:DD20, $C2:DF51"
+
+[[var]]
+name = "menu_shop_total"
+addr = "7E:1044"
+size = 3
+reuses = "menu_shop_row_price"
+subsystem = "menu"
+meaning = "What the quantity being bought or sold comes to, in gold: the price of one as the quantity window opens, and a step's quantity's worth more or less as the quantity changes"
+source = "game/menu/shop.c, the quantity $C2:FCB2, $C2:FCE1, $C2:DA01"
+
+[[var]]
+name = "menu_shop_unit_price"
+addr = "7E:1047"
+size = 2
+subsystem = "menu"
+meaning = "What one of the goods in the quantity window costs (to buy), or brings (half its price, rounded up, to sell)"
+source = "game/menu/shop.c, the quantity $C2:FCB2, $C2:FCE1, $C2:DA01"
+
+[[var]]
+name = "menu_shop_for_sale_listed"
+addr = "7E:1049"
+subsystem = "menu"
+meaning = "How many of the party's items the selling list offers"
+source = "game/menu/shop.c, the selling list $C2:DECC"
+
+[[var]]
+name = "menu_shop_goods_offered"
+addr = "7E:104A"
+subsystem = "menu"
+meaning = "How many goods the shop sells"
+source = "game/menu/shop.c, the shop's opening $C2:DCBE"
+
+[[var]]
+name = "menu_shop_members"
+addr = "7E:104D"
+count = 8
+index = "member, as the shop shows them"
+subsystem = "menu"
+meaning = "The party's characters along the shop's bottom window, the active members first, $FF past the last"
+source = "game/menu/shop.c, the members $C2:DBE8"
+
+[[var]]
+name = "menu_shop_member_count"
+addr = "7E:1055"
+subsystem = "menu"
+meaning = "How many members the shop's bottom window shows"
+source = "game/menu/shop.c, the members $C2:DBE8"
+
+[[var]]
+name = "menu_member_wears_item"
+addr = "7E:1056"
+count = 7
+index = "member, as the shop shows them"
+subsystem = "menu"
+meaning = "Whether each member has on the item the shop's cursor is on ($C2:8900 counts them)"
+source = "game/menu/shop.c, the item's counts $C2:8900; the members' figures $C2:DE21"
+
+[[var]]
+name = "menu_item_worn_count"
+addr = "7E:0D82"
+subsystem = "menu"
+meaning = "How many of the shop's members have on the item the cursor is on, which the shop shows as equipped"
+source = "game/menu/shop.c, the item's counts $C2:8900"
+
+[[var]]
+name = "menu_shop_place_shown"
+addr = "7E:0083"
+page = "menu"
+reuses = ["menu_member_pointed", "menu_tech_list_shown_before"]
+subsystem = "menu"
+meaning = "The place in a shop's list whose item the panel of counts and members' figures shows, $FF for none: the panel is drawn again for another"
+source = "game/menu/shop.c, the lists' pointing $C2:D7F1, $C2:D8D4"
+
+[[var]]
+name = "menu_shop_place_shown_past"
+addr = "7E:0084"
+page = "menu"
+reuses = ["menu_equip_shown", "menu_tech_list_shown"]
+subsystem = "menu"
+meaning = "The byte after menu_shop_place_shown, which the quantity window's closing clears with it as a word; nothing in the shop reads it"
+source = "game/menu/shop.c, the quantity window's closing $C2:DFCF"
+
+[[var]]
+name = "menu_shop_member_cursor"
+addr = "7E:0079"
+page = "menu"
+reuses = ["menu_save_slot_shown", "save_check_slot"]
+subsystem = "menu"
+meaning = "The shop's cursor among the members, kept while the cursor is on the buying and selling tabs"
+source = "game/menu/shop.c, the members $C2:E017, $C2:D6E6"
+
+[[var]]
+name = "menu_shop_tab_cursor"
+addr = "7E:0080"
+page = "menu"
+subsystem = "menu"
+meaning = "The shop's cursor on the buying and selling tabs, kept while the cursor is on the members"
+source = "game/menu/shop.c, the members $C2:E017, $C2:D6E6"
+
+[[var]]
+name = "menu_shop_list_cursor"
+addr = "7E:007F"
+page = "menu"
+reuses = ["menu_save_slot_next", "menu_settings_option_before"]
+subsystem = "menu"
+meaning = "The shop's cursor on its list, put aside while the quantity window has it"
+source = "game/menu/shop.c, the quantity window $C2:DF76, $C2:DFCF"
+
+[[var]]
+name = "menu_shop_work"
+addr = "7E:0022"
+size = 2
+page = "menu"
+reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+subsystem = "menu"
+meaning = "The shop's routines' working word, each its own: the row of a list being drawn, left past the last; the goods priced; the record's place the panel puts an item in"
+source = "game/menu/shop.c, $C2:DD02, $C2:DF31, $C2:DB9F, $C2:DD7C"
+
+[[var]]
+name = "menu_shop_quotient"
+addr = "7E:0036"
+size = 4
+page = "menu"
+subsystem = "menu"
+meaning = "The shop's division of the gold by a price ($C2:FD1D): its three bytes of quotient, under the byte the division shifts the dividend's spare bits into"
+source = "game/menu/shop.c, the quantity $C2:FD1D"
+
+[[var]]
+name = "menu_shop_remainder"
+addr = "7E:003A"
+size = 4
+page = "menu"
+subsystem = "menu"
+meaning = "The same division's remainder"
+source = "game/menu/shop.c, the quantity $C2:FD1D"
+
+[[var]]
+name = "menu_shop_product"
+addr = "7E:003E"
+size = 4
+page = "menu"
+subsystem = "menu"
+meaning = "The shop's multiplications ($C2:FD58, $C2:FD68): a price by the shop's markup, a quantity's step by the price"
+source = "game/menu/shop.c, the prices $C2:DB9F, the quantity $C2:DA01"
+
+[[var]]
+name = "menu_shop_prices"
+addr = "7E:6E00"
+size = 2
+count = 242
+index = "item"
+reuses = "menu_window_line_table"
+subsystem = "menu"
+meaning = "What the shop asks for each of its goods: the item's price by the shops' scale, rounded up, at least 1 (set for the shop's goods as it opens)"
+source = "game/menu/shop.c, the prices $C2:DB9F"
+
+[[var]]
+name = "shop_price_scale"
+addr = "7F:01CD"
+size = 2
+subsystem = "menu"
+meaning = "The story's word that scales the shops' prices, in 256ths of an item's price ($100 the price itself): a word of the event memory"
+source = "game/menu/shop.c, the prices $C2:DB9F"
+
+[[var]]
+name = "menu_cursor_places_kept"
+addr = "7E:9990"
+count = 0x48
+index = "byte of menu_cursor_places"
+reuses = ["menu_item_power_label", "menu_sort_counts"]
+subsystem = "menu"
+meaning = "The shop's cursor places as it opens, kept while the equipping from the shop puts its own there and put back after"
+source = "game/menu/shop.c, the shop's opening $C2:DACA, the slots left $C2:D745"
+
+[[var]]
+name = "menu_held_cursor_sprite"
+addr = "7E:0DA1"
+size = 2
+subsystem = "menu"
+meaning = "The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at menu_held_cursor's place"
+source = "game/menu/shop.c, the shop's opening $C2:D52B; the held cursor's start $C2:8A98"
+
+[[var]]
+name = "menu_held_cursor_blink"
+addr = "7E:0DA6"
+size = 2
+subsystem = "menu"
+meaning = "How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn ($FC a blink every four frames, $F8 every eight)"
+source = "game/menu/shop.c, the shop's opening $C2:D52B; the held cursor's start $C2:8A98, its blink $C2:8B69"
+
+[[var]]
+name = "menu_shop_for_sale"
+addr = "7E:5600"
+count = 256
+index = "place in the selling list"
+subsystem = "menu"
+meaning = "The party's items the shop's selling list offers, in the inventory's order: those the shop takes (not a key item), 0 after the last"
+source = "game/menu/shop.c, the selling list $C2:DECC"
+
+[[var]]
+name = "menu_shop_for_sale_counts"
+addr = "7E:5700"
+count = 256
+index = "place in the selling list"
+subsystem = "menu"
+meaning = "How many of each item of the selling list the party holds; the list's making writes each place's count as it goes, so the place past the last holds the inventory's last place's"
+source = "game/menu/shop.c, the selling list $C2:DECC"
+
+[[var]]
+name = "menu_item_users_noted"
+addr = "7E:0D71"
+subsystem = "menu"
+meaning = "The characters who can use the item last asked about ($C2:93A8), a bit each"
+source = "game/menu/shop.c, the panel $C2:DD7C; the item's users $C2:93A8"
+
+[[var]]
+name = "menu_figures_slot"
+addr = "7E:0DAD"
+size = 2
+subsystem = "menu"
+meaning = "Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory; the shop's panel leaves the item's category here as it starts"
+source = "game/menu/shop.c, the panel $C2:DD7C; the figures $C2:916E"
+
+[[var]]
+name = "menu_figures_worked_out"
+addr = "7E:9B1C"
+count = 11
+index = "figure: the stats at their places in the figures' table, then attack (7) and defence (8)"
+subsystem = "menu"
+meaning = "A member's figures as the menus work them out from its record and what it has on ($C2:916E), which the screens compare with the record's own; the shop's panel puts the record's attack and defence here first, for a member who can't use the item"
+source = "game/menu/shop.c, the panel $C2:DD7C; the figures $C2:916E, $C2:9137"
+
+[[var]]
+name = "menu_shop_after_the_counts"
+addr = "7E:104B"
+subsystem = "menu"
+meaning = "The byte after the shop's goods' count, which nothing in bank C2 writes: the goods' list's frame loads the count with it as a word"
+source = "game/menu/shop.c, the goods' list $C2:DCAA"
+
+[[var]]
+name = "menu_list_last_place"
+addr = "7E:0DDC"
+subsystem = "menu"
+meaning = "The cursor place of a scrolling list's last row, which its frame ($C2:EA81) works out from its first and the rows it shows; the cursor is kept within it"
+source = "game/menu/shop.c, the list for sale $C2:DECC; the list's frame $C2:EA81"
 
 [[var]]
 name = "menu_cursor_buttons"
@@ -7997,6 +8577,10 @@ source = "game/menu/equipment.c; the member list's bar $C2:A170"
   offset = 6
   size = 2
   meaning = "The thumb's move a row of the list"
+  [[var.field]]
+  name = "blink"
+  offset = 5
+  meaning = "Which half of their blink the bar's arrows are in, which the bar's task flips"
   [[var.field]]
   name = "hidden"
   offset = 8
@@ -18994,6 +19578,20 @@ addr = "7E:29AF"
 subsystem = "core"
 meaning = "The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting take a share of the experience"
 source = "game/battle/rewards_levels.c ($C1:F9EB)"
+
+[[var]]
+name = "story_party_rules"
+addr = "7F:00BA"
+subsystem = "core"
+meaning = "What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is (no switching members, some sitting fights out, the story's items offered), and bit 1 with it, a fight not among those the battle's flags mark"
+source = "game/battle/from_field.c, take_in_the_fight ($CF:FB65); game/menu/techs.c members_reachable; game/menu/items.c note_story_and_place"
+
+[[var]]
+name = "story_game_notes"
+addr = "7F:01CF"
+subsystem = "core"
+meaning = "The story's notes on the game itself (event memory $1CF): $10 where it carries on from a finished one, bit 7 where the place items are held back"
+source = "game/menu/saves.c note_carried_over; game/menu/items.c note_story_and_place"
 
 [[var]]
 name = "party_techs_unlocked"

@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 228 files, 117 of 66,161 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 232 files, 117 of 68,832 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -211,13 +211,13 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **20% of the code is still generated.**
+docstring says which way it is wrong). **18% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.1K | 30.9K | 8.7K | 48% | 326 |
+| menus, text (`$C2`) | 59.1K | 33.9K | 9.2K | 43% | 358 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **20% of the code is still generated.**
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **214.3K** | **56.1K** | **20%** | **1653** |
+| **total** | **266.5K** | **217.3K** | **56.6K** | **18%** | **1685** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
@@ -381,24 +381,51 @@ turn state's clearing (`$FD:A982`) for a name for the block it clears.
 instruction set and the map they scroll, the load screen, the window command
 language, the cursor and sounds, the typesetter, the menus' opening, the
 characters in the records, the records' task, the frame's input, the
-tilemap touches, the equipment screen (its steps with the member list and
-card, and its two windows: the slots and the list of what fits, sliding in
-and out), the items screen with its panel (the list of the party's items,
-moving and sorting them, who can equip one, an item used on the members), and
-the techs screen with its panel (a member's techs of each kind, the member
-list's and the tech list's slides, a healing tech used on the members).
-Next is the settings screen beside it (`$C2:BF35`-`$C2:C620`, its options
-through a table of handlers, the buttons' assignment, the window's design);
-then `$C2:42F8` (1441), `$C2:2826` (1313), `$C2:D52B` (1290, the shop) and
-`$C2:3B8C` (1116). The equipment screen's preview of an
-item's figures (`$C2:A5C3`, `$C2:A5E7`, 138 bytes) is still the original's:
-the flags it saves come after the list's move returns, which leaves them as
-none of its paths work out yet (TODO.md). `$C2:27DE` goes with
-`menu/display.c`'s loader half, and only once the streams it decompresses are
-typed: it is the object mode's screen setup, about fifteen routines that each
-load one stream named by a byte of the scene record at `$C6:FD00`, and without
-knowing what each stream holds their ports would be named after their
-destination addresses.
+tilemap touches, the equipment screen, the items screen, the techs screen,
+the settings screen (its options through a table, the buttons' assignment,
+the meters, the gauge and the window's design, and the main menu's panel for
+it) and the shop (its tabs, the goods and the party's items for sale, the
+panel of who could use an item and how their figures change, the quantity
+and the deal). What is left, in the order to take it
+(`python3 tools/burndown.py --uncovered C2`):
+
+1. **The party's services and figures** (about 2.3K): the services every
+   screen and a New Game+'s load call (`$C2:8004`, `$C2:8C75`-`$C2:8DDE`:
+   equip, fill HP and MP), the healing (`$C2:8DE3`-`$C2:90F7`), a member's
+   figures worked out (`$C2:90FC`-`$C2:91DA`, the shop's panel's call-out)
+   and the paging (`$C2:93A8`, `$C2:93BF`). First, because it takes out the
+   most call-outs of the screens already in C.
+2. **The rest of the menu screens** (about 4K): the main menu
+   (`$C2:99CE`-`$C2:9B64`), the party's exchange screens 5 and 7
+   (`$C2:C627`-`$C2:CDCA`), the save screen's opening
+   (`$C2:D065`-`$C2:D155`), name entry (screen 13, `$C2:E2A0`-`$C2:E53D`),
+   the description's typing (`$C2:F943`-`$C2:FB96`), the list slide
+   (`$C2:EB1F`-`$C2:EC37`), the records' sprites and colours
+   (`$C2:F588`-`$C2:F625`), the cursors' tasks (`$C2:8A98`-`$C2:8BA5`) and
+   the shop's equipping of what was just bought (its steps 6-8,
+   `$C2:E017`-`$C2:E18A` with `$C2:D6C3`-`$C2:D778`; no movie takes it, so
+   record one with the route tools first).
+3. **The overworld on foot** (about 4.4K): the leader's walking
+   (`$C2:34AB`-`$C2:3AB9`), the followers (`$C2:3B8C`-`$C2:42E5`), the
+   tiles that trigger events (`$C2:3279`-`$C2:337D`), the region's music
+   (`$C2:2FA5`-`$C2:30C0`), the place's sign (`$C2:563F`-`$C2:57AF`) and the
+   round trip to the menus (`$C2:250D`-`$C2:26A7`).
+4. **The overworld's vehicles** (about 4K): the Epoch flown over the map
+   (`$C2:42F8`-`$C2:4A9A`) and the second vehicle (`$C2:4CDA`-`$C2:5627`,
+   which no movie reaches yet).
+5. **The overworld's setup and colours** (about 3.1K, last): the palettes
+   (`$C2:1D06`-`$C2:2061`) and the scene stream loaders
+   (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
+   `menu/display.c`'s loader half, and only once the streams it decompresses
+   are typed: it is the object mode's screen setup, about fifteen routines
+   that each load one stream named by a byte of the scene record at
+   `$C6:FD00`, and without knowing what each stream holds their ports would
+   be named after their destination addresses.
+
+The equipment screen's preview of an item's figures (`$C2:A5C3`,
+`$C2:A5E7`, 138 bytes) is still the original's: the flags it saves come
+after the list's move returns, which leaves them as none of its paths work
+out yet (TODO.md).
 
 **`$C0`: the field and events**, 12% left after sixteen chunks, and all of
 it routines the ports call out to. **Next** is the screen's setup and fade in

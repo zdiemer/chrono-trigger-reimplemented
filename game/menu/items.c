@@ -97,15 +97,17 @@ static bool is_an_item(uint8_t item)
 
 /* The inventory's places run on past its last into the next bytes, which the
  * clean-up takes as places too. */
-static uint8_t item_at(const GameState *g, unsigned place)
+uint8_t menu_inventory_item_at(const GameState *g, unsigned place)
 {
     return place < INVENTORY_ITEMS_COUNT ? inventory_items(g, place) : menu_inventory_past_the_items(g, place - INVENTORY_ITEMS_COUNT);
 }
-static uint8_t count_at(const GameState *g, unsigned place)
+uint8_t menu_inventory_count_at(const GameState *g, unsigned place)
 {
     return place < INVENTORY_ITEMS_COUNT ? inventory_counts(g, place)
                                          : menu_inventory_counts_past_the_items(g, place - INVENTORY_ITEMS_COUNT);
 }
+static uint8_t item_at(const GameState *g, unsigned place) { return menu_inventory_item_at(g, place); }
+static uint8_t count_at(const GameState *g, unsigned place) { return menu_inventory_count_at(g, place); }
 static void empty_place(GameState *g, unsigned place)
 {
     if (place < INVENTORY_ITEMS_COUNT) {
@@ -195,11 +197,11 @@ static void copy_items_figures(GameState *g)
 
 /* ---- What the story and the place allow ---------------------------------------------------------- */
 
-/* The story's byte at $7F:00BA (bit 0, and bit 1 unset with it) and at
- * $7F:01CE (bit 15 of the word), and the place (a location below $1F0): each
- * noted $FFFF where it allows what the lists offer. Item $C8's kind loses
- * bit 1 where the second place note is set. */
-enum { STORY_BYTE = 0xBA, STORY_WORD_HIGH = 0x1CF, FIRST_BIT = 0x01, SECOND_BIT = 0x02, SIGN_BIT = 0x80 };
+/* What the story holds the party to (bit 0, and bit 1 unset with it), the
+ * story's notes on the game (bit 7) and the place (a location below $1F0):
+ * each noted $FFFF where it allows what the lists offer. Item $C8's kind
+ * loses bit 1 where the second place note is set. */
+enum { FIRST_BIT = 0x01, SECOND_BIT = 0x02, PLACE_ITEMS_HELD = 0x80 };
 enum { LAST_PLACE = 0x1F0, ALLOWED = 0xFFFF, NOT_ALLOWED = 0 };
 enum { ITEM_THE_PLACE_CHANGES = 0xC8, KIND_THE_PLACE_TAKES = 0x02 };
 
@@ -207,12 +209,12 @@ static bool later_place(const GameState *g) { return menu_place_items(g, 1) != N
 
 static void note_story_and_place(GameState *g)
 {
-    uint8_t story = event_memory_byte(g, STORY_BYTE);
+    uint8_t story = story_party_rules(g);
     set_menu_story_items(g, 0, (story & FIRST_BIT) ? ALLOWED : NOT_ALLOWED);
     set_menu_story_items(g, 1, (story & FIRST_BIT) && !(story & SECOND_BIT) ? ALLOWED : NOT_ALLOWED);
     bool near = location_id(g) < LAST_PLACE;
     set_menu_place_items(g, 0, near ? ALLOWED : NOT_ALLOWED);
-    set_menu_place_items(g, 1, near && !(event_memory_byte(g, STORY_WORD_HIGH) & SIGN_BIT) ? ALLOWED : NOT_ALLOWED);
+    set_menu_place_items(g, 1, near && !(story_game_notes(g) & PLACE_ITEMS_HELD) ? ALLOWED : NOT_ALLOWED);
     set_menu_place_items(g, 2, ALLOWED);
 }
 

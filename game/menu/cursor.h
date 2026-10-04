@@ -26,6 +26,12 @@ typedef enum {
 bool menu_asked(const GameState *g, MenuButton b);
 bool menu_pushed(const GameState *g, MenuPush way);
 
+/* Whether the cursor is on one of `count` places from `first`, and every
+ * neighbour a push could take it to is one too (a push that leaves the menu
+ * keeps it where it is); the left one, where `left_free`, any. For a
+ * screen's guard. */
+bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bool left_free);
+
 /* Every sprite out of sight; the menus' own hidden and the cursor placed, as
  * every frame; or every sprite hidden and the cursor placed facing its own
  * way. */

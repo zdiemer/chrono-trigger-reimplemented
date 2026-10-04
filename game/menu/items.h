@@ -16,6 +16,13 @@ typedef struct {
 } MenuItemPlace;
 MenuItemPlace menu_item_place(GameState *g, uint8_t item);
 
+/* The item and the count at a place of the inventory (0-255): its places
+ * run on past its last into the bytes after the items and the counts, which
+ * the menus take as places too. */
+enum { MENU_INVENTORY_PLACES = 256 };
+uint8_t menu_inventory_item_at(const GameState *g, unsigned place);
+uint8_t menu_inventory_count_at(const GameState *g, unsigned place);
+
 /* Where an item's data is in bank $CC; where the item looked up last has
  * its figures. Each notes it for the item screens. */
 uint16_t menu_item_data_at_of(GameState *g, uint8_t item);

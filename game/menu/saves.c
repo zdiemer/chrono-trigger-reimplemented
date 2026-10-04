@@ -253,9 +253,9 @@ static void leave_key_items_behind(GameState *g)
 }
 
 /* The story's note that this game carries on from a finished one. */
-enum { CARRIED_OVER_NOTE = 0x1CF, CARRIED_OVER = 0x10 };
+enum { CARRIED_OVER = 0x10 };
 
-static void note_carried_over(GameState *g) { set_event_memory_byte(g, CARRIED_OVER_NOTE, CARRIED_OVER); }
+static void note_carried_over(GameState *g) { set_story_game_notes(g, CARRIED_OVER); }
 
 /* The characters, Crono to Magus; Ayla fights with her fists, which are no
  * item, so her weapon isn't put back on. */
