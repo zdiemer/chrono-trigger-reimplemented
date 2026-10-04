@@ -32,6 +32,7 @@
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
 #include "menu/party.h"
+#include "menu/party_leaves.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -430,6 +431,13 @@ static void leave_everyone_equipped(GameState *g)
 /* The menus' services, whose time the equipping's and the filling's is. */
 enum { MENUS_SERVICES = 0xC28004 };
 
+/* For the original's code and shadow mode: the fillings' calls keep what the
+ * service before left in the registers they take their arguments from. */
+static PartyServiceCall called_as_left(GameState *g, PartyService before)
+{
+    return party_service_called(g, (uint8_t)party_service_y(g, before), (uint8_t)party_service_x(before));
+}
+
 // $FF:FAED
 /* A New Game+ carries on from the finished game in a slot: what it takes
  * over, each character's starting equipment put back on (the service
@@ -444,12 +452,20 @@ void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
         for (int which = (int)equipment_put_back((uint8_t)character) - 1; which >= 0; which--) {
             uint8_t item = menu_starting_record_byte(g, (uint8_t)character, menu_starting_equipment_place(g, (unsigned)which));
             ORIGINAL_EFFECT(leave_equipping(g, (uint8_t)character, (uint16_t)which));
-            TIMED_AS(g, MENUS_SERVICES, (void)party_run_service(g, pf, SERVICE_EQUIP, (uint8_t)character, item));
+            PartyServiceCall call = { 0 };
+            ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)character, item));
+            TIMED_AS(g, MENUS_SERVICES, (party_equip(g, (uint8_t)character, item), party_wear_it_shows(g)));
+            ORIGINAL_EFFECT(party_service_answered(g, SERVICE_EQUIP, &call));
         }
     }
     ORIGINAL_EFFECT(leave_everyone_equipped(g));
-    TIMED_AS(g, MENUS_SERVICES, (void)party_run_service_as_left(g, pf, SERVICE_FILL_HP, SERVICE_EQUIP));
-    TIMED_AS(g, MENUS_SERVICES, (void)party_run_service_as_left(g, pf, SERVICE_FILL_MP, SERVICE_FILL_HP));
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = called_as_left(g, SERVICE_EQUIP));
+    TIMED_AS(g, MENUS_SERVICES, (party_fill_hp(g), party_wear_it_shows(g)));
+    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_FILL_HP, &call));
+    ORIGINAL_EFFECT(call = called_as_left(g, SERVICE_FILL_HP));
+    TIMED_AS(g, MENUS_SERVICES, (party_fill_mp(g), party_wear_it_shows(g)));
+    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_FILL_MP, &call));
     leave_key_items_behind(g);
     note_carried_over(g);
 }

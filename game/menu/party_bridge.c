@@ -1,23 +1,23 @@
 /* The party's services as the original's code calls them: by number in A,
  * the character they work on in Y and the item in X, through the dispatcher
- * at $C2:8C36 that the long call at $C2:8004 reaches. The field's scripts,
- * the power-on and a New Game+ call them that way, and their ports run them
- * as C here (party_run_service); the original's own callers that are still
- * its code reach the registered entry.
+ * at $C2:8C36 that the long call at $C2:8004 reaches. The ports call the
+ * operations themselves (menu/party.h); this is the registered entry, for
+ * the original's callers that are still its code, and what the dispatcher
+ * leaves (menu/party_leaves.h).
  *
  * Each service is a row of a C table: its operation (menu/party.c,
- * menu/items.c, menu/saves.c) and the answer the dispatcher hands back,
- * which is the service's game answer where it has one (0 for a character
- * that is there, an item's count) and otherwise what the original's routine
- * leaves. Every service ends with what the party wears shown
- * (party_wear_it_shows), which leaves the index registers as the dispatcher
- * returns them. */
+ * menu/items.c, menu/saves.c) and whether it works 16 bits wide. Every
+ * service ends with what the party wears shown (party_wear_it_shows), which
+ * leaves the index registers as the dispatcher returns them. */
 #include "menu/party.h"
+
+#include <string.h>
 
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/items.h"
 #include "menu/menu_data.h"
+#include "menu/party_leaves.h"
 #include "menu/saves.h"
 #include "original_effects.h"
 #include "port/machine.h"
@@ -25,139 +25,77 @@
 #include "ram.h"
 #include "vars.h"
 
-/* ---- The answers ---------------------------------------------------------------------------- */
-
-/* A search's answer: 0 where the character is there, $FF where it isn't. */
-enum { THERE = 0x00, NOT_THERE = 0xFF, FINISHED = 0xFF };
-
-/* For the original's code and shadow mode: how many places the search
- * looked through. */
-static void leave_places_searched(GameState *g, unsigned places) { set_menu_service_places_searched(g, (uint8_t)places); }
-
-static uint8_t search_answer(RecordPlace place) { return place == NOT_IN_THE_RECORD ? NOT_THERE : THERE; }
-
-/* What the original's searches leave as the answer where they change the
- * record: the byte at the place the search ended, a character's own where
- * it took a place. */
-static uint8_t reserve_answer(ReserveTaking r) { return r.out; }
-
-static uint8_t last_place_byte(const GameState *g) { return party_waiting(g, PARTY_WAITING_COUNT - 1); }
-
 /* ---- The services ------------------------------------------------------------------------------ */
 
-typedef uint16_t (*Service)(GameState *g, Platform *pf, uint8_t character, uint8_t item);
+typedef void (*Service)(GameState *g, Platform *pf, uint8_t character, uint8_t item);
 
-// $C2:8C75
-static uint16_t is_active(GameState *g, Platform *pf, uint8_t character, uint8_t item)
-{
-    (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_ACTIVE_PLACES));
-    return search_answer(party_place_of(g, character, PARTY_ACTIVE_PLACES));
-}
-
-// $C2:8CCF
-static uint16_t is_recruited(GameState *g, Platform *pf, uint8_t character, uint8_t item)
-{
-    (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_RECORD_PLACES));
-    return search_answer(party_place_of(g, character, PARTY_RECORD_PLACES));
-}
+// $C2:8C75, $C2:8CCF, $C2:8C5A, $C2:8E1E
+/* The searches, the count of an item and the service that is only what
+ * every service ends with change nothing; their answers are worked out
+ * with the leaves. */
+static void nothing(GameState *g, Platform *pf, uint8_t character, uint8_t item) { (void)g, (void)pf, (void)character, (void)item; }
 
 // $C2:8C79
-static uint16_t bring_in(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void bring_in(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_RECORD_PLACES));
-    PartyBringingIn b = party_bring_in(g, character);
-    return b.joined ? character : reserve_answer(b.reserve);
+    (void)party_bring_in(g, character);
 }
 
 // $C2:8CA2
-static uint16_t send_to_the_reserve(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void send_to_the_reserve(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_ACTIVE_PLACES));
-    PartySending s = party_send_to_the_reserve(g, character);
-    return s.was_active ? reserve_answer(s.reserve) : NOT_THERE;
+    (void)party_send_to_the_reserve(g, character);
 }
 
 // $C2:8CE5
-static uint16_t recruit(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void recruit(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_RECORD_PLACES));
-    PartyRecruit r = party_recruit(g, character);
-    return r.outcome == PARTY_ALREADY_RECRUITED ? THERE : r.outcome == PARTY_RECRUITED ? character : last_place_byte(g);
+    (void)party_recruit(g, character);
 }
 
 // $C2:8CF7
-static uint16_t dismiss(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void dismiss(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)item;
-    ORIGINAL_EFFECT(leave_places_searched(g, PARTY_RECORD_PLACES));
-    RecordPlace place = party_dismiss(g, character);
-    return place == NOT_IN_THE_RECORD ? NOT_THERE : (uint8_t)(character | PARTY_PLACE_EMPTIED);
+    (void)party_dismiss(g, character);
 }
 
 // $C2:8D05
-static uint16_t fill_hp(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void fill_hp(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)character, (void)item;
     party_fill_hp(g);
-    return 0;
 }
 
 // $C2:8D45
-static uint16_t fill_mp(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void fill_mp(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf, (void)character, (void)item;
     party_fill_mp(g);
-    return 0;
 }
 
 // $C2:8D63
-static uint16_t game_finished(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void game_finished(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)g, (void)character, (void)item;
     party_note_the_game_finished(pf);
-    return FINISHED;
 }
 
 // $C2:8D6A
-static uint16_t power_on(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void power_on(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)character, (void)item;
-    SavesAtPowerOn start = SAVES_NOTHING_SAVED;
-    TIMED_AS(g, 0xC28D6A, start = saves_power_on(g, pf));
-    return start;
+    TIMED_AS(g, 0xC28D6A, (void)saves_power_on(g, pf));
 }
 
 // $C2:8D8F
-/* The answer is the character's HP after; for an item that is no equipment
- * the original leaves the lookup's category. */
-static uint16_t equip(GameState *g, Platform *pf, uint8_t character, uint8_t item)
+static void equip(GameState *g, Platform *pf, uint8_t character, uint8_t item)
 {
     (void)pf;
     party_equip(g, character, item);
-    if (item != MENU_NO_WEAPON && menu_item_category(g) >= MENU_EQUIPMENT_SLOTS)
-        return (uint8_t)menu_item_category(g);
-    return character_records_hp(g, character);
-}
-
-// $C2:8C5A
-/* Nothing but what every service ends with; the answer is what the
- * dispatch left in A, the number doubled. */
-static uint16_t show_what_it_wears(GameState *g, Platform *pf, uint8_t character, uint8_t item)
-{
-    (void)g, (void)pf, (void)character, (void)item;
-    return SERVICE_SHOW_WHAT_IT_WEARS * 2;
-}
-
-// $C2:8E1E
-static uint16_t count_item(GameState *g, Platform *pf, uint8_t character, uint8_t item)
-{
-    (void)pf, (void)character;
-    return menu_items_held(g, item);
 }
 
 /* The services by number, and whether each works 16 bits wide (its answer a
@@ -166,10 +104,10 @@ static const struct {
     Service run;
     bool wide;
 } services[PARTY_SERVICES] = {
-    [SERVICE_IS_ACTIVE] = { is_active, false },
+    [SERVICE_IS_ACTIVE] = { nothing, false },
     [SERVICE_BRING_IN] = { bring_in, false },
     [SERVICE_SEND_TO_THE_RESERVE] = { send_to_the_reserve, false },
-    [SERVICE_IS_RECRUITED] = { is_recruited, false },
+    [SERVICE_IS_RECRUITED] = { nothing, false },
     [SERVICE_RECRUIT] = { recruit, false },
     [SERVICE_DISMISS] = { dismiss, false },
     [SERVICE_FILL_HP] = { fill_hp, true },
@@ -177,62 +115,135 @@ static const struct {
     [SERVICE_GAME_FINISHED] = { game_finished, false },
     [SERVICE_POWER_ON] = { power_on, false },
     [SERVICE_EQUIP] = { equip, true },
-    [SERVICE_SHOW_WHAT_IT_WEARS] = { show_what_it_wears, false },
-    [SERVICE_COUNT_ITEM] = { count_item, false },
+    [SERVICE_SHOW_WHAT_IT_WEARS] = { nothing, false },
+    [SERVICE_COUNT_ITEM] = { nothing, false },
 };
-
-/* For the original's code and shadow mode: the dispatcher keeps the call's
- * Y and X, and the answer, a byte or a word. */
-static void leave_call(GameState *g, uint8_t y, uint8_t x)
-{
-    set_menu_service_character(g, y);
-    set_menu_item_operand(g, x);
-}
-
-static void leave_answer(GameState *g, PartyService service, uint16_t answer)
-{
-    set_menu_service_answer(g, (uint8_t)answer);
-    if (services[service].wide)
-        set_menu_service_places_searched(g, (uint8_t)(answer >> 8));
-}
-
-// $C2:8C36
-uint16_t party_run_service(GameState *g, Platform *pf, PartyService service, uint8_t character, uint8_t item)
-{
-    ORIGINAL_EFFECT(leave_call(g, character, item));
-    uint16_t answer = services[service].run(g, pf, character, item);
-    ORIGINAL_EFFECT(leave_answer(g, service, answer));
-    party_wear_it_shows(g);
-    return services[service].wide ? answer : (uint8_t)answer;
-}
-
-uint16_t party_run_service_as_left(GameState *g, Platform *pf, PartyService service, PartyService before)
-{
-    return party_run_service(g, pf, service, (uint8_t)party_service_y(g, before), (uint8_t)party_service_x(before));
-}
 
 /* ---- What the dispatcher leaves ------------------------------------------------------------- */
 
-/* The index registers as the party's looks leave them (the rocks'
- * teaching's, below), a byte where the service worked 8 bits wide. */
-enum { FIRST_ROCK = 0xAE, ROCKS = 5 };
-
-static bool wide(PartyService service) { return services[service].wide; }
-
-static uint16_t records_end(void);
-static uint16_t last_rock_worn(const GameState *g);
-
-uint16_t party_service_x(PartyService service) { return wide(service) ? records_end() : (uint8_t)records_end(); }
-
-uint16_t party_service_y(const GameState *g, PartyService service)
+PartyServiceCall party_service_called(GameState *g, uint8_t y, uint8_t x)
 {
-    uint16_t y = last_rock_worn(g);
-    return wide(service) ? y : (uint8_t)y;
+    PartyServiceCall call = { y, x, { 0 } };
+    for (RecordPlace place = 0; place < PARTY_ACTIVE_PLACES; place++)
+        call.record[place] = party_members(g, place);
+    for (RecordPlace place = PARTY_ACTIVE_PLACES; place < PARTY_RECORD_PLACES; place++)
+        call.record[place] = party_waiting(g, place - PARTY_ACTIVE_PLACES);
+    set_menu_service_character(g, y);
+    set_menu_item_operand(g, x);
+    return call;
+}
+
+/* The answers, from the record as it was: a search's 0 where the character
+ * is there and $FF where it isn't; a change's, the byte the original's
+ * routine ends on. */
+enum { THERE = 0x00, NOT_THERE = 0xFF, FINISHED = 0xFF };
+
+static bool empty(uint8_t at) { return (at & PARTY_PLACE_EMPTIED) != 0; }
+
+static RecordPlace search(const uint8_t *record, uint8_t character, unsigned places)
+{
+    for (RecordPlace place = 0; place < places; place++)
+        if (record[place] == character)
+            return place;
+    return NOT_IN_THE_RECORD;
+}
+
+/* The byte the reserve's taking someone at its front ends on: its first
+ * empty place's, which closes, or with none the last member's. */
+static uint8_t reserve_end(const uint8_t *record)
+{
+    for (RecordPlace place = PARTY_ACTIVE_PLACES; place < PARTY_RECORD_PLACES; place++)
+        if (empty(record[place]))
+            return record[place];
+    return record[PARTY_RECORD_PLACES - 1];
+}
+
+static uint8_t search_answer(const uint8_t *record, uint8_t character, unsigned places)
+{
+    return search(record, character, places) == NOT_IN_THE_RECORD ? NOT_THERE : THERE;
+}
+
+/* Bringing a character in empties its place first, then takes an empty
+ * active place (its own number), or the third and the reserve's front. */
+static uint8_t bring_in_answer(const PartyServiceCall *call)
+{
+    uint8_t record[PARTY_RECORD_PLACES];
+    memcpy(record, call->record, sizeof record);
+    RecordPlace was = search(record, call->y, PARTY_RECORD_PLACES);
+    if (was != NOT_IN_THE_RECORD)
+        record[was] = (uint8_t)(record[was] | PARTY_PLACE_EMPTIED);
+    for (RecordPlace place = 0; place < PARTY_ACTIVE_PLACES; place++)
+        if (empty(record[place]))
+            return call->y;
+    return reserve_end(record);
+}
+
+static uint8_t recruit_answer(const PartyServiceCall *call)
+{
+    if (search(call->record, call->y, PARTY_RECORD_PLACES) != NOT_IN_THE_RECORD)
+        return THERE;
+    for (RecordPlace place = PARTY_ACTIVE_PLACES; place < PARTY_RECORD_PLACES; place++)
+        if (empty(call->record[place]))
+            return call->y;
+    return call->record[PARTY_RECORD_PLACES - 1];
+}
+
+static uint16_t party_service_answer(GameState *g, PartyService service, const PartyServiceCall *call)
+{
+    const uint8_t *record = call->record;
+    switch (service) {
+    case SERVICE_IS_ACTIVE: return search_answer(record, call->y, PARTY_ACTIVE_PLACES);
+    case SERVICE_IS_RECRUITED: return search_answer(record, call->y, PARTY_RECORD_PLACES);
+    case SERVICE_BRING_IN: return bring_in_answer(call);
+    case SERVICE_SEND_TO_THE_RESERVE:
+        return search(record, call->y, PARTY_ACTIVE_PLACES) == NOT_IN_THE_RECORD ? NOT_THERE : reserve_end(record);
+    case SERVICE_RECRUIT: return recruit_answer(call);
+    case SERVICE_DISMISS:
+        return search(record, call->y, PARTY_RECORD_PLACES) == NOT_IN_THE_RECORD ? NOT_THERE : (uint8_t)(call->y | PARTY_PLACE_EMPTIED);
+    case SERVICE_FILL_HP:
+    case SERVICE_FILL_MP: return 0;
+    case SERVICE_GAME_FINISHED: return FINISHED;
+    case SERVICE_POWER_ON: return event_memory_byte(g, SAVES_HOW_IT_STARTS);
+    case SERVICE_EQUIP: return character_records_hp(g, call->y);
+    /* the dispatch's own A, the number doubled */
+    case SERVICE_SHOW_WHAT_IT_WEARS: return SERVICE_SHOW_WHAT_IT_WEARS * 2;
+    case SERVICE_COUNT_ITEM: return menu_items_held(g, call->x);
+    case PARTY_SERVICES: break;
+    }
+    return 0;
+}
+
+/* How many places a service's search went through: the active party's, or
+ * the whole record. */
+static unsigned places_searched(PartyService service)
+{
+    switch (service) {
+    case SERVICE_IS_ACTIVE:
+    case SERVICE_SEND_TO_THE_RESERVE: return PARTY_ACTIVE_PLACES;
+    case SERVICE_IS_RECRUITED:
+    case SERVICE_BRING_IN:
+    case SERVICE_RECRUIT:
+    case SERVICE_DISMISS: return PARTY_RECORD_PLACES;
+    default: return 0;
+    }
+}
+
+uint16_t party_service_answered(GameState *g, PartyService service, const PartyServiceCall *call)
+{
+    uint16_t answer = party_service_answer(g, service, call);
+    if (places_searched(service))
+        set_menu_service_places_searched(g, (uint8_t)places_searched(service));
+    set_menu_service_answer(g, (uint8_t)answer);
+    if (services[service].wide)
+        set_menu_service_places_searched(g, (uint8_t)(answer >> 8));
+    return services[service].wide ? answer : (uint8_t)answer;
 }
 
 /* The index registers as the rocks' teaching leaves them: X past the last
  * record; Y the last rock a character wears, or past the rocks' techs' marks
  * its clearing moved over. */
+enum { FIRST_ROCK = 0xAE, ROCKS = 5 };
+
 static uint16_t records_end(void) { return (uint16_t)(RAM_ABS(RAM_CHARACTER_RECORDS) + CHARACTER_RECORDS_COUNT * RAM_CHARACTER_RECORDS_STRIDE); }
 
 static uint16_t last_rock_worn(const GameState *g)
@@ -246,6 +257,14 @@ static uint16_t last_rock_worn(const GameState *g)
     return y;
 }
 
+uint16_t party_service_x(PartyService service) { return services[service].wide ? records_end() : (uint8_t)records_end(); }
+
+uint16_t party_service_y(const GameState *g, PartyService service)
+{
+    uint16_t y = last_rock_worn(g);
+    return services[service].wide ? y : (uint8_t)y;
+}
+
 /* ---- The entries ---------------------------------------------------------------------------------- */
 
 // $C2:8004
@@ -257,8 +276,10 @@ void menu_party_services(Snes *s)
 {
     GameState *g = state_of(s);
     PartyService service = (PartyService)(uint8_t)s->cpu.a;
-    uint16_t answer = party_run_service(g, m_platform(s), service, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x);
-    s->cpu.a = answer;
+    PartyServiceCall call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x);
+    services[service].run(g, m_platform(s), call.y, call.x);
+    party_wear_it_shows(g);
+    s->cpu.a = party_service_answered(g, service, &call);
     s->cpu.x = party_service_x(service);
     s->cpu.y = party_service_y(g, service);
     m_rtl(s);
@@ -274,9 +295,8 @@ static bool party_members_are_characters(Snes *s)
 
 /* The services the table has, with the active party's members characters
  * (or empty places) and only a character brought into it; the equipping for
- * one of the characters' records, and for an item that is no equipment
- * only with A's high byte clear, which its answer takes (the game equips
- * equipment only). */
+ * one of the characters' records and with equipment (the game's always
+ * is). */
 bool menu_party_service_runs(Snes *s)
 {
     PartyService service = (PartyService)(uint8_t)s->cpu.a;
@@ -290,9 +310,9 @@ bool menu_party_service_runs(Snes *s)
     if (character >= CHARACTER_RECORDS_COUNT)
         return false;
     vars_peek(true);
-    bool equipment = item == MENU_NO_WEAPON || (unsigned)menu_item_category_of(state_of(s), item) < MENU_EQUIPMENT_SLOTS;
+    bool equipment = party_can_equip(state_of(s), item);
     vars_peek(false);
-    return equipment || (s->cpu.a & 0xFF00) == 0;
+    return equipment;
 }
 
 /* The entries of the party's looks and the rocks' teaching, which the

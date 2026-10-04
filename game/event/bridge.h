@@ -21,6 +21,7 @@
 #include "event/script.h"
 #include "field/bridge.h"
 #include "menu/party.h"
+#include "menu/party_leaves.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 
@@ -54,11 +55,11 @@ static inline uint16_t event_command_offset(const Snes *s) { return s->cpu.y; }
 EventCommand event_command_of(Snes *s, uint8_t opcode);
 void event_return(Snes *s, EventStep st);
 
-/* One of the menus' services (menu/party.h), run as C where the original
- * makes its long call to them ($C2:8004): the character in Y and X as the
- * command hands them over, and Y left as the services leave it
- * (event/party.c). */
-void event_ask_the_menus(Snes *s, PartyService service, uint8_t character, uint16_t x);
+/* For the original's code and shadow mode, after one of the menus'
+ * services a command calls where the original makes its long call to them
+ * ($C2:8004): the dispatcher's answer kept, and Y left as it leaves it
+ * (event/party.c, menu/party_leaves.h). */
+void event_menus_answered(Snes *s, PartyService service, const PartyServiceCall *call);
 
 /* How a command runs on the machine: 8-bit A, 16-bit X and Y (`x8` for the
  * calls made with 8-bit index registers), on the field's page, with the data

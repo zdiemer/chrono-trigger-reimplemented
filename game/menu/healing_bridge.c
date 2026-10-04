@@ -33,26 +33,11 @@ enum { RAISE_AMOUNTS = 0x9016 };
 
 /* ---- The healing --------------------------------------------------------------------------------- */
 
-/* The healing goes through the members it heals as the member the menus
- * work on, and leaves that one past the last, where the screen's next
- * loading of a member takes it up. */
-static void move_past_the_members_healed(GameState *g)
-{
-    bool every = (menu_use_effect(g) & MENU_USE_FOR_EVERY_MEMBER) != 0;
-    menu_work_on_member(g, every ? menu_active_members(g) : (uint8_t)(menu_use_member(g) + 1));
-}
-
-/* For the original's code and shadow mode: the healing counts the members
- * it heals down in the menus' first cell. */
-static void leave_members_healed(GameState *g) { set_menu_scratch_restoring_members_left(g, 0); }
-
 // $C2:8E2D
 void menu_heal_entry(Snes *s)
 {
     GameState *g = state_of(s);
     menu_heal(g);
-    move_past_the_members_healed(g);
-    ORIGINAL_EFFECT(leave_members_healed(g));
     m_rts(s);
 }
 
@@ -98,8 +83,6 @@ void menu_heal_and_show(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, false, false);
     TIMED_AS(g, 0xC28E2D, menu_heal(g));
-    move_past_the_members_healed(g);
-    ORIGINAL_EFFECT(leave_members_healed(g));
     colour_the_amounts(g);
     s->cpu.db = MENU_DATA_BANK;   /* as the colours' block move leaves it */
     if (!menu_run(s, 0xC28F67, 0xC28F6C, menu_show_amounts))

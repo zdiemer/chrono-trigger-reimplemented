@@ -68,6 +68,8 @@ void menu_work_on_member(GameState *g, uint8_t member)
     set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
 }
 
+void menu_work_on_member_only(GameState *g, uint8_t member) { set_menu_screen_argument(g, member); }
+
 /* The character whose record the menus loaded last, from where they noted
  * it. */
 uint8_t menu_member_character(const GameState *g)

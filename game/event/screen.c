@@ -408,18 +408,28 @@ static void as_the_dispatch_has_it(Snes *s, uint8_t command)
 }
 
 // $C0:3E7C
-/* The game finished: the menus' service that notes it on the cartridge,
- * for the load screen's New Game+ (menu/party.h), which the command's
+/* The game finished: the cartridge notes it, for the load screen's New
+ * Game+ (menu/party.h), through the menus' services, which the command's
  * dispatch reaches through its table; the script goes on after the
- * command. The service takes the command's offset as its character and the
- * dispatch's X as its item, and keeps both. */
-enum { SCREEN_COMMAND_LENGTH = 2 };
+ * command. For the original's code and shadow mode, the services keep the
+ * command's offset and the dispatch's X as their call's. */
+enum { SCREEN_COMMAND_LENGTH = 2, MENUS_SERVICES = 0xC28004 };
+
+static void note_the_game_finished(Snes *s)
+{
+    party_note_the_game_finished(m_platform(s));
+    party_wear_it_shows(state_of(s));
+}
 
 void event_screen_party_routine(Snes *s)
 {
+    GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + SCREEN_COMMAND_LENGTH);
-    ORIGINAL_EFFECT(event_keep_offset(state_of(s), resume));
-    event_ask_the_menus(s, SERVICE_GAME_FINISHED, (uint8_t)resume, s->cpu.x);
+    ORIGINAL_EFFECT(event_keep_offset(g, resume));
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)resume, (uint8_t)s->cpu.x));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, note_the_game_finished(s));
+    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_GAME_FINISHED, &call));
     s->cpu.x = resume;
     m_rts(s);
 }

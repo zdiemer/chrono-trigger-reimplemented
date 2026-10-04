@@ -8,7 +8,7 @@
  * active party, recruits one into the reserve, dismisses one, brings one into
  * the active party, or sends one of the active party to the reserve, through
  * the menus' services, which the original reaches with a long call
- * ($C2:8004) and the port runs as C (party_run_service). On the map, the
+ * ($C2:8004) and the port calls as C (menu/party.h). On the map, the
  * characters' objects follow: one joining becomes the next member's, and the
  * members behind one sent away close up, with their palettes.
  *
@@ -23,7 +23,9 @@
 #include "event/variables.h"
 #include "field/field.h"
 #include "field/party.h"
+#include "menu/items.h"
 #include "menu/party.h"
+#include "menu/party_leaves.h"
 #include "port/native.h"
 
 /* ---- Someone to walk up to or ask after -------------------------------------------------- */
@@ -151,28 +153,24 @@ void event_cmd_take_out_of_party(Snes *s)
  * is theirs. */
 enum { MENUS_SERVICES = 0xC28004 };
 
-/* For the original's code and shadow mode: the Y the services leave. */
-static void leave_y(Snes *s, uint16_t y) { s->cpu.y = y; }
+/* For the original's code and shadow mode: the menus' dispatcher keeps the
+ * Y and X a command hands it (menu/party_leaves.h) -- the character it
+ * names, or the command's offset, and an item or whatever X held -- and
+ * the answer; the Y it leaves is the command's. */
+static PartyServiceCall menus_called(GameState *g, uint16_t y, uint16_t x)
+{
+    return party_service_called(g, (uint8_t)y, (uint8_t)x);
+}
 
-/* Run one of the menus' services with the character the command names (its
- * Y) and the X the original's command hands it, which the services keep:
- * the command's offset where it read no item. The answer is the service's. */
-static uint16_t ask_the_menus(Snes *s, PartyService service, uint8_t character, uint16_t x)
+void event_menus_answered(Snes *s, PartyService service, const PartyServiceCall *call)
 {
     GameState *g = state_of(s);
-    uint16_t answer = 0;
-    NATIVE_TIME_AS(s, MENUS_SERVICES, answer = party_run_service(g, m_platform(s), service, character, (uint8_t)x));
-    ORIGINAL_EFFECT(leave_y(s, party_service_y(g, service)));
-    return answer;
+    party_service_answered(g, service, call);
+    s->cpu.y = party_service_y(g, service);
 }
 
-void event_ask_the_menus(Snes *s, PartyService service, uint8_t character, uint16_t x)
-{
-    (void)ask_the_menus(s, service, character, x);
-}
-
-/* A query's answer when the character is there. */
-enum { MENUS_ANSWER_YES = 0 };
+/* What every one of the menus' services ends with, after its work. */
+static void shown(GameState *g) { party_wear_it_shows(g); }
 
 // $C0:3A68
 /* Equip a character with an item: the command's first operand the
@@ -184,26 +182,35 @@ void event_cmd_party_routine_0a(Snes *s)
     uint16_t resume = (uint16_t)(event_command_offset(s) + LENGTH);
     ORIGINAL_EFFECT(event_keep_offset(g, resume));
     EventCommand c = event_command_of(s, 0xD5);
-    (void)ask_the_menus(s, SERVICE_EQUIP, (uint8_t)c.first_argument, c.second_argument);
+    uint8_t character = (uint8_t)c.first_argument, item = (uint8_t)c.second_argument;
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, character, item));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, (party_equip(g, character, item), shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_EQUIP, &call));
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
-/* Every character's HP filled, then (or alone) every character's MP: the
- * second service keeps what the first left as its arguments, the first the
- * command's offset past its opcode and the X of the dispatch. */
+/* Every character's HP filled, then (or alone) every character's MP. For
+ * the original's code and shadow mode, the menus keep the command's offset
+ * past its opcode and the X of the dispatch, the second call what the first
+ * left. */
 static void fill(Snes *s, bool hp, bool mp)
 {
     GameState *g = state_of(s);
     uint16_t resume = (uint16_t)(event_command_offset(s) + 1);
     ORIGINAL_EFFECT(event_keep_offset(g, resume));
-    uint16_t y = resume, x = s->cpu.x;
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, resume, s->cpu.x));
     if (hp) {
-        (void)ask_the_menus(s, SERVICE_FILL_HP, (uint8_t)y, x);
-        y = party_service_y(g, SERVICE_FILL_HP);
-        x = party_service_x(SERVICE_FILL_HP);
+        NATIVE_TIME_AS(s, MENUS_SERVICES, (party_fill_hp(g), shown(g)));
+        ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_FILL_HP, &call));
     }
-    if (mp)
-        (void)ask_the_menus(s, SERVICE_FILL_MP, (uint8_t)y, x);
+    if (mp) {
+        if (hp)
+            ORIGINAL_EFFECT(call = menus_called(g, party_service_y(g, SERVICE_FILL_HP), party_service_x(SERVICE_FILL_HP)));
+        NATIVE_TIME_AS(s, MENUS_SERVICES, (party_fill_mp(g), shown(g)));
+        ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_FILL_MP, &call));
+    }
     event_return(s, (EventStep){ resume, m_flag(s, CPU_FLAG_C) });
 }
 
@@ -215,17 +222,23 @@ static void leave_jump(Snes *s, uint16_t from, uint8_t distance)
     m_set_flag(s, CPU_FLAG_V, field_add_overflows16(from, distance));
 }
 
-/* A condition on the record ($D2, $CF): on after it if the menus answer yes,
- * otherwise its jump, by the distance in its last operand. The original keeps
- * where the command's character operand ends, and hands it the menus as X. */
-static void ask_after_character(Snes *s, uint8_t opcode, PartyService service)
+/* A condition on the record ($D2, $CF): on after it if the character is
+ * among the record's first `places`, otherwise its jump, by the distance in
+ * its last operand. The original keeps where the command's character
+ * operand ends, and hands it the menus as X. */
+static void ask_after_character(Snes *s, uint8_t opcode, PartyService service, unsigned places)
 {
     enum { LENGTH = 3, JUMP_BYTE = 2 };
     GameState *g = state_of(s);
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
     ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + JUMP_BYTE)));
-    if (ask_the_menus(s, service, character, (uint16_t)(at + JUMP_BYTE)) == MENUS_ANSWER_YES) {
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + JUMP_BYTE)));
+    bool there = false;
+    NATIVE_TIME_AS(s, MENUS_SERVICES, (there = party_place_of(g, character, places) != NOT_IN_THE_RECORD, shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
+    if (there) {
         event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
         return;
     }
@@ -237,11 +250,11 @@ static void ask_after_character(Snes *s, uint8_t opcode, PartyService service)
 
 // $C0:38E8
 /* Whether a character is in the active party. */
-void event_cmd_if_in_the_active_party(Snes *s) { ask_after_character(s, 0xD2, SERVICE_IS_ACTIVE); }
+void event_cmd_if_in_the_active_party(Snes *s) { ask_after_character(s, 0xD2, SERVICE_IS_ACTIVE, PARTY_ACTIVE_PLACES); }
 
 // $C0:388D
 /* Whether a character has been recruited, active or in reserve. */
-void event_cmd_if_recruited(Snes *s) { ask_after_character(s, 0xCF, SERVICE_IS_RECRUITED); }
+void event_cmd_if_recruited(Snes *s) { ask_after_character(s, 0xCF, SERVICE_IS_RECRUITED, PARTY_RECORD_PLACES); }
 
 /* A change to the record ($D0, $D1): the script goes on with the carry the
  * command was entered with, which the menus keep. */
@@ -252,7 +265,13 @@ static void change_the_record(Snes *s, uint8_t opcode, PartyService service)
     uint16_t at = event_command_offset(s);
     uint8_t character = event_command_of(s, opcode).character;
     ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
-    (void)ask_the_menus(s, service, character, (uint16_t)(at + LENGTH));
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
+    if (service == SERVICE_RECRUIT)
+        NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_recruit(g, character), shown(g)));
+    else
+        NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_dismiss(g, character), shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, service, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
 
@@ -274,7 +293,11 @@ void event_cmd_note_item_count(Snes *s)
     uint16_t at = event_command_offset(s);
     EventCommand c = event_command_of(s, 0xD7);
     ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + ITEM_ENDS)));
-    uint8_t count = (uint8_t)ask_the_menus(s, SERVICE_COUNT_ITEM, (uint8_t)at, c.item);
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, at, c.item));
+    uint8_t count = 0;
+    NATIVE_TIME_AS(s, MENUS_SERVICES, (count = menu_items_held(g, c.item), shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_COUNT_ITEM, &call));
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, count));
     set_variable_byte(g, c.variable, count);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), true });
@@ -304,7 +327,10 @@ void event_cmd_bring_into_the_party(Snes *s)
     uint8_t character = event_command_of(s, 0xD3).character;
     ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
     ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, character));
-    (void)ask_the_menus(s, SERVICE_BRING_IN, character, (uint16_t)(at + LENGTH));
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, character, (uint16_t)(at + LENGTH)));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_bring_in(g, character), shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_BRING_IN, &call));
     object_joins_the_party(g, character);
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), m_flag(s, CPU_FLAG_C) });
 }
@@ -421,11 +447,15 @@ void event_cmd_send_to_the_reserve(Snes *s)
     ORIGINAL_EFFECT(event_keep_offset(g, (uint16_t)(at + LENGTH)));
     ORIGINAL_EFFECT(keep_byte(g, KEPT_FIRST, character));
     vars_peek(true);
-    uint16_t x = x_for_the_menus(before, g, character);
+    uint16_t x = 0;
+    ORIGINAL_EFFECT(x = x_for_the_menus(before, g, character));
     bool go_on = goes_on_after_sending(g, character, m_flag(s, CPU_FLAG_C));
     vars_peek(false);
     member_steps_out(g, character);
-    (void)ask_the_menus(s, SERVICE_SEND_TO_THE_RESERVE, character, x);
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = menus_called(g, character, x));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, ((void)party_send_to_the_reserve(g, character), shown(g)));
+    ORIGINAL_EFFECT(event_menus_answered(s, SERVICE_SEND_TO_THE_RESERVE, &call));
     event_return(s, (EventStep){ (uint16_t)(at + LENGTH), go_on });
 }
 
@@ -436,11 +466,11 @@ void event_cmd_send_to_the_reserve(Snes *s)
 static bool record_shows_characters(const GameState *g) { return party_record_shows_characters(g); }
 EVENT_CHECK_TAKING_NOTHING(record_shows_characters)
 
-static bool equipping_a_character(const GameState *g, uint16_t character)
+static bool equipping_a_character(const GameState *g, uint16_t character, uint16_t item)
 {
-    return character < CHARACTER_RECORDS_COUNT && party_record_shows_characters(g);
+    return character < CHARACTER_RECORDS_COUNT && party_can_equip(g, (uint8_t)item) && party_record_shows_characters(g);
 }
-EVENT_CHECK(equipping_a_character, first_argument)
+EVENT_CHECK(equipping_a_character, first_argument, second_argument)
 
 static bool joining_character(const GameState *g, uint8_t character)
 {

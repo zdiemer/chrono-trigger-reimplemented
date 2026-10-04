@@ -3462,9 +3462,10 @@ four screens -- is the next chunk (PLAN.md).
   character's HP or MP filled, an earring raising the greatest HP; and what
   every service ends with, the party's weapons' colours in its members'
   palettes and the rocks' triple techs following who wears a rock.
-  `menu/party_bridge.c` is the services as the original's code calls them:
-  by number in A, a C table of rows (`party_run_service`), which the field's
-  scripts, the power-on and a New Game+ now call as C.
+  The field's scripts, the power-on and a New Game+ call the operations
+  themselves; `menu/party_bridge.c` is the services as the original's code
+  calls them, by number in A through a C table of rows, for the registered
+  entry.
 - `menu/figures.c`, a member's figures: the stats with every boost of what
   it wears, held to their caps; the attack, by how the character fights
   (a weapon wielded, a gun or bow aimed, Ayla's fists by her level); the
@@ -3491,10 +3492,15 @@ item and how many as parameters.
 **The registers, settled first.** The dispatcher's PLP gives back the flags
 its caller had, so nothing is threaded: A is the service's answer, a word
 from the three that work 16 bits wide, and X and Y are what the party's looks
-leave them, worked out from the state after (`party_service_x`/`_y`, the last
-rock a character wears or past the rock techs' marks). Event's commands leave
-that Y, which only the dispatcher's next call keeps (TODO.md, the event
-leaves). The healing's showing and its task yield through the original's task
+leave them, worked out from the state after (the last rock a character wears
+or past the rock techs' marks). The operations hand back only what the game
+asks of them (whether a character joined, was there, was sent); what the
+dispatcher keeps -- the call's Y and X, which a script's command fills with
+its offset as often as with a character, and the answer, worked out from the
+record as it was before -- is `menu/party_leaves.h`, which a port standing
+where the original's call was runs under `ORIGINAL_EFFECT` with its own
+registers. Event's commands leave the Y, which only the dispatcher's next
+call keeps (TODO.md, the event leaves). The healing's showing and its task yield through the original's task
 switch; the task stops at the scheduler's end of a task.
 
 **What shadow mode and fuzzing found.** Over the 26 movies every call

@@ -77,39 +77,38 @@ static void take_place(GameState *g, RecordPlace place, uint8_t character)
 /* The reserve takes `whom` at its front: each member moves a place back,
  * until one moves into an empty place, which closes; with none, the last
  * leaves the record. */
-static ReserveTaking reserve_takes(GameState *g, uint8_t whom)
+static void reserve_takes(GameState *g, uint8_t whom)
 {
     uint8_t moving = whom;
     for (RecordPlace place = PARTY_ACTIVE_PLACES; place < PARTY_RECORD_PLACES; place++) {
         uint8_t there = at_place(g, place);
         set_at_place(g, place, moving);
         if (is_empty(there))
-            return (ReserveTaking){ place, there };
+            return;
         moving = there;
     }
-    return (ReserveTaking){ PARTY_RECORD_PLACES, moving };
 }
 
 // $C2:8CE5
-PartyRecruit party_recruit(GameState *g, uint8_t character)
+PartyRecruiting party_recruit(GameState *g, uint8_t character)
 {
-    RecordPlace place = party_place_of(g, character, PARTY_RECORD_PLACES);
-    if (place != NOT_IN_THE_RECORD)
-        return (PartyRecruit){ PARTY_ALREADY_RECRUITED, place };
-    place = first_empty(g, PARTY_ACTIVE_PLACES, PARTY_RECORD_PLACES);
+    if (party_place_of(g, character, PARTY_RECORD_PLACES) != NOT_IN_THE_RECORD)
+        return PARTY_ALREADY_RECRUITED;
+    RecordPlace place = first_empty(g, PARTY_ACTIVE_PLACES, PARTY_RECORD_PLACES);
     if (place == NOT_IN_THE_RECORD)
-        return (PartyRecruit){ PARTY_NO_ROOM, NOT_IN_THE_RECORD };
+        return PARTY_NO_ROOM;
     take_place(g, place, character);
-    return (PartyRecruit){ PARTY_RECRUITED, place };
+    return PARTY_RECRUITED;
 }
 
 // $C2:8CF7
-RecordPlace party_dismiss(GameState *g, uint8_t character)
+bool party_dismiss(GameState *g, uint8_t character)
 {
     RecordPlace place = party_place_of(g, character, PARTY_RECORD_PLACES);
-    if (place != NOT_IN_THE_RECORD)
-        empty_the_place(g, place);
-    return place;
+    if (place == NOT_IN_THE_RECORD)
+        return false;
+    empty_the_place(g, place);
+    return true;
 }
 
 /* The active party's last place. */
@@ -119,29 +118,31 @@ enum { THIRD_PLACE = PARTY_ACTIVE_PLACES - 1 };
 /* The character leaves wherever it was first, so a member of the active
  * party (or of the reserve) moves rather than appearing twice. Only one
  * taking an empty place counts as joining (party_characters_joined). */
-PartyBringingIn party_bring_in(GameState *g, uint8_t character)
+bool party_bring_in(GameState *g, uint8_t character)
 {
     (void)party_dismiss(g, character);
     RecordPlace place = first_empty(g, 0, PARTY_ACTIVE_PLACES);
     if (place != NOT_IN_THE_RECORD) {
         take_place(g, place, character);
-        return (PartyBringingIn){ true, place, { 0, 0 } };
+        return true;
     }
     uint8_t third = at_place(g, THIRD_PLACE);
     set_at_place(g, THIRD_PLACE, character);
-    return (PartyBringingIn){ false, THIRD_PLACE, reserve_takes(g, third) };
+    reserve_takes(g, third);
+    return false;
 }
 
 // $C2:8CA2
-PartySending party_send_to_the_reserve(GameState *g, uint8_t character)
+bool party_send_to_the_reserve(GameState *g, uint8_t character)
 {
     RecordPlace place = party_place_of(g, character, PARTY_ACTIVE_PLACES);
     if (place == NOT_IN_THE_RECORD)
-        return (PartySending){ false, { 0, 0 } };
+        return false;
     for (; place < THIRD_PLACE; place++)
         set_at_place(g, place, at_place(g, (RecordPlace)(place + 1)));
     empty_the_place(g, THIRD_PLACE);
-    return (PartySending){ true, reserve_takes(g, character) };
+    reserve_takes(g, character);
+    return true;
 }
 
 /* ---- HP and MP ------------------------------------------------------------------------------ */
@@ -228,6 +229,11 @@ static void strip(GameState *g, uint8_t character)
     for (unsigned slot = character == AYLA ? MENU_ARMOUR : MENU_WEAPONS; slot < MENU_EQUIPMENT_SLOTS; slot++)
         put_in_slot(g, character, slot, slots_nothing[slot]);
     ORIGINAL_EFFECT(leave_slots_counted(g));
+}
+
+bool party_can_equip(const GameState *g, uint8_t item)
+{
+    return item == MENU_NO_WEAPON || (unsigned)menu_item_category_of(g, item) < MENU_EQUIPMENT_SLOTS;
 }
 
 // $C2:8D8F, $C2:8DE3

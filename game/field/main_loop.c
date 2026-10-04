@@ -48,6 +48,8 @@
 #include "field/display.h"
 #include "field/parts.h"
 #include "menu/party.h"
+#include "menu/party_leaves.h"
+#include "menu/saves.h"
 #include "port/native.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -142,6 +144,15 @@ static BridgeMachine page(const Snes *s) { return on_the_field_page(s, false); }
 static BridgeMachine page_x8(const Snes *s) { return on_the_field_page(s, true); }
 
 /* The field's own handlers back on the interrupts. */
+/* The game starts from what the cartridge holds (menu/saves.h): a saved
+ * game to load, or a new one; then, as every one of the menus' services
+ * ends, what the party wears is shown. */
+static void start_from_the_saves(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC28D6A, (void)saves_power_on(g, pf));
+    party_wear_it_shows(g);
+}
+
 static void take_the_interrupts(GameState *g)
 {
     TIMED_AS(g, FIELD_INSTALL_NMI_ENTRY, field_take_the_vblank_interrupt(g));
@@ -179,7 +190,10 @@ void field_first_start(Snes *s)
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
     if (!bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
-    NATIVE_TIME_AS(s, MENUS_SERVICES, (void)party_run_service(g, pf, SERVICE_POWER_ON, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
+    PartyServiceCall call = { 0 };
+    ORIGINAL_EFFECT(call = party_service_called(g, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
+    NATIVE_TIME_AS(s, MENUS_SERVICES, start_from_the_saves(g, pf));
+    ORIGINAL_EFFECT(party_service_answered(g, SERVICE_POWER_ON, &call));
     m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
 }
 

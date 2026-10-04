@@ -31,6 +31,9 @@ uint8_t menu_member_on_the_cursor(const GameState *g);
  * screen's argument's low byte. */
 uint8_t menu_member_worked_on(const GameState *g);
 void menu_work_on_member(GameState *g, uint8_t member);
+/* ... or as the whole argument, its high byte cleared, where the original
+ * stores the member as a word. */
+void menu_work_on_member_only(GameState *g, uint8_t member);
 
 /* The character whose record the menus loaded last (menu_member_record_at
  * says where it is), and whether that is one of the characters' records, for

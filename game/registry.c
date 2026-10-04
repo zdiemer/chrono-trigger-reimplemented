@@ -2139,7 +2139,7 @@ const NativeEntry game_natives[] = {
     EVENT_CMD(0xC03757, event_cmd_open_menu, 2838, event_cmd_open_menu_accepts),
     EVENT_CMD(0xC04590, event_cmd_cast_npc, 5666, event_cmd_cast_npc_accepts),
     EVENT_CMD(0xC046DF, event_cmd_cast_enemy, 5946, event_cmd_cast_enemy_accepts),
-    EVENT_CMD(0xC038E8, event_cmd_if_in_the_active_party, 10430, event_cmd_if_in_the_active_party_accepts),
+    EVENT_CMD(0xC038E8, event_cmd_if_in_the_active_party, 9244, event_cmd_if_in_the_active_party_accepts),
     EVENT_CMD(0xC0388D, event_cmd_if_recruited, 3188, event_cmd_if_recruited_accepts),
     EVENT_CMD(0xC038BE, event_cmd_recruit, 3188, event_cmd_recruit_accepts),
     EVENT_CMD(0xC038D3, event_cmd_dismiss, 3188, event_cmd_dismiss_accepts),
@@ -2791,7 +2791,7 @@ const NativeEntry game_natives[] = {
     /* the party's services, its figures and the healing (game/menu/party.c, party_bridge.c, figures.c,
      * healing.c, healing_bridge.c), the inventory (items.c) and the paging (lists.c) */
     { .addr = 0xC28004, .name = "menu_party_services", .fn = menu_party_services, .p_mask = CPU_FLAG_D, .p_value = 0,
-      .cost_milli = 9404, .dont_care = DC_N | DC_Z, .guard = menu_party_service_runs },
+      .cost_milli = 8610, .dont_care = DC_N | DC_Z, .guard = menu_party_service_runs },
     { .addr = 0xC2834D, .name = "menu_show_what_the_party_wears", .fn = menu_show_what_the_party_wears,
       .p_mask = CPU_FLAG_D, .p_value = 0, .cost_milli = 8662, .dont_care = DC_N | DC_V | DC_Z | DC_C,
       .guard = menu_party_wear_is_showable },
