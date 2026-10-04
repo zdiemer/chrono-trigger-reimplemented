@@ -93,6 +93,69 @@ void battle_arrange_line_effects(GameState *g, uint8_t arrangement)
     }
 }
 
+/* A table's runs are three bytes each: how many lines the run lasts, and
+ * where its values are. The window slides in and out a line a frame by
+ * moving where the runs meet: the battlefield's run a line shorter (in) or
+ * longer (out), the run after it two lines the other way and the one after
+ * that one line. The BG3 scroll's and the color math's second runs also start
+ * a line's values (two words) earlier or later in what they read. */
+enum { RUN_BYTES = 3, RUN_VALUES_AT = 1, LINE_VALUE_BYTES = 4, BG3_SCROLL_TABLE = 3, COLOR_MATH_TABLE = 5 };
+
+static uint8_t line_table_byte(const GameState *g, unsigned table, unsigned at)
+{
+    return table < LINE_TABLES ? battle_line_tables_byte(g, table, at) : battle_window_line_tables_byte(g, table - LINE_TABLES, at);
+}
+
+static void set_line_table_byte(GameState *g, unsigned table, unsigned at, uint8_t v)
+{
+    if (table < LINE_TABLES)
+        set_battle_line_tables_byte(g, table, at, v);
+    else
+        set_battle_window_line_tables_byte(g, table - LINE_TABLES, at, v);
+}
+
+static void lengthen_run(GameState *g, unsigned table, unsigned run, int lines)
+{
+    unsigned at = run * RUN_BYTES;
+    set_line_table_byte(g, table, at, (uint8_t)(line_table_byte(g, table, at) + lines));
+}
+
+static void move_run_values(GameState *g, unsigned table, unsigned run, int bytes)
+{
+    unsigned at = run * RUN_BYTES + RUN_VALUES_AT;
+    uint16_t values = (uint16_t)(line_table_byte(g, table, at) | line_table_byte(g, table, at + 1) << 8);
+    values = (uint16_t)(values + bytes);
+    set_line_table_byte(g, table, at, (uint8_t)values);
+    set_line_table_byte(g, table, at + 1, (uint8_t)(values >> 8));
+}
+
+// $CD:053C (in), $CD:0577 (out)
+void battle_slide_the_split(GameState *g, bool out)
+{
+    int step = out ? 1 : -1;
+    for (unsigned table = 0; table < LINE_TABLES + WINDOW_LINE_TABLES; table++) {
+        lengthen_run(g, table, 1, step);
+        lengthen_run(g, table, 2, -2 * step);
+        lengthen_run(g, table, 3, step);
+    }
+    move_run_values(g, COLOR_MATH_TABLE, 2, LINE_VALUE_BYTES * step);
+    move_run_values(g, BG3_SCROLL_TABLE, 2, LINE_VALUE_BYTES * step);
+}
+
+void battle_slide_split_in(Snes *s)
+{
+    battle_slide_the_split(state_of(s), false);
+    s->cpu.a = 0;
+    m_rts(s);
+}
+
+void battle_slide_split_out(Snes *s)
+{
+    battle_slide_the_split(state_of(s), true);
+    s->cpu.a = 0;
+    m_rts(s);
+}
+
 /* ---- The background's ripple ------------------------------------------------------------- */
 
 /* BG2's scroll on a rippling background's lines (battle_background_ripple)
@@ -199,8 +262,8 @@ static bool set_the_display_up(Snes *s)
     vid_set_display(pf, PF_AT(0xCD0AC8), &display);
     NATIVE_TIME_AS(s, 0xCD06C4, battle_scroll_layers(g, BATTLE_SCROLL_STEADY));
     s->cpu.a = 0;
-    if (!battle_call(s, 0xCD0ACF, 0xCD0B1E, READS_NOTHING) || !battle_call_long(s, 0xCD0AD2, 0xD1F426, READS_NOTHING)
-        || !battle_call_long(s, 0xCD0AD6, 0xFDFFF7, READS_NOTHING | DC_DB))
+    NATIVE_TIME_AS(s, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
+    if (!battle_call_long(s, 0xCD0AD2, 0xD1F426, READS_NOTHING) || !battle_call_long(s, 0xCD0AD6, 0xFDFFF7, READS_NOTHING | DC_DB))
         return false;
     NATIVE_TIME_AS(s, 0xCD0ADE, battle_turn_the_gradient(g));
     return true;

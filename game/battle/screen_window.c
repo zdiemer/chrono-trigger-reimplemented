@@ -144,12 +144,12 @@ static void wipe_diagonally(GameState *g)
  * edges, as one word, are its base moved by its amplitude times the sine of
  * its phase, and the phases step once a pair. As the edges move as a word,
  * the left edge waves and the right one moves only when the left wraps. */
-enum { WAVE_PAIRS = BATTLE_WAVE_EDGES_COUNT };
+enum { LINES_A_PAIR = 2, WAVE_PAIRS = BATTLE_WAVE_LINES_COUNT / LINES_A_PAIR };
 
 typedef struct {
     uint8_t phase[2], amplitude[2];   /* by window */
     Edges base[2];
-    bool base1_per_pair;              /* window 1's base from battle_wave_edges, pair by pair */
+    bool base1_per_pair;              /* window 1's base from battle_wave_lines, pair by pair */
 } Waves;
 
 /* A wave's offset: its amplitude times the sine of the phase, in whole
@@ -184,7 +184,7 @@ static void leave_waves(GameState *g, const Waves *w)
 static void draw_waves(GameState *g, Waves w)
 {
     for (unsigned pair = 0; pair < WAVE_PAIRS; pair++) {
-        Edges base1 = w.base1_per_pair ? battle_wave_edges(g, pair) : w.base[WINDOW_1];
+        Edges base1 = w.base1_per_pair ? battle_wave_lines_edges(g, LINES_A_PAIR * pair) : w.base[WINDOW_1];
         set_pair_edges(g, pair, WINDOW_1, waved(base1, wave_offset(g, w.phase[WINDOW_1], w.amplitude[WINDOW_1])));
         set_pair_edges(g, pair, WINDOW_2,
                        waved(w.base[WINDOW_2], wave_offset(g, w.phase[WINDOW_2], w.amplitude[WINDOW_2])));
@@ -224,7 +224,7 @@ static void phases_from_frame(const GameState *g, Waves *w)
 
 // $D1:EEC4
 /* Screen command $ED: waves on window 1 about the per-line edges of
- * battle_wave_edges, and on window 2 about the layer's vertical position at
+ * battle_wave_lines, and on window 2 about the layer's vertical position at
  * half the amplitude, flowing with the frame count. The operand damps them. */
 static void wave_about_edges(GameState *g, uint8_t damping)
 {
@@ -318,7 +318,7 @@ static uint8_t nudged(uint8_t at, uint8_t by, bool *spilled)
  * lines 48-175 by the per-line amounts in battle_window_line_deltas, the
  * same amount on the two runs of lines, window 1's by the first table and
  * window 2's by the second. */
-static void nudge_edges(GameState *g)
+void screen_nudge_window_edges(GameState *g)
 {
     uint8_t second_table = odd_frame(g) ? WINDOW_2_NUDGES_ODD : WINDOW_2_NUDGES_EVEN;
     const unsigned runs[2] = { FIRST_NUDGED, SECOND_NUDGED };
@@ -648,7 +648,7 @@ void battle_wave_w1_from_table(Snes *s)
 {
     GameState *g = state_of(s);
     unsigned pair = pair_in_y(s);
-    set_pair_edges(g, pair, WINDOW_1, waved(battle_wave_edges(g, pair), offset_in_a(s)));
+    set_pair_edges(g, pair, WINDOW_1, waved(battle_wave_lines_edges(g, LINES_A_PAIR * pair), offset_in_a(s)));
     hand_on_to_window_2(s);
 }
 
@@ -672,7 +672,7 @@ bool battle_screen_nudge_dispatched(Snes *s) { return battle_screen_page_a_clear
 
 void battle_screen_add_line_deltas(Snes *s)
 {
-    nudge_edges(state_of(s));
+    screen_nudge_window_edges(state_of(s));
     s->cpu.a = 0;
     m_rtl(s);
 }

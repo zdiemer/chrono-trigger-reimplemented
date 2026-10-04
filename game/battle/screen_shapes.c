@@ -1,25 +1,18 @@
-/* Battle: the screen script's circles and triangles.
+/* Battle: the screen script's triangles.
  *
- * A screen script can shape the windows as two circles and two triangles.
- *
- * A circle is a center and a radius (battle_screen_circle_*), and a kind that
- * says how it is drawn into the window table (the drawing is still the
- * original's: command $8B; it works a circle's edges out a line at a time
- * into battle_circle_edges, and the copy of a run of them into the window
- * table is here). Scripts place a circle, center it on an animation
- * position, widen and narrow it by the animation scripts' variables, and wait
- * for it to open fully or to close.
- *
- * A triangle is kept as a center and, for each corner, a distance and an
- * angle about it: flat, stretched across and down by two scales; or turned
- * in space about three axes, its corners lying at a depth out of the
- * screen's plane, and drawn at a size. A triangle can also be one of the
- * models of three points in the ROM, turned and drawn the same way. Its
- * corners (battle_shape_corners) are worked out from those when a script
- * moves it, or set straight from animation positions or effect objects; and
- * drawing it lays the corners, brought in or out from the center by its
- * size, out for the original's rasterizer, which fills the window it is
- * drawn as. Scripts put up to eight triangles aside and bring them back.
+ * A screen script can shape either window as a triangle (the circles are
+ * screen_circles.c's). A triangle is kept as a center and, for each corner, a
+ * distance and an angle about it: flat, stretched across and down by two
+ * scales; or turned in space about three axes, its corners lying at a depth
+ * out of the screen's plane, and drawn at a size. A triangle can also be one
+ * of the models of three points in the ROM, turned and drawn the same way.
+ * Its corners (battle_shape_corners) are worked out from those when a script
+ * moves it, or set straight from animation positions or effect objects, and
+ * its center can be put where its medians cross. Drawing it fills the window
+ * of its own number between its corners (screen_triangles.c): brought in or
+ * out from the center by its size, or as they are, or as a wedge hung from
+ * the top of the screen. Scripts put up to eight triangles aside and bring
+ * them back.
  *
  * Angles are 256 a turn. The original works with the sine table's magnitudes
  * (battle_sine_magnitude) through the hardware multiplier, keeping the high
@@ -33,129 +26,6 @@
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "ram.h"
-
-/* ---- The scripts' variables the circles follow ------------------------------------------------- */
-
-/* An animation script sets these for the screen script to size its circles
- * by. */
-enum { NARROWING_STEP = 9, WIDENING_STEP = 12, FULL_RADIUS = 14, SET_RADIUS = 15 };
-
-static uint8_t script_variable(const GameState *g, unsigned v) { return battle_script_variables(g, v); }
-
-/* ---- Circles ------------------------------------------------------------------------------- */
-
-/* The lowest a circle's center goes: the battlefield's last lines. */
-enum { CIRCLE_LOWEST = 0xD3 };
-
-static bool names_a_circle(const GameState *g, const ScreenCommand *c)
-{
-    (void)g;
-    return c->circle < SCREEN_CIRCLES;
-}
-
-// $CE:E7C8
-/* A run of a circle's worked edges, from `worked` on, into the window table
- * from line `line` of window `w` on, `lines` of them. */
-static void copy_circle_lines(GameState *g, unsigned worked, TableLine line, Window w, unsigned lines)
-{
-    for (unsigned i = 0; i < lines; i++)
-        set_line_edges(g, line + (TableLine)i, w, battle_circle_edges(g, worked + i));
-}
-
-// $CD:2FED
-/* Place a circle, and say how it is drawn. */
-static ScreenFlow place_circle(GameState *g, uint8_t circle, uint8_t kind, uint8_t x, uint8_t y, uint8_t radius)
-{
-    set_battle_screen_circle_kind(g, circle, kind);
-    set_battle_screen_circle_x(g, circle, x);
-    set_battle_screen_circle_y(g, circle, y);
-    set_battle_screen_circle_radius(g, circle, radius);
-    return screen_on();
-}
-SCREEN_OPERATION(place_circle, circle, kind, x, y, radius)
-
-// $CD:1E36
-static ScreenFlow set_circle_kind(GameState *g, uint8_t circle, uint8_t kind)
-{
-    set_battle_screen_circle_kind(g, circle, kind);
-    return screen_on();
-}
-SCREEN_OPERATION(set_circle_kind, circle, kind)
-
-// $CD:2FBC
-/* Move a circle and change its radius; it goes no lower than the
- * battlefield's last lines. */
-static ScreenFlow move_circle(GameState *g, uint8_t circle, uint8_t x, uint8_t y, uint8_t radius)
-{
-    set_battle_screen_circle_x(g, circle, (uint8_t)(battle_screen_circle_x(g, circle) + x));
-    uint8_t lower = (uint8_t)(battle_screen_circle_y(g, circle) + y);
-    set_battle_screen_circle_y(g, circle, lower >= CIRCLE_LOWEST ? CIRCLE_LOWEST : lower);
-    set_battle_screen_circle_radius(g, circle, (uint8_t)(battle_screen_circle_radius(g, circle) + radius));
-    return screen_on();
-}
-SCREEN_OPERATION(move_circle, circle, x, y, radius)
-
-// $CD:24F3
-/* Center a circle on an animation position. */
-static ScreenFlow center_circle_on_position(GameState *g, uint8_t circle, uint8_t position)
-{
-    screen_keep_positions_on_the_battlefield(g);
-    set_battle_screen_circle_x(g, circle, screen_position_across(g, position));
-    set_battle_screen_circle_y(g, circle, screen_position_down(g, position));
-    return screen_on();
-}
-SCREEN_OPERATION(center_circle_on_position, circle, position)
-
-static bool names_a_position(const GameState *g, const ScreenCommand *c)
-{
-    (void)g;
-    return screen_names_a_position(c->position);
-}
-
-// $CD:1A9C
-/* Widen a circle by the widening step, up to the full radius. */
-static ScreenFlow widen_circle(GameState *g, uint8_t circle)
-{
-    uint8_t wider = (uint8_t)(battle_screen_circle_radius(g, circle) + script_variable(g, WIDENING_STEP));
-    uint8_t full = script_variable(g, FULL_RADIUS);
-    set_battle_screen_circle_radius(g, circle, wider < full ? wider : full);
-    return screen_on();
-}
-SCREEN_OPERATION(widen_circle, circle)
-
-// $CD:1A8B
-/* Narrow a circle by the narrowing step, down to nothing. */
-static ScreenFlow narrow_circle(GameState *g, uint8_t circle)
-{
-    uint8_t radius = battle_screen_circle_radius(g, circle), step = script_variable(g, NARROWING_STEP);
-    set_battle_screen_circle_radius(g, circle, radius >= step ? (uint8_t)(radius - step) : 0);
-    return screen_on();
-}
-SCREEN_OPERATION(narrow_circle, circle)
-
-// $CD:182A
-static ScreenFlow set_circle_radius(GameState *g, uint8_t circle)
-{
-    set_battle_screen_circle_radius(g, circle, script_variable(g, SET_RADIUS));
-    return screen_on();
-}
-SCREEN_OPERATION(set_circle_radius, circle)
-
-// $CD:1A7A
-/* Wait for a circle to close. */
-static ScreenFlow wait_for_circle_closed(GameState *g, uint16_t at, uint8_t circle, uint8_t back)
-{
-    return screen_wait_back(g, battle_screen_circle_radius(g, circle) != 0, at, back);
-}
-SCREEN_OPERATION(wait_for_circle_closed, at, circle, back)
-
-// $CD:1A66
-/* Wait for a circle to open to the full radius. */
-static ScreenFlow wait_for_circle_open(GameState *g, uint16_t at, uint8_t circle, uint8_t back)
-{
-    return screen_wait_back(g, battle_screen_circle_radius(g, circle) != script_variable(g, FULL_RADIUS), at, back);
-}
-SCREEN_OPERATION(wait_for_circle_open, at, circle, back)
 
 /* ---- A triangle's record ------------------------------------------------------------------ */
 
@@ -182,11 +52,17 @@ static void set_corner(GameState *g, uint8_t shape, unsigned corner, uint8_t acr
 static ScreenTriangle corners_of(const GameState *g, uint8_t shape)
 {
     ScreenTriangle t;
-    for (unsigned corner = 0; corner < CORNERS; corner++) {
-        t.x[corner] = corner_at(g, shape, corner, ACROSS);
-        t.y[corner] = corner_at(g, shape, corner, DOWN);
-    }
+    for (unsigned corner = 0; corner < CORNERS; corner++)
+        t.corner[corner] = (BattlePoint){ corner_at(g, shape, corner, ACROSS), corner_at(g, shape, corner, DOWN) };
     return t;
+}
+
+ScreenTriangle screen_triangle(const GameState *g, uint8_t shape) { return corners_of(g, shape); }
+
+void screen_set_triangle(GameState *g, uint8_t shape, ScreenTriangle t)
+{
+    for (unsigned corner = 0; corner < CORNERS; corner++)
+        set_corner(g, shape, corner, t.corner[corner].x, t.corner[corner].y);
 }
 
 static bool names_a_shape(const GameState *g, const ScreenCommand *c)
@@ -464,7 +340,7 @@ static void leave_turn(GameState *g, SpacePoint before, SpacePoint after, const 
 /* Turn a corner by the triangle's turns and place it about its center. */
 static void place_turned_corner(GameState *g, uint8_t shape, unsigned corner, SpacePoint p, bool whole_words)
 {
-    const uint8_t turns[AXES] = { turn_of(g, shape, 0), turn_of(g, shape, 1), turn_of(g, shape, 2) };
+    const uint8_t turns[AXES] = { turn_of(g, shape, ACROSS), turn_of(g, shape, DOWN), turn_of(g, shape, DEPTH) };
     SpacePoint turned = turn_point(g, p, turns);
     set_corner(g, shape, corner, (uint8_t)(turned.across + battle_shape_center_x(g, shape)),
                (uint8_t)(turned.down + battle_shape_center_y(g, shape)));
@@ -628,24 +504,110 @@ static void leave_sizing(GameState *g, uint8_t size, uint8_t center_down, uint8_
     hw_multiply_by(g, size);
 }
 
-// $CD:2173, $CD:211B
-/* Lay a triangle out for the rasterizer, its corners brought in toward its
- * center by its size; it is drawn as the window of its own number. */
-static ScreenFlow draw_triangle(GameState *g, uint8_t shape)
+/* The original hands its drawing the window in battle_window_quad_index, and
+ * clears the cell $20 (which nothing reads) before it. */
+static void leave_window_handed_over(GameState *g, uint8_t window)
+{
+    set_battle_window_quad_index(g, window);
+    screen_leave_cell(g, 0x20, 0);
+}
+
+/* A triangle's corners as it is drawn: brought in toward its center by its
+ * size. */
+static ScreenTriangle sized_corners(const GameState *g, uint8_t shape, ScreenTriangle t)
 {
     uint8_t size = battle_shape_size(g, shape);
     uint8_t across = battle_shape_center_x(g, shape), down = battle_shape_center_y(g, shape);
+    for (unsigned corner = 0; corner < CORNERS; corner++)
+        t.corner[corner] = (BattlePoint){ (uint8_t)sized(t.corner[corner].x, across, size),
+                                          (uint8_t)sized(t.corner[corner].y, down, size) };
+    return t;
+}
+
+static bool sized_triangle_fits(const GameState *g, const ScreenCommand *c)
+{
+    return screen_triangle_fits_the_table(g, sized_corners(g, c->shape, corners_of(g, c->shape)));
+}
+
+// $CD:2173, $CD:211B
+/* Draw a triangle as the window of its own number, its corners brought in
+ * toward its center by its size. */
+static ScreenFlow draw_triangle(GameState *g, uint8_t shape)
+{
     ScreenTriangle t = corners_of(g, shape);
-    uint8_t last_corner_down = t.y[CORNERS - 1];
-    for (unsigned corner = 0; corner < CORNERS; corner++) {
-        t.x[corner] = (uint8_t)sized(t.x[corner], across, size);
-        t.y[corner] = (uint8_t)sized(t.y[corner], down, size);
-    }
-    screen_lay_out_triangle(g, shape, &t);
-    ORIGINAL_EFFECT(leave_sizing(g, size, down, last_corner_down));
-    return screen_on_and_draw();
+    ORIGINAL_EFFECT(leave_sizing(g, battle_shape_size(g, shape), battle_shape_center_y(g, shape), t.corner[CORNERS - 1].y));
+    ORIGINAL_EFFECT(leave_window_handed_over(g, shape));
+    screen_draw_window_triangle(g, shape, sized_corners(g, shape, t));
+    return screen_on();
 }
 SCREEN_OPERATION(draw_triangle, shape)
+
+static bool names_a_shape_that_fits(const GameState *g, const ScreenCommand *c)
+{
+    return names_a_shape(g, c) && screen_triangle_fits_the_table(g, corners_of(g, c->shape));
+}
+
+// $CD:2952, $CD:3657
+/* Draw a triangle at its corners as they are, not brought in by its size, as
+ * the window of its own number. */
+static ScreenFlow draw_triangle_at_its_corners(GameState *g, uint8_t shape)
+{
+    ORIGINAL_EFFECT(leave_window_handed_over(g, shape));
+    screen_draw_window_triangle(g, shape, corners_of(g, shape));
+    return screen_on();
+}
+SCREEN_OPERATION(draw_triangle_at_its_corners, shape)
+
+// $CD:1F47, $CD:3924
+/* Hang a wedge from the top of the screen on a triangle's first two corners,
+ * as the window of its own number: the right triangle they make, and the
+ * window above it filled up to the screen's top edge. */
+static ScreenFlow hang_wedge(GameState *g, uint8_t shape)
+{
+    ScreenTriangle t = corners_of(g, shape);
+    ORIGINAL_EFFECT(leave_window_handed_over(g, shape));
+    screen_hang_window_triangle(g, shape, t.corner[0], t.corner[1]);
+    return screen_on();
+}
+SCREEN_OPERATION(hang_wedge, shape)
+
+static bool names_a_shape_whose_wedge_fits(const GameState *g, const ScreenCommand *c)
+{
+    if (!names_a_shape(g, c))
+        return false;
+    ScreenTriangle t = corners_of(g, c->shape);
+    t.corner[2] = t.corner[0];
+    return screen_triangle_fits_the_table(g, t);
+}
+
+// $CD:21C0
+/* Center a triangle on its corners, where its medians cross, at full size. */
+static ScreenFlow center_triangle_on_its_corners(GameState *g, uint8_t shape)
+{
+    set_battle_shape_size(g, shape, FULL_SIZE);
+    BattlePoint center = screen_triangle_center(g, corners_of(g, shape));
+    set_battle_shape_center_x(g, shape, center.x);
+    set_battle_shape_center_y(g, shape, center.y);
+    return screen_on();
+}
+SCREEN_OPERATION(center_triangle_on_its_corners, shape)
+
+// $CD:1FA0
+/* Center a triangle on its corners, and put the corner of the channel's
+ * layer on its center. */
+static ScreenFlow center_layer_on_triangle(GameState *g, ScreenChannel channel, uint8_t shape)
+{
+    center_triangle_on_its_corners(g, shape);
+    set_battle_screen_layer_x(g, channel, (uint16_t)-battle_shape_center_x(g, shape));
+    set_battle_screen_layer_y(g, channel, (uint16_t)-battle_shape_center_y(g, shape));
+    return screen_on();
+}
+SCREEN_OPERATION(center_layer_on_triangle, channel, shape)
+
+static bool names_a_shape_whose_center_divides(const GameState *g, const ScreenCommand *c)
+{
+    return names_a_shape(g, c) && screen_triangle_center_divides(corners_of(g, c->shape));
+}
 
 /* The original hands the models' rotation the triangle's size as a word, in
  * the battle page's cells $21-$22, and its high byte, 0, lands on the low byte
@@ -656,8 +618,8 @@ static void clear_the_turn_slots_low_byte(GameState *g)
     set_battle_turn_slot(g, battle_turn_slot(g) & 0xFF00);
 }
 
-/* A model's three points, four bytes apart, from the model's own sixteen. */
-enum { MODEL_BYTES = 16, MODEL_POINT_BYTES = 4 };
+/* A model's points are four bytes apart in its sixteen (screen_data.h). */
+enum { MODEL_BYTES = 16 };
 
 /* What the original leaves of a model's drawing: the model and the depth it
  * added in its cells. */
@@ -667,40 +629,67 @@ static void leave_model(GameState *g, uint8_t model_at, uint8_t added_depth)
     screen_leave_cell(g, 0x51, added_depth);
 }
 
+/* A spinning model turns a little further about each axis each time it is
+ * drawn. */
+static const uint8_t spin[AXES] = { 2, 1, 1 };
+
+static SpacePoint model_point(const GameState *g, uint8_t model, unsigned corner, uint8_t added_depth)
+{
+    ShapeModelPoint m = shape_model_point(g, model, corner);
+    return (SpacePoint){ m.across, m.down, (uint8_t)(m.depth + added_depth) };
+}
+
+/* A model's corners, turned by `turns` and placed about the triangle's
+ * center. */
+static ScreenTriangle model_corners(const GameState *g, uint8_t shape, uint8_t model, uint8_t added_depth,
+                                    const uint8_t turns[AXES])
+{
+    ScreenTriangle t;
+    for (unsigned corner = 0; corner < CORNERS; corner++) {
+        SpacePoint turned = turn_point(g, model_point(g, model, corner, added_depth), turns);
+        t.corner[corner] = (BattlePoint){ (uint8_t)(turned.across + battle_shape_center_x(g, shape)),
+                                          (uint8_t)(turned.down + battle_shape_center_y(g, shape)) };
+    }
+    return t;
+}
+
+static uint8_t added_depth(const GameState *g, uint8_t shape, bool own_depth) { return own_depth ? battle_shape_depth(g, shape) : 0; }
+
+/* Whether the model, drawn, stays in the window table. */
+static bool model_fits(const GameState *g, const ScreenCommand *c)
+{
+    uint8_t turns[AXES];
+    for (unsigned axis = 0; axis < AXES; axis++)
+        turns[axis] = (uint8_t)(turn_of(g, c->shape, axis) + (c->spins ? spin[axis] : 0));
+    ScreenTriangle t = model_corners(g, c->shape, c->model, added_depth(g, c->shape, c->own_depth), turns);
+    return screen_triangle_fits_the_table(g, sized_corners(g, (uint8_t)(c->shape & 1), t));
+}
+
+static bool names_a_shape_and_its_model_fits(const GameState *g, const ScreenCommand *c)
+{
+    return names_a_shape(g, c) && model_fits(g, c);
+}
+
 // $CD:1EAA, $CD:1EF7
 /* Turn one of the ROM's models by a triangle's turns, lifted by its depth or
  * not, place its corners about the triangle's center, and draw it. One that
  * spins turns a little further each time. */
 static ScreenFlow draw_model(GameState *g, uint8_t shape, uint8_t model, bool own_depth, bool spins)
 {
-    if (spins) {
-        set_turn_of(g, shape, 1, (uint8_t)(turn_of(g, shape, 1) + 1));
-        set_turn_of(g, shape, 0, (uint8_t)(turn_of(g, shape, 0) + 2));
-        set_turn_of(g, shape, 2, (uint8_t)(turn_of(g, shape, 2) + 1));
-    }
-    uint8_t model_at = (uint8_t)(model * MODEL_BYTES), added = own_depth ? battle_shape_depth(g, shape) : 0;
-    for (unsigned corner = 0; corner < CORNERS; corner++) {
-        ShapeModelPoint m = shape_model_point(g, (uint8_t)(model_at + MODEL_POINT_BYTES * corner));
-        SpacePoint p = { m.across, m.down, (uint8_t)(m.depth + added) };
-        place_turned_corner(g, shape, corner, p, true);
-    }
+    if (spins)
+        for (unsigned axis = 0; axis < AXES; axis++)
+            set_turn_of(g, shape, axis, (uint8_t)(turn_of(g, shape, axis) + spin[axis]));
+    uint8_t added = added_depth(g, shape, own_depth);
+    for (unsigned corner = 0; corner < CORNERS; corner++)
+        place_turned_corner(g, shape, corner, model_point(g, model, corner, added), true);
     ORIGINAL_EFFECT(leave_turns(g, shape, true));
-    ORIGINAL_EFFECT(leave_model(g, model_at, added));
+    ORIGINAL_EFFECT(leave_model(g, (uint8_t)(model * MODEL_BYTES), added));
     clear_the_turn_slots_low_byte(g);
     return draw_triangle(g, (uint8_t)(shape & 1));
 }
 SCREEN_OPERATION(draw_model, shape, model, own_depth, spins)
 
 SCREEN_OPCODES(screen_shape_opcodes,
-    { 0x8A, OPERATION(place_circle), .length = 4, .circle = LOW_BIT(0), .kind = HIGH_NIBBLE(0), .x = BYTE(1), .y = BYTE(2), .radius = BYTE(3) },
-    { 0xBD, OPERATION(set_circle_kind), .length = 1, .circle = LOW_BIT(0), .kind = HIGH_NIBBLE(0) },
-    { 0x89, OPERATION(move_circle), .needs = names_a_circle, .length = 4, .circle = BYTE(0), .x = BYTE(1), .y = BYTE(2), .radius = BYTE(3) },
-    { 0xAB, OPERATION(center_circle_on_position), .needs = names_a_position, .length = 1, .circle = TOP_BIT(0), .position = LOW_SEVEN(0) },
-    { 0xD3, OPERATION(widen_circle), .needs = names_a_circle, .length = 1, .circle = BYTE(0) },
-    { 0xD4, OPERATION(narrow_circle), .needs = names_a_circle, .length = 1, .circle = BYTE(0) },
-    { 0xF0, OPERATION(set_circle_radius), .needs = names_a_circle, .length = 1, .circle = BYTE(0) },
-    { 0xD5, OPERATION(wait_for_circle_closed), .needs = names_a_circle, .length = 2, .circle = BYTE(0), .back = BYTE(1) },
-    { 0xD6, OPERATION(wait_for_circle_open), .needs = names_a_circle, .length = 2, .circle = BYTE(0), .back = BYTE(1) },
     { 0xA5, OPERATION(put_shapes_aside), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
     { 0xA6, OPERATION(bring_shapes_back), .needs = names_a_slot, .length = 1, .slot = BYTE(0) },
     { 0xA2, OPERATION(make_triangle), .needs = names_a_shape, .length = 4, .shape = BYTE(0), .x = BYTE(1), .y = BYTE(2), .radius = BYTE(3) },
@@ -714,53 +703,12 @@ SCREEN_OPCODES(screen_shape_opcodes,
     { 0xC6, OPERATION(rock_triangle), .needs = names_a_shape, .length = 7, .shape = BYTE(0), .angles = TRIPLE(1), .sways = TRIPLE(4) },
     { 0xC7, OPERATION(raise_triangle_with_effect_object), .needs = names_a_shape, .length = 1, .shape = BYTE(0) },
     { 0xAF, OPERATION(corners_at_effect_objects), .needs = names_a_shape, .length = 1, .shape = BYTE(0) },
-    { 0xAE, OPERATION(draw_triangle), .length = 1, .shape = LOW_BIT(0) },
-    { 0xBA, OPERATION(draw_model), .needs = names_a_shape, .length = 1, .shape = BYTE(0), .model = BYTE(0), .own_depth = CONSTANT(false), .spins = CONSTANT(true) },
-    { 0xBB, OPERATION(draw_model), .length = 1, .shape = LOW_BIT(0), .model = BYTE(0), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
-    { 0xBE, OPERATION(draw_model), .needs = names_a_shape, .length = 1, .shape = BYTE(0), .model = CONSTANT(2), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
+    { 0xA1, OPERATION(draw_triangle_at_its_corners), .needs = names_a_shape_that_fits, .length = 1, .shape = BYTE(0) },
+    { 0xB8, OPERATION(hang_wedge), .needs = names_a_shape_whose_wedge_fits, .length = 1, .shape = BYTE(0) },
+    { 0xAD, OPERATION(center_triangle_on_its_corners), .needs = names_a_shape_whose_center_divides, .length = 1, .shape = BYTE(0) },
+    { 0xB4, OPERATION(center_layer_on_triangle), .needs = names_a_shape_whose_center_divides, .length = 1, .shape = BYTE(0) },
+    { 0xAE, OPERATION(draw_triangle), .needs = sized_triangle_fits, .length = 1, .shape = LOW_BIT(0) },
+    { 0xBA, OPERATION(draw_model), .needs = names_a_shape_and_its_model_fits, .length = 1, .shape = BYTE(0), .model = BYTE(0), .own_depth = CONSTANT(false), .spins = CONSTANT(true) },
+    { 0xBB, OPERATION(draw_model), .needs = model_fits, .length = 1, .shape = LOW_BIT(0), .model = BYTE(0), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
+    { 0xBE, OPERATION(draw_model), .needs = names_a_shape_and_its_model_fits, .length = 1, .shape = BYTE(0), .model = CONSTANT(2), .own_depth = CONSTANT(true), .spins = CONSTANT(false) },
 );
-
-/* ---- The circles' copy ------------------------------------------------------------------- */
-
-/* $CE:E7C8, entered with 16-bit registers as the circles' drawing ($CD:3616)
- * calls it: X the place in the window table of the run's first line and
- * window, Y the place of its first worked edges, and the cell $4B where in the
- * original's unrolled copy to start, which counts the lines back from its end,
- * six bytes a line. */
-enum { UNROLLED_COPY_END = 0xE7C7, UNROLLED_LINE_BYTES = 6, UNROLLED_LINES = 222 };
-
-typedef struct {
-    unsigned worked, lines;
-    TableLine line;
-    Window w;
-} CircleRun;
-
-static bool circle_run(const Snes *s, CircleRun *r)
-{
-    const GameState *g = state_of((Snes *)s);
-    uint16_t start = screen_cell_word(g, 0x4B), to = s->cpu.x, from = s->cpu.y;
-    unsigned table_byte = (uint16_t)(to - RAM_BATTLE_WINDOW_LINES), worked_byte = (uint16_t)(from - RAM_BATTLE_CIRCLE_EDGES);
-    unsigned back = (uint16_t)(UNROLLED_COPY_END - start);
-    if (back % UNROLLED_LINE_BYTES || back / UNROLLED_LINE_BYTES > UNROLLED_LINES || table_byte % 2 || worked_byte % 2)
-        return false;
-    *r = (CircleRun){ worked_byte / 2, back / UNROLLED_LINE_BYTES, (TableLine)(table_byte / LINE_BYTES),
-                      table_byte % LINE_BYTES ? WINDOW_2 : WINDOW_1 };
-    return r->line + r->lines <= TABLE_LINES && r->worked + r->lines <= BATTLE_CIRCLE_EDGES_COUNT;
-}
-
-bool battle_circle_run_fits(Snes *s)
-{
-    CircleRun r = { 0, 0, 0, WINDOW_1 };
-    vars_peek(true);
-    bool fits = circle_run(s, &r);
-    vars_peek(false);
-    return m_direct_page(s) == BATTLE_PAGE && s->cpu.db == BATTLE_DATA_BANK && fits;
-}
-
-void battle_copy_circle_lines(Snes *s)
-{
-    CircleRun r = { 0, 0, 0, WINDOW_1 };
-    circle_run(s, &r);
-    copy_circle_lines(state_of(s), r.worked, r.line, r.w, r.lines);
-    m_rtl(s);
-}

@@ -4,21 +4,15 @@
  * stream thrown) can draw a window along the way between two of the
  * animation positions, a pair of them: a band of even width from the pair's
  * first position to its second, as one of the window quadrilaterals
- * (commands $AC and $D9). The band's half width is the animation scripts'
- * variable that also sizes the circles.
+ * (commands $AC and $D9), or a wedge from the first to the band's width
+ * across the second, as window 1's triangle ($DA). The band's half width is
+ * the animation scripts' variable that also sizes the circles.
  *
  * Its sides are worked out from the direction between two positions, which
  * the battle measures by the slope between them in eighths of the screen's
  * columns and lines, through the ROM's table of slopes' angles. The last
- * direction measured is kept (battle_screen_direction).
- *
- * Two commands that measure it stay the original's. $DA draws a wedge from a
- * pair's first position to the band's width across its second, through the
- * screen scripts' triangle rasterizer ($CD:367C), which it calls from inside
- * its handler rather than ending with it as the other triangles do, so it
- * waits for that rasterizer to be C. $CC measures a direction alone, along
- * the cells the dispatch's index for it reaches past the positions (the
- * battle's stats). No script of the game's has either. */
+ * direction measured is kept (battle_screen_direction); a script can also
+ * measure one alone ($CC), though no script of the game's does. */
 #include "battle/screen_script.h"
 
 #include "battle/screen_data.h"
@@ -227,7 +221,76 @@ static bool lays_a_band_that_fits(const GameState *g, const ScreenCommand *c)
 }
 SCREEN_OPERATION(lay_band, quad, pair, aim, kept_pair)
 
+/* The wedge measures its direction along the second pair, once the first is
+ * kept on the battlefield, whichever pair it is drawn along. */
+enum { WEDGE_AIM = 1, WEDGE_KEPT_PAIR = 0, WEDGE_WINDOW = 0 };
+
+static ScreenTriangle wedge_corners(BattlePoint first, BattlePoint second, BandSides s)
+{
+    ScreenTriangle t = { { moved(second, s.one), moved(second, s.other), first } };
+    return t;
+}
+
+/* The original hands the triangles' drawing window 1 (whatever the command's
+ * first operand says, which it doesn't read) and clears the cell $20. */
+static void leave_wedge_handed_over(GameState *g)
+{
+    set_battle_window_quad_index(g, WEDGE_WINDOW);
+    screen_leave_cell(g, 0x20, 0);
+}
+
+// $CD:1937
+/* Screen command $DA: draw window 1 as a wedge from a pair's first position
+ * to the band's width across its second. */
+static ScreenFlow lay_wedge(GameState *g, uint8_t pair)
+{
+    BandSides s = band_sides(g, aim_along(g, WEDGE_KEPT_PAIR, WEDGE_AIM));
+    ORIGINAL_EFFECT(leave_wedge_handed_over(g));
+    screen_draw_window_triangle(g, WEDGE_WINDOW, wedge_corners(pair_first(g, pair), pair_second(g, pair), s));
+    return screen_on();
+}
+SCREEN_OPERATION(lay_wedge, pair)
+
+static bool lays_a_wedge_that_fits(const GameState *g, const ScreenCommand *c)
+{
+    if (c->pair >= SCREEN_POSITION_PAIRS)
+        return false;
+    unsigned first = SCREEN_PAIR_POSITIONS * c->pair;
+    BattlePoint from = position_once_kept(g, SCREEN_PAIR_POSITIONS * WEDGE_AIM, WEDGE_KEPT_PAIR);
+    BattlePoint to = position_once_kept(g, SCREEN_PAIR_POSITIONS * WEDGE_AIM + 1u, WEDGE_KEPT_PAIR);
+    uint8_t direction = direction_between(g, run_between(from.x, to.x), run_between(from.y, to.y));
+    BandSides s = sides_across(g, direction, battle_script_variables(g, HALF_WIDTH_VARIABLE));
+    return screen_triangle_fits_the_table(g, wedge_corners(position_once_kept(g, first, WEDGE_KEPT_PAIR),
+                                                           position_once_kept(g, first + 1u, WEDGE_KEPT_PAIR), s));
+}
+
+/* The command that measures a direction alone takes its points where the
+ * dispatch's index for it ($98) reaches as a pair of positions: past the
+ * positions, in the first party member's stat block, its bytes $0B-$0E. */
+enum { FIRST_MEMBER = 0, STATS_TAKEN_AS_POINTS = 0x0B };
+
+static BattlePoint stats_as_a_point(const GameState *g, unsigned at)
+{
+    return (BattlePoint){ battle_stats_block_byte(g, FIRST_MEMBER, at), battle_stats_block_byte(g, FIRST_MEMBER, at + 1) };
+}
+
+// $CD:1B1F
+/* Screen command $CC: keep the first pair on the battlefield, and measure
+ * the direction between the two points the first member's stats make. */
+static ScreenFlow measure_along_the_stats(GameState *g)
+{
+    screen_keep_pair_on_the_battlefield(g, WEDGE_KEPT_PAIR);
+    uint8_t direction = measure_direction(g, stats_as_a_point(g, STATS_TAKEN_AS_POINTS),
+                                          stats_as_a_point(g, STATS_TAKEN_AS_POINTS + 2));
+    set_battle_screen_direction(g, direction);
+    return screen_on();
+}
+SCREEN_OPERATION_TAKING_NOTHING(measure_along_the_stats)
+
 SCREEN_OPCODES(screen_between_opcodes,
+    { 0xDA, OPERATION(lay_wedge), .needs = lays_a_wedge_that_fits, .length = 2, .pair = BYTE(1) },
+    /* $CC steps over the byte after it, which it doesn't read */
+    { 0xCC, OPERATION(measure_along_the_stats), .length = 1 },
     { 0xAC, OPERATION(lay_band), .needs = lays_a_band_that_fits, .length = 2, .quad = BYTE(0), .pair = BYTE(1),
       .aim = CONSTANT(1), .kept_pair = CONSTANT(0) },
     { 0xD9, OPERATION(lay_band), .needs = lays_a_band_that_fits, .length = 2, .quad = BYTE(0), .pair = BYTE(1),

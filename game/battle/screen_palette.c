@@ -118,7 +118,7 @@ static void swap_sprite_palettes(GameState *g)
 // $D1:E899
 /* Screen command $80, operation 26: turn background rows 2-7 and sprite
  * palettes 1-3 white. */
-static void whiten_scene(GameState *g)
+void screen_whiten_scene(GameState *g)
 {
     paint_rows(g, 2, 6, WHITE);
     paint_rows(g, SPRITE_ROWS + 1, 3, WHITE);
@@ -126,7 +126,7 @@ static void whiten_scene(GameState *g)
 
 // $D1:E8C1
 /* Command $80, operation 28: turn sprite palettes 5-7 white. */
-static void whiten_high_sprite_palettes(GameState *g) { paint_rows(g, SPRITE_ROWS + 5, 3, WHITE); }
+void screen_whiten_high_sprite_palettes(GameState *g) { paint_rows(g, SPRITE_ROWS + 5, 3, WHITE); }
 
 /* The band of background rows the next two commands move: rows 2-4, moved up
  * to rows 5-7 and back. Its animations run in slots 3-5 while it is in place
@@ -138,7 +138,7 @@ enum { LOW_BAND = 2, HIGH_BAND = 5, BAND_ROWS = 3, MOVED_UP_SLOTS = 0, IN_PLACE_
  * 5-7, leaving black behind, and its animations with it, from slots 3-5 to
  * slots 0-2, rotating there; slots 3-5 stop once the pause puts the kinds
  * kept aside in place. */
-static void move_band_up(GameState *g)
+void screen_move_band_up(GameState *g)
 {
     for (unsigned c = 0; c < BAND_ROWS * ROW_COLORS; c++) {
         set_color(g, row_color(HIGH_BAND, c), palette_base(g, row_color(LOW_BAND, c)));
@@ -159,7 +159,7 @@ static void move_band_up(GameState *g)
  * they start the battle with, and the band's animations move back from slots
  * 0-2 to slots 3-5, rotating from their next frame. The frame work does less while the
  * band is back. */
-static void move_band_down(GameState *g)
+void screen_move_band_down(GameState *g)
 {
     set_battle_palette_rows_moved(g, (uint8_t)(battle_palette_rows_moved(g) + 1));
     set_battle_frame_work_reduced(g, (uint8_t)(battle_frame_work_reduced(g) + 1));
@@ -240,25 +240,25 @@ void battle_screen_swap_palette_rows(Snes *s)
 
 void battle_screen_whiten_palette(Snes *s)
 {
-    whiten_scene(state_of(s));
+    screen_whiten_scene(state_of(s));
     screen_command_done(s);
 }
 
 void battle_screen_whiten_high_rows(Snes *s)
 {
-    whiten_high_sprite_palettes(state_of(s));
+    screen_whiten_high_sprite_palettes(state_of(s));
     screen_command_done(s);
 }
 
 void battle_screen_move_rows_up(Snes *s)
 {
-    move_band_up(state_of(s));
+    screen_move_band_up(state_of(s));
     screen_command_done(s);
 }
 
 void battle_screen_move_rows_down(Snes *s)
 {
-    move_band_down(state_of(s));
+    screen_move_band_down(state_of(s));
     screen_command_done(s);
 }
 

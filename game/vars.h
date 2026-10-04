@@ -5510,8 +5510,10 @@ void set_battle_turn_slot(GameState *g, uint16_t v);
 
 enum { BATTLE_DIRECTION_WORK_COUNT = 8 };   /* by byte: the two points brought down by the first's distance past an eighth (the first across and down, then the second), the run across and its sign ($00 or $FF), the run down and its sign */
 /* Where the screen scripts' measure of the direction between two animation positions ($CE:E7CF)
- * takes its points and works the runs out, over cells the battle uses for other things between
- * effects */
+ * takes its points and works the runs out, and where a triangle's center is divided and
+ * multiplied out ($CD:21C0: the center's column, what the division leaves above it, the first
+ * median's slope, the slope times the column with the intercept added, the remainder's high
+ * byte), over cells the battle uses for other things between effects */
 uint8_t battle_direction_work(const GameState *g, unsigned i);
 void set_battle_direction_work(GameState *g, unsigned i, uint8_t v);
 
@@ -5744,7 +5746,7 @@ void set_battle_line_scroll_offsets_across(GameState *g, unsigned i, uint16_t v)
 uint16_t battle_line_scroll_offsets_down(const GameState *g, unsigned i);
 void set_battle_line_scroll_offsets_down(GameState *g, unsigned i, uint16_t v);
 
-enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 128 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones) */
+enum { BATTLE_WINDOW_LINE_DELTAS_COUNT = 256 };   /* by table * 32 + line (window 1's 64, then window 2's from $0A20 on even frames or $0A40 on odd ones; the special effect that lays them out as a wave lays 256) */
 /* Per-line amounts added to the window edges of lines 48-175 */
 uint8_t battle_window_line_deltas(const GameState *g, unsigned line);
 void set_battle_window_line_deltas(GameState *g, unsigned line, uint8_t v);
@@ -9593,10 +9595,17 @@ enum { BATTLE_MESSAGE_TILES_BYTES = 512 };
 uint8_t battle_message_tiles_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_message_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
+enum { BATTLE_CIRCLE_WIDTHS_COUNT = 128 };   /* by row from the circle's middle, over the first eighth of the turn; the last ended by a 0 */
+/* A screen script circle's half widths as its drawing works them out ($CD:31AA), before it lays
+ * the rows out; nothing reads them after */
+uint8_t battle_circle_widths(const GameState *g, unsigned row);
+void set_battle_circle_widths(GameState *g, unsigned row, uint8_t v);
+
 enum { BATTLE_CIRCLE_EDGES_COUNT = 256 };   /* by line the circle's drawing works out, from its first */
-/* A screen script circle's edges a line at a time as its drawing ($CD:31AA-$CD:3656) works them
- * out, a window's left edge in the low byte and its right in the high, before a run of them goes
- * into the window table ($CE:E7C8) */
+/* A screen script circle's rows as its drawing ($CD:31AA-$CD:3656) works them out, a window's
+ * left edge in the low byte and its right in the high: the middle row at 128, the rows above
+ * going up from 127 and the rows below going down from 128, before a run of them goes into the
+ * window table ($CE:E7C8) */
 uint16_t battle_circle_edges(const GameState *g, unsigned line);
 void set_battle_circle_edges(GameState *g, unsigned line, uint16_t v);
 
@@ -9620,7 +9629,7 @@ void set_battle_effect_line_work(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_leaving(const GameState *g);
 void set_battle_leaving(GameState *g, uint8_t v);
 
-enum { BATTLE_SCROLL_TABLES_COUNT = 96 };   /* by layer (BG1-BG3) * 32 + entry */
+enum { BATTLE_SCROLL_TABLES_COUNT = 128 };   /* by layer (BG1-BG3) * 32 + entry (BG3's run on to 64 in the finer line wave) */
 /* Horizontal scroll */
 uint16_t battle_scroll_tables_x(const GameState *g, unsigned layer);
 void set_battle_scroll_tables_x(GameState *g, unsigned layer, uint16_t v);
@@ -9984,6 +9993,11 @@ enum { BATTLE_SCREEN_CIRCLE_Y_COUNT = 2 };   /* by circle */
 uint8_t battle_screen_circle_y(const GameState *g, unsigned i);
 void set_battle_screen_circle_y(GameState *g, unsigned i, uint8_t v);
 
+/* The screen script circle being drawn, 0 or 1, which the original's drawing hands its routines
+ * (the square's drawing sets 0); nothing reads it after */
+uint8_t battle_circle_drawn(const GameState *g);
+void set_battle_circle_drawn(GameState *g, uint8_t v);
+
 enum { BATTLE_SCREEN_CIRCLE_KIND_COUNT = 2 };   /* by circle */
 /* How a circle is drawn into the window table (one of six ways, through $CD:319E) */
 uint8_t battle_screen_circle_kind(const GameState *g, unsigned i);
@@ -10217,6 +10231,11 @@ enum { BATTLE_KEPT_ROW_COLORS_COUNT = 8 };   /* by color, from background row 1'
 uint16_t battle_kept_row_colors(const GameState *g, unsigned i);
 void set_battle_kept_row_colors(GameState *g, unsigned i, uint16_t v);
 
+/* The object $CD:0024 was last called with, as an effect ends on it ($CF:FE76); the special
+ * effect 15 clears its sprites' attribute bits */
+uint8_t battle_ended_effect_object(const GameState *g);
+void set_battle_ended_effect_object(GameState *g, uint8_t v);
+
 /* Nonzero while the battle is paused: the frame work, the frame wait tail and the IRQ's
  * odd-frame transfers stop, and the sound pauses */
 uint8_t battle_paused(const GameState *g);
@@ -10226,6 +10245,11 @@ void set_battle_paused(GameState *g, uint8_t v);
  * advance runs only while it is set */
 uint8_t battle_pause_held(const GameState *g);
 void set_battle_pause_held(GameState *g, uint8_t v);
+
+/* How far below their full the special effects' bands of light still are; each laying of the
+ * bands brings them up a level ($CD:2D51), and $CD:0F86 sets it to $1F */
+uint8_t battle_band_fade(const GameState *g);
+void set_battle_band_fade(GameState *g, uint8_t v);
 
 /* Set while a battle message asked for ($CD:02D8, $CD:0310) is still to be drawn: the frame wait
  * draws it through the menus' text code and keeps what is left to draw here ($CD:04DF) */
@@ -10481,10 +10505,21 @@ void set_battle_frame_advance_count_high(GameState *g, uint8_t v);
 uint8_t battle_palette_pause_request(const GameState *g);
 void set_battle_palette_pause_request(GameState *g, uint8_t v);
 
-enum { BATTLE_WAVE_EDGES_COUNT = 106 };   /* by line pair */
-/* Window 1's edges (left, right) per pair of lines, which the wave effect moves */
-uint16_t battle_wave_edges(const GameState *g, unsigned line);
-void set_battle_wave_edges(GameState *g, unsigned line, uint16_t v);
+enum { BATTLE_WAVE_LINES_COUNT = 212 };   /* by line of the battlefield (the waves take every other one, for a pair of lines) */
+/* Window 1's edges (left, right) */
+uint16_t battle_wave_lines_edges(const GameState *g, unsigned line);
+void set_battle_wave_lines_edges(GameState *g, unsigned line, uint16_t v);
+/* Nothing reads it; the special effects' clear of the lines clears it ($CD:2AEF) */
+uint16_t battle_wave_lines_spare(const GameState *g, unsigned line);
+void set_battle_wave_lines_spare(GameState *g, unsigned line, uint16_t v);
+
+enum { BATTLE_WAVE_MARKS_COUNT = 256 };   /* by line (the marks are picked from the ROM's random bytes, up to 255; nothing reads those past the battlefield's 212) */
+/* How many times the line was picked */
+uint16_t battle_wave_marks_mark(const GameState *g, unsigned line);
+void set_battle_wave_marks_mark(GameState *g, unsigned line, uint16_t v);
+/* Nothing reads it; the clear of the lines clears it */
+uint16_t battle_wave_marks_spare(const GameState *g, unsigned line);
+void set_battle_wave_marks_spare(GameState *g, unsigned line, uint16_t v);
 
 /* How the battle ended: 1 when the party was defeated, 0 when it won or ran away */
 uint8_t battle_result(const GameState *g);

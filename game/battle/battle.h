@@ -32,6 +32,15 @@ typedef enum { BATTLE_WON_OR_RAN = 0, BATTLE_DEFEATED = 1 } BattleResult;
 static inline BattleResult battle_how_it_ended(const GameState *g) { return (BattleResult)battle_result(g); }
 static inline void battle_ends(GameState *g, BattleResult result) { set_battle_result(g, (uint8_t)result); }
 
+/* An enemy's rule (battle_enemy_rule): its number in the low seven bits (0
+ * none); the top bit is set once a script lifts the hold the rule's color
+ * cycle keeps on the palette animations. */
+enum { BATTLE_RULE_NUMBER = 0x7F, BATTLE_RULE_LIFTED = 0x80, BATTLE_THE_FIRST_RULE = 1 };
+
+/* The battle's own palette animations, in slots 8-11 (the first eight are
+ * the scene's: the background's). */
+enum { BATTLE_FIRST_OWN_ANIMATION = 8, BATTLE_OWN_ANIMATIONS = 4 };
+
 /* A combatant's stat block (battle_stats) is $80 bytes. */
 enum { BATTLE_STAT_BLOCK_BYTES = 0x80 };
 

@@ -110,6 +110,10 @@ static inline uint8_t slope_angle(const GameState *g, uint8_t across, uint8_t do
 }
 
 /* The random bytes the battle picks from ($C0:FE00), 256 of them. */
+/* The steps a layer bobs by on the special effects' wave ($CE:F1D2), each a
+ * signed byte. */
+static inline int8_t battle_layer_wave_step(const GameState *g, uint8_t step) { return (int8_t)rom_read8(g, 0xCEF1D2u + step); }
+
 static inline uint8_t battle_random_table(const GameState *g, uint8_t pick) { return rom_read8(g, 0xC0FE00u + pick); }
 
 /* The screen shake's settings: how many frames between new magnitudes and
@@ -137,8 +141,10 @@ typedef struct {
     uint8_t across, down, depth;
 } ShapeModelPoint;
 
-static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t at)
+static inline ShapeModelPoint shape_model_point(const GameState *g, uint8_t model, unsigned point)
 {
+    enum { MODEL_BYTES = 16, POINT_BYTES = 4 };
+    uint8_t at = (uint8_t)(model * MODEL_BYTES + point * POINT_BYTES);
     return (ShapeModelPoint){ rom_read8(g, 0xD1EC5Fu + at), rom_read8(g, 0xD1EC60u + at), rom_read8(g, 0xD1EC61u + at) };
 }
 

@@ -12,8 +12,12 @@
  *   screen_gradient.c  the HP gradient: a boss's colors that follow its HP
  *   screen_graphics.c  loading an effect's graphics and colors
  *   screen_window.c    the windows' per-line edges: bands, wipes, waves
+ *   screen_sides.c     a window shape's straight sides, drawn down the table
  *   screen_beam.c      a beam from the top of the screen, and the window
  *                      quadrilaterals it is drawn with
+ *   screen_triangles.c the window triangles' drawing, and a triangle's center
+ *   screen_circles.c   the window circles (and squares), and their drawing
+ *   screen_specials.c  the special effects of command $80
  *   screen_motion.c    jitter, swing and shake of the layers, and the
  *                      screen-effect settings (shake, palette presets)
  *   screen_setup.c     the fade tables, built at the start of a battle
@@ -28,6 +32,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/battle.h"
+#include "battle/positions.h"
 #include "battle/screen_data.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -155,6 +161,18 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
 
+/* ---- What the special effects ($80) share with the other effects ------------------------- */
+
+/* The palette effects (screen_palette.c): background rows 2-7 and sprite
+ * palettes 1-3 white; sprite palettes 5-7 white; the band of background rows
+ * 2-4 moved up to rows 5-7 and back. */
+void screen_whiten_scene(GameState *g);
+void screen_whiten_high_sprite_palettes(GameState *g);
+void screen_move_band_up(GameState *g);
+void screen_move_band_down(GameState *g);
+/* The window lines nudged by their per-line amounts (screen_window.c). */
+void screen_nudge_window_edges(GameState *g);
+
 /* ---- At the battle's start ------------------------------------------------------------------ */
 
 /* The HP gradient's phase, found from where the background starts
@@ -176,6 +194,34 @@ void screen_draw_window_quad(GameState *g, unsigned quad);
  * does into the window's registers' images after it. No quadrilateral the
  * game draws goes there; the commands and entries that draw one ask this. */
 bool screen_quad_fits_the_table(const GameState *g, const BattlePoint c[SCREEN_QUAD_CORNERS]);
+
+/* ---- The window triangles (screen_triangles.c) --------------------------------------------- */
+
+/* A triangle's three corners. */
+enum { SCREEN_TRIANGLE_CORNERS = 3 };
+typedef struct {
+    BattlePoint corner[SCREEN_TRIANGLE_CORNERS];
+} ScreenTriangle;
+
+/* Draw a triangle into the coming frame's window table as window `window`
+ * (0 or 1), from its top corner's line down to its bottom one's. */
+void screen_draw_window_triangle(GameState *g, unsigned window, ScreenTriangle t);
+/* Draw the right triangle on two corners, its right angle where one's
+ * column meets the other's line and away from the screen's top, as window
+ * `window`, and the window above it, between its top corners, up to the top
+ * of the screen. */
+void screen_hang_window_triangle(GameState *g, unsigned window, BattlePoint a, BattlePoint b);
+/* Whether the triangle's lines stay in the window table (screen_sides.h). */
+bool screen_triangle_fits_the_table(const GameState *g, ScreenTriangle t);
+/* A triangle's corners as the script keeps them (screen_shapes.c), and
+ * setting them. */
+ScreenTriangle screen_triangle(const GameState *g, uint8_t shape);
+void screen_set_triangle(GameState *g, uint8_t shape, ScreenTriangle t);
+/* Where a triangle's medians cross, as the original works it out: its center. */
+BattlePoint screen_triangle_center(GameState *g, ScreenTriangle t);
+/* Whether the original's working out of the center is plain division for
+ * this triangle (screen_triangles.c says when it isn't). */
+bool screen_triangle_center_divides(ScreenTriangle t);
 
 /* Set a screen effect from its five settings bytes (screen_motion.c says
  * what they mean). */
@@ -228,6 +274,11 @@ bool battle_quad_is_one(Snes *s);
 bool battle_beam_quad_is_one(Snes *s);
 bool battle_quad_page(Snes *s);
 bool battle_quad_corners_fit(Snes *s);
+/* ... the triangle's drawing on the battle's page, its lines within the
+ * window table (screen_triangles.c). */
+bool battle_triangle_corners_fit(Snes *s);
+/* ... a special effect of the 29, running a channel (screen_specials.c). */
+bool battle_special_effect_ready(Snes *s);
 /* ... a cut through the middle that fits the screen, a window carried over
  * one of the two (screen_divide.c). */
 bool battle_cut_fits(Snes *s);
@@ -295,6 +346,12 @@ void battle_quad_edge_slope(Snes *s);
 void battle_quad_edge_slopes(Snes *s);
 void battle_rasterize_window_quad(Snes *s);
 void battle_draw_window_quad(Snes *s);
+
+/* screen_triangles.c */
+void battle_draw_window_triangle(Snes *s);
+
+/* screen_specials.c */
+void battle_screen_special_effect(Snes *s);
 
 /* screen_divide.c */
 void battle_cut_window(Snes *s);

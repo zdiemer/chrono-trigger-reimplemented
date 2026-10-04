@@ -9,8 +9,11 @@
  *     and BG1 plus the battle's extra offset for it;
  *   - BG3 moving: the same, but BG3 where screen script channel 0 has moved it
  *     (battle/screen_motion.c) instead of at its base position;
- *   - and two modes the Lavos fights use, which add a per-line offset from a
- *     table to each layer that asks for one: still the original's.
+ *   - and two modes the screen scripts' line waves set (battle/screen_waves.c,
+ *     the Lavos fights' among them): BG3 moving, and the layers the wave names
+ *     (battle_line_scroll_layers) each entry further across by the wave's
+ *     offset for it (battle_line_scroll_offsets); in the finer one, BG3 has
+ *     twice the entries, the wave's whole table.
  *
  * The screen shake moves the layers about by a random amount each frame. Each
  * axis, across and down, picks a new random magnitude every so many frames and
@@ -73,13 +76,26 @@ static LayerScroll moved_bg3_scroll(const GameState *g)
     };
 }
 
-/* Every line of a layer at one scroll. */
-static void scroll_every_line(GameState *g, unsigned layer, LayerScroll s)
+/* A layer's entries at one scroll, from `first` up to `end`; a layer the
+ * line wave moves takes each entry further across by the wave's offset for
+ * it. */
+static void scroll_entries(GameState *g, unsigned layer, LayerScroll s, bool waved, unsigned first, unsigned end)
 {
-    for (unsigned line = 0; line < LINES_PER_LAYER; line++) {
-        set_battle_scroll_tables_x(g, layer * LINES_PER_LAYER + line, s.x);
-        set_battle_scroll_tables_y(g, layer * LINES_PER_LAYER + line, s.y);
+    for (unsigned entry = first; entry < end; entry++) {
+        uint16_t x = waved ? (uint16_t)(battle_line_scroll_offsets_across(g, entry) + s.x) : s.x;
+        set_battle_scroll_tables_x(g, layer * LINES_PER_LAYER + entry, x);
+        set_battle_scroll_tables_y(g, layer * LINES_PER_LAYER + entry, s.y);
     }
+}
+
+/* In the finer wave mode BG3's entries run on past its 32, through the
+ * wave's whole table. */
+enum { FINER_BG3_ENTRIES = 2 * LINES_PER_LAYER };
+
+static bool waved_layer(const GameState *g, BattleScrollMode mode, unsigned layer)
+{
+    bool waves = mode == BATTLE_SCROLL_LINE_OFFSETS || mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3;
+    return waves && battle_line_scroll_layers(g, layer) != 0;
 }
 
 static void leave_scratch_word(GameState *g, unsigned cell, uint16_t v)
@@ -89,31 +105,38 @@ static void leave_scratch_word(GameState *g, unsigned cell, uint16_t v)
 }
 
 /* The original works the six values out in the scratch cells from $45 on,
- * BG1's across first, and leaves them there. */
-static void leave_layer_scrolls(GameState *g, const LayerScroll s[SCROLLED_LAYERS])
+ * BG1's across first, and leaves them there; in the wave modes, which layers
+ * the wave moves in the low cells $1A, $1C and $1E. */
+enum { WAVED_LAYER_CELLS = 0x1A };
+
+static void leave_layer_scrolls(GameState *g, BattleScrollMode mode, const LayerScroll s[SCROLLED_LAYERS])
 {
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
         leave_scratch_word(g, 4 * layer, s[layer].x);
         leave_scratch_word(g, 4 * layer + 2, s[layer].y);
     }
+    if (mode != BATTLE_SCROLL_LINE_OFFSETS && mode != BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
+        return;
+    for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++) {
+        uint16_t waved = battle_line_scroll_layers(g, layer);
+        set_battle_low_scratch(g, WAVED_LAYER_CELLS + 2 * layer, (uint8_t)waved);
+        set_battle_low_scratch(g, WAVED_LAYER_CELLS + 2 * layer + 1, (uint8_t)(waved >> 8));
+    }
 }
 
-// $CD:06C4 (steady), $CD:076C (BG3 moving)
+// $CD:06C4 (steady), $CD:076C (BG3 moving), $CD:07E2 (the wave), $CD:07B9 (the finer wave)
 void battle_scroll_layers(GameState *g, BattleScrollMode mode)
 {
     const LayerScroll s[SCROLLED_LAYERS] = {
         offset_scroll(g, BG1),
         steady_scroll(g, BG2),
-        mode == BATTLE_SCROLL_BG3_MOVING ? moved_bg3_scroll(g) : steady_scroll(g, BG3),
+        mode == BATTLE_SCROLL_STEADY ? steady_scroll(g, BG3) : moved_bg3_scroll(g),
     };
     for (unsigned layer = 0; layer < SCROLLED_LAYERS; layer++)
-        scroll_every_line(g, layer, s[layer]);
-    ORIGINAL_EFFECT(leave_layer_scrolls(g, s));
-}
-
-bool battle_scroll_mode_filled_here(BattleScrollMode mode)
-{
-    return mode == BATTLE_SCROLL_STEADY || mode == BATTLE_SCROLL_BG3_MOVING;
+        scroll_entries(g, layer, s[layer], waved_layer(g, mode, layer), 0, LINES_PER_LAYER);
+    if (mode == BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3)
+        scroll_entries(g, BG3, s[BG3], waved_layer(g, mode, BG3), LINES_PER_LAYER, FINER_BG3_ENTRIES);
+    ORIGINAL_EFFECT(leave_layer_scrolls(g, mode, s));
 }
 
 /* ---- The screen shake --------------------------------------------------------------------- */
@@ -257,8 +280,7 @@ void battle_shake_screen(GameState *g)
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The scroll modes' routines, which the original's dispatch jumps to through
- * its table at $CD:06BC: the two filled here, and the two with per-line
- * offsets still the original's. */
+ * its table at $CD:06BC, whose time each mode's fill takes. */
 static const uint32_t scroll_routines[BATTLE_SCROLL_MODES] = { 0xCD06C4, 0xCD076C, 0xCD07E2, 0xCD07B9 };
 
 /* The fills finish as the original's do: A's high byte the page's (0), which
@@ -283,20 +305,31 @@ void battle_update_scroll_tables_bg3_moving(Snes *s)
     finish_fill(s);
 }
 
+/* The wave's fill leaves X at BG3's second 32 entries, where the finer
+ * wave's ($CD:07B9, which calls it) goes on. */
+enum { SECOND_HALF_OF_BG3 = 0x80 };
+
+void battle_update_scroll_tables_line_wave(Snes *s)
+{
+    battle_scroll_layers(state_of(s), BATTLE_SCROLL_LINE_OFFSETS);
+    s->cpu.x = SECOND_HALF_OF_BG3;
+    finish_fill(s);
+}
+
+void battle_update_scroll_tables_finer_line_wave(Snes *s)
+{
+    battle_scroll_layers(state_of(s), BATTLE_SCROLL_LINE_OFFSETS_LONG_BG3);
+    finish_fill(s);
+}
+
 static BattleScrollMode scroll_mode(const GameState *g) { return (BattleScrollMode)battle_scroll_mode(g); }
 
 // $CD:06B4
-/* The frame work's scroll: the mode's fill, each timed as its own routine.
- * The modes still the original's are handed over where the dispatch jumps to
- * them, and return to its caller. */
+/* The frame work's scroll: the mode's fill, each timed as its own routine. */
 void battle_update_scroll_dispatch(Snes *s)
 {
     GameState *g = state_of(s);
     BattleScrollMode mode = scroll_mode(g);
-    if (!battle_scroll_mode_filled_here(mode)) {
-        m_stop_at(s, scroll_routines[mode], DC_A | DC_X | DC_Y | DC_FLAGS);
-        return;
-    }
     NATIVE_TIME_AS(s, scroll_routines[mode], battle_scroll_layers(g, mode));
     finish_fill(s);
 }
@@ -312,7 +345,7 @@ bool battle_scroll_the_layers(Snes *s)
 {
     GameState *g = state_of(s);
     BattleScrollMode mode = scroll_mode(g);
-    if (!battle_scroll_mode_filled_here(mode) || !a_high_clear(s))
+    if (!a_high_clear(s))
         return battle_call(s, FRAME_WORK_SCROLLS, SCROLL_DISPATCH, DC_X | DC_Y | DC_FLAGS | DC_AL);
     NATIVE_TIME_AS(s, scroll_routines[mode], battle_scroll_layers(g, mode));
     s->cpu.a = BATTLE_PAGE;   /* as the fills leave it */

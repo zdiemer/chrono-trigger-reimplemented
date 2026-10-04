@@ -286,6 +286,72 @@ static ScreenFlow shake_screen(GameState *g, bool stop, ScreenTriple across, Scr
 }
 SCREEN_OPERATION(shake_screen, stop, shake_across, shake_down, layers)
 
+/* ---- The drift ------------------------------------------------------------------------------- */
+
+/* A channel keeps six random amounts, 0-31 each, its layer drifts by
+ * (battle_screen_drift): one of the first three down and the one three after
+ * it across. */
+enum { DRIFTS = BATTLE_SCREEN_DRIFT_COUNT, DRIFT_MASK = 0x1F, ACROSS_AFTER = 3, DRIFTS_A_WAY = DRIFTS - ACROSS_AFTER };
+
+static uint8_t drift_amount(const GameState *g, ScreenChannel channel, unsigned n) { return battle_screen_drift(g, n, channel, 0); }
+
+/* Whether a pick's place passes the end of the table of random bytes, which
+ * takes the next pick one further on. */
+static bool passes_the_end(const GameState *g, uint8_t seed, bool overflowed)
+{
+    return seed + (uint8_t)battle_frame_count(g) + overflowed > 0xFF;
+}
+
+// $CD:1A14
+/* Pick the six amounts at random, each from the last, the first from the
+ * command's operand. The dispatch always leaves the first pick a step on
+ * (battle_screen_command_ready asks it, as for the jitter). */
+static void pick_drifts(GameState *g, ScreenChannel channel, uint8_t seed)
+{
+    bool overflowed = true;
+    for (unsigned n = 0; n < DRIFTS; n++) {
+        uint8_t amount = random_pick_after_overflow(g, seed, overflowed) & DRIFT_MASK;
+        overflowed = passes_the_end(g, seed, overflowed);
+        set_battle_screen_drift(g, n, channel, 0, amount);
+        seed = amount;
+    }
+}
+
+// $CD:19E5
+/* Drift the channel's layer: its offset down by one of the amounts, and
+ * across by the one three after it, forward (down and right) or back. */
+static void drift_layer(GameState *g, ScreenChannel channel, uint8_t drift, bool forward)
+{
+    uint8_t down = drift_amount(g, channel, drift), across = drift_amount(g, channel, drift + ACROSS_AFTER);
+    uint16_t y = battle_screen_layer_offset_y(g, channel), x = battle_screen_layer_offset_x(g, channel);
+    set_battle_screen_layer_offset_y(g, channel, (uint16_t)(forward ? y + down : y - down));
+    set_battle_screen_layer_offset_x(g, channel, (uint16_t)(forward ? x + across : x - across));
+    ORIGINAL_EFFECT(screen_leave_cell(g, 0x45, across));
+}
+
+/* Screen command $D7: pick the drift's amounts anew, or drift the layer. */
+static ScreenFlow drift(GameState *g, ScreenChannel channel, bool new_drifts, uint8_t seed, uint8_t drift, bool forward)
+{
+    if (new_drifts)
+        pick_drifts(g, channel, seed);
+    else
+        drift_layer(g, channel, drift, forward);
+    return screen_on();
+}
+SCREEN_OPERATION(drift, channel, new_drifts, seed, drift, drifts_forward)
+
+/* The original adds an amount as a word whose high byte is whatever its cell
+ * $46 holds, which the last effect's working left there: a drift is C where
+ * that is nothing (no script of the game's has the command; docs/TODO.md),
+ * and of one of the first three amounts (the operand's bits can name one
+ * past the six). */
+static uint8_t drift_high_byte(const GameState *g) { return battle_scratch(g, 1); }
+
+static bool drifts_by_an_amount(const GameState *g, const ScreenCommand *c)
+{
+    return c->new_drifts || (c->drift < DRIFTS_A_WAY && drift_high_byte(g) == 0);
+}
+
 /* ---- The commands' rows (battle/screen_script.h) --------------------------------------------------- */
 
 static ScreenFlow jitter_about(GameState *g, ScreenChannel channel, uint8_t across, uint8_t down, uint8_t spread)
@@ -320,6 +386,8 @@ SCREEN_OPCODES(screen_motion_opcodes,
     { 0xCE, OPERATION(swing), .length = 1 },
     { 0xDD, OPERATION(corners_at_positions), .needs = names_a_triangle, .length = 1, .shape = BYTE(0) },
     { 0xE3, OPERATION(corners_at_positions), .needs = names_a_triangle, .length = 1, .shape = BYTE(0) },
+    { 0xD7, OPERATION(drift), .needs = drifts_by_an_amount, .length = 1, .new_drifts = TOP_BIT(0), .seed = BYTE(0),
+      .drift = MASKED(0, 0x0B), .drifts_forward = BIT(0, 6) },
     { 0xC0, OPERATION(shake_screen), .length = 8, .stop = TOP_BIT(0), .shake_across = TRIPLE(1), .shake_down = TRIPLE(4), .layers = BYTE(7) },
 );
 

@@ -19,10 +19,11 @@
  * what the operation needs of the state to run as the original does. The
  * runner decodes a command by its row into a ScreenCommand and calls the
  * operation with the parameters it names; the operation says where the
- * channel goes on (ScreenFlow). A row with no operation is a command whose
- * handler is still the original's, which the runner calls as the original's
- * dispatch does (the special effects of $80, the circles' drawing, and a few
- * that call into code that isn't C yet). */
+ * channel goes on (ScreenFlow). A row whose work is still the original's code
+ * has a bridge instead, which the runner calls with the machine (the wait for
+ * a line of the picture, $C1); and a command whose row's needs the state
+ * doesn't meet runs as the original's handler, which the runner calls as the
+ * original's dispatch does. */
 #ifndef CT_GAME_BATTLE_SCREEN_SCRIPT_H
 #define CT_GAME_BATTLE_SCREEN_SCRIPT_H
 
@@ -37,8 +38,6 @@ typedef enum {
     SCREEN_ON,             /* past the command, to the next */
     SCREEN_GO_TO,          /* to another place in the script, in its bank */
     SCREEN_MOVED,          /* the operation moved the place itself (screen_command_took) */
-    SCREEN_ON_AND_DRAW,    /* past the command, once the triangle its operation laid out
-                              in the rasterizer's cells is drawn as a window */
 } ScreenFlowKind;
 
 typedef struct {
@@ -49,7 +48,6 @@ typedef struct {
 static inline ScreenFlow screen_on(void) { return (ScreenFlow){ SCREEN_ON, 0 }; }
 static inline ScreenFlow screen_go_to(uint16_t to) { return (ScreenFlow){ SCREEN_GO_TO, to }; }
 static inline ScreenFlow screen_moved(void) { return (ScreenFlow){ SCREEN_MOVED, 0 }; }
-static inline ScreenFlow screen_on_and_draw(void) { return (ScreenFlow){ SCREEN_ON_AND_DRAW, 0 }; }
 
 /* A wait: on when what it waits for has happened, otherwise back `back`
  * bytes, counted from the command's second byte, to the step's end it waits
@@ -64,6 +62,30 @@ typedef struct {
     uint8_t of[3];
 } ScreenTriple;
 
+/* How a circle is drawn (screen_circles.c): round; flattened below, its half
+ * below the middle half as tall; flattened below and hung from the top of
+ * the screen, the window above its middle as wide as it is there; twice as
+ * tall; twice as wide; twice the size. */
+typedef enum {
+    CIRCLE_ROUND, CIRCLE_FLATTENED_BELOW, CIRCLE_HUNG_FROM_THE_TOP, CIRCLE_TALL, CIRCLE_WIDE, CIRCLE_TWICE_THE_SIZE,
+    CIRCLE_KINDS
+} CircleKind;
+
+/* The special effects of command $80 (screen_specials.c), by number. */
+typedef enum {
+    SPECIAL_BANDS_OF_LIGHT_AT_FULL, SPECIAL_ROLL_THE_BANDS, SPECIAL_CLOSE_WEDGE_IN_THE_MIDDLE,
+    SPECIAL_OPEN_WEDGE_IN_THE_MIDDLE, SPECIAL_CLOSE_THE_WINDOWS, SPECIAL_TURN_THE_CORNERS_ROUND,
+    SPECIAL_WEDGE_FROM_THE_LEFT, SPECIAL_CLOSE_WEDGE_FROM_THE_LEFT, SPECIAL_STRAIGHTEN_THE_ANGLES,
+    SPECIAL_SHOW_EFFECT_SPRITES_IN_FRONT, SPECIAL_BOB_LAYER_DOWN, SPECIAL_BOB_LAYER_UP,
+    SPECIAL_LAY_OUT_THE_NUDGE_WAVE, SPECIAL_NUDGE_THE_WINDOW_LINES, SPECIAL_BANDS_OF_LIGHT,
+    SPECIAL_CLEAR_THE_ENDED_OBJECTS_ATTRIBUTES, SPECIAL_PUT_OUT_THE_BANDS, SPECIAL_CYCLE_THE_BACKGROUND,
+    SPECIAL_KEEP_THE_POSITION_ON_THE_BATTLEFIELD, SPECIAL_TALL_BANDS_OF_LIGHT, SPECIAL_RESTART_THE_WIPE,
+    SPECIAL_CLEAR_THE_WAVE_LINES, SPECIAL_SHIFT_MARKED_LINES, SPECIAL_MOVE_THE_BAND_DOWN,
+    SPECIAL_MOVE_THE_BAND_UP, SPECIAL_GIVE_THE_SIGNAL, SPECIAL_WHITEN_THE_SCENE, SPECIAL_HIDE_THE_ENEMIES,
+    SPECIAL_WHITEN_THE_HIGH_SPRITE_PALETTES,
+    SPECIAL_EFFECTS
+} SpecialEffect;
+
 /* Every parameter an operation of the language takes. A row says how the
  * command's operands decode into the ones its operation reads. */
 #define SCREEN_PARAMETERS(X)                                                                       \
@@ -72,16 +94,19 @@ typedef struct {
     X(uint8_t, amount) X(bool, clear) X(uint8_t, pace)                                            \
     /* plain settings */                                                                          \
     X(uint8_t, value) X(uint8_t, setting) X(uint16_t, color) X(uint8_t, from) X(uint8_t, onto)   \
+    X(SpecialEffect, special) X(uint16_t, address) X(uint8_t, poked) X(uint8_t, line)               \
     X(uint8_t, slot) X(uint8_t, set) X(uint8_t, by) X(bool, at_position) X(uint8_t, sound)       \
     X(uint8_t, effect)                                                                            \
     /* the layer */                                                                               \
     X(uint8_t, direction) X(uint8_t, distance) X(uint8_t, position) X(uint8_t, which)            \
     X(bool, to_swing) X(uint8_t, frames) X(uint8_t, orbit) X(uint8_t, spread)                    \
+    X(bool, new_drifts) X(uint8_t, seed) X(uint8_t, drift) X(bool, drifts_forward)                \
     X(uint8_t, across) X(uint8_t, down) X(bool, stop)                                             \
     /* waves */                                                                                   \
     X(uint8_t, amplitude) X(uint8_t, every) X(uint8_t, speed) X(bool, fine)                      \
     /* circles and triangles */                                                                   \
-    X(uint8_t, circle) X(uint8_t, shape) X(uint8_t, kind) X(uint8_t, x) X(uint8_t, y)           \
+    X(uint8_t, circle) X(CircleKind, circle_kind) X(uint8_t, shape) X(uint8_t, kind)               \
+    X(uint8_t, x) X(uint8_t, y)                                                                   \
     X(uint8_t, radius) X(uint8_t, depth) X(uint8_t, size) X(uint8_t, scale_x)                    \
     X(uint8_t, scale_y) X(uint8_t, angle) X(uint8_t, limit) X(uint8_t, model) X(bool, spins)     \
     X(bool, own_depth)                                                                            \
@@ -145,6 +170,8 @@ typedef ScreenFlow (*ScreenOperation)(GameState *g, const ScreenCommand *command
     }
 #define OPERATION(op) .operation = op##_command
 
+#define BRIDGE(b) .bridge = (b)
+
 /* ---- How a row decodes its operands ----------------------------------------------------------- */
 
 typedef enum {
@@ -188,13 +215,20 @@ typedef struct {
  * row's isn't met, the original's handler runs the command. */
 typedef bool (*ScreenNeeds)(const GameState *g, const ScreenCommand *command);
 
-/* A row: the command byte, the operation, what it needs, the operand bytes
- * it takes, and how each parameter it reads decodes. (The original's
- * handler, whose time the operation takes, and which runs the command where
- * the row has no operation or its needs aren't met, is screen_script.c's.) */
+/* A command whose work is still the original's code: the runner moves the
+ * channel on past it, then calls this with the machine; false where the
+ * original's code carried on. */
+typedef bool (*ScreenBridge)(Snes *s, const ScreenCommand *command);
+
+/* A row: the command byte, the operation (or the bridge), what it needs, the
+ * operand bytes it takes, and how each parameter it reads decodes. (The
+ * original's handler, whose time the operation takes, and which runs the
+ * command where the row has neither or its needs aren't met, is
+ * screen_script.c's.) */
 typedef struct {
     uint8_t opcode;
     ScreenOperation operation;
+    ScreenBridge bridge;
     ScreenNeeds needs;
     uint8_t length;
 #define SCREEN_ARG_FIELD(type, name) ScreenArg name;
@@ -216,7 +250,7 @@ typedef struct {
 
 /* The files' rows. */
 extern const ScreenOpcodes screen_flow_opcodes, screen_layer_opcodes, screen_shape_opcodes,
-    screen_setting_opcodes, screen_wave_opcodes, screen_window_opcodes, screen_motion_opcodes,
+    screen_setting_opcodes, screen_circle_opcodes, screen_special_opcodes, screen_wave_opcodes, screen_window_opcodes, screen_motion_opcodes,
     screen_palette_opcodes, screen_cut_opcodes, screen_between_opcodes, screen_beam_opcodes;
 
 /* The row of a command byte, or none past the language's last. */
@@ -233,18 +267,7 @@ static inline uint8_t screen_script_byte_at(const GameState *g, uint16_t at)
     return battle_screen_script_byte(g, (battle_screen_script(g) & 0xFF0000u) | at);
 }
 
-/* ---- What the triangles hand the rasterizer ----------------------------------------------------- */
-
-/* A triangle's three corners, across and down, in the order the rasterizer
- * takes them. */
-typedef struct {
-    uint8_t x[3], y[3];
-} ScreenTriangle;
-
-/* Lay a triangle out in the rasterizer's cells, to be drawn as window
- * `window`'s shape (0 or 1): the rasterizer's call is the runner's, after an
- * operation that returns screen_on_and_draw. */
-void screen_lay_out_triangle(GameState *g, uint8_t window, const ScreenTriangle *t);
+/* ---- The running channel ------------------------------------------------------------------- */
 
 /* The running channel, as the dispatch leaves it for the commands. */
 static inline ScreenChannel screen_running_channel(const GameState *g)

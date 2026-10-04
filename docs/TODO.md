@@ -152,28 +152,30 @@ rest waits, is [PLAN.md](PLAN.md).
     the message `$CD:0021`; from the battle's start and its return to the
     field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
     closing `$CD:0006` and the frame wait `$CF:FCFB`, and from the setup's
-    end the party's poses `$C1:35DD`; the Lavos scroll modes
-    `$CD:07E2`/`$CD:07B9`, the slide's line moves `$CD:053C`/`$CD:0577`,
-    `$CD:0B1E` and the wait tail's callees from the frame work; and from the
-    screen's start (RECOMP.md, "Phase 3, battle: cuts, bands and the screen's
+    end the party's poses `$C1:35DD`; the wait tail's callees from the frame
+    work, and its wait for a line `$CD:3B82` (from the frame work and the
+    screen script's `$C1`, which no script has: the beam's line is the
+    console's, and a native build that draws a frame at a time has no use
+    for the wait, RECOMP.md, "Phase 3, battle: the screen script's shapes");
+    and from the screen's start (RECOMP.md, "Phase 3, battle: cuts, bands and the screen's
     start"), the start settings' copy `$CD:0C9D`, the message tiles' clear
     `$CD:0235` and the battle music's start `$C0:0008`.
-  - The screen script commands whose handlers are still the original's
-    (RECOMP.md, "Phase 3, battle chunk 11"; `battle/screen_script.c`'s rows
-    with no operation): the special effects `$80`; the circles' drawing `$8B`
-    and the shapes of `$B5`, `$B6`, `$B8`; `$A1`, which runs the rasterizer's
-    own setup; `$AD` and `$B4`, the triangle centred on its corners; `$DA`,
-    the wedge between two positions, which calls the triangles' rasterizer
-    from inside its handler (a JSR, where the other triangles end with it) and
-    so waits for that rasterizer; `$CC`, which measures a direction along the
-    cells the dispatch's index reaches past the positions (no script has
-    `$CC` or `$DA`); the layer's random drift `$D7`, which adds a byte the
-    original leaves in its cell `$46`; the wait for a line `$C1`; and the poke
-    `$F9`. And the rasterizer `$CD:367C` the triangles are drawn with, a
-    call-out from the C commands, with the circles' drawing (`$CD:31AA`-`$CD:3656`)
-    around the copy `$CE:E7C8` it makes.
-  - The direction between two positions (`$CE:E7CF`, `battle/screen_between.c`)
-    is worked out in the cells `$23`-`$2A`, over the turn slot's high byte,
+  - What the screen script's rows still turn away to the original
+    (RECOMP.md, "Phase 3, battle: the screen script's shapes"), none of it a
+    call the library makes: the drift `$D7` where its amount's high byte,
+    the cell `$46` (whatever the last effect left there), isn't clear, or its
+    operand names an amount past the six; the centering on the corners
+    (`$AD`, `$B4`) where the medians' slopes are more than half a word
+    apart, which the original's bit-serial division loses a remainder bit
+    on; a circle, square or triangle whose lines would run past the window
+    table's end on an odd frame, or whose run of worked rows starts before
+    the first or ends past the last; a poke at the script's own place. Decide
+    each in game terms before the storage leaves the RAM image.
+  - The direction between two positions (`$CE:E7CF`, `battle/screen_between.c`),
+    and a triangle's center (`$CD:21C0`, `battle/screen_triangles.c`, whose
+    division leaves the last bit its scaling shifted out as `$80` over
+    `battle_party_defeated`),
+    are worked out in the cells `$23`-`$2A`, over the turn slot's high byte,
     the party's defeat, the random cells and the wide arithmetic's first
     word (`battle_direction_work`), and the port writes them plainly as the
     original leaves them. Find whether any of those is read before it is
@@ -192,7 +194,12 @@ rest waits, is [PLAN.md](PLAN.md).
     triangle's size as a word in `$21`-`$22` (`battle/screen_shapes.c`,
     `clear_the_turn_slots_low_byte`). Find whether any turn reads the slot
     after an effect draws a model; if none does, the store is scaffolding.
-  - Meanings not worked out: `battle_tech_records.menu_detail`; the setup's
+  - Meanings not worked out: `battle_ended_effect_object` (`$CD:0024`'s
+    object, from `$CF:FE76`); the screen script's special effects that no
+    movie shows (`battle/screen_specials.c`: the wedges, the angles'
+    straightening, the sprites in front, the layer's bob up, the bands coming
+    up a level, the attributes' clear, the background's cycle), named from
+    what their code does; `battle_tech_records.menu_detail`; the setup's
     `battle_start_mark`, `battle_menu_mark`, `battle_action_queue_end`,
     `battle_menu_slot_mark`, `battle_list_cursors_shown`, the first ten
     `battle_number_marks`, `battle_slot_draw_bits` and the sprite drawers'
@@ -337,10 +344,9 @@ rest waits, is [PLAN.md](PLAN.md).
     `short_window_down` and `0xFFDF`/`0xFFFC` for -33 and -4, and its
     starting resets read as flat setter lists; `screen_lines.h`'s
     `line_edge` takes `unsigned` where the others take `TableLine`;
-    `screen_beam.c` names the window table's address a third time
-    (`0xC161`); the screen language's shared list gained `window` and `quad`
-    as bare bytes converted at each use and `stray_bits` only for a guard
-    (rubric 116, worse by those).
+    the screen language's shared list gained `window` and `quad` as bare
+    bytes converted at each use and `stray_bits` only for a guard (rubric
+    116, worse by those).
 
   - what the battle's start and leftovers' review left (none blocking):
     `effect_animation.c`'s `TakenFrame` is returned and carried through the
@@ -370,12 +376,10 @@ rest waits, is [PLAN.md](PLAN.md).
     operation per case; `run_screen_scripts` and `step_channel` keep the
     scroll mode, the ended-channel count and the restore request in `Snes *`
     bodies, and the script cursor goes through `battle_screen_script` every
-    byte (needed while 18 handlers are the original's); `RULE_NUMBER` defined
-    in `screen_script.c` and `screen_waves.c`; `shape_model_point`,
-    `saved_shape_offset` and `script_palette_slot_offset` work in byte
+    byte (needed now only for the commands a row turns away and for `$C1`'s
+    wait); `saved_shape_offset` and `script_palette_slot_offset` work in byte
     offsets, and the put-aside `array_starts` table carries a record's
-    layout; literal axes 1/0/2 in `screen_shapes.c` where `ACROSS/DOWN/DEPTH`
-    exist; the BG3 line-scroll flag written `(bg3 & 0xFF00) | value`;
+    layout; the BG3 line-scroll flag written `(bg3 & 0xFF00) | value`;
     `battle_screen_command_ready` takes the carry for every command only for
     the jitter; the old `$D1` entries' positional `screen_command_operand`
     wrappers duplicate the rows once every row is C.

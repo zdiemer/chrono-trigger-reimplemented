@@ -150,22 +150,18 @@ static void end_the_slide(GameState *g)
     set_battle_window_slide(g, SLIDE_STILL);
 }
 
-/* A line of the slide, which the original moves in its tables: false if the
- * call didn't come back as the battle runs. The frame it counts down is the
- * slide's. */
-static bool slide_a_line(Snes *s, bool out)
+/* A line of the slide, in the per-line tables (battle/display.c). The frame
+ * it counts down is the slide's. */
+static void slide_a_line(Snes *s, bool out)
 {
     GameState *g = state_of(s);
-    if (!(out ? battle_call(s, 0xCD05E5, 0xCD0577, DC_A | DC_X | DC_Y | DC_FLAGS)
-              : battle_call(s, 0xCD05BE, 0xCD053C, DC_A | DC_X | DC_Y | DC_FLAGS)))
-        return false;
+    NATIVE_TIME_AS(s, out ? 0xCD0577 : 0xCD053C, battle_slide_the_split(g, out));
     uint8_t left = (uint8_t)(battle_window_slide_frames(g) - 1);
     set_battle_window_slide_frames(g, left);
     if (left == 0)
         arrange_for(g, out ? BATTLEFIELD_ARRANGEMENT : WINDOW_ARRANGEMENT);
     if (left == 0 && out)
         end_the_slide(g);
-    return true;
 }
 
 // $CD:05B2
@@ -187,7 +183,8 @@ static bool slide_the_window(Snes *s)
         end_the_slide(g);
         return true;
     }
-    return slide_a_line(s, sliding_out(slide));
+    slide_a_line(s, sliding_out(slide));
+    return true;
 }
 
 /* ---- The HP gradient's phase ------------------------------------------------------------- */
@@ -529,12 +526,41 @@ static bool update_the_battlefield(Snes *s)
     return battle_run_long(s, 0xCD0997, 0xCFE58A, battle_frame_update);
 }
 
+/* An enemy's rule that cycles the background's colors (battle_enemy_rule,
+ * with the cycle's first color in battle_background_cycle) keeps the battle's
+ * own palette animations (slots 8-11) short of the cycle: one that would run
+ * past its first color is cut to end there. A script lifts the limit by
+ * setting the rule's top bit (the special effect that rotates the cycle
+ * itself). */
+enum { NO_ANIMATION = 0, OFF_THE_PALETTE = 0x80 };
+
+// $CD:0B1E
+void battle_keep_animations_off_the_cycle(GameState *g)
+{
+    uint8_t rule = battle_enemy_rule(g), cycle = battle_background_cycle(g);
+    if (rule == 0 || (rule & BATTLE_RULE_LIFTED))
+        return;
+    for (unsigned slot = BATTLE_FIRST_OWN_ANIMATION; slot < BATTLE_FIRST_OWN_ANIMATION + BATTLE_OWN_ANIMATIONS; slot++) {
+        uint8_t first = palette_animations_first_color(g, slot);
+        if (palette_animations_kind(g, slot) == NO_ANIMATION || (first & OFF_THE_PALETTE))
+            continue;
+        if ((uint8_t)(first + palette_animations_color_count(g, slot)) > cycle)
+            set_palette_animations_color_count(g, slot, (uint8_t)(cycle - first));
+    }
+}
+
+void battle_keep_animations_off_the_cycle_entry(Snes *s)
+{
+    battle_keep_animations_off_the_cycle(state_of(s));
+    m_rts(s);
+}
+
 /* Palette animation: the animated slots kept off the background cycle's
  * colors, paused with the battle, and run. */
 static bool animate_the_palettes(Snes *s)
 {
-    return battle_call(s, 0xCD09B8, 0xCD0B1E, READS_NOTHING) && battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING)
-           && battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
+    NATIVE_TIME_AS(s, 0xCD0B1E, battle_keep_animations_off_the_cycle(state_of(s)));
+    return battle_call_long(s, 0xCD09BB, 0xD1F426, READS_NOTHING) && battle_call_long(s, 0xCD09BF, 0xFDFFF7, READS_NOTHING);
 }
 
 // $CD:088D
