@@ -136,6 +136,12 @@
 #define RAM_PLAY_TIME_OVERFLOWED 0x7E0406u
 /* Nonzero stops the play time clock */
 #define RAM_PLAY_TIME_STOPPED 0x7E0407u
+/* The player's own button assignments, which the settings screen makes and which the menus take
+ * as button_assignments where the settings say to use them [9 x $1 bytes, by assignment, in
+ * button_assignments' order (and a ninth, which nothing reads)] */
+#define RAM_OWN_BUTTON_ASSIGNMENTS 0x7E0408u
+#define RAM_OWN_BUTTON_ASSIGNMENTS_COUNT 9u
+#define RAM_OWN_BUTTON_ASSIGNMENTS_STRIDE 0x01u
 /* The save slot the game goes on in: the one the player chose to load, or the first empty one a
  * new game will be saved to */
 #define RAM_SAVE_SLOT_CHOSEN 0x7E0414u
@@ -395,6 +401,9 @@
 #define RAM_BUTTON_ASSIGNMENTS 0x7E2993u
 #define RAM_BUTTON_ASSIGNMENTS_COUNT 8u
 #define RAM_BUTTON_ASSIGNMENTS_STRIDE 0x01u
+/* The byte after button_assignments, which the settings screen copies with them (the ninth of
+ * own_button_assignments, or of the defaults); nothing reads it */
+#define RAM_BUTTON_ASSIGNMENT_SPARE 0x7E299Bu
 /* How many times the game has been saved: each save counts one, and the count stops at $FFFF (a
  * slot's summary shows at most 999) [2 bytes] */
 #define RAM_TIMES_SAVED 0x7E299Cu
@@ -426,6 +435,13 @@
 #define RAM_SAVE_SLOT_SUMMARIES_STRIDE 0x40u
 #define RAM_SAVE_SLOT_SUMMARIES_MEMBERS 0x7E7600u /* Three $10-byte party member records, the first byte the member (negative: empty) */
 #define RAM_SAVE_SLOT_SUMMARIES_HEADER 0x7E7630u /* The slot's header: where the party is (the location, a word at $32) and what the load screen shows of it */
+/* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
+ * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
+ * a fight not among those the battle's flags mark */
+#define RAM_STORY_PARTY_RULES 0x7F00BAu
+/* The story's notes on the game itself (event memory $1CF): $10 where it carries on from a
+ * finished one, bit 7 where the place items are held back */
+#define RAM_STORY_GAME_NOTES 0x7F01CFu
 /* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
  * whose record has its top bit set waits for this */
 #define RAM_PARTY_TECHS_UNLOCKED 0x7F01E0u
@@ -2059,6 +2075,42 @@
 #define RAM_MENU_SCRATCH_TECH_LIST_PLACE 0x7E0000u /* The techs screen's list's rows ($C2:BD6B): the place of menu_tech_list it draws next, left past the last row's */
 #define RAM_MENU_SCRATCH_TECH_LIST_PLACE_HIGH 0x7E0001u /* The byte after it, which the rows' drawing counts with it as a word (a page turned clears it first) */
 #define RAM_MENU_SCRATCH_TECH_ROWS_LEFT 0x7E0002u /* The same: the rows it has still to draw, 0 once done */
+#define RAM_MENU_SCRATCH_SHOP_DIVIDED 0x7E0000u /* The shop's quantity ($C2:FCB2, $C2:FCE1): the gold (or the room under the cap) divided, its low word */
+#define RAM_MENU_SCRATCH_SHOP_DIVIDED_HIGH 0x7E0002u /* The same: its high byte */
+#define RAM_MENU_SCRATCH_SHOP_DIVISOR 0x7E0004u /* The same: the price it is divided by */
+#define RAM_MENU_SCRATCH_SHOP_MULTIPLIER 0x7E0000u /* The shop's multiplications ($C2:FD58, $C2:FD68): the first operand, a price or a quantity's step */
+#define RAM_MENU_SCRATCH_SHOP_MULTIPLICAND_BYTES 0x7E0002u /* The same: how many bytes of the second operand it takes */
+#define RAM_MENU_SCRATCH_SHOP_MULTIPLICAND 0x7E0004u /* The same: the second operand's low word, the scale or the price (negative to take it off) */
+#define RAM_MENU_SCRATCH_SHOP_MULTIPLICAND_HIGH 0x7E0006u /* The same: the price's high byte (the negative's sign), as a word with the byte after it */
+#define RAM_MENU_SCRATCH_SHOP_MEMBER_ROW 0x7E0000u /* The shop's members' rows ($C2:E058): the row coloured last */
+#define RAM_MENU_SCRATCH_SHOP_COLOURING 0x7E0002u /* The same: the tiles across a row (low byte) and the colour (high byte) */
+#define RAM_MENU_SCRATCH_SHOP_COLOUR_KEPT 0x7E0005u /* The shop's members' colouring ($C2:E072): the colour, kept while the chosen member's row takes none */
+#define RAM_MENU_SCRATCH_SHOP_REACHABLE_LEFT 0x7E0004u /* The shop's dimming of the members it can't equip ($C2:E017): the member it got to, the count's */
+#define RAM_MENU_SCRATCH_SHOP_FIGURE_BEFORE 0x7E0001u /* The shop's members' figures ($C2:DE21): the figure the member has now, which the one with the item is compared with */
+#define RAM_MENU_SCRATCH_SHOP_FIGURE_WITH 0x7E0000u /* The same: the figure with the item */
+#define RAM_MENU_SCRATCH_SHOP_ROWS_SHOWN 0x7E0000u /* A shop's list's frame ($C2:DD40): the rows it shows */
+#define RAM_MENU_SCRATCH_SHOP_STEP 0x7E0000u /* The shop's quantity's step ($C2:DA3D-$C2:DA83): how many it adds or takes */
+#define RAM_MENU_SCRATCH_SHOP_LAST_PLACE 0x7E0000u /* A shop's list's slide ($C2:D82B): its count less two, the last place a row slides in from */
+#define RAM_MENU_SCRATCH_SHOP_SLOT_DOUBLED 0x7E0000u /* The worn items' count ($C2:8900): the slot's place in the record for the item's category */
+#define RAM_MENU_SCRATCH_SHOP_SLOT_HIGH 0x7E0001u /* The same: cleared above it */
+#define RAM_MENU_SCRATCH_SHOP_SPARE_COUNT 0x7E0002u /* The same: a byte of the game's state it copies here and nothing reads */
+#define RAM_MENU_SCRATCH_SHOP_LAST_REACHABLE 0x7E0000u /* The shop's members ($C2:DBE8): twice the last reachable member's place */
+#define RAM_MENU_SCRATCH_SHOP_CHARACTERS_LEFT 0x7E0000u /* The shop's characters standing again ($C2:D605): the characters left to stand, $FF once done */
+#define RAM_MENU_SCRATCH_SHOP_HELD 0x7E0000u /* The shop's offer to buy ($C2:D598): how many of the item the party has and has on, a byte */
+#define RAM_MENU_SCRATCH_TASKS_TO_STOP 0x7E0000u /* The menus' stop of tasks ($C2:8255): the tasks' bits, shifted out to 0 once done */
+#define RAM_MENU_SCRATCH_SHOP_ROWS_FROM 0x7E0000u /* A shop's list's rows moved after a slide ($C2:D995): where the next tile row would be copied from, a tile row past the last */
+#define RAM_MENU_SCRATCH_SHOP_ROWS_TO 0x7E0002u /* The same: where it would be copied to */
+#define RAM_MENU_SCRATCH_SHOP_ROWS_LEFT 0x7E0004u /* The same: the tile rows left to copy, 0 once done */
+#define RAM_MENU_SCRATCH_SHOP_MEMBERS_PLACED 0x7E0002u /* The shop's members' sprites ($C2:DC1E): how many it placed */
+#define RAM_MENU_SCRATCH_SETTINGS_BOXES_LEFT 0x7E0000u /* The settings screen's boxes ($C2:C3E4): the boxes it has still to draw, counted down past the first to $FFFF */
+#define RAM_MENU_SCRATCH_SETTINGS_METER_CELLS 0x7E0000u /* The settings screen's meters ($C2:C456): the setting the last meter shows, a word wide, the window design's with the cell after it */
+#define RAM_MENU_SCRATCH_SETTINGS_GAUGE_OFFSET 0x7E0000u /* The settings screen's battle gauge ($C2:C495): the chosen layout's two bytes a tile into the row of choices, halfway to its place */
+#define RAM_MENU_SCRATCH_SETTINGS_ROWS_DRAWN 0x7E0000u /* The settings screen's button rows ($C2:C57A): how many it drew, 6 */
+#define RAM_MENU_SCRATCH_SETTINGS_ROWS_LEFT 0x7E0000u /* The settings screen's button rows as they are changed ($C2:C5C7): the rows it has still to draw, counted down past the first to $FFFF */
+#define RAM_MENU_SCRATCH_SETTINGS_CONFLICTS_LAST 0x7E0002u /* The settings screen's giving a button to an assignment ($C2:C23A): the last place in the list of assignments it looks through for the button, of the second pass */
+#define RAM_MENU_SCRATCH_SETTINGS_ROW_BUTTON 0x7E0002u /* The settings screen's button rows as they are changed ($C2:C5C7): the first row's button, the last it looked at */
+#define RAM_MENU_SCRATCH_SETTINGS_ROW_MARK 0x7E0004u /* The same: the first row's mark between its button before and after, $FFFF where they are the same */
+#define RAM_MENU_SCRATCH_SETTINGS_PACKED 0x7E0000u /* The settings packed back into the player's settings ($C2:934F): the second byte's bits but the window design */
 #define RAM_MENU_SCRATCH_TECH_PARTNER_BITS 0x7E0000u /* The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members' bits, shifted out from the top, 0 once done */
 #define RAM_MENU_SCRATCH_TECH_PARTNERS_COUNTED 0x7E0001u /* The same: how many characters' bits it looked at */
 #define RAM_MENU_SCRATCH_RESTORING_MEMBERS_LEFT 0x7E0000u /* The look at whether a restoring helps ($C2:B870): the members it has still to look at */
@@ -2128,6 +2180,10 @@
  * the save screen's header then takes for a time it has drawn */
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
 #define RAM_MENU_OPENING_RECORDS_LOADED_DP 0x22u /* page menu */
+/* The shop's routines' working word, each its own: the row of a list being drawn, left past the
+ * last; the goods priced; the record's place the panel puts an item in [2 bytes] */
+#define RAM_MENU_SHOP_WORK 0x7E0022u
+#define RAM_MENU_SHOP_WORK_DP 0x22u          /* page menu */
 /* The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the
  * rows' per-line table each frame, moving by menu_scroll_step [2 bytes] */
 #define RAM_MENU_SLIDE_LINE 0x7E0022u
@@ -2175,6 +2231,17 @@
  * copied back from) [2 bytes] */
 #define RAM_MENU_TECH_SLIDE_COPY 0x7E0026u
 #define RAM_MENU_TECH_SLIDE_COPY_DP 0x26u    /* page menu */
+/* The shop's division of the gold by a price ($C2:FD1D): its three bytes of quotient, under the
+ * byte the division shifts the dividend's spare bits into [4 bytes] */
+#define RAM_MENU_SHOP_QUOTIENT 0x7E0036u
+#define RAM_MENU_SHOP_QUOTIENT_DP 0x36u      /* page menu */
+/* The same division's remainder [4 bytes] */
+#define RAM_MENU_SHOP_REMAINDER 0x7E003Au
+#define RAM_MENU_SHOP_REMAINDER_DP 0x3Au     /* page menu */
+/* The shop's multiplications ($C2:FD58, $C2:FD68): a price by the shop's markup, a quantity's
+ * step by the price [4 bytes] */
+#define RAM_MENU_SHOP_PRODUCT 0x7E003Eu
+#define RAM_MENU_SHOP_PRODUCT_DP 0x3Eu       /* page menu */
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in [2 bytes] */
 #define RAM_MENU_ZERO 0x7E0051u
@@ -2261,6 +2328,9 @@
 /* The save slot whose summary the load screen is showing */
 #define RAM_MENU_SAVE_SLOT_SHOWN 0x7E0079u
 #define RAM_MENU_SAVE_SLOT_SHOWN_DP 0x79u    /* page menu */
+/* The shop's cursor among the members, kept while the cursor is on the buying and selling tabs */
+#define RAM_MENU_SHOP_MEMBER_CURSOR 0x7E0079u
+#define RAM_MENU_SHOP_MEMBER_CURSOR_DP 0x79u /* page menu */
 /* The byte after the save slot shown, which the slots' reading clears with it and then reads
  * with it, the slot a word wide */
 #define RAM_MENU_AFTER_SLOT_SHOWN 0x7E007Au
@@ -2278,6 +2348,16 @@
 /* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
 #define RAM_MENU_SAVE_SLOT_NEXT 0x7E007Fu
 #define RAM_MENU_SAVE_SLOT_NEXT_DP 0x7Fu     /* page menu */
+/* The settings screen's option the cursor was on when the last frame's input was taken, which
+ * tells a push right on the controls from one that brought the cursor there */
+#define RAM_MENU_SETTINGS_OPTION_BEFORE 0x7E007Fu
+#define RAM_MENU_SETTINGS_OPTION_BEFORE_DP 0x7Fu /* page menu */
+/* The shop's cursor on its list, put aside while the quantity window has it */
+#define RAM_MENU_SHOP_LIST_CURSOR 0x7E007Fu
+#define RAM_MENU_SHOP_LIST_CURSOR_DP 0x7Fu   /* page menu */
+/* The shop's cursor on the buying and selling tabs, kept while the cursor is on the members */
+#define RAM_MENU_SHOP_TAB_CURSOR 0x7E0080u
+#define RAM_MENU_SHOP_TAB_CURSOR_DP 0x80u    /* page menu */
 /* Where the cursor was when this frame's input was read: the menus play the cursor's sound where
  * it has moved since */
 #define RAM_MENU_CURSOR_FRAME_START 0x7E0081u
@@ -2286,6 +2366,10 @@
  * the cursor's sound when it points at another */
 #define RAM_MENU_MEMBER_POINTED 0x7E0083u
 #define RAM_MENU_MEMBER_POINTED_DP 0x83u     /* page menu */
+/* The place in a shop's list whose item the panel of counts and members' figures shows, $FF for
+ * none: the panel is drawn again for another */
+#define RAM_MENU_SHOP_PLACE_SHOWN 0x7E0083u
+#define RAM_MENU_SHOP_PLACE_SHOWN_DP 0x83u   /* page menu */
 /* menu_tech_list_shown as the frame found it, which the techs screen compares with to tick the
  * cursor's sound when the member or the kind changes */
 #define RAM_MENU_TECH_LIST_SHOWN_BEFORE 0x7E0083u
@@ -2294,6 +2378,10 @@
  * $FF has it drawn again */
 #define RAM_MENU_EQUIP_SHOWN 0x7E0084u
 #define RAM_MENU_EQUIP_SHOWN_DP 0x84u        /* page menu */
+/* The byte after menu_shop_place_shown, which the quantity window's closing clears with it as a
+ * word; nothing in the shop reads it */
+#define RAM_MENU_SHOP_PLACE_SHOWN_PAST 0x7E0084u
+#define RAM_MENU_SHOP_PLACE_SHOWN_PAST_DP 0x84u /* page menu */
 /* Which list the techs screen's list was built for: the member (its place of menu_members) times
  * 16 plus menu_tech_category; $FF has it built again */
 #define RAM_MENU_TECH_LIST_SHOWN 0x7E0084u
@@ -2458,6 +2546,9 @@
 /* The first place of the party's items the items screen's list shows (0 to $E8), kept from one
  * opening to the next */
 #define RAM_MENU_ITEM_LIST_TOP 0x7E0416u
+/* The settings screen's option the cursor is on (0-11), kept from one opening of the screen to
+ * the next: the speeds' two meters are options 10 and 11 */
+#define RAM_MENU_SETTINGS_CURSOR 0x7E0417u
 /* The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple
  * techs; kept from one opening to the next */
 #define RAM_MENU_TECH_CATEGORY 0x7E0418u
@@ -2645,6 +2736,8 @@
 #define RAM_MENU_MEMBER_PLACES 0x7E0D68u
 #define RAM_MENU_MEMBER_PLACES_COUNT 9u
 #define RAM_MENU_MEMBER_PLACES_STRIDE 0x01u
+/* The characters who can use the item last asked about ($C2:93A8), a bit each */
+#define RAM_MENU_ITEM_USERS_NOTED 0x7E0D71u
 /* Bit 7 puts the records' frame tiles half a block ($100 bytes) further into their buffer;
  * nothing in bank $C2 writes it */
 #define RAM_MENU_RECORD_BUFFER_HALF 0x7E0D72u
@@ -2680,6 +2773,9 @@
 #define RAM_MENU_STORY_ITEMS 0x7E0D7Cu
 #define RAM_MENU_STORY_ITEMS_COUNT 2u
 #define RAM_MENU_STORY_ITEMS_STRIDE 0x02u
+/* How many of the shop's members have on the item the cursor is on, which the shop shows as
+ * equipped */
+#define RAM_MENU_ITEM_WORN_COUNT 0x7E0D82u
 /* Nonzero makes every frame's buttons read as going back: the menus' per-frame input sets it (to
  * the buttons held) once the going-back assignment's buttons and Start are held together, and
  * only a menu's setup clears it */
@@ -2726,6 +2822,7 @@
 #define RAM_MENU_SCROLL_BAR_THUMB 0x7E0D95u  /* The thumb's place along the bar, in lines */
 #define RAM_MENU_SCROLL_BAR_THUMB_WORD 0x7E0D95u /* The same as a word with the byte after it, as a sliding list moves the thumb a line a frame */
 #define RAM_MENU_SCROLL_BAR_STEP 0x7E0D98u   /* The thumb's move a row of the list */
+#define RAM_MENU_SCROLL_BAR_BLINK 0x7E0D97u  /* Which half of their blink the bar's arrows are in, which the bar's task flips */
 #define RAM_MENU_SCROLL_BAR_HIDDEN 0x7E0D9Au /* Nonzero while the bar is hidden */
 /* Nonzero skips placing the cursor sprite for one frame; the per-frame sprite reset clears it */
 #define RAM_MENU_CURSOR_HIDDEN 0x7E0D9Bu
@@ -2739,6 +2836,12 @@
  * start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte [2
  * bytes] */
 #define RAM_MENU_HELD_CURSOR_SHIFT 0x7E0D9Eu
+/* The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at
+ * menu_held_cursor's place [2 bytes] */
+#define RAM_MENU_HELD_CURSOR_SPRITE 0x7E0DA1u
+/* How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn
+ * ($FC a blink every four frames, $F8 every eight) [2 bytes] */
+#define RAM_MENU_HELD_CURSOR_BLINK 0x7E0DA6u
 /* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
 #define RAM_MENU_SLIDE_ROWS 0x7E0DAAu
 /* How far a list's slide has moved so far (its steps summed), which the item lists' slide frame
@@ -2747,6 +2850,9 @@
 /* How many lines the member list's rows move a frame as the slots window slides (0, then 6) [2
  * bytes] */
 #define RAM_MENU_WINDOW_ROWS_STEP 0x7E0DABu
+/* Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory;
+ * the shop's panel leaves the item's category here as it starts [2 bytes] */
+#define RAM_MENU_FIGURES_SLOT 0x7E0DADu
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
 #define RAM_MENU_USE_FIRST_MEMBER 0x7E0DBBu
@@ -2768,6 +2874,9 @@
 #define RAM_MENU_HEAL_POWER 0x7E0DBFu
 /* What a tonic's power is multiplied by ($40 for an item whose figures say all, 15) */
 #define RAM_MENU_HEAL_FACTOR 0x7E0DC0u
+/* How far along the description's row its task has typed, in bytes of the row's tilemap: a new
+ * value for the same option clears the row from there [2 bytes] */
+#define RAM_MENU_DESCRIPTION_TYPED 0x7E0DC1u
 /* Where in the tilemap buffers the description window's text starts, its row (the address's tile
  * row) cleared before the description is set ($C2:FA49) [2 bytes] */
 #define RAM_MENU_DESCRIPTION_LINE 0x7E0DC5u
@@ -2782,6 +2891,12 @@
 /* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
  * reads it [2 bytes] */
 #define RAM_MENU_DESCRIPTION_TILES 0x7E0DCCu
+/* The settings screen's option whose description the screen asks for: the description window
+ * types it again where it shows another */
+#define RAM_MENU_SETTINGS_DESCRIBED_OPTION 0x7E0DCEu
+/* Which of the settings' value texts the description window is asked to show beside the
+ * option's: the option's first, plus the setting's value */
+#define RAM_MENU_SETTINGS_DESCRIPTION 0x7E0DCFu
 /* How many bytes of the description's row a new description clears ($C2:FA49) [2 bytes] */
 #define RAM_MENU_DESCRIPTION_CLEAR_BYTES 0x7E0DD0u
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
@@ -2790,6 +2905,9 @@
 /* The cursor place of a scrolling list's first row, which its frame ($C2:EA81) counts the list's
  * last place from */
 #define RAM_MENU_LIST_FIRST_PLACE 0x7E0DDBu
+/* The cursor place of a scrolling list's last row, which its frame ($C2:EA81) works out from its
+ * first and the rows it shows; the cursor is kept within it */
+#define RAM_MENU_LIST_LAST_PLACE 0x7E0DDCu
 /* The place in the party's items of the item the items screen picked up to move, $FFFF while
  * none is [2 bytes] */
 #define RAM_MENU_ITEM_PICKED 0x7E0F00u
@@ -2801,11 +2919,24 @@
 #define RAM_MENU_LIST_ITEMS 0x7E0F00u
 #define RAM_MENU_LIST_ITEMS_COUNT 98u
 #define RAM_MENU_LIST_ITEMS_STRIDE 0x01u
+/* The button assignments the settings screen shows while its cursor is on them: the player's
+ * own, with the change the cursor's row is making [9 x $1 bytes, by assignment, in
+ * button_assignments' order (and a ninth)] */
+#define RAM_MENU_SETTINGS_BUTTONS 0x7E0F00u
+#define RAM_MENU_SETTINGS_BUTTONS_COUNT 9u
+#define RAM_MENU_SETTINGS_BUTTONS_STRIDE 0x01u
 /* The techs the techs screen lists for a member and a kind, in their order, $FF after the last
  * [48 x $1 bytes, by row of the list] */
 #define RAM_MENU_TECH_LIST 0x7E0F00u
 #define RAM_MENU_TECH_LIST_COUNT 48u
 #define RAM_MENU_TECH_LIST_STRIDE 0x01u
+/* The settings screen's ten boxes, ticked or not: the on-off settings' (the sound output's
+ * ticked for stereo, its cell 0), and in the places of the gauge, the battle speed and the
+ * window design whether the cursor is choosing that setting [10 x $1 bytes, by box, in the
+ * settings' cells' order] */
+#define RAM_MENU_SETTINGS_BOXES 0x7E0F09u
+#define RAM_MENU_SETTINGS_BOXES_COUNT 10u
+#define RAM_MENU_SETTINGS_BOXES_STRIDE 0x01u
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
@@ -2861,6 +2992,52 @@
 #define RAM_MENU_EQUIP_CHOICES 0x7E0FC6u
 /* The first of the equipment screen's list's items it shows */
 #define RAM_MENU_EQUIP_LIST_TOP 0x7E0FC8u
+/* The goods the shop sells, copied from the shop's list in the ROM as it opens, 0 past the last
+ * [32 x $1 bytes, by place in the shop's list] */
+#define RAM_MENU_SHOP_GOODS 0x7E1000u
+#define RAM_MENU_SHOP_GOODS_COUNT 32u
+#define RAM_MENU_SHOP_GOODS_STRIDE 0x01u
+/* How many of each of the shop's goods the party holds, as the list shows it beside the gold
+ * ($C2:DCDA) [32 x $1 bytes, by place in the shop's list] */
+#define RAM_MENU_SHOP_GOODS_OWNED 0x7E1020u
+#define RAM_MENU_SHOP_GOODS_OWNED_COUNT 32u
+#define RAM_MENU_SHOP_GOODS_OWNED_STRIDE 0x01u
+/* The row of the shop's list of goods the cursor is on, kept from one opening of the list to the
+ * next where the settings keep the menus' cursors */
+#define RAM_MENU_SHOP_BUY_ROW 0x7E1040u
+/* The first of the shop's goods its list shows */
+#define RAM_MENU_SHOP_BUY_TOP 0x7E1041u
+/* The row of the list of what the party can sell the cursor is on, kept as menu_shop_buy_row is */
+#define RAM_MENU_SHOP_SELL_ROW 0x7E1042u
+/* The first of the party's items for sale the selling list shows */
+#define RAM_MENU_SHOP_SELL_TOP 0x7E1043u
+/* The price a row of a shop's list shows, set as the row is drawn ($C2:DD20, $C2:DF51) [2 bytes] */
+#define RAM_MENU_SHOP_ROW_PRICE 0x7E1044u
+/* What the quantity being bought or sold comes to, in gold: the price of one as the quantity
+ * window opens, and a step's quantity's worth more or less as the quantity changes [3 bytes] */
+#define RAM_MENU_SHOP_TOTAL 0x7E1044u
+/* What one of the goods in the quantity window costs (to buy), or brings (half its price,
+ * rounded up, to sell) [2 bytes] */
+#define RAM_MENU_SHOP_UNIT_PRICE 0x7E1047u
+/* How many of the party's items the selling list offers */
+#define RAM_MENU_SHOP_FOR_SALE_LISTED 0x7E1049u
+/* How many goods the shop sells */
+#define RAM_MENU_SHOP_GOODS_OFFERED 0x7E104Au
+/* The byte after the shop's goods' count, which nothing in bank C2 writes: the goods' list's
+ * frame loads the count with it as a word */
+#define RAM_MENU_SHOP_AFTER_THE_COUNTS 0x7E104Bu
+/* The party's characters along the shop's bottom window, the active members first, $FF past the
+ * last [8 x $1 bytes, by member, as the shop shows them] */
+#define RAM_MENU_SHOP_MEMBERS 0x7E104Du
+#define RAM_MENU_SHOP_MEMBERS_COUNT 8u
+#define RAM_MENU_SHOP_MEMBERS_STRIDE 0x01u
+/* How many members the shop's bottom window shows */
+#define RAM_MENU_SHOP_MEMBER_COUNT 0x7E1055u
+/* Whether each member has on the item the shop's cursor is on ($C2:8900 counts them) [7 x $1
+ * bytes, by member, as the shop shows them] */
+#define RAM_MENU_MEMBER_WEARS_ITEM 0x7E1056u
+#define RAM_MENU_MEMBER_WEARS_ITEM_COUNT 7u
+#define RAM_MENU_MEMBER_WEARS_ITEM_STRIDE 0x01u
 /* Each character's part in each double and triple tech, as the table of MP costs ($CC:253B)
  * numbers the parts: a row a character, a column each of the techs from the first double ($39)
  * on (the doubles' 45, then the triples' 15); built as the menus open ($FF:F813), and a
@@ -2956,6 +3133,12 @@
 /* The three bytes after the characters' names (the Epoch's the last, at $7E:2C4D), which the
  * menus copy as they open [3 bytes] */
 #define RAM_MENU_PAST_THE_NAMES 0x7E2C53u
+/* The menus' front layer's tilemap buffers, which the screens draw their windows into and queue
+ * for VRAM ($C2:FBCE, $C2:FBE3, $C2:FBEA) [2048 x $2 bytes, by tile: 32 a row, two maps of 32
+ * rows one after the other] */
+#define RAM_MENU_FRONT_TILEMAP 0x7E2E00u
+#define RAM_MENU_FRONT_TILEMAP_COUNT 2048u
+#define RAM_MENU_FRONT_TILEMAP_STRIDE 0x02u
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
@@ -2964,6 +3147,12 @@
 #define RAM_MENU_GATE_TILEMAP 0x7E4E00u
 #define RAM_MENU_GATE_TILEMAP_COUNT 1024u
 #define RAM_MENU_GATE_TILEMAP_STRIDE 0x02u
+/* The menus' text layer's tilemap buffer, where the description window's rows are typed and the
+ * screens draw what goes over the windows ($C2:FC1B, $C2:FC4C) [1024 x $2 bytes, by tile: 32 a
+ * row] */
+#define RAM_MENU_TEXT_TILEMAP 0x7E4E00u
+#define RAM_MENU_TEXT_TILEMAP_COUNT 1024u
+#define RAM_MENU_TEXT_TILEMAP_STRIDE 0x02u
 /* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
  * apart, and the row past the last where a slide draws the row coming in [1152 bytes] */
 #define RAM_MENU_EQUIP_LIST_ROWS 0x7E4F80u
@@ -2978,6 +3167,17 @@
 #define RAM_MENU_CARRY_ON_QUESTION 0x7E52C0u
 #define RAM_MENU_CARRY_ON_QUESTION_COUNT 256u
 #define RAM_MENU_CARRY_ON_QUESTION_STRIDE 0x01u
+/* The party's items the shop's selling list offers, in the inventory's order: those the shop
+ * takes (not a key item), 0 after the last [256 x $1 bytes, by place in the selling list] */
+#define RAM_MENU_SHOP_FOR_SALE 0x7E5600u
+#define RAM_MENU_SHOP_FOR_SALE_COUNT 256u
+#define RAM_MENU_SHOP_FOR_SALE_STRIDE 0x01u
+/* How many of each item of the selling list the party holds; the list's making writes each
+ * place's count as it goes, so the place past the last holds the inventory's last place's [256 x
+ * $1 bytes, by place in the selling list] */
+#define RAM_MENU_SHOP_FOR_SALE_COUNTS 0x7E5700u
+#define RAM_MENU_SHOP_FOR_SALE_COUNTS_COUNT 256u
+#define RAM_MENU_SHOP_FOR_SALE_COUNTS_STRIDE 0x01u
 /* The equipment screen's windows' per-line table's values, a word a band of lines: the line
  * their layer is shown from, which the slots and list windows move as they slide [12 x $2 bytes,
  * by band of lines] */
@@ -3018,6 +3218,11 @@
 #define RAM_MENU_TECH_TARGET_LINES 0x7E5DE0u
 #define RAM_MENU_TECH_TARGET_LINES_COUNT 12u
 #define RAM_MENU_TECH_TARGET_LINES_STRIDE 0x02u
+/* What the shop asks for each of its goods: the item's price by the shops' scale, rounded up, at
+ * least 1 (set for the shop's goods as it opens) [242 x $2 bytes, by item] */
+#define RAM_MENU_SHOP_PRICES 0x7E6E00u
+#define RAM_MENU_SHOP_PRICES_COUNT 242u
+#define RAM_MENU_SHOP_PRICES_STRIDE 0x02u
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes] */
 #define RAM_MENU_WINDOW_LINE_TABLE 0x7E6E00u
@@ -3144,6 +3349,12 @@
 #define RAM_MENU_BLOCK_MOVE_DEST 0x7E9696u
 /* Bytes the vblank block move copies [2 bytes] */
 #define RAM_MENU_BLOCK_MOVE_SIZE 0x7E9698u
+/* The settings screen's giving a button to an assignment ($C2:C23A): the assignments it may take
+ * the button from, copied here from the ROM's list for the assignment, the second pass's over
+ * the first's; nothing reads them after [8 x $1 bytes, by byte] */
+#define RAM_MENU_SETTINGS_CONFLICTS 0x7E969Au
+#define RAM_MENU_SETTINGS_CONFLICTS_COUNT 8u
+#define RAM_MENU_SETTINGS_CONFLICTS_STRIDE 0x01u
 /* The load screen's per-line table, staged for the vblank's block move to $7E:9300, where its
  * per-line channel reads it: a band of lines each, and where the band's values are [5 x $3
  * bytes, by band: the band above the rows, then a save slot's row each] */
@@ -3202,6 +3413,12 @@
 /* The summary of the save slot being drawn, copied from $7E:7600: three $10-byte party member
  * records first [64 bytes] */
 #define RAM_MENU_SAVE_SUMMARY 0x7E9890u
+/* The settings screen's button rows as a row is changed ($C2:C5C7): the player's own
+ * assignments, the cursor's row's made $FF, which each row is compared with to show its change;
+ * nothing reads them after [8 x $1 bytes, by assignment] */
+#define RAM_MENU_SETTINGS_BUTTONS_BEFORE 0x7E9890u
+#define RAM_MENU_SETTINGS_BUTTONS_BEFORE_COUNT 8u
+#define RAM_MENU_SETTINGS_BUTTONS_BEFORE_STRIDE 0x01u
 /* The sorting of the party's items ($C2:AB62): each item the party holds, by the item's own
  * number (0 for those it doesn't), cleared as an item is placed [256 x $1 bytes, by item] */
 #define RAM_MENU_SORT_HELD 0x7E9890u
@@ -3220,6 +3437,11 @@
  * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
  * Nothing reads it */
 #define RAM_MENU_TECH_COST_BESIDE 0x7E9891u
+/* The shop's cursor places as it opens, kept while the equipping from the shop puts its own
+ * there and put back after [72 x $1 bytes, by byte of menu_cursor_places] */
+#define RAM_MENU_CURSOR_PLACES_KEPT 0x7E9990u
+#define RAM_MENU_CURSOR_PLACES_KEPT_COUNT 72u
+#define RAM_MENU_CURSOR_PLACES_KEPT_STRIDE 0x01u
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes] */
 #define RAM_MENU_ITEM_POWER_LABEL 0x7E9990u
@@ -3249,6 +3471,13 @@
 /* The six bytes after the record: on the load screen the summary's, for a party member the
  * character's name record (character_names) [6 bytes] */
 #define RAM_MENU_STATUS_RECORD_TAIL 0x7E9AE0u
+/* A member's figures as the menus work them out from its record and what it has on ($C2:916E),
+ * which the screens compare with the record's own; the shop's panel puts the record's attack and
+ * defence here first, for a member who can't use the item [11 x $1 bytes, by figure: the stats
+ * at their places in the figures' table, then attack (7) and defence (8)] */
+#define RAM_MENU_FIGURES_WORKED_OUT 0x7E9B1Cu
+#define RAM_MENU_FIGURES_WORKED_OUT_COUNT 11u
+#define RAM_MENU_FIGURES_WORKED_OUT_STRIDE 0x01u
 /* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
  * a list has nothing to name [32 x $1 bytes, by tile] */
 #define RAM_MENU_BLANK_STRING 0x7E9B76u
@@ -3335,6 +3564,9 @@
 /* A story byte the menus' scenes clear through the object scripts' routine at $C6:E2AF; what
  * else reads it isn't known yet */
 #define RAM_MENU_SCENE_FLAG 0x7F0062u
+/* The story's word that scales the shops' prices, in 256ths of an item's price ($100 the price
+ * itself): a word of the event memory [2 bytes] */
+#define RAM_SHOP_PRICE_SCALE 0x7F01CDu
 /* Set while a map screen keeps the song that is playing: the object scripts' command that starts
  * a screen's song ($C2:18F1) leaves it be */
 #define RAM_MENU_SONG_KEPT 0x7F01EDu

@@ -18,6 +18,9 @@ void menu_list_party(GameState *g);
 /* The player's settings unpacked into a cell each. */
 void menu_unpack_settings(GameState *g);
 
+/* The settings screen's cells packed back into the player's settings. */
+void menu_pack_settings(GameState *g);
+
 void menu_open(Snes *s);
 void menu_list_party_entry(Snes *s);
 void menu_unpack_settings_entry(Snes *s);

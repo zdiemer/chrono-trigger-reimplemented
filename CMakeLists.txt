@@ -170,6 +170,10 @@ add_library(ct_game STATIC
   game/menu/saves.c
   game/menu/script.c
   game/menu/script_bridge.c
+  game/menu/settings_screen.c
+  game/menu/settings_screen_bridge.c
+  game/menu/shop.c
+  game/menu/shop_bridge.c
   game/menu/sound.c
   game/menu/sprites.c
   game/menu/tech_screen.c

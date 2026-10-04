@@ -10,7 +10,7 @@
 #include "port/native.h"
 #include "snes/system.h"
 
-#define FUZZ_MAX_AREAS 32
+#define FUZZ_MAX_AREAS 48
 #define FUZZ_MAX_VALUES 32
 #define FUZZ_MAX_STOP_CALLS 8
 

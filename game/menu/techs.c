@@ -295,12 +295,12 @@ void menu_note_rock_techs(GameState *g)
 
 /* How many members the screens let the player choose among: the active
  * ones, or all of them once the story lets the party be switched and
- * nothing holds it as it is (the story's note at $BA, bit 0). */
-enum { PARTY_SWITCHED_FROM = 0x49, PARTY_HELD_NOTE = 0xBA, PARTY_HELD = 0x01 };
+ * nothing holds it as it is (story_party_rules). */
+enum { PARTY_SWITCHED_FROM = 0x49, PARTY_HELD = 0x01 };
 
 static uint8_t members_reachable(const GameState *g)
 {
-    bool switchable = event_memory_byte(g, 0) >= PARTY_SWITCHED_FROM && !(event_memory_byte(g, PARTY_HELD_NOTE) & PARTY_HELD);
+    bool switchable = event_memory_byte(g, 0) >= PARTY_SWITCHED_FROM && !(story_party_rules(g) & PARTY_HELD);
     return switchable ? menu_member_count(g) : menu_active_members(g);
 }
 

@@ -3436,81 +3436,104 @@ flags it doesn't read differ there (docs/TODO.md).
 **Timing.** The new entries and those whose work moved were calibrated from
 the shadow runs: the effects' loop, the scheduler, the draw.
 
-### Phase 3, menus: the save code and the rest of bank `$FF` (`$FF:F548`-`$FF:FBE7`)
+### Phase 3, menus: the settings screen and the shop (`$C2:BF35`-`$C2:C620`, `$C2:D52B`-`$C2:E012`)
 
-The whole of bank `$FF`'s code but one routine nothing reaches: 1.6 KiB in 11
-entries. `$FF` went from 0.1 KiB ported (95% left, 1 entry) to 1.5 KiB (10%
-left, 12 entries); what is left is `$FF:FF3E`-`$FFF4`, a menu record's routine
-behind a return that the analysis finds no caller of (docs/TODO.md).
+The seventh chunk of bank `$C2` (history file, "Phase 3, menus: the save code
+and the rest of bank `$FF`", for the one before). `python3 tools/burndown.py`
+for `$C2`: 30.9 KiB ported and 48% left with 326 entries before, 33.9 KiB and
+43% left with 358 after: about 3 KiB of new code in 32 entries, all of it to
+the bar (`tools/portstyle.py`: 0.00-0.04 machine operations a line in the
+four new files; `tools/portsmell.py`: no finding).
 
-**What it is.** Five things that share a bank:
+**What it is.** Two screens, each a logic file on the game's state and a
+bridge holding the entries:
 
-- `menu/saves.c`, the save code: a slot's check (`$FF:F9C4`), the save
-  (`$FF:F9FB`), the load (`$FF:FAA3`) and a New Game+'s load (`$FF:FAED`),
-  with the sum (`$FF:FBE7`) and the slots' places (`$FF:FBD3`) inline. A saved
-  game is the eight runs of work RAM the ROM's table lists, one after the other
-  from the slot's start; the save marks the slot and keeps a sum beside the
-  mark. Save memory is reached through the save service only (a guard's look
-  through the new `sv_peek8`), and the layout and the sum are kept to the bit,
-  so a cartridge's saves load and the original loads ours. The menus'
-  opening, the load screen and the save point call it as C now; the New
-  Game+'s load is a bridge, since equipping each character's starting
-  equipment and filling HP and MP are the menus' services (`$C2:8004`), still
-  the original's.
-- `menu/techs.c`, the party's techs as the menus open (`$FF:F813`): how many
-  members the screens offer, the healing techs marked, the techs listed of
-  every group whose characters are all present, each character's next single
-  tech, each character's part in each double and triple tech, and which of
-  the rocks' triple techs the party could do (`$FF:F958`, which the services
-  also run). The parts table is now declared where it starts (`$7E:1640`, a
-  row a character), not from below it.
-- `menu/digits.c`: a screen's small number tiles, two digits to a tile
-  (`$FF:F548`), and the items screen's amounts' digits (`$FF:F7D9`).
-- `menu/sprites.c`: a character's sprite colours, dimmed or not (`$FF:F628`).
-- `menu/gate_screen.c`: the End of Time's gate screen, its swirl drawn
-  (`$FF:F677`) and turned every frame (`$FF:F716`), with the screen's start
-  (`$C2:CE9D`) moved out of `epoch.c`, which it was never part of.
+- `menu/settings_screen.c`, the settings: twelve options, each a cell of the
+  settings (`OPTION_CELLS`), flipped, stepped as a meter or opening a
+  sub-step; the meters (battle and message speed, the window's design) and
+  the battle gauge's three layouts lit among dimmed tiles; the buttons'
+  assignment, where giving one assignment a button makes the assignments
+  that share it give theirs up in turn (`give_button`, twice: the one that
+  gave it up settles too); the description of the option under the cursor,
+  started as the screen's typing task; and the main menu's panel for the
+  screen, its frame, showing and putting away. `menu_pack_settings`
+  (`$C2:934F`, `menu/opening.c`) packs the cells back into the game's three
+  settings bytes as the screen closes.
+- `menu/shop.c`, the shop: the goods of the shop's number (`menu_shop_good`,
+  `$CC:2C6D`) priced by the story's scale (`shop_price_scale`, `$7F:01CD`,
+  in 256ths); the party's items for sale at half price, rounded up; the
+  panel beside a list, the item's owned and worn counts and, for each member
+  who could use it, the member cheering and the figures it would change; the
+  quantity, limited by what the gold buys or the purse has room for
+  (9,999,999 at most), the total stepping with it; and the deal, the gold
+  paid or received and the item put in or taken out.
 
-**The registers, settled first.** The check hands its answer back in A, a
-real result. The loads and the swirl leave A's high byte to the menus' exit
-and the screen's task: the wrapper derives it (the load's is clear, the
-swirl's the last band's scroll); their low bytes are declared dead. The New
-Game+'s calls to the services can't drop A's high byte (the equipping stores
-it where an item is no equipment), so the bridge leaves the original's, the
-high byte of the character's starting record's place, in the one scaffolding
-call that also leaves the multiplier and the record's place; the flags the
-services save and restore are declared dead, which liveness agrees with. The
-check runs on its caller's page, the menus' or the clock's (`$0400`, the
-power-on search), a new page kind (`save_check`).
+`menu.h` gained `menu_start_task` (`$C2:8249`), `cursor.h`
+`menu_cursor_kept_among` (the guards' question whether a kept cursor stands
+on one of a screen's places), and `items.h` the inventory's place reads the
+shop's list for sale is built from.
 
-**What shadow mode and fuzzing found.** Over the 26 movies every call matches and
-none is refused: the check 152 calls on both its pages, the techs' noting 37
-and the rocks' 590, the swirl's turn 270, the load 19, the amounts' digits 6,
-the save 2. The New Game+'s load and a character's colours are reached by no
-movie, and the number tiles' and the swirl's drawing once each, interrupted;
-for those fuzzing is the check. Fuzzed from the `menus` state, seed 1, 2,000
-states each (500 for the swirl's drawing, which unpacks its graphics every
-time), 0 mismatching. The first runs found what shadow mode couldn't: the
-number tiles' start tiles shifted a bit short (their only call is
-interrupted); the New Game+'s count of a character's equipment stored a word
-wide; and three inputs the game always gives the same, now the guards': the
-menus' zero word, which the save code and the tiles start their tables from,
-the high byte of the word the triple techs' parts are counted in, and a
-palette change count with room. The rewritten callers against main's
-(`tools/fuzz_compare.py --before`, seed 1): the load screen's steps, the slots'
-reading, the items' tables and the gate screen's start match the same states
-as before; the techs screen's member steps now refuse the fuzzed states whose
-list holds techs of another kind than the one it shows (no game state), which
-read the parts table from below its start.
+**The registers, settled first.** Every entry takes the menus' page with
+M 8-bit and X 16-bit and leaves nothing but memory, except two whose callers
+read A's high byte after them (`menu_take_setting_option`,
+`menu_show_shop_item_panel`: `DC_AL`, which `tools/dontcare_check.py`
+asked for), and the list's frame (`$C2:DD40`), entered with X in either
+width and Y the frame's place. The ticks of sound inside the steps save P
+with `PHP` and the driver reads A's high byte, so the flags and A at each
+tick are left as the original has them (`leave_*`, scaffolding). The call
+into the shop's equipping of what was bought (`$C2:E017`) declares V and C
+live: its handler is picked by a step number, and liveness can't see past
+it.
 
-**Timing.** Each new entry is calibrated on its own calls (`menu_load_game`
-25141, `menu_note_party_techs` 17807, `menu_note_rock_techs` 11016, the rest
-between 3400 and 6780), and the callers that now run them as C carry their
-time tagged as theirs (`TIMED_AS`): `menu_open` went from 15116 to 4737 and
-`menu_read_save_slots` from 3477 to 27720 as the work moved between them. The
-runs copied to and from save memory are charged at the block move's rate, as
-the original moves them with it. No exception was needed; the two entries no
-movie reaches keep the default.
+**Narrowed, not threaded.** The shop's equipping (its steps 6-8) is still
+the original's: no movie takes it, and porting it would have carried the
+equipment screen's member card into the shop. The shop's steps call it as a
+call-out and stop where the original goes to it; TODO.md lists the routines.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches and none is refused. `menus-field-menu` reaches the settings screen
+(the options' step 1,878 calls, the options taken 1,876, the meters 720)
+and `menus-shop-inn` the shop (the goods' step 500 calls, the items for sale
+277, the tabs 229, the quantities 220 and 100, the panel 28). The buttons'
+assignment and three of the on-off options are reached by no movie, and the
+shop's opening, set-up and list openings are compared only within the
+opening's call, which a frame's wait interrupts: fuzzing is their check. Fuzzed seed 1,
+20,000 states each from three shop states (its tabs, buying, selling) and a
+settings state, and each step again compared at the first call of the sound
+driver (`--stop-at-call C70004`, where the flags each tick saves are on the
+stack): 0 mismatching of 47 routines and variants. The settings' steps skip
+about half the states, whose description is half typed (an odd count; the
+guard turns them away). What the fuzzing found, before the guards and
+leaves settled: the meters' tick leaves N set from the original's
+`LDX #$FBE3`; the cursor's row is compared with the list's start the other
+way round; the price's scaling rounds the product's middle byte up where
+its low byte is set; the division's spare byte goes into the quotient's top;
+the panel's member and place stand in cells at each call out; and every
+reading of the buttons leaves the overflow of the original's `BIT`.
+
+**Scaffolding the effects check asked about.** Six writes first made as
+scaffolding are the game's and are plain now: the drawing origin the meters
+and the shop's rows leave, the eighth assignment's stray swaps (the game's
+settings change), the item's power read past the figures' table, the
+member the panel works on (`menu_screen_argument`, which the member screens
+read), the quantity before a step and the settings' spare cell. The 59 reads
+left in `tools/effects_baseline.txt` are cells another screen or the sprite
+object mode sets before it reads them, each with its reason.
+
+**Timing.** The 26 entries the library reaches are calibrated on their own
+calls (from 1 for the two whose work is all in parts timed as their own
+routines, to 10902 for the goods list's opening); the six it doesn't keep
+the default, and `menu_play_cursor_sound`, whose calls the new steps add,
+moved from 3015 to 3062. Nine entries are exceptions: a step that mostly
+reads the buttons and now and then redraws a row, a description or a list
+(the options, the meters, the shop's tabs and quantity), and the settings
+panel, a frame's drawing on two calls, 6% short; all write RAM only, and
+the vblank check finds none of their writes moved.
+
+**The map.** The story's two bytes three ports spelled by offset are named
+once: `story_party_rules` (`$7F:00BA`, the party held as it is) and
+`story_game_notes` (`$7F:01CF`, a carried-over game), read by `items.c`,
+`techs.c`, `saves.c` and `battle/from_field.c`.
 
 ### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 

@@ -34,7 +34,7 @@ enum { SETUP_ALTERNATE_ARRANGEMENT = 0x02, SETUP_SPRITES_HIGHER = 0x10, SPRITES_
 /* What the story says about the fight: in its rules byte, that some members
  * sit it out (each character's byte from the second says whether it does),
  * and that the fight isn't one of those its flags (battle_fight_flags) mark. */
-enum { STORY_BATTLE_RULES = 0xBA, STORY_SITTING_OUT = 0xB4 };
+enum { STORY_SITTING_OUT = 0xB4 };
 enum { RULES_SOME_SIT_OUT = 0x01, RULES_UNMARKED_FIGHT = 0x02, CHARACTER_BITS = 0x07 };
 
 /* The battle's memory: its direct page from its work cells on, and its
@@ -69,7 +69,7 @@ static void take_in_the_fight(GameState *g)
 {
     clear_battle_memory(g);
     set_battle_sprite_attributes(g, (uint8_t)((battle_setup_flags(g) & SETUP_SPRITES_HIGHER) | SPRITES_PRIORITY));
-    uint8_t rules = event_memory_byte(g, STORY_BATTLE_RULES);
+    uint8_t rules = story_party_rules(g);
     uint8_t some_sit_out = rules & RULES_SOME_SIT_OUT;
     ORIGINAL_EFFECT(set_battle_entry_mark(g, ENTRY_MARK));
     ORIGINAL_EFFECT(set_battle_some_sit_out(g, some_sit_out));

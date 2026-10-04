@@ -445,6 +445,22 @@ void menu_play_queued_sound(Snes *s)
     m_rts(s);
 }
 
+bool menu_cursor_kept_among(const GameState *g, uint8_t first, uint8_t count, bool left_free)
+{
+    enum { OUT_OF_THE_MENU = 0x80 };
+    uint8_t at = menu_cursor_index(g);
+    if (at < first || at >= first + count || at >= MENU_CURSOR_PLACES_COUNT)
+        return false;
+    uint8_t ways[] = { menu_cursor_places_up(g, at), menu_cursor_places_down(g, at), menu_cursor_places_right(g, at),
+                       menu_cursor_places_left(g, at) };
+    for (unsigned way = 0; way < (left_free ? 3u : 4u); way++) {
+        uint8_t to = (uint8_t)(ways[way] & ~OUT_OF_THE_MENU);
+        if (to < first || to >= first + count)
+            return false;
+    }
+    return true;
+}
+
 /* ---- The guards -------------------------------------------------------------------------------- */
 
 /* The cursor stands on one of its menu's places. */

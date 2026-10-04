@@ -171,6 +171,12 @@ void set_play_time_overflowed(GameState *g, uint8_t v);
 uint8_t play_time_stopped(const GameState *g);
 void set_play_time_stopped(GameState *g, uint8_t v);
 
+enum { OWN_BUTTON_ASSIGNMENTS_COUNT = 9 };   /* by assignment, in button_assignments' order (and a ninth, which nothing reads) */
+/* The player's own button assignments, which the settings screen makes and which the menus take
+ * as button_assignments where the settings say to use them */
+uint8_t own_button_assignments(const GameState *g, unsigned i);
+void set_own_button_assignments(GameState *g, unsigned i, uint8_t v);
+
 /* The save slot the game goes on in: the one the player chose to load, or the first empty one a
  * new game will be saved to */
 uint8_t save_slot_chosen(const GameState *g);
@@ -569,6 +575,11 @@ enum { BUTTON_ASSIGNMENTS_COUNT = 8 };   /* by assignment: which of the game's b
 uint8_t button_assignments(const GameState *g, unsigned i);
 void set_button_assignments(GameState *g, unsigned i, uint8_t v);
 
+/* The byte after button_assignments, which the settings screen copies with them (the ninth of
+ * own_button_assignments, or of the defaults); nothing reads it */
+uint8_t button_assignment_spare(const GameState *g);
+void set_button_assignment_spare(GameState *g, uint8_t v);
+
 /* How many times the game has been saved: each save counts one, and the count stops at $FFFF (a
  * slot's summary shows at most 999) */
 uint16_t times_saved(const GameState *g);
@@ -619,6 +630,17 @@ void set_save_slot_summaries_members_byte(GameState *g, unsigned slot, unsigned 
 enum { SAVE_SLOT_SUMMARIES_HEADER_BYTES = 16 };
 uint8_t save_slot_summaries_header_byte(const GameState *g, unsigned slot, unsigned at);
 void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+
+/* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
+ * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
+ * a fight not among those the battle's flags mark */
+uint8_t story_party_rules(const GameState *g);
+void set_story_party_rules(GameState *g, uint8_t v);
+
+/* The story's notes on the game itself (event memory $1CF): $10 where it carries on from a
+ * finished one, bit 7 where the place items are held back */
+uint8_t story_game_notes(const GameState *g);
+void set_story_game_notes(GameState *g, uint8_t v);
 
 /* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
  * whose record has its top bit set waits for this */
@@ -2732,6 +2754,127 @@ void set_menu_scratch_tech_list_place_high(GameState *g, uint8_t v);
 /* The same: the rows it has still to draw, 0 once done */
 uint16_t menu_scratch_tech_rows_left(const GameState *g);
 void set_menu_scratch_tech_rows_left(GameState *g, uint16_t v);
+/* The shop's quantity ($C2:FCB2, $C2:FCE1): the gold (or the room under the cap) divided, its
+ * low word */
+uint16_t menu_scratch_shop_divided(const GameState *g);
+void set_menu_scratch_shop_divided(GameState *g, uint16_t v);
+/* The same: its high byte */
+uint8_t menu_scratch_shop_divided_high(const GameState *g);
+void set_menu_scratch_shop_divided_high(GameState *g, uint8_t v);
+/* The same: the price it is divided by */
+uint16_t menu_scratch_shop_divisor(const GameState *g);
+void set_menu_scratch_shop_divisor(GameState *g, uint16_t v);
+/* The shop's multiplications ($C2:FD58, $C2:FD68): the first operand, a price or a quantity's
+ * step */
+uint16_t menu_scratch_shop_multiplier(const GameState *g);
+void set_menu_scratch_shop_multiplier(GameState *g, uint16_t v);
+/* The same: how many bytes of the second operand it takes */
+uint16_t menu_scratch_shop_multiplicand_bytes(const GameState *g);
+void set_menu_scratch_shop_multiplicand_bytes(GameState *g, uint16_t v);
+/* The same: the second operand's low word, the scale or the price (negative to take it off) */
+uint16_t menu_scratch_shop_multiplicand(const GameState *g);
+void set_menu_scratch_shop_multiplicand(GameState *g, uint16_t v);
+/* The same: the price's high byte (the negative's sign), as a word with the byte after it */
+uint16_t menu_scratch_shop_multiplicand_high(const GameState *g);
+void set_menu_scratch_shop_multiplicand_high(GameState *g, uint16_t v);
+/* The shop's members' rows ($C2:E058): the row coloured last */
+uint16_t menu_scratch_shop_member_row(const GameState *g);
+void set_menu_scratch_shop_member_row(GameState *g, uint16_t v);
+/* The same: the tiles across a row (low byte) and the colour (high byte) */
+uint16_t menu_scratch_shop_colouring(const GameState *g);
+void set_menu_scratch_shop_colouring(GameState *g, uint16_t v);
+/* The shop's members' colouring ($C2:E072): the colour, kept while the chosen member's row takes
+ * none */
+uint8_t menu_scratch_shop_colour_kept(const GameState *g);
+void set_menu_scratch_shop_colour_kept(GameState *g, uint8_t v);
+/* The shop's dimming of the members it can't equip ($C2:E017): the member it got to, the count's */
+uint16_t menu_scratch_shop_reachable_left(const GameState *g);
+void set_menu_scratch_shop_reachable_left(GameState *g, uint16_t v);
+/* The shop's members' figures ($C2:DE21): the figure the member has now, which the one with the
+ * item is compared with */
+uint8_t menu_scratch_shop_figure_before(const GameState *g);
+void set_menu_scratch_shop_figure_before(GameState *g, uint8_t v);
+/* The same: the figure with the item */
+uint8_t menu_scratch_shop_figure_with(const GameState *g);
+void set_menu_scratch_shop_figure_with(GameState *g, uint8_t v);
+/* A shop's list's frame ($C2:DD40): the rows it shows */
+uint8_t menu_scratch_shop_rows_shown(const GameState *g);
+void set_menu_scratch_shop_rows_shown(GameState *g, uint8_t v);
+/* The shop's quantity's step ($C2:DA3D-$C2:DA83): how many it adds or takes */
+uint8_t menu_scratch_shop_step(const GameState *g);
+void set_menu_scratch_shop_step(GameState *g, uint8_t v);
+/* A shop's list's slide ($C2:D82B): its count less two, the last place a row slides in from */
+uint8_t menu_scratch_shop_last_place(const GameState *g);
+void set_menu_scratch_shop_last_place(GameState *g, uint8_t v);
+/* The worn items' count ($C2:8900): the slot's place in the record for the item's category */
+uint8_t menu_scratch_shop_slot_doubled(const GameState *g);
+void set_menu_scratch_shop_slot_doubled(GameState *g, uint8_t v);
+/* The same: cleared above it */
+uint8_t menu_scratch_shop_slot_high(const GameState *g);
+void set_menu_scratch_shop_slot_high(GameState *g, uint8_t v);
+/* The same: a byte of the game's state it copies here and nothing reads */
+uint8_t menu_scratch_shop_spare_count(const GameState *g);
+void set_menu_scratch_shop_spare_count(GameState *g, uint8_t v);
+/* The shop's members ($C2:DBE8): twice the last reachable member's place */
+uint8_t menu_scratch_shop_last_reachable(const GameState *g);
+void set_menu_scratch_shop_last_reachable(GameState *g, uint8_t v);
+/* The shop's characters standing again ($C2:D605): the characters left to stand, $FF once done */
+uint8_t menu_scratch_shop_characters_left(const GameState *g);
+void set_menu_scratch_shop_characters_left(GameState *g, uint8_t v);
+/* The shop's offer to buy ($C2:D598): how many of the item the party has and has on, a byte */
+uint8_t menu_scratch_shop_held(const GameState *g);
+void set_menu_scratch_shop_held(GameState *g, uint8_t v);
+/* The menus' stop of tasks ($C2:8255): the tasks' bits, shifted out to 0 once done */
+uint8_t menu_scratch_tasks_to_stop(const GameState *g);
+void set_menu_scratch_tasks_to_stop(GameState *g, uint8_t v);
+/* A shop's list's rows moved after a slide ($C2:D995): where the next tile row would be copied
+ * from, a tile row past the last */
+uint16_t menu_scratch_shop_rows_from(const GameState *g);
+void set_menu_scratch_shop_rows_from(GameState *g, uint16_t v);
+/* The same: where it would be copied to */
+uint16_t menu_scratch_shop_rows_to(const GameState *g);
+void set_menu_scratch_shop_rows_to(GameState *g, uint16_t v);
+/* The same: the tile rows left to copy, 0 once done */
+uint16_t menu_scratch_shop_rows_left(const GameState *g);
+void set_menu_scratch_shop_rows_left(GameState *g, uint16_t v);
+/* The shop's members' sprites ($C2:DC1E): how many it placed */
+uint16_t menu_scratch_shop_members_placed(const GameState *g);
+void set_menu_scratch_shop_members_placed(GameState *g, uint16_t v);
+/* The settings screen's boxes ($C2:C3E4): the boxes it has still to draw, counted down past the
+ * first to $FFFF */
+uint16_t menu_scratch_settings_boxes_left(const GameState *g);
+void set_menu_scratch_settings_boxes_left(GameState *g, uint16_t v);
+/* The settings screen's meters ($C2:C456): the setting the last meter shows, a word wide, the
+ * window design's with the cell after it */
+uint16_t menu_scratch_settings_meter_cells(const GameState *g);
+void set_menu_scratch_settings_meter_cells(GameState *g, uint16_t v);
+/* The settings screen's battle gauge ($C2:C495): the chosen layout's two bytes a tile into the
+ * row of choices, halfway to its place */
+uint16_t menu_scratch_settings_gauge_offset(const GameState *g);
+void set_menu_scratch_settings_gauge_offset(GameState *g, uint16_t v);
+/* The settings screen's button rows ($C2:C57A): how many it drew, 6 */
+uint16_t menu_scratch_settings_rows_drawn(const GameState *g);
+void set_menu_scratch_settings_rows_drawn(GameState *g, uint16_t v);
+/* The settings screen's button rows as they are changed ($C2:C5C7): the rows it has still to
+ * draw, counted down past the first to $FFFF */
+uint16_t menu_scratch_settings_rows_left(const GameState *g);
+void set_menu_scratch_settings_rows_left(GameState *g, uint16_t v);
+/* The settings screen's giving a button to an assignment ($C2:C23A): the last place in the list
+ * of assignments it looks through for the button, of the second pass */
+uint16_t menu_scratch_settings_conflicts_last(const GameState *g);
+void set_menu_scratch_settings_conflicts_last(GameState *g, uint16_t v);
+/* The settings screen's button rows as they are changed ($C2:C5C7): the first row's button, the
+ * last it looked at */
+uint8_t menu_scratch_settings_row_button(const GameState *g);
+void set_menu_scratch_settings_row_button(GameState *g, uint8_t v);
+/* The same: the first row's mark between its button before and after, $FFFF where they are the
+ * same */
+uint16_t menu_scratch_settings_row_mark(const GameState *g);
+void set_menu_scratch_settings_row_mark(GameState *g, uint16_t v);
+/* The settings packed back into the player's settings ($C2:934F): the second byte's bits but the
+ * window design */
+uint8_t menu_scratch_settings_packed(const GameState *g);
+void set_menu_scratch_settings_packed(GameState *g, uint8_t v);
 /* The techs screen's note of the pointed tech's members ($C2:BBD6): the group's other members'
  * bits, shifted out from the top, 0 once done */
 uint8_t menu_scratch_tech_partner_bits(const GameState *g);
@@ -2921,6 +3064,11 @@ void set_menu_tech_parts_column(GameState *g, uint32_t v);
 uint8_t menu_opening_records_loaded(const GameState *g);
 void set_menu_opening_records_loaded(GameState *g, uint8_t v);
 
+/* The shop's routines' working word, each its own: the row of a list being drawn, left past the
+ * last; the goods priced; the record's place the panel puts an item in */
+uint16_t menu_shop_work(const GameState *g);
+void set_menu_shop_work(GameState *g, uint16_t v);
+
 /* The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the
  * rows' per-line table each frame, moving by menu_scroll_step */
 uint16_t menu_slide_line(const GameState *g);
@@ -2986,6 +3134,20 @@ void set_menu_slide_copy(GameState *g, uint16_t v);
  * copied back from) */
 uint16_t menu_tech_slide_copy(const GameState *g);
 void set_menu_tech_slide_copy(GameState *g, uint16_t v);
+
+/* The shop's division of the gold by a price ($C2:FD1D): its three bytes of quotient, under the
+ * byte the division shifts the dividend's spare bits into */
+uint32_t menu_shop_quotient(const GameState *g);
+void set_menu_shop_quotient(GameState *g, uint32_t v);
+
+/* The same division's remainder */
+uint32_t menu_shop_remainder(const GameState *g);
+void set_menu_shop_remainder(GameState *g, uint32_t v);
+
+/* The shop's multiplications ($C2:FD58, $C2:FD68): a price by the shop's markup, a quantity's
+ * step by the price */
+uint32_t menu_shop_product(const GameState *g);
+void set_menu_shop_product(GameState *g, uint32_t v);
 
 /* A word the menus set to 0 as they open and read wherever they want a zero: an index's first
  * value, a table's start (the number drawer's powers of two), a value ORed in */
@@ -3092,6 +3254,10 @@ void set_menu_member_waiting(GameState *g, uint8_t v);
 uint8_t menu_save_slot_shown(const GameState *g);
 void set_menu_save_slot_shown(GameState *g, uint8_t v);
 
+/* The shop's cursor among the members, kept while the cursor is on the buying and selling tabs */
+uint8_t menu_shop_member_cursor(const GameState *g);
+void set_menu_shop_member_cursor(GameState *g, uint8_t v);
+
 /* The byte after the save slot shown, which the slots' reading clears with it and then reads
  * with it, the slot a word wide */
 uint8_t menu_after_slot_shown(const GameState *g);
@@ -3115,6 +3281,19 @@ void set_menu_text_attribute(GameState *g, uint8_t v);
 uint8_t menu_save_slot_next(const GameState *g);
 void set_menu_save_slot_next(GameState *g, uint8_t v);
 
+/* The settings screen's option the cursor was on when the last frame's input was taken, which
+ * tells a push right on the controls from one that brought the cursor there */
+uint8_t menu_settings_option_before(const GameState *g);
+void set_menu_settings_option_before(GameState *g, uint8_t v);
+
+/* The shop's cursor on its list, put aside while the quantity window has it */
+uint8_t menu_shop_list_cursor(const GameState *g);
+void set_menu_shop_list_cursor(GameState *g, uint8_t v);
+
+/* The shop's cursor on the buying and selling tabs, kept while the cursor is on the members */
+uint8_t menu_shop_tab_cursor(const GameState *g);
+void set_menu_shop_tab_cursor(GameState *g, uint8_t v);
+
 /* Where the cursor was when this frame's input was read: the menus play the cursor's sound where
  * it has moved since */
 uint8_t menu_cursor_frame_start(const GameState *g);
@@ -3125,6 +3304,11 @@ void set_menu_cursor_frame_start(GameState *g, uint8_t v);
 uint8_t menu_member_pointed(const GameState *g);
 void set_menu_member_pointed(GameState *g, uint8_t v);
 
+/* The place in a shop's list whose item the panel of counts and members' figures shows, $FF for
+ * none: the panel is drawn again for another */
+uint8_t menu_shop_place_shown(const GameState *g);
+void set_menu_shop_place_shown(GameState *g, uint8_t v);
+
 /* menu_tech_list_shown as the frame found it, which the techs screen compares with to tick the
  * cursor's sound when the member or the kind changes */
 uint8_t menu_tech_list_shown_before(const GameState *g);
@@ -3134,6 +3318,11 @@ void set_menu_tech_list_shown_before(GameState *g, uint8_t v);
  * $FF has it drawn again */
 uint8_t menu_equip_shown(const GameState *g);
 void set_menu_equip_shown(GameState *g, uint8_t v);
+
+/* The byte after menu_shop_place_shown, which the quantity window's closing clears with it as a
+ * word; nothing in the shop reads it */
+uint8_t menu_shop_place_shown_past(const GameState *g);
+void set_menu_shop_place_shown_past(GameState *g, uint8_t v);
 
 /* Which list the techs screen's list was built for: the member (its place of menu_members) times
  * 16 plus menu_tech_category; $FF has it built again */
@@ -3392,6 +3581,11 @@ void set_menu_item_list_row(GameState *g, uint8_t v);
  * opening to the next */
 uint8_t menu_item_list_top(const GameState *g);
 void set_menu_item_list_top(GameState *g, uint8_t v);
+
+/* The settings screen's option the cursor is on (0-11), kept from one opening of the screen to
+ * the next: the speeds' two meters are options 10 and 11 */
+uint8_t menu_settings_cursor(const GameState *g);
+void set_menu_settings_cursor(GameState *g, uint8_t v);
 
 /* The kind of techs the techs screen lists: 0 a member's own, 1 the double techs, 2 the triple
  * techs; kept from one opening to the next */
@@ -3684,6 +3878,10 @@ enum { MENU_MEMBER_PLACES_COUNT = 9 };   /* by member, as the menus list them */
 uint8_t menu_member_places(const GameState *g, unsigned member);
 void set_menu_member_places(GameState *g, unsigned member, uint8_t v);
 
+/* The characters who can use the item last asked about ($C2:93A8), a bit each */
+uint8_t menu_item_users_noted(const GameState *g);
+void set_menu_item_users_noted(GameState *g, uint8_t v);
+
 /* Bit 7 puts the records' frame tiles half a block ($100 bytes) further into their buffer;
  * nothing in bank $C2 writes it */
 uint8_t menu_record_buffer_half(const GameState *g);
@@ -3736,6 +3934,11 @@ enum { MENU_STORY_ITEMS_COUNT = 2 };   /* by which */
  * ($0D7C) and bit 1, inverted ($0D7E), of the story byte at $7F:00BA */
 uint16_t menu_story_items(const GameState *g, unsigned i);
 void set_menu_story_items(GameState *g, unsigned i, uint16_t v);
+
+/* How many of the shop's members have on the item the cursor is on, which the shop shows as
+ * equipped */
+uint8_t menu_item_worn_count(const GameState *g);
+void set_menu_item_worn_count(GameState *g, uint8_t v);
 
 /* Nonzero makes every frame's buttons read as going back: the menus' per-frame input sets it (to
  * the buttons held) once the going-back assignment's buttons and Start are held together, and
@@ -3818,6 +4021,9 @@ void set_menu_scroll_bar_thumb_word(GameState *g, uint16_t v);
 /* The thumb's move a row of the list */
 uint16_t menu_scroll_bar_step(const GameState *g);
 void set_menu_scroll_bar_step(GameState *g, uint16_t v);
+/* Which half of their blink the bar's arrows are in, which the bar's task flips */
+uint8_t menu_scroll_bar_blink(const GameState *g);
+void set_menu_scroll_bar_blink(GameState *g, uint8_t v);
 /* Nonzero while the bar is hidden */
 uint8_t menu_scroll_bar_hidden(const GameState *g);
 void set_menu_scroll_bar_hidden(GameState *g, uint8_t v);
@@ -3841,6 +4047,16 @@ void set_menu_held_cursor_top(GameState *g, uint8_t v);
 uint16_t menu_held_cursor_shift(const GameState *g);
 void set_menu_held_cursor_shift(GameState *g, uint16_t v);
 
+/* The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at
+ * menu_held_cursor's place */
+uint16_t menu_held_cursor_sprite(const GameState *g);
+void set_menu_held_cursor_sprite(GameState *g, uint16_t v);
+
+/* How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn
+ * ($FC a blink every four frames, $F8 every eight) */
+uint16_t menu_held_cursor_blink(const GameState *g);
+void set_menu_held_cursor_blink(GameState *g, uint16_t v);
+
 /* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
 uint8_t menu_slide_rows(const GameState *g);
 void set_menu_slide_rows(GameState *g, uint8_t v);
@@ -3853,6 +4069,11 @@ void set_menu_scroll_moved(GameState *g, uint16_t v);
 /* How many lines the member list's rows move a frame as the slots window slides (0, then 6) */
 uint16_t menu_window_rows_step(const GameState *g);
 void set_menu_window_rows_step(GameState *g, uint16_t v);
+
+/* Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory;
+ * the shop's panel leaves the item's category here as it starts */
+uint16_t menu_figures_slot(const GameState *g);
+void set_menu_figures_slot(GameState *g, uint16_t v);
 
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
@@ -3889,6 +4110,11 @@ void set_menu_heal_power(GameState *g, uint8_t v);
 uint8_t menu_heal_factor(const GameState *g);
 void set_menu_heal_factor(GameState *g, uint8_t v);
 
+/* How far along the description's row its task has typed, in bytes of the row's tilemap: a new
+ * value for the same option clears the row from there */
+uint16_t menu_description_typed(const GameState *g);
+void set_menu_description_typed(GameState *g, uint16_t v);
+
 /* Where in the tilemap buffers the description window's text starts, its row (the address's tile
  * row) cleared before the description is set ($C2:FA49) */
 uint16_t menu_description_line(const GameState *g);
@@ -3913,6 +4139,16 @@ void set_menu_description_pace(GameState *g, uint8_t v);
 uint16_t menu_description_tiles(const GameState *g);
 void set_menu_description_tiles(GameState *g, uint16_t v);
 
+/* The settings screen's option whose description the screen asks for: the description window
+ * types it again where it shows another */
+uint8_t menu_settings_described_option(const GameState *g);
+void set_menu_settings_described_option(GameState *g, uint8_t v);
+
+/* Which of the settings' value texts the description window is asked to show beside the
+ * option's: the option's first, plus the setting's value */
+uint8_t menu_settings_description(const GameState *g);
+void set_menu_settings_description(GameState *g, uint8_t v);
+
 /* How many bytes of the description's row a new description clears ($C2:FA49) */
 uint16_t menu_description_clear_bytes(const GameState *g);
 void set_menu_description_clear_bytes(GameState *g, uint16_t v);
@@ -3926,6 +4162,11 @@ void set_menu_paging_top(GameState *g, uint8_t v);
  * last place from */
 uint8_t menu_list_first_place(const GameState *g);
 void set_menu_list_first_place(GameState *g, uint8_t v);
+
+/* The cursor place of a scrolling list's last row, which its frame ($C2:EA81) works out from its
+ * first and the rows it shows; the cursor is kept within it */
+uint8_t menu_list_last_place(const GameState *g);
+void set_menu_list_last_place(GameState *g, uint8_t v);
 
 /* The place in the party's items of the item the items screen picked up to move, $FFFF while
  * none is */
@@ -3942,10 +4183,31 @@ enum { MENU_LIST_ITEMS_COUNT = 98 };   /* by row of the list */
 uint8_t menu_list_items(const GameState *g, unsigned row);
 void set_menu_list_items(GameState *g, unsigned row, uint8_t v);
 
+enum { MENU_SETTINGS_BUTTONS_COUNT = 9 };   /* by assignment, in button_assignments' order (and a ninth) */
+/* The button assignments the settings screen shows while its cursor is on them: the player's
+ * own, with the change the cursor's row is making */
+uint8_t menu_settings_buttons(const GameState *g, unsigned i);
+void set_menu_settings_buttons(GameState *g, unsigned i, uint8_t v);
+/* The button assignments the settings screen shows while its cursor is on them: the player's
+ * own, with the change the cursor's row is making Unchecked, for marked scaffolding only: the
+ * eighth assignment's list of the assignments it shares buttons with runs past the ROM's table
+ * into its code, whose bytes the settings screen's giving a button takes as places past the
+ * assignments (game/menu/settings_screen.c, leave_stray_swaps; reached only when confirm or
+ * cancel takes L) */
+uint8_t menu_settings_buttons_unchecked(const GameState *g, unsigned i);
+void set_menu_settings_buttons_unchecked(GameState *g, unsigned i, uint8_t v);
+
 enum { MENU_TECH_LIST_COUNT = 48 };   /* by row of the list */
 /* The techs the techs screen lists for a member and a kind, in their order, $FF after the last */
 uint8_t menu_tech_list(const GameState *g, unsigned row);
 void set_menu_tech_list(GameState *g, unsigned row, uint8_t v);
+
+enum { MENU_SETTINGS_BOXES_COUNT = 10 };   /* by box, in the settings' cells' order */
+/* The settings screen's ten boxes, ticked or not: the on-off settings' (the sound output's
+ * ticked for stereo, its cell 0), and in the places of the gauge, the battle speed and the
+ * window design whether the cursor is choosing that setting */
+uint8_t menu_settings_boxes(const GameState *g, unsigned i);
+void set_menu_settings_boxes(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
@@ -4030,6 +4292,76 @@ void set_menu_equip_choices(GameState *g, uint8_t v);
 /* The first of the equipment screen's list's items it shows */
 uint8_t menu_equip_list_top(const GameState *g);
 void set_menu_equip_list_top(GameState *g, uint8_t v);
+
+enum { MENU_SHOP_GOODS_COUNT = 32 };   /* by place in the shop's list */
+/* The goods the shop sells, copied from the shop's list in the ROM as it opens, 0 past the last */
+uint8_t menu_shop_goods(const GameState *g, unsigned i);
+void set_menu_shop_goods(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_SHOP_GOODS_OWNED_COUNT = 32 };   /* by place in the shop's list */
+/* How many of each of the shop's goods the party holds, as the list shows it beside the gold
+ * ($C2:DCDA) */
+uint8_t menu_shop_goods_owned(const GameState *g, unsigned i);
+void set_menu_shop_goods_owned(GameState *g, unsigned i, uint8_t v);
+
+/* The row of the shop's list of goods the cursor is on, kept from one opening of the list to the
+ * next where the settings keep the menus' cursors */
+uint8_t menu_shop_buy_row(const GameState *g);
+void set_menu_shop_buy_row(GameState *g, uint8_t v);
+
+/* The first of the shop's goods its list shows */
+uint8_t menu_shop_buy_top(const GameState *g);
+void set_menu_shop_buy_top(GameState *g, uint8_t v);
+
+/* The row of the list of what the party can sell the cursor is on, kept as menu_shop_buy_row is */
+uint8_t menu_shop_sell_row(const GameState *g);
+void set_menu_shop_sell_row(GameState *g, uint8_t v);
+
+/* The first of the party's items for sale the selling list shows */
+uint8_t menu_shop_sell_top(const GameState *g);
+void set_menu_shop_sell_top(GameState *g, uint8_t v);
+
+/* The price a row of a shop's list shows, set as the row is drawn ($C2:DD20, $C2:DF51) */
+uint16_t menu_shop_row_price(const GameState *g);
+void set_menu_shop_row_price(GameState *g, uint16_t v);
+
+/* What the quantity being bought or sold comes to, in gold: the price of one as the quantity
+ * window opens, and a step's quantity's worth more or less as the quantity changes */
+uint32_t menu_shop_total(const GameState *g);
+void set_menu_shop_total(GameState *g, uint32_t v);
+
+/* What one of the goods in the quantity window costs (to buy), or brings (half its price,
+ * rounded up, to sell) */
+uint16_t menu_shop_unit_price(const GameState *g);
+void set_menu_shop_unit_price(GameState *g, uint16_t v);
+
+/* How many of the party's items the selling list offers */
+uint8_t menu_shop_for_sale_listed(const GameState *g);
+void set_menu_shop_for_sale_listed(GameState *g, uint8_t v);
+
+/* How many goods the shop sells */
+uint8_t menu_shop_goods_offered(const GameState *g);
+void set_menu_shop_goods_offered(GameState *g, uint8_t v);
+
+/* The byte after the shop's goods' count, which nothing in bank C2 writes: the goods' list's
+ * frame loads the count with it as a word */
+uint8_t menu_shop_after_the_counts(const GameState *g);
+void set_menu_shop_after_the_counts(GameState *g, uint8_t v);
+
+enum { MENU_SHOP_MEMBERS_COUNT = 8 };   /* by member, as the shop shows them */
+/* The party's characters along the shop's bottom window, the active members first, $FF past the
+ * last */
+uint8_t menu_shop_members(const GameState *g, unsigned member);
+void set_menu_shop_members(GameState *g, unsigned member, uint8_t v);
+
+/* How many members the shop's bottom window shows */
+uint8_t menu_shop_member_count(const GameState *g);
+void set_menu_shop_member_count(GameState *g, uint8_t v);
+
+enum { MENU_MEMBER_WEARS_ITEM_COUNT = 7 };   /* by member, as the shop shows them */
+/* Whether each member has on the item the shop's cursor is on ($C2:8900 counts them) */
+uint8_t menu_member_wears_item(const GameState *g, unsigned member);
+void set_menu_member_wears_item(GameState *g, unsigned member, uint8_t v);
 
 /* Each character's part in each double and triple tech, as the table of MP costs ($CC:253B)
  * numbers the parts: a row a character, a column each of the techs from the first double ($39)
@@ -4167,6 +4499,12 @@ void set_menu_inventory_counts_past_the_items(GameState *g, unsigned i, uint8_t 
 uint32_t menu_past_the_names(const GameState *g);
 void set_menu_past_the_names(GameState *g, uint32_t v);
 
+enum { MENU_FRONT_TILEMAP_COUNT = 2048 };   /* by tile: 32 a row, two maps of 32 rows one after the other */
+/* The menus' front layer's tilemap buffers, which the screens draw their windows into and queue
+ * for VRAM ($C2:FBCE, $C2:FBE3, $C2:FBEA) */
+uint16_t menu_front_tilemap(const GameState *g, unsigned row);
+void set_menu_front_tilemap(GameState *g, unsigned row, uint16_t v);
+
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes, one at a time] */
 enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
@@ -4178,6 +4516,12 @@ enum { MENU_GATE_TILEMAP_COUNT = 1024 };   /* by tile (32 to a row) */
  * twice across, repeated down the map */
 uint16_t menu_gate_tilemap(const GameState *g, unsigned i);
 void set_menu_gate_tilemap(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_TEXT_TILEMAP_COUNT = 1024 };   /* by tile: 32 a row */
+/* The menus' text layer's tilemap buffer, where the description window's rows are typed and the
+ * screens draw what goes over the windows ($C2:FC1B, $C2:FC4C) */
+uint16_t menu_text_tilemap(const GameState *g, unsigned row);
+void set_menu_text_tilemap(GameState *g, unsigned row, uint16_t v);
 
 /* The equipment screen's list of what fits in BG3's tilemap buffer: its rows, two tile rows
  * apart, and the row past the last where a slide draws the row coming in [1152 bytes, one at a
@@ -4197,6 +4541,18 @@ enum { MENU_CARRY_ON_QUESTION_COUNT = 256 };   /* by byte */
  * New Game+ carries on from is laid out over the header, and cleared when the player goes back */
 uint8_t menu_carry_on_question(const GameState *g, unsigned i);
 void set_menu_carry_on_question(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_SHOP_FOR_SALE_COUNT = 256 };   /* by place in the selling list */
+/* The party's items the shop's selling list offers, in the inventory's order: those the shop
+ * takes (not a key item), 0 after the last */
+uint8_t menu_shop_for_sale(const GameState *g, unsigned i);
+void set_menu_shop_for_sale(GameState *g, unsigned i, uint8_t v);
+
+enum { MENU_SHOP_FOR_SALE_COUNTS_COUNT = 256 };   /* by place in the selling list */
+/* How many of each item of the selling list the party holds; the list's making writes each
+ * place's count as it goes, so the place past the last holds the inventory's last place's */
+uint8_t menu_shop_for_sale_counts(const GameState *g, unsigned i);
+void set_menu_shop_for_sale_counts(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_WINDOW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* The equipment screen's windows' per-line table's values, a word a band of lines: the line
@@ -4240,6 +4596,12 @@ enum { MENU_TECH_TARGET_LINES_COUNT = 12 };   /* by band of lines */
  * the front layer from line $C7 ($20C7) a band while it is open, 0 once it closes */
 uint16_t menu_tech_target_lines(const GameState *g, unsigned i);
 void set_menu_tech_target_lines(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_SHOP_PRICES_COUNT = 242 };   /* by item */
+/* What the shop asks for each of its goods: the item's price by the shops' scale, rounded up, at
+ * least 1 (set for the shop's goods as it opens) */
+uint16_t menu_shop_prices(const GameState *g, unsigned i);
+void set_menu_shop_prices(GameState *g, unsigned i, uint16_t v);
 
 /* The indirect per-line table slot 1 reads for a window screen's effect: 96 lines of one value,
  * then sixteen groups of three lines from the table at $FF:FC57, and an end [149 bytes, one at a
@@ -4422,6 +4784,13 @@ void set_menu_block_move_dest(GameState *g, uint16_t v);
 uint16_t menu_block_move_size(const GameState *g);
 void set_menu_block_move_size(GameState *g, uint16_t v);
 
+enum { MENU_SETTINGS_CONFLICTS_COUNT = 8 };   /* by byte */
+/* The settings screen's giving a button to an assignment ($C2:C23A): the assignments it may take
+ * the button from, copied here from the ROM's list for the assignment, the second pass's over
+ * the first's; nothing reads them after */
+uint8_t menu_settings_conflicts(const GameState *g, unsigned i);
+void set_menu_settings_conflicts(GameState *g, unsigned i, uint8_t v);
+
 enum { MENU_SLOT_ROW_TABLE_COUNT = 5 };   /* by band: the band above the rows, then a save slot's row each */
 /* How many lines the band lasts */
 uint8_t menu_slot_row_table_lines(const GameState *g, unsigned i);
@@ -4502,6 +4871,13 @@ enum { MENU_SAVE_SUMMARY_BYTES = 64 };
 uint8_t menu_save_summary_byte(const GameState *g, unsigned at);
 void set_menu_save_summary_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_SETTINGS_BUTTONS_BEFORE_COUNT = 8 };   /* by assignment */
+/* The settings screen's button rows as a row is changed ($C2:C5C7): the player's own
+ * assignments, the cursor's row's made $FF, which each row is compared with to show its change;
+ * nothing reads them after */
+uint8_t menu_settings_buttons_before(const GameState *g, unsigned i);
+void set_menu_settings_buttons_before(GameState *g, unsigned i, uint8_t v);
+
 enum { MENU_SORT_HELD_COUNT = 256 };   /* by item */
 /* The sorting of the party's items ($C2:AB62): each item the party holds, by the item's own
  * number (0 for those it doesn't), cleared as an item is placed */
@@ -4525,6 +4901,12 @@ void set_menu_tech_member_groups(GameState *g, unsigned member, uint8_t v);
  * Nothing reads it */
 uint8_t menu_tech_cost_beside(const GameState *g);
 void set_menu_tech_cost_beside(GameState *g, uint8_t v);
+
+enum { MENU_CURSOR_PLACES_KEPT_COUNT = 72 };   /* by byte of menu_cursor_places */
+/* The shop's cursor places as it opens, kept while the equipping from the shop puts its own
+ * there and put back after */
+uint8_t menu_cursor_places_kept(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept(GameState *g, unsigned i, uint8_t v);
 
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes, one at a time] */
@@ -4578,6 +4960,13 @@ void set_menu_status_record_last(GameState *g, uint16_t v);
 enum { MENU_STATUS_RECORD_TAIL_BYTES = 6 };
 uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at);
 void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_FIGURES_WORKED_OUT_COUNT = 11 };   /* by figure: the stats at their places in the figures' table, then attack (7) and defence (8) */
+/* A member's figures as the menus work them out from its record and what it has on ($C2:916E),
+ * which the screens compare with the record's own; the shop's panel puts the record's attack and
+ * defence here first, for a member who can't use the item */
+uint8_t menu_figures_worked_out(const GameState *g, unsigned i);
+void set_menu_figures_worked_out(GameState *g, unsigned i, uint8_t v);
 
 enum { MENU_BLANK_STRING_COUNT = 32 };   /* by tile */
 /* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
@@ -4696,6 +5085,11 @@ void set_menu_map_name_table(GameState *g, unsigned i, uint8_t v);
  * else reads it isn't known yet */
 uint8_t menu_scene_flag(const GameState *g);
 void set_menu_scene_flag(GameState *g, uint8_t v);
+
+/* The story's word that scales the shops' prices, in 256ths of an item's price ($100 the price
+ * itself): a word of the event memory */
+uint16_t shop_price_scale(const GameState *g);
+void set_shop_price_scale(GameState *g, uint16_t v);
 
 /* Set while a map screen keeps the song that is playing: the object scripts' command that starts
  * a screen's song ($C2:18F1) leaves it be */

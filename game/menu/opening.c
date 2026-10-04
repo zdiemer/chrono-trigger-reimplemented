@@ -74,7 +74,7 @@ static uint8_t bit_set(uint8_t byte, uint8_t bit) { return (byte & bit) != 0; }
 /* The player's settings, a cell each for the settings screen. */
 void menu_unpack_settings(GameState *g)
 {
-    ORIGINAL_EFFECT(set_menu_setting_spare(g, 0));   /* cleared with the settings' cells */
+    set_menu_setting_spare(g, 0);   /* cleared with the settings' cells */
     uint8_t first = game_settings(g, 0), second = game_settings(g, 1), third = game_settings(g, 2);
     set_menu_setting_descriptions(g, bit_set(first, DESCRIPTIONS_BIT));
     set_menu_setting_active_time(g, bit_set(first, ACTIVE_TIME_BIT));
@@ -87,6 +87,26 @@ void menu_unpack_settings(GameState *g)
     set_menu_setting_keep_battle_lists(g, bit_set(second, KEEP_BATTLE_LISTS_BIT));
     set_menu_setting_keep_battle_command(g, bit_set(second, KEEP_BATTLE_COMMAND_BIT));
     set_menu_setting_battle_gauge(g, (uint8_t)(third & BATTLE_GAUGE_BITS));
+}
+
+// $C2:934F
+/* The settings screen's cells packed back into the player's settings as it
+ * leaves for the main menu: an on-off setting is its cell's lowest bit. */
+static uint8_t bit_if(uint8_t cell, uint8_t bit) { return (cell & 1) ? bit : 0; }
+
+void menu_pack_settings(GameState *g)
+{
+    set_game_settings(g, 0, (uint8_t)(bit_if(menu_setting_sound_output(g), SOUND_OUTPUT_BIT) | bit_if(menu_setting_own_buttons(g), OWN_BUTTONS_BIT)
+                                      | bit_if(menu_setting_keep_menu_cursors(g), KEEP_MENU_CURSORS_BIT)
+                                      | bit_if(menu_setting_active_time(g), ACTIVE_TIME_BIT)
+                                      | bit_if(menu_setting_descriptions(g), DESCRIPTIONS_BIT)
+                                      | (menu_setting_battle_speed(g) & BATTLE_SPEED_BITS)));
+    uint8_t second = (uint8_t)(bit_if(menu_setting_keep_battle_command(g), KEEP_BATTLE_COMMAND_BIT)
+                               | bit_if(menu_setting_keep_battle_lists(g), KEEP_BATTLE_LISTS_BIT)
+                               | (menu_setting_message_speed(g) & MESSAGE_SPEED_BITS) << MESSAGE_SPEED_SHIFT);
+    set_game_settings(g, 1, (uint8_t)(second | (menu_window_design(g) & WINDOW_DESIGN_BITS)));
+    set_game_settings(g, 2, (uint8_t)(menu_setting_battle_gauge(g) & BATTLE_GAUGE_BITS));
+    ORIGINAL_EFFECT(set_menu_scratch_settings_packed(g, second));
 }
 
 /* ---- The opening ------------------------------------------------------------------------------- */

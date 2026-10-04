@@ -802,6 +802,115 @@ static inline uint8_t menu_amount_digit_byte(const GameState *g, unsigned digit,
     return rom_read8(g, 0xFF9390u + digit * MENU_DIGIT_BYTES + at);
 }
 
+/* ---- The settings screen ------------------------------------------------------------------ */
+
+/* Each option's place among the settings' cells ($C2:C4F9: the sound output
+ * first, as the menus unpack them, the byte after the last for the speeds,
+ * which have no value of their own), and the first of its value texts among
+ * the descriptions ($C2:C505): the text shown is the first plus the value. */
+enum { MENU_SETTINGS_OPTIONS = 12 };
+static inline uint8_t menu_settings_option_cell(const GameState *g, uint8_t option) { return rom_read8(g, 0xC2C4F9u + option); }
+static inline uint8_t menu_settings_first_value_text(const GameState *g, uint8_t option)
+{
+    return rom_read8(g, 0xC2C505u + option);
+}
+
+/* Each option's icon at the description window's left ($FF:D562): the tile
+ * word of its top left, the four tiles on from it. The descriptions' strings
+ * ($FF:D3FE), an option's first, then the values' texts. */
+enum { MENU_SETTINGS_DESCRIPTIONS = 0xFFD3FE };
+static inline uint16_t menu_settings_option_icon(const GameState *g, uint8_t option)
+{
+    return rom_read16(g, 0xFFD562u + 2u * option);
+}
+
+/* Each of the ten boxes' place in the front layer's tilemap ($C2:C41B, a
+ * tile's index), and whether it is ticked for a cell of 0 ($C2:C42F: the
+ * sound output's, whose cell holds mono). */
+enum { MENU_SETTINGS_BOXES = 10 };
+static inline uint16_t menu_settings_box_place(const GameState *g, uint8_t box) { return rom_read16(g, 0xC2C41Bu + 2u * box); }
+static inline bool menu_settings_box_ticked_for_off(const GameState *g, uint8_t box)
+{
+    return (rom_read8(g, 0xC2C42Fu + box) & 1u) != 0;
+}
+
+/* The buttons an assignment can be given, in the order left and right step
+ * through them ($C2:C207, seven and an end); the game's own assignments
+ * ($C2:FCA9, nine); and the glyph of a button ($FF:D554, the buttons from
+ * the top bit down and a ninth for none). */
+enum { MENU_SETTINGS_BUTTON_CHOICES = 7, MENU_SETTINGS_NO_MORE_CHOICES = 0xFF };
+static inline uint8_t menu_settings_button_choice(const GameState *g, unsigned i) { return rom_read8(g, 0xC2C207u + i); }
+static inline uint8_t menu_default_button_assignment(const GameState *g, unsigned i) { return rom_read8(g, 0xC2FCA9u + i); }
+static inline uint16_t menu_button_glyph(const GameState *g, unsigned bit_from_the_top)
+{
+    return rom_read16(g, 0xFFD554u + 2u * bit_from_the_top);
+}
+
+/* Each assignment's row on the settings screen ($C2:C5A7: its tile index in
+ * the front layer's tilemap, from $7E:2E00's start), and the assignment a
+ * row gives a button to ($C2:C2BD). */
+enum { MENU_SETTINGS_BUTTON_ROWS = 6 };
+static inline uint16_t menu_settings_button_row_place(const GameState *g, unsigned row)
+{
+    return rom_read16(g, 0xC2C5A7u + 2u * row);
+}
+static inline uint8_t menu_settings_row_assignment(const GameState *g, unsigned row) { return rom_read8(g, 0xC2C2BDu + row); }
+
+/* The assignments a button given to one is taken from ($C2:C2C5, the place
+ * of a list in bank C2 for each of the eight: a count, then the
+ * assignments). The table has seven lists, so the eighth's place is the
+ * first list's first two bytes, and its list lies in bank C2's code. */
+static inline uint16_t menu_settings_conflicts_place(const GameState *g, unsigned assignment)
+{
+    return rom_read16(g, 0xC2C2C5u + 2u * assignment);
+}
+static inline uint8_t menu_settings_conflicts_count(const GameState *g, unsigned assignment)
+{
+    return rom_read8(g, 0xC20000u | menu_settings_conflicts_place(g, assignment));
+}
+static inline uint8_t menu_settings_conflict(const GameState *g, unsigned assignment, unsigned i)
+{
+    return rom_read8(g, 0xC20000u | (uint16_t)(menu_settings_conflicts_place(g, assignment) + 1u + i));
+}
+
+/* The panel's colours ($FF:CBE4, 24). */
+enum { MENU_ROM_SETTINGS_PANEL_COLOURS = 0xCBE4 };
+
+/* ---- The shops ---------------------------------------------------------------------------- */
+
+/* Each shop's goods ($CC:2C6D, the place of a shop's list in bank $CC; a
+ * list is the items it sells, 0 after the last, thirty-two bytes read). */
+enum { MENU_SHOP_LIST_BYTES = 32 };
+static inline uint8_t menu_shop_good(const GameState *g, uint8_t shop, unsigned i)
+{
+    uint16_t list = rom_read16(g, 0xCC2C6Du + 2u * shop);
+    return rom_read8(g, 0xCC0000u | (uint16_t)(list + i));
+}
+
+/* Where each member's sprite stands along the shop's bottom window
+ * ($C2:DC74, an X each). */
+static inline uint8_t menu_shop_member_x(const GameState *g, unsigned member) { return rom_read8(g, 0xC2DC74u + member); }
+
+/* The place in a character's record of the slot an item of each category
+ * goes in ($C2:DE1D; the ROM has a copy at $C2:894F): the weapon, the
+ * armour, the helmet, the accessory. The other items' category reads the
+ * byte past the table, the first of the routine after it in both copies, 8,
+ * a byte of the record that is no slot. */
+static inline uint8_t menu_category_slot_place(const GameState *g, uint8_t category) { return rom_read8(g, 0xC2DE1Du + category); }
+
+/* The seven figures the shop's members' window compares, by their places in
+ * a character's record ($C2:E1DC). */
+enum { MENU_COMPARED_FIGURES = 7 };
+static inline uint8_t menu_compared_figure_place(const GameState *g, unsigned figure) { return rom_read8(g, 0xC2E1DCu + figure); }
+
+/* The quantity window's list of what an item of each category shows beside
+ * its count ($C2:DFC5, a window list in bank $FF each). */
+static inline uint16_t menu_shop_quantity_windows(const GameState *g, uint8_t category) { return rom_read16(g, 0xC2DFC5u + 2u * category); }
+
+/* The upload of the member sprites' graphics the shop unpacks ($C2:DB98, a
+ * record of menu_upload_record's). */
+enum { MENU_UPLOAD_SHOP_SPRITES = 0xDB98 };
+
 /* ---- The End of Time's gate screen -------------------------------------------------------- */
 
 /* The swirl's graphics, packed ($FF:E8DC); the first tile of each of its six

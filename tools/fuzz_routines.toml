@@ -15524,3 +15524,414 @@ state = "battle"
 args = ["--long"]
 why = "from anywhere: the setup sets its own page and data bank (a state whose random field state keeps the map layers' scroll or the music's start past the budget is skipped)"
 iterations = 2000
+
+# ---- menu: the settings screen (game/menu/settings_screen.c) ------------------------------------
+
+[state.settings]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 7500
+
+[[routine]]
+name = "menu_open_settings"
+at = "C2:BF3D"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=00", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the screen's opening step"
+
+[[routine]]
+name = "menu_open_settings"
+at = "C2:BF3D"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=00", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the screen's opening step; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_choose_setting"
+at = "C2:BF45"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option"
+
+[[routine]]
+name = "menu_choose_setting"
+at = "C2:BF45"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_take_setting_option"
+at = "C2:BFD4"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option"
+
+[[routine]]
+name = "menu_take_setting_option"
+at = "C2:BFD4"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_set_sound_output"
+at = "C2:C017"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_set_sound_output"
+at = "C2:C017"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_flip_keep_menu_cursors"
+at = "C2:C038"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_flip_keep_battle_command"
+at = "C2:C04A"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_flip_keep_battle_lists"
+at = "C2:C05C"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_flip_active_time"
+at = "C2:C06E"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_choose_battle_gauge"
+at = "C2:C080"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_flip_descriptions"
+at = "C2:C095"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_choose_speeds"
+at = "C2:C0A7"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_step_battle_speed"
+at = "C2:C0B9"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_step_battle_speed"
+at = "C2:C0B9"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_step_message_speed"
+at = "C2:C0D1"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_step_message_speed"
+at = "C2:C0D1"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_take_controls"
+at = "C2:C0E9"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_step_window_design"
+at = "C2:C12C"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over"
+
+[[routine]]
+name = "menu_step_window_design"
+at = "C2:C12C"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the cursor on an option, as the options' step hands it over; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_step_setting_meter"
+at = "C2:C164"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--range", "X=0D8B-0D90", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; X any of the cells, the guard taking the three meters' (a speed's or the design's)"
+
+[[routine]]
+name = "menu_step_setting_meter"
+at = "C2:C164"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-0B", "--range", "X=0D8B-0D90", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; X any of the cells, the guard taking the three meters' (a speed's or the design's); the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_choose_gauge_layout"
+at = "C2:BF9F"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=03", "--fill", "7E0054-7E0054=0C-0E", "--fill", "7E0F0D-7E0F0D=01", "--fill", "7E0417-7E0417=07", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the gauge's step, the cursor on a layout"
+
+[[routine]]
+name = "menu_choose_gauge_layout"
+at = "C2:BF9F"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=03", "--fill", "7E0054-7E0054=0C-0E", "--fill", "7E0F0D-7E0F0D=01", "--fill", "7E0417-7E0417=07", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the gauge's step, the cursor on a layout; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_choose_buttons"
+at = "C2:BF6D"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=0F-14", "--fill", "7E0417-7E0417=08", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the buttons' step, the cursor on a row"
+
+[[routine]]
+name = "menu_choose_buttons"
+at = "C2:BF6D"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=0F-14", "--fill", "7E0417-7E0417=08", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; the buttons' step, the cursor on a row; the sounds' wait over, compared at the first call of the sound driver, where the flags each tick saves are on the stack"
+
+[[routine]]
+name = "menu_show_settings_panel"
+at = "C2:C2FF"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random; compared up to its wait for the next frame"
+
+[[routine]]
+name = "menu_put_settings_panel_away"
+at = "C2:C397"
+subsystem = "menu"
+state = "settings"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0D86-7E0D89=00-01", "--fill", "7E0D8A-7E0D8A=00-02", "--fill", "7E0D8B-7E0D8C=00-07", "--fill", "7E0D8D-7E0D8F=00-01", "--fill", "7E0D90-7E0D90=00-07", "--fill", "7E0D91-7E0D91=00", "--fill", "7E0F09-7E0F0C=00-01", "--fill", "7E0F0D-7E0F0D=00", "--fill", "7E0F0E-7E0F12=00-01", "--fill", "7E0417-7E0417=00-0B", "--fill", "7E007F-7E007F=00-0B", "--fill", "7E0F00-7E0F08=80,40,20,10,08,04,02,01", "--fill", "7E0408-7E0410=80,40,20,10,08,04,02,01", "--fill", "7E2993-7E299B=80,40,20,10,08,04,02,01", "--fill", "7E0DC1-7E0DC1=00-3F", "--fill", "7E0DC2-7E0DC2=00", "--fill", "7E0D77-7E0D77=00-0C", "--fill", "7E0D78-7E0D78=00-FF", "--fill", "7E00C0-7E00C0=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the settings each within its values, the boxes as the screen keeps them (the gauge's clear but where its step runs), the buttons each one button, the description's typing anywhere along its row, its task idle or running; the buttons and pushes random"
+
+# ---- menu: a shop (game/menu/shop.c) ------------------------------------------------------------
+
+[state.shop_tabs]
+movie = "oracle/movies/saves/menus-shop-inn.ctm"
+frames = 6650
+
+[state.shop_buying]
+movie = "oracle/movies/saves/menus-shop-inn.ctm"
+frames = 6800
+
+[state.shop_selling]
+movie = "oracle/movies/saves/menus-shop-inn.ctm"
+frames = 7700
+
+[[routine]]
+name = "menu_open_shop"
+at = "C2:D52B"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=00", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the shop's opening step, its goods the state's shop's; compared up to the fade in's start"
+
+[[routine]]
+name = "menu_set_up_shop"
+at = "C2:DACA"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; as the opening runs it"
+
+[[routine]]
+name = "menu_show_shop_item_panel"
+at = "C2:DD7C"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E04C9-7E04C9=00-F1", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; any item on the cursor; compared up to the figures the original works out"
+
+[[routine]]
+name = "menu_choose_shop_tab"
+at = "C2:D546"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=08-09", "--fill", "7E0081-7E0081=08-09", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the cursor on a tab"
+
+[[routine]]
+name = "menu_choose_shop_tab"
+at = "C2:D546"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=08-09", "--fill", "7E0081-7E0081=08-09", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the cursor on a tab; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
+
+[[routine]]
+name = "menu_open_goods_list"
+at = "C2:DC7B"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E1040-7E1040=00-07", "--fill", "7E1041-7E1041=00-02", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the list's places within the goods"
+
+[[routine]]
+name = "menu_open_for_sale_list"
+at = "C2:DE98"
+subsystem = "menu"
+state = "shop_tabs"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E1042-7E1042=00-07", "--fill", "7E1043-7E1043=00-08", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the list's places anywhere near the party's items"
+
+[[routine]]
+name = "menu_list_for_sale"
+at = "C2:DECC"
+subsystem = "menu"
+state = "shop_selling"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=03", "--fill", "7E0054-7E0054=00-07", "--fill", "7E1042-7E1042=00-07", "--fill", "7E1043-7E1043=00-08", "--fill", "7E0081-7E0081=00-07", "--fill", "7E0083-7E0083=00-0F", "--fill", "7E04CA-7E04CA=00-63", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random"
+
+[[routine]]
+name = "menu_frame_shop_list"
+at = "C2:DD40"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--range", "Y=0000-0020", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; Y any count of a list"
+
+[[routine]]
+name = "menu_choose_goods"
+at = "C2:D58B"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=00-07", "--fill", "7E1040-7E1040=00-07", "--fill", "7E1041-7E1041=00-02", "--fill", "7E0081-7E0081=00-07", "--fill", "7E0083-7E0083=00-0F", "--fill", "7E04CA-7E04CA=00-63", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the goods' step, the cursor on a row"
+
+[[routine]]
+name = "menu_choose_goods"
+at = "C2:D58B"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=02", "--fill", "7E0054-7E0054=00-07", "--fill", "7E1040-7E1040=00-07", "--fill", "7E1041-7E1041=00-02", "--fill", "7E0081-7E0081=00-07", "--fill", "7E0083-7E0083=00-0F", "--fill", "7E04CA-7E04CA=00-63", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the goods' step, the cursor on a row; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
+
+[[routine]]
+name = "menu_choose_for_sale"
+at = "C2:D645"
+subsystem = "menu"
+state = "shop_selling"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=03", "--fill", "7E0054-7E0054=00-07", "--fill", "7E1042-7E1042=00-07", "--fill", "7E1043-7E1043=00-08", "--fill", "7E0081-7E0081=00-07", "--fill", "7E0083-7E0083=00-0F", "--fill", "7E04CA-7E04CA=00-63", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the selling step, the cursor on a row"
+
+[[routine]]
+name = "menu_choose_for_sale"
+at = "C2:D645"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "shop_selling"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=03", "--fill", "7E0054-7E0054=00-07", "--fill", "7E1042-7E1042=00-07", "--fill", "7E1043-7E1043=00-08", "--fill", "7E0081-7E0081=00-07", "--fill", "7E0083-7E0083=00-0F", "--fill", "7E04CA-7E04CA=00-63", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the selling step, the cursor on a row; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
+
+[[routine]]
+name = "menu_choose_how_many_to_buy"
+at = "C2:D618"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=05", "--fill", "7E04C9-7E04C9=01-F1", "--fill", "7E0054-7E0054=0A", "--fill", "7E04CA-7E04CA=02-64", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E1044-7E1048=00-FF", "--fill", "7E007F-7E007F=00-07", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the quantity window's step, the limit, the quantity and the price anywhere"
+
+[[routine]]
+name = "menu_choose_how_many_to_buy"
+at = "C2:D618"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "shop_buying"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=05", "--fill", "7E04C9-7E04C9=01-F1", "--fill", "7E0054-7E0054=0A", "--fill", "7E04CA-7E04CA=02-64", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E1044-7E1048=00-FF", "--fill", "7E007F-7E007F=00-07", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the quantity window's step, the limit, the quantity and the price anywhere; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
+
+[[routine]]
+name = "menu_choose_how_many_to_sell"
+at = "C2:D690"
+subsystem = "menu"
+state = "shop_selling"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=04", "--fill", "7E04C9-7E04C9=01-F1", "--fill", "7E0054-7E0054=0A", "--fill", "7E04CA-7E04CA=02-64", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E1044-7E1048=00-FF", "--fill", "7E007F-7E007F=00-07", "--stop-at-call", "C2821E"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the quantity window's step, the limit, the quantity and the price anywhere"
+
+[[routine]]
+name = "menu_choose_how_many_to_sell"
+at = "C2:D690"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "shop_selling"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E6E00-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-04", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E2C53-7E2C54=00-FF", "--fill", "7E2C55-7E2C55=00-98", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7F01CD-7F01CD=00-FF", "--fill", "7F01CE-7F01CE=00-01", "--fill", "7E0068-7E0068=04", "--fill", "7E04C9-7E04C9=01-F1", "--fill", "7E0054-7E0054=0A", "--fill", "7E04CA-7E04CA=02-64", "--fill", "7E04CB-7E04CB=01-63", "--fill", "7E1044-7E1048=00-FF", "--fill", "7E007F-7E007F=00-07", "--fill", "7E0D76-7E0D76=00", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+why = "low RAM, the tilemaps, the screen's tables and the menus' item tables as the state has them; the menus' page and data bank, room in the queue; the gold anywhere up to the most (the guard refuses past it), whether the settings keep the cursors random, the shops' scale anywhere under twice the prices (the guard refuses more, which the multiplication's dropped carries would change); the buttons and pushes random; the quantity window's step, the limit, the quantity and the price anywhere; the sounds' wait over, compared at the first call of the sound driver, where the flags each sound saves are on the stack"
