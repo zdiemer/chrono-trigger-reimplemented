@@ -760,6 +760,20 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the party's services' review left** (merged with the services and
+  the healing; none rated translation): `AYLA`, the record size `0x50` and
+  `FIRST_ROCK`/`ROCKS` are defined in several files (the bridge re-decodes
+  the rock test where `party.c` has `is_a_rock`); `party_fill_mp` masks MP
+  with `& 0xFF00` (narrow the map); `MenuItemPlace.category` is a bare byte
+  beside `MenuItemCategory`; `figures.c` repeats `equipment_is_the_games`;
+  `heal_member` reads the character from the cell `menu_load_member` set
+  rather than taking it; `healing_bridge.c` tables call sites by an enum;
+  `saves_power_on` writes `save_check_slot` every pass while passing the
+  slot; `saves_start_a_new_game` writes "who has joined" as a word over
+  `battle_party_placement_tile_x` with no aliasing in the map; the service
+  table's `.wide` column is register width as data; one fuzz entry fills
+  `7E2980-7E2982` twice.
+
 - **What the settings screen's and the shop's review left** (merged with
   both; none rated translation): `shop.c` reads every item's power past the
   148-entry table, up to 108 bytes past, where the map's `unchecked` reason
