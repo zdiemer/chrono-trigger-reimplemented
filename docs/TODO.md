@@ -760,6 +760,36 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the settings screen's and the shop's review left** (merged with
+  both; none rated translation): `shop.c` reads every item's power past the
+  148-entry table, up to 108 bytes past, where the map's `unchecked` reason
+  and TODO cover only the items screen's accessory byte -- a named function
+  with a "no power" result, the reason updated; leftovers written plainly
+  into cells named for something else (`shop.c` keeps the members placed in
+  `menu_screen_argument` and the quantity in `menu_shop_place_shown`, both
+  overwritten before anything reads them, and `menu_shop_panel_done`
+  exports a loop's count) -- name the readers or write them as
+  `ORIGINAL_EFFECT`; `settings_screen.h` promises a table of option kinds
+  where the table holds only cells (the dispatch is the bridge's
+  `OPTION_HANDLERS`); `give_button` mixes rows and assignments where the
+  ROM's table at `$C2:C2BD` is the identity for 0-7 (one index type);
+  `re/ram.toml` still says nothing reads `menu_setting_spare`, which the
+  speeds option's description does; `swap_stray_places` wants a name for
+  what the player sees; `shop_bridge.c` calls registered list entries
+  directly as C, so `menu_choose_shop_tab` carries a timing exception where
+  `NATIVE_TIME_AS` would do, and six entries keep a placeholder
+  `cost_milli = 5000`; the front tilemap's `0x2E00` base is private in eight
+  files (a `menu_front_tile(column, row)`); the push directions are
+  redefined in `settings_screen.c` and `shop.c` (export from `cursor.h`);
+  bit 0 of `story_party_rules` has three names in three files;
+  `menu_shop_goods_offered_word` is a register value exported from logic;
+  boxes 4-6 are bare numbers in the settings bridge; scaffolding notes sit
+  under game branches in `shop.c`; `shop.c`'s `& 0x1FFFFFF` covers gold the
+  guard rules out; `take_at_most` reads back the limit it just wrote;
+  `items.c` keeps `item_at`/`count_at` as twins of the new exports; TODO
+  calls `$C2:8791`/`$C2:87D5` "the cursor's places" where they add items to
+  the inventory and take them away.
+
 - **What the save code's review left** (merged with bank `$FF`; none
   blocking): `SAVED_TECHS_UNLOCKED = 0x7E3` is a magic offset into a saved game (derive
   it from the run table); two identical "clear A's high byte" helpers

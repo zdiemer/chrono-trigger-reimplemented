@@ -879,6 +879,11 @@ Each of these is a finding. Every example here comes from this repo.
      split the two builds (item 71); but then the work belongs in a leaves
      helper, the overlap is named in the map, and TODO says which reader is
      still to be found or ruled out.
+121. **A sibling's time charged to the caller.** A bridge that calls another
+     port's registered entry directly as C, so that entry's time lands on the
+     caller, then answers the drift with a timing exception. Wrap the call in
+     `NATIVE_TIME_AS` with the sibling's address, so its own calibrated value
+     is charged, and drop the exception.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
