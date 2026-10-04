@@ -43,6 +43,10 @@ void menu_clear_sprites_but_cursor(GameState *g);
  * and the buttons the player assigned come out as menu_cursor_buttons. */
 void menu_read_cursor(GameState *g);
 
+/* No place of a menu: noted as where the cursor was as the frame began
+ * (menu_cursor_frame_start), the screen counts the cursor moved and ticks. */
+enum { MENU_CURSOR_MOVED_ANYWAY = 0xFF };
+
 /* What the original's reading leaves in the registers and its loop's cell,
  * noted before a read and left after it, for a caller that runs the read as
  * C (scaffolding: ORIGINAL_EFFECT). */

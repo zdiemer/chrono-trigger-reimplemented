@@ -87,11 +87,10 @@ bool menu_equip_list_is_for_another_slot(GameState *g);
 typedef enum { ITEM_POINTED_AT, ITEM_CHOSEN, ITEM_LEFT_FOR_THE_SLOTS } ItemChoice;
 ItemChoice menu_equip_choose_item(const GameState *g);
 
-/* Putting the chosen item on: what the member has on in the slot is named
- * to be given back to the party's items (one of it); then the chosen item,
- * the one the figures were drawn with, goes on, named to be taken from them.
- * A weapon changed clears the story's byte for the character. */
-void menu_equip_name_what_comes_off(GameState *g);
+/* Putting the chosen item on: what the member has on in the slot goes back
+ * to the party's items, and the chosen item, the one the figures were drawn
+ * with, goes on and is taken from them. A weapon changed clears the story's
+ * byte for the character. */
 void menu_equip_put_on_the_chosen_item(GameState *g);
 void menu_equip_forget_weapon(GameState *g);
 
@@ -106,9 +105,7 @@ void menu_equip_back_to_the_slots(GameState *g);
  * list and the rows moved over frames, unless a held push repeats fast. Its
  * rows are queued once drawn. */
 void menu_equip_queue_list_rows(GameState *g);
-void menu_equip_note_list_top_for_paging(GameState *g);
-bool menu_equip_list_paged(const GameState *g);
-void menu_equip_turn_list_page(GameState *g);
+void menu_equip_turn_list_page(GameState *g, uint8_t top);
 uint8_t menu_equip_list_row(const GameState *g);
 bool menu_equip_list_slide_brings_a_row(const GameState *g, uint8_t row);
 void menu_equip_set_up_list_slide(GameState *g);

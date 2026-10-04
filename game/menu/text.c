@@ -227,6 +227,16 @@ static void convert_number(GameState *g, uint32_t at, uint8_t bytes)
     ORIGINAL_EFFECT(leave_converted(g));
 }
 
+uint32_t menu_convert_number(GameState *g, uint32_t value, uint8_t bytes)
+{
+    if (bytes < 4)
+        value &= (1u << 8 * bytes) - 1;
+    uint32_t digits = value_converted(g, value, bytes);
+    set_menu_text_work_number(g, digits);
+    ORIGINAL_EFFECT(leave_converted(g));
+    return digits;
+}
+
 // $C2:F114
 /* Draw the number at `at` as its format says, at the pen. Returns where the
  * pen goes on. */

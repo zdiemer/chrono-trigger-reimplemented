@@ -702,11 +702,7 @@ void menu_read_slot_summary(Snes *s)
     m_rts(s);
 }
 
-/* The save code's check of a slot leaves its answer in the menus' first
- * cell, which nothing here reads again. */
 enum { NO_FOURTH_ROW_YET = 0xFF };
-
-static void leave_checked(GameState *g, SavedGameCheck check) { set_menu_scratch_slot_check(g, saves_check_answer(check)); }
 
 /* The flags before each slot's label and summary: a count's, not zero. */
 static void leave_counted(Snes *s) { menu_leave_load(s, 1); }
@@ -728,9 +724,7 @@ void menu_read_save_slots(Snes *s)
         set_menu_save_slot_shown(g, slot);
         set_menu_save_slot_in_use(g, slot, 0);
         SavedGameCheck check = SAVED_GAME_NONE;
-        TIMED_AS(g, 0xFFF9C4, check = saves_check_slot(g, pf, slot));
-        set_menu_slot_game_at(g, saves_slot_on_the_bus(g, slot));
-        ORIGINAL_EFFECT(leave_checked(g, check));
+        TIMED_AS(g, 0xFFF9C4, check = saves_check_slot_noting(g, pf, SAVE_CHECK_MENU, slot));
         bool holds_a_game = check == SAVED_GAME_HELD;
         ORIGINAL_EFFECT(leave_counted(s));
         if (holds_a_game) {

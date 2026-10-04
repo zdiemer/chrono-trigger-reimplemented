@@ -5,8 +5,9 @@
  * Each step reads the cursor, asks equipment.c what the frame's input does,
  * and carries that out: the sounds and the member's card are siblings, run
  * as the original's JSRs reach them (menu_run); the slots' and the list's
- * drawing, the party's inventory, the lists' paging and sliding and the
- * frames the screen waits for are the original's, called out to; where a
+ * drawing, the lists' sliding and the frames the screen waits for are the
+ * original's, called out to (the party's inventory, its items set aside and
+ * the lists' paging are C, menu/items.h, menu/figures.h, menu/lists.h); where a
  * step jumps on to another routine (the member list's move, the slots'
  * pointing, the list's step, back to the main menu), it stops there, and the
  * runtime runs that routine, a port or the original's.
@@ -23,6 +24,8 @@
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/figures.h"
+#include "menu/held_cursors.h"
 #include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
@@ -41,18 +44,12 @@
 /* The original's routines the steps call, by what they do. */
 enum {
     YIELD = 0xC2821E,                /* the task waits for the next frame */
-    SET_ITEMS_ASIDE = 0xC290FC,      /* the party's items set aside, where the menus keep them so ($0D7E) */
-    PUT_ITEMS_BACK = 0xC29121,       /* ... and put back */
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
     LIST_WHAT_FITS = 0xC28953,       /* the list of what fits the slot made */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
-    START_SCROLL_BAR = 0xC28B93,     /* the scroll bar's task started */
     DESCRIBE = 0xC2F2F3,             /* the description window drawn for the item in A */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
-    GIVE_BACK = 0xC28791,            /* menu_item_operand added to the party's items */
-    TAKE = 0xC287D5,                 /* ... and taken from them */
     PREVIEW_ITEM = 0xC2A5C3,         /* the list's item on the cursor put in the record, the figures with it */
-    TURN_PAGE = 0xC293BF,            /* the list's paging with the shoulder assignments */
     MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
     START_LIST_SLIDE = 0xC2EB9B,     /* a list's slide started */
     LIST_SLIDE_FRAME = 0xC2EB1F,     /* a frame of a list's slide, and the wait for the next */
@@ -112,6 +109,7 @@ static void read_cursor(Snes *s)
 static void leave_member_step_tested(Snes *s);
 static void leave_slot_step_tested(Snes *s, SlotChoice c);
 static void leave_buttons_tested(Snes *s);
+static void leave_inventory_changed(Snes *s);
 static void leave_cursor_compared(Snes *s);
 static void leave_member_pointed(Snes *s, uint8_t pointed_before);
 static void leave_slot_kept(Snes *s, uint8_t kept_before);
@@ -146,8 +144,7 @@ void menu_set_up_equipment(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!call(s, 0xC2A11D, SET_ITEMS_ASIDE))
-        return;
+    TIMED_AS(g, 0xC290FC, menu_set_items_aside(g));
     menu_equip_set_up_screen(g, m_platform(s));
     menu_set_widths(s, true, false);
     if (!call(s, 0xC2A15D, MEMBER_SCROLL_BAR))
@@ -340,12 +337,8 @@ void menu_choose_equipment_item(Snes *s)
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (c) {
     case ITEM_CHOSEN:
-        menu_equip_name_what_comes_off(g);
-        if (!call(s, 0xC29CCE, GIVE_BACK))
-            return;
         menu_equip_put_on_the_chosen_item(g);
-        if (!call(s, 0xC29CD9, TAKE))
-            return;
+        ORIGINAL_EFFECT(leave_inventory_changed(s));
         if (!play_sound(s, 0xC29CDE, PUT_ON_SOUND))
             return;
         TIMED_AS(g, 0xC29CFC, menu_equip_forget_weapon(g));
@@ -375,11 +368,10 @@ void menu_point_along_equipment_list(Snes *s)
 {
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
-    menu_equip_note_list_top_for_paging(g);
-    if (!call(s, 0xC29F0D, TURN_PAGE))
-        return;
-    if (menu_equip_list_paged(g)) {
-        menu_equip_turn_list_page(g);
+    uint8_t top = menu_equip_list_top(g), to = top;
+    TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
+    if (to != top) {
+        menu_equip_turn_list_page(g, to);
         ORIGINAL_EFFECT(leave_page_turned(s));
         TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
         ORIGINAL_EFFECT(leave_list_drawn(s));
@@ -483,8 +475,7 @@ void menu_show_panel_colours(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     menu_equip_panel_colours_back(g);
-    if (!call(s, 0xC2A110, PUT_ITEMS_BACK))
-        return;
+    TIMED_AS(g, 0xC29121, menu_put_items_back(g));
     menu_equip_panel_line_effects_back(g);
     menu_restore_p(s);
     m_rts(s);
@@ -609,8 +600,7 @@ static void make_the_list(Snes *s)
     if (!menu_call(s, 0xC2A494, FRAME_THE_LIST, READS_Y))
         return;
     menu_equip_set_list_bar(g);
-    if (!call(s, 0xC2A4A3, START_SCROLL_BAR))
-        return;
+    TIMED_AS(g, 0xC28B93, menu_start_the_scroll_bar(g));
     TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
     ORIGINAL_EFFECT(leave_list_drawn(s));
     menu_restore_p(s);
@@ -760,6 +750,10 @@ static void leave_slot_step_tested(Snes *s, SlotChoice c)
 }
 
 /* An item's step tests the buttons. */
+/* The inventory's routines run with 8-bit index registers, which leaves
+ * Y's high byte clear. */
+static void leave_inventory_changed(Snes *s) { s->cpu.y &= 0x00FF; }
+
 static void leave_buttons_tested(Snes *s)
 {
     menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(state_of(s)));

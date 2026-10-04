@@ -34,6 +34,8 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/items.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/objects.h"
@@ -1748,3 +1750,146 @@ bool menu_character_colours_are_puttable(Snes *s)
     vars_peek(false);
     return ok;
 }
+
+/* ---- The records on a screen of the party's members ------------------------------------------ */
+
+/* A screen of members shows the characters in its records, one each:
+ * record c is character c's, still, kept hidden (but animating) until the
+ * screen places it. A screen that shows other sprites empties them first. */
+enum { CHARACTER_RECORDS = 7, SCREEN_RECORDS = 8, NO_SPRITE_SHOWN = 0xFF, STILL = 0, KEPT_HIDDEN = 0x40, SHOWN = 0 };
+
+// $C2:F566
+void menu_reset_character_records(GameState *g)
+{
+    for (unsigned record = 0; record < CHARACTER_RECORDS; record++) {
+        set_menu_record_sprite(g, record, (uint8_t)record);
+        set_menu_record_animation(g, record, STILL);
+        set_menu_record_hidden(g, record, KEPT_HIDDEN);
+    }
+}
+
+// $C2:F588
+void menu_empty_the_records(GameState *g)
+{
+    for (unsigned record = 0; record < SCREEN_RECORDS; record++) {
+        set_menu_record_sprite(g, record, NO_SPRITE_SHOWN);
+        set_menu_record_animation(g, record, STILL);
+        set_menu_record_hidden(g, record, SHOWN);
+    }
+}
+
+/* The records' task animates the records and draws their sprites each
+ * frame ($C2:F657). */
+enum { RUN_THE_RECORDS = 0xF657 };
+
+// $C2:F643
+void menu_start_the_records(GameState *g)
+{
+    set_menu_record_origin_x(g, 0);
+    set_menu_record_origin_y(g, 0);
+    set_menu_record_origin_y_high(g, 0);
+    menu_start_task(g, MENU_RECORDS_TASK, RUN_THE_RECORDS);
+}
+
+/* For the original's code and shadow mode: the weapon whose colours it
+ * looked up, and the multiplier left with the record found ($50 bytes a
+ * record). */
+enum { CHARACTER_RECORD_BYTES = 0x50 };
+
+static void leave_weapon_looked_up(GameState *g, uint8_t character, uint8_t weapon)
+{
+    set_menu_weapon_looked_up(g, weapon);
+    hw_set_multiplicand(g, CHARACTER_RECORD_BYTES);
+    (void)hw_multiply_by(g, character);
+}
+
+// $C2:F5ED
+MenuWeaponColours menu_weapon_colours(GameState *g, uint8_t character)
+{
+    uint8_t weapon = character_records_record_byte(g, character, menu_category_slot_place(g, MENU_WEAPONS));
+    uint8_t set = menu_weapon_colour_set(g, weapon);
+    MenuWeaponColours c;
+    for (unsigned i = 0; i < MENU_WEAPON_COLOURS; i++)
+        c.colour[i] = menu_weapon_colour(g, set, i);
+    ORIGINAL_EFFECT(leave_weapon_looked_up(g, character, weapon));
+    return c;
+}
+
+// $C2:F5A7
+/* Every character's sprite colours in its own sprite palette: the twelve
+ * its sprites have, then its weapon's three. */
+void menu_load_character_colours(GameState *g)
+{
+    for (uint8_t character = 0; character < CHARACTER_RECORDS; character++) {
+        unsigned first = SPRITE_PALETTES + (FIRST_CHARACTER_PALETTE + character) * PALETTE_COLOURS + 1;
+        uint16_t from = menu_sprite_table_word(g, (uint16_t)(character * 2 + menu_sprite_colours_table(g)));
+        for (unsigned i = 0; i < SPRITE_COLOURS; i++)
+            set_menu_palette(g, first + i, sprite_colour(g, (uint16_t)(from + 2 * i)));
+    }
+    for (uint8_t character = 0; character < CHARACTER_RECORDS; character++) {
+        unsigned first = SPRITE_PALETTES + (FIRST_CHARACTER_PALETTE + character) * PALETTE_COLOURS + 1 + SPRITE_COLOURS;
+        MenuWeaponColours c = menu_weapon_colours(g, character);
+        for (unsigned i = 0; i < MENU_WEAPON_COLOURS; i++)
+            set_menu_palette(g, first + i, c.colour[i]);
+    }
+    ORIGINAL_EFFECT(charge_block_move(g, 2 * CHARACTER_RECORDS * (SPRITE_COLOURS + MENU_WEAPON_COLOURS)));
+    ORIGINAL_EFFECT(set_menu_scratch_colours_loaded(g, CHARACTER_RECORDS));
+}
+
+// $C2:F626
+void menu_leave_record_found(GameState *g, uint8_t character)
+{
+    enum { RECORD_BYTES = 0x40 };
+    hw_set_multiplicand(g, character);
+    set_menu_record_offset(g, hw_multiply_by(g, RECORD_BYTES));
+}
+
+/* ---- The screens' records' entries ----------------------------------------------------------- */
+
+/* The emptying runs with 8-bit index registers, which leaves X's high byte
+ * clear (its caller reads X). */
+static void leave_x_a_byte(Snes *s) { s->cpu.x &= 0x00FF; }
+
+// $C2:F566
+void menu_reset_character_records_entry(Snes *s)
+{
+    menu_reset_character_records(state_of(s));
+    m_rts(s);
+}
+
+// $C2:F588
+void menu_empty_the_records_entry(Snes *s)
+{
+    menu_empty_the_records(state_of(s));
+    ORIGINAL_EFFECT(leave_x_a_byte(s));
+    m_rts(s);
+}
+
+// $C2:F643
+void menu_start_the_records_entry(Snes *s)
+{
+    menu_start_the_records(state_of(s));
+    m_rts(s);
+}
+
+// $C2:F5A7
+void menu_load_character_colours_entry(Snes *s)
+{
+    menu_load_character_colours(state_of(s));
+    m_rts(s);
+}
+
+/* The colours load on the menus' page with the data bank on work RAM's,
+ * for the characters' records' weapons. */
+bool menu_character_colours_are_loadable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = true;
+    for (uint8_t character = 0; ok && character < CHARACTER_RECORDS; character++)
+        ok = character_records_record_byte(state_of(s), character, menu_category_slot_place(state_of(s), MENU_WEAPONS)) < MENU_NO_ARMOUR;
+    vars_peek(false);
+    return ok;
+}
+

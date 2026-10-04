@@ -10,13 +10,14 @@
  * kind, the price, who can use it, an amount, an attack or defence, where its
  * name is. The inventory loses the entries no item of the game's fills. Then
  * the story's and the place's say in what the lists offer is noted, the
- * party's techs are noted (menu/techs.c), and each member's figures worked
- * out ($C2:99B2, still the original's). */
+ * party's techs are noted (menu/techs.c), and every character's figures
+ * worked out (menu/figures.c). */
 #include "menu/items.h"
 
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
+#include "menu/figures.h"
 #include "menu/menu_data.h"
 #include "menu/techs.h"
 #include "original_effects.h"
@@ -38,6 +39,8 @@ static MenuItemPlace place_of(const GameState *g, uint8_t item)
         category++;
     return (MenuItemPlace){ category, (uint8_t)(item - menu_item_category_start(g, category)) };
 }
+
+MenuItemCategory menu_item_category_of(const GameState *g, uint8_t item) { return (MenuItemCategory)place_of(g, item).category; }
 
 MenuItemPlace menu_item_place(GameState *g, uint8_t item)
 {
@@ -66,13 +69,6 @@ uint16_t menu_item_data_at_of(GameState *g, uint8_t item)
     return at;
 }
 
-/* The same, worked out without noting anything. */
-static uint16_t item_data_place(const GameState *g, uint8_t item)
-{
-    MenuItemPlace p = place_of(g, item);
-    return (uint16_t)(menu_item_data_table(g, p.category) + p.index * menu_item_data_record_bytes(g, p.category));
-}
-
 // $C2:88D8
 /* Where the item last looked up has its figures in bank $CC. */
 uint16_t menu_item_figures_at_of_last(GameState *g)
@@ -86,17 +82,20 @@ uint16_t menu_item_figures_at_of_last(GameState *g)
 
 /* ---- The inventory -------------------------------------------------------------------------- */
 
-/* Ids no item has: none, and three the game leaves unused. */
-enum { NO_ITEM = 0x00, UNUSED_A = 0x5A, UNUSED_B = 0x7B, UNUSED_C = 0x94 };
-enum { INVENTORY_PLACES = 0x100 };
+/* The first id of each category of equipment stands for nothing in its slot
+ * (MENU_NO_WEAPON and the rest, items.h): the inventory never holds one, and
+ * an empty place holds the first, 0. */
+enum { INVENTORY_PLACES = 0x100, EMPTY = 0 };
 
-static bool is_an_item(uint8_t item)
+bool menu_item_is_a_slots_nothing(uint8_t item)
 {
-    return item != NO_ITEM && item != UNUSED_A && item != UNUSED_B && item != UNUSED_C && item < MENU_ITEMS;
+    return item == MENU_NO_WEAPON || item == MENU_NO_ARMOUR || item == MENU_NO_HELMET || item == MENU_NO_ACCESSORY;
 }
 
+static bool is_an_item(uint8_t item) { return !menu_item_is_a_slots_nothing(item) && item < MENU_ITEMS; }
+
 /* The inventory's places run on past its last into the next bytes, which the
- * clean-up takes as places too. */
+ * clean-up and the searches below take as places too. */
 uint8_t menu_inventory_item_at(const GameState *g, unsigned place)
 {
     return place < INVENTORY_ITEMS_COUNT ? inventory_items(g, place) : menu_inventory_past_the_items(g, place - INVENTORY_ITEMS_COUNT);
@@ -106,17 +105,24 @@ uint8_t menu_inventory_count_at(const GameState *g, unsigned place)
     return place < INVENTORY_ITEMS_COUNT ? inventory_counts(g, place)
                                          : menu_inventory_counts_past_the_items(g, place - INVENTORY_ITEMS_COUNT);
 }
-static uint8_t item_at(const GameState *g, unsigned place) { return menu_inventory_item_at(g, place); }
-static uint8_t count_at(const GameState *g, unsigned place) { return menu_inventory_count_at(g, place); }
+static void set_item_at(GameState *g, unsigned place, uint8_t item)
+{
+    if (place < INVENTORY_ITEMS_COUNT)
+        set_inventory_items(g, place, item);
+    else
+        set_menu_inventory_past_the_items(g, place - INVENTORY_ITEMS_COUNT, item);
+}
+static void set_count_at(GameState *g, unsigned place, uint8_t count)
+{
+    if (place < INVENTORY_ITEMS_COUNT)
+        set_inventory_counts(g, place, count);
+    else
+        set_menu_inventory_counts_past_the_items(g, place - INVENTORY_ITEMS_COUNT, count);
+}
 static void empty_place(GameState *g, unsigned place)
 {
-    if (place < INVENTORY_ITEMS_COUNT) {
-        set_inventory_items(g, place, 0);
-        set_inventory_counts(g, place, 0);
-    } else {
-        set_menu_inventory_past_the_items(g, place - INVENTORY_ITEMS_COUNT, 0);
-        set_menu_inventory_counts_past_the_items(g, place - INVENTORY_ITEMS_COUNT, 0);
-    }
+    set_item_at(g, place, EMPTY);
+    set_count_at(g, place, 0);
 }
 
 // $C2:9988
@@ -125,8 +131,91 @@ static void empty_place(GameState *g, unsigned place)
 static void clean_up_inventory(GameState *g)
 {
     for (unsigned place = 0; place < INVENTORY_PLACES; place++)
-        if (count_at(g, place) == 0 || !is_an_item(item_at(g, place)))
+        if (menu_inventory_count_at(g, place) == 0 || !is_an_item(menu_inventory_item_at(g, place)))
             empty_place(g, place);
+}
+
+/* No place: an item the party has none of, or an inventory with no room. */
+enum { NO_PLACE = INVENTORY_PLACES };
+
+/* For the original's code and shadow mode: the search notes the place it
+ * found, a word. */
+static void leave_place_found(GameState *g, unsigned place) { set_menu_item_place_found(g, (uint16_t)place); }
+
+// $C2:87FA
+/* The place that holds an item the party has some of. */
+static unsigned place_holding(GameState *g, uint8_t item)
+{
+    for (unsigned place = 0; place < INVENTORY_PLACES; place++)
+        if (menu_inventory_item_at(g, place) == item && menu_inventory_count_at(g, place) != 0) {
+            ORIGINAL_EFFECT(leave_place_found(g, place));
+            return place;
+        }
+    return NO_PLACE;
+}
+
+static unsigned first_empty_place(const GameState *g)
+{
+    for (unsigned place = 0; place < INVENTORY_PLACES; place++)
+        if (menu_inventory_item_at(g, place) == EMPTY)
+            return place;
+    return NO_PLACE;
+}
+
+/* The party holds 99 of an item at most. The count is a byte, and a sum
+ * past 255 wraps before it is held to the most, as the original's does: no
+ * count the game makes gets there. */
+enum { MOST_HELD = 99 };
+
+static uint8_t held_to_the_most(uint8_t count) { return count >= MOST_HELD ? MOST_HELD : count; }
+
+// $C2:8791
+MenuItemsAdded menu_add_items(GameState *g, uint8_t item, uint8_t count)
+{
+    if (menu_item_is_a_slots_nothing(item))
+        return MENU_ITEMS_NOTHING_TO_ADD;
+    unsigned place = place_holding(g, item);
+    if (place == NO_PLACE) {
+        place = first_empty_place(g);
+        if (place == NO_PLACE)
+            return MENU_ITEMS_NO_ROOM;
+        set_item_at(g, place, item);
+        set_count_at(g, place, 0);
+    }
+    set_count_at(g, place, held_to_the_most((uint8_t)(menu_inventory_count_at(g, place) + count)));
+    return MENU_ITEMS_ADDED;
+}
+
+// $C2:87D5
+MenuItemsTaken menu_take_items(GameState *g, uint8_t item, uint8_t count)
+{
+    if (item == EMPTY)
+        return MENU_ITEMS_TAKEN;
+    unsigned place = place_holding(g, item);
+    if (place == NO_PLACE)
+        return MENU_ITEMS_NOT_HELD;
+    uint8_t held = menu_inventory_count_at(g, place);
+    if (held < count)
+        return MENU_ITEMS_TOO_FEW;
+    if (held == count)
+        set_item_at(g, place, EMPTY);
+    set_count_at(g, place, (uint8_t)(held - count));
+    return MENU_ITEMS_TAKEN;
+}
+
+// $C2:8E1E
+uint8_t menu_items_held(GameState *g, uint8_t item)
+{
+    unsigned place = place_holding(g, item);
+    return place == NO_PLACE ? 0 : menu_inventory_count_at(g, place);
+}
+
+// $C2:93A8
+bool menu_loaded_member_can_use(GameState *g, uint8_t item)
+{
+    uint8_t users = menu_item_users(g, item);
+    set_menu_item_users_noted(g, users);
+    return (users & menu_character_bit(g, menu_status_record_character(g))) != 0;
 }
 
 /* ---- The items' tables ------------------------------------------------------------------------ */
@@ -239,27 +328,9 @@ void menu_copy_past_the_names_now(GameState *g) { set_menu_copy_past_the_names(g
 
 /* ---- The entries ------------------------------------------------------------------------- */
 
-/* What the tables leave before the save code's list is made: the widths
- * and bank it runs with, the count of the figures' loop in the menus' first
- * cells, and the flags of the second place note's test (and of item $C8's
- * kind where it is set), with the loop's carry. */
-static void leave_tables_built(Snes *s)
-{
-    GameState *g = state_of(s);
-    set_menu_scratch_graphics_count(g, ARMED);
-    uint8_t note = (uint8_t)menu_place_items(g, 1);
-    menu_leave_load(s, note);
-    if (note != 0) {   /* the bit's test, as it was before it was cleared */
-        uint8_t kind = menu_item_table_byte(g, (uint16_t)(item_data_place(g, ITEM_THE_PLACE_CHANGES) + DATA_KIND));
-        menu_leave_load(s, KIND_THE_PLACE_TAKES);
-        m_set_flag(s, CPU_FLAG_Z, (kind & KIND_THE_PLACE_TAKES) == 0);
-    }
-    m_set_flag(s, CPU_FLAG_C, true);
-}
-
-/* What each member's figures ($C2:99B2) don't read (tools/dontcare_check.py
- * checks it). */
-enum { MEMBERS_IGNORES = DC_A | DC_X | DC_Y };
+/* What the tables leave in the menus' first cells: the count of the
+ * figures' loop. */
+static void leave_tables_built(GameState *g) { set_menu_scratch_graphics_count(g, ARMED); }
 
 // $C2:9875
 void menu_build_items(Snes *s)
@@ -269,10 +340,9 @@ void menu_build_items(Snes *s)
     menu_build_item_tables(g);
     menu_set_widths(s, true, false);
     s->cpu.db = MENU_DATA_BANK;   /* as the tables' block moves leave it */
-    ORIGINAL_EFFECT(leave_tables_built(s));
+    ORIGINAL_EFFECT(leave_tables_built(g));
     TIMED_AS(g, 0xFFF813, menu_note_party_techs(g));
-    if (!menu_call(s, 0xC29977, 0xC299B2, MEMBERS_IGNORES))
-        return;
+    TIMED_AS(g, 0xC299B2, menu_note_everyones_figures(g));
     menu_copy_past_the_names_now(g);
     menu_restore_p(s);
     m_rts(s);
@@ -315,11 +385,12 @@ void menu_find_item_figures(Snes *s)
 }
 
 /* The tables run on the menus' page with the data bank on work RAM's, their
- * name places counted from the zero word the menus keep 0; the party's techs
- * are noted after them (menu/techs.c, whose guard this takes). */
+ * name places counted from the zero word the menus keep 0; every
+ * character's figures and the party's techs are noted after them
+ * (menu/figures.c and menu/techs.c, whose guards this takes). */
 bool menu_items_are_buildable(Snes *s)
 {
-    if (!menu_party_techs_are_notable(s))
+    if (!menu_everyones_figures_are_notable(s) || !menu_party_techs_are_notable(s))
         return false;
     vars_peek(true);
     bool ok = menu_zero(state_of(s)) == 0;
@@ -336,3 +407,79 @@ bool menu_item_figures_are_findable(Snes *s)
     vars_peek(false);
     return ok;
 }
+
+/* ---- The inventory's entries --------------------------------------------------------------------- */
+
+/* The original's routines take the item and how many in the menus' cells
+ * (menu_item_operand, menu_item_operand_quantity), and hand back in A what
+ * came of it: the add 0, or the item where it is a slot's nothing, or $FF
+ * with no room; the take 0, or $FF where the party has none of it and $FE
+ * where too few. They run with 8-bit index registers, which leaves Y's high
+ * byte clear; X they save and put back. */
+enum { ANSWER_DONE = 0x00, ANSWER_NO_ROOM = 0xFF, ANSWER_NOT_HELD = 0xFF, ANSWER_TOO_FEW = 0xFE };
+
+static uint8_t added_answer(MenuItemsAdded added, uint8_t item)
+{
+    return added == MENU_ITEMS_ADDED ? ANSWER_DONE : added == MENU_ITEMS_NO_ROOM ? ANSWER_NO_ROOM : item;
+}
+
+static uint8_t taken_answer(MenuItemsTaken taken)
+{
+    return taken == MENU_ITEMS_TAKEN ? ANSWER_DONE : taken == MENU_ITEMS_NOT_HELD ? ANSWER_NOT_HELD : ANSWER_TOO_FEW;
+}
+
+// $C2:8791
+void menu_add_operand_items(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t item = menu_item_operand(g);
+    MenuItemsAdded added = menu_add_items(g, item, menu_item_operand_quantity(g));
+    m_set_a8(s, added_answer(added, item));
+    ORIGINAL_EFFECT(leave_y_a_byte(s));
+    m_rts(s);
+}
+
+// $C2:87D5
+void menu_take_operand_items(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuItemsTaken taken = menu_take_items(g, menu_item_operand(g), menu_item_operand_quantity(g));
+    m_set_a8(s, taken_answer(taken));
+    ORIGINAL_EFFECT(leave_y_a_byte(s));
+    m_rts(s);
+}
+
+// $C2:93A8
+/* Who can use the item in menu_item_operand: the answer in A is the loaded
+ * character's bit of its users. */
+void menu_ask_who_can_use(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint8_t item = menu_item_operand(g);
+    bool can = menu_loaded_member_can_use(g, item);
+    m_set_a8(s, can ? menu_character_bit(g, menu_status_record_character(g)) : 0);
+    ORIGINAL_EFFECT(leave_y_a_byte(s));
+    m_rts(s);
+}
+
+/* They reach the menus' tables through the data bank, on work RAM's; the
+ * item's users are noted for an item of the game's; and the loaded
+ * character's bit is one of the table's nine. */
+enum { CHARACTER_BITS_COUNT = 9 };
+
+bool menu_operand_item_is_known(Snes *s)
+{
+    return s->cpu.db == MENU_DATA_BANK;
+}
+
+bool menu_loaded_character_is_known(Snes *s)
+{
+    if (s->cpu.db != MENU_DATA_BANK)
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    bool ok = menu_item_operand(g) < MENU_ITEMS && menu_status_record_character(g) < CHARACTER_BITS_COUNT;
+    vars_peek(false);
+    return ok;
+}
+

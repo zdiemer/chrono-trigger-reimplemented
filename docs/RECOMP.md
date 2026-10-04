@@ -3436,104 +3436,110 @@ flags it doesn't read differ there (docs/TODO.md).
 **Timing.** The new entries and those whose work moved were calibrated from
 the shadow runs: the effects' loop, the scheduler, the draw.
 
-### Phase 3, menus: the settings screen and the shop (`$C2:BF35`-`$C2:C620`, `$C2:D52B`-`$C2:E012`)
+### Phase 3, menus: the party's services, its figures and its healing (`$C2:8004`, `$C2:8C36`-`$C2:93BF`), the screens' records and held cursors
 
-The seventh chunk of bank `$C2` (history file, "Phase 3, menus: the save code
-and the rest of bank `$FF`", for the one before). `python3 tools/burndown.py`
-for `$C2`: 30.9 KiB ported and 48% left with 326 entries before, 33.9 KiB and
-43% left with 358 after: about 3 KiB of new code in 32 entries, all of it to
-the bar (`tools/portstyle.py`: 0.00-0.04 machine operations a line in the
-four new files; `tools/portsmell.py`: no finding).
+The eighth chunk of bank `$C2` (history file, "Phase 3, menus: the settings
+screen and the shop", for the one before). `python3 tools/burndown.py` for
+`$C2`: 33.9 KiB ported and 43% left with 358 entries before, 36.4 KiB and 38%
+left with 385 after: about 2.5 KiB of new code in 28 entries, all of it to the
+bar (`tools/portstyle.py`: 0.00-0.07 machine operations a line in the six new
+files; `tools/portsmell.py`: no finding, and the cursor header's line left
+the backlog). The first of PLAN's two items for `$C2` whole, and of the
+second the pieces the ported screens call: the records' sprites and colours
+(`$C2:F566`-`$C2:F643`) and the held cursors (`$C2:8A98`-`$C2:8BA5`). The
+rest of the second item -- the list slide, the description's typing and the
+four screens -- is the next chunk (PLAN.md).
 
-**What it is.** Two screens, each a logic file on the game's state and a
-bridge holding the entries:
+**What it is.**
 
-- `menu/settings_screen.c`, the settings: twelve options, each a cell of the
-  settings (`OPTION_CELLS`), flipped, stepped as a meter or opening a
-  sub-step; the meters (battle and message speed, the window's design) and
-  the battle gauge's three layouts lit among dimmed tiles; the buttons'
-  assignment, where giving one assignment a button makes the assignments
-  that share it give theirs up in turn (`give_button`, twice: the one that
-  gave it up settles too); the description of the option under the cursor,
-  started as the screen's typing task; and the main menu's panel for the
-  screen, its frame, showing and putting away. `menu_pack_settings`
-  (`$C2:934F`, `menu/opening.c`) packs the cells back into the game's three
-  settings bytes as the screen closes.
-- `menu/shop.c`, the shop: the goods of the shop's number (`menu_shop_good`,
-  `$CC:2C6D`) priced by the story's scale (`shop_price_scale`, `$7F:01CD`,
-  in 256ths); the party's items for sale at half price, rounded up; the
-  panel beside a list, the item's owned and worn counts and, for each member
-  who could use it, the member cheering and the figures it would change; the
-  quantity, limited by what the gold buys or the purse has room for
-  (9,999,999 at most), the total stepping with it; and the deal, the gold
-  paid or received and the item put in or taken out.
+- `menu/party.c`, the party as the menus keep it: the record of who is in it
+  (the three active places and the six of the reserve, an emptied place
+  keeping its character with the top bit set), and the services that change
+  it -- a character recruited, dismissed, brought into the active party or
+  sent to the reserve, the reserve taking someone at its front by moving
+  everyone back as far as its first empty place; a character equipped
+  (what comes off given back to the party's items) or stripped; every
+  character's HP or MP filled, an earring raising the greatest HP; and what
+  every service ends with, the party's weapons' colours in its members'
+  palettes and the rocks' triple techs following who wears a rock.
+  `menu/party_bridge.c` is the services as the original's code calls them:
+  by number in A, a C table of rows (`party_run_service`), which the field's
+  scripts, the power-on and a New Game+ now call as C.
+- `menu/figures.c`, a member's figures: the stats with every boost of what
+  it wears, held to their caps; the attack, by how the character fights
+  (a weapon wielded, a gun or bow aimed, Ayla's fists by her level); the
+  defence; the greatest HP; and the party's items set aside where the story
+  holds them.
+- `menu/healing.c` and `healing_bridge.c`, a tonic's or a tech's healing --
+  fixed, drawn at random around its power, or all of it -- and the numbers
+  that rise from each healed member's sprite along a path of heights, in a
+  task of their own that the screen waits out.
+- the inventory's add and take (`$C2:8791`, `$C2:87D5`, `menu/items.c`),
+  who can use an item (`$C2:93A8`), a list's paging (`$C2:93BF`,
+  `menu/lists.c`), the power-on's look at the cartridge and a new game's
+  state (`$C2:8D6A`, `$C2:956E`, `$C2:95BB`, `menu/saves.c`), the records a
+  screen of members shows (`menu/sprites.c`) and the cursors a screen holds
+  (`menu/held_cursors.c`).
 
-`menu.h` gained `menu_start_task` (`$C2:8249`), `cursor.h`
-`menu_cursor_kept_among` (the guards' question whether a kept cursor stands
-on one of a screen's places), and `items.h` the inventory's place reads the
-shop's list for sale is built from.
+The callers lost their glue: event's party commands, the field's power-on,
+the New Game+ load, the load screen's new game, and the equipment, items,
+techs and shop screens call these as C, each with the routine's time tagged
+as its own (`NATIVE_TIME_AS`, `TIMED_AS`); the paging hands the new first
+row back instead of through its cell, and the inventory's routines take the
+item and how many as parameters.
 
-**The registers, settled first.** Every entry takes the menus' page with
-M 8-bit and X 16-bit and leaves nothing but memory, except two whose callers
-read A's high byte after them (`menu_take_setting_option`,
-`menu_show_shop_item_panel`: `DC_AL`, which `tools/dontcare_check.py`
-asked for), and the list's frame (`$C2:DD40`), entered with X in either
-width and Y the frame's place. The ticks of sound inside the steps save P
-with `PHP` and the driver reads A's high byte, so the flags and A at each
-tick are left as the original has them (`leave_*`, scaffolding). The call
-into the shop's equipping of what was bought (`$C2:E017`) declares V and C
-live: its handler is picked by a step number, and liveness can't see past
-it.
-
-**Narrowed, not threaded.** The shop's equipping (its steps 6-8) is still
-the original's: no movie takes it, and porting it would have carried the
-equipment screen's member card into the shop. The shop's steps call it as a
-call-out and stop where the original goes to it; TODO.md lists the routines.
+**The registers, settled first.** The dispatcher's PLP gives back the flags
+its caller had, so nothing is threaded: A is the service's answer, a word
+from the three that work 16 bits wide, and X and Y are what the party's looks
+leave them, worked out from the state after (`party_service_x`/`_y`, the last
+rock a character wears or past the rock techs' marks). Event's commands leave
+that Y, which only the dispatcher's next call keeps (TODO.md, the event
+leaves). The healing's showing and its task yield through the original's task
+switch; the task stops at the scheduler's end of a task.
 
 **What shadow mode and fuzzing found.** Over the 26 movies every call
-matches and none is refused. `menus-field-menu` reaches the settings screen
-(the options' step 1,878 calls, the options taken 1,876, the meters 720)
-and `menus-shop-inn` the shop (the goods' step 500 calls, the items for sale
-277, the tabs 229, the quantities 220 and 100, the panel 28). The buttons'
-assignment and three of the on-off options are reached by no movie, and the
-shop's opening, set-up and list openings are compared only within the
-opening's call, which a frame's wait interrupts: fuzzing is their check. Fuzzed seed 1,
-20,000 states each from three shop states (its tabs, buying, selling) and a
-settings state, and each step again compared at the first call of the sound
-driver (`--stop-at-call C70004`, where the flags each tick saves are on the
-stack): 0 mismatching of 47 routines and variants. The settings' steps skip
-about half the states, whose description is half typed (an odd count; the
-guard turns them away). What the fuzzing found, before the guards and
-leaves settled: the meters' tick leaves N set from the original's
-`LDX #$FBE3`; the cursor's row is compared with the list's start the other
-way round; the price's scaling rounds the product's middle byte up where
-its low byte is set; the division's spare byte goes into the quotient's top;
-the panel's member and place stand in cells at each call out; and every
-reading of the buttons leaves the overflow of the original's `BIT`.
+matches and none is refused: 7,062 calls over 26 of the 28 entries, 0
+mismatching and none interrupted (the members' cursors for a healing of
+every member, `$C2:8AD5`/`$C2:8AFD`, no movie reaches). The healing's showing and its
+kinds span frames and are compared within the call that encloses them. Shadow
+mode found the new game's party fill one place shorter than the asm read
+seemed (nine places, not ten), the index registers the party's looks leave
+(the rocks' clearing's block move), the shop's panel's A taken from the
+figures' divider before the figures' drawing divides again, and the healing's
+bookkeeping cells. Fuzzed seed 1 (`tools/fuzz_routines.toml`): 0 of 81,953 compared calls
+mismatching, 3,000 an entry (the services' 2,894 and, loose, 2,562; a
+kind's rising numbers 1,497, the rest refused for a kind with no path).
+What fuzzing found: the number's conversion converts only the bytes it is
+given (an MP amount is a byte), the showing is entered with 16-bit index
+registers only, and the services, event's party commands and the New Game+
+load need the active party to be characters (a guard each; the game's always
+is). The before-and-after comparison of the menus' and the touched event
+entries (`tools/fuzz_compare.py` against main, 440 routines) found one:
+the menus' item tables now work every character's figures out as C, and a
+record wearing an item past the menus' tables (none the game has) read
+past them where the original's reads differ, so the tables' guard takes
+the figures' (`menu_everyones_figures_are_notable`) and its fuzzing fills
+the characters' equipment; after it, 0 differ.
 
-**Scaffolding the effects check asked about.** Six writes first made as
-scaffolding are the game's and are plain now: the drawing origin the meters
-and the shop's rows leave, the eighth assignment's stray swaps (the game's
-settings change), the item's power read past the figures' table, the
-member the panel works on (`menu_screen_argument`, which the member screens
-read), the quantity before a step and the settings' spare cell. The 59 reads
-left in `tools/effects_baseline.txt` are cells another screen or the sprite
-object mode sets before it reads them, each with its reason.
+**Timing.** The new rows and the callers whose time moved with them
+(the screens' steps, event's party commands, the field's first start)
+are calibrated over the library. One rate can't fit thirteen services
+(the power-on checks three slots' sums, a search looks at nine bytes), so
+the power-on is registered on its own (`menu_power_on`, `$C2:8D6A`) and
+the dispatcher tags it with its own time; the rest share the services'
+rate. The techs list's step, whose own share is at the floor, carries a
+drift exception for its parts' 2.3%, and the shop's tabs' exception moved
+from vblank-worst to worst: with the list's opening charged at the
+list's own rates, its one call over the limit is the frame a tab opens a
+list, on the picture (`tools/timing_exceptions.txt`).
 
-**Timing.** The 26 entries the library reaches are calibrated on their own
-calls (from 1 for the two whose work is all in parts timed as their own
-routines, to 10902 for the goods list's opening); the six it doesn't keep
-the default, and `menu_play_cursor_sound`, whose calls the new steps add,
-moved from 3015 to 3062. Nine entries are exceptions: a step that mostly
-reads the buttons and now and then redraws a row, a description or a list
-(the options, the meters, the shop's tabs and quantity), and the settings
-panel, a frame's drawing on two calls, 6% short; all write RAM only, and
-the vblank check finds none of their writes moved.
-
-**The map.** The story's two bytes three ports spelled by offset are named
-once: `story_party_rules` (`$7F:00BA`, the party held as it is) and
-`story_game_notes` (`$7F:01CF`, a carried-over game), read by `items.c`,
-`techs.c`, `saves.c` and `battle/from_field.c`.
+**The map.** The services' cells (`menu_service_*`, `$04C0`-`$04C5`), the
+item a search found (`$04C7`), the figures' boosts and parts (`$0DAE`-`$0DB6`,
+`menu_figures_slot` narrowed to its byte), the greatest HP (`$9B25`), the
+items set aside (`$9B96`), the paging's rows (`$0DD8`, `$0DDA`), the
+healing's amounts and its numbers' cells (`$0022`, `$0F53`-`$0F61`), the
+held cursors' blinks (`$0DA0`, `$0DA3`), the weapon looked up (`$041B`), and
+the status record's stats, level, figures and greatest HP as fields.
 
 ### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 

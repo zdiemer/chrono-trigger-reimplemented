@@ -47,6 +47,8 @@
 #include "field/bridge.h"
 #include "field/display.h"
 #include "field/parts.h"
+#include "menu/party.h"
+#include "port/native.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -98,8 +100,7 @@ static void finish_frame(GameState *g)
 enum {
     SOUND_DRIVER_BOOT = 0xC70000,
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
-    LOOK_AT_THE_SAVES_ROUTINE = 9,   /* the menus' routine that looks for a saved game */
-    MENUS_ROUTINES = 0xC28004,       /* the menus' routines, the one in A */
+    MENUS_SERVICES = 0xC28004,       /* the menus' services (menu/party.h), whose time the power-on's is */
     MENUS_SCREENS = 0xC20000,        /* the menus' mode that shows a screen with sprites */
     SPRITE_LISTS = 0xC0B192,         /* the objects' sprite lists set up */
     OBJECTS_SET_UP = 0xC056A6,       /* the location's objects started in their scripts */
@@ -153,16 +154,18 @@ static void take_the_interrupts(GameState *g)
  * byte and the overflow as the last pass, or the field's entry, left them. */
 enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
 
-/* For shadow mode: the sound driver's start hands A's high byte back as it
- * found it, and the menus' dispatcher moves it into the low byte, which it
- * then loads over; the original's is the field's page's, which it sets D
- * through. */
+/* For shadow mode: the sound driver's start is called with the field's
+ * page's high byte in A's, which the original sets D through. */
 static void leave_the_page_in_a(Snes *s) { s->cpu.a = (uint16_t)((FIELD_PAGE & 0xFF00) | (s->cpu.a & 0x00FF)); }
 
+/* The field's entry reads none of the registers the power-on leaves. */
+enum { ENTERING_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
 // $C0:000E
-/* The field's first start, at power-on. The menus' routine stores the X and
- * Y it is given as its arguments, which this one doesn't read: the original
- * leaves the last clear's size in X. */
+/* The field's first start, at power-on: the cartridge's saves looked at,
+ * which starts a new game where there are none (menu/saves.h). The menus'
+ * service keeps the X and Y it is given as its arguments, which this one
+ * doesn't read: the original leaves the last clear's size in X. */
 void field_first_start(Snes *s)
 {
     GameState *g = state_of(s);
@@ -176,11 +179,8 @@ void field_first_start(Snes *s)
     ORIGINAL_EFFECT(leave_the_page_in_a(s));
     if (!bridge_call_long(s, 0xC00053, SOUND_DRIVER_BOOT, THE_BOOT_IGNORES, page(s)))
         return;
-    m_set_a8(s, LOOK_AT_THE_SAVES_ROUTINE);
-    m_set_nz8(s, LOOK_AT_THE_SAVES_ROUTINE);
-    if (!bridge_call_long(s, 0xC00059, MENUS_ROUTINES, 0, page(s)))
-        return;
-    m_stop_at(s, ENTER, 0);
+    NATIVE_TIME_AS(s, MENUS_SERVICES, (void)party_run_service(g, pf, SERVICE_POWER_ON, (uint8_t)s->cpu.y, (uint8_t)s->cpu.x));
+    m_stop_at(s, ENTER, ENTERING_READS_NOTHING);
 }
 
 // $C0:005D (and $C0:0000, the field's start for the other modes)

@@ -19,8 +19,8 @@
  *   ask whether to erase it, and a yes spoils the slot's mark on the
  *   cartridge. No movie reaches it.
  *
- * Loading a game is the save code's (menu/saves.c), the state a new one
- * starts from this file's and the original's ($C2:956E); leaving the menus
+ * Loading a game and the state a new one starts from are the save code's
+ * (menu/saves.c); leaving the menus
  * for the game is the menus' own exit ($C2:8320), where the port stops. */
 #include "menu/load_screen.h"
 
@@ -306,13 +306,11 @@ static bool new_game_plus_chosen(GameState *g, Platform *pf)
     return saves_finished(pf, PF_AT(0xC2E66D)) && menu_cursor_places_x(g, FOURTH_ROW) == NEW_GAME_PLUS_X;
 }
 
-/* A new game: the state it starts from ($C2:956E, still the original's) has
- * been set, and the story's first flag marks it new. */
-enum { NEW_GAME_FLAG = 0x61 };
-
-static void mark_new_game(GameState *g, Platform *pf)
+/* A new game: the state it starts from, marked new in the story's memory. */
+static void start_the_new_game(GameState *g, Platform *pf)
 {
-    set_event_memory_byte(g, NEW_GAME_FLAG, 1);
+    TIMED_AS(g, 0xC2956E, saves_start_a_new_game(g));
+    saves_note_how_it_starts(g, SAVES_NEW_GAME);
     set_times_finished(g, saves_times_finished(pf, PF_AT(0xC2E666)));
 }
 
@@ -364,12 +362,10 @@ static void leave_for_the_game(Snes *s)
 
 /* The steps are bridges: they run the menus' routines that make calls of
  * their own (the cursor's reading, the slot's showing, the sounds, a New
- * Game+'s load) as the original's JSRs reach them, and call the new game's
- * state, still the original's. Where one of those routines saves P as it
+ * Game+'s load) as the original's JSRs reach them. Where one of those routines saves P as it
  * starts, the flags the original has there are on the stack under the call
  * that follows, where shadow mode compares them, so each step leaves them
  * first, from the comparison or test the original has just made. */
-enum { NEW_GAME_STATE_READS = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 static void leave_compare(Snes *s, uint8_t a, uint8_t b) { menu_leave_compare(s, a, b); }
 static void leave_load(Snes *s, uint8_t v) { menu_leave_load(s, v); }
@@ -416,7 +412,7 @@ static void choose_slot(GameState *g, uint8_t slot)
 
 /* The load comes back with A's high byte clear, which the sound command's
  * call carries on to the menus' exit. */
-static void leave_loaded(Snes *s) { s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF); }
+static void leave_loaded(Snes *s) { menu_leave_a_high_byte_clear(s); }
 
 /* Its game loaded; then out to the game. */
 static void load_and_leave(Snes *s, uint8_t slot)
@@ -444,9 +440,7 @@ static void start_new_game(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    if (!menu_call(s, 0xC2E65D, 0xC2956E, NEW_GAME_STATE_READS))
-        return;
-    mark_new_game(g, pf);
+    start_the_new_game(g, pf);
     if (new_game_plus_chosen(g, pf)) {
         set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
         ORIGINAL_EFFECT(leave_compare(s, NEW_GAME_PLUS_X, NEW_GAME_PLUS_X));

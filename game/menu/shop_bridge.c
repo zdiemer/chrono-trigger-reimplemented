@@ -10,10 +10,9 @@
  * list's frame and the making of the list for sale are entries of their
  * own, run the same way, since they call out with the P they save under
  * the calls. What is still the original's: the description of an item, a
- * list's paging, the cursor's move within it, its frame, its slide and the
- * slide's frames, the figures a member has with an item, the party's items
- * given and taken, the frame's wait, and the equipping from the shop (the
- * members' step, which the tabs' up and down go to). The shop's way out
+ * list's cursor's move, its frame, its slide and the slide's frames, the
+ * frame's wait, and the equipping from the shop (the members' step, which
+ * the tabs' up and down go to). The shop's way out
  * and its fade in are jumps the bridges stop at.
  *
  * Before each of those calls a bridge leaves the registers and flags the
@@ -27,6 +26,7 @@
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/figures.h"
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/menu_data.h"
@@ -44,14 +44,10 @@ enum {
     YIELD = 0xC2821E,              /* the task waits for the next frame */
     DESCRIBE = 0xC2F2F3,           /* the description window drawn for the item in A */
     DESCRIBE_NOTHING = 0xC2E012,   /* ... for the menus' zero */
-    TURN_PAGE = 0xC293BF,          /* a list's paging with the shoulder assignments */
     MOVE_IN_LIST = 0xC2EA53,       /* the cursor kept within a list's rows */
     FRAME_THE_LIST = 0xC2EA81,     /* a scrolling list's frame laid out: Y places */
     START_LIST_SLIDE = 0xC2EB9B,   /* a list's slide started */
     LIST_SLIDE_FRAME = 0xC2EB1F,   /* a frame of a list's slide, and the wait for the next */
-    WORK_OUT_FIGURES = 0xC2916E,   /* the loaded member's figures worked out */
-    ADD_TO_ITEMS = 0xC28791,       /* menu_item_operand's quantity added to the party's items */
-    TAKE_FROM_ITEMS = 0xC287D5,    /* ... and taken from them */
     EQUIP_FROM_THE_SHOP = 0xC2E017, /* the equipping from the shop: to its members' step */
     LEAVE_THE_SHOP = 0xC282B2,     /* the menus' way out */
     FADE_IN = 0xC283B2,            /* the screen's fade in started */
@@ -122,7 +118,8 @@ static void leave_sale_refused(Snes *s, bool for_want_of_room);
 static void leave_place_compared(Snes *s, uint8_t shown_before);
 static void leave_back_from_the_list(Snes *s);
 static void leave_listed(Snes *s, uint8_t c_before);
-static void leave_panel_member(Snes *s, bool usable, uint8_t character);
+static void note_figures_left(GameState *g, uint16_t *left);
+static void leave_panel_member(Snes *s, bool usable, uint8_t character, uint16_t figures_left);
 static void leave_quantity_compared(Snes *s, uint8_t before);
 static void leave_gold_word(Snes *s);
 static void leave_frame_set(Snes *s, uint16_t rows);
@@ -174,8 +171,7 @@ void menu_set_up_shop(Snes *s)
 
 // $C2:DD7C
 /* The panel's counts, then each member: loaded and posed, its figures
- * with the item worked out (the original's) where it could use it, and
- * drawn. */
+ * with the item worked out where it could use it, and drawn. */
 void menu_show_shop_item_panel(Snes *s)
 {
     GameState *g = state_of(s);
@@ -186,14 +182,17 @@ void menu_show_shop_item_panel(Snes *s)
     unsigned m = 0;
     bool usable = false;
     uint8_t character = 0;
+    uint16_t figures_left = 0;
     for (; menu_shop_panel_member(g, m, &usable); m++) {
         character = menu_status_record_character(g);
-        if (usable && !call(s, 0xC2DE08, WORK_OUT_FIGURES))
-            return;
+        if (usable) {
+            TIMED_AS(g, 0xC2916E, menu_work_out_figures(g));
+            ORIGINAL_EFFECT(note_figures_left(g, &figures_left));
+        }
         menu_shop_panel_member_shown(g, m);
     }
     menu_shop_panel_done(g, m);
-    ORIGINAL_EFFECT(leave_panel_member(s, m == 0 || usable, character));
+    ORIGINAL_EFFECT(leave_panel_member(s, m == 0 || usable, character, figures_left));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -220,11 +219,11 @@ void menu_choose_shop_tab(Snes *s)
         if (menu_shop_buying_chosen(g)) {
             menu_shop_go_to(g, SHOP_BUYING);
             ORIGINAL_EFFECT(leave_step_set(s, SHOP_BUYING));
-            menu_open_goods_list(s);
+            NATIVE_TIME_AS(s, 0xC2DC7B, menu_open_goods_list(s));
         } else {
             menu_shop_go_to(g, SHOP_SELLING);
             ORIGINAL_EFFECT(leave_step_set(s, SHOP_SELLING));
-            menu_open_for_sale_list(s);
+            NATIVE_TIME_AS(s, 0xC2DE98, menu_open_for_sale_list(s));
         }
         return;
     case SHOP_LEFT: m_stop_at(s, LEAVE_THE_SHOP, READS_NOTHING); return;
@@ -375,18 +374,17 @@ static void slide_the_list(Snes *s, bool selling)
 }
 
 // $C2:D7CF, $C2:D8B2
-/* Pointing along a list: a page turned (the paging is the original's), the
- * rows drawn again and a frame's wait; or the cursor moved within the rows
+/* Pointing along a list: a page turned, the rows drawn again and a
+ * frame's wait; or the cursor moved within the rows
  * (the original's), a push past them sliding the list. Then the row. */
 static void point_along(Snes *s, bool selling)
 {
     GameState *g = state_of(s);
     menu_set_widths(s, true, m_x8(s));
-    menu_shop_note_top_for_paging(g, selling);
-    if (!call(s, selling ? 0xC2D8BA : 0xC2D7D7, TURN_PAGE))
-        return;
-    if (menu_shop_paged(g, selling)) {
-        menu_shop_turn_page(g, selling);
+    uint8_t top = menu_shop_list_top(g, selling), to = top;
+    TIMED_AS(g, 0xC293BF, to = menu_turn_page(g, top));
+    if (to != top) {
+        menu_shop_turn_page(g, selling, to);
         if (!yield(s, selling ? 0xC2D8CA : 0xC2D7E7))
             return;
         take_the_row(s, selling);
@@ -510,10 +508,14 @@ static void change_the_quantity(Snes *s)
     m_rts(s);
 }
 
+/* The inventory's routines run with 8-bit index registers, which leaves
+ * Y's high byte clear. */
+static void leave_inventory_changed(Snes *s) { s->cpu.y &= 0x00FF; }
+
 // $C2:D618
-/* The quantity bought: the goods added to the party's items (the
- * original's), the gold paid, the goods counted again, the deal's sound.
- * Bought or left, a tick, and back on the list. */
+/* The quantity bought: the goods added to the party's items, the gold
+ * paid, the goods counted again, the deal's sound. Bought or left, a tick,
+ * and back on the list. */
 void menu_choose_how_many_to_buy(Snes *s)
 {
     GameState *g = state_of(s);
@@ -522,9 +524,8 @@ void menu_choose_how_many_to_buy(Snes *s)
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (menu_shop_choose_quantity(g)) {
     case QUANTITY_TAKEN:
-        if (!call(s, 0xC2D62A, ADD_TO_ITEMS))
-            return;
         menu_shop_bought(g);
+        ORIGINAL_EFFECT(leave_inventory_changed(s));
         ORIGINAL_EFFECT(leave_gold_word(s));
         if (!play_sound(s, 0xC2D635, DEAL_SOUND))
             return;
@@ -539,9 +540,9 @@ void menu_choose_how_many_to_buy(Snes *s)
 }
 
 // $C2:D690
-/* The quantity sold: the items taken from the party's (the original's),
- * the gold received, the deal's sound. Sold or left, a tick, and back on
- * the list, made again. */
+/* The quantity sold: the items taken from the party's, the gold received,
+ * the deal's sound. Sold or left, a tick, and back on the list, made
+ * again. */
 void menu_choose_how_many_to_sell(Snes *s)
 {
     GameState *g = state_of(s);
@@ -550,9 +551,8 @@ void menu_choose_how_many_to_sell(Snes *s)
     ORIGINAL_EFFECT(leave_buttons_tested(s));
     switch (menu_shop_choose_quantity(g)) {
     case QUANTITY_TAKEN:
-        if (!call(s, 0xC2D6A2, TAKE_FROM_ITEMS))
-            return;
-        menu_shop_receive(g);
+        menu_shop_sold(g);
+        ORIGINAL_EFFECT(leave_inventory_changed(s));
         ORIGINAL_EFFECT(leave_gold_word(s));
         if (!play_sound(s, 0xC2D6AA, DEAL_SOUND))
             return;
@@ -717,11 +717,14 @@ static void leave_listed(Snes *s, uint8_t c_before)
 }
 
 /* The panel's last member: A's high byte where the figures' working out
- * left it, or the record's place's, as the character's record was found. */
-static void leave_panel_member(Snes *s, bool usable, uint8_t character)
+ * left it (its attack's sum's, before the figures' drawing divides again),
+ * or the record's place's, as the character's record was found. */
+static void note_figures_left(GameState *g, uint16_t *left) { *left = hw_dividend(g); }
+
+static void leave_panel_member(Snes *s, bool usable, uint8_t character, uint16_t figures_left)
 {
-    if (!usable)
-        s->cpu.a = (uint16_t)(((character * 0x40) & 0xFF00) | (s->cpu.a & 0xFF));
+    uint16_t high = usable ? figures_left : (uint16_t)(character * 0x40);
+    s->cpu.a = (uint16_t)((high & 0xFF00) | (s->cpu.a & 0xFF));
     leave_a_low(s, 0xFF);
 }
 

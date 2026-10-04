@@ -408,17 +408,18 @@ static void as_the_dispatch_has_it(Snes *s, uint8_t command)
 }
 
 // $C0:3E7C
-/* The menus' party routine 8, which the command's dispatch reaches through
- * its table; the script goes on after the command. */
-enum { PARTY_ROUTINE = 8, SCREEN_COMMAND_LENGTH = 2 };
+/* The game finished: the menus' service that notes it on the cartridge,
+ * for the load screen's New Game+ (menu/party.h), which the command's
+ * dispatch reaches through its table; the script goes on after the
+ * command. The service takes the command's offset as its character and the
+ * dispatch's X as its item, and keeps both. */
+enum { SCREEN_COMMAND_LENGTH = 2 };
 
 void event_screen_party_routine(Snes *s)
 {
     uint16_t resume = (uint16_t)(event_command_offset(s) + SCREEN_COMMAND_LENGTH);
-    s->cpu.y = resume;
     ORIGINAL_EFFECT(event_keep_offset(state_of(s), resume));
-    if (!event_call_party_routine(s, 0xC03E67, PARTY_ROUTINE))
-        return;
+    event_ask_the_menus(s, SERVICE_GAME_FINISHED, (uint8_t)resume, s->cpu.x);
     s->cpu.x = resume;
     m_rts(s);
 }

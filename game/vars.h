@@ -486,6 +486,11 @@ void set_character_records_max_mp(GameState *g, unsigned i, uint16_t v);
  * the movie library); the battle's stat block has its element affinities here */
 uint16_t character_records_hp_cap(const GameState *g, unsigned i);
 void set_character_records_hp_cap(GameState *g, unsigned i, uint16_t v);
+/* The stats with what the character wears added, then its attack and defence, as the menus work
+ * them out ($C2:9137) [9 bytes, one at a time] */
+enum { CHARACTER_RECORDS_FIGURES_BYTES = 9 };
+uint8_t character_records_figures_byte(const GameState *g, unsigned i, unsigned at);
+void set_character_records_figures_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 /* The record a byte at a time, by the stat block's offsets (battle/combatant.h) [80 bytes, one
  * at a time] Unchecked, for marked scaffolding only: the demo battle's party writes eight
  * records' HP and MP, the eighth over the learned techs after the seventh
@@ -518,6 +523,12 @@ void set_character_records_max_mp_unchecked(GameState *g, unsigned i, uint16_t v
  * over the learned techs after the seventh (game/battle/fight_party.c, $FD:B2DE) */
 uint16_t character_records_hp_cap_unchecked(const GameState *g, unsigned i);
 void set_character_records_hp_cap_unchecked(GameState *g, unsigned i, uint16_t v);
+/* The stats with what the character wears added, then its attack and defence, as the menus work
+ * them out ($C2:9137) [9 bytes, one at a time] Unchecked, for marked scaffolding only: the demo
+ * battle's party writes eight records' HP and MP, the eighth over the learned techs after the
+ * seventh (game/battle/fight_party.c, $FD:B2DE) */
+uint8_t character_records_figures_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_character_records_figures_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { PARTY_SINGLE_TECHS_KNOWN_COUNT = 7 };   /* by character */
 /* How many of its single techs the character has learned, which are its first that many */
@@ -3041,6 +3052,58 @@ void set_menu_scratch_carried_character(GameState *g, uint8_t v);
  * character starts) */
 uint16_t menu_scratch_carried_slot(const GameState *g);
 void set_menu_scratch_carried_slot(GameState *g, uint16_t v);
+/* The figures' working out ($C2:916E): the weapon's part of the attack's sum, five times its
+ * attack, or an aimed weapon's attack */
+uint16_t menu_scratch_figures_weapon_part(const GameState *g);
+void set_menu_scratch_figures_weapon_part(GameState *g, uint16_t v);
+/* Every character's figures written back as the menus open ($C2:99B2): the characters done */
+uint16_t menu_scratch_characters_noted(const GameState *g);
+void set_menu_scratch_characters_noted(GameState *g, uint16_t v);
+/* Every character's sprite colours loaded ($C2:F5A7): the characters whose weapons' colours are
+ * in, counted */
+uint16_t menu_scratch_colours_loaded(const GameState *g);
+void set_menu_scratch_colours_loaded(GameState *g, uint16_t v);
+/* A frame of the cursors on every member ($C2:8AFD): which of those still to draw are out, a bit
+ * each */
+uint16_t menu_scratch_cursors_out_left(const GameState *g);
+void set_menu_scratch_cursors_out_left(GameState *g, uint16_t v);
+/* A frame of the cursors on every member: the members still to draw */
+uint16_t menu_scratch_cursors_left(const GameState *g);
+void set_menu_scratch_cursors_left(GameState *g, uint16_t v);
+/* A frame of the cursors on every member: the cursor place of the next member's cursor */
+uint8_t menu_scratch_cursor_place(const GameState *g);
+void set_menu_scratch_cursor_place(GameState *g, uint8_t v);
+/* The healing's showing ($C2:8F6C): the members listed with a number so far, doubled */
+uint16_t menu_scratch_amounts_listed_at(const GameState *g);
+void set_menu_scratch_amounts_listed_at(GameState *g, uint16_t v);
+/* The healing's showing: how many numbers the member it looks at has, its HP's and its MP's */
+uint16_t menu_scratch_member_amounts(const GameState *g);
+void set_menu_scratch_member_amounts(GameState *g, uint16_t v);
+/* A rising number being drawn ($C2:9093): its digit, from the highest, left past the units */
+uint8_t menu_scratch_amount_digit(const GameState *g);
+void set_menu_scratch_amount_digit(GameState *g, uint8_t v);
+/* A rising number being drawn: the next digit's place across from the member's sprite */
+uint8_t menu_scratch_amount_offset(const GameState *g);
+void set_menu_scratch_amount_offset(GameState *g, uint8_t v);
+/* A rising number being drawn: its digits drawn */
+uint8_t menu_scratch_amount_drawn(const GameState *g);
+void set_menu_scratch_amount_drawn(GameState *g, uint8_t v);
+/* A frame of the rising numbers: how high above the members' sprites they are */
+uint16_t menu_scratch_amount_height(const GameState *g);
+void set_menu_scratch_amount_height(GameState *g, uint16_t v);
+/* A healing drawn at random ($C2:8ECC): the six random bytes, the members' MP's first [6 bytes,
+ * one at a time] */
+enum { MENU_SCRATCH_HEAL_DRAWN_BYTES = 6 };
+uint8_t menu_scratch_heal_drawn_byte(const GameState *g, unsigned at);
+void set_menu_scratch_heal_drawn_byte(GameState *g, unsigned at, uint8_t v);
+/* A healing drawn at random: the amount every draw starts from */
+uint16_t menu_scratch_heal_base(const GameState *g);
+void set_menu_scratch_heal_base(GameState *g, uint16_t v);
+
+/* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
+ * HP's, 6 the MP's */
+uint8_t menu_amounts_from(const GameState *g);
+void set_menu_amounts_from(GameState *g, uint8_t v);
 
 /* A New Game+'s load ($FF:FAED): where the starting record of the character it equips is, a long
  * address into the ROM */
@@ -3058,6 +3121,20 @@ void set_menu_tech_members(GameState *g, unsigned member, uint8_t v);
  * triple's, and the byte after it, which the bank's word store clears */
 uint32_t menu_tech_parts_column(const GameState *g);
 void set_menu_tech_parts_column(GameState *g, uint32_t v);
+
+/* A frame of the rising numbers: the listed member it is drawing, doubled, left past the last */
+uint16_t menu_amounts_place(const GameState *g);
+void set_menu_amounts_place(GameState *g, uint16_t v);
+
+/* A frame of the rising numbers: the listed members it has still to draw */
+uint16_t menu_amounts_left(const GameState *g);
+void set_menu_amounts_left(GameState *g, uint16_t v);
+
+enum { MENU_HEAL_AMOUNTS_COUNT = 6 };   /* by the three members' HP amounts, then their MP amounts */
+/* The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn
+ * at random */
+uint16_t menu_heal_amounts(const GameState *g, unsigned i);
+void set_menu_heal_amounts(GameState *g, unsigned i, uint16_t v);
 
 /* The menus' opening counts the records it loads here, in the time played shown's hours, which
  * the save screen's header then takes for a time it has drawn */
@@ -3359,6 +3436,9 @@ void set_menu_text_work_window_columns(GameState *g, uint16_t v);
  * command leaves at 0 or at a frame's inside rows */
 uint16_t menu_text_work_window_rows(const GameState *g);
 void set_menu_text_work_window_rows(GameState *g, uint16_t v);
+/* The number's low four digits, which the healing's rising numbers read as a word */
+uint16_t menu_text_work_number_low(const GameState *g);
+void set_menu_text_work_number_low(GameState *g, uint16_t v);
 
 /* How many digits of the number to write (also the byte being converted while converting) */
 uint8_t menu_number_digits(const GameState *g);
@@ -3602,6 +3682,11 @@ void set_menu_tech_member_row(GameState *g, uint8_t v);
 uint8_t menu_tech_member_scroll(const GameState *g);
 void set_menu_tech_member_scroll(GameState *g, uint8_t v);
 
+/* The weapon whose colours the menus last looked up for its wearer's sprite palette ($C2:F5ED),
+ * a word; nothing reads it */
+uint16_t menu_weapon_looked_up(const GameState *g);
+void set_menu_weapon_looked_up(GameState *g, uint16_t v);
+
 /* The rock it has got to: five, past the last, as it ends */
 uint8_t menu_rock_tech_search_rock(const GameState *g);
 void set_menu_rock_tech_search_rock(GameState *g, uint8_t v);
@@ -3621,6 +3706,36 @@ enum { MENU_ROCK_TECHS_READY_COUNT = 5 };   /* by rock: the five triple techs a 
  * with the single tech it takes learned; 0 otherwise */
 uint8_t menu_rock_techs_ready(const GameState *g, unsigned i);
 void set_menu_rock_techs_ready(GameState *g, unsigned i, uint8_t v);
+
+/* The character the menus' services ($C2:8004) were last asked to work on, as their caller gives
+ * it in Y; the dispatcher keeps it, and the services take it as their argument */
+uint8_t menu_service_character(const GameState *g);
+void set_menu_service_character(GameState *g, uint8_t v);
+
+/* What the last of the menus' services answered, which the dispatcher hands back in A: its low
+ * byte (menu_service_places_searched holds the high byte of a service that works 16 bits wide) */
+uint8_t menu_service_answer(const GameState *g);
+void set_menu_service_answer(GameState *g, uint8_t v);
+
+/* How many of the party's places the last of the services' searches for a character looked
+ * through (3 the active party's, 9 all); a service that works 16 bits wide leaves its answer's
+ * high byte here instead */
+uint8_t menu_service_places_searched(const GameState *g);
+void set_menu_service_places_searched(GameState *g, uint8_t v);
+
+/* Where in work RAM the record of the character the equipping service ($C2:8D8F) works on is */
+uint16_t menu_service_record_at(const GameState *g);
+void set_menu_service_record_at(GameState *g, uint16_t v);
+
+/* The item the equipping service ($C2:8D8F) was asked to put on, kept while what comes off goes
+ * back to the party's items */
+uint8_t menu_service_item(const GameState *g);
+void set_menu_service_item(GameState *g, uint8_t v);
+
+/* The place in the inventory where the last search for an item the party has some of found it
+ * ($C2:87FA), a word; the item count service reads it right after */
+uint16_t menu_item_place_found(const GameState *g);
+void set_menu_item_place_found(GameState *g, uint16_t v);
 
 /* The item the inventory's routines add or take ($C2:8791, $C2:87D5) and a list draws a row of
  * ($C2:A59A); a list's row on the screen while it slides */
@@ -4001,8 +4116,8 @@ void set_menu_setting_descriptions(GameState *g, uint8_t v);
 uint8_t menu_setting_message_speed(const GameState *g);
 void set_menu_setting_message_speed(GameState *g, uint8_t v);
 
-/* The byte after the unpacked settings, which their clearing clears with them; nothing in bank
- * C2 reads it */
+/* The byte after the unpacked settings, which their clearing clears with them; the speeds
+ * option's description reads it as the settings screen asks for it */
 uint8_t menu_setting_spare(const GameState *g);
 void set_menu_setting_spare(GameState *g, uint8_t v);
 
@@ -4047,10 +4162,20 @@ void set_menu_held_cursor_top(GameState *g, uint8_t v);
 uint16_t menu_held_cursor_shift(const GameState *g);
 void set_menu_held_cursor_shift(GameState *g, uint16_t v);
 
+/* Which of the cursors a screen holds are out in their blink, a bit each: the held cursor's bit
+ * 0, the members' cursors' bits 0-2 */
+uint8_t menu_cursors_out(const GameState *g);
+void set_menu_cursors_out(GameState *g, uint8_t v);
+
 /* The held cursor's sprite, its tile and attributes, which its task ($C2:8AB2) draws at
  * menu_held_cursor's place */
 uint16_t menu_held_cursor_sprite(const GameState *g);
 void set_menu_held_cursor_sprite(GameState *g, uint16_t v);
+
+enum { MENU_CURSOR_BLINKS_COUNT = 3 };   /* by held cursor (the first is the held cursor's, or the first member's) */
+/* Each held cursor's countdown to its next blink */
+uint8_t menu_cursor_blinks(const GameState *g, unsigned i);
+void set_menu_cursor_blinks(GameState *g, unsigned i, uint8_t v);
 
 /* How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn
  * ($FC a blink every four frames, $F8 every eight) */
@@ -4071,9 +4196,25 @@ uint16_t menu_window_rows_step(const GameState *g);
 void set_menu_window_rows_step(GameState *g, uint16_t v);
 
 /* Which slot the figures' working out ($C2:916E) is adding up, counted down from the accessory;
- * the shop's panel leaves the item's category here as it starts */
-uint16_t menu_figures_slot(const GameState *g);
-void set_menu_figures_slot(GameState *g, uint16_t v);
+ * the shop's panel leaves the item's category here as it starts, a word with
+ * menu_figures_boosts' first */
+uint8_t menu_figures_slot(const GameState *g);
+void set_menu_figures_slot(GameState *g, uint8_t v);
+
+enum { MENU_FIGURES_BOOSTS_COUNT = 7 };   /* by stat, by its place in the record */
+/* What the equipment a member wears adds to each of its stats, as the figures' working out
+ * ($C2:916E) adds it up */
+uint8_t menu_figures_boosts(const GameState *g, unsigned i);
+void set_menu_figures_boosts(GameState *g, unsigned i, uint8_t v);
+
+/* The attack of the weapon a member wears, as the figures' working out ($C2:916E) takes it */
+uint8_t menu_figures_weapon_attack(const GameState *g);
+void set_menu_figures_weapon_attack(GameState *g, uint8_t v);
+
+/* The defence of the armour and helmet a member wears, added up by the figures' working out
+ * ($C2:916E) */
+uint8_t menu_figures_armour_defence(const GameState *g);
+void set_menu_figures_armour_defence(GameState *g, uint8_t v);
 
 /* The cursor place of the first member row an item is used on (12): the member pointed at is the
  * cursor less it */
@@ -4153,10 +4294,20 @@ void set_menu_settings_description(GameState *g, uint8_t v);
 uint16_t menu_description_clear_bytes(const GameState *g);
 void set_menu_description_clear_bytes(GameState *g, uint16_t v);
 
+/* How many rows a page of a scrolling list is, as its frame ($C2:EA81) lays it out for the
+ * paging ($C2:93BF) */
+uint8_t menu_paging_rows(const GameState *g);
+void set_menu_paging_rows(GameState *g, uint8_t v);
+
 /* A list's first row as its paging ($C2:93BF) takes it and leaves it: the paging moves it a page
  * on or back */
 uint8_t menu_paging_top(const GameState *g);
 void set_menu_paging_top(GameState *g, uint8_t v);
+
+/* The last first row a scrolling list can show, as its frame ($C2:EA81) lays it out for the
+ * paging ($C2:93BF) */
+uint8_t menu_paging_last_top(const GameState *g);
+void set_menu_paging_last_top(GameState *g, uint8_t v);
 
 /* The cursor place of a scrolling list's first row, which its frame ($C2:EA81) counts the list's
  * last place from */
@@ -4253,6 +4404,32 @@ void set_menu_tech_cost(GameState *g, uint8_t v);
  * as their rows are drawn; no code traced reads it */
 uint16_t menu_tech_row_partners(const GameState *g);
 void set_menu_tech_row_partners(GameState *g, uint16_t v);
+
+/* How many members' numbers the healing's showing raises ($C2:8F6C): those it gave an amount */
+uint16_t menu_amounts_listed(const GameState *g);
+void set_menu_amounts_listed(GameState *g, uint16_t v);
+
+enum { MENU_AMOUNTS_PLACES_COUNT = 3 };   /* by member listed */
+/* Its Y */
+uint8_t menu_amounts_places_y(const GameState *g, unsigned member);
+void set_menu_amounts_places_y(GameState *g, unsigned member, uint8_t v);
+/* Its X */
+uint8_t menu_amounts_places_x(const GameState *g, unsigned member);
+void set_menu_amounts_places_x(GameState *g, unsigned member, uint8_t v);
+
+/* Which kinds of number the healing's showing raises: bit 0 the HP's, bit 1 the MP's; its task
+ * shifts each out as it takes it */
+uint16_t menu_amounts_kinds(const GameState *g);
+void set_menu_amounts_kinds(GameState *g, uint16_t v);
+
+/* Where the rising numbers are along their path of heights ($FF:CEBA), a step a frame */
+uint8_t menu_amounts_step(const GameState *g);
+void set_menu_amounts_step(GameState *g, uint8_t v);
+
+/* The rising numbers' last digit, counted from the units: 3 for the HP's four, 1 for the MP's
+ * two */
+uint8_t menu_amounts_last_digit(const GameState *g);
+void set_menu_amounts_last_digit(GameState *g, uint8_t v);
 
 enum { MENU_LIST_ITEM_COUNTS_COUNT = 98 };   /* by row of the list */
 /* How many of each of menu_list_items' items the party has */
@@ -4954,6 +5131,25 @@ void set_menu_status_record_hp(GameState *g, uint16_t v);
 /* The last byte a save's summary has of the record, as a word with the byte after it */
 uint16_t menu_status_record_last(const GameState *g);
 void set_menu_status_record_last(GameState *g, uint16_t v);
+/* The character's greatest HP, before an earring */
+uint16_t menu_status_record_max_hp(const GameState *g);
+void set_menu_status_record_max_hp(GameState *g, uint16_t v);
+/* The character's stats as they are: power, stamina, speed, magic, hit, evade and magic defence
+ * [7 bytes, one at a time] */
+enum { MENU_STATUS_RECORD_STATS_BYTES = 7 };
+uint8_t menu_status_record_stats_byte(const GameState *g, unsigned at);
+void set_menu_status_record_stats_byte(GameState *g, unsigned at, uint8_t v);
+/* The character's level */
+uint8_t menu_status_record_level(const GameState *g);
+void set_menu_status_record_level(GameState *g, uint8_t v);
+/* The stats with what the character wears added (menu_figures_worked_out), then its attack and
+ * defence [9 bytes, one at a time] */
+enum { MENU_STATUS_RECORD_FIGURES_BYTES = 9 };
+uint8_t menu_status_record_figures_byte(const GameState *g, unsigned at);
+void set_menu_status_record_figures_byte(GameState *g, unsigned at, uint8_t v);
+/* The character's greatest HP, raised by an earring */
+uint16_t menu_status_record_hp_cap(const GameState *g);
+void set_menu_status_record_hp_cap(GameState *g, uint16_t v);
 
 /* The six bytes after the record: on the load screen the summary's, for a party member the
  * character's name record (character_names) [6 bytes, one at a time] */
@@ -4961,18 +5157,29 @@ enum { MENU_STATUS_RECORD_TAIL_BYTES = 6 };
 uint8_t menu_status_record_tail_byte(const GameState *g, unsigned at);
 void set_menu_status_record_tail_byte(GameState *g, unsigned at, uint8_t v);
 
-enum { MENU_FIGURES_WORKED_OUT_COUNT = 11 };   /* by figure: the stats at their places in the figures' table, then attack (7) and defence (8) */
+enum { MENU_FIGURES_WORKED_OUT_COUNT = 9 };   /* by figure: the stats at their places in the figures' table, then attack (7) and defence (8) */
 /* A member's figures as the menus work them out from its record and what it has on ($C2:916E),
  * which the screens compare with the record's own; the shop's panel puts the record's attack and
  * defence here first, for a member who can't use the item */
 uint8_t menu_figures_worked_out(const GameState *g, unsigned i);
 void set_menu_figures_worked_out(GameState *g, unsigned i, uint8_t v);
 
+/* A member's greatest HP as the figures' working out finds it, raised by an earring it wears
+ * (the record's hp_cap) */
+uint16_t menu_figures_greatest_hp(const GameState *g);
+void set_menu_figures_greatest_hp(GameState *g, uint16_t v);
+
 enum { MENU_BLANK_STRING_COUNT = 32 };   /* by tile */
 /* Thirty-two blank tiles, which the menus draw as a string (as many as the drawer is told) where
  * a list has nothing to name */
 uint8_t menu_blank_string(const GameState *g, unsigned i);
 void set_menu_blank_string(GameState *g, unsigned i, uint8_t v);
+
+/* The party's items and their counts set aside while the story holds the party to what it has
+ * ($C2:90FC), put back after ($C2:9121) [512 bytes, one at a time] */
+enum { MENU_ITEMS_SET_ASIDE_BYTES = 512 };
+uint8_t menu_items_set_aside_byte(const GameState *g, unsigned at);
+void set_menu_items_set_aside_byte(GameState *g, unsigned at, uint8_t v);
 
 /* A copy the menus take as they open of menu_past_the_names (what the three bytes are is not
  * worked out) */

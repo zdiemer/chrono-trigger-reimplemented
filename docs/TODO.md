@@ -773,34 +773,24 @@ rest waits, is [PLAN.md](PLAN.md).
   where the table holds only cells (the dispatch is the bridge's
   `OPTION_HANDLERS`); `give_button` mixes rows and assignments where the
   ROM's table at `$C2:C2BD` is the identity for 0-7 (one index type);
-  `re/ram.toml` still says nothing reads `menu_setting_spare`, which the
-  speeds option's description does; `swap_stray_places` wants a name for
-  what the player sees; `shop_bridge.c` calls registered list entries
-  directly as C, so `menu_choose_shop_tab` carries a timing exception where
-  `NATIVE_TIME_AS` would do, and six entries keep a placeholder
-  `cost_milli = 5000`; the front tilemap's `0x2E00` base is private in eight
+  `swap_stray_places` wants a name for what the player sees; six of the
+  shop's entries keep a placeholder `cost_milli = 5000`; the front tilemap's `0x2E00` base is private in eight
   files (a `menu_front_tile(column, row)`); the push directions are
   redefined in `settings_screen.c` and `shop.c` (export from `cursor.h`);
   bit 0 of `story_party_rules` has three names in three files;
   `menu_shop_goods_offered_word` is a register value exported from logic;
   boxes 4-6 are bare numbers in the settings bridge; scaffolding notes sit
-  under game branches in `shop.c`; `shop.c`'s `& 0x1FFFFFF` covers gold the
-  guard rules out; `take_at_most` reads back the limit it just wrote;
-  `items.c` keeps `item_at`/`count_at` as twins of the new exports; TODO
-  calls `$C2:8791`/`$C2:87D5` "the cursor's places" where they add items to
-  the inventory and take them away.
+  under game branches in `shop.c`; `take_at_most` reads back the limit it
+  just wrote.
 
 - **What the save code's review left** (merged with bank `$FF`; none
   blocking): `SAVED_TECHS_UNLOCKED = 0x7E3` is a magic offset into a saved game (derive
-  it from the run table); two identical "clear A's high byte" helpers
-  (`saves.c`, `load_screen.c`); `saves_check_answer` exports the original's
-  `$8080`/`$4040` answer from the logic header (leaves); `menu_slot_game_at`
+  it from the run table); `menu_slot_game_at`
   still hands the checked slot to the summary's reading (pass the slot's
   place); the gate swirl's phase and frame count are positional indices into
   `menu_gate_screen_state`; `menu_put_character_colours` reads the colour
   table by byte offset; `count_on_the_cartridge`'s comment should say when
-  the count of finishes moves on; `CHARACTERS = 7` again in `saves.c` and
-  `techs.c` beside `CHARACTER_RECORDS_COUNT`; a misplaced comment in
+  the count of finishes moves on; a misplaced comment in
   `digits.c`; `leave_parts_noted` pulls `ram.h` into `techs.c`.
 
 - **What the techs screen's review left** (merged with the techs screen; none
@@ -814,7 +804,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `tech_cost_needed` right after `menu_tech_cost_for` returned it; the
   list's rows move by `wram_copy` on raw tilemap addresses;
   `menu_tech_effect_byte` takes a byte offset (`{factor, restores}`); the
-  status record's `MP_AT`, `MAGIC_AT` and `ACCESSORY_AT` want map fields;
+  status record's `MP_AT` and `ACCESSORY_AT` want map fields;
   the bridge repeats constants `tech_screen.c` names, and `TECH_RECORD_BYTES`
   is in two files; `item_screen_bridge.c`'s `SITES[w]` runs a local enum
   beside `ItemUseKind`; the extra empty member rows' comment should say what
@@ -1071,6 +1061,22 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
+- **What the menus' eighth chunk left** (RECOMP.md, "Phase 3, menus: the
+  party's services, its figures and its healing"):
+  - the figures and the healing leave the multiplier's and the divider's
+    results (`hw_set_multiplicand`, `hw_divide_by`) and the healing's
+    numbers' cells as the original's work did, as scaffolding: they go with
+    the gate, and the figures then need no hardware arithmetic at all;
+  - the healing's rising numbers (`$C2:9016`, `$C2:9047`) and its showing
+    (`$C2:8F55`) span frames, so shadow mode compares them inside the call
+    that encloses them, and fuzzing up to their first wait for a frame;
+  - the services, event's party commands and a New Game+'s load are guarded
+    to an active party of characters (`party_record_shows_characters`): a
+    record holding something else would index past the characters' records,
+    as the original would. A native storage makes the record a type that
+    can't;
+  - the items screen's use on one member still starts the original's
+    cursor task (`$C2:89E4`, with `$C2:8A31`), the next chunk's.
 - **What the menus' seventh chunk left** (RECOMP.md, "Phase 3, menus: the
   settings screen and the shop"):
   - the settings screen's eighth button assignment (the shoulder buttons'
@@ -1090,9 +1096,8 @@ rest waits, is [PLAN.md](PLAN.md).
     entry is picked by a step number, so the call into it declares V and C
     live (`READS_FLAGS_V_C`) until it is ported;
   - the shop and the settings call out to the list slide (`$C2:EB1F`,
-    `$C2:EB9B`), the paging (`$C2:93BF`), the description (`$C2:F2F3`), the
-    members' services (`$C2:916E`) and the cursor's places (`$C2:8791`,
-    `$C2:87D5`), which wait for the next chunks (PLAN.md);
+    `$C2:EB9B`) and the description (`$C2:F2F3`), which wait for the next
+    chunks (PLAN.md);
   - the library buys and sells at one shop (`menus-shop-inn`) without
     paging or sliding the list; fuzzing is the check for the slide, the
     quantity's limits and a full purse, and a movie through a big shop's
@@ -1112,10 +1117,8 @@ rest waits, is [PLAN.md](PLAN.md).
     wait for a frame. A library movie that does them (from a save with tabs
     and a Lapis, more than ten places of items) would keep them checked;
   - the items screen still calls out for the description (`$C2:F2F3`), the
-    restoring and its showing (`$C2:8F55`, `$C2:8F6C`), the cursor among the
-    members a tonic is used on (`$C2:B83E`, the techs screen's), the records'
-    reset and task (`$C2:F566`, `$C2:F643`), the members' sprites' colours
-    (`$C2:F5A7`) and the cursors' tasks (`$C2:89E4`, `$C2:8AD5`).
+    cursor among the members a tonic is used on (`$C2:B83E`, the techs
+    screen's) and the cursor's task for one member (`$C2:89E4`).
 - **What the menus' fifth chunk left** (RECOMP.md, "Phase 3, menus: the
   equipment screen and its member list"):
   - the equipment screen's preview of an item's figures (`$C2:A5C3`,
@@ -1123,11 +1126,9 @@ rest waits, is [PLAN.md](PLAN.md).
     figures, `$C2:916E`, and the description) is what the list's move
     (`$C2:9F05`) leaves at its return, which that port doesn't work out on
     its paths; what its steps call out to beyond it is still the original's
-    too: the inventory's routines (`$C2:8791`, `$C2:87D5`), the list of what
-    fits (`$C2:8953`), the member's figures (`$C2:9137`), the lists' paging
-    and sliding (`$C2:93BF`, `$C2:EA53`, `$C2:EB9B`, `$C2:EB1F`), the party's
-    items set aside and back (`$C2:90FC`, `$C2:9121`), the low-HP marks
-    (`$C2:813C`), the tasks' stop (`$C2:8255`) and the main menu (`$C2:9A98`);
+    too: the list of what fits (`$C2:8953`), the lists' sliding (`$C2:EA53`,
+    `$C2:EB9B`, `$C2:EB1F`), the low-HP marks (`$C2:813C`), the tasks' stop
+    (`$C2:8255`) and the main menu (`$C2:9A98`);
   - the member slide's start (`$C2:9D5B`) and the member list's scroll bar
     (`$C2:A170`) stay the original's: each saves P after a count of its own
     (the new first row, the row and scroll's sum) and calls out under it
@@ -1234,8 +1235,6 @@ rest waits, is [PLAN.md](PLAN.md).
     go;
   - the save screen's `menu_scratch_save_member_*` fields renamed for what
     they hold;
-  - each member's figures (`$C2:99B2`, with `$C2:8816` and `$C2:9137`), which
-    the items' tables call, are the original's;
   - what the three bytes at `$7E:2C53` the menus copy as they open are, and
     the story's bits the item lists read (`menu_story_items`,
     `menu_place_items`), is not worked out.
@@ -1249,14 +1248,10 @@ rest waits, is [PLAN.md](PLAN.md).
     (`menu_put_character_colours`), and the number tiles' and the gate's
     drawing are interrupted on their only calls: fuzzing is their check, and
     a movie through a New Game+ would add shadow mode's;
-  - a New Game+'s load calls the menus' services (`$C2:8004`: equip, fill HP,
-    fill MP) as the original's, leaving them A's high byte as scaffolding;
-    porting the equipping service would take it out;
   - what the cartridge's count at save memory's `$1FE1`
     (`SAVES_TIMES_FINISHED`) counts: the save moves it on when the game's
     `times_finished` equals it, which doesn't read as a count of finishes.
 - **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
-  - the load screen's call-out to the new game's state (`$C2:956E`);
   - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
     frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
     none mismatching), and no movie erases a slot: a movie that erases one on
@@ -1557,9 +1552,10 @@ below. `python3 tools/timing_census.py` re-runs the census.
   frame as a `tm_`/`in_` call that has an answer without a wait.
 - **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
   onto the field's objects"): 21 bridges, rows of the language's table that
-  call out to code still the original's: the sound driver (`sound.c`), the
-  menus' party routines (`$C2:8004`; the party's record, `$CF`-`$D7` in
-  `party.c`) and `$D6`'s and `$D4`'s carries, the location change from
+  call out to code still the original's: the sound driver (`sound.c`),
+  `$D6`'s and `$D4`'s carries (`party.c`, whose calls to the menus'
+  services are C now and keep the machine only for the Y they leave), the
+  location change from
   `$C0:3B71`, `$4E`'s stack, and the unpacker (`$C3:0002`, still a
   machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
   machine between their halves of C). A C unpacker taking a source and a
@@ -1739,8 +1735,9 @@ below. `python3 tools/timing_census.py` re-runs the census.
   - *Y* is read in one place, `STY $C0` at `$C2:8C36` (the menus' dispatcher,
     after the openings at map setup and the `$C0:595C` run of object 0),
     which stores its low byte at `$04C0`; nothing the library runs reads
-    `$04C0` afterwards. If the menus' port establishes that function `$0B`
-    ignores it, `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
+    `$04C0` afterwards, and the menus' port shows the service those calls
+    ask for (`$0B`, what the party wears) ignores it (`menu/party_bridge.c`),
+    so `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
     once `$C0:595C`/`$C0:597D` are ported too (they reach the handlers' entries
     as the original's code). The sound commands' calls to the driver keep Y
     and A's high byte for the same reason.
@@ -1759,8 +1756,9 @@ below. `python3 tools/timing_census.py` re-runs the census.
   - `field_setting_1e` (events `$DE`/`$DF` raise it with the location they
     set; cleared at `$C0:2842` and `$C0:2866`, returned by `$C0:28A7`, ANDed
     at `$C0:7628`). The field's rewrite reads those routines.
-  - The menus' party routines 6, 7 and `$0A` (events `$F8`-`$FA`, `$D5`),
-    through the dispatcher `$C2:8C36`: the menus' port names them.
+  - The event entries for the menus' services 6, 7 and `$0A` (events
+    `$F8`-`$FA`, `$D5`) keep the services' numbers in their names
+    (`event_cmd_party_routine_*`); `menu/party.h` names the services.
   Each is named for its address or its position until it is.
 - **The field's shadows hold hardware bytes.** The tint (event `$F1`) is
   written as the fixed colour's register byte and a colour-math setting

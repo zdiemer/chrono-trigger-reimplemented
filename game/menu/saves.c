@@ -18,18 +18,24 @@
  * A New Game+ starts from a finished game: it takes over the inventory, the
  * characters' records and their names, and which characters' locked techs
  * have been unlocked, then puts each character's starting equipment back on,
- * fills everyone's HP and MP, and leaves the story's key items behind. The
- * equipping and the filling are the menus' services ($C2:8004), still the
- * original's, so that load is a bridge. */
+ * fills everyone's HP and MP, and leaves the story's key items behind,
+ * through the menus' services (menu/party.h).
+ *
+ * At power on the services look at the cartridge (saves_power_on): a game on
+ * it has the game cleared for the load screen to load it into, and none has
+ * a new game's state set up (saves_start_a_new_game, which the load screen
+ * also sets up for the new game it starts). */
 #include "menu/saves.h"
 
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
+#include "menu/party.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -257,22 +263,107 @@ enum { CARRIED_OVER = 0x10 };
 
 static void note_carried_over(GameState *g) { set_story_game_notes(g, CARRIED_OVER); }
 
-/* The characters, Crono to Magus; Ayla fights with her fists, which are no
- * item, so her weapon isn't put back on. */
-enum { CHARACTERS = 7, AYLA = 5 };
+/* Ayla fights with her fists, which are no item, so her weapon isn't put
+ * back on. */
+enum { AYLA = 5 };
 
 static unsigned equipment_put_back(uint8_t character) { return character == AYLA ? MENU_STARTING_EQUIPMENT - 1 : MENU_STARTING_EQUIPMENT; }
 
-/* ---- The registered entries ----------------------------------------------------------------- */
-
-/* The check's answer as the original hands it over, in A and in its caller's
- * first cell. */
+/* The check's answer as the original hands it over, in A and in its
+ * caller's first cell, beside the slot's place: on the menus' page or the
+ * clock's. Nothing reads the answer from the cell. */
 enum { ANSWER_HELD = 0x0000, ANSWER_NONE = 0x8080, ANSWER_SPOILT = 0x4040 };
 
-uint16_t saves_check_answer(SavedGameCheck check)
+static uint16_t check_answer(SavedGameCheck check)
 {
     return check == SAVED_GAME_HELD ? ANSWER_HELD : check == SAVED_GAME_NONE ? ANSWER_NONE : ANSWER_SPOILT;
 }
+
+static void leave_check_answer(GameState *g, SaveCheckPage page, SavedGameCheck check)
+{
+    set_save_check_answer(g, page, check_answer(check));
+}
+
+SavedGameCheck saves_check_slot_noting(GameState *g, Platform *pf, SaveCheckPage page, uint8_t slot)
+{
+    SavedGameCheck check = saves_check_slot(g, pf, slot);
+    set_save_check_game_at(g, page, saves_slot_on_the_bus(g, slot));
+    ORIGINAL_EFFECT(leave_check_answer(g, page, check));
+    return check;
+}
+
+/* ---- A game's start --------------------------------------------------------------------------- */
+
+/* What a game starts from before it is loaded or begun: the story's memory,
+ * the clock's page (the time played, the player's own button assignments,
+ * the menus' services' cells), the settings and who has joined, all clear;
+ * then the settings and the button assignments the game starts with. */
+enum { STORY_BYTES = 0x200, CLOCK_PAGE_BYTES = 0x100, SETTINGS_TO_JOINED_BYTES = 0x20 };
+
+// $C2:95BB
+void saves_clear_the_game(GameState *g)
+{
+    wram_fill8(g, RAM_EVENT_MEMORY, STORY_BYTES, 0);
+    wram_fill8(g, RAM_PLAY_TIME, CLOCK_PAGE_BYTES, 0);
+    wram_fill8(g, RAM_GAME_SETTINGS, SETTINGS_TO_JOINED_BYTES, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, STORY_BYTES + CLOCK_PAGE_BYTES + SETTINGS_TO_JOINED_BYTES));
+    for (unsigned i = 0; i < GAME_SETTINGS_COUNT; i++)
+        set_game_settings(g, i, menu_new_game_setting(g, i));
+    for (unsigned i = 0; i < BUTTON_ASSIGNMENTS_COUNT; i++)
+        set_button_assignments(g, i, menu_default_button_assignment(g, i));
+    set_button_assignment_spare(g, menu_default_button_assignment(g, BUTTON_ASSIGNMENTS_COUNT));
+    for (unsigned i = 0; i < OWN_BUTTON_ASSIGNMENTS_COUNT; i++)
+        set_own_button_assignments(g, i, menu_default_button_assignment(g, i));
+}
+
+/* A new game: the inventory empty, every character's record and what it
+ * has learned as the game starts them, no gold, nobody in the party but the
+ * party's places all character 0's, emptied, and Crono joined; the battle's
+ * remembered cursors at their starts. Who has joined is written as a word,
+ * over the first member's place on the battlefield, which every battle's
+ * start sets again. */
+enum { INVENTORY_BYTES = 0x200, REMEMBERED_CURSORS_BYTES = 0x1E, CRONO = 0 };
+
+// $C2:956E
+void saves_start_a_new_game(GameState *g)
+{
+    saves_clear_the_game(g);
+    wram_fill8(g, RAM_INVENTORY_ITEMS, INVENTORY_BYTES, 0);
+    for (unsigned i = 0; i < MENU_NEW_GAME_RECORDS_BYTES; i++)
+        wram_write8(g, RAM_CHARACTER_RECORDS + i, menu_new_game_record_byte(g, i));
+    set_party_gold_low(g, 0);
+    set_party_gold_high(g, 0);
+    for (unsigned place = 0; place < PARTY_ACTIVE_PLACES; place++)
+        set_party_members(g, place, PARTY_PLACE_EMPTIED);
+    for (unsigned place = 0; place < PARTY_WAITING_COUNT; place++)
+        set_party_waiting(g, place, PARTY_PLACE_EMPTIED);
+    set_party_characters_joined(g, menu_character_bit(g, CRONO));
+    set_battle_party_placement_tile_x(g, 0, 0);
+    wram_fill8(g, RAM_BATTLE_REMEMBERED_CURSORS, REMEMBERED_CURSORS_BYTES, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, INVENTORY_BYTES + MENU_NEW_GAME_RECORDS_BYTES + PARTY_RECORD_PLACES
+                                             + REMEMBERED_CURSORS_BYTES));
+}
+
+// $C2:8D6A
+/* At power on: the slots looked at, first to last, for a game held. With
+ * one the game is cleared for it to load into; with none a new game starts.
+ * The check runs on the clock's page, which keeps the slot it checks. */
+SavesAtPowerOn saves_power_on(GameState *g, Platform *pf)
+{
+    for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++) {
+        set_save_check_slot(g, SAVE_CHECK_CLOCK, slot);
+        if (saves_check_slot_noting(g, pf, SAVE_CHECK_CLOCK, slot) == SAVED_GAME_HELD) {
+            saves_clear_the_game(g);
+            saves_note_how_it_starts(g, SAVES_GAME_TO_LOAD);
+            return SAVES_GAME_TO_LOAD;
+        }
+    }
+    saves_start_a_new_game(g);
+    saves_note_how_it_starts(g, SAVES_NOTHING_SAVED);
+    return SAVES_NOTHING_SAVED;
+}
+
+/* ---- The registered entries ----------------------------------------------------------------- */
 
 // $FF:F9C4
 /* The check runs on its caller's page: the slot is read from there, and the
@@ -282,11 +373,8 @@ void menu_check_save_slot(Snes *s)
     GameState *g = state_of(s);
     SaveCheckPage page;
     (void)save_check_page_of(m_direct_page(s), &page);
-    uint8_t slot = save_check_slot(g, page);
-    SavedGameCheck check = saves_check_slot(g, m_platform(s), slot);
-    set_save_check_game_at(g, page, saves_slot_on_the_bus(g, slot));
-    set_save_check_answer(g, page, saves_check_answer(check));
-    s->cpu.a = saves_check_answer(check);
+    SavedGameCheck check = saves_check_slot_noting(g, m_platform(s), page, save_check_slot(g, page));
+    s->cpu.a = check_answer(check);
     m_rtl(s);
 }
 
@@ -301,54 +389,28 @@ void menu_save_game(Snes *s)
 // $FF:FAA3
 /* The load comes back with A's high byte clear, which the menus' exit
  * carries on. */
-static void leave_a_high_byte_clear(Snes *s) { s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF); }
 
 void menu_load_game(Snes *s)
 {
     GameState *g = state_of(s);
     saves_load_game(g, m_platform(s), menu_save_slot_shown(g));
-    ORIGINAL_EFFECT(leave_a_high_byte_clear(s));
+    ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
     m_rtl(s);
 }
 
-/* The menus' services ($C2:8004): which in A, what for in X and Y. The
- * filling of HP and MP takes X and Y as the equipping before it left them. */
-typedef enum { SERVICE_FILL_HP = 6, SERVICE_FILL_MP = 7, SERVICE_EQUIP = 0x0A } MenuService;
-enum { SERVICES = 0xC28004 };
-enum { SERVICES_IGNORE = DC_N | DC_V | DC_Z | DC_C };
-
-static bool call_service(Snes *s, uint32_t site, MenuService service)
-{
-    m_set_a8(s, (uint8_t)service);
-    return menu_call_long(s, site, SERVICES, SERVICES_IGNORE);
-}
-
-/* Put an item on a character. */
-static bool equip(Snes *s, uint8_t item, uint8_t character)
-{
-    s->cpu.x = item;
-    s->cpu.y = character;
-    return call_service(s, 0xFFFB84, SERVICE_EQUIP);
-}
-
 /* What the original leaves as it starts on a character: the multiplier with
- * the character's starting record's place worked out, the place in its
- * cells, and the place's high byte in A's, which the equipping service stores
- * in its own cell where it finds the item is no equipment (no starting record
- * holds such an item; the service's answer then puts A's high byte to 0 for
- * the calls after it). */
-static void leave_record_place(Snes *s, uint8_t character)
+ * the character's starting record's place worked out, and the place in its
+ * cells. */
+static void leave_record_place(GameState *g, uint8_t character)
 {
-    GameState *g = state_of(s);
     uint16_t place = (uint16_t)(character * MENU_STARTING_RECORD_BYTES);
     hw_set_multiplicand(g, character);
     (void)hw_multiply_by(g, MENU_STARTING_RECORD_BYTES);
     set_menu_starting_record_at(g, MENU_ITEM_TABLES_BANK | place);
-    s->cpu.a = (uint16_t)((place & 0xFF00) | (uint8_t)s->cpu.a);
 }
 
-/* ... and as each service is called: the character and the place in its
- * equipment. */
+/* ... and as each piece of equipment is put on: the character and the place
+ * in its equipment. */
 static void leave_equipping(GameState *g, uint8_t character, uint16_t which)
 {
     set_menu_scratch_carried_character(g, character);
@@ -365,29 +427,75 @@ static void leave_everyone_equipped(GameState *g)
     set_menu_scratch_carried_slot(g, RUN_OUT);
 }
 
+/* The menus' services, whose time the equipping's and the filling's is. */
+enum { MENUS_SERVICES = 0xC28004 };
+
 // $FF:FAED
-void menu_load_carried_over(Snes *s)
+/* A New Game+ carries on from the finished game in a slot: what it takes
+ * over, each character's starting equipment put back on (the service
+ * equipping it), everyone's HP and MP filled, and the story's key items left
+ * behind. The fillings take the arguments the service before left, as the
+ * original's calls hand them on. */
+void saves_carry_over(GameState *g, Platform *pf, uint8_t slot)
 {
-    GameState *g = state_of(s);
-    menu_save_p(s);
-    take_over_from(g, m_platform(s), menu_save_slot_shown(g));
-    menu_set_widths(s, true, true);
-    for (int character = CHARACTERS - 1; character >= 0; character--) {
-        ORIGINAL_EFFECT(leave_record_place(s, (uint8_t)character));
+    take_over_from(g, pf, slot);
+    for (int character = CHARACTER_RECORDS_COUNT - 1; character >= 0; character--) {
+        ORIGINAL_EFFECT(leave_record_place(g, (uint8_t)character));
         for (int which = (int)equipment_put_back((uint8_t)character) - 1; which >= 0; which--) {
             uint8_t item = menu_starting_record_byte(g, (uint8_t)character, menu_starting_equipment_place(g, (unsigned)which));
             ORIGINAL_EFFECT(leave_equipping(g, (uint8_t)character, (uint16_t)which));
-            if (!equip(s, item, (uint8_t)character))
-                return;
+            TIMED_AS(g, MENUS_SERVICES, (void)party_run_service(g, pf, SERVICE_EQUIP, (uint8_t)character, item));
         }
     }
     ORIGINAL_EFFECT(leave_everyone_equipped(g));
-    if (!call_service(s, 0xFFFB92, SERVICE_FILL_HP) || !call_service(s, 0xFFFB98, SERVICE_FILL_MP))
-        return;
+    TIMED_AS(g, MENUS_SERVICES, (void)party_run_service_as_left(g, pf, SERVICE_FILL_HP, SERVICE_EQUIP));
+    TIMED_AS(g, MENUS_SERVICES, (void)party_run_service_as_left(g, pf, SERVICE_FILL_MP, SERVICE_FILL_HP));
     leave_key_items_behind(g);
     note_carried_over(g);
-    menu_restore_p(s);
+}
+
+/* The load comes back with A as the last service leaves it: its answer, 0,
+ * a word. */
+static void leave_a_clear(Snes *s) { s->cpu.a = 0; }
+
+void menu_load_carried_over(Snes *s)
+{
+    GameState *g = state_of(s);
+    saves_carry_over(g, m_platform(s), menu_save_slot_shown(g));
+    ORIGINAL_EFFECT(leave_a_clear(s));
     m_rtl(s);
+}
+
+// $C2:956E
+/* A new game's state, as the menus' opening and the load screen start one:
+ * the block moves that set it up leave A, X and Y past their ends. */
+static void leave_new_game_set_up(Snes *s)
+{
+    enum { MOVED = 0xFFFF, CURSORS_END = 0x2C98, CURSORS_END_DESTINATION = 0x2C9A };
+    s->cpu.a = MOVED;
+    s->cpu.x = m_x8(s) ? (uint8_t)CURSORS_END : CURSORS_END;
+    s->cpu.y = m_x8(s) ? (uint8_t)CURSORS_END_DESTINATION : CURSORS_END_DESTINATION;
+}
+
+void menu_start_a_new_game(Snes *s)
+{
+    saves_start_a_new_game(state_of(s));
+    ORIGINAL_EFFECT(leave_new_game_set_up(s));
+    m_rts(s);
+}
+
+// $C2:8D6A
+/* The party's power-on service, which hands back how the game starts in A,
+ * with byte-wide registers; A's high byte is as the block moves that clear
+ * or start the game leave it, which the dispatcher hands on. */
+enum { BLOCK_MOVED_HIGH = 0xFF00 };
+
+void menu_power_on(Snes *s)
+{
+    SavesAtPowerOn start = saves_power_on(state_of(s), m_platform(s));
+    menu_set_widths(s, true, true);
+    s->cpu.a = (uint16_t)(BLOCK_MOVED_HIGH | (uint8_t)start);
+    m_rts(s);
 }
 
 /* ---- The guards ----------------------------------------------------------------------------- */
@@ -405,6 +513,14 @@ bool menu_save_slot_is_checkable(Snes *s)
     return ok;
 }
 
+/* The power-on looks at the slots on the clock's page, and starts a new
+ * game through the data bank on work RAM's. */
+bool menu_power_on_runs(Snes *s)
+{
+    SaveCheckPage page;
+    return save_check_page_of(m_direct_page(s), &page) && page == SAVE_CHECK_CLOCK && menu_new_game_can_start(s);
+}
+
 /* The save and the loads run on the menus' page with the data bank on work
  * RAM's, for one of the three slots; they start their table of runs from the
  * menus' zero word, which is 0 whenever the menus run. */
@@ -417,3 +533,19 @@ bool menu_save_code_runs(Snes *s)
     vars_peek(false);
     return ok;
 }
+
+/* A New Game+ runs as the save code does, with the active party's members
+ * characters, as the services that put their equipment back read them. */
+bool menu_carry_over_runs(Snes *s)
+{
+    if (!menu_save_code_runs(s))
+        return false;
+    vars_peek(true);
+    bool ok = party_record_shows_characters(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+/* A new game's state is set up through the data bank, on work RAM's. */
+bool menu_new_game_can_start(Snes *s) { return s->cpu.db == MENU_DATA_BANK; }
+
