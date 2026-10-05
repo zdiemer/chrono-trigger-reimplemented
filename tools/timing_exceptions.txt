@@ -233,3 +233,13 @@ menu_try_on_shop_equipment vblank-tail as menu_compare_shop_figures, which it ru
 menu_describe_setting vblank-tail the settings screen's description: a new option clears the row and starts the typing; 1.57% of its calls off by more than 1024 clocks, at most 2675, writing RAM only
 menu_type_the_description vblank-tail the description's typing: each frame typesets a few glyphs, charged at the typesetter's rates, whose time follows the glyphs' widths; mean |error| 4.4% with no drift, at most 3797 clocks, writing the glyph buffer the next vblank uploads
 menu_work_out_figures vblank-tail a member's figures: the shop's members' window works them out for every member each frame it is redrawn (menus-shop-equip); mean |error| 3.4% with no drift, at most 1554 clocks, writing RAM only
+
+# The attract demo (attract-demo): its scenes reach these more often in vblank
+# than the rest of the library, which had too few such calls to judge
+# (MIN_STRETCHES), or reach a little further. Each writes RAM only, and the
+# vblank check finds no video write of theirs moved.
+event_run_init_scripts vblank-tail a map's objects' opening scripts run on the machine at a location's load (its parts charged at their routines' rates), whose time follows the map's objects; 12 of 111 calls starting in vblank off by more than 1024 clocks, at most 4878, writing object state in RAM
+menu_note_rock_techs vblank-tail which of the rocks' triple techs the party could do, worked out when the party or its equipment changes; mean |error| 12.2% with no drift, at most 1266 clocks, writing RAM only
+menu_show_what_the_party_wears vblank-tail the party's figures with what it wears, worked out on the same changes; mean |error| 5.0% with no drift, at most 1528 clocks, writing RAM only
+menu_run_object_script vblank-worst a scene object's script for a frame, its commands charged at their routines' rates; at most 12684 clocks against a 12617 limit, in the demo's world maps, writing object state in RAM
+scene_race_place_bikes vblank-tail places and scales the race's bikes into the RAM sprite table, the demo's race calls starting in vblank more often than the jet bike race's; mean |error| 1.1% with no drift, at most 1331 clocks (one line), writing RAM only

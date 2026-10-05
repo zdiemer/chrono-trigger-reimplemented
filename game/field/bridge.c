@@ -69,6 +69,15 @@ bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *))
     return true;
 }
 
+bool field_run_table_step(Snes *s, uint32_t site, bool (*step)(Snes *))
+{
+    m_push16(s, (uint16_t)(site + JSR_SIZE - 1));
+    if (!step(s))
+        return false;
+    (void)m_pull16(s);
+    return true;
+}
+
 bool field_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *), BridgeMachine m)
 {
     return run_entry(s, site, routine, dont_care, entry, m, false, false);

@@ -1,0 +1,7 @@
+# Power on and press nothing: the intro, the title left idle, and the attract demo
+# the game plays by itself -- its world maps, its battle, its jet bike race and its
+# scenes -- back to the title, twice over (the second pass reaches a little the first
+# doesn't; longer runs reach nothing more).
+# Timed on the development system; see docs/RUNTIME.md for frame offsets.
+# frames 22500
+# <start_frame> <frame_count> <buttons>

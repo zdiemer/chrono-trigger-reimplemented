@@ -425,6 +425,7 @@ game's memory ([MOVIES.md](MOVIES.md)); the rest were played by hand
 | `fair.ctm` | `field.ctm`'s route, then across the world map into the fair and north through it | 12450 |
 | `fair-companion.ctm` | `fair.ctm`'s route (without its last walk), then up to the plaza, the meeting event with the story character, picking up and returning the item they drop, and the character joining the party | 17900 |
 | `gato-battle.ctm` | `fair-companion.ctm`, then out of the plaza's west edge to the singing robot's stage, the conversation that starts the fight, and the first battle, won (results at 21250 here, 21600 on Snes9x: battles run on real time, so they diverge in detail) | 21600 |
+| `attract-demo.ctm` | no input: the intro, the title left idle, and the attract demo the game plays by itself (its field scenes, the world maps, its battle, the jet bike race and its other scenes), back to the title at 11290 and through it all again to the title at 22470; the second pass reaches a little the first doesn't, and running on reaches nothing more | 22500 |
 
 Movies in `oracle/movies/saves/` start from power-on with a cartridge save
 loaded (`--sram`, see [ORACLE.md](ORACLE.md)) to reach later parts of the game:

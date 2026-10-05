@@ -193,7 +193,14 @@ shared site (every draw of a frame is made from the same two), they must all
 be inlined or none, or a call the port makes would be paired with the
 original's call for another object. The field rewrite learned this from
 105,923 mismatched draws (RECOMP.md, "Phase 3a: the field subsystem off the
-machine"); `every_draw_is_own` and `field_view_changes` exist for it. Two
+machine"); `every_draw_is_own` and `field_view_changes` exist for it. A call is
+paired by its stack too, so a port that runs a step the original reaches
+through a table's `JSR` makes the step's call-outs under that `JSR`'s return
+(`field_run_table_step`): the screen effects' curtain, called a frame higher
+than the original's, never paired, and the attract demo's curtains read as 31
+calls the original "returned without". Fuzzing missed it, since its callees
+return either way; `ct_fuzz --stop-at-call` compares the machines, the stack
+pointer included, at the call. Two
 practical notes from the same work: the report describes 16 mismatches and,
 apart from them, 16 notes (abandoned comparisons, timing), mismatches first
 (`ct_dev --shadow-details N` for more), so a count is still the thing to

@@ -144,15 +144,24 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 (`tools/movies/routes/`, MOVIES.md) could play it instead of a person.
 
 ### 1. The attract demo
-- **Save**: none; power-on, no input, about 11300 frames (3 min) a cycle; run two.
-- **Do**: nothing. The demo plays field scenes at `$16E`, `$01C`, `$01B`,
-  `$0AD`, `$112`, `$0DB`, `$0A5`, `$07D`, `$0E6`, `$087`, `$1B0`, the world
-  maps `$1F5`, `$1F7`, `$1F2`, `$1F3`, `$1F0`, and scene modes 1, 0 (the race)
-  and 3.
-- **Reaches**: modes 1, 3, 0's demo (1.73 KiB, unported but 0.56), the demo
-  battle (0.20 ported), parts of the 65,000,000 B.C., 1999 A.D. and `$1F5` maps'
-  objects (up to 3.05, 0.77 ported): up to 4.98 KiB, about 1.6 KiB a minute.
-- **Route**: yes, trivially (no input).
+- **Recorded**: `attract-demo.ctm`: power-on, no input, 22500 frames. A cycle
+  is 11180 frames (the title again at 11290 and 22470); the second pass runs a
+  little the first doesn't, and running on to 198,000 frames adds five
+  instructions of frame and sound timing.
+- **Reached**: 3.89 KiB no other movie runs, 2.35 of it ported (against 4.98
+  predicted): the scene program's modes 3 and 1 and code they share (1.25 KiB,
+  unported, most of it `$7E:66DD`-`$7E:6CAB`) and the race without its panel (its curtain, `scene_race_set_up`'s
+  other branch); the field's curtain, the screen effect's step (`$C0:22D8`),
+  bank `$C3`'s sweep and event `$FF` `$92`-`$95` (`$C0:405D`-`$C0:4145`); the
+  demo battle (`fight_load_demo_party`, `battle_demo_party_ready`,
+  `battle_demo_next_turn`, now calibrated) and its screen scripts' swing and
+  bob (`battle_screen_script_swing`, `battle_screen_swing`,
+  `battle_special_bob_layer_up`); and field and world-map paths beside them
+  (`field_read_animation_frame`, `field_stream_the_layers`,
+  `menu_object_read_scene_mode`). Mode 5's and mode 6's own code and the race's
+  finish stay unreached.
+- **Shadow**: found the curtain's call made a frame above the original's, 31
+  mismatches (`field_run_table_step`, PORTING.md); every call matches now.
 
 ### 2. The 65,000,000 B.C. world map
 - **Save**: ctsave05 slot 1 (on `$1F3`); ctsave07 slot 2 for the Dactyl's Nest.

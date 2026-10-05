@@ -5544,6 +5544,24 @@ iterations = 5000
 why = "the curtain, swept or done, from either table, with each of the four curtains' edges: its step through bank $C3's sweep, and the cut taken away or left after it"
 
 [[routine]]
+name = "field_move_screen_effect_on"
+variant = "curtain-call"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0139-7E0139=03", "--fill", "7E0350-7E0350=00-02", "--fill", "7E0351-7E0351=00-1F", "--fill", "7E0352-7E0353=C817,C81A", "--fill", "7E0354-7E0354=7F", "--fill", "7E013C-7E013C=00-03", "--stop-at-call", "C3000E"]
+iterations = 5000
+why = "the curtain's states, compared where the sweep is called (stack included): the call is made under the step dispatch's return, as the original's is; the plain curtain run lets the sweep return and can't see the stack's depth, which the attract demo's curtains found (31 mismatched in shadow)"
+
+[[routine]]
+name = "field_move_screen_effect_on"
+variant = "close-ripple"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0139-7E0139=0B,0C", "--stop-at-call", "C075E9"]
+iterations = 5000
+why = "the field's close and the ripple, compared at their first call-out (BG1's drawing, stack included), under the step dispatch's return as the original makes it; past it they wait on the vblank, which ct_fuzz never gives"
+
+[[routine]]
 name = "field_do_script_layer_work"
 subsystem = "field"
 state = "field"
