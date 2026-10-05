@@ -5,6 +5,7 @@ movie reaches, and coverage only names the instructions it runs
 ([PORTING.md](PORTING.md), [RUNTIME.md](RUNTIME.md)). Recording one by hand
 ([PLAYING.md](PLAYING.md)) is the quickest way to get one; long routes that have
 to win boss fights are another matter, and that is what the tools here are for.
+[movies-wanted.md](movies-wanted.md) lists the code no movie runs and the movies that would reach it.
 
 `ct_drive` (`dev/ct_drive.c`) runs the development system as a server, and
 `tools/movies` drives it: it reads the game's memory to decide what to press —
