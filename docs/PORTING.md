@@ -628,6 +628,18 @@ set_variable_byte(g, v, value);
   tools/effects_check.py --new` lists what the baseline doesn't have
   (RECOMP.md, "The tooling pass after Phase 3's first chunks").
 
+- **Run, in the native shape.** `ct_dev_native_shape` and
+  `ct_drive_native_shape` are the ports with their scaffolding compiled out,
+  and the gate runs them over the movies and routes in the shipping mode
+  (tools/suite.py's `native-shape` check; RECOMP.md, "The fallback
+  measure"). What the original's still-generated code reads of scaffolding
+  is listed by `ct_dev --native on
+  --scaffold-reads original` and `tools/effects_check.py --originals`, with
+  the source of each write: a cell there is one the native build needs the
+  reader ported or the write made plain for, and it is what a failure of the
+  native shape is traced through. A failure the gate lets stand is a line in
+  `tools/native_shape_exceptions.txt` with its trace.
+
 ## A port that spans frames
 
 A routine whose original takes longer than a frame (the load screen's drawing,

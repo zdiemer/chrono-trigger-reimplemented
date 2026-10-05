@@ -63,6 +63,60 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
+- **Refusals in real play** (`tools/refusal_allowlist.txt`; RECOMP.md, "The
+  fallback measure"). Each is a call a
+  native build would have nothing to run; its allowlist line comes out when the
+  port takes the state. `python3 tools/fallbacks.py build/suite/fallbacks
+  --refusals -v` prints each with its first states. By subsystem:
+  - battle: `script_play_and_wait` (`$C1:4EA2`, the Bucket ending's script
+    channel, 735 times), `script_jump_to_a_place` (`$C1:6299`, the Beyond Time
+    ending), `script_throw_moves` (`$C1:7364`, the attract demo's battle),
+    `script_end` (`$C1:4CF0`, entered with A=`$00FF` where `command_ready` asks
+    for 0), `battle_evasion_timer_ran_out` (`$C1:8A05`), and
+    `battle_enemy_waits_for_target` (`$C1:3772`, the Omen's battles);
+  - battle frame work: `battle_screen_script_draw_triangle` (`$CD:2173`, 3140
+    times in the Beyond Time ending, the carry clear where
+    `battle_screen_command_ready` asks for it set) and `battle_upload_palette`
+    (`$CD:09CE`, called with the data bank `$7E`);
+  - field and events: `field_handle_requests` (`$C0:0C76`, at boot and in the
+    attract demo), `field_put_aside_for_a_menu` (`$C0:011B`, frame 1704 of every
+    movie from a save), `event_cmd_set_solidity` (`$C0:4867`, the attract
+    demo), `field_press_confirm` (`$C0:1AAC`);
+  - menus: three entered with the other width of A (`menu_play_the_gate_song`
+    `$C2:CBBF` and `menu_object_cmd_play_song` `$C2:18F9` with 8-bit A,
+    `menu_describe_item` `$C2:F2F3` with 16-bit), `menu_start_the_scroll_bar`
+    (`$C2:8B93`, data bank `$00`), `menu_open_shop_member` (`$C2:E0A5`) and
+    `menu_object_cmd_change_byte_cell_set` (`$C2:12B8`);
+  - scene program: `attract_wait_loop` (`$7E:3023`), whose code-presence guard
+    turns away the attract program's own wait with an operand the program
+    rewrites. The other four RAM entries that refuse (`$7E:424D`, `$7E:4D0D`,
+    `$7E:36CC`, `$7E:357B`) meet the attract program's code, not the routine
+    each was written for: what is missing there is a port of the attract
+    program's own routines.
+- **The native shape's failures** (`tools/native_shape_exceptions.txt`;
+  RECOMP.md, "The fallback measure"). All three whole routes fail with the
+  scaffolding compiled out, on writes the original's code reads, each
+  confirmed by making the write plain in a scratch build:
+  - battle: `battle_carry_out_member_action` keeps the acting member's record
+    (`$0006`, game/battle/member_turn.c:499) and the item targeting's cell
+    (`$000C`, :420) only as scaffolding, and the original's targeting reads
+    them (`$C1:C24A`, `$C1:C57F`): items land on the wrong side
+    (`beyond_time`, `bucket_lavos`). The port of the targeting removes the
+    reader; until then the writes are the game's, not scaffolding;
+  - event: `object_run_script_from` clears an object's step count only as
+    scaffolding (game/event/calls.c:173), and the original's event scheduler
+    reads it (`$C0:59F0`): a walk stops short (`telepod_lavos`). The
+    scheduler is one of the beam-coupled routines (PLATFORM.md, "Timing
+    without a beam").
+  The rest of what the original's code reads of scaffolding (101 byte and
+  instruction pairs over the library, `tools/effects_check.py --originals`
+  on the fallbacks check's logs, `build/suite/native-shape/originals.txt`)
+  hasn't broken an outcome yet, and is the list to decide before the
+  scaffolding goes: the menus' `$007A` (`menu_open`'s, read at `$C2:CF0A`
+  on), the equipment screens' `$0022`-`$0027` and `$0DAB`, the battle's
+  `$0084`, `$0092` and the enemies' `$A020`-`$A026`, and a block copy at
+  `$C0:0924` that reads the field's cells whole.
+
 ## Phase 3a work in flight
 
 - **What `tools/portsmell.py` found when it was written** (its baseline,
@@ -2163,6 +2217,21 @@ waits on M5 rather than on a backend.
 
 ## Player and tooling
 
+- **The fallback measure's edges** (RECOMP.md, "The fallback measure"):
+  - it follows extents by the stack, so a task switch to a stack within
+    `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
+    was in, and a routine reached by a jump rather than a call is filed under
+    its caller;
+  - the shadow runs play the original sound driver, so the CPU half's waits
+    for its answers count there (0.9 KiB) and are gone in the shipping mode;
+  - the routes' counts include the attempts a route throws away and the
+    frames a load replays, and a run `route_check` resumes loses the counts of
+    the process it killed;
+  - the shipping mode's count can't be ratcheted: it moves with every port's
+    timing (99 of 1068 keys between the default and the native-shape build).
+    A shipping-mode run that played the movies at the original's timing
+    (`--port-timing oracle`, where it fits) would be the closer measure of
+    what a player runs.
 - **The movie suite's wall time is the longest movie's.** The gate
   (`tools/suite.py`) takes about 10 minutes at `-j 2` (PORTING.md, "What
   shadow mode costs"). The three endings are 54% of its CPU time and

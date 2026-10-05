@@ -339,24 +339,28 @@ target_link_libraries(ct_game PUBLIC ct_runtime)
 # the original does and shadow mode or the original's still-generated code
 # looks. -DCT_ORIGINAL_EFFECTS=OFF builds without it, which is the shape of a
 # native build and is not expected to pass the gate. Either way the game's code
-# is also compiled once without it (ct_game_native_shape, objects only), so a
-# port whose logic leans on its scaffolding fails to build.
+# is also compiled once without it (ct_game_native_shape), so a port whose
+# logic leans on its scaffolding fails to build, and linked into
+# ct_dev_native_shape and ct_drive_native_shape, which the gate runs in the
+# shipping mode over the movies and the routes (tools/suite.py, "native-shape").
 option(CT_ORIGINAL_EFFECTS "Reproduce the original's effects the gate compares (scaffolding)" ON)
 if(NOT CT_ORIGINAL_EFFECTS)
   target_compile_definitions(ct_game PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
 endif()
 get_target_property(CT_GAME_SOURCES ct_game SOURCES)
-add_library(ct_game_native_shape OBJECT ${CT_GAME_SOURCES})
+add_library(ct_game_native_shape STATIC ${CT_GAME_SOURCES})
 target_compile_definitions(ct_game_native_shape PRIVATE CT_WITHOUT_ORIGINAL_EFFECTS)
-target_link_libraries(ct_game_native_shape PRIVATE ct_game)
+target_include_directories(ct_game_native_shape PUBLIC game)
+target_link_libraries(ct_game_native_shape PUBLIC ct_runtime)
 
 # Trace and movie formats and PNG/WAV capture, shared with the oracle harness.
 add_library(ct_trace STATIC oracle/src/trace.c oracle/src/movie.c oracle/src/media.c oracle/src/sram_find.c)
 target_include_directories(ct_trace PUBLIC oracle/src)
 
-add_executable(ct_dev dev/ct_dev.c dev/as_port.c dev/event_reads.c dev/io_log.c dev/misses.c dev/px_check.c dev/range_report.c
-  dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c dev/sound_state.c dev/vid_check.c
-  frontend/natives.c frontend/sound_host.c)
+set(CT_DEV_SOURCES dev/ct_dev.c dev/as_port.c dev/event_reads.c dev/fallbacks.c dev/io_log.c dev/misses.c
+  dev/px_check.c dev/range_report.c dev/mixer_check.c dev/sound_audio.c dev/sound_compare.c dev/sound_lockstep.c
+  dev/sound_state.c dev/vid_check.c frontend/natives.c frontend/sound_host.c)
+add_executable(ct_dev ${CT_DEV_SOURCES})
 target_include_directories(ct_dev PRIVATE frontend)
 target_link_libraries(ct_dev PRIVATE ct_game ct_vars_checked ct_recomp ct_runtime ct_trace)
 
@@ -374,9 +378,21 @@ target_link_libraries(ct_sound_fuzz PRIVATE ct_game ct_vars_checked ct_runtime c
 # and testing the shipping mode with the routes that do (tools/movies,
 # docs/MOVIES.md). The interpreter by default, like ct_dev --native off; --native
 # and --recomp choose native code the way ct_play does (frontend/natives.c).
-add_executable(ct_drive dev/ct_drive.c dev/mixer_check.c frontend/natives.c frontend/sound_host.c)
+set(CT_DRIVE_SOURCES dev/ct_drive.c dev/fallbacks.c dev/misses.c dev/mixer_check.c frontend/natives.c
+  frontend/sound_host.c)
+add_executable(ct_drive ${CT_DRIVE_SOURCES})
 target_include_directories(ct_drive PRIVATE frontend)
 target_link_libraries(ct_drive PRIVATE ct_game ct_vars ct_recomp ct_runtime ct_trace)
+
+# The same two with the ports' scaffolding compiled out (ct_game_native_shape):
+# the native build's shape, run by the gate's native-shape check in the
+# shipping mode, where nothing compares bytes and only outcomes are checked.
+add_executable(ct_dev_native_shape ${CT_DEV_SOURCES})
+target_include_directories(ct_dev_native_shape PRIVATE frontend)
+target_link_libraries(ct_dev_native_shape PRIVATE ct_game_native_shape ct_vars_checked ct_recomp ct_runtime ct_trace)
+add_executable(ct_drive_native_shape ${CT_DRIVE_SOURCES})
+target_include_directories(ct_drive_native_shape PRIVATE frontend)
+target_link_libraries(ct_drive_native_shape PRIVATE ct_game_native_shape ct_vars ct_recomp ct_runtime ct_trace)
 
 # CPU conformance runners (test data: tests/cpu/fetch_sst.py, tests/apu/fetch_sst_spc700.py).
 add_executable(sst_runner tests/cpu/sst_runner.c runtime/cpu/cpu65816.c runtime/cpu/cpu_entry.c)

@@ -12,7 +12,7 @@
  *          [--page-report] [--event-reads out.txt] [--sound-lockstep [out.txt]]
  *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
- *          [--scaffold-reads]
+ *          [--scaffold-reads [original]] [--fallbacks out.txt]
  *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
@@ -104,7 +104,24 @@
  * --scaffold-reads (with --native on) prints a `scaffold read:` line for each
  * work RAM byte a port read whose latest write was scaffolding, a port's inside
  * ORIGINAL_EFFECT: what the native build would read stale (runtime/port/
- * scaffold_reads.h, tools/effects_check.py --runs).
+ * scaffold_reads.h, tools/effects_check.py --runs). --scaffold-reads original
+ * also prints a `scaffold read by the original:` line for each read the
+ * original's code made of such a byte, by the instruction: what the
+ * still-generated code reads of the scaffolding, which is where a failure of
+ * the native-shape build is traced (not with --event-reads, whose observer it
+ * takes).
+ * --fallbacks out.txt (with --native on or shadow) counts every instruction
+ * the original's code executes in place of hand ports -- generated or
+ * interpreted -- by address and why: a call every hand entry refused, what a
+ * port handed back (a call-out's callee, the rest after it stopped), or no
+ * port at all; and records each refusal with its first few machine states
+ * (dev/fallbacks.h). In shadow mode the original runs everything and what the
+ * ports stand for isn't counted, so a movie measures its own play, the same
+ * whatever the ports' timing (the gate's ratchet); in the shipping mode it
+ * measures where the run went. tools/fallbacks.py reads the file.
+ * Every run also prints a `halted:` line if the machine ended stopped (STP, or
+ * without the interpreter at an instruction nothing runs), which the gate's
+ * native-shape check fails on.
  * --as-port BBAAAA[,...] runs each of those routines of the original as one
  * hand port would run: all at once with time stopped, its time owed after
  * (dev/as_port.h). For trying what the shipping mode does with a port of a
@@ -127,6 +144,7 @@
 #include <string.h>
 
 #include "event_reads.h"
+#include "fallbacks.h"
 #include "io_log.h"
 #include "misses.h"
 #include "px_check.h"
@@ -161,6 +179,8 @@
 static IoLog *io_log;
 static EventReads *event_reads;
 static Misses *misses;
+static Fallbacks *fallbacks;
+static bool scaffold_reads_original;   /* --scaffold-reads original */
 static VidCheck *vid_check;
 static PxCheck *px_check;
 
@@ -273,6 +293,10 @@ static void on_insn(void *ctx, uint32_t pc, uint8_t p, bool e)
         event_reads_note_instruction(event_reads, pc);
     if (misses)
         misses_note(misses, pc, p, e);
+    if (fallbacks)
+        fallbacks_note(fallbacks, pc, p, e);
+    if (scaffold_reads_original)
+        scaffold_reads_note_pc(pc);
     bool m = e || (p & CPU_FLAG_M), x = e || (p & CPU_FLAG_X);
     cov->insns++;
     if ((pc >> 16 & 0xFE) == 0x7E || (!(pc & 0x400000) && (pc & 0xFFFF) < 0x8000))
@@ -449,7 +473,7 @@ int main(int argc, char **argv)
     const char *shot_dir = NULL, *wav_path = NULL, *io_log_path = NULL, *misses_path = NULL;
     const char *zst_path = NULL, *vid_check_path = NULL, *px_check_path = NULL;
     const char *spc_coverage_path = NULL, *dsp_log_path = NULL, *event_reads_path = NULL;
-    const char *lockstep_path = NULL;
+    const char *lockstep_path = NULL, *fallbacks_path = NULL;
     bool want_vid_check = false, want_px_check = false, want_lockstep = false;
     SoundCompareLevel lockstep_level = SOUND_COMPARE_DSP;
     int audio_timing = -1;
@@ -481,6 +505,10 @@ int main(int argc, char **argv)
         }
         if (!strcmp(a, "--scaffold-reads")) {
             scaffold_reads = true;
+            if (v && !strcmp(v, "original")) {
+                scaffold_reads_original = true;
+                i++;
+            }
             continue;
         }
         if (!strcmp(a, "--vid-check") && (!v || v[0] == '-')) {
@@ -549,6 +577,7 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--io-log")) io_log_path = v;
         else if (!strcmp(a, "--event-reads")) event_reads_path = v;
         else if (!strcmp(a, "--misses")) misses_path = v;
+        else if (!strcmp(a, "--fallbacks")) fallbacks_path = v;
         else if (!strcmp(a, "--vid-check")) { vid_check_path = v; want_vid_check = true; }
         else if (!strcmp(a, "--vid-check-from")) { vid_check_from = strtol(v, NULL, 10); want_vid_check = true; }
         else if (!strcmp(a, "--px-check")) { px_check_path = v; want_px_check = true; }
@@ -640,7 +669,7 @@ int main(int argc, char **argv)
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
-                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
+                        "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
                         "[--poison-site BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
         return 2;
     }
@@ -768,11 +797,24 @@ int main(int argc, char **argv)
         io_log = io_log_create(&snes);
     if (misses_path)
         misses = misses_create(&snes);
+    if (fallbacks_path) {
+        if (native_mode == NATIVE_OFF) {
+            fprintf(stderr, "--fallbacks needs --native on or shadow: it measures what runs in place of the hand "
+                            "ports\n");
+            return 2;
+        }
+        if (!(fallbacks = fallbacks_create(&snes))) {
+            fprintf(stderr, "out of memory\n");
+            return 1;
+        }
+        fallbacks_attach(fallbacks, natives, native_mode == NATIVE_SHADOW);
+    }
     if (event_reads_path)
         event_reads = event_reads_create(&snes);
     if (nindex_checks && (native_mode != NATIVE_OFF || recomp))
         fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --recomp off\n");
-    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks) {
+    if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks ||
+        fallbacks_path || scaffold_reads_original) {
         snes.cpu.on_insn = on_insn;
         snes.cpu.on_insn_ctx = &cov;
     }
@@ -844,6 +886,8 @@ int main(int argc, char **argv)
             return 2;
         }
         scaffold_reads_start(&snes);
+        if (scaffold_reads_original)
+            scaffold_reads_watch_original();
     }
     ct_trace_writer *trace = NULL;
     if (trace_path) {
@@ -940,12 +984,17 @@ int main(int argc, char **argv)
             rc = 1;
     }
     report_page_refusals();
+    if (snes.halted || snes.cpu.stopped)
+        fprintf(stderr, "halted: frame %u at %02X:%04X (%s)\n", (unsigned)snes.frame, snes.cpu.pb, snes.cpu.pc,
+                snes.halted ? "no code runs the instruction there" : "STP");
     /* An accessor called past what re/ram.toml declares: the port reached the
      * next variable in work RAM, which only the original's layout makes work.
      * tools/suite.py fails a movie that prints one. */
     range_report(stderr);
     if (scaffold_reads)
         scaffold_reads_report(stderr);
+    if (scaffold_reads_original)
+        scaffold_reads_original_report(stderr);
     for (int i = 0; i < npoison_sites; i++)
         fprintf(stderr, "poison-site: %06X calls %lu, V inverted %lu\n", (unsigned)poison_sites[i].site,
                 poison_sites[i].calls, poison_sites[i].v_inverted);
@@ -983,6 +1032,14 @@ int main(int argc, char **argv)
         rc = 1;
     }
     misses_destroy(misses);
+    if (fallbacks) {
+        fallbacks_summary(fallbacks, stderr);
+        if (fallbacks_write(fallbacks, fallbacks_path) != 0) {
+            fprintf(stderr, "cannot write %s\n", fallbacks_path);
+            rc = 1;
+        }
+    }
+    fallbacks_destroy(fallbacks);
     if (event_reads && event_reads_write(event_reads, event_reads_path, stderr) != 0) {
         fprintf(stderr, "cannot write %s\n", event_reads_path);
         rc = 1;

@@ -37,7 +37,12 @@ class DriveError(RuntimeError):
 class Machine:
     """`native`, `recomp` and `sound` are ct_drive's --native, --recomp and
     --sound-driver (default: the interpreter and the original sound driver, or
-    $CT_DRIVE_NATIVE, $CT_DRIVE_RECOMP and $CT_DRIVE_SOUND)."""
+    $CT_DRIVE_NATIVE, $CT_DRIVE_RECOMP and $CT_DRIVE_SOUND). With --native on
+    and $CT_DRIVE_FALLBACKS naming a directory, each machine also counts what
+    the original's code runs in place of hand ports (ct_drive --fallbacks) into
+    a file of its own there, for tools/fallbacks.py."""
+
+    _count = 0
 
     def __init__(self, rom=None, sram=None, drive=None, native=None, recomp=None, sound=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
@@ -50,6 +55,10 @@ class Machine:
             command += ["--native", native, "--recomp", recomp]
         if sound != "original":
             command += ["--sound-driver", sound]
+        fallbacks = os.environ.get("CT_DRIVE_FALLBACKS")
+        if fallbacks and native == "on":
+            Machine._count += 1
+            command += ["--fallbacks", os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count))]
         command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
         self.native, self.recomp, self.sound = native, recomp, sound

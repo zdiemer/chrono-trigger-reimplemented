@@ -38,5 +38,7 @@ int misses_write(Misses *m, const char *path, FILE *summary);
  * terminated; NULL if out of memory), and the summary as misses_write. */
 char *misses_format(Misses *m, size_t *len, FILE *summary);
 void misses_destroy(Misses *m);
+/* The length in bytes of the instruction `opcode` begins, with those widths. */
+int misses_instruction_length(uint8_t opcode, bool m8, bool x8);
 
 #endif

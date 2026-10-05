@@ -13,7 +13,14 @@
  * game itself sets again is not reported.
  *
  * Shipping mode only (`--native on`): in shadow mode a port runs on a copy of
- * the machine, which carries no marks. docs/PORTING.md, "Scaffolding". */
+ * the machine, which carries no marks. docs/PORTING.md, "Scaffolding".
+ *
+ * scaffold_reads_watch_original asks the same of the original's code: its
+ * reads of a marked byte, by the instruction that read it. Those are expected
+ * -- scaffolding is what the still-generated code reads -- and say what the
+ * native build needs ported or decided before the scaffolding goes; they are
+ * what a failure of the native-shape build (the gate's native-shape check)
+ * is traced through. */
 #ifndef CT_PORT_SCAFFOLD_READS_H
 #define CT_PORT_SCAFFOLD_READS_H
 
@@ -46,10 +53,20 @@ static inline void scaffold_note_write(Snes *s, uint32_t addr)
         scaffold_write(s, addr);
 }
 
+/* Also note the original's code's reads of marked bytes (through the bus's
+ * work RAM observer, which it takes: not with ct_dev --event-reads). The host
+ * says where each instruction begins with scaffold_reads_note_pc; generated
+ * code's are taken from recomp_insn_hook, chained to whatever held it. */
+void scaffold_reads_watch_original(void);
+void scaffold_reads_note_pc(uint32_t pc);
+
 /* One line per (byte, port): `scaffold read: $7E:1234 by NAME (N times, first
  * at frame F, written by WRITER)`, the writer the port whose scaffolding wrote
  * the byte the first time (`?` for a write not through an accessor). Returns
  * how many lines. */
 int scaffold_reads_report(FILE *out);
+/* One line per (byte, instruction): `scaffold read by the original: $7E:1234 at
+ * BB:AAAA (N times, first at frame F, written by WRITER)`. Returns how many. */
+int scaffold_reads_original_report(FILE *out);
 
 #endif

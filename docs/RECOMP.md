@@ -3745,6 +3745,138 @@ none of them to the bar:
   once on a branch's accumulated chunks before it merges. Same files, same
   rubric, read when there is more to read.
 
+### The fallback measure
+
+The goal is a program with no emulator in it, and four things keep the
+original's code running beside the ports: a guard that refuses so the original
+runs, a port that stops and hands the rest back, a call-out to code that is
+still the original's, and code no port covers. Until this pass nothing measured
+how much real play still ran on them, and the native-shape build had only ever
+been compiled. Three gate checks look now (tools/suite.py's `fallbacks`,
+`refusals` and `native-shape`).
+
+**The measure.** `ct_dev --fallbacks` and `ct_drive --fallbacks`
+(`dev/fallbacks.c`) count every instruction the original's code executes in
+place of hand ports, interpreted (the CPU's instruction hook) or generated
+(`recomp_insn_hook`, a test per instruction in `RC_INSN` when it is unset),
+by address, by the routine it belongs to, and by why it ran. The runtime
+tells the tool when it hands off (`NativeObserver`, `runtime/port/native.h`):
+every hand entry at an address refused (with which condition: the P
+precondition, the CPU's mode, or the guard), a port entered, called out,
+stopped, returned from an interrupt, or was skipped at the nesting limit. The
+tool follows the stack from there: a refused call lasts until S rises above
+where it was entered, a call-out until its callee returns, a stop until the
+port's routine returns; an interrupt opens an extent of its own that an RTI
+ends wherever the stack is; and a hand port entered at or above an extent's
+level ends it (the original went on to a port without returning: a main loop's
+next pass). Each instruction is then `refused`, `handback`, `skipped` or
+`unported`, filed under the target of the latest call on record (the port's
+entry for what it hands back after a stop).
+
+**Measured where it holds still.** The shipping mode can't carry a ratchet: a
+port's estimated time moves every movie's presses to other frames, so a movie
+goes somewhere else with every timing change. Running the library with the
+native-shape build, whose only difference is timing (the scaffolding's bus
+accesses), moved 99 of 1068 (kind, routine, port) keys and doubled the wait
+loops' counts. So the ratchet is taken over the **reference play**: the shadow
+runs the gate makes anyway, where the original runs everything at its own
+timing. There the runtime's same calls mark what a port stands for -- from the
+original's arrival at a port's entry until it reaches the port's call-out,
+stop or return, the original is running the port's work and isn't counted --
+and an idle entry's pass of its wait loop, counted as the original runs it, is
+taken back when the loop comes round to its head (the pass that leaves stays
+counted). That count changes only when a port does. It costs the shadow runs
+nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
+mode's count is still made, over every movie (`--native on --recomp on
+--sound-driver c`, 43 s for the library) and the routes (`route_check
+--fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
+reported beside it. The shadow runs use the original sound driver, so the CPU
+half's waits for its answers count there and not in the shipping mode.
+
+**The ratchet.** `tools/fallbacks.py --check` against
+`tools/fallback_baseline.txt`, a line per routine with its instructions,
+distinct bytes and reason. A routine the baseline doesn't have, or more
+distinct bytes in one (a new address run in place of a port), fails; so do
+more instructions past 5% and 1000. Kinds are summed per routine so that a
+port landing doesn't move its callees (what was `unported` becomes `handback`,
+same routine); the report keeps them apart. `--update` takes a gain and keeps
+the reasons of the lines it keeps.
+
+**On main**, when this came in, the reference play ran 46.5 KiB of distinct
+code and 347 million instructions in place of hand ports, the same in two runs
+to the instruction; by kind (a byte can be in two):
+
+| | Reference play (28 movies, shadow) | Shipping mode (28 movies and 3 routes) |
+|---|--:|--:|
+| refused | 2.4 KiB, 10.3 M | 2.6 KiB, 40.6 M |
+| handback | 33.8 KiB, 296.0 M | 36.5 KiB, 1,789 M |
+| skipped | 0.0 KiB, 0.3 M | 0 |
+| unported | 13.8 KiB, 40.8 M | 11.8 KiB, 134 M |
+| all | 46.5 KiB, 347 M | 45.0 KiB, 1,964 M |
+
+By subsystem (the reference play, KiB of code and millions of instructions):
+field engine and events 9.8 KiB, 121.8 M; scene program 8.1 KiB, 68.1 M;
+battle 8.8 KiB, 36.6 M, its frame work 3.2 KiB, 49.5 M, sprites 0.1 KiB,
+4.4 M, NMI 3.3 M; menus, text and overworld 13.8 KiB, 21.8 M; field graphics
+3.7 KiB, 31.6 M; scene engine 1.0 KiB, 6.1 M; the sound driver's CPU half
+0.9 KiB, 3.8 M. Almost all of it is `handback`: the ports are dispatchers
+around code that is still the original's. The largest are the
+field frame's call-outs to the beam-coupled waits (`$C0:59D9`, `$C0:5A46`,
+`$C0:CA76`; PLATFORM.md, "Timing without a beam"), the scene program's frame
+tasks, and the battle frame work's call-outs.
+
+**Refusals as failures** (`tools/fallbacks.py --refusals`,
+`tools/refusal_allowlist.txt`). A native build has no original to hand a
+refused call to ("Retiring the gate, deliberately", PLAN.md), so a refusal in
+real play -- the shadow runs, the movies in the shipping mode, the routes --
+fails unless its entry and condition have an allowlist line with a reason.
+Each is printed with its count and its first four states (registers, the run,
+and for code in work RAM whether its bytes are the image the generated blocks
+were made from, `misses_describe`, which is how the code-presence guards that
+turn away another program's code are told from gaps). On main, 23 entries
+refuse in real play, 7,609 times: four are another program's code at a RAM
+address a port was written for (the attract program's), and 19 are gaps,
+listed in docs/TODO.md, "Refusals in real play".
+
+**The native shape, run.** `ct_dev_native_shape` and `ct_drive_native_shape`
+link `ct_game_native_shape`, the ports with `ORIGINAL_EFFECT` compiled out
+(now a static library rather than objects only). Nothing can compare them byte
+for byte -- the scaffolding is what they leave out, and their timing differs
+from the default build's by its accesses -- so the check is the outcomes: every
+movie in the shipping mode exits 0 within its time (a hang), with no `halted:`
+line (`ct_dev` prints one where the machine ended stopped), `accessor out of
+range` or `page refused` line that the default build's run of the same movie
+doesn't show; and the routes reach their outcomes (the fast set; all three
+with `--long-routes`). A failure is traced through what the original's code
+reads of scaffolding: `ct_dev --scaffold-reads original` (the default build's
+shipping runs take it) notes each read the original's code makes of a byte
+whose latest write was a port's `ORIGINAL_EFFECT`, by the instruction, and
+`tools/effects_check.py --originals` gives each the source of the write; the
+check writes the list beside its logs. On main, 101 such (byte, instruction)
+pairs over the library.
+
+On main all 28 movies run to their end in the native shape, and the fast
+routes pass, but all three whole routes fail, each traced and confirmed by
+making the writes plain in a scratch build and running the route again
+(`tools/native_shape_exceptions.txt` holds them with their traces):
+
+- **Battle items land on the wrong side** (`beyond_time`, `bucket_lavos`):
+  `battle_carry_out_member_action` writes the acting member's record
+  (`$0006`, game/battle/member_turn.c:499) and the item targeting's cell
+  (`$000C`, :420) only as scaffolding, and the original's targeting, which
+  the port calls out to, reads them (`$C1:C24A`, `$C1:C57F`). A revive heals an
+  enemy instead; the final fights end in wipes. With both writes plain, both
+  routes reach their endings.
+- **A walk stops short** (`telepod_lavos`): `object_run_script_from` clears an
+  object's step count only as scaffolding (game/event/calls.c:173), and the
+  original's event scheduler reads it (`$C0:59F0`). The walk to the reaper
+  statue in the developers' room ends a tile and a half away, and the seventh
+  round is missed. With that and the battle's two plain, the route reaches its
+  ending.
+
+The movies don't see either: their presses drift in the shipping mode
+anyway, and nothing in them checks an outcome.
+
 ## Risks
 
 - **Build cost.** Tens of MB of C, regenerated whenever the ROM, hints,

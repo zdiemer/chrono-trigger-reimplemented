@@ -199,6 +199,53 @@ void native_set_timing_report(NativeRuntime *rt, bool on);
 /* Count and print, per hand port, the direct pages its calls were made with. */
 void native_set_page_report(NativeRuntime *rt, bool on);
 
+/* What the runtime hands to code that isn't a hand port, for a tool that
+ * measures it (ct_dev --fallbacks, dev/fallbacks.h): each call is made as it
+ * happens, with the machine as it stands. Any member may be NULL. In SHADOW
+ * mode the original runs everything, and the calls follow it: a port is
+ * entered where the original reaches the entry, calls out where the original
+ * reaches the call, and stops where the original reaches the stop, so between
+ * entered and finished the original is running what the port stands for,
+ * except inside its call-outs.
+ *
+ * refused: every hand-written entry registered at the machine's PC turned the
+ * call away -- its precondition on P (`why` "widths"), the CPU's mode
+ * ("emulation") or its guard ("guard") -- so the generated code or the
+ * interpreter runs the original there. `entry` is the first of them. An idle
+ * entry is a hand entry like any other.
+ * skipped: a hand entry applied but the runtime didn't run it (the nesting of
+ * suspended routines was at its limit), so the original runs.
+ * called_out: the port running for `entry` called out to `target`; the machine
+ * is at the callee's first instruction, its return address pushed.
+ * stopped: the port finished without returning (it stopped at an instruction
+ * of the original, m_stop_at or a PC it set); the machine is where it stopped,
+ * and `entry_s` is S as it was when the port was entered.
+ * entered: a hand port (not an idle entry) is about to run; the machine is at
+ * its entry.
+ * returned_from_interrupt: ON, the port finished with an RTI (m_rti).
+ * idle: SHADOW, an idle entry applies here, and the original runs the pass
+ * of the wait loop it stands for.
+ * finished: SHADOW, the comparison of the port's call is over, however it
+ * ended (it returned, stopped, was abandoned or interrupted). */
+typedef struct NativeObserver {
+    void *ctx;
+    void (*refused)(void *ctx, Snes *s, const NativeEntry *entry, const char *why);
+    void (*skipped)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*called_out)(void *ctx, Snes *s, const NativeEntry *entry, uint32_t target);
+    void (*stopped)(void *ctx, Snes *s, const NativeEntry *entry, uint16_t entry_s);
+    void (*entered)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*returned_from_interrupt)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*idle)(void *ctx, Snes *s, const NativeEntry *entry);
+    void (*finished)(void *ctx, const NativeEntry *entry);
+} NativeObserver;
+/* Observe ON mode's hand-offs (NULL: stop). The observer is copied. */
+void native_set_observer(NativeRuntime *rt, const NativeObserver *observer);
+
+/* Called at the start of every instruction a generated block executes, with
+ * PC at it (PB:pc24), for a tool that counts what runs where (ct_dev
+ * --fallbacks). NULL by default, which costs a test per instruction. */
+extern void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
+
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);
 
@@ -259,6 +306,9 @@ bool native_is_return(const Snes *s, uint32_t at);
  * against liveness where it applies (tools/dontcare_check.py), which needs to
  * know where that is. Outside the runtime it sets native_returned_direct. */
 void native_note_return(Snes *s);
+/* The same for m_rti, which also tells the observer (NativeObserver) the
+ * port returned from an interrupt. */
+void native_note_rti(Snes *s);
 extern bool native_returned_direct;
 
 /* Nonzero if any shadow comparison failed. */

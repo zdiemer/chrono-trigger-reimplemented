@@ -17,6 +17,12 @@ static const char operand_bytes[257] =
     "X11111110M0022231111111102002223"
     "X11111110M0022231111211102002223";
 
+int misses_instruction_length(uint8_t opcode, bool m8, bool x8)
+{
+    char size = operand_bytes[opcode];
+    return 1 + (size == 'M' ? (m8 ? 1 : 2) : size == 'X' ? (x8 ? 1 : 2) : size - '0');
+}
+
 typedef struct {
     uint32_t key;          /* pc << 3 | e << 2 | m << 1 | x, plus 1 (0 is empty) */
     int16_t section;       /* a section whose image the bytes matched, or -1 */
@@ -93,8 +99,7 @@ static int find_section(const Snes *s, uint32_t w, bool m8, bool x8, int *range,
 {
     const uint8_t *wram = s->bus.wram;
     const uint8_t *code = wram + ((w - 0x7E0000) & 0x1FFFF);
-    char size = operand_bytes[code[0]];
-    int len = 1 + (size == 'M' ? (m8 ? 1 : 2) : size == 'X' ? (x8 ? 1 : 2) : size - '0');
+    int len = misses_instruction_length(code[0], m8, x8);
     *range = -1;
     *diff = 0;
     for (int i = 0; i < recomp_ram_section_count; i++) {
