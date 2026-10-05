@@ -760,6 +760,31 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the main menu's, name entry's and description's review left**
+  (merged with the menus' ninth chunk; none rated translation):
+  `main_menu_bridge.c` runs the pure-C put-away panels (settings, items, the
+  save screen's `$C2:D0DB`) through `menu_run`, against `bridge.h`'s rule
+  that C siblings are called as C; `description.c` and `held_cursors.c` start
+  their tasks by ROM address in logic (an enum, the address table in the
+  bridge); `menu_start_typing` and the list slide take their inputs from
+  cells their callers set (`naming.c` sets seven by hand) -- a description
+  struct, and the slide's own parameters; positions kept as work-RAM
+  addresses in `naming.c`, `description.c` and `lists.c`; `who` a bare byte;
+  `names_given` ORs in the character index and its comment is wrong;
+  `naming.c` draws the grid string by address with an unexplained `+ 1`, and
+  `menu_naming_open` is a 57-line run of setters (the grid, the portrait,
+  the label); `menu_naming_cursor_place` builds an x|y<<8 word only for the
+  bridge's flags, `menu_name_cursor_before` is written plainly but read only
+  by leaves, `menu_naming_give_the_name`'s bool feeds only a leave, and
+  `description.h` exports `menu_leave_typing_started`; `main_menu.c` reads a
+  ROM colour by byte offset and has a comment above the wrong function (as
+  does `naming_bridge.c`); `PANELS_TASKS` written `0x74`; `someone_has_it`
+  run twice; the naming guard redefines the grid's constants;
+  `shop_equipment.c` has a dead `any`, an unexplained `stale - 1`,
+  scaffolding written every pass, and writes the status record by byte
+  offset; `description.c`'s `item_row_fits` checks nothing; the effects
+  baseline's `menu_shop_member_cursor` line carries the save slot's reason.
+
 - **What the party's services' review left** (merged with the services and
   the healing; none rated translation): `AYLA`, the record size `0x50` and
   `FIRST_ROCK`/`ROCKS` are defined in several files (the bridge re-decodes

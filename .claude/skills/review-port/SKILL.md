@@ -894,6 +894,12 @@ Each of these is a finding. Every example here comes from this repo.
      Callers call the operations; the dispatch stays at the registered entry
      for the original's callers, and the cells the dispatcher leaves are one
      leaves helper the caller runs under `ORIGINAL_EFFECT`.
+123. **A C sibling run through the machine.** A bridge that runs a port it
+     could call as C through `menu_run` (or another bridge), so the callee's
+     entry pushes the caller's flags and the stacks match the original's.
+     `bridge.h`'s rule is that C siblings are called as C, timed with
+     `TIMED_AS`; what the original's frame left on the stack is a leaves
+     helper's, not a reason to go through the machine.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
