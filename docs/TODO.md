@@ -777,7 +777,8 @@ rest waits, is [PLAN.md](PLAN.md).
   call-outs to the frame waits, the uploads' reset, the map loader
   (`$C2:2C93`) and the screen setup; check that no map loads an empty list
   and that a busy frame never runs the upload queue short (two guards
-  refuse those).
+  refuse those). `entries.c`'s `EVENT_SCRIPTS = 0x7F0000` repeats
+  `party.c`'s `EVENT_SCRIPTS_BANK` under another name.
 
 - **What the party exchange's review left** (merged with the exchange and
   the gate's song; none rated translation): the emptied place's dimming
