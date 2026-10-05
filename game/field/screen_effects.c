@@ -580,17 +580,19 @@ static void field_hands_over(GameState *g, Platform *pf)
 }
 
 // $C0:260E
-static void close_into_the_scene(Snes *s)
+/* It never comes back: the port stops, there or before. */
+static bool close_into_the_scene(Snes *s)
 {
     GameState *g = state_of(s);
     if (!draw_bg1(s, 0xC02617) || !call(s, 0xC0261B, SEND_BG1) || !refresh(s, 0xC0261E))
-        return;
+        return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
     if (!call(s, 0xC02625, FRAME_WAIT) || !field_run(s, 0xC02628, FIELD_BATTLE_BEGINS_ENTRY, READS_NOTHING, field_battle_begins, on_the_field_page(s, false)) || !refresh(s, 0xC0262B) ||
         !call(s, 0xC0262E, FRAME_WAIT))
-        return;
+        return false;
     field_hands_over(g, m_platform(s));
     m_stop_at_own(s, THE_SCENE_STARTS, AS_THE_SCENE_STARTS);
+    return false;
 }
 
 /* A stretch of the ripple: each frame the circle drawn (where it shows) and
@@ -616,34 +618,39 @@ static bool ripple_stretch(Snes *s, uint8_t frames, RippleCircle circle, int8_t 
     return true;
 }
 
-/* The original jumps to the frame wait at its end, which returns to the main
- * loop itself; the port stops there. */
+/* The original jumps to the frame wait at its end, which returns for it; the
+ * port stops there, so it never comes back itself. */
 enum { THE_LAST_WAIT = DC_A | DC_N | DC_Z };
 
 // $C0:264F
-static void play_the_ripple(Snes *s)
+static bool play_the_ripple(Snes *s)
 {
     GameState *g = state_of(s);
     if (!draw_bg1(s, 0xC02658) || !call(s, 0xC0265C, SEND_BG2) || !call(s, 0xC0265F, SEND_BG3) ||
         !refresh(s, 0xC02662))
-        return;
+        return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG2);
     ripple_begins(g);
     ORIGINAL_EFFECT(set_field_ripple_frames_left(g, RIPPLE_SETTLES));
     if (!call(s, 0xC02688, FRAME_WAIT))
-        return;
+        return false;
     if (!ripple_stretch(s, RIPPLE_SETTLES, CIRCLE_NOT_SHOWN, 0, 0xC0268B, 0xC0268E))
-        return;
+        return false;
     ripple_circle_opens(g);
     if (!ripple_stretch(s, RIPPLE_GROWS, CIRCLE_SHOWN, RIPPLE_GROWTH, 0xC026C1, 0xC026C4) ||
         !ripple_stretch(s, RIPPLE_HOLDS, CIRCLE_SHOWN, 0, 0xC026D4, 0xC026D7) ||
         !ripple_stretch(s, RIPPLE_SHRINKS, CIRCLE_SHOWN, -RIPPLE_GROWTH, 0xC026EB, 0xC026EE))
-        return;
+        return false;
     ripple_ends(g);
     if (!refresh(s, 0xC0271F))
-        return;
+        return false;
     m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
+    return false;
 }
+
+/* The steps that call the original's routines (the curtain, the close, the
+ * ripple) run as the original's table runs them, from its JSR. */
+enum { STEP_TABLE_SITE = 0xC021EA };
 
 /* On the field's page, with 8-bit A and 16-bit index registers. A, X, Y and
  * the flags but V are dead after it; V is as it came, but for the
@@ -654,11 +661,11 @@ void field_move_screen_effect_on(Snes *s)
     bool searchlight = field_screen_effect_now(g) == SEARCHLIGHT;
     switch (move_on_a_step(g)) {
     case STEP_SWEEPS_THE_CURTAIN:
-        if (!sweep_the_curtain(s))
+        if (!field_run_table_step(s, STEP_TABLE_SITE, sweep_the_curtain))
             return;
         break;
-    case STEP_CLOSES_THE_FIELD: close_into_the_scene(s); return;
-    case STEP_PLAYS_THE_RIPPLE: play_the_ripple(s); return;
+    case STEP_CLOSES_THE_FIELD: field_run_table_step(s, STEP_TABLE_SITE, close_into_the_scene); return;
+    case STEP_PLAYS_THE_RIPPLE: field_run_table_step(s, STEP_TABLE_SITE, play_the_ripple); return;
     default: break;
     }
     if (searchlight)

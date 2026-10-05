@@ -1526,6 +1526,7 @@ from frame 0:
 | `fair.ctm` | 12446 of 12449 | `fixed_color` on 3 |
 | `fair-companion.ctm` | 17896 of 17899 | `fixed_color` on 3 |
 | `gato-battle.ctm` | 21596 of 21599 | `fixed_color` on 3 |
+| `attract-demo.ctm` | 9379 of 22499 | `vram` on 9840, `bg.map_base` on 1273, `bg.hofs` on 700, `mode.mode` on 566, window 1's edges on 528 and 151, `sprite` on 52 |
 | `saves/events-blackbird.ctm` | 4399 of 4399 | -- |
 | `saves/events-keepers-dome.ctm` | 4999 of 4999 | -- |
 | `saves/events-jetbike-race.ctm` | 9399 of 9399 | -- |
@@ -1551,7 +1552,11 @@ event's own gate screen drives the Mode 7 matrix and the screen's brightness
 itself and none of that code is ported yet, so the observer never hears about it
 ([TODO.md](TODO.md)). It is not the menus' gate screen -- that movie calls none
 of `menu/epoch.c`'s entries -- and the same build of `main` reports the same 3863
-of 5599.
+of 5599. `attract-demo` is not close either: from frame 2266 the attract
+demo's own scenes write the display around the service -- the scene program's
+modes 1 and 3, which no other movie runs (VRAM, the tile maps' bases, the mode
+and window 1 from 2789 and 8953), and BG2's scroll and window 1's right edge on
+two of its world maps ([TODO.md](TODO.md)).
 
 The two menu movies were the milestone's last leftover, and Phase 3's conversion
 of bank `$C2` closed it: `menus-epoch` went from 5506 of 8799 to all of them and
@@ -1808,7 +1813,7 @@ still comparing VRAM, which is what a line interrupt writes under forced blank.
 
 **Results.**
 
-`ct_dev --px-check --native on` over the whole movie library: **778251 frames,
+`ct_dev --px-check --native on` over the whole movie library: **800751 frames,
 every one identical to `render.c`'s at 256x224**, not a differing pixel. The
 range-over and time-over flags agree on every frame, and no mid-frame change of
 video memory ever ran out of snapshots. "Lines drawn" is how many of the frames'
@@ -1824,6 +1829,7 @@ non-blank lines the cache made the renderer redraw, which is the same number
 | `fair.ctm` | 12452 | all | 9.6 | 26.6% |
 | `fair-companion.ctm` | 17903 | all | 8.9 | 23.7% |
 | `gato-battle.ctm` | 21603 | all | 10.3 | 23.8% |
+| `attract-demo.ctm` | 22500 | all | 25.9 | 55.0% |
 | `saves/battle-tyrano-lair-walls.ctm` | 8043 | all | 19.4 | 32.0% |
 | `saves/battle-golem-twins-gameover.ctm` | 12970 | all | 17.3 | 26.2% |
 | `saves/battle-magus.ctm` | 18001 | all | 18.8 | 26.9% |

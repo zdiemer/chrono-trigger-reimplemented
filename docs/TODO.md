@@ -331,11 +331,6 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
-  - the demo battle's party entries (`battle_demo_party_ready`,
-    `battle_demo_next_turn`) keep round `cost_milli` estimates (3000): no
-    movie plays a demo battle's party turns, so the timing gate has nothing to
-    calibrate them from (`battle_party_stands_down`, 3500, measured exact over
-    the library). A movie of the attract mode's battle would;
   - what the triangles, circles and special effects' review left (none
     blocking): `screen_triangles.c` works out the bit-serial divider's
     leftover (`last_bit_scaled_out`, `left_of_the_dividend`) outside
@@ -1443,8 +1438,16 @@ rest waits, is [PLAN.md](PLAN.md).
   drives the Mode 7 matrix, the screen mode and the brightness itself, and none
   of that code is ported, so nothing tells the observer. It is a different
   screen from the Epoch's time dial (`menu/epoch.c`), which agrees on every frame.
-  Porting the event's version is what closes it, and it is the last movie
-  between P2 and a library that agrees from power-on.
+  Porting the event's version is what closes it.
+- **The attract demo's scenes write their own registers.** `attract-demo`
+  agrees on 9379 of 22499 frames under `--vid-check` (PLATFORM.md, "P2 as
+  built"): the scene program's modes 1 and 3 (`$7E:66DD`-`$7E:6CAB`,
+  unported) write VRAM, the tile maps' bases, the mode and window 1 from
+  frames 2789 and 8953, and on two of its world maps BG2's horizontal scroll
+  (from 2266, on `$1F5`) and window 1's right edge (from 5492, on `$1F7`)
+  change where no call says so; which code writes the last two isn't known yet. With the
+  event's gate, these are what stand between P2 and a library that agrees from
+  power-on.
 - **P3 leftovers** (PLATFORM.md, "P3 as built"): the observer doesn't fill in
   the per-span memory pointers the decoder now does, which it needs before the
   renderer can be fed by service calls rather than registers. The native
@@ -1734,14 +1737,15 @@ below. `python3 tools/timing_census.py` re-runs the census.
     at `$C3:000E`): each frame it moves every line's edge on by a few pixels
     picked by the scene engine's random mixer (`$C3:02DD`), which reads the
     beam's position (the H/V counter latches), so it waits on a timing
-    service before it can be C; no movie reaches the curtain, which fuzzing
-    checks around the call;
+    service before it can be C; the attract demo's curtains (512 steps in
+    `attract-demo`) are compared inside the field's frame, and fuzzing checks
+    around the call and at it;
   - the ripple (event `$FF` `$9E`) and the field's close into scene `$85`
     (`$9B`) run for frames with the original's routines between their steps
     (BG1 drawn and its tile map readied, the frame's effects, the frame
-    wait, the field put aside); no movie reaches either, and fuzzing stops
-    at their first readying call, which waits on the vblank: both are
-    unchecked past their first call-out;
+    wait, the field put aside); no movie reaches either, and fuzzing
+    compares them at their first call-out (BG1's drawing), past which they
+    wait on the vblank: both are unchecked past it;
   - event `$FF` `$96` (the field's restart from its loader) is the
     original's from the command's own dispatch (`$C0:4009`), where the port
     stops; event `$FF` `$9F` calls the menus' party routine 8 as C through
@@ -2066,14 +2070,14 @@ waits on M5 rather than on a backend.
   (100k-170k frame runs), the addresses each route needs, and re-running a
   route when the timing model changes, since routes survive drift but the
   movies they record don't.
-- **The jet bike race won, and the demo's race.** `events-jetbike-race`
-  loses, and nothing plays the attract demo's race (the scene's mode 9), so
-  Crono's finish, the coast, the victory song's wait, the camera settling, the
-  end of the scene and the prizes his score earns (`scene_race_prize`) rest on
-  fuzzing alone (RECOMP.md, "Phase 3, the scene program: the jet bike race
-  running"). A route that wins the race (the boosts late, against Johnny's
-  catching up) and a movie that idles at the title into the demo would put
-  shadow mode on them.
+- **The jet bike race won.** `events-jetbike-race` loses, and
+  `attract-demo` plays the demo's race (its curtain and the race without its
+  panel) only until the demo moves on, so Crono's finish, the coast, the
+  victory song's wait, the camera settling, the end of the scene and the
+  prizes his score earns (`scene_race_prize`) rest on fuzzing alone (RECOMP.md,
+  "Phase 3, the scene program: the jet bike race running"). A route that wins
+  the race (the boosts late, against Johnny's catching up) would put shadow
+  mode on them.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest

@@ -96,6 +96,14 @@ bool field_run_or_hand_over(Snes *s, uint32_t site, uint32_t routine, uint16_t d
  * it has there. */
 bool field_go_on_with(Snes *s, uint32_t routine, void (*entry)(Snes *));
 
+/* A step the original runs from a table, through the JSR at `site`, which is
+ * no entry of its own: run as C under the return address that JSR leaves on
+ * the stack, where the step's call-outs need it (shadow mode pairs a call by
+ * its stack as well as its address). True if the step came back, and the
+ * frame is dropped; false where it stopped, and the original finishes the
+ * step and returns through the frame. */
+bool field_run_table_step(Snes *s, uint32_t site, bool (*step)(Snes *));
+
 /* field_run with a byte the original keeps on the stack over the call (a
  * PHA before it, a PLA after): shadow mode compares the stack pointer at the
  * sibling's call-outs and stops, so the port pads the frame with the byte
