@@ -40,16 +40,6 @@
 
 /* ---- Drawing the screen ------------------------------------------------------------------------ */
 
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
-
 /* The screen's window command lists: its windows; the panel the chosen slot's
  * summary sits in; the fourth row's two choices; the erase question, and the
  * panel it covers put back. */
@@ -130,9 +120,18 @@ static void keep_next_label_tile(GameState *g, uint8_t first)
     set_menu_graphic_first_tile(g, (uint16_t)((menu_graphic_first_tile(g) & 0xFF00) | first));
 }
 
+/* For the original's code and shadow mode: it draws each row from the
+ * drawing origin and counts the slots in the slot shown's cell, which it
+ * leaves past the last. */
+static void leave_rows_drawn(GameState *g)
+{
+    set_menu_draw_origin(g, (uint16_t)(SLOT_ROWS_AT + MENU_SAVE_SLOTS * WINDOW_ROW_BYTES));
+    set_menu_save_slot_shown(g, MENU_SAVE_SLOTS);
+}
+
 // $C2:D10D, $C2:D131
 /* The three slots' rows. */
-static void draw_slot_rows(GameState *g)
+void menu_draw_slot_rows(GameState *g)
 {
     uint16_t row = SLOT_ROWS_AT;
     for (uint8_t slot = 0; slot < MENU_SAVE_SLOTS; slot++, row = (uint16_t)(row + WINDOW_ROW_BYTES)) {
@@ -144,6 +143,22 @@ static void draw_slot_rows(GameState *g)
         TIMED_AS(g, 0xC2D32C, draw_slot_window(g, slot));
     }
     keep_next_label_tile(g, (uint8_t)(LABEL_TILES_A_SLOT * (MENU_SAVE_SLOTS + 1)));
+    ORIGINAL_EFFECT(leave_rows_drawn(g));
+}
+
+/* The screen's windows and the slots' rows, as the load screen and the save
+ * screen draw them both. */
+void menu_draw_the_slots(GameState *g, Platform *pf)
+{
+    menu_draw_windows(g, pf, SCREEN_WINDOWS);
+    TIMED_AS(g, 0xC2D10D, menu_draw_slot_rows(g));
+}
+
+// $C2:D10D
+void menu_draw_slot_rows_entry(Snes *s)
+{
+    menu_draw_slot_rows(state_of(s));
+    m_rts(s);
 }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
@@ -184,14 +199,14 @@ static void finish_screen(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC286DD, menu_build_math_table(g, pf));
     if (saves_finished(pf, PF_AT(0xC2E7F9)))
-        draw_list(g, pf, NEW_GAME_CHOICES);
+        menu_draw_windows(g, pf, NEW_GAME_CHOICES);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     set_menu_line_effects(g, LOAD_SCREEN_LINE_EFFECTS);
     load_screen_colours(g);
-    queue_upload(g, UPLOAD_TEXT_GRAPHICS);
-    queue_upload(g, UPLOAD_BG1);
-    queue_upload(g, UPLOAD_BG2);
-    queue_upload(g, UPLOAD_BG3);
+    menu_queue_fixed_upload(g, UPLOAD_TEXT_GRAPHICS);
+    menu_queue_fixed_upload(g, UPLOAD_BG1);
+    menu_queue_fixed_upload(g, UPLOAD_BG2);
+    menu_queue_fixed_upload(g, UPLOAD_BG3);
 }
 
 /* The flags the screen's drawing has as it calls the summary's drawing and
@@ -210,8 +225,7 @@ static bool draw_load_screen(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     menu_set_widths(s, true, m_x8(s));
-    draw_list(g, pf, SCREEN_WINDOWS);
-    draw_slot_rows(g);
+    menu_draw_the_slots(g, pf);
     uint8_t slot = slot_to_start_on(g, pf);
     set_menu_save_slot_shown(g, slot);
     set_menu_cursor_index(g, slot);
@@ -219,7 +233,7 @@ static bool draw_load_screen(Snes *s)
     if (!menu_run(s, 0xC2E7E8, 0xC2D36C, menu_draw_save_slot))
         return false;
     set_menu_text_attribute(g, 0);
-    draw_list(g, pf, SUMMARY_PANEL);
+    menu_draw_windows(g, pf, SUMMARY_PANEL);
     if (!menu_run(s, 0xC2E7F3, 0xC2E743, menu_show_save_slot))
         return false;
     finish_screen(g, pf);
@@ -282,9 +296,9 @@ static void ask_to_erase(GameState *g, Platform *pf)
     set_menu_kept_cursor(g, slot);
     set_menu_cursor_index(g, ERASE_YES);
     set_menu_line_effects(g, QUESTION_LINE_EFFECTS);
-    draw_list(g, pf, ERASE_QUESTION);
-    queue_upload(g, UPLOAD_BG1_QUESTION);
-    queue_upload(g, UPLOAD_BG2_ROWS);
+    menu_draw_windows(g, pf, ERASE_QUESTION);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_QUESTION);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_ROWS);
 }
 
 /* The slot a new game will be saved in: the first that holds no game, or the
@@ -335,8 +349,8 @@ static void show_question_label(GameState *g)
 {
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_TOP_AT, LABEL_TOP_COLUMNS, LABEL_TOP_TILE));
     TIMED_AS(g, 0xC2FBB4, (void)menu_lay_out_strip(g, LABEL_BOTTOM_AT, LABEL_BOTTOM_COLUMNS, LABEL_BOTTOM_TILE));
-    queue_upload(g, UPLOAD_NEW_GAME_PLUS);
-    queue_upload(g, UPLOAD_BG3_ROWS);
+    menu_queue_fixed_upload(g, UPLOAD_NEW_GAME_PLUS);
+    menu_queue_fixed_upload(g, UPLOAD_BG3_ROWS);
 }
 
 /* Leaving the menus for the game: the sound driver told whether to play in
@@ -503,7 +517,7 @@ static void back_to_choosing(GameState *g)
     for (unsigned i = 0; i < HEADER_ROWS_BYTES; i++)
         set_menu_carry_on_question(g, i, 0);
     set_menu_save_header_taken(g, 0);
-    queue_upload(g, UPLOAD_BG3_ROWS);
+    menu_queue_fixed_upload(g, UPLOAD_BG3_ROWS);
 }
 
 void menu_choose_game_to_carry_on_from(Snes *s)
@@ -554,7 +568,7 @@ void menu_answer_erase(Snes *s)
     }
     if (!(buttons & CHOSE))
         set_menu_cursor_index(g, ERASE_NO);
-    draw_list(g, m_platform(s), ERASE_QUESTION_CLOSED);
+    menu_draw_windows(g, m_platform(s), ERASE_QUESTION_CLOSED);
     if (menu_cursor_index(g) == ERASE_YES) {
         ORIGINAL_EFFECT(leave_compare(s, ERASE_YES, ERASE_YES));
         if (!menu_run(s, 0xC2E729, 0xC2E8B7, menu_erase_slot))
@@ -567,7 +581,7 @@ void menu_answer_erase(Snes *s)
     ORIGINAL_EFFECT(leave_carry(s, true));
     if (!tick(s, 0xC2E73A))
         return;
-    queue_upload(g, UPLOAD_BG2_SUMMARY);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_SUMMARY);
     m_rts(s);
 }
 

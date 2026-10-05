@@ -28,6 +28,7 @@
 #include "menu/held_cursors.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/vram.h"
@@ -47,12 +48,9 @@ enum {
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
     LIST_WHAT_FITS = 0xC28953,       /* the list of what fits the slot made */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
-    DESCRIBE = 0xC2F2F3,             /* the description window drawn for the item in A */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     PREVIEW_ITEM = 0xC2A5C3,         /* the list's item on the cursor put in the record, the figures with it */
     MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
-    START_LIST_SLIDE = 0xC2EB9B,     /* a list's slide started */
-    LIST_SLIDE_FRAME = 0xC2EB1F,     /* a frame of a list's slide, and the wait for the next */
     START_MEMBER_SLIDE = 0xC29D5B,   /* the member list's slide started, if there is a member to bring in */
 };
 
@@ -63,7 +61,7 @@ enum {
 enum {
     POINT_AT_MEMBER = 0xC29D17, POINT_AT_SLOT = 0xC29ECD, SET_UP_SCREEN = 0xC2A11A, MEMBER_CARD = 0xC2A22F,
     MAIN_MENU = 0xC29A98, BACK_TO_MEMBERS = 0xC2A2CD, ON_TO_THE_LIST = 0xC2A41A, REFUSAL_SOUND = 0xC2EACC,
-    CURSOR_SOUND = 0xC2EAC2, STOP_TASKS = 0xC28255,
+    CURSOR_SOUND = 0xC2EAC2,
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
@@ -79,7 +77,6 @@ enum {
     READS_A_HIGH = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
-    READS_A_LOW = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A_AND_CARRY = DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
@@ -320,8 +317,8 @@ static void back_to_the_slots(Snes *s)
     if (!menu_run(s, 0xC29CEC, 0xC2A64D, menu_back_to_equipment_slots))
         return;
     menu_equip_back_to_the_slots(g);
-    m_set_a8(s, LIST_TASK);
-    m_stop_at_own(s, STOP_TASKS, READS_A);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, LIST_TASK));
+    m_rts(s);
 }
 
 // $C2:9CA5
@@ -391,8 +388,7 @@ void menu_point_along_equipment_list(Snes *s)
         return;
     }
     menu_equip_set_up_list_slide(g);
-    if (!call(s, 0xC29F5B, START_LIST_SLIDE))
-        return;
+    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_equip_bring_in_list_row(g, row);
     ORIGINAL_EFFECT(leave_row_found(s));
     TIMED_AS(g, 0xC2A59A, menu_equip_draw_list_row(g, NEW_LIST_ROW_AT));
@@ -404,7 +400,8 @@ void menu_point_along_equipment_list(Snes *s)
     if (menu_equip_start_list_slide_frames(g)) {
         menu_equip_slide_list_a_frame(g);
         while (menu_equip_list_slide_frames_left(g)) {
-            if (!call(s, 0xC29FB4, LIST_SLIDE_FRAME))
+            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
+            if (!yield(s, 0xC29FB4))
                 return;
             menu_equip_slide_list_a_frame(g);
         }
@@ -482,13 +479,6 @@ void menu_show_panel_colours(Snes *s)
 }
 
 /* ---- The windows ------------------------------------------------------------------------------- */
-
-/* The description drawn for an item, A holding it. */
-static bool describe(Snes *s, uint32_t site, uint16_t a)
-{
-    s->cpu.a = a;
-    return menu_call(s, site, DESCRIBE, READS_A_LOW);
-}
 
 // $C2:A71E
 /* The slots window sliding in, a frame at a time after a wait for each. */
@@ -636,8 +626,6 @@ void menu_open_equipment_list(Snes *s)
     if (!menu_run(s, 0xC2A432, 0xC2A463, menu_make_equipment_list))
         return;
     menu_equip_open_the_list(g);
-    if (!describe(s, 0xC2A44A, (uint16_t)((s->cpu.a & 0xFF00) | menu_equip_item_described_on_opening(g))))
-        return;
     menu_equip_settle_the_list(g);
     menu_restore_p(s);
     m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);

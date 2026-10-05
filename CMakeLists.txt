@@ -144,6 +144,7 @@ add_library(ct_game STATIC
   game/field/window_shape.c
   game/menu/bridge.c
   game/menu/cursor.c
+  game/menu/description.c
   game/menu/digits.c
   game/menu/display.c
   game/menu/epoch.c
@@ -164,7 +165,11 @@ add_library(ct_game STATIC
   game/menu/line_effects.c
   game/menu/lists.c
   game/menu/load_screen.c
+  game/menu/main_menu.c
+  game/menu/main_menu_bridge.c
   game/menu/members.c
+  game/menu/naming.c
+  game/menu/naming_bridge.c
   game/menu/map.c
   game/menu/object_commands.c
   game/menu/object_script.c
@@ -174,12 +179,14 @@ add_library(ct_game STATIC
   game/menu/party_bridge.c
   game/menu/save_screen.c
   game/menu/saves.c
+  game/menu/saving.c
   game/menu/script.c
   game/menu/script_bridge.c
   game/menu/settings_screen.c
   game/menu/settings_screen_bridge.c
   game/menu/shop.c
   game/menu/shop_bridge.c
+  game/menu/shop_equipment.c
   game/menu/sound.c
   game/menu/sprites.c
   game/menu/tech_screen.c

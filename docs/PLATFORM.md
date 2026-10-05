@@ -1532,6 +1532,7 @@ from frame 0:
 | `saves/events-prison-escape.ctm` | 12899 of 12899 | -- |
 | `saves/events-end-of-time-gate.ctm` | 3863 of 5599 | `mode7.d` on 1414, brightness on 271, `mode.mode` on 50 |
 | `saves/menus-shop-inn.ctm` | 9701 of 9701 | -- |
+| `saves/menus-shop-equip.ctm` | 15512 of 15512 | -- |
 | `saves/menus-field-menu.ctm` | 10594 of 10599 | `bg.hofs` on 4, `fixed_color` on 1 |
 | `saves/menus-end-of-time.ctm` | 8799 of 8799 | -- |
 | `saves/menus-epoch.ctm` | 8799 of 8799 | -- |
@@ -1807,7 +1808,7 @@ still comparing VRAM, which is what a line interrupt writes under forced blank.
 
 **Results.**
 
-`ct_dev --px-check --native on` over the whole movie library: **762738 frames,
+`ct_dev --px-check --native on` over the whole movie library: **778251 frames,
 every one identical to `render.c`'s at 256x224**, not a differing pixel. The
 range-over and time-over flags agree on every frame, and no mid-frame change of
 video memory ever ran out of snapshots. "Lines drawn" is how many of the frames'
@@ -1834,6 +1835,7 @@ non-blank lines the cache made the renderer redraw, which is the same number
 | `saves/menus-end-of-time.ctm` | 8803 | all | 83.1 | 36.6% |
 | `saves/menus-epoch.ctm` | 8805 | all | 68.5 | 51.0% |
 | `saves/menus-shop-inn.ctm` | 9704 | all | 20.5 | 26.0% |
+| `saves/menus-shop-equip.ctm` | 15513 | all | 43.6 | 24.9% |
 | `saves/menus-field-menu.ctm` | 10602 | all | 55.2 | 25.3% |
 | `saves/late-omen-terramutant.ctm` | 17763 | all | 32.1 | 30.1% |
 | `saves/late-omen-battles.ctm` | 18413 | all | 21.7 | 26.0% |

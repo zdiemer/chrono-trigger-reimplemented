@@ -30,6 +30,30 @@ bool menu_list_slid_up(const GameState *g);
  * first. */
 void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, unsigned row_bytes, bool up);
 
+/* A list's slide a row along, over a few frames. The list's rows are
+ * shown by bands of the screen's per-line table, a row's twelve lines each
+ * at the layer's vertical scroll that shows the row there; the screen names
+ * the table (menu_block_move_dest, menu_block_move_size) and how many rows
+ * move (menu_slide_rows), and draws the row coming in at the rows' buffer's
+ * end. menu_start_list_slide makes the slide's bands from the table as it
+ * rests: the rows, with the row coming in above them (a slide up) and the
+ * row below them. A frame of the slide (menu_slide_list_a_frame, once the
+ * screen has added the frame's step to menu_scroll_moved) shows as many
+ * bands as there are rows, moved that far: the row going out at one end
+ * loses the lines the one coming in at the other gains. Once it has slid,
+ * menu_put_the_list_bands_back puts the table back as it rested, for the
+ * screen to move its rows a row along in their buffer (menu_move_list_rows). */
+void menu_start_list_slide(GameState *g);
+void menu_slide_list_a_frame(GameState *g);
+void menu_put_the_list_bands_back(GameState *g);
+
+/* Their entries ($C2:EB9B; $C2:EB1F, which then waits for the next frame),
+ * and their guards. */
+void menu_start_list_slide_entry(Snes *s);
+void menu_slide_list_a_frame_entry(Snes *s);
+bool menu_list_slide_is_startable(Snes *s);
+bool menu_list_slide_frame_is_showable(Snes *s);
+
 /* A scrolling list paged with the shoulder assignments, its first row at
  * `top`: back a page or on a page, its rows as its frame laid them out
  * (menu_paging_rows, menu_paging_last_top). The new first row, `top` where

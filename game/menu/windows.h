@@ -14,6 +14,12 @@
  * two bytes a tile and 32 tiles a row. */
 enum { MENU_TILE_BYTES = 2, MENU_TILEMAP_ROW_BYTES = 0x40 };
 
+/* The front layer's tilemap buffer is where the screens draw their
+ * windows; a tile of it by its place in the bank, as the screens name
+ * their places. */
+enum { MENU_FRONT_LAYER_AT = 0x2E00 };
+static inline unsigned menu_front_tile_of(uint16_t at) { return (uint16_t)(at - MENU_FRONT_LAYER_AT) / MENU_TILE_BYTES; }
+
 /* A window's style: the tilemap word of its first tile, which says where its
  * twenty tiles start and the attribute (palette and priority) they all take. */
 typedef uint16_t MenuWindowStyle;

@@ -33,6 +33,11 @@ typedef enum {
 
 enum { SETTINGS_FIRST_GAUGE_PLACE = 12, SETTINGS_GAUGE_LAYOUTS = 3, SETTINGS_FIRST_BUTTON_ROW = 15 };
 
+/* The boxes that say an option is being set, by the option's setting's
+ * place among the boxes: the gauge's layout being chosen, the speeds being
+ * set, the window's design being chosen. */
+enum { SETTINGS_CHOOSING_GAUGE = 4, SETTINGS_SETTING_SPEEDS = 5, SETTINGS_CHOOSING_DESIGN = 6 };
+
 /* The screen's steps, as its main task runs them (menu_screen_step). */
 typedef enum {
     SETTINGS_OPENING = 0,
@@ -59,8 +64,9 @@ bool menu_settings_leaving(const GameState *g);
 void menu_settings_leave(GameState *g);
 
 /* The option the cursor is on is kept, then what the frame's input does to
- * it: each option is one of a few kinds (the table in settings_screen.c),
- * and then it is shown (its description, the boxes). */
+ * it: each option has its kind's handler (the bridge's table of them,
+ * settings_screen_bridge.c), and then it is shown (its description, the
+ * boxes). */
 SettingsOption menu_settings_take_option(GameState *g);
 void menu_settings_show_option(GameState *g);
 

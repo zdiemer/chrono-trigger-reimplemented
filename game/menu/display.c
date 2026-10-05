@@ -178,6 +178,8 @@ void menu_mode_restart(Snes *s)
  * unless the main loop hasn't finished one. */
 enum { FRAME_SENT = 0xFF, FRAME_READY_BIT = 0x80, LINE_EFFECTS = 0x7F, BLOCK_MOVE_ASKED = 0x80 };
 
+void menu_ask_for_the_block_move(GameState *g) { set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | BLOCK_MOVE_ASKED)); }
+
 // $C2:842A (the body of the NMI handler at $C2:840E, installed at the $0500
 // stub from the table at $C2:8406)
 /* The menus' vblank: counts the frame, sends the frame's work ($C2:85D6) with
@@ -911,12 +913,25 @@ static void build_window_line_table(GameState *g)
 
 // $FF:FC04
 /* Build the indirect per-line table slot 1 reads for a window screen, and
- * point the slot at it. It leaves its loop's counts in the caller's first
- * three cells: the second level, a run of lines out, and the groups. */
+ * point the slot at it. */
+void menu_put_window_line_table(GameState *g, Platform *pf)
+{
+    vid_set_line_table(pf, PF_AT(0xFFFC0A), 1, (uint16_t)RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
+    build_window_line_table(g);
+}
+
+/* It leaves its loop's counts in the caller's first three cells: the second
+ * level, a run of lines out, and the groups. */
+void menu_leave_window_line_table_counts(GameState *g)
+{
+    set_menu_scratch_window_lines_level(g, SECOND_LEVEL);
+    set_menu_scratch_window_lines_out(g, 0);
+    set_menu_scratch_window_line_groups(g, WINDOW_GROUPS);
+}
+
 void menu_window_build_line_table(Snes *s)
 {
-    vid_set_line_table(m_platform(s), PF_AT(0xFFFC0A), 1, (uint16_t)RAM_ABS(RAM_MENU_WINDOW_LINE_TABLE));
-    build_window_line_table(state_of(s));
+    menu_put_window_line_table(state_of(s), m_platform(s));
     m_write8(s, m_dp(s, 0x00), SECOND_LEVEL);
     m_write8(s, m_dp(s, 0x01), 0);
     m_write8(s, m_dp(s, 0x02), WINDOW_GROUPS);

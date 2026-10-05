@@ -35,10 +35,12 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/display.h"
 #include "menu/item_screen.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
 #include "menu/text.h"
@@ -449,7 +451,7 @@ TechsMemberSlide menu_techs_slide_members(GameState *g)
 /* The rows sit on the front layer from column 5, row 2, ten tiles by
  * eighteen; a slide's copy back takes them from six rows off where they
  * were copied to. */
-enum { MEMBER_LIST_LAYER = 0x2E00, SLIDE_FRAMES = 12, SLID_ROWS = 0x0600, LAST_ROW_PASSED = 0xFF };
+enum { MEMBER_LIST_LAYER = MENU_FRONT_LAYER_AT, SLIDE_FRAMES = 12, SLID_ROWS = 0x0600, LAST_ROW_PASSED = 0xFF };
 static const MenuTilePlace MEMBER_ROWS_PLACE = { 5, 2 };
 static const MenuWindowSize MEMBER_ROWS_SIZE = { 10, 18 };
 
@@ -814,7 +816,6 @@ static void move_list_rows(GameState *g, bool up)
 /* Once slid: the rows moved in their buffer, the list at rest, the upload
  * queue emptied (the frames sent it), the thumb at the new first row, and
  * the block move set to bring the rows' new lines in. */
-enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
 
 void menu_techs_finish_list_slide(GameState *g)
 {
@@ -822,8 +823,7 @@ void menu_techs_finish_list_slide(GameState *g)
     set_menu_scroll_step(g, 0);
     set_menu_vram_queue_bytes(g, 0);
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_tech_list_top(g)));
-    set_menu_block_move_source(g, LIST_LINES_FROM);
-    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
+    menu_put_the_list_bands_back(g);
 }
 
 /* The cursor's row kept: whether the cursor moved this frame. */
@@ -839,38 +839,29 @@ bool menu_techs_keep_the_cursors_row(GameState *g)
  * a kind's caption ten glyphs a frame, further along it. Both are strings
  * of the techs' table (the captions after the techs, menu_data.h). */
 enum { TECH_LINE = 0x5344, KIND_LINE = 0x5356, TECH_PACE = 1, CAPTION_PACE = 0x0A };
-enum { DESCRIPTION_TILES = 0x6AA0, DESCRIPTION_SPARE = 0x0F75, DESCRIPTION_ROW_BYTES = 0x80, STALE = 0x80 };
-
-bool menu_techs_description_shows_another(const GameState *g, uint8_t which)
-{
-    return (menu_description_stale(g) & STALE) || which != menu_description_item(g);
-}
+enum { DESCRIPTION_ROW_VRAM = 0x6AA0, DESCRIPTION_SPARE = 0x0F75 };
 
 // $C2:BE44
-static bool ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8_t which)
+/* The original also writes a word into the list's cells beside the
+ * request (menu_tech_description_spare); nothing reads it. */
+static void ask_for_description(GameState *g, uint16_t line, uint8_t pace, uint8_t which)
 {
     set_menu_description_line(g, line);
     set_menu_description_pace(g, pace);
-    if (!menu_techs_description_shows_another(g, which))
-        return false;
-    set_menu_description_item(g, which);
-    set_menu_text_string(g, which);
-    set_menu_description_stale(g, 0);
-    ORIGINAL_EFFECT(set_menu_description_tiles(g, DESCRIPTION_TILES));
+    if (!menu_description_shows_another(g, which))
+        return;
     ORIGINAL_EFFECT(set_menu_tech_description_spare(g, DESCRIPTION_SPARE));
-    set_menu_text_strings(g, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS);
-    set_menu_description_clear_bytes(g, DESCRIPTION_ROW_BYTES);
-    return true;
+    menu_describe(g, which, (uint32_t)MENU_TECH_DESCRIPTIONS_BANK << 16 | MENU_TECH_DESCRIPTIONS, DESCRIPTION_ROW_VRAM);
 }
 
 // $C2:BE33
-bool menu_techs_describe_tech(GameState *g) { return ask_for_description(g, TECH_LINE, TECH_PACE, menu_tech_pointed(g)); }
+void menu_techs_describe_tech(GameState *g) { ask_for_description(g, TECH_LINE, TECH_PACE, menu_tech_pointed(g)); }
 
 // $C2:BE16
-bool menu_techs_describe_kind(GameState *g)
+void menu_techs_describe_kind(GameState *g)
 {
     set_menu_line_effects(g, LINE_EFFECTS);
-    return ask_for_description(g, KIND_LINE, CAPTION_PACE, (uint8_t)(menu_tech_category(g) + MENU_TECH_KIND_CAPTIONS));
+    ask_for_description(g, KIND_LINE, CAPTION_PACE, (uint8_t)(menu_tech_category(g) + MENU_TECH_KIND_CAPTIONS));
 }
 
 /* ---- Choosing a tech --------------------------------------------------------------------------- */
@@ -917,7 +908,7 @@ TechsUse menu_techs_use(GameState *g)
 
 /* The menus' tasks a tech's use stops and starts again: the description's
  * (held a frame longer), the scroll bar's. */
-enum { DESCRIPTION_TASK = 2, SCROLL_BAR_TASK = 4, TASK_STOPPED = 0, TASK_STARTING = 1 };
+enum { TASK_STOPPED = 0, TASK_STARTING = MENU_TASK_STARTING };
 
 // $C2:B43A
 /* The restoring's figures from the tech, its strength the user's magic,
@@ -928,7 +919,7 @@ void menu_techs_choose_targets(GameState *g)
     MenuTechHealing h = menu_tech_healing(g, menu_tech_pointed(g));
     set_menu_use_effect(g, h.effect);
     set_menu_heal_factor(g, h.factor);
-    set_menu_tasks_state(g, SCROLL_BAR_TASK, TASK_STOPPED);
+    set_menu_tasks_state(g, MENU_SCROLL_BAR_TASK, TASK_STOPPED);
     set_menu_heal_power(g, menu_status_record_figures_byte(g, MAGIC_FIGURE));
     next_step(g);
     set_menu_cursor_index(g, FIRST_TARGET_PLACE);
@@ -941,7 +932,7 @@ bool menu_techs_heal_every_member(const GameState *g) { return (menu_use_effect(
 
 void menu_techs_hold_the_description(GameState *g)
 {
-    set_menu_tasks_countdown(g, DESCRIPTION_TASK, (uint8_t)(menu_tasks_countdown(g, DESCRIPTION_TASK) + 1));
+    set_menu_tasks_countdown(g, MENU_DESCRIPTION_TASK, (uint8_t)(menu_tasks_countdown(g, MENU_DESCRIPTION_TASK) + 1));
 }
 
 /* ---- The window a tech is used from ------------------------------------------------------------ */
@@ -1061,7 +1052,7 @@ void menu_techs_back_from_the_targets(GameState *g)
     reset_records(g);
     (void)load_member(g, member_on_the_cursor(g));
     set_menu_record_block_limit(g, LISTER_BLOCKS);
-    set_menu_tasks_state(g, SCROLL_BAR_TASK, (uint8_t)(menu_tasks_state(g, SCROLL_BAR_TASK) + TASK_STARTING));
+    set_menu_tasks_state(g, MENU_SCROLL_BAR_TASK, (uint8_t)(menu_tasks_state(g, MENU_SCROLL_BAR_TASK) + TASK_STARTING));
 }
 
 void menu_techs_close_targets(GameState *g)

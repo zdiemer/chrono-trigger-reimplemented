@@ -351,15 +351,55 @@ static inline MenuUpload menu_upload_record(const GameState *g, uint16_t at)
                          (uint16_t)(b[5] | b[6] << 8), b[7] };
 }
 
+/* The main menu ($FF): its window ($BD2E) and the window an option's
+ * screen opens from ($BD51); its icons' sprites, the six options' along the
+ * top, each its place, tile and attributes ($BD5C), the lit icon's tile $20
+ * on; the icons' colours, eight ($CC14), and the lit option's own eight
+ * ($CC24, a set an option); and the arrows' three ($9E0A). */
+enum {
+    MENU_WINDOWS_MAIN_MENU = 0xBD2E, MENU_WINDOWS_OPTION_OPENING = 0xBD51,
+    MENU_MAIN_MENU_OPTIONS = 6, MENU_LIT_ICON_TILES = 0x20,
+    MENU_ROM_MAIN_MENU_COLOURS = 0xCC14, MENU_ROM_OPTION_COLOURS = 0xCC24, MENU_ROM_ARROW_COLOURS = 0x9E0A,
+    MENU_MAIN_MENU_COLOURS = 8, MENU_ARROW_COLOURS = 3,
+};
+typedef struct {
+    uint8_t x, y, tile, attributes;
+} MenuIcon;
+static inline MenuIcon menu_main_menu_icon(const GameState *g, unsigned option)
+{
+    uint32_t at = 0xFFBD5Cu + 4u * option;
+    return (MenuIcon){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+}
+
+/* Naming a character: the letters' grid, eight rows of ten letters, each
+ * the letter's text code ($FF:C9AC); the battle mode's screen, its tiles
+ * ($FF:F008, tilemap words), and its sixteen colours ($FF:CE9A). */
+enum { MENU_NAME_GRID_COLUMNS = 10 };
+static inline uint8_t menu_name_grid_letter(const GameState *g, unsigned row, unsigned column)
+{
+    return rom_read8(g, 0xFFC9ACu + row * MENU_NAME_GRID_COLUMNS + column);
+}
+static inline uint16_t menu_battle_mode_screen_tile(const GameState *g, unsigned tile)
+{
+    return rom_read16(g, 0xFFF008u + 2u * tile);
+}
+static inline uint16_t menu_battle_mode_colour(const GameState *g, unsigned i) { return rom_read16(g, 0xFFCE9Au + 2u * i); }
+
 /* The screens' uploads of their tilemap buffers and line tables, by what
- * they send: the front layer's rows from the third ($7E:2E80, $640 bytes),
+ * they send: the front layer's and the back layer's whole ($7E:2E00, $C00
+ * bytes; $7E:3E00, $1000 bytes); the front layer's rows from the third
+ * ($7E:2E80, $640 bytes), from $7E:3400 (the shop's members' strips, $600
+ * bytes),
  * its lower half ($7E:3600), the back layer's rows from the third
  * ($7E:3E80), the text layer's ($7E:4E00, $680 bytes), the window line
  * tables ($7E:5D00), and the text layer's first two rows ($7E:4E00, $80
  * bytes) where a window over the list keeps its lines. */
 enum {
+    MENU_UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE,
+    MENU_UPLOAD_BACK_LAYER_WHOLE = 0xFBF8,
     MENU_UPLOAD_FRONT_LAYER = 0xFBE3,
     MENU_UPLOAD_FRONT_LAYER_LOWER_HALF = 0xFBEA,
+    MENU_UPLOAD_FRONT_LAYER_STRIPS = 0xFBF1,
     MENU_UPLOAD_BACK_LAYER = 0xFBFF,
     MENU_UPLOAD_TEXT_LAYER = 0xFC1B,
     MENU_UPLOAD_LINE_TABLES = 0xFC3E,
@@ -697,6 +737,10 @@ static inline uint8_t menu_tech_targets(const GameState *g, uint8_t tech)
 /* What each member's part of a tech costs in MP ($CC:253B), by the part's
  * number: a single tech's is the tech itself. */
 static inline uint8_t menu_tech_part_mp(const GameState *g, uint16_t part) { return rom_read8(g, 0xCC0000u | (uint16_t)(0x253B + part)); }
+
+/* The items' descriptions: a table of where each string starts, a word each
+ * in bank $CC ($CC:2EB1), by the item's number. */
+enum { MENU_ITEM_DESCRIPTIONS = 0xCC2EB1 };
 
 /* The techs' descriptions: a table of where each string starts, a word each
  * in bank $CC ($CC:3A09); after the techs' come the captions of the kinds,

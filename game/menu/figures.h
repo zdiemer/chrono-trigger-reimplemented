@@ -14,8 +14,12 @@
  * menu_figures_greatest_hp; HP over the greatest comes down to it. */
 void menu_work_out_figures(GameState *g);
 
-/* The same, then written back to the member's record and its copy: the
- * figures, the greatest HP, and the HP. */
+/* The same as a screen shows them: the evade doubled where the member wears
+ * the accessory that doubles it. */
+void menu_work_out_figures_shown(GameState *g);
+
+/* The figures shown, then written back to the member's record and its
+ * copy: the figures, the greatest HP, and the HP. */
 void menu_note_member_figures(GameState *g);
 
 /* Every character's figures worked out and written back, as the menus open. */

@@ -1,0 +1,78 @@
+/* Naming a character, menu screen 13 (game/menu/naming.c), and its steps
+ * on the original's machine (game/menu/naming_bridge.c). */
+#ifndef CT_GAME_MENU_NAMING_H
+#define CT_GAME_MENU_NAMING_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "platform/video.h"
+#include "snes/system.h"
+#include "state.h"
+
+/* The screen opens on the naming; or, at a new game's first, on the battle
+ * mode first, the character noted among those named either way. */
+bool menu_naming_asks_the_battle_mode_first(GameState *g);
+void menu_naming_open(GameState *g, Platform *pf);
+
+/* The battle mode's screen: drawn, the mode on the cursor described, and
+ * the mode chosen. */
+void menu_naming_open_the_battle_mode(GameState *g, Platform *pf);
+void menu_naming_describe_the_battle_mode(GameState *g);
+void menu_naming_choose_the_battle_mode(GameState *g);
+
+/* Once the naming has opened, it waits for any button before it takes the
+ * cursor. */
+bool menu_naming_waits(const GameState *g);
+void menu_naming_take_the_cursor(GameState *g);
+
+/* A frame of the naming: the cursor moved about the grid (whether it
+ * moved); a letter typed or taken back, and the name drawn again; the
+ * name's cursor placed and the name shown. */
+bool menu_naming_move_on_the_grid(GameState *g);
+bool menu_naming_keeps_the_named_ones_record(const GameState *g);
+
+/* The grid's cursor, its column's x and its row's y as a word; the grid's
+ * first column and row stand at these. */
+uint16_t menu_naming_cursor_place(const GameState *g);
+enum { MENU_NAME_GRID_LEFT = 0x24, MENU_NAME_GRID_TOP = 0x53 };
+typedef enum { NAMING_NOTHING_TYPED, NAMING_LETTER_TYPED, NAMING_LETTER_TAKEN_BACK } NamingTyped;
+NamingTyped menu_naming_type(GameState *g);
+void menu_naming_draw_the_name(GameState *g, Platform *pf);
+void menu_naming_show_the_name(GameState *g);
+void menu_naming_place_the_names_cursor(GameState *g);
+
+/* The letters' grid written out as a string for the text drawer. */
+void menu_naming_write_out_the_grid(GameState *g);
+
+/* Start accepts the name: kept, checked against the others', and given
+ * where nobody has it and anything is left of it. */
+bool menu_naming_started(const GameState *g);
+void menu_naming_keep_the_name(GameState *g);
+bool menu_naming_someone_has_it(GameState *g);
+bool menu_naming_give_the_name(GameState *g);
+bool menu_naming_name_given(const GameState *g);
+
+/* The steps and entries ($C2:E1ED, $C2:E201, $C2:E209, $C2:E21E, $C2:E236;
+ * $C2:E267, $C2:E2F4, $C2:E363, $C2:E3E0; $C2:E40E, $C2:E545, $C2:E34A,
+ * $C2:E576, $C2:E5D3), and their guards. */
+void menu_open_naming_screen(Snes *s);
+void menu_open_the_naming(Snes *s);
+void menu_wait_to_name(Snes *s);
+void menu_name_the_character(Snes *s);
+void menu_choose_battle_mode(Snes *s);
+void menu_move_on_the_name_grid(Snes *s);
+void menu_type_on_the_name_grid(Snes *s);
+void menu_accept_the_name(Snes *s);
+void menu_check_the_name(Snes *s);
+void menu_naming_open_entry(Snes *s);
+void menu_write_out_the_name_grid(Snes *s);
+void menu_place_the_names_cursor(Snes *s);
+void menu_open_the_battle_mode(Snes *s);
+void menu_describe_the_battle_mode(Snes *s);
+bool menu_naming_runs(Snes *s);
+bool menu_naming_opens(Snes *s);
+bool menu_naming_name_is_checkable(Snes *s);
+bool menu_naming_step_runs(Snes *s);
+
+#endif

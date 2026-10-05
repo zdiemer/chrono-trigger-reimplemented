@@ -16,6 +16,7 @@
  * frames. */
 #include "menu/cursor.h"
 
+#include "charge.h"
 #include "core/input.h"
 #include "menu/bridge.h"
 #include "menu/menu_data.h"
@@ -240,6 +241,43 @@ static bool take_queued_sound(GameState *g, uint8_t *sound)
     set_menu_queued_sounds(g, (uint8_t)(queued & ~taken));
     *sound = taken == QUEUED_SOUND_6 ? MENU_SOUND_6 : MENU_SOUND_7;
     return true;
+}
+
+/* ---- Places kept --------------------------------------------------------------------------------- */
+
+enum { PLACE_BYTES = 6 };
+
+static void copy_place(GameState *g, unsigned place, bool keep)
+{
+    if (keep) {
+        set_menu_cursor_places_kept_x(g, place, menu_cursor_places_x(g, place));
+        set_menu_cursor_places_kept_y(g, place, menu_cursor_places_y(g, place));
+        set_menu_cursor_places_kept_up(g, place, menu_cursor_places_up(g, place));
+        set_menu_cursor_places_kept_down(g, place, menu_cursor_places_down(g, place));
+        set_menu_cursor_places_kept_left(g, place, menu_cursor_places_left(g, place));
+        set_menu_cursor_places_kept_right(g, place, menu_cursor_places_right(g, place));
+    } else {
+        set_menu_cursor_places_x(g, place, menu_cursor_places_kept_x(g, place));
+        set_menu_cursor_places_y(g, place, menu_cursor_places_kept_y(g, place));
+        set_menu_cursor_places_up(g, place, menu_cursor_places_kept_up(g, place));
+        set_menu_cursor_places_down(g, place, menu_cursor_places_kept_down(g, place));
+        set_menu_cursor_places_left(g, place, menu_cursor_places_kept_left(g, place));
+        set_menu_cursor_places_right(g, place, menu_cursor_places_kept_right(g, place));
+    }
+}
+
+void menu_keep_cursor_places(GameState *g)
+{
+    for (unsigned place = 0; place < MENU_CURSOR_PLACES_KEPT_COUNT; place++)
+        copy_place(g, place, true);
+    ORIGINAL_EFFECT(charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES));
+}
+
+void menu_put_cursor_places_back(GameState *g)
+{
+    for (unsigned place = 0; place < MENU_CURSOR_PLACES_KEPT_COUNT; place++)
+        copy_place(g, place, false);
+    ORIGINAL_EFFECT(charge_block_move(g, MENU_CURSOR_PLACES_KEPT_COUNT * PLACE_BYTES));
 }
 
 /* ---- The entries -------------------------------------------------------------------------------- */

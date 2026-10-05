@@ -53,7 +53,7 @@ enum { BLOCK_MOVE = 0x80, SLOT_ROWS_CHANNEL = 0x40 };
 /* Set the per-line effect up for the next frame: the rows' values, the table
  * as the screen's setup built it with the row of the slot after the one shown
  * marked, and the vblank asked to move the table into place. */
-static void load_slot_rows_effect(GameState *g)
+void menu_put_slot_rows_effect(GameState *g)
 {
     for (unsigned i = 0; i < ROW_VALUES; i++)
         set_menu_slot_row_values_byte(g, i, menu_slot_row_value(g, i));
@@ -189,20 +189,10 @@ enum { TIME_PLAYED_AT = 0x3310, TIME_PLAYED_DIGITS = 0x98C9 };
 /* Where the member rows start in the slot's tilemap, and the summary. */
 enum { MEMBER_ROWS_AT = 0x3200, SUMMARY_AT = 0x9890 };
 
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
-
 /* The header's window, with the time played. */
 static void draw_header_window(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, HEADER_LIST);
+    menu_draw_windows(g, pf, HEADER_LIST);
     TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_PLAYED_AT, TIME_PLAYED_DIGITS));
 }
 
@@ -212,7 +202,7 @@ static void finish_header(GameState *g)
     uint8_t width = menu_save_era_width(g);
     if (width != 0)
         TIMED_AS(g, 0xC2FB97, menu_lay_out_label(g, ERA_LABEL_TILES, tiles_across(width), ERA_LABEL_FIRST_TILE));
-    queue_upload(g, MENU_UPLOAD_ERA_LABEL);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_ERA_LABEL);
 }
 
 /* The header runs on the menus' page with the data bank on work RAM's ($7E),
@@ -264,7 +254,7 @@ static void draw_member_rows(GameState *g, Platform *pf)
         note_member_row(g, row, member);
         if (member_present(g, row)) {
             show_member(g, row);
-            draw_list(g, pf, MEMBER_ROW_LIST);
+            menu_draw_windows(g, pf, MEMBER_ROW_LIST);
             TIMED_AS(g, 0xC2D466, draw_member_portrait(g, origin, row, member));
             origin = (uint16_t)(origin + MEMBER_ROW_BYTES);
             set_menu_draw_origin(g, origin);
@@ -365,7 +355,7 @@ static bool show_save_slot(Snes *s)
     }
     set_menu_save_slot_shown(g, slot);
     set_menu_save_slot_next(g, (uint8_t)((slot + 1) & ROW_MASK));
-    NATIVE_TIME_AS(s, 0xC2CFFB, load_slot_rows_effect(g));
+    NATIVE_TIME_AS(s, 0xC2CFFB, menu_put_slot_rows_effect(g));
     clear_slot_tilemap(g);
     s->cpu.db = MENU_DATA_BANK;   /* the clearing's block moves leave it there */
     menu_set_widths(s, false, false);
@@ -393,7 +383,7 @@ static void leave_block_move_bank(Snes *s) { s->cpu.db = MENU_DATA_BANK; }
 // $C2:CFFB
 void menu_load_slot_rows_effect(Snes *s)
 {
-    load_slot_rows_effect(state_of(s));
+    menu_put_slot_rows_effect(state_of(s));
     ORIGINAL_EFFECT(leave_block_move_bank(s));
     m_rts(s);
 }
@@ -424,9 +414,9 @@ void menu_show_save_slot(Snes *s)
         return;
     if (!menu_run(s, 0xC2E7AC, 0xC2D36C, menu_draw_save_slot))
         return;
-    queue_upload(g, MENU_UPLOAD_SLOT_TILEMAP);
-    queue_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
-    queue_upload(g, MENU_UPLOAD_SLOT_TILEMAP_3);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_2);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_SLOT_TILEMAP_3);
     ORIGINAL_EFFECT(leave_last_upload(s, MENU_UPLOAD_SLOT_TILEMAP_3));
     menu_restore_p(s);
     m_rts(s);

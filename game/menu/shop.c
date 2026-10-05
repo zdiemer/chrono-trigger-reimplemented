@@ -282,12 +282,13 @@ static unsigned record_of(GameState *g, uint8_t character)
 enum { NO_SPRITE = 0xFF, STANDING = 0x00, CHEERING = 0x0B };
 
 
-/* The members' tiles along the window: an icon of the kind of weapon each
- * uses over its figures, two tile rows, eight bytes a member. */
-enum { MEMBER_STRIP_AT = 0x3404, MEMBER_STRIP_BYTES = 8, ICON_TILES = 0x20, ICON_ATTRIBUTE = 0x20, FIGURES_ICON = 0x2E };
-enum { FRONT_TILEMAP_AT = 0x2E00, TILE_BYTES = 2, ROW_BYTES = 0x40, MEMBER_SPRITE_Y = 0xC0 };
+/* The members' strips along the window (shop.h): an icon of the kind of
+ * weapon each uses over its figures. */
+enum { MEMBER_STRIP_AT = SHOP_MEMBER_STRIPS_AT, MEMBER_STRIP_BYTES = SHOP_MEMBER_STRIP_BYTES };
+enum { ICON_TILES = 0x20, ICON_ATTRIBUTE = 0x20, FIGURES_ICON = 0x2E };
+enum { TILE_BYTES = MENU_TILE_BYTES, ROW_BYTES = MENU_TILEMAP_ROW_BYTES, MEMBER_SPRITE_Y = 0xC0 };
 
-static unsigned tile_index(uint16_t at) { return (uint16_t)(at - FRONT_TILEMAP_AT) / TILE_BYTES; }
+static unsigned tile_index(uint16_t at) { return menu_front_tile_of(at); }
 
 static void put_tile(GameState *g, uint16_t at, uint16_t tile) { set_menu_front_tilemap(g, tile_index(at), tile); }
 
@@ -487,28 +488,21 @@ bool menu_shop_panel_member(GameState *g, unsigned m, bool *usable)
 
 void menu_shop_panel_member_shown(GameState *g, unsigned m) { show_member_figures(g, m, (uint8_t)(m * MEMBER_STRIP_BYTES)); }
 
-/* The panel's loop leaves its count of members and where it got to along
- * the window. */
-void menu_shop_panel_done(GameState *g, unsigned members) { at_panel_member(g, members); }
+/* For the original's code and shadow mode: the panel's loop leaves its
+ * count of members as the member worked on and where it got to along the
+ * window as the drawing origin; both are set again before anything reads
+ * them. */
+void menu_shop_leave_panel_done(GameState *g, unsigned members) { at_panel_member(g, members); }
 
 /* ---- Opening ------------------------------------------------------------------------------------ */
 
-enum { SHOP_WINDOWS = 0xC213, KEPT_CURSOR_PLACES = 12, CURSOR_PLACE_BYTES = 6 };
+enum { SHOP_WINDOWS = 0xC213 };
 
 /* The cursor's places kept, which the equipping from the shop puts its own
  * over. */
 static void keep_the_cursor_places(GameState *g)
 {
-    for (unsigned place = 0; place < KEPT_CURSOR_PLACES; place++) {
-        unsigned at = place * CURSOR_PLACE_BYTES;
-        set_menu_cursor_places_kept(g, at + 0, menu_cursor_places_x(g, place));
-        set_menu_cursor_places_kept(g, at + 1, menu_cursor_places_y(g, place));
-        set_menu_cursor_places_kept(g, at + 2, menu_cursor_places_up(g, place));
-        set_menu_cursor_places_kept(g, at + 3, menu_cursor_places_down(g, place));
-        set_menu_cursor_places_kept(g, at + 4, menu_cursor_places_left(g, place));
-        set_menu_cursor_places_kept(g, at + 5, menu_cursor_places_right(g, place));
-    }
-    ORIGINAL_EFFECT(charge_block_move(g, KEPT_CURSOR_PLACES * CURSOR_PLACE_BYTES));
+    menu_keep_cursor_places(g);
 }
 
 // $C2:DACA
@@ -796,13 +790,6 @@ void menu_shop_frame_list(GameState *g)
     set_menu_list_first_place(g, 0);
 }
 
-/* The goods' count as the original loads it for the frame: a word, with the
- * byte after it. */
-uint16_t menu_shop_goods_offered_word(const GameState *g)
-{
-    return (uint16_t)(menu_shop_goods_offered(g) | menu_shop_after_the_counts(g) << 8);
-}
-
 /* What the frame's input does on a list. */
 ShopListChoice menu_shop_choose_on_the_list(const GameState *g)
 {
@@ -935,15 +922,13 @@ static void move_the_rows(GameState *g, bool up)
 /* The slide over: the rows moved along, the upload queue emptied (the
  * frames sent it), and the block move set to bring the rows' new lines
  * in. */
-enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
 
 void menu_shop_finish_list_slide(GameState *g)
 {
     move_the_rows(g, menu_list_slid_up(g));
     set_menu_scroll_step(g, 0);
     set_menu_vram_queue_bytes(g, 0);
-    set_menu_block_move_source(g, LIST_LINES_FROM);
-    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
+    menu_put_the_list_bands_back(g);
 }
 
 // $C2:D7F1, $C2:D8D4
@@ -1073,17 +1058,29 @@ static void price_the_step(GameState *g, uint8_t step, bool less)
     set_menu_shop_total(g, (total(g) + step * price) & 0xFFFFFF);
 }
 
+/* For the original's code and shadow mode: a push left or right steps the
+ * quantity by one, which it notes in its step's cell first. */
+static void leave_a_step_of_one(GameState *g, MenuCursorDirection way)
+{
+    if (way == MENU_CURSOR_WENT_RIGHT || way == MENU_CURSOR_WENT_LEFT)
+        set_menu_scratch_shop_step(g, 1);
+}
+
+/* For the original's code and shadow mode: it keeps the quantity before the
+ * push in the panel's place cell, which closing the window sets again
+ * before anything reads it. */
+static void leave_quantity_before(GameState *g, uint8_t quantity) { set_menu_shop_place_shown(g, quantity); }
+
 /* The quantity's change by a push: right one more, left one fewer, up ten
  * more and down ten fewer, never below one nor up to the limit (ten more
  * than there is room for go to the most, ten fewer than one to one). */
-enum { PUSHED_RIGHT = 0, PUSHED_LEFT = 1, PUSHED_DOWN = 2, PUSHED_UP = 3, A_TEN = 10 };
+enum { A_TEN = 10 };
 
-static void step_the_quantity(GameState *g, uint8_t way)
+static void step_the_quantity(GameState *g, MenuCursorDirection way)
 {
     uint8_t quantity = menu_item_operand_quantity(g), limit = menu_item_operand_count(g);
     switch (way) {
-    case PUSHED_RIGHT: {
-        ORIGINAL_EFFECT(set_menu_scratch_shop_step(g, 1));
+    case MENU_CURSOR_WENT_RIGHT: {
         uint8_t more = (uint8_t)(quantity + 1);
         if (more >= limit)
             return;
@@ -1091,8 +1088,7 @@ static void step_the_quantity(GameState *g, uint8_t way)
         price_the_step(g, 1, false);
         return;
     }
-    case PUSHED_LEFT: {
-        ORIGINAL_EFFECT(set_menu_scratch_shop_step(g, 1));
+    case MENU_CURSOR_WENT_LEFT: {
         uint8_t fewer = (uint8_t)(quantity - 1);
         if (fewer == 0 || fewer >= limit)
             return;
@@ -1100,7 +1096,7 @@ static void step_the_quantity(GameState *g, uint8_t way)
         price_the_step(g, 1, true);
         return;
     }
-    case PUSHED_UP: {
+    case MENU_CURSOR_WENT_UP: {
         uint8_t more = (uint8_t)(quantity + A_TEN);
         uint8_t step = A_TEN;
         if (more >= limit) {
@@ -1111,7 +1107,7 @@ static void step_the_quantity(GameState *g, uint8_t way)
         price_the_step(g, step, false);
         return;
     }
-    case PUSHED_DOWN: {
+    case MENU_CURSOR_WENT_DOWN: {
         uint8_t fewer = (uint8_t)(quantity - A_TEN);
         uint8_t step = A_TEN;
         if (fewer == 0 || fewer >= limit) {
@@ -1122,6 +1118,7 @@ static void step_the_quantity(GameState *g, uint8_t way)
         price_the_step(g, step, true);
         return;
     }
+    case MENU_CURSOR_NOT_PUSHED: return;
     }
 }
 
@@ -1138,11 +1135,12 @@ bool menu_shop_change_quantity(GameState *g, Platform *pf)
     ORIGINAL_EFFECT(set_menu_scratch_shop_multiplicand_high(g, 0));
     ORIGINAL_EFFECT(set_menu_scratch_shop_multiplicand_bytes(g, WORDS_OF_THE_PRICE));
     uint8_t way = menu_cursor_direction(g);
-    if (way & 0x80)
+    if (way & MENU_CURSOR_NOT_PUSHED)
         return false;
     uint8_t before = menu_item_operand_quantity(g);
-    set_menu_shop_place_shown(g, before); /* the quantity before, kept where the list's place was */
-    step_the_quantity(g, way);
+    ORIGINAL_EFFECT(leave_quantity_before(g, before));
+    step_the_quantity(g, (MenuCursorDirection)way);
+    ORIGINAL_EFFECT(leave_a_step_of_one(g, (MenuCursorDirection)way));
     menu_draw_windows(g, pf, QUANTITY_WINDOWS);
     menu_queue_fixed_upload(g, UPLOAD_QUANTITY);
     return menu_item_operand_quantity(g) != before;

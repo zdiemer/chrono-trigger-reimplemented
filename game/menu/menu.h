@@ -22,9 +22,13 @@
 
 /* The menus' tasks (menu_tasks), which their scheduler runs a turn of each
  * frame: a task started runs from `start` on its next turn ($C2:8249). Some
- * have places of their own: the scroll bar's, the records', the cursors a
- * screen holds and the healing's rising numbers. */
-enum { MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5, MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7 };
+ * have places of their own: the description's typing, the cursor's sprite
+ * (which a screen's panel holds back while it draws), the scroll bar's, the
+ * records', the cursors a screen holds and the healing's rising numbers. */
+enum {
+    MENU_DESCRIPTION_TASK = 2, MENU_CURSOR_TASK = 3, MENU_SCROLL_BAR_TASK = 4, MENU_RECORDS_TASK = 5,
+    MENU_HELD_CURSORS_TASK = 6, MENU_AMOUNTS_TASK = 7,
+};
 enum { MENU_TASK_STARTING = 1 };
 static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
 {
@@ -32,6 +36,13 @@ static inline void menu_start_task(GameState *g, unsigned task, uint16_t start)
     set_menu_tasks_countdown(g, task, 1);
     set_menu_tasks_start(g, task, start);
 }
+
+/* Stop the tasks whose bits are set in `tasks`, bit n the n-th: none of
+ * them takes another turn ($C2:8255, menu/frame.c). */
+enum { MENU_TASKS = 8 };
+void menu_stop_tasks(GameState *g, uint8_t tasks);
+void menu_stop_tasks_entry(Snes *s);
+
 
 /* menu/frame.c */
 void menu_wait_for_frame_loop(Snes *s);

@@ -21,6 +21,19 @@ enum {
     MENU_TEXT_LINES_AT_THE_EDGE = 0x80,
 };
 
+/* Why a call stopped (menu_text_stop): the string ended; a wait; a line or
+ * page break the caller acts on (from the first new line on, each starts a
+ * line: odd ones at the margin, even ones indented); the call's budget ran
+ * out. */
+typedef enum {
+    MENU_TEXT_ENDED = 0,
+    MENU_TEXT_WAITS = 3,
+    MENU_TEXT_BREAKS = 4,
+    MENU_TEXT_NEW_LINE = 5,
+    MENU_TEXT_LAST_BREAK = 12,
+    MENU_TEXT_OUT_OF_BUDGET = 0x10,
+} MenuTextStop;
+
 /* Start the string the text page names (menu_text: which string of which
  * table, the tiles, the layout), and set glyphs of it until it stops the call
  * or the call's budget runs out (menu_text_stop says which). */

@@ -25,6 +25,7 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/figures.h"
 #include "menu/healing.h"
 #include "menu/held_cursors.h"
@@ -32,6 +33,7 @@
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/tech_screen.h"
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
@@ -48,23 +50,17 @@
 /* The original's routines the steps call, by what they do. */
 enum {
     YIELD = 0xC2821E,                /* the task waits for the next frame */
-    STOP_TASKS = 0xC28255,           /* the tasks in A stopped */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
     MOVE_IN_LIST = 0xC2EA53,         /* the cursor kept within a list's rows */
-    START_LIST_SLIDE = 0xC2EB9B,     /* a list's slide started */
-    LIST_SLIDE_FRAME = 0xC2EB1F,     /* a frame of a list's slide, and the wait for the next */
-    DESCRIBE = 0xC2F2F3,             /* the description window drawn for the item in A */
-    HOLD_A_CURSOR = 0xC289E4,        /* the second cursor's task started */
     MAIN_MENU = 0xC29A98,            /* back to the main menu */
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
- * page, the data bank and memory; the list's frame Y, the description and
+ * page, the data bank and memory; the list's frame Y, and
  * the stop of tasks A, the pointing at a member A (its sound's). */
 enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_Y = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C,
-    READS_A_LOW = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
@@ -73,12 +69,10 @@ static bool yield(Snes *s, uint32_t site) { return menu_call(s, site, YIELD, REA
 static bool tick(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EAC2, menu_play_cursor_sound); }
 static bool refuse(Snes *s, uint32_t site) { return menu_run(s, site, 0xC2EACC, menu_play_refusal_sound); }
 
-/* The description drawn for an item, A holding it. */
-static bool describe(Snes *s, uint32_t site, uint8_t item)
-{
-    m_set_a8(s, item);
-    return menu_call(s, site, DESCRIBE, READS_A_LOW);
-}
+/* The description of an item (menu/description.h); item 0, an empty
+ * place's, has a blank one. */
+enum { BLANK_DESCRIPTION = 0x00 };
+static void describe(GameState *g, uint8_t item) { TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, item)); }
 
 /* The cursor read as C, leaving what the original's reading leaves. */
 static void read_cursor(Snes *s)
@@ -112,8 +106,9 @@ enum { HELD_CURSOR_TASK = 0x40 };
 
 static void stop_tasks(Snes *s, uint8_t tasks)
 {
-    m_set_a8(s, tasks);
-    m_stop_at_own(s, STOP_TASKS, READS_A);
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, tasks));
+    m_rts(s);
 }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
@@ -185,9 +180,8 @@ void menu_describe_listed_item(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    uint8_t item = menu_items_note_the_cursors_item(g);
-    if (!describe(s, 0xC2AD4B, item))
-        return;
+    describe(g, menu_items_note_the_cursors_item(g));
+    ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
     menu_restore_p(s);
     m_rts(s);
 }
@@ -219,8 +213,7 @@ static void slide_the_list(Snes *s)
 {
     GameState *g = state_of(s);
     menu_items_set_up_slide(g);
-    if (!call(s, 0xC2AC8A, START_LIST_SLIDE))
-        return;
+    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_items_bring_in_a_row(g);
     ORIGINAL_EFFECT(leave_rows_queued(s, MENU_UPLOAD_FRONT_LAYER));
     if (!tick(s, 0xC2ACB9))
@@ -228,9 +221,11 @@ static void slide_the_list(Snes *s)
     menu_set_widths(s, false, false);
     bool took_frames = menu_items_slide_takes_frames(g);
     if (took_frames)
-        while (menu_items_slide_a_frame(g))
-            if (!call(s, 0xC2ACDF, LIST_SLIDE_FRAME))
+        while (menu_items_slide_a_frame(g)) {
+            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
+            if (!yield(s, 0xC2ACDF))
                 return;
+        }
     menu_set_widths(s, true, false);
     ORIGINAL_EFFECT(leave_slide_frames(s, took_frames));
     menu_items_end_slide_frames(g);
@@ -290,14 +285,15 @@ void menu_choose_on_item_list(Snes *s)
         if (!tick(s, 0xC2AA99))
             return;
         menu_items_pick_up(g);
-        m_stop_at(s, HOLD_A_CURSOR, READS_NOTHING);
+        menu_set_widths(s, false, false);
+        m_rts(s);
         return;
     case LIST_LEFT:
         if (!tick(s, 0xC2AAAD))
             return;
         menu_items_back_to_the_commands(g);
-        m_set_a8(s, 0);
-        m_stop_at_own(s, DESCRIBE, READS_A);
+        describe(g, BLANK_DESCRIPTION);
+        m_rts(s);
         return;
     case LIST_POINTED_AT: point_along_the_list(s); return;
     }
@@ -453,8 +449,7 @@ void menu_use_one_more(Snes *s)
     Platform *pf = m_platform(s);
     menu_items_use_one(g);
     ORIGINAL_EFFECT(leave_one_taken(s));
-    if (!describe(s, 0xC2B347, menu_items_picked_item(g)))
-        return;
+    describe(g, menu_items_picked_item(g));
     menu_items_draw_members(g, pf);
     menu_items_after_one_used(g);
     m_rts(s);
@@ -469,9 +464,8 @@ static void leave_member_window(Snes *s)
         return;
     menu_items_close_member_window(g);
     TIMED_AS(g, 0xC2F566, menu_reset_character_records(g));
-    m_set_a8(s, HELD_CURSOR_TASK);
-    if (!menu_call(s, 0xC2B1DE, STOP_TASKS, READS_A))
-        return;
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, HELD_CURSOR_TASK));
+    ORIGINAL_EFFECT(menu_leave_load(s, HELD_CURSOR_TASK));
     menu_items_clear_member_window(g);
     m_rts(s);
 }

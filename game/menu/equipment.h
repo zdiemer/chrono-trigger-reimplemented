@@ -187,7 +187,6 @@ void menu_equip_draw_list(GameState *g);
 uint16_t menu_equip_list_end(void);
 void menu_equip_draw_list_row(GameState *g, uint16_t at);
 void menu_equip_open_the_list(GameState *g);
-uint8_t menu_equip_item_described_on_opening(const GameState *g);
 void menu_equip_settle_the_list(GameState *g);
 void menu_equip_start_list_closing(GameState *g, Platform *pf, MenuListSlide *w);
 bool menu_equip_slide_list_out_a_frame(GameState *g, MenuListSlide *w);

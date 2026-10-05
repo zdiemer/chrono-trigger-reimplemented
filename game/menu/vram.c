@@ -48,6 +48,14 @@ static MenuUpload built_upload(const GameState *g, uint16_t at)
                          (uint16_t)(b[5] | b[6] << 8), b[7] };
 }
 
+void menu_leave_built_upload(GameState *g, MenuUpload u)
+{
+    set_menu_built_upload_vram(g, u.vram);
+    set_menu_built_upload_source(g, (uint16_t)u.source);
+    set_menu_built_upload_bank(g, (uint8_t)(u.source >> 16));
+    set_menu_built_upload_size(g, u.size);
+}
+
 /* ---- The entries ------------------------------------------------------------------------- */
 
 /* Where the queue is, as the original's block move addresses it. */
@@ -82,6 +90,8 @@ void menu_leave_queued_upload(Snes *s, uint16_t record_at)
 {
     leave_block_move(s, record_at, queued_bytes_now(s) - RECORD_BYTES);
 }
+
+void menu_leave_a_high_byte_set(Snes *s) { s->cpu.a = (uint16_t)(s->cpu.a | 0xFF00); }
 
 // $C2:8385
 /* Queue the upload whose record is at X in bank C2. */

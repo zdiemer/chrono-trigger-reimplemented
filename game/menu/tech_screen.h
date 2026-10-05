@@ -146,12 +146,10 @@ void menu_techs_show_learning(GameState *g, Platform *pf);
 
 /* ---- The description -------------------------------------------------------------------------- */
 
-/* The description window shows the pointed tech's, or (on the members) the
- * kind's caption: whether it shows another than it is asked for, and the ask,
- * true where the original's description task must set it. */
-bool menu_techs_description_shows_another(const GameState *g, uint8_t which);
-bool menu_techs_describe_tech(GameState *g);
-bool menu_techs_describe_kind(GameState *g);
+/* The description window (menu/description.h) shows the pointed tech's, or
+ * (on the members) the kind's caption, typed where it shows another. */
+void menu_techs_describe_tech(GameState *g);
+void menu_techs_describe_kind(GameState *g);
 
 /* ---- Using a tech ----------------------------------------------------------------------------- */
 

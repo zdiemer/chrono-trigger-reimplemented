@@ -4,9 +4,12 @@
 
 #include "charge.h"
 #include "menu/cursor.h"
+#include "menu/bridge.h"
+#include "menu/display.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -31,6 +34,193 @@ void menu_move_list_rows(GameState *g, uint16_t rows_at, unsigned shown_bytes, u
         wram_copy(g, first + row * row_bytes, first + (row + 1) * row_bytes, row_bytes);
     wram_copy(g, past, first, row_bytes);
     ORIGINAL_EFFECT(charge_block_move(g, shown_bytes));
+}
+
+/* ---- The slide ---------------------------------------------------------------------------------- */
+
+/* A row of a list is twelve lines on the screen and two tiles, sixteen
+ * lines, in its buffer, so the next row down the buffer shows four lines
+ * further down the layer than the one before. */
+enum { ROW_LINES = 12, BUFFER_ROW_LINES = 16, NEXT_ROW_SCROLL = BUFFER_ROW_LINES - ROW_LINES };
+
+/* A slide takes four frames, three lines a frame, and keeps the push's
+ * repeat from coming before it is over. */
+enum { SLIDE_FRAMES = 4, SLIDE_STEP = 3, REPEAT_SOON = 5, REPEAT_AFTER_THE_SLIDE = 4 };
+
+/* A per-line table is bands of three bytes, a band's lines and then its
+ * vertical scroll. */
+enum { BAND_BYTES = 3 };
+
+/* The band the slide coming in above the list shows it in, before the
+ * list's first row. */
+enum { ROW_ABOVE = 0, FIRST_ROW = 1 };
+
+static uint8_t first_band_in_view(const GameState *g) { return (uint8_t)(menu_slide_first_band(g) / BAND_BYTES); }
+static void set_first_band_in_view(GameState *g, uint8_t band) { set_menu_slide_first_band(g, (uint8_t)(band * BAND_BYTES)); }
+
+static void set_band(GameState *g, unsigned band, uint8_t lines, uint16_t scroll)
+{
+    set_menu_slide_bands_lines(g, band, lines);
+    set_menu_slide_bands_scroll(g, band, scroll);
+}
+
+/* The bands staged for the vblank's block move. */
+static void stage_band(GameState *g, unsigned band, uint8_t lines, uint16_t scroll)
+{
+    set_menu_slide_staged_table_byte(g, band * BAND_BYTES, lines);
+    set_menu_slide_staged_table_byte(g, band * BAND_BYTES + 1, (uint8_t)scroll);
+    set_menu_slide_staged_table_byte(g, band * BAND_BYTES + 2, (uint8_t)(scroll >> 8));
+}
+
+/* The list's own table, where the screen keeps it (bank $7E). */
+static uint8_t list_table_byte(const GameState *g, unsigned at)
+{
+    return wram_read8(g, WORK_RAM | (uint16_t)(menu_block_move_dest(g) + at));
+}
+
+static uint16_t list_band_scroll(const GameState *g, unsigned band)
+{
+    return (uint16_t)(list_table_byte(g, band * BAND_BYTES + 1) | list_table_byte(g, band * BAND_BYTES + 2) << 8);
+}
+
+/* For the original's code and shadow mode: the start counts the rows'
+ * bands' bytes, and a frame its bands down to none, in the menus' first
+ * cell; the original copies the tables with block moves. */
+static void leave_slide_started(GameState *g, unsigned rows, unsigned table_bytes)
+{
+    set_menu_scratch_slide_band_bytes(g, (uint16_t)(rows * BAND_BYTES));
+    charge_block_move(g, rows * BAND_BYTES + 2 * table_bytes - rows * BAND_BYTES);
+}
+
+// $C2:EB9B
+/* The table as it rests is kept, to go back once the slide is over; the
+ * staged table takes the bands past the rows from it, a band on (the slide
+ * shows a row more than the list), and the slide's bands are the rows with
+ * the row coming in above them -- the buffer's last row, which the screen
+ * has drawn the new row in -- and below them the buffer's next row after
+ * the last in view. The slide's first band in view is the list's first row
+ * for a slide down, the row above for a slide up. */
+void menu_start_list_slide(GameState *g)
+{
+    uint8_t rows = menu_slide_rows(g);
+    unsigned table_bytes = menu_block_move_size(g) + 1u;
+    set_menu_block_move_source(g, (uint16_t)RAM_MENU_SLIDE_STAGED_TABLE);
+    for (unsigned band = 0; band < rows; band++)
+        set_band(g, FIRST_ROW + band, list_table_byte(g, band * BAND_BYTES), list_band_scroll(g, band));
+    for (unsigned at = 0; at < table_bytes; at++)
+        set_menu_slide_table_at_rest_byte(g, at, list_table_byte(g, at));
+    for (unsigned at = rows * BAND_BYTES; at < table_bytes; at++)
+        set_menu_slide_staged_table_byte(g, at, list_table_byte(g, at - BAND_BYTES));
+    set_menu_slide_bands_scroll(g, rows, (uint16_t)(menu_slide_bands_scroll(g, rows - 1) + NEXT_ROW_SCROLL));
+    set_band(g, ROW_ABOVE, ROW_LINES, (uint16_t)(menu_slide_bands_scroll(g, FIRST_ROW) + rows * BUFFER_ROW_LINES - NEXT_ROW_SCROLL));
+    set_menu_slide_bands_lines(g, rows, ROW_LINES);
+    bool down = menu_pushed(g, MENU_PUSHED_DOWN);
+    set_first_band_in_view(g, down ? FIRST_ROW : ROW_ABOVE);
+    set_menu_scroll_step(g, down ? SLIDE_STEP : (uint16_t)-SLIDE_STEP);
+    set_menu_scroll_frames(g, SLIDE_FRAMES);
+    if (input_repeat_countdown(g) == REPEAT_SOON)
+        set_input_repeat_countdown(g, REPEAT_AFTER_THE_SLIDE);
+    ORIGINAL_EFFECT(leave_slide_started(g, rows, table_bytes));
+}
+
+// $C2:EB1F
+/* The rows in view, as far along as the slide has moved: each band's
+ * scroll moved that far; the first row in view shows what is left of it
+ * (down) or the row coming in above what it has gained (up), and the last
+ * row in view the rest of its lines. The vblank copies them in. */
+void menu_slide_list_a_frame(GameState *g)
+{
+    uint8_t rows = menu_slide_rows(g), first = first_band_in_view(g);
+    uint16_t moved = menu_scroll_moved(g);
+    uint8_t first_lines = (int16_t)moved < 0 ? (uint8_t)-moved : (uint8_t)(menu_slide_bands_lines(g, first) - moved);
+    for (unsigned band = 0; band < rows; band++)
+        stage_band(g, band, band == 0 ? first_lines : menu_slide_bands_lines(g, first + band),
+                   (uint16_t)(menu_slide_bands_scroll(g, first + band) + moved));
+    uint8_t last = (uint8_t)(first + rows - 1);
+    set_menu_slide_staged_table_byte(g, (rows - 1u) * BAND_BYTES, (uint8_t)(menu_slide_bands_lines(g, last) - first_lines));
+    menu_ask_for_the_block_move(g);
+    ORIGINAL_EFFECT(set_menu_scratch_slide_bands_left(g, 0));
+}
+
+/* The table as it rested goes back in. */
+void menu_put_the_list_bands_back(GameState *g)
+{
+    set_menu_block_move_source(g, (uint16_t)RAM_MENU_SLIDE_TABLE_AT_REST);
+    menu_ask_for_the_block_move(g);
+}
+
+/* ---- The slide's entries ------------------------------------------------------------------------- */
+
+/* The task switch a frame of the slide goes on to, which waits for the
+ * next frame and returns to the frame's caller; it keeps X, Y and the flags
+ * for the caller across the wait. */
+enum { YIELD = 0xC2821E, KEEPS_X_Y_AND_FLAGS = DC_A };
+
+/* For the original's code and shadow mode: X and Y past the last band, as
+ * the staging leaves them; the flags are the caller's. */
+static void leave_bands_staged(Snes *s)
+{
+    const GameState *g = state_of(s);
+    unsigned rows = menu_slide_rows(g);
+    s->cpu.x = (uint16_t)(menu_slide_first_band(g) + rows * BAND_BYTES);
+    s->cpu.y = (uint16_t)(rows * BAND_BYTES);
+}
+
+// $C2:EB9B
+void menu_start_list_slide_entry(Snes *s)
+{
+    menu_start_list_slide(state_of(s));
+    m_rts(s);
+}
+
+// $C2:EB1F
+void menu_slide_list_a_frame_entry(Snes *s)
+{
+    menu_slide_list_a_frame(state_of(s));
+    ORIGINAL_EFFECT(leave_bands_staged(s));
+    m_stop_at_own(s, YIELD, KEEPS_X_Y_AND_FLAGS);
+}
+
+/* The screens keep their lists' tables among the menus' per-line tables,
+ * below the slide's own, and slide up to twelve rows, a table of no more
+ * than the slide's staging holds. */
+enum { LINE_TABLES = 0x9000, MOST_ROWS = MENU_SLIDE_BANDS_COUNT - 1, MOST_TABLE_BYTES = MENU_SLIDE_TABLE_AT_REST_BYTES };
+
+bool menu_list_slide_is_startable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    unsigned rows = menu_slide_rows(g), table_bytes = menu_block_move_size(g) + 1u, at = menu_block_move_dest(g);
+    bool ok = rows >= 1 && rows <= MOST_ROWS && table_bytes <= MOST_TABLE_BYTES && rows * BAND_BYTES <= table_bytes
+              && at >= LINE_TABLES && at + table_bytes <= RAM_MENU_BLOCK_MOVE_SOURCE - 0x7E0000u;
+    vars_peek(false);
+    return ok;
+}
+
+/* A frame shows the bands from the first in view, the list's first row or
+ * the row above it, while the slide is still within that first band: a
+ * slide moves less than a row. */
+static bool still_within_the_first_band(const GameState *g, uint8_t first)
+{
+    uint8_t moved = (uint8_t)menu_scroll_moved(g), lines = menu_slide_bands_lines(g, first);
+    if ((int16_t)menu_scroll_moved(g) < 0)
+        return (uint8_t)~moved < lines;
+    return moved < lines;
+}
+
+bool menu_list_slide_frame_is_showable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    unsigned rows = menu_slide_rows(g), offset = menu_slide_first_band(g), first = offset / BAND_BYTES;
+    bool ok = rows >= 1 && offset % BAND_BYTES == 0 && first <= FIRST_ROW && first + rows <= MENU_SLIDE_BANDS_COUNT
+              && still_within_the_first_band(g, (uint8_t)first);
+    vars_peek(false);
+    return ok;
 }
 
 /* ---- Paging ------------------------------------------------------------------------------------- */

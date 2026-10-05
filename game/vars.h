@@ -601,6 +601,13 @@ void set_times_saved(GameState *g, uint16_t v);
 uint8_t times_finished(const GameState *g);
 void set_times_finished(GameState *g, uint8_t v);
 
+/* Nonzero once the game's first naming has been opened: none at a new game's start, which has
+ * Crono's naming ask how the battles go first; the naming then sets its low byte to the menus'
+ * line effects ($7F), and each naming ORs its character into the low byte as it opens. The
+ * naming reads the two bytes as a word */
+uint16_t names_given(const GameState *g);
+void set_names_given(GameState *g, uint16_t v);
+
 /* The menus' frame count when they left for the game, which the battle takes its random numbers'
  * start from */
 uint8_t frames_at_leaving(const GameState *g);
@@ -622,6 +629,12 @@ enum { CHARACTER_NAMES_COUNT = 7 };   /* by character */
 enum { CHARACTER_NAMES_BYTES = 6 };
 uint8_t character_names_byte(const GameState *g, unsigned i, unsigned at);
 void set_character_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+/* The Epoch's name, after the seven characters' and laid out as theirs: five name characters and
+ * the byte after them [6 bytes, one at a time] */
+enum { EPOCH_NAME_BYTES = 6 };
+uint8_t epoch_name_byte(const GameState *g, unsigned at);
+void set_epoch_name_byte(GameState *g, unsigned at, uint8_t v);
 
 /* Its low word */
 uint16_t party_gold_low(const GameState *g);
@@ -3099,6 +3112,68 @@ void set_menu_scratch_heal_drawn_byte(GameState *g, unsigned at, uint8_t v);
 /* A healing drawn at random: the amount every draw starts from */
 uint16_t menu_scratch_heal_base(const GameState *g);
 void set_menu_scratch_heal_base(GameState *g, uint16_t v);
+/* A list's slide's start ($C2:EB9B): the bytes of the list's rows' bands, three a row */
+uint16_t menu_scratch_slide_band_bytes(const GameState *g);
+void set_menu_scratch_slide_band_bytes(GameState *g, uint16_t v);
+/* A frame of a list's slide ($C2:EB1F): the bands still to stage, none once it is done */
+uint16_t menu_scratch_slide_bands_left(const GameState *g);
+void set_menu_scratch_slide_bands_left(GameState *g, uint16_t v);
+/* The description's typing laying its line's tiles ($C2:FAE9): how many tiles along the line the
+ * pen has reached into */
+uint16_t menu_scratch_typed_tiles(const GameState *g);
+void set_menu_scratch_typed_tiles(GameState *g, uint16_t v);
+/* The same: how many tiles along the line were laid already */
+uint16_t menu_scratch_laid_tiles(const GameState *g);
+void set_menu_scratch_laid_tiles(GameState *g, uint16_t v);
+/* The menus' tasks stopped ($C2:8255): the tasks' bits still to look at, shifted out one by one */
+uint8_t menu_scratch_tasks_left(const GameState *g);
+void set_menu_scratch_tasks_left(GameState *g, uint8_t v);
+/* The shop's equipping colouring a member's strip ($C2:E058): the member, whose strip's place it
+ * works out */
+uint16_t menu_scratch_strip_member(const GameState *g);
+void set_menu_scratch_strip_member(GameState *g, uint16_t v);
+/* The same: how many tiles of each of the strip's two rows take the colour */
+uint8_t menu_scratch_strip_tiles(const GameState *g);
+void set_menu_scratch_strip_tiles(GameState *g, uint8_t v);
+/* The same: the colour (palette and priority bits), none for a member at its brightest, which
+ * the member's sprite's colours then follow (menu_scratch_colours_dimmed) */
+uint8_t menu_scratch_strip_colour(const GameState *g);
+void set_menu_scratch_strip_colour(GameState *g, uint8_t v);
+/* The shop's equipping going down to the members ($C2:E017): the member past the reachable ones
+ * it got to */
+uint16_t menu_scratch_strips_member(const GameState *g);
+void set_menu_scratch_strips_member(GameState *g, uint16_t v);
+/* The shop's equipping colouring the members ($C2:E072): the colour the chosen member's strip
+ * doesn't take */
+uint8_t menu_scratch_strips_colour_kept(const GameState *g);
+void set_menu_scratch_strips_colour_kept(GameState *g, uint8_t v);
+/* The window line table's building ($FF:FC04): the level of the line its loop got to, the second */
+uint8_t menu_scratch_window_lines_level(const GameState *g);
+void set_menu_scratch_window_lines_level(GameState *g, uint8_t v);
+/* The same: the run of lines it had out, none */
+uint8_t menu_scratch_window_lines_out(const GameState *g);
+void set_menu_scratch_window_lines_out(GameState *g, uint8_t v);
+/* The same: the groups it built */
+uint8_t menu_scratch_window_line_groups(const GameState *g);
+void set_menu_scratch_window_line_groups(GameState *g, uint8_t v);
+/* Naming a character, checking the name ($C2:E3E0): where in the names' table the name compared
+ * last starts */
+uint16_t menu_scratch_name_place_kept(const GameState *g);
+void set_menu_scratch_name_place_kept(GameState *g, uint16_t v);
+/* Naming a character, dropping its spaces ($C2:E390): the letter that a space after it is
+ * dropped for, a space as the name starts and none once a letter has come */
+uint8_t menu_scratch_name_space_before(const GameState *g);
+void set_menu_scratch_name_space_before(GameState *g, uint8_t v);
+/* Naming a character, writing out the letters' grid ($C2:E545): the rows still to write, none
+ * once done */
+uint8_t menu_scratch_grid_rows_left(const GameState *g);
+void set_menu_scratch_grid_rows_left(GameState *g, uint8_t v);
+/* The same: the letters of the row still to write, none once done */
+uint8_t menu_scratch_grid_letters_left(const GameState *g);
+void set_menu_scratch_grid_letters_left(GameState *g, uint8_t v);
+/* The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done */
+uint16_t menu_scratch_mode_rows_left(const GameState *g);
+void set_menu_scratch_mode_rows_left(GameState *g, uint16_t v);
 
 /* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
  * HP's, 6 the MP's */
@@ -3142,7 +3217,8 @@ uint8_t menu_opening_records_loaded(const GameState *g);
 void set_menu_opening_records_loaded(GameState *g, uint8_t v);
 
 /* The shop's routines' working word, each its own: the row of a list being drawn, left past the
- * last; the goods priced; the record's place the panel puts an item in */
+ * last; the goods priced; the record's place the panel puts an item in; the members whose
+ * colours the equipping went through */
 uint16_t menu_shop_work(const GameState *g);
 void set_menu_shop_work(GameState *g, uint16_t v);
 
@@ -3197,6 +3273,12 @@ void set_menu_tech_rows_to_draw(GameState *g, uint16_t v);
 uint16_t menu_tech_slide_line(const GameState *g);
 void set_menu_tech_slide_line(GameState *g, uint16_t v);
 
+/* The settings' description: where its option's text was laid, kept from the option's typing for
+ * its value's, which goes a tile past the text (menu_description_value_tile on); the original
+ * keeps it in its first cells, between the two typings of a task and from one task to the next */
+uint16_t menu_description_value_line(const GameState *g);
+void set_menu_description_value_line(GameState *g, uint16_t v);
+
 /* How wide, in pixels, the era label the load screen shows is */
 uint8_t menu_save_era_width(const GameState *g);
 void set_menu_save_era_width(GameState *g, uint8_t v);
@@ -3211,6 +3293,11 @@ void set_menu_slide_copy(GameState *g, uint16_t v);
  * copied back from) */
 uint16_t menu_tech_slide_copy(const GameState *g);
 void set_menu_tech_slide_copy(GameState *g, uint16_t v);
+
+/* The settings' description: how many tiles along the option's text its value starts (with the
+ * one between), kept with menu_description_value_line */
+uint8_t menu_description_value_tile(const GameState *g);
+void set_menu_description_value_tile(GameState *g, uint8_t v);
 
 /* The shop's division of the gold by a price ($C2:FD1D): its three bytes of quotient, under the
  * byte the division shifts the dividend's spare bits into */
@@ -3354,6 +3441,17 @@ void set_menu_fill_tile(GameState *g, uint8_t v);
 uint8_t menu_text_attribute(const GameState *g);
 void set_menu_text_attribute(GameState *g, uint8_t v);
 
+/* The party exchange: the cursor's place as each frame's move leaves it, where the cursor goes
+ * back to once a second member is chosen; the main menu clears it as it opens and as its cursor
+ * moves */
+uint8_t menu_exchange_cursor_kept(const GameState *g);
+void set_menu_exchange_cursor_kept(GameState *g, uint8_t v);
+
+/* Naming a character: where the cursor stood on the letters' grid as the frame began (its
+ * place's column and line), which tells whether it moved */
+uint16_t menu_name_cursor_before(const GameState *g);
+void set_menu_name_cursor_before(GameState *g, uint16_t v);
+
 /* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
 uint8_t menu_save_slot_next(const GameState *g);
 void set_menu_save_slot_next(GameState *g, uint8_t v);
@@ -3366,6 +3464,11 @@ void set_menu_settings_option_before(GameState *g, uint8_t v);
 /* The shop's cursor on its list, put aside while the quantity window has it */
 uint8_t menu_shop_list_cursor(const GameState *g);
 void set_menu_shop_list_cursor(GameState *g, uint8_t v);
+
+/* The party exchange: the reserve's first place its rows show, moved as the cursor pushes past
+ * them */
+uint8_t menu_reserve_top(const GameState *g);
+void set_menu_reserve_top(GameState *g, uint8_t v);
 
 /* The shop's cursor on the buying and selling tabs, kept while the cursor is on the members */
 uint8_t menu_shop_tab_cursor(const GameState *g);
@@ -3456,6 +3559,10 @@ void set_menu_number_dest(GameState *g, uint16_t v);
 /* The number's size in bytes, counted down as it is converted */
 uint16_t menu_number_size(const GameState *g);
 void set_menu_number_size(GameState *g, uint16_t v);
+
+/* Cleared as the main menu's cursor moves to another option; nothing traced reads it */
+uint8_t menu_main_menu_spare(const GameState *g);
+void set_menu_main_menu_spare(GameState *g, uint8_t v);
 
 enum { MENU_TASKS_COUNT = 8 };   /* by task, 8 bytes a task ($B0 + 8 * the task) */
 /* 0 no task; 1 to start at `start`; 2 waiting `countdown` frames, to go on from `stack` */
@@ -3641,6 +3748,12 @@ void set_menu_travel_location(GameState *g, uint16_t v);
  * a word */
 uint8_t menu_circle_bank_high(const GameState *g);
 void set_menu_circle_bank_high(GameState *g, uint8_t v);
+
+/* The main menu's option the cursor is on: 0 the equipment, 1 the items, 2 the techs, 3 the
+ * settings, 4 the party exchange, 5 saving; kept from one opening to the next where the player
+ * keeps the menus' cursors */
+uint8_t menu_main_menu_option(const GameState *g);
+void set_menu_main_menu_option(GameState *g, uint8_t v);
 
 /* Which of the three rows of a member list the cursor is on (the member is it plus
  * menu_member_scroll) */
@@ -3967,6 +4080,13 @@ void set_menu_item_row_item(GameState *g, uint8_t v);
 uint16_t menu_member_face(const GameState *g);
 void set_menu_member_face(GameState *g, uint16_t v);
 
+enum { MENU_SHOP_FIGURE_MARKS_COUNT = 7 };   /* by figure: the seven stats in the order the member's window lists them */
+/* How the shop's member window colours each figure of the member equipping: the text's colour
+ * where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C)
+ * where it lowers it */
+uint8_t menu_shop_figure_marks(const GameState *g, unsigned member);
+void set_menu_shop_figure_marks(GameState *g, unsigned member, uint8_t v);
+
 /* How many of the item the items screen's list drew last the party has, the number its row shows */
 uint8_t menu_item_row_count(const GameState *g);
 void set_menu_item_row_count(GameState *g, uint8_t v);
@@ -4024,8 +4144,9 @@ void set_menu_record_block_limit(GameState *g, uint8_t v);
 uint8_t menu_wait_frames(const GameState *g);
 void set_menu_wait_frames(GameState *g, uint8_t v);
 
-/* The item whose description the description window shows ($C2:F2F3 draws another only for
- * another item) */
+/* What the description window describes -- an item, a tech, a tech kind's caption, a setting --
+ * by its text's number in the screen's table: a screen's request types another only for
+ * something else */
 uint8_t menu_description_item(const GameState *g);
 void set_menu_description_item(GameState *g, uint8_t v);
 
@@ -4034,7 +4155,8 @@ void set_menu_description_item(GameState *g, uint8_t v);
 uint8_t menu_save_slot_era(const GameState *g);
 void set_menu_save_slot_era(GameState *g, uint8_t v);
 
-/* Bit 7 set has the description window drawn again whatever item it shows ($C2:F2F3 clears it) */
+/* Bit 7 set has the description window typed again whatever it shows (a request clears it); the
+ * settings' description keeps here which of the value texts its value shows */
 uint8_t menu_description_stale(const GameState *g);
 void set_menu_description_stale(GameState *g, uint8_t v);
 
@@ -4182,6 +4304,17 @@ void set_menu_cursor_blinks(GameState *g, unsigned i, uint8_t v);
 uint16_t menu_held_cursor_blink(const GameState *g);
 void set_menu_held_cursor_blink(GameState *g, uint16_t v);
 
+/* The party exchange: the reserve's first place shown when the second cursor was held on a
+ * member, which its task ($C2:8A45) takes the first shown now from to keep it on the member as
+ * the reserve scrolls */
+uint8_t menu_held_reserve_top(const GameState *g);
+void set_menu_held_reserve_top(GameState *g, uint8_t v);
+
+/* Which of a list's slide's bands is the first in view, as a byte offset into them (three a
+ * band): the row coming in above for a slide up, the list's first row for a slide down */
+uint8_t menu_slide_first_band(const GameState *g);
+void set_menu_slide_first_band(GameState *g, uint8_t v);
+
 /* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
 uint8_t menu_slide_rows(const GameState *g);
 void set_menu_slide_rows(GameState *g, uint8_t v);
@@ -4251,13 +4384,25 @@ void set_menu_heal_power(GameState *g, uint8_t v);
 uint8_t menu_heal_factor(const GameState *g);
 void set_menu_heal_factor(GameState *g, uint8_t v);
 
-/* How far along the description's row its task has typed, in bytes of the row's tilemap: a new
- * value for the same option clears the row from there */
-uint16_t menu_description_typed(const GameState *g);
-void set_menu_description_typed(GameState *g, uint16_t v);
+/* Where along the description's row its current line starts, in bytes of the text layer's
+ * tilemap: none for a description's first line, two tile rows on for each next, and for the
+ * settings' value a tile past the option's text (where a new value clears the row from) */
+uint16_t menu_description_line_from(const GameState *g);
+void set_menu_description_line_from(GameState *g, uint16_t v);
 
-/* Where in the tilemap buffers the description window's text starts, its row (the address's tile
- * row) cleared before the description is set ($C2:FA49) */
+/* How many glyphs of the description's line its typing has sent to VRAM: the line's tiles go
+ * again only once it has more */
+uint8_t menu_description_glyphs_sent(const GameState *g);
+void set_menu_description_glyphs_sent(GameState *g, uint8_t v);
+
+/* The byte after the count of glyphs sent, which the original clears with it (the two written as
+ * a word) as the settings' description starts typing; nothing reads it */
+uint8_t menu_description_glyphs_sent_pad(const GameState *g);
+void set_menu_description_glyphs_sent_pad(GameState *g, uint8_t v);
+
+/* Where in the text layer's tilemap buffer the description's line is laid (the address's tile
+ * row is the row a new description clears and its typing sends); the settings' value's line, a
+ * tile past the option's text */
 uint16_t menu_description_line(const GameState *g);
 void set_menu_description_line(GameState *g, uint16_t v);
 
@@ -4270,15 +4415,14 @@ void set_menu_load_destination(GameState *g, uint16_t v);
 uint16_t menu_graphic_first_tile(const GameState *g);
 void set_menu_graphic_first_tile(GameState *g, uint16_t v);
 
-/* How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's
- * budget) */
+/* How many glyphs of a description its typing sets a frame (the text's budget) */
 uint8_t menu_description_pace(const GameState *g);
 void set_menu_description_pace(GameState *g, uint8_t v);
 
-/* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
- * reads it */
-uint16_t menu_description_tiles(const GameState *g);
-void set_menu_description_tiles(GameState *g, uint16_t v);
+/* Where in VRAM the description's row of the text layer goes, which its typing sends each frame:
+ * $6AA0 for the techs screen's, $6840 for the items' and the shop's, $6900 for the settings' */
+uint16_t menu_description_row_vram(const GameState *g);
+void set_menu_description_row_vram(GameState *g, uint16_t v);
 
 /* The settings screen's option whose description the screen asks for: the description window
  * types it again where it shows another */
@@ -4290,9 +4434,30 @@ void set_menu_settings_described_option(GameState *g, uint8_t v);
 uint8_t menu_settings_description(const GameState *g);
 void set_menu_settings_description(GameState *g, uint8_t v);
 
-/* How many bytes of the description's row a new description clears ($C2:FA49) */
-uint16_t menu_description_clear_bytes(const GameState *g);
-void set_menu_description_clear_bytes(GameState *g, uint16_t v);
+/* How many bytes of the text layer's tilemap the description's row is (its two lines of two tile
+ * rows): a new description clears them, and its typing sends them each frame */
+uint16_t menu_description_row_bytes(const GameState *g);
+void set_menu_description_row_bytes(GameState *g, uint16_t v);
+
+/* How far along the description's line its tiles are laid on the row, in pixels: the pen's place
+ * when they were last laid, a tile in (8) as a line starts */
+uint8_t menu_description_laid_to(const GameState *g);
+void set_menu_description_laid_to(GameState *g, uint8_t v);
+
+/* The byte after how far the line's tiles are laid, which the original clears with it (the two
+ * written as a word) as a description starts typing; nothing reads it */
+uint8_t menu_description_laid_to_pad(const GameState *g);
+void set_menu_description_laid_to_pad(GameState *g, uint8_t v);
+
+/* Where in VRAM the tiles the description's line is set in go: $7800 for a description's first
+ * line, $200 words on for the next, $7A00 for the settings' value */
+uint16_t menu_description_tiles_vram(const GameState *g);
+void set_menu_description_tiles_vram(GameState *g, uint16_t v);
+
+/* Where in bank $7E the tiles the description is set in are, which its typing sends: $5E00, or
+ * $6200 for the settings' value */
+uint16_t menu_description_tiles_at(const GameState *g);
+void set_menu_description_tiles_at(GameState *g, uint16_t v);
 
 /* How many rows a page of a scrolling list is, as its frame ($C2:EA81) lays it out for the
  * paging ($C2:93BF) */
@@ -4334,6 +4499,13 @@ enum { MENU_LIST_ITEMS_COUNT = 98 };   /* by row of the list */
 uint8_t menu_list_items(const GameState *g, unsigned row);
 void set_menu_list_items(GameState *g, unsigned row, uint8_t v);
 
+/* Naming a character: the name as the player types it, five letters and the byte after them; it
+ * starts as the character's name, and a letter taken back leaves its place without one ($FF) [6
+ * bytes, one at a time] */
+enum { MENU_NAME_TYPED_BYTES = 6 };
+uint8_t menu_name_typed_byte(const GameState *g, unsigned at);
+void set_menu_name_typed_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { MENU_SETTINGS_BUTTONS_COUNT = 9 };   /* by assignment, in button_assignments' order (and a ninth) */
 /* The button assignments the settings screen shows while its cursor is on them: the player's
  * own, with the change the cursor's row is making */
@@ -4353,12 +4525,33 @@ enum { MENU_TECH_LIST_COUNT = 48 };   /* by row of the list */
 uint8_t menu_tech_list(const GameState *g, unsigned row);
 void set_menu_tech_list(GameState *g, unsigned row, uint8_t v);
 
+/* Naming a character: how many letters the player has typed (at most five), where the next goes */
+uint16_t menu_name_letters(const GameState *g);
+void set_menu_name_letters(GameState *g, uint16_t v);
+
+/* Naming a character: the letters' grid's column the cursor is on (0-9) */
+uint8_t menu_name_grid_column(const GameState *g);
+void set_menu_name_grid_column(GameState *g, uint8_t v);
+
+/* Naming a character: the letters' grid's row the cursor is on (0-7) */
+uint8_t menu_name_grid_row(const GameState *g);
+void set_menu_name_grid_row(GameState *g, uint8_t v);
+
 enum { MENU_SETTINGS_BOXES_COUNT = 10 };   /* by box, in the settings' cells' order */
 /* The settings screen's ten boxes, ticked or not: the on-off settings' (the sound output's
  * ticked for stereo, its cell 0), and in the places of the gauge, the battle speed and the
  * window design whether the cursor is choosing that setting */
 uint8_t menu_settings_boxes(const GameState *g, unsigned i);
 void set_menu_settings_boxes(GameState *g, unsigned i, uint8_t v);
+
+/* Naming a character: the line the cursor's row stands on, kept as the cursor moves up or down;
+ * nothing reads it */
+uint16_t menu_name_grid_line(const GameState *g);
+void set_menu_name_grid_line(GameState *g, uint16_t v);
+
+/* Naming a character: where in work RAM the character's name is (character_names) */
+uint16_t menu_name_record_at(const GameState *g);
+void set_menu_name_record_at(GameState *g, uint16_t v);
 
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
@@ -4688,6 +4881,12 @@ enum { MENU_SAVE_SLOT_TILEMAP_BYTES = 576 };
 uint8_t menu_save_slot_tilemap_byte(const GameState *g, unsigned at);
 void set_menu_save_slot_tilemap_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_BACK_TILEMAP_COUNT = 2048 };   /* by tile: 32 a row */
+/* The menus' back layer's tilemap buffer, two screens of 32 tiles by 32: the main menu's
+ * backdrop, the member rows' second layer */
+uint16_t menu_back_tilemap(const GameState *g, unsigned row);
+void set_menu_back_tilemap(GameState *g, unsigned row, uint16_t v);
+
 enum { MENU_GATE_TILEMAP_COUNT = 1024 };   /* by tile (32 to a row) */
 /* The End of Time's gate screen's swirl, BG3's tilemap: six rows of sixteen tiles, each row
  * twice across, repeated down the map */
@@ -4731,6 +4930,12 @@ enum { MENU_SHOP_FOR_SALE_COUNTS_COUNT = 256 };   /* by place in the selling lis
 uint8_t menu_shop_for_sale_counts(const GameState *g, unsigned i);
 void set_menu_shop_for_sale_counts(GameState *g, unsigned i, uint8_t v);
 
+enum { MENU_MAIN_MENU_BOX_COUNT = 192 };   /* by tile: 32 a row, six rows */
+/* A box of the main menu's own tiles, sixteen tiles across and six rows down (a frame around a
+ * filled inside), which the main menu draws aside past the text layer's tilemap as it opens */
+uint16_t menu_main_menu_box(const GameState *g, unsigned row);
+void set_menu_main_menu_box(GameState *g, unsigned row, uint16_t v);
+
 enum { MENU_WINDOW_LINE_VALUES_COUNT = 12 };   /* by band of lines */
 /* The equipment screen's windows' per-line table's values, a word a band of lines: the line
  * their layer is shown from, which the slots and list windows move as they slide */
@@ -4773,6 +4978,12 @@ enum { MENU_TECH_TARGET_LINES_COUNT = 12 };   /* by band of lines */
  * the front layer from line $C7 ($20C7) a band while it is open, 0 once it closes */
 uint16_t menu_tech_target_lines(const GameState *g, unsigned i);
 void set_menu_tech_target_lines(GameState *g, unsigned i, uint16_t v);
+
+enum { MENU_GLYPH_TILES_COUNT = 1024 };   /* by word */
+/* The tiles the menus set text in with the proportional font (menu_text_tiles points into them):
+ * a description's lines, the naming's label; cleared as a screen sets new text in them */
+uint16_t menu_glyph_tiles(const GameState *g, unsigned i);
+void set_menu_glyph_tiles(GameState *g, unsigned i, uint16_t v);
 
 enum { MENU_SHOP_PRICES_COUNT = 242 };   /* by item */
 /* What the shop asks for each of its goods: the item's price by the shops' scale, rounded up, at
@@ -4968,6 +5179,14 @@ enum { MENU_SETTINGS_CONFLICTS_COUNT = 8 };   /* by byte */
 uint8_t menu_settings_conflicts(const GameState *g, unsigned i);
 void set_menu_settings_conflicts(GameState *g, unsigned i, uint8_t v);
 
+/* A list's per-line table as its slide stages it for the vblank's block move to the list's own
+ * (menu_block_move_dest): the bands in view, three bytes each (the lines, then the vertical
+ * scroll), then the list's bands past them and the table's end as they rest [39 bytes, one at a
+ * time] */
+enum { MENU_SLIDE_STAGED_TABLE_BYTES = 39 };
+uint8_t menu_slide_staged_table_byte(const GameState *g, unsigned at);
+void set_menu_slide_staged_table_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { MENU_SLOT_ROW_TABLE_COUNT = 5 };   /* by band: the band above the rows, then a save slot's row each */
 /* How many lines the band lasts */
 uint8_t menu_slot_row_table_lines(const GameState *g, unsigned i);
@@ -4988,6 +5207,12 @@ void set_menu_staged_line_table_value(GameState *g, unsigned i, uint16_t v);
 uint8_t menu_slot_row_table_end(const GameState *g);
 void set_menu_slot_row_table_end(GameState *g, uint8_t v);
 
+/* A list's per-line table as it rested when its slide started (a byte past its end with it),
+ * which the vblank's block move copies back once the slide is over [38 bytes, one at a time] */
+enum { MENU_SLIDE_TABLE_AT_REST_BYTES = 38 };
+uint8_t menu_slide_table_at_rest_byte(const GameState *g, unsigned at);
+void set_menu_slide_table_at_rest_byte(GameState *g, unsigned at, uint8_t v);
+
 enum { MENU_SLOT_ROW_TEMPLATE_COUNT = 5 };   /* by band, as menu_slot_row_table */
 /* How many lines the band lasts */
 uint8_t menu_slot_row_template_lines(const GameState *g, unsigned i);
@@ -5006,6 +5231,31 @@ void set_menu_slot_row_template_end(GameState *g, uint8_t v);
 enum { MENU_SLOT_ROW_VALUES_BYTES = 33 };
 uint8_t menu_slot_row_values_byte(const GameState *g, unsigned at);
 void set_menu_slot_row_values_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_SLIDE_BANDS_COUNT = 13 };   /* by band: the row coming in above the list (a slide up), the list's rows as they rest, then the row below them */
+/* How many lines the row shows */
+uint8_t menu_slide_bands_lines(const GameState *g, unsigned row);
+void set_menu_slide_bands_lines(GameState *g, unsigned row, uint8_t v);
+/* The layer's vertical scroll that shows the row there */
+uint16_t menu_slide_bands_scroll(const GameState *g, unsigned row);
+void set_menu_slide_bands_scroll(GameState *g, unsigned row, uint16_t v);
+
+/* The VRAM word it goes to */
+uint16_t menu_built_upload_vram(const GameState *g);
+void set_menu_built_upload_vram(GameState *g, uint16_t v);
+/* Where it comes from, within its bank */
+uint16_t menu_built_upload_source(const GameState *g);
+void set_menu_built_upload_source(GameState *g, uint16_t v);
+/* The bank it comes from */
+uint8_t menu_built_upload_bank(const GameState *g);
+void set_menu_built_upload_bank(GameState *g, uint8_t v);
+/* How many bytes it is */
+uint16_t menu_built_upload_size(const GameState *g);
+void set_menu_built_upload_size(GameState *g, uint16_t v);
+/* The byte after the record, which the queue copies with it as it stands: whatever was left
+ * there */
+uint8_t menu_built_upload_spare(const GameState *g);
+void set_menu_built_upload_spare(GameState *g, uint8_t v);
 
 enum { MENU_EQUIPPED_LIST_COUNT = 5 };   /* by slot: the weapon, the helmet, the armour, the accessory; then the record's byte after the accessory */
 /* What a member has on, in the order the card lists it, copied out of the status record as the
@@ -5026,6 +5276,20 @@ enum { MENU_ITEM_USERS_NAMES_COUNT = 7 };   /* by user */
 enum { MENU_ITEM_USERS_NAMES_BYTES = 6 };
 uint8_t menu_item_users_names_byte(const GameState *g, unsigned i, unsigned at);
 void set_menu_item_users_names_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+/* Naming a character: the letters' grid written out as a string for the text drawer, a row at a
+ * time, each letter with a blank after it and a new line after the row, ended by a zero [169
+ * bytes, one at a time] */
+enum { MENU_NAME_GRID_TEXT_BYTES = 169 };
+uint8_t menu_name_grid_text_byte(const GameState *g, unsigned at);
+void set_menu_name_grid_text_byte(GameState *g, unsigned at, uint8_t v);
+
+/* Naming a character: the name as it will be kept, its spaces before and after it dropped and a
+ * zero after it, checked against the other characters' names before it goes in [6 bytes, one at
+ * a time] */
+enum { MENU_NAME_KEPT_BYTES = 6 };
+uint8_t menu_name_kept_byte(const GameState *g, unsigned at);
+void set_menu_name_kept_byte(GameState *g, unsigned at, uint8_t v);
 
 enum { MENU_RECORD_FRAME_TILE_LIST_COUNT = 96 };   /* by the tile's place in the frame */
 /* The tiles of the frame a record shows, a word each (bits 0-10 the tile in its graphics, 0 a
@@ -5079,11 +5343,31 @@ void set_menu_tech_member_groups(GameState *g, unsigned member, uint8_t v);
 uint8_t menu_tech_cost_beside(const GameState *g);
 void set_menu_tech_cost_beside(GameState *g, uint8_t v);
 
-enum { MENU_CURSOR_PLACES_KEPT_COUNT = 72 };   /* by byte of menu_cursor_places */
-/* The shop's cursor places as it opens, kept while the equipping from the shop puts its own
- * there and put back after */
-uint8_t menu_cursor_places_kept(const GameState *g, unsigned i);
-void set_menu_cursor_places_kept(GameState *g, unsigned i, uint8_t v);
+/* Naming a character: the name as typed, copied and its spaces after it cleared, which the name
+ * kept is taken from [6 bytes, one at a time] */
+enum { MENU_NAME_TRIMMED_BYTES = 6 };
+uint8_t menu_name_trimmed_byte(const GameState *g, unsigned at);
+void set_menu_name_trimmed_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { MENU_CURSOR_PLACES_KEPT_COUNT = 12 };   /* by cursor position, as menu_cursor_places */
+/* The cursor's X */
+uint8_t menu_cursor_places_kept_x(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_x(GameState *g, unsigned i, uint8_t v);
+/* The cursor's Y */
+uint8_t menu_cursor_places_kept_y(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_y(GameState *g, unsigned i, uint8_t v);
+/* The position above this one */
+uint8_t menu_cursor_places_kept_up(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_up(GameState *g, unsigned i, uint8_t v);
+/* The position below it */
+uint8_t menu_cursor_places_kept_down(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_down(GameState *g, unsigned i, uint8_t v);
+/* The position left of it */
+uint8_t menu_cursor_places_kept_left(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_left(GameState *g, unsigned i, uint8_t v);
+/* The position right of it */
+uint8_t menu_cursor_places_kept_right(const GameState *g, unsigned i);
+void set_menu_cursor_places_kept_right(GameState *g, unsigned i, uint8_t v);
 
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes, one at a time] */
