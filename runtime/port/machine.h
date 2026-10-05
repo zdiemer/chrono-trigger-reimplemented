@@ -339,7 +339,7 @@ static inline void m_rti(Snes *s)
     }
     s->cpu.pc = m_pull16(s);
     s->cpu.pb = m_pull8(s);
-    native_note_return(s);
+    native_note_rti(s);
 }
 
 /* An interrupt handler that saves the interrupted code's registers on its

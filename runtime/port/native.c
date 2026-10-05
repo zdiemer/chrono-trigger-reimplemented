@@ -57,6 +57,7 @@ typedef struct Job {
     uint32_t stop_at;          /* ...with where it applies (0: not called) */
     bool stop_own;             /* ...and whether it is the stop's own (native_own_dont_care_at_stop) */
     bool returned;             /* native_note_return was called */
+    bool returned_rti;         /* ...from native_note_rti: the port returned from an interrupt */
     /* Time attribution (native_time_as): the table index of the routine the
      * port's bus clocks count as now (-1: its own entry), the machine's bus
      * clocks and DMA clocks when that began, and this stretch's clocks by
@@ -303,11 +304,21 @@ struct NativeRuntime {
     uint64_t timing_copy_since;
     Snes *timing_scratch;                     /* ORACLE: the machine the generated code is timed on */
     uint64_t timing_scratch_since;
+
+    NativeObserver observer;                  /* hand-offs to the original, for a tool (all NULL: none) */
 };
 
 void native_set_port_timing(NativeRuntime *rt, PortTiming timing) { rt->port_timing = timing; }
 void native_set_timing_report(NativeRuntime *rt, bool on) { rt->timing_report = on; }
 void native_set_page_report(NativeRuntime *rt, bool on) { rt->page_report = on; }
+
+void native_set_observer(NativeRuntime *rt, const NativeObserver *observer)
+{
+    if (observer)
+        rt->observer = *observer;
+    else
+        memset(&rt->observer, 0, sizeof rt->observer);
+}
 
 /* A call of a hand port made with D = d (native_set_page_report). */
 static void count_page(NativeStats *st, uint16_t d)
@@ -336,6 +347,7 @@ static unsigned long rc_timed_io;
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
 uint64_t recomp_executed;
+void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
 RcTiming rc_timing = { .limit = UINT32_MAX };
 
 uint64_t native_generated_instructions(void) { return recomp_executed; }
@@ -541,6 +553,18 @@ static bool entry_applies(const NativeEntry *e, Snes *s)
     if (e->generated && (s->cpu.waiting || s->cpu.stopped))
         return false;
     return !e->guard || e->guard(s);
+}
+
+/* Which of entry_applies' conditions turned a hand entry away, in words (it
+ * did): the observer's `why`. The guard is the last asked, so it isn't asked
+ * again here. */
+static const char *refusal_reason(const NativeEntry *e, const Snes *s)
+{
+    if ((s->cpu.p & e->p_mask) != e->p_value)
+        return "widths";
+    if (s->cpu.e != e->emulation)
+        return "emulation";
+    return "guard";
 }
 
 const NativeEntry *native_hand_entry(Snes *s)
@@ -757,6 +781,14 @@ void native_note_return(Snes *s)
         native_returned_direct = true;
 }
 
+void native_note_rti(Snes *s)
+{
+    native_note_return(s);
+    Job *j = current_job;
+    if (j && j->m == s)
+        j->returned_rti = true;
+}
+
 static void declare_stop(Snes *s, uint32_t at, uint16_t dont_care, bool own)
 {
     Job *j = current_job;
@@ -969,6 +1001,8 @@ static void finish(NativeRuntime *rt)
 {
     Active *a = &rt->active[rt->nactive - 1];
     NativeStats *st = stats_of(rt, a);
+    if (rt->mode == NATIVE_SHADOW && rt->observer.finished)
+        rt->observer.finished(rt->observer.ctx, a->entry);
     if (rt->mode == NATIVE_SHADOW) {
         if (a->mismatched)
             st->mismatched++;
@@ -1093,6 +1127,12 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->segment_bad_tag = j->bad_tag;
         a->segment_part_overflows = j->part_overflows;
     }
+    if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && rt->observer.called_out)
+        rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
+    if (rt->mode == NATIVE_ON && j->state == JOB_DONE && !j->returned && rt->observer.stopped)
+        rt->observer.stopped(rt->observer.ctx, s, a->entry, a->entry_s);
+    if (rt->mode == NATIVE_ON && j->state == JOB_DONE && j->returned_rti && rt->observer.returned_from_interrupt)
+        rt->observer.returned_from_interrupt(rt->observer.ctx, s, a->entry);
     if (j->state == JOB_DONE) {
         a->ret_dont_care = j->stop_dont_care;
         a->ret_at = j->stop_at;
@@ -1143,6 +1183,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
                                  "at return"))
                     return false;
                 end_segment(rt, a, s);
+                if (!a->ret_returned && rt->observer.stopped)
+                    rt->observer.stopped(rt->observer.ctx, s, a->entry, a->entry_s);
                 finish(rt);
                 return true;
             }
@@ -1173,6 +1215,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             end_segment(rt, a, s);
             a->call_cpu = s->cpu;
             a->phase = PH_CALLOUT;
+            if (rt->observer.called_out)
+                rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
             return false;
         }
         if (s->cpu.s > a->entry_s + 1 && a->segment_interrupted) {
@@ -2081,11 +2125,18 @@ static int32_t intercept(void *ctx, Snes *s)
     }
 
     int idx = find_entry(rt, pc);
+    /* ON, for the observer: the first hand entry here that turned the call away */
+    const NativeEntry *refused = NULL;
+    const char *refused_why = NULL;
     for (; idx >= 0 && idx < rt->count && rt->table[idx].addr == pc; idx++) {
         const NativeEntry *e = &rt->table[idx];
         NativeStats *st = &rt->stats[idx];
 
         if (e->generated) {
+            if (refused && rt->observer.refused) {
+                rt->observer.refused(rt->observer.ctx, s, refused, refused_why);
+                refused = NULL;
+            }
             /* SHADOW checks generated blocks by replaying the record */
             if (rt->mode != NATIVE_ON || !entry_applies(e, s))
                 continue;
@@ -2098,6 +2149,10 @@ static int32_t intercept(void *ctx, Snes *s)
             count_page(st, s->cpu.d);
         if (!entry_applies(e, s)) {
             st->skipped++;
+            if (!refused) {
+                refused = e;
+                refused_why = refusal_reason(e, s);
+            }
             continue;
         }
 
@@ -2107,6 +2162,8 @@ static int32_t intercept(void *ctx, Snes *s)
         if (e->idle) {
             if (rt->mode != NATIVE_ON) {
                 st->skipped++;
+                if (rt->observer.idle)
+                    rt->observer.idle(rt->observer.ctx, s, e);
                 continue;
             }
             running_direct = e;
@@ -2120,6 +2177,8 @@ static int32_t intercept(void *ctx, Snes *s)
 
         if (rt->nactive == MAX_ACTIVE) {
             st->skipped++;
+            if (rt->observer.skipped)
+                rt->observer.skipped(rt->observer.ctx, s, e);
             continue;
         }
         if (rt->mode == NATIVE_ON && rt->port_timing == PORT_TIMING_ORACLE) {
@@ -2138,7 +2197,10 @@ static int32_t intercept(void *ctx, Snes *s)
         a->job->stop_at = 0;
         a->job->stop_own = false;
         a->job->returned = false;
+        a->job->returned_rti = false;
         a->job->part = -1;
+        if (rt->observer.entered)
+            rt->observer.entered(rt->observer.ctx, s, e);
         if (rt->mode == NATIVE_SHADOW) {
             clone_refresh(rt, a, s);
         } else {
@@ -2149,6 +2211,8 @@ static int32_t intercept(void *ctx, Snes *s)
         after_run(rt, a, s);
         return rt->mode == NATIVE_ON ? 0 : -1;
     }
+    if (refused && rt->observer.refused)
+        rt->observer.refused(rt->observer.ctx, s, refused, refused_why);
     return rt->mode == NATIVE_ON && rt->generated ? continue_generated(rt, s) : -1;
 }
 

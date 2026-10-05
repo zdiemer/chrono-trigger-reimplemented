@@ -1,0 +1,38 @@
+# Refusals in real play that the gate lets stand (tools/fallbacks.py --refusals;
+# docs/RECOMP.md, "The fallback measure"). A native build has no original to hand a
+# refused call to, so each line here is a gap with its reason, not a permission:
+# `BBAAAA name why # reason`, `why` being widths, emulation or guard. Where the
+# reason is "gap", the line comes out when the port takes the state, and the gap is
+# in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
+# reference play; movies: the shipping mode) or a route.
+#
+# Code-presence guards (m_code_matches) turned away code in work RAM that is not
+# the routine the port was written for:
+7E424D scene_race_wait_to_leave guard  # another program's code: in the attract demo $7E:424D holds the attract program's (RAM section attract_program, matching its image), not the race program's routine the port reads; that code is unported
+7E4D0D scene_race_place_bikes guard  # another program's code: the attract program's at $7E:4D0D in the attract demo (section attract_program), not the race's; unported
+7E36CC scene_setup_line_effects guard  # another program's code: the attract program's at $7E:36CC in the attract demo (section attract_program); unported
+7E357B scene_build_perspective guard  # another program's code: the attract program's at $7E:357B in the Beyond Time ending's closing scene (section attract_program); unported
+7E3023 attract_wait_loop guard  # gap: the attract program's frame wait with an operand the program rewrites (its bytes match section attract_program except an operand), which the guard's byte check turns away; attract-demo and the Beyond Time ending
+#
+# Calling conventions the port doesn't take (the entry's precondition on P, or the
+# data bank or direct page its guard asks for):
+C2CBBF menu_play_the_gate_song widths  # gap: entered with an 8-bit A (P=$20) from the shop's equip screen (menus-shop-equip), where the port needs 16-bit A and index
+C218F9 menu_object_cmd_play_song widths  # gap: the menus' object script runs the command with an 8-bit A (P=$26) at frame 3290 of every movie that opens the fair's menus (fair, field, gato-battle); the port needs 16-bit A
+C2F2F3 menu_describe_item widths  # gap: entered with a 16-bit A (P=$02) in the shop (menus-shop-equip), where the port needs 8-bit A
+C28B93 menu_start_the_scroll_bar guard  # gap: called with the data bank $00 (DB=$00, menus-field-menu and menus-shop-equip) where menu_on_page_work_ram asks for $7E
+CD09CE battle_upload_palette guard  # gap: called with the data bank $7E (DB=$7E), which can't reach the I/O registers battle_data_bank_is_io asks for, in the attract demo's battle and the endings' and routes' battles
+CD2173 battle_screen_script_draw_triangle guard  # gap: battle_screen_command_ready asks for the carry set, and the Beyond Time ending's screen script reaches the command with it clear (P=$E4) 3140 times
+C14CF0 script_end guard  # gap: command_ready asks for A=0, and the endings' battle scripts end a script with A=$00FF (endings-beyond-time, endings-bucket-lavos)
+#
+# States the port's guard doesn't model (the guard's own conditions, by its name):
+C14EA2 script_play_and_wait guard  # gap: command_ready (battle/scripts.c) turns away the Bucket ending's script channel at frame 98059 on (endings-bucket-lavos, the routes): the channel's command or place is one script_runs_here doesn't take
+C16299 script_jump_to_a_place guard  # gap: command_ready turns away the Beyond Time ending's battle script (endings-beyond-time, frame 31293 on, and the route)
+C17364 script_throw_moves guard  # gap: command_ready turns away the attract demo's battle script (attract-demo, frame 9830 on)
+C18A05 battle_evasion_timer_ran_out guard  # gap: battle_evasion_timer_ran_out_ready turns away the Lavos fights' and gato-battle's timer (endings-telepod-lavos, gato-battle)
+C13772 battle_enemy_waits_for_target guard  # gap: battle_script_entry_ready turns away an enemy's wait in the Omen's battles (late-omen-battles, frames 15911-16112)
+C00C76 field_handle_requests guard  # gap: field_requests_can_run turns away the field's requests at boot and in the attract demo's maps (frame 50 on): a step event, location change or chest whose tile or leader the guard can't place
+C0011B field_put_aside_for_a_menu guard  # gap: party_places_readable turns away the party's places at frame 1704 of every movie from a save (the leader or a member not an object the tables hold)
+C04867 event_cmd_set_solidity guard  # gap: event_command_accepts turns away the command's object or operands in the attract demo's events (frames 3605-6476)
+C01AAC field_press_confirm guard  # gap: confirm_fits turns away a confirm press in the Beyond Time ending's field (frame 28100)
+C2E0A5 menu_open_shop_member guard  # gap: menu_shop_equipping_runs turns away the shop's equip screen (menus-shop-equip, frames 12318-14627)
+C212B8 menu_object_cmd_change_byte_cell_set guard  # gap: command_accepts (menu/script_bridge.c) turns away the command in the endings' and late-lavos's menu object scripts

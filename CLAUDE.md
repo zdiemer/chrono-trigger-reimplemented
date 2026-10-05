@@ -84,9 +84,19 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   (`tools/effects_check.py`, run by the suite, in the source and over the vblank check's shipping-mode
   runs with `ct_dev --scaffold-reads`, a ratchet on `tools/effects_baseline.txt`; docs/PORTING.md,
   "Scaffolding"); no port transliterates the assembly where one didn't before
-  (`tools/portstyle.py --check`, run by the suite, static; docs/PLAN.md, "Phase 3a"); and no port
+  (`tools/portstyle.py --check`, run by the suite, static; docs/PLAN.md, "Phase 3a"); no port
   carries one of the review rubric's mechanical smells where one didn't before
-  (`tools/portsmell.py --check`, run by the suite, static).
+  (`tools/portsmell.py --check`, run by the suite, static); the original's code runs in place of
+  hand ports nowhere new, and no more of it where it did, over every movie's reference play
+  (`ct_dev --fallbacks` in the shadow runs; `tools/fallbacks.py --check`, a ratchet on
+  `tools/fallback_baseline.txt`, with the shipping mode's count over the movies and routes reported
+  beside it; docs/RECOMP.md, "The fallback measure"); no hand port's guard refuses a call real play
+  makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
+  `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); and the build with the
+  ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
+  to its end in the shipping mode with no failed exit, hang, `halted:` line, `accessor out of range`
+  or `page refused` line the default build's run doesn't show, and its routes reach their outcomes
+  (the fast set; all of them with `--long-routes`).
   Two checks the suite doesn't run, so run them by hand when a change could move them:
   `ct_dev --native on --recomp only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,

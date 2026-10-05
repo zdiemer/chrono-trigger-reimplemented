@@ -47,14 +47,17 @@ check is finished. But they are a means, so:
 
 ### What "done" means, measured
 
-Three numbers, because no one of them says it. `tools/burndown.py` counts only
-65816 code in the ROM image, so it cannot see the two items below; and a port
+Several numbers, because no one of them says it. `tools/burndown.py` counts only
+65816 code in the ROM image, so it cannot see the two items below; a port
 it counts as done may still be transliterated or welded to the machine, which
-`tools/portstyle.py` measures instead.
+`tools/portstyle.py` measures instead; and it is a static estimate, where
+`tools/fallbacks.py` counts what real play still runs as the original's code
+in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 24% left | 0% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 46.5 KiB, 347 M instructions (handback 33.8 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 45.0 KiB, 1,964 M; 23 entries refuse in real play; the native shape fails all three whole routes on three scaffolding writes the original reads (RECOMP.md, "The fallback measure") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -155,6 +158,16 @@ Nothing lands without it, and it is the same gate for every phase:
   PORTING.md, "Scaffolding");
 - no port carries one of the review rubric's mechanical smells where one
   didn't before (`tools/portsmell.py`, a ratchet against its baseline);
+- the original's code runs in place of hand ports nowhere new, and no more of
+  it where it did, over every movie's reference play (`tools/fallbacks.py
+  --check`, a ratchet against its baseline; RECOMP.md, "The fallback
+  measure");
+- no hand port's guard refuses a call real play makes unless its allowlist
+  line says why (`tools/fallbacks.py --refusals`; "Retiring the gate,
+  deliberately", above);
+- the build with the scaffolding compiled out runs every movie to its end and
+  reaches the routes' outcomes in the shipping mode (`ct_dev_native_shape`,
+  `ct_drive_native_shape`; RECOMP.md, "The native shape, run");
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.

@@ -3,7 +3,7 @@
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
  *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c]
- *            [--mixer dsp|native|check] <rom> [sram.srm]
+ *            [--mixer dsp|native|check] [--fallbacks out.txt] <rom> [sram.srm]
  *
  * --native and --recomp mean what they mean to ct_play (frontend/natives.h
  * chooses the entries for both). The default, --native off, is the machine of
@@ -25,6 +25,11 @@
  * the C driver's sound (frontend/sound_host.h): the native mixer that ships
  * (native, the default), the S-DSP (dsp), or both compared frame by frame (check, which at
  * quit prints a `mixer check:` line and exits 1 if a frame differed).
+ * --fallbacks (with --native on or shadow) counts what the original's code runs in
+ * place of hand ports, as ct_dev's does (dev/fallbacks.h), and writes it at
+ * quit; tools/movies/ctdrv.py passes it from $CT_DRIVE_FALLBACKS, which is how
+ * the gate measures the routes (tools/fallbacks.py). Frames a load replays
+ * are counted again: it measures what ran, as a player would have run it.
  *
  * Commands arrive one per line on stdin and answer with one line on stdout that
  * starts with "ok" or "err". Numbers are decimal unless noted.
@@ -82,6 +87,7 @@
 #include "natives.h"
 #include "snes/render.h"
 #include "snes/system.h"
+#include "fallbacks.h"
 #include "mixer_check.h"
 #include "sound_host.h"
 
@@ -117,6 +123,7 @@ static SoundHost *sound_host;   /* --sound-driver c */
 static NativeTable table;
 static NativeRuntime *natives;
 static bool shadow_failed;
+static Fallbacks *fallbacks;   /* --fallbacks */
 static unsigned long loads_replayed, loads_inexact, loads_lost;
 
 /* --native on: the last frame end with no routine suspended and no time owed
@@ -154,7 +161,9 @@ static uint8_t *read_file(const char *path, size_t *len)
 /* Hooks aren't part of a state or a clone; put ours back after either. */
 static void restore_hooks(void)
 {
-    snes.interpreter = cpu_step;
+    snes.interpreter = fallbacks ? fallbacks_interpreter : cpu_step;
+    snes.cpu.on_insn = fallbacks ? fallbacks_on_insn : NULL;
+    snes.cpu.on_insn_ctx = fallbacks;
     snes.on_line = on_line;
     snes.on_line_ctx = &renderer;
 }
@@ -271,6 +280,10 @@ static void restart_natives(void)
         native_report(natives, stderr);
     }
     natives = natives_restart(natives, &table, native_mode, &snes);
+    if (fallbacks) {
+        fallbacks_attach(fallbacks, natives, native_mode == NATIVE_SHADOW);
+        fallbacks_reset(fallbacks);
+    }
 }
 
 /* The machine as it stands is a base: nothing is suspended or owed, so a fresh runtime
@@ -547,13 +560,13 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 static int usage(void)
 {
     fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] "
-                    "[--mixer dsp|native|check] <rom> [sram.srm]\n");
+                    "[--mixer dsp|native|check] [--fallbacks out.txt] <rom> [sram.srm]\n");
     return 2;
 }
 
 int main(int argc, char **argv)
 {
-    const char *rom_path = NULL, *sram_path = NULL;
+    const char *rom_path = NULL, *sram_path = NULL, *fallbacks_path = NULL;
     bool recomp = true, recomp_only = false, c_sound_driver = false;
     SoundMixer mixer = SOUND_MIXER_NATIVE;
     for (int i = 1; i < argc; i++) {
@@ -563,6 +576,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "--mixer must be dsp, native or check\n");
                 return 2;
             }
+        } else if (!strcmp(a, "--fallbacks") && i + 1 < argc) {
+            fallbacks_path = argv[++i];
         } else if (!strcmp(a, "--sound-driver")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (strcmp(v, "c") && strcmp(v, "original")) {
@@ -607,6 +622,10 @@ int main(int argc, char **argv)
                         "needs --native on with the ported routines (not --recomp only)\n");
         return 2;
     }
+    if (fallbacks_path && native_mode == NATIVE_OFF) {
+        fprintf(stderr, "--fallbacks needs --native on or shadow: it measures what runs in place of the hand ports\n");
+        return 2;
+    }
     size_t rom_len;
     uint8_t *rom = read_file(rom_path, &rom_len);
     if (!rom) {
@@ -616,6 +635,10 @@ int main(int argc, char **argv)
     size_t header = rom_len % 0x8000 == 0x200 ? 0x200 : 0;
     snes_init(&snes, rom + header, rom_len - header);
     render_init(&renderer);
+    if (fallbacks_path && !(fallbacks = fallbacks_create(&snes))) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
+    }
     restore_hooks();
     snes_power_on(&snes);
     MixerCheck *mixer_check = NULL;
@@ -765,6 +788,15 @@ int main(int argc, char **argv)
                 loads_replayed, loads_inexact, loads_lost);
     native_destroy(natives);
     natives_free(&table);
+    int rc = 0;
+    if (fallbacks) {
+        fallbacks_summary(fallbacks, stderr);
+        if (fallbacks_write(fallbacks, fallbacks_path) != 0) {
+            fprintf(stderr, "cannot write %s\n", fallbacks_path);
+            rc = 1;
+        }
+        fallbacks_destroy(fallbacks);
+    }
     for (int i = 0; i < SLOTS; i++) {
         slot_clear(&slots[i]);
         snap_release(slots[i].machine);
@@ -772,7 +804,6 @@ int main(int argc, char **argv)
     snap_release(base);
     free(log_pads);
     free(rom);
-    int rc = 0;
     if (sound_host) {
         if (!sound_host_report(sound_host, stderr))
             rc = 1;

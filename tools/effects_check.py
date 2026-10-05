@@ -3,6 +3,7 @@
     python3 tools/effects_check.py [--new] [--runs LOG...]
     python3 tools/effects_check.py --check [--runs LOG...]          (the gate)
     python3 tools/effects_check.py --write-baseline | --prune [--runs LOG...]
+    python3 tools/effects_check.py --originals LOG...                (the original's reads, with their writes)
 
 What a port writes inside `ORIGINAL_EFFECT(...)` (game/original_effects.h), or
 in code under `#if ORIGINAL_EFFECTS`, is scaffolding: the native-shape build
@@ -638,7 +639,10 @@ class Finding:
                 % (path, line, self.read.func[1], self.read_name, w, p, self.tags()))
 
 
-def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_path: pathlib.Path | None = None):
+def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_path: pathlib.Path | None = None,
+            writes_only: bool = False):
+    """The findings; with `writes_only`, the scaffolding writes instead, as
+    {work RAM byte: [(site, variable, subsystem)]}."""
     m = ram_map.RamMap(map_path or ram_map.MAP)
     tree = Tree(game or root / "game", root)
     acc = Accessors(m)
@@ -670,6 +674,8 @@ def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_pat
                 (writes_s if e.scaffold else writes_p)[x].append((e.site, var, sub))
         elif not e.scaffold:
             reads.append((e, dict(args), b, var, sub))
+    if writes_only:
+        return writes_s
 
     by_key = {}
     for e, args, b, var, sub in reads:
@@ -691,6 +697,44 @@ def analyse(root: pathlib.Path = ROOT, game: pathlib.Path | None = None, map_pat
             if old is None or f.read.site < old.read.site:
                 by_key[f.key()] = f
     return sorted(by_key.values(), key=lambda f: (f.read.site, f.var_name))
+
+
+# ---- the original's reads, seen in runs ------------------------------------------------------
+
+ORIGINAL_READ = re.compile(r"^scaffold read by the original: \$([0-9A-F]{2}):([0-9A-F]{4}) at ([0-9A-F]{2}):([0-9A-F]{4}) "
+                           r"\((\d+) times?, first at frame (\d+), written by (\S+)\)", re.M)
+# The subsystem a port's name begins with, for picking its own write among a
+# scratch byte's many.
+NAME_SUBSYSTEMS = ("battle", "field", "event", "menu", "scene", "overworld", "attract", "sound", "console")
+
+
+def original_reads(logs, root: pathlib.Path = ROOT, map_path: pathlib.Path | None = None, out=sys.stdout) -> int:
+    """`ct_dev --scaffold-reads original`'s lines over the logs, by the byte and
+    the instruction that read it, each with the source of the scaffolding
+    write that left the byte (file:line, the writer's subsystem's where the byte
+    has several): where the original's still-generated code reads what the
+    native build leaves out, which is what a failure of the native-shape build
+    is traced through. Returns how many (byte, instruction) pairs."""
+    seen = {}
+    for log in logs:
+        text = pathlib.Path(log).read_text(errors="replace")
+        for m in ORIGINAL_READ.finditer(text):
+            bank, low, rbank, rlow, n, frame, writer = m.groups()
+            key = (int(bank, 16) << 16 | int(low, 16), int(rbank, 16) << 16 | int(rlow, 16), writer)
+            runs, total, names = seen.get(key, (0, 0, set()))
+            seen[key] = (runs + 1, total + int(n), names | {pathlib.Path(log).stem})
+    if not seen:
+        return 0
+    writes = analyse(root, root / "game", map_path, writes_only=True)
+    for (byte, pc, writer), (runs, total, names) in sorted(seen.items(), key=lambda kv: (kv[0][2], kv[0][0])):
+        sites = writes.get(byte, [])
+        prefix = next((s for s in NAME_SUBSYSTEMS if writer.startswith(s + "_")), None)
+        own = [s for s in sites if prefix and subsystem_of(s[0][0]) == prefix]
+        where = ", ".join(sorted({"%s:%d" % s[0] for s in (own or sites)})[:4]) or "no write the source shows"
+        print("$%02X:%04X read at %02X:%04X (%d times in %d run%s), written as scaffolding by %s: %s"
+              % (byte >> 16, byte & 0xFFFF, pc >> 16, pc & 0xFFFF, total, runs, "" if runs == 1 else "s", writer,
+                 where), file=out)
+    return len(seen)
 
 
 # ---- reads seen in runs -----------------------------------------------------------------------
@@ -819,11 +863,19 @@ def main(argv=None) -> int:
     ap.add_argument("--write-baseline", action="store_true",
                     help="add today's findings to the baseline (lines already there are kept)")
     ap.add_argument("--prune", action="store_true", help="drop baseline lines nothing produces any more")
+    ap.add_argument("--originals", nargs="+", metavar="LOG",
+                    help="list the original's code's reads of scaffolding in these ct_dev --scaffold-reads original "
+                         "logs, with the source of each write, and exit")
     ap.add_argument("--runs", nargs="*", default=[], metavar="LOG",
                     help="ct_dev --scaffold-reads logs (tools/vblank_check.py's shipping runs write them)")
     args = ap.parse_args(argv)
     root = args.root.resolve()
     map_path = args.map or root / "re" / "ram.toml"
+    if args.originals:
+        n = original_reads(args.originals, root, map_path)
+        print("effects: %d read%s by the original's code of bytes scaffolding wrote last"
+              % (n, "" if n == 1 else "s"))
+        return 0
     findings = analyse(root, root / "game", map_path)
     if args.runs:
         findings += run_findings(args.runs, ram_map.RamMap(map_path))

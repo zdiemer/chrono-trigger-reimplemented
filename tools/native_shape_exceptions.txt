@@ -1,0 +1,8 @@
+# Failures of the native-shape build (the ports with ORIGINAL_EFFECT compiled out) that the
+# gate lets stand (tools/suite.py, "native-shape"; docs/RECOMP.md, "The fallback measure"):
+# `movie|route NAME # reason`, the reason the trace to
+# the scaffolding the original's code reads. Each comes out when its reader is ported or its
+# write made plain; docs/TODO.md, "The native shape's failures", has them.
+route beyond_time  # the battle's items land on the wrong side: battle_carry_out_member_action writes the acting member's record ($0006) and the item targeting's cell ($000C) only as scaffolding (game/battle/member_turn.c:499, :420), and the original's targeting reads them ($C1:C24A, $C1:C57F); with both plain the route reaches its ending in the native shape
+route bucket_lavos  # the same two cells (game/battle/member_turn.c:499, :420): the inner fight's revives fail and the party wipes over and over; with both plain the route reaches its ending
+route telepod_lavos  # the battles' cells above, and object_run_script_from clears an object's step count only as scaffolding (game/event/calls.c:173), which the original's event scheduler reads ($C0:59F0): the walk to the reaper statue stops short and the seventh round is missed; with the three plain the route reaches its ending

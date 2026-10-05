@@ -19,6 +19,12 @@ not the repo); the table gives each outcome with the frame it was reached at,
 modes side by side. Frame counts differ between modes by design; the outcome is
 what must match. Exits 0 only if every run reached its outcome.
 
+`--fallbacks DIR` has each run in `--native on` count what the original's
+code runs in place of hand ports (ct_drive --fallbacks, through
+$CT_DRIVE_FALLBACKS), kept with the run's checkpoints and copied to DIR as
+`<route>-<mode>/` when it ends, for tools/fallbacks.py (the gate's fallback
+measure; docs/RECOMP.md, "The fallback measure").
+
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
 the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time
 limit, a restart -- carries on from its last checkpoint instead of replaying the
@@ -112,11 +118,19 @@ def prepare(where, stamp, resume):
     return kept
 
 
-def run_one(route, mode, scratch, rom, drive, timeout, resume=False):
+def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=None):
     """Run one route in one mode; returns a result dict."""
     name, _, until = route.partition(":")
-    where = os.path.join(scratch, "%s-%s" % (route.replace(":", "-"), mode_name(mode).replace(":", "-")))
+    run_name = "%s-%s" % (route.replace(":", "-"), mode_name(mode).replace(":", "-"))
+    where = os.path.join(scratch, run_name)
     resumed = prepare(where, run_stamp(route, mode, rom, drive), resume)
+    env = None
+    if fallbacks and mode[0] == "on":
+        # kept with the checkpoints, so a resumed run's counts add to the
+        # ones before it
+        counts = os.path.join(where, "fallbacks")
+        os.makedirs(counts, exist_ok=True)
+        env = dict(os.environ, CT_DRIVE_FALLBACKS=counts)
     command = [sys.executable, "-m", "tools.movies.routes." + name, "--prefix", os.path.join(where, name),
                "--native", mode[0]]
     if mode[1]:
@@ -135,9 +149,13 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False):
     with open(os.path.join(where, "output.txt"), "a" if resumed else "w", encoding="utf-8") as out:
         try:
             status = subprocess.run(command, cwd=REPO, stdout=out, stderr=subprocess.STDOUT,
-                                    timeout=timeout).returncode
+                                    timeout=timeout, env=env).returncode
         except subprocess.TimeoutExpired:
             status = None
+    if env:
+        copy = os.path.join(fallbacks, run_name)
+        shutil.rmtree(copy, ignore_errors=True)
+        shutil.copytree(env["CT_DRIVE_FALLBACKS"], copy)
     with open(os.path.join(where, "output.txt"), encoding="utf-8", errors="replace") as out:
         lines = out.read().splitlines()
     outcome, phases = None, []
@@ -175,6 +193,9 @@ def main(argv=None):
     parser.add_argument("--drive", help="ct_drive binary (default build/main/ct_drive, or $CT_DRIVE)")
     parser.add_argument("-j", "--jobs", type=int, default=1, help="routes run at once (default 1)")
     parser.add_argument("--timeout", type=int, default=6 * 3600, help="seconds per run (default 6 hours)")
+    parser.add_argument("--fallbacks", metavar="DIR",
+                        help="count what the original's code runs in place of hand ports, a directory per run here "
+                             "(tools/fallbacks.py)")
     parser.add_argument("--resume", action="store_true",
                         help="carry on from the checkpoints a run cut short left in --scratch, where the build and "
                              "ROM are the same")
@@ -183,7 +204,7 @@ def main(argv=None):
         parser.error("--resume needs --scratch: the checkpoints are kept there")
     # The routes start ct_drive from their own working directory, so a relative
     # path given here would name nothing there: resolve it against ours.
-    for name in ("drive", "rom"):
+    for name in ("drive", "rom", "fallbacks"):
         if getattr(args, name):
             setattr(args, name, os.path.abspath(getattr(args, name)))
     modes = args.mode or [parse_mode(mode) for mode in DEFAULT_MODES]
@@ -192,7 +213,8 @@ def main(argv=None):
     jobs = [(route, mode) for route in args.routes for mode in modes]
     try:
         with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-            futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout, args.resume)
+            futures = [pool.submit(run_one, route, mode, scratch, args.rom, args.drive, args.timeout, args.resume,
+                                   args.fallbacks)
                        for route, mode in jobs]
             # each outcome as it comes, so a run cut short still reports the
             # routes that finished
