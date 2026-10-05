@@ -269,8 +269,8 @@ void enemy_record_action(GameState *g)
 enum { BITS_ATTACK = 0x80, BITS_TECH = 0x40, ATTACK_HITS = 4 };
 
 // $C1:AC89
-/* A tech's hits are what its targeting ($C1:C1DD, the original's still) left
- * for them (battle.h). */
+/* A tech's hits are what its targeting (battle/aim.c) left for them
+ * (battle.h). */
 void enemy_note_actor_bits(GameState *g, uint8_t enemy)
 {
     uint8_t bits = (uint8_t)(battle_action_actor_bits(g) | (uint8_t)(enemy + BATTLE_FIRST_ENEMY));
@@ -373,10 +373,9 @@ void enemy_tech_begins(GameState *g, uint8_t enemy, ScriptPlace at, bool none_ch
     set_battle_first_candidate(g, battle_candidates(g, 0));
 }
 
-/* The tech's targeting ($C1:C1DD, the original's still) says, through the
- * cell a party member's turn uses too (battle_member_acts_for_itself), when
- * it can't be used. Otherwise the targets it worked out are the
- * candidates. */
+/* The tech's targeting (battle/aim.c) says, through the cell a party
+ * member's turn uses too (battle_member_acts_for_itself), when it can't be
+ * used. Otherwise the targets it worked out are the candidates. */
 bool enemy_tech_aimed(GameState *g)
 {
     if (battle_member_acts_for_itself(g)) {

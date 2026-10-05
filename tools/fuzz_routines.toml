@@ -12732,6 +12732,59 @@ iterations = 5000
 why = "as the plain entry, every choice a tech the turn carries out, by members able to"
 
 [[routine]]
+name = "battle_aim_action"
+variant = "techs"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=00-74"]
+iterations = 5000
+why = "the first party member aiming one of the party's techs, its action record where its caller hands it; the chosen target a combatant; the combatants in the fight or out, knocked out or not, with or without the statuses that keep them out of an action, the enemies in reserve or not; the characters in the party's places or out; the rest of the battle's state at random"
+
+[[routine]]
+name = "battle_aim_action"
+variant = "items"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=02", "--fill", "7E0006-7E0007=93FC", "--fill", "7E93FD-7E93FD=40", "--fill", "7E000C-7E000D=0000", "--fill", "7EB18C-7EB18C=00-35"]
+iterations = 5000
+why = "the third party member aiming an item, its action record where its caller hands it and no area rules; the battle as the techs' variant has it"
+
+[[routine]]
+name = "battle_aim_action"
+variant = "enemies"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=03-0A", "--fill", "7EAE97-7EAE98=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB18C-7EB18C=00-FF"]
+iterations = 5000
+why = "an enemy aiming one of the enemies' techs, with the enemies it brings in or none; the battle as the techs' variant has it"
+
+[[routine]]
+name = "battle_aim_action"
+variant = "enemy areas"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=03-0A", "--fill", "7EAE97-7EAE98=03,04,05,06,07,08,09,0A,FF", "--fill", "7EB18C-7EB18C=14,2E,30,46,6E,83,F1"]
+iterations = 5000
+why = "the enemies' variant with every enemy tech that has area rules, so that the area search runs"
+
+[[routine]]
+name = "battle_aim_action"
+variant = "areas"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EB2AE-7EB2AE=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--fill", "7E5E4A-7E5F9A:80=00,00,80", "--fill", "7E5E4B-7E5F9B:80=00,00,00,02,80", "--fill", "7E5E4C-7E5F9C:80=00,00,08", "--fill", "7E5E4E-7E5F9E:80=00", "--fill", "7E5E53-7E5FA3:80=00", "--fill", "7EAF15-7EAF1C=00,00,80", "--fill", "7EAEB0-7EAEBA=00", "--fill", "7EB1BE-7EB1C4=00,01,02,FF", "--fill", "7EAE6D-7EAE77=00-0A", "--fill", "7EB18B-7EB18B=00", "--fill", "7E0006-7E0007=93EE", "--fill", "7E93EF-7E93EF=20", "--fill", "7EB18C-7EB18C=01,02,11,14,17,1F,2E,34,37,3B,3C,3E,40,47,48,49,52,53,54,56,5A,64,6A"]
+iterations = 5000
+why = "the techs' variant with every party tech that has area rules, so that the area search runs"
+
+[[routine]]
+name = "battle_search_area"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E003D-7E003D=00-06", "--fill", "7E9604-7E9604=00,01", "--fill", "7E9605-7E9606=00-0A", "--fill", "7EAEFF-7EAF09=00,FF", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "a shape of the area search's seven and an area placed on combatants, the combatants in the fight or out, A's high byte clear as the guard takes it; the rest at random"
+
+[[routine]]
 name = "battle_member_attacks"
 subsystem = "battle"
 state = "battle"

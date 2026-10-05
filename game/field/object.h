@@ -484,9 +484,11 @@ uint8_t object_move_length(const GameState *g, FieldObject obj);
 /* A member of the party moves a step at a time (its walks are the trail's):
  * the length alone, keeping the mark, and not the copy below. */
 void object_move_a_step_at_a_time(GameState *g, FieldObject obj);
-/* The original keeps a second copy of the length, which nothing reads, and
- * clears it where the field hands an object a script of its own (a talk, a
- * touch, the party's scripts: event/calls.h). Scaffolding. */
+/* The original keeps a second copy of the length, the steps a move has left,
+ * and clears it where the field hands an object a script of its own (a talk,
+ * a touch, the party's scripts: event/calls.h). The event scheduler, still
+ * the original's ($C0:59F0), reads it: a walk the object was on ends there,
+ * where a stale count would carry it on and stop it short of the next. */
 void object_clear_move_length_copy(GameState *g, FieldObject obj);
 
 /* Whether a move's steps may take the object out of its tile: never, once

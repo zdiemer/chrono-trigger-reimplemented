@@ -7367,3 +7367,91 @@ uses, the story's kept members (`$7F:01DF`), window 1's edges alone
 (`$9683`), the held cursor's offset's low byte (`$0D9E`) and the place
 song's volume (`$04FB`). The palette's accessors take an `unchecked` pair
 for the dimming of an emptied place's byte, which reaches past it.
+
+## Phase 3, battle: the leftovers (`$C1`, `$CF:FB65`, `$CC:F2A9`)
+
+What `python3 tools/burndown.py --uncovered C1`, `CF` and `CC` listed after
+battle chunk 10: about 1.9 KiB of runs, most of them inside ports that handed
+back to the original at a stop. Two kinds of run in the list weren't work:
+
+- **Code nothing runs.** `$C1:C09A` (five fraction routines), `$C1:BC62`,
+  `$C1:EFD3`, `$C1:BF81`, `$C1:AED3`, `$C1:E07B`, `$C1:EB49`, `$C1:CF51`,
+  `$C1:15B6`, `$C1:0015` and `$CC:E290` are `kind = "unreached"` entries in
+  `re/hints.toml`: bytes that decode as code, which nothing in the ROM calls and
+  no movie's coverage has. They need no port, so the burndown no longer counts
+  what only an `unreached` entry starts (`reached_code`,
+  `tools/disasm/closure.py`, the reachability the C6 check already solved).
+- **Cases the game never makes.** A battle set up without enemies (`$C1:8030`)
+  sends the original's order lists running on through memory, and an enemy's
+  action past its table (`$C1:8D88`) jumps through a word of the next table:
+  guards are the answer for both. The first stays a stop, at the step's return,
+  declaring nothing dead (the burndown counts a stop where a call returns,
+  declaring nothing, as the port going on); the second is the turn's guard
+  already (`battle_enemy_turn_ready` takes only actions the table has), so
+  the dispatch's stop went, an action past the table doing nothing.
+
+The rest is ported, as what it does in the game:
+
+- **Coming in from the field and going back** (`battle/from_field.c`,
+  `$C1:0000`/`$CF:FB65` and `$C1:0006`/`$CF:FBE5`): the field's registers are
+  kept on the stack the whole battle (`m_save_caller_registers` and
+  `m_return_to_caller_long`, `runtime/port/machine.h`); the battle's memory is
+  cleared, the screen set up (the original's `$CD:0000`), the window
+  arrangement, the sprites' priority and the story's rules on who sits the fight
+  out taken in, and the main loop started. On the way out the members' colors
+  are put back, where everyone stood and the menu cursors the settings remember
+  are kept for the field, the last uploads let out over a few frames (the
+  original's frame wait `$CF:FCFB`), and every character with no HP left gets
+  up with 1.
+- **The setup's last part** (`battle/opening.c`, `$C1:0042`, `$C1:34DB`,
+  `$C1:350F`): each member turns to face its nearest enemy, and the members
+  taking part take the opening's poses, which the original's routine the
+  victory and the defeat share runs (`$C1:35DD`). Its cells reuse the script
+  channels' (`battle_party_scene_*`).
+- **The scheduler's animation step** (`battle/objects.c`, `$C1:4269`): the
+  object due takes its animation's next frame, its graphics built for the way
+  it faces; and **an effect's next frame** (`battle/effect_animation.c`,
+  `$CC:F2A9`), its own entry, which the effects' loop runs as C. The original
+  stores the anchor's facing back where it read it instead of noting it as the
+  facing shown; the port says so.
+- **A member that comes back once** (`battle/combatants.c`, `$C1:B316`): five
+  times its magic in HP, shown as healing (`effect_show_hp_regained`, the
+  status timers' recorder), a tech shown on it, and the message; the showing
+  and the message stay the original's, so the update is run as a sibling
+  (`battle_run`) where a member comes back.
+- **The draw among four's tail** (`$C1:8C90`): the draw's entry, reached when
+  the original's choosing runs, goes on with the choosing in C
+  (`enemy_choose_after_draw`) instead of handing back into it.
+
+**The third trap, settled first.** `tools/v_readers.py` has V dead into every
+call-out kept (`$CD:0000`, `$CD:0006`, `$CD:0021`, `$C1:0045`, `$C1:AC57`,
+`$CF:FCFB`), and liveness has them read nothing but A (and its high byte),
+which each is given as the original gives it; the poses at `$C1:35DD` take A's
+high byte, clear as the guard has it at the setup's end.
+
+**What the gate found.** Fuzzing found the draw's entry taking a script place
+that isn't a draw: the guard now wants the draw's byte there, as the choosing
+always has it. It found the come-back's multiply leaving the carry of the
+number's place in its cell, which the status timers' recorder already left (so
+the come-back records through it). The return's colors read past the palette
+for a member palette no member has: the guard takes the party's. The
+don't-care check found A's high byte read after the draw's entry now that it
+returns, and at the poses.
+
+**Validation.** The library's 26 movies in shadow mode, none mismatching: the
+scheduler's pass 281,498 calls (684 interrupted), the effects' loop 281,498
+(1,773), an effect's next frame 152,304 (264), the setup's end 31, the return
+to the field 26 (1 interrupted), the draw's entry 96 (5); the start from the
+field's 31 calls are all interrupted (its screen setup waits for frames), and
+no movie has a member come back. **Fuzzing**, seed 1, none mismatching: the
+start up to the screen's setup 0 of 20,000, the return up to its first frame
+wait 0 of 16,509, the setup's end 0 of 5,000, an effect's next frame 0 of
+5,000, the effects' loop 0 of 5,000, the scheduler 0 of 4,584, the draw 0 of
+467 (80,000 states, most refused for a place that isn't a draw), the update 0
+of 1,852 as before. A member coming back is compared up to its showing: no
+memory differs in 6,599 states, but `ct_fuzz` has no runtime to run the showing
+as a sibling, so the call is a real one, declaring nothing, and X, Y and the
+flags it doesn't read differ there (docs/TODO.md).
+
+**Timing.** The new entries and those whose work moved were calibrated from
+the shadow runs: the effects' loop, the scheduler, the draw.

@@ -3348,93 +3348,102 @@ from the shadow runs; what is left over the limits is the circles' spread
 11,823), and the runner and the frame work above them, all writing RAM, in
 `tools/timing_exceptions.txt`.
 
-### Phase 3, battle: the leftovers (`$C1`, `$CF:FB65`, `$CC:F2A9`)
+### Phase 3, battle: the targeting (`$C1:C1DD`-`$C1:CBC2`)
 
-What `python3 tools/burndown.py --uncovered C1`, `CF` and `CC` listed after
-battle chunk 10: about 1.9 KiB of runs, most of them inside ports that handed
-back to the original at a stop. Two kinds of run in the list weren't work:
+Chosen by the fallback measure, not the burndown: the burndown counted bank
+`$C1` as done, but every tech and item the battle carries out was still aimed
+by the original's code, a call-out from the member's turn, the enemy's turn
+and (through the original's code they reach) the status timers: 1.5 KiB of
+the reference play's fallbacks (`$C1:C1DD` alone 1,122 bytes, the largest
+single routine on `tools/fallback_baseline.txt`). It was also what the native
+shape's three whole routes failed on: the original targeting read two cells
+the member's turn wrote only as scaffolding (the member's action record's
+place, `$06`, and an item's area rules, `$0C`).
 
-- **Code nothing runs.** `$C1:C09A` (five fraction routines), `$C1:BC62`,
-  `$C1:EFD3`, `$C1:BF81`, `$C1:AED3`, `$C1:E07B`, `$C1:EB49`, `$C1:CF51`,
-  `$C1:15B6`, `$C1:0015` and `$CC:E290` are `kind = "unreached"` entries in
-  `re/hints.toml`: bytes that decode as code, which nothing in the ROM calls and
-  no movie's coverage has. They need no port, so the burndown no longer counts
-  what only an `unreached` entry starts (`reached_code`,
-  `tools/disasm/closure.py`, the reachability the C6 check already solved).
-- **Cases the game never makes.** A battle set up without enemies (`$C1:8030`)
-  sends the original's order lists running on through memory, and an enemy's
-  action past its table (`$C1:8D88`) jumps through a word of the next table:
-  guards are the answer for both. The first stays a stop, at the step's return,
-  declaring nothing dead (the burndown counts a stop where a call returns,
-  declaring nothing, as the port going on); the second is the turn's guard
-  already (`battle_enemy_turn_ready` takes only actions the table has), so
-  the dispatch's stop went, an action past the table doing nothing.
+**What it is** (`battle/aim.c`, `battle/aim_data.h`). An action is aimed in
+three steps. Whether it can be made: the actor, a party tech's partners, or
+the enemy an enemy's tech brings in, must be able to take part (not knocked
+out, none of the statuses that keep them from acting, nor two bits of the
+second status byte whose meaning isn't worked out). The targets its aim mode
+takes: the modes are the records' bytes, a C table maps each to one of twelve
+ways of taking targets (`Take`) and how the targets are settled after (`Finish`),
+so the twenty-four modes the ROM uses are rows, not branches. Then its area
+rules, for a tech that has them (`$CC:2AB0`): the area is placed on the
+combatants (around the tech's first member and toward the target, around the
+target, around the actor and toward the target: a table of the seven
+placings), the original's area search (the battle's step 7, `$C1:1FDD`, still
+a call-out) finds who stands in it, and the finds become the targets, settled
+as the mode says. The original's `$C1:C741`, which hands the search its shape,
+is its own entry (`battle_search_area`), so the call-out is made under the
+same return the original's is without a frame pushed by hand. Its helpers
+(`$C1:C72B`-`$C1:C82C`, `$C1:C82D`, `$C1:C8F7`, `$C1:CB93`) are C inside it.
 
-The rest is ported, as what it does in the game:
+**What the game does that the port keeps.** Reading the original closely found
+four things the game really does, which the port reproduces and says so:
 
-- **Coming in from the field and going back** (`battle/from_field.c`,
-  `$C1:0000`/`$CF:FB65` and `$C1:0006`/`$CF:FBE5`): the field's registers are
-  kept on the stack the whole battle (`m_save_caller_registers` and
-  `m_return_to_caller_long`, `runtime/port/machine.h`); the battle's memory is
-  cleared, the screen set up (the original's `$CD:0000`), the window
-  arrangement, the sprites' priority and the story's rules on who sits the fight
-  out taken in, and the main loop started. On the way out the members' colors
-  are put back, where everyone stood and the menu cursors the settings remember
-  are kept for the field, the last uploads let out over a few frames (the
-  original's frame wait `$CF:FCFB`), and every character with no HP left gets
-  up with 1.
-- **The setup's last part** (`battle/opening.c`, `$C1:0042`, `$C1:34DB`,
-  `$C1:350F`): each member turns to face its nearest enemy, and the members
-  taking part take the opening's poses, which the original's routine the
-  victory and the defeat share runs (`$C1:35DD`). Its cells reuse the script
-  channels' (`battle_party_scene_*`).
-- **The scheduler's animation step** (`battle/objects.c`, `$C1:4269`): the
-  object due takes its animation's next frame, its graphics built for the way
-  it faces; and **an effect's next frame** (`battle/effect_animation.c`,
-  `$CC:F2A9`), its own entry, which the effects' loop runs as C. The original
-  stores the anchor's facing back where it read it instead of noting it as the
-  facing shown; the port says so.
-- **A member that comes back once** (`battle/combatants.c`, `$C1:B316`): five
-  times its magic in HP, shown as healing (`effect_show_hp_regained`, the
-  status timers' recorder), a tech shown on it, and the message; the showing
-  and the message stay the original's, so the update is run as a sibling
-  (`battle_run`) where a member comes back.
-- **The draw among four's tail** (`$C1:8C90`): the draw's entry, reached when
-  the original's choosing runs, goes on with the choosing in C
-  (`enemy_choose_after_draw`) instead of handing back into it.
+- The "random" aim (mode 9, two items) doesn't roll: it draws a number and
+  then reads its roll from the arithmetic's cell the draw puts back, where the
+  tech members' lookup at the start left the item's party-tech record's
+  number, so each such item always takes the same branch (a foe at random,
+  for both). One branch would bound the party's places by the byte of buttons
+  the player holds; no item rolls it, and the guard refuses it.
+- The settling's walk over the targets steps past a gap and closes up over the
+  place after it, so a gap takes the target after it off the list too, and the
+  list's last place is never closed over.
+- The area's finds end with `$FF`, which the test for an enemy in reserve takes
+  as a combatant past the eight, reading a timer's flags there; a revive's
+  target is tested for reserve by its battle slot rather than its enemy
+  number. Both read past `battle_enemy_standing`, which now declares
+  `unchecked` for them.
+- The area's finds are walked with the multiply's product cell as the counter,
+  which the original leaves past the last place.
 
-**The third trap, settled first.** `tools/v_readers.py` has V dead into every
-call-out kept (`$CD:0000`, `$CD:0006`, `$CD:0021`, `$C1:0045`, `$C1:AC57`,
-`$CF:FCFB`), and liveness has them read nothing but A (and its high byte),
-which each is given as the original gives it; the poses at `$C1:35DD` take A's
-high byte, clear as the guard has it at the setup's end.
+**The cells.** The targeting's direct-page cells `$00`-`$0E` are read after it
+as game input (battle.h: the clock's word, the member cell, the stat offsets,
+an enemy tech's hits), so the port keeps them plainly as the original leaves
+them; `$10`-`$14` and the new `battle_aim_*` cells at `$3A`-`$3D` are
+scaffolding, but for the rule's shape, which its sub-entry reads. The member's
+turn's writes of `$06` and `$0C` became plain: the targeting's guard reads them
+(the action record's place, an item's area rules), and with them the native
+shape's battle failures went. The event scheduler's step count, cleared only
+as scaffolding by `object_run_script_from` and read by the original's
+scheduler (`$C0:59F0`), is plain too, which was the third route's failure:
+`tools/native_shape_exceptions.txt` is empty.
 
-**What the gate found.** Fuzzing found the draw's entry taking a script place
-that isn't a draw: the guard now wants the draw's byte there, as the choosing
-always has it. It found the come-back's multiply leaving the carry of the
-number's place in its cell, which the status timers' recorder already left (so
-the come-back records through it). The return's colors read past the palette
-for a member palette no member has: the guard takes the party's. The
-don't-care check found A's high byte read after the draw's entry now that it
-returns, and at the poses.
+**What the guard turns away**, none of it a state real play makes (the
+refusals check holds it): a party member whose action record isn't where its
+caller hands it, an item handed area rules, a chosen target that isn't a
+combatant (none, but for a revive), a tech whose members aren't the party's
+characters, a set of area rules with more than one rule or with the target
+search's rule (`$C1:2986`, the battle's step 5; the ROM's sets have one rule
+each, all the area search's), an enemy's rule placed on party members, the
+roll's button-bounded branch.
 
-**Validation.** The library's 26 movies in shadow mode, none mismatching: the
-scheduler's pass 281,498 calls (684 interrupted), the effects' loop 281,498
-(1,773), an effect's next frame 152,304 (264), the setup's end 31, the return
-to the field 26 (1 interrupted), the draw's entry 96 (5); the start from the
-field's 31 calls are all interrupted (its screen setup waits for frames), and
-no movie has a member come back. **Fuzzing**, seed 1, none mismatching: the
-start up to the screen's setup 0 of 20,000, the return up to its first frame
-wait 0 of 16,509, the setup's end 0 of 5,000, an effect's next frame 0 of
-5,000, the effects' loop 0 of 5,000, the scheduler 0 of 4,584, the draw 0 of
-467 (80,000 states, most refused for a place that isn't a draw), the update 0
-of 1,852 as before. A member coming back is compared up to its showing: no
-memory differs in 6,599 states, but `ct_fuzz` has no runtime to run the showing
-as a sibling, so the call is a real one, declaring nothing, and X, Y and the
-flags it doesn't read differ there (docs/TODO.md).
+**What the gate found.** Fuzzing found two: the steps' routine picks its step by
+the whole of A, so the area search needs A's high byte clear, as the original's
+loads leave it (the sub-entry's guard now asks for it, and the targeting clears
+A before it); and the product cell's leftover above. The don't-care check found
+A's high byte read after the targeting returns (`DC_AL`, the port clearing it
+as the original does, but after the "no target" showing, which hands back its
+own), and V at the area search's call-out unproven through the steps' tables,
+which `tools/v_readers.py` has dead and a poisoned fuzzing run confirms.
 
-**Timing.** The new entries and those whose work moved were calibrated from
-the shadow runs: the effects' loop, the scheduler, the draw.
+**Validation.** The library's 28 movies in shadow mode, none mismatching: the
+targeting 841 calls, 699 compared (96 interrupted, 46 set aside inside its
+callers' comparisons), the area search's entry 46 (each compared within the
+targeting's); its callers as before, the member's turn 548 calls, the enemy's
+tech 300. **Fuzzing**, seed 1, none mismatching (`tools/fuzz_routines.toml`):
+the party's techs 0 of 4,935, every party tech with area rules 0 of 4,628,
+items 0 of 5,000, the enemies' techs 0 of 5,000 and those with area rules 0 of
+4,999, the area search's entry 0 of 5,000; the callers (the member's turn, its
+techs, the enemy's tech and its stat-changing turns, the status timers) fuzz
+the same as on main, 0 mismatched each. With the native shape passing every
+route, `tools/native_shape_exceptions.txt` is empty; the reference play's
+fallbacks fell from 46.5 KiB to 45.2 KiB, ten routines leaving the baseline.
+
+**Timing.** The two new entries, and the battle's entries whose time moved with
+them (the member's turn, the enemy's turns and tech, the turn's giving), were
+calibrated from the shadow runs.
 
 ### Phase 3, overworld: the world map on foot (`$C2:2F94`-`$C2:42E5`, `$C2:23CF`-`$C2:26A7`, `$C2:5628`-`$C2:57AF`, `$C2:62AE`-`$C2:6331`)
 
@@ -3855,23 +3864,24 @@ whose latest write was a port's `ORIGINAL_EFFECT`, by the instruction, and
 check writes the list beside its logs. On main, 101 such (byte, instruction)
 pairs over the library.
 
-On main all 28 movies run to their end in the native shape, and the fast
-routes pass, but all three whole routes fail, each traced and confirmed by
-making the writes plain in a scratch build and running the route again
-(`tools/native_shape_exceptions.txt` holds them with their traces):
+When the check came in, all 28 movies ran to their end in the native shape,
+and the fast routes passed, but all three whole routes failed, each traced and
+confirmed by making the writes plain in a scratch build and running the route
+again. The targeting's port fixed all three ("Phase 3, battle: the
+targeting"), and `tools/native_shape_exceptions.txt` is empty:
 
 - **Battle items land on the wrong side** (`beyond_time`, `bucket_lavos`):
-  `battle_carry_out_member_action` writes the acting member's record
+  `battle_carry_out_member_action` wrote the acting member's record
   (`$0006`, game/battle/member_turn.c:499) and the item targeting's cell
   (`$000C`, :420) only as scaffolding, and the original's targeting, which
-  the port calls out to, reads them (`$C1:C24A`, `$C1:C57F`). A revive heals an
-  enemy instead; the final fights end in wipes. With both writes plain, both
+  the port called out to, read them (`$C1:C24A`, `$C1:C57F`). A revive healed an
+  enemy instead; the final fights ended in wipes. With both writes plain, both
   routes reach their endings.
-- **A walk stops short** (`telepod_lavos`): `object_run_script_from` clears an
+- **A walk stops short** (`telepod_lavos`): `object_run_script_from` cleared an
   object's step count only as scaffolding (game/event/calls.c:173), and the
   original's event scheduler reads it (`$C0:59F0`). The walk to the reaper
-  statue in the developers' room ends a tile and a half away, and the seventh
-  round is missed. With that and the battle's two plain, the route reaches its
+  statue in the developers' room ended a tile and a half away, and the seventh
+  round was missed. With that and the battle's two plain, the route reaches its
   ending.
 
 The movies don't see either: their presses drift in the shipping mode

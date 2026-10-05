@@ -63,6 +63,7 @@ typedef enum {
     BATTLE_STEP_NEXT_FRAME = 3,       /* the frame's work, and a wait for the next */
     BATTLE_STEP_SHOW_ACTION = 4,      /* an action's showing starts */
     BATTLE_STEP_ENEMIES_BEATEN = 6,   /* the enemies beaten, seen to */
+    BATTLE_STEP_SEARCH_AREA = 7,      /* who stands in an area of the battlefield (battle_area_search) */
     BATTLE_STEP_VICTORY = 8,          /* the party's victory */
     BATTLE_STEP_DEFEAT = 9,           /* the party's defeat */
 } BattleStep;
@@ -146,7 +147,8 @@ static inline uint16_t battle_cell_word(const GameState *g, unsigned at)
  *     (battle/enemy_conditions.c): whatever the last word the choosing or a
  *     selector kept at $0A-$0B left there;
  *   - $0E is what an enemy tech's hits are noted as (battle/enemy_actions.c)
- *     where the tech's targeting ($C1:C1DD, the original's) doesn't set it,
+ *     where the tech's targeting (battle/aim.c: its area rule's flag) doesn't
+ *     set it,
  *     which is whatever was last left there: the tech's number, the end of a
  *     further target's selection, or before the tech anything an action or a
  *     condition kept there;

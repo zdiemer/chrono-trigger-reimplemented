@@ -263,6 +263,7 @@ add_library(ct_game STATIC
   game/battle/frame.c
   game/battle/from_field.c
   game/battle/main_loop.c
+  game/battle/aim.c
   game/battle/member_turn.c
   game/battle/enemy_movement.c
   game/battle/battle_end.c

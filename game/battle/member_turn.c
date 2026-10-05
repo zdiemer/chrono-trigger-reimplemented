@@ -10,8 +10,8 @@
  *
  *   - an attack, aimed at the enemy it chose (or a living one, where that one
  *     is out), worked out as the character's attack tech ($C1:BFAA);
- *   - an item, aimed by the original's targeting ($C1:C1DD), worked out
- *     (battle/party_work.c) and shown;
+ *   - an item, aimed (battle/aim.c), worked out (battle/party_work.c) and
+ *     shown;
  *   - a tech, aimed likewise, worked out, its MP paid by each member that
  *     performed it, shown, and a steal's outcome told in a message; then
  *     every member of it waits longer before its next turn, by the tech.
@@ -22,10 +22,10 @@
  * out, and a knocked-out member's choice loses it, battle/combatants.c), the
  * turn leaves them as they are.
  *
- * The showing ($C1:AC57) and the attack are siblings run as the original's
- * JSRs call them; the targeting, the calling off and the messages are the
- * original's still, call-outs from the entry's bridge. The entries are at the
- * end. */
+ * The targeting ($C1:C1DD), the showing ($C1:AC57) and the attack are
+ * siblings run as the original's JSRs call them; the calling off and the
+ * messages are the original's still, call-outs from the entry's bridge. The
+ * entries are at the end. */
 #include "battle/effect_parts.h"
 
 #include "battle/bridge.h"
@@ -91,9 +91,9 @@ static bool all_can_act(GameState *g)
 /* ---- Aiming ------------------------------------------------------------------------------------ */
 
 /* An item or a tech is aimed first at the target the member chose, alone,
- * with the action not stopping at its first target; the original's targeting
- * ($C1:C1DD, a call-out) then finds the rest. The first candidate it keeps
- * is the chosen target too. */
+ * with the action not stopping at its first target; the targeting
+ * (battle/aim.c) then finds the rest. The first candidate it keeps is the
+ * chosen target too. */
 enum { NO_TARGET = 0xFF, ITEM_NUMBER_BASE = 0xBC };
 
 static void aim_at_the_choice(GameState *g, uint8_t member)
@@ -306,14 +306,13 @@ static void pay_for_tech(GameState *g)
 
 /* ---- The entries ------------------------------------------------------------------------------- */
 
-/* The call-outs: the original's targeting, which reads the carry the code
- * before leaves; the messages, and the battle's step. */
+/* The siblings and the call-outs: the targeting, which takes the carry the
+ * code before leaves; the messages, and the battle's step. */
 enum {
     AIM = 0xC1C1DD, SHOW_MESSAGE = 0xCD0021, SHOWING = 0xC1AC57, MEMBER_ATTACKS = 0xC1BFAA,
     USE_ITEM = 0xC1BF46, WORK_OUT_TECH = 0xC1BF79,
 };
 enum {
-    READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
     READS_A = DC_X | DC_Y | DC_FLAGS,
 };
@@ -392,13 +391,15 @@ static bool members_read_fit(const GameState *g, bool tech)
     return (!tech && nothing) || last_tech_fits(g, tech && nothing);
 }
 
-/* The original's targeting, from `site`; where what it left is past what the
- * port reads, the port stops at the call's return and the original carries
- * on. */
+/* The targeting (battle/aim.c), from `site`, as its JSR makes it, with the
+ * carry its lookup of the tech's members leaves in a cell. Where what it left
+ * is past what the port reads (the original's, where the targeting's guard
+ * turned the call away), the port stops at the call's return and the
+ * original carries on. */
 static bool aim(Snes *s, uint32_t site, bool carry, bool tech)
 {
     m_set_flag(s, CPU_FLAG_C, carry);
-    if (!battle_call(s, site, AIM, READS_CARRY))
+    if (!battle_run(s, site, AIM, battle_aim_action))
         return false;
     GameState *g = state_of(s);
     if (targets_fit(g) && members_read_fit(g, tech))
@@ -408,16 +409,15 @@ static bool aim(Snes *s, uint32_t site, bool carry, bool tech)
 }
 
 // $C1:BA83
-/* An item: its number is the record's, past the items' first ($BC). The
- * original clears a cell the targeting may read (scaffolding: the targeting
- * is the original's). */
+/* An item: its number is the record's, past the items' first ($BC). Its area
+ * rules are none, which the targeting reads in a cell its caller clears. */
 enum { ITEM_TARGETING_CELL = 0x0C };
 static bool use_item(Snes *s, uint8_t member)
 {
     GameState *g = state_of(s);
     for (uint8_t place = 0; place < BATTLE_ACTION_TARGETS_COUNT; place++)
         set_battle_action_targets(g, place, NO_TARGET);
-    ORIGINAL_EFFECT(battle_leave_word(g, ITEM_TARGETING_CELL, 0));
+    battle_keep_word(g, ITEM_TARGETING_CELL, 0);
     aim_at_the_choice(g, member);
     uint8_t what = battle_member_actions_what(g, member);
     set_battle_action_detail(g, (uint8_t)(what - ITEM_NUMBER_BASE));
@@ -496,7 +496,8 @@ static bool carry_out_action(Snes *s)
     }
     battle_keep_word(g, BATTLE_CLOCK_READS, 0);
     ORIGINAL_EFFECT(set_battle_member_turn_mark(g, 0));
-    ORIGINAL_EFFECT(battle_leave_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, member)));
+    /* the targeting finds the member's action record through it (battle.h) */
+    battle_keep_word(g, BATTLE_MEMBER_CELL, battle_member_record_place(g, member));
     uint8_t choice = battle_member_actions_choice_flags(g, member);
     set_battle_action_choice(g, choice);
     if (choice & CHOSE_AN_ATTACK) {
