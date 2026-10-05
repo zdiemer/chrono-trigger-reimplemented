@@ -5,9 +5,11 @@
  * frame to be counted (game/menu/display.c, menu_object_nmi), the menus'
  * for the handler to have sent the uploads the frame queued
  * (menu_nmi_work). Both waits are idle loops the runtime runs a pass at a
- * time. */
+ * time. Between its waits the menus' loop runs a turn of each of their
+ * tasks (menu/menu.h), which a screen starts and stops. */
 #include "menu/menu.h"
 
+#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -40,3 +42,26 @@ void menu_wait_ready_loop(Snes *s)
  * data bank that reaches low RAM. */
 bool menu_frame_wait_on_page(Snes *s) { return m_direct_page(s) == 0x0000; }
 bool menu_ready_wait_reaches_low_ram(Snes *s) { return m_bank_reaches_low_ram(s); }
+
+/* ---- Stopping the tasks ------------------------------------------------------------------------- */
+
+/* For the original's code and shadow mode: it shifts the bits out of the
+ * menus' first cell as it goes. */
+static void leave_bits_shifted_out(GameState *g) { set_menu_scratch_tasks_left(g, 0); }
+
+// $C2:8255
+void menu_stop_tasks(GameState *g, uint8_t tasks)
+{
+    for (unsigned task = 0; task < MENU_TASKS; task++)
+        if (tasks >> task & 1)
+            set_menu_tasks_state(g, task, 0);
+    ORIGINAL_EFFECT(leave_bits_shifted_out(g));
+}
+
+// $C2:8255
+void menu_stop_tasks_entry(Snes *s)
+{
+    uint8_t tasks = (uint8_t)s->cpu.a;
+    menu_stop_tasks(state_of(s), tasks);
+    m_rts(s);
+}

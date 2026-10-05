@@ -30,9 +30,11 @@
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/held_cursors.h"
 #include "menu/items.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/vram.h"
@@ -40,16 +42,6 @@
 #include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
-
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
 
 /* The frame's input, as the cursor's reading leaves it (menu/cursor.h). */
 static bool chose(const GameState *g) { return menu_asked(g, MENU_CHOOSE); }
@@ -83,7 +75,7 @@ static uint8_t place_of_row(const GameState *g, uint8_t row) { return (uint8_t)(
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
-enum { SCREEN_WINDOWS = 0xC0A6, SCREEN_LINE_EFFECTS = 0x39, UPLOAD_SCREEN = 0xFBF8 };
+enum { SCREEN_LINE_EFFECTS = 0x39 };
 
 /* The scroll bar's place, and the track the frame divides among the list's
  * places past its rows ($C2:EA81 divides it). */
@@ -95,7 +87,7 @@ void menu_items_open(GameState *g) { go_to(g, ITEMS_ON_THE_LIST); }
 // $C2:ADD0
 void menu_items_lay_out(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, SCREEN_WINDOWS);
+    menu_draw_windows(g, pf, MENU_WINDOWS_ITEMS_SCREEN);
     set_menu_scroll_bar_place(g, BAR_PLACE);
     hw_set_dividend(g, BAR_TRACK);
     set_menu_text_attribute(g, 0);
@@ -111,7 +103,7 @@ void menu_items_show_screen(GameState *g)
 {
     set_menu_line_effects(g, SCREEN_LINE_EFFECTS);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
-    queue_upload(g, UPLOAD_SCREEN);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER_WHOLE);
     TIMED_AS(g, 0xC2E923, menu_clear_sprites_but_cursor(g));
 }
 
@@ -154,14 +146,15 @@ ItemsListChoice menu_items_choose_on_the_list(const GameState *g)
     return went_back(g) ? LIST_LEFT : LIST_POINTED_AT;
 }
 
-/* The item on the cursor picked up; the second cursor stays on its row as
- * the list stands now (its task, the original's $C2:89E4, is started next). */
+/* The item on the cursor picked up; a second cursor held on its row as the
+ * list stands now. */
 void menu_items_pick_up(GameState *g)
 {
     set_menu_item_picked(g, menu_item_list_place(g));
     go_to(g, ITEMS_MOVING_ONE);
     set_menu_held_cursor(g, menu_item_list_row(g));
     set_menu_held_cursor_top(g, menu_item_list_top(g));
+    TIMED_AS(g, 0xC289E4, menu_hold_the_cursor_on_the_list(g));
 }
 
 /* Back to the commands, the cursor on the list's; the second cursor's
@@ -198,12 +191,11 @@ void menu_items_swap_with_the_picked(GameState *g)
 }
 
 /* The list drawn again with the swap, and back on it. */
-enum { UPLOAD_LIST = 0xFBE3 };
 
 void menu_items_back_to_the_list(GameState *g)
 {
     TIMED_AS(g, 0xC2AE43, menu_items_draw_rows(g));
-    queue_upload(g, UPLOAD_LIST);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     go_to(g, ITEMS_ON_THE_LIST);
 }
 
@@ -273,8 +265,7 @@ static void list_users(GameState *g, uint8_t item)
     for (uint8_t character = 0; character < CHARACTERS_BITS; character++)
         if (users & (FIRST_CHARACTER_BIT >> character)) {
             for (unsigned at = 0; at < NAME_BYTES; at++)
-                set_menu_item_users_names_byte(g, listed, at,
-                                               wram_read8(g, MENU_NAMES_BANK | (uint16_t)(MENU_FIRST_NAME + character * NAME_BYTES + at)));
+                set_menu_item_users_names_byte(g, listed, at, character_names_byte(g, character, at));
             listed++;
         }
     ORIGINAL_EFFECT(charge_block_move(g, MENU_ITEM_USERS_NAMES_COUNT * NAME_BYTES + listed * NAME_BYTES));
@@ -306,7 +297,7 @@ static void note_power(GameState *g, uint8_t item)
     ORIGINAL_EFFECT(charge_block_move(g, LABEL_BYTES));
 }
 
-enum { USERS_WINDOW = 0xC0D5, USERS_LINE_EFFECT = 0x04, UPLOAD_USERS = 0xFBEA, UPLOAD_USERS_LINES = 0xFC37 };
+enum { USERS_WINDOW = 0xC0D5, USERS_LINE_EFFECT = 0x04 };
 
 // $C2:AE91
 void menu_items_show_users(GameState *g, Platform *pf)
@@ -315,10 +306,10 @@ void menu_items_show_users(GameState *g, Platform *pf)
     lay_out_window_lines(g);
     list_users(g, item);
     note_power(g, item);
-    draw_list(g, pf, USERS_WINDOW);
+    menu_draw_windows(g, pf, USERS_WINDOW);
     set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | USERS_LINE_EFFECT));
-    queue_upload(g, UPLOAD_USERS);
-    queue_upload(g, UPLOAD_USERS_LINES);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER_LOWER_HALF);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_WINDOW_LINES);
 }
 
 // $C2:AC1D
@@ -407,7 +398,7 @@ void menu_items_sort(GameState *g)
 void menu_items_after_sorting(GameState *g)
 {
     TIMED_AS(g, 0xC2AE43, menu_items_draw_rows(g));
-    queue_upload(g, UPLOAD_LIST);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
     set_menu_cursor_index(g, COMMAND_LIST);
     go_to(g, ITEMS_ON_THE_COMMANDS);
 }
@@ -459,7 +450,7 @@ void menu_items_bring_in_a_row(GameState *g)
     set_menu_held_cursor_shift(g, down ? HELD_CURSOR_ROW_LINES : (uint16_t)-HELD_CURSOR_ROW_LINES);
     set_menu_scroll_bar_thumb(g, menu_item_list_top(g));
     TIMED_AS(g, 0xC2AE65, menu_items_draw_row(g, INCOMING_ROW_AT, menu_cursor_index(g)));
-    queue_upload(g, UPLOAD_LIST);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
 
 /* A held push repeating fast skips the slide's frames. */
@@ -495,13 +486,11 @@ void menu_items_end_slide_frames(GameState *g)
 
 /* Then the block move set to bring the rows' new lines in, the rows moved a
  * row along in their buffer, and the list at rest. */
-enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
 enum { LIST_ROWS_AT = 0x2F00, ROW_BYTES = 0x80 };
 
 void menu_items_finish_slide(GameState *g)
 {
-    set_menu_block_move_source(g, LIST_LINES_FROM);
-    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
+    menu_put_the_list_bands_back(g);
     menu_move_list_rows(g, LIST_ROWS_AT, MENU_ITEMS_ROWS * ROW_BYTES, ROW_BYTES, menu_list_slid_up(g));
     set_menu_scroll_step(g, 0);
 }
@@ -522,7 +511,7 @@ bool menu_items_keep_the_cursors_row(GameState *g)
     return menu_cursor_index(g) != menu_cursor_frame_start(g);
 }
 
-void menu_items_queue_rows(GameState *g) { queue_upload(g, UPLOAD_LIST); }
+void menu_items_queue_rows(GameState *g) { menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER); }
 
 /* ---- Drawing the list -------------------------------------------------------------------------- */
 
@@ -577,7 +566,7 @@ void menu_items_redraw_the_cursors_row(GameState *g)
 {
     uint8_t row = menu_item_list_row(g);
     TIMED_AS(g, 0xC2AE65, menu_items_draw_row(g, (uint16_t)(FIRST_ROW_AT + (row & ROW_BITS) * ROW_BYTES), row));
-    queue_upload(g, UPLOAD_LIST);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
 
 /* ---- The main menu's panel --------------------------------------------------------------------- */
@@ -586,14 +575,14 @@ void menu_items_redraw_the_cursors_row(GameState *g)
  * (none shown, and drawn again), the list's colours (eight into row 5's
  * first half, four into row 2's second), and the main menu's fourth task held
  * two frames longer. */
-enum { PANEL_WINDOW = 0xC05D, PANEL_TASK = 3, NO_DESCRIPTION = 0xFF };
+enum { PANEL_WINDOW = 0xC05D, NO_DESCRIPTION = 0xFF };
 enum { LIST_COLOURS = 8, FIRST_LIST_COLOUR = 0x50, HIGHLIGHT_COLOURS = 4, FIRST_HIGHLIGHT_COLOUR = 0x20 };
-enum { PANEL_ROWS_AT = 0x4E80, PANEL_ROWS_BYTES = 0x200, UPLOAD_PANEL_ROWS = 0xFC1B };
+enum { PANEL_ROWS_AT = 0x4E80, PANEL_ROWS_BYTES = 0x200 };
 
 // $C2:AD50
 void menu_items_panel_lay_out(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, PANEL_WINDOW);
+    menu_draw_windows(g, pf, PANEL_WINDOW);
     set_menu_fill_tile(g, 0);
     set_menu_text_attribute(g, 0);
     set_menu_description_item(g, NO_DESCRIPTION);
@@ -603,7 +592,7 @@ void menu_items_panel_lay_out(GameState *g, Platform *pf)
     for (unsigned i = 0; i < HIGHLIGHT_COLOURS; i++)
         set_menu_palette(g, FIRST_HIGHLIGHT_COLOUR + i, menu_rom_colour(g, MENU_ROM_ITEMS_HIGHLIGHT_COLOURS, i));
     ORIGINAL_EFFECT(charge_block_move(g, 2 * (LIST_COLOURS + HIGHLIGHT_COLOURS)));
-    set_menu_tasks_countdown(g, PANEL_TASK, (uint8_t)(menu_tasks_countdown(g, PANEL_TASK) + 2));
+    set_menu_tasks_countdown(g, MENU_CURSOR_TASK, (uint8_t)(menu_tasks_countdown(g, MENU_CURSOR_TASK) + 2));
 }
 
 /* The rows, after a frame: the panel's second layer cleared, then the list
@@ -614,13 +603,13 @@ void menu_items_panel_draw_rows(GameState *g)
     ORIGINAL_EFFECT(charge_block_move(g, PANEL_ROWS_BYTES));
     if (menu_story_items(g, 1) == 0)
         TIMED_AS(g, 0xC2AE43, menu_items_draw_rows(g));
-    queue_upload(g, UPLOAD_PANEL_ROWS);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_TEXT_LAYER);
 }
 
 /* After another frame: the colour math table built, the third layer a line
  * down, the panel's line effects, the sprites cleared, and its layers
  * queued. */
-enum { PANEL_LINE_EFFECTS = 0x19, THIRD_LAYER = 2, PANEL_THIRD_LAYER_Y = 1, UPLOAD_PANEL = 0xFBFF };
+enum { PANEL_LINE_EFFECTS = 0x19, THIRD_LAYER = 2, PANEL_THIRD_LAYER_Y = 1 };
 
 void menu_items_panel_show(GameState *g, Platform *pf)
 {
@@ -628,8 +617,8 @@ void menu_items_panel_show(GameState *g, Platform *pf)
     set_menu_scroll_y(g, THIRD_LAYER, PANEL_THIRD_LAYER_Y);
     set_menu_line_effects(g, PANEL_LINE_EFFECTS);
     TIMED_AS(g, 0xC2984A, menu_clear_sprites(g));
-    queue_upload(g, UPLOAD_LIST);
-    queue_upload(g, UPLOAD_PANEL);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
 // $C2:ADC3
@@ -764,13 +753,13 @@ enum { MEMBER_WINDOW = 0xC0E4, LAST_RECORD = 7, NO_SPRITE = 0xFF };
 void menu_items_lay_out_member_window_lines(GameState *g)
 {
     lay_out_window_lines(g);
-    queue_upload(g, UPLOAD_USERS_LINES);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_WINDOW_LINES);
 }
 
 // $C2:AF42
 void menu_items_open_member_window(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, MEMBER_WINDOW);
+    menu_draw_windows(g, pf, MEMBER_WINDOW);
     set_menu_record_sprite(g, LAST_RECORD, NO_SPRITE);
 }
 
@@ -779,7 +768,7 @@ void menu_items_open_member_window(GameState *g, Platform *pf)
  * on from where the last row's list left the drawing origin; each member's
  * sprite stands beside its row, shown, and acting hurt where its row says
  * the member's HP is low. The window's layer is queued. */
-enum { MEMBER_ROWS_AT = 0x3580, MEMBER_ROW_BYTES = 0x140, MEMBER_ROW_LIST = 0xBE0E, UPLOAD_MEMBER_ROWS = 0xFBEA };
+enum { MEMBER_ROWS_AT = 0x3580, MEMBER_ROW_BYTES = 0x140, MEMBER_ROW_LIST = 0xBE0E };
 enum { HURT_ANIMATION = 0x12, STANDING = 0, RECORD_BYTES = 0x40 };
 
 /* The record of the character a member row shows: the original works out
@@ -802,7 +791,7 @@ void menu_items_draw_members(GameState *g, Platform *pf)
         if (!loaded)
             break;
         TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
-        draw_list(g, pf, MEMBER_ROW_LIST);
+        menu_draw_windows(g, pf, MEMBER_ROW_LIST);
         uint8_t character = menu_status_record_bytes_byte(g, 0);
         ORIGINAL_EFFECT(leave_record_found(g, character));
         MenuSpritePlace place = menu_member_sprite_place(g, member);
@@ -814,7 +803,7 @@ void menu_items_draw_members(GameState *g, Platform *pf)
         member++;
     } while (member < menu_active_members(g));
     set_menu_screen_argument(g, member);
-    queue_upload(g, UPLOAD_MEMBER_ROWS);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER_LOWER_HALF);
 }
 
 /* The window's sprites held back a frame while the records' task loads
@@ -977,7 +966,7 @@ void menu_items_clear_member_window(GameState *g)
 {
     wram_fill8(g, 0x7E0000u | MEMBER_WINDOW_LAYER_AT, MEMBER_WINDOW_LAYER_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, MEMBER_WINDOW_LAYER_BYTES));
-    queue_upload(g, UPLOAD_PANEL);
+    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
 }
 
 /* ---- What the steps can run on (the guards') --------------------------------------------------- */

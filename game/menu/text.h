@@ -12,6 +12,10 @@
  * Returns where the pen got to. */
 uint16_t menu_draw_string(GameState *g, uint32_t string, uint16_t pen, uint8_t settings);
 
+/* The same, leaving `*string` where the drawing stopped: at the string's
+ * end, or where its tiles ran out. */
+uint16_t menu_draw_string_on(GameState *g, uint32_t *string, uint16_t pen, uint8_t settings);
+
 /* A colon in the text's colours (as a string leaves them), a number's
  * value drawn as the number drawer's format byte says (its bytes, its digits,
  * its blanking: menu_draw_number's), and a run of `tiles` blank tiles (the
@@ -24,6 +28,11 @@ uint16_t menu_draw_blanks(GameState *g, uint16_t pen, uint8_t tiles);
 /* The time played, hours and minutes, from its digits at `digits` in bank
  * $7E, drawn at `pen`; returns where the pen goes on. */
 uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits);
+
+/* The game's clock (its digits from $7E:0402) at the screens' foot, where
+ * the main menu's equipment panel and the member card show it. */
+enum { MENU_CLOCK_DIGITS = 0x0402 };
+void menu_draw_the_clock(GameState *g);
 
 /* Whether the time's digits at `digits` are ones the clock keeps: each 0-9,
  * unless the clock has run past them. For the guards of whatever draws it. */

@@ -444,7 +444,7 @@ static void leave_editing_tested(Snes *s)
 {
     const GameState *g = state_of(s);
     menu_leave_bit_test(s, (uint8_t)s->cpu.a, menu_cursor_buttons(g));
-    uint8_t either = (uint8_t)(menu_settings_boxes(g, 5) | menu_settings_boxes(g, 6));
+    uint8_t either = (uint8_t)(menu_settings_boxes(g, SETTINGS_SETTING_SPEEDS) | menu_settings_boxes(g, SETTINGS_CHOOSING_DESIGN));
     leave_a_low(s, either);
     menu_leave_load(s, either);
 }
@@ -597,7 +597,7 @@ static bool place_among(uint8_t place, uint8_t first, uint8_t count) { return pl
 bool menu_settings_on_an_option(const GameState *g)
 {
     return place_among(menu_cursor_index(g), 0, SETTINGS_OPTION_COUNT) && menu_cursor_kept_among(g, 0, SETTINGS_OPTION_COUNT, false)
-           && menu_settings_boxes(g, 4) == 0 && menu_settings_cursor(g) < SETTINGS_OPTION_COUNT;
+           && menu_settings_boxes(g, SETTINGS_CHOOSING_GAUGE) == 0 && menu_settings_cursor(g) < SETTINGS_OPTION_COUNT;
 }
 
 bool menu_settings_on_a_layout(const GameState *g)
@@ -617,7 +617,7 @@ bool menu_settings_on_a_button_row(const GameState *g)
 /* The description's typing got no further than its row, a tile at a time. */
 bool menu_settings_describable(const GameState *g)
 {
-    uint16_t typed = menu_description_typed(g);
+    uint16_t typed = menu_description_line_from(g);
     return typed < 0x40 && !(typed & 1);
 }
 
@@ -648,7 +648,7 @@ bool menu_settings_options_step_runs(Snes *s)
 
 static bool option_takeable(const GameState *g)
 {
-    return place_among(menu_cursor_index(g), 0, SETTINGS_OPTION_COUNT) && menu_settings_boxes(g, 4) == 0
+    return place_among(menu_cursor_index(g), 0, SETTINGS_OPTION_COUNT) && menu_settings_boxes(g, SETTINGS_CHOOSING_GAUGE) == 0
            && menu_settings_describable(g);
 }
 

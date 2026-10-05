@@ -6747,6 +6747,86 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   offset = 8
   size = 2
   meaning = "A healing drawn at random: the amount every draw starts from"
+  [[var.field]]
+  name = "slide_band_bytes"
+  offset = 0
+  size = 2
+  meaning = "A list's slide's start ($C2:EB9B): the bytes of the list's rows' bands, three a row"
+  [[var.field]]
+  name = "slide_bands_left"
+  offset = 0
+  size = 2
+  meaning = "A frame of a list's slide ($C2:EB1F): the bands still to stage, none once it is done"
+  [[var.field]]
+  name = "typed_tiles"
+  offset = 0
+  size = 2
+  meaning = "The description's typing laying its line's tiles ($C2:FAE9): how many tiles along the line the pen has reached into"
+  [[var.field]]
+  name = "laid_tiles"
+  offset = 2
+  size = 2
+  meaning = "The same: how many tiles along the line were laid already"
+  [[var.field]]
+  name = "tasks_left"
+  offset = 0
+  meaning = "The menus' tasks stopped ($C2:8255): the tasks' bits still to look at, shifted out one by one"
+  [[var.field]]
+  name = "strip_member"
+  offset = 0
+  size = 2
+  meaning = "The shop's equipping colouring a member's strip ($C2:E058): the member, whose strip's place it works out"
+  [[var.field]]
+  name = "strip_tiles"
+  offset = 2
+  meaning = "The same: how many tiles of each of the strip's two rows take the colour"
+  [[var.field]]
+  name = "strip_colour"
+  offset = 3
+  meaning = "The same: the colour (palette and priority bits), none for a member at its brightest, which the member's sprite's colours then follow (menu_scratch_colours_dimmed)"
+  [[var.field]]
+  name = "strips_member"
+  offset = 4
+  size = 2
+  meaning = "The shop's equipping going down to the members ($C2:E017): the member past the reachable ones it got to"
+  [[var.field]]
+  name = "strips_colour_kept"
+  offset = 5
+  meaning = "The shop's equipping colouring the members ($C2:E072): the colour the chosen member's strip doesn't take"
+  [[var.field]]
+  name = "window_lines_level"
+  offset = 0
+  meaning = "The window line table's building ($FF:FC04): the level of the line its loop got to, the second"
+  [[var.field]]
+  name = "window_lines_out"
+  offset = 1
+  meaning = "The same: the run of lines it had out, none"
+  [[var.field]]
+  name = "window_line_groups"
+  offset = 2
+  meaning = "The same: the groups it built"
+  [[var.field]]
+  name = "name_place_kept"
+  offset = 0
+  size = 2
+  meaning = "Naming a character, checking the name ($C2:E3E0): where in the names' table the name compared last starts"
+  [[var.field]]
+  name = "name_space_before"
+  offset = 0
+  meaning = "Naming a character, dropping its spaces ($C2:E390): the letter that a space after it is dropped for, a space as the name starts and none once a letter has come"
+  [[var.field]]
+  name = "grid_rows_left"
+  offset = 1
+  meaning = "Naming a character, writing out the letters' grid ($C2:E545): the rows still to write, none once done"
+  [[var.field]]
+  name = "grid_letters_left"
+  offset = 0
+  meaning = "The same: the letters of the row still to write, none once done"
+  [[var.field]]
+  name = "mode_rows_left"
+  offset = 0
+  size = 2
+  meaning = "The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done"
 
 [[var]]
 name = "menu_save_member_row"
@@ -6980,6 +7060,68 @@ meaning = "The window design each save slot's game was saved with, which the loa
 source = "game/menu/load_screen.c, the slots' rows $C2:D32C; the slots' summaries $C2:D266"
 
 [[var]]
+name = "menu_glyph_tiles"
+addr = "7E:5E00"
+size = 2
+count = 0x400
+index = "word"
+subsystem = "menu"
+meaning = "The tiles the menus set text in with the proportional font (menu_text_tiles points into them): a description's lines, the naming's label; cleared as a screen sets new text in them"
+source = "game/menu/naming.c, $C2:E4B8; game/menu/description.c"
+
+[[var]]
+name = "menu_name_typed"
+addr = "7E:0F00"
+reuses = ["menu_kept_cursor", "menu_settings_buttons"]
+size = 6
+subsystem = "menu"
+meaning = "Naming a character: the name as the player types it, five letters and the byte after them; it starts as the character's name, and a letter taken back leaves its place without one ($FF)"
+source = "game/menu/naming.c"
+
+[[var]]
+name = "menu_name_letters"
+addr = "7E:0F06"
+size = 2
+reuses = "menu_settings_buttons"
+subsystem = "menu"
+meaning = "Naming a character: how many letters the player has typed (at most five), where the next goes"
+source = "game/menu/naming.c"
+
+[[var]]
+name = "menu_name_grid_column"
+addr = "7E:0F08"
+reuses = "menu_settings_buttons"
+subsystem = "menu"
+meaning = "Naming a character: the letters' grid's column the cursor is on (0-9)"
+source = "game/menu/naming.c"
+
+[[var]]
+name = "menu_name_grid_row"
+addr = "7E:0F09"
+reuses = ["menu_list_items", "menu_tech_list", "menu_settings_boxes"]
+subsystem = "menu"
+meaning = "Naming a character: the letters' grid's row the cursor is on (0-7)"
+source = "game/menu/naming.c"
+
+[[var]]
+name = "menu_name_grid_line"
+addr = "7E:0F0A"
+reuses = ["menu_list_items", "menu_tech_list", "menu_settings_boxes"]
+size = 2
+subsystem = "menu"
+meaning = "Naming a character: the line the cursor's row stands on, kept as the cursor moves up or down; nothing reads it"
+source = "game/menu/naming.c"
+
+[[var]]
+name = "menu_name_record_at"
+addr = "7E:0F0C"
+reuses = ["menu_list_items", "menu_tech_list", "menu_settings_boxes"]
+size = 2
+subsystem = "menu"
+meaning = "Naming a character: where in work RAM the character's name is (character_names)"
+source = "game/menu/naming.c"
+
+[[var]]
 name = "menu_kept_cursor"
 addr = "7E:0F00"
 subsystem = "menu"
@@ -7015,6 +7157,14 @@ addr = "7E:299E"
 subsystem = "core"
 meaning = "How many times the game on the cartridge has been finished, as a new game starts with it (the cartridge's count at $30:7FE1)"
 source = "game/menu/load_screen.c, $C2:E66A; the save $FF:FA6F"
+
+[[var]]
+name = "names_given"
+addr = "7E:299F"
+size = 2
+subsystem = "core"
+meaning = "Nonzero once the game's first naming has been opened: none at a new game's start, which has Crono's naming ask how the battles go first; the naming then sets its low byte to the menus' line effects ($7F), and each naming ORs its character into the low byte as it opens. The naming reads the two bytes as a word"
+source = "game/menu/naming.c, $C2:E1ED, $C2:E52A"
 
 [[var]]
 name = "frames_at_leaving"
@@ -7212,12 +7362,12 @@ meaning = "Which of the settings' value texts the description window is asked to
 source = "game/menu/settings_screen.c, the description $C2:C4BC, $C2:F943"
 
 [[var]]
-name = "menu_description_typed"
+name = "menu_description_line_from"
 addr = "7E:0DC1"
 size = 2
 subsystem = "menu"
-meaning = "How far along the description's row its task has typed, in bytes of the row's tilemap: a new value for the same option clears the row from there"
-source = "game/menu/settings_screen.c, the description $C2:F943; its task $C2:F9B2"
+meaning = "Where along the description's row its current line starts, in bytes of the text layer's tilemap: none for a description's first line, two tile rows on for each next, and for the settings' value a tile past the option's text (where a new value clears the row from)"
+source = "game/menu/description.c; game/menu/settings_screen.c"
 
 [[var]]
 name = "menu_settings_buttons_before"
@@ -7414,6 +7564,34 @@ meaning = "The shop's cursor on the buying and selling tabs, kept while the curs
 source = "game/menu/shop.c, the members $C2:E017, $C2:D6E6"
 
 [[var]]
+name = "menu_exchange_cursor_kept"
+addr = "7E:007F"
+page = "menu"
+reuses = ["menu_settings_option_before", "menu_shop_list_cursor", "menu_save_slot_next"]
+subsystem = "menu"
+meaning = "The party exchange: the cursor's place as each frame's move leaves it, where the cursor goes back to once a second member is chosen; the main menu clears it as it opens and as its cursor moves"
+source = "the party exchange $C2:C627-$C2:CDCA (the original's); game/menu/main_menu.c"
+
+[[var]]
+name = "menu_name_cursor_before"
+addr = "7E:007F"
+page = "menu"
+size = 2
+reuses = ["menu_settings_option_before", "menu_shop_list_cursor", "menu_save_slot_next", "menu_exchange_cursor_kept", "menu_shop_tab_cursor", "menu_reserve_top"]
+subsystem = "menu"
+meaning = "Naming a character: where the cursor stood on the letters' grid as the frame began (its place's column and line), which tells whether it moved"
+source = "game/menu/naming.c, $C2:E267"
+
+[[var]]
+name = "menu_reserve_top"
+addr = "7E:0080"
+page = "menu"
+reuses = "menu_shop_tab_cursor"
+subsystem = "menu"
+meaning = "The party exchange: the reserve's first place its rows show, moved as the cursor pushes past them"
+source = "the party exchange $C2:C627-$C2:CDCA (the original's); game/menu/held_cursors.c, $C2:8A45; game/menu/main_menu.c"
+
+[[var]]
 name = "menu_shop_list_cursor"
 addr = "7E:007F"
 page = "menu"
@@ -7451,8 +7629,8 @@ size = 2
 page = "menu"
 reuses = ["menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
 subsystem = "menu"
-meaning = "The shop's routines' working word, each its own: the row of a list being drawn, left past the last; the goods priced; the record's place the panel puts an item in"
-source = "game/menu/shop.c, $C2:DD02, $C2:DF31, $C2:DB9F, $C2:DD7C"
+meaning = "The shop's routines' working word, each its own: the row of a list being drawn, left past the last; the goods priced; the record's place the panel puts an item in; the members whose colours the equipping went through"
+source = "game/menu/shop.c, $C2:DD02, $C2:DF31, $C2:DB9F, $C2:DD7C; game/menu/shop_equipment.c, $C2:E072"
 
 [[var]]
 name = "menu_shop_quotient"
@@ -7503,12 +7681,37 @@ source = "game/menu/shop.c, the prices $C2:DB9F"
 [[var]]
 name = "menu_cursor_places_kept"
 addr = "7E:9990"
-count = 0x48
-index = "byte of menu_cursor_places"
+stride = 6
+count = 12
+index = "cursor position, as menu_cursor_places"
 reuses = ["menu_item_power_label", "menu_sort_counts"]
 subsystem = "menu"
-meaning = "The shop's cursor places as it opens, kept while the equipping from the shop puts its own there and put back after"
-source = "game/menu/shop.c, the shop's opening $C2:DACA, the slots left $C2:D745"
+meaning = "The shop's first twelve cursor places as it opens, kept while the equipping from the shop puts its own there and put back after"
+source = "game/menu/cursor.c, menu_keep_cursor_places; game/menu/shop.c, the shop's opening $C2:DACA; game/menu/shop_equipment.c, the slots left $C2:D745"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  meaning = "The cursor's X"
+  [[var.field]]
+  name = "y"
+  offset = 1
+  meaning = "The cursor's Y"
+  [[var.field]]
+  name = "up"
+  offset = 2
+  meaning = "The position above this one"
+  [[var.field]]
+  name = "down"
+  offset = 3
+  meaning = "The position below it"
+  [[var.field]]
+  name = "left"
+  offset = 4
+  meaning = "The position left of it"
+  [[var.field]]
+  name = "right"
+  offset = 5
+  meaning = "The position right of it"
 
 [[var]]
 name = "menu_cursors_out"
@@ -8628,6 +8831,42 @@ meaning = "How many of the party's members the menus' screens let the player cho
 source = "the save code's list $FF:F813; game/menu/members.c"
 
 [[var]]
+name = "menu_main_menu_option"
+addr = "7E:0411"
+subsystem = "menu"
+meaning = "The main menu's option the cursor is on: 0 the equipment, 1 the items, 2 the techs, 3 the settings, 4 the party exchange, 5 saving; kept from one opening to the next where the player keeps the menus' cursors"
+source = "game/menu/main_menu.c"
+
+[[var]]
+name = "menu_main_menu_spare"
+addr = "7E:00AF"
+page = "menu"
+subsystem = "menu"
+meaning = "Cleared as the main menu's cursor moves to another option; nothing traced reads it"
+source = "game/menu/main_menu.c, $C2:9A6E"
+
+[[var]]
+name = "menu_back_tilemap"
+addr = "7E:3E00"
+size = 2
+count = 0x800
+index = "tile: 32 a row"
+subsystem = "menu"
+meaning = "The menus' back layer's tilemap buffer, two screens of 32 tiles by 32: the main menu's backdrop, the member rows' second layer"
+source = "game/menu/main_menu.c, the backdrop $C2:9AAD"
+
+[[var]]
+name = "menu_main_menu_box"
+addr = "7E:5780"
+size = 2
+count = 0xC0
+index = "tile: 32 a row, six rows"
+reuses = "menu_shop_for_sale_counts"
+subsystem = "menu"
+meaning = "A box of the main menu's own tiles, sixteen tiles across and six rows down (a frame around a filled inside), which the main menu draws aside past the text layer's tilemap as it opens"
+source = "game/menu/main_menu.c, the backdrop $C2:9AAD"
+
+[[var]]
 name = "menu_member_row"
 addr = "7E:0412"
 subsystem = "menu"
@@ -8686,6 +8925,16 @@ index = "character"
 subsystem = "menu"
 meaning = "Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member row draws the member's HP marked once it is down to that ($C2:A1EF)"
 source = "the menus' opening $C2:813C; game/menu/members.c"
+
+[[var]]
+name = "menu_shop_figure_marks"
+addr = "7E:0D4D"
+count = 7
+index = "figure: the seven stats in the order the member's window lists them"
+reuses = ["menu_member_face", "menu_item_row_item", "menu_item_power", "menu_item_row_count"]
+subsystem = "menu"
+meaning = "How the shop's member window colours each figure of the member equipping: the text's colour where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C) where it lowers it"
+source = "game/menu/shop_equipment.c, $C2:E18A"
 
 [[var]]
 name = "menu_member_face"
@@ -8905,6 +9154,50 @@ meaning = "The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over"
 source = "game/menu/equipment.c, the list's move $C2:9F05"
 
 [[var]]
+name = "menu_slide_bands"
+addr = "7E:9790"
+stride = 3
+count = 13
+index = "band: the row coming in above the list (a slide up), the list's rows as they rest, then the row below them"
+subsystem = "menu"
+meaning = "The bands a list's slide shows its rows from, made from the list's per-line table as the slide starts ($C2:EB9B): a row's lines each and the layer's vertical scroll that shows the row there; a frame of the slide ($C2:EB1F) shows as many as the list has rows from the first in view, moved by how far it has slid"
+source = "game/menu/lists.c, menu_start_list_slide $C2:EB9B, menu_slide_list_a_frame $C2:EB1F"
+  [[var.field]]
+  name = "lines"
+  offset = 0
+  meaning = "How many lines the row shows"
+  [[var.field]]
+  name = "scroll"
+  offset = 1
+  size = 2
+  meaning = "The layer's vertical scroll that shows the row there"
+
+[[var]]
+name = "menu_slide_first_band"
+addr = "7E:0DA9"
+subsystem = "menu"
+meaning = "Which of a list's slide's bands is the first in view, as a byte offset into them (three a band): the row coming in above for a slide up, the list's first row for a slide down"
+source = "game/menu/lists.c, menu_start_list_slide $C2:EB9B, menu_slide_list_a_frame $C2:EB1F"
+
+[[var]]
+name = "menu_slide_staged_table"
+addr = "7E:969A"
+size = 0x27
+subsystem = "menu"
+meaning = "A list's per-line table as its slide stages it for the vblank's block move to the list's own (menu_block_move_dest): the bands in view, three bytes each (the lines, then the vertical scroll), then the list's bands past them and the table's end as they rest"
+reuses = ["menu_staged_line_table", "menu_slot_row_table", "menu_slot_row_table_end", "menu_settings_conflicts"]
+source = "game/menu/lists.c, menu_start_list_slide $C2:EB9B, menu_slide_list_a_frame $C2:EB1F"
+
+[[var]]
+name = "menu_slide_table_at_rest"
+addr = "7E:9710"
+size = 0x26
+subsystem = "menu"
+meaning = "A list's per-line table as it rested when its slide started (a byte past its end with it), which the vblank's block move copies back once the slide is over"
+reuses = ["menu_slot_row_template", "menu_slot_row_template_end", "menu_slot_row_values"]
+source = "game/menu/lists.c, menu_start_list_slide $C2:EB9B; the screens' slides' ends"
+
+[[var]]
 name = "menu_paging_rows"
 addr = "7E:0DD8"
 subsystem = "menu"
@@ -9081,15 +9374,15 @@ name = "menu_description_item"
 addr = "7E:0D77"
 reuses = "menu_save_slot_era"
 subsystem = "menu"
-meaning = "The item whose description the description window shows ($C2:F2F3 draws another only for another item)"
-source = "game/menu/item_screen.c"
+meaning = "What the description window describes -- an item, a tech, a tech kind's caption, a setting -- by its text's number in the screen's table: a screen's request types another only for something else"
+source = "game/menu/description.c; game/menu/item_screen.c"
 
 [[var]]
 name = "menu_description_stale"
 addr = "7E:0D78"
 subsystem = "menu"
-meaning = "Bit 7 set has the description window drawn again whatever item it shows ($C2:F2F3 clears it)"
-source = "game/menu/item_screen.c"
+meaning = "Bit 7 set has the description window typed again whatever it shows (a request clears it); the settings' description keeps here which of the value texts its value shows"
+source = "game/menu/description.c; game/menu/item_screen.c"
 
 [[var]]
 name = "menu_held_cursor"
@@ -9112,6 +9405,13 @@ size = 2
 subsystem = "menu"
 meaning = "How many lines the second cursor is drawn off its row while the list slides (signed, 12 at the start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte"
 source = "game/menu/item_screen.c"
+
+[[var]]
+name = "menu_held_reserve_top"
+addr = "7E:0DA8"
+subsystem = "menu"
+meaning = "The party exchange: the reserve's first place shown when the second cursor was held on a member, which its task ($C2:8A45) takes the first shown now from to keep it on the member as the reserve scrolls"
+source = "game/menu/held_cursors.c, menu_draw_the_cursor_held_on_a_member $C2:8A45"
 
 [[var]]
 name = "menu_item_row_item"
@@ -9613,31 +9913,153 @@ addr = "7E:0DC5"
 reuses = "menu_load_destination"
 size = 2
 subsystem = "menu"
-meaning = "Where in the tilemap buffers the description window's text starts, its row (the address's tile row) cleared before the description is set ($C2:FA49)"
-source = "game/menu/tech_screen.c, $C2:BE33"
+meaning = "Where in the text layer's tilemap buffer the description's line is laid (the address's tile row is the row a new description clears and its typing sends); the settings' value's line, a tile past the option's text"
+source = "game/menu/description.c; game/menu/tech_screen.c, $C2:BE33"
 
 [[var]]
 name = "menu_description_pace"
 addr = "7E:0DC9"
 subsystem = "menu"
-meaning = "How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's budget)"
-source = "game/menu/tech_screen.c, $C2:BE33"
+meaning = "How many glyphs of a description its typing sets a frame (the text's budget)"
+source = "game/menu/description.c; game/menu/tech_screen.c, $C2:BE33"
 
 [[var]]
-name = "menu_description_tiles"
+name = "menu_name_grid_text"
+addr = "7E:9890"
+reuses = ["menu_settings_buttons_before", "menu_name_kept", "menu_built_upload", "menu_name_trimmed"]
+size = 0xA9
+subsystem = "menu"
+meaning = "Naming a character: the letters' grid written out as a string for the text drawer, a row at a time, each letter with a blank after it and a new line after the row, ended by a zero"
+source = "game/menu/naming.c, $C2:E545"
+
+[[var]]
+name = "menu_name_kept"
+addr = "7E:9890"
+reuses = ["menu_settings_buttons_before", "menu_built_upload"]
+size = 6
+subsystem = "menu"
+meaning = "Naming a character: the name as it will be kept, its spaces before and after it dropped and a zero after it, checked against the other characters' names before it goes in"
+source = "game/menu/naming.c, $C2:E390, $C2:E3E0"
+
+[[var]]
+name = "menu_name_trimmed"
+addr = "7E:98A0"
+reuses = ["menu_record_frame_tile_list", "menu_item_users_names", "menu_sort_held", "menu_save_region_table", "menu_hundreds_digits"]
+size = 6
+subsystem = "menu"
+meaning = "Naming a character: the name as typed, copied and its spaces after it cleared, which the name kept is taken from"
+source = "game/menu/naming.c, $C2:E390"
+
+[[var]]
+name = "menu_built_upload"
+addr = "7E:9890"
+stride = 8
+subsystem = "menu"
+meaning = "An upload to VRAM as a routine builds its record in work RAM for the queue ($C2:838E), as the description's typing builds its two each frame; the queue copies it, and nothing reads it after"
+reuses = ["menu_settings_buttons_before", "menu_record_frame_tile_list", "menu_equipped_list", "menu_item_users_names", "menu_sort_held", "menu_tech_cost_needed", "menu_tech_member_groups", "menu_save_summary", "menu_save_region_table", "menu_hundreds_digits"]
+source = "game/menu/vram.c, menu_leave_built_upload"
+  [[var.field]]
+  name = "vram"
+  offset = 0
+  size = 2
+  meaning = "The VRAM word it goes to"
+  [[var.field]]
+  name = "source"
+  offset = 2
+  size = 2
+  meaning = "Where it comes from, within its bank"
+  [[var.field]]
+  name = "bank"
+  offset = 4
+  meaning = "The bank it comes from"
+  [[var.field]]
+  name = "size"
+  offset = 5
+  size = 2
+  meaning = "How many bytes it is"
+  [[var.field]]
+  name = "spare"
+  offset = 7
+  meaning = "The byte after the record, which the queue copies with it as it stands: whatever was left there"
+
+[[var]]
+name = "menu_description_glyphs_sent"
+addr = "7E:0DC3"
+subsystem = "menu"
+meaning = "How many glyphs of the description's line its typing has sent to VRAM: the line's tiles go again only once it has more"
+source = "game/menu/description.c, $C2:FAE9"
+
+[[var]]
+name = "menu_description_glyphs_sent_pad"
+addr = "7E:0DC4"
+subsystem = "menu"
+meaning = "The byte after the count of glyphs sent, which the original clears with it (the two written as a word) as the settings' description starts typing; nothing reads it"
+source = "game/menu/description.c, $C2:F9B2, $C2:FA06"
+
+[[var]]
+name = "menu_description_laid_to"
+addr = "7E:0DD2"
+subsystem = "menu"
+meaning = "How far along the description's line its tiles are laid on the row, in pixels: the pen's place when they were last laid, a tile in (8) as a line starts"
+source = "game/menu/description.c, $C2:FAE9"
+
+[[var]]
+name = "menu_description_laid_to_pad"
+addr = "7E:0DD3"
+subsystem = "menu"
+meaning = "The byte after how far the line's tiles are laid, which the original clears with it (the two written as a word) as a description starts typing; nothing reads it"
+source = "game/menu/description.c, $C2:F9B2, $C2:FA06, $C2:FA49"
+
+[[var]]
+name = "menu_description_tiles_vram"
+addr = "7E:0DD4"
+size = 2
+subsystem = "menu"
+meaning = "Where in VRAM the tiles the description's line is set in go: $7800 for a description's first line, $200 words on for the next, $7A00 for the settings' value"
+source = "game/menu/description.c, $C2:FAE9"
+
+[[var]]
+name = "menu_description_tiles_at"
+addr = "7E:0DD6"
+size = 2
+subsystem = "menu"
+meaning = "Where in bank $7E the tiles the description is set in are, which its typing sends: $5E00, or $6200 for the settings' value"
+source = "game/menu/description.c, $C2:FAE9"
+
+[[var]]
+name = "menu_description_value_line"
+addr = "7E:0026"
+page = "menu"
+size = 2
+subsystem = "menu"
+meaning = "The settings' description: where its option's text was laid, kept from the option's typing for its value's, which goes a tile past the text (menu_description_value_tile on); the original keeps it in its first cells, between the two typings of a task and from one task to the next"
+reuses = ["menu_heal_amounts", "menu_window_slide", "menu_save_era_width", "menu_slide_copy", "menu_tech_slide_copy"]
+source = "game/menu/description.c, $C2:F9B2, $C2:FA06"
+
+[[var]]
+name = "menu_description_value_tile"
+addr = "7E:0028"
+page = "menu"
+subsystem = "menu"
+meaning = "The settings' description: how many tiles along the option's text its value starts (with the one between), kept with menu_description_value_line"
+reuses = ["menu_heal_amounts", "menu_window_slide"]
+source = "game/menu/description.c, $C2:F9B2, $C2:FA06"
+
+[[var]]
+name = "menu_description_row_vram"
 addr = "7E:0DCC"
 size = 2
 subsystem = "menu"
-meaning = "Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced reads it"
-source = "game/menu/tech_screen.c, $C2:BE33"
+meaning = "Where in VRAM the description's row of the text layer goes, which its typing sends each frame: $6AA0 for the techs screen's, $6840 for the items' and the shop's, $6900 for the settings'"
+source = "game/menu/description.c; game/menu/tech_screen.c, $C2:BE33"
 
 [[var]]
-name = "menu_description_clear_bytes"
+name = "menu_description_row_bytes"
 addr = "7E:0DD0"
 size = 2
 subsystem = "menu"
-meaning = "How many bytes of the description's row a new description clears ($C2:FA49)"
-source = "game/menu/tech_screen.c, $C2:BE33"
+meaning = "How many bytes of the text layer's tilemap the description's row is (its two lines of two tile rows): a new description clears them, and its typing sends them each frame"
+source = "game/menu/description.c; game/menu/tech_screen.c, $C2:BE33"
 
 [[var]]
 name = "menu_save_summary"
@@ -11487,6 +11909,14 @@ source = "game/menu/object_script.c, menu_object_cmd_change_location $C2:1100"
 # Battle (fragment harvested from game/battle/, docs/PORTING.md, docs/MOVIES.md
 # and tools/movies/addresses.py)
 # ---- shared with every game mode ---------------------------------------------
+
+[[var]]
+name = "epoch_name"
+addr = "7E:2C4D"
+size = 6
+subsystem = "core"
+meaning = "The Epoch's name, after the seven characters' and laid out as theirs: five name characters and the byte after them"
+source = "game/menu/naming.c, the names' check $C2:E3E0 and the naming $C2:E40E"
 
 [[var]]
 name = "character_names"

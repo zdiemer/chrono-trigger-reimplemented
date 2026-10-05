@@ -2,9 +2,12 @@
  * scroll bar beside a list.
  *
  * A screen can hold a second cursor where the player's was (the shop's on
- * its buying tab while the player chooses a member), which blinks; or put a
- * cursor on every active member for a healing of them all (a tonic's, a
- * tech's), each blinking in its own time. The menus' seventh task draws
+ * its buying tab while the player chooses a member), which blinks; hold one
+ * on what the player picked up while the player chooses where it goes -- an
+ * item of the items screen's list, a member of the party exchange's rows --
+ * keeping it on its row as the list or the reserve scrolls and slides; or
+ * put a cursor on every active member for a healing of them all (a
+ * tonic's, a tech's), each blinking in its own time. The menus' seventh task draws
  * them a frame at a time (its turns are the original's loops, which call a
  * frame of each here), and stopping the task takes them away. A list that
  * scrolls has a scroll bar beside it, which the fifth task draws.
@@ -16,6 +19,7 @@
  * placed where the screen's cursor places say. */
 #include "menu/held_cursors.h"
 
+#include "cpu_io.h"
 #include "menu/bridge.h"
 #include "menu/menu.h"
 #include "original_effects.h"
@@ -24,7 +28,10 @@
 #include "vars.h"
 
 /* Where the tasks start. */
-enum { DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5 };
+enum {
+    DRAW_THE_SCROLL_BAR = 0x8BB8, DRAW_THE_HELD_CURSOR = 0x8AB2, DRAW_THE_MEMBERS_CURSORS = 0x8AF5,
+    DRAW_THE_CURSOR_ON_THE_LIST = 0x89F2, DRAW_THE_CURSOR_ON_A_MEMBER = 0x8A45,
+};
 
 /* The player's cursor is the 29th sprite; the held cursors follow it. */
 enum { PLAYERS_CURSOR = 28, FIRST_HELD_CURSOR = 29 };
@@ -69,11 +76,24 @@ static void count_down(GameState *g, unsigned which, uint8_t keep, uint8_t bit)
         set_menu_cursors_out(g, (uint8_t)(menu_cursors_out(g) ^ bit));
 }
 
+/* The player's cursor's sprite, its tile and attributes, which a held
+ * cursor is drawn with. */
+static uint16_t players_cursor_sprite(const GameState *g)
+{
+    return (uint16_t)(oam_buffer_tile(g, PLAYERS_CURSOR) | oam_buffer_attributes(g, PLAYERS_CURSOR) << 8);
+}
+
+static void put_sprite(GameState *g, unsigned sprite, uint16_t tile_and_attributes)
+{
+    set_oam_buffer_tile(g, sprite, (uint8_t)tile_and_attributes);
+    set_oam_buffer_attributes(g, sprite, (uint8_t)(tile_and_attributes >> 8));
+}
+
 // $C2:8A98
 void menu_hold_a_cursor(GameState *g)
 {
     set_menu_held_cursor_blink(g, FAST_BLINK);
-    set_menu_held_cursor_sprite(g, (uint16_t)(oam_buffer_tile(g, PLAYERS_CURSOR) | oam_buffer_attributes(g, PLAYERS_CURSOR) << 8));
+    set_menu_held_cursor_sprite(g, players_cursor_sprite(g));
     menu_start_task(g, MENU_HELD_CURSORS_TASK, DRAW_THE_HELD_CURSOR);
 }
 
@@ -87,6 +107,90 @@ void menu_draw_the_held_cursor(GameState *g)
     uint16_t sprite = menu_held_cursor_sprite(g);
     set_oam_buffer_tile(g, FIRST_HELD_CURSOR, (uint8_t)sprite);
     set_oam_buffer_attributes(g, FIRST_HELD_CURSOR, (uint8_t)(sprite >> 8));
+}
+
+/* ---- A cursor held on what was picked up ------------------------------------------------------- */
+
+/* Both blink every four frames, turning the held cursor's bit over; the
+ * list's shows while the bit is set, the member's while it is clear. */
+static bool blink_bit(GameState *g)
+{
+    count_down(g, 0, FOUR_FRAMES, 1);
+    return (menu_cursors_out(g) & 1) != 0;
+}
+
+/* The items screen's list shows ten rows from its first place, cursor
+ * places 0-9; its held cursor is a sprite of its own. */
+enum { LIST_ROWS = 10, LIST_CURSOR_SPRITE = 0x2020 };
+
+// $C2:89E4
+/* Held on the picked item's row, with no slide under way. */
+void menu_hold_the_cursor_on_the_list(GameState *g)
+{
+    set_menu_held_cursor_shift(g, 0);
+    menu_start_task(g, MENU_HELD_CURSORS_TASK, DRAW_THE_CURSOR_ON_THE_LIST);
+}
+
+// $C2:89FA (with $C2:8B6E)
+/* At the picked item's row as the list stands now, the list's first place
+ * having moved since it was picked up, and the lines a slide has it off
+ * that row; only while the row is among those the list shows. */
+void menu_draw_the_cursor_held_on_the_list(GameState *g)
+{
+    if (!blink_bit(g))
+        return;
+    uint8_t place = (uint8_t)(menu_held_cursor_top(g) - menu_item_list_top(g) + menu_held_cursor(g));
+    if (place >= LIST_ROWS)
+        return;
+    set_oam_buffer_x(g, FIRST_HELD_CURSOR, (uint8_t)(menu_cursor_places_x(g, place) + RIGHT_OF_THE_PLACE));
+    set_oam_buffer_y(g, FIRST_HELD_CURSOR, (uint8_t)(menu_cursor_places_y(g, place) - 1 + menu_held_cursor_shift(g)));
+    put_sprite(g, FIRST_HELD_CURSOR, LIST_CURSOR_SPRITE);
+}
+
+/* The party exchange's rows: the three active members' at their places,
+ * then the reserve's, 48 lines a member, scrolling. A reserve member's row
+ * scrolled further than 16 lines above the screen's top, or past its
+ * bottom, has no cursor. */
+enum { ACTIVE_PLACES = 3, RESERVE_ROW_LINES = 48, SHOWN_ABOVE_THE_TOP = 16, LINES = 0x100 };
+
+/* For the original's code and shadow mode: it works the lines out with the
+ * multiplier, which it leaves holding them. */
+static void leave_rows_multiplied(GameState *g, uint8_t rows)
+{
+    hw_set_multiplicand(g, RESERVE_ROW_LINES);
+    (void)hw_multiply_by(g, rows);
+}
+
+// $C2:8A31
+/* Held on the member picked first, looking like the player's cursor. */
+void menu_hold_the_cursor_on_a_member(GameState *g)
+{
+    set_menu_held_cursor_sprite(g, players_cursor_sprite(g));
+    menu_start_task(g, MENU_HELD_CURSORS_TASK, DRAW_THE_CURSOR_ON_A_MEMBER);
+}
+
+// $C2:8A45 (with $C2:8B6E and $C2:8B85)
+/* At the picked member's row: an active member's where it is; a reserve
+ * member's moved by the rows the reserve has scrolled since it was picked
+ * and by the lines a slide has it off that row. The cursor's column is
+ * set even where its row is out of view. */
+void menu_draw_the_cursor_held_on_a_member(GameState *g)
+{
+    if (blink_bit(g))
+        return;
+    uint8_t place = menu_held_cursor(g);
+    set_oam_buffer_x(g, FIRST_HELD_CURSOR, (uint8_t)(menu_cursor_places_x(g, place) + RIGHT_OF_THE_PLACE));
+    uint8_t y = (uint8_t)(menu_cursor_places_y(g, place) - 1);
+    if (place >= ACTIVE_PLACES) {
+        int scrolled = (int8_t)(menu_held_reserve_top(g) - menu_reserve_top(g));
+        ORIGINAL_EFFECT(leave_rows_multiplied(g, (uint8_t)scrolled));
+        int line = y + scrolled * RESERVE_ROW_LINES;
+        if (line >= LINES || line < -SHOWN_ABOVE_THE_TOP)
+            return;
+        y = (uint8_t)(line + menu_held_cursor_shift(g));
+    }
+    set_oam_buffer_y(g, FIRST_HELD_CURSOR, y);
+    put_sprite(g, FIRST_HELD_CURSOR, menu_held_cursor_sprite(g));
 }
 
 // $C2:8AD5
@@ -167,6 +271,41 @@ void menu_draw_cursors_on_every_member_entry(Snes *s)
     m_rts(s);
 }
 
+// $C2:89E4
+/* It leaves 16-bit registers. */
+void menu_hold_the_cursor_on_the_list_entry(Snes *s)
+{
+    menu_hold_the_cursor_on_the_list(state_of(s));
+    menu_set_widths(s, false, false);
+    m_rts(s);
+}
+
+// $C2:89FA
+void menu_draw_the_cursor_held_on_the_list_entry(Snes *s)
+{
+    menu_draw_the_cursor_held_on_the_list(state_of(s));
+    m_rts(s);
+}
+
+// $C2:8A31
+void menu_hold_the_cursor_on_a_member_entry(Snes *s)
+{
+    menu_hold_the_cursor_on_a_member(state_of(s));
+    m_rts(s);
+}
+
+/* The member's cursor's task draws a frame and waits for the next through
+ * the task switch, which reads no register, and then draws again. */
+enum { WAIT_FOR_THE_NEXT_FRAME = 0xC28A91, READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $C2:8A45
+void menu_draw_the_cursor_held_on_a_member_entry(Snes *s)
+{
+    menu_draw_the_cursor_held_on_a_member(state_of(s));
+    menu_set_widths(s, true, m_x8(s));
+    m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_NOTHING);
+}
+
 // $C2:8B93
 void menu_start_the_scroll_bar_entry(Snes *s)
 {
@@ -184,6 +323,25 @@ bool menu_held_cursor_is_drawable(Snes *s)
         return false;
     vars_peek(true);
     bool ok = menu_held_cursor(state_of(s)) < MENU_CURSOR_PLACES_COUNT;
+    vars_peek(false);
+    return ok;
+}
+
+/* The list's cursor is drawn at one of the list's places, whatever the
+ * sums give; the member's at a place of the cursor's table, a reserve one
+ * as the reserve's six places scroll. */
+bool menu_list_cursor_is_drawable(Snes *s) { return menu_on_page_work_ram(s); }
+
+enum { RESERVE_PLACES = 6 };
+
+bool menu_member_cursor_is_drawable(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_held_cursor(g) < MENU_CURSOR_PLACES_COUNT && menu_held_reserve_top(g) < RESERVE_PLACES
+              && menu_reserve_top(g) < RESERVE_PLACES;
     vars_peek(false);
     return ok;
 }

@@ -16,6 +16,11 @@ void menu_build_math_table(GameState *g, Platform *pf);
 void menu_send_upload_queue(GameState *g, Platform *pf);
 void menu_send_palette(GameState *g, Platform *pf);
 
+/* Ask the next vblank to copy a per-line table into the place its channel
+ * reads (menu_block_move_source, _dest and _size say what goes where): a
+ * table changed between frames goes in whole at once, never half. */
+void menu_ask_for_the_block_move(GameState *g);
+
 /* Work RAM at $7E:`at`: `bytes` of it cleared, or filled from bank $FF's
  * `from` (a transfer through the work RAM port; 0 bytes is 64 KiB). */
 void menu_clear_memory(GameState *g, Platform *pf, uint16_t at, uint16_t bytes);
@@ -46,7 +51,11 @@ void menu_init_video_memory(Snes *s);
 void menu_fill_memory(Snes *s);
 void menu_copy_to_memory(Snes *s);
 
-/* The window line table */
+/* The window line table: built, and the per-line slot pointed at it; its
+ * entry, which leaves its counts in the menus' first cells (FC04 runs on
+ * the menus' page from every caller). */
+void menu_put_window_line_table(GameState *g, Platform *pf);
+void menu_leave_window_line_table_counts(GameState *g);
 void menu_window_build_line_table(Snes *s);
 
 /* Guards */

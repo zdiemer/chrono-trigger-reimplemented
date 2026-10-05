@@ -567,6 +567,13 @@ bool menu_time_digits_are_decimal(const GameState *g, uint16_t digits)
     return true;
 }
 
+enum { CLOCK_AT = 0x3390 };
+
+void menu_draw_the_clock(GameState *g)
+{
+    TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, CLOCK_AT, MENU_CLOCK_DIGITS));
+}
+
 uint16_t menu_draw_time_played(GameState *g, uint16_t pen, uint16_t digits)
 {
     uint8_t hours = MOST_HOURS, minutes = MOST_MINUTES;
@@ -599,6 +606,13 @@ uint16_t menu_draw_blanks(GameState *g, uint16_t pen, uint8_t tiles) { return me
 uint16_t menu_draw_string(GameState *g, uint32_t string, uint16_t pen, uint8_t settings)
 {
     (void)draw_text(g, (TextPlace){ (uint8_t)(string >> 16), (uint16_t)string }, &pen, settings);
+    return pen;
+}
+
+uint16_t menu_draw_string_on(GameState *g, uint32_t *string, uint16_t pen, uint8_t settings)
+{
+    TextPlace stopped = draw_text(g, (TextPlace){ (uint8_t)(*string >> 16), (uint16_t)*string }, &pen, settings);
+    *string = (*string & 0xFF0000u) | stopped.at;
     return pen;
 }
 

@@ -765,8 +765,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `FIRST_ROCK`/`ROCKS` are defined in several files (the bridge re-decodes
   the rock test where `party.c` has `is_a_rock`); `party_fill_mp` masks MP
   with `& 0xFF00` (narrow the map); `MenuItemPlace.category` is a bare byte
-  beside `MenuItemCategory`; `figures.c` repeats `equipment_is_the_games`;
-  `heal_member` reads the character from the cell `menu_load_member` set
+  beside `MenuItemCategory`; `heal_member` reads the character from the cell `menu_load_member` set
   rather than taking it; `healing_bridge.c` tables call sites by an enum;
   `saves_power_on` writes `save_check_slot` every pass while passing the
   slot; `saves_start_a_new_game` writes "who has joined" as a word over
@@ -778,24 +777,11 @@ rest waits, is [PLAN.md](PLAN.md).
   both; none rated translation): `shop.c` reads every item's power past the
   148-entry table, up to 108 bytes past, where the map's `unchecked` reason
   and TODO cover only the items screen's accessory byte -- a named function
-  with a "no power" result, the reason updated; leftovers written plainly
-  into cells named for something else (`shop.c` keeps the members placed in
-  `menu_screen_argument` and the quantity in `menu_shop_place_shown`, both
-  overwritten before anything reads them, and `menu_shop_panel_done`
-  exports a loop's count) -- name the readers or write them as
-  `ORIGINAL_EFFECT`; `settings_screen.h` promises a table of option kinds
-  where the table holds only cells (the dispatch is the bridge's
-  `OPTION_HANDLERS`); `give_button` mixes rows and assignments where the
-  ROM's table at `$C2:C2BD` is the identity for 0-7 (one index type);
-  `swap_stray_places` wants a name for what the player sees; six of the
-  shop's entries keep a placeholder `cost_milli = 5000`; the front tilemap's `0x2E00` base is private in eight
-  files (a `menu_front_tile(column, row)`); the push directions are
-  redefined in `settings_screen.c` and `shop.c` (export from `cursor.h`);
-  bit 0 of `story_party_rules` has three names in three files;
-  `menu_shop_goods_offered_word` is a register value exported from logic;
-  boxes 4-6 are bare numbers in the settings bridge; scaffolding notes sit
-  under game branches in `shop.c`; `take_at_most` reads back the limit it
-  just wrote.
+  with a "no power" result, the reason updated; `give_button` mixes rows and
+  assignments where the ROM's table at `$C2:C2BD` is the identity for 0-7
+  (one index type); `swap_stray_places` wants a name for what the player
+  sees; bit 0 of `story_party_rules` has three names in three files;
+  `take_at_most` reads back the limit it just wrote.
 
 - **What the save code's review left** (merged with bank `$FF`; none
   blocking): `SAVED_TECHS_UNLOCKED = 0x7E3` is a magic offset into a saved game (derive
@@ -826,24 +812,16 @@ rest waits, is [PLAN.md](PLAN.md).
   `menu_tech_list_shown` matches the member and kind.
 
 - **What the items screen's review left** (merged with the item and
-  equipment screens; none blocking): `item_screen.c` reads the names through
-  `wram_read8(MENU_NAMES_BANK|...)` where `character_names_byte` exists; the
-  sort reaches places 242-255 through `inventory_*_unchecked` where the map
+  equipment screens; none blocking): the sort reaches places 242-255 through `inventory_*_unchecked` where the map
   names them `menu_inventory_past_the_items` (reuse `items.c`'s split); item
   figures are read as `figures + FIGURES_*` and through cells `menu_item_place`
   just wrote -- an accessor returning the place's figures record;
   `raise_the_figure` adds a word across two record bytes for a figure the cap
-  rules out (`+1`, and a guard refusing 255); `item_screen.c`'s private
-  upload records and window lists can take the names `menu_data.h` now has
-  (`MENU_UPLOAD_*`, `MENU_WINDOWS_ITEMS_*`), as its bridge does;
+  rules out (`+1`, and a guard refusing 255);
   `point_along_the_list` repeats `point_at_listed_item`'s tail;
   `leave_use_found` re-runs `use_of` and the slide leave repeats
   `slide_brings_a_row` with `0xF0`; `hide_the_scroll_bar_and_cursor` takes
-  two cells down as one word with a borrow; `menu_equip_item_described_on_opening`
-  exports the X the original leaves as a header query (rubric 115); the six
-  screens' private `queue_upload` and `draw_list` can call `vram.h`'s
-  `menu_queue_fixed_upload` and `windows.h`'s `menu_draw_windows`, and
-  `hide_the_scroll_bar`, the scroll bar's thumb at a row (`thumb_at_row`,
+  two cells down as one word with a borrow; `hide_the_scroll_bar`, the scroll bar's thumb at a row (`thumb_at_row`,
   also the techs screen's) and the equipped-slot layout `0x27` are copied
   between files; also the scroll bar's hidden flag
   set to `FIRST_MEMBER_PLACE`, `menu_leave_load(s, 0x62/0x42/0x2E)` literals,
@@ -852,10 +830,8 @@ rest waits, is [PLAN.md](PLAN.md).
   byte offsets, `menu_items_used_up`'s ignored result, and the cursor's item
   written to a cell and read back.
 
-- **What the techs screen left** (`menu/tech_screen.c`; none blocking): its
-  description's request (`$C2:BE44`) is the items' `$C2:F2F3` with another
-  table, row and pace -- one `menu_ask_for_description` once F2F3 is ported;
-  the member step's guard wants the list made for the member and kind it
+- **What the techs screen left** (`menu/tech_screen.c`; none blocking): the
+  member step's guard wants the list made for the member and kind it
   shows (`menu_tech_list_shown`), which a screen just opened only has by
   chance, where choosing on that very frame reads the list as it stands (the
   original reads it too; the library's openings pass); the member list's and
@@ -1075,6 +1051,25 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
+- **What the menus' ninth chunk left** (RECOMP.md, "Phase 3, menus: the
+  main menu, the save screen's opening, name entry, the description, the
+  list slide and the shop's equipping"):
+  - the party's exchange (screens 5 and 7, `$C2:C627`-`$C2:CDCA`) is still
+    generated, and the main menu calls its panel (`$C2:C9E5`, `$C2:CAE6`)
+    out, declaring the carry and the overflow read. Its waits on the sound
+    CPU's ports (`$C2:CB8B`, `$C2:CBBF`) spin on beam-timed handshakes the
+    sound driver's port has to answer before the screen can be C;
+  - the save screen's own opening and frame (`$C2:D4F8`, `$C2:D506`) are
+    reached by no movie (the library saves from the main menu's panel):
+    fuzzing is their check, and their `cost_milli` is the placeholder;
+  - the naming's and the main menu's openings and the shop's member opening
+    span frames on every call, so shadow mode compares them only inside
+    their callers and the timing gate can't measure them (`cost_milli`
+    5000); the name entry's three steps are at the floor, their windows
+    charged at the window lists' rate (three drift exceptions);
+  - the description keeps the typing's spare cells (`_pad`) and the upload
+    record's eighth byte as the original's, as scaffolding; a native
+    storage drops them.
 - **What the menus' eighth chunk left** (RECOMP.md, "Phase 3, menus: the
   party's services, its figures and its healing"):
   - the figures and the healing leave the multiplier's and the divider's
@@ -1088,9 +1083,7 @@ rest waits, is [PLAN.md](PLAN.md).
     to an active party of characters (`party_record_shows_characters`): a
     record holding something else would index past the characters' records,
     as the original would. A native storage makes the record a type that
-    can't;
-  - the items screen's use on one member still starts the original's
-    cursor task (`$C2:89E4`, with `$C2:8A31`), the next chunk's.
+    can't.
 - **What the menus' seventh chunk left** (RECOMP.md, "Phase 3, menus: the
   settings screen and the shop"):
   - the settings screen's eighth button assignment (the shoulder buttons'
@@ -1100,22 +1093,10 @@ rest waits, is [PLAN.md](PLAN.md).
     only by giving confirm or cancel the L button. `swap_stray_places`
     reproduces it through `menu_settings_buttons_unchecked`; a native
     storage has to decide whether the settings keep it;
-  - the description's typing (`$C2:F943`'s task, the letters put down a
-    frame at a time) is still the original's: the screen starts it as task
-    2 and the items, techs and settings screens all wait on it;
-  - the shop's equipping of what was just bought (steps 6-8 of the shop's
-    screen: `$C2:E017`, `$C2:E058`, `$C2:E072`, `$C2:E0A5`, `$C2:E0F1`,
-    `$C2:E108`, `$C2:E150`, `$C2:E162`, `$C2:E18A`, with `$C2:D6C3`,
-    `$C2:D715`, `$C2:D778`) is still generated; no movie takes it. Its
-    entry is picked by a step number, so the call into it declares V and C
-    live (`READS_FLAGS_V_C`) until it is ported;
-  - the shop and the settings call out to the list slide (`$C2:EB1F`,
-    `$C2:EB9B`) and the description (`$C2:F2F3`), which wait for the next
-    chunks (PLAN.md);
-  - the library buys and sells at one shop (`menus-shop-inn`) without
-    paging or sliding the list; fuzzing is the check for the slide, the
-    quantity's limits and a full purse, and a movie through a big shop's
-    list would add shadow mode's.
+  - the library buys and sells at two shops (`menus-shop-inn`,
+    `menus-shop-equip`) without paging or sliding the goods' list; fuzzing
+    is the check for the slide, the quantity's limits and a full purse, and
+    a movie through a big shop's list would add shadow mode's.
 - **What the menus' sixth chunk left** (RECOMP.md, "Phase 3, menus: the
   items screen and the equipment screen's windows"):
   - the window of who can equip an item reads an accessory's power past the
@@ -1129,10 +1110,7 @@ rest waits, is [PLAN.md](PLAN.md).
     member window's loop is checked past its first frame only on the one
     tonic `menus-field-menu` uses: fuzzing compares each up to its first
     wait for a frame. A library movie that does them (from a save with tabs
-    and a Lapis, more than ten places of items) would keep them checked;
-  - the items screen still calls out for the description (`$C2:F2F3`), the
-    cursor among the members a tonic is used on (`$C2:B83E`, the techs
-    screen's) and the cursor's task for one member (`$C2:89E4`).
+    and a Lapis, more than ten places of items) would keep them checked.
 - **What the menus' fifth chunk left** (RECOMP.md, "Phase 3, menus: the
   equipment screen and its member list"):
   - the equipment screen's preview of an item's figures (`$C2:A5C3`,

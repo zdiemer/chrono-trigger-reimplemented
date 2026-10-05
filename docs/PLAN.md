@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 238 files, 117 of 70,264 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 245 files, 117 of 72,486 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -211,13 +211,13 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **18% of the code is still generated.**
+docstring says which way it is wrong). **16% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.1K | 36.4K | 10.3K | 38% | 385 |
+| menus, text (`$C2`) | 59.1K | 39.8K | 10.4K | 33% | 440 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **18% of the code is still generated.**
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **217.3K** | **56.6K** | **18%** | **1685** |
+| **total** | **266.5K** | **223.2K** | **57.8K** | **16%** | **1767** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
@@ -389,20 +389,19 @@ panel of who could use an item and how their figures change, the quantity
 and the deal), the party's services the field's scripts, the power-on and a
 New Game+ call (the party's record, equipping, filling HP and MP), the
 figures, the healing and its rising numbers, the inventory's add and take,
-the paging, the records' sprites and colours and the held cursors. What is
-left, in the order to take it (`python3 tools/burndown.py --uncovered C2`):
+the paging, the records' sprites and colours, the held cursors, the list
+slide, the description's typing, the main menu, the save screen's opening,
+name entry and the battle mode's screen, and the shop's steps on the party
+(a member's slots and the list of what fits). What is left, in the order to
+take it (`python3 tools/burndown.py --uncovered C2`):
 
-1. **The rest of the menu screens** (about 3.5K): the list slide
-   (`$C2:EB1F`-`$C2:EC37`, which every list screen calls) and the
-   description's typing (`$C2:F943`-`$C2:FB96`) first, since they take out
-   the most call-outs of the screens already in C; then the main menu
-   (`$C2:99CE`-`$C2:9B64`), the party's exchange screens 5 and 7
-   (`$C2:C627`-`$C2:CDCA`), the save screen's opening
-   (`$C2:D065`-`$C2:D155`), name entry (screen 13, `$C2:E2A0`-`$C2:E53D`),
-   the cursor's task for one member (`$C2:89E4`, `$C2:8A31`) and the shop's
-   equipping of what was just bought (its steps 6-8, `$C2:E017`-`$C2:E18A`
-   with `$C2:D6C3`-`$C2:D778`; no movie takes it, so record one with the
-   route tools first).
+1. **The party's exchange** (about 2K, screens 5 and 7,
+   `$C2:C627`-`$C2:CDCA`, with the main menu's panel for it,
+   `$C2:C9E5`/`$C2:CAE6`, which the main menu still calls out to): the
+   members swapped between the active party and the reserve, their sprites
+   walking, and the waits on the sound CPU's ports (`$C2:CB8B`,
+   `$C2:CBBF`) that the sound driver's port has to answer first
+   (TODO.md).
 2. **The overworld on foot** (about 4.4K): the leader's walking
    (`$C2:34AB`-`$C2:3AB9`), the followers (`$C2:3B8C`-`$C2:42E5`), the
    tiles that trigger events (`$C2:3279`-`$C2:337D`), the region's music

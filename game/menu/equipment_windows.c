@@ -26,6 +26,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/display.h"
 #include "menu/members.h"
 #include "menu/menu_data.h"
@@ -36,16 +37,6 @@
 #include "original_effects.h"
 #include "vars.h"
 #include "wram.h"
-
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
 
 /* ---- The per-line tables ----------------------------------------------------------------------- */
 
@@ -209,7 +200,7 @@ void menu_equip_mark_slots(GameState *g) { menu_equip_mark_slots_at(g, MARKS_AT)
  * member loaded and its row drawn at the list's top, the window's layer
  * shown from line $40FF, the band table copied whole, the cursor on the
  * first slot and its label, the window's colours and layers queued. */
-enum { SLOTS_LIST = 0xBE6D, MEMBER_ROW_AT = 0x2E00, SLOTS_SHOWN = 0x40FF, WHOLE_TABLE_BYTES = 0x25 };
+enum { SLOTS_LIST = 0xBE6D, MEMBER_ROW_AT = MENU_FRONT_LAYER_AT, SLOTS_SHOWN = 0x40FF, WHOLE_TABLE_BYTES = 0x25 };
 enum { UPLOAD_CARD = 0xFBE3, UPLOAD_BG2 = 0xFBFF, UPLOAD_ROW_LINES = 0xFC45, SLOTS_LINE_EFFECTS = 0xC5 };
 
 static void hide_the_scroll_bar(GameState *g) { set_menu_scroll_bar_hidden(g, (uint8_t)(menu_scroll_bar_hidden(g) - 1)); }
@@ -217,7 +208,7 @@ static void hide_the_scroll_bar(GameState *g) { set_menu_scroll_bar_hidden(g, (u
 // $C2:A321
 void menu_equip_show_slots_of_member(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, SLOTS_LIST);
+    menu_draw_windows(g, pf, SLOTS_LIST);
     uint8_t member = menu_member_on_the_cursor(g);
     set_menu_screen_argument(g, member);
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
@@ -229,9 +220,9 @@ void menu_equip_show_slots_of_member(GameState *g, Platform *pf)
     TIMED_AS(g, 0xC2A38B, menu_equip_take_slot(g));
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     hide_the_scroll_bar(g);
-    queue_upload(g, UPLOAD_CARD);
-    queue_upload(g, UPLOAD_BG2);
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_BG2);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     set_menu_line_effects(g, SLOTS_LINE_EFFECTS);
 }
 
@@ -265,10 +256,10 @@ static void leave_rows_waited(GameState *g, uint8_t rows_below)
 // $C2:A71E
 void menu_equip_start_slots_slide(GameState *g, Platform *pf, MenuWindowSlide *w)
 {
-    draw_list(g, pf, SLOTS_SLIDE_LIST);
+    menu_draw_windows(g, pf, SLOTS_SLIDE_LIST);
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE_PAST_A_BAND, SLIDE_TABLE_BYTES);
-    queue_upload(g, UPLOAD_BG1_SLID);
-    queue_upload(g, UPLOAD_BG2_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_SLID);
     show_windows_from(g, SLOTS_START);
     uint8_t rows_below = (uint8_t)(LAST_ROW - menu_member_row(g));
     ORIGINAL_EFFECT(leave_rows_waited(g, rows_below));
@@ -313,7 +304,7 @@ static void step_slots_bands(GameState *g, MenuWindowSlide *w)
 bool menu_equip_slide_slots_a_frame(GameState *g, MenuWindowSlide *w)
 {
     set_menu_cursor_hidden(g, (uint8_t)(menu_cursor_hidden(g) + 1));
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     step_slots_bands(g, w);
     set_menu_line_effects(g, SLIDING_LINE_EFFECTS);
     w->frame++;
@@ -364,12 +355,12 @@ static void hide_the_scroll_bar_and_cursor(GameState *g)
 // $C2:A85C
 void menu_equip_clear_slot_labels(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, MEMBERS_LIST);
+    menu_draw_windows(g, pf, MEMBERS_LIST);
     wram_fill8(g, 0x7E0000u | LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
     wram_fill8(g, 0x7E0000u | SECOND_LABEL_ROWS_AT, LABEL_ROW_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, 2 * LABEL_ROW_BYTES));
     TIMED_AS(g, 0xC2A1B2, menu_draw_member_rows(g, pf));
-    queue_upload(g, UPLOAD_BG1_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
 }
 
 void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
@@ -382,8 +373,8 @@ void menu_equip_start_members_slide(GameState *g, MenuWindowSlide *w)
     show_windows_from(g, MEMBERS_SHOWN);
     uint8_t row = menu_member_row(g);
     show_rows_from(g, line_value((uint16_t)(row * ROW_LINES - 1)));
-    queue_upload(g, UPLOAD_ROW_LINES);
-    queue_upload(g, UPLOAD_LIST_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_LIST_CARD);
     hide_the_scroll_bar_and_cursor(g);
     set_menu_line_effects(g, SLIDING_LINE_EFFECTS);
     *w = (MenuWindowSlide){ .top = TOP_BACK, .middle = MIDDLE_BACK, .bottom = BOTTOM_BACK, .frame = 0, .rows_from = SLIDE_FRAMES, .rows_step = 0 };
@@ -418,7 +409,7 @@ static void step_members_bands(GameState *g, MenuWindowSlide *w)
 bool menu_equip_slide_members_back_a_frame(GameState *g, MenuWindowSlide *w)
 {
     set_menu_cursor_hidden(g, (uint8_t)(menu_cursor_hidden(g) + 1));
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     step_members_bands(g, w);
     set_menu_line_effects(g, SLIDING_LINE_EFFECTS);
     w->frame++;
@@ -447,7 +438,7 @@ void menu_equip_back_on_the_members(GameState *g, Platform *pf)
     set_menu_screen_argument(g, (uint16_t)((menu_screen_argument(g) & 0xFF00) | member));
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
     TIMED_AS(g, 0xC2A6F0, menu_equip_draw_equipped(g, EQUIPPED_AT));
-    draw_list(g, pf, MEMBER_LIST_WINDOW);
+    menu_draw_windows(g, pf, MEMBER_LIST_WINDOW);
 }
 
 void menu_equip_rest_the_member_rows(GameState *g)
@@ -455,7 +446,7 @@ void menu_equip_rest_the_member_rows(GameState *g)
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, MEMBERS_TABLE_BYTES);
     show_rows_from(g, ROWS_AT_REST);
     TIMED_AS(g, 0xC29E76, menu_colour_member_rows(g));
-    queue_upload(g, UPLOAD_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_CARD);
 }
 
 /* ---- The list window --------------------------------------------------------------------------- */
@@ -511,7 +502,7 @@ enum { LIST_TRACK = 0x1500, FIRST_LIST_PLACE = 4, UPLOAD_LIST_ROWS = 0xFC1B };
 void menu_equip_lay_out_list(GameState *g)
 {
     hw_set_dividend(g, LIST_TRACK);
-    queue_upload(g, UPLOAD_LIST_ROWS);
+    menu_queue_fixed_upload(g, UPLOAD_LIST_ROWS);
     set_menu_equip_list_top(g, 0);
     set_menu_equip_record_place(g, menu_slot_record_place(g, menu_equip_slot(g)));
     set_menu_list_first_place(g, FIRST_LIST_PLACE);
@@ -556,11 +547,11 @@ static void leave_list_slide(GameState *g, const MenuListSlide *w)
 // $C2:A4AF
 void menu_equip_start_list_slide(GameState *g, Platform *pf, MenuListSlide *w)
 {
-    draw_list(g, pf, LIST_SLIDE_LIST);
+    menu_draw_windows(g, pf, LIST_SLIDE_LIST);
     show_windows_from(g, LIST_START);
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, LIST_SLIDE_TABLE_BYTES);
-    queue_upload(g, UPLOAD_BG2);
-    queue_upload(g, UPLOAD_BG1_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG2);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
     *w = (MenuListSlide){ LIST_START, LIST_SLOTS_START, LIST_SLIDE_STEP };
     ORIGINAL_EFFECT(leave_list_slide(g, w));
     set_menu_staged_line_table_lines(g, OVER_THE_LIST, OVER_THE_LIST_LINES);
@@ -580,7 +571,7 @@ static void step_list_slide(GameState *g, MenuListSlide *w)
     show_windows_from(g, w->list_line);
     w->slots_line = (uint16_t)(w->slots_line + w->step);
     show_rows_and_past_from(g, w->slots_line);
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     set_menu_staged_line_table_lines(g, OVER_THE_LIST, (uint8_t)(menu_staged_line_table_lines(g, OVER_THE_LIST) - w->step));
     set_menu_staged_line_table_lines(g, THE_LIST, (uint8_t)(menu_staged_line_table_lines(g, THE_LIST) + w->step));
     set_menu_line_effects(g, LIST_WINDOW_LINE_EFFECTS);
@@ -602,9 +593,9 @@ enum { OVER_THE_LIST_AT_REST = 0x6F, LIST_LINES_AT_REST = 1, LIST_VALUE_AT_REST 
 // $C2:A697
 void menu_equip_start_list_closing(GameState *g, Platform *pf, MenuListSlide *w)
 {
-    draw_list(g, pf, LIST_CLOSE_LIST);
-    queue_upload(g, UPLOAD_CARD);
-    queue_upload(g, UPLOAD_BG2);
+    menu_draw_windows(g, pf, LIST_CLOSE_LIST);
+    menu_queue_fixed_upload(g, UPLOAD_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_BG2);
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, LIST_SLIDE_TABLE_BYTES);
     *w = (MenuListSlide){ LIST_BACK, LIST_SLOTS_BACK, -LIST_SLIDE_STEP };
     ORIGINAL_EFFECT(leave_list_slide(g, w));
@@ -632,23 +623,25 @@ enum { LIST_WINDOW = 0xBEEC };
 // $C2:A41A
 void menu_equip_show_list_window(GameState *g, Platform *pf)
 {
-    draw_list(g, pf, LIST_WINDOW);
-    queue_upload(g, UPLOAD_BG2);
+    menu_draw_windows(g, pf, LIST_WINDOW);
+    menu_queue_fixed_upload(g, UPLOAD_BG2);
     menu_equip_place_list_bar(g, false);
 }
 
-/* With the list drawn: the band table copied whole, the main menu's third
+/* With the list drawn: the band table copied whole and the description
+ * window on the item at the list's 37th place -- the original describes
+ * whatever its making of the list left its index on, which is that place
+ * past the list's rows, so the window shows the description of the item
+ * there, nothing for a list that ends sooner -- then the main menu's third
  * task held a frame, the list's line effects, and the cursor on the list's
- * first row. The original describes the item at the list's 37th place
- * (where X happens to stand), which the bridge reads. */
+ * first row. */
 enum { LIST_LINE_EFFECTS = 0xDF, DESCRIBED_PLACE = 0x25 };
 
 void menu_equip_open_the_list(GameState *g)
 {
     schedule_table_copy(g, STAGED_TABLE, LIVE_TABLE, WHOLE_TABLE_BYTES);
+    TIMED_AS(g, 0xC2F2F3, menu_describe_item(g, menu_list_items(g, DESCRIBED_PLACE)));
 }
-
-uint8_t menu_equip_item_described_on_opening(const GameState *g) { return menu_list_items(g, DESCRIBED_PLACE); }
 
 void menu_equip_settle_the_list(GameState *g)
 {

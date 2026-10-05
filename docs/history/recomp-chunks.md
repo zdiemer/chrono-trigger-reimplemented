@@ -7055,3 +7055,114 @@ the vblank check finds none of their writes moved.
 once: `story_party_rules` (`$7F:00BA`, the party held as it is) and
 `story_game_notes` (`$7F:01CF`, a carried-over game), read by `items.c`,
 `techs.c`, `saves.c` and `battle/from_field.c`.
+
+## Phase 3, menus: the party's services, its figures and its healing (`$C2:8004`, `$C2:8C36`-`$C2:93BF`), the screens' records and held cursors
+
+The eighth chunk of bank `$C2` (history file, "Phase 3, menus: the settings
+screen and the shop", for the one before). `python3 tools/burndown.py` for
+`$C2`: 33.9 KiB ported and 43% left with 358 entries before, 36.4 KiB and 38%
+left with 385 after: about 2.5 KiB of new code in 28 entries, all of it to the
+bar (`tools/portstyle.py`: 0.00-0.07 machine operations a line in the six new
+files; `tools/portsmell.py`: no finding, and the cursor header's line left
+the backlog). The first of PLAN's two items for `$C2` whole, and of the
+second the pieces the ported screens call: the records' sprites and colours
+(`$C2:F566`-`$C2:F643`) and the held cursors (`$C2:8A98`-`$C2:8BA5`). The
+rest of the second item -- the list slide, the description's typing and the
+four screens -- is the next chunk (PLAN.md).
+
+**What it is.**
+
+- `menu/party.c`, the party as the menus keep it: the record of who is in it
+  (the three active places and the six of the reserve, an emptied place
+  keeping its character with the top bit set), and the services that change
+  it -- a character recruited, dismissed, brought into the active party or
+  sent to the reserve, the reserve taking someone at its front by moving
+  everyone back as far as its first empty place; a character equipped
+  (what comes off given back to the party's items) or stripped; every
+  character's HP or MP filled, an earring raising the greatest HP; and what
+  every service ends with, the party's weapons' colours in its members'
+  palettes and the rocks' triple techs following who wears a rock.
+  The field's scripts, the power-on and a New Game+ call the operations
+  themselves; `menu/party_bridge.c` is the services as the original's code
+  calls them, by number in A through a C table of rows, for the registered
+  entry.
+- `menu/figures.c`, a member's figures: the stats with every boost of what
+  it wears, held to their caps; the attack, by how the character fights
+  (a weapon wielded, a gun or bow aimed, Ayla's fists by her level); the
+  defence; the greatest HP; and the party's items set aside where the story
+  holds them.
+- `menu/healing.c` and `healing_bridge.c`, a tonic's or a tech's healing --
+  fixed, drawn at random around its power, or all of it -- and the numbers
+  that rise from each healed member's sprite along a path of heights, in a
+  task of their own that the screen waits out.
+- the inventory's add and take (`$C2:8791`, `$C2:87D5`, `menu/items.c`),
+  who can use an item (`$C2:93A8`), a list's paging (`$C2:93BF`,
+  `menu/lists.c`), the power-on's look at the cartridge and a new game's
+  state (`$C2:8D6A`, `$C2:956E`, `$C2:95BB`, `menu/saves.c`), the records a
+  screen of members shows (`menu/sprites.c`) and the cursors a screen holds
+  (`menu/held_cursors.c`).
+
+The callers lost their glue: event's party commands, the field's power-on,
+the New Game+ load, the load screen's new game, and the equipment, items,
+techs and shop screens call these as C, each with the routine's time tagged
+as its own (`NATIVE_TIME_AS`, `TIMED_AS`); the paging hands the new first
+row back instead of through its cell, and the inventory's routines take the
+item and how many as parameters.
+
+**The registers, settled first.** The dispatcher's PLP gives back the flags
+its caller had, so nothing is threaded: A is the service's answer, a word
+from the three that work 16 bits wide, and X and Y are what the party's looks
+leave them, worked out from the state after (the last rock a character wears
+or past the rock techs' marks). The operations hand back only what the game
+asks of them (whether a character joined, was there, was sent); what the
+dispatcher keeps -- the call's Y and X, which a script's command fills with
+its offset as often as with a character, and the answer, worked out from the
+record as it was before -- is `menu/party_leaves.h`, which a port standing
+where the original's call was runs under `ORIGINAL_EFFECT` with its own
+registers. Event's commands leave the Y, which only the dispatcher's next
+call keeps (TODO.md, the event leaves). The healing's showing and its task yield through the original's task
+switch; the task stops at the scheduler's end of a task.
+
+**What shadow mode and fuzzing found.** Over the 26 movies every call
+matches and none is refused: 7,062 calls over 26 of the 28 entries, 0
+mismatching and none interrupted (the members' cursors for a healing of
+every member, `$C2:8AD5`/`$C2:8AFD`, no movie reaches). The healing's showing and its
+kinds span frames and are compared within the call that encloses them. Shadow
+mode found the new game's party fill one place shorter than the asm read
+seemed (nine places, not ten), the index registers the party's looks leave
+(the rocks' clearing's block move), the shop's panel's A taken from the
+figures' divider before the figures' drawing divides again, and the healing's
+bookkeeping cells. Fuzzed seed 1 (`tools/fuzz_routines.toml`): 0 of 81,953 compared calls
+mismatching, 3,000 an entry (the services' 2,894 and, loose, 2,562; a
+kind's rising numbers 1,497, the rest refused for a kind with no path).
+What fuzzing found: the number's conversion converts only the bytes it is
+given (an MP amount is a byte), the showing is entered with 16-bit index
+registers only, and the services, event's party commands and the New Game+
+load need the active party to be characters (a guard each; the game's always
+is). The before-and-after comparison of the menus' and the touched event
+entries (`tools/fuzz_compare.py` against main, 440 routines) found one:
+the menus' item tables now work every character's figures out as C, and a
+record wearing an item past the menus' tables (none the game has) read
+past them where the original's reads differ, so the tables' guard takes
+the figures' (`menu_everyones_figures_are_notable`) and its fuzzing fills
+the characters' equipment; after it, 0 differ.
+
+**Timing.** The new rows and the callers whose time moved with them
+(the screens' steps, event's party commands, the field's first start)
+are calibrated over the library. One rate can't fit thirteen services
+(the power-on checks three slots' sums, a search looks at nine bytes), so
+the power-on is registered on its own (`menu_power_on`, `$C2:8D6A`) and
+the dispatcher tags it with its own time; the rest share the services'
+rate. The techs list's step, whose own share is at the floor, carries a
+drift exception for its parts' 2.3%, and the shop's tabs' exception moved
+from vblank-worst to worst: with the list's opening charged at the
+list's own rates, its one call over the limit is the frame a tab opens a
+list, on the picture (`tools/timing_exceptions.txt`).
+
+**The map.** The services' cells (`menu_service_*`, `$04C0`-`$04C5`), the
+item a search found (`$04C7`), the figures' boosts and parts (`$0DAE`-`$0DB6`,
+`menu_figures_slot` narrowed to its byte), the greatest HP (`$9B25`), the
+items set aside (`$9B96`), the paging's rows (`$0DD8`, `$0DDA`), the
+healing's amounts and its numbers' cells (`$0022`, `$0F53`-`$0F61`), the
+held cursors' blinks (`$0DA0`, `$0DA3`), the weapon looked up (`$041B`), and
+the status record's stats, level, figures and greatest HP as fields.

@@ -27,6 +27,7 @@
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/healing.h"
 #include "menu/held_cursors.h"
 #include "menu/party.h"
@@ -34,6 +35,7 @@
 #include "menu/item_screen.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
@@ -51,13 +53,9 @@
 enum {
     YIELD = 0xC2821E,                  /* the task waits for the next frame */
     WAIT_FRAMES = 0xC2822B,            /* ... for the frames in A */
-    STOP_TASKS = 0xC28255,             /* the tasks in A stopped */
     MAIN_MENU = 0xC29A98,              /* back to the main menu */
     MOVE_IN_LIST = 0xC2EA53,           /* the cursor kept within a list's rows */
     FRAME_THE_LIST = 0xC2EA81,         /* a scrolling list's frame laid out: Y places, rows shown */
-    LIST_SLIDE_FRAME = 0xC2EB1F,       /* a frame of a list's slide, and the wait for the next */
-    START_LIST_SLIDE = 0xC2EB9B,       /* a list's slide started */
-    SET_DESCRIPTION = 0xC2FA49,        /* the description's task started on the text asked for */
 };
 
 /* What they read (tools/dontcare_check.py checks each): most nothing but the
@@ -90,11 +88,11 @@ static void read_cursor(Snes *s)
  * on every member (the seventh). */
 enum { DESCRIPTION_TASK_BIT = 0x04, CURSORS_TASK_BIT = 0x40 };
 
-static bool stop_tasks(Snes *s, uint32_t site, uint8_t tasks)
+static void stop_tasks(Snes *s, uint8_t tasks)
 {
-    m_set_a8(s, tasks);
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, tasks));
     ORIGINAL_EFFECT(menu_leave_load(s, tasks));
-    return menu_call(s, site, STOP_TASKS, READS_A);
 }
 
 /* The dividend the original's frame of a list divides its track by. */
@@ -195,8 +193,7 @@ void menu_describe_tech_kind(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, false);
-    if (menu_techs_describe_kind(g) && !call(s, 0xC2BE74, SET_DESCRIPTION))
-        return;
+    menu_techs_describe_kind(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -364,8 +361,7 @@ void menu_describe_tech(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    if (menu_techs_describe_tech(g) && !call(s, 0xC2BE74, SET_DESCRIPTION))
-        return;
+    menu_techs_describe_tech(g);
     menu_restore_p(s);
     m_rts(s);
 }
@@ -376,7 +372,7 @@ void menu_describe_pointed_tech(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    if (menu_techs_description_shows_another(g, menu_tech_pointed(g))) {
+    if (menu_description_shows_another(g, menu_tech_pointed(g))) {
         ORIGINAL_EFFECT(leave_description_asked(s));
         if (!menu_run(s, 0xC2BE11, 0xC2BE33, menu_describe_tech))
             return;
@@ -398,8 +394,7 @@ void menu_slide_tech_list(Snes *s)
         return;
     }
     menu_techs_set_up_list_slide(g);
-    if (!call(s, 0xC2B753, START_LIST_SLIDE))
-        return;
+    TIMED_AS(g, 0xC2EB9B, menu_start_list_slide(g));
     menu_techs_bring_in_a_tech(g);
     ORIGINAL_EFFECT(leave_tech_row_brought_in(s));
     if (!tick(s, 0xC2B780))
@@ -407,9 +402,11 @@ void menu_slide_tech_list(Snes *s)
     bool took_frames = menu_techs_list_slide_takes_frames(g);
     menu_set_widths(s, false, false);
     if (took_frames)
-        while (menu_techs_slide_list_a_frame(g))
-            if (!call(s, 0xC2B7A7, LIST_SLIDE_FRAME))
+        while (menu_techs_slide_list_a_frame(g)) {
+            TIMED_AS(g, 0xC2EB1F, menu_slide_list_a_frame(g));
+            if (!yield(s, 0xC2B7A7))
                 return;
+        }
     bool up = menu_list_slid_up(g);
     menu_techs_finish_list_slide(g);
     menu_set_widths(s, true, false);
@@ -499,7 +496,8 @@ static void use_the_tech(Snes *s)
 static void back_to_the_members(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!stop_tasks(s, 0xC2B3C2, DESCRIPTION_TASK_BIT) || !tick(s, 0xC2B3C5))
+    stop_tasks(s, DESCRIPTION_TASK_BIT);
+    if (!tick(s, 0xC2B3C5))
         return;
     menu_techs_back_to_the_members(g);
     ORIGINAL_EFFECT(leave_cursor_moved_off_the_members(s));
@@ -600,8 +598,7 @@ void menu_choose_tech_target(Snes *s)
             return;
         menu_techs_back_from_the_targets(g);
         ORIGINAL_EFFECT(s->cpu.a = 0);
-        if (!stop_tasks(s, 0xC2B4BE, CURSORS_TASK_BIT))
-            return;
+        stop_tasks(s, CURSORS_TASK_BIT);
         menu_set_widths(s, false, false);
         menu_techs_close_targets(g);
         ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_LINE_TABLES));

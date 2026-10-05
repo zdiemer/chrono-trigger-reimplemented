@@ -34,16 +34,6 @@
 #include "vars.h"
 #include "wram.h"
 
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
-
 /* ---- A member's record --------------------------------------------------------------------------- */
 
 /* The menus list the party's characters by place (menu_members), the active
@@ -144,13 +134,13 @@ enum { MEMBER_ROW = 0xBE0E, EMPTY_ROW = 0xBE15, MEMBER_CARD = 0xBE1C };
 void menu_draw_member_row(GameState *g, Platform *pf)
 {
     TIMED_AS(g, 0xC2A1EF, menu_note_member_face_and_hp(g));
-    draw_list(g, pf, MEMBER_ROW);
+    menu_draw_windows(g, pf, MEMBER_ROW);
 }
 
 /* The three rows the list shows, from its first member, each six tile rows
  * below the last; the rows go on from where each row's list left the drawing
  * origin, and stop past the reachable members. */
-enum { FIRST_ROW = 0x2E00, ROW_SPACING = 0x180, ROWS_END = 0x3280 };
+enum { FIRST_ROW = MENU_FRONT_LAYER_AT, ROW_SPACING = 0x180, ROWS_END = 0x3280 };
 
 // $C2:A1B2
 void menu_draw_member_rows(GameState *g, Platform *pf)
@@ -164,7 +154,7 @@ void menu_draw_member_rows(GameState *g, Platform *pf)
         if (loaded)
             TIMED_AS(g, 0xC2A216, menu_draw_member_row(g, pf));
         else
-            TIMED_AS(g, 0xC2A1E9, draw_list(g, pf, EMPTY_ROW));
+            TIMED_AS(g, 0xC2A1E9, menu_draw_windows(g, pf, EMPTY_ROW));
         member++;
         if (member >= menu_members_reachable(g))
             break;
@@ -221,7 +211,7 @@ void menu_colour_member_rows(GameState *g)
     for (uint8_t row = 0; row < MENU_MEMBER_ROWS; row++)
         TIMED_AS(g, 0xC29EB0, menu_colour_member_row(g, (uint16_t)(FIRST_ROW_TILES + row * ROW_SPACING), row != chosen));
     ORIGINAL_EFFECT(leave_rows_coloured(g, chosen));
-    queue_upload(g, UPLOAD_BG2_ROWS);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_ROWS);
 }
 
 /* ---- The chosen member's card -------------------------------------------------------------------- */
@@ -246,19 +236,19 @@ static void show_element(GameState *g)
 /* The card: the time played at the screen's foot (its digits are the
  * clock's at $7E:0402), the member's figures and stats, the large portrait in
  * palette row 3 and the element's label. */
-enum { TIME_AT = 0x3390, CLOCK_DIGITS = 0x0402, PORTRAIT_AT = 0x2EDE, PORTRAIT_ATTRIBUTE = 0x0E };
+enum { PORTRAIT_AT = 0x2EDE, PORTRAIT_ATTRIBUTE = 0x0E };
 enum { UPLOAD_BG1_CARD = 0xFBE3 };
 
 // $C2:A22F
 void menu_start_member_card(GameState *g)
 {
-    TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_AT, CLOCK_DIGITS));
+    menu_draw_the_clock(g);
     uint8_t member = menu_member_on_the_cursor(g);
     menu_work_on_member(g, member);
     TIMED_AS(g, 0xC28820, (void)menu_load_member(g, member));
 }
 
-void menu_draw_member_card_window(GameState *g, Platform *pf) { draw_list(g, pf, MEMBER_CARD); }
+void menu_draw_member_card_window(GameState *g, Platform *pf) { menu_draw_windows(g, pf, MEMBER_CARD); }
 
 void menu_finish_member_card(GameState *g)
 {
@@ -267,7 +257,7 @@ void menu_finish_member_card(GameState *g)
     set_menu_draw_origin(g, PORTRAIT_AT);
     TIMED_AS(g, 0xC2EC38, menu_draw_portrait(g, PORTRAIT_AT, character, PORTRAIT_ATTRIBUTE));
     TIMED_AS(g, 0xC2A273, show_element(g));
-    queue_upload(g, UPLOAD_BG1_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_CARD);
 }
 
 /* ---- What a screen can have drawn ---------------------------------------------------------------- */
@@ -312,7 +302,7 @@ static bool equipment_is_the_games(const GameState *g, uint8_t member)
 bool menu_member_card_can_be_drawn_for(const GameState *g, uint8_t member)
 {
     return menu_member_can_be_loaded(g, member) && character_is_drawable(g, member) && equipment_is_the_games(g, member)
-           && menu_palette_changes_have_room(g) && menu_time_digits_are_decimal(g, CLOCK_DIGITS)
+           && menu_palette_changes_have_room(g) && menu_time_digits_are_decimal(g, MENU_CLOCK_DIGITS)
            && menu_vram_queue_bytes(g) % MENU_UPLOAD_BYTES == 0;
 }
 
@@ -375,7 +365,7 @@ void menu_draw_member_row_entry(Snes *s)
 // $C2:A1E9
 void menu_draw_empty_member_row(Snes *s)
 {
-    draw_list(state_of(s), m_platform(s), EMPTY_ROW);
+    menu_draw_windows(state_of(s), m_platform(s), EMPTY_ROW);
     m_rts(s);
 }
 

@@ -32,6 +32,7 @@
 
 #include "charge.h"
 #include "menu/cursor.h"
+#include "menu/description.h"
 #include "menu/display.h"
 #include "menu/graphics.h"
 #include "menu/menu.h"
@@ -127,7 +128,7 @@ static void go_to_step(GameState *g, SettingsStep step) { set_menu_screen_step(g
  * cell holds a number rather than an on-off (the gauge, the battle speed,
  * the window design) its box says instead whether the cursor is choosing
  * it. */
-enum { BOX_CHOOSING_GAUGE = CELL_BATTLE_GAUGE, BOX_SETTING_SPEEDS = CELL_BATTLE_SPEED, BOX_CHOOSING_DESIGN = CELL_WINDOW_DESIGN };
+enum { BOX_CHOOSING_GAUGE = SETTINGS_CHOOSING_GAUGE, BOX_SETTING_SPEEDS = SETTINGS_SETTING_SPEEDS, BOX_CHOOSING_DESIGN = SETTINGS_CHOOSING_DESIGN };
 
 static bool box_ticked(const GameState *g, unsigned box) { return menu_settings_boxes(g, box) != 0; }
 static void tick_box(GameState *g, unsigned box, bool on) { set_menu_settings_boxes(g, box, on); }
@@ -148,9 +149,9 @@ static void take_boxes_from_the_settings(GameState *g)
 
 /* The front layer's tilemap, by where in work RAM a tile is, as the ROM's
  * tables give places. */
-enum { FRONT_TILEMAP_AT = 0x2E00, TILE_BYTES = 2, ROW_BYTES = 0x40 };
+enum { TILE_BYTES = MENU_TILE_BYTES, ROW_BYTES = MENU_TILEMAP_ROW_BYTES };
 
-static void put_tile(GameState *g, uint16_t at, uint16_t tile) { set_menu_front_tilemap(g, (uint16_t)(at - FRONT_TILEMAP_AT) / TILE_BYTES, tile); }
+static void put_tile(GameState *g, uint16_t at, uint16_t tile) { set_menu_front_tilemap(g, menu_front_tile_of(at), tile); }
 
 /* A box is four tiles, two by two; the ticked box's four follow the empty
  * one's. */
@@ -251,7 +252,7 @@ enum { NO_CHANGE = 0xFFFF, CHANGE_ARROW = 0x0031, ROW_BLANK = 0x00FF, ARROW_AT =
 
 static uint16_t row_place(const GameState *g, unsigned row)
 {
-    return (uint16_t)(FRONT_TILEMAP_AT + menu_settings_button_row_place(g, row));
+    return (uint16_t)(MENU_FRONT_LAYER_AT + menu_settings_button_row_place(g, row));
 }
 
 // $C2:C57A
@@ -390,7 +391,6 @@ static unsigned cursor_row(const GameState *g) { return (uint8_t)(menu_cursor_in
 /* The button the row's push asks for: the next or the one before among the
  * seven it can be given, from the row's own; none where its own is none of
  * them or the push is neither way. */
-enum { PUSHED_RIGHT_WAY = 0, PUSHED_LEFT_WAY = 1 };
 
 static bool button_asked_for(const GameState *g, unsigned row, uint8_t *button)
 {
@@ -400,10 +400,10 @@ static bool button_asked_for(const GameState *g, unsigned row, uint8_t *button)
         choice++;
     if (menu_settings_button_choice(g, choice) == MENU_SETTINGS_NO_MORE_CHOICES)
         return false;
-    uint8_t way = menu_cursor_direction(g);
-    if (way == PUSHED_RIGHT_WAY)
+    MenuCursorDirection way = (MenuCursorDirection)menu_cursor_direction(g);
+    if (way == MENU_CURSOR_WENT_RIGHT)
         choice = (choice + 1) % MENU_SETTINGS_BUTTON_CHOICES;
-    else if (way == PUSHED_LEFT_WAY)
+    else if (way == MENU_CURSOR_WENT_LEFT)
         choice = (choice + MENU_SETTINGS_BUTTON_CHOICES - 1) % MENU_SETTINGS_BUTTON_CHOICES;
     else
         return false;
@@ -501,39 +501,9 @@ static void put_icon(GameState *g, uint16_t first)
     put_tile(g, ICON_AT + ROW_BYTES + TILE_BYTES, (uint16_t)(first + 3));
 }
 
-/* The description is typed by a task of the original's (the menus' third):
- * the option's text and then its value, or only a value where the option
- * is the one shown. The typing writes its glyphs to the description's
- * tiles, and starts on a clean row. */
-enum { DESCRIPTION_TASK = 2 };
-enum { TYPE_THE_OPTION = 0xF9B2, TYPE_THE_VALUE = 0xFA06 };
-enum { DESCRIPTION_TILES_BANK = 0x7E, DESCRIPTION_TILES_VRAM = 0x6900, A_GLYPH_A_FRAME = 1 };
-enum { DESCRIPTION_ROWS_TILES = 0x40, VALUE_TOP = 0x05, VALUE_BOTTOM = 0x25, VALUE_ROW_BYTES = 0x40 };
-static void start_typing(GameState *g, uint16_t task) { menu_start_task(g, DESCRIPTION_TASK, task); }
-
-static void clear_the_description(GameState *g)
-{
-    for (unsigned tile = 0; tile < DESCRIPTION_ROWS_TILES; tile++)
-        set_menu_text_tilemap(g, tile, 0);
-    ORIGINAL_EFFECT(charge_block_move(g, DESCRIPTION_ROWS_TILES * TILE_BYTES));
-}
-
-/* A new value clears the value's place on both rows from where the typing
- * got to. */
-static void clear_the_value(GameState *g)
-{
-    uint16_t from = menu_description_typed(g);
-    do {
-        set_menu_text_tilemap(g, VALUE_TOP + from / TILE_BYTES, 0);
-        set_menu_text_tilemap(g, VALUE_BOTTOM + from / TILE_BYTES, 0);
-        from = (uint16_t)(from + TILE_BYTES);
-    } while (from < VALUE_ROW_BYTES);
-}
-
-// $C2:C4BC, $C2:F943
-/* The option's icon, then its description typed: afresh for another
- * option; for the same, its value again where it changed and the typing is
- * done. */
+// $C2:C4BC
+/* The option's icon, then its description (menu/description.h): the
+ * option's text and its value's, or its value's alone where it changed. */
 static void describe(GameState *g, SettingsOption option)
 {
     put_icon(g, menu_settings_option_icon(g, option));
@@ -541,21 +511,7 @@ static void describe(GameState *g, SettingsOption option)
     SettingCell described = (SettingCell)menu_settings_option_cell(g, option);
     uint8_t value_text = (uint8_t)(setting(g, described) + menu_settings_first_value_text(g, option));
     set_menu_settings_description(g, value_text);
-
-    set_menu_text_layout(g, 0);
-    set_menu_text_tiles(g, (menu_text_tiles(g) & 0xFFFFu) | (uint32_t)DESCRIPTION_TILES_BANK << 16);
-    set_menu_text_strings(g, MENU_SETTINGS_DESCRIPTIONS);
-    set_menu_description_pace(g, A_GLYPH_A_FRAME);
-    set_menu_description_tiles(g, DESCRIPTION_TILES_VRAM);
-    if (option != menu_description_item(g)) {
-        set_menu_description_item(g, option);
-        set_menu_text_string(g, option);
-        clear_the_description(g);
-        start_typing(g, TYPE_THE_OPTION);
-    } else if (menu_tasks_state(g, DESCRIPTION_TASK) == 0 && value_text != menu_description_stale(g)) {
-        clear_the_value(g);
-        start_typing(g, TYPE_THE_VALUE);
-    }
+    TIMED_AS(g, 0xC2F943, menu_describe_setting(g, option, value_text));
 }
 
 /* ---- Opening and the options --------------------------------------------------------------------- */
@@ -768,7 +724,7 @@ void menu_settings_take_gauge_layout(GameState *g)
 
 /* ---- The panel ------------------------------------------------------------------------------------ */
 
-enum { PANEL_TASK = 3, PANEL_FRAME = 0xC19C, PANEL_WINDOWS = 0xC1B9, PANEL_LINE_EFFECTS = 0x1C };
+enum { PANEL_FRAME = 0xC19C, PANEL_WINDOWS = 0xC1B9, PANEL_LINE_EFFECTS = 0x1C };
 enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END_AT = 0x2E, CAPTION_END_TILES = 2,
        CAPTION_END = 0x21FB, UPLOAD_CAPTION = 0xFC4C };
 
@@ -778,7 +734,7 @@ enum { CAPTION_AT = 0x22, CAPTION_TILES = 12, CAPTION_LINE = 0x21FF, CAPTION_END
  * from the settings. */
 void menu_settings_panel_frame(GameState *g, Platform *pf)
 {
-    set_menu_tasks_countdown(g, PANEL_TASK, (uint8_t)(menu_tasks_countdown(g, PANEL_TASK) + 1));
+    set_menu_tasks_countdown(g, MENU_CURSOR_TASK, (uint8_t)(menu_tasks_countdown(g, MENU_CURSOR_TASK) + 1));
     menu_draw_windows(g, pf, PANEL_FRAME);
     for (unsigned i = 0; i < CAPTION_TILES; i++)
         set_menu_text_tilemap(g, CAPTION_AT + i, CAPTION_LINE);

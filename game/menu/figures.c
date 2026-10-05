@@ -203,12 +203,17 @@ void menu_work_out_figures(GameState *g)
  * figures back. */
 enum { EVADE_DOUBLER = 0xA8 };
 
-// $C2:9137
-void menu_note_member_figures(GameState *g)
+void menu_work_out_figures_shown(GameState *g)
 {
     menu_work_out_figures(g);
     if (worn(g, MENU_ACCESSORIES) == EVADE_DOUBLER)
         set_menu_figures_worked_out(g, EVADE, (uint8_t)(menu_figures_worked_out(g, EVADE) << 1));
+}
+
+// $C2:9137
+void menu_note_member_figures(GameState *g)
+{
+    menu_work_out_figures_shown(g);
     uint8_t character = menu_member_character(g);
     set_character_records_hp(g, character, menu_status_record_hp(g));
     for (unsigned i = 0; i < MENU_FIGURES_WORKED_OUT_COUNT; i++) {
@@ -324,13 +329,16 @@ void menu_put_items_back_entry(Snes *s)
  * for a loaded record whose weapon, armour and helmet have a power in the
  * menus' table (menu_item_powers) and whose equipment has data
  * (menu_item_amounts): the game's always have. */
+static bool an_item_of_the_games(uint8_t item, MenuItemCategory slot)
+{
+    return item < MENU_ITEM_AMOUNTS_COUNT && (slot == MENU_ACCESSORIES || item < MENU_ITEM_POWERS_COUNT);
+}
+
 static bool equipment_is_the_games(const GameState *g)
 {
-    for (unsigned slot = 0; slot < MENU_EQUIPMENT_SLOTS; slot++) {
-        uint8_t item = worn(g, (MenuItemCategory)slot);
-        if (item >= MENU_ITEM_AMOUNTS_COUNT || (slot != MENU_ACCESSORIES && item >= MENU_ITEM_POWERS_COUNT))
+    for (unsigned slot = 0; slot < MENU_EQUIPMENT_SLOTS; slot++)
+        if (!an_item_of_the_games(worn(g, (MenuItemCategory)slot), (MenuItemCategory)slot))
             return false;
-    }
     return true;
 }
 
@@ -367,7 +375,7 @@ bool menu_everyones_figures_are_notable(Snes *s)
     for (uint8_t character = 0; ok && character < CHARACTER_RECORDS_COUNT; character++)
         for (unsigned slot = 0; ok && slot < MENU_EQUIPMENT_SLOTS; slot++) {
             uint8_t item = character_records_record_byte(g, character, menu_category_slot_place(g, (uint8_t)slot));
-            ok = item < MENU_ITEM_AMOUNTS_COUNT && (slot == MENU_ACCESSORIES || item < MENU_ITEM_POWERS_COUNT);
+            ok = an_item_of_the_games(item, (MenuItemCategory)slot);
         }
     vars_peek(false);
     return ok;

@@ -34,6 +34,7 @@
 #include "menu/display.h"
 #include "menu/lists.h"
 #include "menu/members.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/text.h"
 #include "menu/vram.h"
@@ -43,16 +44,6 @@
 #include "ram.h"
 #include "vars.h"
 #include "wram.h"
-
-static void queue_upload(GameState *g, uint16_t record)
-{
-    TIMED_AS(g, 0xC28385, menu_queue_upload(g, menu_upload_record(g, record)));
-}
-
-static void draw_list(GameState *g, Platform *pf, uint16_t list)
-{
-    TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));
-}
 
 /* The frame's input, as the cursor's reading leaves it (menu/cursor.h); the
  * shoulder assignments switch members here. */
@@ -73,7 +64,7 @@ enum { NOTHING_SHOWN = 0xFF };
 static void forget_the_list_shown(GameState *g) { set_menu_equip_shown(g, NOTHING_SHOWN); }
 
 
-void menu_equip_queue_list_rows(GameState *g) { queue_upload(g, MENU_EQUIP_LIST_ROWS_UPLOAD); }
+void menu_equip_queue_list_rows(GameState *g) { menu_queue_fixed_upload(g, MENU_EQUIP_LIST_ROWS_UPLOAD); }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */
 
@@ -96,7 +87,7 @@ void menu_equip_set_up_screen(GameState *g, Platform *pf)
         for (unsigned i = 0; i < SCREEN_COLOURS; i++)
             set_menu_palette(g, FIRST_SCREEN_COLOUR + copy * SCREEN_COLOURS + i,
                              menu_rom_colour(g, MENU_ROM_EQUIPMENT_COLOURS, i));
-    draw_list(g, pf, SCREEN_WINDOWS);
+    menu_draw_windows(g, pf, SCREEN_WINDOWS);
     set_menu_cursor_index(g, menu_member_row(g));
     menu_work_on_member(g, menu_member_on_the_cursor(g));
     TIMED_AS(g, 0xC2E923, menu_clear_sprites_but_cursor(g));
@@ -106,7 +97,7 @@ void menu_equip_show_screen(GameState *g)
 {
     set_menu_line_effects(g, SCREEN_LINE_EFFECTS);
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
-    queue_upload(g, UPLOAD_BG2_ROWS);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_ROWS);
 }
 
 /* ---- Choosing a member ------------------------------------------------------------------------- */
@@ -165,7 +156,7 @@ bool menu_equip_point_at_member(GameState *g)
  * the rows' per-line table shows. At the end the three rows in view are
  * copied back to the list's place, a member further along, and the view put
  * back. */
-enum { SLIDE_FRAMES = 12, LIST_FRONT_LAYER = 0x2E00, LIST_BACK_LAYER = 0x3E00, ROW_TILES_FROM_ORIGIN = 0x84 };
+enum { SLIDE_FRAMES = 12, LIST_FRONT_LAYER = MENU_FRONT_LAYER_AT, LIST_BACK_LAYER = 0x3E00, ROW_TILES_FROM_ORIGIN = 0x84 };
 enum { LINE_AT_REST = 0x61FF, ROWS_SLID = 0x06 };
 static const MenuTilePlace ROWS_PLACE = { 2, 2 };
 static const MenuWindowSize ROWS_SIZE = { 12, 18 };
@@ -204,8 +195,8 @@ void menu_equip_start_member_slide(GameState *g, Platform *pf)
     ORIGINAL_EFFECT(menu_leave_member_row_coloured(g, new_row, true));
     copy_rows_on(g, LIST_FRONT_LAYER, ROWS_PLACE, slide_place(g));
     copy_rows_on(g, LIST_BACK_LAYER, ROWS_PLACE, slide_place(g));
-    queue_upload(g, UPLOAD_BG1_SLID);
-    queue_upload(g, UPLOAD_BG2_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_SLID);
+    menu_queue_fixed_upload(g, UPLOAD_BG2_SLID);
     set_menu_scroll_moved(g, 0);
     set_menu_scroll_frames(g, SLIDE_FRAMES);
 }
@@ -237,7 +228,7 @@ bool menu_equip_slide_members_a_frame(GameState *g)
     set_menu_slide_line(g, line);
     move_thumb(g, sliding_up(g));
     show_rows_from(g, line);
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     uint16_t frames = (uint16_t)(menu_scroll_frames(g) - 1);
     set_menu_scroll_frames(g, frames);
     return frames != 0;
@@ -253,7 +244,7 @@ void menu_equip_finish_member_slide(GameState *g)
     copy_rows_on(g, LIST_BACK_LAYER, slid_place(g), ROWS_PLACE);
     copy_rows_on(g, LIST_FRONT_LAYER, slid_place(g), ROWS_PLACE);
     show_rows_from(g, LINE_AT_REST);
-    queue_upload(g, UPLOAD_ROW_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_ROW_LINES);
     ask_for_a_fast_repeat(g);
 }
 
@@ -328,7 +319,7 @@ enum { SLOTS_LINE_EFFECTS = 0x4D, UPLOAD_BG1_CARD = 0xFBE3 };
 void menu_equip_show_slots(GameState *g)
 {
     set_menu_line_effects(g, SLOTS_LINE_EFFECTS);
-    queue_upload(g, UPLOAD_BG1_CARD);
+    menu_queue_fixed_upload(g, UPLOAD_BG1_CARD);
 }
 
 /* The list is drawn for a slot and member, recorded as their sum. */
@@ -489,14 +480,11 @@ bool menu_equip_list_slide_frames_left(GameState *g)
 /* Once slid: the thumb at the new first row, the upload queue emptied (the
  * frames sent what it held), the block move set to bring the rows' new
  * lines in, the rows moved a row along and the list at rest. */
-enum { LIST_LINES_FROM = 0x9710, LINE_EFFECTS_MOVED = 0x80 };
-
 void menu_equip_finish_list_slide(GameState *g)
 {
     set_menu_scroll_bar_thumb(g, thumb_at_row(g, menu_equip_list_top(g)));
     set_menu_vram_queue_bytes(g, 0);
-    set_menu_block_move_source(g, LIST_LINES_FROM);
-    set_menu_line_effects(g, (uint8_t)(menu_line_effects(g) | LINE_EFFECTS_MOVED));
+    menu_put_the_list_bands_back(g);
     TIMED_AS(g, 0xC29FDE, menu_equip_move_list_rows(g));
     set_menu_scroll_step(g, 0);
     menu_equip_queue_list_rows(g);
@@ -518,7 +506,7 @@ void menu_equip_move_list_rows(GameState *g) { menu_move_list_rows(g, LIST_ROWS_
  * and the dimmed ones. The list's scroll is brought within the reachable
  * members, and the cursor onto an active member; the menus' fourth task is
  * held a frame longer as the panel starts. */
-enum { PANEL_WINDOW = 0xBD74, PANEL_TASK = 3, ROWS_SHOWN = MENU_MEMBER_ROWS, OTHER_LINES_AT_REST = 0xFFFF };
+enum { PANEL_WINDOW = 0xBD74, ROWS_SHOWN = MENU_MEMBER_ROWS, OTHER_LINES_AT_REST = 0xFFFF };
 enum { UPLOAD_PANEL_LINES = 0xFC3E };
 
 /* The furthest the list scrolls: the members past the three it shows. */
@@ -527,7 +515,7 @@ static uint8_t scroll_most(uint8_t reachable) { return reachable > ROWS_SHOWN ? 
 // $C2:A051
 void menu_equip_panel_lay_out_list(GameState *g, Platform *pf)
 {
-    set_menu_tasks_countdown(g, PANEL_TASK, (uint8_t)(menu_tasks_countdown(g, PANEL_TASK) + 1));
+    set_menu_tasks_countdown(g, MENU_CURSOR_TASK, (uint8_t)(menu_tasks_countdown(g, MENU_CURSOR_TASK) + 1));
     set_menu_member_scroll_most(g, scroll_most((uint8_t)menu_members_reachable(g)));
     if (menu_member_scroll_most(g) < menu_member_scroll(g))
         set_menu_member_scroll(g, menu_member_scroll_most(g));
@@ -536,18 +524,16 @@ void menu_equip_panel_lay_out_list(GameState *g, Platform *pf)
         row = (uint8_t)(menu_active_members(g) - 1);
     set_menu_cursor_index(g, row);
     set_menu_member_row(g, row);
-    draw_list(g, pf, PANEL_WINDOW);
+    menu_draw_windows(g, pf, PANEL_WINDOW);
     show_rows_from(g, LINE_AT_REST);
     for (unsigned band = 0; band < MENU_ROW_OTHER_LINE_VALUES_COUNT; band++)
         set_menu_row_other_line_values(g, band, OTHER_LINES_AT_REST);
-    queue_upload(g, UPLOAD_PANEL_LINES);
+    menu_queue_fixed_upload(g, UPLOAD_PANEL_LINES);
 }
-
-enum { TIME_AT = 0x3390, CLOCK_DIGITS = 0x0402 };
 
 void menu_equip_panel_draw_members(GameState *g, Platform *pf)
 {
-    TIMED_AS(g, 0xC2F28D, (void)menu_draw_time_played(g, TIME_AT, CLOCK_DIGITS));
+    menu_draw_the_clock(g);
     TIMED_AS(g, 0xC2A1B2, menu_draw_member_rows(g, pf));
 }
 

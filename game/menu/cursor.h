@@ -24,6 +24,13 @@ typedef enum {
     MENU_PUSHED_RIGHT = 0x01, MENU_PUSHED_LEFT = 0x02, MENU_PUSHED_DOWN = 0x04, MENU_PUSHED_UP = 0x08, MENU_PUSHED_PAST_AN_EDGE = 0x80,
 } MenuPush;
 bool menu_asked(const GameState *g, MenuButton b);
+
+/* The way the frame's push took the cursor (menu_cursor_direction), as the
+ * cursor's reading leaves it. */
+typedef enum {
+    MENU_CURSOR_WENT_RIGHT = 0, MENU_CURSOR_WENT_LEFT = 1, MENU_CURSOR_WENT_DOWN = 2, MENU_CURSOR_WENT_UP = 3,
+    MENU_CURSOR_NOT_PUSHED = 0x80,
+} MenuCursorDirection;
 bool menu_pushed(const GameState *g, MenuPush way);
 
 /* Whether the cursor is on one of `count` places from `first`, and every
@@ -42,6 +49,11 @@ void menu_clear_sprites_but_cursor(GameState *g);
 /* The frame's input through the cursor: the direction pad's push moves it,
  * and the buttons the player assigned come out as menu_cursor_buttons. */
 void menu_read_cursor(GameState *g);
+
+/* A screen's first cursor places kept aside while another layout puts its
+ * own there (the shop's, while the equipping from it runs), and put back. */
+void menu_keep_cursor_places(GameState *g);
+void menu_put_cursor_places_back(GameState *g);
 
 /* No place of a menu: noted as where the cursor was as the frame began
  * (menu_cursor_frame_start), the screen counts the cursor moved and ticks. */

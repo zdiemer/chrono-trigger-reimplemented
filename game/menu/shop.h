@@ -1,6 +1,6 @@
-/* A shop: what the game does (game/menu/shop.c) and the entries that run it
- * on the original's machine (game/menu/shop_bridge.c). The equipping from
- * the shop (its steps 6 to 8) is still the original's. */
+/* A shop: what the game does (game/menu/shop.c, and the equipping from it
+ * in game/menu/shop_equipment.c) and the entries that run it on the
+ * original's machine (game/menu/shop_bridge.c). */
 #ifndef CT_GAME_MENU_SHOP_H
 #define CT_GAME_MENU_SHOP_H
 
@@ -19,11 +19,19 @@ typedef enum {
     SHOP_SELLING = 3,
     SHOP_SELLING_HOW_MANY = 4,
     SHOP_BUYING_HOW_MANY = 5,
+    SHOP_ON_THE_MEMBERS = 6,
+    SHOP_ON_A_MEMBERS_SLOTS = 7,
+    SHOP_ON_WHAT_FITS = 8,
 } ShopStep;
 
 /* The cursor's places: the list's rows, the two tabs, the quantity, the
  * members along the bottom. */
 enum { SHOP_LIST_ROWS = 8, SHOP_BUY_TAB = 8, SHOP_SELL_TAB = 9, SHOP_QUANTITY = 10, SHOP_FIRST_MEMBER = 12 };
+
+/* Each member's strip of the bottom window, its icon over its figures: two
+ * tile rows of four tiles, eight bytes a member along the row from the
+ * first's. */
+enum { SHOP_MEMBER_STRIPS_AT = 0x3404, SHOP_MEMBER_STRIP_BYTES = 8 };
 
 void menu_shop_go_to(GameState *g, ShopStep step);
 
@@ -48,7 +56,7 @@ void menu_shop_hold_a_cursor_on_the_tabs(GameState *g);
 void menu_shop_start_panel(GameState *g);
 bool menu_shop_panel_member(GameState *g, unsigned member, bool *usable);
 void menu_shop_panel_member_shown(GameState *g, unsigned member);
-void menu_shop_panel_done(GameState *g, unsigned members);
+void menu_shop_leave_panel_done(GameState *g, unsigned members);
 
 /* ---- The tabs ----------------------------------------------------------------------------------- */
 
@@ -75,7 +83,6 @@ void menu_shop_back_on_the_tabs(GameState *g, Platform *pf);
  * its window, is made, framed and settled, then its rows and the bar. */
 void menu_shop_open_buying(GameState *g, Platform *pf);
 void menu_shop_open_buying_last(GameState *g);
-uint16_t menu_shop_goods_offered_word(const GameState *g);
 void menu_shop_open_selling(GameState *g, Platform *pf);
 void menu_shop_list_for_sale(GameState *g);
 void menu_shop_settle_for_sale(GameState *g);
@@ -141,6 +148,41 @@ void menu_shop_back_to_buying(GameState *g);
 void menu_shop_restart_the_bars_blink(GameState *g);
 void menu_shop_back_to_selling(GameState *g);
 
+/* ---- The equipping from the shop (game/menu/shop_equipment.c) ---------------------------------- */
+
+/* Down from the tabs to the members, those the player can't choose among
+ * dimmed; on them, choosing one, or going back up (a push up or down too). */
+void menu_shop_go_down_to_the_members(GameState *g, Platform *pf);
+typedef enum { SHOP_MEMBER_POINTED_AT, SHOP_MEMBER_CHOSEN, SHOP_MEMBERS_LEFT } ShopMembersChoice;
+ShopMembersChoice menu_shop_choose_a_member(const GameState *g);
+void menu_shop_back_up_to_the_tabs(GameState *g, Platform *pf);
+
+/* A member chosen: loaded and its equipment window drawn; a frame later
+ * (the bridge marks the slot on the cursor and makes its list), the
+ * window's effects, nothing described, the others dimmed. */
+void menu_shop_choose_the_member(GameState *g, Platform *pf);
+void menu_shop_open_the_members_slots(GameState *g);
+void menu_shop_mark_the_slot(GameState *g);
+void menu_shop_place_the_lists_bar(GameState *g);
+
+/* On the slots: the shoulders switch the member (to the one returned,
+ * which is the same where they weren't pressed); choosing a slot with
+ * something to fit it goes into its list; going back returns to the
+ * members. */
+uint8_t menu_shop_member_by_the_shoulders(const GameState *g);
+void menu_shop_switch_member(GameState *g, Platform *pf);
+typedef enum { SHOP_SLOT_POINTED_AT, SHOP_SLOT_CHOSEN, SHOP_SLOT_WITH_NOTHING_TO_FIT, SHOP_SLOTS_LEFT } ShopSlotsChoice;
+ShopSlotsChoice menu_shop_choose_a_slot(const GameState *g);
+void menu_shop_into_the_list(GameState *g);
+void menu_shop_back_to_the_members(GameState *g);
+
+/* On the list: the item on the cursor tried on, the figures compared;
+ * chosen, put on; going back (or once it is on), out of the list. */
+void menu_shop_try_on(GameState *g, Platform *pf);
+void menu_shop_compare_figures(GameState *g, Platform *pf);
+void menu_shop_after_putting_on(GameState *g);
+void menu_shop_out_of_the_list(GameState *g, Platform *pf);
+
 /* ---- What the steps can run on (the guards') ----------------------------------------------------- */
 
 bool menu_shop_can_open(const GameState *g);
@@ -163,6 +205,19 @@ void menu_choose_for_sale(Snes *s);
 void menu_choose_how_many_to_buy(Snes *s);
 void menu_choose_how_many_to_sell(Snes *s);
 
+void menu_choose_shop_member(Snes *s);
+void menu_open_shop_member(Snes *s);
+void menu_show_shop_member_slots(Snes *s);
+void menu_switch_shop_member(Snes *s);
+void menu_choose_shop_slot(Snes *s);
+void menu_choose_shop_equipment(Snes *s);
+void menu_frame_shop_quantity(Snes *s);
+void menu_describe_nothing(Snes *s);
+void menu_go_down_to_shop_members(Snes *s);
+void menu_try_on_shop_equipment(Snes *s);
+void menu_compare_shop_figures(Snes *s);
+void menu_mark_shop_slot(Snes *s);
+
 bool menu_shop_opens(Snes *s);
 bool menu_shop_sets_up(Snes *s);
 bool menu_shop_tabs_step_runs(Snes *s);
@@ -172,5 +227,9 @@ bool menu_shop_quantity_step_runs(Snes *s);
 bool menu_shop_list_opens(Snes *s);
 bool menu_shop_list_frames(Snes *s);
 bool menu_shop_panel_shows(Snes *s);
+bool menu_shop_members_step_runs(Snes *s);
+bool menu_shop_slots_step_runs(Snes *s);
+bool menu_shop_equipping_runs(Snes *s);
+bool menu_shop_goes_down(Snes *s);
 
 #endif

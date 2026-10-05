@@ -411,6 +411,11 @@
 /* How many times the game on the cartridge has been finished, as a new game starts with it (the
  * cartridge's count at $30:7FE1) */
 #define RAM_TIMES_FINISHED 0x7E299Eu
+/* Nonzero once the game's first naming has been opened: none at a new game's start, which has
+ * Crono's naming ask how the battles go first; the naming then sets its low byte to the menus'
+ * line effects ($7F), and each naming ORs its character into the low byte as it opens. The
+ * naming reads the two bytes as a word [2 bytes] */
+#define RAM_NAMES_GIVEN 0x7E299Fu
 /* The menus' frame count when they left for the game, which the battle takes its random numbers'
  * start from */
 #define RAM_FRAMES_AT_LEAVING 0x7E29ADu
@@ -425,6 +430,9 @@
 #define RAM_CHARACTER_NAMES 0x7E2C23u
 #define RAM_CHARACTER_NAMES_COUNT 7u
 #define RAM_CHARACTER_NAMES_STRIDE 0x06u
+/* The Epoch's name, after the seven characters' and laid out as theirs: five name characters and
+ * the byte after them [6 bytes] */
+#define RAM_EPOCH_NAME 0x7E2C4Du
 /* The party's gold, a 24-bit number (at most 9,999,999 where the battle gives it) [3 bytes] */
 #define RAM_PARTY_GOLD 0x7E2C53u
 #define RAM_PARTY_GOLD_LOW 0x7E2C53u         /* Its low word */
@@ -2175,6 +2183,24 @@
 #define RAM_MENU_SCRATCH_AMOUNT_HEIGHT 0x7E0004u /* A frame of the rising numbers: how high above the members' sprites they are */
 #define RAM_MENU_SCRATCH_HEAL_DRAWN 0x7E0002u /* A healing drawn at random ($C2:8ECC): the six random bytes, the members' MP's first */
 #define RAM_MENU_SCRATCH_HEAL_BASE 0x7E0008u /* A healing drawn at random: the amount every draw starts from */
+#define RAM_MENU_SCRATCH_SLIDE_BAND_BYTES 0x7E0000u /* A list's slide's start ($C2:EB9B): the bytes of the list's rows' bands, three a row */
+#define RAM_MENU_SCRATCH_SLIDE_BANDS_LEFT 0x7E0000u /* A frame of a list's slide ($C2:EB1F): the bands still to stage, none once it is done */
+#define RAM_MENU_SCRATCH_TYPED_TILES 0x7E0000u /* The description's typing laying its line's tiles ($C2:FAE9): how many tiles along the line the pen has reached into */
+#define RAM_MENU_SCRATCH_LAID_TILES 0x7E0002u /* The same: how many tiles along the line were laid already */
+#define RAM_MENU_SCRATCH_TASKS_LEFT 0x7E0000u /* The menus' tasks stopped ($C2:8255): the tasks' bits still to look at, shifted out one by one */
+#define RAM_MENU_SCRATCH_STRIP_MEMBER 0x7E0000u /* The shop's equipping colouring a member's strip ($C2:E058): the member, whose strip's place it works out */
+#define RAM_MENU_SCRATCH_STRIP_TILES 0x7E0002u /* The same: how many tiles of each of the strip's two rows take the colour */
+#define RAM_MENU_SCRATCH_STRIP_COLOUR 0x7E0003u /* The same: the colour (palette and priority bits), none for a member at its brightest, which the member's sprite's colours then follow (menu_scratch_colours_dimmed) */
+#define RAM_MENU_SCRATCH_STRIPS_MEMBER 0x7E0004u /* The shop's equipping going down to the members ($C2:E017): the member past the reachable ones it got to */
+#define RAM_MENU_SCRATCH_STRIPS_COLOUR_KEPT 0x7E0005u /* The shop's equipping colouring the members ($C2:E072): the colour the chosen member's strip doesn't take */
+#define RAM_MENU_SCRATCH_WINDOW_LINES_LEVEL 0x7E0000u /* The window line table's building ($FF:FC04): the level of the line its loop got to, the second */
+#define RAM_MENU_SCRATCH_WINDOW_LINES_OUT 0x7E0001u /* The same: the run of lines it had out, none */
+#define RAM_MENU_SCRATCH_WINDOW_LINE_GROUPS 0x7E0002u /* The same: the groups it built */
+#define RAM_MENU_SCRATCH_NAME_PLACE_KEPT 0x7E0000u /* Naming a character, checking the name ($C2:E3E0): where in the names' table the name compared last starts */
+#define RAM_MENU_SCRATCH_NAME_SPACE_BEFORE 0x7E0000u /* Naming a character, dropping its spaces ($C2:E390): the letter that a space after it is dropped for, a space as the name starts and none once a letter has come */
+#define RAM_MENU_SCRATCH_GRID_ROWS_LEFT 0x7E0001u /* Naming a character, writing out the letters' grid ($C2:E545): the rows still to write, none once done */
+#define RAM_MENU_SCRATCH_GRID_LETTERS_LEFT 0x7E0000u /* The same: the letters of the row still to write, none once done */
+#define RAM_MENU_SCRATCH_MODE_ROWS_LEFT 0x7E0000u /* The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done */
 /* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
  * HP's, 6 the MP's */
 #define RAM_MENU_AMOUNTS_FROM 0x7E0016u
@@ -2213,7 +2239,8 @@
 #define RAM_MENU_OPENING_RECORDS_LOADED 0x7E0022u
 #define RAM_MENU_OPENING_RECORDS_LOADED_DP 0x22u /* page menu */
 /* The shop's routines' working word, each its own: the row of a list being drawn, left past the
- * last; the goods priced; the record's place the panel puts an item in [2 bytes] */
+ * last; the goods priced; the record's place the panel puts an item in; the members whose
+ * colours the equipping went through [2 bytes] */
 #define RAM_MENU_SHOP_WORK 0x7E0022u
 #define RAM_MENU_SHOP_WORK_DP 0x22u          /* page menu */
 /* The member list's slide ($C2:9DAF): the line its rows are shown from, which it writes over the
@@ -2251,6 +2278,12 @@
  * bytes] */
 #define RAM_MENU_TECH_SLIDE_LINE 0x7E0024u
 #define RAM_MENU_TECH_SLIDE_LINE_DP 0x24u    /* page menu */
+/* The settings' description: where its option's text was laid, kept from the option's typing for
+ * its value's, which goes a tile past the text (menu_description_value_tile on); the original
+ * keeps it in its first cells, between the two typings of a task and from one task to the next
+ * [2 bytes] */
+#define RAM_MENU_DESCRIPTION_VALUE_LINE 0x7E0026u
+#define RAM_MENU_DESCRIPTION_VALUE_LINE_DP 0x26u /* page menu */
 /* How wide, in pixels, the era label the load screen shows is */
 #define RAM_MENU_SAVE_ERA_WIDTH 0x7E0026u
 #define RAM_MENU_SAVE_ERA_WIDTH_DP 0x26u     /* page menu */
@@ -2263,6 +2296,10 @@
  * copied back from) [2 bytes] */
 #define RAM_MENU_TECH_SLIDE_COPY 0x7E0026u
 #define RAM_MENU_TECH_SLIDE_COPY_DP 0x26u    /* page menu */
+/* The settings' description: how many tiles along the option's text its value starts (with the
+ * one between), kept with menu_description_value_line */
+#define RAM_MENU_DESCRIPTION_VALUE_TILE 0x7E0028u
+#define RAM_MENU_DESCRIPTION_VALUE_TILE_DP 0x28u /* page menu */
 /* The shop's division of the gold by a price ($C2:FD1D): its three bytes of quotient, under the
  * byte the division shifts the dividend's spare bits into [4 bytes] */
 #define RAM_MENU_SHOP_QUOTIENT 0x7E0036u
@@ -2377,6 +2414,15 @@
 /* The attribute byte written with every text and digit tile */
 #define RAM_MENU_TEXT_ATTRIBUTE 0x7E007Eu
 #define RAM_MENU_TEXT_ATTRIBUTE_DP 0x7Eu     /* page menu */
+/* The party exchange: the cursor's place as each frame's move leaves it, where the cursor goes
+ * back to once a second member is chosen; the main menu clears it as it opens and as its cursor
+ * moves */
+#define RAM_MENU_EXCHANGE_CURSOR_KEPT 0x7E007Fu
+#define RAM_MENU_EXCHANGE_CURSOR_KEPT_DP 0x7Fu /* page menu */
+/* Naming a character: where the cursor stood on the letters' grid as the frame began (its
+ * place's column and line), which tells whether it moved [2 bytes] */
+#define RAM_MENU_NAME_CURSOR_BEFORE 0x7E007Fu
+#define RAM_MENU_NAME_CURSOR_BEFORE_DP 0x7Fu /* page menu */
 /* The save slot after the one shown (wrapping 0-3), whose row the row table marks */
 #define RAM_MENU_SAVE_SLOT_NEXT 0x7E007Fu
 #define RAM_MENU_SAVE_SLOT_NEXT_DP 0x7Fu     /* page menu */
@@ -2387,6 +2433,10 @@
 /* The shop's cursor on its list, put aside while the quantity window has it */
 #define RAM_MENU_SHOP_LIST_CURSOR 0x7E007Fu
 #define RAM_MENU_SHOP_LIST_CURSOR_DP 0x7Fu   /* page menu */
+/* The party exchange: the reserve's first place its rows show, moved as the cursor pushes past
+ * them */
+#define RAM_MENU_RESERVE_TOP 0x7E0080u
+#define RAM_MENU_RESERVE_TOP_DP 0x80u        /* page menu */
 /* The shop's cursor on the buying and selling tabs, kept while the cursor is on the members */
 #define RAM_MENU_SHOP_TAB_CURSOR 0x7E0080u
 #define RAM_MENU_SHOP_TAB_CURSOR_DP 0x80u    /* page menu */
@@ -2453,6 +2503,9 @@
 /* The number's size in bytes, counted down as it is converted [2 bytes] */
 #define RAM_MENU_NUMBER_SIZE 0x7E0092u
 #define RAM_MENU_NUMBER_SIZE_DP 0x92u        /* page menu */
+/* Cleared as the main menu's cursor moves to another option; nothing traced reads it */
+#define RAM_MENU_MAIN_MENU_SPARE 0x7E00AFu
+#define RAM_MENU_MAIN_MENU_SPARE_DP 0xAFu    /* page menu */
 /* The menus' tasks, which their scheduler ($C2:81B9) runs a turn of each frame, each on a stack
  * of its own: the screen's main task, the sprites' and the cursor's, a fade, a graphic's loading
  * [8 x $8 bytes, by task, 8 bytes a task ($B0 + 8 * the task)] */
@@ -2567,6 +2620,10 @@
 /* The byte after the circle's table bank, which the capsule iris clears as it writes the bank as
  * a word */
 #define RAM_MENU_CIRCLE_BANK_HIGH 0x7E0359u
+/* The main menu's option the cursor is on: 0 the equipment, 1 the items, 2 the techs, 3 the
+ * settings, 4 the party exchange, 5 saving; kept from one opening to the next where the player
+ * keeps the menus' cursors */
+#define RAM_MENU_MAIN_MENU_OPTION 0x7E0411u
 /* Which of the three rows of a member list the cursor is on (the member is it plus
  * menu_member_scroll) */
 #define RAM_MENU_MEMBER_ROW 0x7E0412u
@@ -2772,6 +2829,13 @@
 /* The character whose face and name a member row's window list draws, in the low bits, with bit
  * 5 set ($C2:A1EF) [2 bytes] */
 #define RAM_MENU_MEMBER_FACE 0x7E0D4Du
+/* How the shop's member window colours each figure of the member equipping: the text's colour
+ * where the item tried on leaves it as it is, brighter ($08) where it raises it, darker ($1C)
+ * where it lowers it [7 x $1 bytes, by figure: the seven stats in the order the member's window
+ * lists them] */
+#define RAM_MENU_SHOP_FIGURE_MARKS 0x7E0D4Du
+#define RAM_MENU_SHOP_FIGURE_MARKS_COUNT 7u
+#define RAM_MENU_SHOP_FIGURE_MARKS_STRIDE 0x01u
 /* How many of the item the items screen's list drew last the party has, the number its row shows */
 #define RAM_MENU_ITEM_ROW_COUNT 0x7E0D4Eu
 /* Set to 4 by $C2:A1EF when the character a status window shows ($7E:9A90's low bits) has
@@ -2810,13 +2874,15 @@
 /* A frame countdown the vblank handler decrements until it reaches zero: the menus' sounds wait
  * on it, three frames after one plays */
 #define RAM_MENU_WAIT_FRAMES 0x7E0D76u
-/* The item whose description the description window shows ($C2:F2F3 draws another only for
- * another item) */
+/* What the description window describes -- an item, a tech, a tech kind's caption, a setting --
+ * by its text's number in the screen's table: a screen's request types another only for
+ * something else */
 #define RAM_MENU_DESCRIPTION_ITEM 0x7E0D77u
 /* The era whose label the load screen has loaded (the ROM's table at $FF:D296 gives a location's
  * era), loaded again (through $C2:F90C) when a slot shows another */
 #define RAM_MENU_SAVE_SLOT_ERA 0x7E0D77u
-/* Bit 7 set has the description window drawn again whatever item it shows ($C2:F2F3 clears it) */
+/* Bit 7 set has the description window typed again whatever it shows (a request clears it); the
+ * settings' description keeps here which of the value texts its value shows */
 #define RAM_MENU_DESCRIPTION_STALE 0x7E0D78u
 /* The window design each save slot's game was saved with, which the load screen draws the slot's
  * row in [3 x $1 bytes, by save slot] */
@@ -2905,6 +2971,13 @@
 /* How fast the held cursor blinks: the bits of its blink's countdown its task clears each turn
  * ($FC a blink every four frames, $F8 every eight) [2 bytes] */
 #define RAM_MENU_HELD_CURSOR_BLINK 0x7E0DA6u
+/* The party exchange: the reserve's first place shown when the second cursor was held on a
+ * member, which its task ($C2:8A45) takes the first shown now from to keep it on the member as
+ * the reserve scrolls */
+#define RAM_MENU_HELD_RESERVE_TOP 0x7E0DA8u
+/* Which of a list's slide's bands is the first in view, as a byte offset into them (three a
+ * band): the row coming in above for a slide up, the list's first row for a slide down */
+#define RAM_MENU_SLIDE_FIRST_BAND 0x7E0DA9u
 /* The rows an item list's slide ($C2:EB9B, $C2:EB1F) moves over */
 #define RAM_MENU_SLIDE_ROWS 0x7E0DAAu
 /* How far a list's slide has moved so far (its steps summed), which the item lists' slide frame
@@ -2948,31 +3021,53 @@
 #define RAM_MENU_HEAL_POWER 0x7E0DBFu
 /* What a tonic's power is multiplied by ($40 for an item whose figures say all, 15) */
 #define RAM_MENU_HEAL_FACTOR 0x7E0DC0u
-/* How far along the description's row its task has typed, in bytes of the row's tilemap: a new
- * value for the same option clears the row from there [2 bytes] */
-#define RAM_MENU_DESCRIPTION_TYPED 0x7E0DC1u
-/* Where in the tilemap buffers the description window's text starts, its row (the address's tile
- * row) cleared before the description is set ($C2:FA49) [2 bytes] */
+/* Where along the description's row its current line starts, in bytes of the text layer's
+ * tilemap: none for a description's first line, two tile rows on for each next, and for the
+ * settings' value a tile past the option's text (where a new value clears the row from) [2
+ * bytes] */
+#define RAM_MENU_DESCRIPTION_LINE_FROM 0x7E0DC1u
+/* How many glyphs of the description's line its typing has sent to VRAM: the line's tiles go
+ * again only once it has more */
+#define RAM_MENU_DESCRIPTION_GLYPHS_SENT 0x7E0DC3u
+/* The byte after the count of glyphs sent, which the original clears with it (the two written as
+ * a word) as the settings' description starts typing; nothing reads it */
+#define RAM_MENU_DESCRIPTION_GLYPHS_SENT_PAD 0x7E0DC4u
+/* Where in the text layer's tilemap buffer the description's line is laid (the address's tile
+ * row is the row a new description clears and its typing sends); the settings' value's line, a
+ * tile past the option's text [2 bytes] */
 #define RAM_MENU_DESCRIPTION_LINE 0x7E0DC5u
 /* Where in bank $7E the menus' graphics loader ($C2:F90C) puts what it loads [2 bytes] */
 #define RAM_MENU_LOAD_DESTINATION 0x7E0DC5u
 /* The tilemap word the menus lay a graphic they drew out from: its first tile and attribute (the
  * load screen's slot labels, the text loader's graphics) [2 bytes] */
 #define RAM_MENU_GRAPHIC_FIRST_TILE 0x7E0DC7u
-/* How many glyphs of a description its task sets a frame ($C2:FAA8 hands it to the text's
- * budget) */
+/* How many glyphs of a description its typing sets a frame (the text's budget) */
 #define RAM_MENU_DESCRIPTION_PACE 0x7E0DC9u
-/* Set with a description: $6AA0 for the techs screen's, $6840 for the items'; no code traced
- * reads it [2 bytes] */
-#define RAM_MENU_DESCRIPTION_TILES 0x7E0DCCu
+/* Where in VRAM the description's row of the text layer goes, which its typing sends each frame:
+ * $6AA0 for the techs screen's, $6840 for the items' and the shop's, $6900 for the settings' [2
+ * bytes] */
+#define RAM_MENU_DESCRIPTION_ROW_VRAM 0x7E0DCCu
 /* The settings screen's option whose description the screen asks for: the description window
  * types it again where it shows another */
 #define RAM_MENU_SETTINGS_DESCRIBED_OPTION 0x7E0DCEu
 /* Which of the settings' value texts the description window is asked to show beside the
  * option's: the option's first, plus the setting's value */
 #define RAM_MENU_SETTINGS_DESCRIPTION 0x7E0DCFu
-/* How many bytes of the description's row a new description clears ($C2:FA49) [2 bytes] */
-#define RAM_MENU_DESCRIPTION_CLEAR_BYTES 0x7E0DD0u
+/* How many bytes of the text layer's tilemap the description's row is (its two lines of two tile
+ * rows): a new description clears them, and its typing sends them each frame [2 bytes] */
+#define RAM_MENU_DESCRIPTION_ROW_BYTES 0x7E0DD0u
+/* How far along the description's line its tiles are laid on the row, in pixels: the pen's place
+ * when they were last laid, a tile in (8) as a line starts */
+#define RAM_MENU_DESCRIPTION_LAID_TO 0x7E0DD2u
+/* The byte after how far the line's tiles are laid, which the original clears with it (the two
+ * written as a word) as a description starts typing; nothing reads it */
+#define RAM_MENU_DESCRIPTION_LAID_TO_PAD 0x7E0DD3u
+/* Where in VRAM the tiles the description's line is set in go: $7800 for a description's first
+ * line, $200 words on for the next, $7A00 for the settings' value [2 bytes] */
+#define RAM_MENU_DESCRIPTION_TILES_VRAM 0x7E0DD4u
+/* Where in bank $7E the tiles the description is set in are, which its typing sends: $5E00, or
+ * $6200 for the settings' value [2 bytes] */
+#define RAM_MENU_DESCRIPTION_TILES_AT 0x7E0DD6u
 /* How many rows a page of a scrolling list is, as its frame ($C2:EA81) lays it out for the
  * paging ($C2:93BF) */
 #define RAM_MENU_PAGING_ROWS 0x7E0DD8u
@@ -2999,6 +3094,10 @@
 #define RAM_MENU_LIST_ITEMS 0x7E0F00u
 #define RAM_MENU_LIST_ITEMS_COUNT 98u
 #define RAM_MENU_LIST_ITEMS_STRIDE 0x01u
+/* Naming a character: the name as the player types it, five letters and the byte after them; it
+ * starts as the character's name, and a letter taken back leaves its place without one ($FF) [6
+ * bytes] */
+#define RAM_MENU_NAME_TYPED 0x7E0F00u
 /* The button assignments the settings screen shows while its cursor is on them: the player's
  * own, with the change the cursor's row is making [9 x $1 bytes, by assignment, in
  * button_assignments' order (and a ninth)] */
@@ -3010,6 +3109,13 @@
 #define RAM_MENU_TECH_LIST 0x7E0F00u
 #define RAM_MENU_TECH_LIST_COUNT 48u
 #define RAM_MENU_TECH_LIST_STRIDE 0x01u
+/* Naming a character: how many letters the player has typed (at most five), where the next goes
+ * [2 bytes] */
+#define RAM_MENU_NAME_LETTERS 0x7E0F06u
+/* Naming a character: the letters' grid's column the cursor is on (0-9) */
+#define RAM_MENU_NAME_GRID_COLUMN 0x7E0F08u
+/* Naming a character: the letters' grid's row the cursor is on (0-7) */
+#define RAM_MENU_NAME_GRID_ROW 0x7E0F09u
 /* The settings screen's ten boxes, ticked or not: the on-off settings' (the sound output's
  * ticked for stereo, its cell 0), and in the places of the gauge, the battle speed and the
  * window design whether the cursor is choosing that setting [10 x $1 bytes, by box, in the
@@ -3017,6 +3123,11 @@
 #define RAM_MENU_SETTINGS_BOXES 0x7E0F09u
 #define RAM_MENU_SETTINGS_BOXES_COUNT 10u
 #define RAM_MENU_SETTINGS_BOXES_STRIDE 0x01u
+/* Naming a character: the line the cursor's row stands on, kept as the cursor moves up or down;
+ * nothing reads it [2 bytes] */
+#define RAM_MENU_NAME_GRID_LINE 0x7E0F0Au
+/* Naming a character: where in work RAM the character's name is (character_names) [2 bytes] */
+#define RAM_MENU_NAME_RECORD_AT 0x7E0F0Cu
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
@@ -3240,6 +3351,11 @@
 /* The tilemap buffer the load screen draws a save slot's contents into, three member rows $C0
  * bytes apart [576 bytes] */
 #define RAM_MENU_SAVE_SLOT_TILEMAP 0x7E3200u
+/* The menus' back layer's tilemap buffer, two screens of 32 tiles by 32: the main menu's
+ * backdrop, the member rows' second layer [2048 x $2 bytes, by tile: 32 a row] */
+#define RAM_MENU_BACK_TILEMAP 0x7E3E00u
+#define RAM_MENU_BACK_TILEMAP_COUNT 2048u
+#define RAM_MENU_BACK_TILEMAP_STRIDE 0x02u
 /* The End of Time's gate screen's swirl, BG3's tilemap: six rows of sixteen tiles, each row
  * twice across, repeated down the map [1024 x $2 bytes, by tile (32 to a row)] */
 #define RAM_MENU_GATE_TILEMAP 0x7E4E00u
@@ -3276,6 +3392,12 @@
 #define RAM_MENU_SHOP_FOR_SALE_COUNTS 0x7E5700u
 #define RAM_MENU_SHOP_FOR_SALE_COUNTS_COUNT 256u
 #define RAM_MENU_SHOP_FOR_SALE_COUNTS_STRIDE 0x01u
+/* A box of the main menu's own tiles, sixteen tiles across and six rows down (a frame around a
+ * filled inside), which the main menu draws aside past the text layer's tilemap as it opens [192
+ * x $2 bytes, by tile: 32 a row, six rows] */
+#define RAM_MENU_MAIN_MENU_BOX 0x7E5780u
+#define RAM_MENU_MAIN_MENU_BOX_COUNT 192u
+#define RAM_MENU_MAIN_MENU_BOX_STRIDE 0x02u
 /* The equipment screen's windows' per-line table's values, a word a band of lines: the line
  * their layer is shown from, which the slots and list windows move as they slide [12 x $2 bytes,
  * by band of lines] */
@@ -3316,6 +3438,12 @@
 #define RAM_MENU_TECH_TARGET_LINES 0x7E5DE0u
 #define RAM_MENU_TECH_TARGET_LINES_COUNT 12u
 #define RAM_MENU_TECH_TARGET_LINES_STRIDE 0x02u
+/* The tiles the menus set text in with the proportional font (menu_text_tiles points into them):
+ * a description's lines, the naming's label; cleared as a screen sets new text in them [1024 x
+ * $2 bytes, by word] */
+#define RAM_MENU_GLYPH_TILES 0x7E5E00u
+#define RAM_MENU_GLYPH_TILES_COUNT 1024u
+#define RAM_MENU_GLYPH_TILES_STRIDE 0x02u
 /* What the shop asks for each of its goods: the item's price by the shops' scale, rounded up, at
  * least 1 (set for the shop's goods as it opens) [242 x $2 bytes, by item] */
 #define RAM_MENU_SHOP_PRICES 0x7E6E00u
@@ -3453,6 +3581,10 @@
 #define RAM_MENU_SETTINGS_CONFLICTS 0x7E969Au
 #define RAM_MENU_SETTINGS_CONFLICTS_COUNT 8u
 #define RAM_MENU_SETTINGS_CONFLICTS_STRIDE 0x01u
+/* A list's per-line table as its slide stages it for the vblank's block move to the list's own
+ * (menu_block_move_dest): the bands in view, three bytes each (the lines, then the vertical
+ * scroll), then the list's bands past them and the table's end as they rest [39 bytes] */
+#define RAM_MENU_SLIDE_STAGED_TABLE 0x7E969Au
 /* The load screen's per-line table, staged for the vblank's block move to $7E:9300, where its
  * per-line channel reads it: a band of lines each, and where the band's values are [5 x $3
  * bytes, by band: the band above the rows, then a save slot's row each] */
@@ -3471,6 +3603,9 @@
 #define RAM_MENU_STAGED_LINE_TABLE_VALUE 0x7E969Bu /* The value the band's lines take: the layer's vertical scroll ($1E0 shows it 32 lines up) */
 /* The byte after the load screen's per-line table's bands, copied with them */
 #define RAM_MENU_SLOT_ROW_TABLE_END 0x7E96A9u
+/* A list's per-line table as it rested when its slide started (a byte past its end with it),
+ * which the vblank's block move copies back once the slide is over [38 bytes] */
+#define RAM_MENU_SLIDE_TABLE_AT_REST 0x7E9710u
 /* The load screen's per-line table as its setup builds it, before a slot's row is marked [5 x $3
  * bytes, by band, as menu_slot_row_table] */
 #define RAM_MENU_SLOT_ROW_TEMPLATE 0x7E9710u
@@ -3483,6 +3618,25 @@
 /* The values the load screen's per-line effect gives its rows, a byte a line, as $C2:D044 has
  * them: 16 lines of one, 16 of another, then a last that a row of its own reads [33 bytes] */
 #define RAM_MENU_SLOT_ROW_VALUES 0x7E9720u
+/* The bands a list's slide shows its rows from, made from the list's per-line table as the slide
+ * starts ($C2:EB9B): a row's lines each and the layer's vertical scroll that shows the row
+ * there; a frame of the slide ($C2:EB1F) shows as many as the list has rows from the first in
+ * view, moved by how far it has slid [13 x $3 bytes, by band: the row coming in above the list
+ * (a slide up), the list's rows as they rest, then the row below them] */
+#define RAM_MENU_SLIDE_BANDS 0x7E9790u
+#define RAM_MENU_SLIDE_BANDS_COUNT 13u
+#define RAM_MENU_SLIDE_BANDS_STRIDE 0x03u
+#define RAM_MENU_SLIDE_BANDS_LINES 0x7E9790u /* How many lines the row shows */
+#define RAM_MENU_SLIDE_BANDS_SCROLL 0x7E9791u /* The layer's vertical scroll that shows the row there */
+/* An upload to VRAM as a routine builds its record in work RAM for the queue ($C2:838E), as the
+ * description's typing builds its two each frame; the queue copies it, and nothing reads it
+ * after [8 bytes] */
+#define RAM_MENU_BUILT_UPLOAD 0x7E9890u
+#define RAM_MENU_BUILT_UPLOAD_VRAM 0x7E9890u /* The VRAM word it goes to */
+#define RAM_MENU_BUILT_UPLOAD_SOURCE 0x7E9892u /* Where it comes from, within its bank */
+#define RAM_MENU_BUILT_UPLOAD_BANK 0x7E9894u /* The bank it comes from */
+#define RAM_MENU_BUILT_UPLOAD_SIZE 0x7E9895u /* How many bytes it is */
+#define RAM_MENU_BUILT_UPLOAD_SPARE 0x7E9897u /* The byte after the record, which the queue copies with it as it stands: whatever was left there */
 /* What a member has on, in the order the card lists it, copied out of the status record as the
  * card draws it ($C2:A6F0) [5 x $1 bytes, by slot: the weapon, the helmet, the armour, the
  * accessory; then the record's byte after the accessory] */
@@ -3498,6 +3652,13 @@
 #define RAM_MENU_ITEM_USERS_NAMES 0x7E9890u
 #define RAM_MENU_ITEM_USERS_NAMES_COUNT 7u
 #define RAM_MENU_ITEM_USERS_NAMES_STRIDE 0x06u
+/* Naming a character: the letters' grid written out as a string for the text drawer, a row at a
+ * time, each letter with a blank after it and a new line after the row, ended by a zero [169
+ * bytes] */
+#define RAM_MENU_NAME_GRID_TEXT 0x7E9890u
+/* Naming a character: the name as it will be kept, its spaces before and after it dropped and a
+ * zero after it, checked against the other characters' names before it goes in [6 bytes] */
+#define RAM_MENU_NAME_KEPT 0x7E9890u
 /* The tiles of the frame a record shows, a word each (bits 0-10 the tile in its graphics, 0 a
  * blank tile, bit 14 mirrored), copied from the frame's data over the save summary; the record's
  * sprite assignment's five bytes are copied there first as its load reads them
@@ -3535,11 +3696,20 @@
  * wide, so it holds the cost of the part after the member's, uncut; cleared with the cost.
  * Nothing reads it */
 #define RAM_MENU_TECH_COST_BESIDE 0x7E9891u
-/* The shop's cursor places as it opens, kept while the equipping from the shop puts its own
- * there and put back after [72 x $1 bytes, by byte of menu_cursor_places] */
+/* Naming a character: the name as typed, copied and its spaces after it cleared, which the name
+ * kept is taken from [6 bytes] */
+#define RAM_MENU_NAME_TRIMMED 0x7E98A0u
+/* The shop's first twelve cursor places as it opens, kept while the equipping from the shop puts
+ * its own there and put back after [12 x $6 bytes, by cursor position, as menu_cursor_places] */
 #define RAM_MENU_CURSOR_PLACES_KEPT 0x7E9990u
-#define RAM_MENU_CURSOR_PLACES_KEPT_COUNT 72u
-#define RAM_MENU_CURSOR_PLACES_KEPT_STRIDE 0x01u
+#define RAM_MENU_CURSOR_PLACES_KEPT_COUNT 12u
+#define RAM_MENU_CURSOR_PLACES_KEPT_STRIDE 0x06u
+#define RAM_MENU_CURSOR_PLACES_KEPT_X 0x7E9990u /* The cursor's X */
+#define RAM_MENU_CURSOR_PLACES_KEPT_Y 0x7E9991u /* The cursor's Y */
+#define RAM_MENU_CURSOR_PLACES_KEPT_UP 0x7E9992u /* The position above this one */
+#define RAM_MENU_CURSOR_PLACES_KEPT_DOWN 0x7E9993u /* The position below it */
+#define RAM_MENU_CURSOR_PLACES_KEPT_LEFT 0x7E9994u /* The position left of it */
+#define RAM_MENU_CURSOR_PLACES_KEPT_RIGHT 0x7E9995u /* The position right of it */
 /* The label of the figure the window of who can equip an item shows (attack or defence), copied
  * from the ROM with an end byte after it [13 bytes] */
 #define RAM_MENU_ITEM_POWER_LABEL 0x7E9990u

@@ -10,6 +10,10 @@
  * room. */
 bool menu_save_slots_can_show(const GameState *g);
 
+/* The slots' rows' per-line effect for the next frame, the row of the slot
+ * after the one shown marked ($C2:CFFB). */
+void menu_put_slot_rows_effect(GameState *g);
+
 void menu_read_save_slots(Snes *s);
 void menu_read_slot_summary(Snes *s);
 void menu_read_design_and_chapter(Snes *s);

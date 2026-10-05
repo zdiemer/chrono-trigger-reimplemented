@@ -43,9 +43,12 @@
 /* What the next glyph comes from. */
 typedef enum { FROM_STRING = 0, FROM_INSERT = 1, FROM_DIGITS = 2, FROM_HEX_DIGITS = 3 } Source;
 
-/* Why a call stopped (menu_text_stop); the breaks are 4-12, the ones from 5
- * on starting a new line. The start leaves "go on". */
-enum { STOP_FINISHED = 0, STOP_WAITING = 3, GO_ON = 4, FIRST_NEW_LINE = 5, LAST_BREAK = 12, STOP_BUDGET = 0x10 };
+/* Why a call stopped (typeset.h's MenuTextStop). The start leaves "go on",
+ * the first of the breaks. */
+enum {
+    STOP_FINISHED = MENU_TEXT_ENDED, STOP_WAITING = MENU_TEXT_WAITS, GO_ON = MENU_TEXT_BREAKS,
+    FIRST_NEW_LINE = MENU_TEXT_NEW_LINE, LAST_BREAK = MENU_TEXT_LAST_BREAK, STOP_BUDGET = MENU_TEXT_OUT_OF_BUDGET,
+};
 
 /* Where a line starts: a tile in from the edge, or indented. */
 enum { MARGIN = 8, INDENT = 0x14, EDGE = 0 };
