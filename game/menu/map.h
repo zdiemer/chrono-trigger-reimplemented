@@ -21,6 +21,14 @@ void menu_map_scroll(GameState *g, uint8_t plane, MenuAxis axis, int8_t step);
 unsigned menu_map_scroll_records(MenuAxis axis, int8_t step);
 bool menu_map_can_scroll(const GameState *g, uint8_t plane, unsigned records);
 
+/* The 8x8 tile of the map the camera looks at (map.c says how the camera is
+ * kept), round the map: what the original keeps as where the party stood
+ * when it leaves the world map. */
+typedef struct {
+    uint8_t column, row;
+} MenuMapTile;
+MenuMapTile menu_map_camera_looks_at(const GameState *g);
+
 /* The entries run on the menus' page, with the data bank on low RAM; the
  * scrolls and the redraw take the plane and the step from the object mode's
  * first cells (map.c's guards say what else the game keeps them to). */

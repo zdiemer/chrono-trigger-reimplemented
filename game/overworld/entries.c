@@ -5,12 +5,15 @@
  * Each object's handler is entered from the mode's object loop
  * (menu/objects.c) with its slot in X and an 8-bit accumulator, and hands
  * back the carry clear (never done); the only other thing its caller sees is
- * the accumulator's width, which the leader's leaves 16 bits wide while it is
- * in the middle of a step on foot. */
+ * the accumulator's width, which the walkers leave 16 bits wide on some of
+ * their steps. A walker runs an event's script through the script
+ * interpreter's bridge (menu/script_bridge.h), called as from the walker's
+ * own call to it. */
 #include "overworld/entries.h"
 
 #include "menu/map.h"
 #include "menu/objects.h"
+#include "menu/script_call.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "overworld/frames.h"
@@ -25,13 +28,42 @@
 
 /* ---- What the handlers leave --------------------------------------------------------------- */
 
-/* The leader's step on foot ends with the accumulator 16 bits wide, every
- * other way through with it 8 bits wide. */
-static bool leader_mid_step(const GameState *g, MenuObject leader)
+/* A walker's steps on foot on the map, the event's when one runs. */
+static bool walks_on_foot(const GameState *g, PartyPlace place)
 {
-    return overworld_place_taken(g, PARTY_LEADER) && overworld_party_travel(g) == TRAVEL_ON_FOOT
-           && overworld_on_the_map(g) && !overworld_event_running(g) && overworld_step(g, leader) == LEADER_WALKS;
+    return overworld_place_taken(g, place) && overworld_party_travel(g) == TRAVEL_ON_FOOT && overworld_on_the_map(g);
 }
+
+/* What a walker's frame is, as the frame starts (a script the walker runs
+ * may change any of it): on foot on the map in an event, the step it runs,
+ * and whether the event has given it a script. */
+typedef struct {
+    bool on_foot, in_an_event, has_a_script;
+    OverworldStep step;
+} WalkerFrame;
+
+static WalkerFrame walker_frame(const GameState *g, MenuObject walker, PartyPlace place)
+{
+    vars_peek(true);
+    bool on_foot = walks_on_foot(g, place);
+    WalkerFrame f = { on_foot, on_foot && overworld_event_running(g), overworld_event_script_for(g, place) != 0,
+                      overworld_walkers_start_over(g) ? 0 : overworld_step(g, walker) };
+    vars_peek(false);
+    return f;
+}
+
+/* The leader ends a step on foot, and the wait for the event's script, with
+ * the accumulator 16 bits wide; every other way through with it 8 bits wide. */
+static bool leader_leaves_a_word(const GameState *g, MenuObject leader, WalkerFrame f)
+{
+    if (f.in_an_event)
+        return f.step == WALKER_AWAITS_ITS_SCRIPT && !f.has_a_script;
+    return f.on_foot && overworld_step(g, leader) == LEADER_WALKS;
+}
+
+/* A follower leaves it 16 bits wide from every step of an event's but the
+ * last. */
+static bool follower_leaves_a_word(WalkerFrame f) { return f.in_an_event && f.step < WALKER_HAS_RUN_ITS_SCRIPT; }
 
 static void handler_goes_on(Snes *s, bool a_word_wide)
 {
@@ -43,21 +75,72 @@ static void handler_goes_on(Snes *s, bool a_word_wide)
     m_rts(s);
 }
 
+/* ---- A walker's script, on the machine ----------------------------------------------------- */
+
+/* Where each walker calls the interpreter from: as it takes its script up,
+ * and as it goes on with it. */
+typedef struct {
+    Snes *s;
+    uint32_t calls[2];
+} WalkerOnTheMachine;
+
+static const uint32_t LEADER_CALLS[2] = { [WALKER_STARTS_ITS_SCRIPT] = 0xC2378B,
+                                          [WALKER_GOES_ON_WITH_ITS_SCRIPT] = 0xC237A1 };
+static const uint32_t FOLLOWER_CALLS[2] = { [WALKER_STARTS_ITS_SCRIPT] = 0xC23DBA,
+                                            [WALKER_GOES_ON_WITH_ITS_SCRIPT] = 0xC23DC1 };
+
+/* The walker's step table hands the interpreter an 8-bit accumulator and the
+ * overflow clear from working out its row, which the first command's call of
+ * a routine a script names would see. */
+static WalkerScriptEnd run_on_the_machine(void *ctx, WalkerScriptRun run)
+{
+    WalkerOnTheMachine *w = ctx;
+    m_sep(w->s, CPU_FLAG_M);
+    m_set_flag(w->s, CPU_FLAG_V, false);
+    switch (menu_run_object_script_from(w->s, w->calls[run])) {
+    case SCRIPT_DONE: return WALKER_SCRIPT_DONE;
+    case SCRIPT_GAVE_BACK: return WALKER_SCRIPT_HANDED_OVER;
+    default: return WALKER_SCRIPT_WAITS;
+    }
+}
+
+static WalkerScripts on_the_machine(WalkerOnTheMachine *w, Snes *s, const uint32_t calls[2])
+{
+    *w = (WalkerOnTheMachine){ s, { calls[0], calls[1] } };
+    return (WalkerScripts){ run_on_the_machine, w };
+}
+
+/* A walker's step after the frame's start over. */
+static OverworldStep step_to_run(const GameState *g, MenuObject walker)
+{
+    return overworld_walkers_start_over(g) ? 0 : overworld_step(g, walker);
+}
+
 // $C2:3404
 void overworld_lead_entry(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject leader = menu_object_running(g);
-    overworld_lead(g, leader);
-    handler_goes_on(s, leader_mid_step(g, leader));
+    WalkerFrame f = walker_frame(g, leader, PARTY_LEADER);
+    WalkerOnTheMachine w;
+    WalkerScripts scripts = on_the_machine(&w, s, LEADER_CALLS);
+    if (overworld_lead(g, leader, &scripts))
+        handler_goes_on(s, leader_leaves_a_word(g, leader, f));
 }
 
 // $C2:3AE2
 void overworld_follow_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    overworld_follow(g, menu_object_running(g));
-    handler_goes_on(s, false);
+    MenuObject self = menu_object_running(g);
+    vars_peek(true);
+    PartyPlace place = (PartyPlace)menu_object_slots_party_place(g, self);
+    vars_peek(false);
+    WalkerFrame f = walker_frame(g, self, place);
+    WalkerOnTheMachine w;
+    WalkerScripts scripts = on_the_machine(&w, s, FOLLOWER_CALLS);
+    if (overworld_follow(g, self, &scripts))
+        handler_goes_on(s, follower_leaves_a_word(f));
 }
 
 // $C2:3264
@@ -102,12 +185,6 @@ static bool peek(Snes *s, MenuObject *self)
     return true;
 }
 
-/* A walker's step after the frame's start over. */
-static OverworldStep step_to_run(const GameState *g, MenuObject walker)
-{
-    return overworld_walkers_start_over(g) ? 0 : overworld_step(g, walker);
-}
-
 /* A walker's animations are ones the sprite scripts read (the one it has
  * too, unless it sets off, given its standing one first), and the sprite list
  * and the upload queue are as the mode keeps them. */
@@ -133,12 +210,26 @@ static bool the_map_can_follow(const GameState *g, MenuObject leader)
  * travel they have, a step of its table (after the frame's start over), a
  * vehicle the game boards (the tables have a second that nothing sets), a
  * facing of the four; it reads the leader's trail as the game keeps it, and
- * animates. On foot on the map an event's script for it is the original's
- * still (the script interpreter on the machine), so it is turned away. */
+ * animates. On foot on the map while an event runs, it keeps to the event's
+ * steps, and a script it runs is one the interpreter runs (in a bank of
+ * scripts, the sprite list as the mode keeps it). */
 typedef struct {
     OverworldStep on_foot, boarding;
     bool moves_the_map;
 } WalkerTables;
+
+static bool event_step_runs(const GameState *g, MenuObject walker, PartyPlace place, OverworldStep step)
+{
+    enum { EVENT_SCRIPTS = 0x7F0000 };
+    switch (step) {
+    case WALKER_AWAITS_ITS_SCRIPT:
+        return overworld_event_script_for(g, place) == 0 || menu_object_script_can_run(g, EVENT_SCRIPTS);
+    case WALKER_RUNS_ITS_SCRIPT:
+        return menu_object_script_can_run(g, menu_object_slots_script(g, walker));
+    default:
+        return step < WALKER_STEPS_IN_AN_EVENT;
+    }
+}
 
 static bool walker_runs(const GameState *g, MenuObject walker, PartyPlace place, WalkerTables tables)
 {
@@ -158,7 +249,9 @@ static bool walker_runs(const GameState *g, MenuObject walker, PartyPlace place,
     case TRAVEL_ON_FOOT:
         if (!overworld_on_the_map(g))
             return animates(g, walker, place, false);
-        return !overworld_event_running(g) && step < tables.on_foot && walks;
+        if (overworld_event_running(g))
+            return event_step_runs(g, walker, place, step);
+        return step < tables.on_foot && walks;
     case TRAVEL_BOARDING:
         return step < tables.boarding && boards_the_game_s && walks;
     case TRAVEL_GETTING_OFF:

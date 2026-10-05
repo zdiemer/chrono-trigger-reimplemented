@@ -3444,8 +3444,8 @@ the world map as the party walks it. It is its own subsystem, `game/overworld/`,
 sharing the sprite-object mode's objects and scripts with `game/menu/`
 (`tools/ram_map.py`'s `SHARES`, `tools/effects_check.py`'s families).
 `python3 tools/burndown.py` for `$C2`: 40.6K ported and 31% left with 450
-entries before, 46.1K and 22% left with 461 after: about 5.6 KiB of new code
-in 11 entries, all of it to the bar (`tools/portstyle.py --subsystem
+entries before, 46.1K and 22% left with 462 after: about 5.6 KiB of new code
+in 12 entries, all of it to the bar (`tools/portstyle.py --subsystem
 overworld`: 0.01 machine operations a line, 19% of its functions on the
 machine, all of them entry wrappers or the main loop's bridges;
 `tools/portsmell.py`: no finding).
@@ -3499,13 +3499,34 @@ the original gives them) and the driver's result; the menus' entry at
 computes), A's high byte, Y and the carry declared dead. Each declaration is
 `tools/dontcare_check.py`'s.
 
-**What the guards refuse, and why it isn't ported.** An event the party
-steps onto gives the walkers scripts to run, which their handlers run through
-the object scripts' interpreter (`$C2:0F63`) mid-body: the guards turn those
-frames away, and the original runs them (no movie steps onto an event, so no
-real call is refused). The vehicles' controller (`$C2:309E`) is the next
-chunk's. A halt and a mode the loop doesn't know hand over to the original's
-loop at `$C2:23D2`, before it touches a register. Elsewhere the guards keep
+**An event's scripts and the halt.** An event the party steps onto gives
+each walker a script (`menu_member_scripts`), which it takes up and runs a
+frame at a time (`$C2:3772`, `$C2:37A1`, `$C2:3D9C`, `$C2:3DC1`): the
+walkers' logic asks for the frame's run through a service
+(`WalkerScripts`, `overworld.h`), and the entries give it the interpreter's
+bridge called as from the walker's own call (`menu_run_object_script_from`,
+`menu/script_call.h`), with that call's return on the stack for a command the
+bridge hands to the original's interpreter. The accumulator's width the
+walkers leave the objects' loop is worked out from the frame as it starts, as
+a script may change anything after. The halt (`$C2:250D`) is an arm of the
+loop and an entry of its own: the screen stilled and the story's flags given
+back, a pass at a time that comes back to itself, as the original spins.
+
+**What the guards refuse.** The vehicles' controller (`$C2:309E`) is the next
+chunk's. A mode the loop doesn't know, or entering a place past the map's
+lists, hands over to the original's loop at `$C2:23D2`, before it touches a
+register: neither is a state the game makes.
+
+**Where the party stood.** Leaving the world map keeps what the camera looks
+at, which the original works out as its top-left tile plus sixteen each way,
+half its 256-pixel width. That is the camera's convention, not the screen's
+size: `menu/map.c` keeps it beside the centring that puts the camera there
+(sixteen columns and fourteen rows off the party, half the original's
+256x224), as `menu_map_camera_looks_at`, so a screen of another size draws
+round the same camera and a place kept doesn't depend on the screen it was
+played on. The leader's own spot gives the same tile on foot but not where a
+scene's script has moved the camera (9 of the library's 20 leaves differ, all
+of them a script's), so the camera it stays. Elsewhere the guards keep
 to states the game makes: sprite scripts well formed
 (`menu_given_sprite_script_is_well_formed`), the map scrolled within its
 room, the lists' lengths and an exit's offset whole records, the trail's next
@@ -3539,7 +3560,11 @@ wait (`$C2:0346` spins on the vblank count, which no fuzzed state changes, so
 the arms are shadow mode's alone). What no movie runs
 (`docs/movies-wanted.md`): an exit to an event, the exchange opened from the
 map, walking into a new region's song, the dactyls, a halt, the walkers' event
-steps, the sign cleared from the menus.
+steps, the sign cleared from the menus. The event steps are fuzzed in their own
+variant (`tools/fuzz_routines.toml`, `event`), 5,000 states each for the
+leader and the followers on three seeds, none mismatching, with scripts of
+the game's commands: a script of random bytes can copy the map over the stack,
+which the original survives differently.
 
 **Timing.** Every entry is calibrated from the shadow runs. Putting the
 overworld aside and bringing it back are block moves of about 24 KiB,

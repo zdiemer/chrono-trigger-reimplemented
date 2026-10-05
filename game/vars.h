@@ -6819,8 +6819,8 @@ void set_overworld_map(GameState *g, unsigned i, uint8_t v);
 /* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
  * (the map's first plane's, menu/map.c) Unchecked, for marked scaffolding only: the followers'
  * search for walls looks at the rows next to its legs without keeping them on the map, as the
- * original does: from the top row it reads before the map, past its last row after it
- * (game/overworld/terrain.c, ground_beyond_the_map) */
+ * original does, and a row off the map's edge reads past the map's end
+ * (game/overworld/terrain.c, map_tile) */
 uint8_t overworld_map_unchecked(const GameState *g, unsigned i);
 void set_overworld_map_unchecked(GameState *g, unsigned i, uint8_t v);
 

@@ -41,10 +41,10 @@ uint16_t overworld_event_script_entry(const GameState *g, unsigned entry);
 void overworld_start_event(GameState *g, uint16_t script);
 
 /* Leave the world map for a location: where the party stands on the world
- * map is kept to come back to (the map's second plane's top-left tile, sixteen
- * tiles in each way), the way back faces opposite the way in, and the
- * location to go to is set. The scripts' command does it too
- * (menu/object_script.c). */
+ * map is kept to come back to (what the camera looks at, menu/map.h: on foot
+ * the leader, in a scene the scripts move the camera through wherever it
+ * shows), the way back faces opposite the way in, and the location to go to
+ * is set. The scripts' command does it too (menu/object_script.c). */
 void overworld_leave_for(GameState *g, uint16_t location, uint8_t arrival, uint8_t x, uint8_t y);
 
 /* The guard's: whether the lists are as a map's setup loads them (each with

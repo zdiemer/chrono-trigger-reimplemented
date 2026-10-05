@@ -22,9 +22,9 @@ typedef uint8_t Ground;
 enum { GROUND_WALL = 0x03, GROUND_OF_A_PLACE = 0x04 };
 
 /* The ground of an 8x8 tile. The original keeps neither the column nor the
- * row on the map (it doesn't have to: a walker's search for walls keeps to the
- * map in every state the game makes); one past an edge reads on into the map
- * row before or after, or past the map's ends. */
+ * row on the map: one past an edge reads on into the map row before or after,
+ * or past the map's ends, which a follower's search for walls does from the
+ * map's first or last row (docs/TODO.md), so the port reads there too. */
 Ground overworld_ground_at(GameState *g, uint8_t column, uint8_t row);
 
 /* The ground of the four 8x8 tiles that meet at a spot (a walker's feet stand

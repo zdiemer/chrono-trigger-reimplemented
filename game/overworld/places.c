@@ -14,6 +14,7 @@
 #include "overworld/places.h"
 
 #include "charge.h"
+#include "menu/map.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "original_effects.h"
@@ -113,18 +114,15 @@ uint16_t overworld_event_script_entry(const GameState *g, unsigned entry) { retu
 // $C2:2470, $C2:1100
 void overworld_leave_for(GameState *g, uint16_t location, uint8_t arrival, uint8_t x, uint8_t y)
 {
-    enum { WORLD_COLUMNS = 0xC0, WORLD_ROWS = 0x80, CENTRE = 0x10, FACINGS = 3 };
+    enum { FACINGS = 3 };
     uint16_t here = location_id(g);
-    uint16_t column = (uint16_t)(menu_map_column(g, 1) + CENTRE);
-    if (column >= WORLD_COLUMNS)
-        column = (uint16_t)(column - WORLD_COLUMNS);
-    uint8_t row = (uint8_t)((menu_map_row(g, 1) + CENTRE) & (WORLD_ROWS - 1));
+    MenuMapTile stood = menu_map_camera_looks_at(g);
     set_location_previous_id(g, here);
-    set_location_previous_x(g, (uint8_t)column);
-    set_location_previous_y(g, row);
+    set_location_previous_x(g, stood.column);
+    set_location_previous_y(g, stood.row);
     set_menu_saved_location_id(g, here);
-    set_menu_saved_location_x(g, (uint8_t)column);
-    set_menu_saved_location_y(g, row);
+    set_menu_saved_location_x(g, stood.column);
+    set_menu_saved_location_y(g, stood.row);
     uint8_t flags = (uint8_t)(arrival >> 1);
     set_location_id(g, location);
     set_location_flags(g, flags);

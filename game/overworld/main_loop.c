@@ -12,15 +12,17 @@
  * - leaving (a script's command chose the location), it leaves at once;
  * - for the menus or the party's exchange, the map view or the time dial, it
  *   fades the map out, puts the overworld aside, runs the screen, brings the
- *   overworld back and fades it in again, its sign set afresh.
+ *   overworld back and fades it in again, its sign set afresh;
+ * - halted (the leader stepped onto a halt, places.c), it stops the game.
  *
  * The screens and the map's loaders are still the original's, so the loop is
  * a bridge on the original's machine; what it does between them (putting
  * the overworld aside and back, starting the event, the location left for)
  * is the game's and plain C. The menus move the stack, which the shipping
  * mode can't carry a port across, so the loop starts again where the
- * original comes back from them (overworld_back_from_the_menus). Halted, or
- * in a mode it doesn't know, the loop hands over to the original's. */
+ * original comes back from them (overworld_back_from_the_menus). In a mode
+ * it doesn't know, or entering a place past the map's lists (neither a state
+ * the game makes), the loop hands over to the original's. */
 #include "overworld/main_loop.h"
 
 #include "charge.h"
@@ -392,6 +394,23 @@ static bool run_the_time_dial(Snes *s)
     return true;
 }
 
+// $C2:250D
+/* Halted: the game stops for good. The screen is stilled with no interrupt
+ * left to wake it and the story's flags are given back, over and over: the
+ * original spins on it, so the port does a pass and comes back to the halt,
+ * which the runtime runs again as the port. Nothing the player does gets out
+ * of it but a reset. */
+enum { HALT = 0xC2250D };
+
+static void halt_the_game(Snes *s)
+{
+    stop_the_screen(s, (StopSites){ 0xC2250F, 0xC22512, 0xC22515 }, false);
+    give_the_story_flags_back(state_of(s));
+    m_stop_at(s, HALT, READS_NOTHING);
+}
+
+void overworld_halt_entry(Snes *s) { halt_the_game(s); }
+
 /* ---- The loop ----------------------------------------------------------------------------- */
 
 /* The loop's head, where each frame starts. */
@@ -403,10 +422,9 @@ void overworld_run_a_frame(Snes *s)
     if (!wait_for_the_next_frame(s))
         return;
     OverworldMode mode = overworld_mode(g);
-    if (mode == OVERWORLD_HALTED || mode >= OVERWORLD_MODES
-        || (mode == OVERWORLD_ENTERING_A_PLACE && !overworld_exit_here_is_in_range(g))) {
-        /* halted, a mode the loop doesn't know, or an exit past the lists:
-         * the original's dispatch, with the machine as the wait left it */
+    if (mode >= OVERWORLD_MODES || (mode == OVERWORLD_ENTERING_A_PLACE && !overworld_exit_here_is_in_range(g))) {
+        /* a mode the loop doesn't know, or an exit past the lists: the
+         * original's dispatch, with the machine as the wait left it */
         m_stop_at(s, 0xC223D2, 0);
         return;
     }
@@ -419,6 +437,9 @@ void overworld_run_a_frame(Snes *s)
         break;
     case OVERWORLD_LEAVING:
         leave_the_world_map(s);
+        return;
+    case OVERWORLD_HALTED:
+        halt_the_game(s);
         return;
     case OVERWORLD_ENTERING_A_PLACE:
         if (!enter_the_place(s))

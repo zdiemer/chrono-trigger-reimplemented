@@ -1092,21 +1092,22 @@ rest waits, is [PLAN.md](PLAN.md).
   it answers would settle it once.
 - **What the overworld on foot left** (RECOMP.md, "Phase 3, overworld: the
   world map on foot"):
-  - an event the party steps onto gives the leader and the followers scripts
-    to run (`menu_member_scripts`), which their handlers run through the
-    object scripts' interpreter (`$C2:0F63`) on the original's machine; the
-    walkers' guards turn those frames away (no movie steps onto an event,
-    so no real call was refused), and the original runs them. Porting them
-    wants the interpreter callable as C from a handler (its services on the
-    machine, `menu/script_bridge.c`), or the walkers' event steps as their
-    own entries;
+  - the walkers' event steps run their scripts through the interpreter's
+    bridge (`menu_run_object_script_from`, `menu/script_call.h`), which, as
+    the interpreter's own entry does, hands a command it doesn't run (an
+    opcode past the language, a cell outside low RAM, a call of the
+    original's code that doesn't come back as it went) to the original's
+    interpreter, which returns into the walker's code after its call. No
+    game script does that; a random one can (a map copy over the stack), so
+    their fuzzing gives them scripts of the game's commands. No movie steps
+    onto an event, so the steps are fuzzed only;
   - the vehicles' controller (`$C2:309E`, with the rectangle test
     `$C2:2345` it boards by) moves the party between walking, boarding,
     riding and getting off: it goes with the vehicles' chunk (PLAN.md);
-  - the halt (the third list's tiles, `overworld_halts`) sets the mode the
-    main loop hangs in (`$C2:250D`, interrupts off, the story's flags given
-    back for ever); the loop hands that mode to the original's dispatch. No
-    map's data has an open halt as far as the library goes;
+  - the halt (`$C2:250D`) is a pass at a time that comes back to itself,
+    as the original spins: a host that wants the game to end there (a
+    message, a reset) has nothing to tell it so yet. No map's data has an
+    open halt as far as the library goes;
   - the follower's search for walls doesn't keep its legs on the map: a leg
     from the map's first row looks at the row before it, which the original
     reads past the map's end (`overworld_map`'s `unchecked` pair,

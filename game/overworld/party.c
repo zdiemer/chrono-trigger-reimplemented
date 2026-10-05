@@ -58,6 +58,17 @@ void overworld_set_party_spot(GameState *g, PartyPlace place, WorldSpot at)
 
 bool overworld_event_running(const GameState *g) { return overworld_event(g) != 0; }
 
+uint16_t overworld_event_script_for(const GameState *g, PartyPlace place) { return menu_member_scripts(g, place); }
+
+enum { EVENT_SCRIPTS_BANK = 0x7F };
+
+void overworld_take_up_script(GameState *g, MenuObject walker, uint16_t script)
+{
+    set_menu_object_slots_script(g, walker, (uint32_t)EVENT_SCRIPTS_BANK << 16 | script);
+    set_menu_object_slots_command_frames(g, walker, 0);
+    overworld_set_step(g, walker, WALKER_RUNS_ITS_SCRIPT);
+}
+
 OverworldMode overworld_mode(const GameState *g) { return (OverworldMode)menu_mode(g); }
 void overworld_set_mode(GameState *g, OverworldMode mode) { set_menu_mode(g, mode); }
 

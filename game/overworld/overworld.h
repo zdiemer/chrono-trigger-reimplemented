@@ -197,6 +197,40 @@ WorldSpot overworld_spot_ahead(WorldSpot at, MenuAxis axis, int8_t way);
 Facing overworld_arrival_facing(const GameState *g);
 void overworld_set_arrival_facing(GameState *g, Facing facing);
 
+/* ---- An event's scripts for the party ---------------------------------------------------- */
+
+/* While an event the party stepped onto runs, each walker stops walking and
+ * waits for the event's script to give it a script of its own
+ * (menu_member_scripts, in bank $7F); it then runs that a frame at a time --
+ * the mode's command scripts (menu/script.h), which move it, animate it and
+ * wait -- and, once it is done, stands as the script left it until the event
+ * is over. Its steps: */
+enum {
+    WALKER_AWAITS_ITS_SCRIPT = 0,
+    WALKER_RUNS_ITS_SCRIPT = 1,
+    WALKER_HAS_RUN_ITS_SCRIPT = 2,
+    WALKER_STEPS_IN_AN_EVENT = 3,
+};
+
+/* The script the event gave the member in the place, or none (0). */
+uint16_t overworld_event_script_for(const GameState *g, PartyPlace place);
+
+/* The walker takes up its script, from its start, and runs it. */
+void overworld_take_up_script(GameState *g, MenuObject walker, uint16_t script);
+
+/* How a walker runs its script for a frame: through the script interpreter
+ * wherever it runs (on the original's machine, the registered entries give
+ * it the interpreter's bridge: entries.c). It says how the frame's run ended:
+ * waiting for the next frame, the script done, or the frame handed over to
+ * the original's interpreter, after which the walker does nothing more this
+ * frame. */
+typedef enum { WALKER_STARTS_ITS_SCRIPT, WALKER_GOES_ON_WITH_ITS_SCRIPT } WalkerScriptRun;
+typedef enum { WALKER_SCRIPT_WAITS, WALKER_SCRIPT_DONE, WALKER_SCRIPT_HANDED_OVER } WalkerScriptEnd;
+typedef struct {
+    WalkerScriptEnd (*run)(void *ctx, WalkerScriptRun run);
+    void *ctx;
+} WalkerScripts;
+
 /* ---- The leader's trail ------------------------------------------------------------------ */
 
 /* The leader's trail: where each of its last sixteen steps ended, which the

@@ -17,7 +17,7 @@
  * stands where the vehicle landed, facing down.
  *
  * While an event the leader stepped onto runs, the leader runs the script the
- * event gives it: that is the original's still (the guard, entries.c). */
+ * event gives it (overworld.h). */
 #include "overworld/frames.h"
 #include "overworld/overworld.h"
 
@@ -207,16 +207,67 @@ static void set_off(GameState *g, MenuObject self)
         set_overworld_ground_news(g, (uint8_t)(overworld_ground_news(g) | GROUND_NEWS_LOOK | GROUND_NEWS_ON_A_PLACE));
 }
 
+/* ---- In an event --------------------------------------------------------------------------- */
+
+static WalkerScriptEnd run_the_script(const WalkerScripts *scripts, WalkerScriptRun run)
+{
+    return scripts->run(scripts->ctx, run);
+}
+
+// $C2:3772
+/* Once the event has given the leader its script, the leader takes it up,
+ * runs its first frame and notes the ground it stands on. */
+static bool take_up_the_event_script(GameState *g, MenuObject self, const WalkerScripts *scripts)
+{
+    uint16_t script = overworld_event_script_for(g, PARTY_LEADER);
+    if (script == 0)
+        return true;
+    overworld_take_up_script(g, self, script);
+    if (run_the_script(scripts, WALKER_STARTS_ITS_SCRIPT) == WALKER_SCRIPT_HANDED_OVER)
+        return false;
+    overworld_keep_ground(g, self, overworld_look_around(g, overworld_walker_spot(g, self)));
+    return true;
+}
+
+// $C2:37A1
+/* A frame of the leader's script; where the script moves it, the party is
+ * where it is. */
+static bool run_the_event_script(GameState *g, MenuObject self, const WalkerScripts *scripts)
+{
+    WalkerScriptEnd end = run_the_script(scripts, WALKER_GOES_ON_WITH_ITS_SCRIPT);
+    if (end == WALKER_SCRIPT_HANDED_OVER)
+        return false;
+    if (end == WALKER_SCRIPT_DONE)
+        overworld_set_step(g, self, WALKER_HAS_RUN_ITS_SCRIPT);
+    overworld_set_party_spot(g, PARTY_LEADER, overworld_walker_spot(g, self));
+    return true;
+}
+
+static bool take_part_in_the_event(GameState *g, MenuObject self, const WalkerScripts *scripts)
+{
+    switch (overworld_step(g, self)) {
+    case WALKER_AWAITS_ITS_SCRIPT:
+        return take_up_the_event_script(g, self, scripts);
+    case WALKER_RUNS_ITS_SCRIPT:
+        return run_the_event_script(g, self, scripts);
+    default: /* WALKER_HAS_RUN_ITS_SCRIPT */
+        return true;
+    }
+}
+
 // $C2:3439
 /* On foot: while the overworld isn't on the map (a screen is opening) the
- * leader only keeps its animation going. */
-static void walk_on_foot(GameState *g, MenuObject self)
+ * leader only keeps its animation going; while an event runs, it takes part
+ * in it. */
+static bool walk_on_foot(GameState *g, MenuObject self, const WalkerScripts *scripts)
 {
     if (!overworld_on_the_map(g)) {
         overworld_animate(g);
-        return;
+        return true;
     }
     ORIGINAL_EFFECT(overworld_leave_step_table_row(g));
+    if (overworld_event_running(g))
+        return take_part_in_the_event(g, self, scripts);
     switch (overworld_step(g, self)) {
     case LEADER_SETS_OFF:
         set_off(g, self);
@@ -229,6 +280,7 @@ static void walk_on_foot(GameState *g, MenuObject self)
         walk_a_frame_of_the_step(g, self);
         break;
     }
+    return true;
 }
 
 /* ---- Boarding and getting off -------------------------------------------------------------- */
@@ -336,16 +388,15 @@ static void get_off(GameState *g, MenuObject self)
 /* ---- The leader's frame -------------------------------------------------------------------- */
 
 // $C2:3404
-void overworld_lead(GameState *g, MenuObject self)
+bool overworld_lead(GameState *g, MenuObject self, const WalkerScripts *scripts)
 {
     if (!overworld_place_taken(g, PARTY_LEADER))
-        return;
+        return true;
     overworld_start_over_if_asked(g, self);
     Travel travel = overworld_party_travel(g);
     switch (travel) {
     case TRAVEL_ON_FOOT:
-        walk_on_foot(g, self);
-        break;
+        return walk_on_foot(g, self, scripts);
     case TRAVEL_IN_THE_EPOCH:
     case TRAVEL_ON_A_DACTYL:
         overworld_set_party_spot(g, PARTY_LEADER, overworld_vehicle_spot(g, (Vehicle)travel));
@@ -359,4 +410,5 @@ void overworld_lead(GameState *g, MenuObject self)
     default:
         break;
     }
+    return true;
 }

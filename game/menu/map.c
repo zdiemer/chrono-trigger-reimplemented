@@ -393,15 +393,24 @@ void menu_map_scroll(GameState *g, uint8_t plane, MenuAxis axis, int8_t step)
     scroll_plane(g, (uint8_t)(plane - 1), axis, step);
 }
 
+/* The camera: the map's top-left tile (the second plane's, which the first
+ * shares) is the game's own record of what the screen looks at, kept in the
+ * original's convention whatever the screen's size. Centring puts it sixteen
+ * tiles left of the party's tile and fourteen above (half the original's
+ * 256x224 screen); what the camera looks at, as the original works it out to
+ * keep where the party stood, is sixteen tiles on from it both ways (half the
+ * original's width, the height's too). A screen wider or taller than the
+ * original's draws round the same camera rather than moving it, so a place
+ * kept or restored doesn't depend on the screen it was played on. */
+enum { CENTRING_COLUMNS = 16, CENTRING_ROWS = 14, LOOKS_AT_TILES = 16 };
+
 // $C2:2720
-/* Put the map's top-left tile where the party is: sixteen tiles left of the
- * party's tile and fourteen above it, round the map. The two planes that
+/* Put the camera where the party is, round the map. The two planes that
  * scroll get the same tile. */
 static void centre_on_party(GameState *g)
 {
-    enum { HALF_WIDTH = 16, HALF_HEIGHT = 14 };
-    int column = location_x(g) - HALF_WIDTH;
-    int row = location_y(g) - HALF_HEIGHT;
+    int column = location_x(g) - CENTRING_COLUMNS;
+    int row = location_y(g) - CENTRING_ROWS;
     if (column < 0)
         column += TILE_COLUMNS;
     if (row < 0)
@@ -410,6 +419,15 @@ static void centre_on_party(GameState *g)
         set_tile_column(g, plane, (uint16_t)column);
         set_tile_row(g, plane, (uint16_t)row);
     }
+}
+
+MenuMapTile menu_map_camera_looks_at(const GameState *g)
+{
+    enum { CAMERA_PLANE = 1 };
+    uint16_t column = (uint16_t)(tile_column(g, CAMERA_PLANE) + LOOKS_AT_TILES);
+    if (column >= TILE_COLUMNS)
+        column = (uint16_t)(column - TILE_COLUMNS);
+    return (MenuMapTile){ (uint8_t)column, (uint8_t)((tile_row(g, CAMERA_PLANE) + LOOKS_AT_TILES) & (TILE_ROWS - 1)) };
 }
 
 /* ---- redrawing a whole plane --------------------------------------------------------------- */

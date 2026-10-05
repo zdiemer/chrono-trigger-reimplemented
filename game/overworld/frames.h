@@ -7,6 +7,8 @@
 #ifndef CT_GAME_OVERWORLD_FRAMES_H
 #define CT_GAME_OVERWORLD_FRAMES_H
 
+#include <stdbool.h>
+
 #include "overworld/overworld.h"
 
 /* The leader's steps on foot: setting off as the overworld starts (or after
@@ -38,8 +40,10 @@ enum {
     FOLLOWER_STEPS_BOARDING = 4,
 };
 
-void overworld_lead(GameState *g, MenuObject self);
-void overworld_follow(GameState *g, MenuObject self);
+/* The walkers run an event's scripts through `scripts`; each says whether
+ * it finished its frame (false: its script handed the frame over). */
+bool overworld_lead(GameState *g, MenuObject self, const WalkerScripts *scripts);
+bool overworld_follow(GameState *g, MenuObject self, const WalkerScripts *scripts);
 void overworld_watch_the_ground(GameState *g, MenuObject self);
 void overworld_play_the_region_song(GameState *g, MenuObject self);
 void overworld_show_the_sign(GameState *g, MenuObject self);

@@ -11,6 +11,10 @@
 void overworld_run_a_frame(Snes *s);
 void overworld_come_back_from_the_menus(Snes *s);
 
+/* The halt ($C2:250D): the game stopped for good, a pass at a time, each
+ * coming back to itself. */
+void overworld_halt_entry(Snes *s);
+
 /* Putting the overworld aside while a screen runs, and bringing it back
  * ($C2:2E23, $C2:2E72), as the original's own routines: the loop does them
  * as C. */

@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 257 files, 117 of 75,609 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 257 files, 117 of 75,785 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -217,7 +217,7 @@ docstring says which way it is wrong). **14% of the code is still generated.**
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
 | field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text, overworld (`$C2`) | 59.1K | 46.1K | 12.2K | 22% | 461 |
+| menus, text, overworld (`$C2`) | 59.1K | 46.1K | 12.2K | 22% | 462 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **14% of the code is still generated.**
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **229.6K** | **59.6K** | **14%** | **1788** |
+| **total** | **266.5K** | **229.6K** | **59.6K** | **14%** | **1789** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
@@ -403,9 +403,7 @@ tools/burndown.py --uncovered C2`):
 1. **The overworld's vehicles** (about 4.3K): the vehicles' controller
    that boards and lands the party (`$C2:309E`, with its rectangle test
    `$C2:2345`), the Epoch flown over the map (`$C2:42F8`-`$C2:4A9A`) and the
-   dactyls (`$C2:4CDA`-`$C2:5627`, which no movie reaches yet). The walkers'
-   steps while an event's scripts run (`$C2:3772`, `$C2:3D9C`) want the
-   object scripts' interpreter callable from a handler (TODO.md).
+   dactyls (`$C2:4CDA`-`$C2:5627`, which no movie reaches yet).
 2. **The overworld's setup and colours** (about 3.1K, last): the palettes
    (`$C2:1D06`-`$C2:2061`) and the scene stream loaders
    (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
