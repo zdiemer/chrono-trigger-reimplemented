@@ -11,6 +11,7 @@
 
 #include "menu/menu_data.h"
 #include "menu/script.h"
+#include "menu/script_call.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
@@ -497,6 +498,11 @@ static bool on_the_mode_page(Snes *s) { return m_direct_page(s) == 0 && m_bank_r
 /* The game's scripts are in the ROM's banks, or built in work RAM. */
 static bool script_bank_holds_scripts(uint8_t bank) { return bank >= 0xC0 || bank == 0x7E || bank == 0x7F; }
 
+bool menu_object_script_can_run(const GameState *g, uint32_t script)
+{
+    return script_bank_holds_scripts((uint8_t)(script >> 16)) && menu_sprite_list_is_sound(g);
+}
+
 bool menu_object_script_runs(Snes *s)
 {
     if (!on_the_mode_page(s))
@@ -504,17 +510,15 @@ bool menu_object_script_runs(Snes *s)
     vars_peek(true);
     GameState *g = state_of(s);
     bool ok = menu_object_address_names_one(menu_object_current(g))
-              && script_bank_holds_scripts((uint8_t)(menu_object_slots_script(g, menu_object_running(g)) >> 16))
-              && menu_sprite_list_is_sound(g);
+              && menu_object_script_can_run(g, menu_object_slots_script(g, menu_object_running(g)));
     vars_peek(false);
     return ok;
 }
 
-// $C2:0F63
-/* The interpreter as a slot's handler: the running object's script for this
- * frame (menu/script.c). It hands back the carry set for an object that is
- * done, and X as the command it stopped on left it. */
-void menu_run_object_script(Snes *s)
+/* The running object's script for this frame (menu/script.c), each command on
+ * the machine. It leaves the carry set for an object that is done, and X as
+ * the command it stopped on left it. */
+static ScriptEnd run_the_running_object_s_script(Snes *s)
 {
     GameState *g = state_of(s);
     OnTheMachine m = { .s = s, .overflow = m_flag(s, CPU_FLAG_V) };
@@ -523,10 +527,31 @@ void menu_run_object_script(Snes *s)
     uint32_t stopped = 0;
     ScriptEnd end = menu_run_script(g, menu_object_running(g), &r, &stopped);
     if (end == SCRIPT_GAVE_BACK)
-        return;
+        return end;
     m_set_flag(s, CPU_FLAG_C, end == SCRIPT_DONE);
     m_sep(s, CPU_FLAG_M);
-    m_rts(s);
+    return end;
+}
+
+// $C2:0F63
+/* The interpreter as a slot's handler. */
+void menu_run_object_script(Snes *s)
+{
+    if (run_the_running_object_s_script(s) != SCRIPT_GAVE_BACK)
+        m_rts(s);
+}
+
+/* The call's return is on the stack while the script runs, as the original's
+ * JSR leaves it, for a command that hands back to the original's interpreter
+ * to return through; its time is the interpreter's own. */
+ScriptEnd menu_run_object_script_from(Snes *s, uint32_t call_site)
+{
+    m_push16(s, (uint16_t)(call_site + JSR_SIZE - 1));
+    ScriptEnd end;
+    NATIVE_TIME_AS(s, 0xC20F63, end = run_the_running_object_s_script(s));
+    if (end != SCRIPT_GAVE_BACK)
+        (void)m_pull16(s);
+    return end;
 }
 
 /* A command's own entry, as the dispatch enters it (the guard sees to it):

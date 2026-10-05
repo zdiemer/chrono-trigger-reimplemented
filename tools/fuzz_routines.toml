@@ -16814,3 +16814,137 @@ state = "naming"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0054-7E0054=00-01", "--fill", "7E0D77-7E0D78=00-FF"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the cursor on a mode, the description shown random"
+
+# ---- overworld: the world map on foot ---------------------------------------------------------
+
+[state.overworld]
+movie = "oracle/movies/saves/menus-epoch.ctm"
+frames = 3300
+
+[[routine]]
+name = "overworld_lead"
+at = "C2:3404"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0DF0-7E0E2F", "--fill", "7E004E-7E004E=F0-F0", "--fill", "7E004F-7E004F=0D-0D", "--range", "X=0DF0-0DF0", "--fill", "7E027E-7E027E=00-05", "--fill", "7E0280-7E0281=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E0DF2-7E0DF2=00-03", "--fill", "7E0E18-7E0E18=00,01,02,03,80,81,82,83", "--fill", "7E1B5A-7E1B5A=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E028F-7E028F=00,02,03", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--keep", "7E00E0-7E00EA", "--fill", "7E0E04-7E0E04=00-FF", "--fill", "7E0E05-7E0E05=00-05", "--fill", "7E0E08-7E0E08=00-FF", "--fill", "7E0E09-7E0E09=00-03", "--fill", "7E0E0C-7E0E0D=0000,0100,FFFF", "--fill", "7E0E10-7E0E11=0000,0100,FFFF", "--fill", "7E0E12-7E0E16=00-0F", "--fill", "7E0E1A-7E0E1D=00-FF"]
+iterations = 5000
+why = "no event running (the event variant runs its steps); the object mode's page and data bank, the leader's slot (and its sprite script) as the state has it, entered as its handler; how the party travels, the event, the menus' mode and the step each one the game sets, a facing of the four with or without its walk, the trail's next step on a step, any party (or an empty place), a vehicle the game boards, the upload queue whole with room; where it stands, its goal, its pace (still or a pixel either way along each axis), the ground it keeps and its gait random, as are the map and its ground, the pad and the story"
+
+[[routine]]
+name = "overworld_follow"
+at = "C2:3AE2"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0E30-7E0E6F", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0E30-0E30", "--fill", "7E027E-7E027E=00-05", "--fill", "7E0280-7E0281=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E0E32-7E0E32=00-03", "--fill", "7E0E33-7E0E33=00-0C", "--fill", "7E0E34-7E0E34=00-00", "--fill", "7E0E54-7E0E54=01,02", "--fill", "7E0E58-7E0E58=00,01,02,03,80,81,82,83", "--fill", "7E0E57-7E0E57=00-03", "--fill", "7E0E59-7E0E59=00-FF", "--fill", "7E1B5A-7E1B5A=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E028F-7E028F=00,02,03", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0E44-7E0E44=00-FF", "--fill", "7E0E45-7E0E45=00-05", "--fill", "7E0E48-7E0E48=00-FF", "--fill", "7E0E49-7E0E49=00-03", "--fill", "7E0E4C-7E0E4D=0000,0100,FFFF", "--fill", "7E0E50-7E0E51=0000,0100,FFFF", "--fill", "7E0E56-7E0E56=00-0F", "--fill", "7E0E5A-7E0E61=00-FF"]
+iterations = 5000
+why = "no event running (the event variant runs its steps); as the leader's, for the second member's slot (the second or the third member in it), its age short of deciding and past it, its route, goal and how far it was random: the search for walls runs on a random map"
+
+[[routine]]
+name = "overworld_watch_the_ground"
+at = "C2:3264"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0F70-7E0FAF", "--keep", "7E0B30-7E1B2F", "--fill", "7E004E-7E004E=70-70", "--fill", "7E004F-7E004F=0F-0F", "--range", "X=0F70-0F70", "--fill", "7E0280-7E0281=00-01", "--fill", "7E0282-7E0282=00-03", "--fill", "7E1B38-7E1B3A=01-10", "--fill", "7E0283-7E0283=00-7F", "--fill", "7E0284-7E0284=00-00", "--fill", "7E0285-7E0285=00-7F", "--fill", "7E0286-7E0286=00-00", "--fill", "7E7E00-7E817F:7=80-87", "--fill", "7E7E01-7E817F:7=00-07", "--fill", "7E8300-7E847F:3=80-87", "--fill", "7E8301-7E847F:3=00-07", "--fill", "7E8180-7E82FF:3=00-87", "--fill", "7E8181-7E82FF:3=00-07"]
+iterations = 5000
+why = "the watcher's slot and every object's as the state has them (an event's script starts in the first free), the event and what the leader's step found random; each list one to sixteen records long, its records open or closed on the map's first eight columns and rows, where the leader stands, so the look-up finds them"
+
+[[routine]]
+name = "overworld_region_song"
+at = "C2:2F94"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7E0FB0-7E0FEF", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0F-0F", "--range", "X=0FB0-0FB0", "--fill", "7E0FB2-7E0FB2=00-03", "--fill", "7E0FB3-7E0FB3=00-50", "--fill", "7E0FB4-7E0FB4=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E027E-7E027E=00,00,00,02", "--fill", "7E00EB-7E00EB=00-0F", "--fill", "7F01ED-7F01ED=00,00,00,01", "--fill", "7E1BEC-7E1BEC=00,01,FF", "--fill", "7E0283-7E0283=00-FF", "--fill", "7E0284-7E0284=00-05", "--fill", "7E0285-7E0285=00-FF", "--fill", "7E0286-7E0286=00-03"]
+iterations = 5000
+why = "the music's slot as the state has it on any of its steps, its age either side of the second it fades for; the menus' mode random, the party mostly on foot, the region it heard last one of the sixteen, a screen keeping the song a quarter of the time, the sound mailbox empty, waiting or being sent, and the party anywhere on the map"
+
+[[routine]]
+name = "overworld_sign"
+at = "C2:5628"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0FF0-7E102F", "--keep", "7E0200-7E027B", "--keep", "7E8600-7E8620", "--fill", "7E004E-7E004E=F0-F0", "--fill", "7E004F-7E004F=0F-0F", "--range", "X=0FF0-0FF0", "--fill", "7E0FF2-7E0FF2=00-03", "--fill", "7E1B58-7E1B58=00,00,01,05,10,22,40", "--fill", "7E1B59-7E1B59=00,00,00,01", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E027E-7E027E=00,02", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30"]
+iterations = 5000
+why = "the sign's slot, its sprite script and the typesetter's page as the state has them, on any of its steps, a name or none (some of the places' names), the menus asking it again a quarter of the time, the Epoch's state random, the party on foot or in the Epoch, the upload queue whole with room"
+
+[[routine]]
+name = "overworld_ground_at"
+at = "C2:62AE"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0010-7E0010=00-00", "--fill", "7E0011-7E0011=58-58", "--fill", "7E0012-7E0012=7E-7E", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=70-70", "--fill", "7E0015-7E0015=7E-7E"]
+iterations = 5000
+why = "any tile, the pointers to the map and its kinds where the overworld keeps them (the guard), either accumulator width"
+
+[[routine]]
+name = "overworld_region_at"
+at = "C2:62ED"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0001-7E0001=00-3F"]
+iterations = 5000
+why = "any column, a row of the region map's"
+
+[[routine]]
+name = "overworld_back_from_the_menus"
+at = "C2:255A"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--stop-at-call", "C22C93"]
+iterations = 2000
+why = "everything random, compared where it calls the map's loader (:2C93), which waits on the video without interrupts: the vectors installed, the overworld brought back and the upload queue reset"
+
+[[routine]]
+name = "overworld_main_loop"
+at = "C2:23CF"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--stop-at-call", "C2046E"]
+iterations = 200
+why = "compared at its first call, the wait for the next frame, which nothing ends without interrupts; the arms after it are shadow mode's alone (docs/RECOMP.md)"
+
+[[routine]]
+name = "overworld_put_aside"
+at = "C2:2E23"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "everything random: the overworld's memory copied aside whatever it holds"
+
+[[routine]]
+name = "overworld_bring_back"
+at = "C2:2E72"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "everything random: the overworld's memory copied back whatever was put aside"
+
+[[routine]]
+name = "overworld_halt"
+at = "C2:250D"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00"]
+iterations = 2000
+why = "everything random: a pass of the halt, compared where it comes back to itself"
+
+[[routine]]
+name = "overworld_lead"
+variant = "event"
+at = "C2:3404"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0DF0-7E0E2F", "--fill", "7E004E-7E004E=F0-F0", "--fill", "7E004F-7E004F=0D-0D", "--range", "X=0DF0-0DF0", "--fill", "7E027E-7E027E=00-05", "--fill", "7E0280-7E0281=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E0DF2-7E0DF2=00-03", "--fill", "7E0E18-7E0E18=00,01,02,03,80,81,82,83", "--fill", "7E1B5A-7E1B5A=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E028F-7E028F=00,02,03", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--keep", "7E00E0-7E00EA", "--fill", "7E0E04-7E0E04=00-FF", "--fill", "7E0E05-7E0E05=00-05", "--fill", "7E0E08-7E0E08=00-FF", "--fill", "7E0E09-7E0E09=00-03", "--fill", "7E0E0C-7E0E0D=0000,0100,FFFF", "--fill", "7E0E10-7E0E11=0000,0100,FFFF", "--fill", "7E0E12-7E0E16=00-0F", "--fill", "7E0E1A-7E0E1D=00-FF", "--fill", "7E0280-7E0281=01-01", "--fill", "7E027E-7E027F=00-00", "--fill", "7E027C-7E027C=00-01", "--fill", "7E0DF2-7E0DF2=00-02", "--fill", "7E1B3B-7E1B3C=0000,8000,9000", "--fill", "7E0DF7-7E0DF8=8000,9000", "--fill", "7E0DF9-7E0DF9=7F-7F", "--fill", "7F9000-7F901F=06,06,2D,2E,2F,31,38,0B,0C,52", "--fill", "7F8000-7F801F=06,06,2D,2E,2F,31,38,0B,0C,52"]
+iterations = 5000
+why = "an event running: the walker waiting for its script, running it or done, the script it is given or runs at its start in bank 7F, made of commands the game's event scripts use (waits, velocities, moves for frames, a slot byte counted, the end) rather than random bytes, which can copy the map over the stack"
+
+[[routine]]
+name = "overworld_follow"
+variant = "event"
+at = "C2:3AE2"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0E30-7E0E6F", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0E30-0E30", "--fill", "7E027E-7E027E=00-05", "--fill", "7E0280-7E0281=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E0E32-7E0E32=00-03", "--fill", "7E0E33-7E0E33=00-0C", "--fill", "7E0E34-7E0E34=00-00", "--fill", "7E0E54-7E0E54=01,02", "--fill", "7E0E58-7E0E58=00,01,02,03,80,81,82,83", "--fill", "7E0E57-7E0E57=00-03", "--fill", "7E0E59-7E0E59=00-FF", "--fill", "7E1B5A-7E1B5A=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E028F-7E028F=00,02,03", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0E44-7E0E44=00-FF", "--fill", "7E0E45-7E0E45=00-05", "--fill", "7E0E48-7E0E48=00-FF", "--fill", "7E0E49-7E0E49=00-03", "--fill", "7E0E4C-7E0E4D=0000,0100,FFFF", "--fill", "7E0E50-7E0E51=0000,0100,FFFF", "--fill", "7E0E56-7E0E56=00-0F", "--fill", "7E0E5A-7E0E61=00-FF", "--fill", "7E0280-7E0281=01-01", "--fill", "7E027E-7E027F=00-00", "--fill", "7E027C-7E027C=00-01", "--fill", "7E0E32-7E0E32=00-02", "--fill", "7E1B3D-7E1B40=0000,8000,9000", "--fill", "7E0E37-7E0E38=8000,9000", "--fill", "7E0E39-7E0E39=7F-7F", "--fill", "7F9000-7F901F=06,06,2D,2E,2F,31,38,0B,0C,52", "--fill", "7F8000-7F801F=06,06,2D,2E,2F,31,38,0B,0C,52"]
+iterations = 5000
+why = "an event running: the walker waiting for its script, running it or done, the script it is given or runs at its start in bank 7F, made of commands the game's event scripts use (waits, velocities, moves for frames, a slot byte counted, the end) rather than random bytes, which can copy the map over the stack"

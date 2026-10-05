@@ -472,8 +472,9 @@ static inline uint32_t menu_scene_stream(const GameState *g, MenuSceneResource k
     return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
 }
 
-/* How the game goes back to the world map from a location a map screen sends
- * the party to, by the location's kind ($C2:2509, four bytes). */
+/* The way the party faces coming back to the world map from a location, by
+ * the way it faced arriving there (the low two bits of the location's flags):
+ * turned round ($C2:2509, four bytes). */
 static inline uint8_t menu_return_flags(const GameState *g, uint8_t kind) { return rom_read8(g, 0xC22509u + kind); }
 
 /* The sizes of the waves on the layer over the map ($C0:F900): a byte a

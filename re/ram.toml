@@ -70,7 +70,7 @@
 #
 # name is lower_snake_case and says what the thing is, not where it is; the
 # header spells it RAM_<NAME>. subsystem is one of game/'s directories (core,
-# data, event, field, menu, battle, scene, attract), or `menu_object`, a second
+# data, event, field, menu, overworld, battle, scene, attract), or `menu_object`, a second
 # tag for game/menu/: bank $C2 holds two modes, the menus proper and the
 # sprite-object mode at $C2:0000, and they reuse the same bytes, so one owner
 # per subsystem would leave the second mode's nameless. The same bytes can be two
@@ -11959,6 +11959,80 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   size = 2
   meaning = "The map view's cursor: how far along its path it has come, in bytes of the path's tables"
 
+  [[var.field]]
+  name = "ground_up_left"
+  offset = 0x22
+  meaning = "The overworld's leader: the ground under the four 8x8 tiles around its feet (the kinds game/overworld/terrain.c reads), the upper left one"
+
+  [[var.field]]
+  name = "ground_up_right"
+  offset = 0x23
+  meaning = "The overworld's leader: the ground of the upper right tile around its feet"
+
+  [[var.field]]
+  name = "ground_down_left"
+  offset = 0x24
+  meaning = "The overworld's leader: the ground of the lower left tile around its feet"
+
+  [[var.field]]
+  name = "ground_down_right"
+  offset = 0x25
+  meaning = "The overworld's leader: the ground of the lower right tile around its feet"
+
+  [[var.field]]
+  name = "wall_search_left"
+  offset = 0x22
+  meaning = "An overworld follower: where its search for walls down a column last looked, the kind of the tile left of the column, which the search keeps here (game/overworld/followers.c; scaffolding, nothing reads it after)"
+
+  [[var.field]]
+  name = "party_place"
+  offset = 0x24
+  meaning = "An overworld follower: which of the party it is, 1 the second member or 2 the third"
+
+  [[var.field]]
+  name = "gait"
+  offset = 0x26
+  meaning = "An overworld walker: its low bit picks which of its facing's two walking animations it walks with; the walkers clear it as they start"
+
+  [[var.field]]
+  name = "facing_before"
+  offset = 0x27
+  meaning = "An overworld follower: the way it faced before its last turn, 0 up, 1 down, 2 left, 3 right"
+
+  [[var.field]]
+  name = "facing"
+  offset = 0x28
+  meaning = "An overworld walker: the way it faces (bits 0-1: 0 up, 1 down, 2 left, 3 right), and bit 7 while it shows its walking animation"
+
+  [[var.field]]
+  name = "route"
+  offset = 0x29
+  meaning = "An overworld follower: its way to where it is going, in straight legs: bits 0-3 the legs left, bit 4 the first leg across, bit 5 the first leg down"
+
+  [[var.field]]
+  name = "goal_x"
+  offset = 0x2A
+  size = 2
+  meaning = "An overworld walker: where across it is walking to, a pixel"
+
+  [[var.field]]
+  name = "goal_y"
+  offset = 0x2C
+  size = 2
+  meaning = "An overworld walker: where down it is walking to"
+
+  [[var.field]]
+  name = "to_goal_x"
+  offset = 0x2E
+  size = 2
+  meaning = "An overworld follower: how far across its goal is from it as it set out, signed"
+
+  [[var.field]]
+  name = "to_goal_y"
+  offset = 0x30
+  size = 2
+  meaning = "An overworld follower: how far down its goal is from it as it set out, signed"
+
 [[var]]
 name = "menu_object_sprite_script"
 addr = "7E:0052"
@@ -12026,6 +12100,20 @@ size = 1
 subsystem = "menu"
 meaning = "Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte after it when it decides whether to pass the request on"
 source = "game/menu/object_script.c, the sound commands $C2:18C7-$C2:1946"
+
+[[var]]
+name = "menu_sound_mailbox"
+addr = "7E:1BEC"
+subsystem = "menu"
+meaning = "The state of the sound command the sprite-object mode passes to the driver: 0 none waits, 1 one waits in the driver's command cells (sound_command) for the main loop to send, $FF the main loop is sending it; a request finding it negative is refused"
+source = "game/overworld/music.c, the request's passing on ($C2:2ED9); game/overworld/main_loop.c ($C2:23EF)"
+
+[[var]]
+name = "menu_sound_waiting_age"
+addr = "7E:1BEE"
+subsystem = "menu"
+meaning = "The age (menu_sound_request_age) of the request waiting in the driver's cells: while it waits, a request older than it is refused"
+source = "game/overworld/music.c ($C2:2ED9)"
 
 [[var]]
 name = "menu_member_scripts"
@@ -18976,6 +19064,554 @@ offset = 2
 size = 2
 meaning = "Vertical"
 
+# ---- the overworld (game/overworld/): the world map, walked on foot -----------
+# It runs in the sprite-object mode ($C2:0000): the party are objects of that
+# mode, on its page and in its slots (menu_object_slots' walker fields).
+
+[[var]]
+name = "overworld_scratch"
+addr = "7E:0000"
+stride = 0x1C
+page = "menu"
+subsystem = "overworld"
+meaning = "The sprite-object mode's direct-page cells as the overworld's routines leave them: the operands of a lookup of the ground or of the regions, and the follower's search for walls. Scaffolding: each routine sets what it reads first, and nothing reads what they leave"
+source = "game/overworld/terrain.c ($C2:62AE, $C2:62ED, $C2:39D5), game/overworld/followers.c ($C2:3FBC, $C2:41B5)"
+  [[var.field]]
+  name = "walker_table_row"
+  offset = 0x00
+  meaning = "A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to"
+  [[var.field]]
+  name = "character"
+  offset = 0x00
+  meaning = "A walker's animation: the character it is (Magus's animations are his own)"
+  [[var.field]]
+  name = "animation"
+  offset = 0x01
+  meaning = "The sprite script the walker was given last"
+  [[var.field]]
+  name = "ground_column"
+  offset = 0x00
+  meaning = "A lookup of the ground: the 8x8 tile's column, halved to its map tile's as the lookup reads it"
+  [[var.field]]
+  name = "ground_row"
+  offset = 0x01
+  meaning = "And its row, halved likewise"
+  [[var.field]]
+  name = "ground_column_odd"
+  offset = 0x02
+  meaning = "Which half of the map tile across the column is on, shifted out as the lookup reads it (0 after)"
+  [[var.field]]
+  name = "ground_row_odd"
+  offset = 0x03
+  size = 2
+  meaning = "Which half down the row is on, as the word the lookup adds to the tile group's place"
+  [[var.field]]
+  name = "feet_column"
+  offset = 0x08
+  size = 2
+  meaning = "The leader's look around: the 8x8 tile column its feet are at"
+  [[var.field]]
+  name = "feet_row"
+  offset = 0x0A
+  size = 2
+  meaning = "And the row"
+  [[var.field]]
+  name = "ground_map"
+  offset = 0x10
+  size = 3
+  meaning = "Long pointer to the map the ground lookup reads (overworld_map)"
+  [[var.field]]
+  name = "ground_kinds"
+  offset = 0x13
+  size = 3
+  meaning = "Long pointer to the tile groups' kinds of ground (overworld_ground_kinds)"
+  [[var.field]]
+  name = "region_column"
+  offset = 0x00
+  meaning = "A lookup of the regions: the map tile's column, halved as the lookup reads it"
+  [[var.field]]
+  name = "region_row"
+  offset = 0x01
+  meaning = "And the region map's row it reads (the map tile's row less one)"
+  [[var.field]]
+  name = "region_row_word"
+  offset = 0x01
+  size = 2
+  meaning = "The music's look-up of the regions hands the row over as a word, the map tile's row less one (its high byte $FF over the map's first row)"
+  [[var.field]]
+  name = "region_row_at"
+  offset = 0x10
+  size = 3
+  meaning = "Long pointer to the region map's row the lookup reads"
+  [[var.field]]
+  name = "search_at"
+  offset = 0x05
+  meaning = "A follower's search for walls: the tile it looked at last along a leg"
+  [[var.field]]
+  name = "search_line"
+  offset = 0x06
+  meaning = "The row (or column) the leg runs along"
+  [[var.field]]
+  name = "search_end"
+  offset = 0x07
+  meaning = "Where the leg ends"
+  [[var.field]]
+  name = "search_from_column"
+  offset = 0x08
+  meaning = "The search: the follower's 8x8 tile column"
+  [[var.field]]
+  name = "search_to_column"
+  offset = 0x09
+  meaning = "The column it heads for (the leader's, or a place on the trail's)"
+  [[var.field]]
+  name = "search_from_row"
+  offset = 0x0A
+  meaning = "The follower's row"
+  [[var.field]]
+  name = "search_to_row"
+  offset = 0x0B
+  size = 2
+  meaning = "The row it heads for, as a word"
+  [[var.field]]
+  name = "search_blocked"
+  offset = 0x0E
+  meaning = "Which of the two ways round had a wall: bit 0 across first, bit 1 down first"
+  [[var.field]]
+  name = "distance_across"
+  offset = 0x08
+  size = 2
+  meaning = "How far across the follower's goal is, without its sign, as it picks a route"
+  [[var.field]]
+  name = "place_row"
+  offset = 0x01
+  size = 2
+  meaning = "The places' watcher's look-up: the map tile row the leader stands on, as a word (the column under it, the look-up's result over that)"
+  [[var.field]]
+  name = "lists_found"
+  offset = 0x00
+  meaning = "Which lists the look-up found the tile on, as overworld_lists_found"
+  [[var.field]]
+  name = "box_top"
+  offset = 0x00
+  size = 2
+  meaning = "A follower's look for the leader: the top of the box round it"
+  [[var.field]]
+  name = "box_bottom"
+  offset = 0x02
+  size = 2
+  meaning = "The row past the box's bottom"
+  [[var.field]]
+  name = "box_left"
+  offset = 0x04
+  size = 2
+  meaning = "Its left"
+  [[var.field]]
+  name = "box_right"
+  offset = 0x06
+  size = 2
+  meaning = "The column past its right"
+  [[var.field]]
+  name = "box_leader_x"
+  offset = 0x08
+  size = 2
+  meaning = "Where the leader stands across"
+  [[var.field]]
+  name = "box_leader_y"
+  offset = 0x0A
+  size = 2
+  meaning = "And down"
+  [[var.field]]
+  name = "trail_tries"
+  offset = 0x16
+  meaning = "The places back along the trail a follower boxed in still has to try"
+  [[var.field]]
+  name = "trail_looked_at"
+  offset = 0x19
+  size = 2
+  meaning = "The trail's place it tried last, in bytes of the trail"
+  [[var.field]]
+  name = "trail_way_round"
+  offset = 0x1B
+  meaning = "Which ways round had a wall from the trail's place it settled on"
+
+[[var]]
+name = "overworld_region"
+addr = "7E:00EB"
+page = "menu"
+subsystem = "overworld"
+meaning = "The region of the world map the party was last seen in, whose song plays ($FF: none yet, so the next look starts its song)"
+source = "game/overworld/music.c, $C2:2F94"
+
+[[var]]
+name = "overworld_travel"
+addr = "7E:027E"
+subsystem = "overworld"
+meaning = "How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3 on a dactyl, 4 walking to a vehicle to board it, 5 getting off one"
+source = "game/overworld/walk.c ($C2:3404), followers.c ($C2:3AE2); the vehicles' controller $C2:309E sets it"
+
+[[var]]
+name = "overworld_travel_before"
+addr = "7E:027F"
+subsystem = "overworld"
+meaning = "overworld_travel as the vehicles' controller saw it the frame before: the walkers start their steps over when the two differ"
+source = "$C2:309E; game/overworld/walk.c, followers.c"
+
+[[var]]
+name = "overworld_event"
+addr = "7E:0280"
+subsystem = "overworld"
+meaning = "1 while an event the party stepped onto runs: its script, and the party's own scripts for it (menu_member_scripts); 0 otherwise"
+source = "game/overworld/places.c ($C2:3264)"
+
+[[var]]
+name = "overworld_event_before"
+addr = "7E:0281"
+subsystem = "overworld"
+meaning = "overworld_event as the places' watcher saw it at the start of the frame: the walkers start their steps over when the two differ"
+source = "game/overworld/places.c ($C2:3264)"
+
+[[var]]
+name = "overworld_ground_news"
+addr = "7E:0282"
+subsystem = "overworld"
+meaning = "What the leader's last step found under it: bit 0 a place's ground to look up (the watcher clears it once it has), bit 1 standing on a place's ground"
+source = "game/overworld/walk.c ($C2:34F8, $C2:36ED), places.c ($C2:3279)"
+
+[[var]]
+name = "overworld_party_places"
+addr = "7E:0283"
+count = 3
+stride = 4
+index = "the party's place: 0 the leader, 1 the second member, 2 the third"
+subsystem = "overworld"
+meaning = "Where each of the party stands on the world map, in pixels: the leader's is the party's (the field's world_position), the others' only their scripts' last place"
+source = "game/overworld/walk.c, followers.c"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+
+[[var]]
+name = "overworld_boarding"
+addr = "7E:028F"
+subsystem = "overworld"
+meaning = "The vehicle the party boards or gets off, as the travel it gives (2 the Epoch, 3 a dactyl; 0 none)"
+source = "$C2:309E; game/overworld/walk.c, followers.c"
+
+[[var]]
+name = "overworld_epoch"
+addr = "7E:0290"
+stride = 5
+subsystem = "overworld"
+meaning = "The Epoch on the world map: where it stands and its state"
+source = "game/overworld/walk.c ($C2:34AD, $C2:37D8), followers.c ($C2:3B8E); the Epoch's flight $C2:42F8"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Where it stands across, a pixel"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "And down"
+  [[var.field]]
+  name = "state"
+  offset = 4
+  meaning = "Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out"
+
+[[var]]
+name = "overworld_dactyl"
+addr = "7E:029A"
+stride = 5
+subsystem = "overworld"
+meaning = "The dactyl the party rides on the 65,000,000 B.C. map: where it stands and its state, as the Epoch's (overworld_epoch)"
+source = "game/overworld/walk.c ($C2:34CD, $C2:37E8), followers.c ($C2:3BA8)"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+  [[var.field]]
+  name = "state"
+  offset = 4
+  meaning = "Bits 0-1 how many of the party are aboard, bit 6 the party has it out"
+
+[[var]]
+name = "overworld_idle_frames"
+addr = "7E:02B1"
+count = 3
+index = "the party's place: 0 the leader, 1 the second member, 2 the third"
+subsystem = "overworld"
+meaning = "Frames each of the party has stood still, up to $F0, when it plays its idle animation once and holds at $FE-$FF"
+source = "game/overworld/walk.c ($C2:35B3), followers.c ($C2:3C8C)"
+
+[[var]]
+name = "overworld_found"
+addr = "7E:1B32"
+size = 2
+count = 3
+index = "the list: 0 the exits, 1 the events, 2 the halts"
+subsystem = "overworld"
+meaning = "The record of each list the leader's tile is on, in bytes from the list's start; $FFFF where it is on none"
+source = "game/overworld/places.c ($C2:32CD)"
+
+[[var]]
+name = "overworld_list_lengths"
+addr = "7E:1B38"
+count = 3
+index = "the list: 0 the exits, 1 the events, 2 the halts"
+subsystem = "overworld"
+meaning = "How many records each of the world map's lists of places has (overworld_exits, overworld_events, overworld_halts), as the map's setup loads them"
+source = "game/overworld/places.c ($C2:32CD)"
+
+[[var]]
+name = "overworld_event_over"
+addr = "7E:1B43"
+subsystem = "overworld"
+meaning = "Set by the running event's script when it is over; the places' watcher then lets the party go"
+source = "game/overworld/places.c ($C2:32B7), cleared as an event starts ($C2:33D4, $C2:243D)"
+
+[[var]]
+name = "overworld_lists_found"
+addr = "7E:1B44"
+subsystem = "overworld"
+meaning = "Which lists the leader's tile was on at the last look: bit 0 the exits, bit 1 the halts, bit 2 the events"
+source = "game/overworld/places.c ($C2:3349)"
+
+[[var]]
+name = "overworld_event_script"
+addr = "7E:1B45"
+size = 2
+subsystem = "overworld"
+meaning = "The script, in bank $7F, of the event the party last stepped onto or entered"
+source = "game/overworld/places.c ($C2:626E), main_loop.c ($C2:2402)"
+
+
+[[var]]
+name = "overworld_halt_note"
+addr = "7E:1B47"
+subsystem = "overworld"
+meaning = "The byte after the halt the leader stepped onto, which the overworld notes as it stops the game; nothing reads it (scaffolding)"
+source = "game/overworld/places.c ($C2:6286)"
+
+[[var]]
+name = "overworld_sign"
+addr = "7E:1B58"
+subsystem = "overworld"
+meaning = "The place whose name the sign shows over the party (a string of the places' names), 0 for no sign"
+source = "game/overworld/places.c ($C2:6263), sign.c ($C2:5628)"
+
+[[var]]
+name = "overworld_sign_again"
+addr = "7E:1B59"
+subsystem = "overworld"
+meaning = "Nonzero: set the sign again (the menus put the screen back), which the sign clears as it does"
+source = "game/overworld/sign.c ($C2:570C), main_loop.c ($C2:256E)"
+
+[[var]]
+name = "overworld_trail_next"
+addr = "7E:1B5A"
+subsystem = "overworld"
+meaning = "Where the leader's next step goes in its trail, in bytes (two a step, round sixteen steps)"
+source = "game/overworld/walk.c ($C2:3934)"
+
+[[var]]
+name = "overworld_trail_x"
+addr = "7E:1B5B"
+size = 2
+count = 16
+index = "step, round"
+subsystem = "overworld"
+meaning = "The leader's trail: where across each of its last sixteen steps ended, which the followers walk after it"
+source = "game/overworld/walk.c ($C2:391C, $C2:3934), followers.c ($C2:3F6D)"
+
+[[var]]
+name = "overworld_trail_y"
+addr = "7E:1B7B"
+size = 2
+count = 16
+index = "step, round"
+subsystem = "overworld"
+meaning = "And where down"
+source = "game/overworld/walk.c ($C2:391C, $C2:3934), followers.c ($C2:3F6D)"
+
+[[var]]
+name = "overworld_region_songs"
+addr = "7E:1B9B"
+count = 16
+index = "region"
+subsystem = "overworld"
+meaning = "The song each of the world map's regions plays, as the map's setup loads them"
+source = "game/overworld/music.c ($C2:2FDA)"
+
+[[var]]
+name = "overworld_step_begun"
+addr = "7E:1BF7"
+subsystem = "overworld"
+meaning = "Cleared as the leader begins a step and as the overworld starts"
+source = "game/overworld/walk.c ($C2:36E7)"
+
+[[var]]
+name = "overworld_map"
+addr = "7E:5800"
+count = 0x1800
+index = "map tile (its row * 96 plus its column)"
+unchecked = "the followers' search for walls looks at the rows next to its legs without keeping them on the map, as the original does, and a row off the map's edge reads past the map's end (game/overworld/terrain.c, map_tile)"
+subsystem = "overworld"
+meaning = "The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows (the map's first plane's, menu/map.c)"
+source = "game/overworld/terrain.c ($C2:62AE)"
+
+[[var]]
+name = "overworld_ground_kinds"
+addr = "7E:7000"
+count = 0x200
+index = "entry (a tile group * 2, plus 1 for its lower half)"
+subsystem = "overworld"
+meaning = "What ground each tile group's four 8x8 tiles are: a byte for its upper half and one for its lower, the left tile in the high nibble; bits 0-1 a wall, bit 2 a place's ground"
+source = "game/overworld/terrain.c ($C2:62AE)"
+
+[[var]]
+name = "overworld_regions"
+addr = "7E:7200"
+count = 0xC00
+index = "entry (a map tile's row * 48 plus its column halved)"
+subsystem = "overworld"
+meaning = "Which region (and so which song) each map tile is in: a nibble a map tile, two to a byte, the even column in the high nibble; its first row is the map's second"
+source = "game/overworld/terrain.c ($C2:62ED)"
+
+[[var]]
+name = "overworld_exits"
+addr = "7E:7E00"
+count = 128
+stride = 7
+index = "exit"
+subsystem = "overworld"
+meaning = "The world map's exits: the map tiles the party enters a place from, and the place each leads to"
+source = "game/overworld/places.c ($C2:32CD), main_loop.c ($C2:2402)"
+  [[var.field]]
+  name = "column"
+  offset = 0
+  meaning = "Bit 7: the exit is open; bits 0-6 its map tile's column"
+  [[var.field]]
+  name = "row"
+  offset = 1
+  meaning = "Bits 0-5 its map tile's row"
+  [[var.field]]
+  name = "name"
+  offset = 2
+  meaning = "The place whose name the sign shows there"
+  [[var.field]]
+  name = "location"
+  offset = 3
+  size = 2
+  meaning = "The location it leads to (bits 0-8; $1FF: an event script instead, overworld_event_scripts' entry in the next byte), with how the party arrives in the high byte's bits 1-7"
+  [[var.field]]
+  name = "arrival"
+  offset = 4
+  meaning = "The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted down a bit; bits 0-1 of those the way the party faces)"
+  [[var.field]]
+  name = "event"
+  offset = 5
+  meaning = "Where the location is $1FF: the event script's entry in overworld_event_scripts"
+  [[var.field]]
+  name = "x"
+  offset = 5
+  meaning = "The 8x8 tile column the party arrives at in the location"
+  [[var.field]]
+  name = "y"
+  offset = 6
+  meaning = "And the row"
+
+[[var]]
+name = "overworld_halts"
+addr = "7E:8180"
+count = 128
+stride = 3
+index = "halt"
+unchecked = "a halt notes the byte after its record as the game stops, the next record's first, or past the last record the events' first (game/overworld/places.c, note_the_halt)"
+subsystem = "overworld"
+meaning = "The world map's halts: map tiles that stop the game, as the third list of places the leader's tile is looked up in"
+source = "game/overworld/places.c ($C2:32CD)"
+  [[var.field]]
+  name = "column"
+  offset = 0
+  meaning = "Bit 7: open; bits 0-6 the map tile's column"
+  [[var.field]]
+  name = "row"
+  offset = 1
+  meaning = "Bits 0-5 the row"
+
+[[var]]
+name = "overworld_events"
+addr = "7E:8300"
+count = 128
+stride = 3
+index = "event"
+subsystem = "overworld"
+meaning = "The world map's events: map tiles whose script runs once as the party steps on them"
+source = "game/overworld/places.c ($C2:32CD, $C2:33AA)"
+  [[var.field]]
+  name = "column"
+  offset = 0
+  meaning = "Bit 7: the event is armed (stepping on it disarms it); bits 0-6 the map tile's column"
+  [[var.field]]
+  name = "row"
+  offset = 1
+  meaning = "Bits 0-5 the row"
+  [[var.field]]
+  name = "script"
+  offset = 2
+  meaning = "Its script's entry in overworld_event_scripts"
+
+[[var]]
+name = "overworld_event_scripts"
+addr = "7E:8480"
+size = 2
+count = 128
+index = "entry"
+subsystem = "overworld"
+meaning = "Where each of the world map's event scripts starts, in bank $7F"
+source = "game/overworld/places.c ($C2:626E), main_loop.c ($C2:2402)"
+
+[[var]]
+name = "overworld_put_aside"
+addr = "7F:2800"
+count = 0x6200
+index = "byte"
+subsystem = "overworld"
+meaning = "The overworld put aside while the menus or the time dial run (game/overworld/main_loop.c's table says what goes where): low RAM from $0700 and the mode's direct page, then bank $7E from $B000 and from $4000 to the map's end, the map's regions and its lists of places; the map view puts aside only the direct page and the objects' slots"
+source = "game/overworld/main_loop.c ($C2:2E23, $C2:2E72, $C2:25B1)"
+
+[[var]]
+name = "overworld_sign_sprites"
+addr = "7E:8600"
+count = 0x1D
+index = "byte"
+subsystem = "overworld"
+meaning = "The sign's sprite script, built here from the ROM's: one command showing the group after it, whose first byte (the count of its sprites) is 0 until the sign shows, then 6"
+source = "game/overworld/sign.c ($C2:5775)"
+
+[[var]]
+name = "overworld_sign_label"
+addr = "7E:8621"
+count = 0x400
+index = "byte"
+subsystem = "overworld"
+meaning = "The place's name as the typesetter sets it for the sign: two lines of sixteen-colour tiles, $200 bytes a line, whose first $180 bytes each go to VRAM"
+source = "game/overworld/sign.c ($C2:5699, $C2:5798)"
+
 # ==============================================================================
 # Literals that are not work RAM, and offsets in bank $7F
 # ==============================================================================
@@ -20493,6 +21129,13 @@ addr = "7E:29AF"
 subsystem = "core"
 meaning = "The characters who have joined the party, Crono in bit 7 to Magus in bit 1: those not fighting take a share of the experience"
 source = "game/battle/rewards_levels.c ($C1:F9EB)"
+
+[[var]]
+name = "story_line"
+addr = "7F:0000"
+subsystem = "core"
+meaning = "How far the story has got: the event scripts' main count (event memory $000), which most of the game's turns of the story raise"
+source = "game/overworld/walk.c (the party's exchange from the world map once it reaches $49, $C2:3605)"
 
 [[var]]
 name = "story_party_rules"

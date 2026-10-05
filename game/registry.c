@@ -87,6 +87,9 @@
 #include "menu/windows.h"
 #include "menu/top_layer.h"
 #include "menu/vram.h"
+#include "overworld/entries.h"
+#include "overworld/main_loop.h"
+#include "overworld/terrain.h"
 
 /* Entry preconditions on P. */
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
@@ -3590,6 +3593,37 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC275FD, .name = "menu_top_layer_wave_drift", .fn = menu_top_layer_wave_drift,
       NEEDS_M8_X16_BINARY, .cost_milli = 3144, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
       .guard = menu_top_layer_object_runs },
+    /* the overworld on foot (game/overworld/) */
+    { .addr = 0xC23404, .name = "overworld_lead", .fn = overworld_lead_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 6323, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = overworld_leader_runs },
+    { .addr = 0xC23AE2, .name = "overworld_follow", .fn = overworld_follow_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 6201, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = overworld_follower_runs },
+    { .addr = 0xC23264, .name = "overworld_watch_the_ground", .fn = overworld_watch_the_ground_entry,
+      NEEDS_M8_X16_BINARY, .cost_milli = 3922, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
+      .guard = overworld_watcher_runs },
+    { .addr = 0xC22F94, .name = "overworld_region_song", .fn = overworld_region_song_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 5635, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = overworld_region_song_runs },
+    { .addr = 0xC25628, .name = "overworld_sign", .fn = overworld_sign_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 5586, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = overworld_sign_runs },
+    { .addr = 0xC262AE, .name = "overworld_ground_at", .fn = overworld_ground_at_entry,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 6384,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C | DC_AH, .guard = overworld_ground_at_runs },
+    { .addr = 0xC262ED, .name = "overworld_region_at", .fn = overworld_region_at_entry,
+      .p_mask = CPU_FLAG_X | CPU_FLAG_D, .p_value = 0, .cost_milli = 4627,
+      .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = overworld_region_at_runs },
+    { .addr = 0xC223CF, .name = "overworld_main_loop", .fn = overworld_main_loop_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 5485, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = overworld_main_loop_runs },
+    { .addr = 0xC22E23, .name = "overworld_put_aside", .fn = overworld_put_aside_entry, NEEDS_M8_X16,
+      .cost_milli = 2876, .dont_care = DC_A | DC_Y | DC_N | DC_Z | DC_C, .guard = overworld_main_loop_runs },
+    { .addr = 0xC22E72, .name = "overworld_bring_back", .fn = overworld_bring_back_entry, NEEDS_M8_X16,
+      .cost_milli = 2876, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = overworld_main_loop_runs },
+    { .addr = 0xC2255A, .name = "overworld_back_from_the_menus", .fn = overworld_back_from_the_menus_entry,
+      NEEDS_M8_X16_BINARY, .cost_milli = 21663, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = overworld_main_loop_runs },
+    { .addr = 0xC2250D, .name = "overworld_halt", .fn = overworld_halt_entry, NEEDS_M8_X16_BINARY,
+      .cost_milli = 3000, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .guard = overworld_main_loop_runs },
     { .addr = 0xC2754D, .name = "menu_object_place_under_the_view", .fn = menu_object_place_under_the_view,
       NEEDS_M8_X16_BINARY, .cost_milli = 3892, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z,
       .guard = menu_object_can_be_placed },

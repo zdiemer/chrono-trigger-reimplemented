@@ -712,6 +712,14 @@ bool menu_text_can_go_on(Snes *s)
     return ok;
 }
 
+bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles)
+{
+    return readable(strings) && tiles_are_writable(tiles)
+           && stays_off_the_budget(g, string_begins(g, strings, string), ARGUMENTS, false, 0);
+}
+
+bool menu_text_can_carry_on(const GameState *g) { return can_go_on(g); }
+
 bool menu_label_is_settable(Snes *s)
 {
     const GameState *g = state_of(s);

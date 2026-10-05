@@ -655,6 +655,11 @@ enum { SAVE_SLOT_SUMMARIES_HEADER_BYTES = 16 };
 uint8_t save_slot_summaries_header_byte(const GameState *g, unsigned slot, unsigned at);
 void set_save_slot_summaries_header_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
 
+/* How far the story has got: the event scripts' main count (event memory $000), which most of
+ * the game's turns of the story raise */
+uint8_t story_line(const GameState *g);
+void set_story_line(GameState *g, uint8_t v);
+
 /* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
  * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
  * a fight not among those the battle's flags mark */
@@ -4947,10 +4952,21 @@ void set_menu_sound_request_second(GameState *g, uint8_t v);
 uint8_t menu_sound_request_third(const GameState *g);
 void set_menu_sound_request_third(GameState *g, uint8_t v);
 
+/* The state of the sound command the sprite-object mode passes to the driver: 0 none waits, 1
+ * one waits in the driver's command cells (sound_command) for the main loop to send, $FF the
+ * main loop is sending it; a request finding it negative is refused */
+uint8_t menu_sound_mailbox(const GameState *g);
+void set_menu_sound_mailbox(GameState *g, uint8_t v);
+
 /* Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte
  * after it when it decides whether to pass the request on */
 uint8_t menu_sound_request_age(const GameState *g);
 void set_menu_sound_request_age(GameState *g, uint8_t v);
+
+/* The age (menu_sound_request_age) of the request waiting in the driver's cells: while it waits,
+ * a request older than it is refused */
+uint8_t menu_sound_waiting_age(const GameState *g);
+void set_menu_sound_waiting_age(GameState *g, uint8_t v);
 
 /* Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears */
 uint16_t menu_pending_scroll_x(const GameState *g);
@@ -6410,6 +6426,54 @@ void set_menu_object_slots_zoom_y(GameState *g, unsigned slot, uint16_t v);
 /* The map view's cursor: how far along its path it has come, in bytes of the path's tables */
 uint16_t menu_object_slots_path_step(const GameState *g, unsigned slot);
 void set_menu_object_slots_path_step(GameState *g, unsigned slot, uint16_t v);
+/* The overworld's leader: the ground under the four 8x8 tiles around its feet (the kinds
+ * game/overworld/terrain.c reads), the upper left one */
+uint8_t menu_object_slots_ground_up_left(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_up_left(GameState *g, unsigned slot, uint8_t v);
+/* The overworld's leader: the ground of the upper right tile around its feet */
+uint8_t menu_object_slots_ground_up_right(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_up_right(GameState *g, unsigned slot, uint8_t v);
+/* The overworld's leader: the ground of the lower left tile around its feet */
+uint8_t menu_object_slots_ground_down_left(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_down_left(GameState *g, unsigned slot, uint8_t v);
+/* The overworld's leader: the ground of the lower right tile around its feet */
+uint8_t menu_object_slots_ground_down_right(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_down_right(GameState *g, unsigned slot, uint8_t v);
+/* An overworld follower: where its search for walls down a column last looked, the kind of the
+ * tile left of the column, which the search keeps here (game/overworld/followers.c; scaffolding,
+ * nothing reads it after) */
+uint8_t menu_object_slots_wall_search_left(const GameState *g, unsigned slot);
+void set_menu_object_slots_wall_search_left(GameState *g, unsigned slot, uint8_t v);
+/* An overworld follower: which of the party it is, 1 the second member or 2 the third */
+uint8_t menu_object_slots_party_place(const GameState *g, unsigned slot);
+void set_menu_object_slots_party_place(GameState *g, unsigned slot, uint8_t v);
+/* An overworld walker: its low bit picks which of its facing's two walking animations it walks
+ * with; the walkers clear it as they start */
+uint8_t menu_object_slots_gait(const GameState *g, unsigned slot);
+void set_menu_object_slots_gait(GameState *g, unsigned slot, uint8_t v);
+/* An overworld follower: the way it faced before its last turn, 0 up, 1 down, 2 left, 3 right */
+uint8_t menu_object_slots_facing_before(const GameState *g, unsigned slot);
+void set_menu_object_slots_facing_before(GameState *g, unsigned slot, uint8_t v);
+/* An overworld walker: the way it faces (bits 0-1: 0 up, 1 down, 2 left, 3 right), and bit 7
+ * while it shows its walking animation */
+uint8_t menu_object_slots_facing(const GameState *g, unsigned slot);
+void set_menu_object_slots_facing(GameState *g, unsigned slot, uint8_t v);
+/* An overworld follower: its way to where it is going, in straight legs: bits 0-3 the legs left,
+ * bit 4 the first leg across, bit 5 the first leg down */
+uint8_t menu_object_slots_route(const GameState *g, unsigned slot);
+void set_menu_object_slots_route(GameState *g, unsigned slot, uint8_t v);
+/* An overworld walker: where across it is walking to, a pixel */
+uint16_t menu_object_slots_goal_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_goal_x(GameState *g, unsigned slot, uint16_t v);
+/* An overworld walker: where down it is walking to */
+uint16_t menu_object_slots_goal_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_goal_y(GameState *g, unsigned slot, uint16_t v);
+/* An overworld follower: how far across its goal is from it as it set out, signed */
+uint16_t menu_object_slots_to_goal_x(const GameState *g, unsigned slot);
+void set_menu_object_slots_to_goal_x(GameState *g, unsigned slot, uint16_t v);
+/* An overworld follower: how far down its goal is from it as it set out, signed */
+uint16_t menu_object_slots_to_goal_y(const GameState *g, unsigned slot);
+void set_menu_object_slots_to_goal_y(GameState *g, unsigned slot, uint16_t v);
 
 enum { MENU_SLOT1_LINE_VALUES_COUNT = 224 };   /* by line */
 /* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
@@ -6501,6 +6565,358 @@ enum { MENU_WORLD_MAP_TILES_COUNT = 896 };   /* by world map tile */
 enum { MENU_WORLD_MAP_TILES_BYTES = 32 };
 uint8_t menu_world_map_tiles_byte(const GameState *g, unsigned i, unsigned at);
 void set_menu_world_map_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+
+/* ---- overworld ----------------------------------------------------------------------------- */
+
+/* A walker's choice of its step on foot: the row of its handler's table for whether an event
+ * runs (eight bytes a row), which it adds its step to */
+uint8_t overworld_scratch_walker_table_row(const GameState *g);
+void set_overworld_scratch_walker_table_row(GameState *g, uint8_t v);
+/* A walker's animation: the character it is (Magus's animations are his own) */
+uint8_t overworld_scratch_character(const GameState *g);
+void set_overworld_scratch_character(GameState *g, uint8_t v);
+/* The sprite script the walker was given last */
+uint8_t overworld_scratch_animation(const GameState *g);
+void set_overworld_scratch_animation(GameState *g, uint8_t v);
+/* A lookup of the ground: the 8x8 tile's column, halved to its map tile's as the lookup reads it */
+uint8_t overworld_scratch_ground_column(const GameState *g);
+void set_overworld_scratch_ground_column(GameState *g, uint8_t v);
+/* And its row, halved likewise */
+uint8_t overworld_scratch_ground_row(const GameState *g);
+void set_overworld_scratch_ground_row(GameState *g, uint8_t v);
+/* Which half of the map tile across the column is on, shifted out as the lookup reads it (0
+ * after) */
+uint8_t overworld_scratch_ground_column_odd(const GameState *g);
+void set_overworld_scratch_ground_column_odd(GameState *g, uint8_t v);
+/* Which half down the row is on, as the word the lookup adds to the tile group's place */
+uint16_t overworld_scratch_ground_row_odd(const GameState *g);
+void set_overworld_scratch_ground_row_odd(GameState *g, uint16_t v);
+/* The leader's look around: the 8x8 tile column its feet are at */
+uint16_t overworld_scratch_feet_column(const GameState *g);
+void set_overworld_scratch_feet_column(GameState *g, uint16_t v);
+/* And the row */
+uint16_t overworld_scratch_feet_row(const GameState *g);
+void set_overworld_scratch_feet_row(GameState *g, uint16_t v);
+/* Long pointer to the map the ground lookup reads (overworld_map) */
+uint32_t overworld_scratch_ground_map(const GameState *g);
+void set_overworld_scratch_ground_map(GameState *g, uint32_t v);
+/* Long pointer to the tile groups' kinds of ground (overworld_ground_kinds) */
+uint32_t overworld_scratch_ground_kinds(const GameState *g);
+void set_overworld_scratch_ground_kinds(GameState *g, uint32_t v);
+/* A lookup of the regions: the map tile's column, halved as the lookup reads it */
+uint8_t overworld_scratch_region_column(const GameState *g);
+void set_overworld_scratch_region_column(GameState *g, uint8_t v);
+/* And the region map's row it reads (the map tile's row less one) */
+uint8_t overworld_scratch_region_row(const GameState *g);
+void set_overworld_scratch_region_row(GameState *g, uint8_t v);
+/* The music's look-up of the regions hands the row over as a word, the map tile's row less one
+ * (its high byte $FF over the map's first row) */
+uint16_t overworld_scratch_region_row_word(const GameState *g);
+void set_overworld_scratch_region_row_word(GameState *g, uint16_t v);
+/* Long pointer to the region map's row the lookup reads */
+uint32_t overworld_scratch_region_row_at(const GameState *g);
+void set_overworld_scratch_region_row_at(GameState *g, uint32_t v);
+/* A follower's search for walls: the tile it looked at last along a leg */
+uint8_t overworld_scratch_search_at(const GameState *g);
+void set_overworld_scratch_search_at(GameState *g, uint8_t v);
+/* The row (or column) the leg runs along */
+uint8_t overworld_scratch_search_line(const GameState *g);
+void set_overworld_scratch_search_line(GameState *g, uint8_t v);
+/* Where the leg ends */
+uint8_t overworld_scratch_search_end(const GameState *g);
+void set_overworld_scratch_search_end(GameState *g, uint8_t v);
+/* The search: the follower's 8x8 tile column */
+uint8_t overworld_scratch_search_from_column(const GameState *g);
+void set_overworld_scratch_search_from_column(GameState *g, uint8_t v);
+/* The column it heads for (the leader's, or a place on the trail's) */
+uint8_t overworld_scratch_search_to_column(const GameState *g);
+void set_overworld_scratch_search_to_column(GameState *g, uint8_t v);
+/* The follower's row */
+uint8_t overworld_scratch_search_from_row(const GameState *g);
+void set_overworld_scratch_search_from_row(GameState *g, uint8_t v);
+/* The row it heads for, as a word */
+uint16_t overworld_scratch_search_to_row(const GameState *g);
+void set_overworld_scratch_search_to_row(GameState *g, uint16_t v);
+/* Which of the two ways round had a wall: bit 0 across first, bit 1 down first */
+uint8_t overworld_scratch_search_blocked(const GameState *g);
+void set_overworld_scratch_search_blocked(GameState *g, uint8_t v);
+/* How far across the follower's goal is, without its sign, as it picks a route */
+uint16_t overworld_scratch_distance_across(const GameState *g);
+void set_overworld_scratch_distance_across(GameState *g, uint16_t v);
+/* The places' watcher's look-up: the map tile row the leader stands on, as a word (the column
+ * under it, the look-up's result over that) */
+uint16_t overworld_scratch_place_row(const GameState *g);
+void set_overworld_scratch_place_row(GameState *g, uint16_t v);
+/* Which lists the look-up found the tile on, as overworld_lists_found */
+uint8_t overworld_scratch_lists_found(const GameState *g);
+void set_overworld_scratch_lists_found(GameState *g, uint8_t v);
+/* A follower's look for the leader: the top of the box round it */
+uint16_t overworld_scratch_box_top(const GameState *g);
+void set_overworld_scratch_box_top(GameState *g, uint16_t v);
+/* The row past the box's bottom */
+uint16_t overworld_scratch_box_bottom(const GameState *g);
+void set_overworld_scratch_box_bottom(GameState *g, uint16_t v);
+/* Its left */
+uint16_t overworld_scratch_box_left(const GameState *g);
+void set_overworld_scratch_box_left(GameState *g, uint16_t v);
+/* The column past its right */
+uint16_t overworld_scratch_box_right(const GameState *g);
+void set_overworld_scratch_box_right(GameState *g, uint16_t v);
+/* Where the leader stands across */
+uint16_t overworld_scratch_box_leader_x(const GameState *g);
+void set_overworld_scratch_box_leader_x(GameState *g, uint16_t v);
+/* And down */
+uint16_t overworld_scratch_box_leader_y(const GameState *g);
+void set_overworld_scratch_box_leader_y(GameState *g, uint16_t v);
+/* The places back along the trail a follower boxed in still has to try */
+uint8_t overworld_scratch_trail_tries(const GameState *g);
+void set_overworld_scratch_trail_tries(GameState *g, uint8_t v);
+/* The trail's place it tried last, in bytes of the trail */
+uint16_t overworld_scratch_trail_looked_at(const GameState *g);
+void set_overworld_scratch_trail_looked_at(GameState *g, uint16_t v);
+/* Which ways round had a wall from the trail's place it settled on */
+uint8_t overworld_scratch_trail_way_round(const GameState *g);
+void set_overworld_scratch_trail_way_round(GameState *g, uint8_t v);
+
+/* The region of the world map the party was last seen in, whose song plays ($FF: none yet, so
+ * the next look starts its song) */
+uint8_t overworld_region(const GameState *g);
+void set_overworld_region(GameState *g, uint8_t v);
+
+/* How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3
+ * on a dactyl, 4 walking to a vehicle to board it, 5 getting off one */
+uint8_t overworld_travel(const GameState *g);
+void set_overworld_travel(GameState *g, uint8_t v);
+
+/* overworld_travel as the vehicles' controller saw it the frame before: the walkers start their
+ * steps over when the two differ */
+uint8_t overworld_travel_before(const GameState *g);
+void set_overworld_travel_before(GameState *g, uint8_t v);
+
+/* 1 while an event the party stepped onto runs: its script, and the party's own scripts for it
+ * (menu_member_scripts); 0 otherwise */
+uint8_t overworld_event(const GameState *g);
+void set_overworld_event(GameState *g, uint8_t v);
+
+/* overworld_event as the places' watcher saw it at the start of the frame: the walkers start
+ * their steps over when the two differ */
+uint8_t overworld_event_before(const GameState *g);
+void set_overworld_event_before(GameState *g, uint8_t v);
+
+/* What the leader's last step found under it: bit 0 a place's ground to look up (the watcher
+ * clears it once it has), bit 1 standing on a place's ground */
+uint8_t overworld_ground_news(const GameState *g);
+void set_overworld_ground_news(GameState *g, uint8_t v);
+
+enum { OVERWORLD_PARTY_PLACES_COUNT = 3 };   /* by the party's place: 0 the leader, 1 the second member, 2 the third */
+/* Across */
+uint16_t overworld_party_places_x(const GameState *g, unsigned i);
+void set_overworld_party_places_x(GameState *g, unsigned i, uint16_t v);
+/* Down */
+uint16_t overworld_party_places_y(const GameState *g, unsigned i);
+void set_overworld_party_places_y(GameState *g, unsigned i, uint16_t v);
+
+/* The vehicle the party boards or gets off, as the travel it gives (2 the Epoch, 3 a dactyl; 0
+ * none) */
+uint8_t overworld_boarding(const GameState *g);
+void set_overworld_boarding(GameState *g, uint8_t v);
+
+/* Where it stands across, a pixel */
+uint16_t overworld_epoch_x(const GameState *g);
+void set_overworld_epoch_x(GameState *g, uint16_t v);
+/* And down */
+uint16_t overworld_epoch_y(const GameState *g);
+void set_overworld_epoch_y(GameState *g, uint16_t v);
+/* Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial
+ * runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out */
+uint8_t overworld_epoch_state(const GameState *g);
+void set_overworld_epoch_state(GameState *g, uint8_t v);
+
+/* Across */
+uint16_t overworld_dactyl_x(const GameState *g);
+void set_overworld_dactyl_x(GameState *g, uint16_t v);
+/* Down */
+uint16_t overworld_dactyl_y(const GameState *g);
+void set_overworld_dactyl_y(GameState *g, uint16_t v);
+/* Bits 0-1 how many of the party are aboard, bit 6 the party has it out */
+uint8_t overworld_dactyl_state(const GameState *g);
+void set_overworld_dactyl_state(GameState *g, uint8_t v);
+
+enum { OVERWORLD_IDLE_FRAMES_COUNT = 3 };   /* by the party's place: 0 the leader, 1 the second member, 2 the third */
+/* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
+ * holds at $FE-$FF */
+uint8_t overworld_idle_frames(const GameState *g, unsigned i);
+void set_overworld_idle_frames(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_FOUND_COUNT = 3 };   /* by the list: 0 the exits, 1 the events, 2 the halts */
+/* The record of each list the leader's tile is on, in bytes from the list's start; $FFFF where
+ * it is on none */
+uint16_t overworld_found(const GameState *g, unsigned i);
+void set_overworld_found(GameState *g, unsigned i, uint16_t v);
+
+enum { OVERWORLD_LIST_LENGTHS_COUNT = 3 };   /* by the list: 0 the exits, 1 the events, 2 the halts */
+/* How many records each of the world map's lists of places has (overworld_exits,
+ * overworld_events, overworld_halts), as the map's setup loads them */
+uint8_t overworld_list_lengths(const GameState *g, unsigned i);
+void set_overworld_list_lengths(GameState *g, unsigned i, uint8_t v);
+
+/* Set by the running event's script when it is over; the places' watcher then lets the party go */
+uint8_t overworld_event_over(const GameState *g);
+void set_overworld_event_over(GameState *g, uint8_t v);
+
+/* Which lists the leader's tile was on at the last look: bit 0 the exits, bit 1 the halts, bit 2
+ * the events */
+uint8_t overworld_lists_found(const GameState *g);
+void set_overworld_lists_found(GameState *g, uint8_t v);
+
+/* The script, in bank $7F, of the event the party last stepped onto or entered */
+uint16_t overworld_event_script(const GameState *g);
+void set_overworld_event_script(GameState *g, uint16_t v);
+
+/* The byte after the halt the leader stepped onto, which the overworld notes as it stops the
+ * game; nothing reads it (scaffolding) */
+uint8_t overworld_halt_note(const GameState *g);
+void set_overworld_halt_note(GameState *g, uint8_t v);
+
+/* The place whose name the sign shows over the party (a string of the places' names), 0 for no
+ * sign */
+uint8_t overworld_sign(const GameState *g);
+void set_overworld_sign(GameState *g, uint8_t v);
+
+/* Nonzero: set the sign again (the menus put the screen back), which the sign clears as it does */
+uint8_t overworld_sign_again(const GameState *g);
+void set_overworld_sign_again(GameState *g, uint8_t v);
+
+/* Where the leader's next step goes in its trail, in bytes (two a step, round sixteen steps) */
+uint8_t overworld_trail_next(const GameState *g);
+void set_overworld_trail_next(GameState *g, uint8_t v);
+
+enum { OVERWORLD_TRAIL_X_COUNT = 16 };   /* by step, round */
+/* The leader's trail: where across each of its last sixteen steps ended, which the followers
+ * walk after it */
+uint16_t overworld_trail_x(const GameState *g, unsigned i);
+void set_overworld_trail_x(GameState *g, unsigned i, uint16_t v);
+
+enum { OVERWORLD_TRAIL_Y_COUNT = 16 };   /* by step, round */
+/* And where down */
+uint16_t overworld_trail_y(const GameState *g, unsigned i);
+void set_overworld_trail_y(GameState *g, unsigned i, uint16_t v);
+
+enum { OVERWORLD_REGION_SONGS_COUNT = 16 };   /* by region */
+/* The song each of the world map's regions plays, as the map's setup loads them */
+uint8_t overworld_region_songs(const GameState *g, unsigned i);
+void set_overworld_region_songs(GameState *g, unsigned i, uint8_t v);
+
+/* Cleared as the leader begins a step and as the overworld starts */
+uint8_t overworld_step_begun(const GameState *g);
+void set_overworld_step_begun(GameState *g, uint8_t v);
+
+enum { OVERWORLD_MAP_COUNT = 6144 };   /* by map tile (its row * 96 plus its column) */
+/* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
+ * (the map's first plane's, menu/map.c) */
+uint8_t overworld_map(const GameState *g, unsigned i);
+void set_overworld_map(GameState *g, unsigned i, uint8_t v);
+/* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
+ * (the map's first plane's, menu/map.c) Unchecked, for marked scaffolding only: the followers'
+ * search for walls looks at the rows next to its legs without keeping them on the map, as the
+ * original does, and a row off the map's edge reads past the map's end
+ * (game/overworld/terrain.c, map_tile) */
+uint8_t overworld_map_unchecked(const GameState *g, unsigned i);
+void set_overworld_map_unchecked(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_GROUND_KINDS_COUNT = 512 };   /* by entry (a tile group * 2, plus 1 for its lower half) */
+/* What ground each tile group's four 8x8 tiles are: a byte for its upper half and one for its
+ * lower, the left tile in the high nibble; bits 0-1 a wall, bit 2 a place's ground */
+uint8_t overworld_ground_kinds(const GameState *g, unsigned i);
+void set_overworld_ground_kinds(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_REGIONS_COUNT = 3072 };   /* by entry (a map tile's row * 48 plus its column halved) */
+/* Which region (and so which song) each map tile is in: a nibble a map tile, two to a byte, the
+ * even column in the high nibble; its first row is the map's second */
+uint8_t overworld_regions(const GameState *g, unsigned i);
+void set_overworld_regions(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_EXITS_COUNT = 128 };   /* by exit */
+/* Bit 7: the exit is open; bits 0-6 its map tile's column */
+uint8_t overworld_exits_column(const GameState *g, unsigned i);
+void set_overworld_exits_column(GameState *g, unsigned i, uint8_t v);
+/* Bits 0-5 its map tile's row */
+uint8_t overworld_exits_row(const GameState *g, unsigned i);
+void set_overworld_exits_row(GameState *g, unsigned i, uint8_t v);
+/* The place whose name the sign shows there */
+uint8_t overworld_exits_name(const GameState *g, unsigned i);
+void set_overworld_exits_name(GameState *g, unsigned i, uint8_t v);
+/* The location it leads to (bits 0-8; $1FF: an event script instead, overworld_event_scripts'
+ * entry in the next byte), with how the party arrives in the high byte's bits 1-7 */
+uint16_t overworld_exits_location(const GameState *g, unsigned i);
+void set_overworld_exits_location(GameState *g, unsigned i, uint16_t v);
+/* The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted
+ * down a bit; bits 0-1 of those the way the party faces) */
+uint8_t overworld_exits_arrival(const GameState *g, unsigned i);
+void set_overworld_exits_arrival(GameState *g, unsigned i, uint8_t v);
+/* Where the location is $1FF: the event script's entry in overworld_event_scripts */
+uint8_t overworld_exits_event(const GameState *g, unsigned i);
+void set_overworld_exits_event(GameState *g, unsigned i, uint8_t v);
+/* The 8x8 tile column the party arrives at in the location */
+uint8_t overworld_exits_x(const GameState *g, unsigned i);
+void set_overworld_exits_x(GameState *g, unsigned i, uint8_t v);
+/* And the row */
+uint8_t overworld_exits_y(const GameState *g, unsigned i);
+void set_overworld_exits_y(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_HALTS_COUNT = 128 };   /* by halt */
+/* Bit 7: open; bits 0-6 the map tile's column */
+uint8_t overworld_halts_column(const GameState *g, unsigned i);
+void set_overworld_halts_column(GameState *g, unsigned i, uint8_t v);
+/* Bits 0-5 the row */
+uint8_t overworld_halts_row(const GameState *g, unsigned i);
+void set_overworld_halts_row(GameState *g, unsigned i, uint8_t v);
+/* Bit 7: open; bits 0-6 the map tile's column Unchecked, for marked scaffolding only: a halt
+ * notes the byte after its record as the game stops, the next record's first, or past the last
+ * record the events' first (game/overworld/places.c, note_the_halt) */
+uint8_t overworld_halts_column_unchecked(const GameState *g, unsigned i);
+void set_overworld_halts_column_unchecked(GameState *g, unsigned i, uint8_t v);
+/* Bits 0-5 the row Unchecked, for marked scaffolding only: a halt notes the byte after its
+ * record as the game stops, the next record's first, or past the last record the events' first
+ * (game/overworld/places.c, note_the_halt) */
+uint8_t overworld_halts_row_unchecked(const GameState *g, unsigned i);
+void set_overworld_halts_row_unchecked(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_EVENTS_COUNT = 128 };   /* by event */
+/* Bit 7: the event is armed (stepping on it disarms it); bits 0-6 the map tile's column */
+uint8_t overworld_events_column(const GameState *g, unsigned i);
+void set_overworld_events_column(GameState *g, unsigned i, uint8_t v);
+/* Bits 0-5 the row */
+uint8_t overworld_events_row(const GameState *g, unsigned i);
+void set_overworld_events_row(GameState *g, unsigned i, uint8_t v);
+/* Its script's entry in overworld_event_scripts */
+uint8_t overworld_events_script(const GameState *g, unsigned i);
+void set_overworld_events_script(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_EVENT_SCRIPTS_COUNT = 128 };   /* by entry */
+/* Where each of the world map's event scripts starts, in bank $7F */
+uint16_t overworld_event_scripts(const GameState *g, unsigned i);
+void set_overworld_event_scripts(GameState *g, unsigned i, uint16_t v);
+
+enum { OVERWORLD_SIGN_SPRITES_COUNT = 29 };   /* by byte */
+/* The sign's sprite script, built here from the ROM's: one command showing the group after it,
+ * whose first byte (the count of its sprites) is 0 until the sign shows, then 6 */
+uint8_t overworld_sign_sprites(const GameState *g, unsigned i);
+void set_overworld_sign_sprites(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_SIGN_LABEL_COUNT = 1024 };   /* by byte */
+/* The place's name as the typesetter sets it for the sign: two lines of sixteen-colour tiles,
+ * $200 bytes a line, whose first $180 bytes each go to VRAM */
+uint8_t overworld_sign_label(const GameState *g, unsigned i);
+void set_overworld_sign_label(GameState *g, unsigned i, uint8_t v);
+
+enum { OVERWORLD_PUT_ASIDE_COUNT = 25088 };   /* by byte */
+/* The overworld put aside while the menus or the time dial run (game/overworld/main_loop.c's
+ * table says what goes where): low RAM from $0700 and the mode's direct page, then bank $7E from
+ * $B000 and from $4000 to the map's end, the map's regions and its lists of places; the map view
+ * puts aside only the direct page and the objects' slots */
+uint8_t overworld_put_aside(const GameState *g, unsigned i);
+void set_overworld_put_aside(GameState *g, unsigned i, uint8_t v);
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

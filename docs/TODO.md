@@ -755,6 +755,30 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the overworld on foot's review left** (none rated translation):
+  `entries.c`'s `leader_mid_step` re-decodes `walk_on_foot`'s branches to
+  rebuild M, which is dead at the return (`$C2:0541`) -- the tooling has no
+  don't-care for M's width; add one and drop the derivation; the leader's two
+  timing exceptions blame the map scroll, which is already timed as itself,
+  on frames that build a strip (7,000-14,000 clocks against the scroll's own
+  1,445) -- charge the scroll per strip built, or calibrate it on world-map
+  calls, and drop both lines; `followers.c`'s route is a packed byte and
+  `walls_between` returns a bare byte (a `Route` type), `place & 1` stands
+  for the second member, scaffolding is written on every try along the
+  trail, and `set_off` places the walker another way than the leader;
+  the map's size is written in five places (from `MENU_MAP_WIDTH/HEIGHT`),
+  and native storage must decide what the wall search's read past the map
+  returns; `main_loop.c`'s `OVERWORLD_ASIDE` lists raw work-RAM addresses
+  (`0x7EB000` unexplained), story flags are read by index and bit, and
+  `enter_the_arm` sets A and X with no reader named; event cells written as
+  `1`; `walk.c` decides the ground news twice; `sign.c` patches a sprite
+  script at an offset; `music.c` has a bare `3`. Fallbacks still to retire:
+  the vehicles' controller (`$C2:309E`, the vehicles chunk); the main loop's
+  call-outs to the frame waits, the uploads' reset, the map loader
+  (`$C2:2C93`) and the screen setup; check that no map loads an empty list
+  and that a busy frame never runs the upload queue short (two guards
+  refuse those).
+
 - **What the party exchange's review left** (merged with the exchange and
   the gate's song; none rated translation): the emptied place's dimming
   halves fifteen words past the palette as scaffolding, which the native
@@ -1085,6 +1109,42 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
+- **What the overworld on foot left** (RECOMP.md, "Phase 3, overworld: the
+  world map on foot"):
+  - the walkers' event steps run their scripts through the interpreter's
+    bridge (`menu_run_object_script_from`, `menu/script_call.h`), which, as
+    the interpreter's own entry does, hands a command it doesn't run (an
+    opcode past the language, a cell outside low RAM, a call of the
+    original's code that doesn't come back as it went) to the original's
+    interpreter, which returns into the walker's code after its call. No
+    game script does that; a random one can (a map copy over the stack), so
+    their fuzzing gives them scripts of the game's commands. No movie steps
+    onto an event, so the steps are fuzzed only;
+  - the vehicles' controller (`$C2:309E`, with the rectangle test
+    `$C2:2345` it boards by) moves the party between walking, boarding,
+    riding and getting off: it goes with the vehicles' chunk (PLAN.md);
+  - the halt (`$C2:250D`) is a pass at a time that comes back to itself,
+    as the original spins: a host that wants the game to end there (a
+    message, a reset) has nothing to tell it so yet. No map's data has an
+    open halt as far as the library goes;
+  - the follower's search for walls doesn't keep its legs on the map: a leg
+    from the map's first row looks at the row before it, which the original
+    reads past the map's end (`overworld_map`'s `unchecked` pair,
+    `terrain.c`). The native storage has to keep the bytes there, or the
+    search keep to the map;
+  - the main loop's arms are compared by shadow mode alone: fuzzing can't go
+    past the frame's wait (`$C2:0346` spins on the vblank count, which no
+    fuzzed state changes). No movie takes an exit to an event
+    (`$C2:2417`-`$C2:244F`) or opens the party's exchange from the map
+    (mode 9, the `menus-end-of-time` exchange is the gate's); nor walks
+    from one region into another (`$C2:3011`-`$C2:309D`, the music's fade
+    and the new song), rides or gets off a dactyl, nor clears the sign from
+    the menus (`$C2:5711`);
+  - `menu_objects_frozen` (`$0294`, bit 4 "the objects don't move") is the
+    Epoch's state on the world map (`overworld_epoch`): its bit 4 is the
+    Epoch leaving through time. Merge the two names once the Epoch's flight
+    is ported.
+
 - **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
   party's exchange"):
   - the main menu's exchange (the active party alone) takes the reserve's

@@ -55,6 +55,13 @@ uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, 
  * names or lines on the text page (typeset.c's guards say why). */
 bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
 
+/* For a C caller's guard: whether string `string` of the table at `strings`
+ * can be typed a few glyphs a call into the tiles at `tiles` (a 24-bit
+ * address), and whether the text being typed can carry on (typeset.c's guards
+ * say what they keep it from). */
+bool menu_text_can_be_typed(const GameState *g, uint32_t strings, uint8_t string, uint32_t tiles);
+bool menu_text_can_carry_on(const GameState *g);
+
 /* The entries, and their guards. */
 void menu_text_start_entry(Snes *s);
 void menu_text_go_on_entry(Snes *s);

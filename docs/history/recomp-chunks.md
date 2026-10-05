@@ -7269,3 +7269,101 @@ the grid's text and the name kept at `$9890`, `$98A0`), the names given
 (`$299F`), the Epoch's name (`$2C4D`), the main menu's option (`$0411`), box
 and backdrop (`$5780`, `$3E00`), the shop's figure marks (`$0D4D`), the upload
 record built at `$9890`, and the glyph tiles (`$5E00`).
+
+## Phase 3, menus: the party's exchange (`$C2:C627`-`$C2:CE93`) and the main menu's panels as C
+
+The tenth chunk of bank `$C2` (history file, "Phase 3, menus: the main menu,
+the save screen's opening, name entry, the description, the list slide and
+the shop's equipping", for the one before), and the last menu screen in the
+bank. `python3 tools/burndown.py` for `$C2`: 39.8K ported and 33% left with
+440 entries before, 40.6K and 31% left with 450 after: about 2.2 KiB of new
+code in 12 entries (two of them the gate's song's), all of it to the bar
+(`tools/portstyle.py`: 0.00-0.02 machine operations a line in the new files;
+`tools/portsmell.py`: no finding). The chunk is PLAN's first item for `$C2`,
+screens 5 and 7 with the main menu's panel for them, and the routines only
+they call (the members' sprites placed, `$C2:CDE3`-`$C2:CE93`, past the
+range PLAN gave).
+
+**What it is.**
+
+- `menu/exchange.c`, the party exchange: the party listed in rows (the
+  active party's three, the reserve's six, each a place of the party's
+  record, marked where the story keeps its member in the active party,
+  `story_party_kept`), drawn as status windows with each member's sprite
+  standing in its row; the cursor among the active party's rows and the
+  reserve's four shown, stepping off rows nobody may be chosen on; a member
+  chosen first (a second cursor held on it, its pose), then a second, and
+  the two changing places in the party (`party_exchange`, `menu/party.c`),
+  their rows swapped on the tilemap; the reserve's scroll a row with a
+  six-frame slide; who stays dimmed. From the main menu (screen 5) it
+  reorders the active party alone, in the middle: the menus' opening leaves
+  `menu_exchange_layout` set; the gate's screen (screen 7, which the field's
+  Start assignment and a script's menu open) lays it out as the event asks,
+  over the gate's swirl (`menu/gate_screen.c`). The panel, the same rows
+  under the main menu or under the gate's label, is the screen's too.
+- `menu/sound.c` and `menu/sound_bridge.c`, the gate's song: the place's
+  song faded out and the gate's started, the driver saving the one it
+  replaces, by a task that waits for the fade; the place's song back,
+  resumed where it was, as the screen closes. What the waits wait for is
+  the driver's status (`au_music_fade_left`, `au_music_playing`): the fade's
+  steps left, a frame at a time, and the song's tracks playing, which the
+  original spins on without a frame passing (an idle entry, `$C2:CBE0`;
+  TODO.md, "Timing without a beam"). The audio service gains the two song
+  starts the screen sends (`AU_START_SONG_SAVING`, `AU_START_SONG_SECOND_SET`).
+- `menu/main_menu_bridge.c` calls every option's panel put away as C
+  (`put_the_panel_away`, each timed as its screen's entry), and the main
+  menu's put away as C from the step that comes back to it; showing a panel
+  waits for frames, so it stays each screen's entry run as the original's
+  JSR reaches it. The exchange's panel is one of those entries now, so the
+  main menu calls nothing out.
+
+**The registers, settled first.** Every call-out and stop the chunk keeps
+was checked against liveness, and `tools/dontcare_check.py` agrees with each
+declaration (it caught the screen's fade out reading A's high byte). What a
+call compares is left from the state after the logic: the flags the
+original's P bytes hold where they are on the stack under a call out (the
+cursor's move's, the reserve's scroll's and the slide's; the panel's and its
+window routine's round the gate sprite's unpacking; the gate song's tests
+the panel keeps), worked out from the counts and sums they come from
+(`leave_counted`, `leave_bar_worked_out`, `leave_scroll_started`), and A's
+high byte at the ticks after the members are stood (clear). The routines the
+slide and the gate's sprite run inside are pushed as their frames (a return
+and a P each), the driver's two calling routines as their returns
+(`sound_bridge.c`).
+
+**What shadow mode and fuzzing found.** Over the 27 movies every call
+matches and none is refused: the twelve entries' 3,283 calls, 0
+mismatching (14 of them the song's task passing back through its own start,
+which the entry's widths turn away); the gate's opening and the panel span frames on every call (4
+interrupted), and the gate song's change back is compared only inside its
+caller. `menus-field-menu` reorders the active party from the main menu,
+`menus-end-of-time` and `menus-shop-equip` open the gate's screen (in
+Medina its song changes). The shipping mode's traces over those three
+(`--native on --recomp only` against `--native off`) are the same at every
+frame. Fuzzed seed 1 (`tools/fuzz_routines.toml`, 14 entries, 2,000 states
+each, the whole party listed in both columns as a variant): 0 of 27,764
+compared states mismatching. What fuzzing found: the overflow and carry of
+the counts' add at the tick, the scroll bar's sums under the move, the
+panel's pick and the sprite's place loaded before the unpacking, the song's
+task's widths at its start, and the drawing origin the gate's panel leaves.
+Two things it showed that the game can't fix by guarding: the main menu's
+exchange takes the reserve's count as the screen before left it, and with
+a count a push across sends the cursor round the reserve's empty rows,
+where the original searches for ever (the port stops after 64 steps; the
+plain fuzz entries keep the count at none, the state's); and a slide needs
+more than four members in the reserve, which seven characters never make,
+so only its first frame is compared (TODO.md). The comparison of the main
+menu's and the screens' put-away entries against main
+(`tools/fuzz_compare.py`, 13 routines) finds no routine that differs.
+
+**Timing.** The twelve rows and the main menu's that now run the panels as
+C (its put away, and the step back to it) are calibrated over the library;
+no exception was added.
+
+**The map.** The exchange's rows, counts, choices and the song it replaced
+(`$0F00`-`$0F0F`), its layout over the menus' place notes (`$0D36`), the
+places' and the slide's cells (`$0022`, `$0024`), the menus' first cells'
+uses, the story's kept members (`$7F:01DF`), window 1's edges alone
+(`$9683`), the held cursor's offset's low byte (`$0D9E`) and the place
+song's volume (`$04FB`). The palette's accessors take an `unchecked` pair
+for the dimming of an emptied place's byte, which reaches past it.

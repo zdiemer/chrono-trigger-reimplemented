@@ -164,7 +164,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 248 files, 117 of 73,696 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 257 files, 117 of 75,796 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -211,13 +211,13 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **16% of the code is still generated.**
+docstring says which way it is wrong). **14% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
-| field engine, events (`$C0`) | 59.4K | 52.1K | 11.6K | 12% | 349 |
-| menus, text (`$C2`) | 59.1K | 40.6K | 10.5K | 31% | 450 |
+| field engine, events (`$C0`) | 59.4K | 52.2K | 11.7K | 12% | 349 |
+| menus, text, overworld (`$C2`) | 59.1K | 46.1K | 12.2K | 22% | 462 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
@@ -228,7 +228,7 @@ docstring says which way it is wrong). **16% of the code is still generated.**
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **224.0K** | **57.8K** | **16%** | **1777** |
+| **total** | **266.5K** | **229.6K** | **59.6K** | **14%** | **1789** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
@@ -393,19 +393,18 @@ the paging, the records' sprites and colours, the held cursors, the list
 slide, the description's typing, the main menu, the save screen's opening,
 name entry and the battle mode's screen, the shop's steps on the party
 (a member's slots and the list of what fits), and the party's exchange
-(screens 5 and 7, the main menu's panel for it and the gate's song). What
-is left, in the order to take it (`python3 tools/burndown.py --uncovered
-C2`):
+(screens 5 and 7, the main menu's panel for it and the gate's song). The
+world map walked on foot is its own subsystem, `game/overworld/` (the
+leader, the followers, the ground and its places, the regions' music, the
+place's sign and the main loop with its round trips to the menus and the
+Epoch's screens). What is left, in the order to take it (`python3
+tools/burndown.py --uncovered C2`):
 
-1. **The overworld on foot** (about 4.4K): the leader's walking
-   (`$C2:34AB`-`$C2:3AB9`), the followers (`$C2:3B8C`-`$C2:42E5`), the
-   tiles that trigger events (`$C2:3279`-`$C2:337D`), the region's music
-   (`$C2:2FA5`-`$C2:30C0`), the place's sign (`$C2:563F`-`$C2:57AF`) and the
-   round trip to the menus (`$C2:250D`-`$C2:26A7`).
-2. **The overworld's vehicles** (about 4K): the Epoch flown over the map
-   (`$C2:42F8`-`$C2:4A9A`) and the second vehicle (`$C2:4CDA`-`$C2:5627`,
-   which no movie reaches yet).
-3. **The overworld's setup and colours** (about 3.1K, last): the palettes
+1. **The overworld's vehicles** (about 4.3K): the vehicles' controller
+   that boards and lands the party (`$C2:309E`, with its rectangle test
+   `$C2:2345`), the Epoch flown over the map (`$C2:42F8`-`$C2:4A9A`) and the
+   dactyls (`$C2:4CDA`-`$C2:5627`, which no movie reaches yet).
+2. **The overworld's setup and colours** (about 3.1K, last): the palettes
    (`$C2:1D06`-`$C2:2061`) and the scene stream loaders
    (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
    `menu/display.c`'s loader half, and only once the streams it decompresses

@@ -202,6 +202,15 @@ add_library(ct_game STATIC
   game/menu/vram.c
   game/menu/wave.c
   game/menu/windows.c
+  game/overworld/entries.c
+  game/overworld/followers.c
+  game/overworld/main_loop.c
+  game/overworld/music.c
+  game/overworld/party.c
+  game/overworld/places.c
+  game/overworld/sign.c
+  game/overworld/terrain.c
+  game/overworld/walk.c
   game/sound/driver.c
   game/sound/loads.c
   game/sound/sequencer.c

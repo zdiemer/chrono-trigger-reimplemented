@@ -28,6 +28,7 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/places.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -586,33 +587,17 @@ static ScriptFlow set_scene_script(GameState *g, MenuObject self, uint16_t scene
 SCRIPT_OPERATION(set_scene_script, scene_script, member)
 
 // $C2:1100
-/* Leave the map screen for a location: where the party is on the world map
- * is kept to come back to (sixteen tiles in from where the second plane's
- * top-left is, round the world), and the menus' mode changes, which ends the
- * screen. The location's kind is the byte that is also its number's high
- * half. */
+/* Leave the map screen for a location (overworld/places.h): where the party
+ * is on the world map is kept to come back to, and the menus' mode changes,
+ * which ends the screen. The location's arrival is the byte that is also its
+ * number's high half. */
 static ScriptFlow change_location(GameState *g, MenuObject self, uint16_t location, uint8_t region, uint8_t tile_x,
                                   uint8_t tile_y)
 {
-    enum { LEAVING = 2, WORLD_COLUMNS = 0xC0, WORLD_ROWS = 0x80, CENTRE = 0x10, LOCATION_BITS = 0x01FF, KINDS = 3 };
+    enum { LOCATION_BITS = 0x01FF };
     (void)self;
-    uint16_t id = location_id(g);
-    uint16_t x = (uint16_t)(menu_map_column(g, 1) + CENTRE);
-    if (x >= WORLD_COLUMNS)
-        x = (uint16_t)(x - WORLD_COLUMNS);
-    uint8_t y = (uint8_t)((menu_map_row(g, 1) + CENTRE) & (WORLD_ROWS - 1));
-    set_location_previous_id(g, id);
-    set_location_previous_x(g, (uint8_t)x);
-    set_location_previous_y(g, y);
-    set_menu_saved_location_id(g, id);
-    set_menu_saved_location_x(g, (uint8_t)x);
-    set_menu_saved_location_y(g, y);
-    set_location_id(g, location & LOCATION_BITS);
-    set_location_flags(g, (uint8_t)(region >> 1));
-    set_location_x(g, tile_x);
-    set_location_y(g, tile_y);
-    set_location_previous_flags(g, menu_return_flags(g, (uint8_t)((region >> 1) & KINDS)));
-    set_menu_mode(g, LEAVING);
+    overworld_leave_for(g, location & LOCATION_BITS, region, tile_x, tile_y);
+    overworld_set_mode(g, OVERWORLD_LEAVING);
     return next_command();
 }
 SCRIPT_OPERATION(change_location, location, region, tile_x, tile_y)

@@ -39,7 +39,7 @@ do, and this tool reads both.
   (so `original_cell8`'s two accessors each keep only the cells in their
   range). A read and a write of different variables meet only where their
   bytes overlap and the variables belong to one subsystem (or to subsystems
-  sharing a page: field and event, scene and attract, menu and menu_object):
+  sharing a page: field and event, scene and attract, menu, menu_object and overworld):
   work RAM is reused between modes.
 
 A finding is reported whether or not some port also writes the cell outside
@@ -105,7 +105,7 @@ RAW = {
     "wram_read8": ("r", 1), "wram_read16": ("r", 2),
     "wram_write8": ("w", 1), "wram_write16": ("w", 2),
 }
-FAMILIES = ({"field", "event"}, {"scene", "attract"}, {"menu", "menu_object"})
+FAMILIES = ({"field", "event"}, {"scene", "attract"}, {"menu", "menu_object"}, {"menu_object", "overworld"})
 TYPE_WORDS = {"uint8_t", "uint16_t", "uint32_t", "int8_t", "int16_t", "int32_t", "int", "unsigned",
               "signed", "char", "short", "long", "bool", "size_t"}
 TOKEN = re.compile(r"\s*(0[xX][0-9A-Fa-f]+[uUlL]*|\d+[uUlL]*|[A-Za-z_]\w*|->|<<|>>|<=|>=|==|!=|&&|\|\|"
