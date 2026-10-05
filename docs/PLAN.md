@@ -56,7 +56,8 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 24% left | 0% |
+| ROM code reimplemented (`burndown.py`) | 14% left (86% has a port) | 0% |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 78% (212.6 KiB run by the 28 movies; battle 82%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 46.5 KiB, 347 M instructions (handback 33.8 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 45.0 KiB, 1,964 M; 23 entries refuse in real play; the native shape fails all three whole routes on three scaffolding writes the original reads (RECOMP.md, "The fallback measure") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
@@ -64,6 +65,21 @@ in place of the ports: the native coverage.
 | SPC700 sound driver | reimplemented in C and what `ct_play` plays, its commands calls rather than uploads (SOUND.md); the voices play through the native mixer, which makes every frame the S-DSP makes (PLATFORM.md), or with `--mixer dsp` the S-DSP; the original stays as the gate's reference | the original and the S-DSP deleted |
 | Video fed by service calls | decoded from PPU registers | `vid_*` direct |
 | How the game is entered | the emulated CPU walks the ROM from its reset vector and finds each port by address in `game/registry.c` | `main()` boots the game and callers call ports; no registry, wrappers or emulator linked (Phase 4a, "The native program") |
+
+**Burndown overstates how native the game is.** It counts a port's whole
+reach as done, including what the port hands back to the original at run
+time: a call-out, a stop, a refused guard. Of the 49.7 KiB real play still runs
+as the original, 25 KiB is code burndown counts as ported -- battle's
+animation commands and call-outs (9.1 KiB), the menus and overworld (6.6 KiB),
+the battle frame work's renderer pieces and waits (2.4 KiB) among it. So a
+fully native game is two pieces of work, not one: porting the 14% burndown
+lists, and retiring the fallbacks inside code it counts as done, which is
+about two thirds as much again. Native coverage is the headline; burndown says
+how much has a port. The second piece is mostly callees a port calls out to,
+which belong to the port that calls them, and the waits on the beam, which
+need the timing service's frame calls ("Timing is decided", below). How the
+two numbers are measured: the fallback measure's report (`tools/fallbacks.py
+--report`) against `burndown.py`'s coverage over the movies' executed code.
 
 ### The two gaps this list exposed
 
