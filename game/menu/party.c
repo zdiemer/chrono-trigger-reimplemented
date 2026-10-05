@@ -33,6 +33,10 @@ static void set_at_place(GameState *g, RecordPlace place, uint8_t v)
 
 static bool is_empty(uint8_t at) { return (at & PARTY_PLACE_EMPTIED) != 0; }
 
+uint8_t party_at(const GameState *g, RecordPlace place) { return at_place(g, place); }
+
+bool party_place_is_empty(uint8_t at) { return is_empty(at); }
+
 static void empty_the_place(GameState *g, RecordPlace place)
 {
     set_at_place(g, place, (uint8_t)(at_place(g, place) | PARTY_PLACE_EMPTIED));
@@ -143,6 +147,15 @@ bool party_send_to_the_reserve(GameState *g, uint8_t character)
     empty_the_place(g, THIRD_PLACE);
     reserve_takes(g, character);
     return true;
+}
+
+// $C2:C70C
+/* Two places' members change places. */
+void party_exchange(GameState *g, RecordPlace one, RecordPlace other)
+{
+    uint8_t was = at_place(g, one);
+    set_at_place(g, one, at_place(g, other));
+    set_at_place(g, other, was);
 }
 
 /* ---- HP and MP ------------------------------------------------------------------------------ */

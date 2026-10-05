@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/menu.h"
 #include "platform/video.h"
 #include "snes/system.h"
 #include "state.h"
@@ -38,8 +39,14 @@ MainMenuChoice menu_main_menu_choose(const GameState *g);
 void menu_main_menu_keep_the_time(GameState *g);
 
 /* The cursor moved to another option: the screens' cursors started afresh
- * where the player doesn't keep them, and the panels' tasks stopped. */
+ * where the player doesn't keep them, and the tasks a screen's panel may
+ * have left running stopped (a bit a task, menu.h): the description's
+ * typing, the scroll bar, the records and the cursors it holds. */
 void menu_main_menu_move_to(GameState *g, MainMenuOption option);
+enum {
+    MENU_PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
+                        | 1u << MENU_HELD_CURSORS_TASK,
+};
 
 /* The option chosen: its screen opens. */
 void menu_main_menu_open_option(GameState *g, Platform *pf);

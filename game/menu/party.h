@@ -40,6 +40,16 @@ enum { NOT_IN_THE_RECORD = 0xFF };
  * a new game's are all character 0's. */
 enum { PARTY_PLACE_EMPTIED = 0x80 };
 
+/* Who is at a place of the record: a character, or an emptied place's
+ * byte (party_place_is_empty). */
+uint8_t party_at(const GameState *g, RecordPlace place);
+bool party_place_is_empty(uint8_t at);
+
+/* Two places' members change places: two of the active party change
+ * order, or a member of the reserve takes an active member's place and the
+ * active member the reserve's (the party exchange's swap). */
+void party_exchange(GameState *g, RecordPlace one, RecordPlace other);
+
 /* Whether the active party is characters (or empty places), as the
  * services that show what it wears read it: the game's always is. For the
  * guards of their callers. */

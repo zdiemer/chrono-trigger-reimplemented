@@ -495,10 +495,16 @@ static uint32_t next_label_line(uint32_t at) { return stepped(at, LABEL_LINE_BYT
 
 uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles)
 {
+    return menu_set_label_laid_out(g, strings, string, tiles, MENU_TEXT_LINES_AT_THE_EDGE);
+}
+
+// $C2:F905
+uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles, MenuTextLayout layout)
+{
     uint32_t at = TILES_BANK | tiles;
     set_menu_text_strings(g, strings);
     set_menu_text_string(g, string);
-    set_menu_text_layout(g, MENU_TEXT_LINES_AT_THE_EDGE);
+    set_menu_text_layout(g, layout);
     set_menu_text_tiles(g, at);
     TIMED_AS(g, 0xC257DF, menu_text_start(g));
     for (;;) {

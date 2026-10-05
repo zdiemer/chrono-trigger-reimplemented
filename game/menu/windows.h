@@ -51,9 +51,11 @@ typedef struct {
 
 /* A rectangle of tiles `size` big copied from one place to another, a row at
  * a time and each row from its left (a rectangle copied over itself reads
- * what it has already written), as a list's copy command does; and whether
- * it stays in the tilemap buffers from the drawing origin `origin`. */
+ * what it has already written), as a list's copy command does; two such
+ * rectangles exchanged, as its swap command does; and whether a copy stays
+ * in the tilemap buffers from the drawing origin `origin`. */
 void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, MenuWindowSize size);
+void menu_swap_tile_areas(GameState *g, MenuTilePlace one, MenuTilePlace other, MenuWindowSize size);
 bool menu_tile_area_can_be_copied(const GameState *g, uint16_t origin, MenuTilePlace from, MenuTilePlace to,
                                   MenuWindowSize size);
 

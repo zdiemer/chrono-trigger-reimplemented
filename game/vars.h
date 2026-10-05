@@ -666,6 +666,11 @@ void set_story_party_rules(GameState *g, uint8_t v);
 uint8_t story_game_notes(const GameState *g);
 void set_story_game_notes(GameState *g, uint8_t v);
 
+/* The characters the story keeps in the active party (event memory $1DF), a bit a character from
+ * Crono's bit 7 (menu_character_bit): the party exchange won't move them */
+uint8_t story_party_kept(const GameState *g);
+void set_story_party_kept(GameState *g, uint8_t v);
+
 /* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
  * whose record has its top bit set waits for this */
 uint8_t party_techs_unlocked(const GameState *g);
@@ -3174,6 +3179,34 @@ void set_menu_scratch_grid_letters_left(GameState *g, uint8_t v);
 /* The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done */
 uint16_t menu_scratch_mode_rows_left(const GameState *g);
 void set_menu_scratch_mode_rows_left(GameState *g, uint16_t v);
+/* The party exchange's loops over its rows and the party's places: where they are, left past the
+ * last (the members' animations' loop at $FF) */
+uint8_t menu_scratch_exchange_row(const GameState *g);
+void set_menu_scratch_exchange_row(GameState *g, uint8_t v);
+/* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F) */
+uint16_t menu_scratch_exchange_rows_looked_at(const GameState *g);
+void set_menu_scratch_exchange_rows_looked_at(GameState *g, uint16_t v);
+/* The party exchange: a row's place on the tilemap ($C2:C784), its column in the low byte and
+ * its tile row in the high */
+uint16_t menu_scratch_exchange_tiles(const GameState *g);
+void set_menu_scratch_exchange_tiles(GameState *g, uint16_t v);
+/* The party exchange: the place its members' sprites stand at, as an offset into the places'
+ * tables, left past the last ($C2:CDE3) */
+uint16_t menu_scratch_exchange_place_offset(const GameState *g);
+void set_menu_scratch_exchange_place_offset(GameState *g, uint16_t v);
+/* The dimming of who stays: a row's tiles across in the low byte, the dimmed attribute in the
+ * high */
+uint16_t menu_scratch_exchange_dimmed_tiles(const GameState *g);
+void set_menu_scratch_exchange_dimmed_tiles(GameState *g, uint16_t v);
+/* The dimming of who stays: the next row's window on the front layer, left past the third */
+uint16_t menu_scratch_exchange_dimmed_at(const GameState *g);
+void set_menu_scratch_exchange_dimmed_at(GameState *g, uint16_t v);
+/* The gate's screen's fades: how many steps the fade takes */
+uint8_t menu_scratch_song_steps(const GameState *g);
+void set_menu_scratch_song_steps(GameState *g, uint8_t v);
+/* The gate's screen's fades: the volume the music fades to */
+uint8_t menu_scratch_song_volume(const GameState *g);
+void set_menu_scratch_song_volume(GameState *g, uint8_t v);
 
 /* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
  * HP's, 6 the MP's */
@@ -3204,6 +3237,11 @@ void set_menu_amounts_place(GameState *g, uint16_t v);
 /* A frame of the rising numbers: the listed members it has still to draw */
 uint16_t menu_amounts_left(const GameState *g);
 void set_menu_amounts_left(GameState *g, uint16_t v);
+
+/* The party exchange: the place a member's row is drawn at, as an offset into the places' tables
+ * (two bytes a place, menu_data.h's exchange places), which the rows' loops leave past the last */
+uint16_t menu_exchange_place_offset(const GameState *g);
+void set_menu_exchange_place_offset(GameState *g, uint16_t v);
 
 enum { MENU_HEAL_AMOUNTS_COUNT = 6 };   /* by the three members' HP amounts, then their MP amounts */
 /* The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn
@@ -3258,6 +3296,16 @@ void set_menu_window_slide_step(GameState *g, uint16_t v);
 /* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
 uint16_t menu_window_slide_rows_left(const GameState *g);
 void set_menu_window_slide_rows_left(GameState *g, uint16_t v);
+
+/* The party exchange: the rows the drawing of the rows has looked at, left at the active party's
+ * three */
+uint16_t menu_exchange_rows_counted(const GameState *g);
+void set_menu_exchange_rows_counted(GameState *g, uint16_t v);
+
+/* The party exchange's slide: where in the tilemap below the screen the reserve's column is
+ * shown from this frame, its column in the low byte and its tile row in the high */
+uint16_t menu_exchange_slide_from(const GameState *g);
+void set_menu_exchange_slide_from(GameState *g, uint16_t v);
 
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) */
@@ -3872,6 +3920,11 @@ void set_menu_item_category(GameState *g, uint16_t v);
 uint16_t menu_item_in_category(const GameState *g);
 void set_menu_item_in_category(GameState *g, uint16_t v);
 
+/* The volume the field's song fades back in to as the gate's screen closes, 0 for full
+ * ($C2:CC42); no routine the disassembly reaches writes it by this address */
+uint8_t menu_field_song_volume(const GameState *g);
+void set_menu_field_song_volume(GameState *g, uint8_t v);
+
 /* The location */
 uint16_t menu_saved_location_id(const GameState *g);
 void set_menu_saved_location_id(GameState *g, uint16_t v);
@@ -4041,6 +4094,19 @@ enum { MENU_PLACE_ITEMS_COUNT = 3 };   /* by which */
  * $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF */
 uint16_t menu_place_items(const GameState *g, unsigned i);
 void set_menu_place_items(GameState *g, unsigned i, uint16_t v);
+
+/* The party exchange's layout: 0 both columns, the active party's and the reserve's; anything
+ * else the active party alone, in the middle, with bit 1 drawing the main menu's panel rather
+ * than the gate's. The menus' opening leaves it $FF (menu_place_items' third, always set), so
+ * the main menu's exchange reorders the active party; the gate's screen sets it from its event's
+ * argument */
+uint8_t menu_exchange_layout(const GameState *g);
+void set_menu_exchange_layout(GameState *g, uint8_t v);
+
+/* The byte after menu_exchange_layout, which the gate's screen sets with it ($C2:C7B3) and
+ * nothing reads */
+uint8_t menu_exchange_layout_high(const GameState *g);
+void set_menu_exchange_layout_high(GameState *g, uint8_t v);
 
 enum { MENU_LOW_HP_MARKS_COUNT = 7 };   /* by character */
 /* Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member
@@ -4284,6 +4350,11 @@ void set_menu_held_cursor_top(GameState *g, uint8_t v);
 uint16_t menu_held_cursor_shift(const GameState *g);
 void set_menu_held_cursor_shift(GameState *g, uint16_t v);
 
+/* menu_held_cursor_shift's low byte, which the party exchange sets alone as its cursor moves and
+ * as a slide starts */
+uint8_t menu_held_cursor_shift_low(const GameState *g);
+void set_menu_held_cursor_shift_low(GameState *g, uint8_t v);
+
 /* Which of the cursors a screen holds are out in their blink, a bit each: the held cursor's bit
  * 0, the members' cursors' bits 0-2 */
 uint8_t menu_cursors_out(const GameState *g);
@@ -4484,6 +4555,11 @@ void set_menu_list_first_place(GameState *g, uint8_t v);
 uint8_t menu_list_last_place(const GameState *g);
 void set_menu_list_last_place(GameState *g, uint8_t v);
 
+/* The party exchange: the member the player chose first, as its row (menu_exchange_rows: its
+ * place of the party's record); $FF while nobody is */
+uint8_t menu_exchange_first(const GameState *g);
+void set_menu_exchange_first(GameState *g, uint8_t v);
+
 /* The place in the party's items of the item the items screen picked up to move, $FFFF while
  * none is */
 uint16_t menu_item_picked(const GameState *g);
@@ -4525,6 +4601,18 @@ enum { MENU_TECH_LIST_COUNT = 48 };   /* by row of the list */
 uint8_t menu_tech_list(const GameState *g, unsigned row);
 void set_menu_tech_list(GameState *g, unsigned row, uint8_t v);
 
+/* The party exchange: the member chosen second, as its row, set as the two change places; $FF
+ * otherwise */
+uint8_t menu_exchange_second(const GameState *g);
+void set_menu_exchange_second(GameState *g, uint8_t v);
+
+enum { MENU_EXCHANGE_ROWS_COUNT = 9 };   /* by row: the active party's three, then the reserve's six */
+/* The party exchange's rows: each the place in the party's record of the member it shows, bit 6
+ * set where the story keeps that member in the active party; $80 for an empty row. The active
+ * party's members fill its rows in order, the reserve's its own */
+uint8_t menu_exchange_rows(const GameState *g, unsigned row);
+void set_menu_exchange_rows(GameState *g, unsigned row, uint8_t v);
+
 /* Naming a character: how many letters the player has typed (at most five), where the next goes */
 uint16_t menu_name_letters(const GameState *g);
 void set_menu_name_letters(GameState *g, uint16_t v);
@@ -4549,9 +4637,34 @@ void set_menu_settings_boxes(GameState *g, unsigned i, uint8_t v);
 uint16_t menu_name_grid_line(const GameState *g);
 void set_menu_name_grid_line(GameState *g, uint16_t v);
 
+/* The party exchange: how many of the active party's members the player may move (those the
+ * story doesn't keep) */
+uint8_t menu_exchange_active_free(const GameState *g);
+void set_menu_exchange_active_free(GameState *g, uint8_t v);
+
+/* The party exchange: how many members the reserve has; the main menu's exchange, which shows
+ * the active party alone, leaves it as the screen before it did */
+uint8_t menu_exchange_reserve_count(const GameState *g);
+void set_menu_exchange_reserve_count(GameState *g, uint8_t v);
+
 /* Naming a character: where in work RAM the character's name is (character_names) */
 uint16_t menu_name_record_at(const GameState *g);
 void set_menu_name_record_at(GameState *g, uint16_t v);
+
+/* The party exchange: the row under the cursor (its byte of menu_exchange_rows), or $40 where
+ * nobody may be moved */
+uint8_t menu_exchange_on_cursor(const GameState *g);
+void set_menu_exchange_on_cursor(GameState *g, uint8_t v);
+
+/* The gate's screen: the song that was playing as it opened, which its own song saves and which
+ * comes back as the screen closes */
+uint8_t menu_exchange_song_before(const GameState *g);
+void set_menu_exchange_song_before(GameState *g, uint8_t v);
+
+/* The gate's screen: nonzero where it changed the song to its own, which it changes back as it
+ * closes */
+uint8_t menu_exchange_song_changed(const GameState *g);
+void set_menu_exchange_song_changed(GameState *g, uint8_t v);
 
 enum { MENU_GATE_SCREEN_STATE_COUNT = 14 };   /* by byte; the first two are cleared and the rest come from $FF:D57A */
 /* The End of Time gate screen's state, set up when the screen starts */
@@ -5121,6 +5234,13 @@ enum { MENU_PALETTE_COUNT = 256 };   /* by color */
  * at $9500 + member record * $20) */
 uint16_t menu_palette(const GameState *g, unsigned i);
 void set_menu_palette(GameState *g, unsigned i, uint16_t v);
+/* The menus' working palette, sent to CGRAM when $0D15 says it changed (party portraits' colors
+ * at $9500 + member record * $20) Unchecked, for marked scaffolding only: an active row of the
+ * party exchange whose place of the party is empty: the original takes the emptied place's byte
+ * for a character and halves fifteen words past the palette (game/menu/sprites.c
+ * menu_leave_colours_dimmed_past_the_palette, $C2:CCB3) */
+uint16_t menu_palette_unchecked(const GameState *g, unsigned i);
+void set_menu_palette_unchecked(GameState *g, unsigned i, uint16_t v);
 
 /* Window mask settings of BG1/BG2, BG3/BG4 and sprites/color */
 uint32_t menu_window_shadows_window_masks(const GameState *g);
@@ -5128,6 +5248,10 @@ void set_menu_window_shadows_window_masks(GameState *g, uint32_t v);
 /* Window 1 left and right, window 2 left and right */
 uint32_t menu_window_shadows_window_edges(const GameState *g);
 void set_menu_window_shadows_window_edges(GameState *g, uint32_t v);
+/* Window 1's left and right alone, which the party exchange sets where it draws the active party
+ * in the middle */
+uint16_t menu_window_shadows_window1_edges(const GameState *g);
+void set_menu_window_shadows_window1_edges(GameState *g, uint16_t v);
 /* Window logic of the layers, and of sprites and color */
 uint16_t menu_window_shadows_window_logic(const GameState *g);
 void set_menu_window_shadows_window_logic(GameState *g, uint16_t v);

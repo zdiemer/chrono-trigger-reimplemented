@@ -193,7 +193,6 @@ bool menu_restoring_every_member(const GameState *g);
  * leaving the techs takes its own windows back. */
 void menu_techs_panel_lay_out(GameState *g, Platform *pf);
 void menu_techs_panel_show(GameState *g, Platform *pf);
-void menu_techs_panel_hold(GameState *g);
 void menu_techs_panel_put_away(GameState *g, Platform *pf);
 
 /* ---- What the steps can run on (the guards') -------------------------------------------------- */

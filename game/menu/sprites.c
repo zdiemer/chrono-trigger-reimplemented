@@ -851,6 +851,29 @@ static uint16_t sprite_colour(const GameState *g, uint16_t at)
 
 static uint16_t dimmed(uint16_t colour) { return (uint16_t)((colour >> 1) & HALF_EACH_CHANNEL); }
 
+static unsigned first_colour_of(uint8_t character)
+{
+    return SPRITE_PALETTES + (FIRST_CHARACTER_PALETTE + character) * PALETTE_COLOURS + 1;
+}
+
+/* A character's colours, the weapon's three after the sprite's twelve. */
+enum { CHARACTER_COLOURS = SPRITE_COLOURS + MENU_WEAPON_COLOURS };
+
+// $C2:CCB3
+void menu_dim_character_colours(GameState *g, uint8_t character)
+{
+    unsigned first = first_colour_of(character);
+    for (unsigned i = 0; i < CHARACTER_COLOURS; i++)
+        set_menu_palette(g, first + i, dimmed(menu_palette(g, first + i)));
+}
+
+void menu_leave_colours_dimmed_past_the_palette(GameState *g, uint8_t emptied)
+{
+    unsigned first = first_colour_of(emptied);
+    for (unsigned i = 0; i < CHARACTER_COLOURS; i++)
+        set_menu_palette_unchecked(g, first + i, dimmed(menu_palette_unchecked(g, first + i)));
+}
+
 /* The original dims the colours one by one, which leaves its count of them
  * run out in its cell, and moves them in undimmed with a block move. */
 static void leave_colours_put(GameState *g, bool dim)
@@ -866,7 +889,7 @@ void menu_put_character_colours(GameState *g, uint8_t character, bool dim)
 {
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     uint8_t which = (uint8_t)(character & CHARACTER_BITS);
-    unsigned first = SPRITE_PALETTES + (FIRST_CHARACTER_PALETTE + which) * PALETTE_COLOURS + 1;
+    unsigned first = first_colour_of(which);
     uint16_t from = menu_sprite_table_word(g, (uint16_t)(which * 2 + menu_sprite_colours_table(g)));
     for (unsigned i = 0; i < SPRITE_COLOURS; i++) {
         uint16_t colour = sprite_colour(g, (uint16_t)(from + 2 * i));
@@ -1768,15 +1791,20 @@ void menu_reset_character_records(GameState *g)
     }
 }
 
-// $C2:F588
-void menu_empty_the_records(GameState *g)
+static void empty_records(GameState *g, unsigned records)
 {
-    for (unsigned record = 0; record < SCREEN_RECORDS; record++) {
+    for (unsigned record = 0; record < records; record++) {
         set_menu_record_sprite(g, record, NO_SPRITE_SHOWN);
         set_menu_record_animation(g, record, STILL);
         set_menu_record_hidden(g, record, SHOWN);
     }
 }
+
+// $C2:F588
+void menu_empty_the_records(GameState *g) { empty_records(g, SCREEN_RECORDS); }
+
+// $C2:CE2A
+void menu_empty_the_character_records(GameState *g) { empty_records(g, CHARACTER_RECORDS); }
 
 /* The records' task animates the records and draws their sprites each
  * frame ($C2:F657). */

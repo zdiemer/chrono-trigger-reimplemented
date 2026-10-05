@@ -661,8 +661,6 @@ void menu_put_techs_panel_away(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    menu_techs_panel_hold(g);
-    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     menu_techs_panel_put_away(g, m_platform(s));
     menu_restore_p(s);
     m_rts(s);

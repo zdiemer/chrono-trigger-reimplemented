@@ -7166,3 +7166,106 @@ items set aside (`$9B96`), the paging's rows (`$0DD8`, `$0DDA`), the
 healing's amounts and its numbers' cells (`$0022`, `$0F53`-`$0F61`), the
 held cursors' blinks (`$0DA0`, `$0DA3`), the weapon looked up (`$041B`), and
 the status record's stats, level, figures and greatest HP as fields.
+
+## Phase 3, menus: the main menu, the save screen's opening, name entry, the description, the list slide and the shop's equipping
+
+The ninth chunk of bank `$C2` (history file, "Phase 3, menus: the party's
+services, its figures and its healing", for the one before). `python3
+tools/burndown.py` for `$C2`: 36.4K ported and 38% left with 386 entries
+before, 39.8K and 33% left with 440 after: about 3.4 KiB of new code in 54
+entries, all of it to the bar (`tools/portstyle.py`: 0.00-0.02 machine
+operations a line in the new files; `tools/portsmell.py`: no finding).
+PLAN's first item for `$C2` but one screen: the party's exchange (screens 5
+and 7, `$C2:C627`-`$C2:CDCA`, with its main-menu panel `$C2:C9E5`/`$C2:CAE6`)
+is the next chunk's, since it waits on the sound CPU's ports and drives the
+members' sprites, a concept of its own; the main menu calls its panel out.
+
+**What it is.**
+
+- `menu/lists.c`, the list slide (`$C2:EB9B`, `$C2:EB1F`): a list scrolled a
+  row is shown sliding, the screen's per-line table split into bands that
+  move a few lines a frame, staged for the vblank's block move; the screens
+  put the bands back at rest as they close.
+- `menu/description.c`, the description window: what a screen's cursor is
+  on, typed a few glyphs a frame by its own task. An item's (`$C2:F2F3`, the
+  items, equipment and shop screens'), a tech's (the techs screen asks with
+  its own table, row and pace through the same `menu_describe`), a setting's
+  with its value a tile after it (`$C2:F943`), and the battle mode's; the
+  typing's three task starts, its frame (`$C2:FAA8`, yielding through the
+  task switch) and its sending (`$C2:FAE9`).
+- `menu/held_cursors.c` gains the second cursor held on a list's row and on
+  the member an item is used on (`$C2:89E4`-`$C2:8A91`), and `menu/frame.c`
+  the tasks' stop (`$C2:8255`), which the screens call as C.
+- `menu/main_menu.c`, screen 0: the backdrop, the six options' icons and
+  colours, the arrows, choosing and moving among the options, each option's
+  panel shown and put away through a C table of the screens' panel entries.
+- `menu/saving.c`, the save screen's opening from the main menu and its
+  frame (`$C2:D065`-`$C2:D155`, `$C2:D4F8`, `$C2:D506`), over the load
+  screen's slot rows.
+- `menu/naming.c`, name entry (screen 13): the seven characters' names and
+  the Epoch's as one concept (a name of five letters, `NO_LETTER` and
+  `SPACE` named), the letters' grid the cursor moves about, a letter typed or
+  taken back, the name kept with its spaces dropped and refused where another
+  has it; and the battle mode's screen on the same screen number.
+- `menu/shop_equipment.c`, the shop's steps 6-8: down from the tabs to the
+  party (the members coloured by whether they can use the goods), a member's
+  slots, the list of what fits each with its figures compared, and putting it
+  on.
+
+The screens lost their glue: the items, equipment, techs, settings and shop
+screens call the slide, the description, the held cursors and the tasks'
+stop as C, each with the routine's time tagged as its own (`TIMED_AS`);
+the review items that sat in the touched files went with them (TODO.md).
+
+**The registers, settled first.** Every call-out and stop was checked
+against liveness before the logic was written, and the gate's
+`tools/dontcare_check.py` agrees with each. What the original's callers read
+is left under `ORIGINAL_EFFECT` from the state after: A clear where the
+description started typing (the text's start leaves it), A's high byte all
+ones after a block move (the main menu's drawing, the queued uploads), the
+X and Y the slide's staging leaves for the task switch, which keeps them and
+the flags across its wait (its stop is `m_stop_at_own`); the flags a sound's
+tick saves as it starts (the grid's compare of the cursor's places and the
+add that placed it, the members' compare). The main menu's call into the
+exchange's panel declares the carry and the overflow read, as the panel's
+pick leaves them.
+
+**What shadow mode and fuzzing found.** Over the 27 movies every call matches and none is refused: 40,052 calls over
+52 of the 54 entries, 0 mismatching and 46 interrupted (the typing's task and
+frame, the naming's and the main menu's openings, which span frames and are
+compared inside the calls that enclose them; the save screen's own opening
+and frame, `$C2:D4F8`/`$C2:D506`, no movie reaches: the library saves from
+the main menu's panel). Fuzzed seed 1
+(`tools/fuzz_routines.toml`, 54 new entries, 2,000 to 8,000 states each):
+0 of 102,241 compared states mismatching. What fuzzing found: the index registers' width at the entries
+that load them with immediates (the main menu, the save panel, the naming,
+the shop's steps), the window lists' and the panels' guards a caller in C
+must check for them, the typing's even places along a line, the naming's
+record kept for the named one (`menu_naming_keeps_the_named_ones_record`),
+and the flags and A the original's ticks and buzzes save. The
+before-and-after comparison against main (`tools/fuzz_compare.py`, 495
+routines) found no routine that differs; the nine that mismatch on some
+fuzzed states mismatch the same on main.
+
+**The new movie.** `menus-shop-equip` (RUNTIME.md's table) goes down from
+the shop's tabs to the party in Medina's market and changes members'
+equipment from there, the steps no movie took.
+
+**Timing.** The new rows, and the rows the new movie moved (the steps of
+the settings, items, techs and shop screens whose call-outs became C, the
+records' animation, the figures, the sound driver's two slot routines), are
+calibrated over the library. Six entries keep `cost_milli = 5000`: the
+naming's and the main menu's openings and the shop's member opening, whose
+every call spans frames, and the save screen's opening and frame, which no
+movie reaches. Eighteen exceptions (`tools/timing_exceptions.txt`) carry the
+screens' steps that now charge the slide, the description and the window
+lists at those routines' rates, and the field's frame in Medina's crowded
+market, which runs into vblank on 101 frames.
+
+**The map.** The slide's bands, the staged table and the table at rest
+(`$9790`, `$969A`, `$9710`, `$0DA9`), the description's cells (`$0DC1`-`$0DD6`,
+the value's line and tile at `$0026`/`$0028`), the names' cells (`$0F00`-`$0F0D`,
+the grid's text and the name kept at `$9890`, `$98A0`), the names given
+(`$299F`), the Epoch's name (`$2C4D`), the main menu's option (`$0411`), box
+and backdrop (`$5780`, `$3E00`), the shop's figure marks (`$0D4D`), the upload
+record built at `$9890`, and the glyph tiles (`$5E00`).

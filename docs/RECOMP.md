@@ -3436,108 +3436,103 @@ flags it doesn't read differ there (docs/TODO.md).
 **Timing.** The new entries and those whose work moved were calibrated from
 the shadow runs: the effects' loop, the scheduler, the draw.
 
-### Phase 3, menus: the main menu, the save screen's opening, name entry, the description, the list slide and the shop's equipping
+### Phase 3, menus: the party's exchange (`$C2:C627`-`$C2:CE93`) and the main menu's panels as C
 
-The ninth chunk of bank `$C2` (history file, "Phase 3, menus: the party's
-services, its figures and its healing", for the one before). `python3
-tools/burndown.py` for `$C2`: 36.4K ported and 38% left with 386 entries
-before, 39.8K and 33% left with 440 after: about 3.4 KiB of new code in 54
-entries, all of it to the bar (`tools/portstyle.py`: 0.00-0.02 machine
-operations a line in the new files; `tools/portsmell.py`: no finding).
-PLAN's first item for `$C2` but one screen: the party's exchange (screens 5
-and 7, `$C2:C627`-`$C2:CDCA`, with its main-menu panel `$C2:C9E5`/`$C2:CAE6`)
-is the next chunk's, since it waits on the sound CPU's ports and drives the
-members' sprites, a concept of its own; the main menu calls its panel out.
+The tenth chunk of bank `$C2` (history file, "Phase 3, menus: the main menu,
+the save screen's opening, name entry, the description, the list slide and
+the shop's equipping", for the one before), and the last menu screen in the
+bank. `python3 tools/burndown.py` for `$C2`: 39.8K ported and 33% left with
+440 entries before, 40.6K and 31% left with 450 after: about 2.2 KiB of new
+code in 12 entries (two of them the gate's song's), all of it to the bar
+(`tools/portstyle.py`: 0.00-0.02 machine operations a line in the new files;
+`tools/portsmell.py`: no finding). The chunk is PLAN's first item for `$C2`,
+screens 5 and 7 with the main menu's panel for them, and the routines only
+they call (the members' sprites placed, `$C2:CDE3`-`$C2:CE93`, past the
+range PLAN gave).
 
 **What it is.**
 
-- `menu/lists.c`, the list slide (`$C2:EB9B`, `$C2:EB1F`): a list scrolled a
-  row is shown sliding, the screen's per-line table split into bands that
-  move a few lines a frame, staged for the vblank's block move; the screens
-  put the bands back at rest as they close.
-- `menu/description.c`, the description window: what a screen's cursor is
-  on, typed a few glyphs a frame by its own task. An item's (`$C2:F2F3`, the
-  items, equipment and shop screens'), a tech's (the techs screen asks with
-  its own table, row and pace through the same `menu_describe`), a setting's
-  with its value a tile after it (`$C2:F943`), and the battle mode's; the
-  typing's three task starts, its frame (`$C2:FAA8`, yielding through the
-  task switch) and its sending (`$C2:FAE9`).
-- `menu/held_cursors.c` gains the second cursor held on a list's row and on
-  the member an item is used on (`$C2:89E4`-`$C2:8A91`), and `menu/frame.c`
-  the tasks' stop (`$C2:8255`), which the screens call as C.
-- `menu/main_menu.c`, screen 0: the backdrop, the six options' icons and
-  colours, the arrows, choosing and moving among the options, each option's
-  panel shown and put away through a C table of the screens' panel entries.
-- `menu/saving.c`, the save screen's opening from the main menu and its
-  frame (`$C2:D065`-`$C2:D155`, `$C2:D4F8`, `$C2:D506`), over the load
-  screen's slot rows.
-- `menu/naming.c`, name entry (screen 13): the seven characters' names and
-  the Epoch's as one concept (a name of five letters, `NO_LETTER` and
-  `SPACE` named), the letters' grid the cursor moves about, a letter typed or
-  taken back, the name kept with its spaces dropped and refused where another
-  has it; and the battle mode's screen on the same screen number.
-- `menu/shop_equipment.c`, the shop's steps 6-8: down from the tabs to the
-  party (the members coloured by whether they can use the goods), a member's
-  slots, the list of what fits each with its figures compared, and putting it
-  on.
+- `menu/exchange.c`, the party exchange: the party listed in rows (the
+  active party's three, the reserve's six, each a place of the party's
+  record, marked where the story keeps its member in the active party,
+  `story_party_kept`), drawn as status windows with each member's sprite
+  standing in its row; the cursor among the active party's rows and the
+  reserve's four shown, stepping off rows nobody may be chosen on; a member
+  chosen first (a second cursor held on it, its pose), then a second, and
+  the two changing places in the party (`party_exchange`, `menu/party.c`),
+  their rows swapped on the tilemap; the reserve's scroll a row with a
+  six-frame slide; who stays dimmed. From the main menu (screen 5) it
+  reorders the active party alone, in the middle: the menus' opening leaves
+  `menu_exchange_layout` set; the gate's screen (screen 7, which the field's
+  Start assignment and a script's menu open) lays it out as the event asks,
+  over the gate's swirl (`menu/gate_screen.c`). The panel, the same rows
+  under the main menu or under the gate's label, is the screen's too.
+- `menu/sound.c` and `menu/sound_bridge.c`, the gate's song: the place's
+  song faded out and the gate's started, the driver saving the one it
+  replaces, by a task that waits for the fade; the place's song back,
+  resumed where it was, as the screen closes. What the waits wait for is
+  the driver's status (`au_music_fade_left`, `au_music_playing`): the fade's
+  steps left, a frame at a time, and the song's tracks playing, which the
+  original spins on without a frame passing (an idle entry, `$C2:CBE0`;
+  TODO.md, "Timing without a beam"). The audio service gains the two song
+  starts the screen sends (`AU_START_SONG_SAVING`, `AU_START_SONG_SECOND_SET`).
+- `menu/main_menu_bridge.c` calls every option's panel put away as C
+  (`put_the_panel_away`, each timed as its screen's entry), and the main
+  menu's put away as C from the step that comes back to it; showing a panel
+  waits for frames, so it stays each screen's entry run as the original's
+  JSR reaches it. The exchange's panel is one of those entries now, so the
+  main menu calls nothing out.
 
-The screens lost their glue: the items, equipment, techs, settings and shop
-screens call the slide, the description, the held cursors and the tasks'
-stop as C, each with the routine's time tagged as its own (`TIMED_AS`);
-the review items that sat in the touched files went with them (TODO.md).
+**The registers, settled first.** Every call-out and stop the chunk keeps
+was checked against liveness, and `tools/dontcare_check.py` agrees with each
+declaration (it caught the screen's fade out reading A's high byte). What a
+call compares is left from the state after the logic: the flags the
+original's P bytes hold where they are on the stack under a call out (the
+cursor's move's, the reserve's scroll's and the slide's; the panel's and its
+window routine's round the gate sprite's unpacking; the gate song's tests
+the panel keeps), worked out from the counts and sums they come from
+(`leave_counted`, `leave_bar_worked_out`, `leave_scroll_started`), and A's
+high byte at the ticks after the members are stood (clear). The routines the
+slide and the gate's sprite run inside are pushed as their frames (a return
+and a P each), the driver's two calling routines as their returns
+(`sound_bridge.c`).
 
-**The registers, settled first.** Every call-out and stop was checked
-against liveness before the logic was written, and the gate's
-`tools/dontcare_check.py` agrees with each. What the original's callers read
-is left under `ORIGINAL_EFFECT` from the state after: A clear where the
-description started typing (the text's start leaves it), A's high byte all
-ones after a block move (the main menu's drawing, the queued uploads), the
-X and Y the slide's staging leaves for the task switch, which keeps them and
-the flags across its wait (its stop is `m_stop_at_own`); the flags a sound's
-tick saves as it starts (the grid's compare of the cursor's places and the
-add that placed it, the members' compare). The main menu's call into the
-exchange's panel declares the carry and the overflow read, as the panel's
-pick leaves them.
+**What shadow mode and fuzzing found.** Over the 27 movies every call
+matches and none is refused: the twelve entries' 3,283 calls, 0
+mismatching (14 of them the song's task passing back through its own start,
+which the entry's widths turn away); the gate's opening and the panel span frames on every call (4
+interrupted), and the gate song's change back is compared only inside its
+caller. `menus-field-menu` reorders the active party from the main menu,
+`menus-end-of-time` and `menus-shop-equip` open the gate's screen (in
+Medina its song changes). The shipping mode's traces over those three
+(`--native on --recomp only` against `--native off`) are the same at every
+frame. Fuzzed seed 1 (`tools/fuzz_routines.toml`, 14 entries, 2,000 states
+each, the whole party listed in both columns as a variant): 0 of 27,764
+compared states mismatching. What fuzzing found: the overflow and carry of
+the counts' add at the tick, the scroll bar's sums under the move, the
+panel's pick and the sprite's place loaded before the unpacking, the song's
+task's widths at its start, and the drawing origin the gate's panel leaves.
+Two things it showed that the game can't fix by guarding: the main menu's
+exchange takes the reserve's count as the screen before left it, and with
+a count a push across sends the cursor round the reserve's empty rows,
+where the original searches for ever (the port stops after 64 steps; the
+plain fuzz entries keep the count at none, the state's); and a slide needs
+more than four members in the reserve, which seven characters never make,
+so only its first frame is compared (TODO.md). The comparison of the main
+menu's and the screens' put-away entries against main
+(`tools/fuzz_compare.py`, 13 routines) finds no routine that differs.
 
-**What shadow mode and fuzzing found.** Over the 27 movies every call matches and none is refused: 40,052 calls over
-52 of the 54 entries, 0 mismatching and 46 interrupted (the typing's task and
-frame, the naming's and the main menu's openings, which span frames and are
-compared inside the calls that enclose them; the save screen's own opening
-and frame, `$C2:D4F8`/`$C2:D506`, no movie reaches: the library saves from
-the main menu's panel). Fuzzed seed 1
-(`tools/fuzz_routines.toml`, 54 new entries, 2,000 to 8,000 states each):
-0 of 102,241 compared states mismatching. What fuzzing found: the index registers' width at the entries
-that load them with immediates (the main menu, the save panel, the naming,
-the shop's steps), the window lists' and the panels' guards a caller in C
-must check for them, the typing's even places along a line, the naming's
-record kept for the named one (`menu_naming_keeps_the_named_ones_record`),
-and the flags and A the original's ticks and buzzes save. The
-before-and-after comparison against main (`tools/fuzz_compare.py`, 495
-routines) found no routine that differs; the nine that mismatch on some
-fuzzed states mismatch the same on main.
+**Timing.** The twelve rows and the main menu's that now run the panels as
+C (its put away, and the step back to it) are calibrated over the library;
+no exception was added.
 
-**The new movie.** `menus-shop-equip` (RUNTIME.md's table) goes down from
-the shop's tabs to the party in Medina's market and changes members'
-equipment from there, the steps no movie took.
-
-**Timing.** The new rows, and the rows the new movie moved (the steps of
-the settings, items, techs and shop screens whose call-outs became C, the
-records' animation, the figures, the sound driver's two slot routines), are
-calibrated over the library. Six entries keep `cost_milli = 5000`: the
-naming's and the main menu's openings and the shop's member opening, whose
-every call spans frames, and the save screen's opening and frame, which no
-movie reaches. Eighteen exceptions (`tools/timing_exceptions.txt`) carry the
-screens' steps that now charge the slide, the description and the window
-lists at those routines' rates, and the field's frame in Medina's crowded
-market, which runs into vblank on 101 frames.
-
-**The map.** The slide's bands, the staged table and the table at rest
-(`$9790`, `$969A`, `$9710`, `$0DA9`), the description's cells (`$0DC1`-`$0DD6`,
-the value's line and tile at `$0026`/`$0028`), the names' cells (`$0F00`-`$0F0D`,
-the grid's text and the name kept at `$9890`, `$98A0`), the names given
-(`$299F`), the Epoch's name (`$2C4D`), the main menu's option (`$0411`), box
-and backdrop (`$5780`, `$3E00`), the shop's figure marks (`$0D4D`), the upload
-record built at `$9890`, and the glyph tiles (`$5E00`).
+**The map.** The exchange's rows, counts, choices and the song it replaced
+(`$0F00`-`$0F0F`), its layout over the menus' place notes (`$0D36`), the
+places' and the slide's cells (`$0022`, `$0024`), the menus' first cells'
+uses, the story's kept members (`$7F:01DF`), window 1's edges alone
+(`$9683`), the held cursor's offset's low byte (`$0D9E`) and the place
+song's volume (`$04FB`). The palette's accessors take an `unchecked` pair
+for the dimming of an emptied place's byte, which reaches past it.
 
 ### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 

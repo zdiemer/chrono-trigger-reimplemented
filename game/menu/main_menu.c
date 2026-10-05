@@ -120,9 +120,6 @@ static void put_the_icons(GameState *g, uint8_t option)
     ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_MAIN_MENU_OPTIONS + 2 * MENU_ARROW_COLOURS));
 }
 
-// $C2:9B8F
-/* The main menu's window, its effects, the cursor on the option, the
- * icons' colours with the lit option's, and the icons. */
 /* The main menu's windows fit the layers and its colours the frame's
  * changes, so it can be drawn. */
 bool menu_main_menu_drawable(const GameState *g)
@@ -130,6 +127,9 @@ bool menu_main_menu_drawable(const GameState *g)
     return menu_window_list_drawable(g, MENU_WINDOWS_MAIN_MENU) && menu_palette_changes_have_room(g);
 }
 
+// $C2:9B8F
+/* The main menu's window, its effects, the cursor on the option, the
+ * icons' colours with the lit option's, and the icons. */
 void menu_draw_main_menu(GameState *g, Platform *pf)
 {
     uint8_t option = menu_main_menu_option(g);
@@ -143,8 +143,7 @@ void menu_draw_main_menu(GameState *g, Platform *pf)
     set_menu_palette_changed(g, (uint8_t)(menu_palette_changed(g) + 1));
     for (unsigned i = 0; i < MENU_MAIN_MENU_COLOURS; i++) {
         set_menu_palette(g, ICON_COLOURS + i, menu_rom_colour(g, MENU_ROM_MAIN_MENU_COLOURS, i));
-        set_menu_palette(g, ICON_COLOURS + MENU_MAIN_MENU_COLOURS + i,
-                         menu_rom_colour(g, (uint16_t)(MENU_ROM_OPTION_COLOURS + 2 * MENU_MAIN_MENU_COLOURS * option), i));
+        set_menu_palette(g, ICON_COLOURS + MENU_MAIN_MENU_COLOURS + i, menu_option_colour(g, option, i));
     }
     ORIGINAL_EFFECT(charge_block_move(g, 4 * MENU_MAIN_MENU_COLOURS));
     put_the_icons(g, option);
@@ -222,11 +221,6 @@ void menu_main_menu_keep_the_time(GameState *g)
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }
 
-/* The tasks a screen's panel may have left running: the description's
- * typing, the scroll bar, the records and the cursors it holds. */
-static const uint8_t PANELS_TASKS = 1u << MENU_DESCRIPTION_TASK | 1u << MENU_SCROLL_BAR_TASK | 1u << MENU_RECORDS_TASK
-                                    | 1u << MENU_HELD_CURSORS_TASK;
-
 /* For the original's code and shadow mode: a cell it clears here, which
  * nothing reads. */
 static void leave_spare_cleared(GameState *g) { set_menu_main_menu_spare(g, 0); }
@@ -238,7 +232,7 @@ void menu_main_menu_move_to(GameState *g, MainMenuOption option)
         start_the_screens_afresh(g);
     set_menu_exchange_cursor_kept(g, 0);
     set_menu_reserve_top(g, 0);
-    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, PANELS_TASKS));
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, MENU_PANELS_TASKS));
     ORIGINAL_EFFECT(leave_spare_cleared(g));
 }
 
@@ -266,5 +260,5 @@ void menu_main_menu_come_back(GameState *g)
 {
     set_menu_screen(g, MAIN_MENU_SCREEN);
     set_menu_screen_step(g, CHOOSING);
-    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, PANELS_TASKS));
+    TIMED_AS(g, 0xC28255, menu_stop_tasks(g, MENU_PANELS_TASKS));
 }

@@ -762,9 +762,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **What the main menu's, name entry's and description's review left**
   (merged with the menus' ninth chunk; none rated translation):
-  `main_menu_bridge.c` runs the pure-C put-away panels (settings, items, the
-  save screen's `$C2:D0DB`) through `menu_run`, against `bridge.h`'s rule
-  that C siblings are called as C; `description.c` and `held_cursors.c` start
+  `description.c` and `held_cursors.c` start
   their tasks by ROM address in logic (an enum, the address table in the
   bridge); `menu_start_typing` and the list slide take their inputs from
   cells their callers set (`naming.c` sets seven by hand) -- a description
@@ -776,10 +774,8 @@ rest waits, is [PLAN.md](PLAN.md).
   the label); `menu_naming_cursor_place` builds an x|y<<8 word only for the
   bridge's flags, `menu_name_cursor_before` is written plainly but read only
   by leaves, `menu_naming_give_the_name`'s bool feeds only a leave, and
-  `description.h` exports `menu_leave_typing_started`; `main_menu.c` reads a
-  ROM colour by byte offset and has a comment above the wrong function (as
-  does `naming_bridge.c`); `PANELS_TASKS` written `0x74`; `someone_has_it`
-  run twice; the naming guard redefines the grid's constants;
+  `description.h` exports `menu_leave_typing_started`; `naming_bridge.c` has
+  a comment above the wrong function; `someone_has_it` run twice; the naming guard redefines the grid's constants;
   `shop_equipment.c` has a dead `any`, an unexplained `stale - 1`,
   scaffolding written every pass, and writes the status record by byte
   offset; `description.c`'s `item_row_fits` checks nothing; the effects
@@ -1076,14 +1072,37 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
+- **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
+  party's exchange"):
+  - the main menu's exchange (the active party alone) takes the reserve's
+    count as the screen before it left it: with a count, a push across
+    takes the cursor round the reserve's empty rows, where the original
+    searches for ever and the game hangs; the port stops after 64 steps
+    with nobody under the cursor (`exchange.c`, `MOST_STEPS`). Whether a
+    game state gets there (a count left by the settings', the techs' or the
+    gate's screen) is open; the library's never has one;
+  - the reserve's slide (`$C2:C85B`, `$C2:C8BA`, `$C2:C949`) and its scroll
+    bar want more than four members in the reserve, which a party of seven
+    characters never has: no movie slides, and fuzzing compares a slide up
+    to its first frame's wait (the rest is past the menus' task switch);
+  - the panel (`$C2:C9E5`), the gate's opening (`$C2:C7AC`) and its song's
+    change back (`$C2:CC0E`) span frames, so shadow mode compares them only
+    inside the calls that enclose them (`menus-shop-equip` opens the gate's
+    screen in Medina, where its song changes; `menus-end-of-time` at the
+    End of Time, where the song is the gate's already); fuzzing compares
+    them up to their first call out;
+  - an emptied place's byte is taken for a character by the dimming of who
+    stays, which halves fifteen words past the palette
+    (`sprites.c`, `menu_leave_colours_dimmed_past_the_palette`): scaffolding, so the native build
+    doesn't, on the field's tables the menus lay their own over; show that
+    the field lays those out again as the menus close, or keep the halving;
+  - `menu_field_song_volume` (`$7E:04FB`, the volume the place's song fades
+    back in to) has no writer the disassembly reaches by its address: find
+    it, or drop the cell's name for what writes there.
+
 - **What the menus' ninth chunk left** (RECOMP.md, "Phase 3, menus: the
   main menu, the save screen's opening, name entry, the description, the
   list slide and the shop's equipping"):
-  - the party's exchange (screens 5 and 7, `$C2:C627`-`$C2:CDCA`) is still
-    generated, and the main menu calls its panel (`$C2:C9E5`, `$C2:CAE6`)
-    out, declaring the carry and the overflow read. Its waits on the sound
-    CPU's ports (`$C2:CB8B`, `$C2:CBBF`) spin on beam-timed handshakes the
-    sound driver's port has to answer before the screen can be C;
   - the save screen's own opening and frame (`$C2:D4F8`, `$C2:D506`) are
     reached by no movie (the library saves from the main menu's panel):
     fuzzing is their check, and their `cost_milli` is the placeholder;
@@ -1548,6 +1567,15 @@ rest waits, is [PLAN.md](PLAN.md).
 PLATFORM.md, "Timing without a beam", is the design: the census of every use of
 the timing registers, what each is for, the native backend, and the rewrites
 below. `python3 tools/timing_census.py` re-runs the census.
+
+- **The gate's wait for its song to play** (`$C2:CBE0`,
+  `menu/sound_bridge.c`): once the gate's screen has started its song, its
+  task spins on the sound processor's status (`au_music_playing`) until the
+  driver says the song's tracks are playing, without letting a frame go by,
+  so how long it waits is the driver's time to start the song. It is an
+  idle entry on the original's machine; a host playing the C driver answers
+  at once. The native backend wants it as a wait the audio service owns (a
+  call that comes back once the song plays).
 
 - **The native backend and the new calls.** Add `tm_wait_frame`,
   `tm_frame_time_left`, `tm_wait_line`, `tm_entropy` and `tm_odd_frame` to

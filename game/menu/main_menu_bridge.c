@@ -1,18 +1,19 @@
 /* The main menu on the original's machine: its steps, the panels' showing
  * and putting away, and their guards (game/menu/main_menu.c is the menu).
  *
- * Each option's panel is its screen's own (menu/<screen>.c), a machine-
- * shaped entry that calls out and waits for frames, so the main menu runs
- * it as the original's JSR through its table reaches it (menu_run): the
- * panels' table here is that table, by option. The cursor's tick and the
- * leaving of the menus, and the fade in as the menu opens, are jumps the
- * steps stop at. */
+ * Each option's panel is its screen's own (menu/<screen>.c). Showing one
+ * waits for frames as it draws, so the main menu runs the screen's entry as
+ * the original's JSR through its table reaches it (menu_run): the panels'
+ * table here is that table, by option. Putting one away is C, called as C.
+ * The cursor's tick and the leaving of the menus, and the fade in as the
+ * menu opens, are jumps the steps stop at. */
 #include "menu/main_menu.h"
 
 #include "charge.h"
 #include "menu/bridge.h"
 #include "menu/cursor.h"
 #include "menu/equipment.h"
+#include "menu/exchange.h"
 #include "menu/item_screen.h"
 #include "menu/menu.h"
 #include "menu/menu_data.h"
@@ -52,36 +53,41 @@ static void read_cursor(Snes *s)
 
 /* ---- The panels ---------------------------------------------------------------------------------- */
 
-/* Each option's panel, shown and put away, by its screen's entries; the
- * party exchange's are still the original's, called out to. */
+/* Each option's panel is shown by its screen's own entry, which waits for
+ * frames as it draws, run as the original's JSR through its table reaches
+ * it; its guard is the entry's own. */
 typedef struct {
     uint32_t at;
     void (*entry)(Snes *);
     bool (*can_run)(Snes *);
-} PanelEntry;
-static const struct {
-    PanelEntry show, put_away;
-} PANELS[MENU_MAIN_MENU_OPTIONS] = {
-    [MAIN_MENU_EQUIPMENT] = { { 0xC2A051, menu_show_equipment_panel, menu_equipment_panel_shows },
-                              { 0xC2A101, menu_show_panel_colours, menu_panel_colours_show } },
-    [MAIN_MENU_ITEMS] = { { 0xC2AD50, menu_show_items_panel, menu_items_panel_shows },
-                          { 0xC2ADC3, menu_put_items_panel_away, menu_items_panel_goes } },
-    [MAIN_MENU_TECHS] = { { 0xC2B8DA, menu_show_techs_panel, menu_techs_panel_shows },
-                          { 0xC2B960, menu_put_techs_panel_away, menu_techs_panel_goes } },
-    [MAIN_MENU_SETTINGS] = { { 0xC2C2FF, menu_show_settings_panel, menu_settings_panel_shows },
-                             { 0xC2C397, menu_put_settings_panel_away, menu_settings_panel_goes } },
-    [MAIN_MENU_EXCHANGE] = { { 0xC2C9E5, NULL, NULL }, { 0xC2CAE6, NULL, NULL } },
-    [MAIN_MENU_SAVING] = { { 0xC2D065, menu_show_save_panel, menu_save_panel_shows },
-                           { 0xC2D0DB, menu_put_save_panel_away, menu_on_page_work_ram } },
+} PanelShown;
+static const PanelShown PANELS_SHOWN[MENU_MAIN_MENU_OPTIONS] = {
+    [MAIN_MENU_EQUIPMENT] = { 0xC2A051, menu_show_equipment_panel, menu_equipment_panel_shows },
+    [MAIN_MENU_ITEMS] = { 0xC2AD50, menu_show_items_panel, menu_items_panel_shows },
+    [MAIN_MENU_TECHS] = { 0xC2B8DA, menu_show_techs_panel, menu_techs_panel_shows },
+    [MAIN_MENU_SETTINGS] = { 0xC2C2FF, menu_show_settings_panel, menu_settings_panel_shows },
+    [MAIN_MENU_EXCHANGE] = { 0xC2C9E5, menu_show_exchange_panel, menu_exchange_panel_shows },
+    [MAIN_MENU_SAVING] = { 0xC2D065, menu_show_save_panel, menu_save_panel_shows },
 };
 
-/* The exchange's panels read the overflow and the carry the pick leaves:
- * the carry clear (the option doubled), the overflow the caller's. */
-enum { READS_V_AND_C = DC_A | DC_X | DC_Y | DC_N | DC_Z };
+/* Putting a panel away waits for nothing: each screen's is C, its time its
+ * entry's, with the entry's guard. */
+static bool (*const PANEL_GOES[MENU_MAIN_MENU_OPTIONS])(Snes *) = {
+    [MAIN_MENU_EQUIPMENT] = menu_panel_colours_show, [MAIN_MENU_ITEMS] = menu_items_panel_goes,
+    [MAIN_MENU_TECHS] = menu_techs_panel_goes,         [MAIN_MENU_SETTINGS] = menu_settings_panel_goes,
+    [MAIN_MENU_EXCHANGE] = menu_exchange_panel_goes,   [MAIN_MENU_SAVING] = menu_on_page_work_ram,
+};
 
-static bool run_panel(Snes *s, uint32_t site, PanelEntry p)
+static void put_the_panel_away(GameState *g, Platform *pf, MainMenuOption option)
 {
-    return p.entry ? menu_run(s, site, p.at, p.entry) : menu_call(s, site, p.at, READS_V_AND_C);
+    switch (option) {
+    case MAIN_MENU_EQUIPMENT: TIMED_AS(g, 0xC2A101, menu_equip_panel_put_away(g)); break;
+    case MAIN_MENU_ITEMS: TIMED_AS(g, 0xC2ADC3, menu_items_panel_put_away(g)); break;
+    case MAIN_MENU_TECHS: TIMED_AS(g, 0xC2B960, menu_techs_panel_put_away(g, pf)); break;
+    case MAIN_MENU_SETTINGS: TIMED_AS(g, 0xC2C397, menu_settings_panel_put_away(g)); break;
+    case MAIN_MENU_EXCHANGE: TIMED_AS(g, 0xC2CAE6, menu_exchange_panel_put_away(g)); break;
+    case MAIN_MENU_SAVING: TIMED_AS(g, 0xC2D0DB, menu_put_save_panel_away_now(g)); break;
+    }
 }
 
 /* For the original's code and shadow mode: it picks the panel by the
@@ -104,7 +110,8 @@ void menu_show_main_menu_panel(Snes *s)
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
     ORIGINAL_EFFECT(leave_option_doubled(s, option));
-    if (!run_panel(s, 0xC29B5D, PANELS[option].show))
+    const PanelShown *p = &PANELS_SHOWN[option];
+    if (!menu_run(s, 0xC29B5D, p->at, p->entry))
         return;
     TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, m_platform(s)));
     ORIGINAL_EFFECT(menu_leave_a_high_byte_set(s));
@@ -115,16 +122,27 @@ void menu_show_main_menu_panel(Snes *s)
 // $C2:9B71
 /* The option's panel put away, the main menu over the screen again, and the
  * back layer queued. */
+static void put_the_main_menu_panel_away(GameState *g, Platform *pf)
+{
+    put_the_panel_away(g, pf, (MainMenuOption)menu_main_menu_option(g));
+    TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, pf));
+    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
+}
+
+/* What it leaves: the panel's pick, then the queue's registers. */
+static void leave_panel_put_away(Snes *s, uint8_t option)
+{
+    leave_option_doubled(s, option);
+    menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER);
+}
+
 void menu_put_main_menu_panel_away(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t option = menu_main_menu_option(g);
-    ORIGINAL_EFFECT(leave_option_doubled(s, option));
-    if (!run_panel(s, 0xC29B77, PANELS[option].put_away))
-        return;
-    TIMED_AS(g, 0xC29B8F, menu_draw_main_menu(g, m_platform(s)));
-    menu_queue_fixed_upload(g, MENU_UPLOAD_BACK_LAYER);
-    ORIGINAL_EFFECT(menu_leave_queued_upload(s, MENU_UPLOAD_BACK_LAYER));
+    (void)option;
+    put_the_main_menu_panel_away(g, m_platform(s));
+    ORIGINAL_EFFECT(leave_panel_put_away(s, option));
     m_rts(s);
 }
 
@@ -165,7 +183,7 @@ static void leave_moved(Snes *s, uint8_t from)
     const GameState *g = state_of(s);
     menu_leave_compare(s, menu_cursor_index(g), from);
     m_set_flag(s, CPU_FLAG_V, (menu_cursor_buttons(g) & MENU_GO_BACK) != 0);
-    menu_leave_load(s, 0x74);
+    menu_leave_load(s, MENU_PANELS_TASKS);
 }
 
 // $C2:99CE
@@ -219,8 +237,10 @@ void menu_back_to_the_main_menu(Snes *s)
     GameState *g = state_of(s);
     menu_set_widths(s, true, false);
     menu_main_menu_come_back(g);
-    if (!menu_run(s, 0xC29AA7, 0xC29B71, menu_put_main_menu_panel_away))
-        return;
+    uint8_t option = menu_main_menu_option(g);
+    (void)option;
+    TIMED_AS(g, 0xC29B71, put_the_main_menu_panel_away(g, m_platform(s)));
+    ORIGINAL_EFFECT(leave_panel_put_away(s, option));
     m_stop_at_own(s, CURSOR_SOUND, READS_A_AND_CARRY);
 }
 
@@ -277,9 +297,8 @@ static bool drawable(const GameState *g) { return on_an_option(g) && menu_main_m
 
 bool menu_main_menu_draws(Snes *s) { return peek(s, drawable); }
 
-/* A panel's step: the option's panel runs as its own entry would (the
- * exchange's, still the original's, as it is) and the main menu is drawn
- * over it. */
+/* A panel's step: the option's panel runs as its own entry would and the
+ * main menu is drawn over it. */
 static bool panel_runs(Snes *s, bool put_away)
 {
     if (!menu_main_menu_draws(s))
@@ -287,8 +306,7 @@ static bool panel_runs(Snes *s, bool put_away)
     vars_peek(true);
     uint8_t option = menu_main_menu_option(state_of(s));
     vars_peek(false);
-    const PanelEntry *p = put_away ? &PANELS[option].put_away : &PANELS[option].show;
-    return p->can_run == NULL || p->can_run(s);
+    return put_away ? PANEL_GOES[option](s) : PANELS_SHOWN[option].can_run(s);
 }
 
 bool menu_main_menu_panel_shows(Snes *s) { return panel_runs(s, false); }

@@ -151,6 +151,8 @@ add_library(ct_game STATIC
   game/menu/equipment.c
   game/menu/equipment_bridge.c
   game/menu/equipment_windows.c
+  game/menu/exchange.c
+  game/menu/exchange_bridge.c
   game/menu/figures.c
   game/menu/frame.c
   game/menu/gate_screen.c
@@ -188,6 +190,7 @@ add_library(ct_game STATIC
   game/menu/shop_bridge.c
   game/menu/shop_equipment.c
   game/menu/sound.c
+  game/menu/sound_bridge.c
   game/menu/sprites.c
   game/menu/tech_screen.c
   game/menu/tech_screen_bridge.c

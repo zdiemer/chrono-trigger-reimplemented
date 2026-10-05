@@ -118,9 +118,9 @@ void menu_equip_finish_list_slide(GameState *g);
 /* The list's rows moved a row along once it has slid: the way it slid. */
 void menu_equip_move_list_rows(GameState *g);
 
-/* The main menu leaving the equipment: its colours and line effects back. */
-void menu_equip_panel_colours_back(GameState *g);
-void menu_equip_panel_line_effects_back(GameState *g);
+/* The main menu leaving the equipment: its colours, the party's items and
+ * the line effects back. */
+void menu_equip_panel_put_away(GameState *g);
 
 /* The list's rows' upload, queued as the list is drawn. */
 enum { MENU_EQUIP_LIST_ROWS_UPLOAD = 0xFC1B };

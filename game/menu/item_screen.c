@@ -30,6 +30,7 @@
 #include "cpu_io.h"
 #include "menu/cursor.h"
 #include "menu/display.h"
+#include "menu/figures.h"
 #include "menu/held_cursors.h"
 #include "menu/items.h"
 #include "menu/lists.h"
@@ -622,7 +623,11 @@ void menu_items_panel_show(GameState *g, Platform *pf)
 }
 
 // $C2:ADC3
-void menu_items_panel_put_away(GameState *g) { set_menu_line_effects(g, PANEL_LINE_EFFECTS); }
+void menu_items_panel_put_away(GameState *g)
+{
+    TIMED_AS(g, 0xC29121, menu_put_items_back(g));
+    set_menu_line_effects(g, PANEL_LINE_EFFECTS);
+}
 
 /* ---- Using an item ----------------------------------------------------------------------------- */
 

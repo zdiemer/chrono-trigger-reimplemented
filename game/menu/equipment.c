@@ -32,6 +32,7 @@
 #include "menu/cursor.h"
 #include "menu/items.h"
 #include "menu/display.h"
+#include "menu/figures.h"
 #include "menu/lists.h"
 #include "menu/members.h"
 #include "menu/menu.h"
@@ -572,13 +573,13 @@ void menu_equip_dim_colours(GameState *g, unsigned first)
  * the main menu's line effects. */
 enum { PANEL_COLOURS = 8 };
 
-void menu_equip_panel_colours_back(GameState *g)
+void menu_equip_panel_put_away(GameState *g)
 {
     for (unsigned i = 0; i < PANEL_COLOURS; i++)
         set_menu_palette(g, FIRST_SCREEN_COLOUR + i, menu_rom_colour(g, MENU_ROM_ROW_7_COLOURS, i));
+    TIMED_AS(g, 0xC29121, menu_put_items_back(g));
+    set_menu_line_effects(g, PANEL_LINE_EFFECTS);
 }
-
-void menu_equip_panel_line_effects_back(GameState *g) { set_menu_line_effects(g, PANEL_LINE_EFFECTS); }
 
 /* ---- What the steps can run on (the guards') --------------------------------------------------- */
 
