@@ -388,6 +388,11 @@ static void scroll_plane(GameState *g, uint8_t plane, MenuAxis axis, int8_t step
     ORIGINAL_EFFECT(leave_scroll_cells(g, &p, axis, step));
 }
 
+void menu_map_scroll(GameState *g, uint8_t plane, MenuAxis axis, int8_t step)
+{
+    scroll_plane(g, (uint8_t)(plane - 1), axis, step);
+}
+
 // $C2:2720
 /* Put the map's top-left tile where the party is: sixteen tiles left of the
  * party's tile and fourteen above it, round the map. The two planes that
@@ -531,20 +536,28 @@ static bool buffer_is_in_work_ram(const GameState *g)
     return (buffer >> 16) == (MAP_BANK >> 16) && (uint16_t)buffer >= LOW_RAM_END;
 }
 
-static bool scroll_runs(Snes *s, MenuAxis axis)
+unsigned menu_map_scroll_records(MenuAxis axis, int8_t step)
+{
+    unsigned pixels = step < 0 ? (unsigned)-step : (unsigned)step;
+    return (pixels / TILE_PIXELS + 1) * (axis == MENU_ACROSS ? COLUMN_STRIP_RECORDS : ROW_STRIP_RECORDS);
+}
+
+bool menu_map_can_scroll(const GameState *g, uint8_t plane, unsigned records)
 {
     enum { QUEUE_BYTES = MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES };
+    return plane >= 1 && plane <= 2 && plane_is_on_the_map(g, (uint8_t)(plane - 1)) && buffer_is_in_work_ram(g)
+           && menu_object_queue_is_whole(g)
+           && menu_object_vram_queue_end(g) + records * MENU_OBJECT_UPLOAD_BYTES <= QUEUE_BYTES;
+}
+
+static bool scroll_runs(Snes *s, MenuAxis axis)
+{
     if (!on_the_page(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    uint8_t plane = named_plane(g);
-    int8_t step = (int8_t)menu_object_scratch_step(g);
-    unsigned pixels = step < 0 ? (unsigned)-step : (unsigned)step;
-    unsigned records = (pixels / TILE_PIXELS + 1) * (axis == MENU_ACROSS ? 1u : 2u);
-    bool ok = plane >= 1 && plane <= 2 && plane_is_on_the_map(g, (uint8_t)(plane - 1)) && buffer_is_in_work_ram(g)
-              && menu_object_queue_is_whole(g)
-              && menu_object_vram_queue_end(g) + records * MENU_OBJECT_UPLOAD_BYTES <= QUEUE_BYTES;
+    bool ok = menu_map_can_scroll(g, named_plane(g),
+                                  menu_map_scroll_records(axis, (int8_t)menu_object_scratch_step(g)));
     vars_peek(false);
     return ok;
 }

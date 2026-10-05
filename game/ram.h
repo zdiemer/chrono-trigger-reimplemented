@@ -444,6 +444,9 @@
 #define RAM_SAVE_SLOT_SUMMARIES_STRIDE 0x40u
 #define RAM_SAVE_SLOT_SUMMARIES_MEMBERS 0x7E7600u /* Three $10-byte party member records, the first byte the member (negative: empty) */
 #define RAM_SAVE_SLOT_SUMMARIES_HEADER 0x7E7630u /* The slot's header: where the party is (the location, a word at $32) and what the load screen shows of it */
+/* How far the story has got: the event scripts' main count (event memory $000), which most of
+ * the game's turns of the story raise */
+#define RAM_STORY_LINE 0x7F0000u
 /* What the story holds the party to (event memory $BA): bit 0 set, the party is held as it is
  * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
  * a fight not among those the battle's flags mark */
@@ -3384,9 +3387,16 @@
 #define RAM_MENU_SOUND_REQUEST_FIRST 0x7E1BE9u /* Its first parameter (a song, a sound) */
 #define RAM_MENU_SOUND_REQUEST_SECOND 0x7E1BEAu /* Its second */
 #define RAM_MENU_SOUND_REQUEST_THIRD 0x7E1BEBu /* Its third */
+/* The state of the sound command the sprite-object mode passes to the driver: 0 none waits, 1
+ * one waits in the driver's command cells (sound_command) for the main loop to send, $FF the
+ * main loop is sending it; a request finding it negative is refused */
+#define RAM_MENU_SOUND_MAILBOX 0x7E1BECu
 /* Cleared whenever a script leaves a new sound request; $C2:2ED9 weighs it against the byte
  * after it when it decides whether to pass the request on */
 #define RAM_MENU_SOUND_REQUEST_AGE 0x7E1BEDu
+/* The age (menu_sound_request_age) of the request waiting in the driver's cells: while it waits,
+ * a request older than it is refused */
+#define RAM_MENU_SOUND_WAITING_AGE 0x7E1BEEu
 /* Horizontal scroll the menu code leaves for BG3, which the drift routine adds and clears [2
  * bytes] */
 #define RAM_MENU_PENDING_SCROLL_X 0x7E1BF1u
@@ -4235,6 +4245,20 @@
 #define RAM_MENU_OBJECT_SLOTS_ZOOM_X 0x7E0B54u /* The map view's cursor: how far the plane is zoomed across, a divisor of its matrix (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_ZOOM_Y 0x7E0B56u /* The map view's cursor: how far it is zoomed down */
 #define RAM_MENU_OBJECT_SLOTS_PATH_STEP 0x7E0B58u /* The map view's cursor: how far along its path it has come, in bytes of the path's tables */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_UP_LEFT 0x7E0B52u /* The overworld's leader: the ground under the four 8x8 tiles around its feet (the kinds game/overworld/terrain.c reads), the upper left one */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_UP_RIGHT 0x7E0B53u /* The overworld's leader: the ground of the upper right tile around its feet */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_DOWN_LEFT 0x7E0B54u /* The overworld's leader: the ground of the lower left tile around its feet */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_DOWN_RIGHT 0x7E0B55u /* The overworld's leader: the ground of the lower right tile around its feet */
+#define RAM_MENU_OBJECT_SLOTS_WALL_SEARCH_LEFT 0x7E0B52u /* An overworld follower: where its search for walls down a column last looked, the kind of the tile left of the column, which the search keeps here (game/overworld/followers.c; scaffolding, nothing reads it after) */
+#define RAM_MENU_OBJECT_SLOTS_PARTY_PLACE 0x7E0B54u /* An overworld follower: which of the party it is, 1 the second member or 2 the third */
+#define RAM_MENU_OBJECT_SLOTS_GAIT 0x7E0B56u /* An overworld walker: its low bit picks which of its facing's two walking animations it walks with; the walkers clear it as they start */
+#define RAM_MENU_OBJECT_SLOTS_FACING_BEFORE 0x7E0B57u /* An overworld follower: the way it faced before its last turn, 0 up, 1 down, 2 left, 3 right */
+#define RAM_MENU_OBJECT_SLOTS_FACING 0x7E0B58u /* An overworld walker: the way it faces (bits 0-1: 0 up, 1 down, 2 left, 3 right), and bit 7 while it shows its walking animation */
+#define RAM_MENU_OBJECT_SLOTS_ROUTE 0x7E0B59u /* An overworld follower: its way to where it is going, in straight legs: bits 0-3 the legs left, bit 4 the first leg across, bit 5 the first leg down */
+#define RAM_MENU_OBJECT_SLOTS_GOAL_X 0x7E0B5Au /* An overworld walker: where across it is walking to, a pixel */
+#define RAM_MENU_OBJECT_SLOTS_GOAL_Y 0x7E0B5Cu /* An overworld walker: where down it is walking to */
+#define RAM_MENU_OBJECT_SLOTS_TO_GOAL_X 0x7E0B5Eu /* An overworld follower: how far across its goal is from it as it set out, signed */
+#define RAM_MENU_OBJECT_SLOTS_TO_GOAL_Y 0x7E0B60u /* An overworld follower: how far down its goal is from it as it set out, signed */
 /* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
  * a line. Each of the first three slots has two, which an object draws into on alternate frames
  * and stages for the vblank handler (menu_object_hdma_pointers), so the one shown is never the
@@ -4299,6 +4323,209 @@
 #define RAM_MENU_WORLD_MAP_TILES 0x7F9000u
 #define RAM_MENU_WORLD_MAP_TILES_COUNT 896u
 #define RAM_MENU_WORLD_MAP_TILES_STRIDE 0x20u
+
+/* ---- overworld ----------------------------------------------------------------------------- */
+
+/* The sprite-object mode's direct-page cells as the overworld's routines leave them: the
+ * operands of a lookup of the ground or of the regions, and the follower's search for walls.
+ * Scaffolding: each routine sets what it reads first, and nothing reads what they leave [28
+ * bytes] */
+#define RAM_OVERWORLD_SCRATCH 0x7E0000u
+#define RAM_OVERWORLD_SCRATCH_DP 0x00u       /* page menu */
+#define RAM_OVERWORLD_SCRATCH_WALKER_TABLE_ROW 0x7E0000u /* A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to */
+#define RAM_OVERWORLD_SCRATCH_CHARACTER 0x7E0000u /* A walker's animation: the character it is (Magus's animations are his own) */
+#define RAM_OVERWORLD_SCRATCH_ANIMATION 0x7E0001u /* The sprite script the walker was given last */
+#define RAM_OVERWORLD_SCRATCH_GROUND_COLUMN 0x7E0000u /* A lookup of the ground: the 8x8 tile's column, halved to its map tile's as the lookup reads it */
+#define RAM_OVERWORLD_SCRATCH_GROUND_ROW 0x7E0001u /* And its row, halved likewise */
+#define RAM_OVERWORLD_SCRATCH_GROUND_COLUMN_ODD 0x7E0002u /* Which half of the map tile across the column is on, shifted out as the lookup reads it (0 after) */
+#define RAM_OVERWORLD_SCRATCH_GROUND_ROW_ODD 0x7E0003u /* Which half down the row is on, as the word the lookup adds to the tile group's place */
+#define RAM_OVERWORLD_SCRATCH_FEET_COLUMN 0x7E0008u /* The leader's look around: the 8x8 tile column its feet are at */
+#define RAM_OVERWORLD_SCRATCH_FEET_ROW 0x7E000Au /* And the row */
+#define RAM_OVERWORLD_SCRATCH_GROUND_MAP 0x7E0010u /* Long pointer to the map the ground lookup reads (overworld_map) */
+#define RAM_OVERWORLD_SCRATCH_GROUND_KINDS 0x7E0013u /* Long pointer to the tile groups' kinds of ground (overworld_ground_kinds) */
+#define RAM_OVERWORLD_SCRATCH_REGION_COLUMN 0x7E0000u /* A lookup of the regions: the map tile's column, halved as the lookup reads it */
+#define RAM_OVERWORLD_SCRATCH_REGION_ROW 0x7E0001u /* And the region map's row it reads (the map tile's row less one) */
+#define RAM_OVERWORLD_SCRATCH_REGION_ROW_WORD 0x7E0001u /* The music's look-up of the regions hands the row over as a word, the map tile's row less one (its high byte $FF over the map's first row) */
+#define RAM_OVERWORLD_SCRATCH_REGION_ROW_AT 0x7E0010u /* Long pointer to the region map's row the lookup reads */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_AT 0x7E0005u /* A follower's search for walls: the tile it looked at last along a leg */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_LINE 0x7E0006u /* The row (or column) the leg runs along */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_END 0x7E0007u /* Where the leg ends */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_FROM_COLUMN 0x7E0008u /* The search: the follower's 8x8 tile column */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_TO_COLUMN 0x7E0009u /* The column it heads for (the leader's, or a place on the trail's) */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_FROM_ROW 0x7E000Au /* The follower's row */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_TO_ROW 0x7E000Bu /* The row it heads for, as a word */
+#define RAM_OVERWORLD_SCRATCH_SEARCH_BLOCKED 0x7E000Eu /* Which of the two ways round had a wall: bit 0 across first, bit 1 down first */
+#define RAM_OVERWORLD_SCRATCH_DISTANCE_ACROSS 0x7E0008u /* How far across the follower's goal is, without its sign, as it picks a route */
+#define RAM_OVERWORLD_SCRATCH_PLACE_ROW 0x7E0001u /* The places' watcher's look-up: the map tile row the leader stands on, as a word (the column under it, the look-up's result over that) */
+#define RAM_OVERWORLD_SCRATCH_LISTS_FOUND 0x7E0000u /* Which lists the look-up found the tile on, as overworld_lists_found */
+#define RAM_OVERWORLD_SCRATCH_BOX_TOP 0x7E0000u /* A follower's look for the leader: the top of the box round it */
+#define RAM_OVERWORLD_SCRATCH_BOX_BOTTOM 0x7E0002u /* The row past the box's bottom */
+#define RAM_OVERWORLD_SCRATCH_BOX_LEFT 0x7E0004u /* Its left */
+#define RAM_OVERWORLD_SCRATCH_BOX_RIGHT 0x7E0006u /* The column past its right */
+#define RAM_OVERWORLD_SCRATCH_BOX_LEADER_X 0x7E0008u /* Where the leader stands across */
+#define RAM_OVERWORLD_SCRATCH_BOX_LEADER_Y 0x7E000Au /* And down */
+#define RAM_OVERWORLD_SCRATCH_TRAIL_TRIES 0x7E0016u /* The places back along the trail a follower boxed in still has to try */
+#define RAM_OVERWORLD_SCRATCH_TRAIL_LOOKED_AT 0x7E0019u /* The trail's place it tried last, in bytes of the trail */
+#define RAM_OVERWORLD_SCRATCH_TRAIL_WAY_ROUND 0x7E001Bu /* Which ways round had a wall from the trail's place it settled on */
+/* The region of the world map the party was last seen in, whose song plays ($FF: none yet, so
+ * the next look starts its song) */
+#define RAM_OVERWORLD_REGION 0x7E00EBu
+#define RAM_OVERWORLD_REGION_DP 0xEBu        /* page menu */
+/* How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3
+ * on a dactyl, 4 walking to a vehicle to board it, 5 getting off one */
+#define RAM_OVERWORLD_TRAVEL 0x7E027Eu
+/* overworld_travel as the vehicles' controller saw it the frame before: the walkers start their
+ * steps over when the two differ */
+#define RAM_OVERWORLD_TRAVEL_BEFORE 0x7E027Fu
+/* 1 while an event the party stepped onto runs: its script, and the party's own scripts for it
+ * (menu_member_scripts); 0 otherwise */
+#define RAM_OVERWORLD_EVENT 0x7E0280u
+/* overworld_event as the places' watcher saw it at the start of the frame: the walkers start
+ * their steps over when the two differ */
+#define RAM_OVERWORLD_EVENT_BEFORE 0x7E0281u
+/* What the leader's last step found under it: bit 0 a place's ground to look up (the watcher
+ * clears it once it has), bit 1 standing on a place's ground */
+#define RAM_OVERWORLD_GROUND_NEWS 0x7E0282u
+/* Where each of the party stands on the world map, in pixels: the leader's is the party's (the
+ * field's world_position), the others' only their scripts' last place [3 x $4 bytes, by the
+ * party's place: 0 the leader, 1 the second member, 2 the third] */
+#define RAM_OVERWORLD_PARTY_PLACES 0x7E0283u
+#define RAM_OVERWORLD_PARTY_PLACES_COUNT 3u
+#define RAM_OVERWORLD_PARTY_PLACES_STRIDE 0x04u
+#define RAM_OVERWORLD_PARTY_PLACES_X 0x7E0283u /* Across */
+#define RAM_OVERWORLD_PARTY_PLACES_Y 0x7E0285u /* Down */
+/* The vehicle the party boards or gets off, as the travel it gives (2 the Epoch, 3 a dactyl; 0
+ * none) */
+#define RAM_OVERWORLD_BOARDING 0x7E028Fu
+/* The Epoch on the world map: where it stands and its state [5 bytes] */
+#define RAM_OVERWORLD_EPOCH 0x7E0290u
+#define RAM_OVERWORLD_EPOCH_X 0x7E0290u      /* Where it stands across, a pixel */
+#define RAM_OVERWORLD_EPOCH_Y 0x7E0292u      /* And down */
+#define RAM_OVERWORLD_EPOCH_STATE 0x7E0294u  /* Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out */
+/* The dactyl the party rides on the 65,000,000 B.C. map: where it stands and its state, as the
+ * Epoch's (overworld_epoch) [5 bytes] */
+#define RAM_OVERWORLD_DACTYL 0x7E029Au
+#define RAM_OVERWORLD_DACTYL_X 0x7E029Au     /* Across */
+#define RAM_OVERWORLD_DACTYL_Y 0x7E029Cu     /* Down */
+#define RAM_OVERWORLD_DACTYL_STATE 0x7E029Eu /* Bits 0-1 how many of the party are aboard, bit 6 the party has it out */
+/* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
+ * holds at $FE-$FF [3 x $1 bytes, by the party's place: 0 the leader, 1 the second member, 2 the
+ * third] */
+#define RAM_OVERWORLD_IDLE_FRAMES 0x7E02B1u
+#define RAM_OVERWORLD_IDLE_FRAMES_COUNT 3u
+#define RAM_OVERWORLD_IDLE_FRAMES_STRIDE 0x01u
+/* The record of each list the leader's tile is on, in bytes from the list's start; $FFFF where
+ * it is on none [3 x $2 bytes, by the list: 0 the exits, 1 the events, 2 the halts] */
+#define RAM_OVERWORLD_FOUND 0x7E1B32u
+#define RAM_OVERWORLD_FOUND_COUNT 3u
+#define RAM_OVERWORLD_FOUND_STRIDE 0x02u
+/* How many records each of the world map's lists of places has (overworld_exits,
+ * overworld_events, overworld_halts), as the map's setup loads them [3 x $1 bytes, by the list:
+ * 0 the exits, 1 the events, 2 the halts] */
+#define RAM_OVERWORLD_LIST_LENGTHS 0x7E1B38u
+#define RAM_OVERWORLD_LIST_LENGTHS_COUNT 3u
+#define RAM_OVERWORLD_LIST_LENGTHS_STRIDE 0x01u
+/* Set by the running event's script when it is over; the places' watcher then lets the party go */
+#define RAM_OVERWORLD_EVENT_OVER 0x7E1B43u
+/* Which lists the leader's tile was on at the last look: bit 0 the exits, bit 1 the halts, bit 2
+ * the events */
+#define RAM_OVERWORLD_LISTS_FOUND 0x7E1B44u
+/* The script, in bank $7F, of the event the party last stepped onto or entered [2 bytes] */
+#define RAM_OVERWORLD_EVENT_SCRIPT 0x7E1B45u
+/* The byte after the halt the leader stepped onto, which the overworld notes as it stops the
+ * game; nothing reads it (scaffolding) */
+#define RAM_OVERWORLD_HALT_NOTE 0x7E1B47u
+/* The place whose name the sign shows over the party (a string of the places' names), 0 for no
+ * sign */
+#define RAM_OVERWORLD_SIGN 0x7E1B58u
+/* Nonzero: set the sign again (the menus put the screen back), which the sign clears as it does */
+#define RAM_OVERWORLD_SIGN_AGAIN 0x7E1B59u
+/* Where the leader's next step goes in its trail, in bytes (two a step, round sixteen steps) */
+#define RAM_OVERWORLD_TRAIL_NEXT 0x7E1B5Au
+/* The leader's trail: where across each of its last sixteen steps ended, which the followers
+ * walk after it [16 x $2 bytes, by step, round] */
+#define RAM_OVERWORLD_TRAIL_X 0x7E1B5Bu
+#define RAM_OVERWORLD_TRAIL_X_COUNT 16u
+#define RAM_OVERWORLD_TRAIL_X_STRIDE 0x02u
+/* And where down [16 x $2 bytes, by step, round] */
+#define RAM_OVERWORLD_TRAIL_Y 0x7E1B7Bu
+#define RAM_OVERWORLD_TRAIL_Y_COUNT 16u
+#define RAM_OVERWORLD_TRAIL_Y_STRIDE 0x02u
+/* The song each of the world map's regions plays, as the map's setup loads them [16 x $1 bytes,
+ * by region] */
+#define RAM_OVERWORLD_REGION_SONGS 0x7E1B9Bu
+#define RAM_OVERWORLD_REGION_SONGS_COUNT 16u
+#define RAM_OVERWORLD_REGION_SONGS_STRIDE 0x01u
+/* Cleared as the leader begins a step and as the overworld starts */
+#define RAM_OVERWORLD_STEP_BEGUN 0x7E1BF7u
+/* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
+ * (the map's first plane's, menu/map.c) [6144 x $1 bytes, by map tile (its row * 96 plus its
+ * column)] */
+#define RAM_OVERWORLD_MAP 0x7E5800u
+#define RAM_OVERWORLD_MAP_COUNT 6144u
+#define RAM_OVERWORLD_MAP_STRIDE 0x01u
+/* What ground each tile group's four 8x8 tiles are: a byte for its upper half and one for its
+ * lower, the left tile in the high nibble; bits 0-1 a wall, bit 2 a place's ground [512 x $1
+ * bytes, by entry (a tile group * 2, plus 1 for its lower half)] */
+#define RAM_OVERWORLD_GROUND_KINDS 0x7E7000u
+#define RAM_OVERWORLD_GROUND_KINDS_COUNT 512u
+#define RAM_OVERWORLD_GROUND_KINDS_STRIDE 0x01u
+/* Which region (and so which song) each map tile is in: a nibble a map tile, two to a byte, the
+ * even column in the high nibble; its first row is the map's second [3072 x $1 bytes, by entry
+ * (a map tile's row * 48 plus its column halved)] */
+#define RAM_OVERWORLD_REGIONS 0x7E7200u
+#define RAM_OVERWORLD_REGIONS_COUNT 3072u
+#define RAM_OVERWORLD_REGIONS_STRIDE 0x01u
+/* The world map's exits: the map tiles the party enters a place from, and the place each leads
+ * to [128 x $7 bytes, by exit] */
+#define RAM_OVERWORLD_EXITS 0x7E7E00u
+#define RAM_OVERWORLD_EXITS_COUNT 128u
+#define RAM_OVERWORLD_EXITS_STRIDE 0x07u
+#define RAM_OVERWORLD_EXITS_COLUMN 0x7E7E00u /* Bit 7: the exit is open; bits 0-6 its map tile's column */
+#define RAM_OVERWORLD_EXITS_ROW 0x7E7E01u    /* Bits 0-5 its map tile's row */
+#define RAM_OVERWORLD_EXITS_NAME 0x7E7E02u   /* The place whose name the sign shows there */
+#define RAM_OVERWORLD_EXITS_LOCATION 0x7E7E03u /* The location it leads to (bits 0-8; $1FF: an event script instead, overworld_event_scripts' entry in the next byte), with how the party arrives in the high byte's bits 1-7 */
+#define RAM_OVERWORLD_EXITS_ARRIVAL 0x7E7E04u /* The location word's high byte: bits 1-7 how the party arrives (the location's flags, shifted down a bit; bits 0-1 of those the way the party faces) */
+#define RAM_OVERWORLD_EXITS_EVENT 0x7E7E05u  /* Where the location is $1FF: the event script's entry in overworld_event_scripts */
+#define RAM_OVERWORLD_EXITS_X 0x7E7E05u      /* The 8x8 tile column the party arrives at in the location */
+#define RAM_OVERWORLD_EXITS_Y 0x7E7E06u      /* And the row */
+/* The world map's halts: map tiles that stop the game, as the third list of places the leader's
+ * tile is looked up in [128 x $3 bytes, by halt] */
+#define RAM_OVERWORLD_HALTS 0x7E8180u
+#define RAM_OVERWORLD_HALTS_COUNT 128u
+#define RAM_OVERWORLD_HALTS_STRIDE 0x03u
+#define RAM_OVERWORLD_HALTS_COLUMN 0x7E8180u /* Bit 7: open; bits 0-6 the map tile's column */
+#define RAM_OVERWORLD_HALTS_ROW 0x7E8181u    /* Bits 0-5 the row */
+/* The world map's events: map tiles whose script runs once as the party steps on them [128 x $3
+ * bytes, by event] */
+#define RAM_OVERWORLD_EVENTS 0x7E8300u
+#define RAM_OVERWORLD_EVENTS_COUNT 128u
+#define RAM_OVERWORLD_EVENTS_STRIDE 0x03u
+#define RAM_OVERWORLD_EVENTS_COLUMN 0x7E8300u /* Bit 7: the event is armed (stepping on it disarms it); bits 0-6 the map tile's column */
+#define RAM_OVERWORLD_EVENTS_ROW 0x7E8301u   /* Bits 0-5 the row */
+#define RAM_OVERWORLD_EVENTS_SCRIPT 0x7E8302u /* Its script's entry in overworld_event_scripts */
+/* Where each of the world map's event scripts starts, in bank $7F [128 x $2 bytes, by entry] */
+#define RAM_OVERWORLD_EVENT_SCRIPTS 0x7E8480u
+#define RAM_OVERWORLD_EVENT_SCRIPTS_COUNT 128u
+#define RAM_OVERWORLD_EVENT_SCRIPTS_STRIDE 0x02u
+/* The sign's sprite script, built here from the ROM's: one command showing the group after it,
+ * whose first byte (the count of its sprites) is 0 until the sign shows, then 6 [29 x $1 bytes,
+ * by byte] */
+#define RAM_OVERWORLD_SIGN_SPRITES 0x7E8600u
+#define RAM_OVERWORLD_SIGN_SPRITES_COUNT 29u
+#define RAM_OVERWORLD_SIGN_SPRITES_STRIDE 0x01u
+/* The place's name as the typesetter sets it for the sign: two lines of sixteen-colour tiles,
+ * $200 bytes a line, whose first $180 bytes each go to VRAM [1024 x $1 bytes, by byte] */
+#define RAM_OVERWORLD_SIGN_LABEL 0x7E8621u
+#define RAM_OVERWORLD_SIGN_LABEL_COUNT 1024u
+#define RAM_OVERWORLD_SIGN_LABEL_STRIDE 0x01u
+/* The overworld put aside while the menus or the time dial run (game/overworld/main_loop.c's
+ * table says what goes where): low RAM from $0700 and the mode's direct page, then bank $7E from
+ * $B000 and from $4000 to the map's end, the map's regions and its lists of places; the map view
+ * puts aside only the direct page and the objects' slots [25088 x $1 bytes, by byte] */
+#define RAM_OVERWORLD_PUT_ASIDE 0x7F2800u
+#define RAM_OVERWORLD_PUT_ASIDE_COUNT 25088u
+#define RAM_OVERWORLD_PUT_ASIDE_STRIDE 0x01u
 
 /* ---- battle -------------------------------------------------------------------------------- */
 

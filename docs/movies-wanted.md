@@ -9,7 +9,8 @@ cluster, save or address.
 ## How it was measured
 
 Against the commit that added this file, over the 27 movies of the library
-(`menus-shop-equip` included):
+(`menus-shop-equip` included); the world maps' figures moved to ported where
+the overworld on foot landed (docs/RECOMP.md, "Phase 3, overworld"):
 
 - **Code**: the analysis `tools/burndown.py` runs (its `Analyzer`, with
   `reached_code`), so code only an `unreached` hint starts is left out.
@@ -43,7 +44,7 @@ is that bound over the play's length, for ordering only.
 
 | | KiB unexecuted | ported | unported |
 |---|--:|--:|--:|
-| all live code not run by any movie | 57.8 | 44.3 | 13.5 |
+| all live code not run by any movie | 57.8 | 45.2 | 12.6 |
 
 ## Clusters
 
@@ -56,7 +57,7 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | battle animation commands | 8.70 | 8.70 | rare commands of tech, attack and item animation scripts (`script_*`, `battle_screen_script_*`, `$C1:2D9F`'s inlined handlers); which techs use them isn't mapped (the five header tables at `$CD:5EC6`-`$CD:63F0` aren't tied to tech ids) |
 | field engine | 5.43 | 5.25 | paths no map in the library needs: large (8-, 12-, 24-sprite) objects' frames put back after a battle or menu (`field_put_drawn_frame` `$C0:CB0A`), `field_walk_the_leader`, `field_redraw_after_picture`, `field_stream_the_layers`, `field_update_object_sprites`; maps unknown |
 | scene modes | 7.93 | 1.18 | see the scene program rows below |
-| world-map objects | 10.01 | 5.73 | see the world map rows below |
+| world-map objects | 10.01 | 6.66 | see the world map rows below |
 | enemy AI, by enemy | 1.95 | 1.95 | see Bosses below |
 | enemy AI no script names | 2.79 | 2.79 | conditions and target selectors no enemy script uses (`battle_condition_acted_on_by_member`, `stands_beside`, `level_with`, `stat_bits`, `could_walk_to`, `is_party_member`, `frames_at_least`, `turn_wait`, `three_on_out`; most `battle_select_*` by status); reachable only through techs' targeting, if at all -- unknown |
 | battle other | 3.15 | 3.11 | `battle_enemy_tech_body` branches, battle windows and cursors, status updates, `battle_frame_work`, `battle_nmi`; unknown |
@@ -104,7 +105,7 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | 12,000 B.C. (`$1F4`, scene 4) | 0.54 (0.46) + 0.21 shared with 1, 5 | ctsave08 slot 2; ct-state7, ct-state8 |
 | 1999 A.D. (`$1F7`, scene 7) | 0.23 (0.23) | none; the bucket ending and the attract demo pass over it |
 | 12,000 B.C. (`$1F5`, scene 5) | 0.19 (0.16) | zophar chrono-5 (all three slots) |
-| shared by several maps | 1.82 (0.53) | object handlers every map starts (`$C2:2F94`-`$C2:4334`, generated) and routines several maps' scripts call |
+| shared by several maps | 1.82 (1.35) | the overworld on foot (`game/overworld/`, ported): an exit to an event (`$C2:2417`), the party's exchange opened from the map, a walk into another region's song (`$C2:3011`-`$C2:309D`), a dactyl boarded or left, the halts, the walkers' steps while an event's scripts run; generated: the vehicles' controller (`$C2:309E`) and routines several maps' scripts call |
 | scene not attributed | 1.94 (1.44) | object commands no scene's script has (`show_tile_group` `$50`, `copy_byte_slot_to_slot`, `branch_if_slot_no_bit`) and code beside them |
 
 ### Bosses (enemy AI by script)

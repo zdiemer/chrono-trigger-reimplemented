@@ -87,7 +87,7 @@ SUBSYSTEM = {
     0x7E: "scene program (RAM)",
     0xC0: "field engine, events",
     0xC1: "battle",
-    0xC2: "menus, text",
+    0xC2: "menus, text, overworld",
     0xC3: "scene engine",
     0xC6: "scene data",
     0xC7: "sound driver",

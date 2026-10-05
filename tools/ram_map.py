@@ -35,7 +35,7 @@ over game/ with comments stripped:
 
 A use is named when it falls inside a map entry (any element, any byte of a
 field) of its file's subsystem, of `core`, or of the subsystem sharing its page
-(field and event, scene and attract, menu and menu_object): work RAM is reused
+(field and event, scene and attract, menu, menu_object and overworld): work RAM is reused
 between modes, so the
 battle's name for a byte says nothing about the field's use of it. An address
 is named when every subsystem using it has a name for it. The counts are of distinct addresses and of uses. They over-count
@@ -63,8 +63,10 @@ GAME = ROOT / "game"
 # reusing the same bytes: `menu_object` is bank $C2's sprite-object mode (the
 # one at $C2:0000), whose slots, palette and page cells lie under the menus
 # proper's. A tag is not a directory, so nothing in game/ is scanned as one;
-# it names bytes for the directory it shares with (SHARES).
-SUBSYSTEMS = ("core", "data", "event", "field", "menu", "menu_object", "battle", "scene", "attract")
+# it names bytes for the directory it shares with (SHARES). `overworld` is a
+# directory of its own (the world map walked on foot, game/overworld/) that runs
+# in that same mode, on its page and in its slots, so it shares with both.
+SUBSYSTEMS = ("core", "data", "event", "field", "menu", "menu_object", "overworld", "battle", "scene", "attract")
 NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 ADDR = re.compile(r"^(7[EF]):([0-9A-Fa-f]{4})$")
 
@@ -1359,7 +1361,8 @@ def scan(m):
 # Which entries can name a use in a file of a subsystem: its own, the shared
 # state in core, and the subsystem that runs on the same page and objects.
 SHARES = {"event": {"field"}, "field": {"event"}, "attract": {"scene"}, "scene": {"attract"},
-          "menu": {"menu_object"}, "menu_object": {"menu"}}
+          "menu": {"menu_object", "overworld"}, "menu_object": {"menu", "overworld"},
+          "overworld": {"menu", "menu_object"}}
 
 
 def names_use(m, a, sub):
