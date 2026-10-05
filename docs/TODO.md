@@ -760,6 +760,24 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the party exchange's review left** (merged with the exchange and
+  the gate's song; none rated translation): the emptied place's dimming
+  halves fifteen words past the palette as scaffolding, which the native
+  build skips; that path runs every time the panel shows with an empty
+  active row, so show the skip is invisible or keep the halving, and the
+  TODO's "field's tables" is wrong (the words land on `battle_*` cells at
+  `$7E:A5A2`-`A6A0`); `exchange_bridge.c`'s guards redefine `NO_ONE`,
+  `STAYS` and `NOBODY_CHOSEN` and decode the rows themselves (export the
+  decoders from `exchange.h`), and test a party byte with the row's empty
+  bit (`party_place_is_empty`); the same "free" test is written two ways in
+  `exchange.c`; the window lists and label strips are raw buffer and ROM
+  addresses; `TWO = 2`; window edges packed `right<<8|left`; screen bits as
+  `0x17`; the held cursor's shift written as a byte and read as a word; a
+  mechanics comment above an enum; `menu_gate_song_wanted` writes cells
+  under a question's name; `menu_wait_for_menu_music_playing_loop`'s name;
+  `main_menu_bridge.c`'s `(void)option`; register the reserve slide's
+  subroutines (`$C2:C85B`, `$C8BA`) once a movie reaches them.
+
 - **What the main menu's, name entry's and description's review left**
   (merged with the menus' ninth chunk; none rated translation):
   `description.c` and `held_cursors.c` start

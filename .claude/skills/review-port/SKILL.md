@@ -900,6 +900,12 @@ Each of these is a finding. Every example here comes from this repo.
      `bridge.h`'s rule is that C siblings are called as C, timed with
      `TIMED_AS`; what the original's frame left on the stack is a leaves
      helper's, not a reason to go through the machine.
+124. **A guard that re-decodes the logic's encoding.** A guard with its own
+     copies of a logic file's in-band constants (`NO_ONE`, `STAYS`) and its
+     own decoding of the rows they mark. Item 94 says leaves helpers use the
+     logic's decoders; so do guards, or the two drift apart and the guard
+     admits a state the logic reads differently. Export the decoder and call
+     it.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
