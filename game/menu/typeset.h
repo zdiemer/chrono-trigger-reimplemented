@@ -46,6 +46,11 @@ void menu_text_go_on(GameState *g);
  * line is, in pixels. */
 uint8_t menu_set_label(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);
 
+/* The same in another layout: the gate's screen sets its label in
+ * sixteen-colour tiles. */
+enum { MENU_TEXT_SIXTEEN_COLOUR_LABEL = MENU_TEXT_LINES_AT_THE_EDGE | 0x01 };
+uint8_t menu_set_label_laid_out(GameState *g, uint32_t strings, uint8_t string, uint16_t tiles, MenuTextLayout layout);
+
 /* Whether a label can be set: from memory, into work RAM, with none of its
  * names or lines on the text page (typeset.c's guards say why). */
 bool menu_label_can_be_set(const GameState *g, uint32_t strings, uint8_t string, uint16_t tiles);

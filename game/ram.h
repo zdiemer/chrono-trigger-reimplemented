@@ -451,6 +451,9 @@
 /* The story's notes on the game itself (event memory $1CF): $10 where it carries on from a
  * finished one, bit 7 where the place items are held back */
 #define RAM_STORY_GAME_NOTES 0x7F01CFu
+/* The characters the story keeps in the active party (event memory $1DF), a bit a character from
+ * Crono's bit 7 (menu_character_bit): the party exchange won't move them */
+#define RAM_STORY_PARTY_KEPT 0x7F01DFu
 /* The characters whose locked techs can be learned now, Crono in bit 0 to Magus in bit 6: a tech
  * whose record has its top bit set waits for this */
 #define RAM_PARTY_TECHS_UNLOCKED 0x7F01E0u
@@ -2201,6 +2204,14 @@
 #define RAM_MENU_SCRATCH_GRID_ROWS_LEFT 0x7E0001u /* Naming a character, writing out the letters' grid ($C2:E545): the rows still to write, none once done */
 #define RAM_MENU_SCRATCH_GRID_LETTERS_LEFT 0x7E0000u /* The same: the letters of the row still to write, none once done */
 #define RAM_MENU_SCRATCH_MODE_ROWS_LEFT 0x7E0000u /* The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done */
+#define RAM_MENU_SCRATCH_EXCHANGE_ROW 0x7E0000u /* The party exchange's loops over its rows and the party's places: where they are, left past the last (the members' animations' loop at $FF) */
+#define RAM_MENU_SCRATCH_EXCHANGE_ROWS_LOOKED_AT 0x7E0000u /* The same as a word, as the dimming of who stays counts its rows ($C2:CC4F) */
+#define RAM_MENU_SCRATCH_EXCHANGE_TILES 0x7E0000u /* The party exchange: a row's place on the tilemap ($C2:C784), its column in the low byte and its tile row in the high */
+#define RAM_MENU_SCRATCH_EXCHANGE_PLACE_OFFSET 0x7E0002u /* The party exchange: the place its members' sprites stand at, as an offset into the places' tables, left past the last ($C2:CDE3) */
+#define RAM_MENU_SCRATCH_EXCHANGE_DIMMED_TILES 0x7E0002u /* The dimming of who stays: a row's tiles across in the low byte, the dimmed attribute in the high */
+#define RAM_MENU_SCRATCH_EXCHANGE_DIMMED_AT 0x7E0004u /* The dimming of who stays: the next row's window on the front layer, left past the third */
+#define RAM_MENU_SCRATCH_SONG_STEPS 0x7E0002u /* The gate's screen's fades: how many steps the fade takes */
+#define RAM_MENU_SCRATCH_SONG_VOLUME 0x7E0003u /* The gate's screen's fades: the volume the music fades to */
 /* Where the rising numbers' amounts start among those shown (menu_heal_shown), in bytes: 0 the
  * HP's, 6 the MP's */
 #define RAM_MENU_AMOUNTS_FROM 0x7E0016u
@@ -2228,6 +2239,11 @@
 /* A frame of the rising numbers: the listed members it has still to draw [2 bytes] */
 #define RAM_MENU_AMOUNTS_LEFT 0x7E0022u
 #define RAM_MENU_AMOUNTS_LEFT_DP 0x22u       /* page menu */
+/* The party exchange: the place a member's row is drawn at, as an offset into the places' tables
+ * (two bytes a place, menu_data.h's exchange places), which the rows' loops leave past the last
+ * [2 bytes] */
+#define RAM_MENU_EXCHANGE_PLACE_OFFSET 0x7E0022u
+#define RAM_MENU_EXCHANGE_PLACE_OFFSET_DP 0x22u /* page menu */
 /* The amounts a healing works out ($C2:8ECC), the same for each member but where they are drawn
  * at random [6 x $2 bytes, by the three members' HP amounts, then their MP amounts] */
 #define RAM_MENU_HEAL_AMOUNTS 0x7E0022u
@@ -2266,6 +2282,14 @@
 #define RAM_MENU_WINDOW_SLIDE_SLOTS_LINE 0x7E0024u /* The list window: the line the slots' rows are shown from (menu_row_line_values' and past) */
 #define RAM_MENU_WINDOW_SLIDE_STEP 0x7E0026u /* The list window: the lines both move a frame (4 sliding in, -4 out) */
 #define RAM_MENU_WINDOW_SLIDE_ROWS_LEFT 0x7E0022u /* The list of what fits being drawn ($C2:A569): the rows it has left to draw, 0 once done */
+/* The party exchange: the rows the drawing of the rows has looked at, left at the active party's
+ * three [2 bytes] */
+#define RAM_MENU_EXCHANGE_ROWS_COUNTED 0x7E0024u
+#define RAM_MENU_EXCHANGE_ROWS_COUNTED_DP 0x24u /* page menu */
+/* The party exchange's slide: where in the tilemap below the screen the reserve's column is
+ * shown from this frame, its column in the low byte and its tile row in the high [2 bytes] */
+#define RAM_MENU_EXCHANGE_SLIDE_FROM 0x7E0024u
+#define RAM_MENU_EXCHANGE_SLIDE_FROM_DP 0x24u /* page menu */
 /* Which of the save summary's three member rows the load screen is drawing (the portrait's
  * palette is 4 on from it) [2 bytes] */
 #define RAM_MENU_SAVE_MEMBER_ROW 0x7E0024u
@@ -2695,6 +2719,9 @@
 #define RAM_MENU_ITEM_CATEGORY 0x7E04CCu
 /* The item last looked up: its place in its category [2 bytes] */
 #define RAM_MENU_ITEM_IN_CATEGORY 0x7E04CEu
+/* The volume the field's song fades back in to as the gate's screen closes, 0 for full
+ * ($C2:CC42); no routine the disassembly reaches writes it by this address */
+#define RAM_MENU_FIELD_SONG_VOLUME 0x7E04FBu
 /* Where the party was when a map screen changed the location: the location number and the map
  * position, the same three values it also copies to location_previous [4 bytes] */
 #define RAM_MENU_SAVED_LOCATION 0x7E04FCu
@@ -2802,6 +2829,15 @@
 #define RAM_MENU_PLACE_ITEMS 0x7E0D32u
 #define RAM_MENU_PLACE_ITEMS_COUNT 3u
 #define RAM_MENU_PLACE_ITEMS_STRIDE 0x02u
+/* The party exchange's layout: 0 both columns, the active party's and the reserve's; anything
+ * else the active party alone, in the middle, with bit 1 drawing the main menu's panel rather
+ * than the gate's. The menus' opening leaves it $FF (menu_place_items' third, always set), so
+ * the main menu's exchange reorders the active party; the gate's screen sets it from its event's
+ * argument */
+#define RAM_MENU_EXCHANGE_LAYOUT 0x7E0D36u
+/* The byte after menu_exchange_layout, which the gate's screen sets with it ($C2:C7B3) and
+ * nothing reads */
+#define RAM_MENU_EXCHANGE_LAYOUT_HIGH 0x7E0D37u
 /* Each character's tenth of its greatest HP, worked out as the menus open ($C2:813C): a member
  * row draws the member's HP marked once it is down to that ($C2:A1EF) [7 x $2 bytes, by
  * character] */
@@ -2957,6 +2993,9 @@
  * start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte [2
  * bytes] */
 #define RAM_MENU_HELD_CURSOR_SHIFT 0x7E0D9Eu
+/* menu_held_cursor_shift's low byte, which the party exchange sets alone as its cursor moves and
+ * as a slide starts */
+#define RAM_MENU_HELD_CURSOR_SHIFT_LOW 0x7E0D9Eu
 /* Which of the cursors a screen holds are out in their blink, a bit each: the held cursor's bit
  * 0, the members' cursors' bits 0-2 */
 #define RAM_MENU_CURSORS_OUT 0x7E0DA0u
@@ -3083,6 +3122,9 @@
 /* The cursor place of a scrolling list's last row, which its frame ($C2:EA81) works out from its
  * first and the rows it shows; the cursor is kept within it */
 #define RAM_MENU_LIST_LAST_PLACE 0x7E0DDCu
+/* The party exchange: the member the player chose first, as its row (menu_exchange_rows: its
+ * place of the party's record); $FF while nobody is */
+#define RAM_MENU_EXCHANGE_FIRST 0x7E0F00u
 /* The place in the party's items of the item the items screen picked up to move, $FFFF while
  * none is [2 bytes] */
 #define RAM_MENU_ITEM_PICKED 0x7E0F00u
@@ -3109,6 +3151,16 @@
 #define RAM_MENU_TECH_LIST 0x7E0F00u
 #define RAM_MENU_TECH_LIST_COUNT 48u
 #define RAM_MENU_TECH_LIST_STRIDE 0x01u
+/* The party exchange: the member chosen second, as its row, set as the two change places; $FF
+ * otherwise */
+#define RAM_MENU_EXCHANGE_SECOND 0x7E0F01u
+/* The party exchange's rows: each the place in the party's record of the member it shows, bit 6
+ * set where the story keeps that member in the active party; $80 for an empty row. The active
+ * party's members fill its rows in order, the reserve's its own [9 x $1 bytes, by row: the
+ * active party's three, then the reserve's six] */
+#define RAM_MENU_EXCHANGE_ROWS 0x7E0F02u
+#define RAM_MENU_EXCHANGE_ROWS_COUNT 9u
+#define RAM_MENU_EXCHANGE_ROWS_STRIDE 0x01u
 /* Naming a character: how many letters the player has typed (at most five), where the next goes
  * [2 bytes] */
 #define RAM_MENU_NAME_LETTERS 0x7E0F06u
@@ -3126,8 +3178,23 @@
 /* Naming a character: the line the cursor's row stands on, kept as the cursor moves up or down;
  * nothing reads it [2 bytes] */
 #define RAM_MENU_NAME_GRID_LINE 0x7E0F0Au
+/* The party exchange: how many of the active party's members the player may move (those the
+ * story doesn't keep) */
+#define RAM_MENU_EXCHANGE_ACTIVE_FREE 0x7E0F0Bu
+/* The party exchange: how many members the reserve has; the main menu's exchange, which shows
+ * the active party alone, leaves it as the screen before it did */
+#define RAM_MENU_EXCHANGE_RESERVE_COUNT 0x7E0F0Cu
 /* Naming a character: where in work RAM the character's name is (character_names) [2 bytes] */
 #define RAM_MENU_NAME_RECORD_AT 0x7E0F0Cu
+/* The party exchange: the row under the cursor (its byte of menu_exchange_rows), or $40 where
+ * nobody may be moved */
+#define RAM_MENU_EXCHANGE_ON_CURSOR 0x7E0F0Du
+/* The gate's screen: the song that was playing as it opened, which its own song saves and which
+ * comes back as the screen closes */
+#define RAM_MENU_EXCHANGE_SONG_BEFORE 0x7E0F0Eu
+/* The gate's screen: nonzero where it changed the song to its own, which it changes back as it
+ * closes */
+#define RAM_MENU_EXCHANGE_SONG_CHANGED 0x7E0F0Fu
 /* The End of Time gate screen's state, set up when the screen starts [14 x $1 bytes, by byte;
  * the first two are cleared and the rest come from $FF:D57A] */
 #define RAM_MENU_GATE_SCREEN_STATE 0x7E0F10u
@@ -3556,6 +3623,7 @@
 #define RAM_MENU_WINDOW_SHADOWS 0x7E9680u
 #define RAM_MENU_WINDOW_SHADOWS_WINDOW_MASKS 0x7E9680u /* Window mask settings of BG1/BG2, BG3/BG4 and sprites/color */
 #define RAM_MENU_WINDOW_SHADOWS_WINDOW_EDGES 0x7E9683u /* Window 1 left and right, window 2 left and right */
+#define RAM_MENU_WINDOW_SHADOWS_WINDOW1_EDGES 0x7E9683u /* Window 1's left and right alone, which the party exchange sets where it draws the active party in the middle */
 #define RAM_MENU_WINDOW_SHADOWS_WINDOW_LOGIC 0x7E9687u /* Window logic of the layers, and of sprites and color */
 #define RAM_MENU_WINDOW_SHADOWS_MAIN_SCREEN 0x7E9689u /* Layers on the main screen */
 #define RAM_MENU_WINDOW_SHADOWS_SUB_SCREEN 0x7E968Au /* Layers on the sub screen */

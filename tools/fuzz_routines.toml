@@ -16310,25 +16310,25 @@ name = "menu_open_main_menu"
 at = "C2:99CE"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--fill", "7E0068-7E0068=00", "--stop-at-call", "C2821E", "--stop-at-call", "C2C9E5"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--fill", "7E0068-7E0068=00", "--stop-at-call", "C2821E"]
 iterations = 2000
-why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the option, the members' count, the keeping of the cursors and the screens' member lists' rows random; compared up to a wait for the next frame or the exchange's panel (the original's)"
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the option, the members' count, the keeping of the cursors and the screens' member lists' rows random; compared up to a wait for the next frame"
 
 [[routine]]
 name = "menu_choose_on_main_menu"
 at = "C2:9A1B"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-05", "--stop-at-call", "C2821E", "--stop-at-call", "C2C9E5", "--stop-at-call", "C70004"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0068-7E0068=01", "--fill", "7E0054-7E0054=00-05", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
 iterations = 2000
-why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_open_main_menu, the buttons and pushes random; compared up to a wait, the exchange's panel or the sound driver"
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_open_main_menu, the buttons and pushes random; compared up to a wait or the sound driver"
 
 [[routine]]
 name = "menu_back_to_the_main_menu"
 at = "C2:9A98"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C2CAE6", "--stop-at-call", "C70004"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_open_main_menu"
 
@@ -16337,7 +16337,7 @@ name = "menu_show_main_menu_panel"
 at = "C2:9B54"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C2C9E5"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_open_main_menu"
 
@@ -16346,9 +16346,141 @@ name = "menu_put_main_menu_panel_away"
 at = "C2:9B71"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E", "--stop-at-call", "C2CAE6"]
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0411-7E0411=00-05", "--fill", "7E0075-7E0075=00-07", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0412-7E0413=00-02", "--fill", "7E0419-7E041A=00-02", "--stop-at-call", "C2821E"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; as menu_open_main_menu"
+
+[state.exchange]
+movie = "oracle/movies/saves/menus-field-menu.ctm"
+frames = 9450
+
+[[routine]]
+name = "menu_open_exchange"
+at = "C2:C627"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F0B-7E0F0C=00-03", "--fill", "7E007F-7E007F=00-02", "--fill", "7E0068-7E0068=00", "--stop-at-call", "C70004", "--stop-at-call", "C2EACC"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the counts of those free random, the cursor kept on an active row; compared up to the tick's call of the sound driver, or the buzz"
+
+[[routine]]
+name = "menu_choose_first_to_exchange"
+at = "C2:C65D"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0054-7E0054=00-02", "--fill", "7E0F0C-7E0F0C=00", "--fill", "7E0068-7E0068=01", "--fill", "7E0F00-7E0F00=FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the main menu's exchange (the active party alone) as the state has it, the cursor on one of its rows and the reserve's count, which that exchange leaves as the screen before did, none: with a count, a push across takes the cursor round the reserve's empty rows, where the original searches for ever and the port stops (exchange.c, MOST_STEPS); the buttons and pushes random; compared up to a wait or the tick's call of the sound driver"
+
+[[routine]]
+name = "menu_choose_first_to_exchange"
+at = "C2:C65D"
+variant = "whole"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7E0D36-7E0D36=00", "--fill", "7E0F02-7E0F02=00", "--fill", "7E0F03-7E0F03=01", "--fill", "7E0F04-7E0F04=02", "--fill", "7E0F05-7E0F05=03", "--fill", "7E0F06-7E0F06=04", "--fill", "7E0F07-7E0F07=05", "--fill", "7E0F08-7E0F08=06", "--fill", "7E0F09-7E0F09=07", "--fill", "7E0F0A-7E0F0A=08", "--fill", "7E0F0B-7E0F0B=03", "--fill", "7E0F0C-7E0F0C=06", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7E0054-7E0054=00-06", "--fill", "7E007F-7E007F=00-06", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D9C-7E0D9C=00-06", "--fill", "7E0DA8-7E0DA8=00-02", "--fill", "7E0068-7E0068=01", "--fill", "7E0F00-7E0F00=FF", "--fill", "7F01DF-7F01DF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the whole party listed in both columns (the reserve six, so it slides), who stays random, the cursor and the reserve's top random, the buttons and pushes random; compared up to a slide's wait or the tick's call of the sound driver"
+
+[[routine]]
+name = "menu_choose_second_to_exchange"
+at = "C2:C6B9"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E0054-7E0054=00-02", "--fill", "7E007F-7E007F=00-02", "--fill", "7E0080-7E0080=00", "--fill", "7E0DA8-7E0DA8=00", "--fill", "7E0F0C-7E0F0C=00", "--fill", "7E0068-7E0068=02", "--fill", "7E0F00-7E0F00=00-02", "--fill", "7E0D9C-7E0D9C=00-02", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the main menu's exchange as the state has it, the cursor on one of its rows and the reserve's count none (as menu_choose_first_to_exchange), the first chosen among the active party, the buttons and pushes random; compared up to a wait or the tick's call of the sound driver"
+
+[[routine]]
+name = "menu_choose_second_to_exchange"
+at = "C2:C6B9"
+variant = "whole"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7E0D36-7E0D36=00", "--fill", "7E0F02-7E0F02=00", "--fill", "7E0F03-7E0F03=01", "--fill", "7E0F04-7E0F04=02", "--fill", "7E0F05-7E0F05=03", "--fill", "7E0F06-7E0F06=04", "--fill", "7E0F07-7E0F07=05", "--fill", "7E0F08-7E0F08=06", "--fill", "7E0F09-7E0F09=07", "--fill", "7E0F0A-7E0F0A=08", "--fill", "7E0F0B-7E0F0B=03", "--fill", "7E0F0C-7E0F0C=06", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7E0054-7E0054=00-06", "--fill", "7E007F-7E007F=00-06", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D9C-7E0D9C=00-06", "--fill", "7E0DA8-7E0DA8=00-02", "--fill", "7E0068-7E0068=02", "--fill", "7E0F00-7E0F00=00-08", "--fill", "7F01DF-7F01DF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the whole party listed in both columns, the first chosen anywhere, the second cursor held on a row with the reserve's top it had, who stays random, the buttons and pushes random; compared up to a slide's wait or the tick's call of the sound driver"
+
+[[routine]]
+name = "menu_choose_first_at_the_gate"
+at = "C2:C7E0"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7E0D36-7E0D36=00", "--fill", "7E0F02-7E0F02=00", "--fill", "7E0F03-7E0F03=01", "--fill", "7E0F04-7E0F04=02", "--fill", "7E0F05-7E0F05=03", "--fill", "7E0F06-7E0F06=04", "--fill", "7E0F07-7E0F07=05", "--fill", "7E0F08-7E0F08=06", "--fill", "7E0F09-7E0F09=07", "--fill", "7E0F0A-7E0F0A=08", "--fill", "7E0F0B-7E0F0B=03", "--fill", "7E0F0C-7E0F0C=06", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7E0054-7E0054=00-06", "--fill", "7E007F-7E007F=00-06", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D9C-7E0D9C=00-06", "--fill", "7E0DA8-7E0DA8=00-02", "--fill", "7E0068-7E0068=01", "--fill", "7E0F00-7E0F00=FF", "--fill", "7F01DF-7F01DF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E", "--stop-at-call", "C283CA"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the whole party listed in both columns, who stays random, the cursor and the reserve's top random, the buttons and pushes random; compared up to a slide's wait, the tick's call of the sound driver or the fade out"
+
+[[routine]]
+name = "menu_move_the_exchange_cursor"
+at = "C2:C805"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7E0D36-7E0D36=00", "--fill", "7E0F02-7E0F02=00", "--fill", "7E0F03-7E0F03=01", "--fill", "7E0F04-7E0F04=02", "--fill", "7E0F05-7E0F05=03", "--fill", "7E0F06-7E0F06=04", "--fill", "7E0F07-7E0F07=05", "--fill", "7E0F08-7E0F08=06", "--fill", "7E0F09-7E0F09=07", "--fill", "7E0F0A-7E0F0A=08", "--fill", "7E0F0B-7E0F0B=03", "--fill", "7E0F0C-7E0F0C=06", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7E0054-7E0054=00-06", "--fill", "7E007F-7E007F=00-06", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D9C-7E0D9C=00-06", "--fill", "7E0DA8-7E0DA8=00-02", "--fill", "7E0F00-7E0F00=FF,00,03,05,08", "--fill", "7F01DF-7F01DF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the whole party listed in both columns, someone chosen or not, the cursor and the reserve's top random, the pushes random; compared up to a slide's wait or its tick's call of the sound driver"
+
+[[routine]]
+name = "menu_lay_out_the_exchange"
+at = "C2:CAF3"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E00F0-7E00F5=00-FF", "--fill", "7E0D17-7E0D17=00-0F", "--fill", "7E0D18-7E0D18=00,FF", "--fill", "7E005A-7E005A=00-FF", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7E0D36-7E0D36=00", "--fill", "7E0F02-7E0F02=00", "--fill", "7E0F03-7E0F03=01", "--fill", "7E0F04-7E0F04=02", "--fill", "7E0F05-7E0F05=03", "--fill", "7E0F06-7E0F06=04", "--fill", "7E0F07-7E0F07=05", "--fill", "7E0F08-7E0F08=06", "--fill", "7E0F09-7E0F09=07", "--fill", "7E0F0A-7E0F0A=08", "--fill", "7E0F0B-7E0F0B=03", "--fill", "7E0F0C-7E0F0C=06", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7E0054-7E0054=00-06", "--fill", "7E007F-7E007F=00-06", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D9C-7E0D9C=00-06", "--fill", "7E0DA8-7E0DA8=00-02", "--fill", "7E0F00-7E0F00=FF", "--fill", "7E0F0C-7E0F0C=03-06", "--fill", "7F01DF-7F01DF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the whole party listed in both columns, the reserve's count three to six, the cursor and the reserve's top random, the pushes random; compared up to a slide's wait or its tick's call of the sound driver"
+
+[[routine]]
+name = "menu_show_exchange_panel"
+at = "C2:C9E5"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06,80,81", "--fill", "7F01DF-7F01DF=00-FF", "--fill", "7E0D36-7E0D36=00,01,FF", "--fill", "7E0080-7E0080=00-02", "--fill", "7E0D7C-7E0D7C=00,FF", "--stop-at-call", "C2821E", "--stop-at-call", "C30002"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the party random among the characters and emptied places, who stays random, each layout and panel, the reserve's top random; compared up to its first wait for the next frame or the gate's sprite's unpacking"
+
+[[routine]]
+name = "menu_put_exchange_panel_away"
+at = "C2:CAE6"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue"
+
+[[routine]]
+name = "menu_open_exchange_at_the_gate"
+at = "C2:C7AC"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E2980-7E2988=00,01,02,03,04,05,06", "--fill", "7F01DF-7F01DF=00-FF", "--fill", "7E0071-7E0071=00,01,02", "--fill", "7E0080-7E0080=00", "--fill", "7E0D9F-7E0D9F=00", "--fill", "7F01CF-7F01CF=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C2821E", "--stop-at-call", "C30002"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the party seven characters, who stays random, the event's layout one of three, the story's notes random; compared up to the sound driver's first call, a wait or an unpacking"
+
+[[routine]]
+name = "menu_switch_to_the_gate_song"
+at = "C2:CB8B"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7F01CF-7F01CF=00-FF", "--fill", "7E29AE-7E29AE=3C-40", "--fill", "7E02AE-7E02AE=3C-40", "--fill", "7E0D32-7E0D33=00,FF", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the story's notes, the songs playing near the gate's and where the menus opened random; compared up to the sound driver's call"
+
+[[routine]]
+name = "menu_play_the_gate_song"
+at = "C2:CBBF"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--stop-at-call", "C2821E", "--stop-at-call", "C70004"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame or the sound driver's call"
+
+[[routine]]
+name = "menu_switch_back_to_the_field_song"
+at = "C2:CC0E"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--fill", "7E0F0F-7E0F0F=00-01", "--fill", "7E0F0E-7E0F0E=00-FF", "--fill", "7E04FB-7E04FB=00-FF", "--stop-at-call", "C70004", "--stop-at-call", "C283CA"]
+iterations = 2000
+why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; whether the gate's song played, the song it replaced and the place's volume random; compared up to the sound driver's call or the fade out"
 
 [[routine]]
 name = "menu_draw_main_menu_backdrop"

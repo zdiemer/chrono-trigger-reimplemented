@@ -5972,6 +5972,22 @@ subsystem = "menu"
 meaning = "Set as the menus open from where the party is: $0D32 $FFFF at a location below $1F0, $0D34 $FFFF where the story byte at $7F:01CE is also clear, $0D36 always $FFFF"
 source = "game/menu/items.c, $C2:9875"
 
+
+[[var]]
+name = "menu_exchange_layout"
+addr = "7E:0D36"
+reuses = "menu_place_items"
+subsystem = "menu"
+meaning = "The party exchange's layout: 0 both columns, the active party's and the reserve's; anything else the active party alone, in the middle, with bit 1 drawing the main menu's panel rather than the gate's. The menus' opening leaves it $FF (menu_place_items' third, always set), so the main menu's exchange reorders the active party; the gate's screen sets it from its event's argument"
+source = "game/menu/exchange.c; game/menu/items.c, $C2:9875"
+
+[[var]]
+name = "menu_exchange_layout_high"
+addr = "7E:0D37"
+reuses = "menu_place_items"
+subsystem = "menu"
+meaning = "The byte after menu_exchange_layout, which the gate's screen sets with it ($C2:C7B3) and nothing reads"
+source = "game/menu/exchange.c"
 [[var]]
 name = "menu_item_kinds"
 addr = "7E:7700"
@@ -6828,6 +6844,43 @@ source = "game/menu/save_screen.c, game/menu/sprites.c"
   size = 2
   meaning = "The battle mode's screen copying its rows ($C2:E576): the rows still to copy, none once done"
 
+  [[var.field]]
+  name = "exchange_row"
+  offset = 0
+  meaning = "The party exchange's loops over its rows and the party's places: where they are, left past the last (the members' animations' loop at $FF)"
+  [[var.field]]
+  name = "exchange_rows_looked_at"
+  offset = 0
+  size = 2
+  meaning = "The same as a word, as the dimming of who stays counts its rows ($C2:CC4F)"
+  [[var.field]]
+  name = "exchange_tiles"
+  offset = 0
+  size = 2
+  meaning = "The party exchange: a row's place on the tilemap ($C2:C784), its column in the low byte and its tile row in the high"
+  [[var.field]]
+  name = "exchange_place_offset"
+  offset = 2
+  size = 2
+  meaning = "The party exchange: the place its members' sprites stand at, as an offset into the places' tables, left past the last ($C2:CDE3)"
+  [[var.field]]
+  name = "exchange_dimmed_tiles"
+  offset = 2
+  size = 2
+  meaning = "The dimming of who stays: a row's tiles across in the low byte, the dimmed attribute in the high"
+  [[var.field]]
+  name = "exchange_dimmed_at"
+  offset = 4
+  size = 2
+  meaning = "The dimming of who stays: the next row's window on the front layer, left past the third"
+  [[var.field]]
+  name = "song_steps"
+  offset = 2
+  meaning = "The gate's screen's fades: how many steps the fade takes"
+  [[var.field]]
+  name = "song_volume"
+  offset = 3
+  meaning = "The gate's screen's fades: the volume the music fades to"
 [[var]]
 name = "menu_save_member_row"
 addr = "7E:0024"
@@ -7591,6 +7644,72 @@ subsystem = "menu"
 meaning = "The party exchange: the reserve's first place its rows show, moved as the cursor pushes past them"
 source = "the party exchange $C2:C627-$C2:CDCA (the original's); game/menu/held_cursors.c, $C2:8A45; game/menu/main_menu.c"
 
+
+[[var]]
+name = "menu_exchange_first"
+addr = "7E:0F00"
+reuses = ["menu_kept_cursor", "menu_name_typed", "menu_settings_buttons", "menu_list_items", "menu_item_picked", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange: the member the player chose first, as its row (menu_exchange_rows: its place of the party's record); $FF while nobody is"
+source = "game/menu/exchange.c"
+
+[[var]]
+name = "menu_exchange_second"
+addr = "7E:0F01"
+reuses = ["menu_name_typed", "menu_settings_buttons", "menu_list_items", "menu_item_picked", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange: the member chosen second, as its row, set as the two change places; $FF otherwise"
+source = "game/menu/exchange.c"
+
+[[var]]
+name = "menu_exchange_rows"
+addr = "7E:0F02"
+count = 9
+index = "row: the active party's three, then the reserve's six"
+reuses = ["menu_name_typed", "menu_name_letters", "menu_name_grid_column", "menu_name_grid_row", "menu_name_grid_line", "menu_settings_buttons", "menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange's rows: each the place in the party's record of the member it shows, bit 6 set where the story keeps that member in the active party; $80 for an empty row. The active party's members fill its rows in order, the reserve's its own"
+source = "game/menu/exchange.c, $C2:CD2B"
+
+[[var]]
+name = "menu_exchange_active_free"
+addr = "7E:0F0B"
+reuses = ["menu_name_grid_line", "menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange: how many of the active party's members the player may move (those the story doesn't keep)"
+source = "game/menu/exchange.c, $C2:CD2B"
+
+[[var]]
+name = "menu_exchange_reserve_count"
+addr = "7E:0F0C"
+reuses = ["menu_name_record_at", "menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange: how many members the reserve has; the main menu's exchange, which shows the active party alone, leaves it as the screen before it did"
+source = "game/menu/exchange.c, $C2:CD2B"
+
+[[var]]
+name = "menu_exchange_on_cursor"
+addr = "7E:0F0D"
+reuses = ["menu_name_record_at", "menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The party exchange: the row under the cursor (its byte of menu_exchange_rows), or $40 where nobody may be moved"
+source = "game/menu/exchange.c, $C2:C805"
+
+[[var]]
+name = "menu_exchange_song_before"
+addr = "7E:0F0E"
+reuses = ["menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The gate's screen: the song that was playing as it opened, which its own song saves and which comes back as the screen closes"
+source = "game/menu/sound.c, $C2:CB8B, $C2:CC0E"
+
+[[var]]
+name = "menu_exchange_song_changed"
+addr = "7E:0F0F"
+reuses = ["menu_settings_boxes", "menu_list_items", "menu_tech_list"]
+subsystem = "menu"
+meaning = "The gate's screen: nonzero where it changed the song to its own, which it changes back as it closes"
+source = "game/menu/sound.c, $C2:CB8B, $C2:CC0E"
 [[var]]
 name = "menu_shop_list_cursor"
 addr = "7E:007F"
@@ -8576,6 +8695,11 @@ source = "game/menu/display.c, menu_vblank_upload $C2:85D6; docs/PLATFORM.md, Wh
   size = 4
   meaning = "Window 1 left and right, window 2 left and right"
   [[var.field]]
+  name = "window1_edges"
+  offset = 3
+  size = 2
+  meaning = "Window 1's left and right alone, which the party exchange sets where it draws the active party in the middle"
+  [[var.field]]
   name = "window_logic"
   offset = 7
   size = 2
@@ -8639,6 +8763,7 @@ addr = "7E:9480"
 size = 2
 count = 256
 index = "color"
+unchecked = "an active row of the party exchange whose place of the party is empty: the original takes the emptied place's byte for a character and halves fifteen words past the palette (game/menu/sprites.c menu_leave_colours_dimmed_past_the_palette, $C2:CCB3)"
 subsystem = "menu"
 meaning = "The menus' working palette, sent to CGRAM when $0D15 says it changed (party portraits' colors at $9500 + member record * $20)"
 source = "game/menu/display.c, menu_upload_palette $C2:86A9; game/menu/save_screen.c, menu_draw_member_portrait $C2:D466"
@@ -9406,6 +9531,14 @@ subsystem = "menu"
 meaning = "How many lines the second cursor is drawn off its row while the list slides (signed, 12 at the start of a slide, taken down to 0 a step a frame); the slide's end clears the low byte"
 source = "game/menu/item_screen.c"
 
+
+[[var]]
+name = "menu_held_cursor_shift_low"
+addr = "7E:0D9E"
+reuses = "menu_held_cursor_shift"
+subsystem = "menu"
+meaning = "menu_held_cursor_shift's low byte, which the party exchange sets alone as its cursor moves and as a slide starts"
+source = "game/menu/exchange.c, $C2:C808, $C2:C86D"
 [[var]]
 name = "menu_held_reserve_top"
 addr = "7E:0DA8"
@@ -9813,6 +9946,36 @@ subsystem = "menu"
 meaning = "The line the techs screen's member rows are shown from as their list slides, a step a frame"
 source = "game/menu/tech_screen.c, $C2:B5C8"
 
+
+[[var]]
+name = "menu_exchange_place_offset"
+addr = "7E:0022"
+page = "menu"
+size = 2
+reuses = ["menu_heal_amounts", "menu_amounts_left", "menu_shop_work", "menu_time_played_shown", "menu_opening_records_loaded", "menu_slide_line", "menu_window_slide", "menu_tech_row_drawn"]
+subsystem = "menu"
+meaning = "The party exchange: the place a member's row is drawn at, as an offset into the places' tables (two bytes a place, menu_data.h's exchange places), which the rows' loops leave past the last"
+source = "game/menu/exchange.c, $C2:CCDB, $C2:CD9B, $C2:C85B"
+
+[[var]]
+name = "menu_exchange_rows_counted"
+addr = "7E:0024"
+page = "menu"
+size = 2
+reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_window_slide", "menu_tech_rows_to_draw", "menu_tech_slide_line"]
+subsystem = "menu"
+meaning = "The party exchange: the rows the drawing of the rows has looked at, left at the active party's three"
+source = "game/menu/exchange.c, $C2:CCDB"
+
+[[var]]
+name = "menu_exchange_slide_from"
+addr = "7E:0024"
+page = "menu"
+size = 2
+reuses = ["menu_heal_amounts", "menu_save_member_row", "menu_window_slide", "menu_tech_rows_to_draw", "menu_tech_slide_line", "menu_exchange_rows_counted"]
+subsystem = "menu"
+meaning = "The party exchange's slide: where in the tilemap below the screen the reserve's column is shown from this frame, its column in the low byte and its tile row in the high"
+source = "game/menu/exchange.c, $C2:C85B, $C2:C8BA"
 [[var]]
 name = "menu_tech_slide_copy"
 reuses = "menu_window_slide"
@@ -11882,6 +12045,13 @@ subsystem = "menu"
 meaning = "The song an object script last asked the sound driver for, kept beside the request itself"
 source = "game/menu/object_script.c, menu_object_cmd_play_song $C2:18F9"
 
+
+[[var]]
+name = "menu_field_song_volume"
+addr = "7E:04FB"
+subsystem = "menu"
+meaning = "The volume the field's song fades back in to as the gate's screen closes, 0 for full ($C2:CC42); no routine the disassembly reaches writes it by this address"
+source = "game/menu/sound.c, $C2:CC0E"
 [[var]]
 name = "menu_saved_location"
 addr = "7E:04FC"
@@ -20338,6 +20508,13 @@ subsystem = "core"
 meaning = "The story's notes on the game itself (event memory $1CF): $10 where it carries on from a finished one, bit 7 where the place items are held back"
 source = "game/menu/saves.c note_carried_over; game/menu/items.c note_story_and_place"
 
+
+[[var]]
+name = "story_party_kept"
+addr = "7F:01DF"
+subsystem = "core"
+meaning = "The characters the story keeps in the active party (event memory $1DF), a bit a character from Crono's bit 7 (menu_character_bit): the party exchange won't move them"
+source = "game/menu/exchange.c, $C2:CD55"
 [[var]]
 name = "party_techs_unlocked"
 addr = "7F:01E0"

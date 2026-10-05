@@ -471,9 +471,7 @@ void menu_show_panel_colours(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    menu_equip_panel_colours_back(g);
-    TIMED_AS(g, 0xC29121, menu_put_items_back(g));
-    menu_equip_panel_line_effects_back(g);
+    menu_equip_panel_put_away(g);
     menu_restore_p(s);
     m_rts(s);
 }

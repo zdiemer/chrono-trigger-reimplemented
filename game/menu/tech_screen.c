@@ -1155,10 +1155,10 @@ void menu_techs_panel_show(GameState *g, Platform *pf)
 }
 
 // $C2:B960
-void menu_techs_panel_hold(GameState *g) { set_menu_line_effects(g, PANEL_LINE_EFFECTS); }
-
 void menu_techs_panel_put_away(GameState *g, Platform *pf)
 {
+    set_menu_line_effects(g, PANEL_LINE_EFFECTS);
+    TIMED_AS(g, 0xC2F643, menu_start_the_records(g));
     menu_draw_windows(g, pf, PANEL_AWAY_WINDOWS);
     menu_queue_fixed_upload(g, MENU_UPLOAD_FRONT_LAYER);
 }

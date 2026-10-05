@@ -620,6 +620,15 @@ void menu_copy_tile_area(GameState *g, MenuTilePlace from, MenuTilePlace to, Men
     ORIGINAL_EFFECT(leave_command(g, COPY_AREA_COMMAND, &o));
 }
 
+enum { SWAP_AREAS_COMMAND = 0x10 };
+
+void menu_swap_tile_areas(GameState *g, MenuTilePlace one, MenuTilePlace other, MenuWindowSize size)
+{
+    Operands o = copy_operands(one, other, size);
+    TIMED_AS(g, LANGUAGE[SWAP_AREAS_COMMAND / 2].timed_as, swap_areas(g, one, other, size));
+    ORIGINAL_EFFECT(leave_command(g, SWAP_AREAS_COMMAND, &o));
+}
+
 void menu_draw_windows(GameState *g, Platform *pf, uint16_t list)
 {
     TIMED_AS(g, 0xC2ED31, menu_draw_window_list(g, pf, list));

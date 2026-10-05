@@ -362,6 +362,10 @@ enum {
     MENU_ROM_MAIN_MENU_COLOURS = 0xCC14, MENU_ROM_OPTION_COLOURS = 0xCC24, MENU_ROM_ARROW_COLOURS = 0x9E0A,
     MENU_MAIN_MENU_COLOURS = 8, MENU_ARROW_COLOURS = 3,
 };
+static inline uint16_t menu_option_colour(const GameState *g, uint8_t option, unsigned i)
+{
+    return menu_rom_colour(g, (uint16_t)(MENU_ROM_OPTION_COLOURS + 2u * MENU_MAIN_MENU_COLOURS * option), i);
+}
 typedef struct {
     uint8_t x, y, tile, attributes;
 } MenuIcon;
@@ -392,8 +396,10 @@ static inline uint16_t menu_battle_mode_colour(const GameState *g, unsigned i) {
  * bytes),
  * its lower half ($7E:3600), the back layer's rows from the third
  * ($7E:3E80), the text layer's ($7E:4E00, $680 bytes), the window line
- * tables ($7E:5D00), and the text layer's first two rows ($7E:4E00, $80
- * bytes) where a window over the list keeps its lines. */
+ * tables ($7E:5D00), the text layer's first two rows ($7E:4E00, $80
+ * bytes) where a window over the list keeps its lines, and the text
+ * layer's whole ($1000 bytes) to the third layer's tilemap where the gate's
+ * screen moves it. */
 enum {
     MENU_UPLOAD_FRONT_LAYER_WHOLE = 0xFBCE,
     MENU_UPLOAD_BACK_LAYER_WHOLE = 0xFBF8,
@@ -404,6 +410,7 @@ enum {
     MENU_UPLOAD_TEXT_LAYER = 0xFC1B,
     MENU_UPLOAD_LINE_TABLES = 0xFC3E,
     MENU_UPLOAD_WINDOW_LINES = 0xFC37,
+    MENU_UPLOAD_TEXT_LAYER_WHOLE = 0xFC14,
 };
 
 /* The load screen's uploads: the era label's graphic, and the slot's tilemap
@@ -766,6 +773,29 @@ static inline uint8_t menu_tech_casting_frame(const GameState *g, uint8_t charac
 /* The main menu's panel for the techs: the colours of its kinds' tabs and
  * its list ($FF:CE04 and $FF:CDF4, eight each), for menu_rom_colour. */
 enum { MENU_ROM_TECH_PANEL_COLOURS = 0xCE04, MENU_ROM_TECH_PANEL_LIST_COLOURS = 0xCDF4 };
+
+/* ---- The party exchange -------------------------------------------------------------------- */
+
+/* The places a member's row and sprite go to on the exchange's screen
+ * (menu/exchange.c), twelve: the active party's three, the reserve's four
+ * shown, the reserve's rows above and below those (where a slide brings one
+ * in from), and the active party's three in the middle. Where the row's
+ * status window is drawn on the front layer ($C2:CDCB, a word each) and
+ * where the sprite stands ($C2:CE6E, its Y then its X's low byte). */
+enum { MENU_EXCHANGE_PLACES = 12 };
+static inline uint16_t menu_exchange_row_at(const GameState *g, unsigned place) { return rom_read16(g, 0xC2CDCBu + 2u * place); }
+static inline MenuSpritePlace menu_exchange_sprite_place(const GameState *g, unsigned place)
+{
+    return (MenuSpritePlace){ rom_read8(g, 0xC2CE6Eu + 2u * place), rom_read8(g, 0xC2CE6Fu + 2u * place) };
+}
+
+/* Its panel's colours ($FF:CC64, eight, palette row 6's first half); its
+ * highlight takes the items screen's four. */
+enum { MENU_ROM_EXCHANGE_PANEL_COLOURS = 0xCC64, MENU_EXCHANGE_PANEL_COLOURS = 8, MENU_EXCHANGE_HIGHLIGHT_COLOURS = 4 };
+
+/* The menus' labels, set by the typesetter (menu/typeset.h): the strings
+ * at $FF:CF3B. */
+enum { MENU_LABEL_STRINGS = 0xFFCF3B };
 
 /* ---- The menus' display ------------------------------------------------------------------- */
 

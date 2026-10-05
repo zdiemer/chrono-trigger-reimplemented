@@ -407,7 +407,6 @@ void menu_put_items_panel_away(Snes *s)
 {
     menu_save_p(s);
     menu_set_widths(s, true, m_x8(s));
-    TIMED_AS(state_of(s), 0xC29121, menu_put_items_back(state_of(s)));
     menu_items_panel_put_away(state_of(s));
     menu_restore_p(s);
     m_rts(s);

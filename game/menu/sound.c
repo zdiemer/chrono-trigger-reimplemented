@@ -1,46 +1,81 @@
-/* The menus' music.
+/* The menus' music: the song of the gate's screen at the End of Time.
  *
- * Opening the menus from the field fades the field's song out and starts the
- * menus' own, which the sound driver plays while it keeps the field's song
- * where it was ($C2:CB96, and the task it starts at $C2:CBBF, which sends
- * command $14); closing them fades the menus' song
- * out and starts the field's again, from where it was kept ($C2:CC0E, command
- * $11). Between the fade and the new song the menus wait for the driver: for
- * the fade to run out (the driver counts its steps left on its status) and,
- * after starting their own song, for its music to be playing (the status
- * names the tracks that are). These are those waits, a pass at a time; the rest is the
- * original's. No movie reaches them. */
+ * The gate's screen (the party exchange, menu/exchange.c) plays a song of
+ * its own over whatever the field or the world map was playing, unless the
+ * story lets the place's song play on or that song is already the gate's.
+ * Opening, the screen fades the music out and starts a task that waits for
+ * the fade to run out, starts the gate's song with the driver saving the one
+ * it replaces, brings the music straight up, and waits for the song to be
+ * playing; the screen itself waits for that task before it fades in.
+ * Closing, it fades the gate's song out, waits for the fade, and starts the
+ * song it replaced again, which the driver resumes where it was, fading it
+ * back in to the place's volume.
+ *
+ * The waits ask the sound driver how it is getting on (platform/audio.h):
+ * how many steps its music's fade has left, and whether a song's tracks are
+ * playing. The waits for a fade let a frame go by between looks; the wait
+ * for the song to be playing doesn't, and spins until the driver says so.
+ * This file decides which song and what to send; the sending and the
+ * waiting, on the original's machine, are menu/sound_bridge.c. */
 #include "menu/sound.h"
 
-#include "platform/audio.h"
-#include "port/machine.h"
+#include "vars.h"
 
-/* One pass of a wait for the music's fade to run out: on to `done` once it
- * has, else to `wait`, the call that lets a frame go by before looking again.
- * The status itself is dead at both, and its flags are read on the way to the
- * call, which saves them. */
-static void wait_for_the_fade(Snes *s, uint32_t site, uint32_t wait, uint32_t done)
+/* The menus opened on one of the field's locations rather than the world
+ * map (menu_place_items' first, noted as they open), whose song is the
+ * field's; the world map's is the one its scripts asked for. */
+enum { NOT_ON_A_LOCATION = 0 };
+
+static uint8_t song_playing(const GameState *g)
 {
-    uint8_t steps_left = au_music_fade_left(m_platform(s), PF_AT(site));
-    m_set_nz8(s, steps_left);
-    m_stop_at(s, steps_left == 0 ? done : wait, 0);
+    return menu_place_items(g, 0) != NOT_ON_A_LOCATION ? current_song(g) : menu_song_playing(g);
 }
 
-// $C2:CBC1
-/* Opening the menus: wait for the field's song to fade out, then on to
- * starting the menus' song at $C2:CBCC. */
-void menu_wait_for_field_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CBC1, 0xC2CBC7, 0xC2CBCC); }
-
-// $C2:CC28
-/* Closing them: wait for the menus' song to fade out, then on to starting
- * the field's again at $C2:CC33. */
-void menu_wait_for_menu_song_faded(Snes *s) { wait_for_the_fade(s, 0xC2CC28, 0xC2CC2E, 0xC2CC33); }
-
-// $C2:CBE0
-/* After starting the menus' song, wait for its music to be playing (the
- * driver's status names the tracks that are), then on to $C2:CBE8, where
- * nothing reads what the loop loaded. Idle entry, one pass. */
-void menu_wait_for_menu_music_playing_loop(Snes *s)
+// $C2:CB8B
+bool menu_gate_song_wanted(GameState *g)
 {
-    m_stop_at(s, au_music_playing(m_platform(s), PF_AT(0xC2CBE0)) != 0 ? 0xC2CBE8 : 0xC2CBE0, 0);
+    set_menu_exchange_song_changed(g, false);
+    if (story_game_notes(g) & MENU_PLACE_SONG_PLAYS_ON)
+        return false;
+    uint8_t song = song_playing(g);
+    set_menu_exchange_song_before(g, song);
+    if (song == MENU_GATE_SONG)
+        return false;
+    set_menu_exchange_song_changed(g, true);
+    return true;
+}
+
+bool menu_gate_song_played(const GameState *g) { return menu_exchange_song_changed(g) != 0; }
+
+/* The fades and the starts: a song faded out over eight steps; the gate's
+ * song started at the middle volume, then brought straight up to full; the
+ * place's song started again and faded back in over sixteen steps to the
+ * volume it plays at (full where none is noted). */
+enum { FADE_OUT_STEPS = 8, FADED = 1, AT_ONCE = 1, FADE_IN_STEPS = 16, MIDDLE = 0x80 };
+
+static AudioCommand fade_music(uint8_t steps, uint8_t volume)
+{
+    return (AudioCommand){ .command = AU_FADE_MUSIC, .p1 = steps, .p2 = volume, .p3 = volume, .count = 3 };
+}
+
+static AudioCommand start_song(uint8_t command, uint8_t song)
+{
+    return (AudioCommand){ .command = command, .p1 = song, .p2 = MIDDLE, .p3 = MIDDLE, .count = 3 };
+}
+
+AudioCommand menu_fade_the_song_out(void) { return fade_music(FADE_OUT_STEPS, FADED); }
+
+AudioCommand menu_start_the_gate_song(void) { return start_song(AU_START_SONG_SAVING, MENU_GATE_SONG); }
+
+AudioCommand menu_bring_the_song_up(void) { return fade_music(AT_ONCE, AU_FULL_VOLUME); }
+
+AudioCommand menu_start_the_place_song_again(const GameState *g)
+{
+    return start_song(AU_START_SONG_SECOND_SET, menu_exchange_song_before(g));
+}
+
+AudioCommand menu_fade_the_place_song_in(const GameState *g)
+{
+    uint8_t volume = menu_field_song_volume(g);
+    return fade_music(FADE_IN_STEPS, volume != 0 ? volume : AU_FULL_VOLUME);
 }
