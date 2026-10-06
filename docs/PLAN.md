@@ -57,8 +57,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 14% left (86% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 78% (212.6 KiB run by the 28 movies; battle 82%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 46.5 KiB, 347 M instructions (handback 33.8 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 45.0 KiB, 1,964 M; 23 entries refuse in real play; the native shape fails all three whole routes on three scaffolding writes the original reads (RECOMP.md, "The fallback measure") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 79% (212.6 KiB run by the 28 movies; battle 85%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 45.2 KiB, 347 M instructions (handback 32.4 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 43.6 KiB, 1,875 M; 23 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: the targeting") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -193,7 +193,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 257 files, 117 of 75,796 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 258 files, 117 of 76,458 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -404,7 +404,12 @@ only jump stubs into ports and the name converter's dispatch (`$C1:0065`, from
 `$CC:F063`, which waits for the text's port). **Next** for the battle is bank
 `$CD`'s remainder (above); in bank `$FD` the rewards' messages (`$FD:AD17`) wait for the
 battle messages' port, since each waits for the player (TODO.md), and the
-turn state's clearing (`$FD:A982`) for a name for the block it clears.
+turn state's clearing (`$FD:A982`) for a name for the block it clears. The
+burndown counts the bank done, but the fallback measure shows what its ports
+still hand back: with the targeting C (RECOMP.md, "Phase 3, battle: the
+targeting"), the largest left are the animation commands' call-outs and the
+area search the targeting calls (the battle's step 7, `$C1:1FDD`, and the
+shapes' routines its table at `$C1:1FEA` runs, which the bitmap shapes call too).
 
 **`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
 instruction set and the map they scroll, the load screen, the window command

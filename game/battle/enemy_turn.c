@@ -178,7 +178,6 @@ enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS,
     READS_A = DC_X | DC_Y | DC_FLAGS,
     READS_X = DC_A | DC_Y | DC_FLAGS,
-    READS_CARRY = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z,
 };
 
 /* An enemy that comes into the battle (battle/enemy_actions.c) is set up by
@@ -229,19 +228,20 @@ static bool attack_turn(Snes *s, ScriptPlace at)
     return true;
 }
 
-/* A tech carried out: its targets, its targeting by the original's code, the
- * tech noted for its targets (battle/effect_work.c), its message. The actions
- * that change stats first give their message apart and say no further target
- * is none only by its id. The targeting and the noting read the carry the
- * code before them leaves: the targeting, `aim_carry` (worked out by the
- * caller); the noting, the carry of marking the targets, which starts from
- * comparing the first with the first enemy's slot. */
+/* A tech carried out: its targets, its targeting (battle/aim.c, a sibling run
+ * as its JSR makes it), the tech noted for its targets (battle/effect_work.c),
+ * its message. The actions that change stats first give their message apart
+ * and say no further target is none only by its id. The targeting and the
+ * noting take the carry the code before them leaves: the targeting,
+ * `aim_carry` (worked out by the caller), which its lookup of the tech's
+ * members leaves in a cell; the noting, the carry of marking the targets,
+ * which starts from comparing the first with the first enemy's slot. */
 static bool tech_after_targets(Snes *s, uint32_t aim_site, uint32_t message_site, bool stats_first,
                                bool aim_carry, uint8_t message)
 {
     GameState *g = state_of(s);
     m_set_flag(s, CPU_FLAG_C, aim_carry);
-    if (!battle_call(s, aim_site, 0xC1C1DD, READS_CARRY))
+    if (!battle_run(s, aim_site, 0xC1C1DD, battle_aim_action))
         return false;
     if (stats_first && !battle_member_acts_for_itself(g))
         set_battle_action_kind(g, ACTION_TECH);

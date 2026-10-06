@@ -93,23 +93,10 @@ rest waits, is [PLAN.md](PLAN.md).
     `$7E:36CC`, `$7E:357B`) meet the attract program's code, not the routine
     each was written for: what is missing there is a port of the attract
     program's own routines.
-- **The native shape's failures** (`tools/native_shape_exceptions.txt`;
-  RECOMP.md, "The fallback measure"). All three whole routes fail with the
-  scaffolding compiled out, on writes the original's code reads, each
-  confirmed by making the write plain in a scratch build:
-  - battle: `battle_carry_out_member_action` keeps the acting member's record
-    (`$0006`, game/battle/member_turn.c:499) and the item targeting's cell
-    (`$000C`, :420) only as scaffolding, and the original's targeting reads
-    them (`$C1:C24A`, `$C1:C57F`): items land on the wrong side
-    (`beyond_time`, `bucket_lavos`). The port of the targeting removes the
-    reader; until then the writes are the game's, not scaffolding;
-  - event: `object_run_script_from` clears an object's step count only as
-    scaffolding (game/event/calls.c:173), and the original's event scheduler
-    reads it (`$C0:59F0`): a walk stops short (`telepod_lavos`). The
-    scheduler is one of the beam-coupled routines (PLATFORM.md, "Timing
-    without a beam").
-  The rest of what the original's code reads of scaffolding (101 byte and
-  instruction pairs over the library, `tools/effects_check.py --originals`
+- **What the original's code reads of scaffolding** (RECOMP.md, "The
+  fallback measure"). It broke the native shape's three whole routes until
+  the targeting was ported; what it reads now (101 byte and instruction
+  pairs over the library when the measure came in, `tools/effects_check.py --originals`
   on the fallbacks check's logs, `build/suite/native-shape/originals.txt`)
   hasn't broken an outcome yet, and is the list to decide before the
   scaffolding goes: the menus' `$007A` (`menu_open`'s, read at `$C2:CF0A`
@@ -186,9 +173,11 @@ rest waits, is [PLAN.md](PLAN.md).
   - The original's routines the battle still calls out to: the battle steps
     (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
     from a member's chosen action carried out (RECOMP.md, "Phase 3, battle
-    chunk 5"), the targeting `$C1:C1DD` and the messages `$CD:0021`; from an
-    enemy's turn (RECOMP.md, "Phase 3, wave 2:
-    the enemies' minds"), the tech's targeting `$C1:C1DD`, an enemy's
+    chunk 5"), the messages `$CD:0021`; from the targeting (RECOMP.md,
+    "Phase 3, battle: the targeting"), the area search, the battle's step 7
+    (`$C1:1FDD` and the shapes' routines its table at `$C1:1FEA` runs,
+    which the bitmap shapes call too); from an enemy's turn (RECOMP.md,
+    "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
@@ -354,8 +343,7 @@ rest waits, is [PLAN.md](PLAN.md).
     reads the first set's last kind before it adds (`first_began`) only for
     its carry's leave, and `take_next_target` exists only to leave the carry a
     target after the first is taken with: both go with the carry cell. Each
-    goes when what reads it is a port: the targeting (`$C1:C1DD`) and the
-    showing's step. The entries turn away a drain where `$1B` isn't clear, the
+    goes when what reads it is a port: the showing's step. The entries turn away a drain where `$1B` isn't clear, the
     byte the original reads its stat's offset's high byte from; the party's
     code before it is where to show the game always leaves it so.
   - What the effect work still says or does that the original's shape put
@@ -708,6 +696,24 @@ rest waits, is [PLAN.md](PLAN.md).
     as it clears its own cell (`rewards_share_with_reserve`): nothing after
     the battle's end reads it before the next fight's start clears it, so a
     native build can drop the write.
+- **What the targeting left** (RECOMP.md, "Phase 3, battle: the targeting"),
+  its review's findings not yet taken:
+  - `aim.c` tests who can take part with its own `in_fight`, `knocked_out` and
+    `free_to_act`, beside `combatant_in_fight` and `combatant_cant_act`, adding
+    status 2's bits `0x18`, whose meaning isn't worked out: one test, and the
+    bits named;
+  - the member's turn hands the targeting's original its cells (an item's area
+    rules at `$0C`, the action record's place at `$06`), and the targeting
+    hands its area search the rule's shape in a cell (`battle_aim_rule_shape`):
+    parameters once the area search is C;
+  - a chosen target of none reaches the knocked-out test with `$FF` for a
+    single-target mode, and the reserve tests read the area's end marker and a
+    battle slot as enemy numbers (`battle_enemy_standing` unchecked): a native
+    storage needs a typed "nobody" for each;
+  - the ROM's tables `$CC:1ACB` (a party tech's aim) and `$CC:1BB5` (an item's)
+    are described by `aim_data.h`, `effect_data.h`, `menu_data.h` and
+    `equipment_data.h` differently, `effect_data.h`'s as not worked out: one
+    record type each.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:

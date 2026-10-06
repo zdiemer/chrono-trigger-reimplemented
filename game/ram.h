@@ -4575,8 +4575,20 @@
 #define RAM_BATTLE_WIDE_MATH_COUNT 12u
 #define RAM_BATTLE_WIDE_MATH_STRIDE 0x01u
 #define RAM_BATTLE_WIDE_MATH_DP 0x28u        /* page battle */
+/* How the targeting ($C1:C1DD) settles the targets once its area rules are done
+ * (game/battle/aim.c, Finish); scaffolding: nothing reads it after */
+#define RAM_BATTLE_AIM_FINISH 0x7E003Au
+#define RAM_BATTLE_AIM_FINISH_DP 0x3Au       /* page battle */
 /* The first single tech of the character the tech points go towards */
 #define RAM_BATTLE_LEARNER_FIRST_TECH 0x7E003Bu
+/* Where in bank $CC the targeting's area rules start ($CC:2AB0's word), whose high byte the
+ * rule's search flag then takes; scaffolding: nothing reads it after [2 bytes] */
+#define RAM_BATTLE_AIM_RULES 0x7E003Bu
+#define RAM_BATTLE_AIM_RULES_DP 0x3Bu        /* page battle */
+/* The area rule's shape, as the targeting hands it to its subroutine for the area search
+ * ($C1:C741), which copies it to battle_area_shape */
+#define RAM_BATTLE_AIM_RULE_SHAPE 0x7E003Du
+#define RAM_BATTLE_AIM_RULE_SHAPE_DP 0x3Du   /* page battle */
 /* The partners of the member whose action is carried out, kept while they are marked as taking
  * part ($C1:B9DA); nothing reads it after */
 #define RAM_BATTLE_MEMBER_PARTNERS_KEPT 0x7E003Du
@@ -5286,6 +5298,14 @@
 /* The menu's member count less one, as the window was last redrawn: nonzero when the command
  * windows may offer combination techs */
 #define RAM_BATTLE_COMBOS_OFFERED 0x7E95F1u
+/* The area an action's area rule asks the area search ($C1:1FDD, the battle's step 7) to look
+ * over, which the targeting places on its combatants [5 bytes] */
+#define RAM_BATTLE_AREA_SEARCH 0x7E9604u
+#define RAM_BATTLE_AREA_SEARCH_AMONG_PARTY 0x7E9604u /* Nonzero: the search looks over the party's places; 0: the enemies' */
+#define RAM_BATTLE_AREA_SEARCH_CENTRE 0x7E9605u /* The combatant the area is placed on (battle slot) */
+#define RAM_BATTLE_AREA_SEARCH_TOWARD 0x7E9606u /* A second combatant, where the area runs from the first toward it (0 where it doesn't) */
+#define RAM_BATTLE_AREA_SEARCH_SIZE 0x7E9607u /* The area's size, from the rule: a circle's radius, a line's width */
+#define RAM_BATTLE_AREA_SEARCH_FLAG 0x7E9608u /* The rule's size byte's top bit (0 where the placing doesn't pass it on); what each shape does with it isn't worked out */
 /* Nonzero while targets are being chosen; the cursors are then placed on the objects in
  * battle_targets */
 #define RAM_BATTLE_TARGETING 0x7E9609u
@@ -5621,6 +5641,14 @@
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS 0x7E99B5u
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT 11u
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_STRIDE 0x01u
+/* The combatants the area search found in its area (battle slots), $FF after the last; the
+ * targeting makes them the action's targets [11 x $1 bytes, by place in the list] */
+#define RAM_BATTLE_AREA_FOUND 0x7E99C0u
+#define RAM_BATTLE_AREA_FOUND_COUNT 11u
+#define RAM_BATTLE_AREA_FOUND_STRIDE 0x01u
+/* The shape the area search looks over, from an area rule: an index into its table of seven at
+ * $C1:1FEA */
+#define RAM_BATTLE_AREA_SHAPE 0x7E99CCu
 /* Counts frames L+R have been held past two seconds when running is allowed; nonzero makes the
  * main loop take the escape exit [2 bytes] */
 #define RAM_BATTLE_RUN_COUNTER 0x7E99CDu

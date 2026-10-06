@@ -6967,9 +6967,24 @@ enum { BATTLE_WIDE_MATH_COUNT = 12 };   /* by byte: the first number, a word ($2
 uint8_t battle_wide_math(const GameState *g, unsigned i);
 void set_battle_wide_math(GameState *g, unsigned i, uint8_t v);
 
+/* How the targeting ($C1:C1DD) settles the targets once its area rules are done
+ * (game/battle/aim.c, Finish); scaffolding: nothing reads it after */
+uint8_t battle_aim_finish(const GameState *g);
+void set_battle_aim_finish(GameState *g, uint8_t v);
+
 /* The first single tech of the character the tech points go towards */
 uint8_t battle_learner_first_tech(const GameState *g);
 void set_battle_learner_first_tech(GameState *g, uint8_t v);
+
+/* Where in bank $CC the targeting's area rules start ($CC:2AB0's word), whose high byte the
+ * rule's search flag then takes; scaffolding: nothing reads it after */
+uint16_t battle_aim_rules(const GameState *g);
+void set_battle_aim_rules(GameState *g, uint16_t v);
+
+/* The area rule's shape, as the targeting hands it to its subroutine for the area search
+ * ($C1:C741), which copies it to battle_area_shape */
+uint8_t battle_aim_rule_shape(const GameState *g);
+void set_battle_aim_rule_shape(GameState *g, uint8_t v);
 
 /* The partners of the member whose action is carried out, kept while they are marked as taking
  * part ($C1:B9DA); nothing reads it after */
@@ -7995,6 +8010,23 @@ void set_battle_tech_scroll(GameState *g, unsigned slot, uint8_t v);
 uint8_t battle_combos_offered(const GameState *g);
 void set_battle_combos_offered(GameState *g, uint8_t v);
 
+/* Nonzero: the search looks over the party's places; 0: the enemies' */
+uint8_t battle_area_search_among_party(const GameState *g);
+void set_battle_area_search_among_party(GameState *g, uint8_t v);
+/* The combatant the area is placed on (battle slot) */
+uint8_t battle_area_search_centre(const GameState *g);
+void set_battle_area_search_centre(GameState *g, uint8_t v);
+/* A second combatant, where the area runs from the first toward it (0 where it doesn't) */
+uint8_t battle_area_search_toward(const GameState *g);
+void set_battle_area_search_toward(GameState *g, uint8_t v);
+/* The area's size, from the rule: a circle's radius, a line's width */
+uint8_t battle_area_search_size(const GameState *g);
+void set_battle_area_search_size(GameState *g, uint8_t v);
+/* The rule's size byte's top bit (0 where the placing doesn't pass it on); what each shape does
+ * with it isn't worked out */
+uint8_t battle_area_search_flag(const GameState *g);
+void set_battle_area_search_flag(GameState *g, uint8_t v);
+
 /* Nonzero while targets are being chosen; the cursors are then placed on the objects in
  * battle_targets */
 uint8_t battle_targeting(const GameState *g);
@@ -8451,6 +8483,17 @@ enum { BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT = 11 };   /* by battle slot */
 /* Attribute bits ORed with the palette into the object's sprites */
 uint8_t battle_object_attribute_bits(const GameState *g, unsigned slot);
 void set_battle_object_attribute_bits(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_AREA_FOUND_COUNT = 11 };   /* by place in the list */
+/* The combatants the area search found in its area (battle slots), $FF after the last; the
+ * targeting makes them the action's targets */
+uint8_t battle_area_found(const GameState *g, unsigned i);
+void set_battle_area_found(GameState *g, unsigned i, uint8_t v);
+
+/* The shape the area search looks over, from an area rule: an index into its table of seven at
+ * $C1:1FEA */
+uint8_t battle_area_shape(const GameState *g);
+void set_battle_area_shape(GameState *g, uint8_t v);
 
 /* Counts frames L+R have been held past two seconds when running is allowed; nonzero makes the
  * main loop take the escape exit */
@@ -10289,6 +10332,14 @@ enum { BATTLE_ENEMY_STANDING_COUNT = 8 };   /* by enemy (battle slot - 3) */
  * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win */
 uint8_t battle_enemy_standing(const GameState *g, unsigned i);
 void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
+/* How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in
+ * ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win Unchecked,
+ * for marked scaffolding only: the targeting's tests for an enemy in reserve read past the
+ * enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a
+ * revive's target indexed by its battle slot rather than its enemy number ($C1:C410)
+ * (game/battle/aim.c) */
+uint8_t battle_enemy_standing_unchecked(const GameState *g, unsigned i);
+void set_battle_enemy_standing_unchecked(GameState *g, unsigned i, uint8_t v);
 
 /* A byte a demo battle's setup clears; no code traced reads it */
 uint8_t battle_demo_spare(const GameState *g);

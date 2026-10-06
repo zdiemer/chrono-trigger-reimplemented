@@ -14297,6 +14297,7 @@ name = "battle_enemy_standing"
 addr = "7E:AF15"
 count = 8
 index = "enemy (battle slot - 3)"
+unchecked = "the targeting's tests for an enemy in reserve read past the enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a revive's target indexed by its battle slot rather than its enemy number ($C1:C410) (game/battle/aim.c)"
 subsystem = "battle"
 meaning = "How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win"
 source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_main_loop_body $C1:812C; $C1:9BD5"
@@ -14969,6 +14970,77 @@ addr = "7E:9873"
 subsystem = "battle"
 meaning = "The combatant $C1:2986's search found (battle slot)"
 source = "game/battle/animation.c face_nearest_enemy $C1:2F22; game/battle/positions.c"
+
+[[var]]
+name = "battle_area_search"
+addr = "7E:9604"
+stride = 5
+subsystem = "battle"
+meaning = "The area an action's area rule asks the area search ($C1:1FDD, the battle's step 7) to look over, which the targeting places on its combatants"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD ($C1:C78D-$C1:C82C)"
+[[var.field]]
+name = "among_party"
+offset = 0
+meaning = "Nonzero: the search looks over the party's places; 0: the enemies'"
+[[var.field]]
+name = "centre"
+offset = 1
+meaning = "The combatant the area is placed on (battle slot)"
+[[var.field]]
+name = "toward"
+offset = 2
+meaning = "A second combatant, where the area runs from the first toward it (0 where it doesn't)"
+[[var.field]]
+name = "size"
+offset = 3
+meaning = "The area's size, from the rule: a circle's radius, a line's width"
+[[var.field]]
+name = "flag"
+offset = 4
+meaning = "The rule's size byte's top bit (0 where the placing doesn't pass it on); what each shape does with it isn't worked out"
+
+[[var]]
+name = "battle_area_found"
+addr = "7E:99C0"
+count = 11
+index = "place in the list"
+subsystem = "battle"
+meaning = "The combatants the area search found in its area (battle slots), $FF after the last; the targeting makes them the action's targets"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD ($C1:C60E)"
+
+[[var]]
+name = "battle_area_shape"
+addr = "7E:99CC"
+subsystem = "battle"
+meaning = "The shape the area search looks over, from an area rule: an index into its table of seven at $C1:1FEA"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD ($C1:C741)"
+
+[[var]]
+name = "battle_aim_finish"
+addr = "7E:003A"
+page = "battle"
+subsystem = "battle"
+meaning = "How the targeting ($C1:C1DD) settles the targets once its area rules are done (game/battle/aim.c, Finish); scaffolding: nothing reads it after"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD"
+
+[[var]]
+name = "battle_aim_rules"
+addr = "7E:003B"
+page = "battle"
+size = 2
+reuses = "battle_learner_first_tech"
+subsystem = "battle"
+meaning = "Where in bank $CC the targeting's area rules start ($CC:2AB0's word), whose high byte the rule's search flag then takes; scaffolding: nothing reads it after"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD"
+
+[[var]]
+name = "battle_aim_rule_shape"
+addr = "7E:003D"
+page = "battle"
+reuses = "battle_member_partners_kept"
+subsystem = "battle"
+meaning = "The area rule's shape, as the targeting hands it to its subroutine for the area search ($C1:C741), which copies it to battle_area_shape"
+source = "game/battle/aim.c battle_aim_action $C1:C1DD"
 
 [[var]]
 name = "battle_target_found_high"

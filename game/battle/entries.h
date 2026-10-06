@@ -250,6 +250,11 @@ void battle_effect_lose_condition_bit(Snes *s);
 bool battle_effect_lose_condition_bit_ready(Snes *s);
 void battle_note_enemy_tech(Snes *s);
 void battle_note_enemy_attack(Snes *s);
+/* battle/aim.c: whom a tech or an item aims at, and its call to the area
+ * search. */
+void battle_aim_action(Snes *s);
+bool battle_aim_action_ready(Snes *s);
+void battle_search_area(Snes *s);
 /* battle/member_turn.c: a party member's chosen action carried out, its
  * attack, the end of its turn, and the battle's step for a called-off
  * action. */
