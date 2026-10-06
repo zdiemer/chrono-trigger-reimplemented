@@ -1,9 +1,9 @@
 /* Battle: how the actions aim, as the ROM holds it (battle/aim.c).
  *
  * Every party tech, enemy tech and item says how it aims: the targets it
- * takes (an aim mode, battle/aim.c's AimMode) and, for a tech, a set of area
- * rules that then widen or replace them. A set of area rules is a count and
- * three bytes a rule: the shape the area search looks over, how the area is
+ * takes (an aim mode, which battle/aim.c's table reads) and, for a tech, a
+ * set of area rules that then widen or replace them. A set of area rules is a
+ * count and three bytes a rule: the shape the area search looks over, how the area is
  * placed on the combatants, and its size. */
 #ifndef CT_GAME_BATTLE_AIM_DATA_H
 #define CT_GAME_BATTLE_AIM_DATA_H

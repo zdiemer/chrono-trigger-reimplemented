@@ -3365,9 +3365,11 @@ three steps. Whether it can be made: the actor, a party tech's partners, or
 the enemy an enemy's tech brings in, must be able to take part (not knocked
 out, none of the statuses that keep them from acting, nor two bits of the
 second status byte whose meaning isn't worked out). The targets its aim mode
-takes: the modes are the records' bytes, a C table maps each to one of twelve
-ways of taking targets (`Take`) and how the targets are settled after (`Finish`),
-so the twenty-four modes the ROM uses are rows, not branches. Then its area
+takes: the modes are the records' bytes, a C table maps each to one of nine
+ways of taking targets (`Take`) and one of four ways the targets are settled
+after (`Finish`), so the twenty-four modes the ROM uses are rows, not
+branches; the number the original leaves for its finish in a dead cell is a
+column of its own. Then its area
 rules, for a tech that has them (`$CC:2AB0`): the area is placed on the
 combatants (around the tech's first member and toward the target, around the
 target, around the actor and toward the target: a table of the seven
@@ -3384,7 +3386,8 @@ four things the game really does, which the port reproduces and says so:
 - The "random" aim (mode 9, two items) doesn't roll: it draws a number and
   then reads its roll from the arithmetic's cell the draw puts back, where the
   tech members' lookup at the start left the item's party-tech record's
-  number, so each such item always takes the same branch (a foe at random,
+  number (the port takes that number from the record), so each such item
+  always takes the same branch (a foe at random,
   for both). One branch would bound the party's places by the byte of buttons
   the player holds; no item rolls it, and the guard refuses it.
 - The settling's walk over the targets steps past a gap and closes up over the
@@ -3398,17 +3401,35 @@ four things the game really does, which the port reproduces and says so:
 - The area's finds are walked with the multiply's product cell as the counter,
   which the original leaves past the last place.
 
-**The cells.** The targeting's direct-page cells `$00`-`$0E` are read after it
-as game input (battle.h: the clock's word, the member cell, the stat offsets,
-an enemy tech's hits), so the port keeps them plainly as the original leaves
-them; `$10`-`$14` and the new `battle_aim_*` cells at `$3A`-`$3D` are
-scaffolding, but for the rule's shape, which its sub-entry reads. The member's
+**The cells.** The original works in the direct page's first cells as it goes,
+each holding several things in turn. The port works out what each holds at
+the end from how far the aim went -- the action's records read, the roll
+taken, the area's anchors gathered, its rule placed -- and writes them once,
+before the area search (`leave_aim_cells`): plainly those a later reader takes
+as game input (battle.h: `$00` the clock's word, `$06` the member cell, `$08`,
+`$0A` and `$0E` read as stats), the others (`$02`, `$04`, `$0C`, `$10`-`$14`)
+and the new `battle_aim_*` cells at `$3A`-`$3C` as scaffolding; the rule's
+shape at `$3D`, which its sub-entry reads, is plain. The member's
 turn's writes of `$06` and `$0C` became plain: the targeting's guard reads them
 (the action record's place, an item's area rules), and with them the native
 shape's battle failures went. The event scheduler's step count, cleared only
 as scaffolding by `object_run_script_from` and read by the original's
 scheduler (`$C0:59F0`), is plain too, which was the third route's failure:
 `tools/native_shape_exceptions.txt` is empty.
+
+**The review** rated `aim.c` and `aim_data.h` "mostly", none translation, and
+asked first for four things, all done: the cells written once from what the
+steps decided rather than pass by pass (above); the ways of taking and
+settling only what the game does (four pairs that differed only in the dead
+finish cell's number became one each, the number a column); the roll taken
+from the tech record, not the leftover cell; and the logic in functions of
+the game's state (`aim_up_to_the_area`, `settle_after_search`), the machine
+kept to the entry and its two call-outs, the area search and the "no target"
+showing. An item's area rules are none in the logic; only the guard asks its
+caller's cell. Left for later, in TODO.md: the duplicated status tests beside
+`combatant_cant_act`, the cell hand-offs between the member's turn and the
+targeting, and the ROM tables `$CC:1ACB` and `$CC:1BB5` described in several
+headers.
 
 **What the guard turns away**, none of it a state real play makes (the
 refusals check holds it): a party member whose action record isn't where its

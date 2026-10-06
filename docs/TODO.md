@@ -696,6 +696,24 @@ rest waits, is [PLAN.md](PLAN.md).
     as it clears its own cell (`rewards_share_with_reserve`): nothing after
     the battle's end reads it before the next fight's start clears it, so a
     native build can drop the write.
+- **What the targeting left** (RECOMP.md, "Phase 3, battle: the targeting"),
+  its review's findings not yet taken:
+  - `aim.c` tests who can take part with its own `in_fight`, `knocked_out` and
+    `free_to_act`, beside `combatant_in_fight` and `combatant_cant_act`, adding
+    status 2's bits `0x18`, whose meaning isn't worked out: one test, and the
+    bits named;
+  - the member's turn hands the targeting's original its cells (an item's area
+    rules at `$0C`, the action record's place at `$06`), and the targeting
+    hands its area search the rule's shape in a cell (`battle_aim_rule_shape`):
+    parameters once the area search is C;
+  - a chosen target of none reaches the knocked-out test with `$FF` for a
+    single-target mode, and the reserve tests read the area's end marker and a
+    battle slot as enemy numbers (`battle_enemy_standing` unchecked): a native
+    storage needs a typed "nobody" for each;
+  - the ROM's tables `$CC:1ACB` (a party tech's aim) and `$CC:1BB5` (an item's)
+    are described by `aim_data.h`, `effect_data.h`, `menu_data.h` and
+    `equipment_data.h` differently, `effect_data.h`'s as not worked out: one
+    record type each.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
