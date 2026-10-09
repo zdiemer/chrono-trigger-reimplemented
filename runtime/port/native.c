@@ -1094,6 +1094,19 @@ static int32_t pay_debt(NativeRuntime *rt, Snes *s, uint32_t pc)
     return (int32_t)spend;
 }
 
+bool (*native_return_poison)(uint32_t entry, uint64_t *bits, uint16_t *set);
+static void scramble(Cpu *c, uint16_t dont_care, uint64_t bits);
+
+/* ON: a port that returned to the original's code, its declared don't-care
+ * registers scrambled where the tool asks (native_return_poison). */
+static void poison_return(const NativeEntry *e, Snes *m)
+{
+    uint64_t bits;
+    uint16_t set = e->dont_care;
+    if (set && native_return_poison && native_return_poison(e->addr, &bits, &set))
+        scramble(&m->cpu, (uint16_t)(set & e->dont_care), bits);
+}
+
 /* After running native code for `a`: account for it and record where it stopped. */
 static void after_run(NativeRuntime *rt, Active *a, Snes *s)
 {
@@ -1133,6 +1146,8 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         rt->observer.stopped(rt->observer.ctx, s, a->entry, a->entry_s);
     if (rt->mode == NATIVE_ON && j->state == JOB_DONE && j->returned_rti && rt->observer.returned_from_interrupt)
         rt->observer.returned_from_interrupt(rt->observer.ctx, s, a->entry);
+    if (rt->mode == NATIVE_ON && j->state == JOB_DONE && j->returned && !j->returned_rti)
+        poison_return(a->entry, m);
     if (j->state == JOB_DONE) {
         a->ret_dont_care = j->stop_dont_care;
         a->ret_at = j->stop_at;

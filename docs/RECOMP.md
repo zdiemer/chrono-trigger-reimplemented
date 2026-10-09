@@ -3392,17 +3392,35 @@ calls its host's click at the original's point in the work (`MenuHost`), and
 the bridge makes the call from the original's frames: the click routine's,
 called from the menu frame's site for that move, and for the cursor moved over
 the enemy an area goes on, the choosing's and its kind's frames too. A table
-in the bridge keeps the sites; the logic says only which move clicked, why the
-targets are chosen and the kind.
+in the bridge keeps the sites; the logic says only which move clicked. Which
+of the frame's four calls to the choosing a click is under the bridge works
+out from where the menu stood as the frame began, and the kind's own sites
+from the kind the choosing was given.
 
-**The carries.** The code after the menu's frame reads the carry it leaves
-(through `$C1:17DD`, which passes it on where it places no cursor), and
-liveness can't show the choosing's, the rows' marking's or the item list's
-callers don't. Each is worked out in `menu_bridge.c` from what the frame did
-and the state before and after it: the last compare on each path (a cursor
-wrapping, a list ending, the next member found past the first slot, a tech's
-partners), the choosing's set but where the member itself or a fallen member
-is aimed at.
+**The carries.** Liveness has the menu's frame's carry read: through
+`$C1:17DD`, which passes it on where it places no cursor, and the frame step
+`$C1:10E3`, into a battle message's frame waits (`$CD:0021`), whose caller in
+the main loop then clears the party's statuses (`$C1:EA9D`), whose first
+multiply (`$C1:C90B`) takes the carry into a product's high word the next
+pass clears. Nothing acts on it, which no fuzz run can show (it compares up to
+the return) and the library can: `ct_dev --poison-return C11153 --poison-set C`
+inverts it at every return in the shipping mode, 63,268 times over the
+library with every trace the same, and the entry declares it with that note,
+a new form `tools/dontcare_check.py` and `tools/dc_evidence.py` check
+(PORTING.md, "Declarations liveness can't prove"). The choosing's, the rows'
+marking's and the item list's carries, which the original's code reaches only
+where the menu's frame is the original's, are still worked out in the bridge,
+from the logic's own decoders (`battle_target_pick`,
+`battle_tech_entry_is_a_tech`).
+
+**The walk with nobody leading.** The new timings moved a movie's presses
+(late-omen-terramutant, shipping mode) onto a scene with the party's leader's
+place empty and a direction held, which the field walk's guard refused. The
+original walks the slot the empty place's marker names, past the object
+tables, and the screen follows it; `field/walk.c` now does the same, the
+slot's reads and writes in four functions (`Walker`), and the guard's end of
+the 16-bit range is exact (the box's right side inside it), where it had a
+margin the slot's place fell in. A native build has nobody to walk (TODO.md).
 
 **What the gate found.** The first shadow runs showed the clicks played after
 the frame's work don't compare (the bridge above); the stat block noted for

@@ -57,14 +57,15 @@ static const uint32_t CLICK_SITE[] = {
     [CLICK_TARGET_PREVIOUS] = 0xC11611,
 };
 
-/* The menu frame's call to the choosing of targets, by why the targets are
- * chosen; the choosing's call to its kind's routine; and each kind's calls to
- * the click as the enemy the area goes on moves on, or back. */
-static const uint32_t CHOOSE_SITE[] = {
-    [TARGETS_FOR_ATTACK] = 0xC112B0, [TARGETS_FOR_TECH] = 0xC11379, [TARGETS_FOR_ITEM] = 0xC114C5,
-    [TARGETS_GOING_ON] = 0xC11561,
-};
-enum { KIND_CALL = 0xC11FC9, BATTLE_JSR_RETURN = BATTLE_JSR_SIZE - 1 };
+/* The menu frame's calls to the choosing of targets: for an attack, a tech
+ * or an item just chosen, and for the choosing going on from an earlier
+ * frame. Which one a frame makes is decided by where the menu stood as the
+ * frame began (choosing_call_of). The choosing calls its kind's routine from
+ * one place, and each kind that places an area on an enemy clicks from its
+ * own two, as the enemy moves on or back. */
+enum { CHOOSE_FOR_ATTACK = 0xC112B0, CHOOSE_FOR_TECH = 0xC11379, CHOOSE_FOR_ITEM = 0xC114C5,
+       CHOOSE_GOING_ON = 0xC11561, NO_CHOOSING_CALL = 0, KIND_CALL = 0xC11FC9,
+       BATTLE_JSR_RETURN = BATTLE_JSR_SIZE - 1 };
 
 typedef struct {
     uint8_t kind;
@@ -84,9 +85,20 @@ static uint32_t kind_click_site(uint8_t kind, bool on)
     return 0;
 }
 
+static uint32_t choosing_call_of(const GameState *g)
+{
+    if (battle_targeting(g))
+        return CHOOSE_GOING_ON;
+    switch (battle_menu_page(g)) {
+    case PAGE_COMMANDS: return CHOOSE_FOR_ATTACK;
+    case PAGE_TECHS: return CHOOSE_FOR_TECH;
+    default: return CHOOSE_FOR_ITEM;
+    }
+}
+
 static void push_return_of(Snes *s, uint32_t site) { m_push16(s, (uint16_t)(site + BATTLE_JSR_RETURN)); }
 
-static void click_on_machine(MenuHost *host, MenuClick click, TargetsWhy why, uint8_t kind)
+static void click_on_machine(MenuHost *host, MenuClick click)
 {
     BattleMenuMachine *m = (BattleMenuMachine *)host;
     if (m->stopped)
@@ -95,13 +107,13 @@ static void click_on_machine(MenuHost *host, MenuClick click, TargetsWhy why, ui
     uint32_t site = CLICK_SITE[click];
     unsigned frames = 0;
     if (click == CLICK_AREA_ENEMY_ON || click == CLICK_AREA_ENEMY_BACK) {
-        if (!m->inside_choosing) {
-            push_return_of(s, CHOOSE_SITE[why]);
+        if (m->choosing_call != NO_CHOOSING_CALL) {
+            push_return_of(s, m->choosing_call);
             frames++;
         }
         push_return_of(s, KIND_CALL);
         frames++;
-        site = kind_click_site(kind, click == CLICK_AREA_ENEMY_ON);
+        site = kind_click_site(battle_target_kind_number(battle_target_kind(state_of(s))), click == CLICK_AREA_ENEMY_ON);
     }
     if (!battle_run(s, site, CLICK, battle_click_cursor)) {
         m->stopped = true;
@@ -111,212 +123,35 @@ static void click_on_machine(MenuHost *host, MenuClick click, TargetsWhy why, ui
         (void)m_pull16(s);
 }
 
+/* The menu's frame calls the choosing from the place the menu stood at as it
+ * began; the choosing's own entry is called by the original's code, whose
+ * frame is there already. */
 BattleMenuMachine battle_menu_machine(Snes *s, bool inside_choosing)
 {
-    return (BattleMenuMachine){ { click_on_machine }, s, inside_choosing, false };
+    uint32_t call = inside_choosing ? NO_CHOOSING_CALL : choosing_call_of(state_of(s));
+    return (BattleMenuMachine){ { click_on_machine }, s, call, false };
 }
 
-/* ---- What the menu's routines leave in the carry -------------------------------------------------- */
+/* ---- What the menu's parts leave in the carry ----------------------------------------------------- */
 
-/* The original's callers go on with the carry its routines leave, and the
- * code after the menu's frame reads it: worked out here from what the frame
- * did, the state before and after it. */
-
-/* The kinds whose last test isn't a compare: the member itself, and the
- * fallen members to revive (target_choice.c's table). */
-enum { KIND_SELF = 2, KIND_FALLEN = 3, LAST_KIND = TARGET_KINDS - 1 };
-
-static uint8_t kind_number(uint8_t kind)
-{
-    uint8_t low = (uint8_t)(kind & ~TARGET_KIND_ALLY);
-    return low < TARGET_KINDS ? low : LAST_KIND;
-}
-
-/* $C1:1F79 leaves the carry of its last compare: clear for the member itself,
- * and for a fallen member found, which ask none. */
-static bool anyone_aimed_at(const GameState *g)
-{
-    for (unsigned place = 0; place < AREA_FOUND_PLACES; place++)
-        if (!menu_nobody(battle_targets(g, place)))
-            return true;
-    return false;
-}
-
+/* The choosing of targets, the rows' marking and the item list are reached
+ * by the original's code only where the menu's frame is the original's (its
+ * guard refused), which goes on with the carry each leaves: the choosing's
+ * last compare, set but where the member itself or a fallen member is aimed
+ * at, which ask none and leave it clear where they found someone; the
+ * marking's, of the last entry against the marks; the list's, of its last
+ * row's count. The menu's frame itself leaves none worth keeping (the
+ * registry's dc-evidence). */
 static bool choosing_carry(const GameState *g)
 {
-    uint8_t kind = kind_number(battle_target_kind(g));
-    return (kind == KIND_SELF || kind == KIND_FALLEN) ? !anyone_aimed_at(g) : true;
+    TargetPick pick = battle_target_pick(battle_target_kind(g));
+    return (pick == PICK_SELF || pick == PICK_FALLEN) ? !battle_anyone_aimed_at(g) : true;
 }
 
-/* The tech rows' marking leaves the carry of comparing the twentieth entry
- * with the marks: set where it is one. */
 static bool marking_carry(const GameState *g, uint8_t member)
 {
-    return battle_tech_list_ids(g, (uint8_t)(setup_member_tech_list_start(g, member) + TECHS_A_MEMBER - 1)) >= 0xFB;
-}
-
-/* What the frame started from. */
-typedef struct {
-    bool carry;
-    uint8_t member, page, command, slot, tech_at, item_top, item_row, ally_page, selected_partners;
-    bool targeting, stolen, stolen_held_before, stolen_into_first_place, message_free, remembers_commands;
-    uint8_t stolen_held;
-    uint8_t usable_item_flags, usable_item_held;
-    bool tech_usable;
-} MenuBefore;
-
-enum { NO_TECHS_IN_THIS_FIGHT = 0x01, ITEM_NOT_FOR_BATTLE = 0x80, MOST_HELD = 99, TECH_DIMMED = 0x80, LAST_SLOT_ITEM_ROW = 2 };
-
-static MenuBefore note_before(const Snes *s, const GameState *g)
-{
-    MenuBefore b = { 0 };
-    b.carry = m_flag(s, CPU_FLAG_C);
-    b.member = battle_menu_member(g);
-    b.page = battle_menu_page(g);
-    b.targeting = battle_targeting(g) != 0;
-    b.slot = battle_menu_slot(g);
-    b.ally_page = battle_ally_target_page(g);
-    b.selected_partners = battle_selected_tech_partners(g);
-    b.item_top = battle_item_top(g);
-    b.item_row = battle_item_row(g);
-    b.message_free = !battle_message_by_id(g) && !battle_message_by_id_high(g);
-    b.remembers_commands = battle_remembers_commands(g) != 0;
-    if (!menu_nobody(b.member)) {
-        b.command = battle_command_cursor(g, b.member);
-        b.tech_at = (uint8_t)(battle_tech_scroll(g, b.member) + battle_tech_cursor(g, b.member));
-        b.tech_usable = battle_tech_list_dimmed(g) && !(battle_selected_tech_flags(g) & TECH_DIMMED);
-    }
-    uint8_t at = (uint8_t)(b.item_top + b.item_row);
-    b.usable_item_flags = battle_item_list_flags(g, at);
-    b.usable_item_held = battle_item_list_held(g, at);
-    for (int m = BATTLE_PARTY_SIZE - 1; m >= 0 && !b.stolen; m--) {
-        if (!battle_member_kept_item_waiting(g, (unsigned)m))
-            continue;
-        b.stolen = true;
-        uint8_t item = battle_member_kept_item_id(g, (unsigned)m);
-        for (unsigned r = 0; r < BATTLE_ITEM_LIST_COUNT && !b.stolen_held_before; r++)
-            if (battle_item_list_item(g, r) == item) {
-                b.stolen_held_before = true;
-                b.stolen_held = battle_item_list_held(g, r);
-            }
-        b.stolen_into_first_place = !b.stolen_held_before && battle_item_list_item(g, 0) == 0;
-    }
-    return b;
-}
-
-/* The page an action aimed at the party goes back to, once the choosing has
- * turned the window over: kept from before, or the one it was chosen on. */
-static uint8_t page_turned_over_from(const GameState *g, const MenuBefore *b)
-{
-    if (b->ally_page)
-        return b->ally_page;
-    return (battle_target_kind(g) & TARGET_KIND_ALLY) ? (uint8_t)(b->page + 1) : 0;
-}
-
-/* A stolen item taken in leaves the carry of its count against the most, or
- * of its search's last step: set where it went into the list's first place. */
-static bool stolen_carry(const MenuBefore *b)
-{
-    if (b->stolen_held_before)
-        return (uint8_t)(b->stolen_held + 1) >= MOST_HELD + 1;
-    return b->stolen_into_first_place;
-}
-
-/* Called off: an action aimed at the party going back to a list's page puts
- * the item page's frames back with a copy that ends on a compare. */
-static bool called_off_carry(uint8_t ally_page, bool carry)
-{
-    return ally_page && (uint8_t)(ally_page - 1) != PAGE_TECHS ? true : carry;
-}
-
-/* Confirmed: a tech's partners are tested, and the next member is looked
- * for among the slots, which leaves the carry clear past the first and set
- * where nobody is left. */
-static bool confirmed_carry(const GameState *g, const MenuBefore *b, uint8_t ally_page, bool carry)
-{
-    uint8_t page = ally_page ? (uint8_t)(ally_page - 1) : b->page;
-    if (page == PAGE_TECHS)
-        carry = b->selected_partners == NO_PARTNERS || second_partner(b->selected_partners) == NO_PARTNER;
-    for (unsigned slot = 0; slot < BATTLE_PARTY_SIZE; slot++)
-        if (menu_slot_has_member(g, slot))
-            return slot == 0 ? carry : false;
-    return true;
-}
-
-static bool targeting_carry(const GameState *g, const MenuBefore *b, Buttons pressed)
-{
-    bool carry = choosing_carry(g);
-    uint8_t ally_page = page_turned_over_from(g, b);
-    if (menu_nobody(battle_no_targets(g)) || (pressed & BUTTON_B))
-        return called_off_carry(ally_page, carry);
-    if (pressed & (BUTTON_A | BUTTON_X))
-        return confirmed_carry(g, b, ally_page, carry);
-    if (!(battle_targets_together(g) & TARGETS_TOGETHER) && (pressed & (BUTTON_DOWN | BUTTON_RIGHT)))
-        return battle_target_choice(g) == 0;
-    return carry;
-}
-
-static bool command_page_carry(const GameState *g, const MenuBefore *b, Buttons pressed)
-{
-    if (b->remembers_commands && (pressed & BUTTON_X))
-        return choosing_carry(g);
-    if (pressed & (BUTTON_LEFT | BUTTON_UP))
-        return true;
-    if (pressed & BUTTON_DOWN)
-        return b->command + 1 >= 3;
-    if (pressed & BUTTON_RIGHT)
-        return battle_menu_slot(g) == 0;
-    if (!(pressed & BUTTON_A))
-        return true;
-    switch (b->command) {
-    case 0: return choosing_carry(g);
-    case 1: return (battle_fight_flags(g) & NO_TECHS_IN_THIS_FIGHT) ? false : marking_carry(g, b->member);
-    default: return !battle_fight_flags(g);
-    }
-}
-
-static bool tech_page_carry(const GameState *g, const MenuBefore *b, Buttons pressed)
-{
-    uint8_t member = b->member;
-    bool sum_carry = battle_tech_scroll(g, member) + battle_tech_cursor(g, member) > 0xFF;
-    if (pressed & BUTTON_A)
-        return b->tech_usable ? choosing_carry(g) : sum_carry;
-    if (pressed & BUTTON_B)
-        return true;
-    bool moved = (uint8_t)(battle_tech_scroll(g, member) + battle_tech_cursor(g, member)) != b->tech_at;
-    if (pressed & (BUTTON_UP | BUTTON_LEFT))
-        return moved;
-    if (pressed & (BUTTON_DOWN | BUTTON_RIGHT))
-        return !moved;
-    return sum_carry;
-}
-
-static bool item_page_carry(const GameState *g, const MenuBefore *b, Buttons pressed)
-{
-    if (pressed & BUTTON_A) {
-        bool usable = !(b->usable_item_flags & ITEM_NOT_FOR_BATTLE) && b->usable_item_held;
-        return usable ? choosing_carry(g) : b->item_top + b->item_row > 0xFF;
-    }
-    if (pressed & BUTTON_B)
-        return true;
-    if (pressed & (BUTTON_UP | BUTTON_LEFT))
-        return b->item_row != 0;
-    if (pressed & (BUTTON_DOWN | BUTTON_RIGHT))
-        return b->item_row >= LAST_SLOT_ITEM_ROW;
-    return true;
-}
-
-static bool menu_frame_carry(const GameState *g, const MenuBefore *b, Buttons pressed)
-{
-    if (menu_nobody(b->member))
-        return b->stolen ? stolen_carry(b) : b->carry;
-    if (b->targeting)
-        return targeting_carry(g, b, pressed);
-    switch (b->page) {
-    case PAGE_COMMANDS: return command_page_carry(g, b, pressed);
-    case PAGE_TECHS: return tech_page_carry(g, b, pressed);
-    default: return item_page_carry(g, b, pressed);
-    }
+    uint8_t last = (uint8_t)(setup_member_tech_list_start(g, member) + TECHS_A_MEMBER - 1);
+    return !battle_tech_entry_is_a_tech(battle_tech_list_ids(g, last));
 }
 
 /* ---- The entries ---------------------------------------------------------------------------------- */
@@ -326,18 +161,10 @@ static bool menu_frame_carry(const GameState *g, const MenuBefore *b, Buttons pr
 void battle_take_menu_input(Snes *s)
 {
     GameState *g = state_of(s);
-    Buttons pressed = battle_menu_buttons(g);
-    vars_peek(true);
-    MenuBefore before = note_before(s, g);
-    vars_peek(false);
     BattleMenuMachine m = battle_menu_machine(s, false);
-    battle_menu_frame(g, pressed, &m.host);
-    if (m.stopped)
-        return;
-    vars_peek(true);
-    m_set_flag(s, CPU_FLAG_C, menu_frame_carry(g, &before, pressed));
-    vars_peek(false);
-    m_rts(s);
+    battle_menu_frame(g, battle_menu_buttons(g), &m.host);
+    if (!m.stopped)
+        m_rts(s);
 }
 
 /* The choosing of targets for the original's callers. It leaves A's high
@@ -346,7 +173,7 @@ void battle_choose_targets_entry(Snes *s)
 {
     GameState *g = state_of(s);
     BattleMenuMachine m = battle_menu_machine(s, true);
-    battle_choose_targets(g, battle_menu_buttons(g), TARGETS_GOING_ON, &m.host);
+    battle_choose_targets(g, battle_menu_buttons(g), &m.host);
     if (m.stopped)
         return;
     s->cpu.a &= 0x00FF;

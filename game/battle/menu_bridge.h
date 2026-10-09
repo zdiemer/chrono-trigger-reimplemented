@@ -12,7 +12,7 @@
 typedef struct {
     MenuHost host;
     Snes *s;
-    bool inside_choosing; /* run for the choosing of targets' own entry, whose caller's frame is there */
+    uint32_t choosing_call; /* where the menu's frame calls the choosing from; none in the choosing's own entry */
     bool stopped;         /* a click's call didn't come back: the port has stopped there */
 } BattleMenuMachine;
 

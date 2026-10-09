@@ -52,7 +52,7 @@ static bool list_holds_anyone(const GameState *g)
     return false;
 }
 
-static bool anyone_aimed_at(const GameState *g)
+bool battle_anyone_aimed_at(const GameState *g)
 {
     for (unsigned place = 0; place < AREA_FOUND_PLACES; place++)
         if (!menu_nobody(battle_targets(g, place)))
@@ -131,15 +131,6 @@ static void list_side(GameState *g, Slots side, bool fallen_too)
 
 /* ---- The kinds ------------------------------------------------------------------------------------- */
 
-/* What a kind picks. */
-typedef enum {
-    PICK_ONE,       /* one from a side, the player moving the cursor (menu_input.c) */
-    PICK_ALL,       /* all of a side, together */
-    PICK_SELF,      /* the member choosing */
-    PICK_FALLEN,    /* a party member knocked out */
-    PICK_CHARACTER, /* the party member who is a particular character */
-    PICK_AREA,      /* those in an area */
-} Pick;
 
 /* Where an area goes: on the member choosing, on an enemy the player picks
  * (moving the cursor one way, or either way), or on a particular character;
@@ -148,7 +139,7 @@ typedef enum { ON_CHOOSER, ON_PICKED_ENEMY, ON_CHARACTER, ON_THE_PARTY } AreaPla
 typedef enum { PRESSES_GO_ON, PRESSES_GO_EITHER_WAY } EnemyCursor;
 
 typedef struct {
-    Pick pick;
+    TargetPick pick;
     Slots side;          /* PICK_ONE, PICK_ALL */
     bool fallen_too;     /* PICK_ALL: the knocked-out too */
     uint8_t character;   /* PICK_CHARACTER, and an area ON_CHARACTER */
@@ -188,8 +179,15 @@ static const TargetKind KINDS[TARGET_KINDS] = {
     ONE(PARTY), ONE(PARTY), ONE(PARTY), ONE(PARTY), ONE(PARTY),
 };
 
-/* A kind past the table's is its last. */
-static const TargetKind *kind_of(uint8_t kind) { return &KINDS[kind < TARGET_KINDS ? kind : TARGET_KINDS - 1]; }
+uint8_t battle_target_kind_number(uint8_t kind)
+{
+    uint8_t number = (uint8_t)(kind & ~TARGET_KIND_ALLY);
+    return number < TARGET_KINDS ? number : TARGET_KINDS - 1;
+}
+
+static const TargetKind *kind_of(uint8_t kind) { return &KINDS[battle_target_kind_number(kind)]; }
+
+TargetPick battle_target_pick(uint8_t kind) { return kind_of(kind)->pick; }
 
 static void nobody_to_aim_at(GameState *g) { set_battle_no_targets(g, MENU_NOBODY); }
 
@@ -240,12 +238,10 @@ static void pick_self(GameState *g)
     set_battle_targets(g, 0, member);
 }
 
-/* How a kind is chosen: the buttons the menu took, why the targets are
- * chosen, and the host that clicks. */
+/* How a kind is chosen: the buttons the menu took, and the host that
+ * clicks. */
 typedef struct {
     Buttons pressed;
-    TargetsWhy why;
-    uint8_t kind;
     MenuHost *host;
 } Choosing;
 
@@ -261,7 +257,7 @@ static uint8_t pick_enemy_for_area(GameState *g, const TargetKind *k, const Choo
         set_battle_targets_together(g, TARGETS_TOGETHER);
     bool on = (pressed & (BUTTON_UP | BUTTON_RIGHT)) != 0, back = !on && (pressed & (BUTTON_DOWN | BUTTON_LEFT));
     if (on || back) {
-        c->host->click(c->host, on ? CLICK_AREA_ENEMY_ON : CLICK_AREA_ENEMY_BACK, c->why, c->kind);
+        c->host->click(c->host, on ? CLICK_AREA_ENEMY_ON : CLICK_AREA_ENEMY_BACK);
         if (list_holds_anyone(g))
             step_cursor(g, on || k->cursor == PRESSES_GO_ON);
     }
@@ -303,7 +299,7 @@ static void pick_area(GameState *g, const TargetKind *k, const Choosing *c)
  * the frames are put back as the battle starts them. */
 static void show_the_party(GameState *g)
 {
-    set_battle_ally_target_page(g, (uint8_t)(battle_menu_page(g) + 1));
+    keep_page_for_targets(g, (MenuPage)battle_menu_page(g));
     set_battle_menu_page(g, PAGE_COMMANDS);
     set_battle_menu_slot_shown(g, NO_SLOT_SHOWN);
     set_battle_ally_target_window(g, (uint8_t)(battle_ally_target_window(g) + 1));
@@ -322,14 +318,14 @@ static void start_over(GameState *g, uint8_t chooser)
 }
 
 // $C1:1F79
-bool battle_choose_targets(GameState *g, Buttons pressed, TargetsWhy why, MenuHost *host)
+bool battle_choose_targets(GameState *g, Buttons pressed, MenuHost *host)
 {
     start_over(g, battle_menu_member(g));
     uint8_t kind = battle_target_kind(g);
-    if ((kind & TARGET_KIND_ALLY) && !battle_ally_target_page(g))
+    if ((kind & TARGET_KIND_ALLY) && !party_shown_for_targets(g))
         show_the_party(g);
-    const TargetKind *k = kind_of((uint8_t)(kind & ~TARGET_KIND_ALLY));
-    Choosing c = { pressed, why, (uint8_t)(kind & ~TARGET_KIND_ALLY), host };
+    const TargetKind *k = kind_of(kind);
+    Choosing c = { pressed, host };
     switch (k->pick) {
     case PICK_ONE:
         list_side(g, k->side, false);
@@ -344,7 +340,7 @@ bool battle_choose_targets(GameState *g, Buttons pressed, TargetsWhy why, MenuHo
     case PICK_CHARACTER: pick_character(g, k->character); break;
     case PICK_AREA: pick_area(g, k, &c); break;
     }
-    if (!anyone_aimed_at(g))
+    if (!battle_anyone_aimed_at(g))
         set_battle_no_targets(g, battle_targets(g, AREA_FOUND_PLACES - 1));
     return menu_nobody(battle_no_targets(g));
 }

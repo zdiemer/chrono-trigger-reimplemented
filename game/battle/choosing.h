@@ -62,6 +62,10 @@ enum { TECHS_A_MEMBER = 20, ITEM_LIST_RECORD_BYTES = 5, MENU_NONE = 0xFF };
 void battle_lay_out_tech_list(GameState *g);
 void battle_mark_tech_rows(GameState *g);
 
+/* Whether a tech list's entry names a tech, rather than a section's heading
+ * or a blank row. */
+bool battle_tech_entry_is_a_tech(uint8_t entry);
+
 /* Three rows of the item list from `top`, laid out in the battle window
  * ($C1:095D): each item the party holds with its name and how many, plain
  * where the member choosing may use it. */
@@ -116,8 +120,7 @@ bool battle_can_be_aimed_at(const GameState *g, unsigned slot, bool fallen_too);
 /* The cursor clicks as it moves, and as the player chooses, goes back, turns
  * the item list's page or moves among the targets. Playing it is the host's
  * (the SNES machine's, battle/menu_bridge.c): the logic says when, and for
- * which move; a click as the player moves the enemy an area goes on says too
- * why the targets are being chosen and the action's target kind. */
+ * which move. */
 typedef enum {
     CLICK_COMMAND_UP, CLICK_COMMAND_DOWN, CLICK_COMMAND_CHOSEN, CLICK_MEMBER_BACK, CLICK_MEMBER_ON,
     CLICK_TECH_CHOSEN, CLICK_TECH_BACK, CLICK_TECH_UP, CLICK_TECH_DOWN,
@@ -126,13 +129,9 @@ typedef enum {
     CLICK_AREA_ENEMY_ON, CLICK_AREA_ENEMY_BACK,
 } MenuClick;
 
-/* Why targets are being chosen: for an attack, a tech or an item just chosen,
- * or the choosing going on from an earlier frame. */
-typedef enum { TARGETS_FOR_ATTACK, TARGETS_FOR_TECH, TARGETS_FOR_ITEM, TARGETS_GOING_ON } TargetsWhy;
-
 typedef struct MenuHost MenuHost;
 struct MenuHost {
-    void (*click)(MenuHost *host, MenuClick click, TargetsWhy why, uint8_t kind);
+    void (*click)(MenuHost *host, MenuClick click);
 };
 
 /* ---- Choosing targets (target_choice.c) ----------------------------------------------------------- */
@@ -142,11 +141,22 @@ struct MenuHost {
  * it finds together, battle_targets_together has its top bit. */
 enum { TARGET_KIND_ATTACK = 7, TARGET_KIND_ALLY = 0x80, TARGET_KINDS = 0x21, TARGETS_TOGETHER = 0x80 };
 
+/* What a target kind picks (target_choice.c's table): one from a side, all
+ * of a side, the member itself, a fallen member, a particular character, or
+ * those in an area; and a kind's number, its low seven bits (a kind past the
+ * table's reads as its last). */
+typedef enum { PICK_ONE, PICK_ALL, PICK_SELF, PICK_FALLEN, PICK_CHARACTER, PICK_AREA } TargetPick;
+uint8_t battle_target_kind_number(uint8_t kind);
+TargetPick battle_target_pick(uint8_t kind);
+
+/* Whether the choosing aimed at anyone: a combatant among the targets. */
+bool battle_anyone_aimed_at(const GameState *g);
+
 /* $C1:1F79: list whom the member's action can be aimed at, and move the
  * cursor among them where the kind lets the player (`pressed`, the buttons
  * the menu took, each move clicking on `host`); true where nobody can be
  * aimed at. */
-bool battle_choose_targets(GameState *g, Buttons pressed, TargetsWhy why, MenuHost *host);
+bool battle_choose_targets(GameState *g, Buttons pressed, MenuHost *host);
 
 /* The player's cursor to the next target found, or the one before. */
 void battle_next_target(GameState *g);

@@ -76,14 +76,11 @@ Someone member_in_place(const GameState *g, PartyPlace place, FieldObject asking
     return nobody;
 }
 
-/* The marker's byte is an offset like an object's, which the slot past the
- * tables stands for when it is even; an odd one reads the tables out of step
- * (a slot's two bytes from two slots), which the game never makes: its
- * marker is $80. */
+/* The marker's byte is an offset like an object's (field/object.h,
+ * field_link_readable). */
 bool member_place_readable(const GameState *g, PartyPlace place)
 {
-    FieldLink link = party_member_link(g, place);
-    return field_link_is_object(link) ? field_link_names_object(link) : !(field_link_byte(link) & 1);
+    return field_link_readable(party_member_link(g, place));
 }
 
 // $C0:658F

@@ -32,7 +32,6 @@ C18A05 battle_evasion_timer_ran_out guard  # gap: battle_evasion_timer_ran_out_r
 C13772 battle_enemy_waits_for_target guard  # gap: battle_script_entry_ready turns away an enemy's wait in the Omen's battles (late-omen-battles, frames 15911-16112)
 C00C76 field_handle_requests guard  # gap: field_requests_can_run turns away the field's requests at boot and in the attract demo's maps (frame 50 on): a step event, location change or chest whose tile or leader the guard can't place
 C0011B field_put_aside_for_a_menu guard  # gap: party_places_readable turns away the party's places at frame 1704 of every movie from a save (the leader or a member not an object the tables hold)
-C0881E field_walk_the_leader guard  # gap: walk_fits turns away the leader's walk at frames 14887-14896 of the shipping mode's run of late-omen-terramutant, a state its presses reach since the battle menu's port (battle/menu_input.c) moved them to other frames; the reference play doesn't reach it
 C04867 event_cmd_set_solidity guard  # gap: event_command_accepts turns away the command's object or operands in the attract demo's events (frames 3605-6476)
 C01AAC field_press_confirm guard  # gap: confirm_fits turns away a confirm press in the Beyond Time ending's field (frame 28100)
 C2E0A5 menu_open_shop_member guard  # gap: menu_shop_equipping_runs turns away the shop's equip screen (menus-shop-equip, frames 12318-14627)

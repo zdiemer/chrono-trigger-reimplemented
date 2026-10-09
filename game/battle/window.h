@@ -72,6 +72,18 @@ void menu_put_cursor(GameState *g, WindowCell cell);
 /* The menu's pages: the commands, the techs, and past them the items. */
 typedef enum { PAGE_COMMANDS, PAGE_TECHS, PAGE_ITEMS } MenuPage;
 
+/* While an action is aimed at the party the window shows the party, and the
+ * page the action was chosen on is kept to go back to
+ * (battle_ally_target_page): the page plus one, none 0. */
+enum { NO_PAGE_KEPT = 0 };
+static inline bool party_shown_for_targets(const GameState *g) { return battle_ally_target_page(g) != NO_PAGE_KEPT; }
+static inline MenuPage page_kept_for_targets(const GameState *g) { return (MenuPage)(battle_ally_target_page(g) - 1); }
+static inline void keep_page_for_targets(GameState *g, MenuPage page)
+{
+    set_battle_ally_target_page(g, (uint8_t)(page + 1));
+}
+static inline void forget_page_kept_for_targets(GameState *g) { set_battle_ally_target_page(g, NO_PAGE_KEPT); }
+
 /* The menu slot whose window was last shown, set to none so that the command
  * page rebuilds the window when it next draws (battle_menu_slot_shown); going
  * back from a list marks it none with the other value, which the page takes

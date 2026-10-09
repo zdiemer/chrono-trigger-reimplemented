@@ -5207,6 +5207,14 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=00-7E", "--fill", 
 why = "a map object count of 64-127, whose doubled byte starts the search for objects in the way past the tables (what_the_original_meets_past_the_tables): the leader walking, the objects' positions and velocities (what the slots past the tables read as positions) on the map's middle tiles"
 
 [[routine]]
+name = "field_walk_the_leader"
+variant = "nobody-leads"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0197-7E0197=80,82,90,FE", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1D1E-7E1D1F=3F-3F", "--fill", "7E011F-7E0120=01-01", "--fill", "7E0162-7E0162=00-00", "--fill", "7E0138-7E0138=00-00", "--fill", "7E1800-7E197F=08-37"]
+why = "the leader's place empty (its marker an even byte past the objects), the player walking it into the map: the walk steps the slot the marker names past the tables (field/walk.c, Walker), whose place is read from the tables after the objects', kept on the map's middle tiles"
+
+[[routine]]
 name = "field_recentre_the_screen"
 subsystem = "field"
 state = "field"

@@ -1680,8 +1680,15 @@ const NativeEntry game_natives[] = {
       .guard = battle_menu_window_ready_a_clear, .cost_milli = 9751, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC117DD, .name = "battle_place_menu_cursors", .fn = battle_place_menu_cursors, NEEDS_M8_X16_BINARY,
       .guard = battle_window_ready_a_clear, .cost_milli = 3908, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    /* The menu's frame leaves the carry to nothing that acts on it: liveness
+     * has it read past the frame step's return ($C1:10E3) into a battle
+     * message's frame waits ($CD:0021), whose callers' first multiply
+     * ($C1:C90B, from the party's statuses cleared at $C1:8207) takes it into
+     * a product's high word the next pass clears.
+     * dc-evidence: ct_dev --poison-return C11153 --poison-set C over the library:
+     * 63268 returns, C inverted 63268; 0 differing */
     { .addr = 0xC11153, .name = "battle_take_menu_input", .fn = battle_take_menu_input, NEEDS_M8_X16_BINARY,
-      .guard = battle_take_menu_input_ready, .cost_milli = 6566, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+      .guard = battle_take_menu_input_ready, .cost_milli = 5660, .dont_care = DC_AL | DC_X | DC_Y | DC_FLAGS },
     { .addr = 0xC11115, .name = "battle_frame_member_choosing", .fn = battle_frame_member_choosing_entry,
       NEEDS_M8_X16_BINARY, .guard = battle_on_page, .cost_milli = 5585, .dont_care = DC_Y | DC_V },
     { .addr = 0xCFFD9E, .name = "battle_note_menu_stat_block", .fn = battle_note_menu_stat_block_entry,

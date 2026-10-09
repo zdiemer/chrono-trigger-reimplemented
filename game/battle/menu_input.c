@@ -152,12 +152,12 @@ typedef struct {
 } Frame;
 
 static bool pressed(const Frame *f, Buttons b) { return (f->pressed & b) != 0; }
-static void click(const Frame *f, MenuClick c) { f->host->click(f->host, c, TARGETS_GOING_ON, 0); }
+static void click(const Frame *f, MenuClick c) { f->host->click(f->host, c); }
 
-static bool choose_targets(GameState *g, const Frame *f, TargetsWhy why)
+static bool choose_targets(GameState *g, const Frame *f)
 {
     bool nobody;
-    TIMED_AS(g, 0xC11F79, nobody = battle_choose_targets(g, f->pressed, why, f->host));
+    TIMED_AS(g, 0xC11F79, nobody = battle_choose_targets(g, f->pressed, f->host));
     return nobody;
 }
 
@@ -181,9 +181,9 @@ enum { NO_TECHS_IN_THIS_FIGHT = 0x01 };
 
 /* ---- Choosing targets --------------------------------------------------------------------------- */
 
-static void start_choosing_target(GameState *g, const Frame *f, TargetsWhy why)
+static void start_choosing_target(GameState *g, const Frame *f)
 {
-    if (choose_targets(g, f, why)) {
+    if (choose_targets(g, f)) {
         set_battle_target_choice(g, 0);
         return;
     }
@@ -206,7 +206,7 @@ static void move_to_target(GameState *g, const Frame *f, bool forward)
 /* The window the list's page had, back after an action aimed at the party
  * turned it over: the item page's frames (or the command page's, which the
  * original puts the same way), or the tech page's, reloaded. */
-static void restore_list_frames(GameState *g, uint8_t page)
+static void restore_list_frames(GameState *g, MenuPage page)
 {
     if (page == PAGE_TECHS) {
         ORIGINAL_EFFECT(set_battle_tech_page_open_mark(g, 0));
@@ -223,11 +223,11 @@ static void restore_list_frames(GameState *g, uint8_t page)
 }
 
 /* Back from an action aimed at the party to the page it was chosen on. */
-static uint8_t back_from_the_party(GameState *g)
+static MenuPage back_from_the_party(GameState *g)
 {
-    uint8_t page = (uint8_t)(battle_ally_target_page(g) - 1);
-    set_battle_menu_page(g, page);
-    set_battle_ally_target_page(g, 0);
+    MenuPage page = page_kept_for_targets(g);
+    set_battle_menu_page(g, (uint8_t)page);
+    forget_page_kept_for_targets(g);
     return page;
 }
 
@@ -244,8 +244,8 @@ static void stop_targeting(GameState *g)
 static void call_off_targeting(GameState *g)
 {
     stop_targeting(g);
-    if (battle_ally_target_page(g)) {
-        uint8_t page = back_from_the_party(g);
+    if (party_shown_for_targets(g)) {
+        MenuPage page = back_from_the_party(g);
         set_battle_ally_target_window(g, 0);
         restore_list_frames(g, page);
     }
@@ -374,7 +374,7 @@ static void queue_action(GameState *g, uint8_t member, const Chosen *c)
 /* Confirmed: the target and what was chosen go into the member's action. */
 static void confirm_targets(GameState *g, uint8_t member)
 {
-    if (battle_ally_target_page(g))
+    if (party_shown_for_targets(g))
         back_from_the_party(g);
     set_battle_targeting(g, (uint8_t)(battle_targeting(g) - 1));
     Chosen c;
@@ -389,7 +389,7 @@ static void confirm_targets(GameState *g, uint8_t member)
 // $C1:1561
 static void choose_target(GameState *g, const Frame *f, uint8_t member)
 {
-    if (choose_targets(g, f, TARGETS_GOING_ON)) {
+    if (choose_targets(g, f)) {
         set_battle_target_choice(g, 0);
         call_off_targeting(g);
     } else if (pressed(f, BUTTON_B)) {
@@ -453,7 +453,7 @@ static void choose_attack(GameState *g, const Frame *f)
     redraw_member_cells(g, 2);
     set_battle_target_kind(g, TARGET_KIND_ATTACK);
     set_battle_menu_command(g, COMMAND_ATTACK);
-    (void)choose_targets(g, f, TARGETS_FOR_ATTACK);
+    (void)choose_targets(g, f);
     set_battle_targets_changed(g, (uint8_t)(battle_targets_changed(g) + 1));
     set_battle_targeting(g, (uint8_t)(battle_targeting(g) + 1));
 }
@@ -614,7 +614,7 @@ static void use_tech(GameState *g, const Frame *f)
     if (!battle_tech_list_dimmed(g) || (battle_selected_tech_flags(g) & TECH_DIMMED))
         return;
     set_battle_target_kind(g, battle_selected_tech_menu_detail(g));
-    start_choosing_target(g, f, TARGETS_FOR_TECH);
+    start_choosing_target(g, f);
 }
 
 // $C1:1320
@@ -675,7 +675,7 @@ static void use_item(GameState *g, const Frame *f)
     set_battle_item_chosen(g, battle_item_list_item(g, at));
     set_battle_target_kind(g, battle_item_list_menu_detail(g, at));
     set_battle_item_chosen_place(g, place);
-    start_choosing_target(g, f, TARGETS_FOR_ITEM);
+    start_choosing_target(g, f);
 }
 
 // $C1:143D

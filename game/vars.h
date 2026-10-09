@@ -1537,11 +1537,23 @@ enum { FIELD_OBJECT_SCREEN_X_COUNT = 64 };   /* by object slot (X = slot * 2) */
  * origin) */
 uint16_t field_object_screen_x(const GameState *g, unsigned slot);
 void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v);
+/* Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen
+ * origin) Unchecked, for marked scaffolding only: the leader's walk with nobody leading walks
+ * the slot an empty place's marker names, the first past the tables, and the screen follows its
+ * place across, which is the first object's screen down (game/field/walk.c, Walker) */
+uint16_t field_object_screen_x_unchecked(const GameState *g, unsigned slot);
+void set_field_object_screen_x_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_SCREEN_Y_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list */
 uint16_t field_object_screen_y(const GameState *g, unsigned slot);
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v);
+/* Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list Unchecked, for
+ * marked scaffolding only: the leader's walk with nobody leading walks the slot an empty place's
+ * marker names, the first past the tables, and the screen follows its place down, from the table
+ * after (game/field/walk.c, Walker) */
+uint16_t field_object_screen_y_unchecked(const GameState *g, unsigned slot);
+void set_field_object_screen_y_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { FIELD_OBJECT_PALETTE_OLDER_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Of the objects sharing the object's sprite palette slot (the same colors), the one that took

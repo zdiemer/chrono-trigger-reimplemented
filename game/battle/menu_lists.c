@@ -37,7 +37,9 @@ enum {
     FIRST_BLANK_ENTRY = 0xFE,
 };
 
-static bool is_tech(uint8_t entry) { return entry < UNNAMED_ENTRY; }
+bool battle_tech_entry_is_a_tech(uint8_t entry) { return entry < UNNAMED_ENTRY; }
+
+static bool is_tech(uint8_t entry) { return battle_tech_entry_is_a_tech(entry); }
 
 /* Four rows are laid out, the three the page shows and the one below. A row
  * is two lines of the list's tilemap; its parts are in columns: a gap of three

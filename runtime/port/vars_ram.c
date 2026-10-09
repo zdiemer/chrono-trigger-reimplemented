@@ -1729,8 +1729,12 @@ uint16_t field_switch_entries(const GameState *g, unsigned i) { IN_RANGE(g, 70, 
 void set_field_switch_entries(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 70, "set_field_switch_entries", "count", i, 24u); w16(g, 0x7E09CAu + (uint32_t)i * 0x02u, v); }
 uint16_t field_object_screen_x(const GameState *g, unsigned slot) { IN_RANGE(g, 71, "field_object_screen_x", "count", slot, 64u); return r16(g, 0x7E0A00u + (uint32_t)slot * 0x02u); }
 void set_field_object_screen_x(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 71, "set_field_object_screen_x", "count", slot, 64u); w16(g, 0x7E0A00u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_screen_x_unchecked(const GameState *g, unsigned slot) { return r16(g, 0x7E0A00u + (uint32_t)slot * 0x02u); }
+void set_field_object_screen_x_unchecked(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0A00u + (uint32_t)slot * 0x02u, v); }
 uint16_t field_object_screen_y(const GameState *g, unsigned slot) { IN_RANGE(g, 72, "field_object_screen_y", "count", slot, 64u); return r16(g, 0x7E0A80u + (uint32_t)slot * 0x02u); }
 void set_field_object_screen_y(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 72, "set_field_object_screen_y", "count", slot, 64u); w16(g, 0x7E0A80u + (uint32_t)slot * 0x02u, v); }
+uint16_t field_object_screen_y_unchecked(const GameState *g, unsigned slot) { return r16(g, 0x7E0A80u + (uint32_t)slot * 0x02u); }
+void set_field_object_screen_y_unchecked(GameState *g, unsigned slot, uint16_t v) { w16(g, 0x7E0A80u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_palette_older(const GameState *g, unsigned slot) { IN_RANGE(g, 73, "field_object_palette_older", "count", slot, 64u); return r8(g, 0x7E0B00u + (uint32_t)slot * 0x02u); }
 void set_field_object_palette_older(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 73, "set_field_object_palette_older", "count", slot, 64u); w8(g, 0x7E0B00u + (uint32_t)slot * 0x02u, v); }
 uint8_t field_object_palette_newer(const GameState *g, unsigned slot) { IN_RANGE(g, 74, "field_object_palette_newer", "count", slot, 64u); return r8(g, 0x7E0B01u + (uint32_t)slot * 0x02u); }

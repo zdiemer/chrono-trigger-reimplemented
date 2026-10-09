@@ -75,6 +75,15 @@ static inline bool field_link_names_object(FieldLink link)
     return field_link_is_object(link) && field_names_object(link.stored);
 }
 
+/* Whether the original can read a link's slot as one: an object the tables
+ * hold, or a marker past them whose byte is even (an odd one reads the
+ * tables out of step, a slot's two bytes from two slots, which the game
+ * never makes: its marker is $80). */
+static inline bool field_link_readable(FieldLink link)
+{
+    return field_link_is_object(link) ? field_link_names_object(link) : !(link.stored & 1);
+}
+
 /* The object as the original's index registers hold it (its link's byte), for
  * scaffolding that keeps it in a scratch cell and for the machine side. */
 static inline uint8_t field_object_offset(FieldObject obj) { return field_link_to(obj).stored; }
@@ -648,6 +657,10 @@ typedef struct {
     FieldPosition at;
 } ObjectPastTheTables;
 ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot);
+/* The sprite priorities the original lays on such a slot (a party place
+ * that is empty, as the map's start lays it out and the leader's walk
+ * steps it), on the bytes after the priorities'. */
+void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, uint8_t upper, uint8_t lower);
 /* And what the walk's search reads besides: whether the slot's in-view byte
  * isn't the out-of-view one, and whether it reads as solid. */
 ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot);

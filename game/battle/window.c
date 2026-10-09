@@ -399,7 +399,7 @@ void battle_redraw_window(GameState *g)
 
     if (battle_menu_member_count(g) == 0)
         return;
-    if (battle_ally_target_page(g)) {
+    if (party_shown_for_targets(g)) {
         uint8_t target = battle_targets(g, 0);
         if (target != battle_ally_target_marked(g)) {
             set_battle_menu_slot_shown(g, NO_SLOT_SHOWN);
@@ -454,7 +454,7 @@ static bool menu_state_kept(const GameState *g)
     for (unsigned i = 0; i < BATTLE_TARGET_ENTRIES; i++)
         if (!names_combatant_or_nobody(battle_targets(g, i)))
             return false;
-    if (battle_ally_target_page(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
+    if (party_shown_for_targets(g) && battle_targets(g, 0) >= BATTLE_PARTY_SIZE)
         return false;
     if (battle_target_cursor(g) >= BATTLE_TARGET_ENTRIES)
         return false;

@@ -3206,6 +3206,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen origin)"
 source = "game/field/object_update.c, field_update_screen_position $C0:AB45"
+unchecked = "the leader's walk with nobody leading walks the slot an empty place's marker names, the first past the tables, and the screen follows its place across, which is the first object's screen down (game/field/walk.c, Walker)"
 
 [[var]]
 name = "field_object_screen_y"
@@ -3217,6 +3218,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list"
 source = "game/field/object_update.c, object_update_screen_position $C0:AB45, row_of"
+unchecked = "the leader's walk with nobody leading walks the slot an empty place's marker names, the first past the tables, and the screen follows its place down, from the table after (game/field/walk.c, Walker)"
 
 [[var]]
 name = "field_object_sprite_priority"

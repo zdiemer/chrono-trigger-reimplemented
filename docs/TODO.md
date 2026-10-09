@@ -81,9 +81,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - field and events: `field_handle_requests` (`$C0:0C76`, at boot and in the
     attract demo), `field_put_aside_for_a_menu` (`$C0:011B`, frame 1704 of every
     movie from a save), `event_cmd_set_solidity` (`$C0:4867`, the attract
-    demo), `field_press_confirm` (`$C0:1AAC`), `field_walk_the_leader`
-    (`$C0:881E`, a state the shipping mode's late-omen-terramutant reaches at
-    frame 14887, which `walk_fits` turns away);
+    demo), `field_press_confirm` (`$C0:1AAC`);
   - menus: three entered with the other width of A (`menu_play_the_gate_song`
     `$C2:CBBF` and `menu_object_cmd_play_song` `$C2:18F9` with 8-bit A,
     `menu_describe_item` `$C2:F2F3` with 16-bit), `menu_start_the_scroll_bar`
@@ -711,6 +709,16 @@ rest waits, is [PLAN.md](PLAN.md).
     are described by `aim_data.h`, `effect_data.h`, `menu_data.h` and
     `equipment_data.h` differently, `effect_data.h`'s as not worked out: one
     record type each.
+
+- **A walk with nobody leading** (game/field/walk.c, `Walker`). With the
+  leader's place empty, the original walks the slot its marker names, past
+  the object tables: where that slot stands, its tile and its place on the
+  screen come from the tables after the objects', and the ground it steps
+  onto lays its priorities on the bytes after the priorities'. The screen
+  follows it, which shows (the shipping mode's late-omen-terramutant reaches
+  it at frame 14887 with a direction held). A native build has nobody to
+  walk: decide what the screen does then, and drop the slot's reads and
+  writes with the tables' native storage.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:

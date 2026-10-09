@@ -460,6 +460,14 @@ void native_call_poison_reset(void);
  * shows. NULL by default. */
 extern bool (*native_site_poison)(uint32_t site, uint32_t target, uint64_t *bits, uint16_t *set);
 
+/* The shipping mode's returns, for ct_dev --poison-return: where a hand port
+ * registered at `entry` returns to the original's code and this hook says so,
+ * the registers and flags its don't-care set names (or as many of them as the
+ * hook leaves in `set`) are scrambled before the original's code goes on. A
+ * declaration that holds leaves the run as it was; one that doesn't changes
+ * what the original's code does, which a trace shows. NULL by default. */
+extern bool (*native_return_poison)(uint32_t entry, uint64_t *bits, uint16_t *set);
+
 /* Synchronous call-outs, for ct_fuzz --stop-at-call: called with the machine
  * at the callee's entry (the return address pushed); a tool that wants the
  * comparison to end there (a call that yields to another task, which never

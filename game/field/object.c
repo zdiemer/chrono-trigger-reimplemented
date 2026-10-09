@@ -312,10 +312,20 @@ static ObjectLayering own_layering(const GameState *g, FieldObject obj)
     return layering_of_byte(field_object_priority_mode(g, obj));
 }
 
-void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower)
+static uint16_t priorities_word(uint8_t upper, uint8_t lower)
 {
     uint8_t low = (uint8_t)(lower << PRIORITY_SHIFT), high = (uint8_t)(upper << PRIORITY_SHIFT);
-    set_field_object_sprite_priority(g, obj, (uint16_t)(high << 8 | low));
+    return (uint16_t)(high << 8 | low);
+}
+
+void object_set_sprite_priorities(GameState *g, FieldObject obj, uint8_t upper, uint8_t lower)
+{
+    set_field_object_sprite_priority(g, obj, priorities_word(upper, lower));
+}
+
+void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot, uint8_t upper, uint8_t lower)
+{
+    set_field_object_sprite_priority_unchecked(g, slot, priorities_word(upper, lower));
 }
 
 SpritePriorities object_sprite_priorities(const GameState *g, FieldObject obj)

@@ -12,6 +12,11 @@ time someone made them. This makes them again:
   whose traces must be the same (the picture's hash included) outside the stack
   page, $7E:0600-06FF: a register the callee pushes and pulls again stays there
   in memory, which is all a scrambled flag nothing reads leaves behind;
+- every movie in the shipping mode once more with `ct_dev --poison-return` at
+  every entry a `ct_dev --poison-return` note in game/registry.c names and
+  `--poison-set C`, whose trace must be the same as the first (an entry's
+  carry after it returns, which liveness has read where the run shows no
+  reader acts on it);
 - every movie on the interpreter alone (--native off --recomp off) with
   `ct_dev --index-check` at every dispatch an `index_reach` hint bounds
   (re/hints.toml), whose X must never be past $FE.
@@ -36,11 +41,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.dontcare_check import MIN_SCRAMBLED, V_EVIDENCE, v_evidence_counts  # noqa: E402
+from tools.dontcare_check import MIN_SCRAMBLED, RETURN_EVIDENCE, V_EVIDENCE, v_evidence_counts  # noqa: E402
 from tools.suite import collect  # noqa: E402
 
 STACK_PAGE = "$7E:0600-06FF"
 POISON = re.compile(r"^poison-site: ([0-9A-F]{6}) calls (\d+), V inverted (\d+)$", re.M)
+RETURNS = re.compile(r"^poison-return: ([0-9A-F]{6}) returns (\d+), C inverted (\d+)$", re.M)
 INDEX = re.compile(r"^index-check: ([0-9A-F]{6}) runs (\d+), largest X \$([0-9A-F]{4}), past \$FE (\d+)$", re.M)
 
 
@@ -57,34 +63,54 @@ def notes(root: pathlib.Path) -> list:
     return out
 
 
+def return_notes(root: pathlib.Path) -> list:
+    """(entry, cited returns with C inverted) of every ct_dev --poison-return
+    note in game/registry.c."""
+    text = (root / "game/registry.c").read_text(encoding="utf-8")
+    flat = " ".join(re.sub(r"/\*|\*/|//|^\s*\*|\s\*\s", " ", text, flags=re.M).split())
+    return [(int(m.group("entry"), 16), int(m.group("inverted"))) for m in RETURN_EVIDENCE.finditer(flat)]
+
+
 def index_sites(root: pathlib.Path) -> list:
     from tools.disasm import hints as hints_mod
     return sorted(hints_mod.load(root / "re/hints.toml").index_reach)
 
 
-def run_movie(binary, rom, out, movie, sites, dispatches):
+def same_trace(a, b) -> tuple:
+    diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff", "--framebuffer", "--ignore", STACK_PAGE,
+                           str(a), str(b)], cwd=ROOT, capture_output=True, text=True)
+    tail = (diff.stdout or diff.stderr).strip().splitlines()
+    return diff.returncode == 0 and bool(tail) and "no divergence" in tail[-1], tail[-1] if tail else ""
+
+
+def run_movie(binary, rom, out, movie, sites, dispatches, entries):
     name, path, frames = movie
     base = [str(rom), "--movie", str(path), "--frames", str(frames)]
-    traces = {tag: out / f"{name}-{tag}.cttr" for tag in ("plain", "poisoned")}
+    traces = {tag: out / f"{name}-{tag}.cttr" for tag in ("plain", "poisoned", "returns")}
     runs = {
         "plain": ["--native", "on", "--recomp", "on", "--trace", str(traces["plain"])],
         "poisoned": ["--native", "on", "--recomp", "on", "--trace", str(traces["poisoned"]), "--poison-set", "V"]
                     + sum((["--poison-site", f"{s:06X}"] for s in sites), []),
         "index": ["--native", "off", "--recomp", "off"] + sum((["--index-check", f"{d:06X}"] for d in dispatches), []),
     }
+    if entries:
+        runs["returns"] = (["--native", "on", "--recomp", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
+                           + sum((["--poison-return", f"{e:06X}"] for e in entries), []))
     procs = {tag: subprocess.Popen([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT) for tag, extra in runs.items()}
     logs = {tag: p.communicate()[0].decode(errors="replace").replace(chr(13), "") for tag, p in procs.items()}
     failed = [tag for tag, p in procs.items() if p.returncode != 0]
-    diff = subprocess.run([sys.executable, "-m", "tools.trace", "diff", "--framebuffer", "--ignore", STACK_PAGE,
-                           str(traces["plain"]), str(traces["poisoned"])], cwd=ROOT, capture_output=True, text=True)
-    tail = (diff.stdout or diff.stderr).strip().splitlines()
-    same = diff.returncode == 0 and bool(tail) and "no divergence" in tail[-1]
+    same, tail = same_trace(traces["plain"], traces["poisoned"])
+    if entries:
+        returns_same, returns_tail = same_trace(traces["plain"], traces["returns"])
+        if not returns_same:
+            same, tail = False, "returns: " + returns_tail
     for t in traces.values():
         t.unlink(missing_ok=True)
     poisoned = {int(s, 16): int(v) for s, _, v in POISON.findall(logs["poisoned"])}
+    poisoned_returns = {int(e, 16): int(v) for e, _, v in RETURNS.findall(logs.get("returns", ""))}
     index = {int(d, 16): (int(r), int(x, 16), int(o)) for d, r, x, o in INDEX.findall(logs["index"])}
-    return name, failed, same, tail[-1] if tail else "", poisoned, index
+    return name, failed, same, tail, poisoned, index, poisoned_returns
 
 
 def main(argv=None) -> int:
@@ -97,9 +123,12 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     found = notes(ROOT)
-    if not found:
-        print("no tools/v_readers.py dc-evidence notes in game/")
+    returned = return_notes(ROOT)
+    if not found and not returned:
+        print("no tools/v_readers.py or ct_dev --poison-return dc-evidence notes in game/")
         return 0
+    entries = sorted({e for e, _ in returned})
+    inverted_returns = {e: 0 for e in entries}
     sites = sorted({s for _, _, counts, _ in found for s in counts})
     dispatches = index_sites(ROOT)
     out = args.out or pathlib.Path(tempfile.mkdtemp(prefix="dc_evidence-"))
@@ -111,8 +140,10 @@ def main(argv=None) -> int:
     index = {d: [0, 0, 0] for d in dispatches}
     bad = 0
     with cf.ThreadPoolExecutor(max(1, args.jobs)) as ex:
-        for name, failed, same, tail, poisoned, idx in ex.map(
-                lambda m: run_movie(binary, args.rom, out, m, sites, dispatches), movies):
+        for name, failed, same, tail, poisoned, idx, poisoned_returns in ex.map(
+                lambda m: run_movie(binary, args.rom, out, m, sites, dispatches, entries), movies):
+            for e, v in poisoned_returns.items():
+                inverted_returns[e] = inverted_returns.get(e, 0) + v
             for s, v in poisoned.items():
                 inverted[s] = inverted.get(s, 0) + v
             for d, (runs, largest, over) in idx.items():
@@ -136,6 +167,12 @@ def main(argv=None) -> int:
         print(f"{path}: {target}: " + ", ".join(f"{s:06X} cites {counts[s]}, made {made[s]}" for s in counts)
               + ("" if ok else f"  <-- under {MIN_SCRAMBLED} at " + ", ".join(f"{s:06X}" for s in short)
                  + ("" if static else " (and the note doesn't rest them on the static result)")))
+    for e, cited in returned:
+        made = inverted_returns.get(e, 0)
+        ok = made >= MIN_SCRAMBLED
+        bad += not ok and not args.movies
+        print(f"game/registry.c: {e:06X} returns with C inverted: cites {cited}, made {made}"
+              + ("" if ok else f"  <-- under {MIN_SCRAMBLED}"))
     if not args.out:
         shutil.rmtree(out, ignore_errors=True)
     print("dc_evidence: " + ("OK" if not bad else f"{bad} problem(s)"))
