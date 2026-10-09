@@ -906,6 +906,12 @@ Each of these is a finding. Every example here comes from this repo.
      logic's decoders; so do guards, or the two drift apart and the guard
      admits a state the logic reads differently. Export the decoder and call
      it.
+125. **A call site dressed as a game concept.** An enum with game-sounding
+     names (`TargetsWhy`) whose members map one to one onto the original's
+     call sites of a routine, passed through the logic only so the bridge can
+     rebuild the stack at that site. It is item 85 under another name. The
+     bridge remembers the context it set up, or the frame is declared don't
+     care; the logic's signatures carry only what the game decides.
 
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
