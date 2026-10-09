@@ -368,6 +368,22 @@ rest waits, is [PLAN.md](PLAN.md).
   - Number commands `$54`/`$55` would read records past the 44 the map
     declares; no movie reaches them. The scripts' advance (`$C1:75BB`) is
     written twice, in `numbers.c` and `scripts.c`;
+  - what the battle menu's input review left (none rated translation):
+    `menu_input.c` uses `menu_nobody(slot - 1)` as an underflow test, copies
+    `open_items`' frames instead of one `put_item_page_frames`, and steps
+    `battle_targeting`, `attack_by_shortcut` and `item_list_changed` with
+    `+1`/`-1` (named set/clear); `area_search.c` writes
+    `set_battle_multiply_factors` unmarked though nothing reads it, and
+    exports `battle_area_search_carry` from the logic (beside the entries);
+    `AreaAsked.flag` wants the name `short_beam`; `window_data.h`'s
+    `battle_stat_block_place` reads past the table for the menu's nobody;
+    `CHOOSING_FRAME_LEFT_A` in `menu_window.c` repeats `menu_input.c`'s entry
+    derivation; `menu_lists.c`'s `ITEM_WORD` is raw font bytes;
+    `target_choice.c`'s circle sizes `0x09/0x10/0x19` read better as 3², 4²
+    and 5²; `field/walk.c`'s guard comment should say why
+    `right_side(at.x) + step.x` near `$FF8F` never feeds a carry the port
+    drops.
+
   - what the triangles, circles and special effects' review left (none
     blocking): `screen_triangles.c` works out the bit-serial divider's
     leftover (`last_bit_scaled_out`, `left_of_the_dividend`) outside
