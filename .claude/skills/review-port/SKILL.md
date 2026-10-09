@@ -913,6 +913,12 @@ Each of these is a finding. Every example here comes from this repo.
      bridge remembers the context it set up, or the frame is declared don't
      care; the logic's signatures carry only what the game decides.
 
+**Item 81 and the effects baseline.** A baseline line that admits the two
+builds diverge ("a native build decides it") is a record of the gap, not the
+showing item 81 asks for. Either the cell becomes a plain write wherever the
+original leaves it, or the library is shown to reach no visible difference and
+the port says so, with what the player would see.
+
 **Items 75 and 88 together.** When the wrapper needs to tell apart cases the
 game merges (to derive a flag) and working them out from the state would mean
 re-running the logic: first do the port-routine skill's third trap (name the
