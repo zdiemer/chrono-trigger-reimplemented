@@ -950,6 +950,31 @@ The effect worked out for an enemy's action hands the action's showing
 save and restore across their frame waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"), which is
 the case it was made for.
 
+The third form is an entry's own carry after it returns, where liveness
+follows it out through the original's callers to a reader whose result
+nothing then acts on. Fuzzing compares only up to the entry's return, so it
+can't show that; the library can. The note sits in the comment block just
+above the entry in `game/registry.c`, beside the reader named:
+
+```c
+/* ...the reader, and why nothing acts on what it reads...
+ * dc-evidence: ct_dev --poison-return BBAAAA --poison-set C over the library:
+ * N returns, C inverted M; 0 differing */
+```
+
+`ct_dev --poison-return BBAAAA` (with `--native on`) scrambles, wherever the
+port registered there returns to the original's code in the shipping mode, the
+registers its entry declares don't-care (only those `--poison-set` names), and
+prints how many returns had the carry inverted. The check takes the note where
+liveness has the carry alone read after the entry returns, the entry named,
+C in the set, no trace differing and at least 100 returns inverted;
+`tools/dc_evidence.py` makes the run again beside the other two, and compares
+its trace with the unscrambled one's. The menu's frame (`$C1:1153`) was the
+case: its carry runs out through the frame step into a battle message's frame
+waits, and the first multiply of the party's statuses cleared after the
+message takes it into a product's high word the next pass clears
+(RECOMP.md, "Phase 3, battle: the player choosing").
+
 ## Status
 
 Every registered port has a row in [ports.tsv](ports.tsv): the routine, its

@@ -13,7 +13,7 @@
  *          [--sound-lockstep-level status|keys|dsp|state] [--sound-lockstep-audio exact|host]
  *          [--sound-lockstep-wav prefix] [--sound-driver original|c] [--mixer dsp|native|check]
  *          [--scaffold-reads [original]] [--fallbacks out.txt]
- *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-set AXYNVZC]
+ *          [--as-port BBAAAA[,BBAAAA...]] [--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC]
  *          [--index-check BBAAAA]...
  *
  * The framebuffer is only drawn for what reads it (--trace, --shot-every,
@@ -132,6 +132,10 @@
  * scrambles only those of the set. A declaration that holds leaves the run's
  * trace as it is without the scrambling; one the original's code reads changes
  * it. It prints each site's calls and how many had the overflow flag inverted.
+ * --poison-return BBAAAA (with --native on) does the same where the hand port
+ * registered at that address returns to the original's code, to the set its
+ * entry declares (native_return_poison), and prints each entry's returns and
+ * how many had the carry inverted.
  * --index-check BBAAAA (with --native off --recomp off, where the interpreter
  * runs everything) notes the X register each time the instruction there runs,
  * and prints the largest and how often it was past $FE: the check of a jump
@@ -444,6 +448,38 @@ static int npoison_sites;
 static uint64_t poison_state = 0x9E3779B97F4A7C15ull;
 static uint16_t poison_set = 0xFFFF;
 
+/* --poison-return: the entries named, how many returns each made and in how
+ * many the carry was among what was scrambled (so inverted). */
+typedef struct {
+    uint32_t entry;
+    unsigned long returns, c_inverted;
+} PoisonReturn;
+static PoisonReturn poison_returns[16];
+static int npoison_returns;
+
+static uint64_t poison_next(void)
+{
+    poison_state ^= poison_state << 13;
+    poison_state ^= poison_state >> 7;
+    poison_state ^= poison_state << 17;
+    return poison_state;
+}
+
+static bool poison_return(uint32_t entry, uint64_t *bits, uint16_t *set)
+{
+    for (int i = 0; i < npoison_returns; i++) {
+        if (poison_returns[i].entry != entry)
+            continue;
+        *set &= poison_set;
+        *bits = poison_next();
+        poison_returns[i].returns++;
+        if (*set & DC_C)
+            poison_returns[i].c_inverted++;
+        return *set != 0;
+    }
+    return false;
+}
+
 static bool poison_site(uint32_t site, uint32_t target, uint64_t *bits, uint16_t *set)
 {
     (void)target;
@@ -451,10 +487,7 @@ static bool poison_site(uint32_t site, uint32_t target, uint64_t *bits, uint16_t
         if (poison_sites[i].site != site)
             continue;
         *set &= poison_set;
-        poison_state ^= poison_state << 13;
-        poison_state ^= poison_state >> 7;
-        poison_state ^= poison_state << 17;
-        *bits = poison_state;
+        *bits = poison_next();
         poison_sites[i].calls++;
         if (*set & DC_V)
             poison_sites[i].v_inverted++;
@@ -586,6 +619,8 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--as-port")) as_ports = v;
         else if (!strcmp(a, "--poison-site") && npoison_sites < 16)
             poison_sites[npoison_sites++].site = (uint32_t)strtoul(v, NULL, 16);
+        else if (!strcmp(a, "--poison-return") && npoison_returns < 16)
+            poison_returns[npoison_returns++].entry = (uint32_t)strtoul(v, NULL, 16);
         else if (!strcmp(a, "--index-check") && nindex_checks < 16)
             index_checks[nindex_checks++].pc = (uint32_t)strtoul(v, NULL, 16);
         else if (!strcmp(a, "--poison-set")) {
@@ -670,7 +705,7 @@ int main(int argc, char **argv)
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
                         "[--vid-check-from N] [--px-check [out.txt]] [--scaffold-reads [original]] [--fallbacks out.txt] [--shadow-details N] [--as-port BBAAAA[,BBAAAA...]] "
-                        "[--poison-site BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
+                        "[--poison-site BBAAAA]... [--poison-return BBAAAA]... [--poison-set AXYNVZC] [--index-check BBAAAA]...\n");
         return 2;
     }
     if (zst_path && load_state) {
@@ -880,6 +915,13 @@ int main(int argc, char **argv)
         }
         native_site_poison = poison_site;
     }
+    if (npoison_returns) {
+        if (native_mode != NATIVE_ON) {
+            fprintf(stderr, "--poison-return needs --native on (shadow mode runs ports on a copy)\n");
+            return 2;
+        }
+        native_return_poison = poison_return;
+    }
     if (scaffold_reads) {
         if (native_mode != NATIVE_ON) {
             fprintf(stderr, "--scaffold-reads needs --native on (shadow mode runs ports on a copy)\n");
@@ -998,6 +1040,9 @@ int main(int argc, char **argv)
     for (int i = 0; i < npoison_sites; i++)
         fprintf(stderr, "poison-site: %06X calls %lu, V inverted %lu\n", (unsigned)poison_sites[i].site,
                 poison_sites[i].calls, poison_sites[i].v_inverted);
+    for (int i = 0; i < npoison_returns; i++)
+        fprintf(stderr, "poison-return: %06X returns %lu, C inverted %lu\n", (unsigned)poison_returns[i].entry,
+                poison_returns[i].returns, poison_returns[i].c_inverted);
     for (int i = 0; i < nindex_checks; i++)
         fprintf(stderr, "index-check: %06X runs %lu, largest X $%04X, past $%02X %lu\n", (unsigned)index_checks[i].pc,
                 index_checks[i].runs, (unsigned)index_checks[i].largest, (unsigned)index_limit, index_checks[i].over);

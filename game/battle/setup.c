@@ -15,48 +15,46 @@
  *     frame's interrupt runs, to finish (the wait is its own entry,
  *     battle/wait.c).
  *
- * The one piece still the original's is the name converter; the conversions
- * are bridges around it. Everything else is C on the game's state, and this
- * file is its machine side: the entries, the bridges and the guards. */
+ * All of it is C on the game's state, and this file is its machine side: the
+ * entries and the guards. */
 #include "battle/setup.h"
 
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "charge.h"
 #include "port/machine.h"
 
-/* ---- The name converter --------------------------------------------------------------------- */
+/* ---- The names --------------------------------------------------------------------------------- */
 
-/* The original's converter ($C1:01A9), which the setup reaches through
- * $CC:F063 (which clears A to pick it from its dispatcher at $C1:0018). It
- * reads nothing of the registers, nor the data bank. */
-enum { CONVERT_NAME = 0xCCF063, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS | DC_DB };
-enum { CONVERT_CHARACTER_NAME = 0xCCE5C2, CONVERT_PARTY_NAME = 0xCCE686, CONVERT_ENEMY_NAME = 0xCCED50 };
+/* The original reaches its converter ($C1:01A9) through $CC:F063 and the
+ * dispatch at $C1:0018; the conversion is timed as the converter's. */
+typedef struct {
+    uint8_t text[NAME_TILES];
+    NameTiles tiles;
+    bool enemy;
+} LastName;
 
-static bool convert_names(Snes *s, NameTable table, uint8_t count, uint32_t site)
+static void convert_names(GameState *g, NameTable table, uint8_t count, LastName *last)
 {
-    GameState *g = state_of(s);
     for (uint8_t n = 0; n < count; n++) {
-        setup_name_to_convert(g, table, n);
-        if (!battle_call(s, site, CONVERT_NAME, READS_NOTHING))
-            return false;
-        setup_keep_name_tiles(g, table, n);
+        setup_name_text(g, table, n, last->text);
+        TIMED_AS(g, 0xC101A9, last->tiles = battle_name_tiles(last->text));
+        last->enemy = false;
+        setup_keep_name_tiles(g, table, n, &last->tiles);
     }
-    return true;
 }
 
-static bool convert_enemy_names(Snes *s)
+static void convert_enemy_names(GameState *g, LastName *last)
 {
-    GameState *g = state_of(s);
     for (uint8_t kind = 0; kind < SETUP_ENEMY_KINDS; kind++) {
         if (!setup_enemy_kind_present(g, kind))
             continue;
-        setup_enemy_name_to_convert(g, kind);
-        if (!battle_call(s, CONVERT_ENEMY_NAME, CONVERT_NAME, READS_NOTHING))
-            return false;
-        setup_keep_enemy_name_tiles(g, kind);
+        setup_enemy_name_text(g, kind, last->text);
+        TIMED_AS(g, 0xC101A9, last->tiles = battle_name_tiles(last->text));
+        last->enemy = true;
+        setup_keep_enemy_name_tiles(g, kind, &last->tiles);
     }
     setup_enemy_names_converted(g);
-    return true;
 }
 
 /* ---- The entries ---------------------------------------------------------------------------- */
@@ -72,19 +70,18 @@ void battle_setup_state(Snes *s)
     setup_base_grid(g);
     setup_tilemaps(g);
     setup_copy_character_names(g);
-    if (!convert_names(s, CHARACTER_NAMES, SETUP_CHARACTERS, CONVERT_CHARACTER_NAME))
-        return;
+    LastName last;
+    convert_names(g, CHARACTER_NAMES, SETUP_CHARACTERS, &last);
     setup_party_slots(g);
-    if (!convert_names(s, PARTY_NAMES, BATTLE_PARTY_SIZE, CONVERT_PARTY_NAME))
-        return;
+    convert_names(g, PARTY_NAMES, BATTLE_PARTY_SIZE, &last);
     setup_colors(g);
     setup_party_colors(g);
     setup_tech_lists(g);
     setup_remembered_cursors(g);
     setup_party_objects(g);
     setup_enemies(g);
-    if (!convert_enemy_names(s))
-        return;
+    convert_enemy_names(g, &last);
+    ORIGINAL_EFFECT(setup_leave_name_buffer(g, last.text, last.enemy, &last.tiles));
     m_rtl(s);
 }
 

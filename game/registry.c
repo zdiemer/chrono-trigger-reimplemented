@@ -6,6 +6,7 @@
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/main_loop.h"
+#include "battle/menu_bridge.h"
 #include "battle/window.h"
 #include "battle/effects.h"
 #include "battle/screen.h"
@@ -598,11 +599,11 @@ const NativeEntry game_natives[] = {
       .cost_milli = 23075, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z,
       .guard = battle_work_out_member_tech_ready },
     { .addr = 0xC1C1DD, .name = "battle_aim_action", .fn = battle_aim_action, NEEDS_M8_X16_BINARY,
-      .cost_milli = 14131, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = battle_aim_action_ready },
+      .cost_milli = 14008, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = battle_aim_action_ready },
     { .addr = 0xC1C741, .name = "battle_search_area", .fn = battle_search_area, NEEDS_M8_X16_BINARY,
-      .cost_milli = 3062, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_on_page_a_high_clear },
+      .cost_milli = 9071, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z, .guard = battle_on_page_a_high_clear },
     { .addr = 0xC1B967, .name = "battle_carry_out_member_action", .fn = battle_carry_out_member_action, NEEDS_M8_X16_BINARY,
-      .cost_milli = 9345, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
+      .cost_milli = 10023, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
       .guard = battle_carry_out_member_action_ready },
     { .addr = 0xC1BFAA, .name = "battle_member_attacks", .fn = battle_member_attacks, NEEDS_M8_X16_BINARY,
       .cost_milli = 11105, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C, .guard = battle_member_attacks_ready },
@@ -1676,9 +1677,34 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC11C3A, .name = "battle_reset_window_frames", .fn = battle_reset_window_frames, NEEDS_M8_X16,
       .cost_milli = 7845, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_AL },
     { .addr = 0xC10C2D, .name = "battle_draw_menu_window", .fn = battle_draw_menu_window, NEEDS_M8_X16_BINARY,
-      .guard = battle_menu_window_ready, .cost_milli = 8912, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+      .guard = battle_menu_window_ready_a_clear, .cost_milli = 9751, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xC117DD, .name = "battle_place_menu_cursors", .fn = battle_place_menu_cursors, NEEDS_M8_X16_BINARY,
-      .guard = battle_window_ready_a_clear, .cost_milli = 3834, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+      .guard = battle_window_ready_a_clear, .cost_milli = 3908, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    /* The menu's frame leaves the carry to nothing that acts on it: liveness
+     * has it read past the frame step's return ($C1:10E3) into a battle
+     * message's frame waits ($CD:0021), whose callers' first multiply
+     * ($C1:C90B, from the party's statuses cleared at $C1:8207) takes it into
+     * a product's high word the next pass clears.
+     * dc-evidence: ct_dev --poison-return C11153 --poison-set C over the library:
+     * 63268 returns, C inverted 63268; 0 differing */
+    { .addr = 0xC11153, .name = "battle_take_menu_input", .fn = battle_take_menu_input, NEEDS_M8_X16_BINARY,
+      .guard = battle_take_menu_input_ready, .cost_milli = 5660, .dont_care = DC_AL | DC_X | DC_Y | DC_FLAGS },
+    { .addr = 0xC11115, .name = "battle_frame_member_choosing", .fn = battle_frame_member_choosing_entry,
+      NEEDS_M8_X16_BINARY, .guard = battle_on_page, .cost_milli = 5585, .dont_care = DC_Y | DC_V },
+    { .addr = 0xCFFD9E, .name = "battle_note_menu_stat_block", .fn = battle_note_menu_stat_block_entry,
+      NEEDS_M8_X16_BINARY, .guard = battle_note_menu_stat_block_ready, .cost_milli = 2969, .dont_care = DC_Y | DC_V },
+    { .addr = 0xC10A88, .name = "battle_lay_out_tech_list", .fn = battle_lay_out_tech_list_entry, NEEDS_M8_X16_BINARY,
+      .guard = battle_tech_list_ready, .cost_milli = 15766, .dont_care = DC_A | DC_X | DC_Y | DC_FLAGS },
+    { .addr = 0xC10AD3, .name = "battle_mark_tech_rows", .fn = battle_mark_tech_rows_entry, NEEDS_M8_X16_BINARY,
+      .guard = battle_tech_rows_ready, .cost_milli = 15081, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    { .addr = 0xC1095D, .name = "battle_lay_out_item_list", .fn = battle_lay_out_item_list_entry, NEEDS_M8_X16_BINARY,
+      .guard = battle_item_list_ready, .cost_milli = 10620, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    { .addr = 0xC101A9, .name = "battle_convert_name", .fn = battle_convert_name, NEEDS_M8_X16_BINARY,
+      .guard = battle_on_page, .cost_milli = 8405, .dont_care = DC_Y | DC_FLAGS },
+    { .addr = 0xC11B55, .name = "battle_click_cursor", .fn = battle_click_cursor, NEEDS_M8_X16_BINARY,
+      .guard = battle_on_page, .cost_milli = 3250, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z },
+    { .addr = 0xC11F79, .name = "battle_choose_targets", .fn = battle_choose_targets_entry, NEEDS_M8_X16_BINARY,
+      .guard = battle_choose_targets_ready, .cost_milli = 6483, .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z },
     { .addr = 0xFDACFD, .name = "battle_clear_damage", .fn = battle_clear_damage, NEEDS_M8_X16,
       .cost_milli = 9833, .dont_care = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_AL, .guard = battle_on_page },
     { .addr = 0xCFE83A, .name = "battle_draw_objects", .fn = battle_draw_objects, NEEDS_M8_X16_BINARY,

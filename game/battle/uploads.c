@@ -24,6 +24,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "battle/window.h"
 #include "original_effects.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -446,9 +447,11 @@ void battle_request_saved_window_rows(Snes *s)
 }
 
 // $CF:FD6A
+void battle_send_lower_window_rows(GameState *g) { request_window_rows(g, window_tilemap_in_bank_0(LOWER_ROWS)); }
+
 void battle_request_lower_window_rows(Snes *s)
 {
-    request_window_rows(state_of(s), window_tilemap_in_bank_0(LOWER_ROWS));
+    battle_send_lower_window_rows(state_of(s));
     finish_request(s);
 }
 

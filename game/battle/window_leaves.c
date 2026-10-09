@@ -13,7 +13,7 @@ bool window_redraw_carry(const GameState *g)
 {
     if (battle_menu_member_count(g) == 0)
         return true;
-    if (battle_ally_target_page(g)) {
+    if (party_shown_for_targets(g)) {
         uint8_t target = battle_targets(g, 0);
         return target == battle_ally_target_marked(g) || menu_nobody(target);
     }

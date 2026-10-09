@@ -3206,6 +3206,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Screen X the object's sprites are drawn at, 9 bits (position in pixels minus the screen origin)"
 source = "game/field/object_update.c, field_update_screen_position $C0:AB45"
+unchecked = "the leader's walk with nobody leading walks the slot an empty place's marker names, the first past the tables, and the screen follows its place across, which is the first object's screen down (game/field/walk.c, Walker)"
 
 [[var]]
 name = "field_object_screen_y"
@@ -3217,6 +3218,7 @@ index = "object slot (X = slot * 2)"
 subsystem = "field"
 meaning = "Screen Y the object's sprites are drawn at, 9 bits; / 4 picks its row list"
 source = "game/field/object_update.c, object_update_screen_position $C0:AB45, row_of"
+unchecked = "the leader's walk with nobody leading walks the slot an empty place's marker names, the first past the tables, and the screen follows its place down, from the table after (game/field/walk.c, Walker)"
 
 [[var]]
 name = "field_object_sprite_priority"
@@ -13057,9 +13059,9 @@ source = "game/battle/main_loop.c battle_run_queued_scripts $C1:8461; game/battl
   offset = 1
   meaning = "Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out"
   [[var.field]]
-  name = "tech_aim"
+  name = "command"
   offset = 2
-  meaning = "How the chosen tech aims, from its menu record ($CC:1ACC, low six bits): the turn carries a tech out only where it is 1 or 3 ($C1:BB56)"
+  meaning = "The command the member chose from its menu: 0 Attack, 1 Tech, 2 Item (battle_menu_command; game/battle/menu_input.c, $C1:16FD); the turn carries a tech out where it is 1, or 3, which the menu never sets ($C1:BB56)"
   [[var.field]]
   name = "target"
   offset = 3
@@ -13226,6 +13228,133 @@ meaning = "Nonzero while targets are being chosen; the cursors are then placed o
 source = "tools/movies/addresses.py BATTLE_TARGETING; game/battle/menu_window.c battle_place_menu_cursors $C1:17DD"
 
 [[var]]
+name = "battle_target_kind"
+addr = "7E:960D"
+subsystem = "battle"
+meaning = "How the action the member is choosing picks its targets: one of the menu's target kinds (game/battle/target_choice.c), 7 for an attack, else the tech's or the item's menu detail; bit 7 aims it at the party, whose window then marks the target"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153; game/battle/target_choice.c $C1:1F79"
+
+[[var]]
+name = "battle_menu_command"
+addr = "7E:9615"
+subsystem = "battle"
+meaning = "The command the member chose from its menu (0 Attack, 1 Tech, 2 Item), which its action record keeps (battle_member_actions_command)"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_target_choice"
+addr = "7E:9614"
+subsystem = "battle"
+meaning = "Which of the targets found the player's cursor is on: a place in battle_area_found"
+source = "game/battle/target_choice.c $C1:1F79, $C1:27FA, $C1:2814; game/battle/menu_input.c $C1:176C"
+
+[[var]]
+name = "battle_targets_together"
+addr = "7E:960C"
+subsystem = "battle"
+meaning = "Bit 7: the action takes all the targets found together (a whole side, everyone, or an area), so the player's cursor doesn't move among them"
+source = "game/battle/target_choice.c $C1:1F79"
+
+[[var]]
+name = "battle_target_chooser"
+addr = "7E:960F"
+size = 2
+subsystem = "battle"
+meaning = "The party member choosing targets (a word)"
+source = "game/battle/target_choice.c $C1:1F79"
+
+[[var]]
+name = "battle_target_choice_spare"
+addr = "7E:960E"
+subsystem = "battle"
+meaning = "A byte the menu clears whenever choosing targets ends; no code found reads it"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153; $C1:1BFF"
+
+[[var]]
+name = "battle_target_start_spares"
+addr = "7E:A64F"
+subsystem = "battle"
+meaning = "A byte choosing targets clears as it starts, beside battle_target_start_spare; no code found reads either"
+source = "game/battle/target_choice.c $C1:1F79"
+
+[[var]]
+name = "battle_target_start_spare"
+addr = "7E:A6D8"
+subsystem = "battle"
+meaning = "A byte choosing targets clears as it starts; no code found reads it"
+source = "game/battle/target_choice.c $C1:1F79"
+
+[[var]]
+name = "battle_attack_by_shortcut"
+addr = "7E:A114"
+subsystem = "battle"
+meaning = "Set where the member chose Attack with X, the shortcut the remembered commands give; its command cursor then isn't remembered when the target is confirmed"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_tech_list_being_laid_out"
+addr = "7E:A862"
+subsystem = "battle"
+meaning = "Set only while the tech page's list is laid out as the page opens ($C1:12CE-$12D7); the command page takes it as Attack, Tech or Item chosen, which no frame sees (the menu's port refuses a state with it set)"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_tech_page_open_mark"
+addr = "7E:A869"
+subsystem = "battle"
+meaning = "A byte cleared as the tech page opens and as choosing a tech's target goes back to it; no code found reads it"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_tech_rows_selectable"
+addr = "7E:1CDB"
+count = 20
+index = "entry of the member's tech list"
+subsystem = "battle"
+meaning = "Whether the tech list's cursor stops on each of the menu member's twenty entries: 1 for a tech, 0 for a mark (a section's heading, a blank row)"
+source = "game/battle/menu_lists.c battle_mark_tech_rows $C1:0AD3; game/battle/menu_input.c $C1:13AD, $C1:13F4"
+
+[[var]]
+name = "battle_item_list_changed"
+addr = "7E:A0D0"
+subsystem = "battle"
+meaning = "Set where an item came into the item list while its page is open ($CF:FAE2); the page lays its list out again"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_item_chosen"
+addr = "7E:9F35"
+subsystem = "battle"
+meaning = "The item the member chose, while its target is chosen"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_item_chosen_place"
+addr = "7E:9F36"
+size = 2
+subsystem = "battle"
+meaning = "Where the chosen item's record is in battle_item_list, in bytes (five a record)"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_member_choice_extra"
+addr = "7E:9F38"
+count = 3
+index = "party slot"
+subsystem = "battle"
+meaning = "Bits added to the member's choice as its action is queued; cleared as its menu opens ($C1:1B67)"
+source = "game/battle/menu_input.c battle_take_menu_input $C1:1153"
+
+[[var]]
+name = "battle_name_converted"
+addr = "7E:94C0"
+count = 16
+index = "character"
+subsystem = "battle"
+meaning = "The characters of the name last turned into tiles, as the converter copies them out of battle_name_buffer before writing the tiles there ($C1:01A9); no code found reads them after"
+source = "game/battle/name_tiles.c battle_name_tiles $C1:01A9"
+
+[[var]]
 name = "battle_target_cursor"
 addr = "7E:960B"
 subsystem = "battle"
@@ -13372,7 +13501,7 @@ source = "game/battle/menu_window.c show_tech_costs in battle_draw_menu_window $
 [[var]]
 name = "battle_targets"
 addr = "7E:A62D"
-count = 6
+count = 12
 index = "target entry"
 subsystem = "battle"
 meaning = "The chosen targets, one battle slot per byte, negative for unused entries; a second entry means the action hits a group"
@@ -15002,10 +15131,10 @@ meaning = "The rule's size byte's top bit (0 where the placing doesn't pass it o
 [[var]]
 name = "battle_area_found"
 addr = "7E:99C0"
-count = 11
+count = 12
 index = "place in the list"
 subsystem = "battle"
-meaning = "The combatants the area search found in its area (battle slots), $FF after the last; the targeting makes them the action's targets"
+meaning = "The combatants the area search found in its area (battle slots), $FF after the last; the targeting makes them the action's targets, and the menu's choosing of targets lists them here. The search clears twelve places and finds at most eleven"
 source = "game/battle/aim.c battle_aim_action $C1:C1DD ($C1:C60E)"
 
 [[var]]
@@ -20784,7 +20913,7 @@ addr = "7E:A0B5"
 count = 3
 index = "battle slot of a party member"
 subsystem = "battle"
-meaning = "Set where the member's steal took an item (either way it went), which the battle's end looks for to move the member's kept item on ($CF:FAE2)"
+meaning = "Set where the member's steal took an item (either way it went), which the menu's next frame looks for to move the member's kept item into the item list ($CF:FAE2)"
 source = "game/battle/member_turn.c ($C1:BC3B)"
 
 [[var]]
@@ -20859,7 +20988,7 @@ count = 3
 stride = 8
 index = "battle slot of a party member"
 subsystem = "battle"
-meaning = "An item a party member stole that the battle keeps apart from the inventory (one from $BC whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at $7E:1580 ($CF:FAE2)"
+meaning = "An item a party member stole that the battle keeps apart from the inventory (one from $BC whose record at $CC:0ABC has bit 7 set), which the menu's next frame moves into the item list, battle_item_list ($CF:FAE2, game/battle/menu_input.c battle_list_stolen_item)"
 source = "game/battle/effect_steal.c ($FD:B6EA)"
   [[var.field]]
   name = "id"
@@ -20877,6 +21006,10 @@ source = "game/battle/effect_steal.c ($FD:B6EA)"
   name = "held"
   offset = 3
   meaning = "How many are held: 1"
+  [[var.field]]
+  name = "spare"
+  offset = 4
+  meaning = "The fifth byte of its item list record, which the list takes with the rest; cleared with them"
 
 [[var]]
 name = "battle_inventory_item"
@@ -21671,6 +21804,15 @@ size = 2
 subsystem = "battle"
 meaning = "The velocity a line or a jump is set up with down the screen (8.8 pixels a step)"
 source = "game/battle/script_moves.c line_velocity $C1:65BA"
+
+[[var]]
+name = "battle_message_window_kind"
+addr = "7E:0053"
+page = "battle"
+reuses = "battle_screen_effect_settings"
+subsystem = "battle"
+meaning = "Which window a battle message call that names a combatant asks for ($0B with its HP, $0C without), noted as the call starts ($CD:02CB, $CD:02D8); the draw reads it after"
+source = "game/battle/menu_input.c forget_target_named ($CD:002D)"
 
 [[var]]
 name = "battle_screen_effect_settings"

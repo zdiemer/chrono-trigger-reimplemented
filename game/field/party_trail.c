@@ -421,8 +421,7 @@ void party_trail_catch_up(GameState *g)
  * an empty place out (its marker's slot), keeps the priorities it writes. */
 static void leave_stray_priorities(GameState *g, FieldLink marker, uint8_t upper, uint8_t lower)
 {
-    set_field_object_sprite_priority_unchecked(g, field_linked_object(marker),
-                                               (uint16_t)(upper << 4 << 8 | lower << 4));
+    object_set_sprite_priorities_past_the_tables(g, field_linked_object(marker), upper, lower);
 }
 
 void party_place_layered(GameState *g, PartyPlace place, uint8_t upper, uint8_t lower)

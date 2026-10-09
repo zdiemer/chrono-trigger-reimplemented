@@ -172,7 +172,7 @@ static uint8_t lengthened(uint8_t wait, uint8_t more, bool *ran_past)
 static void forget_choice(GameState *g, uint8_t member)
 {
     set_battle_member_actions_choice_flags(g, member, 0);
-    set_battle_member_actions_tech_aim(g, member, 0);
+    set_battle_member_actions_command(g, member, 0);
     set_battle_member_actions_target(g, member, 0);
     set_battle_member_actions_what(g, member, 0);
 }
@@ -445,14 +445,15 @@ static bool use_item(Snes *s, uint8_t member)
 }
 
 // $C1:BB49
-/* A tech, where the member's record aims it as one the turn carries out. */
-enum { AIMS_AT_ONE = 1, AIMS_AT_ALL = 3 };
+/* A tech, where the member's record says the member chose Tech from its menu
+ * (battle_menu_command), or 3, which the menu never sets. */
+enum { COMMAND_TECH = 1, COMMAND_NO_MENU_SETS = 3 };
 
 static bool perform_tech(Snes *s, uint8_t member)
 {
     GameState *g = state_of(s);
-    uint8_t aim_kind = battle_member_actions_tech_aim(g, member);
-    if (aim_kind != AIMS_AT_ONE && aim_kind != AIMS_AT_ALL) {
+    uint8_t command = battle_member_actions_command(g, member);
+    if (command != COMMAND_TECH && command != COMMAND_NO_MENU_SETS) {
         TIMED_AS(g, 0xC1BCE1, member_turn_ends(g));
         return true;
     }

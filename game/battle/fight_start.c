@@ -55,7 +55,7 @@ static void clear_member_choice(GameState *g, unsigned member)
 {
     set_battle_member_actions_state(g, member, 0);
     set_battle_member_actions_choice_flags(g, member, 0);
-    set_battle_member_actions_tech_aim(g, member, 0);
+    set_battle_member_actions_command(g, member, 0);
     set_battle_member_actions_target(g, member, 0);
 }
 

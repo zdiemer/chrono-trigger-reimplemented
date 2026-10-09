@@ -14,6 +14,10 @@
  * (battle/targets.c); and a combatant's screen box (battle/objects.c), its
  * last sum's. */
 bool battle_first_mark_carry(const GameState *g, bool carry);
+/* ... and the area search (battle/area_search.c), for the area rules' shape
+ * it searched, the side it searched, and the combatants it was placed on and
+ * reached toward. */
+bool battle_area_search_carry(uint8_t shape, bool among_party, uint8_t centre, uint8_t toward);
 bool battle_other_marks_carry(const GameState *g, bool carry);
 bool battle_bounds_carry(const GameState *g, unsigned slot);
 
@@ -819,6 +823,7 @@ bool battle_window_ready(Snes *s);
 bool battle_window_member_ready(Snes *s);
 bool battle_window_ready_a_clear(Snes *s);
 bool battle_menu_window_ready(Snes *s);
+bool battle_menu_window_ready_a_clear(Snes *s);
 void battle_draw_window(Snes *s);
 void battle_draw_gauge(Snes *s);
 void battle_draw_party_status(Snes *s);
@@ -828,6 +833,23 @@ void battle_blank_leading_zeros(Snes *s);
 void battle_draw_menu_window(Snes *s);
 void battle_place_menu_cursors(Snes *s);
 void battle_update_combo_members(Snes *s);
+
+/* battle/menu_input.c, menu_lists.c, name_tiles.c, target_choice.c and
+ * menu_bridge.c: the player choosing (battle/choosing.h). */
+void battle_take_menu_input(Snes *s);
+bool battle_take_menu_input_ready(Snes *s);
+void battle_frame_member_choosing_entry(Snes *s);
+void battle_note_menu_stat_block_entry(Snes *s);
+bool battle_note_menu_stat_block_ready(Snes *s);
+void battle_lay_out_tech_list_entry(Snes *s);
+bool battle_tech_list_ready(Snes *s);
+void battle_mark_tech_rows_entry(Snes *s);
+bool battle_tech_rows_ready(Snes *s);
+void battle_lay_out_item_list_entry(Snes *s);
+bool battle_item_list_ready(Snes *s);
+void battle_convert_name(Snes *s);
+void battle_choose_targets_entry(Snes *s);
+bool battle_choose_targets_ready(Snes *s);
 
 /* battle/arith.c, battle/buttons.c */
 void battle_multiply_8x8(Snes *s);

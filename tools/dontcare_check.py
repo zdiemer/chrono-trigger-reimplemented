@@ -78,6 +78,17 @@ static result, some site of the note must have. tools/dc_evidence.py makes the r
 --index-check over the same library for the indexes, and says where a note's
 counts no longer hold (docs/PORTING.md, "Declarations liveness can't prove").
 
+An entry's own set after it returns can carry a note too, for the carry alone,
+in the comment block just above the entry in game/registry.c:
+
+    /* dc-evidence: ct_dev --poison-return BBAAAA --poison-set C over the library:
+     * N returns, C inverted M; 0 differing */
+
+where liveness has the carry read past the entry's return to a reader whose
+result nothing acts on: the run inverted it there in the shipping mode, M at
+least MIN_SCRAMBLED times, and no trace differed (tools/dc_evidence.py makes it
+again).
+
 The declarations are read from the source, not run: their arguments must be
 constants, or built from the parameters of the function they are in (every
 call of it in the same file is followed), its locals, and the rows of a table
@@ -156,6 +167,15 @@ V_EVIDENCE = re.compile(
     r"\s*calls\s+with\s+V\s+inverted:\s*(?P<counts>[0-9A-Fa-f]{6}\s+\d+(?:\s*,\s*[0-9A-Fa-f]{6}\s+\d+)*);"
     r"\s*(?P<differing>\d+)\s+differing"
     r"(?P<static>;\s*a\s+site\s+under\s+100\s+rests\s+on\s+the\s+static\s+result)?")
+
+
+# The third form: an entry's carry after it returns, by a library run that
+# inverted it there in the shipping mode (ct_dev --poison-return), in the
+# comment block just above the entry in game/registry.c.
+RETURN_EVIDENCE = re.compile(
+    r"dc-evidence:\s*ct_dev\s+--poison-return\s+(?P<entry>[0-9A-Fa-f]{6})\s+--poison-set\s+(?P<set>[AXYNVZC]+)"
+    r"\s+over\s+the\s+library:\s*(?P<returns>\d+)\s+returns,\s*C\s+inverted\s+(?P<inverted>\d+);"
+    r"\s*(?P<differing>\d+)\s+differing")
 
 
 def v_evidence_counts(m) -> dict:
@@ -779,6 +799,7 @@ class Entry:
     idle: bool
     generated: bool
     line: int
+    note: str = ""
 
 
 @dataclass
@@ -863,8 +884,39 @@ def registry_entries(src: Source, ev: Evaluator) -> tuple:
         at = re.search(r"\b%s\b" % re.escape(name), src.raw)
         line = src.line(at.start()) if at else 0
         entries.append(Entry(addr, name, fields.get("fn", name).strip(), dc, fields.get("idle") == "true",
-                             fields.get("generated") == "true", line))
+                             fields.get("generated") == "true", line, comment_above(src.raw, line)))
     return entries, findings
+
+
+def comment_above(raw: str, line: int) -> str:
+    """The comment block just above a line (1-based), joined into one line."""
+    lines = raw.split("\n")
+    block, k = [], line - 2
+    while k >= 0:
+        stripped = lines[k].strip()
+        if not (stripped.startswith(("//", "/*", "*")) or stripped.endswith("*/")):
+            break
+        block.insert(0, lines[k])
+        k -= 1
+    text = re.sub(r"/\*|\*/|//|^\s*\*|\s\*\s", " ", " ".join(block))
+    return " ".join(text.split())
+
+
+def return_evidence_problem(m, e, bad: int) -> str | None:
+    """Why a ct_dev --poison-return note doesn't stand for the entry e's set
+    after it returns, where liveness has `bad` read, or None."""
+    if bad & ~_lv.C:
+        return f"its dc-evidence inverts and counts the carry alone, not {describe(bad & ~_lv.C)}"
+    named = int(m.group("entry"), 16)
+    if named != e.addr:
+        return f"its dc-evidence names {fmt(named)}, not the entry's {fmt(e.addr)}"
+    if "C" not in m.group("set"):
+        return "its dc-evidence run's --poison-set leaves C alone"
+    if int(m.group("differing")):
+        return f"its dc-evidence run had {m.group('differing')} trace(s) differing"
+    if int(m.group("inverted")) < MIN_SCRAMBLED:
+        return f"its dc-evidence run inverted C {m.group('inverted')} times, fewer than {MIN_SCRAMBLED}"
+    return None
 
 
 def only(values: list, what: str) -> int:
@@ -1097,6 +1149,20 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
 
     def entry_ok(e, point_live, where, what):
         bad = excess(e.dont_care, point_live)
+        rm = RETURN_EVIDENCE.search(e.note) if EVIDENCE_TAG in e.note else None
+        if rm and not bad:
+            findings.append(Finding(where, f"{e.name}'s dc-evidence stands for a set liveness proves {what}"))
+            return
+        if rm:
+            problem = return_evidence_problem(rm, e, bad)
+            if problem is None:
+                rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: ok by a library run "
+                            f"(liveness has {describe(bad)} read)")
+                return
+            rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: unproven: {problem}")
+            findings.append(Finding(where, f"{e.name}'s .dont_care ({dc_text(e.dont_care)}) {what}, where liveness "
+                                           f"has {describe(bad)} read, and {problem}"))
+            return
         rows.append(f"{where}: {e.name} {dc_text(e.dont_care)} {what}: " + verdict(e.dont_care, point_live))
         if bad:
             findings.append(Finding(where, f"{e.name}'s .dont_care ({dc_text(e.dont_care)}) {what}, "

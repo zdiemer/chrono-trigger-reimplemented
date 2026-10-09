@@ -173,10 +173,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - The original's routines the battle still calls out to: the battle steps
     (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
     from a member's chosen action carried out (RECOMP.md, "Phase 3, battle
-    chunk 5"), the messages `$CD:0021`; from the targeting (RECOMP.md,
-    "Phase 3, battle: the targeting"), the area search, the battle's step 7
-    (`$C1:1FDD` and the shapes' routines its table at `$C1:1FEA` runs,
-    which the bitmap shapes call too); from an enemy's turn (RECOMP.md,
+    chunk 5"), the messages `$CD:0021`; from an enemy's turn (RECOMP.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
@@ -187,10 +184,8 @@ rest waits, is [PLAN.md](PLAN.md).
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
     the decompressor and
-    `$CD:3ECE` from the effect graphics loader; `$CF:FD9E`, `$C1:0A88`,
-    `$C1:1115`, `$CD:0027`/`$002D`/`$0030` from the menu window;
-    the name converter `$C1:01A9` from the setup (through `$CC:F063` and
-    `$C1:0065`); from a member that comes back once (RECOMP.md, "Phase 3,
+    `$CD:3ECE` from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
+    from the menu window; from a member that comes back once (RECOMP.md, "Phase 3,
     battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
     the message `$CD:0021`; from the battle's start and its return to the
     field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
@@ -696,16 +691,16 @@ rest waits, is [PLAN.md](PLAN.md).
     as it clears its own cell (`rewards_share_with_reserve`): nothing after
     the battle's end reads it before the next fight's start clears it, so a
     native build can drop the write.
-- **What the targeting left** (RECOMP.md, "Phase 3, battle: the targeting"),
+- **What the targeting left** (docs/history/recomp-chunks.md, "Phase 3,
+  battle: the targeting"),
   its review's findings not yet taken:
   - `aim.c` tests who can take part with its own `in_fight`, `knocked_out` and
     `free_to_act`, beside `combatant_in_fight` and `combatant_cant_act`, adding
     status 2's bits `0x18`, whose meaning isn't worked out: one test, and the
     bits named;
   - the member's turn hands the targeting's original its cells (an item's area
-    rules at `$0C`, the action record's place at `$06`), and the targeting
-    hands its area search the rule's shape in a cell (`battle_aim_rule_shape`):
-    parameters once the area search is C;
+    rules at `$0C`, the action record's place at `$06`): parameters once the
+    targeting's original callers are ports;
   - a chosen target of none reaches the knocked-out test with `$FF` for a
     single-target mode, and the reserve tests read the area's end marker and a
     battle slot as enemy numbers (`battle_enemy_standing` unchecked): a native
@@ -714,6 +709,16 @@ rest waits, is [PLAN.md](PLAN.md).
     are described by `aim_data.h`, `effect_data.h`, `menu_data.h` and
     `equipment_data.h` differently, `effect_data.h`'s as not worked out: one
     record type each.
+
+- **A walk with nobody leading** (game/field/walk.c, `Walker`). With the
+  leader's place empty, the original walks the slot its marker names, past
+  the object tables: where that slot stands, its tile and its place on the
+  screen come from the tables after the objects', and the ground it steps
+  onto lays its priorities on the bytes after the priorities'. The screen
+  follows it, which shows (the shipping mode's late-omen-terramutant reaches
+  it at frame 14887 with a direction held). A native build has nobody to
+  walk: decide what the screen does then, and drop the slot's reads and
+  writes with the tables' native storage.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
