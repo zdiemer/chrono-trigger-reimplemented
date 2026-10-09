@@ -139,8 +139,8 @@ void set_effect_number(GameState *g, uint8_t place, uint16_t value, uint8_t kind
 // $C1:E8E2
 /* The miss marks the effect's record gives (its twelfth byte): bit 7 for the
  * attacker's miss, bit 6 for the target's dodge; either marks the action as
- * having missed (battle_action_extra). */
-enum { MISSED_BY_ATTACKER = 0x80, DODGED = 0x40, ACTION_MISSED = 0x40 };
+ * having missed (battle_action_extra, ACTION_MISSED). */
+enum { MISSED_BY_ATTACKER = 0x80, DODGED = 0x40 };
 
 void effect_missed(GameState *g, uint8_t misses, bool dodged)
 {

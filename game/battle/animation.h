@@ -86,6 +86,10 @@ bool battle_object_builds_graphics(const GameState *g, unsigned object);
  * battle builds is one. */
 bool battle_object_graphics_known(const GameState *g, unsigned object);
 
+/* A sprite of an effect sprite set (battle_effect_sprite_data): its place
+ * from the set's anchor, its tile and its attributes. */
+enum { EFFECT_SPRITE_X, EFFECT_SPRITE_Y, EFFECT_SPRITE_TILE, EFFECT_SPRITE_ATTRIBUTES, EFFECT_SPRITE_BYTES };
+
 /* Put a color set of three colors, or of seven, into the first sprite
  * palette, from color 1 of the quarter (0-7: a quarter past the palette's
  * four runs on into the next). */
@@ -93,5 +97,57 @@ void battle_put_color_set(GameState *g, bool seven, uint8_t set, uint8_t quarter
 
 /* The frame the object shows next, which the graphics upload takes. */
 void battle_show_object_frame(GameState *g, unsigned object, uint8_t frame);
+
+/* Step the palette animations a frame (battle/sprites.c, $CC:F1E7). */
+void battle_step_palette_animations(GameState *g);
+
+/* Divide the effect's animation records (battle_effect_records) into its
+ * sixteen animations: where each starts and how many frames it has
+ * (battle/sprites.c, $C1:48EC). */
+void battle_find_effect_animations(GameState *g);
+
+/* The combatants' animations step a frame: the party's, or a group of
+ * enemies', by the frame's phase (battle/animation.c, $C1:2D9F). The
+ * original indexes the enemies' order with A's high byte along, which the
+ * game keeps clear. */
+void battle_step_combatants(GameState *g);
+
+/* ---- What a pose shows (battle/pose_looks.c) --------------------------------------------- */
+
+/* Where the combatant's pose changed, its look changes to the new pose's: a
+ * marker, its palette cycling, a party member's colours ($C1:308C). */
+void battle_show_pose_look(GameState *g, unsigned slot);
+
+/* Whether the party's palettes keep the colours a look puts back among the
+ * sprites', as the game's do (the looks' guards, and the animations' step's). */
+bool battle_pose_looks_fit(const GameState *g);
+
+/* The poses' round: the next combatant takes the pose its statuses give it,
+ * and every combatant whose pose changed puts its look on ($C1:305C). */
+void battle_go_round_the_poses(GameState *g);
+
+/* ---- The objects' frame while an action shows ----------------------------------------------- */
+
+/* Put the objects as a showing starts and ends them: no script running, the
+ * combatants' animations as they were, no effect, anchor, trail or palette
+ * animation (battle/reset.c, $CC:F06B). */
+void battle_reset_objects(GameState *g);
+
+/* The animation scheduler's pass: every object's time counted down a frame,
+ * and the next one due takes its animation's step (battle/objects.c,
+ * $C1:423A). */
+void battle_take_due_animation_step(GameState *g);
+
+/* The effects' animations stepped a frame (battle/effect_animation.c,
+ * $CC:F278). */
+void battle_animate_effect_frames(GameState *g);
+
+/* The battlefield's grid rebuilt with the combatants' cells marked
+ * (battle/battlefield.c, $CC:F110). */
+void battle_mark_combatants_on_grid(GameState *g);
+
+/* Every combatant's box worked out from where it stands now (battle/objects.c,
+ * $C1:283D). */
+void battle_update_all_bounds(GameState *g);
 
 #endif

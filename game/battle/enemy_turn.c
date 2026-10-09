@@ -534,8 +534,8 @@ static bool show_action(Snes *s) { return battle_run(s, 0xC18E47, 0xC1AC57, batt
 
 /* ---- The turn ---------------------------------------------------------------------------- */
 
-/* The action's showing starts: the battle's step 4, and the effect's start
- * ($C1:AC57, $C1:BFA4, $C1:EC7F, the original's). */
+/* The action is shown (the battle's step 4, $C1:BFA4, through the
+ * original's steps' dispatch) and its hits land (battle/damage.c). */
 static bool start_showing(Snes *s)
 {
     /* the step takes A's high byte along, as the caller left it; the overflow
@@ -547,17 +547,20 @@ static bool start_showing(Snes *s)
      * C1AC57 441; 0 differing) */
     if (!battle_call(s, 0xC1AC57, 0xC1BFA4, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
         return false;
-    m_push16(s, 0xAC5C);
-    if (!battle_call(s, 0xC1AC85, 0xC1EC7F, READS_NOTHING))
-        return false;
-    m_pull16(s);
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0xC1EC7F, battle_apply_damage(g));
     return true;
 }
 
+/* The hits' landing ends with the damage table's clearing, which leaves A
+ * clear and the carry set for the showing's callers. */
 void battle_start_action_showing(Snes *s)
 {
-    if (start_showing(s))
-        m_rts(s);
+    if (!start_showing(s))
+        return;
+    s->cpu.a = 0;
+    m_set_flag(s, CPU_FLAG_C, true);
+    m_rts(s);
 }
 
 /* The effect worked out on the action's targets (battle/effect_work.c): the

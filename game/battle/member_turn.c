@@ -94,7 +94,7 @@ static bool all_can_act(GameState *g)
  * with the action not stopping at its first target; the targeting
  * (battle/aim.c) then finds the rest. The first candidate it keeps is the
  * chosen target too. */
-enum { NO_TARGET = 0xFF, ITEM_NUMBER_BASE = 0xBC };
+enum { NO_TARGET = 0xFF };
 
 static void aim_at_the_choice(GameState *g, uint8_t member)
 {
@@ -420,10 +420,10 @@ static bool use_item(Snes *s, uint8_t member)
     battle_keep_word(g, ITEM_TARGETING_CELL, 0);
     aim_at_the_choice(g, member);
     uint8_t what = battle_member_actions_what(g, member);
-    set_battle_action_detail(g, (uint8_t)(what - ITEM_NUMBER_BASE));
-    set_battle_action_what(g, (uint8_t)(what - ITEM_NUMBER_BASE));
+    set_battle_action_detail(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
+    set_battle_action_what(g, (uint8_t)(what - BATTLE_FIRST_ITEM_NUMBER));
     /* the targeting takes the carry of the item's number's subtraction */
-    if (!aim(s, 0xC1BABE, what >= ITEM_NUMBER_BASE, false))
+    if (!aim(s, 0xC1BABE, what >= BATTLE_FIRST_ITEM_NUMBER, false))
         return false;
     if (!battle_action_came_to_nothing(g)) {
         /* the item's performer is recorded first as the last tech's first
@@ -433,7 +433,7 @@ static bool use_item(Snes *s, uint8_t member)
         targets_to_candidates(g);
         if (!battle_run(s, 0xC1BB0C, USE_ITEM, battle_use_item))
             return false;
-        record_for_showing(g, battle_actor(g), ACTION_ITEM, (uint8_t)(battle_action_detail(g) + ITEM_NUMBER_BASE));
+        record_for_showing(g, battle_actor(g), ACTION_ITEM, (uint8_t)(battle_action_detail(g) + BATTLE_FIRST_ITEM_NUMBER));
         set_battle_action_extra(g, 0);
         if (!show_action(s, 0xC1BB26))
             return false;

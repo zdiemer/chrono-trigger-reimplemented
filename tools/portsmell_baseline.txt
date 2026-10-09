@@ -11,7 +11,6 @@ game/battle/display.c                        sibling-through-machine  2
 game/battle/effect_amounts.c                 flag-note-in-logic       1
 game/battle/effect_work.c                    flag-note-in-logic       1  # a shared entry wrapper's exit for one of its kinds, not a note in the logic
 game/battle/enemy_turn.c                     flag-note-in-logic       1
-game/battle/enemy_turn.c                     return-address-pushed    1
 game/battle/main_loop.c                      return-address-pushed    1
 game/battle/member_stats.c                   flag-note-in-logic       1
 game/battle/member_turn.c                    flag-note-in-logic       1

@@ -23,6 +23,7 @@
 #include "battle/script_data.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/positions.h"
 #include "charge.h"
 #include "original_effects.h"
 #include "vars.h"
@@ -149,7 +150,7 @@ static uint8_t last_cell_looked_round(const GameState *g, Ring ring, uint8_t bef
 // $C1:4A71
 /* Find the way across the grid from one point to another (to the cell above
  * it, where it is the walker's own), marking it on the grid. */
-static void find_the_way(GameState *g, BattlePoint from, BattlePoint to)
+bool battle_find_way(GameState *g, BattlePoint from, BattlePoint to)
 {
     uint8_t walker = cell_of(from);
     set_battle_grid(g, walker, THE_WALKER);
@@ -171,11 +172,12 @@ static void find_the_way(GameState *g, BattlePoint from, BattlePoint to)
         move_out_a_ring(g, ring.next_ring_size);
         if (++steps == STEPS_SEARCHED) {
             ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, goal, steps, true }));
-            return;
+            return false;
         }
     }
     uint8_t way_back = mark_the_way_back(g, walker, goal, steps);
     ORIGINAL_EFFECT(leave_search(g, (SearchEnd){ ring, last_looked_round, walker, way_back, steps, false }));
+    return true;
 }
 
 /* ---- Starting the walk ---------------------------------------------------------------------- */
@@ -229,7 +231,7 @@ static void start_walking(GameState *g, ScriptChannel ch, uint8_t slot, BattlePo
     ORIGINAL_EFFECT(leave_walk_ends(g, from, to));
     ORIGINAL_EFFECT(count_a_walk(g, slot));
     set_battle_script_walk_lengths(g, ch.channel, length);
-    TIMED_AS(g, 0xC14A71, find_the_way(g, from, to));
+    TIMED_AS(g, 0xC14A71, battle_find_way(g, from, to));
     ORIGINAL_EFFECT(script_leave_word(g, LEFT_WALKING, slot));
     set_battle_walk_cell(g, slot, battle_walk_from_cell(g));
     keep_the_grid(g, slot);
@@ -405,7 +407,7 @@ SCRIPT_OPERATION(walk, channel, length, aim, x, y, place)
 void battle_find_the_way(Snes *s)
 {
     GameState *g = state_of(s);
-    find_the_way(g, (BattlePoint){ battle_work(g, 0), battle_work(g, 1) }, (BattlePoint){ battle_work(g, 2), battle_work(g, 3) });
+    battle_find_way(g, (BattlePoint){ battle_work(g, 0), battle_work(g, 1) }, (BattlePoint){ battle_work(g, 2), battle_work(g, 3) });
     s->cpu.a = 0;
     m_rts(s);
 }

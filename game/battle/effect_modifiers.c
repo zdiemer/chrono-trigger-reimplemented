@@ -23,9 +23,9 @@
 
 enum { PERCENT = 100, MOST_DAMAGE = 9999 };
 
-/* The flags the modifiers set: a critical hit (battle_action_flags), and in
- * the action's state, the hit leaving 1 HP and the target absorbing it. */
-enum { CRITICAL = 0x80, LEAVES_ONE_HP = 0x01, ABSORBED = 0x40, ACTION_MISSED = 0x40 };
+/* The flags the modifiers set in the action's state: the hit leaving 1 HP
+ * and the target absorbing it (a critical hit and a miss are battle.h's). */
+enum { LEAVES_ONE_HP = 0x01, ABSORBED = 0x40 };
 
 static uint16_t amount(const GameState *g) { return battle_effect_amount(g); }
 static void set_amount(GameState *g, uint16_t v) { set_battle_effect_amount(g, v); }
@@ -108,7 +108,7 @@ static void critical_hit(GameState *g, uint8_t times)
     if (battle_random_other(g, 0, PERCENT) > rate)
         return;
     set_amount(g, effect_times(g, amount(g), times));
-    set_battle_action_flags(g, battle_action_flags(g) | CRITICAL);
+    set_battle_action_flags(g, battle_action_flags(g) | ACTION_CRITICAL_HIT);
 }
 
 // $C1:EDBA
@@ -390,7 +390,7 @@ static void death(GameState *g, uint8_t percent)
 /* A critical hit doubles the damage, or makes it 9999. */
 static void critical_bonus(GameState *g, bool to_most)
 {
-    if (!(battle_action_flags(g) & CRITICAL))
+    if (!(battle_action_flags(g) & ACTION_CRITICAL_HIT))
         return;
     set_amount(g, to_most ? MOST_DAMAGE : effect_times(g, amount(g), 2));
 }

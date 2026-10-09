@@ -312,13 +312,11 @@ static void next_frame(Snes *s)
 }
 
 /* Every enemy that must be beaten is out (or none is there). */
-enum { NEEDNT_BE_BEATEN = 0x40 };
-
 static bool enemies_beaten(const GameState *g)
 {
     for (unsigned enemy = 0; enemy < BATTLE_ENEMIES; enemy++)
         if (battle_combatant_fighting(g, BATTLE_FIRST_ENEMY + enemy) != COMBATANT_NONE
-            && !(battle_enemy_standing(g, enemy) & NEEDNT_BE_BEATEN))
+            && !(battle_enemy_standing(g, enemy) & ENEMY_NEEDNT_BE_BEATEN))
             return false;
     return true;
 }

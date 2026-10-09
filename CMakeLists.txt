@@ -270,6 +270,10 @@ add_library(ct_game STATIC
   game/battle/party_turns.c
   game/battle/menu_window.c
   game/battle/menu_input.c
+  game/battle/action_showing.c
+  game/battle/action_animation.c
+  game/battle/frame_step.c
+  game/battle/pose_looks.c
   game/battle/menu_bridge.c
   game/battle/menu_lists.c
   game/battle/name_tiles.c

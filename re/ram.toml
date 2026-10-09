@@ -14260,7 +14260,7 @@ name = "battle_combatant_id"
 addr = "7E:AF0A"
 count = 11
 index = "battle slot"
-unchecked = "an enemy's script's condition names whoever last acted on the enemy by the low four bits of its action record, up to 15 (game/battle/enemy_conditions.c, $C1:9514)"
+unchecked = "an enemy's script's condition names whoever last acted on the enemy by the low four bits of its action record, up to 15 (game/battle/enemy_conditions.c, $C1:9514); a felled enemy's spoils read it by the felled cell taken as a word with the one after it (game/battle/damage.c, $FD:ABA2)"
 subsystem = "battle"
 meaning = "What the combatant is, as its scripts are found by it ($C1:B488); $FF for a slot nobody fills. It stays while the combatant is out, and comes back into battle_combatant_fighting when it is revived"
 source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_run_queued_scripts $C1:8461"
@@ -14426,7 +14426,7 @@ name = "battle_enemy_standing"
 addr = "7E:AF15"
 count = 8
 index = "enemy (battle slot - 3)"
-unchecked = "the targeting's tests for an enemy in reserve read past the enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a revive's target indexed by its battle slot rather than its enemy number ($C1:C410) (game/battle/aim.c)"
+unchecked = "the targeting's tests for an enemy in reserve read past the enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a revive's target indexed by its battle slot rather than its enemy number ($C1:C410) (game/battle/aim.c); a felled enemy's spoils read it by the felled cell taken as a word with the one after it (game/battle/damage.c, $FD:ABA2)"
 subsystem = "battle"
 meaning = "How the enemy stands in the battle: bit 7 while it waits off the battlefield to be brought in ($C1:9BD5 swaps such an enemy into a place), bit 6 when it needn't be beaten to win"
 source = "game/battle/combatants.c battle_update_combatant $C1:B279; game/battle/main_loop.c battle_main_loop_body $C1:812C; $C1:9BD5"
@@ -15592,6 +15592,13 @@ meaning = "The party members whose command menus wait to open after battle_menu_
 source = "game/battle/setup_reset.c close_the_menus in battle_setup_state $CC:E2E4; $C1:1B19, $C1:1B67"
 
 [[var]]
+name = "battle_menu_queue_length"
+addr = "7E:95DA"
+subsystem = "battle"
+meaning = "How many party members wait in battle_menu_queue"
+source = "game/battle/frame_step.c next_member_takes_the_menu $C1:1B67; $C1:1B19"
+
+[[var]]
 name = "battle_start_positions"
 addr = "7E:96A4"
 count = 11
@@ -16200,6 +16207,33 @@ meaning = "The effects drawn with each combatant, a row an effect and a byte a c
 source = "game/battle/draw_objects.c draw_effects in $CF:EDB8/$CF:EDF7; game/battle/reset.c battle_reset_object_state $CC:F06B"
 
 [[var]]
+name = "battle_pose_look_unread"
+addr = "7E:A483"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Cleared as a combatant's plain look is put on; no code traced reads it"
+source = "game/battle/pose_looks.c take_off_the_look $C1:30B6"
+
+[[var]]
+name = "battle_pose_look_unread_second"
+addr = "7E:A457"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Cleared as a combatant's plain look is put on; no code traced reads it"
+source = "game/battle/pose_looks.c take_off_the_look $C1:30B6"
+
+[[var]]
+name = "battle_pose_held_count"
+addr = "7E:A478"
+count = 11
+index = "battle slot"
+subsystem = "battle"
+meaning = "Counted up as the held pose's look is put on, cleared with the plain look's; no code traced reads it"
+source = "game/battle/pose_looks.c put_on_the_look $C1:30E1"
+
+[[var]]
 name = "battle_marker_on"
 addr = "7E:A48E"
 count = 11
@@ -16431,20 +16465,20 @@ source = "game/battle/sprites.c battle_step_object_palettes $CC:F1E7"
 [[var]]
 name = "battle_party_palette_cycle_on"
 addr = "7E:A46D"
-count = 3
-index = "party slot"
+count = 11
+index = "battle slot"
 subsystem = "battle"
-meaning = "Set while the member's effect palette cycles"
-source = "game/battle/object_motion.c cycle_party_colors $CF:E7D7"
+meaning = "Set while the combatant's palette cycles, as the look of its pose has it (hasted, slowed, shielded, behind a barrier); the party's are the ones cycled"
+source = "game/battle/object_motion.c cycle_party_colors $CF:E7D7; game/battle/pose_looks.c $C1:308C"
 
 [[var]]
 name = "battle_party_palette_cycle"
 addr = "7E:A499"
-count = 3
-index = "party slot"
+count = 11
+index = "battle slot"
 subsystem = "battle"
-meaning = "Position in the member's palette cycle (steps by 2, wraps at $7C)"
-source = "game/battle/object_motion.c cycle_party_colors $CF:E7D7"
+meaning = "Position in the combatant's palette cycle (steps by 2, wraps at $7C), started again as its pose's look changes"
+source = "game/battle/object_motion.c cycle_party_colors $CF:E7D7; game/battle/pose_looks.c $C1:308C"
 
 [[var]]
 name = "battle_color_phase"
@@ -16722,6 +16756,110 @@ size = 2
 subsystem = "battle"
 meaning = "Offset in bank $CE of the effect's animation records, which battle_index_effect_animations divides into its sixteen animations"
 source = "game/battle/sprites.c battle_index_effect_animations $C1:48EC"
+
+[[var]]
+name = "battle_animation_scripts"
+addr = "7E:9877"
+subsystem = "battle"
+meaning = "The script set of the action's animation (by the kind of action, its record's first byte or the character's), as its loading leaves it; nothing reads it after"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_scripts_at"
+addr = "7E:9878"
+size = 2
+subsystem = "battle"
+meaning = "Where the action's animation's script set starts (its two channel masks, then the scripts' places), as its loading leaves it; nothing reads it after"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_graphics"
+addr = "7E:987A"
+subsystem = "battle"
+meaning = "The first graphics set the action's animation loads into the effects' tiles ($CD:0015), as its loading leaves it"
+source = "game/battle/action_animation.c load_the_animation $C1:4833"
+
+[[var]]
+name = "battle_animation_second_graphics"
+addr = "7E:987B"
+subsystem = "battle"
+meaning = "The second graphics set the action's animation loads ($CD:002A), as its loading leaves it"
+source = "game/battle/action_animation.c load_the_animation $C1:4833"
+
+[[var]]
+name = "battle_animation_background"
+addr = "7E:987C"
+subsystem = "battle"
+meaning = "The battlefield the action's animation changes the background to ($CD:0018; $FF none), as its loading leaves it"
+source = "game/battle/action_animation.c load_the_animation $C1:4833"
+
+[[var]]
+name = "battle_animation_cleared"
+addr = "7E:987D"
+subsystem = "battle"
+meaning = "A byte among the action's animation's cells that its loading clears and nothing else touches"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_tiles"
+addr = "7E:987E"
+subsystem = "battle"
+meaning = "Which compressed tiles the action's animation draws its sprites with (an entry of the tiles' table in bank $D1), as its loading leaves it"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_tiles_at"
+addr = "7E:987F"
+size = 2
+subsystem = "battle"
+meaning = "Where in bank $D1 the action's animation's compressed sprite tiles are, which its loading unpacks into battle_decoded_tiles"
+source = "game/battle/action_animation.c load_the_animation $C1:4833"
+
+[[var]]
+name = "battle_animation_palette"
+addr = "7E:9881"
+subsystem = "battle"
+meaning = "Which palette animation the action's animation plays (an entry of its kind's table, which gives battle_palette_anim_frames), as its loading leaves it"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_records"
+addr = "7E:9884"
+subsystem = "battle"
+meaning = "Which animation records the action's animation's effects take their frames from (an entry of its kind's table, which gives battle_effect_records), as its loading leaves it"
+source = "game/battle/action_animation.c battle_load_action_animation $C1:4310"
+
+[[var]]
+name = "battle_animation_second_set"
+addr = "7E:A0B3"
+size = 2
+subsystem = "battle"
+meaning = "Set from the action's extra flag $40 as its showing starts: its animation's channels then run the script set's second half (the first's places are passed over), and the loading clears the low byte as it gets there"
+source = "game/battle/action_showing.c show_the_action $C1:4058; game/battle/action_animation.c start_the_scripts $C1:4455"
+
+[[var]]
+name = "battle_attack_up_close"
+addr = "7E:9930"
+subsystem = "battle"
+meaning = "Set where a party member's attack is shown up close (its weapon's close-up animation): it can reach its target and finds the way there, or always for the characters who walk up; nothing reads it but the animation's choice ($C1:4394)"
+source = "game/battle/action_animation.c attacks_up_close $C1:49FF"
+
+[[var]]
+name = "battle_poses_round_done"
+addr = "7E:A102"
+subsystem = "battle"
+meaning = "Counted up when the combatants' poses' round ($C1:305C, a combatant a call) comes back to the first; the action's showing goes round once that way at its end"
+source = "game/battle/action_showing.c show_the_action $C1:4058; $C1:3074"
+
+[[var]]
+name = "battle_showing_targets"
+addr = "7E:AC5C"
+count = 13
+index = "place in the list"
+reuses = "battle_trail_high"
+subsystem = "battle"
+meaning = "The action's targets as its showing lists them: the first, then the others in slot order, then $FF (battle_script_subjects' fourth place on holds the same); a list of more than seven runs over the trails' high bytes, which the trails rewrite while the action shows"
+source = "game/battle/action_showing.c list_the_targets $CC:F156; read at $C1:4138"
 
 [[var]]
 name = "battle_position_found_x"

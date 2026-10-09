@@ -8,6 +8,7 @@
  * the numbers rising over the combatants. The modules that own them are
  * battle/scripts.c, animation.c, objects.c, effect_paths.c, object_motion.c
  * and numbers.c; this is where they all start from. */
+#include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -129,7 +130,7 @@ static void reset_palettes_and_numbers(GameState *g)
 }
 
 // $CC:F06B
-static void reset_object_state(GameState *g)
+void battle_reset_objects(GameState *g)
 {
     reset_scripts(g);
     reset_combatants(g);
@@ -141,6 +142,6 @@ static void reset_object_state(GameState *g)
 
 void battle_reset_object_state(Snes *s)
 {
-    reset_object_state(state_of(s));
+    battle_reset_objects(state_of(s));
     m_rtl(s);
 }

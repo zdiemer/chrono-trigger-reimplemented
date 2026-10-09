@@ -765,7 +765,30 @@ rest waits, is [PLAN.md](PLAN.md).
     (`fight_party.c`, `fight_load_demo_party`); the double techs' setup reads
     the byte after the last learned double tech as it ends
     (`tech_records.c`); and a weapon made for no character reads past the
-    characters' slots for its owner (`fight_party.c`, `owners_slot_bit`).
+    characters' slots for its owner (`fight_party.c`, `owners_slot_bit`);
+    and from an action's showing (RECOMP.md, "Phase 3, battle: an action
+    shown"): the subjects' list of an action with more than six other targets
+    runs past `battle_script_subjects` onto the block uploads' count and the
+    enemies' family bits (`action_showing.c`, `list_subject`), and the
+    showing's own list (`battle_showing_targets`) over the trails' high bytes;
+    and a felled enemy's spoils read its cell (`$0E`) as a word with the one
+    after it, and where that one is set (a point of HP lost to a status finds
+    it so, five times over the library) its standing and id from that many
+    pages on (`damage.c`, `felled_enemy`, which reads the scratch cell as the
+    original does).
+- **What an action's showing left at its edge** (RECOMP.md, "Phase 3, battle:
+  an action shown"): the frame work's loads the animation calls (`$CD:0015`,
+  `$CD:002A`, the effects' graphics sets sent to VRAM over the vblank
+  handler's waits) and the background's change (`$CD:0018`, `$CD:0D28`,
+  `$CD:0EBD` and its tile and map moves, `$CD:107D`-`$CD:12B8`), the largest
+  of the battle frame work's handbacks; the steps' dispatch (`$C1:0003`) and
+  the showing's stub (`$C1:BFA4`), whose callers' declarations rest on the
+  library's evidence for the overflow they hand the steps, so a port of the
+  dispatch moves that evidence with it; the menu's turn the frame work's wait
+  for the vblank handler gives (`$C1:0012`, `$C1:10E3`), after which every
+  register is live; and the frame waits (`$C1:007E`), which wait on the
+  vblank handler and go with the timing service (PLAN.md, "Timing is
+  decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:

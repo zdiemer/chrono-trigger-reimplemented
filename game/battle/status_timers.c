@@ -207,9 +207,8 @@ static void set_up_status_showing(GameState *g, uint8_t showing)
 /* ---- The entries ----------------------------------------------------------------------- */
 
 /* The showing a status's number asks for ($C1:AC57, a sibling), from
- * $C1:895B's call; the effect's start for a point of HP ($C1:EC7F, the
- * original's; it reads nothing of the registers). */
-enum { SHOWING_CALL = 0xC18971, EFFECT_START_CALL = 0xC18B0C, EFFECT_START = 0xC1EC7F };
+ * $C1:895B's call. */
+enum { SHOWING_CALL = 0xC18971 };
 
 void battle_show_status_number(Snes *s)
 {
@@ -232,8 +231,7 @@ static bool see_to_run_out_timer(Snes *s, BattleTimer kind)
             return false;
         TIMED_AS(g, 0xFDACEE, battle_clear_numbers_shown(g));
     } else if (outcome == DAMAGE_TO_APPLY) {
-        if (!battle_call(s, EFFECT_START_CALL, EFFECT_START, DC_A | DC_X | DC_Y | DC_FLAGS))
-            return false;
+        TIMED_AS(g, 0xC1EC7F, battle_apply_damage(g));
     }
     if (timed_statuses[kind].effect == POISON_HURTS)
         battle_timer_seen_to(g, kind);

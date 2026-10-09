@@ -9937,6 +9937,13 @@ args = ["--long", "--d", "0000", "--db", "7E"]
 why = "on the battle's page; its steps are call-outs"
 
 [[routine]]
+name = "battle_frame_wait_tail_stub"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "the frame work's tail entered through its jump at $CD:0009, as battle_frame_wait_tail"
+
+[[routine]]
 name = "battle_step_window_slide"
 subsystem = "battle"
 state = "battle"
@@ -11099,6 +11106,147 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E"]
 iterations = 5000
 why = "on the battle's page"
+
+# -- an action shown, its animation loaded, the battle's own frame, the hits landing
+#    (battle/action_showing.c, action_animation.c, frame_step.c, damage.c)
+
+[[routine]]
+name = "battle_show_action"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--stop-at-call", "C1007E"]
+iterations = 3000
+why = "the actor a combatant and A's high byte clear, as the guard takes them; it waits for a frame first, so the run compares up to the wait (the steps after are the entries below)"
+
+[[routine]]
+name = "battle_forget_poses"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+iterations = 3000
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_list_the_showing"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A"]
+why = "the actor a combatant, as the guard takes it; the action's targets and others at random"
+
+[[routine]]
+name = "battle_find_the_members_falling"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7EAD9E-7EADA8=00-05"]
+why = "on the battle's page; the numbers' kinds among the kinds the effects record"
+
+[[routine]]
+name = "battle_load_action_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--fill", "7EAE92-7EAE92=00-05", "--fill", "7EAE94-7EAE94=00-00", "--fill", "7EA0B3-7EA0B4=00-00", "--fill", "7EA017-7EA017=00-0A", "--stop-at-call", "CD0015"]
+iterations = 5000
+why = "the actor a combatant and its first target one, any kind of action, not missed (the showing's note of the second half clear with it), as the guards take them; the loading's first call-out is the graphics' load, so the run compares the choice and the scripts started"
+
+[[routine]]
+name = "battle_load_action_animation"
+variant = "missed"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--fill", "7EAE92-7EAE92=01-03", "--fill", "7EAE94-7EAE94=40-40", "--fill", "7EA0B3-7EA0B3=40-40", "--fill", "7EA0B4-7EA0B4=00-00", "--fill", "7EA017-7EA017=00-0A", "--stop-at-call", "C1432C", "--stop-at-call", "C145A0", "--stop-at-call", "C1475B"]
+iterations = 5000
+why = "a missed action, the showing's note of it set with it, up to its kind's loader (a fuzz run calls the loader as the original's call; the loaders' own runs are below)"
+
+[[routine]]
+name = "battle_load_attack_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--fill", "7EAE94-7EAE94=00,40", "--fill", "7EA0B3-7EA0B3=@7EAE94", "--fill", "7EA0B4-7EA0B4=00-00", "--fill", "7EA017-7EA017=00-0A", "--fill", "7E9877-7E9886=00-00", "--fill", "7E987C-7E987C=FF-FF", "--stop-at-call", "CD0015"]
+iterations = 3000
+why = "the animation's cells forgotten, as the loading's start leaves them; an attack's loading: the actor a combatant and its first target one, missed or not with the showing's note of it alike"
+
+[[routine]]
+name = "battle_load_tech_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--fill", "7EAE94-7EAE94=00,40", "--fill", "7EA0B3-7EA0B3=@7EAE94", "--fill", "7EA0B4-7EA0B4=00-00", "--fill", "7EA017-7EA017=00-0A", "--fill", "7E9877-7E9886=00-00", "--fill", "7E987C-7E987C=FF-FF", "--stop-at-call", "CD0015"]
+iterations = 3000
+why = "the animation's cells forgotten, as the loading's start leaves them; a tech's loading: the actor a combatant and its first target one, missed or not with the showing's note of it alike"
+
+[[routine]]
+name = "battle_load_item_animation"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-0A", "--fill", "7EAE94-7EAE94=00,40", "--fill", "7EA0B3-7EA0B3=@7EAE94", "--fill", "7EA0B4-7EA0B4=00-00", "--fill", "7EA017-7EA017=00-0A", "--fill", "7E9877-7E9886=00-00", "--fill", "7E987C-7E987C=FF-FF", "--stop-at-call", "CD0015"]
+iterations = 3000
+why = "the animation's cells forgotten, as the loading's start leaves them; an item's loading: the actor a combatant and its first target one, missed or not with the showing's note of it alike"
+
+[[routine]]
+name = "battle_attack_up_close"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7EAE91-7EAE91=00-02", "--fill", "7EA017-7EA017=00-0A", "--fill", "7E2980-7E2982=00-06"]
+why = "a party member attacking a combatant, the party's characters the seven, as the guard takes them"
+
+[[routine]]
+name = "battle_frame_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E993A-7E993A=00-00", "--stop-at-call", "CD0009"]
+iterations = 3000
+why = "on the battle's page, the menu's turn not due, up to the frame work's tail (a fuzz run calls its siblings as the original's calls, so the menu's turn is its entries' runs and the next member's, and the tail is the frame work's)"
+
+[[routine]]
+name = "battle_wait_step"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--stop-at-call", "C1007E", "--stop-at-call", "CD0027", "--fill", "7E95D6-7E95D6=00,01,02,80,FF"]
+iterations = 3000
+why = "on the battle's page, the menu's queue a member or nobody; it waits for a frame early, so the run compares up to the wait"
+
+[[routine]]
+name = "battle_next_member_takes_the_menu"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E95D6-7E95D6=00,01,02,80,FF", "--range", "A=0000-00FF"]
+why = "the first member in the menu's queue a party member or none, as the game queues them"
+
+[[routine]]
+name = "battle_go_round_the_poses"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E99D9-7E99D9=00-0A", "--fill", "7EA441-7EA44B=00,01,02,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,80,81,FF"]
+iterations = 5000
+why = "the round at a combatant, every pose one the looks' table has or one that looks plain, as the guard takes them"
+
+[[routine]]
+name = "battle_show_pose_look"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E0094-7E0094=00-0A", "--fill", "7E0095-7E0095=00-00", "--fill", "7EA441-7EA44B=00,01,02,03,04,05,06,07,08,09,0A,0B,0C,0D,0E,80,81,FF"]
+iterations = 5000
+why = "a combatant named in the work cell with a pose the looks' table has or one that looks plain, as the guard takes them"
+
+[[routine]]
+name = "battle_apply_damage"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page; the damage table, the combatants' HP, MP and conditions and the enemies' spoils at random"
+
+[[routine]]
+name = "battle_drop_missed_targets"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_take_the_spoils"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7E000E-7E000E=03-0A"]
+why = "a felled enemy named in its cell, as the hits' landing names it; the cell after it at random"
 
 [[routine]]
 name = "battle_enemy_pose_turn"

@@ -13,6 +13,7 @@
  * now, so an effect that follows a chase turns with it. */
 #include "battle/effects.h"
 
+#include "battle/animation.h"
 #include "battle/animation_data.h"
 #include "battle/arith.h"
 #include "battle/bridge.h"
@@ -132,9 +133,8 @@ static void leave_stepping(GameState *g, uint16_t effect)
 // $CC:F278
 /* Step the effects' animations a frame: count their frame times down, then
  * move each effect whose time is up on to its next frame. */
-void battle_animate_effects(Snes *s)
+void battle_animate_effect_frames(GameState *g)
 {
-    GameState *g = state_of(s);
     count_frame_times_down(g);
     TakenFrame last = { 0 };
     bool taken = false;
@@ -147,6 +147,11 @@ void battle_animate_effects(Snes *s)
     if (taken)
         ORIGINAL_EFFECT(leave_taken_frame(g, last));
     ORIGINAL_EFFECT(leave_stepping(g, BATTLE_EFFECTS));
+}
+
+void battle_animate_effects(Snes *s)
+{
+    battle_animate_effect_frames(state_of(s));
     m_rtl(s);
 }
 

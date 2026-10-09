@@ -6,6 +6,7 @@
  * grid, with each combatant's cell marked as taken. A battle can leave the
  * party off the grid; the original then marks eleven slots from the first
  * enemy's, three of them past the combatants' tables, and so do we. */
+#include "battle/animation.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
@@ -47,7 +48,7 @@ static void leave_marking_cells(GameState *g, uint8_t first, unsigned last_row)
 
 // $CC:F110
 /* Rebuild the grid with the combatants' cells marked. */
-static void mark_combatants(GameState *g)
+void battle_mark_combatants_on_grid(GameState *g)
 {
     for (unsigned cell = 0; cell < GRID_CELLS; cell++)
         set_battle_grid(g, cell, battle_base_grid(g, cell));
@@ -67,7 +68,7 @@ static void mark_combatants(GameState *g)
  * and A 8-bit. */
 void battle_mark_object_grid(Snes *s)
 {
-    mark_combatants(state_of(s));
+    battle_mark_combatants_on_grid(state_of(s));
     s->cpu.a = 0;
     m_sep(s, CPU_FLAG_M);
     m_rtl(s);

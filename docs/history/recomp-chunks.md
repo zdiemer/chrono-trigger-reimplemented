@@ -7573,3 +7573,123 @@ fallbacks fell from 46.5 KiB to 45.2 KiB, ten routines leaving the baseline.
 **Timing.** The two new entries, and the battle's entries whose time moved with
 them (the member's turn, the enemy's turns and tech, the turn's giving), were
 calibrated from the shadow runs.
+
+## Phase 3, battle: the player choosing (`$C1:1153`-`$C1:17DC`, `$C1:1F79`-`$C1:283C`, `$C1:095D`-`$C1:0C2C`)
+
+Chosen by the fallback measure: the largest of the battle's handbacks was the
+menu's frame (`$C1:1153`), the code that takes the player's buttons in a
+fight, which the battle's own frame step (`$C1:106E`, `$C1:10E3`,
+`$C1:10FA`, reached from the member's turn, the timers, the main loop and the
+frame work) ran as the original's every frame a menu was open: 1.5 KiB and 5.2
+million instructions of the reference play, with the lists it lays out, the
+targets it lists and the area searches it asks behind it (`$C1:0B0B`,
+`$C1:09B0`, `$C1:25A3`, `$C1:2701`, the next by size). The chunk takes the
+whole of what the player does with the battle menu.
+
+**What it is** (`battle/choosing.h` says how the files fit):
+- `menu_input.c`, the menu's frame: the command page (the cursor among
+  Attack, Tech and Item, the other members waiting to choose, X's attack with
+  the remembered commands), the tech page and the item page (moving and
+  scrolling the lists, L and R turning the item list a page), and choosing a
+  target (moving among them, confirming, calling it off), down to queuing the
+  member's action and the next member's menu. Before the buttons a stolen item
+  joins the item list (`$CF:FAE2`) and a frame of four sprites surrounds the
+  member choosing (`$C1:1115`); choosing Attack forgets the enemy the message
+  line named (`$CD:002D` with nothing to name, which only notes it).
+- `target_choice.c`, whom the action can be aimed at: the menu's 33 target
+  kinds are a C table of rows (a member, an enemy, a side, everyone, the
+  member itself, a fallen member, a particular character, or an area placed on
+  the member, on an enemy the player picks or on a character), and the cursor
+  among those listed.
+- `area_search.c`, who stands in an area: the beam, the circle on the grid,
+  the row and the party's triangle, which the battle's step 7 (`$C1:1FDD`)
+  picks by the rules' shape number; the targeting (`aim.c`) now calls it as C.
+- `menu_lists.c`, the tech list and the item list laid out as tiles, and
+  `name_tiles.c`, a name as its two rows of tiles (`$C1:01A9`), which the
+  battle's setup now calls as C for the characters', members' and enemies'
+  names.
+- `menu_bridge.c`, the machine side: the click, and the carries the
+  original's callers go on with.
+
+**The clicks.** Every move of a cursor plays the driver's click, a call to the
+original's sound driver from `$C1:1B55`. Shadow mode compares that call where
+the original makes it, with the stack the original has there, so the logic
+calls its host's click at the original's point in the work (`MenuHost`), and
+the bridge makes the call from the original's frames: the click routine's,
+called from the menu frame's site for that move, and for the cursor moved over
+the enemy an area goes on, the choosing's and its kind's frames too. A table
+in the bridge keeps the sites; the logic says only which move clicked. Which
+of the frame's four calls to the choosing a click is under the bridge works
+out from where the menu stood as the frame began, and the kind's own sites
+from the kind the choosing was given.
+
+**The carries.** Liveness has the menu's frame's carry read: through
+`$C1:17DD`, which passes it on where it places no cursor, and the frame step
+`$C1:10E3`, into a battle message's frame waits (`$CD:0021`), whose caller in
+the main loop then clears the party's statuses (`$C1:EA9D`), whose first
+multiply (`$C1:C90B`) takes the carry into a product's high word the next
+pass clears. Nothing acts on it, which no fuzz run can show (it compares up to
+the return) and the library can: `ct_dev --poison-return C11153 --poison-set C`
+inverts it at every return in the shipping mode, 63,268 times over the
+library with every trace the same, and the entry declares it with that note,
+a new form `tools/dontcare_check.py` and `tools/dc_evidence.py` check
+(PORTING.md, "Declarations liveness can't prove"). The choosing's, the rows'
+marking's and the item list's carries, which the original's code reaches only
+where the menu's frame is the original's, are still worked out in the bridge,
+from the logic's own decoders (`battle_target_pick`,
+`battle_tech_entry_is_a_tech`).
+
+**The walk with nobody leading.** The new timings moved a movie's presses
+(late-omen-terramutant, shipping mode) onto a scene with the party's leader's
+place empty and a direction held, which the field walk's guard refused. The
+original walks the slot the empty place's marker names, past the object
+tables, and the screen follows it; `field/walk.c` now does the same, the
+slot's reads and writes in four functions (`Walker`), and the guard's end of
+the 16-bit range is exact (the box's right side inside it), where it had a
+margin the slot's place fell in. A native build has nobody to walk (TODO.md).
+
+**What the gate found.** The first shadow runs showed the clicks played after
+the frame's work don't compare (the bridge above); the stat block noted for
+nobody reads the ROM's table past its eleven (`battle_stat_block_place`); an
+item's name in the list starts past its icon and shows ten tiles, a colon
+after; the beam's targets are taken together before its click; and the
+choosing's last test looks at the targets, not the list. Fuzzing found the
+rest of the item list's top (a top past `$FA` reads past the records: the
+guard takes the game's) and the choosing's cursor past the list's eleven.
+
+**What the guards take on trust**, none of it refused in real play: the
+menu's member, slots and cursors as the window's guard has them, a member's
+tech list no longer than twenty, the item list's top no further than `$FA`,
+the cursor among the eleven targets, a stolen item a place to go, the queue
+room for another action, a tech's partners party slots, the chosen item's
+record's place, and A's high byte clear where the original carries it into
+an index. The rows the tech list is laid out with set a cell no frame sees
+(`battle_tech_list_being_laid_out`); a state with it set is the original's.
+
+**Validation.** The library's 28 movies in shadow mode, none mismatching: the
+menu's frame 105,265 calls (668 interrupted), the choosing 3,105 (74), the
+tech list 6,626 (75), its rows' marking 470, the item list 912, the converter
+23,673, the stat block 110,172, the frame around the member 17,786, the
+click 5,486 (each but three compared within its caller's), the area search's
+entry 46; the menu window and its cursors, the targeting and the setup as
+before. **Fuzzing**, seed 1 (`tools/fuzz_routines.toml`), none mismatching: the
+menu's frame on its pages 0 of 4,258, choosing a target 0 of 4,250 and with
+the window turned over 0 of 4,241 (the driver answering at once,
+`--apu-loopback`, so the clicks' calls come back), every target kind 0 of
+10,000, every area shape 0 of 10,000, the lists, the converter, the stat
+block, the frame around the member and the click 0 of 2,000-5,000 each; the
+callers (the targeting's five variants, the menu window, the cursors, the
+setup, the member's turn) fuzz as on main. The menu window's guard now asks A's
+high byte clear, with which the original notes the member's stat block (its
+fuzz runs give A a clear high byte).
+The reference play's fallbacks fell from 45.2 KiB and 347.2 million
+instructions to 41.9 KiB and 321.9 million, 39 routines leaving the baseline
+(`$C1:1153`, `$C1:0B0B`, `$C1:09B0`, `$C1:25A3`, `$C1:2701`, the step 7, the
+targeting kinds, the name converter and its dispatch from the setup); the
+battle's native coverage rose from 85% to 91% of the code real play runs.
+
+**Left for later.** The battle's frame step that calls the menu (`$C1:106E`,
+`$C1:10FA`), the action's showing step (`$C1:4058`, which spans
+frames on the frame wait), and the animation commands (`$C1:45A0`,
+`$C1:432C`) are the next by size; `$CD:0027`/`$002D`/`$0030`, the messages
+the menu window still calls, wait for the battle messages' port.

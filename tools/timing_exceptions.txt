@@ -89,6 +89,7 @@ battle_frame_dispatch vblank-tail the frame dispatch, through the frame work and
 battle_frame_dispatch vblank-worst as for vblank-tail: at most 20847 clocks
 battle_cut_window vblank-tail cuts a window through the screen's middle into the coming window line buffer in RAM in 50-line calls; the original's time follows the line's run across (a step of its loop a column), the port's only the lines it falls; 5.4% error, at most 19014 clocks, writing RAM
 battle_cut_window vblank-worst as for vblank-tail: at most 19014 clocks
+battle_show_action worst the action's showing, main-loop work between its waits for the next frame: each stretch runs the objects' steps, the effects' and palettes' animations and the poses' round as their own routines (TIMED_AS), and what is left follows how many objects and looks a frame changes; 0.72% of its stretches off by 1024 clocks or more, at most 81509 clocks (one in 2.3 million), writing RAM the frame it then waits out uploads; the vblank check finds no write moved
 battle_screen_script_turn_cut vblank-tail screen command $97's handler, which runs battle_cut_window's cut: as it, 5.3% error, at most 19263 clocks, writing the window line buffer in RAM
 battle_screen_script_turn_cut vblank-worst as for vblank-tail: at most 19263 clocks
 battle_run_screen_command vblank-tail a command, timed as its handler (NATIVE_TIME_AS): over the limit only through $97's cut (battle_cut_window), at most 18951 clocks, writing RAM

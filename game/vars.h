@@ -8007,6 +8007,10 @@ enum { BATTLE_MENU_QUEUE_COUNT = 4 };   /* by place in the queue */
 uint8_t battle_menu_queue(const GameState *g, unsigned i);
 void set_battle_menu_queue(GameState *g, unsigned i, uint8_t v);
 
+/* How many party members wait in battle_menu_queue */
+uint8_t battle_menu_queue_length(const GameState *g);
+void set_battle_menu_queue_length(GameState *g, uint8_t v);
+
 /* Menu page: 0 the command list (Attack/Tech/Item), 1 the tech list, 2 the item list */
 uint8_t battle_menu_page(const GameState *g);
 void set_battle_menu_page(GameState *g, uint8_t v);
@@ -8380,10 +8384,58 @@ void set_battle_search_through_marked(GameState *g, uint8_t v);
 uint8_t battle_script_signal(const GameState *g);
 void set_battle_script_signal(GameState *g, uint8_t v);
 
+/* The script set of the action's animation (by the kind of action, its record's first byte or
+ * the character's), as its loading leaves it; nothing reads it after */
+uint8_t battle_animation_scripts(const GameState *g);
+void set_battle_animation_scripts(GameState *g, uint8_t v);
+
+/* Where the action's animation's script set starts (its two channel masks, then the scripts'
+ * places), as its loading leaves it; nothing reads it after */
+uint16_t battle_animation_scripts_at(const GameState *g);
+void set_battle_animation_scripts_at(GameState *g, uint16_t v);
+
+/* The first graphics set the action's animation loads into the effects' tiles ($CD:0015), as its
+ * loading leaves it */
+uint8_t battle_animation_graphics(const GameState *g);
+void set_battle_animation_graphics(GameState *g, uint8_t v);
+
+/* The second graphics set the action's animation loads ($CD:002A), as its loading leaves it */
+uint8_t battle_animation_second_graphics(const GameState *g);
+void set_battle_animation_second_graphics(GameState *g, uint8_t v);
+
+/* The battlefield the action's animation changes the background to ($CD:0018; $FF none), as its
+ * loading leaves it */
+uint8_t battle_animation_background(const GameState *g);
+void set_battle_animation_background(GameState *g, uint8_t v);
+
+/* A byte among the action's animation's cells that its loading clears and nothing else touches */
+uint8_t battle_animation_cleared(const GameState *g);
+void set_battle_animation_cleared(GameState *g, uint8_t v);
+
+/* Which compressed tiles the action's animation draws its sprites with (an entry of the tiles'
+ * table in bank $D1), as its loading leaves it */
+uint8_t battle_animation_tiles(const GameState *g);
+void set_battle_animation_tiles(GameState *g, uint8_t v);
+
+/* Where in bank $D1 the action's animation's compressed sprite tiles are, which its loading
+ * unpacks into battle_decoded_tiles */
+uint16_t battle_animation_tiles_at(const GameState *g);
+void set_battle_animation_tiles_at(GameState *g, uint16_t v);
+
+/* Which palette animation the action's animation plays (an entry of its kind's table, which
+ * gives battle_palette_anim_frames), as its loading leaves it */
+uint8_t battle_animation_palette(const GameState *g);
+void set_battle_animation_palette(GameState *g, uint8_t v);
+
 /* Offset in bank $CD of the effect's palette animation frames (two bytes a frame: the color set
  * and where it goes) */
 uint16_t battle_palette_anim_frames(const GameState *g);
 void set_battle_palette_anim_frames(GameState *g, uint16_t v);
+
+/* Which animation records the action's animation's effects take their frames from (an entry of
+ * its kind's table, which gives battle_effect_records), as its loading leaves it */
+uint8_t battle_animation_records(const GameState *g);
+void set_battle_animation_records(GameState *g, uint8_t v);
 
 /* Offset in bank $CE of the effect's animation records, which battle_index_effect_animations
  * divides into its sixteen animations */
@@ -8502,6 +8554,12 @@ enum { BATTLE_ANIM_ORDER_COUNT = 3 };   /* by position in this frame's order */
  * skipped) */
 uint8_t battle_anim_order(const GameState *g, unsigned i);
 void set_battle_anim_order(GameState *g, unsigned i, uint8_t v);
+
+/* Set where a party member's attack is shown up close (its weapon's close-up animation): it can
+ * reach its target and finds the way there, or always for the characters who walk up; nothing
+ * reads it but the animation's choice ($C1:4394) */
+uint8_t battle_attack_up_close(const GameState *g);
+void set_battle_attack_up_close(GameState *g, uint8_t v);
 
 /* Frame counter byte, counted each frame update */
 uint8_t battle_frame_tick(const GameState *g);
@@ -8882,6 +8940,12 @@ enum { BATTLE_COMBATANT_DOWN_COUNT = 11 };   /* by battle slot */
 uint8_t battle_combatant_down(const GameState *g, unsigned slot);
 void set_battle_combatant_down(GameState *g, unsigned slot, uint8_t v);
 
+/* Set from the action's extra flag $40 as its showing starts: its animation's channels then run
+ * the script set's second half (the first's places are passed over), and the loading clears the
+ * low byte as it gets there */
+uint16_t battle_animation_second_set(const GameState *g);
+void set_battle_animation_second_set(GameState *g, uint16_t v);
+
 enum { BATTLE_MEMBER_KEPT_ITEM_WAITING_COUNT = 3 };   /* by battle slot of a party member */
 /* Set where the member's steal took an item (either way it went), which the menu's next frame
  * looks for to move the member's kept item into the item list ($CF:FAE2) */
@@ -8971,6 +9035,11 @@ void set_battle_frog_slot(GameState *g, uint16_t v);
  * ($CD:1B78); the row swap clears it */
 uint8_t battle_sprite_palettes_flipped(const GameState *g);
 void set_battle_sprite_palettes_flipped(GameState *g, uint8_t v);
+
+/* Counted up when the combatants' poses' round ($C1:305C, a combatant a call) comes back to the
+ * first; the action's showing goes round once that way at its end */
+uint8_t battle_poses_round_done(const GameState *g);
+void set_battle_poses_round_done(GameState *g, uint8_t v);
 
 enum { BATTLE_OBJECT_POSE_SHOWN_COUNT = 3 };   /* by party slot */
 /* Pose the party member's graphics were last built for */
@@ -9437,18 +9506,36 @@ enum { BATTLE_OBJECT_POSE_LAST_COUNT = 11 };   /* by battle slot */
 uint8_t battle_object_pose_last(const GameState *g, unsigned slot);
 void set_battle_object_pose_last(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_PARTY_PALETTE_CYCLE_ON_COUNT = 3 };   /* by party slot */
-/* Set while the member's effect palette cycles */
+enum { BATTLE_POSE_LOOK_UNREAD_SECOND_COUNT = 11 };   /* by battle slot */
+/* Cleared as a combatant's plain look is put on; no code traced reads it */
+uint8_t battle_pose_look_unread_second(const GameState *g, unsigned slot);
+void set_battle_pose_look_unread_second(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_PARTY_PALETTE_CYCLE_ON_COUNT = 11 };   /* by battle slot */
+/* Set while the combatant's palette cycles, as the look of its pose has it (hasted, slowed,
+ * shielded, behind a barrier); the party's are the ones cycled */
 uint8_t battle_party_palette_cycle_on(const GameState *g, unsigned slot);
 void set_battle_party_palette_cycle_on(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_POSE_HELD_COUNT_COUNT = 11 };   /* by battle slot */
+/* Counted up as the held pose's look is put on, cleared with the plain look's; no code traced
+ * reads it */
+uint8_t battle_pose_held_count(const GameState *g, unsigned slot);
+void set_battle_pose_held_count(GameState *g, unsigned slot, uint8_t v);
+
+enum { BATTLE_POSE_LOOK_UNREAD_COUNT = 11 };   /* by battle slot */
+/* Cleared as a combatant's plain look is put on; no code traced reads it */
+uint8_t battle_pose_look_unread(const GameState *g, unsigned slot);
+void set_battle_pose_look_unread(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_MARKER_ON_COUNT = 11 };   /* by battle slot */
 /* Set when an animated marker sprite is drawn with the object */
 uint8_t battle_marker_on(const GameState *g, unsigned slot);
 void set_battle_marker_on(GameState *g, unsigned slot, uint8_t v);
 
-enum { BATTLE_PARTY_PALETTE_CYCLE_COUNT = 3 };   /* by party slot */
-/* Position in the member's palette cycle (steps by 2, wraps at $7C) */
+enum { BATTLE_PARTY_PALETTE_CYCLE_COUNT = 11 };   /* by battle slot */
+/* Position in the combatant's palette cycle (steps by 2, wraps at $7C), started again as its
+ * pose's look changes */
 uint8_t battle_party_palette_cycle(const GameState *g, unsigned slot);
 void set_battle_party_palette_cycle(GameState *g, unsigned slot, uint8_t v);
 
@@ -10062,6 +10149,13 @@ void set_battle_chase_cells(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_numbers_rising(const GameState *g);
 void set_battle_numbers_rising(GameState *g, uint8_t v);
 
+enum { BATTLE_SHOWING_TARGETS_COUNT = 13 };   /* by place in the list */
+/* The action's targets as its showing lists them: the first, then the others in slot order, then
+ * $FF (battle_script_subjects' fourth place on holds the same); a list of more than seven runs
+ * over the trails' high bytes, which the trails rewrite while the action shows */
+uint8_t battle_showing_targets(const GameState *g, unsigned i);
+void set_battle_showing_targets(GameState *g, unsigned i, uint8_t v);
+
 enum { BATTLE_TRAIL_HIGH_COUNT = 4 };   /* by trail entry (0 the newest) */
 /* X, by battle slot [11 bytes, one at a time] */
 enum { BATTLE_TRAIL_HIGH_X_BYTES = 11 };
@@ -10429,7 +10523,8 @@ void set_battle_combatant_id(GameState *g, unsigned slot, uint8_t v);
  * It stays while the combatant is out, and comes back into battle_combatant_fighting when it is
  * revived Unchecked, for marked scaffolding only: an enemy's script's condition names whoever
  * last acted on the enemy by the low four bits of its action record, up to 15
- * (game/battle/enemy_conditions.c, $C1:9514) */
+ * (game/battle/enemy_conditions.c, $C1:9514); a felled enemy's spoils read it by the felled cell
+ * taken as a word with the one after it (game/battle/damage.c, $FD:ABA2) */
 uint8_t battle_combatant_id_unchecked(const GameState *g, unsigned slot);
 void set_battle_combatant_id_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -10443,7 +10538,8 @@ void set_battle_enemy_standing(GameState *g, unsigned i, uint8_t v);
  * for marked scaffolding only: the targeting's tests for an enemy in reserve read past the
  * enemies: the area search's $FF after its last find taken as a combatant ($C1:C61A), and a
  * revive's target indexed by its battle slot rather than its enemy number ($C1:C410)
- * (game/battle/aim.c) */
+ * (game/battle/aim.c); a felled enemy's spoils read it by the felled cell taken as a word with
+ * the one after it (game/battle/damage.c, $FD:ABA2) */
 uint8_t battle_enemy_standing_unchecked(const GameState *g, unsigned i);
 void set_battle_enemy_standing_unchecked(GameState *g, unsigned i, uint8_t v);
 

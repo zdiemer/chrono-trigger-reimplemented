@@ -19,10 +19,6 @@
 /* The accessory that makes its wearer's steals three times as likely to land. */
 enum { THIEFS_ACCESSORY = 0xA5 };
 
-/* The steal's marks: bit 7 the enemy still has its charm, bit 6 the item it
- * drops. */
-enum { HAS_CHARM = 0x80, HAS_DROPPED = 0x40 };
-
 
 /* The original hands the outcome back in the cell it took the chance in
  * ($16), and the item taken in $06, where the member's turn reads it to name

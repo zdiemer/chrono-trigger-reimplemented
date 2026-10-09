@@ -271,7 +271,7 @@ static void leave_palette_loop(GameState *g)
 // $CC:F1E7
 /* Step the palette animations a frame: each running one whose time is up
  * shows its next frame. */
-static void step_palette_animations(GameState *g)
+void battle_step_palette_animations(GameState *g)
 {
     for (unsigned anim = 0; anim < PALETTE_ANIMATIONS; anim++) {
         if (!battle_palette_anim_on(g, anim))
@@ -310,7 +310,7 @@ static void leave_record_cells(GameState *g, uint8_t count)
 // $C1:48EC
 /* Find where each of the effect's animations starts and how many frames it
  * has. */
-static void index_effect_animations(GameState *g)
+void battle_find_effect_animations(GameState *g)
 {
     uint16_t at = battle_effect_records(g);
     unsigned animation = 0;
@@ -351,18 +351,17 @@ static void index_effect_animations(GameState *g)
  * up to four shapes are built at a time, into the sets from battle_bitmap_set
  * on. */
 enum { SHAPES_AT_A_TIME = 4, SHAPE_ROWS = 0x0F, SHAPE_WIDTH_SHIFT = 4, SHAPE_COLUMNS = 8, LEFTMOST = 0x80 };
-enum { SPRITE_BYTES = 4, SPRITE_STREAM_BYTES = 2, SHAPE_TAIL_BYTES = 2 };
-enum { SPRITE_X = 0, SPRITE_Y = 1, SPRITE_TILE = 2, SPRITE_ATTRIBUTES = 3 };
+enum { SPRITE_STREAM_BYTES = 2, SHAPE_TAIL_BYTES = 2 };
 
 static uint8_t stream_byte(const GameState *g, uint16_t at) { return battle_decoded_tiles(g, at); }
 
 static void add_sprite(GameState *g, uint16_t set, uint16_t at, unsigned row, unsigned column, uint8_t tile,
                        uint8_t attributes)
 {
-    set_battle_effect_sprite_data(g, at + SPRITE_TILE, tile);
-    set_battle_effect_sprite_data(g, at + SPRITE_ATTRIBUTES, attributes | battle_sprite_attributes(g));
-    set_battle_effect_sprite_data(g, at + SPRITE_Y, battle_bitmap_cell_position(g, (uint16_t)row));
-    set_battle_effect_sprite_data(g, at + SPRITE_X, battle_bitmap_cell_position(g, (uint16_t)column));
+    set_battle_effect_sprite_data(g, at + EFFECT_SPRITE_TILE, tile);
+    set_battle_effect_sprite_data(g, at + EFFECT_SPRITE_ATTRIBUTES, attributes | battle_sprite_attributes(g));
+    set_battle_effect_sprite_data(g, at + EFFECT_SPRITE_Y, battle_bitmap_cell_position(g, (uint16_t)row));
+    set_battle_effect_sprite_data(g, at + EFFECT_SPRITE_X, battle_bitmap_cell_position(g, (uint16_t)column));
     set_battle_bitmap_counts(g, set, (uint8_t)(battle_bitmap_counts(g, set) + 1));
 }
 
@@ -407,7 +406,7 @@ static uint16_t build_shape(GameState *g, uint16_t set, uint8_t header, uint16_t
                 continue;
             add_sprite(g, set, sprite, row, column, stream_byte(g, at), stream_byte(g, (uint16_t)(at + 1)));
             at = (uint16_t)(at + SPRITE_STREAM_BYTES);
-            sprite = (uint16_t)(sprite + SPRITE_BYTES);
+            sprite = (uint16_t)(sprite + EFFECT_SPRITE_BYTES);
         }
     }
     ORIGINAL_EFFECT(leave_shape(g, header, sprite));
@@ -505,13 +504,13 @@ bool battle_builds_known_object(Snes *s)
 
 void battle_step_object_palettes(Snes *s)
 {
-    step_palette_animations(state_of(s));
+    battle_step_palette_animations(state_of(s));
     m_rtl(s);
 }
 
 void battle_index_effect_animations(Snes *s)
 {
-    index_effect_animations(state_of(s));
+    battle_find_effect_animations(state_of(s));
     s->cpu.a = 0;
     m_rts(s);
 }
@@ -520,7 +519,7 @@ void battle_index_effect_animations(Snes *s)
 void battle_build_bitmap_shapes(Snes *s)
 {
     if (!battle_call(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS)
-        || !battle_call(s, 0xC14946, 0xC110FA, DC_AL | DC_X | DC_Y | DC_FLAGS))
+        || !battle_run(s, 0xC14946, 0xC110FA, battle_frame_step))
         return;
     build_bitmap_shapes(state_of(s));
     s->cpu.a = 0;

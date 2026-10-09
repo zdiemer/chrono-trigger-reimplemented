@@ -161,8 +161,13 @@ enum { STAT_NOTE_TECHS_ALL_LEARNED = 0x10 };
 /* The condition byte's bit for knocked out. */
 enum { CONDITION_KNOCKED_OUT = 0x80 };
 
-/* An enemy waiting in reserve to come in (battle_enemy_standing). */
-enum { ENEMY_IN_RESERVE = 0x80 };
+/* An enemy waiting in reserve to come in (battle_enemy_standing), and one
+ * that needn't be beaten to win: it gives no spoils either. */
+enum { ENEMY_IN_RESERVE = 0x80, ENEMY_NEEDNT_BE_BEATEN = 0x40 };
+
+/* What an enemy still has to steal (battle_steal_marks): its charm, and the
+ * item it drops. */
+enum { HAS_CHARM = 0x80, HAS_DROPPED = 0x40 };
 
 /* An enemy's last condition held (battle_enemy_last_condition) where none
  * is. */
