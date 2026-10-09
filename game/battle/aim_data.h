@@ -23,7 +23,7 @@ enum { NO_AREA = 0 };
 
 /* $CC:1ACB: two bytes a party tech, the mode in the first's low seven bits
  * and the area rules' set in the second (the byte whose low six bits the
- * menu keeps as the tech's aim, battle_member_actions_tech_aim). */
+ * tech's menu record keeps as its target kind, battle_target_kind). */
 static inline ActionAim party_tech_aim(const GameState *g, uint8_t tech)
 {
     uint32_t at = 0xCC1ACBu + (uint32_t)(tech * 2);
@@ -68,6 +68,14 @@ static inline AreaRule area_rule(const GameState *g, uint16_t place, unsigned n)
     uint8_t placing = rom_read8(g, 0xCC0000u + (uint16_t)(at + 1)), size = rom_read8(g, 0xCC0000u + (uint16_t)(at + 2));
     return (AreaRule){ rom_read8(g, 0xCC0000u + at), (uint8_t)(placing & ~AREA_RULE_TOP_BIT), (uint8_t)(size & ~AREA_RULE_TOP_BIT),
                        (placing & AREA_RULE_TOP_BIT) != 0, (size & AREA_RULE_TOP_BIT) != 0 };
+}
+
+/* $CC:FB6F: the square of a distance of 0 to 15 cells of the battlefield's
+ * grid, which the area search's circles measure with (a distance past 15
+ * reads on into what follows). */
+static inline uint8_t battle_grid_distance_squared(const GameState *g, uint16_t cells)
+{
+    return rom_read8(g, 0xCCFB6Fu + cells);
 }
 
 #endif

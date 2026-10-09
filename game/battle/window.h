@@ -70,7 +70,13 @@ void menu_put_cursor(GameState *g, WindowCell cell);
 /* ---- The menu ------------------------------------------------------------------------- */
 
 /* The menu's pages: the commands, the techs, and past them the items. */
-typedef enum { PAGE_COMMANDS, PAGE_TECHS } MenuPage;
+typedef enum { PAGE_COMMANDS, PAGE_TECHS, PAGE_ITEMS } MenuPage;
+
+/* The menu slot whose window was last shown, set to none so that the command
+ * page rebuilds the window when it next draws (battle_menu_slot_shown); going
+ * back from a list marks it none with the other value, which the page takes
+ * the same way. */
+enum { NO_SLOT_SHOWN = 0xFE, NO_SLOT_SHOWN_FROM_A_LIST = 0xFF };
 
 /* The menu keeps "nobody" in-band, in its member, its slots' members and the
  * targets: a byte with its top bit set. */
@@ -133,6 +139,18 @@ bool battle_status_numbers_covered(const GameState *g, WindowLayout layout);
 /* Redraw the command cursor of the member whose menu is open, as asked
  * (battle_member_cells_redraw; window.c, $C1:0872). */
 void battle_redraw_command_cursor(GameState *g);
+
+/* The frames tilemap put back as the battle starts it, around the command
+ * page (menu_window.c, $C1:1C3A). */
+void battle_reset_frames(GameState *g);
+
+/* The menu's four cursor sprites hidden and moved off the screen
+ * (menu_window.c). */
+void battle_move_cursors_away(GameState *g);
+
+/* Ask for the battle window's lower rows, where the item list is, to be sent
+ * in the next vblank (uploads.c, $CF:FD6A). */
+void battle_send_lower_window_rows(GameState *g);
 
 /* ---- Numbers as digit tiles (digits.c) ------------------------------------------------ */
 

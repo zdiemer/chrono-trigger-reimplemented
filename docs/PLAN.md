@@ -57,8 +57,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 14% left (86% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 79% (212.6 KiB run by the 28 movies; battle 85%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 45.2 KiB, 347 M instructions (handback 32.4 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 43.6 KiB, 1,875 M; 23 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: the targeting") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 80% (212.6 KiB run by the 28 movies; battle 91%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 41.9 KiB, 322 M instructions (handback 29.2 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 41.1 KiB, 1,841 M; 24 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: the player choosing") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -193,7 +193,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 258 files, 117 of 76,458 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 264 files, 117 of 78,279 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -399,17 +399,19 @@ them (`$FD:AB30`, `$FD:AC6E`, `$FD:A8CE`-`$A95F`, `$C1:B3F9`, `$C1:B762`), the
 demo's party, and the battle's end's bookkeeping; and the leftovers: the
 battle's start from the field and its return there, the setup's last part,
 the scheduler's animation step, an effect's next frame and a member that comes
-back once. `python3 tools/burndown.py --uncovered C1` (and `CF`, `CC`) leaves
-only jump stubs into ports and the name converter's dispatch (`$C1:0065`, from
-`$CC:F063`, which waits for the text's port). **Next** for the battle is bank
+back once; and the player choosing (RECOMP.md, "Phase 3, battle: the player
+choosing"): the menu's frame, its lists, the target kinds and the area
+search. `python3 tools/burndown.py --uncovered C1` (and `CF`, `CC`) leaves
+only jump stubs into ports. **Next** for the battle is bank
 `$CD`'s remainder (above); in bank `$FD` the rewards' messages (`$FD:AD17`) wait for the
 battle messages' port, since each waits for the player (TODO.md), and the
 turn state's clearing (`$FD:A982`) for a name for the block it clears. The
 burndown counts the bank done, but the fallback measure shows what its ports
-still hand back: with the targeting C (RECOMP.md, "Phase 3, battle: the
-targeting"), the largest left are the animation commands' call-outs and the
-area search the targeting calls (the battle's step 7, `$C1:1FDD`, and the
-shapes' routines its table at `$C1:1FEA` runs, which the bitmap shapes call too).
+still hand back: with the player's choosing C, the largest left are the
+action's showing step (`$C1:4058`, which spans frames on the frame wait), the
+animation commands' call-outs (`$C1:45A0`, `$C1:432C`), the showing's start
+(`$C1:EC7F`) and the battle's frame step that calls the menu (`$C1:106E`,
+`$C1:10FA`).
 
 **`$C2`: the menus.** In: the Epoch's two Mode 7 screens, the object scripts'
 instruction set and the map they scroll, the load screen, the window command

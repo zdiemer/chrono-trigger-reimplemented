@@ -9557,20 +9557,20 @@ why = "on the battle's page, the digits in their cells"
 name = "battle_draw_menu_window"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
         "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
         "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
         "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
         "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11"]
 iterations = 5000
-why = "as battle_draw_window, on the three pages, the tech lists' entries naming the member's twenty records and its scroll inside its list, which the guard requires (game/battle/menu_window.c, tech_lists_kept)"
+why = "as battle_draw_window, on the three pages, the tech lists' entries naming the member's twenty records and its scroll inside its list, which the guard requires (game/battle/menu_window.c, tech_lists_kept), and A's high byte clear, with which the original notes the member's stat block (the guard asks it)"
 
 [[routine]]
 name = "battle_draw_menu_window"
 variant = "loose"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
         "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
         "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
         "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
@@ -9583,7 +9583,7 @@ name = "battle_draw_menu_window"
 variant = "blank"
 subsystem = "battle"
 state = "battle"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02",
         "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-03", "--fill", "7E991F-7E991F=00-03",
         "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02",
         "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-01", "--fill", "7EA62D-7EA62D=00-02",
@@ -9602,6 +9602,105 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21
         "--fill", "7E95DB-7E95DB=00-02"]
 iterations = 10000
 why = "as battle_draw_window, on the three pages, with A's high byte clear, which the guard requires"
+
+[[routine]]
+name = "battle_take_menu_input"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=00-00", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--apu-loopback"]
+iterations = 5000
+why = "the menu's frame on its three pages, not choosing a target: a member choosing, its cursors on the rows the menus have, its tech list no longer than twenty and its scroll inside it, the buttons at random; the sound driver answering at once (--apu-loopback), so that the clicks' calls come back"
+
+[[routine]]
+name = "battle_take_menu_input"
+variant = "targeting"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=01-01", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--fill", "7E99C0-7E99CB=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7E9EE7-7E9EE7=FF,F0,F1,F2,10,20,21,12,01,02", "--fill", "7E9F36-7E9F37=00-00", "--fill", "7E99D8-7E99D8=00-02", "--apu-loopback"]
+iterations = 5000
+why = "choosing a target: the targets found combatants or none, the selected tech's partners party slots or none, the chosen item's record the first, the queue room for another action; the kinds and the buttons at random"
+
+[[routine]]
+name = "battle_take_menu_input"
+variant = "ally"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=01-03", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=01-01", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--fill", "7E99C0-7E99CB=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7E9EE7-7E9EE7=FF,F0,F1,F2,10,20,21,12,01,02", "--fill", "7E9F36-7E9F37=00-00", "--fill", "7E99D8-7E99D8=00-02", "--fill", "7EA62D-7EA62D=00-02", "--apu-loopback"]
+iterations = 5000
+why = "choosing a target with the window turned over to the party, its first target a party member, as the guard takes it"
+
+[[routine]]
+name = "battle_choose_targets"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E9F21-7E9F21=00-00", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95DC-7E95E1=00-02", "--fill", "7E95E5-7E95E5=00-02", "--fill", "7E991F-7E991F=00-03", "--fill", "7EA62D-7EA632=00-0A", "--fill", "7E960B-7E960B=00-05", "--fill", "7EA6DD-7EA6DD=00-02", "--fill", "7EA6D9-7EA6DB=00-02", "--fill", "7EA0FF-7EA100=00-00", "--fill", "7EA86B-7EA86B=00-00", "--fill", "7E95DB-7E95DB=00-02", "--fill", "7E9551-7E95D1=00-13", "--fill", "7E95EB-7E95ED=00-11", "--fill", "7E9609-7E9609=01-01", "--fill", "7EA862-7EA862=00-00", "--fill", "7EA02A-7EA02C=00-14", "--fill", "7E9614-7E9614=00-0A", "--fill", "7E99C0-7E99CB=00,01,02,03,04,05,06,07,08,09,0A,FF", "--fill", "7E9EE7-7E9EE7=FF,F0,F1,F2,10,20,21,12,01,02", "--fill", "7E9F36-7E9F37=00-00", "--fill", "7E99D8-7E99D8=00-02", "--fill", "7E1D0C-7E1D16=00-FF", "--fill", "7E1D23-7E1D2D=00-FF", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F5-7E96FF=00-01", "--fill", "7EA0A8-7EA0B2=00-01", "--fill", "7EA09B-7EA0A5=00-00", "--fill", "7E9FF7-7E9FFF=00-00", "--fill", "7E960D-7E960D=00-FF", "--apu-loopback"]
+iterations = 10000
+why = "every target kind, the combatants anywhere on the battlefield, in the fight or out, knocked out or not, the party's characters at random"
+
+[[routine]]
+name = "battle_search_area"
+variant = "shapes"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E1D0C-7E1D16=00-FF", "--fill", "7E1D23-7E1D2D=00-FF", "--fill", "7E2980-7E2982=00-06", "--fill", "7E96F5-7E96FF=00-01", "--fill", "7EA0A8-7EA0B2=00-01", "--fill", "7EA09B-7EA0A5=00-00", "--fill", "7E9FF7-7E9FFF=00-00", "--fill", "7E003D-7E003D=00-07", "--fill", "7E9604-7E9604=00-02", "--fill", "7E9605-7E9606=00-0A", "--fill", "7E9607-7E9607=00-FF", "--fill", "7E9608-7E9608=00-01"]
+iterations = 10000
+why = "every shape, and a shape past the seven, the combatants anywhere on the battlefield, the area's size and flag at random"
+
+[[routine]]
+name = "battle_frame_member_choosing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E95D5-7E95D5=00-02"]
+iterations = 5000
+why = "the frame around a member choosing"
+
+[[routine]]
+name = "battle_note_menu_stat_block"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=0000-00FF"]
+iterations = 5000
+why = "the stat block of any byte in A, a combatant's or past them, as the original reads its table"
+
+[[routine]]
+name = "battle_lay_out_tech_list"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95EB-7E95ED=00-11"]
+iterations = 5000
+why = "a member's tech list from a scroll inside it, the entries at random (techs, headings, blanks)"
+
+[[routine]]
+name = "battle_mark_tech_rows"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E95D5-7E95D5=00-02", "--fill", "7E95EB-7E95ED=00-11"]
+iterations = 5000
+why = "a member's twenty entries at random"
+
+[[routine]]
+name = "battle_lay_out_item_list"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--fill", "7E0080-7E0080=00-FD", "--fill", "7E95D5-7E95D5=00-02"]
+iterations = 5000
+why = "three rows of the item list from a top inside its records, the records at random"
+
+[[routine]]
+name = "battle_convert_name"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+iterations = 5000
+why = "any sixteen characters in the name buffer"
+
+[[routine]]
+name = "battle_click_cursor"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback"]
+iterations = 2000
+why = "the click, the driver answering at once"
 
 [[routine]]
 name = "battle_update_combo_members"

@@ -25,6 +25,7 @@
 #include "battle/window.h"
 
 #include "battle/bridge.h"
+#include "battle/choosing.h"
 #include "battle/combatant.h"
 #include "battle/entries.h"
 #include "battle/window_data.h"
@@ -377,9 +378,7 @@ static void reload_tech_page_frames(GameState *g)
 }
 
 // $C1:1C3A
-/* The frames tilemap put back as the battle starts it, around the command
- * page. */
-static void reset_frames(GameState *g)
+void battle_reset_frames(GameState *g)
 {
     for (unsigned cell = 0; cell < BATTLE_WINDOW_FRAMES_TILEMAP_COUNT; cell++) {
         set_battle_window_frames_tilemap_tile(g, cell, battle_first_frames_tile(g, cell));
@@ -389,9 +388,10 @@ static void reset_frames(GameState *g)
 
 /* ---- The pages, with the original's parts ------------------------------------------------ */
 
-/* The calls to the original's code: the tech list's layout ($C1:0A88), a tech's description ($CD:0027), and the uploads
- * of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the window
- * left in memory; only the description takes a register, the tech in A. */
+/* The calls to the original's code: a tech's description ($CD:0027), and the
+ * uploads of the window's tilemaps ($CF:FD02, $CF:FD36). Each reads what the
+ * window left in memory; only the description takes a register, the tech in
+ * A. */
 enum { CALLEE_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The settings' bit that asks for the descriptions. */
@@ -406,7 +406,7 @@ static bool show_command_page(Snes *s, GameState *g)
     bool carry;
     if (battle_menu_slot(g) != battle_menu_slot_shown(g)) {
         set_battle_menu_slot_shown(g, battle_menu_slot(g));
-        NATIVE_TIME_AS(s, 0xC11C3A, reset_frames(g));
+        NATIVE_TIME_AS(s, 0xC11C3A, battle_reset_frames(g));
         vars_peek(true);
         carry = window_redraw_carry(g);
         vars_peek(false);
@@ -426,7 +426,7 @@ static bool show_command_page(Snes *s, GameState *g)
     }
     /* the frames' reset ends on a compare that leaves the carry set */
     if (menu_nobody(battle_menu_member(g))) {
-        NATIVE_TIME_AS(s, 0xC11C3A, reset_frames(g));
+        NATIVE_TIME_AS(s, 0xC11C3A, battle_reset_frames(g));
         carry = true;
     }
     m_set_flag(s, CPU_FLAG_C, carry);
@@ -452,13 +452,16 @@ static bool tech_page_carry(const GameState *g, unsigned member)
     return false;
 }
 
+/* What laying out the list leaves in A, which the page hands on where
+ * nothing after loads it: the list tilemap's place after its four rows. */
+enum { TECH_LIST_LAID_OUT_A = 0x0200 };
+
 // $C1:0C83
 static bool show_tech_page(Snes *s, GameState *g)
 {
     shade_unusable_techs(g);
-    s->cpu.a = 0;
-    if (!battle_call(s, 0xC10C83, 0xC10A88, DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
-        return false;
+    NATIVE_TIME_AS(s, 0xC10A88, battle_lay_out_tech_list(g));
+    s->cpu.a = TECH_LIST_LAID_OUT_A;
     unsigned member = battle_menu_member(g);
     show_tech_list(g);
     show_party_mp(g);
@@ -502,6 +505,10 @@ static bool tech_lists_kept(const GameState *g)
     return true;
 }
 
+/* The stat block is noted with the whole of A as the member, its high byte
+ * clear wherever the game draws the menu window. */
+bool battle_menu_window_ready_a_clear(Snes *s) { return battle_menu_window_ready(s) && !(s->cpu.a & 0xFF00); }
+
 bool battle_menu_window_ready(Snes *s)
 {
     if (!battle_window_ready(s))
@@ -513,15 +520,14 @@ bool battle_menu_window_ready(Snes *s)
 }
 
 // $C1:0C2D
-/* Draw the menu window for the page that is open. The original notes the
- * member's stat block first ($CF:FD9E, from the member in A). A page past the
- * techs leaves the carry of comparing it with the tech page's. */
+/* Draw the menu window for the page that is open, the member's stat block
+ * noted first, which leaves A clear. A page past the techs leaves the carry
+ * of comparing it with the tech page's. */
 void battle_draw_menu_window(Snes *s)
 {
     GameState *g = state_of(s);
-    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | battle_menu_member(g));
-    if (!battle_call_long(s, 0xC10C30, 0xCFFD9E, DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C))
-        return;
+    NATIVE_TIME_AS(s, 0xCFFD9E, battle_note_menu_stat_block(g, battle_menu_member(g)));
+    s->cpu.a = 0;
     switch (battle_menu_page(g)) {
     case PAGE_COMMANDS:
         if (!show_command_page(s, g))
@@ -569,7 +575,7 @@ static void point_cursor_at(GameState *g, unsigned cursor, unsigned slot)
     set_oam_buffer_y(g, cursor, combatant_cursor_y(g, slot));
 }
 
-static void move_cursors_away(GameState *g)
+void battle_move_cursors_away(GameState *g)
 {
     hide_cursors(g);
     for (unsigned cursor = 0; cursor < CURSORS; cursor++)
@@ -582,7 +588,7 @@ static void move_cursors_away(GameState *g)
 static void place_combo_cursors(GameState *g)
 {
     uint8_t partners = battle_selected_tech_partners(g);
-    move_cursors_away(g);
+    battle_move_cursors_away(g);
     for (unsigned cursor = 0; cursor < BATTLE_PARTY_SIZE; cursor++)
         set_cursor_look(g, cursor);
     point_cursor_at(g, 0, battle_menu_member(g));
@@ -767,10 +773,12 @@ static bool cursor_carry(const GameState *g, unsigned slot)
 }
 
 /* What the callees read of the machine: $CD:002D and $CD:0030 the name in
- * A's low byte; $C1:1115 (a single tech's cursor) and $CF:FD6A (the window's
- * upload) nothing. */
-enum { CALLEE_READS_NOTHING_HERE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
-       CALLEE_READS_A = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+ * A's low byte. */
+enum { CALLEE_READS_A = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+/* What the frame around the member leaves in A: the high table's byte it
+ * wrote, its high byte clear. */
+enum { CHOOSING_FRAME_LEFT_A = 0x00AA };
 
 // $C1:19B4
 /* A lone target: its cursor, and on the command page an enemy's name. The
@@ -834,17 +842,19 @@ static bool place_target_cursors(Snes *s, GameState *g)
 
 // $C1:17DD
 /* Place the cursors for what the member is choosing: none without a member,
- * the targets while they are chosen, a combination tech's members on the tech
- * page (a single tech's cursor is the original's), and the item list's cursor,
- * sending the window when it changed. Placing them takes the buttons the menu
- * gathered. The carry the original leaves: set where a combination has two
- * members (from its end mark), the third's placing where it has three, and
- * set where the item list was left as it was. */
+ * the targets while they are chosen, on the tech page a combination tech's
+ * members or, for a tech of its own, the frame around the member, and the
+ * item list's cursor, sending the window when it changed. Placing them takes
+ * the buttons the menu gathered. The carry the original leaves: set where a
+ * combination has two members (from its end mark), the third's placing where
+ * it has three, set after the frame (its loop's last compare), and set where
+ * the item list was left as it was. The frame leaves A its high table's
+ * byte, its high byte clear. */
 void battle_place_menu_cursors(Snes *s)
 {
     GameState *g = state_of(s);
     if (menu_nobody(battle_menu_member(g))) {
-        move_cursors_away(g);
+        battle_move_cursors_away(g);
     } else if (battle_targeting(g)) {
         if (!place_target_cursors(s, g))
             return;
@@ -853,14 +863,16 @@ void battle_place_menu_cursors(Snes *s)
             place_combo_cursors(g);
             uint8_t partners = battle_selected_tech_partners(g);
             m_set_flag(s, CPU_FLAG_C, !has_second_partner(partners) || cursor_carry(g, second_partner(partners)));
-        } else if (!battle_call(s, 0xC118AA, 0xC11115, CALLEE_READS_NOTHING_HERE)) {
-            return;
+        } else {
+            NATIVE_TIME_AS(s, 0xC11115, battle_frame_member_choosing(g));
+            s->cpu.a = CHOOSING_FRAME_LEFT_A;
+            m_set_flag(s, CPU_FLAG_C, true);
         }
     } else if (battle_menu_page(g) != PAGE_COMMANDS) {
         if (show_item_cursor(g)) {
+            NATIVE_TIME_AS(s, 0xCFFD6A, battle_send_lower_window_rows(g));
+            s->cpu.a = BATTLE_PAGE;               /* the request's leaving */
             m_set_flag(s, CPU_FLAG_C, false);   /* the cursor row's doubling, passed on */
-            if (!battle_call_long(s, 0xC11972, 0xCFFD6A, CALLEE_READS_NOTHING_HERE))
-                return;
         } else {
             m_set_flag(s, CPU_FLAG_C, true);
         }
@@ -948,7 +960,7 @@ void battle_update_combo_members(Snes *s)
  * loop's last compare, set. */
 void battle_reset_window_frames(Snes *s)
 {
-    reset_frames(state_of(s));
+    battle_reset_frames(state_of(s));
     s->cpu.a = m_direct_page(s) & 0xFF00;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);

@@ -59,6 +59,63 @@ static inline uint8_t battle_tech_page_frames_attributes(const GameState *g, uns
     return rom_read8(g, 0xD15A50u + 2 * cell + 1);
 }
 
+/* The frames tilemap as the item page puts it, a tile and its attributes a
+ * cell ($D1:5BD0). */
+static inline uint8_t battle_item_page_frames_tile(const GameState *g, unsigned cell)
+{
+    return rom_read8(g, 0xD15BD0u + 2 * cell);
+}
+static inline uint8_t battle_item_page_frames_attributes(const GameState *g, unsigned cell)
+{
+    return rom_read8(g, 0xD15BD0u + 2 * cell + 1);
+}
+
+/* The techs' and the items' names, eleven characters each ($CC:15C4,
+ * $CC:0B5E). */
+enum { BATTLE_NAME_CHARACTERS = 11 };
+static inline uint8_t battle_tech_name_char(const GameState *g, uint8_t tech, unsigned i)
+{
+    return rom_read8(g, 0xCC15C4u + (uint32_t)tech * BATTLE_NAME_CHARACTERS + i);
+}
+static inline uint8_t battle_item_name_char(const GameState *g, uint8_t item, unsigned i)
+{
+    return rom_read8(g, 0xCC0B5Eu + (uint32_t)item * BATTLE_NAME_CHARACTERS + i);
+}
+
+/* The headings of the tech list's sections, the double techs' and the triple
+ * techs', eighteen tiles each ($CC:FB4B). */
+enum { BATTLE_TECH_HEADING_TILES = 18 };
+static inline uint8_t battle_tech_heading_tile(const GameState *g, bool triple, unsigned i)
+{
+    return rom_read8(g, 0xCCFB4Bu + (triple ? BATTLE_TECH_HEADING_TILES : 0) + i);
+}
+
+/* The four corners of the frame around the member choosing, a sprite each:
+ * where it goes from the member's position, its tile and its attributes
+ * ($CC:F604). */
+typedef struct {
+    int8_t dx, dy;
+    uint8_t tile, attributes;
+} ChoosingFrameCorner;
+static inline ChoosingFrameCorner battle_choosing_frame_corner(const GameState *g, unsigned corner)
+{
+    uint32_t at = 0xCCF604u + 4 * corner;
+    return (ChoosingFrameCorner){ (int8_t)rom_read8(g, at), (int8_t)rom_read8(g, at + 1), rom_read8(g, at + 2),
+                                  rom_read8(g, at + 3) };
+}
+
+/* Where each combatant's stat block starts in battle_stats, by battle slot
+ * ($CC:F8ED, a word each); a slot past the combatants (the menu's nobody)
+ * reads on into what follows, as the original does. */
+static inline uint16_t battle_stat_block_place(const GameState *g, uint8_t slot)
+{
+    return rom_read16(g, 0xCCF8EDu + 2u * slot);
+}
+
+/* A party slot's bit in a byte of members, the first slot's the top bit
+ * ($CC:F9FB). */
+static inline uint8_t battle_member_bit(const GameState *g, uint8_t member) { return rom_read8(g, 0xCCF9FBu + member); }
+
 /* The tech page's column beside the list, nine tiles a row for its six rows
  * ($CC:FA95). */
 static inline uint8_t battle_tech_page_column_tile(const GameState *g, unsigned row, unsigned column)

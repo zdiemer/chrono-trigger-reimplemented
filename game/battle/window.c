@@ -312,10 +312,6 @@ static void put_frames(GameState *g)
 
 enum { CURSOR_ROWS_PER_COMMAND = 2, MEMBER_CELLS = 0x80 };
 
-/* The menu's slot whose window was last shown, set to none so that the menu
- * rebuilds the window when it next draws. */
-enum { NO_SLOT_SHOWN = 0xFE };
-
 void window_put_cursor(GameState *g, WindowCell cell)
 {
     window_set_tile(g, cell, TILE_CURSOR);

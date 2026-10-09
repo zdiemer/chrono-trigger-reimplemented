@@ -36,6 +36,7 @@
 #include "battle/arith.h"
 #include "battle/battle.h"
 #include "battle/bridge.h"
+#include "battle/choosing.h"
 #include "battle/combatant.h"
 #include "battle/effect_data.h"
 #include "battle/effect_parts.h"
@@ -147,6 +148,7 @@ typedef struct {
     Anchors anchors;
     bool placed;
     AreaRule rule;
+    AreaAsked asked;
     uint16_t rules;
     uint8_t rule_count;
 } Aiming;
@@ -598,16 +600,22 @@ static void leave_rules_placed(GameState *g, uint8_t count)
     ORIGINAL_EFFECT(battle_leave_byte(g, LEFT_RULES_LEFT, 0));
 }
 
-/* The set's one rule's area, placed for the area search. */
-static void place_area(GameState *g, const Aiming *a, const Anchors *at, const AreaRule *r)
+/* The set's one rule's area, placed for the area search, which keeps it in
+ * its cells (as the area's side, the original's whole byte: a first member's
+ * slot where the placing takes the side from it). */
+static AreaAsked place_area(GameState *g, const Aiming *a, const Anchors *at, const AreaRule *r)
 {
     set_battle_aim_rule_shape(g, r->shape);
     const AreaPlacing *p = &PLACINGS[r->placing];
-    set_battle_area_search_among_party(g, p->side_is_first_member ? at->first_member : a->among_party);
-    set_battle_area_search_centre(g, anchor(at, p->centre, r->size));
-    set_battle_area_search_toward(g, anchor(at, p->toward, r->size));
-    set_battle_area_search_size(g, p->size ? r->size : 0);
+    uint8_t side = p->side_is_first_member ? at->first_member : a->among_party;
+    AreaAsked asked = { side != 0, anchor(at, p->centre, r->size), anchor(at, p->toward, r->size),
+                        (uint8_t)(p->size ? r->size : 0), p->flag && r->flag };
+    set_battle_area_search_among_party(g, side);
+    set_battle_area_search_centre(g, asked.centre);
+    set_battle_area_search_toward(g, asked.toward);
+    set_battle_area_search_size(g, asked.size);
     set_battle_area_search_flag(g, p->flag ? r->flag : 0);
+    return asked;
 }
 
 /* An enemy waiting in reserve isn't taken from the area's finds. The area
@@ -630,9 +638,9 @@ static bool in_reserve(const GameState *g, uint8_t slot)
  * cell, which it leaves past the last place. */
 static void take_finds(GameState *g)
 {
-    (void)effect_times(g, 0, BATTLE_AREA_FOUND_COUNT);
+    (void)effect_times(g, 0, AREA_FOUND_PLACES);
     uint8_t taken = 0;
-    for (unsigned place = 0; place < BATTLE_AREA_FOUND_COUNT; place++) {
+    for (unsigned place = 0; place < AREA_FOUND_PLACES; place++) {
         uint8_t slot = battle_area_found(g, place);
         if (in_reserve(g, slot))
             continue;
@@ -641,7 +649,7 @@ static void take_finds(GameState *g)
         if (slot != NO_TARGET)
             taken++;
     }
-    battle_set_wide_math_quotient(g, BATTLE_AREA_FOUND_COUNT);
+    battle_set_wide_math_quotient(g, AREA_FOUND_PLACES);
     set_battle_candidate_count(g, taken);
     set_battle_action_target_count(g, taken);
 }
@@ -747,7 +755,7 @@ static void place_the_area(GameState *g, Aiming *a)
         return;
     a->rule = area_rule(g, a->rules, 0);
     a->placed = true;
-    place_area(g, a, &a->anchors, &a->rule);
+    a->asked = place_area(g, a, &a->anchors, &a->rule);
 }
 
 /* Steps 1 and 2, and the area placed for step 3. The original starts the aim
@@ -797,39 +805,27 @@ static AreaOutcome settle_after_search(GameState *g, const Aiming *a)
 
 static void came_to_nothing(GameState *g) { set_battle_action_came_to_nothing(g, 1); }
 
-/* The area search's finds, as the port takes them: combatants, or none.
- * Others stop the port at the search's return, and the original carries
- * on. */
-enum { SEARCH_AREA = 0xC1C741, SEARCH_AREA_CALL = 0xC1C5FB, SHOWING = 0xC1AC57, SHOWING_CALL = 0xC1C6A3 };
+enum { SHOWING = 0xC1AC57, SHOWING_CALL = 0xC1C6A3 };
 
-static bool finds_fit(Snes *s)
+// $C1:C741
+/* The rule's area searched (area_search.c), the shape noted where the
+ * original's step 7 takes it. */
+static void search_area(GameState *g, uint8_t shape, const AreaAsked *asked)
 {
-    const GameState *g = state_of(s);
-    for (unsigned place = 0; place < BATTLE_AREA_FOUND_COUNT; place++) {
-        uint8_t slot = battle_area_found(g, place);
-        if (slot != NO_TARGET && slot >= BATTLE_COMBATANTS) {
-            battle_stop_after_call(s, SEARCH_AREA_CALL);
-            return false;
-        }
-    }
-    return true;
+    set_battle_area_shape(g, shape);
+    battle_find_area(g, shape, asked);
 }
 
-/* The placed rule's area searched by the original's step, and its finds
- * taken. The carry the search hands back goes into the multiply that finds
- * where its finds start. A goes in clear, as the original's loads leave it:
- * the battle's steps pick their step by the whole of A. */
-static bool search_the_area(Snes *s, const Aiming *a)
+/* The placed rule's area searched, and its finds taken. The carry the search
+ * leaves goes into the original's multiply that finds where its finds
+ * start. */
+static void search_the_area(GameState *g, const Aiming *a)
 {
-    GameState *g = state_of(s);
     leave_rule_reached(g, a->rules, 0, 1);
-    s->cpu.a = 0;
-    if (!battle_run(s, SEARCH_AREA_CALL, SEARCH_AREA, battle_search_area) || !finds_fit(s))
-        return false;
-    bool carry = m_flag(s, CPU_FLAG_C);
+    TIMED_AS(g, 0xC1C741, search_area(g, a->rule.shape, &a->asked));
     take_finds(g);
-    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, carry));
-    return true;
+    ORIGINAL_EFFECT(battle_leave_multiply_carry(g, battle_area_search_carry(a->rule.shape, a->asked.among_party,
+                                                                            a->asked.centre, a->asked.toward)));
 }
 
 // $C1:C1DD
@@ -842,8 +838,8 @@ void battle_aim_action(Snes *s)
     AimProgress progress = aim_up_to_the_area(g, &a, m_flag(s, CPU_FLAG_C));
     leave_aim_cells(g, &a);
     if (progress == SEARCH_THE_AREA) {
-        if (a.placed && !search_the_area(s, &a))
-            return;
+        if (a.placed)
+            search_the_area(g, &a);
         AreaOutcome outcome = settle_after_search(g, &a);
         if (outcome == SHOW_NO_TARGET) {
             s->cpu.a = record_no_target_showing(g);
@@ -941,20 +937,15 @@ bool battle_aim_action_ready(Snes *s)
     return battle_on_page(s) && fits;
 }
 
-// $C1:C741
-/* The area search, the battle's step 7, for the shape its caller hands it in
- * a cell (battle_aim_rule_shape). The carry the search leaves goes back to
- * the caller, whose multiply after it takes it. It is entered with A's high
- * byte clear, which the steps' dispatch reads with the step. */
-enum { AREA_SEARCH_CALL = 0xC1C748, STEP_READS_A = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
+/* The area search for the shape and the area its caller hands it in cells
+ * (battle_aim_rule_shape, battle_area_search). The carry the search leaves
+ * goes back to the caller, whose multiply after it takes it. */
 void battle_search_area(Snes *s)
 {
     GameState *g = state_of(s);
-    set_battle_area_shape(g, battle_aim_rule_shape(g));
-    m_set_a8(s, BATTLE_STEP_SEARCH_AREA);
-    /* dc-evidence: ct_fuzz --poison-dc battle_search_area, seed 1: 5000 states,
-       5000 call-outs scrambled, 0 mismatched */
-    if (battle_call(s, AREA_SEARCH_CALL, BATTLE_STEP, STEP_READS_A))
-        m_rts(s);
+    uint8_t shape = battle_aim_rule_shape(g);
+    AreaAsked asked = battle_area_asked(g);
+    search_area(g, shape, &asked);
+    m_set_flag(s, CPU_FLAG_C, battle_area_search_carry(shape, asked.among_party, asked.centre, asked.toward));
+    m_rts(s);
 }

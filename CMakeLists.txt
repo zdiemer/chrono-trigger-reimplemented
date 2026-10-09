@@ -269,6 +269,12 @@ add_library(ct_game STATIC
   game/battle/battle_end.c
   game/battle/party_turns.c
   game/battle/menu_window.c
+  game/battle/menu_input.c
+  game/battle/menu_bridge.c
+  game/battle/menu_lists.c
+  game/battle/name_tiles.c
+  game/battle/target_choice.c
+  game/battle/area_search.c
   game/battle/nmi.c
   game/battle/numbers.c
   game/battle/objects.c

@@ -7455,3 +7455,121 @@ flags it doesn't read differ there (docs/TODO.md).
 
 **Timing.** The new entries and those whose work moved were calibrated from
 the shadow runs: the effects' loop, the scheduler, the draw.
+
+## Phase 3, battle: the targeting (`$C1:C1DD`-`$C1:CBC2`)
+
+Chosen by the fallback measure, not the burndown: the burndown counted bank
+`$C1` as done, but every tech and item the battle carries out was still aimed
+by the original's code, a call-out from the member's turn, the enemy's turn
+and (through the original's code they reach) the status timers: 1.5 KiB of
+the reference play's fallbacks (`$C1:C1DD` alone 1,122 bytes, the largest
+single routine on `tools/fallback_baseline.txt`). It was also what the native
+shape's three whole routes failed on: the original targeting read two cells
+the member's turn wrote only as scaffolding (the member's action record's
+place, `$06`, and an item's area rules, `$0C`).
+
+**What it is** (`battle/aim.c`, `battle/aim_data.h`). An action is aimed in
+three steps. Whether it can be made: the actor, a party tech's partners, or
+the enemy an enemy's tech brings in, must be able to take part (not knocked
+out, none of the statuses that keep them from acting, nor two bits of the
+second status byte whose meaning isn't worked out). The targets its aim mode
+takes: the modes are the records' bytes, a C table maps each to one of nine
+ways of taking targets (`Take`) and one of four ways the targets are settled
+after (`Finish`), so the twenty-four modes the ROM uses are rows, not
+branches; the number the original leaves for its finish in a dead cell is a
+column of its own. Then its area
+rules, for a tech that has them (`$CC:2AB0`): the area is placed on the
+combatants (around the tech's first member and toward the target, around the
+target, around the actor and toward the target: a table of the seven
+placings), the original's area search (the battle's step 7, `$C1:1FDD`, still
+a call-out) finds who stands in it, and the finds become the targets, settled
+as the mode says. The original's `$C1:C741`, which hands the search its shape,
+is its own entry (`battle_search_area`), so the call-out is made under the
+same return the original's is without a frame pushed by hand. Its helpers
+(`$C1:C72B`-`$C1:C82C`, `$C1:C82D`, `$C1:C8F7`, `$C1:CB93`) are C inside it.
+
+**What the game does that the port keeps.** Reading the original closely found
+four things the game really does, which the port reproduces and says so:
+
+- The "random" aim (mode 9, two items) doesn't roll: it draws a number and
+  then reads its roll from the arithmetic's cell the draw puts back, where the
+  tech members' lookup at the start left the item's party-tech record's
+  number (the port takes that number from the record), so each such item
+  always takes the same branch (a foe at random,
+  for both). One branch would bound the party's places by the byte of buttons
+  the player holds; no item rolls it, and the guard refuses it.
+- The settling's walk over the targets steps past a gap and closes up over the
+  place after it, so a gap takes the target after it off the list too, and the
+  list's last place is never closed over.
+- The area's finds end with `$FF`, which the test for an enemy in reserve takes
+  as a combatant past the eight, reading a timer's flags there; a revive's
+  target is tested for reserve by its battle slot rather than its enemy
+  number. Both read past `battle_enemy_standing`, which now declares
+  `unchecked` for them.
+- The area's finds are walked with the multiply's product cell as the counter,
+  which the original leaves past the last place.
+
+**The cells.** The original works in the direct page's first cells as it goes,
+each holding several things in turn. The port works out what each holds at
+the end from how far the aim went -- the action's records read, the roll
+taken, the area's anchors gathered, its rule placed -- and writes them once,
+before the area search (`leave_aim_cells`): plainly those a later reader takes
+as game input (battle.h: `$00` the clock's word, `$06` the member cell, `$08`,
+`$0A` and `$0E` read as stats), the others (`$02`, `$04`, `$0C`, `$10`-`$14`)
+and the new `battle_aim_*` cells at `$3A`-`$3C` as scaffolding; the rule's
+shape at `$3D`, which its sub-entry reads, is plain. The member's
+turn's writes of `$06` and `$0C` became plain: the targeting's guard reads them
+(the action record's place, an item's area rules), and with them the native
+shape's battle failures went. The event scheduler's step count, cleared only
+as scaffolding by `object_run_script_from` and read by the original's
+scheduler (`$C0:59F0`), is plain too, which was the third route's failure:
+`tools/native_shape_exceptions.txt` is empty.
+
+**The review** rated `aim.c` and `aim_data.h` "mostly", none translation, and
+asked first for four things, all done: the cells written once from what the
+steps decided rather than pass by pass (above); the ways of taking and
+settling only what the game does (four pairs that differed only in the dead
+finish cell's number became one each, the number a column); the roll taken
+from the tech record, not the leftover cell; and the logic in functions of
+the game's state (`aim_up_to_the_area`, `settle_after_search`), the machine
+kept to the entry and its two call-outs, the area search and the "no target"
+showing. An item's area rules are none in the logic; only the guard asks its
+caller's cell. Left for later, in TODO.md: the duplicated status tests beside
+`combatant_cant_act`, the cell hand-offs between the member's turn and the
+targeting, and the ROM tables `$CC:1ACB` and `$CC:1BB5` described in several
+headers.
+
+**What the guard turns away**, none of it a state real play makes (the
+refusals check holds it): a party member whose action record isn't where its
+caller hands it, an item handed area rules, a chosen target that isn't a
+combatant (none, but for a revive), a tech whose members aren't the party's
+characters, a set of area rules with more than one rule or with the target
+search's rule (`$C1:2986`, the battle's step 5; the ROM's sets have one rule
+each, all the area search's), an enemy's rule placed on party members, the
+roll's button-bounded branch.
+
+**What the gate found.** Fuzzing found two: the steps' routine picks its step by
+the whole of A, so the area search needs A's high byte clear, as the original's
+loads leave it (the sub-entry's guard now asks for it, and the targeting clears
+A before it); and the product cell's leftover above. The don't-care check found
+A's high byte read after the targeting returns (`DC_AL`, the port clearing it
+as the original does, but after the "no target" showing, which hands back its
+own), and V at the area search's call-out unproven through the steps' tables,
+which `tools/v_readers.py` has dead and a poisoned fuzzing run confirms.
+
+**Validation.** The library's 28 movies in shadow mode, none mismatching: the
+targeting 841 calls, 699 compared (96 interrupted, 46 set aside inside its
+callers' comparisons), the area search's entry 46 (each compared within the
+targeting's); its callers as before, the member's turn 548 calls, the enemy's
+tech 300. **Fuzzing**, seed 1, none mismatching (`tools/fuzz_routines.toml`):
+the party's techs 0 of 4,935, every party tech with area rules 0 of 4,628,
+items 0 of 5,000, the enemies' techs 0 of 5,000 and those with area rules 0 of
+4,999, the area search's entry 0 of 5,000; the callers (the member's turn, its
+techs, the enemy's tech and its stat-changing turns, the status timers) fuzz
+the same as on main, 0 mismatched each. With the native shape passing every
+route, `tools/native_shape_exceptions.txt` is empty; the reference play's
+fallbacks fell from 46.5 KiB to 45.2 KiB, ten routines leaving the baseline.
+
+**Timing.** The two new entries, and the battle's entries whose time moved with
+them (the member's turn, the enemy's turns and tech, the turn's giving), were
+calibrated from the shadow runs.

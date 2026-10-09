@@ -3348,123 +3348,107 @@ from the shadow runs; what is left over the limits is the circles' spread
 11,823), and the runner and the frame work above them, all writing RAM, in
 `tools/timing_exceptions.txt`.
 
-### Phase 3, battle: the targeting (`$C1:C1DD`-`$C1:CBC2`)
+### Phase 3, battle: the player choosing (`$C1:1153`-`$C1:17DC`, `$C1:1F79`-`$C1:283C`, `$C1:095D`-`$C1:0C2C`)
 
-Chosen by the fallback measure, not the burndown: the burndown counted bank
-`$C1` as done, but every tech and item the battle carries out was still aimed
-by the original's code, a call-out from the member's turn, the enemy's turn
-and (through the original's code they reach) the status timers: 1.5 KiB of
-the reference play's fallbacks (`$C1:C1DD` alone 1,122 bytes, the largest
-single routine on `tools/fallback_baseline.txt`). It was also what the native
-shape's three whole routes failed on: the original targeting read two cells
-the member's turn wrote only as scaffolding (the member's action record's
-place, `$06`, and an item's area rules, `$0C`).
+Chosen by the fallback measure: the largest of the battle's handbacks was the
+menu's frame (`$C1:1153`), the code that takes the player's buttons in a
+fight, which the battle's own frame step (`$C1:106E`, `$C1:10E3`,
+`$C1:10FA`, reached from the member's turn, the timers, the main loop and the
+frame work) ran as the original's every frame a menu was open: 1.5 KiB and 5.2
+million instructions of the reference play, with the lists it lays out, the
+targets it lists and the area searches it asks behind it (`$C1:0B0B`,
+`$C1:09B0`, `$C1:25A3`, `$C1:2701`, the next by size). The chunk takes the
+whole of what the player does with the battle menu.
 
-**What it is** (`battle/aim.c`, `battle/aim_data.h`). An action is aimed in
-three steps. Whether it can be made: the actor, a party tech's partners, or
-the enemy an enemy's tech brings in, must be able to take part (not knocked
-out, none of the statuses that keep them from acting, nor two bits of the
-second status byte whose meaning isn't worked out). The targets its aim mode
-takes: the modes are the records' bytes, a C table maps each to one of nine
-ways of taking targets (`Take`) and one of four ways the targets are settled
-after (`Finish`), so the twenty-four modes the ROM uses are rows, not
-branches; the number the original leaves for its finish in a dead cell is a
-column of its own. Then its area
-rules, for a tech that has them (`$CC:2AB0`): the area is placed on the
-combatants (around the tech's first member and toward the target, around the
-target, around the actor and toward the target: a table of the seven
-placings), the original's area search (the battle's step 7, `$C1:1FDD`, still
-a call-out) finds who stands in it, and the finds become the targets, settled
-as the mode says. The original's `$C1:C741`, which hands the search its shape,
-is its own entry (`battle_search_area`), so the call-out is made under the
-same return the original's is without a frame pushed by hand. Its helpers
-(`$C1:C72B`-`$C1:C82C`, `$C1:C82D`, `$C1:C8F7`, `$C1:CB93`) are C inside it.
+**What it is** (`battle/choosing.h` says how the files fit):
+- `menu_input.c`, the menu's frame: the command page (the cursor among
+  Attack, Tech and Item, the other members waiting to choose, X's attack with
+  the remembered commands), the tech page and the item page (moving and
+  scrolling the lists, L and R turning the item list a page), and choosing a
+  target (moving among them, confirming, calling it off), down to queuing the
+  member's action and the next member's menu. Before the buttons a stolen item
+  joins the item list (`$CF:FAE2`) and a frame of four sprites surrounds the
+  member choosing (`$C1:1115`); choosing Attack forgets the enemy the message
+  line named (`$CD:002D` with nothing to name, which only notes it).
+- `target_choice.c`, whom the action can be aimed at: the menu's 33 target
+  kinds are a C table of rows (a member, an enemy, a side, everyone, the
+  member itself, a fallen member, a particular character, or an area placed on
+  the member, on an enemy the player picks or on a character), and the cursor
+  among those listed.
+- `area_search.c`, who stands in an area: the beam, the circle on the grid,
+  the row and the party's triangle, which the battle's step 7 (`$C1:1FDD`)
+  picks by the rules' shape number; the targeting (`aim.c`) now calls it as C.
+- `menu_lists.c`, the tech list and the item list laid out as tiles, and
+  `name_tiles.c`, a name as its two rows of tiles (`$C1:01A9`), which the
+  battle's setup now calls as C for the characters', members' and enemies'
+  names.
+- `menu_bridge.c`, the machine side: the click, and the carries the
+  original's callers go on with.
 
-**What the game does that the port keeps.** Reading the original closely found
-four things the game really does, which the port reproduces and says so:
+**The clicks.** Every move of a cursor plays the driver's click, a call to the
+original's sound driver from `$C1:1B55`. Shadow mode compares that call where
+the original makes it, with the stack the original has there, so the logic
+calls its host's click at the original's point in the work (`MenuHost`), and
+the bridge makes the call from the original's frames: the click routine's,
+called from the menu frame's site for that move, and for the cursor moved over
+the enemy an area goes on, the choosing's and its kind's frames too. A table
+in the bridge keeps the sites; the logic says only which move clicked, why the
+targets are chosen and the kind.
 
-- The "random" aim (mode 9, two items) doesn't roll: it draws a number and
-  then reads its roll from the arithmetic's cell the draw puts back, where the
-  tech members' lookup at the start left the item's party-tech record's
-  number (the port takes that number from the record), so each such item
-  always takes the same branch (a foe at random,
-  for both). One branch would bound the party's places by the byte of buttons
-  the player holds; no item rolls it, and the guard refuses it.
-- The settling's walk over the targets steps past a gap and closes up over the
-  place after it, so a gap takes the target after it off the list too, and the
-  list's last place is never closed over.
-- The area's finds end with `$FF`, which the test for an enemy in reserve takes
-  as a combatant past the eight, reading a timer's flags there; a revive's
-  target is tested for reserve by its battle slot rather than its enemy
-  number. Both read past `battle_enemy_standing`, which now declares
-  `unchecked` for them.
-- The area's finds are walked with the multiply's product cell as the counter,
-  which the original leaves past the last place.
+**The carries.** The code after the menu's frame reads the carry it leaves
+(through `$C1:17DD`, which passes it on where it places no cursor), and
+liveness can't show the choosing's, the rows' marking's or the item list's
+callers don't. Each is worked out in `menu_bridge.c` from what the frame did
+and the state before and after it: the last compare on each path (a cursor
+wrapping, a list ending, the next member found past the first slot, a tech's
+partners), the choosing's set but where the member itself or a fallen member
+is aimed at.
 
-**The cells.** The original works in the direct page's first cells as it goes,
-each holding several things in turn. The port works out what each holds at
-the end from how far the aim went -- the action's records read, the roll
-taken, the area's anchors gathered, its rule placed -- and writes them once,
-before the area search (`leave_aim_cells`): plainly those a later reader takes
-as game input (battle.h: `$00` the clock's word, `$06` the member cell, `$08`,
-`$0A` and `$0E` read as stats), the others (`$02`, `$04`, `$0C`, `$10`-`$14`)
-and the new `battle_aim_*` cells at `$3A`-`$3C` as scaffolding; the rule's
-shape at `$3D`, which its sub-entry reads, is plain. The member's
-turn's writes of `$06` and `$0C` became plain: the targeting's guard reads them
-(the action record's place, an item's area rules), and with them the native
-shape's battle failures went. The event scheduler's step count, cleared only
-as scaffolding by `object_run_script_from` and read by the original's
-scheduler (`$C0:59F0`), is plain too, which was the third route's failure:
-`tools/native_shape_exceptions.txt` is empty.
+**What the gate found.** The first shadow runs showed the clicks played after
+the frame's work don't compare (the bridge above); the stat block noted for
+nobody reads the ROM's table past its eleven (`battle_stat_block_place`); an
+item's name in the list starts past its icon and shows ten tiles, a colon
+after; the beam's targets are taken together before its click; and the
+choosing's last test looks at the targets, not the list. Fuzzing found the
+rest of the item list's top (a top past `$FA` reads past the records: the
+guard takes the game's) and the choosing's cursor past the list's eleven.
 
-**The review** rated `aim.c` and `aim_data.h` "mostly", none translation, and
-asked first for four things, all done: the cells written once from what the
-steps decided rather than pass by pass (above); the ways of taking and
-settling only what the game does (four pairs that differed only in the dead
-finish cell's number became one each, the number a column); the roll taken
-from the tech record, not the leftover cell; and the logic in functions of
-the game's state (`aim_up_to_the_area`, `settle_after_search`), the machine
-kept to the entry and its two call-outs, the area search and the "no target"
-showing. An item's area rules are none in the logic; only the guard asks its
-caller's cell. Left for later, in TODO.md: the duplicated status tests beside
-`combatant_cant_act`, the cell hand-offs between the member's turn and the
-targeting, and the ROM tables `$CC:1ACB` and `$CC:1BB5` described in several
-headers.
-
-**What the guard turns away**, none of it a state real play makes (the
-refusals check holds it): a party member whose action record isn't where its
-caller hands it, an item handed area rules, a chosen target that isn't a
-combatant (none, but for a revive), a tech whose members aren't the party's
-characters, a set of area rules with more than one rule or with the target
-search's rule (`$C1:2986`, the battle's step 5; the ROM's sets have one rule
-each, all the area search's), an enemy's rule placed on party members, the
-roll's button-bounded branch.
-
-**What the gate found.** Fuzzing found two: the steps' routine picks its step by
-the whole of A, so the area search needs A's high byte clear, as the original's
-loads leave it (the sub-entry's guard now asks for it, and the targeting clears
-A before it); and the product cell's leftover above. The don't-care check found
-A's high byte read after the targeting returns (`DC_AL`, the port clearing it
-as the original does, but after the "no target" showing, which hands back its
-own), and V at the area search's call-out unproven through the steps' tables,
-which `tools/v_readers.py` has dead and a poisoned fuzzing run confirms.
+**What the guards take on trust**, none of it refused in real play: the
+menu's member, slots and cursors as the window's guard has them, a member's
+tech list no longer than twenty, the item list's top no further than `$FA`,
+the cursor among the eleven targets, a stolen item a place to go, the queue
+room for another action, a tech's partners party slots, the chosen item's
+record's place, and A's high byte clear where the original carries it into
+an index. The rows the tech list is laid out with set a cell no frame sees
+(`battle_tech_list_being_laid_out`); a state with it set is the original's.
 
 **Validation.** The library's 28 movies in shadow mode, none mismatching: the
-targeting 841 calls, 699 compared (96 interrupted, 46 set aside inside its
-callers' comparisons), the area search's entry 46 (each compared within the
-targeting's); its callers as before, the member's turn 548 calls, the enemy's
-tech 300. **Fuzzing**, seed 1, none mismatching (`tools/fuzz_routines.toml`):
-the party's techs 0 of 4,935, every party tech with area rules 0 of 4,628,
-items 0 of 5,000, the enemies' techs 0 of 5,000 and those with area rules 0 of
-4,999, the area search's entry 0 of 5,000; the callers (the member's turn, its
-techs, the enemy's tech and its stat-changing turns, the status timers) fuzz
-the same as on main, 0 mismatched each. With the native shape passing every
-route, `tools/native_shape_exceptions.txt` is empty; the reference play's
-fallbacks fell from 46.5 KiB to 45.2 KiB, ten routines leaving the baseline.
+menu's frame 105,265 calls (668 interrupted), the choosing 3,105 (74), the
+tech list 6,626 (75), its rows' marking 470, the item list 912, the converter
+23,673, the stat block 110,172, the frame around the member 17,786, the
+click 5,486 (each but three compared within its caller's), the area search's
+entry 46; the menu window and its cursors, the targeting and the setup as
+before. **Fuzzing**, seed 1 (`tools/fuzz_routines.toml`), none mismatching: the
+menu's frame on its pages 0 of 4,258, choosing a target 0 of 4,250 and with
+the window turned over 0 of 4,241 (the driver answering at once,
+`--apu-loopback`, so the clicks' calls come back), every target kind 0 of
+10,000, every area shape 0 of 10,000, the lists, the converter, the stat
+block, the frame around the member and the click 0 of 2,000-5,000 each; the
+callers (the targeting's five variants, the menu window, the cursors, the
+setup, the member's turn) fuzz as on main. The menu window's guard now asks A's
+high byte clear, with which the original notes the member's stat block (its
+fuzz runs give A a clear high byte).
+The reference play's fallbacks fell from 45.2 KiB and 347.2 million
+instructions to 41.9 KiB and 321.9 million, 39 routines leaving the baseline
+(`$C1:1153`, `$C1:0B0B`, `$C1:09B0`, `$C1:25A3`, `$C1:2701`, the step 7, the
+targeting kinds, the name converter and its dispatch from the setup); the
+battle's native coverage rose from 85% to 91% of the code real play runs.
 
-**Timing.** The two new entries, and the battle's entries whose time moved with
-them (the member's turn, the enemy's turns and tech, the turn's giving), were
-calibrated from the shadow runs.
+**Left for later.** The battle's frame step that calls the menu (`$C1:106E`,
+`$C1:10FA`), the action's showing step (`$C1:4058`, which spans
+frames on the frame wait), and the animation commands (`$C1:45A0`,
+`$C1:432C`) are the next by size; `$CD:0027`/`$002D`/`$0030`, the messages
+the menu window still calls, wait for the battle messages' port.
 
 ### Phase 3, overworld: the world map on foot (`$C2:2F94`-`$C2:42E5`, `$C2:23CF`-`$C2:26A7`, `$C2:5628`-`$C2:57AF`, `$C2:62AE`-`$C2:6331`)
 
@@ -3888,8 +3872,9 @@ pairs over the library.
 When the check came in, all 28 movies ran to their end in the native shape,
 and the fast routes passed, but all three whole routes failed, each traced and
 confirmed by making the writes plain in a scratch build and running the route
-again. The targeting's port fixed all three ("Phase 3, battle: the
-targeting"), and `tools/native_shape_exceptions.txt` is empty:
+again. The targeting's port fixed all three (docs/history/recomp-chunks.md,
+"Phase 3, battle: the targeting"), and `tools/native_shape_exceptions.txt` is
+empty:
 
 - **Battle items land on the wrong side** (`beyond_time`, `bucket_lavos`):
   `battle_carry_out_member_action` wrote the acting member's record

@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "battle/choosing.h"
 #include "original_effects.h"
 #include "snes/system.h"
 #include "state.h"
@@ -32,20 +33,22 @@ enum { REMEMBER_LISTS = 0x80, REMEMBER_COMMANDS = 0x40 };
  * by its graphics kind: none, one, two, or five for every kind from 3 on. */
 uint8_t setup_extra_parts(uint8_t kind);
 
-/* The names the battle converts to tiles: the seven characters', and the
- * party's (battle/setup_names.c). A name is put in the name buffer, the
- * original's converter makes two rows of tiles of it there, and the rows are
- * kept where the window draws them from. */
+/* The names the battle turns into tiles: the seven characters', the party's
+ * and the enemy kinds' (battle/setup_names.c). A name's text is made into
+ * two rows of tiles (name_tiles.c), and the rows are kept where the window
+ * draws them from. The original converts each in its name buffer; what the
+ * last conversion leaves there is scaffolding (setup_leave_name_buffer). */
 enum { SETUP_CHARACTERS = 7, SETUP_ENEMY_KINDS = 3 };
 typedef enum { CHARACTER_NAMES, PARTY_NAMES } NameTable;
 
 void setup_copy_character_names(GameState *g);
-void setup_name_to_convert(GameState *g, NameTable table, uint8_t n);
-void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n);
+void setup_name_text(GameState *g, NameTable table, uint8_t n, uint8_t text[NAME_TILES]);
+void setup_keep_name_tiles(GameState *g, NameTable table, uint8_t n, const NameTiles *tiles);
 bool setup_enemy_kind_present(const GameState *g, uint8_t kind);
-void setup_enemy_name_to_convert(GameState *g, uint8_t kind);
-void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind);
+void setup_enemy_name_text(GameState *g, uint8_t kind, uint8_t text[NAME_TILES]);
+void setup_keep_enemy_name_tiles(GameState *g, uint8_t kind, const NameTiles *tiles);
 void setup_enemy_names_converted(GameState *g);
+void setup_leave_name_buffer(GameState *g, const uint8_t text[NAME_TILES], bool enemy, const NameTiles *tiles);
 
 /* battle/setup_reset.c: the battle's state as every fight starts it. */
 void setup_reset_for_new_fight(GameState *g);

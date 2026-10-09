@@ -4611,6 +4611,10 @@
 #define RAM_BATTLE_SCRATCH_COUNT 38u
 #define RAM_BATTLE_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_SCRATCH_DP 0x45u          /* page battle */
+/* Which window a battle message call that names a combatant asks for ($0B with its HP, $0C
+ * without), noted as the call starts ($CD:02CB, $CD:02D8); the draw reads it after */
+#define RAM_BATTLE_MESSAGE_WINDOW_KIND 0x7E0053u
+#define RAM_BATTLE_MESSAGE_WINDOW_KIND_DP 0x53u /* page battle */
 /* A screen effect's settings, as its caller gives them (the animation scripts' $80 gives as many
  * as its first byte says; the effect reads five) [15 x $1 bytes, by setting] */
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS 0x7E0053u
@@ -4861,6 +4865,12 @@
 #define RAM_BATTLE_OBJECT_DELAY_LISTS 0x7E1CBAu
 #define RAM_BATTLE_OBJECT_DELAY_LISTS_COUNT 11u
 #define RAM_BATTLE_OBJECT_DELAY_LISTS_STRIDE 0x03u
+/* Whether the tech list's cursor stops on each of the menu member's twenty entries: 1 for a
+ * tech, 0 for a mark (a section's heading, a blank row) [20 x $1 bytes, by entry of the member's
+ * tech list] */
+#define RAM_BATTLE_TECH_ROWS_SELECTABLE 0x7E1CDBu
+#define RAM_BATTLE_TECH_ROWS_SELECTABLE_COUNT 20u
+#define RAM_BATTLE_TECH_ROWS_SELECTABLE_STRIDE 0x01u
 /* Battle objects' screen X positions [23 x $1 bytes, by battle object ($0C + battle slot for the
  * combatants)] */
 #define RAM_BATTLE_OBJECT_X 0x7E1D00u
@@ -5217,7 +5227,7 @@
 #define RAM_BATTLE_MEMBER_ACTIONS_RECORD 0x7E93EEu /* The whole record a byte at a time, as a demo battle's party has its records copied in ($C1:B725) */
 #define RAM_BATTLE_MEMBER_ACTIONS_STATE 0x7E93EEu /* Where the member is in choosing its action: 0 nothing yet, 1 its command menu open, bit 7 an action chosen */
 #define RAM_BATTLE_MEMBER_ACTIONS_CHOICE_FLAGS 0x7E93EFu /* Bits of the member's choosing; a member knocked out drops bit 4 ($C1:B2F3), whose meaning isn't worked out */
-#define RAM_BATTLE_MEMBER_ACTIONS_TECH_AIM 0x7E93F0u /* How the chosen tech aims, from its menu record ($CC:1ACC, low six bits): the turn carries a tech out only where it is 1 or 3 ($C1:BB56) */
+#define RAM_BATTLE_MEMBER_ACTIONS_COMMAND 0x7E93F0u /* The command the member chose from its menu: 0 Attack, 1 Tech, 2 Item (battle_menu_command; game/battle/menu_input.c, $C1:16FD); the turn carries a tech out where it is 1, or 3, which the menu never sets ($C1:BB56) */
 #define RAM_BATTLE_MEMBER_ACTIONS_TARGET 0x7E93F1u /* The combatant the member chose to aim at */
 #define RAM_BATTLE_MEMBER_ACTIONS_SPARE 0x7E93F2u /* A byte the fight's start clears with the rest; no code traced reads it */
 #define RAM_BATTLE_MEMBER_ACTIONS_PARTNERS 0x7E93F3u /* Combination tech pairing: a partner's party slot in each nibble ($F: none) */
@@ -5256,6 +5266,12 @@
 #define RAM_BATTLE_NAME_BUFFER 0x7E94A0u
 #define RAM_BATTLE_NAME_BUFFER_COUNT 32u
 #define RAM_BATTLE_NAME_BUFFER_STRIDE 0x01u
+/* The characters of the name last turned into tiles, as the converter copies them out of
+ * battle_name_buffer before writing the tiles there ($C1:01A9); no code found reads them after
+ * [16 x $1 bytes, by character] */
+#define RAM_BATTLE_NAME_CONVERTED 0x7E94C0u
+#define RAM_BATTLE_NAME_CONVERTED_COUNT 16u
+#define RAM_BATTLE_NAME_CONVERTED_STRIDE 0x01u
 /* Each party member's tech list: the tech's id, $FC/$FD marking the double and triple tech
  * sections, $FF a blank row [129 x $1 bytes, by list offset ($CC:F38C + member) + entry] */
 #define RAM_BATTLE_TECH_LIST_IDS 0x7E94D0u
@@ -5315,9 +5331,25 @@
 /* Next target entry the group target cursors are placed from (cycles through the entries, three
  * at a time) */
 #define RAM_BATTLE_TARGET_CURSOR 0x7E960Bu
+/* Bit 7: the action takes all the targets found together (a whole side, everyone, or an area),
+ * so the player's cursor doesn't move among them */
+#define RAM_BATTLE_TARGETS_TOGETHER 0x7E960Cu
+/* How the action the member is choosing picks its targets: one of the menu's target kinds
+ * (game/battle/target_choice.c), 7 for an attack, else the tech's or the item's menu detail; bit
+ * 7 aims it at the party, whose window then marks the target */
+#define RAM_BATTLE_TARGET_KIND 0x7E960Du
+/* A byte the menu clears whenever choosing targets ends; no code found reads it */
+#define RAM_BATTLE_TARGET_CHOICE_SPARE 0x7E960Eu
+/* The party member choosing targets (a word) [2 bytes] */
+#define RAM_BATTLE_TARGET_CHOOSER 0x7E960Fu
 /* Negative when choosing targets found none (the last target entry's $FF); the target cursors
  * are left alone then */
 #define RAM_BATTLE_NO_TARGETS 0x7E9613u
+/* Which of the targets found the player's cursor is on: a place in battle_area_found */
+#define RAM_BATTLE_TARGET_CHOICE 0x7E9614u
+/* The command the member chose from its menu (0 Attack, 1 Tech, 2 Item), which its action record
+ * keeps (battle_member_actions_command) */
+#define RAM_BATTLE_MENU_COMMAND 0x7E9615u
 /* Low byte of the length of one facing's part of the object's frame lists (the gap to the next
  * $E4:2600 entry / 4), multiplied by the facing [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_FACING_STRIDE_LOW 0x7E966Eu
@@ -5642,9 +5674,10 @@
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_COUNT 11u
 #define RAM_BATTLE_OBJECT_ATTRIBUTE_BITS_STRIDE 0x01u
 /* The combatants the area search found in its area (battle slots), $FF after the last; the
- * targeting makes them the action's targets [11 x $1 bytes, by place in the list] */
+ * targeting makes them the action's targets, and the menu's choosing of targets lists them here.
+ * The search clears twelve places and finds at most eleven [12 x $1 bytes, by place in the list] */
 #define RAM_BATTLE_AREA_FOUND 0x7E99C0u
-#define RAM_BATTLE_AREA_FOUND_COUNT 11u
+#define RAM_BATTLE_AREA_FOUND_COUNT 12u
 #define RAM_BATTLE_AREA_FOUND_STRIDE 0x01u
 /* The shape the area search looks over, from an area rule: an index into its table of seven at
  * $C1:1FEA */
@@ -5745,6 +5778,15 @@
  * byte $57 at setup); the single target cursor then shows it for enemies battle_enemy_hp_visible
  * allows */
 #define RAM_BATTLE_ENEMY_HP_SEEN 0x7E9F34u
+/* The item the member chose, while its target is chosen */
+#define RAM_BATTLE_ITEM_CHOSEN 0x7E9F35u
+/* Where the chosen item's record is in battle_item_list, in bytes (five a record) [2 bytes] */
+#define RAM_BATTLE_ITEM_CHOSEN_PLACE 0x7E9F36u
+/* Bits added to the member's choice as its action is queued; cleared as its menu opens
+ * ($C1:1B67) [3 x $1 bytes, by party slot] */
+#define RAM_BATTLE_MEMBER_CHOICE_EXTRA 0x7E9F38u
+#define RAM_BATTLE_MEMBER_CHOICE_EXTRA_COUNT 3u
+#define RAM_BATTLE_MEMBER_CHOICE_EXTRA_STRIDE 0x01u
 /* The attribute bits a combatant's sprites go back to (battle_object_attribute_bits, $C1:7592)
  * [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_ATTRIBUTE_BITS_START 0x7E9F3Bu
@@ -5860,15 +5902,16 @@
 #define RAM_BATTLE_COMBATANT_DOWN 0x7EA0A8u
 #define RAM_BATTLE_COMBATANT_DOWN_COUNT 11u
 #define RAM_BATTLE_COMBATANT_DOWN_STRIDE 0x01u
-/* Set where the member's steal took an item (either way it went), which the battle's end looks
- * for to move the member's kept item on ($CF:FAE2) [3 x $1 bytes, by battle slot of a party
- * member] */
+/* Set where the member's steal took an item (either way it went), which the menu's next frame
+ * looks for to move the member's kept item into the item list ($CF:FAE2) [3 x $1 bytes, by
+ * battle slot of a party member] */
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING 0x7EA0B5u
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING_COUNT 3u
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_WAITING_STRIDE 0x01u
 /* An item a party member stole that the battle keeps apart from the inventory (one from $BC
- * whose record at $CC:0ABC has bit 7 set), which the battle's end moves into the table at
- * $7E:1580 ($CF:FAE2) [3 x $8 bytes, by battle slot of a party member] */
+ * whose record at $CC:0ABC has bit 7 set), which the menu's next frame moves into the item list,
+ * battle_item_list ($CF:FAE2, game/battle/menu_input.c battle_list_stolen_item) [3 x $8 bytes,
+ * by battle slot of a party member] */
 #define RAM_BATTLE_MEMBER_KEPT_ITEM 0x7EA0B8u
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_COUNT 3u
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_STRIDE 0x08u
@@ -5876,6 +5919,10 @@
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_DETAIL 0x7EA0B9u /* The item's byte of the table at $CC:1BB5 */
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_KIND 0x7EA0BAu /* The low seven bits of the item's record's first byte ($CC:0ABC) */
 #define RAM_BATTLE_MEMBER_KEPT_ITEM_HELD 0x7EA0BBu /* How many are held: 1 */
+#define RAM_BATTLE_MEMBER_KEPT_ITEM_SPARE 0x7EA0BCu /* The fifth byte of its item list record, which the list takes with the rest; cleared with them */
+/* Set where an item came into the item list while its page is open ($CF:FAE2); the page lays its
+ * list out again */
+#define RAM_BATTLE_ITEM_LIST_CHANGED 0x7EA0D0u
 /* Set when the member's status ($5E4B bit 3) keeps it from acting: its techs, and combination
  * techs naming it, are dimmed [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_MEMBER_DISABLED 0x7EA0D1u
@@ -5930,6 +5977,9 @@
 #define RAM_BATTLE_BLINK_TIMER 0x7EA112u
 /* Set to have battle slot 9's sprite offset copy slot 3's while slot 3 flickers */
 #define RAM_BATTLE_EFFECT_MIRROR_SLOT3 0x7EA113u
+/* Set where the member chose Attack with X, the shortcut the remembered commands give; its
+ * command cursor then isn't remembered when the target is confirmed */
+#define RAM_BATTLE_ATTACK_BY_SHORTCUT 0x7EA114u
 /* Party slot of character 6 (Magus) [2 bytes] */
 #define RAM_BATTLE_MAGUS_SLOT 0x7EA115u
 /* Counts character 6 (Magus) in the party */
@@ -6421,9 +6471,9 @@
  * the step itself reads it) */
 #define RAM_BATTLE_WEAVE_HEIGHT 0x7EA625u
 /* The chosen targets, one battle slot per byte, negative for unused entries; a second entry
- * means the action hits a group [6 x $1 bytes, by target entry] */
+ * means the action hits a group [12 x $1 bytes, by target entry] */
 #define RAM_BATTLE_TARGETS 0x7EA62Du
-#define RAM_BATTLE_TARGETS_COUNT 6u
+#define RAM_BATTLE_TARGETS_COUNT 12u
 #define RAM_BATTLE_TARGETS_STRIDE 0x01u
 /* Frames the spiral may still run [19 x $1 bytes, by effect slot (0-10 the combatants', 11-18
  * the anchors')] */
@@ -6432,6 +6482,9 @@
 #define RAM_BATTLE_EFFECT_SPIRAL_FRAMES_STRIDE 0x01u
 /* The target of a single-target choice, whose cursor was placed last */
 #define RAM_BATTLE_SINGLE_TARGET 0x7EA64Eu
+/* A byte choosing targets clears as it starts, beside battle_target_start_spare; no code found
+ * reads either */
+#define RAM_BATTLE_TARGET_START_SPARES 0x7EA64Fu
 /* The effect sprite set the next bitmap shape is built into (counted up by its low byte) [2
  * bytes] */
 #define RAM_BATTLE_BITMAP_SET 0x7EA650u
@@ -6453,6 +6506,8 @@
 #define RAM_BATTLE_UPLOAD_SIZE 0x7EA6ACu
 #define RAM_BATTLE_UPLOAD_SIZE_COUNT 22u
 #define RAM_BATTLE_UPLOAD_SIZE_STRIDE 0x02u
+/* A byte choosing targets clears as it starts; no code found reads it */
+#define RAM_BATTLE_TARGET_START_SPARE 0x7EA6D8u
 /* The party member each menu window slot belongs to; negative: no member [3 x $1 bytes, by menu
  * slot] */
 #define RAM_BATTLE_MENU_SLOT_MEMBERS 0x7EA6D9u
@@ -6477,6 +6532,10 @@
 #define RAM_BATTLE_MENU_TILEMAP_STRIDE 0x02u
 #define RAM_BATTLE_MENU_TILEMAP_TILE 0x7EA6E1u /* Tile number ($FF blank) */
 #define RAM_BATTLE_MENU_TILEMAP_ATTRIBUTES 0x7EA6E2u /* Tile attributes ($29 normal, $2D dimmed) */
+/* Set only while the tech page's list is laid out as the page opens ($C1:12CE-$12D7); the
+ * command page takes it as Attack, Tech or Item chosen, which no frame sees (the menu's port
+ * refuses a state with it set) */
+#define RAM_BATTLE_TECH_LIST_BEING_LAID_OUT 0x7EA862u
 /* Each member's tech list cursor row as the battle remembers it [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_REMEMBERED_TECH_ROW 0x7EA863u
 #define RAM_BATTLE_REMEMBERED_TECH_ROW_COUNT 3u
@@ -6485,6 +6544,9 @@
 #define RAM_BATTLE_REMEMBERED_TECH_SCROLL 0x7EA866u
 #define RAM_BATTLE_REMEMBERED_TECH_SCROLL_COUNT 3u
 #define RAM_BATTLE_REMEMBERED_TECH_SCROLL_STRIDE 0x01u
+/* A byte cleared as the tech page opens and as choosing a tech's target goes back to it; no code
+ * found reads it */
+#define RAM_BATTLE_TECH_PAGE_OPEN_MARK 0x7EA869u
 /* Set to reload the window frames tilemap from $D1:5A50 when the tech page is drawn */
 #define RAM_BATTLE_FRAMES_RELOAD_REQUEST 0x7EA86Au
 /* Nonzero while an action is aimed at a party member: the menu page to go back to, plus one; the
