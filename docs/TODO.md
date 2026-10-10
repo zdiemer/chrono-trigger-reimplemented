@@ -2297,16 +2297,51 @@ waits on M5 rather than on a backend.
   prizes his score earns (`scene_race_prize`) rest on fuzzing alone (RECOMP.md,
   "Phase 3, the scene program: the jet bike race running"). A route that wins
   the race (the boosts late, against Johnny's catching up) would put shadow
-  mode on them. Not attempted this pass beyond finding the rules: Crono
-  steers with the pad and boosts on B (`game/scene/race_rules.c`), the race's
-  RAM is `scene_race_racers` (`$7E:0046`, stride `$25`, `speed`/`lane`/`distance`
-  fields), `scene_race_lead` (`$7E:008E`), `scene_race_boosts` (`$7E:009A`,
-  3 at the start) and `scene_race_boost_timer` (`$7E:00BA`, `$80` frames per
-  boost -- release B and wait it out before pressing again for the next one);
-  winning only needs Crono's distance to reach `$80000` first, steering is
-  cosmetic to that. From ctsave03 slot 1 (Lab 32), reaching Johnny needs a
-  world-map walk (`run.world_exit()`) into `df00` and then finding and talking
-  to whichever of its objects is Johnny (not identified).
+  mode on them.
+
+  Attempted this pass and not won. Correction to the note this replaces: from
+  ctsave03 slot 1 (Lab 32), `events-jetbike-race.ctm`'s own recording reaches
+  the race with a short field walk and dash (frames 2950-3830 of that movie),
+  no world-map exit and no object to find -- Johnny's challenge is already
+  staged there. The race itself runs frame 6000-8465ish: `scene_race_boost_timer`
+  freezes at `$7F` for about 123 frames before the ride starts (a camera pan),
+  *then* counts down from `$80`, so "ready to boost" is timer hitting 0 after
+  that freeze, not 128 frames after the stage's own start. `scene_race_racers`'
+  `lane` field (offset `$08`) worked as documented once added to the struct
+  base correctly (`$7E:004E` Crono, `$7E:0073` Johnny; an early slip added it
+  to the wrong field and read garbage).
+
+  Replayed `events-jetbike-race.ctm` up to frame 6000 (`Machine.play_movie`)
+  and took over input from there with several boost policies -- immediate
+  (boost the instant each is ready), saved for the final stretch (several
+  thresholds from `$78000` to `$7FC00`), reactive (boost only while
+  `scene_race_lead` is negative) -- and a policy that also steers Crono's lane
+  toward Johnny's to force contact. Every one lost, and by almost the same
+  margin: Johnny wins by 15-35 of `scene_race_lead`'s units (out of `$80000`
+  total, so under 0.01%) in every run, regardless of when the three boosts
+  landed. The lane-matching policy did reach `scene_race_contact == 0` (an
+  actual touch, not just "well ahead") dozens of times over the race, each one
+  a `bump_along`/`bump_across` call that swaps the bikes' speeds
+  (`game/scene/race_rules.c`) -- but the final margin was no better, since a
+  swap helps whichever bike it finds slower at that instant and which bike
+  that is isn't under the player's control from lane-matching alone. The
+  remaining margin looks structural: `set_top_speeds` counts Johnny as
+  trailing (top speed `$5000`, faster than Crono's flat `$4000`) at an exact
+  tie as well as when he is behind, so ties resolve in his favor. Winning
+  likely needs a bump timed for when Johnny is trailing and fast (so the swap
+  hands his speed to Crono, not the reverse), which this pass didn't find a
+  way to engineer deliberately; a policy that reads which bike is faster
+  before steering into contact, rather than just closing the lane gap, is
+  the next thing to try.
+- **The four boss fights** (movies-wanted.md, "Boss fights") are unattempted beyond finding
+  where each save starts. `ctsave02` slot 3 lands already inside Arris Dome at `$0D6`'s own
+  room (Guardian's), not on the world map, but walking to the sprites visible there and
+  talking to each of the dozen or so nearby objects (an `objscript` sweep, not a person's
+  guess) found no battle trigger; the Guardian may need a terminal or switch elsewhere in the
+  room, or a specific approach the sweep didn't try. `ctsave03` slot 2 (R Series, the
+  factory), `ctsave07` slot 3 (Nizbel II, Tyrano Lair) and `ctsave14` slot 2 (MotherBrain,
+  Geno Dome) all start on the world map at the dungeon's door instead, needing a walk in and
+  down to the boss room neither attempted nor mapped this pass.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest

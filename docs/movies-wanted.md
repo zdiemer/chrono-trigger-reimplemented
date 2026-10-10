@@ -236,6 +236,18 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Do**: on the load screen, erase a slot (answer no, then yes), then start a New Game+.
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
 - **Route**: yes (load screen presses read from RAM).
+- **Route written, not merged**: `tools/movies/routes/new_game_plus.py` (ct-state16), 2961 frames: the
+  cursor down to the fourth row, right onto New Game+, carry on from the first slot, accept the
+  default Active battle mode and Crono's own name, reaching the 1000 A.D. world map. Erasing a slot
+  isn't attempted: `ct_drive`'s `snes_run_frame` only ever sets `bus.pad[0]` (`runtime/snes/system.c`),
+  so the second controller's pad is always zero and the erase question's Select+Start-on-controller-2
+  (`erase_asked`, `game/menu/load_screen.c`) can never be pressed; only a change to the driver's
+  protocol (out of scope here, and not a game-code change) could add it. **Not added to
+  `oracle/movies/saves/`**: `--native shadow` finds real mismatches reaching the fourth row and the
+  carry-on-from screen -- `menu_party_services` (`$C2:8004`, 26 of 35 calls, 3 interrupted; "at return:
+  X original 30 native 2830" on every mismatch), `menu_choose_on_load_screen` (`$C2:E61B`, 1 of 743:
+  "at call to C70004: WRAM[0A78] original 31 native 33") and `menu_show_save_slot` (`$C2:E743`, 1 of
+  843, same WRAM line) -- a real port bug the route found rather than fixed.
 
 ### 8. Boss fights
 - **Saves**: Guardian at Arris Dome, ctsave02 slot 3 (`$0D6`); R Series in the
