@@ -127,3 +127,11 @@ PARTY_MEMBERS = 0x7E2980
 """The three battle slots as character ids (0 Crono, 1 Marle, 2 Lucca, 3 Robo,
 4 Frog, 5 Ayla, 6 Magus), $80 for an empty slot. Used to pick a policy's tech
 table for whoever is actually in the party."""
+
+# ---- load screen -----------------------------------------------------------------------------
+
+LOAD_SLOT_SHOWN = 0x7E0079
+"""The save slot (0-3) whose summary the load screen is currently showing
+(`menu_save_slot_shown`, re/ram.toml; game/menu/save_screen.c, menu_show_save_slot
+$C2:E743). The cursor skips slots with no save, so a save with more than one
+slot in use needs this read back to land on a particular one (campaign.Run.select_slot)."""

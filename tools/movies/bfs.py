@@ -131,9 +131,17 @@ def bfs_walk(machine, goal, pos, map_id, step=8, cell=6, max_nodes=3000, push=0,
     return moves, visited
 
 
-def ow_bfs(machine, goal, pos, map_id, hold=16, rest=4, max_nodes=2500,
+def ow_bfs(machine, goal, pos, map_id, hold=16, rest=4, max_nodes=2500, confirm=False,
            root_slot=1, slot_base=2, slot_limit=4096):
-    """The same on the overworld, where one move is one 16-pixel tile."""
+    """The same on the overworld, where one move is one 16-pixel tile.
+
+    `confirm`: also press A after each step and wait, since the overworld only
+    enters the place an exit leads to when the leader stands on it and confirms
+    (game/overworld/walk.c); without it a tile the goal only reaches by walking
+    onto an exit is never recognized as reached. The search presses A at every
+    tile it tries (any tile might be the exit); the replay presses it only on
+    the last step, since that is the only tile confirming does anything -- a
+    walk that pressed it the whole way wouldn't be ordinary play."""
     def node_of(position, current_map):
         if current_map != start_map:
             return ("map", current_map)
@@ -142,13 +150,19 @@ def ow_bfs(machine, goal, pos, map_id, hold=16, rest=4, max_nodes=2500,
     def move(m, direction):
         m.probe(hold, direction)
         m.probe(rest)
+        if confirm:
+            m.probe(3, "A")
+            m.probe(30)
 
     start_map = map_id(machine)
     moves, visited = _search(machine, goal, pos, map_id, move, node_of, max_nodes, root_slot, slot_base,
                              slot_limit, None)
     if moves is None:
         return None, visited
-    for direction in moves:
+    for index, direction in enumerate(moves):
         machine.run(hold, direction)
         machine.run(rest)
+        if confirm and index == len(moves) - 1:
+            machine.run(3, "A")
+            machine.run(30)
     return moves, visited
