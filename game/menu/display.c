@@ -20,6 +20,7 @@
 #include "charge.h"
 #include "cpu_io.h"
 #include "menu/menu_data.h"
+#include "menu/screen_objects.h"
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "platform/timing.h"
@@ -633,7 +634,7 @@ static bool run_frame_work(Snes *s)
     m_jsl_dc(s, 0xC2031B, 0xC28002, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
     if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
         return false;
-    VidDisplay display = vid_display_decode((uint8_t)menu_object_display(g) | (uint8_t)(menu_object_display(g) >> 8));
+    VidDisplay display = vid_display_decode(menu_screen_display(g));
     vid_set_display(pf, PF_AT(0xC20323), &display);
     vid_enable_line_effects(pf, PF_AT(0xC20328), menu_object_line_effects(g));
     m_jsr_dc(s, 0xC2032B, 0xC20C4D, NOTHING_READ);

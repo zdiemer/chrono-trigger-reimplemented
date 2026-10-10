@@ -882,10 +882,32 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the Epoch's, the vehicles' and the screen objects' review left**
+  (none rated translation): the objects' loop (`objects.c`) and the
+  scripts' call command (`script_bridge.c`) still `m_jsr` each handler at its
+  own address -- dispatch through a C table as the event interpreter does
+  (guard tested in C, `NATIVE_TIME_AS`, entries kept registered); the seven
+  screen objects, the Black Omen watch, the vehicles' controller and the
+  drift are pure C already, and only handlers that call the script
+  interpreter mid-body need a guard-then-call-out helper (the next chunk);
+  `screen_objects.c`'s handlers read the starting command's operands by
+  position (decode once into named values), `moved()` reproduces byte
+  wrapping for inputs the game never produces, and the display byte is
+  rebuilt only to be decoded (also `display.c`); `epoch.c` writes
+  `(location_flags & ~0x03) | facing` three times, leaves the
+  `EPOCH_ARRIVALS` locations and rows unnamed, and `keep_a_stray_spot` should
+  name the writer that resets the spot; `DACTYL_MAP`/`LOCATION_NUMBER` are
+  defined in `vehicles.c` and `epoch.c`, and `over_the_dactyl` repeats
+  `dactyl_on_this_map`; `vehicles.c` writes a signed-word test out by hand;
+  the equipment guard `menu_list_what_fits_can_be_made` works out "can use"
+  itself, and `power` starts at the slot's first item only for a leftover;
+  `menu_data.h`'s new slot accessors split a comment from its function;
+  `music.c`'s `overworld_play_the_song_in_view` sets the request's fields one
+  by one past `ask_for`; `map_scenes.c` sets the view to 256x224 itself
+  because the platform has no screen-size call (a platform gap).
+
 - **What the overworld on foot's review left** (none rated translation):
-  `entries.c`'s `leader_mid_step` re-decodes `walk_on_foot`'s branches to
-  rebuild M, which is dead at the return (`$C2:0541`) -- the tooling has no
-  don't-care for M's width; add one and drop the derivation; the leader's
+  the leader's
   frames that build a map strip are off by 7,000-14,000 clocks (the scroll is
   timed as itself, at its own 1,445) -- charge the scroll per strip built (its
   two timing exceptions went with the vblank limits' change to stretches
@@ -900,7 +922,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `enter_the_arm` sets A and X with no reader named; event cells written as
   `1`; `walk.c` decides the ground news twice; `sign.c` patches a sprite
   script at an offset; `music.c` has a bare `3`. Fallbacks still to retire:
-  the vehicles' controller (`$C2:309E`, the vehicles chunk); the main loop's
+  the main loop's
   call-outs to the frame waits, the uploads' reset, the map loader
   (`$C2:2C93`) and the screen setup; check that no map loads an empty list
   and that a busy frame never runs the upload queue short (two guards
@@ -1264,9 +1286,6 @@ rest waits, is [PLAN.md](PLAN.md).
     game script does that; a random one can (a map copy over the stack), so
     their fuzzing gives them scripts of the game's commands. No movie steps
     onto an event, so the steps are fuzzed only;
-  - the vehicles' controller (`$C2:309E`, with the rectangle test
-    `$C2:2345` it boards by) moves the party between walking, boarding,
-    riding and getting off: it goes with the vehicles' chunk (PLAN.md);
   - the halt (`$C2:250D`) is a pass at a time that comes back to itself,
     as the original spins: a host that wants the game to end there (a
     message, a reset) has nothing to tell it so yet. No map's data has an
@@ -1283,11 +1302,37 @@ rest waits, is [PLAN.md](PLAN.md).
     (mode 9, the `menus-end-of-time` exchange is the gate's); nor walks
     from one region into another (`$C2:3011`-`$C2:309D`, the music's fade
     and the new song), rides or gets off a dactyl, nor clears the sign from
-    the menus (`$C2:5711`);
-  - `menu_objects_frozen` (`$0294`, bit 4 "the objects don't move") is the
-    Epoch's state on the world map (`overworld_epoch`): its bit 4 is the
-    Epoch leaving through time. Merge the two names once the Epoch's flight
-    is ported.
+    the menus (`$C2:5711`).
+
+- **What the vehicles and the screen's objects left** (RECOMP.md, "Phase 3,
+  menus and overworld: the vehicles, the screen's objects and the calls made
+  where they go"):
+  - the dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB) is still the
+    original's: no movie rides one, and a route that boards it on the
+    65,000,000 B.C. map would let it be ported and checked;
+  - the objects' loop (`menu/objects.c`) and the scripts' call command
+    (`menu/script_bridge.c`) still call a handler or a named routine through
+    the machine, at its own address, so that each keeps its shadow
+    comparison and its calibrated time: the native program needs a C table of
+    the handlers and of the routines the scripts name, each row the
+    operation's own (`NATIVE_TIME_AS`), with what nothing ports handed to the
+    original;
+  - what the scenes' scripts call and nothing ports yet: `$C2:2F0F` (a
+    location's region song, sent to the driver directly), `$C2:7860`-
+    `$C2:78A0` (the party hidden, kept and brought back), `$C2:79E0`-
+    `$C2:7A55` (places picked from the random table), `$C2:7B44`,
+    `$C2:7BC4` and the story's other flags there, and `$C6:E241`,
+    `$C6:E27E` (the endings' scenes); they are filed under their own
+    addresses now rather than under the call command's jump;
+  - no movie flies the Epoch over the Black Omen or enters it
+    (`$C2:4510`-`$C2:452F`, `$C2:4A0A`-`$C2:4A19`), takes off at the story's
+    point `$D3` or boards at `$D2`, or sets off for `$1F2` before the Epoch
+    has its wings (the stray spot it keeps there, `keep_a_stray_spot`): those
+    paths are fuzzed only;
+  - the Epoch's second sprite is fuzzed on few states (its guard asks every
+    animation it may be given to be one the language reads, which random
+    sprite scripts rarely are): a variant with the slot's scripts kept would
+    cover it better.
 
 - **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
   party's exchange"):

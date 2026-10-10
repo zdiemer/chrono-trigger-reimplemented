@@ -38,6 +38,12 @@ CODE = {
     0xC08058: bytes.fromhex("A903 60".replace(" ", "")),
     0xC08060: bytes.fromhex("8560 60".replace(" ", "")),
     0xC08070: bytes.fromhex("205880 8570 60".replace(" ", "")),
+    # the accumulator's width: after $8130 returns its caller sets it again
+    # (REP #$20) before reading A; after $8138 returns its caller reads A first
+    0xC08100: bytes.fromhex("203081 C220 A510 60".replace(" ", "")),
+    0xC08110: bytes.fromhex("203881 A510 60".replace(" ", "")),
+    0xC08130: bytes.fromhex("A901 60".replace(" ", "")),
+    0xC08138: bytes.fromhex("A901 60".replace(" ", "")),
 }
 
 NATIVE_H = """
@@ -45,6 +51,7 @@ enum {
     DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
     DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
     DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9, DC_AL = 1 << 10,
+    DC_WIDTH = 1 << 11,
     DC_FLAGS = DC_N | DC_V | DC_Z | DC_C,
 };
 """
@@ -104,7 +111,7 @@ void unreadable(Snes *s) { m_stop_dont_care(s, m_read16(s, 0x7E0000), 0); }
 
 def liveness():
     h = Hints()
-    for addr in (0xC08000, 0xC08040, 0xC08060, 0xC08070):
+    for addr in (0xC08000, 0xC08040, 0xC08060, 0xC08070, 0xC08100, 0xC08110):
         h.entries.append(type("E", (), {"addr": addr, "m": True, "x": True, "kind": "test"})())
     rom = FakeRom(CODE)
     an = Analyzer(rom, h)
@@ -263,6 +270,31 @@ void call_low(Snes *s)
     m_jsr_dc(s, 0xC08070, 0xC08060, DC_AL);
 }
 """
+
+
+class Width(unittest.TestCase):
+    """DC_WIDTH: the accumulator's width an entry leaves, dead where every
+    caller sets it again before anything depends on it; an entry's own set
+    alone may carry it."""
+
+    def test_width(self):
+        registry = """
+const NativeEntry game_natives[] = {
+    { .addr = 0xC08130, .name = "width_dead", .fn = width_dead, .dont_care = DC_WIDTH },
+    { .addr = 0xC08138, .name = "width_read", .fn = width_read, .dont_care = DC_WIDTH },
+};
+"""
+        port = """
+void width_dead(Snes *s) { m_rts(s); }
+void width_read(Snes *s) { m_rts(s); }
+void stops_wide(Snes *s) { m_stop_at_own(s, 0xC08110, DC_WIDTH); }
+"""
+        found, rows, _ = findings(port=port, registry=registry)
+        text = "\n".join(found)
+        self.assertNotIn("width_dead", text)
+        self.assertIn("width_read's .dont_care has DC_WIDTH", text)
+        self.assertIn("DC_WIDTH is for an entry's own set", text)
+        self.assertTrue(any("width_dead DC_WIDTH" in r for r in rows))
 
 
 class SplitSets(unittest.TestCase):

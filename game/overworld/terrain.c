@@ -81,6 +81,27 @@ GroundAround overworld_look_around(GameState *g, WorldSpot at)
     return around;
 }
 
+static void leave_look_below(GameState *g, uint8_t below)
+{
+    leave_pointers(g);
+    set_overworld_scratch_feet_row(g, below);
+}
+
+// $C2:4A58
+/* The tile left of the first column is the last, and the row below the last
+ * the first, as the map's height keeps it. */
+GroundBelow overworld_look_below(GameState *g, WorldSpot at)
+{
+    uint16_t column = at.x / TILE_PIXELS, row = at.y / TILE_PIXELS;
+    uint8_t left = column == 0 ? (uint8_t)(TILE_COLUMNS - 1) : (uint8_t)(column - 1);
+    uint8_t below = (uint8_t)((row + 1) & (TILE_ROWS - 1));
+    GroundBelow ground;
+    TIMED_AS(g, 0xC262AE, ground.left = overworld_ground_at(g, left, below));
+    TIMED_AS(g, 0xC262AE, ground.right = overworld_ground_at(g, (uint8_t)column, below));
+    ORIGINAL_EFFECT(leave_look_below(g, below));
+    return ground;
+}
+
 void overworld_keep_ground(GameState *g, MenuObject walker, GroundAround around)
 {
     set_menu_object_slots_ground_up_left(g, walker, around.up_left);
@@ -129,6 +150,13 @@ static uint8_t region_in(GameState *g, uint8_t column, uint8_t row)
 }
 
 static uint8_t region_row_of(WorldSpot at) { return (uint8_t)(at.y / MAP_TILE_PIXELS - 1); }
+
+// $C2:2F54-$C2:2F66
+uint8_t overworld_region_in_view(GameState *g, MenuViewCentre centre)
+{
+    enum { REGION_ROWS = 0x40 };
+    return region_in(g, (uint8_t)(centre.column / 2), (uint8_t)((centre.row / 2) & (REGION_ROWS - 1)));
+}
 
 bool overworld_spot_has_a_region(WorldSpot at)
 {

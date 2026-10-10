@@ -451,6 +451,13 @@
  * (no switching members, some sitting fights out, the story's items offered), and bit 1 with it,
  * a fight not among those the battle's flags mark */
 #define RAM_STORY_PARTY_RULES 0x7F00BAu
+/* Event memory $CC: bit 0 set as the Epoch, before it has its wings, leaves through time for the
+ * world map $1F2 (it arrives at location $F3 instead), for the story's scripts there */
+#define RAM_STORY_EPOCH_NOTES 0x7F00CCu
+/* Event memory $CD: cleared as the Epoch leaves through time for one of the places it arrives at
+ * in a scene of its own (game/overworld/epoch.c, EPOCH_ARRIVALS), for that scene's script to go
+ * by */
+#define RAM_STORY_EPOCH_ARRIVALS 0x7F00CDu
 /* The story's notes on the game itself (event memory $1CF): $10 where it carries on from a
  * finished one, bit 7 where the place items are held back */
 #define RAM_STORY_GAME_NOTES 0x7F01CFu
@@ -2119,6 +2126,8 @@
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
 #define RAM_MENU_SCRATCH_TASK_START 0x7E0000u /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
+#define RAM_MENU_SCRATCH_FITS_POWER 0x7E0000u /* The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing fits, the slot's first item) */
+#define RAM_MENU_SCRATCH_FITS_ROW 0x7E0001u  /* The list of what fits: the row its ordering reached, its end */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
 #define RAM_MENU_SCRATCH_PORTRAIT_TILE 0x7E0000u /* A character's large portrait ($C2:EC38): the tile word it lays next, its first tile in the low byte (the portrait writes it) over the attribute its caller gives in the high one; the portrait leaves it past the last tile, and takes the palette for the colours from it then */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER_CHARACTER 0x7E0000u /* The same, its low byte alone: the rows' loop writes the character a byte wide */
@@ -2696,8 +2705,6 @@
 #define RAM_MENU_EPOCH_POSITION 0x7E0290u
 #define RAM_MENU_EPOCH_POSITION_COUNT 2u
 #define RAM_MENU_EPOCH_POSITION_STRIDE 0x02u
-/* Bit 4: the sprite object mode's objects don't move this frame */
-#define RAM_MENU_OBJECTS_FROZEN 0x7E0294u
 /* The location the Epoch is parked on, which the map view shows a marker for [2 bytes] */
 #define RAM_MENU_EPOCH_LOCATION 0x7E029Fu
 /* Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing) */
@@ -4083,6 +4090,23 @@
 #define RAM_MENU_OBJECT_SCRATCH 0x7E0000u
 #define RAM_MENU_OBJECT_SCRATCH_DP 0x00u     /* page menu */
 #define RAM_MENU_OBJECT_SCRATCH_BYTES 0x7E0000u /* Every byte, as the Epoch's screens use them */
+#define RAM_MENU_OBJECT_SCRATCH_ANSWER 0x7E0000u /* What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to test (game/menu/map_scenes.c) */
+#define RAM_MENU_OBJECT_SCRATCH_VIEW_ACROSS 0x7E0008u /* Whether an object is in view ($C2:78A1): its place across from the view's left, less a margin, round the map */
+#define RAM_MENU_OBJECT_SCRATCH_VIEW_DOWN 0x7E000Au /* And down from the view's top */
+#define RAM_MENU_OBJECT_SCRATCH_SCREEN_COMMAND 0x7E0010u /* A screen object's (game/menu/screen_objects.c): long pointer to the command that started it, which it reads its parameters through */
+#define RAM_MENU_OBJECT_SCRATCH_PALETTE_SOURCE 0x7E0010u /* The palette loader: long pointer to the colours it puts in the row */
+#define RAM_MENU_OBJECT_SCRATCH_STREAM_BATCH 0x7E0008u /* The tile streamer: how many tiles its last batch sent */
+#define RAM_MENU_OBJECT_SCRATCH_STREAM_BATCH_BYTES 0x7E000Au /* The tile streamer: the last batch's bytes */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_COLOURS_LEFT 0x7E0000u /* The palette's fade: colours of its row left to count or step (0 once done) */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_COLOUR 0x7E0008u /* The palette's fade: the last colour it read from its row to count, or wrote there on a step */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_TARGET 0x7E000Au /* The palette's fade, counting: the last colour it read of those it fades to */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_PARTS 0x7E000Cu /* The palette's fade, counting: the last colour's blue as compared (and above it, the high byte of its green) */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_ROW_NEXT 0x7E000Eu /* The palette's fade, counting: where the colour after the last is in the palette */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_RED_NEXT 0x7E0010u /* The palette's fade: where in its slot the count of the colour after the last is, for its red */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_GREEN_NEXT 0x7E0013u /* And for its green */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_BLUE_NEXT 0x7E0016u /* And for its blue */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_TARGET_NEXT 0x7E0019u /* The palette's fade, counting: long pointer to the colour after the last of those it fades to */
+#define RAM_MENU_OBJECT_SCRATCH_FADE_STEP_NEXT 0x7E0019u /* The palette's fade, on a step: where the colour after the last is in the palette */
 #define RAM_MENU_OBJECT_SCRATCH_PLANE 0x7E0000u /* Which of the map's planes a scroll or a redraw works on (1-3) */
 #define RAM_MENU_OBJECT_SCRATCH_STEP 0x7E0001u /* How many whole map tiles a scroll moves, a signed byte */
 #define RAM_MENU_OBJECT_SCRATCH_START_BANK 0x7E0001u /* The bank of the script an object is started on */
@@ -4159,6 +4183,8 @@
  * bytes] */
 #define RAM_MENU_OBJECT_DISPLAY 0x7E001Cu
 #define RAM_MENU_OBJECT_DISPLAY_DP 0x1Cu     /* page menu */
+#define RAM_MENU_OBJECT_DISPLAY_BLANK 0x7E001Cu /* $80 while the screen is off (forced blank), 0 while it shows; the fades set it as they end */
+#define RAM_MENU_OBJECT_DISPLAY_BRIGHTNESS 0x7E001Du /* The screen's brightness, 0 (black) to 15 (full), which the fades step */
 /* The sprite object mode's display shadows, copied to the registers byte by byte in vblank [44
  * bytes] */
 #define RAM_MENU_OBJECT_SHADOWS 0x7E001Eu
@@ -4260,6 +4286,12 @@
  * the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land
  * at colour $80) [512 bytes] */
 #define RAM_MENU_OBJECT_PALETTE 0x7E0920u
+/* How many of the palette's loaders and fades are working on each row of menu_object_palette:
+ * one counts its row up as it starts and down as it ends, and a fade that finds a newer one on
+ * its row gives the row up to it [16 x $1 bytes, by the palette's row, 0-15 (16 colours a row)] */
+#define RAM_MENU_PALETTE_ROW_USERS 0x7E0B20u
+#define RAM_MENU_PALETTE_ROW_USERS_COUNT 16u
+#define RAM_MENU_PALETTE_ROW_USERS_STRIDE 0x01u
 /* The sprite-object mode's objects, run in slot order every frame by $C2:051D: a handler and the
  * state it keeps between frames. Most run a command script; the Epoch's screens and a few
  * effects have handlers of their own, which use the slot's later bytes as they need [64 x $40
@@ -4299,7 +4331,21 @@
 #define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going */
 #define RAM_MENU_OBJECT_SLOTS_PALETTE_SOURCE 0x7E0B65u /* The palette loader's long pointer to its colours */
 #define RAM_MENU_OBJECT_SLOTS_PALETTE_ROW 0x7E0B62u /* The palette loader's row of the palette, which the object that starts it hands it ($C2:10CD) */
-#define RAM_MENU_OBJECT_SLOTS_PALETTE_HAND_OVER 0x7E0B64u /* The palette loader's hand-over flag: nonzero where it hands over to the next loader when done ($C2:10CD) */
+#define RAM_MENU_OBJECT_SLOTS_PALETTE_FRAMES_A_STEP 0x7E0B64u /* The palette loader's fade: 0 to put the colours in at once, otherwise the frames between each of the fade's 32 steps towards them ($C2:10CD, $C2:1DD4) */
+#define RAM_MENU_OBJECT_SLOTS_FRAMES_SINCE_STEP 0x7E0B33u /* The low byte of its age: the fades, the mosaic, the palette's fade and the Epoch count the frames since their last step here, clearing it as they take one (the high byte, which those counts never carry into, stays) */
+#define RAM_MENU_OBJECT_SLOTS_FRAMES_A_STEP 0x7E0B3Au /* The screen's fades' and the mosaic's frames between steps, from the command that started them (game/menu/screen_objects.c) */
+#define RAM_MENU_OBJECT_SLOTS_STREAM_SOURCE 0x7E0B3Bu /* The tile streamer's long pointer to the tiles it has still to send (game/menu/screen_objects.c, $C2:1CF5) */
+#define RAM_MENU_OBJECT_SLOTS_STREAM_VRAM 0x7E0B3Eu /* The tile streamer's VRAM word the next batch goes to */
+#define RAM_MENU_OBJECT_SLOTS_STREAM_TILES_A_FRAME 0x7E0B42u /* The tile streamer's batch: how many 32-byte tiles it sends a frame */
+#define RAM_MENU_OBJECT_SLOTS_STREAM_TILES_LEFT 0x7E0B44u /* The tile streamer's tiles still to send */
+#define RAM_MENU_OBJECT_SLOTS_FADE_STEPS 0x7E0B35u /* The palette's fade: how many of its 32 steps it has taken (a word it clears as it starts, counted a byte at a time) */
+#define RAM_MENU_OBJECT_SLOTS_FADE_ROW 0x7E0B37u /* The palette's fade: the row of the palette it fades */
+#define RAM_MENU_OBJECT_SLOTS_FADE_FRAMES_A_STEP 0x7E0B39u /* The palette's fade: the frames between its steps */
+#define RAM_MENU_OBJECT_SLOTS_FADE_COLOURS 0x7E0B3Bu /* The palette's fade: long pointer to the sixteen colours it fades the row to */
+#define RAM_MENU_OBJECT_SLOTS_FADE_ROW_AT 0x7E0B3Eu /* The palette's fade: where its row starts in menu_object_palette, as an address in work RAM */
+#define RAM_MENU_OBJECT_SLOTS_FADE_RED 0x7E0B40u /* The palette's fade: each colour's count for its red (game/menu/screen_objects.c, FadeCount: 0 for no change, else the count of a rise, or with bit 7 of a fall) */
+#define RAM_MENU_OBJECT_SLOTS_FADE_GREEN 0x7E0B50u /* The palette's fade: each colour's count for its green */
+#define RAM_MENU_OBJECT_SLOTS_FADE_BLUE 0x7E0B60u /* The palette's fade: each colour's count for its blue */
 #define RAM_MENU_OBJECT_SLOTS_TARGET_ANGLE 0x7E0B44u /* The time dial's object: the angle the gate turns to, the chosen period's (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_ANGLE 0x7E0B48u /* The time dial's object: the angle the gate stands at; the gate's matrix object: the angle its spin has reached (game/menu/epoch.c) */
 #define RAM_MENU_OBJECT_SLOTS_TURN 0x7E0B50u /* The time dial's object: how far the gate turns each frame, signed (game/menu/epoch.c) */
@@ -4319,8 +4365,15 @@
 #define RAM_MENU_OBJECT_SLOTS_ROUTE 0x7E0B59u /* An overworld follower: its way to where it is going, in straight legs: bits 0-3 the legs left, bit 4 the first leg across, bit 5 the first leg down */
 #define RAM_MENU_OBJECT_SLOTS_GOAL_X 0x7E0B5Au /* An overworld walker: where across it is walking to, a pixel */
 #define RAM_MENU_OBJECT_SLOTS_GOAL_Y 0x7E0B5Cu /* An overworld walker: where down it is walking to */
+#define RAM_MENU_OBJECT_SLOTS_DRIFT_COUNT 0x7E0B52u /* A scene's object that drifts the map: its count of frames, a byte, the map moving on every fourth (game/menu/map_scenes.c) */
+#define RAM_MENU_OBJECT_SLOTS_EPOCH_MANOEUVRE_FRAMES 0x7E0B56u /* The Epoch on the world map: how many frames its take-off or landing lasts (game/overworld/epoch.c) */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_BELOW_LEFT 0x7E0B5Eu /* The Epoch on the world map: the ground of the 8x8 tile below the lower left of the four round its spot (game/overworld/terrain.c) */
+#define RAM_MENU_OBJECT_SLOTS_GROUND_BELOW_RIGHT 0x7E0B5Fu /* The Epoch: the ground of the tile below the lower right of the four */
 #define RAM_MENU_OBJECT_SLOTS_TO_GOAL_X 0x7E0B5Eu /* An overworld follower: how far across its goal is from it as it set out, signed */
 #define RAM_MENU_OBJECT_SLOTS_TO_GOAL_Y 0x7E0B60u /* An overworld follower: how far down its goal is from it as it set out, signed */
+/* The screen's fades that are running: bit 0 a fade in, bit 1 a fade out. A fade out won't start
+ * while one runs, a fade in not while either does, and a fade out stops a fade in */
+#define RAM_MENU_FADES_RUNNING 0x7E1BF6u
 /* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
  * a line. Each of the first three slots has two, which an object draws into on alternate frames
  * and stages for the vblank handler (menu_object_hdma_pointers), so the one shown is never the
@@ -4394,6 +4447,13 @@
  * bytes] */
 #define RAM_OVERWORLD_SCRATCH 0x7E0000u
 #define RAM_OVERWORLD_SCRATCH_DP 0x00u       /* page menu */
+#define RAM_OVERWORLD_SCRATCH_REACH_FIRST_X 0x7E0008u /* A test of whether two things on the map are within reach of each other ($C2:2345): the first's place across */
+#define RAM_OVERWORLD_SCRATCH_REACH_FIRST_Y 0x7E000Au /* And down */
+#define RAM_OVERWORLD_SCRATCH_REACH_SECOND_X 0x7E000Cu /* The second's place across */
+#define RAM_OVERWORLD_SCRATCH_REACH_SECOND_Y 0x7E000Eu /* And down */
+#define RAM_OVERWORLD_SCRATCH_REACH_FIRST 0x7E0010u /* Long pointer to the first's reach, four words: left, right, up and down of its place */
+#define RAM_OVERWORLD_SCRATCH_REACH_SECOND 0x7E0013u /* Long pointer to the second's reach */
+#define RAM_OVERWORLD_SCRATCH_BOARDERS 0x7E0000u /* The vehicles' controller, as the party boards: how many of the party there are (game/overworld/vehicles.c) */
 #define RAM_OVERWORLD_SCRATCH_WALKER_TABLE_ROW 0x7E0000u /* A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to */
 #define RAM_OVERWORLD_SCRATCH_CHARACTER 0x7E0000u /* A walker's animation: the character it is (Magus's animations are his own) */
 #define RAM_OVERWORLD_SCRATCH_ANIMATION 0x7E0001u /* The sprite script the walker was given last */
@@ -4463,13 +4523,17 @@
 #define RAM_OVERWORLD_EPOCH 0x7E0290u
 #define RAM_OVERWORLD_EPOCH_X 0x7E0290u      /* Where it stands across, a pixel */
 #define RAM_OVERWORLD_EPOCH_Y 0x7E0292u      /* And down */
-#define RAM_OVERWORLD_EPOCH_STATE 0x7E0294u  /* Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out */
+#define RAM_OVERWORLD_EPOCH_STATE 0x7E0294u  /* Bits 0-1 how many of the party are aboard, bit 2 the party is entering the Black Omen from it, bit 3 it flies over the Black Omen, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out, bit 7 it is in this period (game/overworld/epoch.c) */
 /* The dactyl the party rides on the 65,000,000 B.C. map: where it stands and its state, as the
  * Epoch's (overworld_epoch) [5 bytes] */
 #define RAM_OVERWORLD_DACTYL 0x7E029Au
 #define RAM_OVERWORLD_DACTYL_X 0x7E029Au     /* Across */
 #define RAM_OVERWORLD_DACTYL_Y 0x7E029Cu     /* Down */
-#define RAM_OVERWORLD_DACTYL_STATE 0x7E029Eu /* Bits 0-1 how many of the party are aboard, bit 6 the party has it out */
+#define RAM_OVERWORLD_DACTYL_STATE 0x7E029Eu /* Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map */
+/* Where the Black Omen stands on the world map: the Epoch enters it from the air [4 bytes] */
+#define RAM_OVERWORLD_BLACK_OMEN 0x7E02A2u
+#define RAM_OVERWORLD_BLACK_OMEN_X 0x7E02A2u /* Across, a pixel */
+#define RAM_OVERWORLD_BLACK_OMEN_Y 0x7E02A4u /* Down */
 /* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
  * holds at $FE-$FF [3 x $1 bytes, by the party's place: 0 the leader, 1 the second member, 2 the
  * third] */
@@ -4518,8 +4582,14 @@
 #define RAM_OVERWORLD_REGION_SONGS 0x7E1B9Bu
 #define RAM_OVERWORLD_REGION_SONGS_COUNT 16u
 #define RAM_OVERWORLD_REGION_SONGS_STRIDE 0x01u
+/* 1 while the Epoch flies over the world map (from the end of its take-off until it starts to
+ * land), 0 while it stands; the Epoch's second sprite goes by it */
+#define RAM_OVERWORLD_EPOCH_FLYING 0x7E1BEFu
 /* Cleared as the leader begins a step and as the overworld starts */
 #define RAM_OVERWORLD_STEP_BEGUN 0x7E1BF7u
+/* The byte after overworld_step_begun, which the Epoch clears with it where it clears that with
+ * a word store; nothing the ports know of reads it */
+#define RAM_OVERWORLD_AFTER_STEP_BEGUN 0x7E1BF8u
 /* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows
  * (the map's first plane's, menu/map.c) [6144 x $1 bytes, by map tile (its row * 96 plus its
  * column)] */

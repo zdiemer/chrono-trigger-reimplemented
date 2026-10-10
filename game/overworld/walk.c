@@ -57,6 +57,15 @@ static void move_the_layer_over_the_map(GameState *g, MenuObject self)
     set_menu_pending_scroll_y(g, (uint16_t)overworld_pace(g, self, MENU_DOWN));
 }
 
+/* The map follows a mover a frame: both planes scroll by its pace across
+ * and down, and the layer over the map takes the same move. */
+void overworld_carry_the_map(GameState *g, MenuObject mover)
+{
+    scroll_the_map(g, MENU_ACROSS, (int8_t)overworld_pace(g, mover, MENU_ACROSS));
+    scroll_the_map(g, MENU_DOWN, (int8_t)overworld_pace(g, mover, MENU_DOWN));
+    move_the_layer_over_the_map(g, mover);
+}
+
 /* Where the leader is is where the party is, and the tile a location keeps
  * to come back to. */
 static void party_is_where_the_leader_is(GameState *g, MenuObject self)
@@ -83,9 +92,7 @@ static void note_the_ground(GameState *g, GroundAround around)
 static void walk_a_frame_of_the_step(GameState *g, MenuObject self)
 {
     overworld_walk_a_frame(g, self);
-    scroll_the_map(g, MENU_ACROSS, (int8_t)overworld_pace(g, self, MENU_ACROSS));
-    scroll_the_map(g, MENU_DOWN, (int8_t)overworld_pace(g, self, MENU_DOWN));
-    move_the_layer_over_the_map(g, self);
+    overworld_carry_the_map(g, self);
     overworld_animate(g);
     party_is_where_the_leader_is(g, self);
     WorldSpot at = overworld_walker_spot(g, self);
@@ -125,7 +132,6 @@ static void step_towards(GameState *g, MenuObject self, Facing facing, MenuAxis 
 /* What the leader's buttons ask of the main loop, by the buttons the player
  * assigned, in this order: entering a place (only on an exit), the menus, the
  * party's exchange (only once the story has got far enough), the map view. */
-enum { ASSIGNED_MENUS = BUTTON_X, ASSIGNED_MAP_VIEW = BUTTON_Y, ASSIGNED_EXCHANGE = BUTTON_START };
 enum { STORY_LETS_THE_PARTY_EXCHANGE = 0x49 };
 
 static bool asks_the_main_loop(GameState *g, Buttons held)
@@ -134,15 +140,15 @@ static bool asks_the_main_loop(GameState *g, Buttons held)
         overworld_set_mode(g, OVERWORLD_ENTERING_A_PLACE);
         return true;
     }
-    if (held & ASSIGNED_MENUS) {
+    if (held & OVERWORLD_ASSIGNED_MENUS) {
         overworld_set_mode(g, OVERWORLD_OPENING_THE_MENUS);
         return true;
     }
-    if ((held & ASSIGNED_EXCHANGE) && story_line(g) >= STORY_LETS_THE_PARTY_EXCHANGE) {
+    if ((held & OVERWORLD_ASSIGNED_START) && story_line(g) >= STORY_LETS_THE_PARTY_EXCHANGE) {
         overworld_set_mode(g, OVERWORLD_EXCHANGING_THE_PARTY);
         return true;
     }
-    if (held & ASSIGNED_MAP_VIEW) {
+    if (held & OVERWORLD_ASSIGNED_MAP_VIEW) {
         overworld_set_mode(g, OVERWORLD_OPENING_THE_MAP_VIEW);
         return true;
     }

@@ -51,6 +51,11 @@ uint8_t menu_items_held(GameState *g, uint8_t item);
  * an item; who can is noted for the windows that show it. */
 bool menu_loaded_member_can_use(GameState *g, uint8_t item);
 
+/* An item's attack or defence (menu_item_powers). An accessory has none of
+ * its own: the original reads the bytes past the table the menus build, as
+ * they stand (docs/TODO.md), and so does this. */
+uint8_t menu_power_of_item(const GameState *g, uint8_t item);
+
 /* Where an item's data is in bank $CC; where the item looked up last has
  * its figures. Each notes it for the item screens. */
 uint16_t menu_item_data_at_of(GameState *g, uint8_t item);

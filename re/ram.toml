@@ -6294,6 +6294,14 @@ source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
   size = 2
   meaning = "Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF)"
   [[var.field]]
+  name = "fits_power"
+  offset = 0
+  meaning = "The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing fits, the slot's first item)"
+  [[var.field]]
+  name = "fits_row"
+  offset = 1
+  meaning = "The list of what fits: the row its ordering reached, its end"
+  [[var.field]]
   name = "save_member"
   offset = 0
   size = 2
@@ -10543,10 +10551,18 @@ source = "game/menu/gate_screen.c, menu_draw_gate_screen $FF:F677"
 name = "menu_object_display"
 addr = "7E:001C"
 page = "menu"
-size = 2
+stride = 2
 subsystem = "menu_object"
 meaning = "Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble brightness); while bit 7 of the first is set the wave handler also turns its effect off"
 source = "game/menu/display.c, menu_object_nmi $C2:015E; game/menu/objects.c, menu_object_wave_hdma $C2:7759"
+  [[var.field]]
+  name = "blank"
+  offset = 0
+  meaning = "$80 while the screen is off (forced blank), 0 while it shows; the fades set it as they end"
+  [[var.field]]
+  name = "brightness"
+  offset = 1
+  meaning = "The screen's brightness, 0 (black) to 15 (full), which the fades step"
 
 [[var]]
 name = "menu_object_shadows"
@@ -11189,6 +11205,45 @@ meaning = "Where on its map the Epoch is parked"
 source = "game/menu/epoch.c, menu_epoch_map_epoch_marker $C2:683B"
 
 [[var]]
+name = "overworld_epoch_flying"
+addr = "7E:1BEF"
+subsystem = "overworld"
+meaning = "1 while the Epoch flies over the world map (from the end of its take-off until it starts to land), 0 while it stands; the Epoch's second sprite goes by it"
+source = "game/overworld/epoch.c ($C2:42F8, $C2:4945)"
+
+[[var]]
+name = "overworld_black_omen"
+addr = "7E:02A2"
+stride = 4
+subsystem = "overworld"
+meaning = "Where the Black Omen stands on the world map: the Epoch enters it from the air"
+source = "game/overworld/epoch.c ($C2:49CF)"
+  [[var.field]]
+  name = "x"
+  offset = 0
+  size = 2
+  meaning = "Across, a pixel"
+  [[var.field]]
+  name = "y"
+  offset = 2
+  size = 2
+  meaning = "Down"
+
+[[var]]
+name = "story_epoch_arrivals"
+addr = "7F:00CD"
+subsystem = "core"
+meaning = "Event memory $CD: cleared as the Epoch leaves through time for one of the places it arrives at in a scene of its own (game/overworld/epoch.c, EPOCH_ARRIVALS), for that scene's script to go by"
+source = "game/overworld/epoch.c ($C2:4787-$C2:47E3)"
+
+[[var]]
+name = "story_epoch_notes"
+addr = "7F:00CC"
+subsystem = "core"
+meaning = "Event memory $CC: bit 0 set as the Epoch, before it has its wings, leaves through time for the world map $1F2 (it arrives at location $F3 instead), for the story's scripts there"
+source = "game/overworld/epoch.c ($C2:47E7)"
+
+[[var]]
 name = "menu_story_progress"
 addr = "7E:1BA6"
 size = 1
@@ -11252,6 +11307,89 @@ source = "game/menu/objects.c, game/menu/object_script.c, game/menu/map.c, game/
   offset = 0
   size = 0x1C
   meaning = "Every byte, as the Epoch's screens use them"
+  [[var.field]]
+  name = "answer"
+  offset = 0x00
+  meaning = "What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to test (game/menu/map_scenes.c)"
+  [[var.field]]
+  name = "view_across"
+  offset = 0x08
+  size = 2
+  meaning = "Whether an object is in view ($C2:78A1): its place across from the view's left, less a margin, round the map"
+  [[var.field]]
+  name = "view_down"
+  offset = 0x0A
+  size = 2
+  meaning = "And down from the view's top"
+  [[var.field]]
+  name = "screen_command"
+  offset = 0x10
+  size = 3
+  meaning = "A screen object's (game/menu/screen_objects.c): long pointer to the command that started it, which it reads its parameters through"
+  [[var.field]]
+  name = "palette_source"
+  offset = 0x10
+  size = 3
+  meaning = "The palette loader: long pointer to the colours it puts in the row"
+  [[var.field]]
+  name = "stream_batch"
+  offset = 0x08
+  size = 2
+  meaning = "The tile streamer: how many tiles its last batch sent"
+  [[var.field]]
+  name = "stream_batch_bytes"
+  offset = 0x0A
+  size = 2
+  meaning = "The tile streamer: the last batch's bytes"
+  [[var.field]]
+  name = "fade_colours_left"
+  offset = 0x00
+  meaning = "The palette's fade: colours of its row left to count or step (0 once done)"
+  [[var.field]]
+  name = "fade_colour"
+  offset = 0x08
+  size = 2
+  meaning = "The palette's fade: the last colour it read from its row to count, or wrote there on a step"
+  [[var.field]]
+  name = "fade_target"
+  offset = 0x0A
+  size = 2
+  meaning = "The palette's fade, counting: the last colour it read of those it fades to"
+  [[var.field]]
+  name = "fade_parts"
+  offset = 0x0C
+  size = 2
+  meaning = "The palette's fade, counting: the last colour's blue as compared (and above it, the high byte of its green)"
+  [[var.field]]
+  name = "fade_row_next"
+  offset = 0x0E
+  size = 2
+  meaning = "The palette's fade, counting: where the colour after the last is in the palette"
+  [[var.field]]
+  name = "fade_red_next"
+  offset = 0x10
+  size = 2
+  meaning = "The palette's fade: where in its slot the count of the colour after the last is, for its red"
+  [[var.field]]
+  name = "fade_green_next"
+  offset = 0x13
+  size = 2
+  meaning = "And for its green"
+  [[var.field]]
+  name = "fade_blue_next"
+  offset = 0x16
+  size = 2
+  meaning = "And for its blue"
+  [[var.field]]
+  name = "fade_target_next"
+  offset = 0x19
+  size = 3
+  meaning = "The palette's fade, counting: long pointer to the colour after the last of those it fades to"
+  [[var.field]]
+  name = "fade_step_next"
+  offset = 0x19
+  size = 2
+  meaning = "The palette's fade, on a step: where the colour after the last is in the palette"
   [[var.field]]
   name = "plane"
   offset = 0x00
@@ -11753,14 +11891,6 @@ meaning = "A step of working out where a glyph's right pixels are: half the glyp
 source = "game/menu/typeset.c, $C2:5DDC"
 
 [[var]]
-name = "menu_objects_frozen"
-addr = "7E:0294"
-size = 1
-subsystem = "menu"
-meaning = "Bit 4: the sprite object mode's objects don't move this frame"
-source = "game/menu/epoch.c, menu_top_layer_drift $C2:7702 and the other background objects"
-
-[[var]]
 name = "menu_map_column"
 addr = "7E:00E3"
 size = 2
@@ -11842,6 +11972,22 @@ size = 512
 subsystem = "menu_object"
 meaning = "The sprite object mode's CGRAM image: the vblank handler sends all 512 bytes to colour 0 when the mode asks for it, and screens patch rows into it (the map view's sixteen map colours land at colour $80)"
 source = "game/menu/display.c menu_upload_palette; the vblank DMA at $C2:01AD; game/menu/epoch.c, menu_epoch_build_map $C2:63DF"
+
+[[var]]
+name = "menu_palette_row_users"
+addr = "7E:0B20"
+count = 16
+index = "the palette's row, 0-15 (16 colours a row)"
+subsystem = "menu_object"
+meaning = "How many of the palette's loaders and fades are working on each row of menu_object_palette: one counts its row up as it starts and down as it ends, and a fade that finds a newer one on its row gives the row up to it"
+source = "game/menu/screen_objects.c ($C2:1DD4, $C2:1E38); cleared with the palette by $C2:1DB5"
+
+[[var]]
+name = "menu_fades_running"
+addr = "7E:1BF6"
+subsystem = "menu_object"
+meaning = "The screen's fades that are running: bit 0 a fade in, bit 1 a fade out. A fade out won't start while one runs, a fade in not while either does, and a fade out stops a fade in"
+source = "game/menu/screen_objects.c ($C2:20A2, $C2:2105)"
 
 [[var]]
 name = "menu_object_slots"
@@ -12042,9 +12188,90 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   meaning = "The palette loader's row of the palette, which the object that starts it hands it ($C2:10CD)"
 
   [[var.field]]
-  name = "palette_hand_over"
+  name = "palette_frames_a_step"
   offset = 0x34
-  meaning = "The palette loader's hand-over flag: nonzero where it hands over to the next loader when done ($C2:10CD)"
+  meaning = "The palette loader's fade: 0 to put the colours in at once, otherwise the frames between each of the fade's 32 steps towards them ($C2:10CD, $C2:1DD4)"
+
+  [[var.field]]
+  name = "frames_since_step"
+  offset = 0x03
+  meaning = "The low byte of its age: the fades, the mosaic, the palette's fade and the Epoch count the frames since their last step here, clearing it as they take one (the high byte, which those counts never carry into, stays)"
+
+  [[var.field]]
+  name = "frames_a_step"
+  offset = 0x0A
+  meaning = "The screen's fades' and the mosaic's frames between steps, from the command that started them (game/menu/screen_objects.c)"
+
+  [[var.field]]
+  name = "stream_source"
+  offset = 0x0B
+  size = 3
+  meaning = "The tile streamer's long pointer to the tiles it has still to send (game/menu/screen_objects.c, $C2:1CF5)"
+
+  [[var.field]]
+  name = "stream_vram"
+  offset = 0x0E
+  size = 2
+  meaning = "The tile streamer's VRAM word the next batch goes to"
+
+  [[var.field]]
+  name = "stream_tiles_a_frame"
+  offset = 0x12
+  size = 2
+  meaning = "The tile streamer's batch: how many 32-byte tiles it sends a frame"
+
+  [[var.field]]
+  name = "stream_tiles_left"
+  offset = 0x14
+  size = 2
+  meaning = "The tile streamer's tiles still to send"
+
+  [[var.field]]
+  name = "fade_steps"
+  offset = 0x05
+  size = 2
+  meaning = "The palette's fade: how many of its 32 steps it has taken (a word it clears as it starts, counted a byte at a time)"
+
+  [[var.field]]
+  name = "fade_row"
+  offset = 0x07
+  size = 2
+  meaning = "The palette's fade: the row of the palette it fades"
+
+  [[var.field]]
+  name = "fade_frames_a_step"
+  offset = 0x09
+  meaning = "The palette's fade: the frames between its steps"
+
+  [[var.field]]
+  name = "fade_colours"
+  offset = 0x0B
+  size = 3
+  meaning = "The palette's fade: long pointer to the sixteen colours it fades the row to"
+
+  [[var.field]]
+  name = "fade_row_at"
+  offset = 0x0E
+  size = 2
+  meaning = "The palette's fade: where its row starts in menu_object_palette, as an address in work RAM"
+
+  [[var.field]]
+  name = "fade_red"
+  offset = 0x10
+  size = 0x10
+  meaning = "The palette's fade: each colour's count for its red (game/menu/screen_objects.c, FadeCount: 0 for no change, else the count of a rise, or with bit 7 of a fall)"
+
+  [[var.field]]
+  name = "fade_green"
+  offset = 0x20
+  size = 0x10
+  meaning = "The palette's fade: each colour's count for its green"
+
+  [[var.field]]
+  name = "fade_blue"
+  offset = 0x30
+  size = 0x10
+  meaning = "The palette's fade: each colour's count for its blue"
 
   [[var.field]]
   name = "target_angle"
@@ -12148,6 +12375,26 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   offset = 0x2C
   size = 2
   meaning = "An overworld walker: where down it is walking to"
+
+  [[var.field]]
+  name = "drift_count"
+  offset = 0x22
+  meaning = "A scene's object that drifts the map: its count of frames, a byte, the map moving on every fourth (game/menu/map_scenes.c)"
+
+  [[var.field]]
+  name = "epoch_manoeuvre_frames"
+  offset = 0x26
+  meaning = "The Epoch on the world map: how many frames its take-off or landing lasts (game/overworld/epoch.c)"
+
+  [[var.field]]
+  name = "ground_below_left"
+  offset = 0x2E
+  meaning = "The Epoch on the world map: the ground of the 8x8 tile below the lower left of the four round its spot (game/overworld/terrain.c)"
+
+  [[var.field]]
+  name = "ground_below_right"
+  offset = 0x2F
+  meaning = "The Epoch: the ground of the tile below the lower right of the four"
 
   [[var.field]]
   name = "to_goal_x"
@@ -19542,6 +19789,40 @@ subsystem = "overworld"
 meaning = "The sprite-object mode's direct-page cells as the overworld's routines leave them: the operands of a lookup of the ground or of the regions, and the follower's search for walls. Scaffolding: each routine sets what it reads first, and nothing reads what they leave"
 source = "game/overworld/terrain.c ($C2:62AE, $C2:62ED, $C2:39D5), game/overworld/followers.c ($C2:3FBC, $C2:41B5)"
   [[var.field]]
+  name = "reach_first_x"
+  offset = 0x08
+  size = 2
+  meaning = "A test of whether two things on the map are within reach of each other ($C2:2345): the first's place across"
+  [[var.field]]
+  name = "reach_first_y"
+  offset = 0x0A
+  size = 2
+  meaning = "And down"
+  [[var.field]]
+  name = "reach_second_x"
+  offset = 0x0C
+  size = 2
+  meaning = "The second's place across"
+  [[var.field]]
+  name = "reach_second_y"
+  offset = 0x0E
+  size = 2
+  meaning = "And down"
+  [[var.field]]
+  name = "reach_first"
+  offset = 0x10
+  size = 3
+  meaning = "Long pointer to the first's reach, four words: left, right, up and down of its place"
+  [[var.field]]
+  name = "reach_second"
+  offset = 0x13
+  size = 3
+  meaning = "Long pointer to the second's reach"
+  [[var.field]]
+  name = "boarders"
+  offset = 0x00
+  meaning = "The vehicles' controller, as the party boards: how many of the party there are (game/overworld/vehicles.c)"
+  [[var.field]]
   name = "walker_table_row"
   offset = 0x00
   meaning = "A walker's choice of its step on foot: the row of its handler's table for whether an event runs (eight bytes a row), which it adds its step to"
@@ -19789,7 +20070,7 @@ source = "game/overworld/walk.c ($C2:34AD, $C2:37D8), followers.c ($C2:3B8E); th
   [[var.field]]
   name = "state"
   offset = 4
-  meaning = "Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out"
+  meaning = "Bits 0-1 how many of the party are aboard, bit 2 the party is entering the Black Omen from it, bit 3 it flies over the Black Omen, bit 4 it is leaving through time (the time dial runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out, bit 7 it is in this period (game/overworld/epoch.c)"
 
 [[var]]
 name = "overworld_dactyl"
@@ -19811,7 +20092,7 @@ source = "game/overworld/walk.c ($C2:34CD, $C2:37E8), followers.c ($C2:3BA8)"
   [[var.field]]
   name = "state"
   offset = 4
-  meaning = "Bits 0-1 how many of the party are aboard, bit 6 the party has it out"
+  meaning = "Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map"
 
 [[var]]
 name = "overworld_idle_frames"
@@ -19927,6 +20208,13 @@ addr = "7E:1BF7"
 subsystem = "overworld"
 meaning = "Cleared as the leader begins a step and as the overworld starts"
 source = "game/overworld/walk.c ($C2:36E7)"
+
+[[var]]
+name = "overworld_after_step_begun"
+addr = "7E:1BF8"
+subsystem = "overworld"
+meaning = "The byte after overworld_step_begun, which the Epoch clears with it where it clears that with a word store; nothing the ports know of reads it"
+source = "game/overworld/epoch.c ($C2:466F, $C2:481B)"
 
 [[var]]
 name = "overworld_map"

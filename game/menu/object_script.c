@@ -25,6 +25,7 @@
 
 #include "cpu_io.h"
 #include "menu/menu_data.h"
+#include "menu/screen_objects.h"
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
@@ -383,16 +384,6 @@ SCRIPT_SERVED_OPERATION(scroll_map, frames, plane)
 
 /* ---- Other objects -------------------------------------------------------------------------- */
 
-/* The handlers of the objects scripts start by name: the screen's fades and
- * mosaic, an object that streams the tiles the command describes to VRAM
- * over a few frames, and one that loads palette rows. They are the
- * original's, run by the objects' loop (menu/objects.c). */
-#define HANDLER_AT(handler) ((uint16_t)(handler))
-enum {
-    TILE_STREAMER = HANDLER_AT(0xC21CF5), PALETTE_LOADER = HANDLER_AT(0xC21DD4), FADE_OUT = HANDLER_AT(0xC220A2),
-    FADE_IN = HANDLER_AT(0xC22105), MOSAIC_OFF = HANDLER_AT(0xC22194), MOSAIC_ON = HANDLER_AT(0xC221F8),
-};
-
 // $C2:10BF, $C2:158B-$C2:15B5, $C2:1839, $C2:1A43
 /* Start an object with a handler. It takes on this object's state, the
  * script's place included, which is how a tile streamer, a fade and a mosaic
@@ -407,18 +398,18 @@ static ScriptFlow start_handler(GameState *g, MenuObject self, uint16_t handler,
 SCRIPT_OPERATION(start_handler, handler, slots)
 
 // $C2:10CD
-/* Start the palette loader on colours from anywhere in memory, for a row of
- * the palette, and say whether it hands over to the next loader when done.
- * The loader (the original's) reads what it loads from the state it inherits
- * from this object, so this object holds them first. */
-static ScriptFlow load_palette_row(GameState *g, MenuObject self, uint32_t colours, uint8_t row, uint8_t hand_over)
+/* Start the palette loader (menu/screen_objects.c) on colours from anywhere
+ * in memory, for a row of the palette: at once, or faded to over 32 steps,
+ * a step every so many frames. The loader reads what it loads from the state
+ * it inherits from this object, so this object holds them first. */
+static ScriptFlow load_palette_row(GameState *g, MenuObject self, uint32_t colours, uint8_t row, uint8_t frames)
 {
     set_menu_object_slots_palette_source(g, self, colours);
     set_menu_object_slots_palette_row(g, self, row);
-    set_menu_object_slots_palette_hand_over(g, self, hand_over);
-    return start_handler(g, self, PALETTE_LOADER, MENU_ORDINARY_SLOT);
+    set_menu_object_slots_palette_frames_a_step(g, self, frames);
+    return start_handler(g, self, MENU_PALETTE_LOADER, MENU_ORDINARY_SLOT);
 }
-SCRIPT_OPERATION(load_palette_row, colours, row, hand_over)
+SCRIPT_OPERATION(load_palette_row, colours, row, frames)
 
 // $C2:11F6, $C2:1A2D
 /* Start another object on a script, in the ordinary slots or the first four. */
@@ -708,8 +699,8 @@ SCRIPT_OPCODES(menu_script_opcodes,
     { 0x01, OPERATION(set_look), .part = CONSTANT(MENU_LOOK_PALETTE), .look = OPERAND(1), .length = 2 },
     { 0x02, OPERATION(set_look), .part = CONSTANT(MENU_LOOK_PRIORITY | MENU_LOOK_ON_THE_MAP), .look = OPERAND(1),
       .length = 2 },
-    { 0x03, OPERATION(start_handler), .handler = CONSTANT(TILE_STREAMER), .slots = ORDINARY, .length = 10 },
-    { 0x04, OPERATION(load_palette_row), .colours = OPERAND_LONG(1), .row = OPERAND(4), .hand_over = OPERAND(5),
+    { 0x03, OPERATION(start_handler), .handler = CONSTANT(MENU_TILE_STREAMER), .slots = ORDINARY, .length = 10 },
+    { 0x04, OPERATION(load_palette_row), .colours = OPERAND_LONG(1), .row = OPERAND(4), .frames = OPERAND(5),
       .length = 6 },
     { 0x05, OPERATION(change_location), .location = OPERAND_WORD(1), .region = OPERAND(2), .tile_x = OPERAND(3),
       .tile_y = OPERAND(4), .length = 5 },
@@ -756,10 +747,10 @@ SCRIPT_OPCODES(menu_script_opcodes,
       .by = SIGNED_OPERAND(4), .length = 5 },
     { 0x27, OPERATION(branch_if), .test = CONSTANT(TEST_NO_BIT), .byte = CELL(1), .value = OPERAND(3),
       .by = SIGNED_OPERAND(4), .length = 5 },
-    { 0x28, OPERATION(start_handler), .handler = CONSTANT(FADE_OUT), .slots = ORDINARY, .length = 2 },
-    { 0x29, OPERATION(start_handler), .handler = CONSTANT(FADE_IN), .slots = ORDINARY, .length = 2 },
-    { 0x2A, OPERATION(start_handler), .handler = CONSTANT(MOSAIC_ON), .slots = ORDINARY, .length = 3 },
-    { 0x2B, OPERATION(start_handler), .handler = CONSTANT(MOSAIC_OFF), .slots = ORDINARY, .length = 3 },
+    { 0x28, OPERATION(start_handler), .handler = CONSTANT(MENU_FADE_OUT), .slots = ORDINARY, .length = 2 },
+    { 0x29, OPERATION(start_handler), .handler = CONSTANT(MENU_FADE_IN), .slots = ORDINARY, .length = 2 },
+    { 0x2A, OPERATION(start_handler), .handler = CONSTANT(MENU_MOSAIC_GROWS), .slots = ORDINARY, .length = 3 },
+    { 0x2B, OPERATION(start_handler), .handler = CONSTANT(MENU_MOSAIC_CLEARS), .slots = ORDINARY, .length = 3 },
     { 0x2C, OPERATION(place), .x = OPERAND_WORD(1), .y = OPERAND_WORD(3), .length = 5 },
     { 0x2D, OPERATION(nothing), .length = 2 },
     { 0x2E, OPERATION(set_velocity), .axis = CONSTANT(MENU_ACROSS), .fraction = OPERAND_WORD(1),

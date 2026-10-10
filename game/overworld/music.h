@@ -15,6 +15,12 @@ bool overworld_sound_waits(const GameState *g);
 bool overworld_sound_is_being_sent(const GameState *g);
 void overworld_mark_sound_sending(GameState *g, bool sending);
 
+/* Play a song: the request passed on at once if the mailbox lets it, and the
+ * song noted as playing where it was. */
+void overworld_play_song(GameState *g, uint8_t song);
+void overworld_play_the_song_in_view(GameState *g);
+bool overworld_restore_the_tempo(GameState *g);
+
 /* The guard's: whether the music's object is on one of its steps, and where
  * it looks up the party's region, the party is on the region map. */
 bool overworld_region_song_can_play(const GameState *g, MenuObject self);

@@ -47,6 +47,10 @@ void overworld_start_event(GameState *g, uint16_t script);
  * is set. The scripts' command does it too (menu/object_script.c). */
 void overworld_leave_for(GameState *g, uint16_t location, uint8_t arrival, uint8_t x, uint8_t y);
 
+/* The party leaves the ground of the places as it boards a vehicle: no sign
+ * shows, nothing is found under it, and nothing waits to be looked up. */
+void overworld_step_off_the_places(GameState *g);
+
 /* The guard's: whether the lists are as a map's setup loads them (each with
  * at least one record and no more than its table holds), and whether the
  * exit the leader stands on runs an event whose script is in the table. */

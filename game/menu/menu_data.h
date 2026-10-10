@@ -428,7 +428,18 @@ enum {
  * they show (menu/sprites.c), wherever their pointers put them: bank C2's and
  * C3's scripts, or ones a screen built in work RAM. `at` is a 24-bit address,
  * whose offset the callers wrap in its bank. */
+/* The items each of the equipment screen's slots takes ($C2:89DC): a range
+ * of item numbers, the first and the one past the last, a pair a slot. */
+static inline uint8_t menu_slot_first_item(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC289DCu + 2u * slot); }
+static inline uint8_t menu_slot_past_items(const GameState *g, uint8_t slot) { return rom_read8(g, 0xC289DDu + 2u * slot); }
+
 static inline uint8_t menu_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
+/* A colour of the palettes the scripts load rows from, a word (its second
+ * byte the next address's, across a bank's end too). */
+static inline uint16_t menu_colour(const GameState *g, uint32_t at)
+{
+    return (uint16_t)(rom_read8(g, at & 0xFFFFFFu) | rom_read8(g, (at + 1) & 0xFFFFFFu) << 8);
+}
 static inline uint8_t menu_sprite_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 static inline uint8_t menu_sprite_group_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 

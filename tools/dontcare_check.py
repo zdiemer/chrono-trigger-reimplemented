@@ -201,15 +201,17 @@ class Unreadable(Exception):
 # DC_* name for, is liveness's A: the low byte alone.
 
 DC_AL = 1 << 10
+DC_WIDTH = 1 << 11      # the accumulator's width, which liveness checks apart (width_read_after_return)
 
 
 def dead_of_dc(dc: int) -> int:
-    """What a DC_* set declares dead, as liveness bits."""
-    return _lv.dead_of_dc(dc & ~DC_AL) | (_lv.A if dc & DC_AL else 0)
+    """What a DC_* set declares dead, as liveness bits (the width apart)."""
+    return _lv.dead_of_dc(dc & ~(DC_AL | DC_WIDTH)) | (_lv.A if dc & DC_AL else 0)
 
 
 def dc_text(dc: int) -> str:
-    names = [n for n in _lv.dc_text(dc & ~DC_AL).split(" | ") if n != "0"] + (["DC_AL"] if dc & DC_AL else [])
+    names = [n for n in _lv.dc_text(dc & ~(DC_AL | DC_WIDTH)).split(" | ") if n != "0"] + \
+        (["DC_AL"] if dc & DC_AL else []) + (["DC_WIDTH"] if dc & DC_WIDTH else [])
     return " | ".join(names) or "0"
 
 
@@ -1186,9 +1188,16 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
             findings.append(Finding(where, f"{e.name}: {fmt(e.addr)} isn't code the analysis knows"))
             continue
         entry_ok(e, live, where, f"after {fmt(e.addr)}'s routine returns")
+        if e.dont_care & DC_WIDTH and lv.width_read_after_return(e.addr):
+            findings.append(Finding(where, f"{e.name}'s .dont_care has DC_WIDTH, where a caller of {fmt(e.addr)} "
+                                           "may depend on the accumulator's width before setting it"))
 
     for d in decls:
         where = f"{d.path}:{d.line}"
+        if d.dont_care & DC_WIDTH:
+            findings.append(Finding(where, "DC_WIDTH is for an entry's own set where it returns, not a stop's "
+                                           "or a call-out's"))
+            continue
         if d.kind == "call":
             targets = [d.target] if d.target is not None else site_targets(lv, d.site)
             if not targets:
@@ -1258,6 +1267,9 @@ def check(entries: list, decls: list, sources: list, lv, opcode_at, strict=None,
             findings.append(Finding(where, f"the stop at {fmt(d.at)} isn't code the analysis knows"))
             continue
         for e in owners or [None]:
+            if e and e.dont_care & DC_WIDTH:
+                findings.append(Finding(where, f"{e.name}'s .dont_care has DC_WIDTH, which shadow mode would apply at "
+                                               f"this stop too: make the stop its own (m_stop_at_own)"))
             dc = d.dont_care | (e.dont_care if e else 0)
             bad = excess(dc, live)
             who = f" (with {e.name}'s {dc_text(e.dont_care)})" if e and e.dont_care else ""

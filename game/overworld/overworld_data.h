@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/object.h"
 #include "rom.h"
 #include "state.h"
 
@@ -44,5 +45,68 @@ static inline uint8_t overworld_sign_sprites_byte(const GameState *g, unsigned a
 {
     return rom_read8(g, 0xC257C2u + at);
 }
+
+/* How far each of the things the vehicles test against one another reaches
+ * from its place on the map, left, right, up and down, in pixels: records of
+ * four words in bank C2, which the tests of whether two are within reach
+ * ($C2:2345) read. The party's leader as it boards, the Epoch and the dactyl
+ * where they stand ($C2:324C); the Epoch in flight, the dactyl and the Black
+ * Omen as the Epoch flies over them ($C2:4946). */
+typedef struct {
+    uint16_t left, right, up, down;
+} Reach;
+typedef enum {
+    REACH_OF_THE_PARTY = 0x324C,
+    REACH_OF_THE_EPOCH = 0x3254,
+    REACH_OF_THE_DACTYL = 0x325C,
+    REACH_OF_THE_EPOCH_IN_FLIGHT = 0x4946,
+    REACH_OF_THE_DACTYL_FROM_THE_AIR = 0x494E,
+    REACH_OF_THE_BLACK_OMEN = 0x4956,
+} ReachRecord;
+enum { OVERWORLD_REACHES_BANK = 0xC20000 };
+static inline Reach overworld_reach(const GameState *g, ReachRecord r)
+{
+    uint32_t at = OVERWORLD_REACHES_BANK | r;
+    return (Reach){ rom_read16(g, at), rom_read16(g, at + 2), rom_read16(g, at + 4), rom_read16(g, at + 6) };
+}
+
+/* The Epoch's sprite scripts: standing with its wings or without them,
+ * taking off and landing, and the second sprite it is drawn with, standing
+ * and in flight; and in flight, the way it faces, with its wings ($C2:48C9,
+ * a byte a facing) or without ($C2:48C5). */
+enum {
+    EPOCH_STANDS_WITH_ITS_WINGS = 0x18,
+    EPOCH_STANDS_WITHOUT_WINGS = 0x2D,
+    EPOCH_TAKES_OFF = 0x19,
+    EPOCH_LANDS = 0x1A,
+    EPOCH_SECOND_SPRITE_STANDING = 0x4E,
+    EPOCH_SECOND_SPRITE_IN_FLIGHT = 0x1F,
+};
+static inline uint8_t overworld_epoch_flying_animation(const GameState *g, bool wings, uint8_t facing)
+{
+    return rom_read8(g, (wings ? 0xC248C9u : 0xC248C5u) + facing);
+}
+
+/* How fast the Epoch flies the way it faces, in whole pixels a frame across
+ * and down ($C2:4899, two words a facing). */
+static inline int16_t overworld_epoch_pace(const GameState *g, uint8_t facing, MenuAxis axis)
+{
+    return (int16_t)rom_read16(g, 0xC24899u + facing * 4u + axis * 2u);
+}
+
+/* The scripts the Epoch's scenes run (menu/script.h): arriving through time,
+ * leaving through time, taking off in the scene at the story's point $D3,
+ * and entering the Black Omen; and the one the vehicles' controller starts
+ * instead of boarding at the story's point $D2. */
+enum {
+    EPOCH_ARRIVES_THROUGH_TIME = 0xC24B8C,
+    EPOCH_LEAVES_THROUGH_TIME = 0xC24AAD,
+    EPOCH_TAKES_OFF_IN_A_SCENE = 0xC24A9B,
+    EPOCH_ENTERS_THE_BLACK_OMEN = 0xC24C8F,
+    EPOCH_BOARDED_IN_A_SCENE = 0xC231A8,
+};
+
+/* The Black Omen's name among the places' names (the sign's). */
+enum { OVERWORLD_BLACK_OMEN_NAME = 0x4C };
 
 #endif

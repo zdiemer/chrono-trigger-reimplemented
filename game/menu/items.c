@@ -210,6 +210,11 @@ uint8_t menu_items_held(GameState *g, uint8_t item)
     return place == NO_PLACE ? 0 : menu_inventory_count_at(g, place);
 }
 
+uint8_t menu_power_of_item(const GameState *g, uint8_t item)
+{
+    return item < MENU_ITEM_POWERS_COUNT ? menu_item_powers(g, item) : menu_item_powers_unchecked(g, item);
+}
+
 // $C2:93A8
 bool menu_loaded_member_can_use(GameState *g, uint8_t item)
 {

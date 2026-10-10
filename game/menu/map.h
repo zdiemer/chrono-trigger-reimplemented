@@ -29,6 +29,13 @@ typedef struct {
 } MenuMapTile;
 MenuMapTile menu_map_camera_looks_at(const GameState *g);
 
+/* The 8x8 tile at the middle of the view (map.c says where), counted from
+ * the map's top-left and not brought round it. */
+typedef struct {
+    uint16_t column, row;
+} MenuViewCentre;
+MenuViewCentre menu_map_view_centre(const GameState *g);
+
 /* The entries run on the menus' page, with the data bank on low RAM; the
  * scrolls and the redraw take the plane and the step from the object mode's
  * first cells (map.c's guards say what else the game keeps them to). */

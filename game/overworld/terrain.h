@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "menu/map.h"
 #include "overworld/overworld.h"
 
 /* A kind of ground. */
@@ -34,6 +35,13 @@ typedef struct {
 } GroundAround;
 GroundAround overworld_look_around(GameState *g, WorldSpot at);
 
+/* The ground of the two 8x8 tiles below the four that meet at a spot (the
+ * Epoch needs open ground under all six to come down). */
+typedef struct {
+    Ground left, right;
+} GroundBelow;
+GroundBelow overworld_look_below(GameState *g, WorldSpot at);
+
 /* The leader keeps what it found round its feet, or at the spot it steps
  * to. */
 void overworld_keep_ground(GameState *g, MenuObject walker, GroundAround around);
@@ -52,6 +60,12 @@ static inline bool ground_of_a_place(GroundAround a)
  * reads before the region map there (the guards keep the party off it). */
 uint8_t overworld_region_at(GameState *g, WorldSpot at);
 bool overworld_spot_has_a_region(WorldSpot at);
+
+/* The region the song of what the view shows is looked up in (music.c): the
+ * original takes the middle tile's map row as a row of the region map, which,
+ * that map starting at the map's second row, is the region of the map tile
+ * below the middle. */
+uint8_t overworld_region_in_view(GameState *g, MenuViewCentre centre);
 
 /* The registered entries (game/registry.c) and their guards: a lookup of the
  * ground with the map and the kinds where the overworld keeps them, and one

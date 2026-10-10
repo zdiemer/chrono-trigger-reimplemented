@@ -34,6 +34,15 @@ void menu_equip_panel_dim(GameState *g);
  * the palette from colour `first`. */
 void menu_equip_dim_colours(GameState *g, unsigned first);
 
+/* The list of what fits the screen's slot and the loaded member, the most
+ * powerful first, and the guard's: whether the original's list can be made
+ * as it makes it. */
+enum { MENU_EQUIP_SLOTS = 4 };
+void menu_list_what_fits(GameState *g);
+bool menu_list_what_fits_can_be_made(GameState *g);
+void menu_list_what_fits_entry(Snes *s);
+bool menu_list_what_fits_runs(Snes *s);
+
 /* ---- Choosing a member ------------------------------------------------------------------------ */
 
 typedef enum { MEMBER_POINTED_AT, MEMBER_CHOSEN, MEMBER_LEFT_FOR_THE_MAIN_MENU } MemberChoice;

@@ -279,15 +279,10 @@ static void list_users(GameState *g, uint8_t item)
  * (docs/TODO.md). */
 enum { LABEL_BYTES = 11, LABEL_END = 0xFF };
 
-static uint8_t power_of(const GameState *g, uint8_t item)
-{
-    return item < MENU_ITEM_POWERS_COUNT ? menu_item_powers(g, item) : menu_item_powers_unchecked(g, item);
-}
-
 // $C2:AF0B
 static void note_power(GameState *g, uint8_t item)
 {
-    set_menu_item_power(g, power_of(g, item));
+    set_menu_item_power(g, menu_power_of_item(g, item));
     MenuItemPlace p = { 0, 0 };
     TIMED_AS(g, 0xC28881, p = menu_item_place(g, item));
     uint16_t label = menu_item_power_label_at(g, p.category);

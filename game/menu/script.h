@@ -109,7 +109,7 @@ enum { BOTH_PLANES = 0 };
     X(bool, moving) X(bool, animating) X(MenuAxis, axis) X(uint16_t, target) X(uint8_t, forward_script) \
     X(uint8_t, back_script) X(uint16_t, x) X(uint16_t, y) X(uint16_t, pixels) X(uint16_t, fraction)  \
     X(uint8_t, sprite_script) X(uint8_t, part) X(uint8_t, look) X(uint8_t, plane) X(uint16_t, age)   \
-    X(uint32_t, colours) X(uint8_t, row) X(uint8_t, hand_over)                                        \
+    X(uint32_t, colours) X(uint8_t, row)                                        \
     X(uint16_t, location) X(uint8_t, region) X(uint8_t, tile_x) X(uint8_t, tile_y)                   \
     X(uint8_t, column) X(uint8_t, member) X(uint16_t, scene_script)                                   \
     X(uint8_t, table) X(uint8_t, entry) X(bool, mark)                                                 \
