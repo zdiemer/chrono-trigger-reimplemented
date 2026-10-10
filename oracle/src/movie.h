@@ -24,12 +24,14 @@ enum {
 typedef struct {
     uint32_t start, count;
     uint16_t buttons;
+    uint16_t buttons2;   /* the second controller's (JOY2), "P2:" names */
 } ct_movie_event;
 
 typedef struct {
     ct_movie_event *events;
     int count;
     uint16_t *pads;    /* buttons per frame, 0 .. length-1 */
+    uint16_t *pads2;   /* the second controller's, the same */
     uint32_t length;   /* one past the last frame any event covers */
     /* From a "# sram crc32 XXXXXXXX" comment: the movie starts from power-on
      * with SRAM whose CRC-32 is sram_crc (see docs/ORACLE.md). */
@@ -45,8 +47,12 @@ void ct_movie_free(ct_movie *movie);
 
 /* Buttons held on a frame: the OR of every event covering it. */
 uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame);
+/* The same on the second controller. */
+uint16_t ct_movie_buttons2(const ct_movie *movie, uint32_t frame);
+/* Whether any frame holds a button on the second controller. */
+int ct_movie_uses_controller2(const ct_movie *movie);
 
-/* Writes frames 0 .. frames-1 of pads as a movie, one event per run of equal
+/* Writes frames 0 .. frames-1 of pads (the first controller's) as a movie, one event per run of equal
  * buttons. header, if not NULL, is written first; each of its lines should start
  * with '#'. Returns 0 on success, -1 on error. */
 int ct_movie_write(const char *path, const uint16_t *pads, uint32_t frames, const char *header);

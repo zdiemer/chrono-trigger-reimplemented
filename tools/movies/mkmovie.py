@@ -34,22 +34,38 @@ BUTTONS = {
 # The order names are written in, matching the movies already in oracle/movies.
 BUTTON_ORDER = ["B", "Y", "SELECT", "START", "UP", "DOWN", "LEFT", "RIGHT", "A", "X", "L", "R"]
 
+# A button on the second controller is named with this prefix ("P2:SELECT"), and
+# held in the pad word's high 16 bits (JOY2, the same bit order).
+CONTROLLER2 = "P2:"
+CONTROLLER2_SHIFT = 16
+
 
 def pad_of(buttons):
-    """Pad word for "A", "UP+B", 0 or a pad word (which passes through)."""
+    """Pad word for "A", "UP+B", "P2:SELECT+P2:START", 0 or a pad word (which
+    passes through)."""
     if not buttons or buttons == "-":
         return 0
     if isinstance(buttons, int):
         return buttons
     pad = 0
     for name in buttons.split("+"):
-        pad |= BUTTONS[name]
+        if name.startswith(CONTROLLER2):
+            pad |= BUTTONS[name[len(CONTROLLER2):]] << CONTROLLER2_SHIFT
+        else:
+            pad |= BUTTONS[name]
     return pad
 
 
 def name_of(pad):
     """The `+`-joined name of a pad word, as movies write it."""
-    return "+".join(name for name in BUTTON_ORDER if pad & BUTTONS[name])
+    names = [name for name in BUTTON_ORDER if pad & BUTTONS[name]]
+    names += [CONTROLLER2 + name for name in BUTTON_ORDER if pad >> CONTROLLER2_SHIFT & BUTTONS[name]]
+    return "+".join(names)
+
+
+def controllers_of(pad):
+    """A pad word as the two controllers' words."""
+    return pad & 0xFFFF, pad >> CONTROLLER2_SHIFT & 0xFFFF
 
 
 def events_from_pads(pads):

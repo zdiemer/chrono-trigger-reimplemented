@@ -236,6 +236,16 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Do**: on the load screen, erase a slot (answer no, then yes), then start a New Game+.
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
 - **Route**: yes (load screen presses read from RAM).
+- **Movie**: `menus-new-game-plus` (route `new_game_plus`, 3116 frames): on the second slot, Select
+  and Start on the second controller (`P2:` buttons, through `ct_drive`'s second pad) ask to erase it,
+  no keeps it, a second ask and yes erases it; then the fourth row's New Game+, carrying on from the
+  first slot, the default battle mode and Crono's own name, onto the 1000 A.D. world map. It reaches
+  0.67 KiB of code no other movie runs (`$C2` and `$FF`). Shadow mode found four port bugs on the
+  way, all fixed: the party's services handed back 16-bit index registers to a New Game+'s byte-wide
+  caller; flipping the fourth row's choice and a no to the erase question left the cursor sound's
+  saved flags and A's high byte unlike the original's (fuzzing the same paths found the fourth row's
+  new game doing the same); and the New Game+ question's guard refused the byte-wide call the load
+  screen makes.
 
 ### 8. Boss fights
 - **Saves**: Guardian at Arris Dome, ctsave02 slot 3 (`$0D6`); R Series in the

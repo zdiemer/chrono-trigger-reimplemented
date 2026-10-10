@@ -311,6 +311,9 @@ static void leave_last_load(Snes *s)
     m_set_flag(s, CPU_FLAG_N, false);
     m_set_flag(s, CPU_FLAG_Z, false);
 }
+/* Flipping the fourth row's choice leaves the new place's zero and negative
+ * in the P the cursor's sound saves as it starts. */
+static void leave_flipped_place(Snes *s, uint8_t x) { menu_leave_load(s, x); }
 
 /* Off an empty slot: back up the list when the cursor moved up, and down it
  * otherwise, round the four rows. */
@@ -350,6 +353,7 @@ static bool show_save_slot(Snes *s)
     if (finished && slot == FOURTH_ROW && (menu_cursor_moves(g) & (MOVED_RIGHT | MOVED_LEFT))) {
         uint8_t x = (uint8_t)(menu_cursor_places_x(g, FOURTH_ROW) ^ FOURTH_ROW_CHOICES_APART);
         set_menu_cursor_places_x(g, FOURTH_ROW, x);
+        ORIGINAL_EFFECT(leave_flipped_place(s, x));
         if (!menu_run(s, 0xC2E777, 0xC2EAC2, menu_play_cursor_sound))
             return false;
     }

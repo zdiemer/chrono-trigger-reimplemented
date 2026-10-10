@@ -485,7 +485,7 @@ void menu_load_carried_over(Snes *s)
 // $C2:956E
 /* A new game's state, as the menus' opening and the load screen start one:
  * the block moves that set it up leave A, X and Y past their ends. */
-static void leave_new_game_set_up(Snes *s)
+void menu_leave_new_game_set_up(Snes *s)
 {
     enum { MOVED = 0xFFFF, CURSORS_END = 0x2C98, CURSORS_END_DESTINATION = 0x2C9A };
     s->cpu.a = MOVED;
@@ -496,7 +496,7 @@ static void leave_new_game_set_up(Snes *s)
 void menu_start_a_new_game(Snes *s)
 {
     saves_start_a_new_game(state_of(s));
-    ORIGINAL_EFFECT(leave_new_game_set_up(s));
+    ORIGINAL_EFFECT(menu_leave_new_game_set_up(s));
     m_rts(s);
 }
 

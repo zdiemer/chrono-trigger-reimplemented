@@ -55,7 +55,7 @@ Commands arrive one per line and answer one line starting `ok` or `err`
 
 | Command | What |
 |---|---|
-| `run <n> <pad>` / `runw <n> <pad>` | run n frames holding pad (JOY1 bit order); `runw` also returns the watched bytes |
+| `run <n> <pad> [<pad2>]` / `runw ...` | run n frames holding pad (JOY1 bit order), and pad2 on the second controller (JOY2; default none); `runw` also returns the watched bytes. A route names the second controller's buttons `P2:SELECT+P2:START`, held in the pad word's high 16 bits (`mkmovie.pad_of`), which is how the load screen's erase question is reached |
 | `watch <addr:len> ...` | the byte ranges `runw` returns |
 | `movie <path> <to>` | run to a frame with a `.ctm`'s buttons |
 | `peek <addr> <len>` | read the bus |

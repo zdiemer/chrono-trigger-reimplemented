@@ -819,7 +819,11 @@ them to).
 `--db BB` sets the data bank, which otherwise comes from the base state; entries
 guarded on a data bank that reaches the I/O registers need it when the state's
 is `$7E`. `--d HHHH` sets the direct page the same way, for entries guarded on
-their subsystem's page. The comparison leaves out what shadow mode does: the
+their subsystem's page. `--widths M,X` (8 or 16 each) sets the widths the
+routine is entered with, for an entry whose callers come both ways: the
+base state otherwise fixes them, and a fuzz that never enters 8 bits wide
+never sees what a wide port leaves in the index registers' high bytes (the
+menus' services, found by the New Game+ movie). The comparison leaves out what shadow mode does: the
 routine's don't-care set, what it declares dead where it stops, and the stack
 bytes the original pushed and pulled again; and a stop somewhere the routine
 didn't declare is a mismatch, as in shadow mode.
