@@ -109,10 +109,18 @@ enum {
     STEPS_FORGOTTEN = 0xC028AA,      /* the switches stepped on in the last location forgotten */
     FADE_IN = 0xC02848,              /* the screen set up and faded in */
     DIALOG_WINDOW = 0xC01F87,        /* the dialog window opened or closed a step */
-    OBJECTS_DUE = 0xC059D9,          /* the objects whose scripts' waits are up queued for a turn */
-    SCRIPTS = 0xC05A46,              /* the queued objects' scripts run, as the frame's time allows */
-    SPRITE_FRAMES = 0xC0CA76,        /* the objects' new frames drawn, as the frame's time allows */
     PALETTE_ANIMATION = 0xFDFFF7,
+};
+
+/* The frame's two budgets, ports called on the machine: each reads where the
+ * beam is (platform/timing.h, tm_frame_time_left) and calls out per object,
+ * and shadow mode compares them a call at a time, with only a short wait for
+ * the original's latch, where a C call would stretch the comparison across
+ * the frame's work and leave more of it interrupted. A build with no machine
+ * calls them as C. */
+enum {
+    SCRIPT_TURNS = 0xC05A46,         /* the queued objects' turns run, as the frame's time allows */
+    SPRITE_FRAMES = 0xC0CA76,        /* the objects' new frames drawn, as the frame's time allows */
 };
 
 /* The objects' update, a port whose call-outs (each object that comes into
@@ -132,6 +140,7 @@ enum {
     SCRIPT_LAYERS = 0xC0274D,
     LINE_EFFECTS = 0xFDC2C1,
     SPRITE_TABLE = 0xC0B271,
+    TURNS_DUE = 0xC059D9,
 };
 
 enum {
@@ -262,8 +271,8 @@ void field_frame(Snes *s)
 void field_frame_work(Snes *s)
 {
     m_sep(s, CPU_FLAG_X);
-    if (!bridge_call(s, 0xC000C1, OBJECTS_DUE, READS_THE_OVERFLOW, page_x8(s)) ||
-        !bridge_call(s, 0xC000C4, SCRIPTS, READS_THE_OVERFLOW, page_x8(s)) ||
+    if (!field_run(s, 0xC000C1, TURNS_DUE, READS_THE_OVERFLOW, field_queue_due_turns, page_x8(s)) ||
+        !bridge_call(s, 0xC000C4, SCRIPT_TURNS, READS_THE_OVERFLOW, page_x8(s)) ||
         !field_run_long(s, 0xC000C7, LINE_EFFECTS, READS_THE_OVERFLOW, field_build_line_effect_tables, page_x8(s)))
         return;
     m_rep(s, CPU_FLAG_X);

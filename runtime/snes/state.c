@@ -313,6 +313,7 @@ static void visit_ppu(Visitor *v, Ppu *p)
     B(v, "ppu.h_second", p->h_second);
     B(v, "ppu.v_second", p->v_second);
     B(v, "ppu.counters_latched", p->counters_latched);
+    U(v, "ppu.latch_count", p->latch_count);
     U(v, "ppu.ppu1_open_bus", p->ppu1_open_bus);
     U(v, "ppu.ppu2_open_bus", p->ppu2_open_bus);
     U(v, "ppu.hcounter", p->hcounter);

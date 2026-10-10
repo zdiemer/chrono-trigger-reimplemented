@@ -335,15 +335,12 @@ static bool pokes_past_the_place(const GameState *g, const ScreenCommand *c)
 enum { WAIT_FOR_LINE = 0xCD3B82, DISPATCH_CALL = 0xCD16AF };
 
 // $CD:1D93
-/* Wait for the beam to reach a line of the picture before the channel goes
- * on. The wait is still the original's ($CD:3B82, whose passes battle/wait.c
- * runs): it works nothing out, and what it waits for is the console's beam,
- * which a native build draws a frame at a time (docs/TODO.md). No script of
- * the game's has the command. */
+/* Wait for the picture to reach a line before the channel goes on (the
+ * timing service's wait, which a host drawing a frame at a time answers at
+ * once). It works nothing out. No script of the game's has the command. */
 static bool wait_for_line(Snes *s, const ScreenCommand *c)
 {
-    s->cpu.a = c->line;
-    return battle_call(s, DISPATCH_CALL, WAIT_FOR_LINE, DC_X | DC_Y | DC_FLAGS);
+    return battle_wait_line(s, DISPATCH_CALL, WAIT_FOR_LINE, DC_X | DC_Y | DC_FLAGS, c->line);
 }
 
 /* ---- Waiting on the rest of the battle -------------------------------------------------------- */

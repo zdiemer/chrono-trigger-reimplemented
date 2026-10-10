@@ -38,7 +38,7 @@ static void wait_for_vblank_pass(Snes *s, uint16_t at, uint16_t exit)
 {
     Platform *pf = m_platform(s);
     uint8_t flag = m_lda8(s, tm_ack_vblank(pf, PF_AT(0xC00000 | at)));
-    if ((flag & TM_VBLANK_PENDING) || (tm_video_status(pf, PF_AT(0xC00000 | at)) & TM_STATUS_VBLANK))
+    if ((flag & TM_VBLANK_PENDING) || (tm_snes_video_status(pf, PF_AT(0xC00000 | at)) & TM_SNES_IN_VBLANK))
         s->cpu.pc = exit;
 }
 

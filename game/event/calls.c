@@ -170,7 +170,7 @@ void object_run_script_from(GameState *g, FieldObject object, uint8_t level, uin
     ORIGINAL_EFFECT(leave_multiplying(g, own));
     ORIGINAL_EFFECT(keep_word(g, KEPT_FIRST, event_place_offset(object, own)));
     run_from(g, object, place_of(object, own), level, start);
-    object_clear_move_length_copy(g, object);
+    object_turn_now(g, object);
 }
 
 bool object_takes_calls(const GameState *g, FieldObject object) { return answer_of(g, object) == TAKES_CALLS; }

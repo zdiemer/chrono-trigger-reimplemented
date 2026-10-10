@@ -411,13 +411,13 @@ bool object_lines_up(const GameState *g, FieldObject obj, ObjectArrival how)
 }
 
 // $C0:4876
-/* The length keeps the unreachable mark; the original keeps a second copy of
- * it, which its party's walks clear. */
+/* The length keeps the unreachable mark, and so does the countdown it
+ * starts. */
 void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps)
 {
     steps = (uint8_t)(steps | (field_object_step_length(g, obj) & UNREACHABLE_BIT));
     set_field_object_step_length(g, obj, steps);
-    set_field_object_step_count(g, obj, steps);
+    set_field_object_turn_countdown(g, obj, steps);
 }
 
 uint8_t object_move_length(const GameState *g, FieldObject obj) { return field_object_step_length(g, obj); }
@@ -429,7 +429,24 @@ void object_move_a_step_at_a_time(GameState *g, FieldObject obj)
     set_field_object_step_length(g, obj, (uint8_t)(A_STEP | (field_object_step_length(g, obj) & UNREACHABLE_BIT)));
 }
 
-void object_clear_move_length_copy(GameState *g, FieldObject obj) { set_field_object_step_count(g, obj, 0); }
+// $C0:59EC
+bool object_turn_comes(GameState *g, FieldObject obj)
+{
+    if (field_object_step_length(g, obj) & UNREACHABLE_BIT)
+        return false;
+    uint8_t left = field_object_turn_countdown(g, obj);
+    if (left == 0)
+        return true;
+    set_field_object_turn_countdown(g, obj, (uint8_t)(left - 1));
+    return left == 1;
+}
+
+void object_restart_turn_countdown(GameState *g, FieldObject obj)
+{
+    set_field_object_turn_countdown(g, obj, field_object_step_length(g, obj));
+}
+
+void object_turn_now(GameState *g, FieldObject obj) { set_field_object_turn_countdown(g, obj, 0); }
 
 /* The mark is kept as a byte, 1 while the move runs. */
 enum { SCRIPTED_MOVE_MARK = 1 };

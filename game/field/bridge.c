@@ -2,6 +2,7 @@
  * bridges share (field/bridge.h). */
 #include "field/bridge.h"
 
+#include "platform/timing.h"
 #include "port/native.h"
 #include "vars.h"
 
@@ -16,6 +17,12 @@ bool bridge_back(Snes *s, uint32_t returns_to, BridgeMachine m)
         return true;
     m_stop_at_own(s, returns_to, 0);
     return false;
+}
+
+bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)
+{
+    tm_wait_frame(m_platform(s), PF_CALL_DC(site, routine, dont_care));
+    return bridge_back(s, site + JSR_SIZE, m);
 }
 
 bool bridge_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m)

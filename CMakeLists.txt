@@ -118,6 +118,7 @@ add_library(ct_game STATIC
   game/field/display.c
   game/field/frame.c
   game/field/frames.c
+  game/field/script_turns.c
   game/field/requests.c
   game/field/location.c
   game/field/main_loop.c
@@ -155,6 +156,7 @@ add_library(ct_game STATIC
   game/menu/exchange_bridge.c
   game/menu/figures.c
   game/menu/frame.c
+  game/menu/tasks.c
   game/menu/gate_screen.c
   game/menu/glyphs.c
   game/menu/graphics.c
@@ -413,6 +415,16 @@ add_executable(dsp_test tests/apu/dsp_test.c runtime/apu/dsp.c runtime/platform/
 target_include_directories(dsp_test PRIVATE runtime)
 add_executable(fiber_test tests/port/fiber_test.c runtime/port/fiber.c)
 target_include_directories(fiber_test PRIVATE runtime)
+# The platform services' host backends (runtime/platform/native/host.h): timing and
+# input as a build with no emulator has them, the services' calls declared
+# (CT_PLATFORM_EXTERN) rather than the SNES backend's. timing_test runs a made-up
+# game's frames on them.
+add_library(ct_platform_native STATIC runtime/platform/native/timing.c runtime/platform/native/input.c
+  runtime/port/fiber.c)
+target_compile_definitions(ct_platform_native PUBLIC CT_PLATFORM_EXTERN)
+target_include_directories(ct_platform_native PUBLIC runtime)
+add_executable(timing_test tests/port/timing_test.c)
+target_link_libraries(timing_test PRIVATE ct_platform_native)
 add_executable(state_test tests/port/state_test.c)
 target_link_libraries(state_test PRIVATE ct_runtime)
 add_executable(shadow_test tests/port/shadow_test.c)

@@ -26,6 +26,12 @@ ALLOWED_INCLUDES = {
     "platform/voice_types.h",
     "platform/audio.h",
     "platform/platform.h",
+    # the host backends of timing and input (host.h), whose frame runs the
+    # game's main thread as the one coroutine fiber.h provides
+    "platform/native/host.h",
+    "platform/timing.h",
+    "platform/input.h",
+    "port/fiber.h",
 }
 
 # The hardware model's types and functions. `snes_extra*` is excluded: those are

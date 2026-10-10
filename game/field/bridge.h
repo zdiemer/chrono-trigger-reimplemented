@@ -123,6 +123,11 @@ bool field_run_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
  * call; the page is the field's again after. */
 bool bridge_call_on_page(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint16_t page);
 
+/* The field's wait for the next frame, as the timing service's
+ * (platform/timing.h), from the JSR at `site` to the original's wait
+ * `routine` ($C0:EC60). True if it came back as `m`, as bridge_call. */
+bool field_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, BridgeMachine m);
+
 /* After a call made some other way (a service's call-out, a sibling bridge
  * called as the original's JSR calls it), returning to `returns_to`: the
  * same test, and the same stop. */

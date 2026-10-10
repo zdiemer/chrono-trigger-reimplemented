@@ -384,6 +384,17 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
  * effect in SHADOW mode or outside the runtime. */
 void native_sync(Snes *s);
 
+/* For native routines that read the beam's position (a budget of work by the
+ * line the picture has reached): call it after latching the counters ($2137)
+ * and before reading them. In SHADOW mode the routine runs on a copy of the
+ * machine whose beam stands where the copy was last made, a few instructions
+ * before the original latches, so a read near a line's end could see the
+ * line before the original's: the routine waits here until the original
+ * latches the counters itself, and reads what the original latched. ON mode
+ * lets the routine's time so far pass first (native_sync). No effect outside
+ * the runtime. */
+void native_await_latch(Snes *s);
+
 /* Time attribution, for a port that runs another routine's work as C rather
  * than calling out to it: a dispatcher that runs its handlers inline. A port's
  * time is estimated from its bus clocks times its entry's cost_milli (above);

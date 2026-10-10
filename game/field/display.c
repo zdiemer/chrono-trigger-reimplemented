@@ -364,10 +364,10 @@ void field_irq(Snes *s)
  * exits to the blanking at $C0:ECF2. */
 void field_irq_wait_hblank_loop(Snes *s)
 {
-    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xC0ECEB));
-    m_set_a8(s, (uint8_t)(status & TM_STATUS_HBLANK));
-    m_set_nz8(s, (uint8_t)(status & TM_STATUS_HBLANK));
-    if (status & TM_STATUS_HBLANK)
+    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC0ECEB));
+    m_set_a8(s, (uint8_t)(status & TM_SNES_IN_HBLANK));
+    m_set_nz8(s, (uint8_t)(status & TM_SNES_IN_HBLANK));
+    if (status & TM_SNES_IN_HBLANK)
         s->cpu.pc = 0xECF2;
 }
 

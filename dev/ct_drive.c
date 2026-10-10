@@ -3,7 +3,7 @@
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
  *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c]
- *            [--mixer dsp|native|check] [--fallbacks out.txt] <rom> [sram.srm]
+ *            [--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]
  *
  * --native and --recomp mean what they mean to ct_play (frontend/natives.h
  * chooses the entries for both). The default, --native off, is the machine of
@@ -30,6 +30,12 @@
  * quit; tools/movies/ctdrv.py passes it from $CT_DRIVE_FALLBACKS, which is how
  * the gate measures the routes (tools/fallbacks.py). Frames a load replays
  * are counted again: it measures what ran, as a player would have run it.
+ * --drain-budgets (with --native on) answers the field's frame budgets as a host
+ * does, with time for all the work they defer (platform/timing.h,
+ * tm_frame_time_left): the objects' script turns and new frames run every frame,
+ * where the original leaves some for the next on about one frame in a hundred.
+ * The routes are checked so (tools/movies/ctdrv.py passes it from
+ * $CT_DRIVE_DRAIN_BUDGETS; docs/PLATFORM.md, "Timing without a beam").
  *
  * Commands arrive one per line on stdin and answer with one line on stdout that
  * starts with "ok" or "err". Numbers are decimal unless noted.
@@ -83,6 +89,7 @@
 #include <string.h>
 
 #include "media.h"
+#include "platform/timing.h"
 #include "movie.h"
 #include "natives.h"
 #include "snes/render.h"
@@ -560,7 +567,7 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 static int usage(void)
 {
     fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] "
-                    "[--mixer dsp|native|check] [--fallbacks out.txt] <rom> [sram.srm]\n");
+                    "[--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]\n");
     return 2;
 }
 
@@ -578,6 +585,8 @@ int main(int argc, char **argv)
             }
         } else if (!strcmp(a, "--fallbacks") && i + 1 < argc) {
             fallbacks_path = argv[++i];
+        } else if (!strcmp(a, "--drain-budgets")) {
+            pf_snes_drain_budgets = true;
         } else if (!strcmp(a, "--sound-driver")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (strcmp(v, "c") && strcmp(v, "original")) {
@@ -617,6 +626,10 @@ int main(int argc, char **argv)
     }
     if (!rom_path)
         return usage();
+    if (pf_snes_drain_budgets && native_mode != NATIVE_ON) {
+        fprintf(stderr, "--drain-budgets needs --native on: shadow mode compares the budgets with the original's\n");
+        return 2;
+    }
     if (c_sound_driver && (native_mode != NATIVE_ON || recomp_only)) {
         fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: it "
                         "needs --native on with the ported routines (not --recomp only)\n");

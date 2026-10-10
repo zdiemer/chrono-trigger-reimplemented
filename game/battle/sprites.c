@@ -518,7 +518,7 @@ void battle_index_effect_animations(Snes *s)
 /* It waits for the next frame and lets the frame's work run first. */
 void battle_build_bitmap_shapes(Snes *s)
 {
-    if (!battle_call(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS)
+    if (!battle_wait_frame(s, 0xC14943, 0xC1007E, DC_AL | DC_X | DC_Y | DC_FLAGS)
         || !battle_run(s, 0xC14946, 0xC110FA, battle_frame_step))
         return;
     build_bitmap_shapes(state_of(s));

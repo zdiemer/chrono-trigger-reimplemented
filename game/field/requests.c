@@ -196,7 +196,10 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
     return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
 }
-static bool wait_frame(Snes *s, uint32_t site) { return call(s, site, FRAME_WAIT, READS_NOTHING); }
+static bool wait_frame(Snes *s, uint32_t site)
+{
+    return field_wait_frame(s, site, FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
+}
 
 /* The field's own steps (field/main_loop.c), run as C. */
 static bool refresh(Snes *s, uint32_t site)

@@ -38,9 +38,11 @@
 #include "field/object.h"
 #include "field/parts.h"
 #include "field/sprites.h"
+#include "platform/timing.h"
 #include "platform/video.h"
 
 #include "charge.h"
+#include "original_effects.h"
 #include "cpu_io.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
@@ -452,6 +454,42 @@ void object_put_drawn_frame_back(GameState *g, FieldObject obj)
     object_mark_records_built(g, obj);
 }
 
+/* ---- The queue ------------------------------------------------------------------------------ */
+
+/* How a frame's drawing ended: the queue drawn through, or the frame's time
+ * up with objects left in it; or an object's drawing didn't come back to the
+ * queue (the original's code went on elsewhere), and it is left as it was. */
+typedef enum { QUEUE_DRAWN, QUEUE_OUT_OF_TIME, DRAWING_WENT_ELSEWHERE } QueueDrawn;
+
+/* An object's frame drawn, a part at a time for the larger layouts. */
+typedef enum { FRAME_WHOLE, FRAME_HAS_MORE_PARTS, FRAME_DRAWING_WENT_ELSEWHERE } FrameDrawing;
+typedef FrameDrawing (*DrawFrame)(void *ctx, FieldObject obj, bool alone);
+
+// $C0:CA76
+/* Every frame, once the objects' animations have moved on: the queued
+ * objects' new frames are drawn, the first in the queue first, while the
+ * frame has time for them, an object staying first until its frame is whole;
+ * what is left waits for the next frame. While what the last frame drew is
+ * still waiting to go to VRAM, nothing is drawn. */
+static QueueDrawn draw_queued_frames(GameState *g, Platform *pf, DrawFrame draw, void *ctx)
+{
+    if (field_vram_queue_used(g, 0) != 0)
+        return QUEUE_DRAWN;
+    set_field_vram_queue_end(g, 0);
+    while (tm_frame_time_left(pf, PF_AT(0xC0CA85), field_animation_line_limit(g))) {
+        FrameQueueFront front = object_frame_queue_front(g);
+        if (!front.queued)
+            return QUEUE_DRAWN;
+        object_make_current(g, front.first);
+        FrameDrawing drawn = draw(ctx, front.first, front.alone);
+        if (drawn == FRAME_DRAWING_WENT_ELSEWHERE)
+            return DRAWING_WENT_ELSEWHERE;
+        if (drawn == FRAME_WHOLE)
+            object_frame_queue_take_first(g, front.alone);
+    }
+    return QUEUE_OUT_OF_TIME;
+}
+
 /* ---- For the derivations (field/parts.h, field/leaves.c) ------------------------------------ */
 
 FieldDrawnTile field_frame_part_last_tile(const GameState *g, FieldObject obj, unsigned part)
@@ -492,6 +530,58 @@ void field_draw_next_frame(Snes *s)
     m_set_flag(s, CPU_FLAG_V, field_frame_build_overflow(g, obj, outcome, before));
     m_set_flag(s, CPU_FLAG_C, outcome == FRAME_PART_DRAWN || outcome == FRAME_WAITS);
     m_rts(s);
+}
+
+/* Each object's frame is the frame builder's entry ($C0:CAD9), called on the
+ * machine from the original's call of it: one call for the only object in
+ * the queue, another for the first of several. As for the scripts' turns
+ * (field/script_turns.c), the call is for shadow mode's comparison, a frame's
+ * drawing at a time, not for the beam, which a C call would read right too. A
+ * build with no machine calls the builder as C. It reads the current object
+ * and the overflow, and says in the carry whether the frame has more parts to
+ * draw. */
+enum { DRAW_A_FRAME = 0xC0CAD9, THE_FIRST_OF_SEVERAL = 0xC0CAAE, THE_ONLY_ONE = 0xC0CAC2 };
+enum { THE_BUILDER_READS_THE_OBJECT = DC_A | DC_X | DC_Y | DC_N | DC_Z };
+
+/* For shadow mode: the carry the original's choice between its two calls
+ * leaves, the queue's head compared with its tail, which the builder then
+ * replaces with its answer. */
+static void leave_the_choice(Snes *s)
+{
+    const GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_C, field_animation_queue_head(g) >= field_animation_queue_tail(g));
+}
+
+static FrameDrawing draw_on_the_machine(void *ctx, FieldObject obj, bool alone)
+{
+    (void)obj;
+    Snes *s = ctx;
+    ORIGINAL_EFFECT(leave_the_choice(s));
+    if (!bridge_call(s, alone ? THE_ONLY_ONE : THE_FIRST_OF_SEVERAL, DRAW_A_FRAME, THE_BUILDER_READS_THE_OBJECT,
+                     on_the_field_page(s, true)))
+        return FRAME_DRAWING_WENT_ELSEWHERE;
+    return m_flag(s, CPU_FLAG_C) ? FRAME_HAS_MORE_PARTS : FRAME_WHOLE;
+}
+
+/* With 8-bit A and index registers, as the original returns. */
+void field_draw_queued_frames(Snes *s)
+{
+    if (draw_queued_frames(state_of(s), m_platform(s), draw_on_the_machine, s) == DRAWING_WENT_ELSEWHERE)
+        return;
+    m_sep(s, CPU_FLAG_M | CPU_FLAG_X);
+    m_rts(s);
+}
+
+/* Its guard: on the field's page, its cells through a data bank that
+ * reaches low RAM, the queue in the tables. */
+bool field_queued_frames_can_be_drawn(Snes *s)
+{
+    if (!field_on_page_low_bank(s))
+        return false;
+    vars_peek(true);
+    bool ok = object_frame_queue_in_the_tables(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
 // $C0:E12A

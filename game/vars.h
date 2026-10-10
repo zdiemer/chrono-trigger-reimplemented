@@ -1140,6 +1140,12 @@ void set_dialog_choice_first(GameState *g, uint8_t v);
 uint8_t dialog_choice(const GameState *g);
 void set_dialog_choice(GameState *g, uint8_t v);
 
+/* The scanline the queued object scripts' turns stop at each frame ($C0:5A46): once the beam has
+ * reached it, until the vertical blank, the rest of the queue waits for the next frame; $0048
+ * after a map loads ($C0:56A9) */
+uint16_t field_script_line_limit(const GameState *g);
+void set_field_script_line_limit(GameState *g, uint16_t v);
+
 /* The scanline the objects' animation updates stop at each frame ($C0:CA99; $0078 after a map
  * loads, $C0:56AB); event $47 sets its low byte */
 uint16_t field_animation_line_limit(const GameState *g);
@@ -1163,6 +1169,13 @@ void set_field_unpacked_graphics_end(GameState *g, uint16_t v);
  * graphics. The leader's walk uses the cell as its next place's row once the map runs ($C0:9D35) */
 uint8_t field_npc_graphics_count(const GameState *g);
 void set_field_npc_graphics_count(GameState *g, uint8_t v);
+
+/* The first object queued (negative: the queue is empty) */
+uint8_t field_script_queue_head(const GameState *g);
+void set_field_script_queue_head(GameState *g, uint8_t v);
+/* The last object queued (negative: the queue is empty) */
+uint8_t field_script_queue_tail(const GameState *g);
+void set_field_script_queue_tail(GameState *g, uint8_t v);
 
 /* The first object queued (negative: the queue is empty) */
 uint8_t field_animation_queue_head(const GameState *g);
@@ -1740,15 +1753,25 @@ uint8_t field_object_palette(const GameState *g, unsigned slot);
 void set_field_object_palette(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_STEP_LENGTH_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object */
+/* Steps a move starts with (event $87 sets operand + 1), which is also how many frames the
+ * object's script waits between turns ($C0:59D9); bit 7 makes calls skip the object, and keeps
+ * its script from being queued */
 uint8_t field_object_step_length(const GameState *g, unsigned slot);
 void set_field_object_step_length(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_OBJECT_STEP_COUNT_COUNT = 64 };   /* by object slot (X = slot * 2) */
-/* Set with field_object_step_length by event $87 and cleared by the party's scripted moves
- * ($C0:31AA and on); what reads it isn't established */
-uint8_t field_object_step_count(const GameState *g, unsigned slot);
-void set_field_object_step_count(GameState *g, unsigned slot, uint8_t v);
+enum { FIELD_OBJECT_TURN_COUNTDOWN_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Frames until the object's script is due its next turn: counted down every frame ($C0:59D9),
+ * and when it runs out the object is queued for a turn and the countdown starts again from
+ * field_object_step_length; event $87 sets it with the length, and the field clears it where it
+ * hands an object a script of its own (a talk, a touch, the party's scripts), whose turn is then
+ * due on the next frame */
+uint8_t field_object_turn_countdown(const GameState *g, unsigned slot);
+void set_field_object_turn_countdown(GameState *g, unsigned slot, uint8_t v);
+
+enum { FIELD_OBJECT_SCRIPT_LINK_COUNT = 64 };   /* by object slot (X = slot * 2) */
+/* Next object in the script queue (negative: not queued) */
+uint8_t field_object_script_link(const GameState *g, unsigned slot);
+void set_field_object_script_link(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_ANIMATION_LINK_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Next object in the animation queue (negative: not queued) */
@@ -2701,6 +2724,9 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v);
 
 /* ---- menu ---------------------------------------------------------------------------------- */
 
+/* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
+uint16_t menu_scratch_task_start(const GameState *g);
+void set_menu_scratch_task_start(GameState *g, uint16_t v);
 /* The load screen: the character of the party member it is drawing a row for (its record's first
  * byte; the portrait clears the high byte) */
 uint16_t menu_scratch_save_member(const GameState *g);
@@ -3446,6 +3472,11 @@ void set_menu_screen(GameState *g, uint8_t v);
 uint8_t menu_screen_step(const GameState *g);
 void set_menu_screen_step(GameState *g, uint8_t v);
 
+/* The byte after menu_screen_step, which a task's start clears with it as a word ($C2:81FD);
+ * nothing reads it */
+uint8_t menu_screen_step_high(const GameState *g);
+void set_menu_screen_step_high(GameState *g, uint8_t v);
+
 /* The task the scheduler is running, its record's offset from the first ($B0) */
 uint8_t menu_current_task(const GameState *g);
 void set_menu_current_task(GameState *g, uint8_t v);
@@ -3645,6 +3676,10 @@ void set_menu_tasks_stack(GameState *g, unsigned i, uint16_t v);
 /* The screen step (menu_screen_step) the task waits in, put back when it goes on */
 uint8_t menu_tasks_step(const GameState *g, unsigned i);
 void set_menu_tasks_step(GameState *g, unsigned i, uint8_t v);
+/* The byte after the step, which a task's start clears with it as a word ($C2:81FB); nothing
+ * reads it */
+uint8_t menu_tasks_step_high(const GameState *g, unsigned i);
+void set_menu_tasks_step_high(GameState *g, unsigned i, uint8_t v);
 
 /* Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a
  * frame. The handler means its object's own phase (+$22) but reaches it through an index its

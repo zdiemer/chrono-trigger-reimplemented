@@ -2115,6 +2115,94 @@ The native backend itself is checked the way target 4 says, by the routes and
 gameplay: the routes must reach their outcomes with the budgets drained, the
 handlers never preempting and the scene program's randomness from the host.
 
+### Timing without a beam, as built
+
+**The service.** `runtime/platform/timing.h` has the five calls the design
+added -- `tm_wait_frame`, `tm_frame_time_left`, `tm_wait_line`, `tm_entropy`
+and `tm_odd_frame` -- and `input.h` has `in_ready` as a backend call.
+`tm_video_status` and `tm_beam_line` left the portable interface: what they
+returned was the hardware's status byte and counter, which no host can answer
+(review rubric item 118). They are SNES-only now (`tm_snes_video_status`,
+`tm_snes_beam_line_low`, in `platform/snes/timing.h`), like `vid_snes_write`,
+and only idle entries call them (below).
+
+| Call | SNES backend | Host backend |
+|---|---|---|
+| `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another) | yields the main thread to the driver |
+| `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
+| `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line in A, and the call of `$CD:3B82` | returns |
+| `tm_entropy(pf, o)` | `$2137`, `$213C`, `$213D` twice, as `$C3:02DD` reads them; the bytes kept for the wrapper (`tm_snes_entropy_read`) | a 32-bit xorshift the driver seeds |
+| `in_ready(pf, o)` | `$4212` bit 0 clear | true |
+
+The host backend is `runtime/platform/native/` (`host.h`, `timing.c`,
+`input.c`), compiled with `CT_PLATFORM_EXTERN` into `ct_platform_native`. The
+driver calls `tm_host_start` with the game's main thread and its two handlers,
+then `tm_host_frame` once a displayed frame: the vblank handler if enabled,
+the main thread resumed until its `tm_wait_frame`, the line handler if
+enabled. The main thread is a fiber (`runtime/port/fiber.h`), and a wait
+resumes whichever fiber made it, so the menus' tasks can be fibers the main
+thread runs in turn; the
+acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
+is where the picture ends (the line handler's line and those above it). No
+build links it with the game yet -- `ct_play` still runs on the emulated
+machine, whose interrupts need the SNES backend -- so `tests/port/timing_test.c`
+runs a made-up game on it: the frame's order, a handler switched on or off
+mid-frame, a wait twenty calls deep, the acknowledges, the budget, the
+parity, the generator's replay and the pads. It is the backend `ct_native`
+(PLAN.md, "The native program", step 4) links.
+
+**The budgets, measured exactly in shadow mode.** A port that reads the beam
+runs on a copy of the machine whose beam stands where the copy was last made:
+after a call-out, a few instructions before the original's own latch. The
+first port (the frame queue) disagreed with the original on 2 of 11,498 calls
+over `fair-companion`, each where the line limit fell in those few
+instructions. So the runtime gained `native_await_latch` (`port/native.h`): in
+shadow mode the port, having latched the counters on its copy, waits until
+the original latches them (a count the PPU keeps, `Ppu.latch_count`) and
+reads what the original latched; an interrupt before the original's latch
+makes the call interrupted, and an original that returns without latching is
+a mismatch. In the shipping mode it lets the port's time so far pass first
+(`native_sync`). The budgets have matched on every call of the library since.
+
+**The ports.** The waits real play spent the most instructions in:
+
+- the field's frame work (`field/script_turns.c`, `field/frames.c`): the
+  objects counted down to their scripts' turns and queued (`$C0:59D9`), the
+  queued turns run while the frame has time (`$C0:5A46`), and the new frames
+  drawn the same way (`$C0:CA76`). Each turn and each frame's drawing is a
+  call-out to its port (`$C0:5A93`, `$C0:CAD9`), so the time it takes passes
+  before the budget is read again; a build with no machine calls them as C.
+- the menus' tasks (`menu/tasks.c`): a task's wait for a frame or for some
+  frames (`$C2:821E`, `$C2:822B`), its end (`$C2:8216`), the frame's turns
+  from the first task (`$C2:81CF`) and the menus' first wait (`$C2:81B9`). The
+  scheduler -- which task goes on and how -- is C over the tasks' records; the
+  switch of stacks is the entries', through a pair of `machine.h` helpers
+  (`m_keep_registers_to_switch`, `m_switch_back`). A host runs each task as a
+  coroutine.
+- the frame waits that were call-outs to the modes' wait routines (the
+  battle's `$C1:007E`, the field's `$C0:EC60`) go through `tm_wait_frame`
+  (`battle_wait_frame`, `field_wait_frame`), and the battle's wait for a line
+  (`$CD:3B82`, from `$CD:09AC` and screen script command `$C1`) through
+  `tm_wait_line`.
+
+**The six status reads.** The controller-busy waits (`$C2:84EC`, `$C3:0A8E`)
+call `in_ready`. The other reads are idle entries -- one pass of the
+original's loop, run on the machine -- which are the SNES backend's half of
+a wait a host doesn't make: the line handlers' hblank waits (`$C0:ECEB`,
+`$D1:FEB8`, `$C3:0530`, `$C3:0538`), whose blank `vid_raster_display` at the
+handler's line already says; `$CD:3B82`'s three loops, the SNES half of
+`tm_wait_line`; and the location change's and restart's vblank race
+(`$C0:3B71`, `$C0:4181`). They read through `tm_snes_video_status` and
+`tm_snes_beam_line_low`, and no port does.
+
+**Measured.** Over the reference play (the 28 movies in shadow mode) the
+original's code running in place of hand ports fell from 311.4 million
+instructions to 199.0 million; over the shipping mode's movies and the long
+routes, from 1,752 million to 431 million (the routes' long stretches in the
+field and the menus). The routes reach their outcomes with the budgets drained as a host
+drains them (`ct_drive --drain-budgets`, `$CT_DRIVE_DRAIN_BUDGETS` for
+`tools/movies/route_check.py`).
+
 ## Risks and open questions
 
 - **Instruction-level ports carry the SNES with them.** Until the WRAM layout
@@ -2124,11 +2212,9 @@ handlers never preempting and the scene program's randomness from the host.
   plan.
 - **Beam budgets.** `$C0:5A46` and `$C0:CA76` stop at a scanline, so how many
   objects update and how many sprite frames get built per frame depends on CPU
-  speed. Decided in [Timing without a
-  beam](#timing-without-a-beam-the-native-backend): the budget becomes
-  `tm_frame_time_left`, which a native backend answers with "all of it". The
-  work the original deferred (on about 1% of frames) runs a frame earlier;
-  whether any script notices is what the routes check.
+  speed. Settled ("Timing without a beam, as built"): the budget is
+  `tm_frame_time_left`, which a host answers with "all of it", and the routes
+  reach their outcomes with the budgets drained so.
 - **Real-time battles and frame shifts.** Any backend that changes how long
   something takes (APU-direct uploads, no beam) moves input relative to game
   state, which changes fights. Validation past P1 compares end states and

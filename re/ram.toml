@@ -2448,6 +2448,32 @@ offset = 1
 meaning = "The last object queued (negative: the queue is empty)"
 
 [[var]]
+name = "field_script_queue"
+addr = "7E:0174"
+page = "field"
+stride = 2
+subsystem = "field"
+meaning = "Queue of objects whose scripts are due a turn ($C0:59D9), which the frame works through while it has time ($C0:5A46), linked through field_object_script_link (objects as links: slots doubled, negative none)"
+source = "game/field/script_turns.c, queue_due_scripts $C0:59D9 and run_queued_scripts $C0:5A46"
+[[var.field]]
+name = "head"
+offset = 0
+meaning = "The first object queued (negative: the queue is empty)"
+[[var.field]]
+name = "tail"
+offset = 1
+meaning = "The last object queued (negative: the queue is empty)"
+
+[[var]]
+name = "field_script_line_limit"
+addr = "7E:0169"
+page = "field"
+size = 2
+subsystem = "field"
+meaning = "The scanline the queued object scripts' turns stop at each frame ($C0:5A46): once the beam has reached it, until the vertical blank, the rest of the queue waits for the next frame; $0048 after a map loads ($C0:56A9)"
+source = "game/field/script_turns.c, run_queued_scripts $C0:5A46"
+
+[[var]]
 name = "field_animation_queue_front"
 addr = "7E:0178"
 page = "field"
@@ -3298,8 +3324,18 @@ count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object"
-source = "game/field/object.c object_set_move_length $C0:4876, object_move_length, object_set_unreachable $C0:6269"
+meaning = "Steps a move starts with (event $87 sets operand + 1), which is also how many frames the object's script waits between turns ($C0:59D9); bit 7 makes calls skip the object, and keeps its script from being queued"
+source = "game/field/object.c object_set_move_length $C0:4876, object_move_length, object_set_unreachable $C0:6269; game/field/script_turns.c $C0:59D9"
+
+[[var]]
+name = "field_object_script_link"
+addr = "7E:1080"
+count = 64
+stride = 2
+index = "object slot (X = slot * 2)"
+subsystem = "field"
+meaning = "Next object in the script queue (negative: not queued)"
+source = "game/field/script_turns.c, queue_due_scripts $C0:59D9 and run_queued_scripts $C0:5A46"
 
 [[var]]
 name = "field_object_animation_link"
@@ -3312,14 +3348,14 @@ meaning = "Next object in the animation queue (negative: not queued)"
 source = "game/field/animation.c, field_tick_object_animation $C0:C98A"
 
 [[var]]
-name = "field_object_step_count"
+name = "field_object_turn_countdown"
 addr = "7E:1001"
 count = 64
 stride = 2
 index = "object slot (X = slot * 2)"
 subsystem = "field"
-meaning = "Set with field_object_step_length by event $87 and cleared by the party's scripted moves ($C0:31AA and on); what reads it isn't established"
-source = "game/event/properties.c set_move_length $C0:4876"
+meaning = "Frames until the object's script is due its next turn: counted down every frame ($C0:59D9), and when it runs out the object is queued for a turn and the countdown starts again from field_object_step_length; event $87 sets it with the length, and the field clears it where it hands an object a script of its own (a talk, a touch, the party's scripts), whose turn is then due on the next frame"
+source = "game/field/script_turns.c queue_due_scripts $C0:59D9; game/event/properties.c set_move_length $C0:4876"
 
 [[var]]
 name = "field_object_frame_drawn"
@@ -6178,7 +6214,12 @@ page = "menu"
 stride = 0x10
 subsystem = "menu"
 meaning = "The menus' first direct-page cells, which their routines share as working values, each its own"
-source = "game/menu/save_screen.c, game/menu/sprites.c"
+source = "game/menu/save_screen.c, game/menu/sprites.c, game/menu/tasks.c"
+  [[var.field]]
+  name = "task_start"
+  offset = 0
+  size = 2
+  meaning = "Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF)"
   [[var.field]]
   name = "save_member"
   offset = 0
@@ -8090,6 +8131,10 @@ source = "game/menu/load_screen.c; the scheduler $C2:81B9, a task's start $C2:82
   name = "step"
   offset = 6
   meaning = "The screen step (menu_screen_step) the task waits in, put back when it goes on"
+  [[var.field]]
+  name = "step_high"
+  offset = 7
+  meaning = "The byte after the step, which a task's start clears with it as a word ($C2:81FB); nothing reads it"
 
 [[var]]
 name = "menu_current_task"
@@ -8097,7 +8142,15 @@ addr = "7E:006E"
 page = "menu"
 subsystem = "menu"
 meaning = "The task the scheduler is running, its record's offset from the first ($B0)"
-source = "the scheduler $C2:81E8, a task's yield $C2:823A"
+source = "game/menu/tasks.c, the scheduler $C2:81E8, a task's wait $C2:823A"
+
+[[var]]
+name = "menu_screen_step_high"
+addr = "7E:0069"
+page = "menu"
+subsystem = "menu"
+meaning = "The byte after menu_screen_step, which a task's start clears with it as a word ($C2:81FD); nothing reads it"
+source = "game/menu/tasks.c, a task's start $C2:81FD"
 
 [[var]]
 name = "menu_screen_argument"

@@ -73,15 +73,15 @@ static void wait_on_status(Snes *s, uint8_t status, bool ready, uint16_t done)
 /* Wait for the vertical blank to end. */
 void battle_wait_vblank_end_loop(Snes *s)
 {
-    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xCD3B84));
-    wait_on_status(s, status, !(status & TM_STATUS_VBLANK), 0x3B8A);
+    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xCD3B84));
+    wait_on_status(s, status, !(status & TM_SNES_IN_VBLANK), 0x3B8A);
 }
 
 // $CD:3B8A
 /* Then for a horizontal blank. */
 void battle_wait_hblank_loop(Snes *s)
 {
-    uint8_t hblank = tm_video_status(m_platform(s), PF_AT(0xCD3B8A)) & TM_STATUS_HBLANK;
+    uint8_t hblank = tm_snes_video_status(m_platform(s), PF_AT(0xCD3B8A)) & TM_SNES_IN_HBLANK;
     wait_on_status(s, hblank, hblank != 0, 0x3B92);
 }
 
@@ -89,7 +89,7 @@ void battle_wait_hblank_loop(Snes *s)
 /* The line handler waits for the horizontal blank before it writes. */
 void battle_irq_wait_hblank_loop(Snes *s)
 {
-    uint8_t hblank = tm_video_status(m_platform(s), PF_AT(0xD1FEB8)) & TM_STATUS_HBLANK;
+    uint8_t hblank = tm_snes_video_status(m_platform(s), PF_AT(0xD1FEB8)) & TM_SNES_IN_HBLANK;
     wait_on_status(s, hblank, hblank != 0, 0xFEBF);
 }
 
@@ -100,12 +100,12 @@ void battle_irq_wait_hblank_loop(Snes *s)
 void battle_wait_line_loop(Snes *s)
 {
     Platform *pf = m_platform(s);
-    uint8_t hblank = tm_video_status(pf, PF_AT(0xCD3B92)) & TM_STATUS_HBLANK;
+    uint8_t hblank = tm_snes_video_status(pf, PF_AT(0xCD3B92)) & TM_SNES_IN_HBLANK;
     if (hblank) {
         wait_on_status(s, hblank, false, 0);
         return;
     }
-    uint8_t line = tm_beam_line(pf, PF_AT(0xCD3B99));
+    uint8_t line = tm_snes_beam_line_low(pf, PF_AT(0xCD3B99));
     uint8_t target = battle_scratch(state_of(s), 0);
     m_set_a8(s, line);
     m_cmp8(s, line, target);

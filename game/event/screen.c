@@ -385,7 +385,7 @@ static void end_the_field_for_a_scene(Snes *s, uint8_t scene)
     while (field_dims_a_step(g)) {
         if (!field_run(s, 0xC03FC3, WALK_THE_LEADER, READS_NOTHING, field_walk_the_leader, as) ||
             !bridge_call_long(s, 0xC03FC6, PALETTE_ANIMATION, READS_NOTHING, as) ||
-            !bridge_call(s, 0xC03FCA, FRAME_WAIT, READS_NOTHING, as))
+            !field_wait_frame(s, 0xC03FCA, FRAME_WAIT, READS_NOTHING, as))
             return;
     }
     display_go_dark(s);

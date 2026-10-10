@@ -1,4 +1,5 @@
-/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213D, $213E and $213F. Included by
+/* Timing service, SNES backend: $4200, $4207-$420A, $420D, $4210-$4212, $2137, $213C, $213D, $213E and
+ * $213F, and the original's own wait routines, called where the game waited. Included by
  * platform/timing.h. */
 #ifndef CT_PLATFORM_SNES_TIMING_H
 #define CT_PLATFORM_SNES_TIMING_H
@@ -49,10 +50,6 @@ PF_API uint8_t tm_ack_line_irq(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_ack_line_irq", 0x4211);
 }
-PF_API uint8_t tm_video_status(Platform *pf, PfOrigin o)
-{
-    return pf_snes_status_read(pf, o, "tm_video_status", 0x4212);
-}
 PF_API uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_reset_beam_latch", 0x213F);
@@ -77,16 +74,103 @@ PF_API bool tm_odd_frame(Platform *pf, PfOrigin o)
  * $213F's high, for scaffolding that leaves it where the original's read did. */
 static inline uint16_t tm_snes_odd_frame_read(void) { return pf_snes_odd_frame_word; }
 
-PF_API uint8_t tm_beam_line(Platform *pf, PfOrigin o)
+PF_API void tm_sync(Platform *pf) { native_sync(pf_snes(pf)); }
+
+/* ---- The frame's waits and its budget ------------------------------------------------------- */
+
+/* The original's own wait routine, called from where the game called it: a
+ * JSL where it lies in another bank, a JSR in the caller's own. The caller
+ * goes on once the routine has returned, frames later. */
+static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
 {
-    pf_snes_begin("tm_beam_line", o);
+    bool long_call = (o.site >> 16) != (o.target >> 16);
+    native_call_dc(pf_snes(pf), o.site, o.target, long_call, o.dont_care);
+}
+
+PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
+
+/* The battle's wait for a line ($CD:3B82) takes the line in A. */
+PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
+{
+    pf_snes(pf)->cpu.a = line;
+    pf_snes_call_wait(pf, o);
+}
+
+/* The vertical counter, latched and read as the field's budgets read it: the
+ * latch's read toggle restarted, then the counter latched ($2137) and read a
+ * byte at a time ($213D twice: the low byte, then the ninth bit). Shadow mode
+ * reads what the original latches (native_await_latch). */
+static inline uint16_t pf_snes_beam_line(Snes *s)
+{
+    pf_snes_get(s, 0x213F);
+    pf_snes_get(s, 0x2137);
+    native_await_latch(s);
+    uint8_t low = pf_snes_get(s, 0x213D);
+    uint8_t high = pf_snes_get(s, 0x213D);
+    return (uint16_t)(low | (high & 0x01) << 8);
+}
+
+/* The original's budgets stop deferrable work once the beam is at `line` or
+ * below it in the picture, and go on again from line 240, in the vertical
+ * blank. Set on the SNES backend (ct_drive --drain-budgets), the frame has
+ * time for all of it, as on a host: the routes are checked so. */
+enum { PF_SNES_BLANK_FROM_LINE = 240 };
+extern bool pf_snes_drain_budgets;
+
+PF_API bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
+{
+    pf_snes_begin("tm_frame_time_left", o);
+    uint16_t beam = pf_snes_beam_line(pf_snes(pf));
+    pf_snes_end();
+    return pf_snes_drain_budgets || beam >= PF_SNES_BLANK_FROM_LINE || beam < line;
+}
+
+/* The three bytes the scenes' noise reads ($C3:02DD), in its order: the
+ * counters latched ($2137), then the horizontal counter's low byte ($213C),
+ * the vertical's low byte ($213D) and its ninth bit ($213D again). The bytes
+ * are kept for tm_snes_entropy_read. */
+extern uint8_t pf_snes_entropy_bytes[3];
+
+PF_API uint16_t tm_entropy(Platform *pf, PfOrigin o)
+{
+    Snes *s = pf_snes(pf);
+    pf_snes_begin("tm_entropy", o);
+    pf_snes_get(s, 0x2137);
+    pf_snes_entropy_bytes[0] = pf_snes_get(s, 0x213C);
+    pf_snes_entropy_bytes[1] = pf_snes_get(s, 0x213D);
+    pf_snes_entropy_bytes[2] = pf_snes_get(s, 0x213D);
+    pf_snes_end();
+    return (uint16_t)(pf_snes_entropy_bytes[0] | pf_snes_entropy_bytes[1] << 8) ^ (uint16_t)(pf_snes_entropy_bytes[2] << 15);
+}
+
+/* SNES only: the bytes the last tm_entropy read, for a wrapper that mixes them
+ * into the seed as the original does, a byte at a time with its carries. */
+static inline const uint8_t *tm_snes_entropy_read(void) { return pf_snes_entropy_bytes; }
+
+/* ---- SNES only: the status the original's wait loops poll ---------------------------------- */
+
+/* The idle entries that run the original's loops on the beam a pass at a
+ * time are the SNES backend's half of the waits above and of the line
+ * handlers' end of the picture: a host has no beam to poll, and its handlers
+ * run after the picture rather than at a line of it (docs/PLATFORM.md,
+ * "Timing without a beam"). They read $4212 and the vertical counter here. */
+enum { TM_SNES_IN_VBLANK = 0x80, TM_SNES_IN_HBLANK = 0x40, TM_SNES_JOYPAD_BUSY = 0x01 };
+
+static inline uint8_t tm_snes_video_status(Platform *pf, PfOrigin o)
+{
+    return pf_snes_status_read(pf, o, "tm_snes_video_status", 0x4212);
+}
+
+/* The line the beam is on, its low byte, latched and read as the battle's
+ * wait for a line reads it ($2137, $213F, $213D). */
+static inline uint8_t tm_snes_beam_line_low(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("tm_snes_beam_line_low", o);
     pf_snes_get(pf_snes(pf), 0x2137);
     pf_snes_get(pf_snes(pf), 0x213F);
     uint8_t line = pf_snes_get(pf_snes(pf), 0x213D);
     pf_snes_end();
     return line;
 }
-
-PF_API void tm_sync(Platform *pf) { native_sync(pf_snes(pf)); }
 
 #endif

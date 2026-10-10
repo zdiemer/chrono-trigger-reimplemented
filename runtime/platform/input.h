@@ -17,7 +17,7 @@ enum {
 };
 
 /* True once the controllers have been read this frame. */
-static inline bool in_ready(Platform *pf, PfOrigin o) { return !(tm_video_status(pf, o) & TM_STATUS_JOYPAD_BUSY); }
+PF_API bool in_ready(Platform *pf, PfOrigin o);
 
 /* The buttons of controller `pad` (0-3) as last read. */
 PF_API PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad);

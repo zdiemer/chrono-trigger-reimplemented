@@ -470,8 +470,7 @@ static bool wait_for_the_line(Snes *s)
     GameState *g = state_of(s);
     if (battle_effect_line_wait_off(g) || !battle_effects_running(g) || battle_sprites_frozen(g))
         return true;
-    m_set_a8(s, LINE_TO_WAIT_FOR);
-    return battle_call(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB);
+    return battle_wait_line(s, 0xCD09AC, 0xCD3B82, DC_X | DC_Y | DC_FLAGS | DC_AH | DC_DB, LINE_TO_WAIT_FOR);
 }
 
 /* The frame's uploads: all of them in the fight, or while the frame work is

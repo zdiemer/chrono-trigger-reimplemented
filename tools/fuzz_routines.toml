@@ -17256,3 +17256,63 @@ state = "overworld"
 args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E0E30-7E0E6F", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0E30-0E30", "--fill", "7E027E-7E027E=00-05", "--fill", "7E0280-7E0281=00-00", "--fill", "7E027C-7E027C=00-09", "--fill", "7E0E32-7E0E32=00-03", "--fill", "7E0E33-7E0E33=00-0C", "--fill", "7E0E34-7E0E34=00-00", "--fill", "7E0E54-7E0E54=01,02", "--fill", "7E0E58-7E0E58=00,01,02,03,80,81,82,83", "--fill", "7E0E57-7E0E57=00-03", "--fill", "7E0E59-7E0E59=00-FF", "--fill", "7E1B5A-7E1B5A=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E028F-7E028F=00,02,03", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0E44-7E0E44=00-FF", "--fill", "7E0E45-7E0E45=00-05", "--fill", "7E0E48-7E0E48=00-FF", "--fill", "7E0E49-7E0E49=00-03", "--fill", "7E0E4C-7E0E4D=0000,0100,FFFF", "--fill", "7E0E50-7E0E51=0000,0100,FFFF", "--fill", "7E0E56-7E0E56=00-0F", "--fill", "7E0E5A-7E0E61=00-FF", "--fill", "7E0280-7E0281=01-01", "--fill", "7E027E-7E027F=00-00", "--fill", "7E027C-7E027C=00-01", "--fill", "7E0E32-7E0E32=00-02", "--fill", "7E1B3D-7E1B40=0000,8000,9000", "--fill", "7E0E37-7E0E38=8000,9000", "--fill", "7E0E39-7E0E39=7F-7F", "--fill", "7F9000-7F901F=06,06,2D,2E,2F,31,38,0B,0C,52", "--fill", "7F8000-7F801F=06,06,2D,2E,2F,31,38,0B,0C,52"]
 iterations = 5000
 why = "an event running: the walker waiting for its script, running it or done, the script it is given or runs at its start in bank 7F, made of commands the game's event scripts use (waits, velocities, moves for frames, a slot byte counted, the end) rather than random bytes, which can copy the map over the stack"
+
+# ---- the frame's budgets and the menus' tasks (game/field/script_turns.c, game/field/frames.c, game/menu/tasks.c)
+
+[[routine]]
+name = "field_queue_due_turns"
+subsystem = "field"
+state = "field"
+args = ["--db", "00", "--keep", "7F2000-7F2000", "--fill", "7E0174-7E0175=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,80"]
+why = "the objects' move lengths, countdowns, roles and script links random, the count of objects the field state's; the queue's ends one of the first 30 objects or none"
+
+[[routine]]
+name = "field_run_queued_turns"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E107F", "--keep", "7E1100-7E1CFF", "--keep", "7F0000-7FFFFF", "--fill", "7E1080-7E10FF:2=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,80", "--fill", "7E0174-7E0175=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,80", "--fill", "7E0169-7E016A=00-F0"]
+iterations = 2000
+why = "the objects and their scripts as the field state has them, the queue's links and ends one of the first 30 objects or none (the guard takes a queue whose links run from its head to its tail), the line limit anywhere; each turn the event engine's, called on the machine; the beam where the state has it, which nothing moves"
+
+[[routine]]
+name = "field_draw_queued_frames"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F0000-7FFFFF", "--fill", "7E1081-7E10FF:2=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,80", "--fill", "7E0176-7E0177=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,80", "--fill", "7E09A0-7E09A0=00-01", "--fill", "7E016B-7E016C=00-F0"]
+iterations = 2000
+why = "the objects as the field state has them, the frame queue's links and ends one of the first 30 objects or none (the guard takes a queue whose links run from its head to its tail), the last frame's uploads sent or not, the line limit anywhere; each frame the frame builder's, called on the machine"
+
+[[routine]]
+name = "menu_task_waits_a_frame"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
+why = "the running task one of the eight, each task's state stopped, starting, waiting or running and its countdown 0-3; the stacks in low RAM (the guard's: past it the registers would come from open reads), the starts and steps random, so a task going on returns wherever its stack says, as the original does"
+
+[[routine]]
+name = "menu_task_waits_frames"
+subsystem = "menu"
+state = "menus"
+args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
+why = "as menu_task_waits_a_frame, A's low byte the frames"
+
+[[routine]]
+name = "menu_task_ends"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
+why = "as menu_task_waits_a_frame, on the menus' page"
+
+[[routine]]
+name = "menu_run_the_tasks"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
+why = "each task's state and countdown random as above, from the first"
+
+[[routine]]
+name = "menu_wait_for_the_first_frame"
+subsystem = "menu"
+state = "menus"
+args = []
+why = "nothing it reads: it sets the stack, page and data bank"

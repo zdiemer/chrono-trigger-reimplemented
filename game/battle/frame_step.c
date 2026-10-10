@@ -148,7 +148,10 @@ static bool refuse_to_run(Snes *s)
  * none of the registers but A's high byte, which it takes along. */
 enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
 
-static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_call(s, site, 0xC1007E, FRAME_WAIT_READS); }
+static bool wait_for_the_next_frame(Snes *s, uint32_t site)
+{
+    return battle_wait_frame(s, site, 0xC1007E, FRAME_WAIT_READS);
+}
 
 /* The combatants animate a step, whose group goes by the frame's phase; the
  * phase is kept around it, the animations' step moving it on where it ends

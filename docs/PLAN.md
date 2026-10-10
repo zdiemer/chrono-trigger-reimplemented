@@ -22,8 +22,9 @@ The emulator under `runtime/` -- the 65816 interpreter, the SPC700, the S-DSP,
 the PPU and the bus -- **must not ship**, and neither must the generated C,
 shadow mode, the oracle or the timing model. What does ship from `runtime/` is
 the platform services' interfaces (`runtime/platform/`) with their host
-backends, and `runtime/port/fiber.h` for the one coroutine the game's main
-thread runs as (below, and PLATFORM.md, "Timing without a beam"). They exist to prove the
+backends, and `runtime/port/fiber.h` for the coroutines the game's main
+thread and the menus' tasks run as (below, and PLATFORM.md, "Timing without a
+beam"). They exist to prove the
 reimplementation correct, and they are load-bearing until the subsystem they
 check is finished. But they are a means, so:
 
@@ -38,11 +39,17 @@ check is finished. But they are a means, so:
 - **So is most of the stack question.** The per-port fibers exist only
   because a hand port must run to completion while an emulated machine waits
   mid-instruction (`job_run`, `runtime/port/fiber.h`). No emulated machine, no
-  call-outs, no per-port fibers. What stays is one coroutine for the game's
-  main thread, whose waits for the next frame are deep in its call stack
-  (PLATFORM.md, "Timing without a beam"), unless every caller of those waits
-  is rewritten to resume. So a browser build still needs one stack switch; the
-  wasm backend spike is not scheduled, and when it is, it is for that one.
+  call-outs, no per-port fibers. What stays is the game's own design: a
+  coroutine for its main thread, whose waits for the next frame are deep in its
+  call stack (PLATFORM.md, "Timing without a beam"), and one for each of the
+  menus' eight cooperative tasks, which the original runs on stacks of their
+  own and which wait a frame from deep in their work (`menu/tasks.c`). Nine
+  fibers at `fiber.c`'s 512 KiB each is more than a GBA has, so a small target
+  wants the tasks rewritten to resume (each a state machine called once a
+  frame) and its main thread's stack sized to what it uses; the way out for
+  the main thread is the same rewrite of every caller of its waits. So a
+  browser build still needs stack switching; the wasm backend spike is not
+  scheduled, and when it is, it is for that.
 - **M4** (recompiler speed) buys nothing the targets want.
 
 ### What "done" means, measured
@@ -58,7 +65,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 14% left (86% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 82% (212.6 KiB run by the 28 movies; battle 97%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 38.9 KiB, 311 M instructions (handback 26.2 KiB, unported 13.8 KiB, refused 2.4 KiB); shipping mode with the routes 37.2 KiB, 1,752 M; 23 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: an action shown") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 38.6 KiB, 199 M instructions (handback 25.8 KiB, unported 13.7 KiB, refused 2.3 KiB); shipping mode with the routes 36.8 KiB, 431 M (the long routes); 23 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: an action shown") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -76,8 +83,8 @@ fully native game is two pieces of work, not one: porting the 14% burndown
 lists, and retiring the fallbacks inside code it counts as done, which is
 about two thirds as much again. Native coverage is the headline; burndown says
 how much has a port. The second piece is mostly callees a port calls out to,
-which belong to the port that calls them, and the waits on the beam, which
-need the timing service's frame calls ("Timing is decided", below). How the
+which belong to the port that calls them, and the waits still made on the
+machine, which go to the timing service's calls ("Timing", below). How the
 two numbers are measured: the fallback measure's report (`tools/fallbacks.py
 --report`) against `burndown.py`'s coverage over the movies' executed code.
 
@@ -146,19 +153,18 @@ play still runs as the original (`tools/fallbacks.py --by routine`), not by
 which bank has the most unported bytes: a handback is a port calling code that
 isn't ported yet, so retiring it is porting its callee. In order:
 
-1. **The timing service's frame waits** (Phase 4a, "Timing is decided"): the
-   native backend, its calls, and the ports that still spin on the beam --
-   the field frame's waits (`$C0:59D9`, `$5A46`), the sprite frame queue
-   (`$C0:CA76`), the battle's and the menus' frame waits. The most-executed
-   fallbacks there are, and what the native program needs anyway.
-2. **The field** (86% native): the screen's setup and fade in, the map's
+1. **The field** (86% native): the screen's setup and fade in, the map's
    unpacking, the objects' setup and the dialog window -- its largest
    handbacks and its last unported code at once.
-3. **The menus and the overworld** (71%, the lowest): the vehicles, and the
+2. **The menus and the overworld** (71%, the lowest): the vehicles, and the
    object scripts' handbacks (`$C2:0553`, `$C2:1836`).
-4. **The refusals in real play**, as one batch (TODO.md, "Refusals in real
+3. **The refusals in real play**, as one batch (TODO.md, "Refusals in real
    play").
-5. **The scene program**, its unported modes after movies reach them.
+4. **The scene program**, its unported modes after movies reach them.
+5. **The battle's frame work** (75%): its loads and fills (`$CD:107D`,
+   `$CD:1061`, `$CD:1052`, and the loads behind `$CD:0015`, `$CD:002A`,
+   `$CD:0018`), now its largest handbacks; they are work, not waits on the
+   display.
 
 ## The validation gate
 
@@ -212,7 +218,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 268 files, 117 of 79,339 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 270 files, 117 of 79,339 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -549,17 +555,13 @@ by an audit; the fourth is the program itself.
   start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
   program (`$7E`) is ported.
 
-  **Timing is decided** (PLATFORM.md, "Timing without a beam", with the census
-  behind it: 117 instructions, 49 ported). The game has no raster effect done
-  with an interrupt: all three line handlers blank the picture after line 211
-  and upload. So the native backend is a frame of vblank handler, main thread
-  to its wait, line handler, with `tm_enable_interrupts` and `tm_set_line`
-  recording which handlers run and where the picture ends. Five timing calls
-  are added (`tm_wait_frame`, `tm_frame_time_left`, `tm_wait_line`,
-  `tm_entropy`, `tm_odd_frame`) and `in_ready` in input, and
-  `tm_video_status` has no native answer, so its six call sites are rewritten
-  to those. The work is the backend, the calls, and the rewrites TODO.md lists
-  under "Timing without a beam"; the main thread runs as one coroutine.
+  **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
+  their host backend are built, the field's budgets and the menus' task
+  switch are ports, and no port reads the beam's status. What is left is in
+  TODO.md, "Timing without a beam": the waits still made on the machine (idle
+  entries the native program replaces with `tm_wait_frame` as their callers
+  become ports), the host backend's place in `ct_native`, and the menus'
+  tasks, which each need a coroutine of their own or a rewrite to resume.
 
 - **The native program, and the registry taken down.** Today the emulated
   CPU walks the ROM from its reset vector, and a port runs because the
@@ -581,8 +583,8 @@ by an audit; the fourth is the program itself.
      This happens anyway as subsystems finish; the census says where it is
      still owed.
   3. **The skeleton.** `game/` gets the program's top: a boot function, the
-     main thread as the one coroutine (`runtime/port/fiber.h`) whose frame
-     waits yield to the driver, and the frame's work -- the vblank handler,
+     main thread and the menus' tasks as coroutines (`runtime/port/fiber.h`)
+     whose frame waits yield to the driver, and the frame's work -- the vblank handler,
      the line handler -- as functions the driver calls each frame, in place
      of the interrupt vectors and the RAM trampolines the game points them
      through. The power-on item above ports what those entries do; this
@@ -654,14 +656,6 @@ wait behind 4a.
 
 - **P4 widescreen**, and with it the answer to whether `VidFrame` holds up:
   PLATFORM.md's open questions name the assumptions it would expose.
-- **The beam-coupled routines**, the event scheduler `$C0:5A46` and the sprite
-  frame queue `$C0:CA76`, which stop when the beam passes a scanline. Their
-  shape is decided (PLATFORM.md, "Timing without a beam"): the budget is
-  `tm_frame_time_left`, which a native backend answers with "all of it", so
-  the work the original defers on about 1% of frames runs a frame earlier.
-  They need nothing else from 4a, so they can come forward into Phase 3's
-  field work once the call exists; what waits for them here is only the check
-  that the routes still pass with the budgets drained.
 - **Host backends beyond SDL** (TODO.md, "Platform"): rendering on the GPU,
   controllers.
 

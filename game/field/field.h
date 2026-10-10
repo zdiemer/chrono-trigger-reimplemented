@@ -368,6 +368,13 @@ bool field_heads_current_object(Snes *s);
 bool field_object_checks_its_way(Snes *s);
 bool field_lines_up_with_an_object(Snes *s);
 
+/* field/script_turns.c: the objects counted down to their scripts' turns and
+ * queued, and the queued turns run while the frame has time. */
+void field_queue_due_turns(Snes *s);
+void field_run_queued_turns(Snes *s);
+bool field_turns_can_be_counted(Snes *s);
+bool field_turns_can_run(Snes *s);
+
 /* field/animation.c */
 void field_update_walk_animation(Snes *s);
 void field_stand_animation(Snes *s);
