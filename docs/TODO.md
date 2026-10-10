@@ -1771,6 +1771,16 @@ the timing registers, what each is for, the native backend, and the rewrites
 below; its "as built" says what is done. `python3 tools/timing_census.py`
 re-runs the census.
 
+- **What the timing service's review left** (none rated translation): the
+  objects' turn queue and its guard walk (`queue_in_the_tables`) are written
+  twice, in `field/script_turns.c` and `battle/animation.c` -- one
+  object-queue type over its head, tail and link accessors; `field/frames.c`
+  names the pending uploads and the empty upload queue by bare index and
+  value; the older SNES-shaped calls `tm_ack_*` and `tm_reset_beam_latch`
+  still return register bits; `tm_entropy` and `tm_snes_entropy_read` have no
+  caller, so the gate doesn't test their SNES half; a call `native_await_latch`
+  sees interrupted before the original's own latch goes uncompared.
+
 - **The gate's wait for its song to play** (`$C2:CBE0`,
   `menu/sound_bridge.c`): once the gate's screen has started its song, its
   task spins on the sound processor's status (`au_music_playing`) until the
