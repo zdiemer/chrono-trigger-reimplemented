@@ -1027,6 +1027,24 @@ rest waits, is [PLAN.md](PLAN.md).
   `menu_choose_tech`), which a calibration of the empty member row's list
   alone would take back.
 
+- **What the field's screen, map and dialog review left** (none rated
+  translation): `screen_setup.c` tables its fade-ins' ROM sites by kind,
+  names `field_setting_1e` for its address (it keeps the screen dark), keeps
+  a second copy of the layer maps' VRAM places (`display.c` has them), and
+  runs a straight line of setters that belongs in one operation; `map.c`
+  walks the exits by byte offset, and `field_packed_map` emulates a carry no
+  map number reaches; `objects_start.c`'s `object_start_afresh` is 24 setters
+  and writes `animation.c`'s own mode, one-off and half-passes storage, and
+  its `clears[]` are RAM addresses spanning variables; `dialog_window.c`
+  passes `PairSites` tag tables, has `SEND_ONCE` as `0x81` where `nmi.c` has
+  `0x80`, a dead `TAKEN_ONCE`, a bare-byte `choosing`, `step_sets_a_glyph`
+  re-running the window's growth, and handles a row past 127 the game never
+  sets; `slots_for_kind[9..11]` uses bare kind numbers and `nmi.c`'s
+  `run_screen_transition` has unnamed cases; the map's
+  `field_window_staging` source names a function that doesn't exist;
+  `FIELD_MESSAGES` belongs in `field_data.h`; the choice-active constants
+  want an enum; a test should tie the `C0:0B38` hint to the disassembly.
+
 - **What the field's frame and loading review left** (merged with power-on
   and the field's frame; none blocking): scaffolding written through
   accessors named for another use (`battle_start.c` and `battle_return.c`
