@@ -522,10 +522,8 @@ static void note_target(GameState *g, unsigned enemy)
 
 /* ---- The bridges and the entries ------------------------------------------------------- */
 
-/* The steps run beside the machine: the party's calls the pose's setup
- * ($C1:308C), which is still the original's; and the pose's choice and the
- * frames' graphics, run as C here, are timed as their own routines
- * (NATIVE_TIME_AS). */
+/* The steps run as C; the pose's choice, its look (battle/pose_looks.c) and
+ * the frames' graphics are timed as their own routines. */
 
 // $C1:2F22
 /* The member faces its nearest enemy, when it has the turn to; true if it
@@ -542,30 +540,22 @@ static bool face_nearest_enemy(GameState *g, unsigned member)
 /* The member's frame is up: it takes the pose its statuses give it, faces
  * its nearest enemy in its turn, and takes its next frame, whose graphics are
  * built if they change. */
-static bool next_party_frame(Snes *s, unsigned member)
+static void next_party_frame(GameState *g, unsigned member)
 {
-    GameState *g = state_of(s);
     uint8_t animation = 0;
-    NATIVE_TIME_AS(s, 0xC12F97, animation = combatant_choose_pose(g, member));
-    /* The pose's choice hands the animation back in A, whose high byte the
-     * pose's setup reads. */
-    s->cpu.a = animation;
+    TIMED_AS(g, 0xC12F97, animation = combatant_choose_pose(g, member));
     bool turned = face_nearest_enemy(g, member);
-    if (!battle_call(s, 0xC12E2E, 0xC1308C, DC_AL | DC_X | DC_Y | DC_FLAGS))
-        return false;
+    TIMED_AS(g, 0xC1308C, battle_show_pose_look(g, member));
     animation = with_running(g, member, animation);
     uint8_t frame = take_next_party_frame(g, member, animation);
     if (member_graphics_change(g, member, animation, turned) && battle_object_builds_graphics(g, member))
-        NATIVE_TIME_AS(s, 0xC11C55, battle_build_frame_graphics(g, member, frame));
-    return true;
+        TIMED_AS(g, 0xC11C55, battle_build_frame_graphics(g, member, frame));
 }
 
-// $C1:2D9F
 /* Step the party's animations: each member present whose frame's time is
  * up takes its next frame, unless it holds its frame for the upload. */
-static bool step_party(Snes *s)
+static void step_party(GameState *g)
 {
-    GameState *g = state_of(s);
     ORIGINAL_EFFECT(set_work_byte(g, LEFT_STANCE, ANIMATION_BATTLE_STANCE));
     uint8_t order[GROUP_PLACES];
     choose_order(g, THE_PARTY, order);
@@ -581,11 +571,10 @@ static bool step_party(Snes *s)
         }
         uint8_t left = (uint8_t)(battle_party_frame_delay(g, member) - 1);
         set_battle_party_frame_delay(g, member, left);
-        if (left == 0 && !next_party_frame(s, member))
-            return false;
+        if (left == 0)
+            next_party_frame(g, member);
     }
     ORIGINAL_EFFECT(set_work_word(g, LEFT_PLACE, GROUP_PLACES));
-    return true;
 }
 
 // $C1:3234
@@ -593,9 +582,8 @@ static bool step_party(Snes *s)
  * list if its animation or facing changed, and when its frame's time is up
  * shows its frame, unless it holds it for the upload, and moves on to the
  * next. */
-static void step_enemy_group(Snes *s, AnimationGroup group)
+static void step_enemy_group(GameState *g, AnimationGroup group)
 {
-    GameState *g = state_of(s);
     uint8_t order[GROUP_PLACES];
     choose_order(g, group, order);
     for (unsigned place = 0; place < GROUP_PLACES; place++) {
@@ -618,34 +606,47 @@ static void step_enemy_group(Snes *s, AnimationGroup group)
             continue;
         }
         if (enemy_frame_built(g, enemy))
-            NATIVE_TIME_AS(s, 0xC11C55, battle_build_frame_graphics(g, enemy_slot(enemy), battle_graphics_frame(g)));
+            TIMED_AS(g, 0xC11C55, battle_build_frame_graphics(g, enemy_slot(enemy), battle_graphics_frame(g)));
         next_enemy_frame(g, enemy);
     }
     ORIGINAL_EFFECT(set_battle_anim_order_place(g, GROUP_PLACES));
 }
 
-void battle_step_combatant_animations(Snes *s)
+// $C1:2D9F
+/* The combatants' animations step: the party's on the party's frame, one
+ * group of enemies' on each of the others, the phase moved on past an
+ * enemy group with nobody to step. */
+void battle_step_combatants(GameState *g)
 {
-    GameState *g = state_of(s);
     set_battle_graphics_built(g, 0);
     uint8_t phase = battle_frame_phase(g);
     if (phase == THE_PARTY) {
-        if (step_party(s))
-            m_rts(s);
+        step_party(g);
         return;
     }
     ORIGINAL_EFFECT(set_battle_anim_order_place(g, 0));
     if (phase < GROUPS) {
-        step_enemy_group(s, (AnimationGroup)phase);
+        step_enemy_group(g, (AnimationGroup)phase);
         set_battle_frame_phase(g, phase_after_enemies(g, phase));
     }
+}
+
+void battle_step_combatant_animations(Snes *s)
+{
+    battle_step_combatants(state_of(s));
     m_rts(s);
 }
 
 /* The enemies' groups take the order's places as they come, which only a
  * clear A's high byte keeps to the order (the original indexes with the whole
  * of A). */
-bool battle_steps_animations(Snes *s) { return battle_on_page_a_high_clear(s); }
+bool battle_steps_animations(Snes *s)
+{
+    vars_peek(true);
+    bool fits = battle_pose_looks_fit(state_of(s));
+    vars_peek(false);
+    return battle_on_page_a_high_clear(s) && fits;
+}
 
 /* The combatant comes in its cell; the animation goes back in A. */
 void battle_choose_status_pose(Snes *s)

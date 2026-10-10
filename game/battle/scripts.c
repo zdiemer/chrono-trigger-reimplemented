@@ -198,7 +198,12 @@ static bool call_channel(Snes *s, unsigned channel)
 {
     s->cpu.y = (uint16_t)channel;
     m_set_a8(s, (uint8_t)(channel * 4));
-    return battle_call(s, 0xC10000u | channel_calls[channel], 0xC14C9E, DC_N | DC_Z | DC_C);
+    /* The channel reads neither X nor the overflow it is called with (the
+     * showing's steps before it, battle/action_showing.c, are C and leave
+     * neither as the original's do).
+     * dc-evidence: ct_fuzz --poison-dc battle_run_scripts, seed 1: 3000 states,
+     * 15072 call-outs scrambled, 0 mismatched */
+    return battle_call(s, 0xC10000u | channel_calls[channel], 0xC14C9E, DC_X | DC_N | DC_V | DC_Z | DC_C);
 }
 
 static bool channel_running(const GameState *g, unsigned channel) { return battle_script_running(g, channel) != 0; }

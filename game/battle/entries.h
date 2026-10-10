@@ -851,6 +851,39 @@ void battle_convert_name(Snes *s);
 void battle_choose_targets_entry(Snes *s);
 bool battle_choose_targets_ready(Snes *s);
 
+/* battle/action_showing.c, battle/action_animation.c, battle/frame_step.c:
+ * an action shown, its animation loaded, and the battle's own frame */
+void battle_show_action(Snes *s);
+bool battle_show_action_ready(Snes *s);
+void battle_forget_poses_entry(Snes *s);
+void battle_list_the_showing_entry(Snes *s);
+void battle_find_the_members_falling_entry(Snes *s);
+void battle_load_action_animation(Snes *s);
+void battle_load_attack_animation(Snes *s);
+void battle_load_tech_animation(Snes *s);
+void battle_load_item_animation(Snes *s);
+void battle_attack_up_close_entry(Snes *s);
+bool battle_animation_loading_ready(Snes *s);
+bool battle_attack_animation_ready(Snes *s);
+bool battle_attack_up_close_ready(Snes *s);
+void battle_frame_step(Snes *s);
+void battle_wait_step(Snes *s);
+void battle_next_member_takes_the_menu_entry(Snes *s);
+bool battle_menu_queue_ready(Snes *s);
+bool battle_frame_step_ready(Snes *s);
+
+/* battle/pose_looks.c: what a pose shows, and the poses' round */
+void battle_go_round_the_poses_entry(Snes *s);
+bool battle_poses_round_ready(Snes *s);
+void battle_show_pose_look_entry(Snes *s);
+bool battle_pose_look_ready(Snes *s);
+
+/* battle/damage.c: the hits landing, and a felled enemy's spoils */
+void battle_apply_damage_entry(Snes *s);
+void battle_drop_missed_targets_entry(Snes *s);
+void battle_take_the_spoils(Snes *s);
+bool battle_spoils_ready(Snes *s);
+
 /* battle/arith.c, battle/buttons.c */
 void battle_multiply_8x8(Snes *s);
 void battle_multiply_8x16(Snes *s);

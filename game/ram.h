@@ -5291,6 +5291,8 @@
 #define RAM_BATTLE_MENU_QUEUE 0x7E95D6u
 #define RAM_BATTLE_MENU_QUEUE_COUNT 4u
 #define RAM_BATTLE_MENU_QUEUE_STRIDE 0x01u
+/* How many party members wait in battle_menu_queue */
+#define RAM_BATTLE_MENU_QUEUE_LENGTH 0x7E95DAu
 /* Menu page: 0 the command list (Attack/Tech/Item), 1 the tech list, 2 the item list */
 #define RAM_BATTLE_MENU_PAGE 0x7E95DBu
 /* Command list cursor per member: 0 Attack, 1 Tech, 2 Item [3 x $1 bytes, by party slot] */
@@ -5547,9 +5549,37 @@
 /* Counted up by a script command ($C1:4D00) for the battle's code waiting on the scripts
  * ($C1:40CE) */
 #define RAM_BATTLE_SCRIPT_SIGNAL 0x7E9876u
+/* The script set of the action's animation (by the kind of action, its record's first byte or
+ * the character's), as its loading leaves it; nothing reads it after */
+#define RAM_BATTLE_ANIMATION_SCRIPTS 0x7E9877u
+/* Where the action's animation's script set starts (its two channel masks, then the scripts'
+ * places), as its loading leaves it; nothing reads it after [2 bytes] */
+#define RAM_BATTLE_ANIMATION_SCRIPTS_AT 0x7E9878u
+/* The first graphics set the action's animation loads into the effects' tiles ($CD:0015), as its
+ * loading leaves it */
+#define RAM_BATTLE_ANIMATION_GRAPHICS 0x7E987Au
+/* The second graphics set the action's animation loads ($CD:002A), as its loading leaves it */
+#define RAM_BATTLE_ANIMATION_SECOND_GRAPHICS 0x7E987Bu
+/* The battlefield the action's animation changes the background to ($CD:0018; $FF none), as its
+ * loading leaves it */
+#define RAM_BATTLE_ANIMATION_BACKGROUND 0x7E987Cu
+/* A byte among the action's animation's cells that its loading clears and nothing else touches */
+#define RAM_BATTLE_ANIMATION_CLEARED 0x7E987Du
+/* Which compressed tiles the action's animation draws its sprites with (an entry of the tiles'
+ * table in bank $D1), as its loading leaves it */
+#define RAM_BATTLE_ANIMATION_TILES 0x7E987Eu
+/* Where in bank $D1 the action's animation's compressed sprite tiles are, which its loading
+ * unpacks into battle_decoded_tiles [2 bytes] */
+#define RAM_BATTLE_ANIMATION_TILES_AT 0x7E987Fu
+/* Which palette animation the action's animation plays (an entry of its kind's table, which
+ * gives battle_palette_anim_frames), as its loading leaves it */
+#define RAM_BATTLE_ANIMATION_PALETTE 0x7E9881u
 /* Offset in bank $CD of the effect's palette animation frames (two bytes a frame: the color set
  * and where it goes) [2 bytes] */
 #define RAM_BATTLE_PALETTE_ANIM_FRAMES 0x7E9882u
+/* Which animation records the action's animation's effects take their frames from (an entry of
+ * its kind's table, which gives battle_effect_records), as its loading leaves it */
+#define RAM_BATTLE_ANIMATION_RECORDS 0x7E9884u
 /* Offset in bank $CE of the effect's animation records, which battle_index_effect_animations
  * divides into its sixteen animations [2 bytes] */
 #define RAM_BATTLE_EFFECT_RECORDS 0x7E9885u
@@ -5642,6 +5672,10 @@
 #define RAM_BATTLE_ANIM_ORDER 0x7E992Du
 #define RAM_BATTLE_ANIM_ORDER_COUNT 3u
 #define RAM_BATTLE_ANIM_ORDER_STRIDE 0x01u
+/* Set where a party member's attack is shown up close (its weapon's close-up animation): it can
+ * reach its target and finds the way there, or always for the characters who walk up; nothing
+ * reads it but the animation's choice ($C1:4394) */
+#define RAM_BATTLE_ATTACK_UP_CLOSE 0x7E9930u
 /* Frame counter byte, counted each frame update */
 #define RAM_BATTLE_FRAME_TICK 0x7E9931u
 /* Counted every fourth frame update */
@@ -5902,6 +5936,10 @@
 #define RAM_BATTLE_COMBATANT_DOWN 0x7EA0A8u
 #define RAM_BATTLE_COMBATANT_DOWN_COUNT 11u
 #define RAM_BATTLE_COMBATANT_DOWN_STRIDE 0x01u
+/* Set from the action's extra flag $40 as its showing starts: its animation's channels then run
+ * the script set's second half (the first's places are passed over), and the loading clears the
+ * low byte as it gets there [2 bytes] */
+#define RAM_BATTLE_ANIMATION_SECOND_SET 0x7EA0B3u
 /* Set where the member's steal took an item (either way it went), which the menu's next frame
  * looks for to move the member's kept item into the item list ($CF:FAE2) [3 x $1 bytes, by
  * battle slot of a party member] */
@@ -5961,6 +5999,9 @@
 /* Set when the combatants' sprite attributes point at the other half of the sprite palettes
  * ($CD:1B78); the row swap clears it */
 #define RAM_BATTLE_SPRITE_PALETTES_FLIPPED 0x7EA101u
+/* Counted up when the combatants' poses' round ($C1:305C, a combatant a call) comes back to the
+ * first; the action's showing goes round once that way at its end */
+#define RAM_BATTLE_POSES_ROUND_DONE 0x7EA102u
 /* Pose the party member's graphics were last built for [3 x $1 bytes, by party slot] */
 #define RAM_BATTLE_OBJECT_POSE_SHOWN 0x7EA103u
 #define RAM_BATTLE_OBJECT_POSE_SHOWN_COUNT 3u
@@ -6296,18 +6337,34 @@
 #define RAM_BATTLE_OBJECT_POSE_LAST 0x7EA44Cu
 #define RAM_BATTLE_OBJECT_POSE_LAST_COUNT 11u
 #define RAM_BATTLE_OBJECT_POSE_LAST_STRIDE 0x01u
-/* Set while the member's effect palette cycles [3 x $1 bytes, by party slot] */
+/* Cleared as a combatant's plain look is put on; no code traced reads it [11 x $1 bytes, by
+ * battle slot] */
+#define RAM_BATTLE_POSE_LOOK_UNREAD_SECOND 0x7EA457u
+#define RAM_BATTLE_POSE_LOOK_UNREAD_SECOND_COUNT 11u
+#define RAM_BATTLE_POSE_LOOK_UNREAD_SECOND_STRIDE 0x01u
+/* Set while the combatant's palette cycles, as the look of its pose has it (hasted, slowed,
+ * shielded, behind a barrier); the party's are the ones cycled [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PARTY_PALETTE_CYCLE_ON 0x7EA46Du
-#define RAM_BATTLE_PARTY_PALETTE_CYCLE_ON_COUNT 3u
+#define RAM_BATTLE_PARTY_PALETTE_CYCLE_ON_COUNT 11u
 #define RAM_BATTLE_PARTY_PALETTE_CYCLE_ON_STRIDE 0x01u
+/* Counted up as the held pose's look is put on, cleared with the plain look's; no code traced
+ * reads it [11 x $1 bytes, by battle slot] */
+#define RAM_BATTLE_POSE_HELD_COUNT 0x7EA478u
+#define RAM_BATTLE_POSE_HELD_COUNT_COUNT 11u
+#define RAM_BATTLE_POSE_HELD_COUNT_STRIDE 0x01u
+/* Cleared as a combatant's plain look is put on; no code traced reads it [11 x $1 bytes, by
+ * battle slot] */
+#define RAM_BATTLE_POSE_LOOK_UNREAD 0x7EA483u
+#define RAM_BATTLE_POSE_LOOK_UNREAD_COUNT 11u
+#define RAM_BATTLE_POSE_LOOK_UNREAD_STRIDE 0x01u
 /* Set when an animated marker sprite is drawn with the object [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_MARKER_ON 0x7EA48Eu
 #define RAM_BATTLE_MARKER_ON_COUNT 11u
 #define RAM_BATTLE_MARKER_ON_STRIDE 0x01u
-/* Position in the member's palette cycle (steps by 2, wraps at $7C) [3 x $1 bytes, by party
- * slot] */
+/* Position in the combatant's palette cycle (steps by 2, wraps at $7C), started again as its
+ * pose's look changes [11 x $1 bytes, by battle slot] */
 #define RAM_BATTLE_PARTY_PALETTE_CYCLE 0x7EA499u
-#define RAM_BATTLE_PARTY_PALETTE_CYCLE_COUNT 3u
+#define RAM_BATTLE_PARTY_PALETTE_CYCLE_COUNT 11u
 #define RAM_BATTLE_PARTY_PALETTE_CYCLE_STRIDE 0x01u
 /* Signed X offset added to the object's position for its sprites and trail [11 x $1 bytes, by
  * battle slot] */
@@ -6776,6 +6833,13 @@
 /* Set while the prepared number sprites move by the rows of $D1:5E10; cleared at the row ending
  * the motion */
 #define RAM_BATTLE_NUMBERS_RISING 0x7EAC5Au
+/* The action's targets as its showing lists them: the first, then the others in slot order, then
+ * $FF (battle_script_subjects' fourth place on holds the same); a list of more than seven runs
+ * over the trails' high bytes, which the trails rewrite while the action shows [13 x $1 bytes,
+ * by place in the list] */
+#define RAM_BATTLE_SHOWING_TARGETS 0x7EAC5Cu
+#define RAM_BATTLE_SHOWING_TARGETS_COUNT 13u
+#define RAM_BATTLE_SHOWING_TARGETS_STRIDE 0x01u
 /* High bytes of the objects' last four recorded positions [4 x $16 bytes, by trail entry (0 the
  * newest)] */
 #define RAM_BATTLE_TRAIL_HIGH 0x7EAC64u

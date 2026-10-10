@@ -105,6 +105,11 @@ void battle_note_direction(GameState *g, uint8_t angle);
  * measure between two boxes (an enemy's spot, battle/enemy_movement.c). */
 bool battle_box_within_reach_of(GameState *g, uint8_t slot, BattlePoint at, uint16_t reach);
 
+/* $C1:4A71: find the way across the battlefield's grid from one point to
+ * another, marking it on the grid for a walk to follow (battle/script_walk.c);
+ * false where the search gave up before reaching it. */
+bool battle_find_way(GameState *g, BattlePoint from, BattlePoint to);
+
 /* $C1:01F9: how far along an axis a point `radius` pixels away at `angle`
  * lies: the radius times the sine, as a signed pixel count. */
 int8_t battle_along(GameState *g, uint8_t angle, uint8_t radius);

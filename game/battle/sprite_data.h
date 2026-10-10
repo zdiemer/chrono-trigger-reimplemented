@@ -44,6 +44,20 @@ static inline MarkerSprite battle_marker_sprite(const GameState *g, uint8_t fram
                            rom_read8(g, at + 3) };
 }
 
+/* How many frames each frame of a marker shows, by its kind from the first
+ * ($CC:F5FD). */
+static inline uint8_t battle_marker_pace(const GameState *g, uint8_t kind)
+{
+    return rom_read8(g, 0xCCF5FDu + kind);
+}
+
+/* The held pose's tint: the two colours it puts in a party member's palette
+ * ($CC:F77B, a word each). */
+static inline uint16_t battle_held_tint(const GameState *g, unsigned k)
+{
+    return rom_read16(g, 0xCCF77Bu + k * 2);
+}
+
 /* A scripted move's step: how far a combatant moves on each of its eight
  * steps, by move ($CC:F494 across, $CC:F594 down, eight bytes a move). */
 enum { BATTLE_SCRIPTED_MOVE_STEPS = 8 };

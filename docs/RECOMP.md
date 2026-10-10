@@ -3348,125 +3348,140 @@ from the shadow runs; what is left over the limits is the circles' spread
 11,823), and the runner and the frame work above them, all writing RAM, in
 `tools/timing_exceptions.txt`.
 
-### Phase 3, battle: the player choosing (`$C1:1153`-`$C1:17DC`, `$C1:1F79`-`$C1:283C`, `$C1:095D`-`$C1:0C2C`)
+### Phase 3, battle: an action shown (`$C1:4058`-`$C1:4A70`, `$C1:305C`-`$C1:3215`, `$C1:106E`-`$C1:1114`, `$C1:1B67`, `$C1:EC39`-`$C1:ED88`, `$FD:ABA2`, `$CC:F102`, `$CC:F156`)
 
-Chosen by the fallback measure: the largest of the battle's handbacks was the
-menu's frame (`$C1:1153`), the code that takes the player's buttons in a
-fight, which the battle's own frame step (`$C1:106E`, `$C1:10E3`,
-`$C1:10FA`, reached from the member's turn, the timers, the main loop and the
-frame work) ran as the original's every frame a menu was open: 1.5 KiB and 5.2
-million instructions of the reference play, with the lists it lays out, the
-targets it lists and the area searches it asks behind it (`$C1:0B0B`,
-`$C1:09B0`, `$C1:25A3`, `$C1:2701`, the next by size). The chunk takes the
-whole of what the player does with the battle menu.
+Chosen by the fallback measure: after the player's choosing, the battle's
+largest handbacks were all the original's code its ports called into to show
+an action -- the showing's step (`$C1:4058`, which spans frames), the loaders
+of the action's animation (`$C1:432C`, `$C1:45A0`, `$C1:475B`), the hits
+landing (`$C1:EC7F`), the combatants' poses (`$C1:305C`, `$C1:308C`) and the
+frame step the showing and the effects' loading take between their waits
+(`$C1:10FA`, with `$C1:106E`, the battle's step 3). The chunk takes the whole
+of showing an action, from the battle's step 4 to the damage applied.
 
-**What it is** (`battle/choosing.h` says how the files fit):
-- `menu_input.c`, the menu's frame: the command page (the cursor among
-  Attack, Tech and Item, the other members waiting to choose, X's attack with
-  the remembered commands), the tech page and the item page (moving and
-  scrolling the lists, L and R turning the item list a page), and choosing a
-  target (moving among them, confirming, calling it off), down to queuing the
-  member's action and the next member's menu. Before the buttons a stolen item
-  joins the item list (`$CF:FAE2`) and a frame of four sprites surrounds the
-  member choosing (`$C1:1115`); choosing Attack forgets the enemy the message
-  line named (`$CD:002D` with nothing to name, which only notes it).
-- `target_choice.c`, whom the action can be aimed at: the menu's 33 target
-  kinds are a C table of rows (a member, an enemy, a side, everyone, the
-  member itself, a fallen member, a particular character, or an area placed on
-  the member, on an enemy the player picks or on a character), and the cursor
-  among those listed.
-- `area_search.c`, who stands in an area: the beam, the circle on the grid,
-  the row and the party's triangle, which the battle's step 7 (`$C1:1FDD`)
-  picks by the rules' shape number; the targeting (`aim.c`) now calls it as C.
-- `menu_lists.c`, the tech list and the item list laid out as tiles, and
-  `name_tiles.c`, a name as its two rows of tiles (`$C1:01A9`), which the
-  battle's setup now calls as C for the characters', members' and enemies'
-  names.
-- `menu_bridge.c`, the machine side: the click, and the carries the
-  original's callers go on with.
+**What it is** (each file's header says how its pieces fit):
+- `action_showing.c`, the showing: the objects reset, the action's subjects
+  listed for the scripts' channels (the actor, the two others taking part or
+  for a member alone the other two members, the targets), the animation
+  loaded and played a frame at a time until its scripts signal, the effects'
+  sounds cut off, the screen's scripts let finish, the effects stopped, the
+  enemies drifting on from where they stand, every combatant's pose taken
+  afresh, and a party member the damage shown takes to nothing falling at
+  once.
+- `action_animation.c` and `action_animation_data.h`, the action's animation:
+  a record of seven parts (script set, two graphics sets, sprite tiles,
+  palette animation, animation records, background) chosen by the kind of
+  action -- a party member's weapon in one of three views (from afar, up close
+  where it finds the way to its target, a critical hit), an enemy's first or
+  second attack, a tech of either side, an item -- each kind's tables
+  (`AnimationKeeper`) behind named accessors; the script set's channels
+  started (a missed action shows the set's second half); the graphics loaded,
+  the background changed, the tiles unpacked and the bitmap shapes built over
+  the frames that follow.
+- `pose_looks.c`, what a pose shows beside its frames: a marker (the clock,
+  confusion, sleep, the sealed techs, blindness, poison), the palette cycling
+  (haste, slow, shield, barrier), or the held pose's tint, as a C table of the
+  poses (`Pose`, named from the status that gives each, `$CC:F77F`); and the
+  poses' round. The party's animation step (`$C1:2D9F`, `animation.c`) now
+  calls the look as C, so it is C whole.
+- `frame_step.c`, the battle's own frame: the menu's turn every fourth frame
+  (the next member in line takes the menu, `$C1:1B67`, which moves the line up
+  as the original does, the third place keeping its member), the frame work's
+  tail, and the step 3 of waiting (the combatants' and the enemies' effects'
+  steps, and L and R refused where the battle can't be run from).
+- `damage.c`, the hits landing: a target any of whose hits missed takes none
+  of them, the rest come off HP or MP held between nothing and the maximum, a
+  combatant brought to nothing is knocked out, a felled enemy's spoils go to
+  the winnings (`$FD:ABA2`: experience, gold, tech points, its charm or, nine
+  times in ten where it still has it, the item it drops). The enemy's turn and
+  the status timers now apply them as C.
 
-**The clicks.** Every move of a cursor plays the driver's click, a call to the
-original's sound driver from `$C1:1B55`. Shadow mode compares that call where
-the original makes it, with the stack the original has there, so the logic
-calls its host's click at the original's point in the work (`MenuHost`), and
-the bridge makes the call from the original's frames: the click routine's,
-called from the menu frame's site for that move, and for the cursor moved over
-the enemy an area goes on, the choosing's and its kind's frames too. A table
-in the bridge keeps the sites; the logic says only which move clicked. Which
-of the frame's four calls to the choosing a click is under the bridge works
-out from where the menu stood as the frame began, and the kind's own sites
-from the kind the choosing was given.
+**The third trap, settled first.** Every call-out the chunk keeps was checked
+with `tools/dontcare_check.py --list`: the frame waits (`$C1:007E`) read A's
+high byte alone, the frame work's loads (`$CD:0015`, `$CD:002A`, `$CD:0018`)
+A whole, the messages A's low byte, the sound driver nothing. The registers
+the original's callers read after the new entries are worked out in their
+wrappers from what the work leaves: the showing's carry (the poses' round's
+last count, set), the step 3's (the boxes' last test), the loaders' A's high
+byte. One declaration needed evidence: the scripts' channels
+(`battle/scripts.c`, `$C1:4C9E`) read neither X nor the overflow they are
+called with, which the showing's C steps no longer leave as the original's
+did; `ct_fuzz --poison-dc battle_run_scripts` scrambled 15,072 call-outs over
+3,000 states with none differing, and the call carries the note.
 
-**The carries.** Liveness has the menu's frame's carry read: through
-`$C1:17DD`, which passes it on where it places no cursor, and the frame step
-`$C1:10E3`, into a battle message's frame waits (`$CD:0021`), whose caller in
-the main loop then clears the party's statuses (`$C1:EA9D`), whose first
-multiply (`$C1:C90B`) takes the carry into a product's high word the next
-pass clears. Nothing acts on it, which no fuzz run can show (it compares up to
-the return) and the library can: `ct_dev --poison-return C11153 --poison-set C`
-inverts it at every return in the shipping mode, 63,268 times over the
-library with every trace the same, and the entry declares it with that note,
-a new form `tools/dontcare_check.py` and `tools/dc_evidence.py` check
-(PORTING.md, "Declarations liveness can't prove"). The choosing's, the rows'
-marking's and the item list's carries, which the original's code reaches only
-where the menu's frame is the original's, are still worked out in the bridge,
-from the logic's own decoders (`battle_target_pick`,
-`battle_tech_entry_is_a_tech`).
+**Narrowed.** The step dispatch (`$C1:0003`) and the showing's own stub
+(`$C1:BFA4`) stay the original's: their callers' declarations carry the
+library evidence for the overflow they hand the steps, and the gain is 0.1
+KiB. The menu's turn through the frame work's wait (`$C1:0012`, `$C1:10E3`)
+has every register live after it. The frame work's loads (`$CD:0015`,
+`$CD:002A`) and the background's change (`$CD:0018`, `$CD:0EBD` and on) are
+the next chunk: they wait on the vblank handler to send VRAM.
 
-**The walk with nobody leading.** The new timings moved a movie's presses
-(late-omen-terramutant, shipping mode) onto a scene with the party's leader's
-place empty and a direction held, which the field walk's guard refused. The
-original walks the slot the empty place's marker names, past the object
-tables, and the screen follows it; `field/walk.c` now does the same, the
-slot's reads and writes in four functions (`Walker`), and the guard's end of
-the 16-bit range is exact (the box's right side inside it), where it had a
-margin the slot's place fell in. A native build has nobody to walk (TODO.md).
-
-**What the gate found.** The first shadow runs showed the clicks played after
-the frame's work don't compare (the bridge above); the stat block noted for
-nobody reads the ROM's table past its eleven (`battle_stat_block_place`); an
-item's name in the list starts past its icon and shows ten tiles, a colon
-after; the beam's targets are taken together before its click; and the
-choosing's last test looks at the targets, not the list. Fuzzing found the
-rest of the item list's top (a top past `$FA` reads past the records: the
-guard takes the game's) and the choosing's cursor past the list's eleven.
-
-**What the guards take on trust**, none of it refused in real play: the
-menu's member, slots and cursors as the window's guard has them, a member's
-tech list no longer than twenty, the item list's top no further than `$FA`,
-the cursor among the eleven targets, a stolen item a place to go, the queue
-room for another action, a tech's partners party slots, the chosen item's
-record's place, and A's high byte clear where the original carries it into
-an index. The rows the tech list is laid out with set a cell no frame sees
-(`battle_tech_list_being_laid_out`); a state with it set is the original's.
+**What the gate and fuzzing found.** The script set's halves are read in long
+addressing, a set at the bank's end running on into the next bank (a random
+item's); the 16-bit flag-and-pointer writes that start a channel clear the
+next channel's flag and the pointer's pad, kept in one storage function
+(`start_channel`); the poses' palette-cycle and marker tables are by battle
+slot, eleven, not the party's three (`re/ram.toml`); a party member's palette
+past the sprites' would run the colours on into the working palette (the
+looks' guards take only the game's five to seven). The felled enemy's spoils
+read their enemy's cell (`$0E`) as a word with the one after it, which ten
+landings of hits in the Lavos fights find set: the port reads it as the
+original does (`felled_enemy`, the standing and id that many pages on), after
+a guard that asked for it clear refused those real calls. None of the ten
+fells an enemy, so the quirk changes no spoils over the library. The native shape found the
+loaders' guards first asking for cells the showing writes only as
+scaffolding (its note of the second half, the animation's cells forgotten):
+compiled out, they refused, and the original's loader ran on stale cells and
+hung two of the late movies; the guards now ask only for the combatants.
 
 **Validation.** The library's 28 movies in shadow mode, none mismatching: the
-menu's frame 105,265 calls (668 interrupted), the choosing 3,105 (74), the
-tech list 6,626 (75), its rows' marking 470, the item list 912, the converter
-23,673, the stat block 110,172, the frame around the member 17,786, the
-click 5,486 (each but three compared within its caller's), the area search's
-entry 46; the menu window and its cursors, the targeting and the setup as
-before. **Fuzzing**, seed 1 (`tools/fuzz_routines.toml`), none mismatching: the
-menu's frame on its pages 0 of 4,258, choosing a target 0 of 4,250 and with
-the window turned over 0 of 4,241 (the driver answering at once,
-`--apu-loopback`, so the clicks' calls come back), every target kind 0 of
-10,000, every area shape 0 of 10,000, the lists, the converter, the stat
-block, the frame around the member and the click 0 of 2,000-5,000 each; the
-callers (the targeting's five variants, the menu window, the cursors, the
-setup, the member's turn) fuzz as on main. The menu window's guard now asks A's
-high byte clear, with which the original notes the member's stat block (its
-fuzz runs give A a clear high byte).
-The reference play's fallbacks fell from 45.2 KiB and 347.2 million
-instructions to 41.9 KiB and 321.9 million, 39 routines leaving the baseline
-(`$C1:1153`, `$C1:0B0B`, `$C1:09B0`, `$C1:25A3`, `$C1:2701`, the step 7, the
-targeting kinds, the name converter and its dispatch from the setup); the
-battle's native coverage rose from 85% to 91% of the code real play runs.
+showing 984 calls (853 interrupted, every one of them spanning frames; its
+call-outs are compared at each), the poses' round 10,791 and the looks 134,063,
+the hits 1,146 and the missed targets' 1,146, the spoils 70, the step 3 27,547,
+the next member's menu 105,265, the subjects' listing and the poses forgotten
+984 each, the falling 504, the up close 131, the party's animation step 27,547;
+the loaders (984, by kind 154, 736 and 94) and the frame step (296,180) run
+nested in the showing and the frame work and are compared within theirs. No
+real-play refusal.
+The reference play's fallbacks fell from 41.9 KiB and 321.9 million
+instructions to 38.9 KiB and 311.4 million, 26 routines leaving the baseline
+(the showing, its loaders and the up close, the poses' round and looks with
+five of their handlers, the hits, the missed targets and the spoils with the
+stubs they were called through, the step 3, the frame step and the next
+member's menu, `$CC:F102`, `$CC:F156`); the battle's native coverage rose
+from 91% to 97% of the code real play runs. What the showing still hands
+back is the frame work's: the background's change (29 million instructions),
+the graphics sets' loads and the frame waits.
 
-**Left for later.** The battle's frame step that calls the menu (`$C1:106E`,
-`$C1:10FA`), the action's showing step (`$C1:4058`, which spans
-frames on the frame wait), and the animation commands (`$C1:45A0`,
-`$C1:432C`) are the next by size; `$CD:0027`/`$002D`/`$0030`, the messages
-the menu window still calls, wait for the battle messages' port.
+**Fuzzing**, seed 1 (`tools/fuzz_routines.toml`), none mismatching: the
+showing up to its first wait 0 of 3,000, the loading up to the graphics' load
+0 of 2,453 and with a missed action up to its kind's loader 0 of 5,000 (the
+dispatch leaves the kind doubled in A and X, as the original's loaders are
+called with), each kind's loader 0 of 3,000 (entered with the animation's cells
+forgotten, as the loading leaves them; the loaders' guards ask only for
+a combatant acting, since those cells are the showing's scaffolding), the up close, the
+subjects, the falling, the next member's menu, the hits, the missed targets
+and the spoils 0 of 20,000 each, the poses' round 0 of 4,102 and the looks 0 of
+4,135 (the rest a party palette past the sprites', which the guards refuse),
+the frame step up to the frame work's tail and the step 3 up to its first
+wait 0 of 3,000. Against the tree before the chunk, all 804 battle entries the
+same counts but the party's animation step, whose guard now refuses the same
+palettes (896-962 states, the same mismatches), and the timers' HP loss, the
+same with the felled cell read as the original reads it. A fuzz run calls a
+sibling port as the original's call, so the bridges leave the registers the
+original's code leaves at the calls it makes into siblings (the menu's count
+tested before the frame work's tail, the kind doubled).
+
+**Timing.** The new entries and the battle's entries whose time moved with
+them were calibrated from the shadow runs; the showing's worst stretch (81,509
+clocks, one in 2.3 million) is in `tools/timing_exceptions.txt`.
+
+**Tools.** `tools/effects_check.py` cached a function's summary made under its
+depth cut, so a function first reached deep in the call graph lost its plain
+writes for every later caller: the window's digits showed as written only as
+scaffolding once this chunk's calls moved the order. A summary made under the
+cut is no longer kept.
 
 ### Phase 3, overworld: the world map on foot (`$C2:2F94`-`$C2:42E5`, `$C2:23CF`-`$C2:26A7`, `$C2:5628`-`$C2:57AF`, `$C2:62AE`-`$C2:6331`)
 

@@ -443,6 +443,10 @@ class Analysis:
         self.norm = Normalizer(tree)
         self.summaries = {}
         self.busy = set()
+        # set where a summary was cut short at MAX_DEPTH: one made under the cut
+        # isn't kept, so that a function first reached deep in the call graph
+        # is summed up whole where a shallower caller reaches it
+        self.cut = False
         self.called = set()       # (unit, func name) called from some function body
         self.referenced = set()   # names used other than as a call
         self.guards = set()       # registry guards: `.guard = name`
@@ -555,8 +559,12 @@ class Analysis:
         key = (unit.rel, f.name)
         if key in self.summaries:
             return self.summaries[key]
-        if key in self.busy or len(self.busy) > MAX_DEPTH:
+        if key in self.busy:
             return []
+        if len(self.busy) > MAX_DEPTH:
+            self.cut = True
+            return []
+        was_cut, self.cut = self.cut, False
         self.busy.add(key)
         params = tuple(f.params)
         effects = {}
@@ -570,7 +578,9 @@ class Analysis:
                 effects.setdefault(e.key(), e)
         self.busy.discard(key)
         out = list(effects.values())
-        self.summaries[key] = out
+        if not self.cut:
+            self.summaries[key] = out
+        self.cut = self.cut or was_cut
         return out
 
     def roots(self):

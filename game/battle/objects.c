@@ -67,7 +67,7 @@ void battle_update_bounds(GameState *g, unsigned slot)
 
 // $C1:283D
 /* Work out every combatant's box from where it stands now. */
-static void update_all_bounds(GameState *g)
+void battle_update_all_bounds(GameState *g)
 {
     for (unsigned slot = 0; slot < BATTLE_COMBATANTS; slot++) {
         if (!battle_slot_present(g, slot))
@@ -244,7 +244,7 @@ void battle_update_object_bounds(Snes *s)
  * leaves. */
 void battle_update_all_object_bounds(Snes *s)
 {
-    update_all_bounds(state_of(s));
+    battle_update_all_bounds(state_of(s));
     s->cpu.a = 0;
     m_set_flag(s, CPU_FLAG_C, true);
     m_rts(s);
@@ -254,12 +254,16 @@ bool battle_names_bounds_object(Snes *s) { return battle_on_page(s) && battle_na
 
 /* The scheduler's pass: the object due, if any, takes its step. It leaves A's
  * high byte clear. */
-void battle_find_due_animation(Snes *s)
+void battle_take_due_animation_step(GameState *g)
 {
-    GameState *g = state_of(s);
     unsigned slot = find_due_animation(g);
     if (slot != BATTLE_COMBATANTS)
         take_animation_step(g, slot);
+}
+
+void battle_find_due_animation(Snes *s)
+{
+    battle_take_due_animation_step(state_of(s));
     s->cpu.a = 0;
     m_rts(s);
 }

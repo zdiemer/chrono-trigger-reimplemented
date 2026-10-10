@@ -260,6 +260,22 @@ static inline EnemyItems enemy_items(const GameState *g, uint8_t enemy)
     return (EnemyItems){ rom_read8(g, at + 4), rom_read8(g, at + 5) };
 }
 
+/* The whole of a beaten enemy's rewards, at the record's place among them
+ * (the enemy's id times its bytes): the experience and the gold, a word
+ * each, its items, and the tech points it gives. */
+typedef struct {
+    uint16_t experience, gold;
+    EnemyItems items;
+    uint8_t tech_points;
+} EnemySpoils;
+
+static inline EnemySpoils enemy_spoils(const GameState *g, uint16_t place)
+{
+    uint32_t at = 0xCC5E00u + place;
+    return (EnemySpoils){ rom_read16(g, at), rom_read16(g, at + 2), { rom_read8(g, at + 4), rom_read8(g, at + 5) },
+                          rom_read8(g, at + 6) };
+}
+
 /* ---- Modifiers and items ----------------------------------------------------------------- */
 
 /* $CC:2A05: a modifier is its routine's number and its two numbers. */

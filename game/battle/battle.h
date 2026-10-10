@@ -54,6 +54,16 @@ enum {
 
 static inline bool battle_is_demo(const GameState *g) { return (battle_setup_flags(g) & BATTLE_SETUP_DEMO) != 0; }
 
+/* The action the effect code carries out: its flags' critical hit
+ * (battle_action_flags), and its extra byte's miss (battle_action_extra),
+ * which shows the second half of its animation. */
+enum { ACTION_CRITICAL_HIT = 0x80 };
+enum { ACTION_MISSED = 0x40 };
+
+/* Items are numbered after the techs: an action's number from this on is an
+ * item's. */
+enum { BATTLE_FIRST_ITEM_NUMBER = 0xBC };
+
 /* The battle's steps ($C1:0003), each a stretch of the battle's own frame
  * work the main loop and the turns ask for by number (A). */
 typedef enum {
@@ -98,6 +108,9 @@ enum { ACTION_STOPS_AT_FIRST = 0x02 };
 /* Between actions (battle/damage.c): the action's damage table cleared, and
  * the numbers shown over the combatants it hit. */
 void battle_clear_damage_table(GameState *g);
+/* The action's hits land on the combatants' HP and MP (battle/damage.c,
+ * $C1:EC7F). */
+void battle_apply_damage(GameState *g);
 void battle_clear_numbers_shown(GameState *g);
 
 /* The battlefield's objects: the combatants' are the eleven from $0C on, in
