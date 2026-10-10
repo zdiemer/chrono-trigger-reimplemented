@@ -3483,147 +3483,102 @@ writes for every later caller: the window's digits showed as written only as
 scaffolding once this chunk's calls moved the order. A summary made under the
 cut is no longer kept.
 
-### Phase 3, overworld: the world map on foot (`$C2:2F94`-`$C2:42E5`, `$C2:23CF`-`$C2:26A7`, `$C2:5628`-`$C2:57AF`, `$C2:62AE`-`$C2:6331`)
+### Phase 3, menus and overworld: the vehicles, the screen's objects and the calls made where they go (`$C2:309E`-`$C2:324B`, `$C2:2345`-`$C2:23A7`, `$C2:42DD`-`$C2:4A9A`, `$C2:1CF5`-`$C2:2259`, `$C2:8953`, `$C2:7849`, `$C2:78A1`)
 
-The eleventh chunk of bank `$C2` (history file, "Phase 3, menus: the party's
-exchange", for the one before) and PLAN's first item for what was left there:
-the world map as the party walks it. It is its own subsystem, `game/overworld/`,
-sharing the sprite-object mode's objects and scripts with `game/menu/`
-(`tools/ram_map.py`'s `SHARES`, `tools/effects_check.py`'s families).
-`python3 tools/burndown.py` for `$C2`: 40.6K ported and 31% left with 450
-entries before, 46.1K and 22% left with 462 after: about 5.6 KiB of new code
-in 12 entries, all of it to the bar (`tools/portstyle.py --subsystem
-overworld`: 0.01 machine operations a line, 19% of its functions on the
-machine, all of them entry wrappers or the main loop's bridges;
-`tools/portsmell.py`: no finding).
+The twelfth chunk of bank `$C2` (history file, "Phase 3, overworld: the world
+map on foot", for the one before), and the first picked by native coverage:
+PLAN's first item, `$C2` at 71%, the lowest of the subsystems. Its two largest
+fallbacks were trampolines rather than code: the objects' loop called every
+handler through the original's `JMP ($0050)` at `$C2:0553`, and the scripts'
+call commands every routine they name through `JMP ($005B)` at `$C2:1819` and
+`JML [$005B]` at `$C2:1836`, so whatever those reached was filed under them.
+Behind them were the handlers nothing had ported -- the vehicles, and the
+objects a script starts to change the screen -- and the routines the scenes'
+scripts call. The equipment screen's list of what fits (`$C2:8953`), the
+largest single routine still called out to, came with it.
 
-**What it is.** Each walker is an object of the sprite-object mode, its
-handler run once a frame by the objects' loop (`menu_run_objects`):
+**What it is.**
 
-- `overworld.h` and `party.c`, the walkers' vocabulary: the way a walker
-  faces (the field's `Facing`), its spot on the map (`WorldSpot`), a step
-  (`OverworldStep`, the step table's row), standing and walking with the
-  animations the ROM keeps for them (`overworld_data.h`), the idle animation
-  after standing long enough, heading for a goal and halting there, and the
-  trail the leader lays (`TRAIL_STEPS` spots, each follower a fixed count
-  behind) and the tile the party last stood on.
-- `walk.c`, the leader (`$C2:3404`): the pad's direction read into a way to
-  walk, a step of a tile when the ground lets it (`terrain.c`), the trail laid
-  as it goes, and the travel's other steps (boarding, standing) where the
-  vehicles leave it.
-- `followers.c`, the followers (`$C2:3AE2`): each decides its way after the
-  leader along the trail, and walks a leg across or down; where a wall is in
-  the way it searches round it (left and right of the leg, `$C2:41B5`,
-  `$C2:4205`, `$C2:425A`), and close to the leader it keeps its place
-  (`$C2:4060`).
-- `terrain.c`, the ground (`$C2:62AE`, `$C2:39D5`, `$C2:62ED`): the kind of
-  an 8x8 tile of the map, the four that meet at a walker's feet, and the
-  region a spot is in.
-- `places.c`, the watcher of the ground under the leader (`$C2:3264`): the
-  map's three lists of places (exits, events, halts) looked up where the
-  leader stands still on a place's ground, the place's name shown, an exit
-  taken through `overworld_leave_for`, which `menu/object_script.c`'s change
-  of location now shares.
-- `music.c`, the region's song (`$C2:2F94`) and the request a script or the
-  music leaves passed on to the driver (`$C2:2ED9`).
-- `sign.c`, the place's name on a sign (`$C2:5628`): the label cleared, the
-  name typeset into it (`menu/typeset.c`), and the sign's sprites shown while
-  the leader stands there.
-- `main_loop.c`, the mode's main loop (`$C2:23CF`), a frame at a time: what
-  the mode asks for, entering a place, leaving for a location, or the menus,
-  the map view and the time dial with the overworld put aside before
-  (`$C2:2E23`) and brought back after (`$C2:2E72`). The menus move the stack,
-  so the port stops at their call and starts again where the original comes
-  back from them (`overworld_back_from_the_menus`, `$C2:255A`).
+- `menu/objects.c` and `menu/script_bridge.c`: the loop calls a handler, and a
+  script's call command its routine, at the routine's own address, as the
+  original's call reaches it after the jump (the stack is the same, and shadow
+  mode pairs the call where the original arrives). A ported one runs as C
+  through its registered entry; the jump itself no longer runs.
+- `menu/screen_objects.c`, the objects that change the screen: the fades out
+  and in (`$C2:20A2`, `$C2:2105`, one of each at a time, `menu_fades_running`),
+  the mosaic growing and clearing (`$C2:21F8`, `$C2:2194`), the palette loader
+  (`$C2:1DD4`) and its fade of a row over 32 steps (`$C2:1E38`-`$C2:2061`: each
+  colour's part that falls moves on the first steps, one that rises on the
+  last, by a count kept in the object), the tile streamer (`$C2:1CF5`), and
+  clearing the palette as the mode starts (`$C2:1DB5`). The display's two
+  bytes are fields now (`menu_object_display_blank`, `_brightness`), and the
+  loader's "hand-over" flag was the fade's speed (`palette_frames_a_step`).
+- `overworld/vehicles.c`, the vehicles' controller (`$C2:309E`): the confirm
+  button next to the Epoch or the dactyl boards it, all aboard the party rides
+  it, the vehicle letting the party out gets it off; and the test of whether
+  two things on the map are within reach of each other (`$C2:2345`), each by
+  its reach record (`overworld_data.h`).
+- `overworld/epoch.c`, the Epoch on the world map (`$C2:42DD`): standing,
+  rising, flying a tile at a time with the map carried under it, coming down
+  where the ground under it is open, the time gate's dial and the scenes it
+  leaves and arrives in; its second sprite (`$C2:495E`), the watch for the
+  Black Omen under it (`$C2:49CF`, the sign `$4C`), and the two routines its
+  scenes' scripts call (`$C2:48A9`, `$C2:48CD`). The song of what the view
+  shows as it lands (`$C2:2F4E`) and the tempo put back as it arrives through
+  time are `music.c`'s; the two tiles under it below the four a walker's feet
+  stand on, `terrain.c`'s (`$C2:4A58`).
+- `menu/map_scenes.c`: whether an object is in view (`$C2:78A1`, which the
+  scenes' scripts call most) and an object drifting the map along
+  (`$C2:7849`).
+- `menu/equipment.c`, the list of what fits the slot and the loaded member
+  (`$C2:8953`), called as C from the equipment screen's two sites.
 
-**The third trap, settled first.** The handlers return to the objects' loop,
-which reads the carry (clear: the object goes on) and P's M width: the
-leader leaves the accumulator 16-bit only mid-step, which the wrapper derives
-from the step (`leader_mid_step`), not from the logic. The main loop's
-call-outs read nothing but the frames to wait (X and A's high byte, given as
-the original gives them) and the driver's result; the menus' entry at
-`$C2:8000` reads A's low byte and X (the past-the-last-piece offset the loop
-computes), A's high byte, Y and the carry declared dead. Each declaration is
-`tools/dontcare_check.py`'s.
+**The third trap.** A handler's caller, the objects' loop, reads the carry
+(done) and nothing else of what it leaves but the accumulator's width, which
+the wrappers derive from the state (the Epoch leaves it 16 bits wide on a
+frame it flew a tile; the controller where the party, on foot on the map,
+didn't ask to board; the tile streamer always). The scripts' call command
+reads X and the carry a routine leaves (its derivations), which `$C2:78A1`,
+`$C2:48A9` and `$C2:48CD` work out from the state. The Epoch's scenes go
+through the interpreter's bridge as the walkers' scripts do. No register is
+left "because liveness says so": the entries' don't-care sets are the
+handlers' (`tools/dontcare_check.py`).
 
-**An event's scripts and the halt.** An event the party steps onto gives
-each walker a script (`menu_member_scripts`), which it takes up and runs a
-frame at a time (`$C2:3772`, `$C2:37A1`, `$C2:3D9C`, `$C2:3DC1`): the
-walkers' logic asks for the frame's run through a service
-(`WalkerScripts`, `overworld.h`), and the entries give it the interpreter's
-bridge called as from the walker's own call (`menu_run_object_script_from`,
-`menu/script_call.h`), with that call's return on the stack for a command the
-bridge hands to the original's interpreter. The accumulator's width the
-walkers leave the objects' loop is worked out from the frame as it starts, as
-a script may change anything after. The halt (`$C2:250D`) is an arm of the
-loop and an entry of its own: the screen stilled and the story's flags given
-back, a pass at a time that comes back to itself, as the original spins.
+**What the gate found.** Shadow mode: the Epoch's step stored as a word on
+reaching a tile, which clears the frame count beside it; and setting off for
+`$1F2` without its wings, the original keeps the Epoch's spot through the
+register it has just loaded with the arrival's place, the fourth object's
+goal (`keep_a_stray_spot`, plain: the spot is the game's, and is set again
+before it is seen). Fuzzing: the step note cleared as a word on one path only;
+and commands and colours aliasing the slots, the mode's page or the work RAM
+port, which the guards now keep apart (none of the game's are). The refusals
+a first guard made of the game's commands in work RAM (event scripts) showed
+in the library's refusal check and went with it.
 
-**What the guards refuse.** The vehicles' controller (`$C2:309E`) is the next
-chunk's. A mode the loop doesn't know, or entering a place past the map's
-lists, hands over to the original's loop at `$C2:23D2`, before it touches a
-register: neither is a state the game makes.
+**Numbers.** Over the reference play the code run in place of hand ports fell
+from 33.1 KiB and 187.3 million instructions to 29.9 KiB and 179.1 million;
+the menus and the overworld's handbacks from 6.2 KiB and 11.7 million to 2.9
+KiB and 3.6 million, and `$C2`'s native coverage from 71.9% to 79.1% (47.1 KiB
+run). Every new entry matches in every movie, and is fuzzed (seed 1,
+`tools/fuzz_routines.toml`; counts in `docs/ports.tsv`). Calibrated rows:
+the new entries, `menu_run_objects`, `menu_object_nmi` and the scripts' two
+call commands, whose time moved with the trampolines, and the equipment
+screen's and the shop's steps that make the list inline. Timing exceptions
+(`tools/timing_exceptions.txt`): the Epoch's and the drift's frames that
+build a strip of the map, as the leader's; the palette fade's two paths and
+the palette's clearing with the screen off; and the list of what fits, 35
+lines a call whose time follows the inventory, with the three steps that
+make it.
 
-**Where the party stood.** Leaving the world map keeps what the camera looks
-at, which the original works out as its top-left tile plus sixteen each way,
-half its 256-pixel width. That is the camera's convention, not the screen's
-size: `menu/map.c` keeps it beside the centring that puts the camera there
-(sixteen columns and fourteen rows off the party, half the original's
-256x224), as `menu_map_camera_looks_at`, so a screen of another size draws
-round the same camera and a place kept doesn't depend on the screen it was
-played on. The leader's own spot gives the same tile on foot but not where a
-scene's script has moved the camera (9 of the library's 20 leaves differ, all
-of them a script's), so the camera it stays. Elsewhere the guards keep
-to states the game makes: sprite scripts well formed
-(`menu_given_sprite_script_is_well_formed`), the map scrolled within its
-room, the lists' lengths and an exit's offset whole records, the trail's next
-spot even and inside it, a spot on the region map.
-
-**What the gate found.** Fuzzing found the region lookup reading before the
-region map for a spot in the map's first row (the guard keeps the party off
-it); the sign's clear one byte too long (the original's block move clears
-exactly the label); and the guards refusing the frame a walker sets off on,
-before its sprite script is set (they now take the setting-off step). Shadow
-mode found the step table's row the dispatch leaves in `$00`, which the
-walkers' callers don't read and the gate compares
-(`overworld_leave_step_table_row`, scaffolding); and the follower's wall
-search reading past the map's last row, as the original does, through
-`overworld_map`'s `unchecked` pair (docs/TODO.md); and bringing the
-overworld back leaving A all ones, its block moves' count run out.
-
-**Validation.** The library's 27 movies in shadow mode, none mismatching: the
-leader 14,892 calls (2 interrupted), the followers 29,784, the watcher, the
-region's song and the sign 14,892 each, the ground's lookup 14,579 (2
-interrupted), the region's 9,584, the main loop 24,017 frames (3 of them
-abandoned where the menus unwind the stack), the overworld put aside and
-brought back 6 times each, the return from the menus 2. **Fuzzing**, seed 2,
-none mismatching (`ct_fuzz` from `menus-epoch`'s frame 3300,
-`tools/fuzz_routines.toml`'s `overworld` state): the leader 4,931 of 5,000
-(the rest refused), the followers 4,913, the watcher 5,000, the region's song
-4,993, the sign 5,000, the ground's lookup 5,000, the region's 4,925, the
-return from the menus 2,000 up to its first call-out, putting the overworld
-aside and bringing it back 2,000 each, and the main loop 200 up to the frame's
-wait (`$C2:0346` spins on the vblank count, which no fuzzed state changes, so
-the arms are shadow mode's alone). What no movie runs
-(`docs/movies-wanted.md`): an exit to an event, the exchange opened from the
-map, walking into a new region's song, the dactyls, a halt, the walkers' event
-steps, the sign cleared from the menus. The event steps are fuzzed in their own
-variant (`tools/fuzz_routines.toml`, `event`), 5,000 states each for the
-leader and the followers on three seeds, none mismatching, with scripts of
-the game's commands: a script of random bytes can copy the map over the stack,
-which the original survives differently.
-
-**Timing.** Every entry is calibrated from the shadow runs. Putting the
-overworld aside and bringing it back are block moves of about 24 KiB,
-which the main loop runs as C: each is charged at its own routine's rate
-(`charge_as`, `$C2:2E23` and `$C2:2E72`, registered for it), not the
-loop's. The leader's frames that scroll the map are off by what
-`menu_map_scroll_x` and `_y` are off by, timed as them (`TIMED_AS`): a
-frame that builds a new column or row of tiles is 7,000-14,000 clocks
-off, writing RAM, which `tools/timing_exceptions.txt` accepts for the
-leader's vblank-tail and vblank-worst. The world map's HDMA, stopped as
-the menus open, stops on the fade-out's last frame at brightness 1
-rather than in forced blank (`tools/vblank_check_exceptions.txt`).
+**Left.** The dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB, reached
+by no movie). The objects' loop still runs the handlers through the machine at
+their own addresses, so each keeps its shadow comparison and calibration; a C
+table of the handlers is the native program's (TODO.md). The rest of what the
+scenes' scripts call (`$C2:2F0F`, `$C2:786F`, `$C2:79E0`-`$C2:7A55`,
+`$C2:7B44`, `$C2:7BC4`, `$C6:E241`, `$C6:E27E`) is filed under itself now
+rather than the trampoline, the same code; and the two menu refusals in these
+files (`$C2:18F9` entered by the fall-through from `$C2:18F1`, `$C2:12B8`'s
+cell in the endings) stay on the allowlist (TODO.md).
 
 ### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 

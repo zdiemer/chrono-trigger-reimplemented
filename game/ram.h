@@ -2705,8 +2705,6 @@
 #define RAM_MENU_EPOCH_POSITION 0x7E0290u
 #define RAM_MENU_EPOCH_POSITION_COUNT 2u
 #define RAM_MENU_EPOCH_POSITION_STRIDE 0x02u
-/* Bit 4: the sprite object mode's objects don't move this frame */
-#define RAM_MENU_OBJECTS_FROZEN 0x7E0294u
 /* The location the Epoch is parked on, which the map view shows a marker for [2 bytes] */
 #define RAM_MENU_EPOCH_LOCATION 0x7E029Fu
 /* Nonzero: a string's one- and two-byte numbers are shown in hex (a setting for testing) */

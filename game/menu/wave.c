@@ -15,6 +15,7 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/screen_objects.h"
+#include "overworld/overworld.h"
 #include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -27,7 +28,7 @@ enum { WAVE_SLOT = 1 };
 
 /* The display's bit that turns the screen off, the line effect's bit among
  * the mode's line effects, and the objects' held bit. */
-enum { WAVE_EFFECT = 1 << WAVE_SLOT, OBJECTS_HELD = 0x10 };
+enum { WAVE_EFFECT = 1 << WAVE_SLOT };
 
 /* The sine's steps a turn, and how far the wave moves on a frame. */
 enum { SINE_STEPS = 0x400, HALF_TURN = 0x200, WAVE_SPEED = 4 };
@@ -56,7 +57,7 @@ static bool wave(GameState *g, Platform *pf, MenuObject self)
         set_menu_object_line_effects(g, (uint8_t)(menu_object_line_effects(g) & ~WAVE_EFFECT));
         return false;
     }
-    if (menu_objects_frozen(g) & OBJECTS_HELD)
+    if (overworld_epoch_leaving_through_time(g))
         return false;
     if (menu_object_slots_step(g, self) == 0) {
         set_menu_object_slots_step(g, self, 1);

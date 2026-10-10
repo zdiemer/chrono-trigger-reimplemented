@@ -258,3 +258,7 @@ overworld_epoch vblank-tail the Epoch's frame of flight scrolls the world map, t
 menu_scene_drift_the_map vblank-tail the drift scrolls the map's first plane a tile every fourth frame, timed as menu_map_scroll_x (TIMED_AS) and off by what it is off by on a frame that builds a column; it writes RAM, and no video write moves
 menu_fade_palette_row vblank-worst a fade's first frame counts the changes of its row's sixteen colours and a step's frame moves them, two paths one scalar can't fit; at most 22400 clocks, writing RAM only (the palette the vblank handler sends next)
 menu_clear_the_palette vblank-worst clears the palette and its rows' counts once as the mode starts, with the screen off; at most 13800 clocks, writing RAM only
+menu_list_what_fits vblank-tail the list of what fits takes 35 lines on average, its time following the inventory (a pass over its places, a question of who can use each fitting item, timed as its own routine, and an ordering that grows with the square of the list): one scalar leaves the error at 6%, a few thousand clocks; it writes the list in RAM, which the screen draws after, and no video write moves
+menu_make_equipment_list vblank-tail the list of what fits made inline (timed as menu_list_what_fits) and off by what it is off by
+menu_choose_shop_slot vblank-tail the list of what fits made inline (timed as menu_list_what_fits) and off by what it is off by
+menu_show_shop_member_slots vblank-tail the list of what fits made inline (timed as menu_list_what_fits) and off by what it is off by

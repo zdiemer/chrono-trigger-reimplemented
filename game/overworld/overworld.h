@@ -89,6 +89,9 @@ enum {
     EPOCH_HAS_ITS_WINGS = 0x20,
 };
 uint8_t overworld_vehicle_state(const GameState *g, Vehicle v);
+/* While the Epoch leaves through time, the map's scene holds still (the wave,
+ * the layer over the map). */
+bool overworld_epoch_leaving_through_time(const GameState *g);
 void overworld_set_vehicle_state(GameState *g, Vehicle v, uint8_t state);
 
 /* ---- The party -------------------------------------------------------------------------- */

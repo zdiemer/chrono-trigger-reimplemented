@@ -11891,14 +11891,6 @@ meaning = "A step of working out where a glyph's right pixels are: half the glyp
 source = "game/menu/typeset.c, $C2:5DDC"
 
 [[var]]
-name = "menu_objects_frozen"
-addr = "7E:0294"
-size = 1
-subsystem = "menu"
-meaning = "Bit 4: the sprite object mode's objects don't move this frame"
-source = "game/menu/epoch.c, menu_top_layer_drift $C2:7702 and the other background objects"
-
-[[var]]
 name = "menu_map_column"
 addr = "7E:00E3"
 size = 2

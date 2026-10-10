@@ -29,6 +29,11 @@ uint8_t overworld_vehicle_state(const GameState *g, Vehicle v)
     return v == VEHICLE_DACTYL ? overworld_dactyl_state(g) : overworld_epoch_state(g);
 }
 
+bool overworld_epoch_leaving_through_time(const GameState *g)
+{
+    return (overworld_epoch_state(g) & EPOCH_LEAVING_THROUGH_TIME) != 0;
+}
+
 void overworld_set_vehicle_state(GameState *g, Vehicle v, uint8_t state)
 {
     if (v == VEHICLE_DACTYL)

@@ -6,8 +6,10 @@
  * slot with a handler runs it, and a handler that says it is done frees its
  * slot; every other object counts a frame of age. A handler is a routine of
  * bank C2 the slot names by its address: the command scripts' interpreter
- * (menu/script.c), the Epoch's screens' objects (menu/epoch.c), the fades,
- * the palette loader, the wave (menu/wave.c) and the tile streamer. */
+ * (menu/script.c), the Epoch's screens' objects (menu/epoch.c), the objects
+ * that change the screen (menu/screen_objects.c), the wave (menu/wave.c),
+ * the scenes' (menu/map_scenes.c) and the overworld's walkers and vehicles
+ * (game/overworld/). */
 #include "menu/object.h"
 #include "menu/objects.h"
 

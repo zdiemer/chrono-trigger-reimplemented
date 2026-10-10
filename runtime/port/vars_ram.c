@@ -2792,8 +2792,6 @@ uint8_t menu_mode(const GameState *g) { return r8(g, 0x7E027Cu); }
 void set_menu_mode(GameState *g, uint8_t v) { w8(g, 0x7E027Cu, v); }
 uint16_t menu_epoch_position(const GameState *g, unsigned i) { IN_RANGE(g, 205, "menu_epoch_position", "count", i, 2u); return r16(g, 0x7E0290u + (uint32_t)i * 0x02u); }
 void set_menu_epoch_position(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 205, "set_menu_epoch_position", "count", i, 2u); w16(g, 0x7E0290u + (uint32_t)i * 0x02u, v); }
-uint8_t menu_objects_frozen(const GameState *g) { return r8(g, 0x7E0294u); }
-void set_menu_objects_frozen(GameState *g, uint8_t v) { w8(g, 0x7E0294u, v); }
 uint16_t menu_epoch_location(const GameState *g) { return r16(g, 0x7E029Fu); }
 void set_menu_epoch_location(GameState *g, uint16_t v) { w16(g, 0x7E029Fu, v); }
 uint8_t menu_text_hex(const GameState *g) { return r8(g, 0x7E02A1u); }

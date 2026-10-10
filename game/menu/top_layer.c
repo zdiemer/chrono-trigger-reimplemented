@@ -17,15 +17,15 @@
 #include "menu/menu_data.h"
 #include "menu/object.h"
 #include "menu/screen_objects.h"
+#include "overworld/overworld.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
 
-enum { OBJECTS_HELD = 0x10 };
-
-static bool held(const GameState *g) { return (menu_objects_frozen(g) & OBJECTS_HELD) != 0; }
+/* The scene holds still while the Epoch leaves through time. */
+static bool held(const GameState *g) { return overworld_epoch_leaving_through_time(g); }
 
 static void move_layer(GameState *g, int16_t across, int16_t down)
 {

@@ -3925,10 +3925,6 @@ enum { MENU_EPOCH_POSITION_COUNT = 2 };   /* by 0 horizontal, 1 vertical */
 uint16_t menu_epoch_position(const GameState *g, unsigned i);
 void set_menu_epoch_position(GameState *g, unsigned i, uint16_t v);
 
-/* Bit 4: the sprite object mode's objects don't move this frame */
-uint8_t menu_objects_frozen(const GameState *g);
-void set_menu_objects_frozen(GameState *g, uint8_t v);
-
 /* The location the Epoch is parked on, which the map view shows a marker for */
 uint16_t menu_epoch_location(const GameState *g);
 void set_menu_epoch_location(GameState *g, uint16_t v);

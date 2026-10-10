@@ -12,15 +12,16 @@
 #include "snes/system.h"
 #include "state.h"
 
-/* The handlers, by the addresses a slot names them with. */
+/* The handlers, by the addresses in bank C2 a slot names them with. */
+#define MENU_HANDLER_AT(routine) ((uint16_t)(routine))
 enum {
-    MENU_TILE_STREAMER = 0x1CF5,
-    MENU_PALETTE_LOADER = 0x1DD4,
-    MENU_PALETTE_FADE = 0x1E38,
-    MENU_FADE_OUT = 0x20A2,
-    MENU_FADE_IN = 0x2105,
-    MENU_MOSAIC_CLEARS = 0x2194,
-    MENU_MOSAIC_GROWS = 0x21F8,
+    MENU_TILE_STREAMER = MENU_HANDLER_AT(0xC21CF5),
+    MENU_PALETTE_LOADER = MENU_HANDLER_AT(0xC21DD4),
+    MENU_PALETTE_FADE = MENU_HANDLER_AT(0xC21E38),
+    MENU_FADE_OUT = MENU_HANDLER_AT(0xC220A2),
+    MENU_FADE_IN = MENU_HANDLER_AT(0xC22105),
+    MENU_MOSAIC_CLEARS = MENU_HANDLER_AT(0xC22194),
+    MENU_MOSAIC_GROWS = MENU_HANDLER_AT(0xC221F8),
 };
 
 /* The screen's display, as the mode's vblank handler sends it: whether it is
