@@ -2265,7 +2265,40 @@ waits on M5 rather than on a backend.
   prizes his score earns (`scene_race_prize`) rest on fuzzing alone (RECOMP.md,
   "Phase 3, the scene program: the jet bike race running"). A route that wins
   the race (the boosts late, against Johnny's catching up) would put shadow
-  mode on them.
+  mode on them. Not attempted this pass beyond finding the rules: Crono
+  steers with the pad and boosts on B (`game/scene/race_rules.c`), the race's
+  RAM is `scene_race_racers` (`$7E:0046`, stride `$25`, `speed`/`lane`/`distance`
+  fields), `scene_race_lead` (`$7E:008E`), `scene_race_boosts` (`$7E:009A`,
+  3 at the start) and `scene_race_boost_timer` (`$7E:00BA`, `$80` frames per
+  boost -- release B and wait it out before pressing again for the next one);
+  winning only needs Crono's distance to reach `$80000` first, steering is
+  cosmetic to that. From ctsave03 slot 1 (Lab 32), reaching Johnny needs a
+  world-map walk (`run.world_exit()`) into `df00` and then finding and talking
+  to whichever of its objects is Johnny (not identified).
+- **World-map movies and the timing gate.** Four routes
+  (`tools/movies/routes/field_65m_bc.py`, `field_12kbc_1f4.py`,
+  `field_12kbc_1f5.py`, `field_12kbc_1f6.py`) walk the 65,000,000 B.C. and the
+  three 12,000 B.C. world maps into a location and back out, from ctsave05
+  slot 1, ctsave08 slot 2, zophar chrono-5 and chrono-6 slot 2; all four pass
+  `--native shadow` clean, reach their outcome in the shipping mode
+  (`route_check.py`, `on:on:c`) and reach 0 KiB no other movie runs (the exit
+  found is a few tiles from each save point, and the ground covered is
+  already walked by `field.ctm`, `fair.ctm` and `attract-demo`; this is after
+  dropping an earlier version that wandered first for more coverage and
+  reached none). Their `.ctm` files aren't in `oracle/movies/saves/`: folding
+  any one of them into the library's `--timing-report` aggregate moves 9-16
+  entries' measured drift past the gate's limit (`tools/timing_gate.py`),
+  `overworld_follow` and `overworld_sign` among them -- a handful more world
+  steps than the library has had before shifts their weighted average enough
+  to clear the +/-0.38% bound, and recalibrating `game/registry.c` for the
+  new movies can't satisfy every entry at once (every value tried left the
+  same ones over). Clearing it the documented way needs each entry's error
+  shown not to reach a video-visible budget (`tools/vblank_check.py`,
+  `tools/timing_exceptions.txt`'s own bar) before it can be added there,
+  which this pass didn't have time to run. The two load-screen entries
+  (`menu_choose_on_load_screen`, `menu_show_save_slot`) only fail with all
+  four movies together, not any one alone; the rest fail from a single
+  route's movie by itself.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest

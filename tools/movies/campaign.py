@@ -291,6 +291,37 @@ class Run:
                  "visited", len(visited))
         return moves is not None
 
+    def world_exit(self, avoid=frozenset(), max_nodes=2500):
+        """Overworld walk until the screen is a map other than this one and not in `avoid`:
+        the field-map exit_other, for a world map's doors into its locations. Presses A at
+        every tile tried (`confirm`), since an exit is only entered by standing on it and
+        confirming, not by walking onto it."""
+        here = self.map_id()
+        moves, visited = bfs.ow_bfs(self.machine,
+                                    lambda m, px, py: m.peek(A.MAP_ID, 2).hex() not in avoid | {here},
+                                    lambda m: (m.w(A.WORLD_X), m.w(A.WORLD_Y)), self._map(), confirm=True,
+                                    max_nodes=max_nodes)
+        self.machine.run(60)
+        self.say("world_exit", "steps", moves and len(moves), "now", self.map_id(),
+                 "visited", len(visited), "frame", self.machine.frame)
+        return moves is not None
+
+    # ---- the load screen -------------------------------------------------------------------
+
+    def select_slot(self, slot, rounds=4):
+        """On the load screen, press DOWN until it is showing save slot `slot` (0-based):
+        the cursor skips slots with no save (menu_save_slot_in_use), so which slot it starts
+        on depends on what else is on the cartridge."""
+        machine = self.machine
+        for _ in range(rounds):
+            if machine.b(A.LOAD_SLOT_SHOWN) == slot:
+                break
+            machine.run(2, "DOWN")
+            machine.run(30)
+        shown = machine.b(A.LOAD_SLOT_SHOWN)
+        self.say("select_slot", slot, "shown", shown)
+        return shown == slot
+
     # ---- talking -------------------------------------------------------------------------
 
     SPOTS = [(0, 18, "UP"), (0, -18, "DOWN"), (-18, 0, "RIGHT"), (18, 0, "LEFT"),

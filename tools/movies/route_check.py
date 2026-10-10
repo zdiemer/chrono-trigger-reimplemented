@@ -46,7 +46,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 # A field route (the fair to the telepod: the world map, walking, talking and
 # dialogue) and a battle route (two Lavos fights, then the ending's walks).
-DEFAULT_ROUTES = ["telepod_lavos:shell", "beyond_time"]
+# The three world-map walks under a few minutes each join them; field_12kbc_1f4's
+# nearest exit takes an overworld search long enough in on:on:c (about six
+# minutes) that it stays a script run by hand instead (MOVIES.md).
+DEFAULT_ROUTES = ["telepod_lavos:shell", "beyond_time", "field_65m_bc", "field_12kbc_1f5", "field_12kbc_1f6"]
 DEFAULT_MODES = ["on:on:c"]
 
 OUTCOME = re.compile(r"^outcome (reached|failed) (.*)$")

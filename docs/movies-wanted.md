@@ -169,6 +169,24 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Do**: walk the map, enter and leave a location; with ctsave07, ride the dactyls.
 - **Reaches**: up to 2.63 KiB (0.38 ported), about 1.3 KiB a minute.
 - **Route**: yes (`ow_bfs`); the dactyl ride needs its own movement.
+- **Route written, not merged**: `tools/movies/routes/field_65m_bc.py` (ctsave05 slot 1), 2921
+  frames, reaches the goal and passes `--native shadow` clean. A world-map exit
+  is only entered by standing on it and pressing the confirm button
+  (`game/overworld/walk.c`), not by walking onto it, so `ow_bfs` needed a
+  `confirm` mode that presses A at every tile it tries (`tools/movies/bfs.py`).
+  Reaches 0 KiB no other movie runs: the exit found is a few tiles from the
+  save point, and the shared overworld-walking and generic location-entry code
+  it exercises is already covered by `field.ctm`, `fair.ctm` and
+  `attract-demo`; this era's own object scripts (the "world-map objects"
+  cluster above) sit elsewhere on the map and a plain walk-and-enter doesn't
+  pass them. The dactyl ride (ctsave07) wasn't attempted. **Not added to
+  `oracle/movies/saves/`**: feeding its `--timing-report` into the library's
+  aggregate (with the other three below) moves `overworld_follow` and
+  `overworld_sign`'s measured drift past the gate's limit, among 16 entries
+  total (docs/TODO.md, "World-map movies and the timing gate"); recalibrating
+  cannot satisfy all of them at once (tried), and clearing the rest needs the
+  vblank evidence `tools/timing_exceptions.txt` requires, which this pass
+  didn't have time for.
 
 ### 3. Every tech
 - **Save**: zophar chrono-5 (all but Magus maxed) and zophar chrono-trigger (all techs).
@@ -184,6 +202,18 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Do**: walk each map and into a location.
 - **Reaches**: up to 1.72 KiB (1.61 ported), about 0.4 KiB a minute.
 - **Route**: yes (`ow_bfs`).
+- **Routes written, not merged**: `field_12kbc_1f4.py` (ctsave08 slot 2, 2953 frames),
+  `field_12kbc_1f5.py` (zophar chrono-5 slot 1, 2993 frames) and `field_12kbc_1f6.py`
+  (zophar chrono-6 slot 2, 2873 frames), each a short walk to the nearest exit
+  and back (as target 2's, with `ow_bfs`'s `confirm` mode) and clean under
+  `--native shadow`. Reach 0 KiB no other movie runs each -- far under the KiB
+  predicted, for the same reason as target 2: the nearby exit and the walk to
+  it are already covered ground, and the maps' own object scripts are
+  elsewhere. **Not added to `oracle/movies/saves/`** for the same timing-gate
+  reason as target 2 (docs/TODO.md); `field_12kbc_1f4`'s nearest exit is also
+  far enough that its own search takes about six minutes in the shipping mode,
+  so it would stay a script run by hand rather than one `route_check.py` runs
+  by default even once merged.
 
 ### 5. Menu sweep
 - **Save**: ctsave14 slot 1 (seven members).
