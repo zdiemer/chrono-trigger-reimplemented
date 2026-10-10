@@ -40,10 +40,12 @@
  * Commands arrive one per line on stdin and answer with one line on stdout that
  * starts with "ok" or "err". Numbers are decimal unless noted.
  *
- *   run <n> <pad>           run n frames holding pad (JOY1 bit order, decimal)
- *   runw <n> <pad>          the same, and append the watched bytes as hex
+ *   run <n> <pad> [<pad2>]  run n frames holding pad (JOY1 bit order, decimal), and pad2
+ *                           on the second controller (JOY2, the same order; default none)
+ *   runw <n> <pad> [<pad2>] the same, and append the watched bytes as hex
  *   watch <addr:len> ...    set the byte ranges runw returns (hex addresses, up to 32)
  *   movie <path> <to>       run from the current frame to frame `to` with a .ctm's buttons
+ *                           (both controllers')
  *   peek <addr> <len>       hex dump of len bytes from the bus (addr in hex, e.g. 7E5E30)
  *   wram <path>             write the 128 KiB of work RAM to a file
  *   save <slot>             copy the machine into slot 0-4095 (in memory)
@@ -101,6 +103,12 @@
 #define SLOTS 4096
 #define WATCHES 32
 
+/* The buttons held on a frame: the first controller's in the low half, the
+ * second's in the high. */
+typedef uint32_t Pads;
+
+static Pads pads_of(uint16_t pad, uint16_t pad2) { return (Pads)pad | (Pads)pad2 << 16; }
+
 /* A machine copy, shared between the slots and bases that hold it, with the
  * sound host's half when the C sound driver plays. */
 typedef struct Snap {
@@ -114,7 +122,7 @@ typedef struct Snap {
 typedef struct Slot {
     Snap *machine;
     Snap *base;
-    uint16_t *pads;
+    Pads *pads;
     size_t npads;
     bool unsettled;   /* --native on: saved away from a base (unsettled()) */
 } Slot;
@@ -138,7 +146,7 @@ static unsigned long loads_replayed, loads_inexact, loads_lost;
  * frame since. */
 static Snap *base;
 static uint64_t base_since;   /* snes_clone_since epoch while base is ours alone */
-static uint16_t *log_pads;
+static Pads *log_pads;
 static size_t log_len, log_cap;
 
 static void on_line(void *ctx, Snes *s, uint16_t line)
@@ -327,7 +335,7 @@ static void set_base(Snap *p)
     log_len = 0;
 }
 
-static void log_pad(uint16_t pad)
+static void log_pad(Pads pad)
 {
     if (log_len == log_cap) {
         log_cap = log_cap ? log_cap * 2 : 4096;
@@ -336,9 +344,10 @@ static void log_pad(uint16_t pad)
     log_pads[log_len++] = pad;
 }
 
-static void step(uint16_t pad)
+static void step(Pads pad)
 {
-    snes_run_frame(&snes, pad);
+    snes.bus.pad[1] = (uint16_t)(pad >> 16);
+    snes_run_frame(&snes, (uint16_t)pad);
     if (native_mode != NATIVE_ON)
         return;
     if (!unsettled())
@@ -352,7 +361,7 @@ static void step(uint16_t pad)
  * `want` was copied from them. Checked against `want`, which it matches, since
  * a fresh runtime at a base is the runtime the run had; if it didn't, the
  * replay would be kept anyway (its routines are intact) and counted "inexact". */
-static void replay(Snap *from, const uint16_t *pads, size_t npads, const Snap *want_copy)
+static void replay(Snap *from, const Pads *pads, size_t npads, const Snap *want_copy)
 {
     const Snes *want = &want_copy->snes;
     size_t want_len;
@@ -437,7 +446,8 @@ static void slot_load(Slot *s)
 /* ---- state files ---------------------------------------------------------------- */
 
 /* Beside a state saved away from a base: <path>.base, the state
- * at the base, and <path>.base.pads, the buttons since, one decimal per line. */
+ * at the base, and <path>.base.pads, the buttons since, one decimal per line
+ * (the second controller's in the high 16 bits). */
 static void sidecar_names(const char *path, char *state, char *pads, size_t size)
 {
     snprintf(state, size, "%s.base", path);
@@ -462,26 +472,26 @@ static int state_save(const char *path)
         return -1;
     }
     for (size_t i = 0; base && i < log_len; i++)
-        fprintf(f, "%u\n", (unsigned)log_pads[i]);
+        fprintf(f, "%lu\n", (unsigned long)log_pads[i]);
     return fclose(f) == 0 ? 0 : -1;
 }
 
 /* The buttons in a .base.pads sidecar (malloc'd), or NULL. */
-static uint16_t *read_pads(FILE *f, size_t *count)
+static Pads *read_pads(FILE *f, size_t *count)
 {
     size_t n = 0, cap = 4096;
-    uint16_t *list = malloc(cap * sizeof *list);
-    unsigned pad;
-    while (list && fscanf(f, "%u", &pad) == 1) {
+    Pads *list = malloc(cap * sizeof *list);
+    unsigned long pad;
+    while (list && fscanf(f, "%lu", &pad) == 1) {
         if (n == cap) {
-            uint16_t *more = realloc(list, (cap *= 2) * sizeof *list);
+            Pads *more = realloc(list, (cap *= 2) * sizeof *list);
             if (!more) {
                 free(list);
                 return NULL;
             }
             list = more;
         }
-        list[n++] = (uint16_t)pad;
+        list[n++] = (Pads)pad;
     }
     *count = n;
     return list;
@@ -508,7 +518,7 @@ static int state_load(const char *path)
     FILE *f = native_mode == NATIVE_ON ? fopen(pads, "r") : NULL;
     if (f) {
         size_t n = 0;
-        uint16_t *list = read_pads(f, &n);
+        Pads *list = read_pads(f, &n);
         fclose(f);
         Snap *want = snap_load(path), *from = snap_load(state);
         if (!want) {
@@ -688,12 +698,12 @@ int main(int argc, char **argv)
 
     char line[4096];
     while (fgets(line, sizeof line, stdin)) {
-        char cmd[32], a1[2048] = "", a2[256] = "";
-        if (sscanf(line, "%31s %2047s %255s", cmd, a1, a2) < 1)
+        char cmd[32], a1[2048] = "", a2[256] = "", a3[256] = "";
+        if (sscanf(line, "%31s %2047s %255s %255s", cmd, a1, a2, a3) < 1)
             continue;
         if (!strcmp(cmd, "run") || !strcmp(cmd, "runw")) {
             long n = strtol(a1, NULL, 10);
-            uint16_t pad = (uint16_t)strtol(a2, NULL, 10);
+            Pads pad = pads_of((uint16_t)strtol(a2, NULL, 10), (uint16_t)strtol(a3, NULL, 10));
             for (long i = 0; i < n; i++)
                 step(pad);
             printf("ok %u", (unsigned)snes.frame);
@@ -712,7 +722,7 @@ int main(int argc, char **argv)
             } else {
                 long to = strtol(a2, NULL, 10);
                 while ((long)snes.frame < to)
-                    step(ct_movie_buttons(&movie, snes.frame));
+                    step(pads_of(ct_movie_buttons(&movie, snes.frame), ct_movie_buttons2(&movie, snes.frame)));
                 ct_movie_free(&movie);
                 printf("ok %u\n", (unsigned)snes.frame);
             }

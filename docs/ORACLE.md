@@ -106,7 +106,10 @@ Text, one event per line; `#` starts a comment.
 ```
 
 - `buttons` is `-` for none, or `+`-joined names from
-  `B Y SELECT START UP DOWN LEFT RIGHT A X L R`.
+  `B Y SELECT START UP DOWN LEFT RIGHT A X L R`; a name prefixed `P2:`
+  (`P2:SELECT+P2:START`) is a button on the second controller (JOY2, which
+  `ct_oracle`, `ct_dev` and `ct_drive` play; `ct_play` replays the first
+  controller only and says so).
 - An event holds its buttons for frames `start_frame .. start_frame+frame_count-1`.
 - Overlapping events OR together.
 - Movies recorded with `ct_play --record` (docs/PLAYING.md) have one event per

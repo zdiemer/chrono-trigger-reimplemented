@@ -4,6 +4,7 @@ checkpoint it, and keep the input that produced the run.
     machine = Machine(rom="roms/ct-usa.sfc", sram="save.srm")
     machine.run(1620)
     machine.run(5, "START")            # every run() call appends to machine.pads
+    machine.run(3, "P2:SELECT+P2:START")   # the second controller's buttons
     machine.peek(addresses.MAP_ID, 2)
 
 `pads[f]` is the pad word held on frame `f`, so a run is a movie: rewinding to a
@@ -23,7 +24,7 @@ import pathlib
 import subprocess
 
 from . import mkmovie
-from .mkmovie import name_of, pad_of
+from .mkmovie import controllers_of, name_of, pad_of
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 DEFAULT_ROM = REPO / "roms" / "ct-usa.sfc"
@@ -101,12 +102,19 @@ class Machine:
 
     # ---- running -------------------------------------------------------------------------
 
+    @staticmethod
+    def _run_command(verb, frames, pad):
+        """ct_drive's run or runw for a pad word: the second controller's word
+        only where it holds a button."""
+        first, second = controllers_of(pad)
+        return "%s %d %d" % (verb, frames, first) + (" %d" % second if second else "")
+
     def run(self, frames, buttons=0):
         """Run frames holding `buttons`, and log them as this run's input."""
         pad = pad_of(buttons)
         if frames <= 0:
             return
-        self.cmd("run %d %d" % (frames, pad))
+        self.cmd(self._run_command("run", frames, pad))
         del self.pads[self.frame:]
         while len(self.pads) < self.frame:
             self.pads.append(0)
@@ -115,7 +123,7 @@ class Machine:
 
     def probe(self, frames, buttons=0):
         """Run frames without logging them (searches, which restore afterwards)."""
-        self.frame = int(self.cmd("run %d %d" % (frames, pad_of(buttons))))
+        self.frame = int(self.cmd(self._run_command("run", frames, pad_of(buttons))))
 
     def press(self, buttons, hold=3, gap=0):
         self.run(hold, buttons)
@@ -148,7 +156,7 @@ class Machine:
     def runw(self, frames, buttons=0):
         """run() and return the watched bytes afterwards."""
         pad = pad_of(buttons)
-        answer = self.cmd("runw %d %d" % (max(frames, 0), pad))
+        answer = self.cmd(self._run_command("runw", max(frames, 0), pad))
         if frames > 0:
             del self.pads[self.frame:]
             while len(self.pads) < self.frame:

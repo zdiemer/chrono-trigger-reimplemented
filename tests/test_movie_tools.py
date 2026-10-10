@@ -23,6 +23,13 @@ class TestButtons(unittest.TestCase):
         self.assertEqual(mkmovie.pad_of("-"), 0)
         self.assertEqual(mkmovie.pad_of(1 << 12), 1 << 12)
 
+    def test_second_controller(self):
+        pad = mkmovie.pad_of("A+P2:SELECT+P2:START")
+        self.assertEqual(mkmovie.controllers_of(pad), (1 << 7, (1 << 13) | (1 << 12)))
+        self.assertEqual(mkmovie.name_of(pad), "A+P2:SELECT+P2:START")
+        self.assertEqual(mkmovie.pads_from_events(mkmovie.parse_movie("4 2 P2:START\n"), 6),
+                         [0] * 4 + [(1 << 12) << 16] * 2)
+
     def test_name_of_is_in_movie_order(self):
         self.assertEqual(mkmovie.name_of(mkmovie.pad_of("UP+B")), "B+UP")
         self.assertEqual(mkmovie.name_of(0), "")

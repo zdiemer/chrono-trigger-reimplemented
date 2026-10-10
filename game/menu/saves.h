@@ -101,4 +101,9 @@ bool menu_carry_over_runs(Snes *s);
 bool menu_save_slot_is_checkable(Snes *s);
 bool menu_save_code_runs(Snes *s);
 
+/* What setting up a new game's state leaves in the registers, for a port
+ * that sets one up inline where the original called $C2:956E
+ * (scaffolding). */
+void menu_leave_new_game_set_up(Snes *s);
+
 #endif

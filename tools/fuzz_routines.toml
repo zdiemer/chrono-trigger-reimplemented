@@ -5894,6 +5894,10 @@ why = "the graphics set built in bank $7F (as the figures the game loads are); t
 # sprite list kept from the state and the object's sprite script one the language reads. The
 # entries are at their addresses: the rewrite renamed several.
 
+[state.new_game_plus]
+movie = "oracle/movies/saves/menus-new-game-plus.ctm"
+frames = 2600
+
 [state.menus]
 movie = "oracle/movies/saves/menus-field-menu.ctm"
 frames = 3000
@@ -6742,13 +6746,31 @@ iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached"
 
 [[routine]]
+name = "menu_show_save_slot"
+at = "C2:E743"
+variant = "new_game_plus"
+subsystem = "menu"
+state = "new_game_plus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0054-7E0054=03-03", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
+why = "as the plain entry, on a finished cartridge's load screen (the New Game+ movie's), the cursor on the fourth row and the moves random, so left or right flips between a new game and a New Game+ and plays the cursor's sound; compared at the sound driver's call, where the P the sound saves is still on the stack (a return pops it, which the plain comparison leaves out)"
+
+[[routine]]
+name = "menu_choose_on_load_screen"
+at = "C2:E61B"
+variant = "new_game_plus"
+subsystem = "menu"
+state = "new_game_plus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=03-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E0D4C-7E0D4C=01-01", "--stop-at-call", "C70004"]
+why = "as the plain entry, on a finished cartridge's load screen, the cursor on the fourth row and the buttons random: its choices flipped, a new game started (A's high byte as setting up its state leaves it, which the sound command's call hands the driver) or a New Game+ asked for; compared at the sound driver's calls"
+
+[[routine]]
 name = "menu_choose_game_to_carry_on_from"
 at = "C2:E6AE"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0D4A-7E0D4A=01-01", "--fill", "7E0054-7E0054=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E9382-7E9397=00-03", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80"]
 iterations = 2000
-why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached"
+why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the second slot with a game, the cursor on one of the four rows, whose neighbours are rows; the buttons random, so each of the step's choices is reached; the active party characters or empty places, as the game in memory always has it when a New Game+ carries on (the carrying over's guard, menu_carry_over_runs, which the step's own call doesn't consult)"
 
 [[routine]]
 name = "menu_answer_erase"
@@ -6760,6 +6782,15 @@ iterations = 2000
 why = "the menus' page and data bank, the erase question up: the cursor on yes or no (places 4 and 5, whose neighbours are each other), over one of the three slots, the cursor kept for going back on a row; the VRAM queue empty, a palette change the drawing counts, numbers converted from one; the buttons random, so yes, no and going back are each reached"
 
 [[routine]]
+name = "menu_answer_erase"
+at = "C2:E705"
+variant = "at-the-sound"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-EF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0054-7E0054=04-05", "--fill", "7E0079-7E0079=00-02", "--fill", "7E0F00-7E0F00=00-03", "--fill", "7E9380-7E947B=00-29", "--fill", "7E939A-7E93A3=04-05", "--stop-at-call", "C70004"]
+why = "as the plain entry, compared at the sound driver's calls: a no closes the question with the window list, whose clear A's high byte the cursor's sound hands the driver, which keeps it on its stack (a return pops it, which the plain comparison leaves out)"
+
+[[routine]]
 name = "menu_ask_which_to_carry_on_from"
 at = "C2:E841"
 subsystem = "menu"
@@ -6767,6 +6798,15 @@ state = "menus"
 args = ["--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
 iterations = 2000
 why = "the menus' page and data bank, the slots' summaries of the load screen's kind (members that are characters, their names letters as the game's name entry makes them), the VRAM queue empty, a palette change the drawing counts, the slot shown one of the three"
+
+[[routine]]
+name = "menu_ask_which_to_carry_on_from"
+at = "C2:E841"
+variant = "narrow"
+subsystem = "menu"
+state = "menus"
+args = ["--widths", "8,8", "--d", "0000", "--db", "7E", "--fill", "7E0D49-7E0D4B=00-01", "--fill", "7E7600-7E76BF=00-06", "--fill", "7E7609-7E760E=A0-FE", "--fill", "7E7619-7E761E=A0-FE", "--fill", "7E7629-7E762E=A0-FE", "--fill", "7E7649-7E764E=A0-FE", "--fill", "7E7659-7E765E=A0-FE", "--fill", "7E7669-7E766E=A0-FE", "--fill", "7E7689-7E768E=A0-FE", "--fill", "7E7699-7E769E=A0-FE", "--fill", "7E76A9-7E76AE=A0-FE", "--fill", "7E76C9-7E76CE=A0-FE", "--fill", "7E76D9-7E76DE=A0-FE", "--fill", "7E76E9-7E76EE=A0-FE", "--fill", "7E0D11-7E0D11=00-00", "--fill", "7E0D15-7E0D15=00-FE", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D79-7E0D7B=00-07", "--fill", "7E0079-7E0079=00-02"]
+why = "as the plain entry, entered with byte-wide registers as the load screen's fourth row calls it (the New Game+ movie's one call, which a guard on 16-bit index registers had refused)"
 
 [[routine]]
 name = "menu_erase_slot"
@@ -16493,6 +16533,15 @@ subsystem = "menu"
 state = "field"
 args = ["--long", "--keep", "7E2600-7E287F", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80,81,82,83,84,85,86", "--range", "A=0000-000C"]
 why = "the records as the field has them and the active party any of the characters or empty places; the reserve, the inventory, the clock's page and the arguments random, so the record's searches and shifts meet every arrangement"
+
+[[routine]]
+name = "menu_party_services"
+at = "C2:8004"
+variant = "narrow"
+subsystem = "menu"
+state = "field"
+args = ["--long", "--widths", "8,8", "--keep", "7E2400-7E29FF", "--keep", "7E0400-7E04FF", "--keep", "7E2C50-7E2CFF", "--keep", "7F0000-7F01FF", "--range", "A=0000-000C", "--range", "X=0000-00F1", "--range", "Y=0000-0008"]
+why = "as the plain entry, entered with byte-wide registers as a New Game+'s carrying the party over calls it ($FF:FB84-$FB98): the index registers it hands back are a byte, whatever width the service works at (the field's state enters wide, so the plain entry never sees it)"
 
 [[routine]]
 name = "menu_show_what_the_party_wears"

@@ -60,7 +60,8 @@ static struct {
     char *overrides[MAX_OPTIONS];
     int override_count;
 
-    uint16_t input; /* JOY1 order */
+    uint16_t input;  /* JOY1 order */
+    uint16_t input2; /* the second controller's, JOY2 */
 
     uint32_t *fb;
     unsigned fb_width, fb_height, fb_cap;
@@ -265,17 +266,18 @@ static void input_poll_cb(void) {}
  * map to JOY1 bits 15..4, i.e. bit = 15 - id. */
 static int16_t input_state_cb(unsigned port, unsigned device, unsigned index, unsigned id) {
     (void)index;
-    if (port != 0 || (device & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD)
+    if (port > 1 || (device & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD)
         return 0;
+    uint16_t input = port ? g.input2 : g.input;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) {
         int16_t mask = 0;
         for (unsigned i = 0; i < 12; i++) {
-            if (g.input & (1u << (15 - i)))
+            if (input & (1u << (15 - i)))
                 mask |= (int16_t)(1 << i);
         }
         return mask;
     }
-    return id < 12 ? (g.input >> (15 - id)) & 1 : 0;
+    return id < 12 ? (input >> (15 - id)) & 1 : 0;
 }
 
 /* ---- setup ------------------------------------------------------------ */
@@ -562,6 +564,7 @@ int main(int argc, char **argv) {
     const uint8_t *region_data[REGION_SOURCES + 2];
     for (long frame = 0; frame < frames; frame++) {
         g.input = ct_movie_buttons(&movie, (uint32_t)frame);
+        g.input2 = ct_movie_buttons2(&movie, (uint32_t)frame);
         api->run();
 
         if (trace && frame >= trace_from && frame <= trace_to) {

@@ -977,6 +977,7 @@ int main(int argc, char **argv)
     uint8_t cgram[0x200];
     for (long frame = (long)snes.frame; frame < frames; frame++) {
         uint16_t pad = ct_movie_buttons(&movie, (uint32_t)frame);
+        snes.bus.pad[1] = ct_movie_buttons2(&movie, (uint32_t)frame);
         snes_run_frame(&snes, pad);
         if (snes.halted) {
             rc = 1;

@@ -271,7 +271,12 @@ uint16_t party_service_y(const GameState *g, PartyService service)
 /* The services' long entry: the service in A, the character in Y and the
  * item in X, each a byte. The answer comes back in A, a word where the
  * service works 16 bits wide and with a clear high byte otherwise; the
- * flags as they were. */
+ * flags as they were. X and Y come back as the service leaves them, but
+ * only a byte of each where the caller's index registers are a byte (the
+ * dispatcher returns to the caller's width): a caller that runs the
+ * services 8 bits wide, as a New Game+'s carrying the party over does
+ * ($FF:FB84-$FB98), hands that X straight on to its next call, whose
+ * dispatcher keeps it as the item (party_service_called). */
 void menu_party_services(Snes *s)
 {
     GameState *g = state_of(s);
@@ -280,8 +285,9 @@ void menu_party_services(Snes *s)
     services[service].run(g, m_platform(s), call.y, call.x);
     party_wear_it_shows(g);
     s->cpu.a = party_service_answered(g, service, &call);
-    s->cpu.x = party_service_x(service);
-    s->cpu.y = party_service_y(g, service);
+    uint16_t x = party_service_x(service), y = party_service_y(g, service);
+    s->cpu.x = m_x8(s) ? (uint8_t)x : x;
+    s->cpu.y = m_x8(s) ? (uint8_t)y : y;
     m_rtl(s);
 }
 

@@ -17,8 +17,12 @@ static const struct {
     {"A", CT_BTN_A},       {"X", CT_BTN_X},       {"L", CT_BTN_L},           {"R", CT_BTN_R},
 };
 
-static int parse_buttons(const char *s, uint16_t *out) {
+/* A name with this prefix is a button on the second controller. */
+static const char CONTROLLER2[] = "P2:";
+
+static int parse_buttons(const char *s, uint16_t *out, uint16_t *out2) {
     *out = 0;
+    *out2 = 0;
     if (strcmp(s, "-") == 0)
         return 0;
     char buf[128];
@@ -27,9 +31,14 @@ static int parse_buttons(const char *s, uint16_t *out) {
     strcpy(buf, s);
     for (char *tok = strtok(buf, "+"); tok; tok = strtok(NULL, "+")) {
         int found = 0;
+        uint16_t *mask = out;
+        if (strncmp(tok, CONTROLLER2, sizeof CONTROLLER2 - 1) == 0) {
+            tok += sizeof CONTROLLER2 - 1;
+            mask = out2;
+        }
         for (size_t i = 0; i < sizeof button_names / sizeof button_names[0]; i++) {
             if (strcmp(tok, button_names[i].name) == 0) {
-                *out |= button_names[i].bit;
+                *mask |= button_names[i].bit;
                 found = 1;
             }
         }
@@ -72,8 +81,8 @@ int ct_movie_parse(ct_movie *movie, const char *text, size_t len, const char *na
 
         unsigned long start, count;
         char buttons[128];
-        uint16_t mask;
-        if (sscanf(p, "%lu %lu %127s", &start, &count, buttons) != 3 || parse_buttons(buttons, &mask) != 0 ||
+        uint16_t mask, mask2;
+        if (sscanf(p, "%lu %lu %127s", &start, &count, buttons) != 3 || parse_buttons(buttons, &mask, &mask2) != 0 ||
             start > MAX_FRAMES || count > MAX_FRAMES - start) {
             fprintf(stderr, "movie: %s:%d: expected '<start_frame> <frame_count> <buttons>'\n", name, lineno);
             ct_movie_free(movie);
@@ -83,17 +92,20 @@ int ct_movie_parse(ct_movie *movie, const char *text, size_t len, const char *na
             cap = cap ? cap * 2 : 64;
             movie->events = realloc(movie->events, cap * sizeof *movie->events);
         }
-        movie->events[movie->count++] = (ct_movie_event){(uint32_t)start, (uint32_t)count, mask};
+        movie->events[movie->count++] = (ct_movie_event){(uint32_t)start, (uint32_t)count, mask, mask2};
         if (start + count > movie->length)
             movie->length = (uint32_t)(start + count);
     }
 
     /* Per-frame table, so lookups don't scan every event. */
     movie->pads = calloc(movie->length ? movie->length : 1, sizeof *movie->pads);
+    movie->pads2 = calloc(movie->length ? movie->length : 1, sizeof *movie->pads2);
     for (int i = 0; i < movie->count; i++) {
         const ct_movie_event *e = &movie->events[i];
-        for (uint32_t fr = e->start; fr < e->start + e->count; fr++)
+        for (uint32_t fr = e->start; fr < e->start + e->count; fr++) {
             movie->pads[fr] |= e->buttons;
+            movie->pads2[fr] |= e->buttons2;
+        }
     }
     return 0;
 }
@@ -130,11 +142,23 @@ int ct_movie_load(ct_movie *movie, const char *path) {
 void ct_movie_free(ct_movie *movie) {
     free(movie->events);
     free(movie->pads);
+    free(movie->pads2);
     memset(movie, 0, sizeof *movie);
 }
 
 uint16_t ct_movie_buttons(const ct_movie *movie, uint32_t frame) {
     return frame < movie->length ? movie->pads[frame] : 0;
+}
+
+uint16_t ct_movie_buttons2(const ct_movie *movie, uint32_t frame) {
+    return frame < movie->length ? movie->pads2[frame] : 0;
+}
+
+int ct_movie_uses_controller2(const ct_movie *movie) {
+    for (int i = 0; i < movie->count; i++)
+        if (movie->events[i].buttons2)
+            return 1;
+    return 0;
 }
 
 /* A growing string. */

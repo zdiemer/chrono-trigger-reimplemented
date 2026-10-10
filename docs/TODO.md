@@ -103,6 +103,16 @@ rest waits, is [PLAN.md](PLAN.md).
   on), the equipment screens' `$0022`-`$0027` and `$0DAB`, the battle's
   `$0084`, `$0092` and the enemies' `$A020`-`$A026`, and a block copy at
   `$C0:0924` that reads the field's cells whole.
+- **A New Game+ is slower in the native shape.** From the load screen's
+  menus closing to the Battle Mode question opening takes 58 frames in
+  `ct_drive_native_shape` and 14 in the default build, both `--native on`
+  (`menus-new-game-plus`'s route, which waits on the menus' screen rather
+  than a frame count, reaches its outcome in both). Every change on that
+  path the scaffolding makes is compiled out there, so something the game
+  runs between the two menus either reads a cell only scaffolding writes
+  (not one `originals.txt` or `effects_check.py` lists) or waits out time
+  the scaffolding's accesses were charged. Finding it is a bisection over
+  the ports that run there.
 
 ## Phase 3a work in flight
 
@@ -1496,20 +1506,22 @@ rest waits, is [PLAN.md](PLAN.md).
   - `$FF:FF3E`-`$FFF4`, a menu record's routine with a jump table at
     `$FF:FFE2`, behind a return the analysis finds nothing reaching, is not
     ported (bank `$FF`'s 10% left);
-  - no movie starts a New Game+ (`menu_load_carried_over`, and the load
-    screen's carry-on step with it) or reaches a character's sprite colours
-    (`menu_put_character_colours`), and the number tiles' and the gate's
-    drawing are interrupted on their only calls: fuzzing is their check, and
-    a movie through a New Game+ would add shadow mode's;
+  - a New Game+'s load (`menu_load_carried_over`) spans frames, so its one
+    call in `menus-new-game-plus` is interrupted; no movie reaches a
+    character's sprite colours (`menu_put_character_colours`); and the number
+    tiles' and the gate's drawing are interrupted on their only calls:
+    fuzzing is their check;
   - what the cartridge's count at save memory's `$1FE1`
     (`SAVES_TIMES_FINISHED`) counts: the save moves it on when the game's
     `times_finished` equals it, which doesn't read as a count of finishes.
 - **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
   - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
     frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
-    none mismatching), and no movie erases a slot: a movie that erases one on
-    the load screen would check the rest, and `menu_answer_erase`'s "no" with
-    it;
+    none mismatching). `menus-new-game-plus` erases a slot, but the wait is a
+    task switch shadow mode can't follow, so it sets the erase and the
+    answer's yes that runs it aside there (`abandoned`); the answer's no is
+    compared. Comparing a call across the menus' task switch would check the
+    rest;
   - the label entries (`$C2:D156`, `$D19F`, `$D266`, `$D28D`, `$D296`,
     `$D2C4`) only run inside `menu_open`'s stretch, so shadow mode compares
     them up to their first point and sets them aside there (`abandoned`); the

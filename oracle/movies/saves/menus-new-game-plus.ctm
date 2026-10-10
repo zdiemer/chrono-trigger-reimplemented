@@ -1,0 +1,22 @@
+# Erase a slot, then start a New Game+ from the load screen: load the title; on the second slot, hold
+# Select and Start on the second controller, answer no to the erase question, ask again and answer yes;
+# then move the cursor down to the fourth row and right onto its second choice (New Game+), confirm,
+# carry on from the first slot, accept the default Active battle mode and Crono's own name, then a few
+# steps on the 1000 A.D. world map where it starts.
+# Save: technoplaza ct-state16 (games.technoplaza.net/snes/chronotrigger/savestates.php, a finished cartridge).
+# frames 3116
+# sram crc32 82F04637
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 3 P2:SELECT+P2:START
+2453 3 DOWN
+2476 3 A
+2509 3 P2:SELECT+P2:START
+2542 3 A
+2585 3 RIGHT
+2608 3 A
+2711 3 A
+2824 3 A
+2887 3 START
+2920 3 START
+2953 3 START

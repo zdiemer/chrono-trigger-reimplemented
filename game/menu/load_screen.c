@@ -455,6 +455,10 @@ static void start_new_game(Snes *s)
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
     start_the_new_game(g, pf);
+    /* the registers as setting up the state leaves them: a new game hands
+     * A's high byte on to the sound command's call, whose driver keeps it on
+     * its stack */
+    ORIGINAL_EFFECT(menu_leave_new_game_set_up(s));
     if (new_game_plus_chosen(g, pf)) {
         set_menu_save_slot_in_use(g, FOURTH_ROW, 0);
         ORIGINAL_EFFECT(leave_compare(s, NEW_GAME_PLUS_X, NEW_GAME_PLUS_X));
@@ -569,6 +573,9 @@ void menu_answer_erase(Snes *s)
     if (!(buttons & CHOSE))
         set_menu_cursor_index(g, ERASE_NO);
     menu_draw_windows(g, m_platform(s), ERASE_QUESTION_CLOSED);
+    /* the list leaves A clear, and a no hands its high byte on to the sound's
+     * call, whose driver keeps it on its stack */
+    ORIGINAL_EFFECT(menu_leave_a_high_byte_clear(s));
     if (menu_cursor_index(g) == ERASE_YES) {
         ORIGINAL_EFFECT(leave_compare(s, ERASE_YES, ERASE_YES));
         if (!menu_run(s, 0xC2E729, 0xC2E8B7, menu_erase_slot))

@@ -4,7 +4,7 @@
  *   ct_fuzz --rom roms/ct-usa.sfc --load-state base.state --routine <name|BBAAAA>
  *           [--iterations N] [--seed S] [--long | --interrupt] [--budget N]
  *           [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... [--range A|X|Y=lo-hi]...
- *           [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc] [--details N]
+ *           [--db BB] [--d HHHH] [--widths M,X] [--apu-loopback] [--poison-dc] [--details N]
  *
  * Each iteration starts from the base state (or power-on), randomizes A, X, Y,
  * the N V Z C flags and all of work RAM except the stack page, applies the
@@ -59,7 +59,12 @@
  * 0-$500 by $80). --db sets the data bank, which the base state
  * otherwise decides, for entries that address registers through it; --d the
  * direct page likewise, for entries guarded on the page their subsystem runs
- * with. --apu-loopback makes reads of the APU ports return what the CPU last
+ * with. --widths M,X (8 or 16 each) sets the accumulator's and the index
+ * registers' widths the routine is entered with, which the base state
+ * otherwise decides, for entries whose callers come both ways (the menus'
+ * services, called with 16-bit index registers by most and 8-bit by a New
+ * Game+'s carrying the party over); the entry's own precondition on P still
+ * wins. --apu-loopback makes reads of the APU ports return what the CPU last
  * wrote to them: the SPC700 doesn't run here, so the sound driver's echo waits
  * would otherwise never end. --details N describes the first N mismatches
  * (default 10). Accessors the port called out of range (port/vars_ram.h) are
@@ -120,7 +125,7 @@ int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *state_path = NULL, *routine = NULL;
     bool apu_loopback = false;
-    int data_bank = -1, direct_page = -1;
+    int data_bank = -1, direct_page = -1, m_width = 0, x_width = 0;
     FuzzOptions o;
     fuzz_default_options(&o);
     for (int i = 1; i < argc; i++) {
@@ -160,6 +165,9 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(a, "--db")) data_bank = (int)(strtoul(v, NULL, 16) & 0xFF);
         else if (!strcmp(a, "--d")) direct_page = (int)(strtoul(v, NULL, 16) & 0xFFFF);
+        else if (!strcmp(a, "--widths") && sscanf(v, "%d,%d", &m_width, &x_width) == 2 &&
+                 (m_width == 8 || m_width == 16) && (x_width == 8 || x_width == 16))
+            ;
         else if (!strcmp(a, "--range") && strchr("AXY", v[0]) && v[1] == '=' &&
                  sscanf(v + 2, "%x-%x", &o.range_lo[strchr("AXY", v[0]) - "AXY"],
                         &o.range_hi[strchr("AXY", v[0]) - "AXY"]) == 2) {
@@ -207,6 +215,10 @@ int main(int argc, char **argv)
         base.cpu.db = (uint8_t)data_bank;
     if (direct_page >= 0)
         base.cpu.d = (uint16_t)direct_page;
+    if (m_width)
+        base.cpu.p = (uint8_t)(m_width == 8 ? base.cpu.p | CPU_FLAG_M : base.cpu.p & ~CPU_FLAG_M);
+    if (x_width)
+        base.cpu.p = (uint8_t)(x_width == 8 ? base.cpu.p | CPU_FLAG_X : base.cpu.p & ~CPU_FLAG_X);
     if (apu_loopback)
         base.bus.io.apu_read = apu_loopback_read;
 
@@ -229,7 +241,7 @@ int main(int argc, char **argv)
 usage:
     fprintf(stderr, "usage: ct_fuzz --rom <rom> --routine <name|BBAAAA> [--load-state f] [--iterations N] "
                     "[--seed S] [--long | --interrupt] [--budget N] [--keep AREA]... [--fill AREA=lo-hi|V,V...|@BBAAAA]... "
-                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
+                    "[--range A|X|Y=lo-hi[/step]]... [--db BB] [--d HHHH] [--widths M,X] [--apu-loopback] [--poison-dc | --poison-site BBAAAA]\n"
                     "  [--stop-at-call BBAAAA]...\n"
                     "  [--details N]\n"
                     "  AREA: BBAAAA-BBAAAA, or [BBAAAA]+OFF,COUNT at the pointer in a cell ([X], [Y] or [D]: in a "

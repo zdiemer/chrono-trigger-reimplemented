@@ -458,6 +458,9 @@ int main(int argc, char **argv)
         if (ct_movie_load(&movie, movie_path) != 0)
             return 1;
         uint32_t n = movie_frames >= 0 ? (uint32_t)movie_frames : movie.length;
+        if (ct_movie_uses_controller2(&movie))
+            fprintf(stderr, "%s presses the second controller, which the player doesn't replay; "
+                            "ct_dev and ct_drive do\n", movie_path);
         uint16_t *pads = calloc(n ? n : 1, sizeof *pads);
         for (uint32_t fr = 0; fr < n; fr++)
             pads[fr] = ct_movie_buttons(&movie, fr);
