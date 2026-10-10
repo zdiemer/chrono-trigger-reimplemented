@@ -18,6 +18,9 @@
  * script sets, back at the place put aside. */
 #include "field/battle_return.h"
 #include "field/field.h"
+#include "event/chests.h"
+#include "field/dialog_window.h"
+#include "field/map.h"
 #include "field/frames.h"
 #include "field/object.h"
 #include "field/palettes.h"
@@ -229,12 +232,8 @@ static AfterBattle how_the_game_goes_on(const GameState *g)
 
 /* The original's routines it calls, and the field's own that run frames. */
 enum {
-    MAP_UNPACKED = 0xC0A33B,        /* the location's map unpacked and its layers drawn */
-    WINDOW_FRAME_MAP = 0xC029F7,    /* the dialog window's frame built as a tile map at $7E:F000 */
-    SECOND_MAP = 0xC02B78,          /* the second tile map built there */
     SCRIPT_UNPACKED = 0xC056D4,     /* the location's event script unpacked */
     MAP_SCRIPT_STARTS = 0xC0595C,   /* the map's own script (object 0) run to its first return */
-    LAYERS_SET = 0xC0A712,          /* the layers' places and sizes set up, on the layers' page */
     PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
     WALK = 0xC0881E,
     TILE_LOOKS = 0xC009DD, BG3_TILE_LOOKS = 0xC00A14,
@@ -330,8 +329,10 @@ static void go_on_on_the_field(Snes *s)
     GameState *g = state_of(s);
     sprites_hide_all_next_frame(g);
     if (!field_run(s, 0xC00313, 0xC00715, READS_NOTHING, field_return_from_battle, on_the_field_page(s, false)) ||
-        !call(s, 0xC00316, MAP_UNPACKED) || !walk_a_frame(s, 0xC00319) ||
-        !bridge_call_long(s, 0xC0031C, WINDOW_FRAME_MAP, READS_NOTHING, on_the_field_page(s, false)))
+        !field_run(s, 0xC00316, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, on_the_field_page(s, false)) ||
+        !walk_a_frame(s, 0xC00319) ||
+        !field_run_long(s, 0xC0031C, FIELD_BUILD_WINDOW_FRAME_ENTRY, READS_NOTHING, field_build_the_window_frame_entry,
+                        on_the_field_page(s, false)))
         return;
     field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_FIRST | FIELD_SEND_FOUR_TILES);
     if (!field_run(s, 0xC00324, TILE_LOOKS, READS_NOTHING, field_load_tile_looks, on_the_field_page(s, false)) ||
@@ -339,8 +340,11 @@ static void go_on_on_the_field(Snes *s)
         !field_run(s, 0xC0032A, BG3_TILE_LOOKS, READS_NOTHING, field_load_bg3_tile_looks, on_the_field_page(s, false)) ||
         !call(s, 0xC0032D, SCRIPT_UNPACKED) ||
         !bridge_call(s, 0xC00330, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, on_the_field_page(s, false)) ||
-        !bridge_call_on_page(s, 0xC0033C, LAYERS_SET, READS_NOTHING, FIELD_LAYERS_PAGE) || !walk_a_frame(s, 0xC00340) ||
-        !bridge_call_long(s, 0xC00343, SECOND_MAP, READS_NOTHING, on_the_field_page(s, false)))
+        !field_run_on_page(s, 0xC0033C, CHESTS_MARK_THE_MAP_ENTRY, READS_NOTHING, field_mark_the_chests,
+                           FIELD_LAYERS_PAGE) ||
+        !walk_a_frame(s, 0xC00340) ||
+        !field_run_long(s, 0xC00343, FIELD_BUILD_TEXT_AREA_ENTRY, READS_NOTHING, field_build_the_text_area_entry,
+                        on_the_field_page(s, false)))
         return;
     field_send_screen_jobs(g, FIELD_SEND_STAGED_MAP_SECOND);
     m_stop_at(s, PARTY_BACK_TOGETHER, BACK_TOGETHER_READS);

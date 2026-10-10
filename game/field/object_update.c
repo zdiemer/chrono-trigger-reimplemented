@@ -191,6 +191,23 @@ void object_join_row(GameState *g, FieldObject obj)
     mark_in_a_row(g, obj);
 }
 
+// $C0:B204
+/* A map's screen starts with every row empty and every object out of the
+ * rows. (The original goes on to take the map's objects out of view, but its
+ * word-wide writes through the work RAM port set the port's address back each
+ * time, so it reaches only the first object's two bytes; its callers take
+ * every object out of view next, objects_all_out_of_view, which writes them
+ * again.) */
+void field_empty_the_rows(GameState *g)
+{
+    for (unsigned row = 0; row < FIELD_ROW_FIRST_OBJECT_COUNT; row++)
+        set_row_first(g, row, field_no_link());
+    for (FieldObject obj = 0; obj < FIELD_OBJECTS; obj++) {
+        mark_out_of_rows(g, obj, field_no_link());
+        object_out_of_rows(g, obj);
+    }
+}
+
 /* ---- The update --------------------------------------------------------------------------- */
 
 typedef enum { UPDATE_SKIP, UPDATE_WINDOW_ONLY, UPDATE_PARTY, UPDATE_OBJECT } UpdateKind;

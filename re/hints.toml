@@ -1,7 +1,9 @@
 # Analysis hints for tools/disasm: facts static analysis can't infer by itself.
 # Addresses are SNES bus addresses (BB:AAAA). Widths: m/x = 8 or 16.
 #
-#   [[entry]]        addr, m, x, [name], [kind]     code entry point (omit m/x: unknown)
+#   [[entry]]        addr, m, x, [name], [kind],    code entry point (omit m/x: unknown);
+#                    [tail_of]                      tail_of: the routine that falls into
+#                                                   it, whose callers it returns to
 #   [[name]]         addr, name                     label only
 #   [[jumptable]]    at, count, [kind=abs|long], [table], [targets = [...]]
 #                                                   JMP/JSR (abs,X) at `at`; targets for
@@ -332,6 +334,18 @@ addr = "C2:822B"
 regs = ["X", "Y", "P", "D"]
 reads = ["A", "AH", "DB"]
 resume = "C2:8206"
+
+# The field's screen setup ($C0:0B28) ends on a wait for the vblank with the
+# handlers off, then turns them on. The port of the setup readies the line
+# effects itself and has the timing service call that tail on the SNES
+# backend (game/field/screen_setup.c), so it is a routine's entry too; as
+# $C0:0B28's tail it returns where $C0:0B28 does (`tail_of`).
+[[entry]]
+addr = "C0:0B38"
+m = 8
+x = 16
+name = "field_screen_on"
+tail_of = "C0:0B28"
 
 [[entry]]
 addr = "C2:826F"

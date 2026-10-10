@@ -115,6 +115,22 @@ static void tasks_main(Platform *p, void *ctx)
     }
 }
 
+/* A third game: its main thread brings the screen back after a load with
+ * the handlers off, waiting a frame and then turning them on, as the field's
+ * screen setup does; the line handler runs in the frame they come on. */
+static void bring_back_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    note('M');
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_AUTO_JOYPAD);
+    tm_wait_frame_then_enable(p, PF_CALL(0, 0), TM_INT_VBLANK | TM_INT_LINE | TM_INT_AUTO_JOYPAD, 211);
+    note('m');
+    for (;;) {
+        note('M');
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
@@ -181,6 +197,19 @@ int main(void)
     }
     order[order_len] = 0;
     CHECK(strcmp(order, "T|tM|M|") == 0, "a task's wait resumes the task: %s", order);
+
+    /* the screen brought back: a frame with no handlers, then they come on */
+    static Platform back;
+    TmHostProgram bring_back = { bring_back_main, game_vblank, game_line, NULL };
+    order_len = 0;
+    tm_host_start(&back, &bring_back, 1);
+    for (int i = 0; i < 3; i++) {
+        tm_host_frame(&back);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M|mML|VML|") == 0, "the handlers come on after the wait: %s", order);
+    CHECK(tm_host_picture_lines(&back) == 212, "the picture ends after line 211 again (%u)", tm_host_picture_lines(&back));
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

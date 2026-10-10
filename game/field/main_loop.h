@@ -36,6 +36,14 @@ enum {
 void field_put_the_state_aside(GameState *g);
 void field_bring_the_state_back(GameState *g);
 void field_party_place_is_the_leaders(GameState *g);
+/* The leader's tile and facing, the party's place (with no leader on the
+ * map, the first slot's past the tables, as the original reads it); and
+ * whether the leader's link is one to read it by: an object, or none. */
+typedef struct {
+    uint8_t x, y, facing;
+} LeaderPlace;
+LeaderPlace field_leaders_place(const GameState *g);
+bool field_leader_readable(const GameState *g);
 void field_put_aside(GameState *g);
 
 void field_load_location(Snes *s);

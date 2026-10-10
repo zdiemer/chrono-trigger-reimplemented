@@ -1,7 +1,7 @@
 /* Field mode: the sprite palette slots objects share.
  *
  * The field's objects draw with eight sprite palette slots. An object coming
- * into view takes one for its colors ($C0:7170, still the original's): a free
+ * into view takes one for its colors, among the slots for what it is: a free
  * slot, or one an object with the same colors already has, whose sharers it
  * joins. A slot's sharers are a list in the order they took it: each object
  * knows the sharer before it and the one after it, and the slot knows the
@@ -104,8 +104,30 @@ void object_load_colours(GameState *g, FieldObject obj)
     (void)mark;
 }
 
-/* The slots the enemies take: 1-3. */
-enum { FIRST_ENEMY_SLOT = 1, ENEMY_SLOTS_END = 4 };
+/* Which slots an object takes its palette from, by what it is: each of the
+ * party's places its own (the leader's 5, the members' 6 and 7), the enemies
+ * 1-3, and everyone else the people's, 0-4. (The kinds past the objects left
+ * alone, which the field treats as walking, take the people's too.) */
+typedef struct {
+    uint8_t first, end;
+} SlotRange;
+
+enum { PEOPLES_SLOTS_END = 5, KINDS_WITH_SLOTS = 12 };
+static const SlotRange slots_for_kind[KINDS_WITH_SLOTS] = {
+    [ROLE_LEADER] = { 5, 6 },
+    [ROLE_PARTY_1] = { 6, 7 },
+    [ROLE_PARTY_2] = { 7, 8 },
+    [ROLE_LEFT_THE_PARTY] = { 0, PEOPLES_SLOTS_END },
+    [ROLE_WALKS_ONLY] = { 0, PEOPLES_SLOTS_END },
+    [ROLE_ENEMY] = { 1, 4 },
+    [ROLE_ENEMY_SET_APART] = { 1, 4 },
+    [ROLE_WINDOW_ONLY] = { 0, PEOPLES_SLOTS_END },
+    [ROLE_LEFT_ALONE] = { 0, PEOPLES_SLOTS_END },
+    [9] = { 0, PEOPLES_SLOTS_END },
+    [10] = { 0, PEOPLES_SLOTS_END },
+    [11] = { 0, PEOPLES_SLOTS_END },
+};
+static const SlotRange enemies_slots = { 1, 4 };
 
 /* For the original's code and shadow mode: the slot it looked at last, in
  * one of its work cells, and the newest sharer of the last taken slot it
@@ -138,14 +160,13 @@ static void join_slot(GameState *g, FieldObject obj, uint8_t slot, FieldLink old
     object_load_colours(g, obj);
 }
 
-// $C0:72B4
-/* An enemy takes one of the slots the enemies use: the first whose newest
- * sharer has the same colours, joining its sharers, or else the first free
- * one; with all three taken by other colours, none. */
-bool object_take_enemy_palette_slot(GameState *g, FieldObject obj)
+/* The object takes one of a range of slots: the first whose newest sharer
+ * has the same colours, joining its sharers, or else the first free one;
+ * with every one taken by other colours, none. */
+static bool take_a_slot(GameState *g, FieldObject obj, SlotRange range)
 {
     SlotLooked looked = { false, 0, { 0 } };
-    for (uint8_t slot = FIRST_ENEMY_SLOT; slot < ENEMY_SLOTS_END; slot++) {
+    for (uint8_t slot = range.first; slot < range.end; slot++) {
         FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
         if (!field_link_is_object(newest))
             continue;
@@ -157,13 +178,59 @@ bool object_take_enemy_palette_slot(GameState *g, FieldObject obj)
         }
     }
     ORIGINAL_EFFECT(leave_looked(g, looked));
-    for (uint8_t slot = FIRST_ENEMY_SLOT; slot < ENEMY_SLOTS_END; slot++)
+    for (uint8_t slot = range.first; slot < range.end; slot++)
         if (!field_link_is_object(field_link_stored(field_palette_slot_newest(g, slot)))) {
             ORIGINAL_EFFECT(leave_slot(g, slot));
             join_slot(g, obj, slot, field_no_link());
             return true;
         }
     return false;
+}
+
+// $C0:7155
+/* A map's screen starts with every slot free. */
+void palette_slots_all_free(GameState *g)
+{
+    for (unsigned slot = 0; slot < PALETTE_SLOTS; slot++)
+        set_field_palette_slot_newest(g, slot, field_link_byte(field_no_link()));
+}
+
+// $C0:72B4
+/* An enemy takes one of the slots the enemies use. */
+bool object_take_enemy_palette_slot(GameState *g, FieldObject obj) { return take_a_slot(g, obj, enemies_slots); }
+
+// $C0:7170 (with $C0:7199, $C0:7212 and $C0:7217, the party's places', and $C0:721C, the people's)
+/* An object coming into view takes a slot for its colours, unless a script
+ * has set the palettes itself or the object is disabled. True where it took
+ * one, and its colours loaded. */
+bool object_take_palette(GameState *g, FieldObject obj)
+{
+    ObjectRole role = object_role(g, obj);
+    if (field_palettes_set_by_script(g) || role.disabled)
+        return false;
+    return take_a_slot(g, obj, slots_for_kind[role.kind]);
+}
+
+bool object_takes_a_palette_the_tables_hold(const GameState *g, FieldObject obj)
+{
+    ObjectRole role = object_role(g, obj);
+    if (field_palettes_set_by_script(g) || role.disabled)
+        return true;
+    if ((unsigned)role.kind >= KINDS_WITH_SLOTS)
+        return false;
+    SlotRange range = slots_for_kind[role.kind];
+    for (uint8_t slot = range.first; slot < range.end; slot++) {
+        FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
+        if (field_link_is_object(newest) && !field_link_names_object(newest))
+            return false;
+        /* a party place's slot held by an object of other colours: the
+         * original gives up with its accumulator left 16-bit, which its
+         * callers then run with */
+        if (role.kind <= ROLE_PARTY_2 && field_link_is_object(newest) &&
+            field_object_colours(g, field_linked_object(newest)) != field_object_colours(g, obj))
+            return false;
+    }
+    return true;
 }
 
 /* The entry: the current object (8-bit index registers). The carry says
@@ -180,6 +247,29 @@ void field_take_enemy_palette_slot(Snes *s)
     m_rts(s);
 }
 
+/* The current object (8-bit index registers), coming into view: working out
+ * a slot's colours leaves the overflow clear, where it took one; nothing
+ * else it leaves is read. */
+void field_take_palette(Snes *s)
+{
+    if (object_take_palette(state_of(s), (FieldObject)field_current_object_slot(s)))
+        m_set_flag(s, CPU_FLAG_V, false);
+    m_rts(s);
+}
+
+/* The guard: the current object one the tables hold, on the field's page
+ * with the data bank $00, its kind one the slots are given by, and the
+ * slots' newest sharers objects the tables hold. */
+bool field_palette_can_be_taken(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool ok = object_takes_a_palette_the_tables_hold(state_of(s), (FieldObject)field_current_object_slot(s));
+    vars_peek(false);
+    return ok;
+}
+
 /* The guard: the current object one the tables hold, on the field's page
  * with the data bank $00, and the slots' newest sharers ones too. */
 bool field_enemy_palette_slot_can_be_taken(Snes *s)
@@ -189,7 +279,7 @@ bool field_enemy_palette_slot_can_be_taken(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     bool ok = true;
-    for (uint8_t slot = FIRST_ENEMY_SLOT; ok && slot < ENEMY_SLOTS_END; slot++) {
+    for (uint8_t slot = enemies_slots.first; ok && slot < enemies_slots.end; slot++) {
         FieldLink newest = field_link_stored(field_palette_slot_newest(g, slot));
         ok = !field_link_is_object(newest) || field_link_names_object(newest);
     }

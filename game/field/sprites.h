@@ -27,6 +27,15 @@ void field_free_4_sprite_areas(Snes *s);
 void field_free_8_sprite_areas(Snes *s);
 void field_free_12_sprite_areas(Snes *s);
 void field_free_every_sprite_area(Snes *s);
+/* A map's start frees every frame area ($C0:E935). */
+void sprites_free_every_frame_area(GameState *g);
+enum { FIELD_FREE_EVERY_SPRITE_AREA_ENTRY = 0xC0E935 };
+/* As a map's objects start: each one's sprites to be built afresh, and every
+ * frame area free ($C0:B192). */
+void sprites_all_to_build_afresh(GameState *g);
+void field_build_the_sprites_afresh(Snes *s);
+bool field_sprites_can_be_built_afresh(Snes *s);
+enum { FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY = 0xC0B192 };
 void field_claim_4_sprite_areas(Snes *s);
 void field_claim_8_sprite_areas(Snes *s);
 void field_claim_12_sprite_areas(Snes *s);
@@ -44,6 +53,10 @@ typedef struct {
     uint8_t tile, attributes;
 } FrameSprite;
 bool sprites_claim_frame_areas(GameState *g, FieldObject obj, SpriteLayout layout);
+/* An object leaving view lets go of the frame areas it holds ($C0:EA42). */
+void sprites_release_frame_areas(GameState *g, FieldObject obj);
+void field_release_frame_areas(Snes *s);
+enum { FIELD_RELEASE_FRAME_AREAS_ENTRY = 0xC0EA42 };
 void sprites_set_frame_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
 void sprites_set_record_sprite(GameState *g, FieldObject obj, unsigned n, FrameSprite sprite);
 bool sprites_records_in_the_tables(const GameState *g, FieldObject obj, SpriteLayout layout);

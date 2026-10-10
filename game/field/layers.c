@@ -197,7 +197,6 @@ void field_find_layer_edges(GameState *g)
 
 enum { STEP_FORWARD = 0x10, STEP_BACK = 0xF0 };   /* a pixel a frame, in 4.4 */
 enum { SCROLL_IDLE = 0, SCROLL_DONE = 0x02, ARRIVED_BOTH = 0x03 };   /* field_screen_scroll_state, _arrived */
-enum { STILL_BG2 = 0x02, STILL_BG3 = 0x04 };   /* field_layer_still */
 enum { SHAKE_BACK = 0x01, SHAKE_Y = 0x02, SHAKE_X = 0x04 };   /* the frame counter's bits */
 
 static uint8_t screen_edge(const GameState *g, unsigned axis)
@@ -276,7 +275,7 @@ static void accumulate(GameState *g, unsigned layer, unsigned axis)
     } else {
         uint8_t speed = axis == AXIS_X ? field_layer_speed_x(g, layer - 1) : field_layer_speed_y(g, layer - 1);
         sum = (uint8_t)(sum + speed);
-        if (!(field_layer_still(g) & (layer == 1 ? STILL_BG2 : STILL_BG3)))
+        if (!(field_layer_still(g) & FIELD_LAYER_BIT(layer)))
             sum = (uint8_t)(sum + screen_motion(g, axis));
     }
     set_accumulator(g, layer, axis, sum);
@@ -344,7 +343,6 @@ static void update_layer_scroll(GameState *g)
 /* Where the map loader leaves the map's decompressed data (field_map_data),
  * which the unpacking streams through the work RAM port. */
 enum { MAP_DATA = 0xB506, MAP_DATA_BANK = 0 };
-enum { MAP_HAS_BG3 = 0x01 };   /* field_map_flags */
 
 /* A tile map's size as the map gives it: the rows, and the columns of each.
  * The unpacking always writes a first row and a first column. */
@@ -468,12 +466,12 @@ static void unpack_attributes(GameState *g, MapSize size)
 /* When a map loads: unpack its tile maps from the decompressed map data,
  * through the work RAM port: BG1's and BG2's, BG3's where the map has one,
  * then the tile attributes. */
-static void unpack_tile_maps(GameState *g)
+void field_unpack_the_tile_maps(GameState *g)
 {
     hw_port_seek(g, MAP_DATA, MAP_DATA_BANK);
     unpack_layer_map(g, FIELD_BG1);
     unpack_layer_map(g, FIELD_BG2);
-    if (field_map_flags(g) & MAP_HAS_BG3)
+    if (field_map_flags(g) & FIELD_MAP_HAS_BG3)
         unpack_layer_map(g, FIELD_BG3);
     MapSize size = layer_size(g, FIELD_BG1);
     ORIGINAL_EFFECT(unpack_leaves.had_run = false);
@@ -505,20 +503,25 @@ enum { STREAM_REACHES_LAYERS_PAGE = 0x10000 - MAP_DATA + 0x10000 + 0x1D50 };
 
 static uint32_t tiles(MapSize s) { return (uint32_t)(s.rows ? s.rows : 1) * (s.columns ? s.columns : 1); }
 
-bool field_unpack_stays_clear(Snes *s)
+bool field_tile_maps_fit(const GameState *g)
 {
-    if (!field_on_layers_page(s) || !m_bank_reaches_io(s))
-        return false;
-    vars_peek(true);
-    const GameState *g = state_of(s);
-    bool bg3 = field_map_flags(g) & MAP_HAS_BG3;
+    bool bg3 = field_map_flags(g) & FIELD_MAP_HAS_BG3;
     bool fits = fits_the_tables(layer_size(g, FIELD_BG1)) && fits_the_tables(layer_size(g, FIELD_BG2)) &&
                 (!bg3 || fits_the_tables(layer_size(g, FIELD_BG3)));
     uint32_t bytes = tiles(layer_size(g, FIELD_BG1)) * 5 + tiles(layer_size(g, FIELD_BG2));
     if (bg3)
         bytes += tiles(layer_size(g, FIELD_BG3));
-    vars_peek(false);
     return fits && bytes < STREAM_REACHES_LAYERS_PAGE;
+}
+
+bool field_unpack_stays_clear(Snes *s)
+{
+    if (!field_on_layers_page(s) || !m_bank_reaches_io(s))
+        return false;
+    vars_peek(true);
+    bool ok = field_tile_maps_fit(state_of(s));
+    vars_peek(false);
+    return ok;
 }
 
 /* The overflow of BG3's right column's address, the last sum, is the one
@@ -550,6 +553,6 @@ void field_update_layer_scroll(Snes *s)
 
 void field_unpack_tile_maps(Snes *s)
 {
-    unpack_tile_maps(state_of(s));
+    field_unpack_the_tile_maps(state_of(s));
     m_rts(s);
 }

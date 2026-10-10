@@ -6,12 +6,12 @@
  * layers' edge runs, which bring the rows and columns scrolling into view onto
  * the layers' tile maps (field/layers.c works out where they are). When a map
  * loads it sets the video mode up, copies its screens' settings, fills memory
- * and makes the transfers a screen transition describes. (The four windows'
- * corner tiles are field/window_corners.c.)
+ * and makes the transfers a screen transition describes.
  *
  * The line interrupt comes at line 211: the picture ends there, the rest of
  * the frame is blanked, and the time to vblank goes to one of two jobs. */
 #include "field/display.h"
+#include "field/dialog_window.h"
 #include "field/sprites.h"
 #include "field/switches.h"
 
@@ -23,6 +23,7 @@
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "ram.h"
 #include "vars.h"
 
 /* Where the sprite table and the layers' tile maps are, as the transfers'
@@ -55,8 +56,11 @@ void field_upload_queued_transfers(GameState *g, Platform *pf)
         vid_send_vram(pf, PF_AT(0xC0B1EB), field_vram_queue_vram2(g, i),
                       PF_GAME((uint32_t)QUEUE_BANK << 16 | field_vram_queue_source2(g, i)), size ? size : 0x10000u, NULL);
     }
-    set_field_vram_queue_used(g, 0, 0);
+    field_forget_the_queued_transfers(g);
 }
+
+/* The queue is emptied by marking its first entry unused. */
+void field_forget_the_queued_transfers(GameState *g) { set_field_vram_queue_used(g, 0, 0); }
 
 /* ---- The layers' edge runs ------------------------------------------------------------ */
 
@@ -181,7 +185,7 @@ EDGE_RUN_ENTRY(field_upload_layer3_left_column, 11)
  * $5000, no sprite or interlace settings, every scroll at 0, BG1, BG2 and the
  * sprites on the main screen, and color math adding the sub screen to a black
  * fixed color. */
-static void init_video_mode(Platform *pf)
+void field_set_the_video_mode(Platform *pf)
 {
     vid_set_mode(pf, PF_AT(0xFDC0E2), &(VidMode){ .mode = 1, .bg3_priority = true });
     vid_set_bg_chars(pf, PF_AT(0xFDC0E6), VID_BG1, 0x1000, 0x1000);
@@ -204,7 +208,7 @@ static void init_video_mode(Platform *pf)
 // $C0:A509
 /* The map's screens: the main and sub screens' layers and the color math
  * layers as the map set them, and no mosaic. */
-static void set_screens(const GameState *g, Platform *pf)
+void field_show_the_maps_screens(const GameState *g, Platform *pf)
 {
     vid_set_screens(pf, PF_AT(0xC0A50C), field_main_screen(g), 0, VID_SCREEN_MAIN);
     vid_set_screens(pf, PF_AT(0xC0A512), 0, field_sub_screen(g), VID_SCREEN_SUB);
@@ -260,6 +264,44 @@ void field_send_transfer(GameState *g, Platform *pf, FieldTransfer t)
     vram_transfer(g, pf);
 }
 
+/* ---- A layer's tile map, staged ------------------------------------------------------------- */
+
+/* A layer drawn into the staging buffers (field/streaming.h) is sent to its
+ * place in VRAM: a screen's tile map, or both of a layer's two side by side
+ * where it is drawn whole. The NMI sends BG2's halves to their own places. */
+enum { STAGED_SCREEN_BYTES = 0x0800, STAGED_BOTH_SCREENS_BYTES = 0x1000 };
+
+static FieldTransfer staged_layer(uint16_t vram, bool both_screens)
+{
+    return (FieldTransfer){ .vram = vram, .mode = FIELD_TRANSFER_WORDS, .source = RAM_FIELD_LAYER_STAGING,
+                            .size = both_screens ? STAGED_BOTH_SCREENS_BYTES : STAGED_SCREEN_BYTES };
+}
+
+// $C0:7F62 (a screen), $C0:7F77 (both screens)
+/* To the place the field's transfer names already. */
+void field_send_staged_layer(GameState *g, Platform *pf, bool both_screens)
+{
+    field_send_transfer(g, pf, staged_layer(field_transfer_vram(g), both_screens));
+}
+
+// $C0:7F58 (BG2's right screen), $C0:7F5D (its left)
+enum { BG2_LEFT_SCREEN_VRAM = 0x7000, BG2_RIGHT_SCREEN_VRAM = 0x7400 };
+
+void field_send_staged_bg2_screen(GameState *g, Platform *pf, bool right)
+{
+    field_send_transfer(g, pf, staged_layer(right ? BG2_RIGHT_SCREEN_VRAM : BG2_LEFT_SCREEN_VRAM, false));
+}
+
+// $C0:EC77
+/* A piece of BG3's tile map a script has staged in BG3's staging buffer
+ * (field_bg3_piece_vram, field_bg3_piece_bytes), sent there. */
+void field_send_bg3_piece(const GameState *g, Platform *pf)
+{
+    uint32_t staged = (uint32_t)TILE_MAP_BANK << 16 | field_staged_line(FIELD_BG3, false);
+    vid_send_vram(pf, PF_AT(0xC0EC7A), field_bg3_piece_vram(g), PF_GAME(staged), field_bg3_piece_bytes(g),
+                  VID_VRAM_WORD_PORT);
+}
+
 /* ---- The line interrupt ---------------------------------------------------------------- */
 
 /* A line interrupt the field takes: it isn't turned off, and the line one is
@@ -311,13 +353,13 @@ void field_upload_vram_queue(Snes *s)
 
 void field_init_video_mode(Snes *s)
 {
-    init_video_mode(m_platform(s));
+    field_set_the_video_mode(m_platform(s));
     m_rtl(s);
 }
 
 void field_set_screens(Snes *s)
 {
-    set_screens(state_of(s), m_platform(s));
+    field_show_the_maps_screens(state_of(s), m_platform(s));
     m_rts(s);
 }
 
@@ -399,14 +441,14 @@ void field_irq_after_hblank(Snes *s)
 
 // $C0:ED15
 /* The line interrupt's job in the time after the picture, on the frames it
- * isn't bank $FD's: the windows' corners, where they need it, and the looks
+ * isn't bank $FD's: the dialog's choice pointer, where it shows, and the looks
  * of a switch pressed or a chest opened (field/switches.c). */
 void field_redraw_after_picture(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    if (field_windows_need_refresh(g))
-        TIMED_AS(g, 0xC0F05E, field_refresh_corners(g, pf));
+    if (field_choice_pointer_shown(g))
+        TIMED_AS(g, FIELD_REFRESH_CHOICE_POINTER_ENTRY, field_refresh_choice_pointer(g, pf));
     field_redraw_changed_tiles(g, pf);
     m_rts(s);
 }
@@ -414,3 +456,36 @@ void field_redraw_after_picture(Snes *s)
 /* Its guard: the data bank $00, on whatever page the interrupt has (it
  * reaches its cells as the field's page does). */
 bool field_redraw_can_run(Snes *s) { return m_bank_is_zero(s); }
+
+/* The staged layer's sends and BG3's piece, on the field's page with the
+ * data bank reaching the registers; what they leave in A, X and the flags
+ * nobody reads, and they leave Y as it was. */
+void field_send_staged_screen(Snes *s)
+{
+    field_send_staged_layer(state_of(s), m_platform(s), false);
+    m_rts(s);
+}
+
+void field_send_staged_screens(Snes *s)
+{
+    field_send_staged_layer(state_of(s), m_platform(s), true);
+    m_rts(s);
+}
+
+void field_send_staged_bg2_right(Snes *s)
+{
+    field_send_staged_bg2_screen(state_of(s), m_platform(s), true);
+    m_rts(s);
+}
+
+void field_send_staged_bg2_left(Snes *s)
+{
+    field_send_staged_bg2_screen(state_of(s), m_platform(s), false);
+    m_rts(s);
+}
+
+void field_send_bg3_piece_entry(Snes *s)
+{
+    field_send_bg3_piece(state_of(s), m_platform(s));
+    m_rts(s);
+}

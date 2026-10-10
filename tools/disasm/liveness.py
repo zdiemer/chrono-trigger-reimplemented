@@ -390,6 +390,8 @@ class Liveness:
                         static_sites.add(pc)
         for key, c in an.contexts.items():
             unsafe = c.kinds & {"vector", "coverage", "hint"}
+            if unsafe == {"hint"} and c.entry in an.hints.tail_of:
+                unsafe = set()     # a tail: it returns where its routine does (step 2 of solve)
             if unsafe:
                 self._all_live(c.entry, f"entered as {', '.join(sorted(unsafe))}")
             elif "indirect" in c.kinds:
@@ -1246,6 +1248,15 @@ class Liveness:
                     if new != self.ret_live[t] or new_esc != self.esc_live[t]:
                         self.ret_live[t], self.esc_live[t] = new, new_esc
                         changed = True
+            # a tail returns where the routine it is the tail of returns
+            for tail, host in an.hints.tail_of.items():
+                if tail in self.all_live_returns:
+                    continue
+                new = self.ret_live[tail] | self.ret_live[host]
+                new_esc = self.esc_live[tail] | self.esc_live[host]
+                if new != self.ret_live[tail] or new_esc != self.esc_live[tail]:
+                    self.ret_live[tail], self.esc_live[tail] = new, new_esc
+                    changed = True
             if not changed:
                 break
         else:

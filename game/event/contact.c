@@ -29,6 +29,7 @@
 #include "event/party.h"
 #include "event/script.h"
 #include "field/bridge.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/layers.h"
 #include "field/party.h"
@@ -147,10 +148,6 @@ void touch_what_the_leader_met(GameState *g)
 }
 
 /* ---- The confirm button ---------------------------------------------------------------- */
-
-/* A dialog that stays until the player presses the confirm button
- * (field_dialog_hold). */
-enum { HOLD_UNTIL_CONFIRMED = 0xFFFF };
 
 /* How near before the leader an object is to be talked to: along the way
  * the leader faces, under 28 pixels; across, under 12. */
@@ -276,7 +273,7 @@ ChestGift press_confirm(GameState *g)
     ChestGift nothing = { GIFT_NOTHING, 0 };
     if (!(input_mapped(g, ASSIGNED_PRESSED) & ASSIGNED_CONFIRM))
         return nothing;
-    if (field_dialog_hold(g) == HOLD_UNTIL_CONFIRMED) {
+    if (field_dialog_hold(g) == DIALOG_HOLD_UNTIL_CONFIRMED) {
         set_field_dialog_hold(g, 0);
         return nothing;
     }
@@ -412,7 +409,7 @@ bool event_touch_can_run(Snes *s)
  * where no dialog is open, the chest's look stays on the map. */
 static bool confirm_fits(const GameState *g)
 {
-    if (!(input_mapped(g, ASSIGNED_PRESSED) & ASSIGNED_CONFIRM) || field_dialog_hold(g) == HOLD_UNTIL_CONFIRMED ||
+    if (!(input_mapped(g, ASSIGNED_PRESSED) & ASSIGNED_CONFIRM) || field_dialog_hold(g) == DIALOG_HOLD_UNTIL_CONFIRMED ||
         !party_is_the_players(g))
         return true;
     FieldLink leader = party_member_link(g, PARTY_LEADER);

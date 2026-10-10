@@ -248,6 +248,12 @@ typedef enum { OUT_OF_VIEW, IN_VIEW, OVERWRITTEN_BY_A_LINK } ObjectView;
 ObjectView object_view(const GameState *g, FieldObject obj);
 static inline bool object_in_view(const GameState *g, FieldObject obj) { return object_view(g, obj) == IN_VIEW; }
 void object_set_in_view(GameState *g, FieldObject obj, bool in_view);
+/* A map's screen starts with every object out of view and no frame of its
+ * drawn ($C0:A7E9); then each that shows comes into view where it is near
+ * enough the screen, taking its palette and its block of sprite tiles
+ * ($C0:B127, true where it did). */
+void objects_all_out_of_view(GameState *g);
+bool object_in_view_at_the_start(GameState *g, FieldObject obj);
 
 /* A tile of the map. */
 typedef struct {

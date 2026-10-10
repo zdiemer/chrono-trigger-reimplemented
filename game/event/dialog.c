@@ -10,11 +10,10 @@
 
 #include "event/leaves.h"
 #include "event/script.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 
 /* ---- The dialog window ---------------------------------------------------------------- */
-
-enum { DIALOG_IDLE = 0, DIALOG_OPENING = 1 };
 
 bool dialog_on_screen(const GameState *g) { return dialog_state(g) != DIALOG_IDLE; }
 
@@ -24,7 +23,7 @@ static void show_the_window(GameState *g, FieldObject speaker, uint8_t line, Win
     set_dialog_string(g, line);
     dialog_set_speaker(g, speaker);
     set_dialog_window_object(g, 0);   /* the dialog places its window by the speaker once it starts */
-    set_dialog_state(g, DIALOG_OPENING);
+    dialog_begin(g);
     set_dialog_box_position(g, where);
 }
 
@@ -148,9 +147,9 @@ static bool text_chosen(const GameState *g)
 }
 EVENT_CHECK_TAKING_NOTHING(text_chosen)
 
-/* A question's choices, as the script gives them: its first choice line in
- * bits 0-1 of the operand, its last in bits 2-3. */
-#define CHOICES .first_choice = OPERAND_BITS(2, 0, 0x03), .last_choice = OPERAND_BITS(2, 2, 0x03)
+/* A question's choices, as the script gives them: its last choice line in
+ * bits 0-1 of the operand, its first in bits 2-3. */
+#define CHOICES .first_choice = OPERAND_BITS(2, 2, 0x03), .last_choice = OPERAND_BITS(2, 0, 0x03)
 
 EVENT_OPCODES(event_dialog_opcodes,
     { 0xB8, OPERATION(use_text), .text = OPERAND_ADDRESS(1), .length = 4 },

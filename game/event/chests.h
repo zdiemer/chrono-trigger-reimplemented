@@ -28,4 +28,10 @@ void announce_the_gift(GameState *g, ChestGift gift);
 bool chest_look_fits(const GameState *g);
 bool chest_gift_fits(const GameState *g);
 
+/* As a map's screen is set up: every tile one the leader may walk onto but
+ * the location's chests', which name their chests, and the chests opened
+ * before shown open ($C0:A712). */
+void chests_mark_the_map(GameState *g);
+enum { CHESTS_MARK_THE_MAP_ENTRY = 0xC0A712 };
+
 #endif

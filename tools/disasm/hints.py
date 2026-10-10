@@ -81,6 +81,11 @@ class Hints:
     returns: dict = field(default_factory=dict)        # function -> (m, x) after return
     state_at: dict = field(default_factory=dict)       # addr -> (m, x) forced
     noreturn: set = field(default_factory=set)
+    # entry -> the routine it is the tail of: an [[entry]] hint's `tail_of`,
+    # for a point the routine falls into that a port calls on its own; it
+    # returns where the routine returns, so liveness follows that routine's
+    # callers rather than keeping everything live after it
+    tail_of: dict = field(default_factory=dict)
     inline_args: dict = field(default_factory=dict)    # function -> bytes skipped after JSR
     keep_resumes: dict = field(default_factory=dict)   # a `keeps` function -> where its caller's turn resumes
     keeps: dict = field(default_factory=dict)          # function -> (kept, read): register names it
@@ -169,6 +174,8 @@ def load(path: Path) -> Hints:
                                e.get("kind", "hint")))
         if "name" in e:
             h.names[addr] = e["name"]
+        if "tail_of" in e:
+            h.tail_of[addr] = parse(e["tail_of"])
     for n in doc.get("name", []):
         h.names[parse(n["addr"])] = n["name"]
     for t in doc.get("jumptable", []):

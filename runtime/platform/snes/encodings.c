@@ -71,6 +71,7 @@ static const PfSnesEncoding encodings[] = {
     FIELD_EDGE(0xC086FB), FIELD_EDGE(0xC08710), FIELD_EDGE(0xC0872D), FIELD_EDGE(0xC08742), FIELD_EDGE(0xC0875F),
     FIELD_EDGE(0xC08774), FIELD_EDGE(0xC08791), FIELD_EDGE(0xC087A6), FIELD_EDGE(0xC087C3), FIELD_EDGE(0xC087D8),
     { 0xC02DCA, 0, 0, 7, WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* a transition's transfer */
+    { 0xC0EC7A, 0, 0, 7, WORDS, STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* BG3's staged piece */
     { 0xC02E01, 0, 0, 7, FROM_REGISTER, STEPS(C, D, SL, SH, SB, ZL, ZH, GO), 0 },     /* its memory fill */
     /* the eight line effects, $FD:C1EE */
     FIELD_LINE(0xFDC1F9), FIELD_LINE(0xFDC1FD), FIELD_LINE(0xFDC201), FIELD_LINE(0xFDC205),

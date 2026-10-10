@@ -690,17 +690,26 @@
 /* Dialog box position: 1 top of the screen, 2 bottom, 0 the default commands */
 #define RAM_DIALOG_BOX_POSITION 0x7E0130u
 #define RAM_DIALOG_BOX_POSITION_DP 0x30u     /* page field */
+/* Which of the dialog window's four text rows is being cleared or set (0-3): the vblank sends
+ * the text page's tiles there, and a page's next line goes to the next row */
+#define RAM_DIALOG_TEXT_ROW 0x7E0131u
+#define RAM_DIALOG_TEXT_ROW_DP 0x31u         /* page field */
 /* The object the open dialog window is placed by: cleared when a dialog starts, then taken from
  * dialog_speaker ($C0:9193) */
 #define RAM_DIALOG_WINDOW_OBJECT 0x7E0132u
 #define RAM_DIALOG_WINDOW_OBJECT_DP 0x32u    /* page field */
+/* A byte the dialog window clears with its text row as it opens ($C0:1FF0); nothing the library
+ * runs reads it */
+#define RAM_DIALOG_WINDOW_OPENING_CLEARS 0x7E0133u
+#define RAM_DIALOG_WINDOW_OPENING_CLEARS_DP 0x33u /* page field */
 /* How long the field's dialog window stays: frames left, or $FFFF until the player presses the
  * confirm button, a press the window takes for itself [2 bytes] */
 #define RAM_FIELD_DIALOG_HOLD 0x7E0134u
 #define RAM_FIELD_DIALOG_HOLD_DP 0x34u       /* page field */
-/* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
-#define RAM_FIELD_FADE_REQUEST 0x7E0136u
-#define RAM_FIELD_FADE_REQUEST_DP 0x36u      /* page field */
+/* Whether the vblank sends the dialog window's text row to VRAM ($C0:6ECB): 0 not, 1 every frame
+ * while it is set, $81 once (bit 7: cleared as it is taken) */
+#define RAM_DIALOG_TEXT_SENDING 0x7E0136u
+#define RAM_DIALOG_TEXT_SENDING_DP 0x36u     /* page field */
 /* The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F
  * sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0
  * waits) */
@@ -805,15 +814,18 @@
 /* 1 while a dialog with choices runs */
 #define RAM_DIALOG_CHOICE_ACTIVE 0x7E0162u
 #define RAM_DIALOG_CHOICE_ACTIVE_DP 0x62u    /* page field */
-/* Which of the four window tile pairs gets the alternate tiles $28FC-$28FF (0-3); $80 none */
-#define RAM_FIELD_WINDOW_TILE_SLOT 0x7E0163u
-#define RAM_FIELD_WINDOW_TILE_SLOT_DP 0x63u  /* page field */
-/* The last line of a dialog's choices (the choice cursor stops there, $C0:1B25) */
-#define RAM_DIALOG_CHOICE_LAST 0x7E0164u
-#define RAM_DIALOG_CHOICE_LAST_DP 0x64u      /* page field */
-/* The first line of a dialog's choices */
-#define RAM_DIALOG_CHOICE_FIRST 0x7E0165u
-#define RAM_DIALOG_CHOICE_FIRST_DP 0x65u     /* page field */
+/* Which of the dialog window's four text lines the choice pointer (the hand, tiles $28FC-$28FF)
+ * points at, 0-3; 4 once the choice is taken, which the next refresh of the lines' first tiles
+ * turns into $80, no pointer */
+#define RAM_DIALOG_CHOICE_POINTER 0x7E0163u
+#define RAM_DIALOG_CHOICE_POINTER_DP 0x63u   /* page field */
+/* The first line of a dialog's choices: the pointer starts there, and moving down past the last
+ * comes back to it */
+#define RAM_DIALOG_CHOICE_FIRST 0x7E0164u
+#define RAM_DIALOG_CHOICE_FIRST_DP 0x64u     /* page field */
+/* The last line of a dialog's choices: moving up past the first comes back to it */
+#define RAM_DIALOG_CHOICE_LAST 0x7E0165u
+#define RAM_DIALOG_CHOICE_LAST_DP 0x65u      /* page field */
 /* The choice made in a dialog with choices, copied to the object's event_object_result */
 #define RAM_DIALOG_CHOICE 0x7E0166u
 #define RAM_DIALOG_CHOICE_DP 0x66u           /* page field */
@@ -1194,10 +1206,13 @@
 #define RAM_FIELD_PALETTE_SLOT_NEWEST_STRIDE 0x01u
 /* The object each block of sprite tiles in VRAM is given to, a link, negative for a free block:
  * the party's three places have blocks 1-3 and an enemy the block its script names (events
- * $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA).
- * Block 0 is never given [26 x $1 bytes, by block of sprite tiles in VRAM] */
+ * $57-$6D, $80, $83); an object coming into view takes a free one, the last (25) first, or a
+ * free pair from block 12 on for a larger figure ($C0:6FBA), and gives it up leaving ($C0:7056),
+ * with the block after where it holds that too. Block 0 is never given, nor are 26-29, which the
+ * screen's setup clears with the rest ($C0:6F79): the last block's partner is 26, always free
+ * [30 x $1 bytes, by block of sprite tiles in VRAM] */
 #define RAM_FIELD_SPRITE_BLOCK_OWNER 0x7E0B88u
-#define RAM_FIELD_SPRITE_BLOCK_OWNER_COUNT 26u
+#define RAM_FIELD_SPRITE_BLOCK_OWNER_COUNT 30u
 #define RAM_FIELD_SPRITE_BLOCK_OWNER_STRIDE 0x01u
 /* Which object (its offset, slot * 2) holds each of field_frame_staging's areas a new frame of
  * an object's is drawn into; the top bit set when none: a 4-sprite object takes one, an 8-sprite
@@ -1212,12 +1227,15 @@
 #define RAM_FIELD_BG2_HALF_SCROLL 0x7E0BC9u
 /* Bit 0: the map has a third layer tile map */
 #define RAM_FIELD_MAP_FLAGS 0x7E0BCAu
-/* Sizes of a map's layer tile maps as unpacked [3 x $4 bytes, by layer (BG1-BG3)] */
+/* Sizes of a map's layer tile maps as unpacked: 16, 32, 48 or 64 tiles each way, from the map's
+ * header ($C0:A33B) [3 x $4 bytes, by layer (BG1-BG3)] */
 #define RAM_FIELD_MAP_LAYER_SIZES 0x7E0BCBu
 #define RAM_FIELD_MAP_LAYER_SIZES_COUNT 3u
 #define RAM_FIELD_MAP_LAYER_SIZES_STRIDE 0x04u
 #define RAM_FIELD_MAP_LAYER_SIZES_WIDTH 0x7E0BCBu /* Columns */
+#define RAM_FIELD_MAP_LAYER_SIZES_WIDTH_HIGH 0x7E0BCCu /* The byte after the columns, which the map's unpacking clears (the original keeps the sizes as words); nothing the library runs reads it */
 #define RAM_FIELD_MAP_LAYER_SIZES_HEIGHT 0x7E0BCDu /* Rows */
+#define RAM_FIELD_MAP_LAYER_SIZES_HEIGHT_HIGH 0x7E0BCEu /* The byte after the rows, cleared as width_high is */
 /* Main screen layers shadow */
 #define RAM_FIELD_MAIN_SCREEN 0x7E0BD7u
 /* Sub screen layers shadow */
@@ -1516,13 +1534,14 @@
  * [2 bytes] */
 #define RAM_FIELD_LOCATION_EXITS 0x7E1D04u
 #define RAM_FIELD_LOCATION_EXITS_DP 0x04u    /* page field_layers */
-/* Where the game's chests start in bank $F5, and this location's, four bytes each
- * (field/field_data.h, FieldChest); a chest's number, which its story flag is, counts from the
- * first [2 x $2 bytes, by 0: the first of the game's chests, 1: the location's first] */
-#define RAM_FIELD_CHESTS 0x7E1D06u
-#define RAM_FIELD_CHESTS_COUNT 2u
-#define RAM_FIELD_CHESTS_STRIDE 0x02u
-#define RAM_FIELD_CHESTS_DP 0x06u            /* page field_layers */
+/* Where the game's chests start in bank $F5, four bytes each (field/field_data.h, FieldChest): a
+ * chest's number, which its story flag is, counts from here [2 bytes] */
+#define RAM_FIELD_GAMES_CHESTS 0x7E1D06u
+#define RAM_FIELD_GAMES_CHESTS_DP 0x06u      /* page field_layers */
+/* Where the location's chests start in bank $F5: a chest's tile in the walkable table names it
+ * by its index from here [2 bytes] */
+#define RAM_FIELD_LOCATION_CHESTS 0x7E1D08u
+#define RAM_FIELD_LOCATION_CHESTS_DP 0x08u   /* page field_layers */
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 #define RAM_FIELD_SCREEN_LEFT 0x7E1D0Au
 #define RAM_FIELD_SCREEN_LEFT_DP 0x0Au       /* page field_layers */
@@ -1796,7 +1815,7 @@
 #define RAM_FIELD_TILE_EXITS_ROWS 64u
 #define RAM_FIELD_TILE_EXITS_ROW_STRIDE 0x100u
 /* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
- * it holds (field_chests) [64 bytes] [64 rows, $100 bytes apart] */
+ * it holds (field_location_chests) [64 bytes] [64 rows, $100 bytes apart] */
 #define RAM_FIELD_TILE_WALKABLE 0x7E70C0u
 #define RAM_FIELD_TILE_WALKABLE_ROWS 64u
 #define RAM_FIELD_TILE_WALKABLE_ROW_STRIDE 0x100u
@@ -1811,6 +1830,16 @@
 #define RAM_FIELD_TILE_LOOKS_TOP_RIGHT 0x7EB002u /* The top right quarter's entry */
 #define RAM_FIELD_TILE_LOOKS_BOTTOM_LEFT 0x7EB004u /* The bottom left quarter's entry */
 #define RAM_FIELD_TILE_LOOKS_BOTTOM_RIGHT 0x7EB006u /* The bottom right quarter's entry */
+/* The decompressed map's first six bytes, before its tile data (field_map_data): its layers'
+ * sizes and how they scroll, its screens and its color math ($C0:A33B reads them as the map is
+ * unpacked, before the tile set's looks are unpacked over them) [6 bytes] */
+#define RAM_FIELD_MAP_HEADER 0x7EB500u
+#define RAM_FIELD_MAP_HEADER_SIZES 0x7EB500u /* BG1's and BG2's sizes, two bits each way (bits 0-1 BG1's columns, 2-3 its rows, 4-5 BG2's columns, 6-7 its rows), each 16 tiles a step from 16 */
+#define RAM_FIELD_MAP_HEADER_LAYERS 0x7EB501u /* Bit 7: the map has a BG3 tile map; bit 6: BG2 scrolls half as far as the screen; bit 5: BG3, bit 4: BG2 stays still as the screen scrolls; bits 0-3 BG3's size, as BG1's in `sizes` */
+#define RAM_FIELD_MAP_HEADER_BG2_DRIFT 0x7EB502u /* BG2's drift, 0 for none: bits 0-2 across (a speed of 1/16 pixel a frame doubled for each step past the first, 0 none), bit 3 leftward; bits 4-6 and 7 the same down and up */
+#define RAM_FIELD_MAP_HEADER_BG3_DRIFT 0x7EB503u /* BG3's drift, as bg2_drift */
+#define RAM_FIELD_MAP_HEADER_SCREENS 0x7EB504u /* The layers on the screens: bits 0-2 BG1-BG3 and bit 3 the sprites on the main screen, bits 4-7 the same on the sub screen */
+#define RAM_FIELD_MAP_HEADER_COLOR_MATH 0x7EB505u /* The layers color math applies to, as the field keeps it (field_color_math_layers) */
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 #define RAM_FIELD_MAP_DATA 0x7EB506u
 /* BG3's map tiles as 8-pixel tile map entries, four each as field_tile_looks [256 x $8 bytes, by
@@ -1828,6 +1857,13 @@
 #define RAM_FIELD_LAYER_STAGING 0x7EC800u
 #define RAM_FIELD_LAYER_STAGING_COUNT 3u
 #define RAM_FIELD_LAYER_STAGING_STRIDE 0x800u
+/* Where the field builds what the dialog window shows before it is sent to VRAM: the window's
+ * frame and its text area as tile maps when the screen is set up ($C0:29F7, $C0:2B78), then a
+ * row of the text page's tiles as the typesetter sets a dialog's glyphs ($C0:20B2 clears the
+ * page) [1024 x $1 bytes, by byte] */
+#define RAM_FIELD_WINDOW_STAGING 0x7EF000u
+#define RAM_FIELD_WINDOW_STAGING_COUNT 1024u
+#define RAM_FIELD_WINDOW_STAGING_STRIDE 0x01u
 /* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
  * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),
  * through which the original reads it */

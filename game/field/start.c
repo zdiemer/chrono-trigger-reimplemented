@@ -10,6 +10,7 @@
  * the sounds the field makes at their usual values; and the random numbers
  * started from the play time. */
 #include "field/start.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/object.h"
@@ -70,7 +71,7 @@ static void dark_plain_screen(GameState *g)
     set_field_color_math_control(g, field_starting_color_math());
     for (unsigned i = 0; i < WINDOW_SHADOW_BYTES; i++)
         set_field_window_shadows_byte(g, i, 0);
-    set_field_window_tile_slot(g, FIELD_NO_WINDOW_MARKED);
+    set_dialog_choice_pointer(g, DIALOG_NO_CHOICE_POINTER);
     field_map_names_a_bg3_set(g, true);
     set_field_bg3_map_size(g, 0);
     set_palette_base(g, BACKDROP, BLACK);
@@ -79,7 +80,7 @@ static void dark_plain_screen(GameState *g)
 /* No dialog: none open, no window, no choice, no string table. */
 static void no_dialog(GameState *g)
 {
-    set_dialog_state(g, 0);
+    dialog_forget(g);
     set_dialog_window_position(g, WINDOW_NONE);
     set_dialog_box_position(g, 0);
     set_dialog_choice_active(g, DIALOG_NO_CHOICES);

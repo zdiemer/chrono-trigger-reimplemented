@@ -111,6 +111,13 @@ void tm_wait_frame(Platform *pf, PfOrigin o)
     fiber_switch(t->driver);
 }
 
+void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
+{
+    tm_wait_frame(pf, o);
+    tm_set_line(pf, o, line);
+    tm_enable_interrupts(pf, o, sources);
+}
+
 bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
 {
     (void)pf; (void)o; (void)line;

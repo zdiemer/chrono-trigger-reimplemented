@@ -179,6 +179,14 @@ field_load_bg3_tile_looks vblank-worst as for its drift: a load of 97955 clocks 
 field_set_up_after_a_menu vblank-worst brings the field back after a menu with the screen blanked, its loadings attributed; at most 125643 clocks in calls of 609034 on average
 field_after_battle vblank-tail brings the field back after a battle, its loadings and the frames it waits attributed; its error moves the end of the load, with the screen blanked
 field_after_battle vblank-worst as for vblank-tail: at most 30104 clocks
+field_set_the_screen_up vblank-worst puts a map's screen together with the screen blanked, the map drawn and sent and the objects in view drawn at once, its parts attributed; at most 41137 clocks in calls of 1.47 million
+field_fade_in vblank-worst the screen's setup attributed and its brightening frames waited out; at most 41157 clocks, the screen dark while it is set up
+field_fade_in_after_a_menu vblank-tail as field_fade_in after a menu, its setup and frames attributed (cost_milli 1); 3.31% of its calls off by 1024 clocks or more, with the screen dark
+field_draw_the_objects_in_view vblank-worst draws every object in view at once as a map's screen is set up, with the screen blanked; its frames' parts attributed, at most 34054 clocks
+field_unpack_the_map vblank-worst unpacks a location's map while the screen is blanked; its time follows the packed data, as decompress
+field_unpack_the_map worst as for vblank-worst: 5.8% error in calls of 1.34 million clocks, ending a load sooner or later
+field_set_up_after_a_menu worst as for its vblank-worst: the map's unpacking and the screen's setup under it are C at their estimates, at most 300121 clocks in calls of 1.42 million, with the screen blanked
+field_dialog_window_step vblank-tail a step of the dialog window a frame, whose own work differs by its state (a row cleared, the window opened, a glyph set); 5.15% of its calls off by 1024 clocks or more, writing the RAM the vblank sends a frame later
 field_refresh_effects drift runs the screen effects' and the layers' frame work inline, attributed (cost_milli 1); what is left over-estimates by 6%, writing RAM
 field_refresh_effects vblank-tail as for its drift: 2.94% of its vblank calls off by 1024 clocks or more, at most 2237 clocks
 field_walk_a_frame drift walks the party a frame inline, attributed (cost_milli 1); +0.77% over 1203 clocks a call, writing RAM

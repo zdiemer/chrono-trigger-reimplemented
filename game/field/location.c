@@ -11,14 +11,16 @@
  * puts its state aside (field_put_aside_for_a_menu): the objects' tables and
  * the map's state with them, moved as one block to where the event script
  * lives, and the party's places, which the menus may change; a dialog under
- * way is closed, to open again from its start. After the menu
+ * way is shut, to start over after the menu. After the menu
  * (field_set_up_after_a_menu) the state comes back, the location's graphics,
  * map and scripts are loaded again (which the menus wrote over), and what the
  * party's scripts had been told is put back into the script; a gathering of
  * the party the menu cut short is finished at once. A battle puts the field
  * aside the same way (field/battle_start.c). */
 #include "field/main_loop.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
+#include "field/map.h"
 #include "field/field_data.h"
 #include "field/frames.h"
 #include "field/line_effects.h"
@@ -67,26 +69,37 @@ void field_bring_the_state_back(GameState *g)
     ORIGINAL_EFFECT(charge_block_move(g, FIELD_STATE_BYTES));
 }
 
+/* A party with no leader on the map (as a save's load leaves it, or the
+ * attract demo's scenes, until the map's objects start) has the place of
+ * the slot its marker names, the first past the tables, as the original
+ * reads it; the map's start puts the party where the location says all the
+ * same. */
+LeaderPlace field_leaders_place(const GameState *g)
+{
+    FieldLink link = party_member_link(g, PARTY_LEADER);
+    FieldObject leader = field_linked_object(link);
+    if (field_link_names_object(link))
+        return (LeaderPlace){ field_object_x_tile(g, leader), field_object_y_tile(g, leader),
+                              field_object_facing(g, leader) };
+    return (LeaderPlace){ field_object_x_tile_unchecked(g, leader), field_object_y_tile_unchecked(g, leader),
+                          field_object_facing_unchecked(g, leader) };
+}
+
+bool field_leader_readable(const GameState *g)
+{
+    FieldLink leader = party_member_link(g, PARTY_LEADER);
+    return field_party_objects_high(g, PARTY_LEADER) == 0 &&
+           (field_link_names_object(leader) || field_same_link(leader, field_no_link()));
+}
+
 /* The party's place, to come back to: the leader's tile, and its facing as
  * the place's way to face. */
 void field_party_place_is_the_leaders(GameState *g)
 {
-    FieldObject leader = field_linked_object(party_member_link(g, PARTY_LEADER));
-    set_location_x(g, field_object_x_tile(g, leader));
-    set_location_y(g, field_object_y_tile(g, leader));
-    set_location_flags(g, field_object_facing(g, leader));
-}
-
-/* A dialog under way is closed for the menu, to open again from its start
- * after it: the window shut, none open. */
-enum { DIALOG_NONE = 0, DIALOG_STARTS = 1 };
-static void close_the_dialog_for_now(GameState *g)
-{
-    if (dialog_state(g) == DIALOG_NONE)
-        return;
-    set_dialog_state(g, DIALOG_STARTS);
-    set_dialog_window_position(g, WINDOW_NONE);
-    set_dialog_window_state(g, 0);
+    LeaderPlace at = field_leaders_place(g);
+    set_location_x(g, at.x);
+    set_location_y(g, at.y);
+    set_location_flags(g, at.facing);
 }
 
 /* What the menus may change of the party, kept: each member's place on the
@@ -122,7 +135,7 @@ enum { WAVE_TESTED = 0x00FF };
 // $C0:011B
 void field_put_aside(GameState *g)
 {
-    close_the_dialog_for_now(g);
+    dialog_shut_to_start_over(g);
     field_put_the_state_aside(g);
     field_party_place_is_the_leaders(g);
     keep_where_the_party_stands(g);
@@ -365,7 +378,6 @@ void field_start_location_song(Snes *s)
 enum {
     SCREENS_SET_UP = 0xC07084,    /* the location's screens: its layers, windows and color math */
     MAP_PLACED = 0xC07F7E,        /* where the map's layers start, cleared */
-    MAP_UNPACKED = 0xC0A33B,      /* the location's map unpacked and its layers drawn */
     SCRIPT_UNPACKED = 0xC056D4,   /* the location's event script unpacked */
     TILE_ANIMATIONS = 0xFDFFFA,   /* the location's animated tiles, through the original's jump */
     PALETTE_ANIMATIONS = 0xFDFFF4, /* the location's palette animations, through the original's jump */
@@ -404,7 +416,7 @@ static bool load_graphics_map_and_scripts(Snes *s, Loading loading)
            field_run(s, loading_sites[loading].bg3_graphics, BG3_GRAPHICS, READS_NOTHING, field_load_bg3_graphics, m) &&
            call(s, loading_sites[loading].screens, SCREENS_SET_UP) &&
            call(s, loading_sites[loading].map_placed, MAP_PLACED) &&
-           call(s, loading_sites[loading].map, MAP_UNPACKED) &&
+           field_run(s, loading_sites[loading].map, FIELD_UNPACK_THE_MAP_ENTRY, READS_NOTHING, field_unpack_the_map, m) &&
            field_run(s, loading_sites[loading].looks, TILE_LOOKS_ROUTINE, READS_NOTHING, field_load_tile_looks, m) &&
            field_run(s, loading_sites[loading].bg3_looks, BG3_TILE_LOOKS_ROUTINE, READS_NOTHING,
                      field_load_bg3_tile_looks, m) &&
@@ -482,12 +494,12 @@ void field_set_up_after_a_menu(Snes *s)
 }
 
 /* The guards: on the field's page with the data bank $00, the party's places
- * objects or none (the leader's an object, its word's high byte clear); and,
+ * objects or none (the leader's an object or none, its word's high byte clear); and,
  * after a menu, a gathering cut short with both members there, their words'
  * high bytes clear too (the original moves them through the words). */
 static bool party_places_readable(const GameState *g)
 {
-    if (field_party_objects_high(g, PARTY_LEADER) != 0 || !field_link_names_object(party_member_link(g, PARTY_LEADER)))
+    if (!field_leader_readable(g))
         return false;
     for (PartyPlace place = PARTY_FIRST_MEMBER; place < PARTY_PLACES; place++) {
         FieldLink link = party_member_link(g, place);

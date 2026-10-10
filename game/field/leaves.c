@@ -197,6 +197,19 @@ bool field_frame_build_overflow(const GameState *g, FieldObject obj, FrameBuild 
  * port hands the battle the wait's A itself. */
 uint16_t field_frame_wait_leaves_a(const GameState *g) { return (uint16_t)(field_idle_frames(g) & 0xFF00); }
 
+/* ---- The layers' edges ($C0:7F9A) --------------------------------------------------------- */
+
+FieldEdgesLeave field_edges_leave(const GameState *g)
+{
+    enum { COLUMNS = FIELD_TILE_MAP_COLUMNS - 1, ROWS = FIELD_TILE_MAP_ROWS - 1 };
+    unsigned last = FIELD_LAYERS - 1;
+    uint8_t x = field_layer_position_x(g, last), y = field_layer_position_y(g, last);
+    uint16_t row = (uint16_t)((y - 1) & ROWS);
+    uint16_t start = field_tile_map_index((uint16_t)((x + FIELD_TILE_MAP_HALF_COLUMNS) & COLUMNS), row);
+    uint16_t base = field_layer_map_base(g, last);
+    return (FieldEdgesLeave){ start, row, (uint16_t)(start + base) < start, field_add_overflows16(start, base) };
+}
+
 /* ---- The searchlight ($C0:2409) ------------------------------------------------------------- */
 
 /* The overflow of its last corner's move: the last corner's y and its speed,

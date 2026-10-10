@@ -754,9 +754,14 @@ void palette_lighten_green_blue(Snes *s) { fade_loop_entry(s, 6, true); }
 /* Upload the working palette: the 256 colors at $7E:2200 into CGRAM from entry
  * 0. Every mode calls this from its vblank work; what it leaves in A, X and
  * the flags nobody reads (the entry's set). */
+void palette_send_working(Platform *pf)
+{
+    vid_send_palette(pf, PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS);
+}
+
 void palette_upload(Snes *s)
 {
-    vid_send_palette(m_platform(s), PF_AT(0xC07130), 0, PF_GAME(0x7E2200), PALETTE_COLORS);
+    palette_send_working(m_platform(s));
     m_rts(s);
 }
 

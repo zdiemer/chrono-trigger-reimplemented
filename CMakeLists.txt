@@ -134,10 +134,13 @@ add_library(ct_game STATIC
   game/field/nmi.c
   game/field/object_update.c
   game/field/object_view.c
+  game/field/objects_start.c
   game/field/party_trail.c
   game/field/streaming.c
   game/field/switches.c
-  game/field/window_corners.c
+  game/field/dialog_window.c
+  game/field/map.c
+  game/field/screen_setup.c
   game/field/scroll.c
   game/field/tile_copy.c
   game/field/walk.c

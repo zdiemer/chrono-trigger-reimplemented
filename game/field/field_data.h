@@ -233,14 +233,16 @@ static inline FieldSlope field_slope(const GameState *g, uint8_t shape)
  * place field_location_exits says. */
 typedef struct {
     uint8_t x, y;
-    uint8_t reach;   /* read by nothing the walk does */
+    uint8_t reach;   /* how many tiles past the first the exit spans: down where EXIT_RUNS_DOWN is set, across otherwise */
     uint16_t map_and_how;
     uint8_t to_x, to_y;
 } FieldExit;
 
+enum { EXIT_RUNS_DOWN = 0x80, EXIT_MORE_TILES = 0x7F, FIELD_EXIT_BYTES = 7 };
+
 static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t index)
 {
-    uint32_t at = 0xE50000u + (uint16_t)(exits + index * 7u);
+    uint32_t at = 0xE50000u + (uint16_t)(exits + index * FIELD_EXIT_BYTES);
     FieldExit e;
     e.x = rom_read8(g, at);
     e.y = rom_read8(g, at + 1);
@@ -253,7 +255,7 @@ static inline FieldExit field_exit(const GameState *g, uint16_t exits, uint8_t i
 
 /* A chest (event/chests.c): the tile it stands on (row << 8 | column), and
  * what it holds (event/chests.c says how). Four bytes each, one list for the
- * game in bank $F5, a location's a run of it (field_chests); a chest's place
+ * game in bank $F5, a location's a run of it (field_location_chests); a chest's place
  * is where in the bank its record is. */
 enum { FIELD_CHEST_BYTES = 4 };
 typedef struct {
@@ -271,6 +273,41 @@ static inline FieldChest field_chest_at(const GameState *g, uint16_t place)
     uint32_t at = 0xF50000u + place;
     return (FieldChest){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
+
+/* Where the game's chests start, and a location's run of them: a word per
+ * location (by the location doubled) from $F5:F000, the run ending where the
+ * next location's starts. */
+typedef struct {
+    uint16_t first, end;
+} FieldChestRun;
+
+static inline uint16_t field_games_chests_start(const GameState *g) { return rom_read16(g, 0xF5F000u); }
+static inline FieldChestRun field_location_chest_run(const GameState *g, uint16_t location_twice)
+{
+    uint32_t at = 0xF5F000u + location_twice;
+    return (FieldChestRun){ rom_read16(g, at), rom_read16(g, at + 2) };
+}
+
+/* ---- The dialog window's looks ------------------------------------------------------------ */
+
+/* The window designs the player chooses among (the settings' second byte,
+ * the menus' too), and each one's graphics: a pointer per design at $C0:6EA0
+ * to its frame's tiles in bank $FF, $200 bytes, with the interior's pattern
+ * after them, $80. And each design's colours, from $FF:B210, eight colours a
+ * design apart, of which the window takes fifteen. */
+enum { WINDOW_DESIGNS = 8, WINDOW_DESIGN_COLOURS = 15 };
+static inline uint32_t field_window_design_graphics(const GameState *g, uint8_t design)
+{
+    return 0xFF0000u | rom_read16(g, 0xC06EA0u + 2u * (design % WINDOW_DESIGNS));
+}
+static inline uint16_t field_window_design_colour(const GameState *g, uint8_t design, unsigned n)
+{
+    return rom_read16(g, 0xFFB210u + 16u * (design % WINDOW_DESIGNS) + 2u * n);
+}
+
+/* The choice pointer's four tiles, and the field's two sprites of its own,
+ * the tiles of each 16x16 sprite's top and bottom halves, in bank $FF. */
+enum { FIELD_CHOICE_POINTER_TILES = 0xFF9260, FIELD_OWN_SPRITES_TILES = 0xFF9CF0 };
 
 /* ---- Locations ------------------------------------------------------------------------------- */
 
@@ -298,6 +335,43 @@ static inline LocationDescription location_description_at(const GameState *g, ui
 {
     uint32_t at = 0xF60000u + place;
     return (LocationDescription){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2) };
+}
+
+/* The map a location shows (its record's word at +4), and where its screen
+ * and its leader stay (four bytes from +10: the left, top, right and bottom
+ * tiles; a left with its top bit set lets them have the whole map). */
+typedef struct {
+    uint8_t left, top, right, bottom;
+} MapEdges;
+enum { MAP_EDGES_THE_WHOLE_MAP = 0x80 };
+
+static inline uint16_t location_map(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60004u + place); }
+static inline MapEdges location_map_edges(const GameState *g, uint16_t place)
+{
+    uint32_t at = 0xF6000Au + place;
+    return (MapEdges){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
+}
+
+/* Where a map's packed data is: a long pointer per map from $F6:1E00. */
+static inline uint32_t field_packed_map(const GameState *g, uint16_t map)
+{
+    /* three bytes a map, the index tripled in 16 bits as the original adds
+     * it, the doubling's carry going into the third (no map number reaches) */
+    uint32_t at = 0xF61E00u + (uint16_t)(3u * map + (map >> 15));
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+
+/* A location's exits (FieldExit, above): where their run in bank $E5 starts,
+ * from a word per location at $E5:0000, and where it ends, where the next
+ * location's starts. */
+typedef struct {
+    uint16_t first, end;
+} FieldExitRun;
+
+static inline FieldExitRun field_location_exit_run(const GameState *g, uint16_t location)
+{
+    uint32_t at = 0xE50000u + (uint16_t)((location & LOCATION_NUMBER_BITS) << 1);
+    return (FieldExitRun){ rom_read16(g, at), rom_read16(g, at + 2) };
 }
 
 /* A tile set's graphics: eight packed graphics blocks (data/packed_graphics.h),

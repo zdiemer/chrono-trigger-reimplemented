@@ -5080,12 +5080,225 @@ args = ["--d", "0100", "--db", "00", "--fill", "7E014B-7E014D=7F-7F", "--fill", 
 why = "the field's page; the memory cleared in bank $7F, below 512 bytes (clearing low RAM would clear the stack)"
 
 [[routine]]
-name = "field_refresh_window_corners"
+name = "field_refresh_choice_pointer"
 at = "C0:F05E"
 subsystem = "field"
 state = "field"
 args = ["--d", "0100", "--db", "00"]
-why = "a bank reaching the registers; the selected window random"
+why = "a bank reaching the registers; the line pointed at random"
+
+# ---- field: the screen's setup, the map's unpacking, the objects' setup, the dialog window ----
+
+[[routine]]
+name = "field_set_the_screen_up"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=01-40", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F", "--stop-at-call", "C0EC60", "--stop-at-call", "C00B38"]
+iterations = 1000
+why = "the field's page, a map's objects and layer masks the tables hold; compared up to the wait for the vblank that turns the handlers on (the screen's setup reaches the original's wait there on the SNES backend)"
+
+[[routine]]
+name = "field_turn_the_handlers_on"
+subsystem = "field"
+state = "field"
+args = ["--db", "00"]
+why = "a bank reaching the registers"
+
+[[routine]]
+name = "field_draw_the_objects_in_view"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--keep", "7E0A00-7E1CFF", "--keep", "7F0000-7FFFFF"]
+iterations = 2000
+why = "the field's page, the map's objects as the field state has them (their tables kept), the screen and the cells random: which objects come into view, take a palette slot and a block and are drawn; the guard turns away a state where one would take a palette as the original can't (a party place's slot held by other colours)"
+
+[[routine]]
+name = "field_build_the_sprites_afresh"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=01-40"]
+why = "the field's page, up to 64 objects (the guard's)"
+
+[[routine]]
+name = "field_forget_the_steps"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page"
+
+[[routine]]
+name = "field_press_the_remembered_switches"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+iterations = 2000
+why = "the field's page; the steps remembered random, the guard taking the switches on the map's rows"
+
+[[routine]]
+name = "field_mark_the_chests"
+subsystem = "field"
+state = "field"
+args = ["--d", "1D00", "--db", "00", "--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01"]
+iterations = 2000
+why = "the layers' page, any location: its chests' run, or a run of pointers to another's"
+
+[[routine]]
+name = "field_bring_in_the_right_columns"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E1D1E-7E1D1F=00-3F", "--fill", "7E1D20-7E1D23=00-3F"]
+why = "the field's page; the masks within the tables (the guard's)"
+
+[[routine]]
+name = "field_unpack_the_map"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0100-7E0100=00-FF", "--fill", "7E0101-7E0101=00-01"]
+iterations = 1000
+why = "the field's page, any location's map: its sizes, flags, screens and exits, the tile maps unpacked where they fit"
+
+[[routine]]
+name = "field_set_up_the_objects"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=01-40", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--stop-at-call", "C05709"]
+iterations = 2000
+why = "the field's page, up to 64 objects and a party the menus' service shows (the guard's): what the last map's objects held let go; compared up to the objects' start, fuzzed on its own (its openings run past the budget as a call-out)"
+
+[[routine]]
+name = "field_start_the_objects"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7F2000-7F2000=01-40"]
+iterations = 2000
+why = "the field's page, up to 64 objects (the guard's), each starting and running its opening"
+
+[[routine]]
+name = "field_dialog_window_step"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0129-7E0129=00-0D", "--fill", "7E012E-7E012E=00-7E", "--fill", "7E012F-7E012F=00"]
+iterations = 4000
+why = "the field's page, the dialog in any of its states, its speaker an object (the guard's); the typesetter's text random, which the guard takes where it can be typed"
+
+[[routine]]
+name = "field_take_choice_buttons"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E0163-7E0163=00-04"]
+why = "the field's page, the pointer on any line or the choice taken"
+
+[[routine]]
+name = "field_send_dialog_text"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_build_the_window_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page"
+
+[[routine]]
+name = "field_build_the_text_area"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page"
+
+[[routine]]
+name = "field_send_the_window_design"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_the_window_frame"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_the_text_area"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_the_choice_pointer"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_staged_screen"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_staged_screens"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_staged_bg2_right"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_staged_bg2_left"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page, a bank reaching the registers"
+
+[[routine]]
+name = "field_send_bg3_piece"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00"]
+why = "the field's page with the data bank $00"
+
+[[routine]]
+name = "field_take_palette"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,3C,3E", "--fill", "7E016E-7E016E=00"]
+why = "the field's page, the current object one the tables hold, as the field keeps it"
+
+[[routine]]
+name = "field_take_sprite_block"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,3C,3E", "--fill", "7E016E-7E016E=00"]
+why = "the field's page, the current object one the tables hold, as the field keeps it"
+
+[[routine]]
+name = "field_give_up_sprite_block"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,3C,3E", "--fill", "7E016E-7E016E=00"]
+why = "the field's page, the current object one the tables hold, as the field keeps it"
+
+[[routine]]
+name = "field_release_frame_areas"
+subsystem = "field"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00,02,04,06,08,0A,0C,0E,10,12,14,16,18,1A,1C,1E,20,22,24,26,28,2A,2C,2E,30,32,34,36,38,3A,3C,3E", "--fill", "7E016E-7E016E=00"]
+why = "the field's page, the current object one the tables hold, as the field keeps it"
 
 [[routine]]
 name = "field_irq_after_hblank"

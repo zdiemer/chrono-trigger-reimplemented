@@ -6,6 +6,7 @@
 #include "event/event_data.h"
 #include "port/native.h"
 #include "field/parts.h"
+#include "field/party.h"
 #include "field/walk.h"
 
 /* ---- The registers a command leaves --------------------------------------------------- */
@@ -245,11 +246,16 @@ void event_run_object_script(Snes *s)
 }
 
 /* After the openings the party starts on the map (field/walk.h), and the
- * map setup returns. What the start leaves its caller: Y's low byte, which
- * the start's look at a slope clears (it counts its shift in Y), and the
- * slope's overflow (field/leaves.c). */
+ * map setup returns. What the start leaves its caller: X the second
+ * member's link as a word, the last it put on the trail; Y's low byte, which the
+ * start's look at a slope clears (it counts its shift in Y); and the slope's
+ * overflow (field/leaves.c). The map's own script, which the objects' setup
+ * runs next, can leave X as it found it for the menus' service after it. */
 static void leave_start_registers(Snes *s, bool slope, bool overflow)
 {
+    const GameState *g = state_of(s);
+    s->cpu.x = (uint16_t)(field_party_objects_high(g, PARTY_SECOND_MEMBER) << 8 |
+                          field_link_byte(party_member_link(g, PARTY_SECOND_MEMBER)));
     s->cpu.y = slope ? 0 : (uint16_t)(s->cpu.y & 0x00FF);
     m_set_flag(s, CPU_FLAG_V, overflow);
 }
