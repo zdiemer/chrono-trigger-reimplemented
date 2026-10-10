@@ -143,10 +143,10 @@ bool field_tile_copy_overflow(const GameState *g, bool before);
  * leaves its callers. */
 void field_find_layer_edges(GameState *g);
 bool field_layer_edges_overflow(const GameState *g);
-/* For the original's code: what the edges' working out leaves in the
- * registers -- where in its tile map the last layer's column right of the
- * view starts and the row above the view it starts on ($C0:8218), and the
- * carry and overflow of that start's VRAM address worked out. */
+/* For the original's code (field/leaves.c): what the edges' working out
+ * leaves in the registers -- where in its tile map the last layer's column
+ * right of the view starts and the row above the view it starts on
+ * ($C0:8218), and the carry and overflow of that start's VRAM address. */
 typedef struct {
     uint16_t right_column_start, row_above;
     bool carry, overflow;

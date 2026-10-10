@@ -626,9 +626,15 @@ void field_draw_bg3_at_the_load(Snes *s)
     m_rts(s);
 }
 
-/* The right columns, on the field's page. Its callers end on the frame
- * wait, after which the original's code reads the registers as the edges'
- * working out leaves them (field/layers.h). */
+/* The right columns, on the field's page. Nothing in the game reads what it
+ * leaves in the registers. The registers are left as the edges' working out
+ * leaves them (field/leaves.c) for the requests' stop at the frame wait
+ * ($C0:EC60), which their callers jump to: there the analysis has X, Y and
+ * the carry read, because the battle's start also waits there and goes on
+ * into the battle bank's entry ($C0:18A4, $C1:0000), which it keeps
+ * everything live into; and the main loop's next pass reads the overflow
+ * ($C0:18D9). So the stop can't declare them, and shadow mode compares them
+ * there (requests.c, THE_LAST_WAIT). */
 void field_bring_in_the_right_columns(Snes *s)
 {
     stream_the_right_columns(state_of(s));

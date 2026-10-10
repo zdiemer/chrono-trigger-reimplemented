@@ -534,16 +534,6 @@ bool field_layer_edges_overflow(const GameState *g)
     return field_add_overflows16((uint16_t)(sum - base), base);
 }
 
-FieldEdgesLeave field_edges_leave(const GameState *g)
-{
-    unsigned last = FIELD_LAYERS - 1;
-    uint8_t x = field_layer_position_x(g, last), y = field_layer_position_y(g, last);
-    uint16_t row = (uint16_t)((y - 1) & ROW_MASK);
-    uint16_t start = map_index((uint16_t)((x + FIELD_TILE_MAP_HALF_COLUMNS) & COLUMN_MASK), row);
-    uint16_t base = field_layer_map_base(g, last);
-    return (FieldEdgesLeave){ start, row, (uint16_t)(start + base) < start, field_add_overflows16(start, base) };
-}
-
 void field_compute_layer_edges(Snes *s)
 {
     GameState *g = state_of(s);

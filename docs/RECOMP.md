@@ -3180,15 +3180,18 @@ the objects' setup, the dialog window's step and its looks.
 - The vblank's screen jobs after a battle and the map's transfers
   (`$C0:7F58`-`$7F77`, `$C0:EC77`) are the video service's calls.
 
-**Third trap, settled first.** Three registers liveness keeps through a
-port's new C calls were made exact rather than declared: the right columns'
-bringing in (`$C0:87F1`) ends with what the edges' working out leaves
-(`field_edges_leave`: the last layer's right column's start and row in X and
-Y, and the carry and overflow of its VRAM address), which the requests' stop
-at the frame wait compares; the wait for the vblank with the handlers off
-(`$C0:0B38`) is no routine liveness knew, so a `[[entry]]` hint names it, and
-`field_turn_the_handlers_on` leaves the picture's last line in A as the
-original does; the objects' start leaves Y and the overflow as the
+**Third trap, settled first.** The right columns' bringing in (`$C0:87F1`)
+ends with what the edges' working out leaves (`field_edges_leave`,
+field/leaves.c: the last layer's right column's start and row in X and Y,
+and the carry and overflow of its VRAM address). Nothing in the game reads
+them, but the requests' stop at the frame wait (`$C0:EC60`) can't declare
+them: the battle's start waits there too and goes on into the battle bank's
+entry, which liveness keeps everything live into. The wait for the vblank
+with the handlers off (`$C0:0B38`) was no routine liveness knew; an
+`[[entry]]` hint names it, with a new field, `tail_of = "C0:0B28"`, that
+has liveness take its returns as `$C0:0B28`'s (DISASSEMBLY.md), so the
+setup's call to it and the A `field_turn_the_handlers_on` leaves are
+declared dead rather than reproduced. The objects' start leaves Y and the overflow as the
 defaults' writes do for the openings; and the party's start after the
 openings (`$C0:9DC3`, event/bridge.c) now leaves X as the original does, the
 second member's link word, which the map's own script can carry unchanged to

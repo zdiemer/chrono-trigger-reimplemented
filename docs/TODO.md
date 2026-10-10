@@ -654,6 +654,13 @@ rest waits, is [PLAN.md](PLAN.md).
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
   which has nobody in an empty place, and these would do the same (RECOMP.md,
   "The absent party member and the object off the map").
+  The party's place taken as the leader's with no leader on the map (a
+  save's load, the attract demo's scenes, until the map's objects start), for
+  a menu (`$C0:011B`) or a location change (`$C0:0C8F`), reads the tile and
+  facing of the first slot past the tables, as the original does, through
+  the unchecked accessors (`field/location.c`, `field_leaders_place`): the
+  map's start then puts the party where the location says, so a build without
+  the original's memory can take the location's own place there instead.
 - **What battle's chunk 6 left** (RECOMP.md, "Phase 3, battle chunk 6"; its
   review's follow-ups):
   - one accessor for the other items' battle records (`$CC:0ABC`):

@@ -295,7 +295,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC00B38, .name = "field_screen_on_wait_for_vblank_loop", .fn = field_screen_on_wait_for_vblank_loop,
       NEEDS_M8, .idle = true, .guard = field_display_bank_is_io },
     { .addr = 0xC00B3D, .name = "field_turn_the_handlers_on", .fn = field_turn_the_handlers_on, NEEDS_M8_X16,
-      .cost_milli = 5059, .guard = field_display_bank_is_io },
+      .cost_milli = 5059, .dont_care = DC_A | DC_N | DC_Z, .guard = field_display_bank_is_io },
     { .addr = 0xC029F7, .name = "field_build_the_window_frame", .fn = field_build_the_window_frame_entry, NEEDS_M8_X16,
       .cost_milli = 4308, .dont_care = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC02B78, .name = "field_build_the_text_area", .fn = field_build_the_text_area_entry, NEEDS_M8_X16,

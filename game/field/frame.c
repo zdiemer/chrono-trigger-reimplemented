@@ -61,9 +61,8 @@ void field_screen_on_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(s, 0x0
 // $C0:0B3D
 /* The vblank: the field's vblank handler and the controllers' reading back
  * on, the line handler at the line the picture ends after, and the CPU
- * taking interrupts again. It leaves that line in A, as the original does:
- * what reads A after its return is the original's code past the timing
- * service, which the analysis can't follow, so it is left whole. */
+ * taking interrupts again. What it leaves in A is read by nothing: the
+ * screen's setup goes on to the frame wait, which sets A first. */
 enum { FIELD_PICTURE_LAST_LINE = 211 };
 
 void field_turn_the_handlers_on(Snes *s)
@@ -72,7 +71,5 @@ void field_turn_the_handlers_on(Snes *s)
     tm_enable_interrupts(pf, PF_AT(0xC00B3F), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
     tm_set_line(pf, PF_AT(0xC00B47), FIELD_PICTURE_LAST_LINE);
     m_set_flag(s, CPU_FLAG_I, false);
-    s->cpu.a = FIELD_PICTURE_LAST_LINE;
-    m_set_nz16(s, FIELD_PICTURE_LAST_LINE);
     m_rts(s);
 }

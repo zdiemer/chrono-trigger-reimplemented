@@ -5,6 +5,7 @@
 #define CT_PLATFORM_SNES_TIMING_H
 
 #include "platform/snes/backend.h"
+#include "platform/snes/encodings.h"
 #include "platform/timing.h"
 
 PF_API void tm_enable_interrupts(Platform *pf, PfOrigin o, uint8_t sources)
@@ -90,11 +91,15 @@ static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
 PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
 
 /* The original's routine waits on the vblank's flag and then turns the
- * handlers on itself. */
+ * handlers on itself: the vblank handler and the controllers' reading, the
+ * line handler at line 211 ($C0:0B38). A call asking for anything else has
+ * no routine of the original's to call. */
+enum { SNES_SCREEN_ON_SOURCES = TM_INT_VBLANK | TM_INT_AUTO_JOYPAD, SNES_SCREEN_ON_LINE = 211 };
+
 PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
 {
-    (void)sources;
-    (void)line;
+    if (sources != SNES_SCREEN_ON_SOURCES || line != SNES_SCREEN_ON_LINE)
+        pf_snes_encoding_mismatch(o.site, "tm_wait_frame_then_enable");
     pf_snes_call_wait(pf, o);
 }
 
