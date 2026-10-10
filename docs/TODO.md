@@ -885,11 +885,11 @@ rest waits, is [PLAN.md](PLAN.md).
 - **What the overworld on foot's review left** (none rated translation):
   `entries.c`'s `leader_mid_step` re-decodes `walk_on_foot`'s branches to
   rebuild M, which is dead at the return (`$C2:0541`) -- the tooling has no
-  don't-care for M's width; add one and drop the derivation; the leader's two
-  timing exceptions blame the map scroll, which is already timed as itself,
-  on frames that build a strip (7,000-14,000 clocks against the scroll's own
-  1,445) -- charge the scroll per strip built, or calibrate it on world-map
-  calls, and drop both lines; `followers.c`'s route is a packed byte and
+  don't-care for M's width; add one and drop the derivation; the leader's
+  frames that build a map strip are off by 7,000-14,000 clocks (the scroll is
+  timed as itself, at its own 1,445) -- charge the scroll per strip built (its
+  two timing exceptions went with the vblank limits' change to stretches
+  within one vblank, RECOMP.md, "The timing gate"); `followers.c`'s route is a packed byte and
   `walls_between` returns a bare byte (a `Route` type), `place & 1` stands
   for the second member, scaffolding is written on every try along the
   trail, and `set_off` places the walker another way than the leader;
@@ -2307,30 +2307,6 @@ waits on M5 rather than on a backend.
   cosmetic to that. From ctsave03 slot 1 (Lab 32), reaching Johnny needs a
   world-map walk (`run.world_exit()`) into `df00` and then finding and talking
   to whichever of its objects is Johnny (not identified).
-- **World-map movies and the timing gate.** Four routes
-  (`tools/movies/routes/field_65m_bc.py`, `field_12kbc_1f4.py`,
-  `field_12kbc_1f5.py`, `field_12kbc_1f6.py`) walk the 65,000,000 B.C. and the
-  three 12,000 B.C. world maps into a location and back out, from ctsave05
-  slot 1, ctsave08 slot 2, zophar chrono-5 and chrono-6 slot 2; all four pass
-  `--native shadow` clean, reach their outcome in the shipping mode
-  (`route_check.py`, `on:on:c`) and reach 0 KiB no other movie runs (the exit
-  found is a few tiles from each save point, and the ground covered is
-  already walked by `field.ctm`, `fair.ctm` and `attract-demo`; this is after
-  dropping an earlier version that wandered first for more coverage and
-  reached none). Their `.ctm` files aren't in `oracle/movies/saves/`: folding
-  any one of them into the library's `--timing-report` aggregate moves 9-16
-  entries' measured drift past the gate's limit (`tools/timing_gate.py`),
-  `overworld_follow` and `overworld_sign` among them -- a handful more world
-  steps than the library has had before shifts their weighted average enough
-  to clear the +/-0.38% bound, and recalibrating `game/registry.c` for the
-  new movies can't satisfy every entry at once (every value tried left the
-  same ones over). Clearing it the documented way needs each entry's error
-  shown not to reach a video-visible budget (`tools/vblank_check.py`,
-  `tools/timing_exceptions.txt`'s own bar) before it can be added there,
-  which this pass didn't have time to run. The two load-screen entries
-  (`menu_choose_on_load_screen`, `menu_show_save_slot`) only fail with all
-  four movies together, not any one alone; the rest fail from a single
-  route's movie by itself.
 - **zophar `chrono-7`** (everything maxed at the fair) is unused: its Lucca
   exhibit gate (`$7F:0055` bit 7) can be opened, but no movie needs it yet.
 - **Coverage loop**: re-run `--misses` over the whole library after the latest

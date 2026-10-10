@@ -201,6 +201,11 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram save.srm --movie m.ctm --frames N
     --native shadow --coverage cov.txt --calls calls.txt
 ```
 
+Adding it to the library (`oracle/movies/saves/`) moves the gate's measures
+that sum over the library, the timing gate's drift and the fallback ratchet's
+counts; [RECOMP.md](RECOMP.md), "The timing gate", says what a batch of movies
+needs ("Adding movies").
+
 **Routes are timing-independent; movies are not.** A route reads the machine, so
 it still works after the hardware model's timing changes — re-run it and it
 finds the new inputs. The `.ctm` it produced is a fixed list of frames: change

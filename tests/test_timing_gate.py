@@ -143,6 +143,36 @@ class TimingGateTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 tg.calibrate(missing, path)
 
+    def test_calibrate_drifted_rewrites_only_entries_over_drift(self):
+        # One entry 0.5% off (over), one 0.2% off (within), one listed for drift.
+        agg = tg.aggregate([parse(entry("over", 1000, 4020000, 1000000, 0, 4000, hist(b0=1000), 0)
+                                  + entry("within", 1000, 4008000, 1000000, 0, 4000, hist(b0=1000), 0,
+                                          addr="C05678")
+                                  + entry("listed", 1000, 5000000, 1000000, 0, 4000, hist(b0=1000), 0,
+                                          addr="C09ABC"))])
+        values = tg.drifted_values(agg, {("listed", "drift"): "a reason"})
+        self.assertEqual(values, {"over": 4020})
+        self.assertEqual([n for n, e in agg.items() if "drift" in tg.exceeded(e)], ["listed"])
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "registry.c"
+            path.write_text("    EVENT_CMD(0xC01234, over, 4000),\n"
+                            "    EVENT_CMD(0xC05678, within, 4000),\n"
+                            "    EVENT_CMD(0xC09ABC, listed, 4000),\n")
+            self.assertEqual(tg.calibrate(agg, path, values), [("over", 4000, 4020)])
+
+    def test_calibrate_drifted_follows_a_handler_into_its_dispatcher(self):
+        # The handler is 50% off on its own calls; once it is set right, the
+        # dispatcher that runs it inline (at the handler's old value) is over.
+        report = (entry("dispatcher", 100, 900000 + 200000, 1000000, 0, 1000, hist(b0=100), 0)
+                  + part("C0AAAA", "handler", 100000, 0, 2000)
+                  + entry("handler", 100, 300000, 100000, 0, 2000, hist(b0=100), 0, addr="C0AAAA"))
+        agg = tg.aggregate([tg.parse_report(REPORT + report)])
+        self.assertAlmostEqual(agg["dispatcher"].drift, 0.0)
+        values = tg.drifted_values(agg, {})
+        self.assertEqual(values["handler"], 3000)
+        self.assertIn("dispatcher", values)
+        self.assertEqual([n for n, e in agg.items() if tg.exceeded(e)], [])
+
     def test_parts_are_estimated_at_their_routines_cost(self):
         # A dispatcher: 1000 bus clocks of its own (at 4000), and 3000 it ran
         # inline for a handler (at 2000, 500 of them DMA): 4000 + 500 + 5000.

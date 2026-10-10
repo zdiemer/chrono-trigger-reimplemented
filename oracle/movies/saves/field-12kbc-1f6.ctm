@@ -1,0 +1,13 @@
+# Walk the 12,000 B.C. world map at location $1F6: load the save (standing on the world map), walk
+# until a location's door is found and step through it, then walk back out onto the world map.
+# Save: zophar chrono-6 slot 2 (oracle/saves/zophar, zophar.net Chrono Trigger saves).
+# frames 2873
+# sram crc32 D6259557
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 4 A
+2586 16 UP
+2606 3 A
+2789 16 DOWN
+2805 8 UP

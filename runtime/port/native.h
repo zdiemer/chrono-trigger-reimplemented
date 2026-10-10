@@ -123,10 +123,12 @@ typedef struct NativeStats {
      * (2^(k-1) to 2^k - 1 master clocks), and the last bucket everything
      * longer. What the timing gate reads percentiles from (tools/suite.py). */
     unsigned t_error_hist[NATIVE_ERROR_BUCKETS];
-    /* The same for the stretches that began on a vblank line, the NMI
-     * handler's time for video work: how many, the largest error, and the
-     * histogram. The rest began on a picture line; t_picture_max_error is
-     * their largest error. */
+    /* The same for the stretches that lie within one vblank, beginning and
+     * (in the original's time) ending in it: the NMI handler's time for video
+     * work, how many, the largest error, and the histogram. The rest end on a
+     * picture line, where their error moves what comes after them, the
+     * stretches that begin in vblank and outlast it among them;
+     * t_picture_max_error is their largest error. */
     unsigned t_vblank_stretches;
     uint32_t t_vblank_max_error, t_picture_max_error;
     unsigned t_vblank_error_hist[NATIVE_ERROR_BUCKETS];

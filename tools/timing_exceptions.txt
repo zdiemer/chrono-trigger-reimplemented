@@ -13,94 +13,42 @@
 # to them instead (NATIVE_TIME_AS; docs/RECOMP.md, "The timing gate",
 # "Dispatchers"), which is what emptied this list of palette_animate and the
 # fades: what is left follows a path inside one routine, or a loop of the
-# port's own.
+# port's own. The vblank limits judge only the stretches the original began
+# and ended within one vblank, which emptied it of the calls that begin in
+# vblank and outlast it (loads, setups, the load screen's frame): their error
+# moves work on the picture, and `worst` judges it there.
 
 # The decompressor: a call is 260-290 lines on average (a frame is 262),
 # seven times the length of vblank, and interrupts are taken during its time: its error
 # moves the end of a load (by 6% of it on average), not a video write. Its time
 # follows the compressed data, literals against copies of every length.
-decompress vblank-tail a load 7 vblanks long on average; its error moves the end of the load, not a video write
-decompress vblank-worst as for vblank-tail: the error of a call that starts in vblank lands frames later, at the load's end
-decompress worst as for vblank-tail: 6% of a 260-line call on average; a load ends a frame sooner or later
-decompress_direct vblank-tail the decompressor writing straight to memory: as decompress
-decompress_direct vblank-worst as decompress
-decompress_direct worst as decompress
+decompress worst a load 7 vblanks long on average, 6% error; its error moves the end of the load, a frame sooner or later, not a video write
+decompress_direct worst the decompressor writing straight to memory: as decompress
 
 # Main-loop work that runs on into vblank after the NMI handler, writing RAM
 # (tables and tile buffers the next frame uploads), not video registers: its
 # error moves when the RAM is ready, and the calls are as long as vblank or
 # longer, so the original's own time already runs them into the picture.
-field_rasterize_quad vblank-tail rasterizes a window shape into a RAM table (35 lines a call, as long as vblank); 7.5% error, the time follows the quadrilateral's edges
-field_rasterize_quad vblank-worst as for vblank-tail: at most 14885 clocks (11 lines) in a call of 35 lines or more, writing RAM
-field_rasterize_quad worst as for vblank-tail: the original steps each pixel of an edge's run and the port each line, so the error follows the shape's widths; at most 80899 clocks, in calls up to four times vblank's length, and no video write moves
-field_move_screen_effect_on vblank-tail the searchlight's frames draw its shape as field_rasterize_quad, timed as it (TIMED_AS) and off by what it is off by (above); the rest of the effects' steps are within the limits; a step writes RAM tables the next vblank's line effects read
-field_move_screen_effect_on vblank-worst as for vblank-tail: the searchlight's shape, at most 88000 clocks, writing RAM
-field_move_screen_effect_on worst as for vblank-tail: the searchlight's shape, at most 75000 clocks, and no video write moves
-field_build_sprite_table vblank-tail builds the sprite table in RAM, which the next vblank uploads; its time is its draws where it runs them as C (each timed as the draw) and the loop hiding last frame's leftover sprites, whose instructions are mostly index steps the rewrite doesn't make; at most 7352 clocks (5.6 lines) in vblank, 6716 a call on average
-field_build_line_effect_tables vblank-tail builds the next frame's line-effect tables in RAM; its time follows the dialog window's band and the waves, whose loops' index steps the rewrite doesn't make; at most 2252 clocks (1.7 lines)
-field_build_bottom_window_0 vblank-tail as field_build_line_effect_tables: 2.7% of its calls in vblank off by 1024 clocks or more, at most 1079
-field_unpack_tile_maps vblank-worst unpacks a map's tile layers and attributes at its load, 2.5 frames a call on average, writing RAM; its time follows the runs in the stream, and its error (3.3%) moves the end of the load, not a video write
-field_unpack_tile_maps worst as for vblank-worst: at most 157575 clocks in a call of 658247 on average
-field_update_objects vblank-tail moves, views, animates and sorts every object into the rows in RAM, 30848 clocks a call on average, its steps timed as the routines they are and the rest following how many objects there are; 3% of its calls reach vblank, and at most 1915 clocks (1.5 lines) of those, writing object state the next frame's sprite table reads
-field_queue_due_turns vblank-tail counts every object down to its script's next turn and queues those due, writing RAM only (the countdowns and the script queue, which the turns read next in the same frame); its time follows how many objects are set apart, counting down or due, whose paths the original spends differently and one scalar fits only on average: no drift, 3.65% of its calls in vblank off by 1024 clocks or more, at most 1364 clocks (one line)
-field_frame_work vblank-tail the frame's work, which runs the turns' countdown as C timed as field_queue_due_turns and carries its spread (above): 3.56% of its calls in vblank off by 1024 clocks or more, at most 1375 clocks, writing RAM
-field_copy_tiles vblank-worst copies a rectangle over another place in the map's tables in RAM (a door, a bridge), 14326 clocks a call on average; its time follows the rectangle and the tables it takes, whole ones by the original's block move and a tile set half a byte at a time, which one scalar fits only on average; at most 24768 clocks in a call starting in vblank, writing RAM the next frame's tile uploads read
-event_cmd_copy_tiles vblank-worst the same copy made by event $E4, which runs it inline: as field_copy_tiles, at most 26414 clocks, writing RAM
-menu_object_wave_hdma vblank-tail fills a RAM scroll-wave table in 53-line calls, longer than vblank; its error never exceeds 1396 clocks (one line), just over the tail's 1024
+field_rasterize_quad worst rasterizes a window shape into a RAM table, 7.5% error: the original steps each pixel of an edge's run and the port each line, so the error follows the shape's widths; at most 80899 clocks, in calls up to four times vblank's length, and no video write moves
+field_move_screen_effect_on worst the searchlight's frames draw its shape as field_rasterize_quad, timed as it (TIMED_AS) and off by what it is off by; at most 75000 clocks, writing RAM tables, and no video write moves
+field_unpack_tile_maps worst unpacks a map's tile layers and attributes at its load, writing RAM; its time follows the runs in the stream: at most 157575 clocks in a call of 658247 on average, moving the end of the load
 menu_draw_glyph vblank-tail draws a glyph into the menu's tile buffer in RAM in 18-line calls; its pixels are attributed to $C2:5E89, whose own time follows the pixel's bits (7.1% on its own); at most 2932 clocks (two lines)
 menu_draw_text vblank-tail draws text into the menu's tilemap buffer in RAM in 19-line calls; its tiles and numbers are attributed (19% of vblank calls off by a line, from 32%), the control codes' handlers are no entries and the loop follows the string; at most 3498 clocks (2.6 lines) in vblank
-menu_text_go_on vblank-tail sets the dialog's and the menus' text into tiles in work RAM, which the caller uploads later, a few glyphs a call from the field's frame work; its glyphs are charged at the glyph drawer's rate (menu_draw_glyph), whose time follows the pen's offset in its tile (a shift a pixel), and the setting's own at its calibrated one, so the mix of glyphs, words, names and numbers a call sets spreads it: mean |error| 4.5% with no drift, at most 22727 clocks, writing RAM only
-menu_text_go_on vblank-worst as for its vblank-tail
-menu_set_label vblank-worst sets a menus' label (up to 32 glyphs a line) into tiles in work RAM through menu_text_go_on, and so carries its spread: mean |error| 3.1% with no drift, at most 13964 clocks, writing RAM only
 menu_run_window_list vblank-tail draws a window command list into the menus' tilemap buffers in RAM, which the next vblank uploads; its commands are charged at their handlers' rates and its strings at menu_draw_text's, so it inherits the text's spread: its calls in vblank are nearly all one field list (a string) off by 1040 clocks each, mean |error| 1.1% and no drift over all calls
-menu_run_window_list vblank-worst as for its vblank-tail: at most 17029 clocks, on one long list of the load screen's in the menu movie (1 of 218 there), writing RAM only
-menu_window_draw_string vblank-tail draws a string into the menus' tilemap buffer in RAM; the text is charged at menu_draw_text's rate and carries its spread (the field's per-frame string off by 599 clocks), at most 5832 clocks with no drift
 menu_draw_sprite_nodes vblank-tail draws the sprite list into the OAM buffer in RAM, which the next vblank uploads, 40510 clocks a call on average; its time is charged per node and per sprite as the original spends it (dropped across, dropped down, shown), 2.97% of its 236 calls in vblank off by 1024 clocks or more, at most 3416 clocks (2.6 lines)
 menu_object_cmd_for_frames_moving vblank-tail runs its object's sprite script inline, whose commands (a show, a byte change, an upload queued) vary from frame to frame under one scalar; 1.54% of its calls in vblank off by 1024 clocks or more, at most 2982 clocks (2.3 lines), writing the object and the sprite list in RAM
 
-# The scene engine's circle, a RAM window table the next frame's HDMA reads.
-scene_draw_circle vblank-tail draws a circle into a RAM window table in 28-line calls, longer than vblank, writing only RAM; its closed lines are charged as the block move stub's work, and what is left follows the radius in the outline's steps and the lower half's copies, which one scalar fits only on average; at most 11085 clocks (8.1 lines), which moves only when its RAM writes end
-scene_draw_circle_jump vblank-tail the same routine through its jump at $C3:0008: as scene_draw_circle
-
 # The jet bike race's frame tasks, writing RAM the next vblank sends.
 scene_race_draw vblank-tail draws the race's sprites into the RAM sprite table in 22-line calls, longer than vblank, through the scene's sprite routines, each timed as itself (TIMED_AS), whose scalars fit their own calls only on average; at most 1723 clocks (1.3 lines), which moves only when the table is ready
-scene_race_check_perspective vblank-tail forgets the bikes' divisors (a 256-byte clear, charged as the block move it is) when the camera's height changes, then builds the perspective (timed as scene_build_perspective); writing only RAM
-scene_build_perspective vblank-tail builds the plane's per-line matrices, two divisions for each of up to 224 lines, in calls of 98 lines on average, longer than vblank, writing only RAM (the tables the per-line effects read); its time follows the lines the horizon leaves and the divider's work, which one scalar fits to 3% on average; at most 8077 clocks (6 lines), and only on the frames the camera changes
-scene_race_set_up vblank-worst the race's setup, with the display blanked and the frame's interrupt off, unpacking its graphics through the original's unpacker (call-outs) and arranging the racers' pictures in long loops of its own; its error moves when the race starts, not a video write
-scene_race_set_up worst as vblank-worst: at most 88787 clocks (65 lines) in a setup of a few frames
+scene_race_set_up worst the race's setup, with the display blanked and the frame's interrupt off, unpacking its graphics and arranging the racers' pictures in long loops: at most 88787 clocks (65 lines) in a setup of a few frames, moving when the race starts
 
 # The telepod ending's staff roll, a frame task writing RAM the next vblank sends.
 scene_roll_credits vblank-tail writes the next line of the staff credits into a RAM row buffer every 16th frame (every frame when they roll fast) and only hands on to its scroll otherwise, so its time follows the line's length, which one scalar fits only on average; at most 4037 clocks (3.0 lines), writing only RAM
-battle_draw_objects vblank-tail draws the battle objects into the OAM buffer in RAM in 37-line calls, longer than vblank; the routines it runs per object are attributed (10.7% error to 3.7%), what is left is its own draw list build and exchange sort, whose swaps follow the order; at most 7311 clocks (5.4 lines)
-battle_draw_objects vblank-worst the same pass after the Phase 3a rewrite, which builds and sorts its draw list as C and names each part's routine: its worst call (25095 clocks, 18 lines) is a sort of the full list, writing the OAM buffer in RAM, uploaded at the next vblank; the vblank check finds no write moved
 battle_effect_combatant_jump vblank-tail a combatant's jump steps in RAM (its position, read by the drawing later in the frame); 4.61% of its vblank calls off by 1024 clocks or more, at most 2562 clocks, writing no video register
-battle_step_effect_slots vblank-tail steps the 19 effect slots' paths in RAM; its handlers and their helpers are attributed (18.1% error to 4.9%, 7.9% of vblank calls off by a line to 1.9%), what is left follows its own loop over which slots are active and due, and the handlers' own spread; at most 2838 clocks, writing RAM the object drawing reads later in the frame
-battle_screen_wave_windows vblank-tail fills the two window line buffers in RAM in 94-line calls; 1.3% error, at most 4506 clocks
-battle_screen_script_wave_about_edges vblank-tail screen command $ED's handler, which runs battle_screen_wave_windows's waves: as it, 1.3% error, at most 4507 clocks, writing the window line buffers in RAM
 battle_run_screen_scripts vblank-tail the screen scripts' frame: its time is its loop over the two channels' steps, each command timed as its own handler (NATIVE_TIME_AS); what is left follows how many steps and bytes a frame takes, and the circles' spread (battle_screen_script_draw_circle), and the steps write RAM (the coming window buffer, the scroll offsets, the shapes), which the vblank check finds moves no video write
-battle_run_screen_scripts vblank-worst as for vblank-tail, through the circles: at most 20597 clocks, writing RAM
 battle_run_screen_channel vblank-tail a channel's step, as battle_run_screen_scripts: its time follows the commands it runs before the step ends, writing RAM
-battle_run_screen_channel vblank-worst as for vblank-tail, through the circles: at most 20371 clocks, writing RAM
-battle_screen_script_draw_circle vblank-tail screen command $8B: the original's time follows the circle's radius and kind, its rows worked out at length and copied a line at a time; the port works the rows out in locals and charges them at a rate a row, the copy timed as $CE:E7C8's; 4.1% error, at most 14483 clocks, writing the window line buffer and the worked rows in RAM
-battle_screen_script_draw_circle vblank-worst as for vblank-tail: at most 14483 clocks
-battle_screen_script_special_effect vblank-tail screen command $80, its effects each timed as its own routine (TIMED_AS): over the limit only through the marked lines' shift (battle_special_shift_marked_lines), at most 11763 clocks, writing RAM
-battle_special_shift_marked_lines vblank-tail $80's effect 22: its time follows how many of the 212 lines are marked, each a word's subtraction the port charges as its accesses; 5.6% error, at most 11823 clocks, writing the waves' lines in RAM
 battle_update_scroll_tables_line_wave vblank-tail the line wave's scroll fill: its time follows which layers the wave moves, 0.7% error, 5.0% of calls off by 1024 clocks or more, at most 1729 clocks, writing the scroll tables in RAM
-battle_frame_work vblank-tail the frame work, its parts timed as their own routines: 1.01% of calls off by 1024 clocks or more through the screen scripts' frame, at most 2801 clocks, writing RAM
-battle_frame_dispatch vblank-tail the frame dispatch, through the frame work and the screen scripts' circles (battle_screen_script_draw_circle): 1.2% of vblank calls off by 1024 clocks or more, writing RAM
-battle_frame_dispatch vblank-worst as for vblank-tail: at most 20847 clocks
-battle_cut_window vblank-tail cuts a window through the screen's middle into the coming window line buffer in RAM in 50-line calls; the original's time follows the line's run across (a step of its loop a column), the port's only the lines it falls; 5.4% error, at most 19014 clocks, writing RAM
-battle_cut_window vblank-worst as for vblank-tail: at most 19014 clocks
 battle_show_action worst the action's showing, main-loop work between its waits for the next frame: each stretch runs the objects' steps, the effects' and palettes' animations and the poses' round as their own routines (TIMED_AS), and what is left follows how many objects and looks a frame changes; 0.72% of its stretches off by 1024 clocks or more, at most 81509 clocks (one in 2.3 million), writing RAM the frame it then waits out uploads; the vblank check finds no write moved
-battle_screen_script_turn_cut vblank-tail screen command $97's handler, which runs battle_cut_window's cut: as it, 5.3% error, at most 19263 clocks, writing the window line buffer in RAM
-battle_screen_script_turn_cut vblank-worst as for vblank-tail: at most 19263 clocks
-battle_run_screen_command vblank-tail a command, timed as its handler (NATIVE_TIME_AS): over the limit only through $97's cut (battle_cut_window), at most 18951 clocks, writing RAM
-battle_run_screen_command vblank-worst as for vblank-tail: at most 18951 clocks
-battle_step_hp_gradient vblank-tail writes three palette rows in RAM, uploaded at the next vblank; 1.58% of calls off by 1024 clocks or more, at most 2509
-
-# The Epoch's time dial, which rebuilds a per-line window table in RAM that the
-# next frame's HDMA reads: the vblank check finds none of its writes moved.
-menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window table in RAM in 250-line calls, longer than vblank; its time follows the triangle (how many lines its corners span and which edges cross each), which the port charges by the lines it fills, 0.8% on average and at most 4537 clocks of a 250-line call
 
 # Starting an object: the free-slot walk looks at one slot or at sixty, and
 # only the call that finds one copies the caller's state into it ($3B bytes),
@@ -109,45 +57,6 @@ menu_epoch_build_gate_window vblank-tail rebuilds the gate's per-line window tab
 # recalibration; the palette row command, which runs a spawn, still spreads.
 # It drifts by 0.01% or less and the vblank check finds none of its writes moved.
 menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes to $C2:048A, so it inherits that spread; at most 1681 clocks with -0.00% drift
-
-# Scrolling the menus' map: the call moves as many tiles as the frame's move
-# covered, and only the moves that cross a tile boundary build a strip of the
-# tilemap and queue it, so a pass is a twentieth of a pass that builds one and
-# the mix decides the call. Both write work RAM only -- the strip goes into the
-# upload buffer and a record into the queue the next vblank empties -- and the
-# vblank check finds none of their writes moved.
-menu_map_scroll_x vblank-tail builds a tilemap strip into the RAM upload buffer on the moves that cross a tile boundary and nothing on the others; at most 1445 clocks (1.1 lines) with +0.14% drift, writing RAM the next vblank uploads
-menu_map_scroll_y vblank-tail as for menu_map_scroll_x, with two records a strip; at most 1346 clocks with +0.13% drift
-
-# The event engine's openings at map setup, which run every object's script up
-# to its first zero byte at once, while the location change has the screen
-# blanked, writing work RAM only. Its commands run inline -- as C, or as bridges
-# called directly -- and are attributed to their handlers; what is left is its
-# own walk over the object slots, which clears four cells of every object and
-# runs a script only for some, against openings of 0 to 30 commands, and the
-# commands it hands to the original's table, which it looks up; a mix one
-# scalar can't fit. The vblank check finds none of its writes moved.
-
-
-# Palette animation, rewritten in Phase 3a: each handler and each fade mode's
-# loop is attributed to its own routine and a loop's per-color work charged, so
-# drift is within the limit; what is left is the loop's own walk over which of
-# the twelve slots are due, and a lightening's scratch, which the port writes
-# once. Both write the working palette in RAM, which the next vblank uploads;
-# the vblank check finds none of their writes moved.
-palette_animate vblank-tail the frame's walk over the slots, its handlers attributed; 3.9% of vblank calls off by 1024 clocks or more, at most 2278 clocks, writing RAM the next vblank uploads
-palette_lighten_all vblank-tail its colors' channels scaled in C and its scratch and multiplier left once, the rest charged per color; 3.6% of its 275 vblank calls off by 1024 clocks or more, at most 1190 clocks, writing RAM the next vblank uploads
-
-# The Epoch's time dial, since the block move's rewrite: its setup call's two
-# 448-byte buffer moves are charged at the block move's rate, which is now
-# calibrated on the block move's own calls (core/memory.c, charged per byte),
-# whose mix of save RAM, cartridge and work RAM moves costs a little less per
-# byte than the dial's work RAM ones; the dial's other 946 calls move nothing.
-menu_show_record_frame vblank-tail builds a menu record's frame's tiles into the frame buffer in work RAM and queues them for the next vblank, from the records' task; it fills and copies the tiles itself, charged as the block move's bytes, and builds a mirrored tile a byte at a time, so the original's time for the frame's mix of blank, copied and mirrored tiles is left to calibration: mean |error| 6.9% with no drift, at most 10952 clocks, writing RAM only
-menu_animate_record vblank-tail carries on a menu record's animation, and on a change of frame builds its tiles through menu_show_record_frame, whose spread it carries: mean |error| 6.4% with no drift, at most 11292 clocks, writing RAM only
-menu_step_record_animation vblank-tail as menu_animate_record, a frame on: mean |error| 5.8% with no drift, at most 10785 clocks, writing RAM only
-menu_run_record_task vblank-tail the menus' records' task: a pass over the nine records, carrying on their animations through menu_step_record_animation and the frame building, whose spread it carries: mean |error| 1.2% with no drift, at most 10872 clocks, writing RAM and the VRAM queue only
-menu_draw_item_rows vblank-worst draws the items list's ten rows into the menus' tilemap buffer in RAM, which a later vblank uploads; each row is charged at the row's calibrated rate, whose time follows the row (a name, a count and a label, or a row of blanks for an empty place), and the panel's few calls (5 over the library) land in vblank: mean |error| 13.7% with no drift, at most 25259 clocks, writing RAM only
 
 # The console's interrupt vectors (core/console.c): each is one long jump to its
 # RAM stub, which the port takes with no bus access of its own, so its estimate
@@ -164,29 +73,16 @@ console_line_vector drift as console_vblank_vector, at the line interrupt
 # or a menu has the screen blanked. They write work RAM and video memory the
 # screen is not showing; the vblank check finds none of their writes moved.
 field_frame vblank-tail the field's frame, the frame's work run inline and attributed; 2.93% of its vblank calls off by 1024 clocks or more, writing RAM the next vblank sends
-field_frame vblank-worst as for vblank-tail: its worst follows the frame's events and object scripts, run inline, writing RAM
-field_frame worst as for vblank-tail: at most 74413 clocks, in a frame whose scripts and objects run long
+field_frame worst the field's frame, the frame's work run inline and attributed: at most 74413 clocks, in a frame whose scripts and objects run long, writing RAM the next vblank sends
 field_enter drift a location's entry, its loading and setup attributed to their routines (cost_milli 1), with the screen blanked; what is left over-estimates by 1693 clocks a call on average
-field_load_tile_graphics vblank-worst unpacks a location's tile graphics while the screen is blanked, 7 frames a call on average; its time follows the packed data, as decompress
-field_load_tile_graphics worst as for vblank-worst: 2.4% error in calls of 1.9 million clocks, ending a load sooner or later
+field_load_tile_graphics worst unpacks a location's tile graphics while the screen is blanked, its time following the packed data: 2.4% error in calls of 1.9 million clocks, ending a load sooner or later
 field_load_bg3_graphics drift the BG3 graphics' unpacking attributed to the decompressor (cost_milli 1), with the screen blanked; the remainder follows the data
-field_load_bg3_graphics vblank-worst as for its drift: a load of 187382 clocks on average, ending sooner or later
-field_load_bg3_graphics worst as for its drift
-field_load_tile_looks vblank-worst unpacks the tiles' looks while the screen is blanked, a frame a call on average; its time follows the packed data, as decompress
-field_load_tile_looks worst as for vblank-worst: at most 52380 clocks against a 50468 limit
+field_load_bg3_graphics worst as for its drift: a load with the screen blanked, ending sooner or later
+field_load_tile_looks worst unpacks the tiles' looks while the screen is blanked, its time following the packed data: at most 52380 clocks against a 50468 limit
 field_load_bg3_tile_looks drift as field_load_bg3_graphics, for BG3's tile looks
-field_load_bg3_tile_looks vblank-worst as for its drift: a load of 97955 clocks on average
-field_set_up_after_a_menu vblank-worst brings the field back after a menu with the screen blanked, its loadings attributed; at most 125643 clocks in calls of 609034 on average
-field_after_battle vblank-tail brings the field back after a battle, its loadings and the frames it waits attributed; its error moves the end of the load, with the screen blanked
-field_after_battle vblank-worst as for vblank-tail: at most 30104 clocks
-field_set_the_screen_up vblank-worst puts a map's screen together with the screen blanked, the map drawn and sent and the objects in view drawn at once, its parts attributed; at most 41137 clocks in calls of 1.47 million
-field_fade_in vblank-worst the screen's setup attributed and its brightening frames waited out; at most 41157 clocks, the screen dark while it is set up
 field_fade_in_after_a_menu vblank-tail as field_fade_in after a menu, its setup and frames attributed (cost_milli 1); 3.31% of its calls off by 1024 clocks or more, with the screen dark
-field_draw_the_objects_in_view vblank-worst draws every object in view at once as a map's screen is set up, with the screen blanked; its frames' parts attributed, at most 34054 clocks
-field_unpack_the_map vblank-worst unpacks a location's map while the screen is blanked; its time follows the packed data, as decompress
-field_unpack_the_map worst as for vblank-worst: 5.8% error in calls of 1.34 million clocks, ending a load sooner or later
-field_set_up_after_a_menu worst as for its vblank-worst: the map's unpacking and the screen's setup under it are C at their estimates, at most 300121 clocks in calls of 1.42 million, with the screen blanked
-field_dialog_window_step vblank-tail a step of the dialog window a frame, whose own work differs by its state (a row cleared, the window opened, a glyph set); 5.15% of its calls off by 1024 clocks or more, writing the RAM the vblank sends a frame later
+field_unpack_the_map worst unpacks a location's map while the screen is blanked, its time following the packed data: 5.8% error in calls of 1.34 million clocks, ending a load sooner or later
+field_set_up_after_a_menu worst brings the field back after a menu with the screen blanked: the map's unpacking and the screen's setup under it are C at their estimates, at most 300121 clocks in calls of 1.42 million, with the screen blanked
 field_refresh_effects drift runs the screen effects' and the layers' frame work inline, attributed (cost_milli 1); what is left over-estimates by 6%, writing RAM
 field_refresh_effects vblank-tail as for its drift: 2.94% of its vblank calls off by 1024 clocks or more, at most 2237 clocks
 field_walk_a_frame drift walks the party a frame inline, attributed (cost_milli 1); +0.77% over 1203 clocks a call, writing RAM
@@ -204,7 +100,6 @@ field_walk_the_leader vblank-tail the leader's step and the screen's recentring 
 # by about 1600 clocks each) and the member rows' loads and costs fall to the
 # routine's own time, which the empty rows' overestimate holds at cost_milli 1.
 menu_show_pointed_tech drift draws the pointed tech's members' rows into the menus' tilemap buffer in RAM, which the next vblank uploads; +2.58% at cost_milli 1 (the empty rows over by 3190 clocks a call, the triple techs' member rows under by 9513), writing RAM only
-menu_show_pointed_tech vblank-tail as for its drift: every call starts in the frame's vblank, its error at most 9513 clocks, writing RAM only
 menu_choose_tech vblank-tail the techs list's step, which draws the pointed tech's rows (menu_show_pointed_tech) and carries their spread: 28.8% of its vblank calls off by 1024 clocks or more (the common still frame over by 2586 clocks), at most 10023 clocks, writing RAM and the VRAM queue only
 menu_choose_tech drift the techs list's step: its own share is at the floor (cost_milli 1) and all its time is charged at its parts' rates, which come to 2.3% over it on average; at most 8600 clocks off, writing RAM and the VRAM queue only
 menu_choose_setting vblank-tail the settings screen's step: most frames only read the buttons, and a push that moves the cursor redraws the description and the option's row, charged at the drawing's rates; mean |error| 0.7% with no drift, at most 5400 clocks, writing RAM only
@@ -213,9 +108,7 @@ menu_step_setting_meter vblank-tail a meter's step is a few hundred clocks, and 
 menu_step_battle_speed vblank-tail as menu_step_setting_meter: at most 2277 clocks with no drift, writing RAM only
 menu_step_message_speed vblank-tail as menu_step_setting_meter: at most 2277 clocks with no drift, writing RAM only
 menu_step_window_design vblank-tail as menu_step_setting_meter, the window's colours reloaded with the design: mean |error| 0.2%, at most 2253 clocks, writing RAM only
-menu_show_settings_panel vblank-worst draws the main menu's settings panel into the menus' tilemaps in RAM, a frame's work (263k clocks) on its two calls, its parts charged at their routines' rates; 6% short, 16058 clocks, writing RAM the next vblank uploads
 menu_choose_shop_tab worst the shop's tabs: most frames only read the buttons; the frame a tab is taken opens its list, which pages it, works out the panel's figures and who can use the item (menu_turn_page, menu_work_out_figures, menu_ask_who_can_use: original code until this chunk, timed exactly as call-outs, now C charged at their own rates), so that one call carries their errors added up: at most 81369 clocks, on the picture (at most 1750 in vblank), no drift, writing RAM only
-menu_choose_how_many_to_buy vblank-tail the quantity's step: the step that changes the quantity redraws the total and the figures, charged at the drawing's rates; mean |error| 247 clocks with no drift, at most 6049 clocks, writing RAM only
 
 # The ninth chunk of the menus (RECOMP.md, "Phase 3, menus: the main menu, the
 # save screen's opening, name entry, the description, the list slide and the
@@ -224,33 +117,11 @@ menu_choose_how_many_to_buy vblank-tail the quantity's step: the step that chang
 # those routines' rates, so a step carries their spread; each writes the menus'
 # buffers in RAM, which the next vblank uploads, and the vblank check finds no
 # video write of theirs moved.
-field_draw_next_frame vblank-tail the field's frame in Medina's market (menus-shop-equip), whose crowd runs 101 of its 232898 frames on into vblank; mean |error| 14.7% with no drift, the field's own estimate, writing RAM the next vblank uploads
-field_set_up_after_a_menu drift as its vblank-worst: the shop's returns to Medina's market load more than the other movies' returns, +1.99% at cost_milli 1, its loadings attributed
+field_set_up_after_a_menu drift brings the field back after a menu with the screen blanked: the shop's returns to Medina's market load more than the other movies' returns, +1.99% at cost_milli 1, its loadings attributed
 menu_describe_pointed_tech drift the techs screen's description request, its time charged at the description's start: -0.67%, 3 clocks a call on average, writing RAM only
 menu_name_the_character drift name entry's frame: its own share is at the floor and its parts (the grid's move, the typing, the name's window) are charged at their rates; -0.75%, at most 146 clocks
 menu_move_on_the_name_grid drift the grid's move: its own share is at the floor and the name's cursor and window are charged at their routines' rates, 326 clocks over every call; writing RAM only
 menu_type_on_the_name_grid drift the typing: its own share is at the floor and the name's window is charged at the window lists' rate, which a two-row window of five letters is 872 clocks under every call; writing RAM only
 menu_choose_gauge_layout vblank-tail as menu_step_setting_meter: 2 of 164 calls off by more than 1024 clocks, at most 2328, writing RAM only
-menu_choose_how_many_to_buy vblank-worst as for its vblank-tail: a quantity's step that redraws the total and the figures, at most 32373 clocks in one call, writing RAM only
-menu_choose_on_main_menu vblank-worst the main menu's step: a move redraws the option's panel and the menu over it, charged at the panels' and the window lists' rates; at most 16185 clocks in one call, writing RAM only
-menu_show_main_menu_panel vblank-worst draws an option's panel and the main menu over it into the menus' tilemaps in RAM, a frame's work on its calls, its parts charged at their routines' rates; at most 15906 clocks, writing RAM only
-menu_choose_shop_member vblank-tail the shop's step on the party: a member chosen opens its slots, charged at the window lists' rates; 5 of 297 calls off by more than 1024 clocks, at most 1451, writing RAM only
-menu_choose_shop_slot vblank-worst the shop's step on a member's slots: a slot chosen makes the list of what fits and slides it in, charged at those routines' rates; at most 15109 clocks in one call, writing RAM only
-menu_choose_shop_equipment vblank-tail the shop's step on the list of what fits: a move tries the item on and works its figures out, charged at those routines' rates; 1.10% of its calls off by more than 1024 clocks, at most 1653, writing RAM only
-menu_compare_shop_figures vblank-tail works a member's figures out with the item tried on and draws the comparison, charged at the figures' and the drawing's rates; mean |error| 0.3% with no drift, at most 1326 clocks, writing RAM only
-menu_try_on_shop_equipment vblank-tail as menu_compare_shop_figures, which it runs: at most 1327 clocks, writing RAM only
 menu_describe_setting vblank-tail the settings screen's description: a new option clears the row and starts the typing; 1.57% of its calls off by more than 1024 clocks, at most 2675, writing RAM only
-menu_type_the_description vblank-tail the description's typing: each frame typesets a few glyphs, charged at the typesetter's rates, whose time follows the glyphs' widths; mean |error| 4.4% with no drift, at most 3797 clocks, writing the glyph buffer the next vblank uploads
 menu_work_out_figures vblank-tail a member's figures: the shop's members' window works them out for every member each frame it is redrawn (menus-shop-equip); mean |error| 3.4% with no drift, at most 1554 clocks, writing RAM only
-
-# The attract demo (attract-demo): its scenes reach these more often in vblank
-# than the rest of the library, which had too few such calls to judge
-# (MIN_STRETCHES), or reach a little further. Each writes RAM only, and the
-# vblank check finds no video write of theirs moved.
-event_run_init_scripts vblank-tail a map's objects' opening scripts run on the machine at a location's load (its parts charged at their routines' rates), whose time follows the map's objects; 12 of 111 calls starting in vblank off by more than 1024 clocks, at most 4878, writing object state in RAM
-menu_note_rock_techs vblank-tail which of the rocks' triple techs the party could do, worked out when the party or its equipment changes; mean |error| 12.2% with no drift, at most 1266 clocks, writing RAM only
-menu_show_what_the_party_wears vblank-tail the party's figures with what it wears, worked out on the same changes; mean |error| 5.0% with no drift, at most 1528 clocks, writing RAM only
-menu_run_object_script vblank-worst a scene object's script for a frame, its commands charged at their routines' rates; at most 12684 clocks against a 12617 limit, in the demo's world maps, writing object state in RAM
-scene_race_place_bikes vblank-tail places and scales the race's bikes into the RAM sprite table, the demo's race calls starting in vblank more often than the jet bike race's; mean |error| 1.1% with no drift, at most 1331 clocks (one line), writing RAM only
-overworld_lead vblank-tail the leader's step scrolls the world map, timed as menu_map_scroll_x and _y (TIMED_AS) and off by what they are off by: a frame that builds a new column or row of the map's tiles is 7000-14000 clocks off, the rest within 1024; it writes RAM (the scroll and the tile buffer the next vblank uploads), and no video write moves
-overworld_lead vblank-worst as for vblank-tail: two scrolls in a frame, at most 14000 clocks, writing RAM

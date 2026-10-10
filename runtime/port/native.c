@@ -874,7 +874,12 @@ static void end_segment(NativeRuntime *rt, Active *a, Snes *s)
         bucket++;
     st->t_error_hist[bucket]++;
     uint32_t error32 = error > UINT32_MAX ? UINT32_MAX : (uint32_t)error;
-    if (a->segment_vblank) {
+    /* A vblank stretch is one the original began and ended in the same vblank
+     * (the frame counter goes up as vblank begins): the error of one that
+     * outlasts it moves work that comes after it on the picture, in the
+     * original's time as in the port's, so it is judged with those. */
+    bool within_vblank = a->segment_vblank && s->frame == a->segment_frame && s->vline >= SNES_VBLANK_LINE;
+    if (within_vblank) {
         st->t_vblank_stretches++;
         st->t_vblank_error_hist[bucket]++;
         if (error32 > st->t_vblank_max_error)
