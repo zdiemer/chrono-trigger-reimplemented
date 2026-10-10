@@ -3565,8 +3565,7 @@ the new entries, `menu_run_objects`, `menu_object_nmi` and the scripts' two
 call commands, whose time moved with the trampolines, and the equipment
 screen's and the shop's steps that make the list inline. Timing exceptions
 (`tools/timing_exceptions.txt`): the Epoch's and the drift's frames that
-build a strip of the map, as the leader's; the palette fade's two paths and
-the palette's clearing with the screen off; and the list of what fits, 35
+build a strip of the map, as the leader's; and the list of what fits, 35
 lines a call whose time follows the inventory, with the three steps that
 make it.
 
