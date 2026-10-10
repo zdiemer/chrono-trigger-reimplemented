@@ -200,11 +200,16 @@ static void after_its_turn(GameState *g, uint16_t address, bool done)
         set_menu_object_slots_age(g, o, (uint16_t)(menu_object_slots_age(g, o) + 1));
 }
 
-/* The handler runs on the machine, from the original's JSR at $C2:053E to
- * its jump through the handler's address ($C2:0553), which reads it from
- * menu_object_handler. It says it is done with the carry. False where it
- * came back in a way the loop can't go on from, or left the running object
- * elsewhere than a slot: the original then carries on from the call. */
+/* A handler is a routine of bank C2, which the slot names by its address. */
+enum { HANDLERS_BANK = 0xC20000 };
+
+/* The handler runs where it is registered, called as the original's JSR at
+ * $C2:053E calls its jump through the slot's handler (menu_object_handler,
+ * $C2:0553), which adds nothing to the call but the jump: a ported handler
+ * runs as C, any other as the original. It says it is done with the carry.
+ * False where it came back in a way the loop can't go on from, or left the
+ * running object elsewhere than a slot: the original then carries on from
+ * the call. */
 static bool run_handler(Snes *s, uint16_t address, uint16_t handler, bool *done)
 {
     GameState *g = state_of(s);
@@ -218,7 +223,7 @@ static bool run_handler(Snes *s, uint16_t address, uint16_t handler, bool *done)
     s->cpu.x = address;
     m_set_nz16(s, handler);
     m_sep(s, CPU_FLAG_M);
-    m_jsr(s, 0xC2053E, 0xC20553);
+    m_jsr(s, 0xC2053E, HANDLERS_BANK | handler);
     if (s->cpu.e || m_x8(s) || !menu_object_address_names_one(menu_object_current(g))) {
         m_stop_at_own(s, 0xC20541, 0);
         return false;

@@ -22,9 +22,10 @@
  *   map's lists say what is there -- an exit the player can enter with the
  *   first button, a place's name for the sign (sign.c), an event whose script
  *   runs once.
- * - **The vehicles**: the party walks to the Epoch or a dactyl to board it and
- *   gets off it again; flying them is the vehicles' own handlers' (still the
- *   original's), as is deciding when the party boards.
+ * - **The vehicles** (vehicles.c, epoch.c): the party walks to the Epoch or
+ *   a dactyl to board it and gets off it again; the vehicles' controller
+ *   decides when, and the Epoch flies over the map and through time. Flying
+ *   the dactyl is still the original's (no movie reaches it).
  *
  * A walker's position is a pixel of the map, which is MENU_MAP_WIDTH pixels
  * round and MENU_MAP_HEIGHT high (menu/object.h); a tile is TILE_PIXELS of it. */
@@ -34,6 +35,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/input.h"
 #include "field/object.h"
 #include "field/party.h"
 #include "menu/object.h"
@@ -42,7 +44,7 @@
 /* ---- How the party goes about the map --------------------------------------------------- */
 
 /* How the party is going about the world map (overworld_travel). The
- * vehicles' controller (still the original's, $C2:309E) moves the party from
+ * vehicles' controller (vehicles.c, $C2:309E) moves the party from
  * walking to boarding, to riding once all are aboard, to getting off when the
  * vehicle lands and back to walking once all are off. While the party stands
  * as it is, neither the leader nor the followers do anything: no routine of
@@ -73,9 +75,21 @@ WorldSpot overworld_vehicle_spot(const GameState *g, Vehicle v);
 void overworld_climb_aboard(GameState *g, Vehicle v);
 void overworld_climb_down(GameState *g, Vehicle v);
 
-/* The Epoch's state bit the sign reads: the Epoch leaves through time (the
- * time dial runs, and the map holds still). */
-enum { EPOCH_LEAVING_THROUGH_TIME = 0x10 };
+/* A vehicle's state (overworld_epoch's, overworld_dactyl's): the count of the
+ * party aboard in its low bits, whether the party has it out (riding it, or
+ * the Epoch away through time) and whether it is on this map at all; and the
+ * Epoch's own: the party entering the Black Omen from it, flying over the
+ * Omen, leaving through time (the time dial runs, and the map holds still)
+ * and whether it has its wings yet. */
+enum { VEHICLE_ABOARD = 0x03, VEHICLE_OUT = 0x40, VEHICLE_HERE = 0x80 };
+enum {
+    EPOCH_ENTERING_THE_BLACK_OMEN = 0x04,
+    EPOCH_OVER_THE_BLACK_OMEN = 0x08,
+    EPOCH_LEAVING_THROUGH_TIME = 0x10,
+    EPOCH_HAS_ITS_WINGS = 0x20,
+};
+uint8_t overworld_vehicle_state(const GameState *g, Vehicle v);
+void overworld_set_vehicle_state(GameState *g, Vehicle v, uint8_t state);
 
 /* ---- The party -------------------------------------------------------------------------- */
 
@@ -109,6 +123,15 @@ typedef enum {
 } OverworldMode;
 OverworldMode overworld_mode(const GameState *g);
 void overworld_set_mode(GameState *g, OverworldMode mode);
+
+/* The buttons the player assigned that ask the main loop for its screens:
+ * the menus, the map view, and Start's, the party's exchange on foot or the
+ * time gate from the Epoch. */
+enum {
+    OVERWORLD_ASSIGNED_MENUS = BUTTON_X,
+    OVERWORLD_ASSIGNED_MAP_VIEW = BUTTON_Y,
+    OVERWORLD_ASSIGNED_START = BUTTON_START,
+};
 
 /* Whether the party's walkers are free to walk: the overworld starting or on
  * the map. */
@@ -180,6 +203,10 @@ int16_t overworld_pace(const GameState *g, MenuObject walker, MenuAxis axis);
 
 /* Move the walker a frame on, round the map. */
 void overworld_walk_a_frame(GameState *g, MenuObject walker);
+
+/* The map follows something moving on it (the leader, the Epoch in flight)
+ * for a frame: it scrolls by the mover's pace, the layer over it with it. */
+void overworld_carry_the_map(GameState *g, MenuObject mover);
 
 /* Where a walker is walking to (its goal). */
 WorldSpot overworld_goal(const GameState *g, MenuObject walker);

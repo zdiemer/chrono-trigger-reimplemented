@@ -24,6 +24,19 @@ WorldSpot overworld_vehicle_spot(const GameState *g, Vehicle v)
     return (WorldSpot){ overworld_epoch_x(g), overworld_epoch_y(g) };
 }
 
+uint8_t overworld_vehicle_state(const GameState *g, Vehicle v)
+{
+    return v == VEHICLE_DACTYL ? overworld_dactyl_state(g) : overworld_epoch_state(g);
+}
+
+void overworld_set_vehicle_state(GameState *g, Vehicle v, uint8_t state)
+{
+    if (v == VEHICLE_DACTYL)
+        set_overworld_dactyl_state(g, state);
+    else
+        set_overworld_epoch_state(g, state);
+}
+
 /* A vehicle's count of the party aboard is the low bits of its state, which
  * a climb counts up or down as a byte; with no vehicle there is nothing to
  * climb onto. */

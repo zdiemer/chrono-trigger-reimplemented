@@ -1280,8 +1280,8 @@ static uint8_t sides_outside(uint8_t x, uint8_t y, Area a)
     return sides;
 }
 
-/* The areas of the world maps the Epoch may be flown in; a map with none has
- * nowhere. */
+/* The part of each world map the Epoch may not come down in (its flight's
+ * landing, overworld/epoch.c); a map with none has none. */
 enum { TILE_SHIFT = 3 };
 static const struct {
     bool has_area;
@@ -1315,7 +1315,7 @@ static void leave_area_cells(GameState *g, uint16_t tile_x, uint16_t tile_y, con
 }
 
 // $C6:E797
-/* Whether the object is inside the area of the world map the party is on. */
+/* Whether the object is inside that part of the world map the party is on. */
 static bool in_area(GameState *g, MenuObject o)
 {
     MenuPlace p = menu_object_place(g, o);
@@ -1330,6 +1330,8 @@ static bool in_area(GameState *g, MenuObject o)
     ORIGINAL_EFFECT(leave_area_cells(g, tile_x, tile_y, a, sides));
     return sides == 0;
 }
+
+bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch) { return in_area(g, epoch); }
 
 /* ---- The bridges: the screens on the machine -------------------------------------------------- */
 

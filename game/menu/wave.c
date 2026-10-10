@@ -14,6 +14,7 @@
 #include "menu/line_effects.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
+#include "menu/screen_objects.h"
 #include "original_effects.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -26,7 +27,7 @@ enum { WAVE_SLOT = 1 };
 
 /* The display's bit that turns the screen off, the line effect's bit among
  * the mode's line effects, and the objects' held bit. */
-enum { SCREEN_OFF = 0x80, WAVE_EFFECT = 1 << WAVE_SLOT, OBJECTS_HELD = 0x10 };
+enum { WAVE_EFFECT = 1 << WAVE_SLOT, OBJECTS_HELD = 0x10 };
 
 /* The sine's steps a turn, and how far the wave moves on a frame. */
 enum { SINE_STEPS = 0x400, HALF_TURN = 0x200, WAVE_SPEED = 4 };
@@ -51,7 +52,7 @@ static void set_up_line_effect(GameState *g, Platform *pf)
  * where the last wave left it. False where there is no wave this frame. */
 static bool wave(GameState *g, Platform *pf, MenuObject self)
 {
-    if (menu_object_display(g) & SCREEN_OFF) {
+    if (menu_screen_is_off(g)) {
         set_menu_object_line_effects(g, (uint8_t)(menu_object_line_effects(g) & ~WAVE_EFFECT));
         return false;
     }

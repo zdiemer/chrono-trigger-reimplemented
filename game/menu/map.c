@@ -421,6 +421,16 @@ static void centre_on_party(GameState *g)
     }
 }
 
+/* The middle of the view, as the original works it out to play the song of
+ * what the screen shows: the first plane's tile (its bytes', as it reads
+ * them) and the centring's offsets on from it, not brought round the map. */
+MenuViewCentre menu_map_view_centre(const GameState *g)
+{
+    enum { VIEW_PLANE = 0 };
+    return (MenuViewCentre){ (uint16_t)((uint8_t)tile_column(g, VIEW_PLANE) + CENTRING_COLUMNS),
+                             (uint16_t)((uint8_t)tile_row(g, VIEW_PLANE) + CENTRING_ROWS) };
+}
+
 MenuMapTile menu_map_camera_looks_at(const GameState *g)
 {
     enum { CAMERA_PLANE = 1 };

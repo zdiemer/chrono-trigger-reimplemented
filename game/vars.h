@@ -666,6 +666,17 @@ void set_story_line(GameState *g, uint8_t v);
 uint8_t story_party_rules(const GameState *g);
 void set_story_party_rules(GameState *g, uint8_t v);
 
+/* Event memory $CC: bit 0 set as the Epoch, before it has its wings, leaves through time for the
+ * world map $1F2 (it arrives at location $F3 instead), for the story's scripts there */
+uint8_t story_epoch_notes(const GameState *g);
+void set_story_epoch_notes(GameState *g, uint8_t v);
+
+/* Event memory $CD: cleared as the Epoch leaves through time for one of the places it arrives at
+ * in a scene of its own (game/overworld/epoch.c, EPOCH_ARRIVALS), for that scene's script to go
+ * by */
+uint8_t story_epoch_arrivals(const GameState *g);
+void set_story_epoch_arrivals(GameState *g, uint8_t v);
+
 /* The story's notes on the game itself (event memory $1CF): $10 where it carries on from a
  * finished one, bit 7 where the place items are held back */
 uint8_t story_game_notes(const GameState *g);
@@ -2810,6 +2821,13 @@ void set_field_object_sprite_high_last(GameState *g, unsigned slot, uint8_t v);
 /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
 uint16_t menu_scratch_task_start(const GameState *g);
 void set_menu_scratch_task_start(GameState *g, uint16_t v);
+/* The list of what fits ($C2:8953): the power the last row of the ordering kept (where nothing
+ * fits, the slot's first item) */
+uint8_t menu_scratch_fits_power(const GameState *g);
+void set_menu_scratch_fits_power(GameState *g, uint8_t v);
+/* The list of what fits: the row its ordering reached, its end */
+uint8_t menu_scratch_fits_row(const GameState *g);
+void set_menu_scratch_fits_row(GameState *g, uint8_t v);
 /* The load screen: the character of the party member it is drawing a row for (its record's first
  * byte; the portrait clears the high byte) */
 uint16_t menu_scratch_save_member(const GameState *g);
@@ -6002,6 +6020,61 @@ void set_save_check_game_at(GameState *g, SaveCheckPage page, uint16_t v);
 enum { MENU_OBJECT_SCRATCH_BYTES_BYTES = 28 };
 uint8_t menu_object_scratch_bytes_byte(const GameState *g, unsigned at);
 void set_menu_object_scratch_bytes_byte(GameState *g, unsigned at, uint8_t v);
+/* What a routine a scene's script calls answers (1 yes, 0 no), for the script's next command to
+ * test (game/menu/map_scenes.c) */
+uint8_t menu_object_scratch_answer(const GameState *g);
+void set_menu_object_scratch_answer(GameState *g, uint8_t v);
+/* Whether an object is in view ($C2:78A1): its place across from the view's left, less a margin,
+ * round the map */
+uint16_t menu_object_scratch_view_across(const GameState *g);
+void set_menu_object_scratch_view_across(GameState *g, uint16_t v);
+/* And down from the view's top */
+uint16_t menu_object_scratch_view_down(const GameState *g);
+void set_menu_object_scratch_view_down(GameState *g, uint16_t v);
+/* A screen object's (game/menu/screen_objects.c): long pointer to the command that started it,
+ * which it reads its parameters through */
+uint32_t menu_object_scratch_screen_command(const GameState *g);
+void set_menu_object_scratch_screen_command(GameState *g, uint32_t v);
+/* The palette loader: long pointer to the colours it puts in the row */
+uint32_t menu_object_scratch_palette_source(const GameState *g);
+void set_menu_object_scratch_palette_source(GameState *g, uint32_t v);
+/* The tile streamer: how many tiles its last batch sent */
+uint16_t menu_object_scratch_stream_batch(const GameState *g);
+void set_menu_object_scratch_stream_batch(GameState *g, uint16_t v);
+/* The tile streamer: the last batch's bytes */
+uint16_t menu_object_scratch_stream_batch_bytes(const GameState *g);
+void set_menu_object_scratch_stream_batch_bytes(GameState *g, uint16_t v);
+/* The palette's fade: colours of its row left to count or step (0 once done) */
+uint8_t menu_object_scratch_fade_colours_left(const GameState *g);
+void set_menu_object_scratch_fade_colours_left(GameState *g, uint8_t v);
+/* The palette's fade: the last colour it read from its row to count, or wrote there on a step */
+uint16_t menu_object_scratch_fade_colour(const GameState *g);
+void set_menu_object_scratch_fade_colour(GameState *g, uint16_t v);
+/* The palette's fade, counting: the last colour it read of those it fades to */
+uint16_t menu_object_scratch_fade_target(const GameState *g);
+void set_menu_object_scratch_fade_target(GameState *g, uint16_t v);
+/* The palette's fade, counting: the last colour's blue as compared (and above it, the high byte
+ * of its green) */
+uint16_t menu_object_scratch_fade_parts(const GameState *g);
+void set_menu_object_scratch_fade_parts(GameState *g, uint16_t v);
+/* The palette's fade, counting: where the colour after the last is in the palette */
+uint16_t menu_object_scratch_fade_row_next(const GameState *g);
+void set_menu_object_scratch_fade_row_next(GameState *g, uint16_t v);
+/* The palette's fade: where in its slot the count of the colour after the last is, for its red */
+uint16_t menu_object_scratch_fade_red_next(const GameState *g);
+void set_menu_object_scratch_fade_red_next(GameState *g, uint16_t v);
+/* And for its green */
+uint16_t menu_object_scratch_fade_green_next(const GameState *g);
+void set_menu_object_scratch_fade_green_next(GameState *g, uint16_t v);
+/* And for its blue */
+uint16_t menu_object_scratch_fade_blue_next(const GameState *g);
+void set_menu_object_scratch_fade_blue_next(GameState *g, uint16_t v);
+/* The palette's fade, counting: long pointer to the colour after the last of those it fades to */
+uint32_t menu_object_scratch_fade_target_next(const GameState *g);
+void set_menu_object_scratch_fade_target_next(GameState *g, uint32_t v);
+/* The palette's fade, on a step: where the colour after the last is in the palette */
+uint16_t menu_object_scratch_fade_step_next(const GameState *g);
+void set_menu_object_scratch_fade_step_next(GameState *g, uint16_t v);
 /* Which of the map's planes a scroll or a redraw works on (1-3) */
 uint8_t menu_object_scratch_plane(const GameState *g);
 void set_menu_object_scratch_plane(GameState *g, uint8_t v);
@@ -6223,10 +6296,12 @@ void set_menu_object_scratch_jolt_angle(GameState *g, uint16_t v);
 uint8_t menu_object_scratch_jolt_size(const GameState *g);
 void set_menu_object_scratch_jolt_size(GameState *g, uint8_t v);
 
-/* Two bytes ORed into the display register each frame (bit 7 forced blank, low nibble
- * brightness); while bit 7 of the first is set the wave handler also turns its effect off */
-uint16_t menu_object_display(const GameState *g);
-void set_menu_object_display(GameState *g, uint16_t v);
+/* $80 while the screen is off (forced blank), 0 while it shows; the fades set it as they end */
+uint8_t menu_object_display_blank(const GameState *g);
+void set_menu_object_display_blank(GameState *g, uint8_t v);
+/* The screen's brightness, 0 (black) to 15 (full), which the fades step */
+uint8_t menu_object_display_brightness(const GameState *g);
+void set_menu_object_display_brightness(GameState *g, uint8_t v);
 
 /* BG mode */
 uint8_t menu_object_shadows_bg_mode(const GameState *g);
@@ -6422,6 +6497,13 @@ enum { MENU_OBJECT_PALETTE_BYTES = 512 };
 uint8_t menu_object_palette_byte(const GameState *g, unsigned at);
 void set_menu_object_palette_byte(GameState *g, unsigned at, uint8_t v);
 
+enum { MENU_PALETTE_ROW_USERS_COUNT = 16 };   /* by the palette's row, 0-15 (16 colours a row) */
+/* How many of the palette's loaders and fades are working on each row of menu_object_palette:
+ * one counts its row up as it starts and down as it ends, and a fade that finds a newer one on
+ * its row gives the row up to it */
+uint8_t menu_palette_row_users(const GameState *g, unsigned row);
+void set_menu_palette_row_users(GameState *g, unsigned row, uint8_t v);
+
 enum { MENU_OBJECT_SLOTS_COUNT = 64 };   /* by slot: the mode keeps its address, $0B30 + $40 a slot, in menu_object_current */
 /* The routine that runs the object each frame, called through JMP ($0050); zero for a free slot,
  * and the handler returning carry set frees it */
@@ -6529,10 +6611,61 @@ void set_menu_object_slots_palette_source(GameState *g, unsigned slot, uint32_t 
 /* The palette loader's row of the palette, which the object that starts it hands it ($C2:10CD) */
 uint16_t menu_object_slots_palette_row(const GameState *g, unsigned slot);
 void set_menu_object_slots_palette_row(GameState *g, unsigned slot, uint16_t v);
-/* The palette loader's hand-over flag: nonzero where it hands over to the next loader when done
- * ($C2:10CD) */
-uint8_t menu_object_slots_palette_hand_over(const GameState *g, unsigned slot);
-void set_menu_object_slots_palette_hand_over(GameState *g, unsigned slot, uint8_t v);
+/* The palette loader's fade: 0 to put the colours in at once, otherwise the frames between each
+ * of the fade's 32 steps towards them ($C2:10CD, $C2:1DD4) */
+uint8_t menu_object_slots_palette_frames_a_step(const GameState *g, unsigned slot);
+void set_menu_object_slots_palette_frames_a_step(GameState *g, unsigned slot, uint8_t v);
+/* The low byte of its age: the fades, the mosaic, the palette's fade and the Epoch count the
+ * frames since their last step here, clearing it as they take one (the high byte, which those
+ * counts never carry into, stays) */
+uint8_t menu_object_slots_frames_since_step(const GameState *g, unsigned slot);
+void set_menu_object_slots_frames_since_step(GameState *g, unsigned slot, uint8_t v);
+/* The screen's fades' and the mosaic's frames between steps, from the command that started them
+ * (game/menu/screen_objects.c) */
+uint8_t menu_object_slots_frames_a_step(const GameState *g, unsigned slot);
+void set_menu_object_slots_frames_a_step(GameState *g, unsigned slot, uint8_t v);
+/* The tile streamer's long pointer to the tiles it has still to send
+ * (game/menu/screen_objects.c, $C2:1CF5) */
+uint32_t menu_object_slots_stream_source(const GameState *g, unsigned slot);
+void set_menu_object_slots_stream_source(GameState *g, unsigned slot, uint32_t v);
+/* The tile streamer's VRAM word the next batch goes to */
+uint16_t menu_object_slots_stream_vram(const GameState *g, unsigned slot);
+void set_menu_object_slots_stream_vram(GameState *g, unsigned slot, uint16_t v);
+/* The tile streamer's batch: how many 32-byte tiles it sends a frame */
+uint16_t menu_object_slots_stream_tiles_a_frame(const GameState *g, unsigned slot);
+void set_menu_object_slots_stream_tiles_a_frame(GameState *g, unsigned slot, uint16_t v);
+/* The tile streamer's tiles still to send */
+uint16_t menu_object_slots_stream_tiles_left(const GameState *g, unsigned slot);
+void set_menu_object_slots_stream_tiles_left(GameState *g, unsigned slot, uint16_t v);
+/* The palette's fade: how many of its 32 steps it has taken (a word it clears as it starts,
+ * counted a byte at a time) */
+uint16_t menu_object_slots_fade_steps(const GameState *g, unsigned slot);
+void set_menu_object_slots_fade_steps(GameState *g, unsigned slot, uint16_t v);
+/* The palette's fade: the row of the palette it fades */
+uint16_t menu_object_slots_fade_row(const GameState *g, unsigned slot);
+void set_menu_object_slots_fade_row(GameState *g, unsigned slot, uint16_t v);
+/* The palette's fade: the frames between its steps */
+uint8_t menu_object_slots_fade_frames_a_step(const GameState *g, unsigned slot);
+void set_menu_object_slots_fade_frames_a_step(GameState *g, unsigned slot, uint8_t v);
+/* The palette's fade: long pointer to the sixteen colours it fades the row to */
+uint32_t menu_object_slots_fade_colours(const GameState *g, unsigned slot);
+void set_menu_object_slots_fade_colours(GameState *g, unsigned slot, uint32_t v);
+/* The palette's fade: where its row starts in menu_object_palette, as an address in work RAM */
+uint16_t menu_object_slots_fade_row_at(const GameState *g, unsigned slot);
+void set_menu_object_slots_fade_row_at(GameState *g, unsigned slot, uint16_t v);
+/* The palette's fade: each colour's count for its red (game/menu/screen_objects.c, FadeCount: 0
+ * for no change, else the count of a rise, or with bit 7 of a fall) [16 bytes, one at a time] */
+enum { MENU_OBJECT_SLOTS_FADE_RED_BYTES = 16 };
+uint8_t menu_object_slots_fade_red_byte(const GameState *g, unsigned slot, unsigned at);
+void set_menu_object_slots_fade_red_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+/* The palette's fade: each colour's count for its green [16 bytes, one at a time] */
+enum { MENU_OBJECT_SLOTS_FADE_GREEN_BYTES = 16 };
+uint8_t menu_object_slots_fade_green_byte(const GameState *g, unsigned slot, unsigned at);
+void set_menu_object_slots_fade_green_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
+/* The palette's fade: each colour's count for its blue [16 bytes, one at a time] */
+enum { MENU_OBJECT_SLOTS_FADE_BLUE_BYTES = 16 };
+uint8_t menu_object_slots_fade_blue_byte(const GameState *g, unsigned slot, unsigned at);
+void set_menu_object_slots_fade_blue_byte(GameState *g, unsigned slot, unsigned at, uint8_t v);
 /* The time dial's object: the angle the gate turns to, the chosen period's (game/menu/epoch.c) */
 uint16_t menu_object_slots_target_angle(const GameState *g, unsigned slot);
 void set_menu_object_slots_target_angle(GameState *g, unsigned slot, uint16_t v);
@@ -6598,12 +6731,32 @@ void set_menu_object_slots_goal_x(GameState *g, unsigned slot, uint16_t v);
 /* An overworld walker: where down it is walking to */
 uint16_t menu_object_slots_goal_y(const GameState *g, unsigned slot);
 void set_menu_object_slots_goal_y(GameState *g, unsigned slot, uint16_t v);
+/* A scene's object that drifts the map: its count of frames, a byte, the map moving on every
+ * fourth (game/menu/map_scenes.c) */
+uint8_t menu_object_slots_drift_count(const GameState *g, unsigned slot);
+void set_menu_object_slots_drift_count(GameState *g, unsigned slot, uint8_t v);
+/* The Epoch on the world map: how many frames its take-off or landing lasts
+ * (game/overworld/epoch.c) */
+uint8_t menu_object_slots_epoch_manoeuvre_frames(const GameState *g, unsigned slot);
+void set_menu_object_slots_epoch_manoeuvre_frames(GameState *g, unsigned slot, uint8_t v);
+/* The Epoch on the world map: the ground of the 8x8 tile below the lower left of the four round
+ * its spot (game/overworld/terrain.c) */
+uint8_t menu_object_slots_ground_below_left(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_below_left(GameState *g, unsigned slot, uint8_t v);
+/* The Epoch: the ground of the tile below the lower right of the four */
+uint8_t menu_object_slots_ground_below_right(const GameState *g, unsigned slot);
+void set_menu_object_slots_ground_below_right(GameState *g, unsigned slot, uint8_t v);
 /* An overworld follower: how far across its goal is from it as it set out, signed */
 uint16_t menu_object_slots_to_goal_x(const GameState *g, unsigned slot);
 void set_menu_object_slots_to_goal_x(GameState *g, unsigned slot, uint16_t v);
 /* An overworld follower: how far down its goal is from it as it set out, signed */
 uint16_t menu_object_slots_to_goal_y(const GameState *g, unsigned slot);
 void set_menu_object_slots_to_goal_y(GameState *g, unsigned slot, uint16_t v);
+
+/* The screen's fades that are running: bit 0 a fade in, bit 1 a fade out. A fade out won't start
+ * while one runs, a fade in not while either does, and a fade out stops a fade in */
+uint8_t menu_fades_running(const GameState *g);
+void set_menu_fades_running(GameState *g, uint8_t v);
 
 enum { MENU_SLOT1_LINE_VALUES_COUNT = 224 };   /* by line */
 /* The first of the per-line value tables of the sprite-object mode's line-effect slot 1, a word
@@ -6698,6 +6851,29 @@ void set_menu_world_map_tiles_byte(GameState *g, unsigned i, unsigned at, uint8_
 
 /* ---- overworld ----------------------------------------------------------------------------- */
 
+/* A test of whether two things on the map are within reach of each other ($C2:2345): the first's
+ * place across */
+uint16_t overworld_scratch_reach_first_x(const GameState *g);
+void set_overworld_scratch_reach_first_x(GameState *g, uint16_t v);
+/* And down */
+uint16_t overworld_scratch_reach_first_y(const GameState *g);
+void set_overworld_scratch_reach_first_y(GameState *g, uint16_t v);
+/* The second's place across */
+uint16_t overworld_scratch_reach_second_x(const GameState *g);
+void set_overworld_scratch_reach_second_x(GameState *g, uint16_t v);
+/* And down */
+uint16_t overworld_scratch_reach_second_y(const GameState *g);
+void set_overworld_scratch_reach_second_y(GameState *g, uint16_t v);
+/* Long pointer to the first's reach, four words: left, right, up and down of its place */
+uint32_t overworld_scratch_reach_first(const GameState *g);
+void set_overworld_scratch_reach_first(GameState *g, uint32_t v);
+/* Long pointer to the second's reach */
+uint32_t overworld_scratch_reach_second(const GameState *g);
+void set_overworld_scratch_reach_second(GameState *g, uint32_t v);
+/* The vehicles' controller, as the party boards: how many of the party there are
+ * (game/overworld/vehicles.c) */
+uint8_t overworld_scratch_boarders(const GameState *g);
+void set_overworld_scratch_boarders(GameState *g, uint8_t v);
 /* A walker's choice of its step on foot: the row of its handler's table for whether an event
  * runs (eight bytes a row), which it adds its step to */
 uint8_t overworld_scratch_walker_table_row(const GameState *g);
@@ -6857,8 +7033,10 @@ void set_overworld_epoch_x(GameState *g, uint16_t v);
 /* And down */
 uint16_t overworld_epoch_y(const GameState *g);
 void set_overworld_epoch_y(GameState *g, uint16_t v);
-/* Bits 0-1 how many of the party are aboard, bit 4 it is leaving through time (the time dial
- * runs, the map holds still), bit 5 it has its wings, bit 6 the party has it out */
+/* Bits 0-1 how many of the party are aboard, bit 2 the party is entering the Black Omen from it,
+ * bit 3 it flies over the Black Omen, bit 4 it is leaving through time (the time dial runs, the
+ * map holds still), bit 5 it has its wings, bit 6 the party has it out, bit 7 it is in this
+ * period (game/overworld/epoch.c) */
 uint8_t overworld_epoch_state(const GameState *g);
 void set_overworld_epoch_state(GameState *g, uint8_t v);
 
@@ -6868,9 +7046,16 @@ void set_overworld_dactyl_x(GameState *g, uint16_t v);
 /* Down */
 uint16_t overworld_dactyl_y(const GameState *g);
 void set_overworld_dactyl_y(GameState *g, uint16_t v);
-/* Bits 0-1 how many of the party are aboard, bit 6 the party has it out */
+/* Bits 0-1 how many of the party are aboard, bit 6 the party has it out, bit 7 it is on the map */
 uint8_t overworld_dactyl_state(const GameState *g);
 void set_overworld_dactyl_state(GameState *g, uint8_t v);
+
+/* Across, a pixel */
+uint16_t overworld_black_omen_x(const GameState *g);
+void set_overworld_black_omen_x(GameState *g, uint16_t v);
+/* Down */
+uint16_t overworld_black_omen_y(const GameState *g);
+void set_overworld_black_omen_y(GameState *g, uint16_t v);
 
 enum { OVERWORLD_IDLE_FRAMES_COUNT = 3 };   /* by the party's place: 0 the leader, 1 the second member, 2 the third */
 /* Frames each of the party has stood still, up to $F0, when it plays its idle animation once and
@@ -6937,9 +7122,19 @@ enum { OVERWORLD_REGION_SONGS_COUNT = 16 };   /* by region */
 uint8_t overworld_region_songs(const GameState *g, unsigned i);
 void set_overworld_region_songs(GameState *g, unsigned i, uint8_t v);
 
+/* 1 while the Epoch flies over the world map (from the end of its take-off until it starts to
+ * land), 0 while it stands; the Epoch's second sprite goes by it */
+uint8_t overworld_epoch_flying(const GameState *g);
+void set_overworld_epoch_flying(GameState *g, uint8_t v);
+
 /* Cleared as the leader begins a step and as the overworld starts */
 uint8_t overworld_step_begun(const GameState *g);
 void set_overworld_step_begun(GameState *g, uint8_t v);
+
+/* The byte after overworld_step_begun, which the Epoch clears with it where it clears that with
+ * a word store; nothing the ports know of reads it */
+uint8_t overworld_after_step_begun(const GameState *g);
+void set_overworld_after_step_begun(GameState *g, uint8_t v);
 
 enum { OVERWORLD_MAP_COUNT = 6144 };   /* by map tile (its row * 96 plus its column) */
 /* The world map: 96 x 64 map tiles of 16 x 16 pixels, a byte each, the tile group each shows

@@ -46,7 +46,6 @@
 enum {
     YIELD = 0xC2821E,                /* the task waits for the next frame */
     MEMBER_SCROLL_BAR = 0xC2A170,    /* the member list's scroll bar set up */
-    LIST_WHAT_FITS = 0xC28953,       /* the list of what fits the slot made */
     FRAME_THE_LIST = 0xC2EA81,       /* a scrolling list's frame laid out: Y places, rows shown */
     LOW_HP_MARKS = 0xC2813C,         /* each character's low-HP mark worked out */
     PREVIEW_ITEM = 0xC2A5C3,         /* the list's item on the cursor put in the record, the figures with it */
@@ -168,8 +167,9 @@ void menu_choose_equipment_member(Snes *s)
         if (!tick(s, 0xC29C52) || !menu_run(s, 0xC29C55, 0xC2A71E, menu_open_slots_window))
             return;
         TIMED_AS(g, 0xC2A321, menu_equip_show_slots_of_member(g, m_platform(s)));
-        if (!yield(s, 0xC29C5B) || !tick(s, 0xC29C5E) || !call(s, 0xC29C61, LIST_WHAT_FITS))
+        if (!yield(s, 0xC29C5B) || !tick(s, 0xC29C5E))
             return;
+        TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
         TIMED_AS(g, 0xC2A569, menu_equip_draw_list(g));
         menu_equip_queue_list_rows(g);
         m_rts(s);
@@ -572,7 +572,7 @@ void menu_slide_equipment_list_out(Snes *s)
     m_rts(s);
 }
 
-/* The list of what fits made (the original's), laid out, its frame (the
+/* The list of what fits made, laid out, its frame (the
  * original's), its bar, the bar's task (the original's), and drawn. The
  * drawing leaves the pen past the list in A. */
 static void make_the_list(Snes *s)
@@ -580,8 +580,7 @@ static void make_the_list(Snes *s)
     GameState *g = state_of(s);
     menu_save_p(s);
     menu_set_widths(s, false, false);
-    if (!call(s, 0xC2A466, LIST_WHAT_FITS))
-        return;
+    TIMED_AS(g, 0xC28953, menu_list_what_fits(g));
     menu_equip_lay_out_list(g);
     menu_set_widths(s, true, true);
     s->cpu.y = menu_equip_choices(g);
@@ -1030,3 +1029,23 @@ bool menu_equipment_slots_window_slides(Snes *s) { return on_the_screen(s) && pe
 bool menu_equipment_slots_are_showable(Snes *s) { return on_the_screen(s) && peek(s, slots_show); }
 bool menu_equipment_slots_are_markable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, slots_mark); }
 bool menu_equipped_items_are_drawable(Snes *s) { return menu_on_page_work_ram(s) && peek(s, equipped_are_items); }
+
+// $C2:8953
+/* The list made as the original's callers make it: what it leaves in the
+ * registers they don't read, its flags and widths its caller's (it saves
+ * and restores them). */
+void menu_list_what_fits_entry(Snes *s)
+{
+    menu_list_what_fits(state_of(s));
+    m_rts(s);
+}
+
+bool menu_list_what_fits_runs(Snes *s)
+{
+    if (!menu_on_page_work_ram(s))
+        return false;
+    vars_peek(true);
+    bool ok = menu_list_what_fits_can_be_made(state_of(s));
+    vars_peek(false);
+    return ok;
+}

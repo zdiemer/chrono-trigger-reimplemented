@@ -14,6 +14,7 @@
 #include "overworld/frames.h"
 #include "overworld/music.h"
 
+#include "menu/map.h"
 #include "overworld/terrain.h"
 #include "platform/audio.h"
 #include "vars.h"
@@ -73,10 +74,44 @@ static bool ask_for(GameState *g, AudioCommand c)
  * which the requests set full. */
 enum { SONG_THIRD = 0x80, FADE_OUT_STEPS = 0x0C, AT_ONCE = 0, SILENT = 0, FADE_THIRD = AU_FULL_VOLUME };
 
+static AudioCommand song_request(uint8_t song) { return (AudioCommand){ AU_START_SONG, song, AU_FULL_VOLUME, SONG_THIRD, 3 }; }
+
 static void play_song(GameState *g, uint8_t song)
 {
-    if (ask_for(g, (AudioCommand){ AU_START_SONG, song, AU_FULL_VOLUME, SONG_THIRD, 3 }))
+    if (ask_for(g, song_request(song)))
         set_menu_song_playing(g, song);
+}
+
+void overworld_play_song(GameState *g, uint8_t song) { play_song(g, song); }
+
+// $C2:2F4E
+/* The song of what the screen shows (the Epoch has come down there), or the
+ * one a screen keeps. The request is the last one's again: it keeps its
+ * age. */
+void overworld_play_the_song_in_view(GameState *g)
+{
+    uint8_t song = menu_song_kept(g) ? current_song(g)
+                                     : overworld_region_songs(g, overworld_region_in_view(g, menu_map_view_centre(g)));
+    AudioCommand c = song_request(song);
+    set_menu_sound_request_command(g, c.command);
+    set_menu_sound_request_first(g, c.p1);
+    set_menu_sound_request_second(g, c.p2);
+    set_menu_sound_request_third(g, c.p3);
+    if (overworld_pass_on_sound(g))
+        set_menu_song_playing(g, song);
+}
+
+// $C2:4387-$C2:4395
+/* Arriving through time, the music goes back to its own pace at once. A bend
+ * reads two parameters, so the request keeps the third the last one had. */
+bool overworld_restore_the_tempo(GameState *g)
+{
+    enum { AT_ONCE_STEPS = 0, AS_WRITTEN = 0 };
+    set_menu_sound_request_command(g, AU_BEND_TEMPO);
+    set_menu_sound_request_first(g, AT_ONCE_STEPS);
+    set_menu_sound_request_second(g, AS_WRITTEN);
+    set_menu_sound_request_age(g, 0);
+    return overworld_pass_on_sound(g);
 }
 
 /* The object's steps: listening to where the party walks, then (a song

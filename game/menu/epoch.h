@@ -3,7 +3,9 @@
 #ifndef CT_GAME_MENU_EPOCH_H
 #define CT_GAME_MENU_EPOCH_H
 
+#include "menu/object.h"
 #include "snes/system.h"
+#include "state.h"
 
 /* The map view */
 void menu_epoch_map_screen(Snes *s);
@@ -33,6 +35,10 @@ void menu_epoch_expand_gate_nibbles(Snes *s);
 /* Where the Epoch may fly */
 void menu_epoch_outside_sides(Snes *s);
 void menu_epoch_in_area(Snes *s);
+
+/* Whether the Epoch, flying over the world map, is over the part of it it
+ * may not come down in. */
+bool menu_epoch_kept_off_the_ground(GameState *g, MenuObject epoch);
 
 /* Guards */
 bool menu_epoch_page_is_menu(Snes *s);

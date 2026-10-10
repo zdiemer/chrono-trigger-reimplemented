@@ -65,6 +65,94 @@ enum { NOTHING_SHOWN = 0xFF };
 static void forget_the_list_shown(GameState *g) { set_menu_equip_shown(g, NOTHING_SHOWN); }
 
 
+/* The inventory's places the list looks through (the last fourteen, past
+ * the items the game has, it leaves alone). */
+enum { MENU_INVENTORY_LISTED = 0xF2 };
+
+/* ---- The list of what fits -------------------------------------------------------------------- */
+
+/* The items each slot takes are a range of item numbers (menu_data.h). */
+static bool fits(const GameState *g, uint8_t slot, uint8_t item)
+{
+    return item >= menu_slot_first_item(g, slot) && item < menu_slot_past_items(g, slot);
+}
+
+enum { NO_ITEM = 0 };
+
+static void put_in_list(GameState *g, unsigned row, uint8_t item, uint8_t count)
+{
+    set_menu_list_items(g, row, item);
+    set_menu_list_item_counts(g, row, count);
+}
+
+/* The original asks who can use each item through a cell, and sorts with
+ * its first two: what is left there is the last item asked about, the last
+ * power it kept and how far down the list it got. */
+static void leave_list_made(GameState *g, uint8_t last_asked, uint8_t last_power, uint8_t rows)
+{
+    set_menu_item_operand(g, last_asked);
+    set_menu_scratch_fits_power(g, last_power);
+    set_menu_scratch_fits_row(g, rows);
+}
+
+// $C2:8953
+/* The list of what fits the slot the screen is on and the loaded member can
+ * use: each kind the party holds, with how many, the most powerful first (of
+ * two as powerful, the later in the inventory first), ended by an empty
+ * item; menu_equip_choices counts them. The ordering is the original's
+ * pass: each row in turn takes the most powerful of those after it, the scan
+ * ending at the first of no power (the end's empty item has none). */
+void menu_list_what_fits(GameState *g)
+{
+    uint8_t slot = menu_equip_slot(g);
+    uint8_t rows = 0, last_asked = 0;
+    for (unsigned place = 0; place < MENU_INVENTORY_LISTED; place++) {
+        uint8_t item = menu_inventory_item_at(g, place);
+        if (item == NO_ITEM || !fits(g, slot, item))
+            continue;
+        last_asked = item;
+        bool usable;
+        TIMED_AS(g, 0xC293A8, usable = menu_loaded_member_can_use(g, item));
+        if (usable)
+            put_in_list(g, rows++, item, menu_inventory_count_at(g, place));
+    }
+    set_menu_equip_choices(g, rows);
+    set_menu_list_items(g, rows, NO_ITEM);
+    uint8_t power = menu_slot_first_item(g, slot);
+    unsigned row = 0;
+    for (; menu_list_items(g, row) != NO_ITEM; row++) {
+        power = menu_power_of_item(g, menu_list_items(g, row));
+        for (unsigned other = row + 1;; other++) {
+            uint8_t item = menu_list_items(g, other), p = menu_power_of_item(g, item);
+            if (p == 0)
+                break;
+            if (p < power)
+                continue;
+            power = p;
+            uint8_t count = menu_list_item_counts(g, other);
+            put_in_list(g, other, menu_list_items(g, row), menu_list_item_counts(g, row));
+            put_in_list(g, row, item, count);
+        }
+    }
+    ORIGINAL_EFFECT(leave_list_made(g, last_asked, power, (uint8_t)row));
+}
+
+/* The guard's: a slot of the four, an empty item of no power to end the
+ * scan, and room in the list for all that fits and its end. */
+bool menu_list_what_fits_can_be_made(GameState *g)
+{
+    uint8_t slot = menu_equip_slot(g);
+    if (slot >= MENU_EQUIP_SLOTS || menu_power_of_item(g, NO_ITEM) != 0)
+        return false;
+    unsigned fitting = 0;
+    for (unsigned place = 0; place < MENU_INVENTORY_LISTED; place++) {
+        uint8_t item = menu_inventory_item_at(g, place);
+        if (item != NO_ITEM && fits(g, slot, item) && (menu_item_users(g, item) & menu_character_bit(g, menu_status_record_character(g))))
+            fitting++;
+    }
+    return fitting < MENU_LIST_ITEMS_COUNT;
+}
+
 void menu_equip_queue_list_rows(GameState *g) { menu_queue_fixed_upload(g, MENU_EQUIP_LIST_ROWS_UPLOAD); }
 
 /* ---- Opening the screen ------------------------------------------------------------------------ */

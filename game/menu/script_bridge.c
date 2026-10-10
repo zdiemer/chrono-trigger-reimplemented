@@ -154,13 +154,13 @@ static bool back_as_called(const Snes *s, uint8_t bank, bool a8)
  * 8-bit A as every command calls. True if it came back as it went; otherwise
  * the port stops at the call's return and the original's handler carries on
  * from there, returning to the dispatch. */
-static bool call_out(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care)
+static bool call_out_as(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care, bool a8)
 {
     Snes *s = m->s;
     uint8_t bank = s->cpu.db;
     m_sep(s, CPU_FLAG_M);
     m_jsr_dc(s, site, routine, dont_care);
-    if (!back_as_called(s, bank, routine == SCROLL_ACROSS || routine == SCROLL_DOWN)) {
+    if (!back_as_called(s, bank, a8)) {
         m_stop_at_own(s, site + JSR_SIZE, 0);
         return false;
     }
@@ -168,6 +168,11 @@ static bool call_out(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t 
     m->called_x = s->cpu.x;
     m->called_carry = m_flag(s, CPU_FLAG_C);
     return true;
+}
+
+static bool call_out(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care)
+{
+    return call_out_as(m, site, routine, dont_care, routine == SCROLL_ACROSS || routine == SCROLL_DOWN);
 }
 
 static bool call_out_far(OnTheMachine *m, uint32_t site, uint32_t routine, uint16_t dont_care)
@@ -234,11 +239,13 @@ static bool pass_on_sound(void *ctx)
     }
 }
 
-/* A routine a script names goes through the call target, by a jump through it
- * ($C2:1819) or a long jump ($C2:1836), and may read any register: it gets
- * the ones the command's handler has there. The handler has read its
- * operands through Y (the address's word, and for the far one its bank),
- * which leaves A, N and Z; X, the carry and the overflow are the dispatch's. */
+/* A routine a script names is called where it is, as the command's call
+ * through the call target reaches it (its jump through it at $C2:1819, or
+ * its long jump at $C2:1836, adds nothing to the call but the jump), a
+ * ported one as C. It may read any register: it gets the ones the command's
+ * handler has there. The handler has read its operands through Y (the
+ * address's word, and for the far one its bank), which leaves A, N and Z;
+ * X, the carry and the overflow are the dispatch's. */
 static bool call_routine(void *ctx, uint32_t routine, bool far)
 {
     OnTheMachine *m = ctx;
@@ -250,13 +257,13 @@ static bool call_routine(void *ctx, uint32_t routine, bool far)
         s->cpu.a = (uint16_t)routine;
         s->cpu.y = 1;
         m_set_nz16(s, s->cpu.a);
-        return call_out(m, 0xC21810, 0xC21819, 0);
+        return call_out_as(m, 0xC21810, 0xC20000u | (uint16_t)routine, 0, false);
     }
     set_menu_object_call_target(g, routine);
     s->cpu.a = (uint16_t)((routine & 0xFF00) | (uint8_t)(routine >> 16));
     s->cpu.y = 3;
     m_set_nz8(s, (uint8_t)(routine >> 16));
-    return call_out_far(m, 0xC2182C, 0xC21836, 0);
+    return call_out_far(m, 0xC2182C, routine & 0xFFFFFFu, 0);
 }
 
 /* ---- What a command leaves -------------------------------------------------------------------- */

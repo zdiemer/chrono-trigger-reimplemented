@@ -178,6 +178,7 @@ add_library(ct_game STATIC
   game/menu/naming.c
   game/menu/naming_bridge.c
   game/menu/map.c
+  game/menu/map_scenes.c
   game/menu/object_commands.c
   game/menu/object_script.c
   game/menu/objects.c
@@ -188,6 +189,7 @@ add_library(ct_game STATIC
   game/menu/saves.c
   game/menu/saving.c
   game/menu/script.c
+  game/menu/screen_objects.c
   game/menu/script_bridge.c
   game/menu/settings_screen.c
   game/menu/settings_screen_bridge.c
@@ -208,6 +210,7 @@ add_library(ct_game STATIC
   game/menu/wave.c
   game/menu/windows.c
   game/overworld/entries.c
+  game/overworld/epoch.c
   game/overworld/followers.c
   game/overworld/main_loop.c
   game/overworld/music.c
@@ -215,6 +218,7 @@ add_library(ct_game STATIC
   game/overworld/places.c
   game/overworld/sign.c
   game/overworld/terrain.c
+  game/overworld/vehicles.c
   game/overworld/walk.c
   game/sound/driver.c
   game/sound/loads.c

@@ -73,6 +73,16 @@ static void forget_what_was_found(GameState *g)
         set_overworld_found(g, list, NOTHING_FOUND);
 }
 
+// $C2:3130-$C2:3145, $C2:3184-$C2:319C
+void overworld_step_off_the_places(GameState *g)
+{
+    set_overworld_sign(g, 0);
+    set_overworld_sign_again(g, 0);
+    forget_what_was_found(g);
+    set_overworld_lists_found(g, 0);
+    set_overworld_ground_news(g, 0);
+}
+
 bool overworld_lists_are_loaded(const GameState *g)
 {
     for (unsigned list = 0; list < PLACE_LISTS; list++) {

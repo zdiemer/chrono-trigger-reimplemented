@@ -22,6 +22,7 @@
 #include "overworld/overworld.h"
 #include "overworld/places.h"
 #include "overworld/sign.h"
+#include "overworld/vehicles.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -65,15 +66,17 @@ static bool leader_leaves_a_word(const GameState *g, MenuObject leader, WalkerFr
  * last. */
 static bool follower_leaves_a_word(WalkerFrame f) { return f.in_an_event && f.step < WALKER_HAS_RUN_ITS_SCRIPT; }
 
-static void handler_goes_on(Snes *s, bool a_word_wide)
+static void handler_returns(Snes *s, bool done, bool a_word_wide)
 {
-    m_set_flag(s, CPU_FLAG_C, false);
+    m_set_flag(s, CPU_FLAG_C, done);
     if (a_word_wide)
         m_rep(s, CPU_FLAG_M);
     else
         m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
+
+static void handler_goes_on(Snes *s, bool a_word_wide) { handler_returns(s, false, a_word_wide); }
 
 /* ---- A walker's script, on the machine ----------------------------------------------------- */
 
@@ -165,6 +168,125 @@ void overworld_sign_entry(Snes *s)
     GameState *g = state_of(s);
     overworld_show_the_sign(g, menu_object_running(g));
     handler_goes_on(s, false);
+}
+
+/* ---- The vehicles -------------------------------------------------------------------------- */
+
+// $C2:309E
+/* The controller leaves the accumulator 16 bits wide where the party, on
+ * foot on the map, didn't ask to board. */
+void overworld_vehicles_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    vars_peek(true);
+    bool on_foot_and_not_asked = overworld_on_the_map(g) && !overworld_event_running(g)
+                                 && overworld_party_travel(g) == TRAVEL_ON_FOOT
+                                 && !(input_mapped(g, ASSIGNED_HELD) & ASSIGNED_CONFIRM);
+    vars_peek(false);
+    overworld_control_the_vehicles(g);
+    handler_goes_on(s, on_foot_and_not_asked);
+}
+
+/* The Epoch runs its scenes' scripts through the interpreter's bridge, as
+ * its own call at $C2:4823 calls it, with the accumulator its step's
+ * dispatch leaves 8 bits wide. */
+static ScriptEnd epoch_scene_on_the_machine(void *ctx)
+{
+    Snes *s = ctx;
+    m_sep(s, CPU_FLAG_M);
+    return menu_run_object_script_from(s, 0xC24823);
+}
+
+// $C2:42DD
+/* It leaves the accumulator 16 bits wide on a frame it flew a tile on. */
+void overworld_epoch_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject self = menu_object_running(g);
+    vars_peek(true);
+    bool flew_on = overworld_epoch_step(g, self) == EPOCH_FLIES_A_TILE;
+    vars_peek(false);
+    EpochScripts scripts = { epoch_scene_on_the_machine, s };
+    if (!overworld_fly_the_epoch(g, self, &scripts))
+        return;
+    vars_peek(true);
+    flew_on = flew_on || overworld_epoch_step(g, self) == EPOCH_FLIES_A_TILE;
+    vars_peek(false);
+    handler_goes_on(s, flew_on);
+}
+
+// $C2:495E
+void overworld_epoch_second_sprite_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    handler_returns(s, overworld_draw_the_epoch_s_second_sprite(g, menu_object_running(g)), false);
+}
+
+// $C2:49CF
+void overworld_black_omen_watch_entry(Snes *s)
+{
+    overworld_watch_for_the_black_omen(state_of(s));
+    handler_goes_on(s, false);
+}
+
+/* The test's operands are in the mode's cells: the two spots, and long
+ * pointers to their reaches' records. It answers in the carry, the
+ * accumulator 16 bits wide. */
+static ReachRecord reach_record(uint32_t pointer) { return (ReachRecord)(uint16_t)pointer; }
+
+// $C2:2345
+void overworld_within_reach_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    WorldSpot first = { overworld_scratch_reach_first_x(g), overworld_scratch_reach_first_y(g) };
+    WorldSpot second = { overworld_scratch_reach_second_x(g), overworld_scratch_reach_second_y(g) };
+    bool within = overworld_within_reach(g, first, reach_record(overworld_scratch_reach_first(g)), second,
+                                         reach_record(overworld_scratch_reach_second(g)));
+    m_set_flag(s, CPU_FLAG_C, within);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:48A9
+/* Its scenes' scripts call it: it leaves the running object's slot in X and
+ * the carry clear (its sprite script's place doubled), the accumulator 8
+ * bits wide. */
+void overworld_show_the_epoch_flying_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    overworld_show_the_epoch_flying(g, menu_object_running(g));
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+/* The wrap onto the map leaves the carry of its last sum: a place left of
+ * the map brought round, one past its right edge taken back, one on it
+ * compared. */
+static bool carry_of_the_wrap(uint16_t across)
+{
+    if ((int16_t)across < 0)
+        return (uint32_t)across + MENU_MAP_WIDTH > 0xFFFF;
+    return across >= MENU_MAP_WIDTH;
+}
+
+// $C2:48CD
+/* It leaves the slot in X and the wrap's carry, the accumulator 16 bits
+ * wide. */
+void overworld_carry_the_epoch_round_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject self = menu_object_running(g);
+    vars_peek(true);
+    uint16_t carried = (uint16_t)(menu_object_slots_x_pixel(g, self)
+                                  + (overworld_pace(g, self, MENU_ACROSS) < 0 ? -EPOCH_CARRIED_ROUND : EPOCH_CARRIED_ROUND));
+    vars_peek(false);
+    overworld_carry_the_epoch_round(g, self);
+    s->cpu.x = menu_object_current(g);
+    m_set_flag(s, CPU_FLAG_C, carry_of_the_wrap(carried));
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
 }
 
 // $C2:23CF
@@ -319,6 +441,138 @@ bool overworld_sign_runs(Snes *s)
         return false;
     vars_peek(true);
     bool ok = overworld_sign_can_show(state_of(s), self);
+    vars_peek(false);
+    return ok;
+}
+
+/* The controller keeps to the travels and vehicles the game has. */
+bool overworld_vehicles_run(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    enum { BOARDINGS = 4 };
+    bool ok = overworld_party_travel(g) < TRAVELS && overworld_boarding(g) < BOARDINGS;
+    vars_peek(false);
+    return ok;
+}
+
+/* The Epoch keeps to its steps on a world map, faces one of the four ways,
+ * animates with sprite scripts the language reads (the one it has too,
+ * unless it is set down, given one first, or plays a scene, whose script
+ * gives it its own), has the map follow it where it flies, and plays its
+ * scenes from a bank of scripts. */
+static bool epoch_animates(const GameState *g, MenuObject epoch, bool given_one_first)
+{
+    static const uint8_t ANIMATIONS[] = { EPOCH_STANDS_WITH_ITS_WINGS, EPOCH_STANDS_WITHOUT_WINGS, EPOCH_TAKES_OFF,
+                                          EPOCH_LANDS };
+    if (!menu_sprite_list_is_sound(g) || !menu_object_queue_is_whole(g)
+        || !(given_one_first || menu_sprite_script_is_well_formed(g, epoch)))
+        return false;
+    for (unsigned i = 0; i < sizeof ANIMATIONS; i++)
+        if (!menu_given_sprite_script_is_well_formed(g, ANIMATIONS[i]))
+            return false;
+    for (uint8_t facing = 0; facing < 4; facing++)
+        if (!menu_given_sprite_script_is_well_formed(g, overworld_epoch_flying_animation(g, false, facing))
+            || !menu_given_sprite_script_is_well_formed(g, overworld_epoch_flying_animation(g, true, facing)))
+            return false;
+    return true;
+}
+
+static bool on_a_world_map(const GameState *g)
+{
+    enum { FIRST_WORLD_MAP = 0x01F0, WORLD_MAPS = 8 };
+    return (uint16_t)(location_id(g) - FIRST_WORLD_MAP) < WORLD_MAPS;
+}
+
+/* In the air the map scrolls with the Epoch at its pace, whole pixels: two a
+ * frame at most, across or down. */
+static bool the_map_can_follow_the_epoch(const GameState *g, MenuObject epoch, EpochStep step)
+{
+    enum { FASTEST = 2 };
+    unsigned records = 2 * menu_map_scroll_records(MENU_ACROSS, FASTEST) + 2 * menu_map_scroll_records(MENU_DOWN, FASTEST);
+    if (!menu_map_can_scroll(g, 1, records) || !menu_map_can_scroll(g, 2, records))
+        return false;
+    if (step != EPOCH_FLIES_A_TILE)
+        return true;
+    MenuPlace v = menu_object_velocity(g, epoch);
+    int16_t across = (int16_t)menu_pixel(v.x), down = (int16_t)menu_pixel(v.y);
+    return (uint16_t)v.x == 0 && (uint16_t)v.y == 0 && across >= -FASTEST && across <= FASTEST && down >= -FASTEST
+           && down <= FASTEST;
+}
+
+bool overworld_epoch_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    EpochStep step = overworld_epoch_step(g, self);
+    bool ok = step < EPOCH_STEPS && on_a_world_map(g) && menu_object_slots_facing(g, self) < 4
+              && epoch_animates(g, self, step == EPOCH_SETS_DOWN || step == EPOCH_RUNS_A_SCENE);
+    if (ok && (step == EPOCH_FLIES || step == EPOCH_FLIES_A_TILE))
+        ok = the_map_can_follow_the_epoch(g, self, step);
+    if (ok && step == EPOCH_RUNS_A_SCENE)
+        ok = menu_object_script_can_run(g, menu_object_slots_script(g, self));
+    vars_peek(false);
+    return ok;
+}
+
+bool overworld_epoch_second_sprite_runs(Snes *s)
+{
+    MenuObject self;
+    if (!peek(s, &self))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = overworld_step(g, self) < 2 && epoch_animates(g, self, overworld_step(g, self) == 0)
+              && menu_given_sprite_script_is_well_formed(g, EPOCH_SECOND_SPRITE_STANDING)
+              && menu_given_sprite_script_is_well_formed(g, EPOCH_SECOND_SPRITE_IN_FLIGHT);
+    vars_peek(false);
+    return ok;
+}
+
+bool overworld_black_omen_watch_runs(Snes *s)
+{
+    MenuObject self;
+    return peek(s, &self);
+}
+
+/* The test takes the reaches the game's callers name. */
+static bool a_reach_record(uint32_t pointer)
+{
+    static const ReachRecord RECORDS[] = { REACH_OF_THE_PARTY, REACH_OF_THE_EPOCH, REACH_OF_THE_DACTYL,
+                                           REACH_OF_THE_EPOCH_IN_FLIGHT, REACH_OF_THE_DACTYL_FROM_THE_AIR,
+                                           REACH_OF_THE_BLACK_OMEN };
+    for (unsigned i = 0; i < sizeof RECORDS / sizeof RECORDS[0]; i++)
+        if (pointer == (OVERWORLD_REACHES_BANK | RECORDS[i]))
+            return true;
+    return false;
+}
+
+bool overworld_reach_test_runs(Snes *s)
+{
+    if (!menu_objects_on_page(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = a_reach_record(overworld_scratch_reach_first(g)) && a_reach_record(overworld_scratch_reach_second(g));
+    vars_peek(false);
+    return ok;
+}
+
+/* The scenes' calls are made on an object of the mode, facing one of the
+ * four ways. */
+bool overworld_epoch_scene_call_runs(Snes *s)
+{
+    if (!menu_object_can_move(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_object_slots_facing(g, menu_object_running(g)) < 4;
     vars_peek(false);
     return ok;
 }

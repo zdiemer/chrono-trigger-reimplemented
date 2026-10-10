@@ -7994,6 +7994,105 @@ iterations = 2000
 why = "the object mode's page and a data bank of 0, entered as a slot's handler: the slot in X and in the running object's cell (the guard, game/menu/objects.c)"
 
 [[routine]]
+name = "menu_stream_tiles"
+at = "C2:1CF5"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0B32-7E0B32=00-01", "--fill", "7E0B42-7E0B42=00-08", "--fill", "7E0B43-7E0B43=00-00", "--fill", "7E0B44-7E0B44=00-20", "--fill", "7E0B45-7E0B45=00-00"]
+iterations = 3000
+why = "the object mode's page and a data bank of 0, entered as the first slot's handler, on either step, its batch and tiles left small (the command it reads at the start random), the upload queue whole with room and not held"
+
+[[routine]]
+name = "menu_load_palette_row"
+at = "C2:1DD4"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-01", "--fill", "7E0B62-7E0B62=00-0F", "--fill", "7E0B63-7E0B63=00-00", "--fill", "7E0B64-7E0B64=00,00,00,04"]
+iterations = 3000
+why = "as the tile streamer's: on either step, a row of the sixteen, the colours from anywhere, put in at once three times in four"
+
+[[routine]]
+name = "menu_fade_palette_row"
+at = "C2:1E38"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-02", "--fill", "7E0B62-7E0B62=00-0F", "--fill", "7E0B63-7E0B63=00-00", "--fill", "7E0B37-7E0B37=03-03", "--fill", "7E0B38-7E0B38=00-00", "--fill", "7E0B3E-7E0B3F=0980", "--fill", "7E0B35-7E0B35=00-1F", "--fill", "7E0B36-7E0B36=00-00", "--fill", "7E0B23-7E0B23=00-02", "--fill", "7E0B40-7E0B6F=00,05,1F,20,3E,A0,A5,BE", "--fill", "7E0B33-7E0B33=00-04", "--fill", "7E0B39-7E0B39=00-04"]
+iterations = 5000
+why = "as the loader's, on any of its three steps: starting on a row of the sixteen, or under way on row 3 where it keeps it, short of its 32 steps, the row's users one or not, its counts rising, falling or none, its frames either side of a step"
+
+[[routine]]
+name = "menu_fade_out"
+at = "C2:20A2"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-01", "--fill", "7E1BF6-7E1BF6=00-03", "--fill", "7E001D-7E001D=00-0F", "--fill", "7E0B3A-7E0B3A=00-04", "--fill", "7E0B33-7E0B33=00-04"]
+iterations = 3000
+why = "as the tile streamer's: either step, the fades running random, the brightness any, its frames a step and since a step either side of a step (the command it reads at the start random)"
+
+[[routine]]
+name = "menu_fade_in"
+at = "C2:2105"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-03", "--fill", "7E1BF6-7E1BF6=00-03", "--fill", "7E001D-7E001D=00-0F", "--fill", "7E0B3A-7E0B3A=00-04", "--fill", "7E0B33-7E0B33=00-04"]
+iterations = 3000
+why = "as the fade out's, on any of its four steps"
+
+[[routine]]
+name = "menu_clear_mosaic"
+at = "C2:2194"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-01", "--fill", "7E0B3A-7E0B3A=00-04", "--fill", "7E0B33-7E0B33=00-04"]
+iterations = 3000
+why = "as the fade out's, the mosaic any (the command it reads at the start random)"
+
+[[routine]]
+name = "menu_grow_mosaic"
+at = "C2:21F8"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E0B32-7E0B32=00-01", "--fill", "7E0B3A-7E0B3A=00-04", "--fill", "7E0B33-7E0B33=00-04"]
+iterations = 3000
+why = "as the mosaic's clearing"
+
+[[routine]]
+name = "menu_clear_the_palette"
+at = "C2:1DB5"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+iterations = 500
+why = "the object mode's page and a data bank of 0"
+
+[[routine]]
+name = "menu_scene_object_in_view"
+at = "C2:78A1"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B"]
+iterations = 3000
+why = "the object mode's page and a data bank of 0, the running object the first slot, anywhere, the map's scroll random"
+
+[[routine]]
+name = "menu_scene_drift_the_map"
+at = "C2:7849"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-0B", "--range", "X=0B30-0B30", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--keep", "7E00E0-7E00EA"]
+iterations = 3000
+why = "as the tile streamer's, the map's place as the state has it, its count random"
+
+[[routine]]
+name = "menu_list_what_fits"
+at = "C2:8953"
+subsystem = "menu"
+state = "equipment"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E0077-7E0077=00-03", "--fill", "7E7C00-7E7C00=00-00", "--fill", "7E2400-7E24F1=00,00,00,00,00,00,00,00,00,01,10,5A,60,7B,80,94,A0,BB,C0"]
+iterations = 3000
+why = "the menus' page and data bank, any of the four slots, the empty item of no power, an inventory of some items of each slot's range and others, the loaded member as the state has it"
+
+[[routine]]
 name = "menu_epoch_map_screen"
 at = "C2:631F"
 subsystem = "menu"
@@ -17404,6 +17503,69 @@ state = "overworld"
 args = ["--d", "0000", "--db", "00", "--fill", "7E0001-7E0001=00-3F"]
 iterations = 5000
 why = "any column, a row of the region map's"
+
+[[routine]]
+name = "overworld_vehicles"
+at = "C2:309E"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7", "--fill", "7E029F-7E02A0=01F0,01F1,01F2,01F3", "--fill", "7E0283-7E0283=00-1F", "--fill", "7E0284-7E0284=00-00", "--fill", "7E0285-7E0285=00-1F", "--fill", "7E0286-7E0286=00-00", "--fill", "7E0290-7E0290=00-1F", "--fill", "7E0291-7E0291=00-00", "--fill", "7E0292-7E0292=00-1F", "--fill", "7E0293-7E0293=00-00", "--fill", "7E029A-7E029A=00-1F", "--fill", "7E029B-7E029B=00-00", "--fill", "7E029C-7E029C=00-1F", "--fill", "7E029D-7E029D=00-00", "--fill", "7E02A2-7E02A2=00-1F", "--fill", "7E02A3-7E02A3=00-00", "--fill", "7E02A4-7E02A4=00-1F", "--fill", "7E02A5-7E02A5=00-00", "--fill", "7E027E-7E027E=00-05", "--fill", "7E028F-7E028F=00-03", "--fill", "7E027C-7E027C=00,01,01,01,05", "--fill", "7E0280-7E0280=00,00,00,01", "--fill", "7E00F8-7E00F9=0000,0080", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7E1BA6-7E1BA6=00,00,00,D2", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E029E-7E029E=00-FF"]
+iterations = 5000
+why = "the object mode's page and a data bank of 0, entered as a slot's handler; any travel and vehicle boarded, the overworld mostly on the map, an event a quarter of the time, the confirm button held or not, any party, the story at the scene by the Epoch a quarter of the time, the vehicles' states random, on a world map the Epoch is on or not, the party, the vehicles and the Black Omen within a few tiles of one another"
+
+[[routine]]
+name = "overworld_epoch"
+at = "C2:42DD"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7", "--fill", "7E029F-7E02A0=01F0,01F1,01F2,01F3", "--fill", "7E0283-7E0283=00-1F", "--fill", "7E0284-7E0284=00-00", "--fill", "7E0285-7E0285=00-1F", "--fill", "7E0286-7E0286=00-00", "--fill", "7E0290-7E0290=00-1F", "--fill", "7E0291-7E0291=00-00", "--fill", "7E0292-7E0292=00-1F", "--fill", "7E0293-7E0293=00-00", "--fill", "7E029A-7E029A=00-1F", "--fill", "7E029B-7E029B=00-00", "--fill", "7E029C-7E029C=00-1F", "--fill", "7E029D-7E029D=00-00", "--fill", "7E02A2-7E02A2=00-1F", "--fill", "7E02A3-7E02A3=00-00", "--fill", "7E02A4-7E02A4=00-1F", "--fill", "7E02A5-7E02A5=00-00", "--keep", "7E0EB0-7E0EEF", "--fill", "7E005E-7E005E=00-00", "--fill", "7E005F-7E005F=00,08,10,18,20,28,30", "--fill", "7E0EB2-7E0EB2=00-08", "--fill", "7E0ED8-7E0ED8=00-03", "--fill", "7E0ED7-7E0ED7=00-03", "--fill", "7E0ED6-7E0ED6=30,31", "--fill", "7E0EB3-7E0EB3=00,08,20,30,31", "--fill", "7E027C-7E027C=00,01,01,01,08", "--fill", "7E027E-7E027E=00,02,02,05", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E029E-7E029E=00-FF", "--fill", "7E00F8-7E00F9=0000,0080,0001,0040,0004,0800,0400,0200,0100,0880", "--fill", "7E02AF-7E02B0=0000,FFFF,01D9,01F7,01F2,01F0", "--fill", "7E1BA6-7E1BA6=00,00,00,D3", "--fill", "7E0ECA-7E0ECB=0000", "--fill", "7E0ECC-7E0ECD=0000,0002,FFFE", "--fill", "7E0ECE-7E0ECF=0000", "--fill", "7E0ED0-7E0ED1=0000,0002,FFFE", "--fill", "7E0EB7-7E0EB8=4B8C,4AAD,4A9B", "--fill", "7E0EB9-7E0EB9=C2-C2", "--fill", "7E0ED2-7E0ED5=00-FF", "--fill", "7E0EDE-7E0EDF=00-FF"]
+iterations = 5000
+why = "the Epoch's slot as the state has it, entered as its handler, on any of its steps, facing any way, its take-off or landing counted either side of its end; the overworld mostly on the map, the party on foot, in it or getting off, its state random, the pad any of its buttons, the time gate's choice none, left or a location (the scenes' among them), the story at its first flight a quarter of the time; its pace still or two pixels either way, its scene one of its own, the ground under it random; on a world map, the party, the vehicles and the Omen within a few tiles of one another, the upload queue whole with room"
+
+[[routine]]
+name = "overworld_epoch_second_sprite"
+at = "C2:495E"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--fill", "7E0100-7E0101=01F0,01F1,01F2,01F3,01F4,01F5,01F6,01F7", "--fill", "7E029F-7E02A0=01F0,01F1,01F2,01F3", "--fill", "7E0EB2-7E0EB2=00-01", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E1BEF-7E1BEF=00-01"]
+iterations = 3000
+why = "as the Epoch's, either step, the Epoch's state and whether it flies random"
+
+[[routine]]
+name = "overworld_black_omen_watch"
+at = "C2:49CF"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7EB000-7EB507", "--keep", "7E00E0-7E00EA", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--range", "X=0EB0-0EB0", "--fill", "7E0283-7E0283=00-1F", "--fill", "7E0284-7E0284=00-00", "--fill", "7E0285-7E0285=00-1F", "--fill", "7E0286-7E0286=00-00", "--fill", "7E0290-7E0290=00-1F", "--fill", "7E0291-7E0291=00-00", "--fill", "7E0292-7E0292=00-1F", "--fill", "7E0293-7E0293=00-00", "--fill", "7E029A-7E029A=00-1F", "--fill", "7E029B-7E029B=00-00", "--fill", "7E029C-7E029C=00-1F", "--fill", "7E029D-7E029D=00-00", "--fill", "7E02A2-7E02A2=00-1F", "--fill", "7E02A3-7E02A3=00-00", "--fill", "7E02A4-7E02A4=00-1F", "--fill", "7E02A5-7E02A5=00-00", "--fill", "7E027E-7E027E=00,02,02,03", "--fill", "7E0294-7E0294=00-FF", "--fill", "7E0282-7E0282=00-03"]
+iterations = 3000
+why = "as the Epoch's, the party mostly in it, its state random, the Epoch and the Omen within a few tiles"
+
+[[routine]]
+name = "overworld_show_the_epoch_flying"
+at = "C2:48A9"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0ED8-7E0ED8=00-03", "--fill", "7E0294-7E0294=00-FF"]
+iterations = 3000
+why = "the object mode's page, the running object the Epoch's slot facing one of the four ways, with its wings or without"
+
+[[routine]]
+name = "overworld_carry_the_epoch_round"
+at = "C2:48CD"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0ED8-7E0ED8=00-03"]
+iterations = 3000
+why = "the object mode's page, the running object the Epoch's slot, anywhere, its pace random"
+
+[[routine]]
+name = "overworld_within_reach"
+at = "C2:2345"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0010-7E0011=324C,3254,325C,4946,494E,4956", "--fill", "7E0012-7E0012=C2-C2", "--fill", "7E0013-7E0014=324C,3254,325C,4946,494E,4956", "--fill", "7E0015-7E0015=C2-C2", "--fill", "7E0008-7E0008=00-1F", "--fill", "7E0009-7E0009=00-00", "--fill", "7E000A-7E000A=00-1F", "--fill", "7E000B-7E000B=00-00", "--fill", "7E000C-7E000C=00-1F", "--fill", "7E000D-7E000D=00-00", "--fill", "7E000E-7E000E=00-1F", "--fill", "7E000F-7E000F=00-00"]
+iterations = 5000
+why = "the object mode's page, the two spots within a few tiles of each other, each reach one of the game's records"
 
 [[routine]]
 name = "overworld_back_from_the_menus"

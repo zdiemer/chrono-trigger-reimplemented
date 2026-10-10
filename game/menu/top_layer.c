@@ -16,13 +16,14 @@
 #include "menu/line_effects.h"
 #include "menu/menu_data.h"
 #include "menu/object.h"
+#include "menu/screen_objects.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
 
-enum { OBJECTS_HELD = 0x10, SCREEN_OFF = 0x80 };
+enum { OBJECTS_HELD = 0x10 };
 
 static bool held(const GameState *g) { return (menu_objects_frozen(g) & OBJECTS_HELD) != 0; }
 
@@ -148,7 +149,7 @@ static void leave_wave_drawn(GameState *g, int16_t last, uint16_t phase)
  * are held. False where it didn't draw. */
 static bool wave(GameState *g, Platform *pf, MenuObject o)
 {
-    if (menu_object_display(g) & SCREEN_OFF) {
+    if (menu_screen_is_off(g)) {
         menu_turn_off_line_slots(g, 1u << WAVE_SLOT);
         return false;
     }
