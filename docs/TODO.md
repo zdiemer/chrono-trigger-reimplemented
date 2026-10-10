@@ -772,10 +772,12 @@ rest waits, is [PLAN.md](PLAN.md).
     enemies' family bits (`action_showing.c`, `list_subject`), and the
     showing's own list (`battle_showing_targets`) over the trails' high bytes;
     and a felled enemy's spoils read its cell (`$0E`) as a word with the one
-    after it, and where that one is set (a point of HP lost to a status finds
-    it so, five times over the library) its standing and id from that many
-    pages on (`damage.c`, `felled_enemy`, which reads the scratch cell as the
-    original does).
+    after it, and where that one is set its standing and id from that many
+    pages on, giving another enemy's experience, gold, tech points and item or
+    none (`damage.c`, `felled_enemy`, which reads the scratch cell as the
+    original does). The library sets it at ten landings of hits in the Lavos
+    fights, none felling an enemy; a native build, which doesn't keep the
+    cell, decides it otherwise.
 - **What an action's showing left at its edge** (RECOMP.md, "Phase 3, battle:
   an action shown"): the frame work's loads the animation calls (`$CD:0015`,
   `$CD:002A`, the effects' graphics sets sent to VRAM over the vblank

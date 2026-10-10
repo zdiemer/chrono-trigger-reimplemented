@@ -392,9 +392,9 @@ void battle_find_the_members_falling_entry(Snes *s)
     m_rts(s);
 }
 
-/* The guard: the actor and the first target are combatants (the action's
- * subjects index the objects' places), on the battle's page with A's high
- * byte clear, which the showing's loaders index with. */
+/* The guard: the actor is a combatant (the action's subjects index the
+ * objects' places by it), on the battle's page with A's high byte clear,
+ * which the showing's loaders index with. */
 bool battle_show_action_ready(Snes *s)
 {
     vars_peek(true);

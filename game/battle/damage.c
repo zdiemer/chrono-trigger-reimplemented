@@ -80,11 +80,18 @@ static void leave_the_spoils_cells(GameState *g, uint8_t slot, uint16_t place, u
         battle_leave_byte(g, LEFT_ITEM, item);
 }
 
-/* The felled enemy as the spoils find it. The original names it in a cell
- * ($0E) it reads as a word with the one after it, which the game mostly has
- * clear; where that one is set (a point of HP lost to a status can find it
- * so), the standing and the id the spoils go by are read that many pages on,
- * past the combatants' tables, as the original reads them (docs/TODO.md). */
+/* The felled enemy as the spoils find it. What the player gets from the
+ * quirk this keeps: where the byte after the felled enemy's cell ($0E, read
+ * as a word with it) is left set, the enemy gives the experience, gold, tech
+ * points and item of whatever enemy number sits in unrelated memory that many
+ * pages on -- or nothing, where that memory reads as an enemy needn't be
+ * beaten or as nobody. The library never shows it: the byte is set (0x29,
+ * left by the code before) at ten landings of hits in the Lavos fights of
+ * late-lavos and the three endings movies, and none of them fells an enemy,
+ * so every spoils taken over the library is the felled enemy's own, in the
+ * shipping build and the native one alike. Off the library a native build,
+ * which doesn't keep the cell, can differ from the original here (the
+ * effects baseline; docs/TODO.md). */
 typedef struct {
     uint8_t standing, id;
 } FelledEnemy;

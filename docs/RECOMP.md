@@ -3425,10 +3425,11 @@ next channel's flag and the pointer's pad, kept in one storage function
 slot, eleven, not the party's three (`re/ram.toml`); a party member's palette
 past the sprites' would run the colours on into the working palette (the
 looks' guards take only the game's five to seven). The felled enemy's spoils
-read their enemy's cell (`$0E`) as a word with the one after it, which a point
-of HP lost to a status finds set five times over the library: the port reads
-it as the original does (`felled_enemy`, the standing and id that many pages
-on), after a guard that asked for it clear refused those five real calls. The native shape found the
+read their enemy's cell (`$0E`) as a word with the one after it, which ten
+landings of hits in the Lavos fights find set: the port reads it as the
+original does (`felled_enemy`, the standing and id that many pages on), after
+a guard that asked for it clear refused those real calls. None of the ten
+fells an enemy, so the quirk changes no spoils over the library. The native shape found the
 loaders' guards first asking for cells the showing writes only as
 scaffolding (its note of the second half, the animation's cells forgotten):
 compiled out, they refused, and the original's loader ran on stale cells and

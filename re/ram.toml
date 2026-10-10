@@ -16849,7 +16849,7 @@ name = "battle_poses_round_done"
 addr = "7E:A102"
 subsystem = "battle"
 meaning = "Counted up when the combatants' poses' round ($C1:305C, a combatant a call) comes back to the first; the action's showing goes round once that way at its end"
-source = "game/battle/action_showing.c show_the_action $C1:4058; $C1:3074"
+source = "game/battle/action_showing.c take_poses_afresh $C1:4058; $C1:3074"
 
 [[var]]
 name = "battle_showing_targets"
