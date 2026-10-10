@@ -4,9 +4,9 @@
  *
  * Each object's handler is entered from the mode's object loop
  * (menu/objects.c) with its slot in X and an 8-bit accumulator, and hands
- * back the carry clear (never done); the only other thing its caller sees is
- * the accumulator's width, which the walkers leave 16 bits wide on some of
- * their steps. A walker runs an event's script through the script
+ * back the carry: done or not, the only thing the loop reads of what it
+ * leaves (the registry declares the rest, the accumulator's width among
+ * them). A walker runs an event's script through the script
  * interpreter's bridge (menu/script_bridge.h), called as from the walker's
  * own call to it. */
 #include "overworld/entries.h"
@@ -23,60 +23,24 @@
 #include "overworld/places.h"
 #include "overworld/sign.h"
 #include "overworld/vehicles.h"
+#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- What the handlers leave --------------------------------------------------------------- */
 
-/* A walker's steps on foot on the map, the event's when one runs. */
-static bool walks_on_foot(const GameState *g, PartyPlace place)
-{
-    return overworld_place_taken(g, place) && overworld_party_travel(g) == TRAVEL_ON_FOOT && overworld_on_the_map(g);
-}
-
-/* What a walker's frame is, as the frame starts (a script the walker runs
- * may change any of it): on foot on the map in an event, the step it runs,
- * and whether the event has given it a script. */
-typedef struct {
-    bool on_foot, in_an_event, has_a_script;
-    OverworldStep step;
-} WalkerFrame;
-
-static WalkerFrame walker_frame(const GameState *g, MenuObject walker, PartyPlace place)
-{
-    vars_peek(true);
-    bool on_foot = walks_on_foot(g, place);
-    WalkerFrame f = { on_foot, on_foot && overworld_event_running(g), overworld_event_script_for(g, place) != 0,
-                      overworld_walkers_start_over(g) ? 0 : overworld_step(g, walker) };
-    vars_peek(false);
-    return f;
-}
-
-/* The leader ends a step on foot, and the wait for the event's script, with
- * the accumulator 16 bits wide; every other way through with it 8 bits wide. */
-static bool leader_leaves_a_word(const GameState *g, MenuObject leader, WalkerFrame f)
-{
-    if (f.in_an_event)
-        return f.step == WALKER_AWAITS_ITS_SCRIPT && !f.has_a_script;
-    return f.on_foot && overworld_step(g, leader) == LEADER_WALKS;
-}
-
-/* A follower leaves it 16 bits wide from every step of an event's but the
- * last. */
-static bool follower_leaves_a_word(WalkerFrame f) { return f.in_an_event && f.step < WALKER_HAS_RUN_ITS_SCRIPT; }
-
-static void handler_returns(Snes *s, bool done, bool a_word_wide)
+/* A handler says whether it is done with the carry, which the objects' loop
+ * reads; the loop sets the accumulator's width again before it uses it
+ * ($C2:0545, $C2:054C), so the width a handler leaves is declared don't-care
+ * (DC_WIDTH) and the wrappers leave it as it is. */
+static void handler_returns(Snes *s, bool done)
 {
     m_set_flag(s, CPU_FLAG_C, done);
-    if (a_word_wide)
-        m_rep(s, CPU_FLAG_M);
-    else
-        m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
-static void handler_goes_on(Snes *s, bool a_word_wide) { handler_returns(s, false, a_word_wide); }
+static void handler_goes_on(Snes *s) { handler_returns(s, false); }
 
 /* ---- A walker's script, on the machine ----------------------------------------------------- */
 
@@ -124,11 +88,10 @@ void overworld_lead_entry(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject leader = menu_object_running(g);
-    WalkerFrame f = walker_frame(g, leader, PARTY_LEADER);
     WalkerOnTheMachine w;
     WalkerScripts scripts = on_the_machine(&w, s, LEADER_CALLS);
     if (overworld_lead(g, leader, &scripts))
-        handler_goes_on(s, leader_leaves_a_word(g, leader, f));
+        handler_goes_on(s);
 }
 
 // $C2:3AE2
@@ -136,14 +99,10 @@ void overworld_follow_entry(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject self = menu_object_running(g);
-    vars_peek(true);
-    PartyPlace place = (PartyPlace)menu_object_slots_party_place(g, self);
-    vars_peek(false);
-    WalkerFrame f = walker_frame(g, self, place);
     WalkerOnTheMachine w;
     WalkerScripts scripts = on_the_machine(&w, s, FOLLOWER_CALLS);
     if (overworld_follow(g, self, &scripts))
-        handler_goes_on(s, follower_leaves_a_word(f));
+        handler_goes_on(s);
 }
 
 // $C2:3264
@@ -151,7 +110,7 @@ void overworld_watch_the_ground_entry(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_watch_the_ground(g, menu_object_running(g));
-    handler_goes_on(s, false);
+    handler_goes_on(s);
 }
 
 // $C2:2F94
@@ -159,7 +118,7 @@ void overworld_region_song_entry(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_play_the_region_song(g, menu_object_running(g));
-    handler_goes_on(s, false);
+    handler_goes_on(s);
 }
 
 // $C2:5628
@@ -167,24 +126,16 @@ void overworld_sign_entry(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_show_the_sign(g, menu_object_running(g));
-    handler_goes_on(s, false);
+    handler_goes_on(s);
 }
 
 /* ---- The vehicles -------------------------------------------------------------------------- */
 
 // $C2:309E
-/* The controller leaves the accumulator 16 bits wide where the party, on
- * foot on the map, didn't ask to board. */
 void overworld_vehicles_entry(Snes *s)
 {
-    GameState *g = state_of(s);
-    vars_peek(true);
-    bool on_foot_and_not_asked = overworld_on_the_map(g) && !overworld_event_running(g)
-                                 && overworld_party_travel(g) == TRAVEL_ON_FOOT
-                                 && !(input_mapped(g, ASSIGNED_HELD) & ASSIGNED_CONFIRM);
-    vars_peek(false);
-    overworld_control_the_vehicles(g);
-    handler_goes_on(s, on_foot_and_not_asked);
+    overworld_control_the_vehicles(state_of(s));
+    handler_goes_on(s);
 }
 
 /* The Epoch runs its scenes' scripts through the interpreter's bridge, as
@@ -198,40 +149,32 @@ static ScriptEnd epoch_scene_on_the_machine(void *ctx)
 }
 
 // $C2:42DD
-/* It leaves the accumulator 16 bits wide on a frame it flew a tile on. */
 void overworld_epoch_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    MenuObject self = menu_object_running(g);
-    vars_peek(true);
-    bool flew_on = overworld_epoch_step(g, self) == EPOCH_FLIES_A_TILE;
-    vars_peek(false);
     EpochScripts scripts = { epoch_scene_on_the_machine, s };
-    if (!overworld_fly_the_epoch(g, self, &scripts))
-        return;
-    vars_peek(true);
-    flew_on = flew_on || overworld_epoch_step(g, self) == EPOCH_FLIES_A_TILE;
-    vars_peek(false);
-    handler_goes_on(s, flew_on);
+    if (overworld_fly_the_epoch(g, menu_object_running(g), &scripts))
+        handler_goes_on(s);
 }
 
 // $C2:495E
 void overworld_epoch_second_sprite_entry(Snes *s)
 {
     GameState *g = state_of(s);
-    handler_returns(s, overworld_draw_the_epoch_s_second_sprite(g, menu_object_running(g)), false);
+    handler_returns(s, overworld_draw_the_epoch_s_second_sprite(g, menu_object_running(g)));
 }
 
 // $C2:49CF
 void overworld_black_omen_watch_entry(Snes *s)
 {
     overworld_watch_for_the_black_omen(state_of(s));
-    handler_goes_on(s, false);
+    handler_goes_on(s);
 }
 
 /* The test's operands are in the mode's cells: the two spots, and long
- * pointers to their reaches' records. It answers in the carry, the
- * accumulator 16 bits wide. */
+ * pointers to their reaches' records. It answers in the carry, which its
+ * callers branch on; and it leaves the accumulator 16 bits wide, which
+ * $C2:4917's caller goes on with, reading the pad at $C2:44CE. */
 static ReachRecord reach_record(uint32_t pointer) { return (ReachRecord)(uint16_t)pointer; }
 
 // $C2:2345
@@ -247,45 +190,48 @@ void overworld_within_reach_entry(Snes *s)
     m_rts(s);
 }
 
+/* The routines the Epoch's scenes' scripts call leave the running object's
+ * slot in X and a carry: the script's call command goes on to its length,
+ * 3, and the interpreter after it reads neither (it loads X again and clears
+ * the carry for the next command), but liveness follows the interpreter's
+ * branch for a length of 0, which the call commands never return, and keeps
+ * them live there: they are left for shadow mode's comparison at the
+ * command's return. */
+static void leave_a_scene_call(Snes *s, bool carry)
+{
+    s->cpu.x = menu_object_current(state_of(s));
+    m_set_flag(s, CPU_FLAG_C, carry);
+}
+
 // $C2:48A9
-/* Its scenes' scripts call it: it leaves the running object's slot in X and
- * the carry clear (its sprite script's place doubled), the accumulator 8
- * bits wide. */
+/* Its carry is its sprite script's place doubled, clear for the game's. */
 void overworld_show_the_epoch_flying_entry(Snes *s)
 {
     GameState *g = state_of(s);
     overworld_show_the_epoch_flying(g, menu_object_running(g));
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_sep(s, CPU_FLAG_M);
+    ORIGINAL_EFFECT(leave_a_scene_call(s, false));
     m_rts(s);
 }
 
-/* The wrap onto the map leaves the carry of its last sum: a place left of
- * the map brought round, one past its right edge taken back, one on it
- * compared. */
-static bool carry_of_the_wrap(uint16_t across)
+/* The wrap onto the map leaves the carry of its last sum: carried round
+ * forward, set where it went past the map's right edge (so it is now in the
+ * map's first third); carried back, set where it went past the left (so it
+ * is now in the last third). */
+static bool wrapped_round(const GameState *g, MenuObject epoch)
 {
-    if ((int16_t)across < 0)
-        return (uint32_t)across + MENU_MAP_WIDTH > 0xFFFF;
-    return across >= MENU_MAP_WIDTH;
+    uint16_t across = menu_object_slots_x_pixel(g, epoch);
+    if (overworld_pace(g, epoch, MENU_ACROSS) < 0)
+        return across >= MENU_MAP_WIDTH - EPOCH_CARRIED_ROUND;
+    return across < EPOCH_CARRIED_ROUND;
 }
 
 // $C2:48CD
-/* It leaves the slot in X and the wrap's carry, the accumulator 16 bits
- * wide. */
 void overworld_carry_the_epoch_round_entry(Snes *s)
 {
     GameState *g = state_of(s);
     MenuObject self = menu_object_running(g);
-    vars_peek(true);
-    uint16_t carried = (uint16_t)(menu_object_slots_x_pixel(g, self)
-                                  + (overworld_pace(g, self, MENU_ACROSS) < 0 ? -EPOCH_CARRIED_ROUND : EPOCH_CARRIED_ROUND));
-    vars_peek(false);
     overworld_carry_the_epoch_round(g, self);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, carry_of_the_wrap(carried));
-    m_rep(s, CPU_FLAG_M);
+    ORIGINAL_EFFECT(leave_a_scene_call(s, wrapped_round(g, self)));
     m_rts(s);
 }
 
@@ -564,15 +510,16 @@ bool overworld_reach_test_runs(Snes *s)
     return ok;
 }
 
-/* The scenes' calls are made on an object of the mode, facing one of the
- * four ways. */
+/* The scenes' calls are made on an object of the mode, on the map, facing
+ * one of the four ways. */
 bool overworld_epoch_scene_call_runs(Snes *s)
 {
     if (!menu_object_can_move(s))
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = menu_object_slots_facing(g, menu_object_running(g)) < 4;
+    MenuObject self = menu_object_running(g);
+    bool ok = menu_object_slots_facing(g, self) < 4 && menu_object_slots_x_pixel(g, self) < MENU_MAP_WIDTH;
     vars_peek(false);
     return ok;
 }

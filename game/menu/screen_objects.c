@@ -594,52 +594,37 @@ enum { FADE_COMMAND_BYTES = 2, MOSAIC_COMMAND_BYTES = 3, STREAM_COMMAND_BYTES = 
 
 /* ---- The entries ----------------------------------------------------------------------------- */
 
-/* Each handler is entered from the objects' loop with its slot in X and says
- * whether it is done with the carry; the loop reads nothing else of what it
- * leaves but the accumulator's width, which the tile streamer leaves 16 bits
- * wide and the rest 8. */
-static void handler_returns(Snes *s, bool done, bool a_word_wide)
+/* Each handler is entered from the objects' loop with its slot in X and
+ * says whether it is done with the carry, the only thing the loop reads of
+ * what it leaves (the registry declares the rest, the accumulator's width
+ * among them: the loop sets it again first). */
+static void run_handler(Snes *s, bool (*handler)(GameState *, MenuObject))
 {
-    m_set_flag(s, CPU_FLAG_C, done);
-    if (a_word_wide)
-        m_rep(s, CPU_FLAG_M);
-    else
-        m_sep(s, CPU_FLAG_M);
+    GameState *g = state_of(s);
+    m_set_flag(s, CPU_FLAG_C, handler(g, menu_object_running(g)));
     m_rts(s);
 }
 
-static void run_handler(Snes *s, bool (*handler)(GameState *, MenuObject), bool a_word_wide)
-{
-    GameState *g = state_of(s);
-    handler_returns(s, handler(g, menu_object_running(g)), a_word_wide);
-}
-
 // $C2:1CF5
-void menu_stream_tiles_entry(Snes *s) { run_handler(s, menu_stream_tiles, true); }
+void menu_stream_tiles_entry(Snes *s) { run_handler(s, menu_stream_tiles); }
 // $C2:1DD4
-void menu_load_palette_row_entry(Snes *s) { run_handler(s, menu_load_palette_row, false); }
+void menu_load_palette_row_entry(Snes *s) { run_handler(s, menu_load_palette_row); }
 // $C2:1E38
-void menu_fade_palette_row_entry(Snes *s) { run_handler(s, menu_fade_palette_row, false); }
+void menu_fade_palette_row_entry(Snes *s) { run_handler(s, menu_fade_palette_row); }
 // $C2:20A2
-void menu_fade_out_entry(Snes *s) { run_handler(s, menu_fade_out, false); }
+void menu_fade_out_entry(Snes *s) { run_handler(s, menu_fade_out); }
 // $C2:2105
-void menu_fade_in_entry(Snes *s) { run_handler(s, menu_fade_in, false); }
+void menu_fade_in_entry(Snes *s) { run_handler(s, menu_fade_in); }
 // $C2:2194
-void menu_clear_mosaic_entry(Snes *s) { run_handler(s, menu_clear_mosaic, false); }
+void menu_clear_mosaic_entry(Snes *s) { run_handler(s, menu_clear_mosaic); }
 // $C2:21F8
-void menu_grow_mosaic_entry(Snes *s) { run_handler(s, menu_grow_mosaic, false); }
+void menu_grow_mosaic_entry(Snes *s) { run_handler(s, menu_grow_mosaic); }
 
 // $C2:1DB5
-/* It leaves its last loop's count in X and the comparison that ended it, the
- * accumulator 8 bits wide. */
+/* Its caller reads nothing it leaves (the registry declares it). */
 void menu_clear_the_palette_entry(Snes *s)
 {
     menu_clear_the_palette(state_of(s));
-    s->cpu.x = PALETTE_ROWS;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, true);
-    m_set_flag(s, CPU_FLAG_C, true);
-    m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 

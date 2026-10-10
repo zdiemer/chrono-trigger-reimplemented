@@ -67,29 +67,38 @@ void menu_scene_drift_the_map(GameState *g, MenuObject self)
 
 /* ---- The entries ------------------------------------------------------------------------------- */
 
+/* The routine leaves the running object's slot in X and the carry of its
+ * last comparison (set out of view). The script's call command goes on to
+ * its length, 3, and the interpreter after it reads neither (it loads X
+ * again and clears the carry for the next command), but liveness follows
+ * the interpreter's branch for a length of 0, which the call commands never
+ * return, and keeps them live there: they are left for shadow mode's
+ * comparison at the command's return. */
+static void leave_in_view(Snes *s, bool in_view)
+{
+    s->cpu.x = menu_object_current(state_of(s));
+    m_set_flag(s, CPU_FLAG_C, !in_view);
+}
+
 // $C2:78A1
-/* The answer goes to the mode's first cell; the routine leaves the running
- * object's slot in X, the carry set where the object is out of view (its
- * last comparison's), and the accumulator 8 bits wide. */
+/* The answer goes to the mode's first cell, which the script tests next. */
 void menu_scene_object_in_view_entry(Snes *s)
 {
     GameState *g = state_of(s);
     bool in_view = menu_scene_object_in_view(g);
     set_menu_object_scratch_answer(g, in_view);
-    s->cpu.x = menu_object_current(g);
-    m_set_flag(s, CPU_FLAG_C, !in_view);
-    m_sep(s, CPU_FLAG_M);
+    ORIGINAL_EFFECT(leave_in_view(s, in_view));
     m_rts(s);
 }
 
 // $C2:7849
-/* A handler: never done, its carry clear, the accumulator 8 bits wide. */
+/* A handler, never done: the carry clear, which the objects' loop reads
+ * (the width it leaves, the loop sets again: DC_WIDTH). */
 void menu_scene_drift_the_map_entry(Snes *s)
 {
     GameState *g = state_of(s);
     menu_scene_drift_the_map(g, menu_object_running(g));
     m_set_flag(s, CPU_FLAG_C, false);
-    m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 

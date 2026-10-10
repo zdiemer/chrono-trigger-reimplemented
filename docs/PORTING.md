@@ -72,7 +72,14 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   for code whose callers read A's high byte (a later 16-bit load or `TAX` takes
   it along) but not the low byte an 8-bit routine leaves; liveness has the two
   bytes apart, so every register byte and flag it tracks can be declared on its
-  own. `python3 tools/dontcare_check.py --list` says, for each declaration,
+  own. `DC_WIDTH` leaves out the accumulator's width (P's M bit), for an
+  entry whose callers set it again with `REP` or `SEP` before anything depends
+  on it (the sprite-object mode's objects' loop after every handler): liveness
+  checks it apart (`Liveness.width_read_after_return`, which walks each
+  caller's resume point to the first `REP`/`SEP` of bit `$20` and counts any
+  instruction whose effect depends on M, `PHP`, a call or a return carried up
+  as a read), and only an entry's own set may carry it, at its returns and
+  its own stops (`m_stop_at_own`). `python3 tools/dontcare_check.py --list` says, for each declaration,
   what else liveness has dead there (`could add`). Any mismatch prints the first
   differing field and makes `ct_dev` exit nonzero.
 - **Idle entries** stand in for one pass of a busy-wait loop (the game's

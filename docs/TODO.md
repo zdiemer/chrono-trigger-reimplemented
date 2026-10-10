@@ -883,9 +883,7 @@ rest waits, is [PLAN.md](PLAN.md).
   cells.
 
 - **What the overworld on foot's review left** (none rated translation):
-  `entries.c`'s `leader_mid_step` re-decodes `walk_on_foot`'s branches to
-  rebuild M, which is dead at the return (`$C2:0541`) -- the tooling has no
-  don't-care for M's width; add one and drop the derivation; the leader's two
+  the leader's two
   timing exceptions blame the map scroll, which is already timed as itself,
   on frames that build a strip (7,000-14,000 clocks against the scroll's own
   1,445) -- charge the scroll per strip built, or calibrate it on world-map

@@ -645,7 +645,8 @@ static bool diff_pages(char *out, size_t n, const char *name, const uint8_t *a, 
 static bool compare_machines(const Snes *o, const Snes *c, uint16_t dont_care, uint64_t since, char *out, size_t n)
 {
     uint8_t ignored_flags = (uint8_t)((dont_care & DC_N ? CPU_FLAG_N : 0) | (dont_care & DC_V ? CPU_FLAG_V : 0) |
-                                      (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0));
+                                      (dont_care & DC_Z ? CPU_FLAG_Z : 0) | (dont_care & DC_C ? CPU_FLAG_C : 0) |
+                                      (dont_care & DC_WIDTH ? CPU_FLAG_M : 0));
     uint8_t p_mask = (uint8_t)~ignored_flags;
     bool a_low = !(dont_care & (DC_A | DC_AL)), a_high = !(dont_care & (DC_A | DC_AH));
     if (a_low && a_high) {

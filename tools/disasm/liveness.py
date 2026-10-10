@@ -1330,6 +1330,86 @@ class Liveness:
                 live |= self.after_return(key[0])
         return live
 
+    # ---- the accumulator's width -----------------------------------------------------------
+
+    # Instructions whose effect depends on P's M bit (the accumulator's and
+    # memory operands' width), and PHP, which saves it; REP and SEP with bit
+    # $20 set it. Anything else that leaves the routine's straight code (a
+    # call, an indirect jump, an interrupt) counts as a read.
+    WIDTH_READERS = frozenset({
+        "LDA", "STA", "ADC", "SBC", "AND", "ORA", "EOR", "CMP", "BIT", "INC", "DEC", "ASL", "LSR", "ROL",
+        "ROR", "STZ", "TSB", "TRB", "PHA", "PLA", "TXA", "TYA", "PHP", "XCE", "BRK", "COP", "WAI",
+    })
+
+    def _width_read_from(self, key, pc: int, seen: set, returns: dict) -> bool:
+        """Whether P's M bit may be read from pc on in context key before
+        REP or SEP sets it: walking each path, a return carries the question
+        to the routine's own callers."""
+        stack = [pc]
+        while stack:
+            p = stack.pop()
+            if (key, p) in seen:
+                continue
+            seen.add((key, p))
+            if p not in self.an.contexts[key].insns:
+                return True
+            for _, insn in self._code(key, p):
+                if insn.name in ("REP", "SEP") and insn.operand & 0x20:
+                    continue
+                if insn.name in self.WIDTH_READERS:
+                    return True
+                if insn.name in ("RTS", "RTL"):
+                    depth = self._depth_before(key, p)
+                    if depth is None or depth < 0 or self._width_read_after(key[0], returns):
+                        return True
+                    continue
+                nexts, leaves = self._successors(p, insn)
+                if leaves or insn.name in ("JSR", "JSL"):
+                    return True
+                stack.extend(nexts)
+        return False
+
+    def _width_read_after(self, entry: int, returns: dict) -> bool:
+        if entry in returns:
+            return returns[entry]
+        returns[entry] = True          # a cycle through the returns: assume it read
+        if entry in self.all_live_returns:
+            return True
+        found = False
+        result = False
+        for key, pc, resume, targets, size in self._width_edges():
+            if entry not in targets:
+                continue
+            found = True
+            if resume is None:
+                result = self._width_read_after(key[0], returns)
+            else:
+                result = self._width_read_from(key, resume, set(), returns)
+            if result:
+                break
+        for tail, host in self.an.hints.tail_of.items():
+            if tail == entry and not result:
+                found = True
+                result = self._width_read_after(host, returns)
+        result = result or not found
+        returns[entry] = result
+        return result
+
+    def _width_edges(self) -> list:
+        if not hasattr(self, "_width_edge_list"):
+            self._width_edge_list = list(self._call_edges())
+        return self._width_edge_list
+
+    def width_read_after_return(self, entry: int) -> bool:
+        """Whether the accumulator's width a routine leaves may be read after
+        it returns, at any of its callers' resume points, before the caller
+        sets it again with REP or SEP (a declaration's DC_WIDTH)."""
+        if not self._entries_at(entry):
+            return True
+        if any(self.escaped_returns(key) for key in self._entries_at(entry)):
+            return True
+        return self._width_read_after(entry, {})
+
     def callee_reads(self, target: int) -> int:
         """What a routine reads before it returns, whatever its caller reads
         after: what a call to it needs set (a register it only carries to its

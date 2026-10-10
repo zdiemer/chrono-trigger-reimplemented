@@ -17545,18 +17545,18 @@ name = "overworld_show_the_epoch_flying"
 at = "C2:48A9"
 subsystem = "overworld"
 state = "overworld"
-args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0ED8-7E0ED8=00-03", "--fill", "7E0294-7E0294=00-FF"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0EC5-7E0EC5=00-05", "--fill", "7E0ED8-7E0ED8=00-03", "--fill", "7E0294-7E0294=00-FF"]
 iterations = 3000
-why = "the object mode's page, the running object the Epoch's slot facing one of the four ways, with its wings or without"
+why = "the object mode's page, the running object the Epoch's slot on the map across (the guard) facing one of the four ways, with its wings or without"
 
 [[routine]]
 name = "overworld_carry_the_epoch_round"
 at = "C2:48CD"
 subsystem = "overworld"
 state = "overworld"
-args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0ED8-7E0ED8=00-03"]
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=B0-B0", "--fill", "7E004F-7E004F=0E-0E", "--fill", "7E0EC5-7E0EC5=00-05", "--fill", "7E0ED8-7E0ED8=00-03"]
 iterations = 3000
-why = "the object mode's page, the running object the Epoch's slot, anywhere, its pace random"
+why = "the object mode's page, the running object the Epoch's slot, anywhere on the map across (the guard), its pace random"
 
 [[routine]]
 name = "overworld_within_reach"

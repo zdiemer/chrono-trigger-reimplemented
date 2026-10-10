@@ -34,11 +34,15 @@ typedef void (*NativeFn)(Snes *s);
  * byte alone, which liveness tracks apart (code that works on an 8-bit A leaves
  * the high byte to whatever 16-bit arithmetic last put there; a caller's later
  * 16-bit load or TAX can read the high byte of an A whose low byte nothing
- * reads). DC_AL | DC_AH is the same claim as DC_A. */
+ * reads). DC_AL | DC_AH is the same claim as DC_A. DC_WIDTH is the
+ * accumulator's width (P's M bit): the routine's caller sets it again before
+ * anything depends on it (tools/disasm/liveness.py, width_read_after_return).
+ * It is for an entry's own set alone, where it returns. */
 enum {
     DC_A = 1 << 0, DC_X = 1 << 1, DC_Y = 1 << 2,
     DC_N = 1 << 3, DC_V = 1 << 4, DC_Z = 1 << 5, DC_C = 1 << 6,
     DC_DB = 1 << 7, DC_D = 1 << 8, DC_AH = 1 << 9, DC_AL = 1 << 10,
+    DC_WIDTH = 1 << 11,
     DC_FLAGS = DC_N | DC_V | DC_Z | DC_C,
 };
 

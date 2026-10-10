@@ -3534,15 +3534,17 @@ largest single routine still called out to, came with it.
   (`$C2:8953`), called as C from the equipment screen's two sites.
 
 **The third trap.** A handler's caller, the objects' loop, reads the carry
-(done) and nothing else of what it leaves but the accumulator's width, which
-the wrappers derive from the state (the Epoch leaves it 16 bits wide on a
-frame it flew a tile; the controller where the party, on foot on the map,
-didn't ask to board; the tile streamer always). The scripts' call command
-reads X and the carry a routine leaves (its derivations), which `$C2:78A1`,
-`$C2:48A9` and `$C2:48CD` work out from the state. The Epoch's scenes go
-through the interpreter's bridge as the walkers' scripts do. No register is
-left "because liveness says so": the entries' don't-care sets are the
-handlers' (`tools/dontcare_check.py`).
+(done) and nothing else: it sets the accumulator's width again before it uses
+A (`$C2:0545`, `$C2:054C`), so the width a handler leaves is declared dead.
+That needed a new don't-care bit, `DC_WIDTH` (P's M bit), which shadow mode
+leaves out of P's comparison at an entry's return and
+`tools/dontcare_check.py` checks against `Liveness.width_read_after_return`
+(PORTING.md); the walkers' derivation of the width went with it. The routines
+the scenes' scripts call leave X and a carry that the interpreter after the
+call command never reads (the command's length is never 0), but liveness
+follows the interpreter's branch for a length of 0 and keeps them live, so the
+wrappers leave them as scaffolding for shadow mode's comparison. The Epoch's
+scenes go through the interpreter's bridge as the walkers' scripts do.
 
 **What the gate found.** Shadow mode: the Epoch's step stored as a word on
 reaching a tile, which clears the frame count beside it; and setting off for
