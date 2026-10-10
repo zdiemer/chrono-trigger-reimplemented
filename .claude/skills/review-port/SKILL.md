@@ -662,7 +662,11 @@ Each of these is a finding. Every example here comes from this repo.
     the ROM: which registers the routine saves, restores, reads and leaves
     to whatever runs next. A wrong hint kills a live register everywhere the
     routine is called, and every declaration that leans on it passes the
-    check. Ask for a test that ties the hint to the disassembly.
+    check. Ask for a test that ties the hint to the disassembly. Read also
+    what the hint makes live: an `[[entry]]` hint on a routine reached by
+    fall-through marks every register live after its return ("entered as
+    hint"), and that is not a reader. A register a port leaves "because
+    liveness says so" there needs its reader named past the hint.
 79. **A file named for something it doesn't contain.** `save_screen.c`
     holding the slots' summaries while the load screen lives elsewhere.
 80. **A shared mechanism whose header states a rule its callers break.**
