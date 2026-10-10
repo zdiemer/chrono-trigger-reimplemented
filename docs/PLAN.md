@@ -141,6 +141,25 @@ gate before it lands, and a later phase's item can start early when it depends
 on nothing still open. Parallel work shares one machine, so each track is given
 a process budget.
 
+**The order now, by native coverage.** What to port next is picked by what real
+play still runs as the original (`tools/fallbacks.py --by routine`), not by
+which bank has the most unported bytes: a handback is a port calling code that
+isn't ported yet, so retiring it is porting its callee. In order:
+
+1. **The timing service's frame waits** (Phase 4a, "Timing is decided"): the
+   native backend, its calls, and the ports that still spin on the beam --
+   the field frame's waits (`$C0:59D9`, `$5A46`), the sprite frame queue
+   (`$C0:CA76`), the battle's and the menus' frame waits. The most-executed
+   fallbacks there are, and what the native program needs anyway.
+2. **The field** (86% native): the screen's setup and fade in, the map's
+   unpacking, the objects' setup and the dialog window -- its largest
+   handbacks and its last unported code at once.
+3. **The menus and the overworld** (71%, the lowest): the vehicles, and the
+   object scripts' handbacks (`$C2:0553`, `$C2:1836`).
+4. **The refusals in real play**, as one batch (TODO.md, "Refusals in real
+   play").
+5. **The scene program**, its unported modes after movies reach them.
+
 ## The validation gate
 
 Nothing lands without it, and it is the same gate for every phase:
