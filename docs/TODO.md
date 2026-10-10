@@ -78,10 +78,10 @@ rest waits, is [PLAN.md](PLAN.md).
     times in the Beyond Time ending, the carry clear where
     `battle_screen_command_ready` asks for it set) and `battle_upload_palette`
     (`$CD:09CE`, called with the data bank `$7E`);
-  - field and events: `field_handle_requests` (`$C0:0C76`, at boot and in the
-    attract demo), `field_put_aside_for_a_menu` (`$C0:011B`, frame 1704 of every
-    movie from a save), `event_cmd_set_solidity` (`$C0:4867`, the attract
-    demo), `field_press_confirm` (`$C0:1AAC`);
+  - field and events: `event_cmd_set_solidity` (`$C0:4867`, the attract
+    demo) and `field_press_confirm` (`$C0:1AAC`, a press with no leader on
+    the map, whose search for what is before the leader reads past the
+    object tables);
   - menus: three entered with the other width of A (`menu_play_the_gate_song`
     `$C2:CBBF` and `menu_object_cmd_play_song` `$C2:18F9` with 8-bit A,
     `menu_describe_item` `$C2:F2F3` with 16-bit), `menu_start_the_scroll_bar`
@@ -1026,9 +1026,7 @@ rest waits, is [PLAN.md](PLAN.md).
   write the screen corner through `set_field_own_tile_x/y`, the enemy's kind
   through `set_field_direction`) -- name the second use in the map or use
   `original_cell8`; `location_description_at` takes a byte offset (take the
-  location, return the record); the dialog states are local to `location.c`
-  while `battle_start.c` writes a bare 0 in a near-twin of
-  `close_the_dialog_for_now` (one dialog operation in the header);
+  location, return the record);
   `screen_corner` is in `battle_start.c` and `battle_return.c`, and
   `refresh()` in `requests.c` and `screen_effects.c`; BG3's tiles at VRAM
   `0x5000` and the bank `$7F` buffers (`0x7F5080`, `0x7F6000`, `0x7F7000`)
@@ -1848,10 +1846,7 @@ re-runs the census.
     service is C now (`battle/inventory.h`, RECOMP.md, "Phase 3, battle
     chunk 6"): the confirm button can call `battle_inventory_add` and
     `battle_give_gold` instead, timed as the service;
-  - from chunk 2's review: `field_chests` is one variable of two words that
-    mean different things (the game's list, the location's run); split it
-    in the map, have the chest lookup take a chest's number, and name
-    `field_exit`'s record size. The four collision nudges of the walk
+  - from chunk 2's review: name `field_exit`'s record size. The four collision nudges of the walk
     (`field/walk.c`, across, along and the two aslant) are near-identical and
     want one `nudge_around`; `look()` slows a climb as a side effect of
     looking, which wants to be visible at its callers. The climb's note
@@ -1909,17 +1904,11 @@ re-runs the census.
     reaches them only up to their first long call-out (the frame work
     `$C0:00BF`, the battle's setup `$C0:024C`, which run past its budget); a
     fuzz state that bounds those would check the rest;
-  - a location change without a leader reads the leader's place past the
-    object tables in the original (the link `$80` as an index); the guard
-    hands it to the original;
-  - a script's menu (field/menus.c, `field_open_script_menu`) ends by
-    jumping to the fade in (`$C0:2824`), which returns to the main loop
-    itself, so the port stops there; the menus' modes 0, 2, 3 and 6 it opens
-    are named by their numbers until the menus' side names them;
-  - the pause and the menus (field/menus.c) call the original's frame wait,
-    field setup (`$C0:01A5`), the party's keeping (`$C0:011B`), the sprite
-    lists (`$C0:B192`), the fade in (`$C0:2824`), a choice's buttons
-    (`$C0:1ADF`) and a character's start (`$C0:597D`); the Start
+  - the menus' modes 0, 2, 3 and 6 a script's menu opens
+    (field/menus.c, `field_open_script_menu`) are named by their numbers
+    until the menus' side names them;
+  - the pause and the menus (field/menus.c) call the original's frame wait
+    and a character's start (`$C0:597D`); the Start
     assignment's test leaves the overflow of its subtraction, which the
     menus' entry and the next frame read (field/leaves.c);
   - the switch's sound is still the original's routine (`$C0:1B90`, which
@@ -1975,6 +1964,26 @@ re-runs the census.
   - the blank that clears the staging at `$C0:75A0` (a block move from
     `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
     1104 bytes left in the run) are the original's.
+- **What the screen's setup and the objects' setup left** (RECOMP.md,
+  "Phase 3, field and events: the screen set up, the map unpacked, the
+  objects started"):
+  - a switch pressed again after a menu or a battle shows the one-by-two
+    switch's upper tile as the lower one's pressed tile (the original sets it
+    so, `field/switches.c`): a native build decides what it shows once the
+    gate no longer compares the map;
+  - the screen's setup runs the original's wait for the vblank with the
+    handlers off through `tm_wait_frame_then_enable` on the SNES backend
+    (`$C0:0B38`, an `[[entry]]` hint so that liveness knows it as a routine);
+    the host backend waits a frame and turns them on;
+  - the map's own script (`$C0:595C`) and the script's unpacking (`$C0:56D4`)
+    are still call-outs from the objects' setup and both loadings; the
+    confirm button with no leader on the map (the Beyond Time ending, the
+    Zeal palace) and `event_cmd_set_solidity` (the attract demo) still
+    refuse (above, "Refusals in real play");
+  - the dialog window's look (its frame and text area tile maps, the window
+    design's tiles and colours, the choice pointer) is built into work RAM
+    and sent as the original's transfers: a native renderer could draw the
+    window from its height and position directly.
 - **Bridges called from the engine are compared at the engine's boundary.**
   The engine calls a bridge directly, so shadow mode sees its call-outs as
   the engine's and abandons the bridge's own comparison ("started inside the
@@ -2042,8 +2051,6 @@ re-runs the census.
   likely meant). Both are game state a native storage would not have: decide
   the ground past the map (the bytes the battle reads there) and the test's
   bit when the gate retires.
-- **The four windows' corner tiles** (`field/window_corners.c`) aren't known
-  to be the party's windows: what they frame is still to be read.
 - **Fuzzing half the event states.** The event handlers' guards turn away an
   odd running object, and `ct_fuzz --fill` can only bound a byte, so half of
   every tight run is skipped (more for the comparisons, whose operator must be
@@ -2065,8 +2072,8 @@ re-runs the census.
   `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
   `battle_wait_for_nmi_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
-  `attract_wait_loop`); and the generated `$C0:0B28` and `$FD:EADA` (vblank
-  with the handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
+  `attract_wait_loop`); and the generated `$FD:EADA` (vblank with the
+  handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
   `$FD:EAEB`. Ports that called the modes' wait routines now call
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`); each of these
   becomes one where its caller is a port. The modes' wait routines themselves

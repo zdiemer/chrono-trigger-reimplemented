@@ -177,13 +177,12 @@ static bool answer_step_event(Snes *s)
 enum {
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     PALETTE_ANIMATION = 0xFDFFF7,   /* the original's jump to it */
-    SCROLL_FOLLOWS = 0xC087F1,      /* the layers' scroll put where the screen is */
     SEND_BG1 = 0xC074D4, SEND_BG2 = 0xC074E8, SEND_BG3 = 0xC074F7,   /* a layer's tile map sent after a copy */
     BATTLE = 0xC10000,
     /* the field taken up after the battle (field/battle_return.c): a port
      * that runs frames and ends by going on into another, which only a call
      * can run */
-    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY, OBJECTS_AFTER_BATTLE = 0xC028E1,
+    FIELD_AFTER_BATTLE = FIELD_AFTER_BATTLE_ENTRY,
     FIELD_TURN = FIELD_WALK_A_FRAME_ENTRY,   /* a port, which waits for the next frame: called */
 };
 /* The ports the answers run as C. */
@@ -196,6 +195,14 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
 {
     return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
 }
+/* The columns right of the view brought in once the screen is put back where
+ * the party is (field/streaming.h). */
+static bool bring_in_the_right_columns(Snes *s, uint32_t site)
+{
+    return field_run(s, site, FIELD_BRING_IN_THE_RIGHT_COLUMNS_ENTRY, READS_NOTHING, field_bring_in_the_right_columns,
+                     on_the_field_page(s, false));
+}
+
 static bool wait_frame(Snes *s, uint32_t site)
 {
     return field_wait_frame(s, site, FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
@@ -217,11 +224,11 @@ enum { FACING_OPPOSITE = 0x01 };
 
 static void keep_where_the_party_was(GameState *g)
 {
-    FieldObject leader = field_linked_object(party_member_link(g, PARTY_LEADER));
+    LeaderPlace at = field_leaders_place(g);
     set_location_previous_id(g, location_id(g));
-    set_location_previous_x(g, field_object_x_tile(g, leader));
-    set_location_previous_y(g, field_object_y_tile(g, leader));
-    set_location_previous_flags(g, (uint8_t)(field_object_facing(g, leader) ^ FACING_OPPOSITE));
+    set_location_previous_x(g, at.x);
+    set_location_previous_y(g, at.y);
+    set_location_previous_flags(g, (uint8_t)(at.facing ^ FACING_OPPOSITE));
 }
 
 /* The next place becomes the party's. */
@@ -327,7 +334,7 @@ static bool send_one_layer(Snes *s, FieldLayer layer)
     set_field_map_transition(g, alone[layer].move);
     set_field_tile_copy_queued_maps(g, 0);
     if (!wait_frame(s, alone[layer].wait_site) || !refresh(s, alone[layer].refresh_after_site) ||
-        !call(s, alone[layer].scroll_site, SCROLL_FOLLOWS, READS_NOTHING))
+        !bring_in_the_right_columns(s, alone[layer].scroll_site))
         return false;
     if (alone[layer].waits_itself)
         return wait_frame(s, alone[layer].last_wait_site);
@@ -362,7 +369,7 @@ static bool send_bg1_and_bg2(Snes *s)
         return false;
     set_field_map_transition(g, FIELD_MOVE_TO_BG1);
     if (!wait_frame(s, 0xC01856) || !refresh(s, 0xC01859) ||
-        !call(s, 0xC0185C, SCROLL_FOLLOWS, READS_NOTHING))
+        !bring_in_the_right_columns(s, 0xC0185C))
         return false;
     m_stop_at_own(s, FRAME_WAIT, THE_LAST_WAIT);
     return false;
@@ -443,7 +450,8 @@ static bool answer_battle(Snes *s)
     TIMED_AS(g, FIELD_INSTALL_IRQ_ENTRY, field_take_the_line_interrupt(g));
     battle_over(g);
     return call(s, 0xC018C1, FIELD_AFTER_BATTLE, READS_NOTHING) &&
-           call(s, 0xC018C4, OBJECTS_AFTER_BATTLE, READS_NOTHING) &&
+           field_run(s, 0xC018C4, FIELD_PRESS_REMEMBERED_SWITCHES_ENTRY, READS_NOTHING,
+                     field_press_the_remembered_switches_entry, on_the_field_page(s, false)) &&
            field_run(s, 0xC018C7, FREE_SPRITE_AREAS, READS_NOTHING, field_free_every_sprite_area,
                      on_the_field_page(s, false)) &&
            call(s, 0xC018CA, FIELD_TURN, READS_NOTHING);
@@ -490,8 +498,8 @@ void field_handle_requests(Snes *s)
  * is the tile set's last (moving it on would carry into the next tile, as
  * the original moves it, a word at a time); and a chest opened inside the
  * map's rows; for a location change made (the fade done), the leader an
- * object, its link a word (the original reads the leader's place with it as
- * a 16-bit index). */
+ * object or none, its link a word (the original reads the leader's place
+ * with it as a 16-bit index). */
 enum { LAST_TILE = 0xFF };
 
 bool field_requests_can_run(Snes *s)
@@ -509,8 +517,7 @@ bool field_requests_can_run(Snes *s)
              !(field_is_one_by_two_switch(g, step) && field_map_byte(g, field_switch_upper_tile(step)) == LAST_TILE);
     }
     if ((requests & FIELD_REQUEST_LOCATION_CHANGE) && field_is_dark(g))
-        ok = ok && field_party_objects_high(g, PARTY_LEADER) == 0 &&
-             field_link_names_object(party_member_link(g, PARTY_LEADER));
+        ok = ok && field_leader_readable(g);
     if ((requests & FIELD_REQUEST_OPEN_CHEST) && !(requests & (FIELD_REQUEST_LOCATION_CHANGE | FIELD_REQUEST_MENUS)))
         ok = ok && (field_opened_chest_tile(g) >> 8) < FIELD_MAP_ROWS;
     vars_peek(false);

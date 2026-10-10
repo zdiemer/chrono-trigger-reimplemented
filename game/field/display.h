@@ -15,6 +15,9 @@
 enum { FIELD_EDGE_UPLOADS = 12 };
 void field_upload_sprite_table(Platform *pf);
 void field_upload_queued_transfers(GameState *g, Platform *pf);
+/* The queued sprite tile transfers forgotten unsent, as a map's objects
+ * start. */
+void field_forget_the_queued_transfers(GameState *g);
 void field_upload_layer_edge(GameState *g, Platform *pf, unsigned upload);
 bool field_layer_edges_fit(const GameState *g);
 
@@ -48,6 +51,7 @@ bool field_edge_runs_small(Snes *s);
  * ($C0:2DC8), its size 0 for 64 KiB; and a stretch of work RAM cleared
  * ($C0:2DF1), described as a transfer's source and size. The routines they
  * stand for, for the ports that run them as C. */
+enum { FIELD_TRANSFER_WORDS = 1 };   /* the transfer's mode: a word at a time */
 typedef struct {
     uint16_t vram;
     uint8_t mode;
@@ -61,22 +65,32 @@ void field_describe_transfer(GameState *g, FieldTransfer t);
 void field_clear_memory(GameState *g, Platform *pf, uint32_t from, uint16_t bytes);
 enum { FIELD_VRAM_TRANSFER_ENTRY = 0xC02DC8, FIELD_FILL_MEMORY_ENTRY = 0xC02DF1 };
 
+/* A layer drawn into the staging buffers sent to VRAM: a screen's tile map
+ * or both, to the place the field's transfer names ($C0:7F62, $C0:7F77), or
+ * BG2's to its right or left screen ($C0:7F58, $C0:7F5D); and BG3's piece a
+ * script staged ($C0:EC77). */
+void field_send_staged_layer(GameState *g, Platform *pf, bool both_screens);
+void field_send_staged_bg2_screen(GameState *g, Platform *pf, bool right);
+void field_send_bg3_piece(const GameState *g, Platform *pf);
+void field_send_staged_screen(Snes *s);
+void field_send_staged_screens(Snes *s);
+void field_send_staged_bg2_right(Snes *s);
+void field_send_staged_bg2_left(Snes *s);
+void field_send_bg3_piece_entry(Snes *s);
+enum { FIELD_SEND_STAGED_SCREEN_ENTRY = 0xC07F62, FIELD_SEND_STAGED_SCREENS_ENTRY = 0xC07F77,
+       FIELD_SEND_STAGED_BG2_RIGHT_ENTRY = 0xC07F58, FIELD_SEND_STAGED_BG2_LEFT_ENTRY = 0xC07F5D,
+       FIELD_SEND_BG3_PIECE_ENTRY = 0xC0EC77 };
+
+/* The field's video mode and the map's screens, as a map's screen is set up
+ * ($FD:C0D7, $C0:A509). */
+void field_set_the_video_mode(Platform *pf);
+void field_show_the_maps_screens(const GameState *g, Platform *pf);
+
 /* The last queued transfer's second size, which the queue's upload leaves in
  * Y for the menus' per-frame routine; `none` where the queue is empty. */
 uint16_t field_queue_last_second_size(const GameState *g, uint16_t none);
 
-/* field/window_corners.c */
-void field_refresh_corners(GameState *g, Platform *pf);
-/* Whether the windows' corners are to be refreshed: while a window's
- * selection is kept (field_window_tile_slot not the no-selection marker). */
-bool field_windows_need_refresh(const GameState *g);
 void field_redraw_after_picture(Snes *s);
 bool field_redraw_can_run(Snes *s);
-void field_refresh_window_corners(Snes *s);
-void field_write_window_corners_0(Snes *s);
-void field_write_window_corners_1(Snes *s);
-void field_write_window_corners_2(Snes *s);
-void field_write_window_corners_3(Snes *s);
-bool field_window_corners_dp_is_ppu(Snes *s);
 
 #endif

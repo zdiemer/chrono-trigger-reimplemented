@@ -35,6 +35,17 @@ enum {
     EDGE_SIZES = 5,
 };
 
+/* A map's settings for its layers, a bit for each of BG2 and BG3 (bit n for
+ * layer n): which stay still as the screen scrolls (field_layer_still), and
+ * which are drawn whole when the map loads (field_layer_drawn_whole); and
+ * whether the map has a BG3 tile map at all (field_map_flags). */
+#define FIELD_LAYER_BIT(layer) (1u << (layer))
+enum { FIELD_MAP_HAS_BG3 = 0x01 };
+/* BG2 scrolls at half the screen's pace, with edges of its own
+ * (field_bg2_half_scroll). */
+enum { BG2_HALF_PACE = 0x80 };
+enum { FIELD_COMPUTE_LAYER_EDGES_ENTRY = 0xC07F9A };
+
 /* ---- A map's tiles ----------------------------------------------------------------------- */
 
 /* A place in a map's tables, a row and a column: the unpacked tile maps, and
@@ -132,10 +143,27 @@ bool field_tile_copy_overflow(const GameState *g, bool before);
  * leaves its callers. */
 void field_find_layer_edges(GameState *g);
 bool field_layer_edges_overflow(const GameState *g);
+/* For the original's code: what the edges' working out leaves in the
+ * registers -- where in its tile map the last layer's column right of the
+ * view starts and the row above the view it starts on ($C0:8218), and the
+ * carry and overflow of that start's VRAM address worked out. */
+typedef struct {
+    uint16_t right_column_start, row_above;
+    bool carry, overflow;
+} FieldEdgesLeave;
+FieldEdgesLeave field_edges_leave(const GameState *g);
 
 /* field/tile_copy.c */
 void field_copy_tiles(Snes *s);
 bool field_tile_copy_fits(Snes *s);
+
+/* When a map loads ($C0:A521): its tile maps and tile attributes unpacked
+ * from the map's decompressed data; and whether its sizes are ones the
+ * tables hold, and its data can't come round the banks to the layers' page
+ * (the guard's game part: field/layers.c says why). */
+void field_unpack_the_tile_maps(GameState *g);
+bool field_tile_maps_fit(const GameState *g);
+enum { FIELD_UNPACK_TILE_MAPS_ENTRY = 0xC0A521 };
 
 /* field/layers.c */
 void field_compute_layer_edges(Snes *s);

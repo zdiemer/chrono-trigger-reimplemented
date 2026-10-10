@@ -20,6 +20,7 @@
  * menu (field/location.c), and the party's place to come back to is where the
  * leader stands. */
 #include "field/battle_start.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/layers.h"
 #include "field/main_loop.h"
@@ -307,17 +308,6 @@ void field_hand_over_to_a_battle(GameState *g)
     hand_over_the_screen(g);
 }
 
-/* A dialog under way ends for the battle (the menus' putting aside opens it
- * again after, field/location.c). */
-static void close_the_dialog(GameState *g)
-{
-    if (dialog_state(g) == 0)
-        return;
-    set_dialog_state(g, 0);
-    set_dialog_window_position(g, WINDOW_NONE);
-    set_dialog_window_state(g, 0);
-}
-
 /* ---- The entry ------------------------------------------------------------------------------- */
 
 /* With no enemy on the screen the party comes back together, the original's
@@ -339,7 +329,7 @@ void field_battle_begins(Snes *s)
         m_rts(s);
         return;
     }
-    close_the_dialog(g);
+    dialog_shut(g);
     field_hand_over_to_a_battle(g);
     field_put_the_state_aside(g);
     field_party_place_is_the_leaders(g);

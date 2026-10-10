@@ -300,10 +300,23 @@ void field_redraw_changed_tiles(GameState *g, Platform *pf)
 
 /* ---- The step, remembered ------------------------------------------------------------------ */
 
+/* ---- The steps remembered --------------------------------------------------------------- */
+
+/* A free place in the list: none, its word's top bit set (the original
+ * clears the list with $80 in both bytes). */
+enum { NO_STEP = 0x8000, NO_STEPS_WORD = 0x8080 };
+
+// $C0:28AA
+/* A new location forgets the steps remembered on the last. */
+void field_forget_the_steps(GameState *g)
+{
+    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++)
+        set_field_pressed_tiles(g, i, NO_STEPS_WORD);
+}
+
 // $C0:28C0
 /* A step event set off is remembered on the map, in the first free place of
  * the list, unless it is there already or the list is full. */
-enum { NO_STEP = 0x8000 };
 void field_remember_step(GameState *g, uint16_t step)
 {
     for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++) {
@@ -315,6 +328,60 @@ void field_remember_step(GameState *g, uint16_t step)
         if (kept == step)
             return;
     }
+}
+
+/* ---- The steps remembered, pressed again --------------------------------------------------- */
+
+/* A switch pressed again shows its tiles' next tiles, but for the one-by-two
+ * switch, whose upper tile the original sets to the lower one's pressed tile
+ * rather than its own: after a menu or a battle its top shows its bottom's
+ * look. */
+static uint8_t pressed_again(SwitchShape shape, unsigned column, unsigned up)
+{
+    const SwitchShapeTiles *s = &shapes[shape];
+    if (shape == SWITCH_ONE_BY_TWO)
+        return (uint8_t)(s->tiles[0] + 1);
+    return (uint8_t)(s->tiles[column * s->rows + up] + 1);
+}
+
+static void press_again(GameState *g, uint16_t step)
+{
+    SwitchShape shape;
+    unsigned step_column;
+    if (!switch_of(field_map_byte(g, step), &shape, &step_column))
+        return;
+    for (unsigned c = 0; c < shapes[shape].columns; c++)
+        for (unsigned up = 0; up < shapes[shape].rows; up++)
+            set_map_byte(g, switch_tile_at(step, step_column, c, up), pressed_again(shape, c, up));
+}
+
+// $C0:28E1 (with $C0:28F9 for each step)
+/* As a map's screen is set up again (after a menu or a battle, its tiles
+ * unpacked afresh), the switches the leader pressed on it are shown pressed
+ * again, from the steps remembered up to the list's first free place. A step
+ * on a tile that isn't a switch's bottom (pressed already) changes nothing. */
+void field_press_the_remembered_switches(GameState *g)
+{
+    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++) {
+        uint16_t step = field_pressed_tiles(g, i);
+        if (step & NO_STEP)
+            return;
+        press_again(g, step);
+    }
+}
+
+/* Its guard's part: each step remembered is on the map, and so is each tile
+ * of the switch it presses. */
+bool field_remembered_switches_on_the_map(const GameState *g)
+{
+    for (unsigned i = 0; i < FIELD_PRESSED_TILES_COUNT; i++) {
+        uint16_t step = field_pressed_tiles(g, i);
+        if (step & NO_STEP)
+            return true;
+        if ((step >> 8) >= FIELD_MAP_ROWS || !field_switch_inside_the_map(g, step))
+            return false;
+    }
+    return true;
 }
 
 uint16_t field_step_kept_at(const GameState *g, uint16_t step)
@@ -332,3 +399,26 @@ unsigned field_switch_entry_count(const GameState *g)
 }
 
 unsigned field_switch_rows(SwitchShape shape) { return shapes[shape].rows; }
+
+/* ---- Where it meets the original ------------------------------------------------------------ */
+
+/* On the field's page; nothing it leaves in the registers is read. */
+void field_press_the_remembered_switches_entry(Snes *s)
+{
+    field_press_the_remembered_switches(state_of(s));
+    m_rts(s);
+}
+
+bool field_remembered_switches_can_be_pressed(Snes *s)
+{
+    vars_peek(true);
+    bool ok = field_remembered_switches_on_the_map(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
+void field_forget_the_steps_entry(Snes *s)
+{
+    field_forget_the_steps(state_of(s));
+    m_rts(s);
+}

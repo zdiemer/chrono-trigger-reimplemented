@@ -333,6 +333,16 @@ regs = ["X", "Y", "P", "D"]
 reads = ["A", "AH", "DB"]
 resume = "C2:8206"
 
+# The field's screen setup ($C0:0B28) ends on a wait for the vblank with the
+# handlers off, then turns them on. The port of the setup readies the line
+# effects itself and has the timing service call that tail on the SNES
+# backend (game/field/screen_setup.c), so it is a routine's entry too.
+[[entry]]
+addr = "C0:0B38"
+m = 8
+x = 16
+name = "field_screen_on"
+
 [[entry]]
 addr = "C2:826F"
 m = 16

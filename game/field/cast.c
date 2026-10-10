@@ -26,8 +26,11 @@
 #include "field/frames.h"
 #include "field/graphics.h"
 #include "field/party.h"
+#include "field/bridge.h"
 #include "field/scratch.h"
 #include "original_effects.h"
+#include "port/machine.h"
+#include "port/vars_ram.h"
 #include "vars.h"
 
 /* ---- The record tables ---------------------------------------------------------------------- */
@@ -148,13 +151,101 @@ static void take_party_block(GameState *g, FieldObject obj, PartyPlace place)
     use_block(g, obj, block, (uint16_t)(place * PARTY_RECORDS_A_PLACE));
 }
 
-/* An enemy's records follow its block's number. */
-enum { ENEMY_RECORDS_A_BLOCK = 0x20 };
+/* An object's records follow its block's number (but the party's, which
+ * follow their places). */
+enum { RECORDS_A_BLOCK = 0x20 };
 
 static void take_enemy_block(GameState *g, FieldObject obj, unsigned block)
 {
     set_field_sprite_block_owner(g, block, field_link_byte(field_link_to(obj)));
-    use_block(g, obj, block, (uint16_t)(block * ENEMY_RECORDS_A_BLOCK));
+    use_block(g, obj, block, (uint16_t)(block * RECORDS_A_BLOCK));
+}
+
+/* The people and the characters apart from the party take a block as they
+ * come into view and give it up as they leave: one, the last free first,
+ * for a figure of four sprites; a pair side by side, the first free pair
+ * from block 12 on, for a larger one. Their records are the block's. The
+ * field keeps 30 owners, of which the last four are never given (the
+ * screen's setup clears them with the rest), so the last block's partner is
+ * always free. */
+enum { SPRITE_BLOCK_OWNERS = FIELD_SPRITE_BLOCK_OWNER_COUNT, LAST_BLOCK = 25, FIRST_PAIR = 12, PAIRS_END = 24 };
+
+static FieldLink block_owner(const GameState *g, unsigned block)
+{
+    return field_link_stored(field_sprite_block_owner(g, block));
+}
+static bool block_free(const GameState *g, unsigned block) { return !field_link_is_object(block_owner(g, block)); }
+static void free_block(GameState *g, unsigned block) { set_field_sprite_block_owner(g, block, field_link_byte(field_no_link())); }
+
+/* For the original's code and shadow mode: the block, and the high byte of
+ * its first tile's row as the original worked it out, in a scratch cell. */
+static void leave_block(GameState *g, unsigned block)
+{
+    enum { ROW_OF_TILES = 0xFE, ROW_SHIFT = 4 };
+    original_cell16(g, FIELD_SCRATCH_CELLS, (uint16_t)(((block & ROW_OF_TILES) << ROW_SHIFT & 0xFF00) | block));
+}
+
+static void take_block(GameState *g, FieldObject obj, unsigned block, bool pair)
+{
+    set_field_sprite_block_owner(g, block, field_link_byte(field_link_to(obj)));
+    if (pair)
+        set_field_sprite_block_owner(g, block + 1, field_link_byte(field_link_to(obj)));
+    ORIGINAL_EFFECT(leave_block(g, block));
+    use_block(g, obj, block, (uint16_t)(block * RECORDS_A_BLOCK));
+}
+
+// $C0:6F79
+/* A map's screen starts with every block free (the party's and the enemies'
+ * are given again as they are cast). */
+void sprite_blocks_all_free(GameState *g)
+{
+    for (unsigned block = 0; block < SPRITE_BLOCK_OWNERS; block++)
+        free_block(g, block);
+}
+
+static bool takes_blocks_as_it_comes(ObjectRole role)
+{
+    return !role.disabled && (role.kind == ROLE_LEFT_THE_PARTY || role.kind == ROLE_WALKS_ONLY);
+}
+
+// $C0:6F9A, $C0:6FBA
+bool object_take_sprite_block(GameState *g, FieldObject obj)
+{
+    if (!takes_blocks_as_it_comes(object_role(g, obj)))
+        return false;
+    if (object_sprite_layout(g, obj) == LAYOUT_4) {
+        for (unsigned block = LAST_BLOCK; block > 0; block--)
+            if (block_free(g, block)) {
+                take_block(g, obj, block, false);
+                return true;
+            }
+        return false;
+    }
+    for (unsigned block = FIRST_PAIR; block < PAIRS_END; block += 2)
+        if (block_free(g, block) && block_free(g, block + 1)) {
+            take_block(g, obj, block, true);
+            return true;
+        }
+    return false;
+}
+
+// $C0:7056
+/* An object leaving view gives up the block its records are in, and the
+ * block after it where it holds that too (a pair). */
+void object_give_up_sprite_block(GameState *g, FieldObject obj)
+{
+    unsigned block = (uint8_t)(object_sprite_records(g, obj) / RECORDS_A_BLOCK);
+    FieldLink self = field_link_to(obj);
+    if (!field_same_link(block_owner(g, block), self))
+        return;
+    if (field_same_link(block_owner(g, block + 1), self))
+        free_block(g, block + 1);
+    free_block(g, block);
+}
+
+bool object_sprite_block_in_the_tables(const GameState *g, FieldObject obj)
+{
+    return (uint8_t)(object_sprite_records(g, obj) / RECORDS_A_BLOCK) + 1u < SPRITE_BLOCK_OWNERS;
 }
 
 /* ---- Playable characters ------------------------------------------------------------------- */
@@ -254,6 +345,13 @@ void object_cast_as_character_apart(GameState *g, FieldObject obj, uint8_t chara
  * one's graphics. */
 
 enum { NO_SET = 0xFF };
+
+// $C0:5929
+void cast_forget_the_unpacked_graphics(GameState *g)
+{
+    for (unsigned e = 0; e < FIELD_SHARED_GRAPHICS_COUNT; e++)
+        set_field_shared_graphics(g, e, NO_SET);
+}
 
 static FieldLink unpacker(const GameState *g, unsigned entry)
 {
@@ -448,5 +546,46 @@ bool cast_enemy_fits(const GameState *g, uint8_t enemy, uint8_t slot)
             set.address = field_object_graphics_address(g, field_linked_object(unpacker(g, held.entry)));
     }
     return field_figure_drawable(g, set, long_entry(g, FIELD_SPRITE_ASSEMBLIES, r.assembly),
-                                 (uint16_t)(block * ENEMY_RECORDS_A_BLOCK));
+                                 (uint16_t)(block * RECORDS_A_BLOCK));
+}
+
+/* ---- Where it meets the original ------------------------------------------------------------ */
+
+/* The current object (8-bit index registers), coming into view or leaving
+ * it: taking a block leaves the overflow clear, where it took one; nothing
+ * else they leave is read. */
+void field_take_sprite_block(Snes *s)
+{
+    if (object_take_sprite_block(state_of(s), (FieldObject)field_current_object_slot(s)))
+        m_set_flag(s, CPU_FLAG_V, false);
+    m_rts(s);
+}
+
+void field_give_up_sprite_block(Snes *s)
+{
+    object_give_up_sprite_block(state_of(s), (FieldObject)field_current_object_slot(s));
+    m_rts(s);
+}
+
+/* The guards: the current object one the tables hold, on the field's page
+ * with the data bank $00; its kind one the original's table of blocks has
+ * (a disabled object takes none); and, leaving, its records in a block. */
+bool field_sprite_block_can_be_taken(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    ObjectRole role = object_role(state_of(s), (FieldObject)field_current_object_slot(s));
+    vars_peek(false);
+    return role.disabled || role.kind <= ROLE_LEFT_ALONE;
+}
+
+bool field_sprite_block_can_be_given_up(Snes *s)
+{
+    if (!field_current_object_bank_zero(s))
+        return false;
+    vars_peek(true);
+    bool ok = object_sprite_block_in_the_tables(state_of(s), (FieldObject)field_current_object_slot(s));
+    vars_peek(false);
+    return ok;
 }

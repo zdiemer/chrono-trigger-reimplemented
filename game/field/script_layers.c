@@ -17,6 +17,7 @@
 
 #include "cpu_io.h"
 #include "field/bridge.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/scratch.h"
@@ -174,7 +175,7 @@ static bool chest_on_screen(const GameState *g)
 static void close_the_chests_message(GameState *g)
 {
     if (!chest_on_screen(g))
-        set_dialog_state(g, DIALOG_ENDS);
+        dialog_end(g);
 }
 
 /* ---- The frame's turn --------------------------------------------------------------------------- */

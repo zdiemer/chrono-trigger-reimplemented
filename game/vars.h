@@ -973,19 +973,30 @@ void set_dialog_speaker_high(GameState *g, uint8_t v);
 uint8_t dialog_box_position(const GameState *g);
 void set_dialog_box_position(GameState *g, uint8_t v);
 
+/* Which of the dialog window's four text rows is being cleared or set (0-3): the vblank sends
+ * the text page's tiles there, and a page's next line goes to the next row */
+uint8_t dialog_text_row(const GameState *g);
+void set_dialog_text_row(GameState *g, uint8_t v);
+
 /* The object the open dialog window is placed by: cleared when a dialog starts, then taken from
  * dialog_speaker ($C0:9193) */
 uint8_t dialog_window_object(const GameState *g);
 void set_dialog_window_object(GameState *g, uint8_t v);
+
+/* A byte the dialog window clears with its text row as it opens ($C0:1FF0); nothing the library
+ * runs reads it */
+uint8_t dialog_window_opening_clears(const GameState *g);
+void set_dialog_window_opening_clears(GameState *g, uint8_t v);
 
 /* How long the field's dialog window stays: frames left, or $FFFF until the player presses the
  * confirm button, a press the window takes for itself */
 uint16_t field_dialog_hold(const GameState *g);
 void set_field_dialog_hold(GameState *g, uint16_t v);
 
-/* Nonzero: the field NMI runs the fade step $C0:6ECB; bit 7 makes it a one-shot (cleared first) */
-uint8_t field_fade_request(const GameState *g);
-void set_field_fade_request(GameState *g, uint8_t v);
+/* Whether the vblank sends the dialog window's text row to VRAM ($C0:6ECB): 0 not, 1 every frame
+ * while it is set, $81 once (bit 7: cleared as it is taken) */
+uint8_t dialog_text_sending(const GameState *g);
+void set_dialog_text_sending(GameState *g, uint8_t v);
 
 /* The screen scrolling back onto the leader before the main loop copies queued tiles ($C0:177F
  * sets 1, $C0:885A steps it to 2 and back to 0): while nonzero the party holds still (event $B0
@@ -1124,17 +1135,20 @@ void set_field_chest_kind(GameState *g, uint8_t v);
 uint8_t dialog_choice_active(const GameState *g);
 void set_dialog_choice_active(GameState *g, uint8_t v);
 
-/* Which of the four window tile pairs gets the alternate tiles $28FC-$28FF (0-3); $80 none */
-uint8_t field_window_tile_slot(const GameState *g);
-void set_field_window_tile_slot(GameState *g, uint8_t v);
+/* Which of the dialog window's four text lines the choice pointer (the hand, tiles $28FC-$28FF)
+ * points at, 0-3; 4 once the choice is taken, which the next refresh of the lines' first tiles
+ * turns into $80, no pointer */
+uint8_t dialog_choice_pointer(const GameState *g);
+void set_dialog_choice_pointer(GameState *g, uint8_t v);
 
-/* The last line of a dialog's choices (the choice cursor stops there, $C0:1B25) */
-uint8_t dialog_choice_last(const GameState *g);
-void set_dialog_choice_last(GameState *g, uint8_t v);
-
-/* The first line of a dialog's choices */
+/* The first line of a dialog's choices: the pointer starts there, and moving down past the last
+ * comes back to it */
 uint8_t dialog_choice_first(const GameState *g);
 void set_dialog_choice_first(GameState *g, uint8_t v);
+
+/* The last line of a dialog's choices: moving up past the first comes back to it */
+uint8_t dialog_choice_last(const GameState *g);
+void set_dialog_choice_last(GameState *g, uint8_t v);
 
 /* The choice made in a dialog with choices, copied to the object's event_object_result */
 uint8_t dialog_choice(const GameState *g);
@@ -1587,11 +1601,13 @@ enum { FIELD_PALETTE_SLOT_NEWEST_COUNT = 8 };   /* by sprite palette slot */
 uint8_t field_palette_slot_newest(const GameState *g, unsigned slot);
 void set_field_palette_slot_newest(GameState *g, unsigned slot, uint8_t v);
 
-enum { FIELD_SPRITE_BLOCK_OWNER_COUNT = 26 };   /* by block of sprite tiles in VRAM */
+enum { FIELD_SPRITE_BLOCK_OWNER_COUNT = 30 };   /* by block of sprite tiles in VRAM */
 /* The object each block of sprite tiles in VRAM is given to, a link, negative for a free block:
  * the party's three places have blocks 1-3 and an enemy the block its script names (events
- * $57-$6D, $80, $83); an object coming into view takes a free one, the last first ($C0:6FBA).
- * Block 0 is never given */
+ * $57-$6D, $80, $83); an object coming into view takes a free one, the last (25) first, or a
+ * free pair from block 12 on for a larger figure ($C0:6FBA), and gives it up leaving ($C0:7056),
+ * with the block after where it holds that too. Block 0 is never given, nor are 26-29, which the
+ * screen's setup clears with the rest ($C0:6F79): the last block's partner is 26, always free */
 uint8_t field_sprite_block_owner(const GameState *g, unsigned i);
 void set_field_sprite_block_owner(GameState *g, unsigned i, uint8_t v);
 
@@ -1616,9 +1632,16 @@ enum { FIELD_MAP_LAYER_SIZES_COUNT = 3 };   /* by layer (BG1-BG3) */
 /* Columns */
 uint8_t field_map_layer_sizes_width(const GameState *g, unsigned layer);
 void set_field_map_layer_sizes_width(GameState *g, unsigned layer, uint8_t v);
+/* The byte after the columns, which the map's unpacking clears (the original keeps the sizes as
+ * words); nothing the library runs reads it */
+uint8_t field_map_layer_sizes_width_high(const GameState *g, unsigned layer);
+void set_field_map_layer_sizes_width_high(GameState *g, unsigned layer, uint8_t v);
 /* Rows */
 uint8_t field_map_layer_sizes_height(const GameState *g, unsigned layer);
 void set_field_map_layer_sizes_height(GameState *g, unsigned layer, uint8_t v);
+/* The byte after the rows, cleared as width_high is */
+uint8_t field_map_layer_sizes_height_high(const GameState *g, unsigned layer);
+void set_field_map_layer_sizes_height_high(GameState *g, unsigned layer, uint8_t v);
 
 /* Main screen layers shadow */
 uint8_t field_main_screen(const GameState *g);
@@ -1863,6 +1886,13 @@ enum { FIELD_OBJECT_FACING_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Which way the object faces (0-3) */
 uint8_t field_object_facing(const GameState *g, unsigned slot);
 void set_field_object_facing(GameState *g, unsigned slot, uint8_t v);
+/* Which way the object faces (0-3) Unchecked, for marked scaffolding only: the party's place
+ * taken as the leader's, for a menu or a change of location, while the party has no leader on
+ * the map (its marker $80, as a save's load and the attract demo's scenes leave it until the
+ * map's objects start), which reads the first slot past the tables (game/field/location.c,
+ * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
+uint8_t field_object_facing_unchecked(const GameState *g, unsigned slot);
+void set_field_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { FIELD_OBJECT_FRAME_DELAY_COUNT = 64 };   /* by object slot (X = slot * 2) */
 /* Frames left before the object's next animation frame; cleared to restart an animation */
@@ -1911,7 +1941,11 @@ void set_field_object_x_tile(GameState *g, unsigned slot, uint8_t v);
  * over the movie library); and a map's object count of 64-127, which the original doubles into a
  * byte and so starts the leader's walk's search for objects in the way past the tables
  * (game/field/walk.c, what_the_original_meets_past_the_tables; 20 real calls over the movie
- * library) */
+ * library); and the party's place taken as the leader's, for a menu or a change of location,
+ * while the party has no leader on the map (its marker $80, as a save's load and the attract
+ * demo's scenes leave it until the map's objects start), which reads the first slot past the
+ * tables (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and
+ * the attract demo) */
 uint8_t field_object_x_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Tile X Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
@@ -1920,7 +1954,12 @@ void set_field_object_x_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
  * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
  * and a map's object count of 64-127, which the original doubles into a byte and so starts the
  * leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
+ * party's place taken as the leader's, for a menu or a change of location, while the party has
+ * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
+ * until the map's objects start), which reads the first slot past the tables
+ * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
+ * attract demo) */
 uint8_t field_object_x_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_x_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -1937,7 +1976,12 @@ void set_field_object_y_tile(GameState *g, unsigned slot, uint8_t v);
  * tables (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie
  * library); and a map's object count of 64-127, which the original doubles into a byte and so
  * starts the leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
+ * party's place taken as the leader's, for a menu or a change of location, while the party has
+ * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
+ * until the map's objects start), which reads the first slot past the tables
+ * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
+ * attract demo) */
 uint8_t field_object_y_fine_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
 /* Tile Y Unchecked, for marked scaffolding only: an empty party place's marker (a byte with the
@@ -1946,7 +1990,12 @@ void set_field_object_y_fine_unchecked(GameState *g, unsigned slot, uint8_t v);
  * (game/event/party.c, see_what_the_original_finds; 52,898 real calls over the movie library);
  * and a map's object count of 64-127, which the original doubles into a byte and so starts the
  * leader's walk's search for objects in the way past the tables (game/field/walk.c,
- * what_the_original_meets_past_the_tables; 20 real calls over the movie library) */
+ * what_the_original_meets_past_the_tables; 20 real calls over the movie library); and the
+ * party's place taken as the leader's, for a menu or a change of location, while the party has
+ * no leader on the map (its marker $80, as a save's load and the attract demo's scenes leave it
+ * until the map's objects start), which reads the first slot past the tables
+ * (game/field/location.c, field_leaders_place; frame 1704 of every movie from a save, and the
+ * attract demo) */
 uint8_t field_object_y_tile_unchecked(const GameState *g, unsigned slot);
 void set_field_object_y_tile_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2036,12 +2085,15 @@ void set_field_screen_scroll_target_y(GameState *g, uint8_t v);
 uint16_t field_location_exits(const GameState *g);
 void set_field_location_exits(GameState *g, uint16_t v);
 
-enum { FIELD_CHESTS_COUNT = 2 };   /* by 0: the first of the game's chests, 1: the location's first */
-/* Where the game's chests start in bank $F5, and this location's, four bytes each
- * (field/field_data.h, FieldChest); a chest's number, which its story flag is, counts from the
- * first */
-uint16_t field_chests(const GameState *g, unsigned i);
-void set_field_chests(GameState *g, unsigned i, uint16_t v);
+/* Where the game's chests start in bank $F5, four bytes each (field/field_data.h, FieldChest): a
+ * chest's number, which its story flag is, counts from here */
+uint16_t field_games_chests(const GameState *g);
+void set_field_games_chests(GameState *g, uint16_t v);
+
+/* Where the location's chests start in bank $F5: a chest's tile in the walkable table names it
+ * by its index from here */
+uint16_t field_location_chests(const GameState *g);
+void set_field_location_chests(GameState *g, uint16_t v);
 
 /* The screen's left edge in 8-pixel tiles (with the fine scroll, the screen origin's X) */
 uint8_t field_screen_left(const GameState *g);
@@ -2377,7 +2429,7 @@ uint8_t field_tile_exits(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_exits(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 /* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
- * it holds (field_chests) [a byte by row and column] */
+ * it holds (field_location_chests) [a byte by row and column] */
 enum { FIELD_TILE_WALKABLE_ROWS = 64, FIELD_TILE_WALKABLE_COLUMNS = 64 };
 uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
@@ -2395,6 +2447,29 @@ void set_field_tile_looks_bottom_left(GameState *g, unsigned layer, uint16_t v);
 /* The bottom right quarter's entry */
 uint16_t field_tile_looks_bottom_right(const GameState *g, unsigned layer);
 void set_field_tile_looks_bottom_right(GameState *g, unsigned layer, uint16_t v);
+
+/* BG1's and BG2's sizes, two bits each way (bits 0-1 BG1's columns, 2-3 its rows, 4-5 BG2's
+ * columns, 6-7 its rows), each 16 tiles a step from 16 */
+uint8_t field_map_header_sizes(const GameState *g);
+void set_field_map_header_sizes(GameState *g, uint8_t v);
+/* Bit 7: the map has a BG3 tile map; bit 6: BG2 scrolls half as far as the screen; bit 5: BG3,
+ * bit 4: BG2 stays still as the screen scrolls; bits 0-3 BG3's size, as BG1's in `sizes` */
+uint8_t field_map_header_layers(const GameState *g);
+void set_field_map_header_layers(GameState *g, uint8_t v);
+/* BG2's drift, 0 for none: bits 0-2 across (a speed of 1/16 pixel a frame doubled for each step
+ * past the first, 0 none), bit 3 leftward; bits 4-6 and 7 the same down and up */
+uint8_t field_map_header_bg2_drift(const GameState *g);
+void set_field_map_header_bg2_drift(GameState *g, uint8_t v);
+/* BG3's drift, as bg2_drift */
+uint8_t field_map_header_bg3_drift(const GameState *g);
+void set_field_map_header_bg3_drift(GameState *g, uint8_t v);
+/* The layers on the screens: bits 0-2 BG1-BG3 and bit 3 the sprites on the main screen, bits 4-7
+ * the same on the sub screen */
+uint8_t field_map_header_screens(const GameState *g);
+void set_field_map_header_screens(GameState *g, uint8_t v);
+/* The layers color math applies to, as the field keeps it (field_color_math_layers) */
+uint8_t field_map_header_color_math(const GameState *g);
+void set_field_map_header_color_math(GameState *g, uint8_t v);
 
 /* Start of the decompressed map layer data field_unpack_tile_maps reads through the WRAM port */
 uint8_t field_map_data(const GameState *g);
@@ -2421,6 +2496,14 @@ enum { FIELD_LAYER_STAGING_COUNT = 3 };   /* by layer (BG1-BG3) */
 enum { FIELD_LAYER_STAGING_BYTES = 2048 };
 uint8_t field_layer_staging_byte(const GameState *g, unsigned layer, unsigned at);
 void set_field_layer_staging_byte(GameState *g, unsigned layer, unsigned at, uint8_t v);
+
+enum { FIELD_WINDOW_STAGING_COUNT = 1024 };   /* by byte */
+/* Where the field builds what the dialog window shows before it is sent to VRAM: the window's
+ * frame and its text area as tile maps when the screen is set up ($C0:29F7, $C0:2B78), then a
+ * row of the text page's tiles as the typesetter sets a dialog's glyphs ($C0:20B2 clears the
+ * page) */
+uint8_t field_window_staging(const GameState *g, unsigned i);
+void set_field_window_staging(GameState *g, unsigned i, uint8_t v);
 
 /* Bit 0 swaps which of the two per-line window tables window 2 reads in each set of the line
  * effects' tables; the scripts set it as the high byte of their variable $A8 (event_variables),

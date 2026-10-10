@@ -156,6 +156,8 @@ enum { FIELD_LEAVE_ROW_ENTRY = 0xC0A98A, FIELD_JOIN_ROW_ENTRY = 0xC0A9CD };
 void field_move_object_step(Snes *s, FieldObject obj, bool party_member);
 bool field_update_visibility(Snes *s, FieldObject obj);
 bool field_view_changes(const GameState *g, unsigned obj);
+bool field_view_change_in_the_tables(const GameState *g, FieldObject obj);
+bool field_view_can_run(Snes *s);
 void field_update_in_window(Snes *s, FieldObject obj);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */

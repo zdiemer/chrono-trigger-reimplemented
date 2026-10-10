@@ -31,11 +31,14 @@
  * animation, through the original's jump at $FD:FFF7 to it
  * (PALETTE_ANIMATION), which isn't an entry. */
 #include "field/menus.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/line_effects.h"
 #include "field/main_loop.h"
 #include "field/object.h"
 #include "field/party.h"
+#include "field/sprites.h"
+#include "field/screen_setup.h"
 #include "field/walk.h"
 
 #include "charge.h"
@@ -49,11 +52,6 @@
 #include "vars.h"
 
 /* ---- The field's state ------------------------------------------------------------------------ */
-
-enum { PLAY_CLOCK_STOPPED = 0xFF, PLAY_CLOCK_RUNS = 0x00 };
-
-static void stop_play_clock(GameState *g) { set_play_time_stopped(g, PLAY_CLOCK_STOPPED); }
-static void start_play_clock(GameState *g) { set_play_time_stopped(g, PLAY_CLOCK_RUNS); }
 
 static bool start_pressed(const GameState *g) { return (input_pressed(g) & BUTTON_START) != 0; }
 
@@ -126,9 +124,6 @@ static void script_menu_shown(GameState *g)
 enum {
     MENUS = 0xC28000,               /* the menus, at the mode in A */
     FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
-    SPRITE_LISTS = 0xC0B192,
-    FADE_IN = 0xC02824,
-    CHOICE = 0xC01ADF,              /* a dialog's choice taking the buttons */
     OBJECT_START = 0xC0597D,        /* runs the current object's start in its script */
 };
 
@@ -139,7 +134,6 @@ enum {
     READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
     READS_THE_OVERFLOW = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C,
     READS_THE_MODE = DC_AH | DC_Y | DC_C,               /* the menus keep the flags and take A and X */
-    READS_THE_CHOICE = DC_AH | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C,
 };
 
 static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
@@ -268,8 +262,10 @@ static bool menu_and_back(Snes *s, MenuOpener opener)
         return false;
     if (openings[opener].answers_script)
         script_menu_shown(g);
-    if (!call(s, opening_sites[opener].sprites, SPRITE_LISTS, READS_NOTHING) ||
-        !call(s, opening_sites[opener].fade_in, FADE_IN, READS_NOTHING))
+    if (!field_run(s, opening_sites[opener].sprites, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, READS_NOTHING,
+                   field_build_the_sprites_afresh, on_the_field_page(s, false)) ||
+        !field_run(s, opening_sites[opener].fade_in, FIELD_FADE_IN_AFTER_A_MENU_ENTRY, READS_NOTHING,
+                   field_fade_in_after_a_menu, on_the_field_page(s, false)))
         return false;
     start_play_clock(g);
     return true;
@@ -343,10 +339,10 @@ enum { SCRIPT_KEEP = 0xC00CED, SCRIPT_MENUS = 0xC00D18, SCRIPT_SET_UP = 0xC00D2D
 /* The menu a script asked for: the field fades out as the leader walks on,
  * keeps its places, and opens it; after it the field is set up again and the
  * script's wait is over, and it fades back in. The Start assignment's menu goes
- * on as the Start assignment's does. False where the port stopped: at a call
- * that didn't come back as the field runs, or at the fade in, which the
- * original jumps to and which returns to the main loop itself. */
-enum { FADE_IN_TAIL = 0xC02824, FADE_IN_READS = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+ * on as the Start assignment's does. False either way: the port stopped at a
+ * call that didn't come back as the field runs, or the fade in, which the
+ * original jumps to, has returned to the main loop itself. */
+enum { FADE_IN_TAIL = FIELD_FADE_IN_AFTER_A_MENU_ENTRY, FADE_IN_READS = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 bool field_open_script_menu(Snes *s)
 {
@@ -366,16 +362,18 @@ bool field_open_script_menu(Snes *s)
     display_go_dark(s);
     take_the_interrupts_back(g);
     if (!set_the_field_up(s, SCRIPT_SET_UP) ||
-        !call(s, SCRIPT_SPRITES, SPRITE_LISTS, READS_NOTHING))
+        !field_run(s, SCRIPT_SPRITES, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, READS_NOTHING,
+                   field_build_the_sprites_afresh, on_the_field_page(s, false)))
         return false;
     script_menu_shown(g);
-    m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
+    if (!field_go_on_with(s, FADE_IN_TAIL, field_fade_in_after_a_menu))
+        m_stop_at_own(s, FADE_IN_TAIL, FADE_IN_READS);
     return false;
 }
 
 /* ---- The entries ------------------------------------------------------------------------------ */
 
-enum { PRESS_START_CALL = 0xC0191D, CHOICE_CALL = 0xC0192B };
+enum { PRESS_START_CALL = 0xC0191D };
 
 // $C0:18D9
 /* The field's page, 8-bit A, 16-bit X. What it leaves in the registers is the
@@ -390,11 +388,8 @@ void field_pause_and_menus(Snes *s)
         !field_run(s, PRESS_START_CALL, PRESS_START, READS_NOTHING, field_press_start, on_the_field_page(s, false)))
         return;
     if (!assigned_pressed(g, ASSIGNED_MENU)) {
-        if (dialog_choice_waiting(g)) {
-            m_set_a8(s, dialog_choice_active(g));
-            if (!call(s, CHOICE_CALL, CHOICE, READS_THE_CHOICE))
-                return;
-        }
+        if (dialog_choice_waiting(g))
+            TIMED_AS(g, FIELD_TAKE_CHOICE_BUTTONS_ENTRY, field_take_choice_buttons(g, dialog_choice_active(g)));
     } else if (menus_may_open(g) && !open_menu(s, OPENED_BY_MENU_BUTTON)) {
         return;
     }

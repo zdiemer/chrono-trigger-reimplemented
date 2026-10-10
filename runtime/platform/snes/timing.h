@@ -89,6 +89,15 @@ static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
 
 PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
 
+/* The original's routine waits on the vblank's flag and then turns the
+ * handlers on itself. */
+PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
+{
+    (void)sources;
+    (void)line;
+    pf_snes_call_wait(pf, o);
+}
+
 /* The battle's wait for a line ($CD:3B82) takes the line in A. */
 PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
 {

@@ -202,11 +202,9 @@ typedef struct {
     uint8_t left, right, top, bottom;
 } ScreenEdges;
 
-enum { HALF_PACE = 0x80 };   /* field_bg2_half_scroll */
-
 static bool keeps_own_edges(const GameState *g, unsigned layer)
 {
-    return layer == FIELD_BG2 && (field_bg2_half_scroll(g) & HALF_PACE);
+    return layer == FIELD_BG2 && (field_bg2_half_scroll(g) & BG2_HALF_PACE);
 }
 
 static ScreenEdges screen_edges(const GameState *g, bool own)
@@ -453,6 +451,26 @@ void stream_the_layers(GameState *g)
     TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
 }
 
+// $C0:87F1 (with $C0:8345 for BG1, $C0:8365 and $C0:8385 for BG2, $C0:83A5 for BG3)
+/* The columns right of the view built, and their uploads asked for, with the
+ * layers' places in their tile maps as they are: as a map's screen is set
+ * up or the screen is put back where the party is, the vblank sends them with
+ * the screen's next frame. A layer drawn whole has none; BG2 at half the pace
+ * goes by its own edges. Then the layers' edge runs are worked out. */
+void stream_the_right_columns(GameState *g)
+{
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++) {
+        if (layer != FIELD_BG1 && drawn_whole(g, layer))
+            continue;
+        Line line = line_coming_in(screen_edges(g, keeps_own_edges(g, layer)), SIDE_RIGHT);
+        Staging out = { (uint16_t)(field_staged_line(layer, true) - field_staged_line(FIELD_BG1, false)) };
+        build_line_charged(g, layer, line, &out, ACCESSES_16_COLUMN_ENTRIES);
+        ORIGINAL_EFFECT(leave_port_after(g, out));
+        set_field_layer_upload_flags(g, SIDE_RIGHT, (uint8_t)(field_layer_upload_flags(g, SIDE_RIGHT) | 1u << layer));
+    }
+    TIMED_AS(g, 0xC07F9A, field_find_layer_edges(g));
+}
+
 /* ---- A layer drawn at a map's load ------------------------------------------------------- */
 
 /* A layer drawn at a map's load, into the staging buffers from the first's
@@ -549,15 +567,31 @@ enum { WITHIN_THE_MAPS = 0x3F3F };
  * bottom of 255), are left to the original. */
 enum { STAGED_ROWS = 3 * FIELD_LAYER_STAGING_BYTES / (2 * DRAWN_TILES * ENTRY_BYTES), LAST_ROW = 0xFF };
 
+bool layers_repeat_within_the_maps(const GameState *g)
+{
+    bool ok = true;
+    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
+        ok = ok && (index_mask(g, layer) & ~WITHIN_THE_MAPS) == 0;
+    return ok;
+}
+
+bool layer_drawing_fits(const GameState *g, unsigned layer)
+{
+    if (!layers_repeat_within_the_maps(g))
+        return false;
+    if (layer != FIELD_BG2)
+        return true;
+    ScreenEdges own = screen_edges(g, true);
+    return !keeps_own_edges(g, FIELD_BG2) || drawn_whole(g, FIELD_BG2) ||
+           (own.top <= own.bottom && own.bottom - own.top < STAGED_ROWS && own.bottom != LAST_ROW);
+}
+
 bool field_bg2_drawing_can_run(Snes *s)
 {
-    if (!field_streaming_can_run(s))
+    if (!field_on_layers_page_io_bank(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    ScreenEdges own = screen_edges(g, true);
-    bool ok = !keeps_own_edges(g, FIELD_BG2) || drawn_whole(g, FIELD_BG2) ||
-              (own.top <= own.bottom && own.bottom - own.top < STAGED_ROWS && own.bottom != LAST_ROW);
+    bool ok = layer_drawing_fits(state_of(s), FIELD_BG2);
     vars_peek(false);
     return ok;
 }
@@ -567,10 +601,7 @@ bool field_streaming_can_run(Snes *s)
     if (!field_on_layers_page_io_bank(s))
         return false;
     vars_peek(true);
-    const GameState *g = state_of(s);
-    bool ok = true;
-    for (unsigned layer = 0; layer < FIELD_LAYERS; layer++)
-        ok = ok && (index_mask(g, layer) & ~WITHIN_THE_MAPS) == 0;
+    bool ok = layers_repeat_within_the_maps(state_of(s));
     vars_peek(false);
     return ok;
 }
@@ -593,4 +624,30 @@ void field_draw_bg3_at_the_load(Snes *s)
 {
     draw_layer_at_the_maps_load(state_of(s), FIELD_BG3);
     m_rts(s);
+}
+
+/* The right columns, on the field's page. Its callers end on the frame
+ * wait, after which the original's code reads the registers as the edges'
+ * working out leaves them (field/layers.h). */
+void field_bring_in_the_right_columns(Snes *s)
+{
+    stream_the_right_columns(state_of(s));
+    FieldEdgesLeave left = field_edges_leave(state_of(s));
+    s->cpu.x = left.right_column_start;
+    s->cpu.y = left.row_above;
+    m_set_flag(s, CPU_FLAG_C, left.carry);
+    m_set_flag(s, CPU_FLAG_V, left.overflow);
+    m_rts(s);
+}
+
+/* Its guard: on the field's page, the data bank reaching the registers, and
+ * each layer's map repeating within the map's tables. */
+bool field_right_columns_can_come_in(Snes *s)
+{
+    if (!field_on_page_io_bank(s))
+        return false;
+    vars_peek(true);
+    bool ok = layers_repeat_within_the_maps(state_of(s));
+    vars_peek(false);
+    return ok;
 }

@@ -50,3 +50,29 @@ void field_change_location_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(
 // engine at $FD:C000 with a fresh stack)
 /* Waits on beam position: see wait_for_vblank_pass. */
 void field_restart_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(s, 0x4181, 0x4186); }
+
+// $C0:0B38 (in the screen's setup turning the screen on, $C0:0B28)
+/* Waits on beam position: see wait_for_vblank_pass. The field's handlers
+ * are off here (field/screen_setup.c), so the original's read of the flag
+ * wins; it is the same race all the same where the setup follows a menu
+ * with them on. */
+void field_screen_on_wait_for_vblank_loop(Snes *s) { wait_for_vblank_pass(s, 0x0B38, 0x0B3D); }
+
+// $C0:0B3D
+/* The vblank: the field's vblank handler and the controllers' reading back
+ * on, the line handler at the line the picture ends after, and the CPU
+ * taking interrupts again. It leaves that line in A, as the original does:
+ * what reads A after its return is the original's code past the timing
+ * service, which the analysis can't follow, so it is left whole. */
+enum { FIELD_PICTURE_LAST_LINE = 211 };
+
+void field_turn_the_handlers_on(Snes *s)
+{
+    Platform *pf = m_platform(s);
+    tm_enable_interrupts(pf, PF_AT(0xC00B3F), TM_INT_VBLANK | TM_INT_AUTO_JOYPAD);
+    tm_set_line(pf, PF_AT(0xC00B47), FIELD_PICTURE_LAST_LINE);
+    m_set_flag(s, CPU_FLAG_I, false);
+    s->cpu.a = FIELD_PICTURE_LAST_LINE;
+    m_set_nz16(s, FIELD_PICTURE_LAST_LINE);
+    m_rts(s);
+}

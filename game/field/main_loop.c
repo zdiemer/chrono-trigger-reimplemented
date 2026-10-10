@@ -28,6 +28,7 @@
  * The field's own steps that are ports run as C; the rest are the original's
  * routines, called from the original's calls (field/bridge.h). */
 #include "field/main_loop.h"
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/line_effects.h"
 #include "field/menus.h"
@@ -35,7 +36,10 @@
 #include "field/requests.h"
 #include "field/screen_effects.h"
 #include "field/script_layers.h"
+#include "field/objects_start.h"
+#include "field/screen_setup.h"
 #include "field/sprites.h"
+#include "field/switches.h"
 #include "field/start.h"
 #include "field/walk.h"
 
@@ -104,11 +108,6 @@ enum {
     THE_BOOT_IGNORES = DC_AL | DC_N | DC_V | DC_Z | DC_C,
     MENUS_SERVICES = 0xC28004,       /* the menus' services (menu/party.h), whose time the power-on's is */
     MENUS_SCREENS = 0xC20000,        /* the menus' mode that shows a screen with sprites */
-    SPRITE_LISTS = 0xC0B192,         /* the objects' sprite lists set up */
-    OBJECTS_SET_UP = 0xC056A6,       /* the location's objects started in their scripts */
-    STEPS_FORGOTTEN = 0xC028AA,      /* the switches stepped on in the last location forgotten */
-    FADE_IN = 0xC02848,              /* the screen set up and faded in */
-    DIALOG_WINDOW = 0xC01F87,        /* the dialog window opened or closed a step */
     PALETTE_ANIMATION = 0xFDFFF7,
 };
 
@@ -173,6 +172,7 @@ static void take_the_interrupts(GameState *g)
 /* Where the field's entry and its main loop start; the loop reads A's high
  * byte and the overflow as the last pass, or the field's entry, left them. */
 enum { ENTER = 0xC0005D, MAIN_LOOP = 0xC00097, WAIT_FOR_THE_NEXT_FRAME = 0xC000BA };
+enum { THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
 /* For shadow mode: the sound driver's start is called with the field's
  * page's high byte in A's, which the original sets D through. */
@@ -221,12 +221,13 @@ void field_enter(Snes *s)
     s->cpu.d = FIELD_PAGE;
     if (!field_run(s, 0xC00085, START, READS_NOTHING, field_start, page(s)) ||
         !field_run(s, 0xC00088, FIELD_LOAD_LOCATION_ENTRY, READS_NOTHING, field_load_location, page(s)) ||
-        !bridge_call(s, 0xC0008B, SPRITE_LISTS, READS_NOTHING, page(s)) ||
-        !bridge_call(s, 0xC0008E, OBJECTS_SET_UP, READS_NOTHING, page(s)) ||
-        !bridge_call(s, 0xC00091, STEPS_FORGOTTEN, READS_NOTHING, page(s)) ||
-        !bridge_call(s, 0xC00094, FADE_IN, READS_NOTHING, page(s)))
+        !field_run(s, 0xC0008B, FIELD_BUILD_THE_SPRITES_AFRESH_ENTRY, READS_NOTHING, field_build_the_sprites_afresh,
+                   page(s)) ||
+        !field_run(s, 0xC0008E, FIELD_SET_UP_THE_OBJECTS_ENTRY, READS_NOTHING, field_set_up_the_objects, page(s)) ||
+        !field_run(s, 0xC00091, FIELD_FORGET_THE_STEPS_ENTRY, READS_NOTHING, field_forget_the_steps_entry, page(s)) ||
+        !field_run(s, 0xC00094, FIELD_FADE_IN_ENTRY, READS_NOTHING, field_fade_in, page(s)))
         return;
-    m_stop_at(s, MAIN_LOOP, 0);
+    m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW);
 }
 
 /* The guard: a location the game keeps, its number in the word's low bits
@@ -256,7 +257,7 @@ void field_frame(Snes *s)
         field_run_or_hand_over(s, 0xC000A4, REQUESTS, READS_A_HIGH_AND_THE_OVERFLOW, field_handle_requests, m) &&
         field_run_or_hand_over(s, 0xC000A7, WALK, READS_NOTHING, field_walk_the_leader, m) &&
         field_run_or_hand_over(s, 0xC000AA, CONFIRM, READS_THE_OVERFLOW, field_press_confirm, m) &&
-        bridge_call_long(s, 0xC000AD, DIALOG_WINDOW, READS_THE_OVERFLOW, m) &&
+        field_run_long(s, 0xC000AD, FIELD_DIALOG_WINDOW_STEP_ENTRY, READS_THE_OVERFLOW, field_dialog_window_step_entry, m) &&
         field_run_or_hand_over(s, 0xC000B1, SCREEN_EFFECT, READS_THE_OVERFLOW, field_move_screen_effect_on, m) &&
         field_run_or_hand_over(s, 0xC000B4, SCRIPT_LAYERS, READS_THE_OVERFLOW, field_do_script_layer_work, m) &&
         field_run_or_hand_over(s, 0xC000B7, FIELD_FRAME_WORK_ENTRY, READS_THE_OVERFLOW, field_frame_work, m))

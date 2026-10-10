@@ -16,8 +16,11 @@
  * calls the routines as the original does, with the registers it has saved on
  * the interrupted code's stack. */
 #include "field/field.h"
+#include "core/palette.h"
+#include "charge.h"
 
 #include "field/bridge.h"
+#include "field/dialog_window.h"
 #include "field/display.h"
 #include "field/line_effects.h"
 #include "platform/timing.h"
@@ -42,9 +45,9 @@ static int screen_transition_step(const GameState *g)
 }
 
 /* A map transition (field/field.h, FieldMapMove): a move to a destination,
- * each with its tile map base, or a send of a tile map staged in bank $7E,
- * each the original's routine: BG2's left screen ($C0:7F5D), its right screen
- * ($C0:7F58), a piece of BG3's map ($C0:EC77). */
+ * each with its tile map base, or a send of a tile map staged in bank $7E:
+ * BG2's left screen, its right screen, a piece of BG3's map
+ * (field/display.c). */
 
 /* The first two moves also set BG1's tile map in the line effects' values,
  * two screens wide, from the destination's. */
@@ -70,15 +73,16 @@ static void finish_map_move(GameState *g, FieldMapMove move)
     }
 }
 
-/* A fade the frame asked for: a request with FADE_ONCE is taken once. */
-enum { FADE_ONCE = 0x80 };   /* field_fade_request */
+/* Whether the dialog's text row is to be sent this frame (field/dialog_window.c):
+ * a request to send it once is taken. */
+enum { SEND_ONCE = 0x80 };   /* dialog_text_sending */
 
-static bool fade_asked(GameState *g)
+static bool dialog_text_asked(GameState *g)
 {
-    uint8_t fade = field_fade_request(g);
-    if (fade & FADE_ONCE)
-        set_field_fade_request(g, 0);
-    return fade != 0;
+    uint8_t asked = dialog_text_sending(g);
+    if (asked & SEND_ONCE)
+        set_dialog_text_sending(g, 0);
+    return asked != 0;
 }
 
 /* ---- The display's settings, every vblank ---------------------------------------------- */
@@ -122,12 +126,6 @@ enum { NMI_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
 
 /* The routines the frame's work calls that are still the original's. */
 enum {
-    SEND_STAGED_MAP = 0xC07F62,       /* a map move: the staged tile map to field_transfer_vram */
-    SEND_BG2_LEFT = 0xC07F5D,         /* the staged half screen to BG2's left screen */
-    SEND_BG2_RIGHT = 0xC07F58,        /* the same to its right screen */
-    SEND_BG3_PIECE = 0xC0EC77,
-    FADE_STEP = 0xC06ECB,
-    UPLOAD_PALETTE = 0xC0712E,        /* core/palette.c's */
     MENUS_FRAME = 0xC28002,           /* the menus' and the controller's per-frame routine */
 };
 
@@ -160,15 +158,18 @@ static void finish_frame(Snes *s)
     set_field_frame_pending(g, 0);
 }
 
-/* The screen transition's jobs, one for each bit of field_screen_transition,
- * all the original's, and where the handler calls each. */
-static bool run_screen_transition(Snes *s, int step)
+/* The screen transition's jobs, one for each bit of field_screen_transition:
+ * the dialog window's looks sent, a vblank each, after a battle
+ * (field/dialog_window.c). */
+static void run_screen_transition(GameState *g, Platform *pf, int step)
 {
-    static const uint32_t transition_sites[SCREEN_TRANSITION_STEPS] = { 0xC0EA9E, 0xC0EAAC, 0xC0EABA, 0xC0EAC8 };
-    static const uint32_t routines[SCREEN_TRANSITION_STEPS] = { 0xC06EB0, 0xC06EF1, 0xC06E5C, 0xC06F5E };
-    GameState *g = state_of(s);
     set_field_screen_transition(g, (uint8_t)(field_screen_transition(g) & ~(1u << step)));
-    return call(s, transition_sites[step], routines[step], FIELD_PAGE);
+    switch (step) {
+    case 0: TIMED_AS(g, FIELD_SEND_WINDOW_FRAME_ENTRY, field_send_the_window_frame(g, pf)); break;
+    case 1: TIMED_AS(g, FIELD_SEND_TEXT_AREA_ENTRY, field_send_the_text_area(g, pf)); break;
+    case 2: TIMED_AS(g, FIELD_SEND_WINDOW_DESIGN_ENTRY, field_send_the_window_design(g, pf)); break;
+    default: TIMED_AS(g, FIELD_SEND_CHOICE_POINTER_ENTRY, field_send_the_choice_pointer(g, pf)); break;
+    }
 }
 
 /* A move to a map (the frame then ends with it), or a step of the transition.
@@ -176,13 +177,11 @@ static bool run_screen_transition(Snes *s, int step)
  * ended with it. */
 static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
 {
-    static const uint32_t move_sites[FIELD_MAP_MOVES] = { 0xC0EAE1, 0xC0EB01, 0xC0EB21, 0xC0EB38 };
     GameState *g = state_of(s);
     *finished = true;
     if (asked >= 1 && asked <= FIELD_MAP_MOVES) {
         start_map_move(g, (FieldMapMove)asked);
-        if (!call(s, move_sites[asked - 1], SEND_STAGED_MAP, FIELD_PAGE))
-            return false;
+        NATIVE_TIME_AS(s, FIELD_SEND_STAGED_SCREEN_ENTRY, field_send_staged_layer(g, m_platform(s), false));
         finish_map_move(g, (FieldMapMove)asked);
         finish_frame(s);
         return true;
@@ -192,18 +191,22 @@ static bool run_map_transition(Snes *s, uint8_t asked, bool *finished)
      * work with it. */
     static const struct {
         uint8_t asked;
-        uint32_t site, routine;
+        uint32_t routine;
         bool ends_the_frame;
     } sends[] = {
-        { FIELD_SEND_BG2_LEFT, 0xC0EB4A, SEND_BG2_LEFT, true },
-        { FIELD_SEND_BG2_RIGHT, 0xC0EB5E, SEND_BG2_RIGHT, true },
-        { FIELD_SEND_BG3_PIECE, 0xC0EB72, SEND_BG3_PIECE, false },
+        { FIELD_SEND_BG2_LEFT, FIELD_SEND_STAGED_BG2_LEFT_ENTRY, true },
+        { FIELD_SEND_BG2_RIGHT, FIELD_SEND_STAGED_BG2_RIGHT_ENTRY, true },
+        { FIELD_SEND_BG3_PIECE, FIELD_SEND_BG3_PIECE_ENTRY, false },
     };
     for (unsigned k = 0; k < sizeof sends / sizeof sends[0]; k++) {
         if (!(asked & sends[k].asked))
             continue;
-        if (!call(s, sends[k].site, sends[k].routine, FIELD_PAGE))
-            return false;
+        int was = native_time_as(s, sends[k].routine);
+        if (sends[k].asked == FIELD_SEND_BG3_PIECE)
+            field_send_bg3_piece(g, m_platform(s));
+        else
+            field_send_staged_bg2_screen(g, m_platform(s), sends[k].asked == FIELD_SEND_BG2_RIGHT);
+        native_time_end(s, was);
         set_field_map_transition(g, (uint8_t)(field_map_transition(g) & ~sends[k].asked));
         if (sends[k].ends_the_frame) {
             finish_frame(s);
@@ -263,8 +266,8 @@ static bool frame_work(Snes *s)
     s->cpu.d = FIELD_PAGE;
     if (field_screen_transition(g) != 0) {
         int step = screen_transition_step(g);
-        if (step >= 0 && !run_screen_transition(s, step))
-            return false;
+        if (step >= 0)
+            run_screen_transition(g, m_platform(s), step);
     } else {
         uint8_t asked = field_map_transition(g);
         if (asked != 0) {
@@ -274,11 +277,10 @@ static bool frame_work(Snes *s)
             if (finished)
                 return true;
         }
-        if (fade_asked(g) && !call(s, 0xC0EB81, FADE_STEP, FIELD_PAGE))
-            return false;
+        if (dialog_text_asked(g))
+            NATIVE_TIME_AS(s, FIELD_SEND_DIALOG_TEXT_ENTRY, field_send_dialog_text(g, m_platform(s)));
     }
-    if (!call(s, 0xC0EB86, UPLOAD_PALETTE, FIELD_PAGE))
-        return false;
+    NATIVE_TIME_AS(s, PALETTE_UPLOAD_ENTRY, palette_send_working(m_platform(s)));
     NATIVE_TIME_AS(s, SEND_SPRITE_TABLE, field_upload_sprite_table(m_platform(s)));
     hand_on_queue_y(s);
     NATIVE_TIME_AS(s, SEND_QUEUED_TRANSFERS, field_upload_queued_transfers(g, m_platform(s)));

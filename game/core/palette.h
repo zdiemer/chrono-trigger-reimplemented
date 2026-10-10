@@ -4,6 +4,7 @@
 
 #include <stdbool.h>
 
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -60,6 +61,10 @@ bool palette_fade_can_run(Snes *s);
 bool palette_fade_loop_can_run(Snes *s);
 
 void palette_upload(Snes *s);
+/* The working palette sent to CGRAM whole ($C0:712E), every mode's vblank
+ * work. */
+void palette_send_working(Platform *pf);
+enum { PALETTE_UPLOAD_ENTRY = 0xC0712E };
 bool palette_bank_is_io(Snes *s);
 
 #endif

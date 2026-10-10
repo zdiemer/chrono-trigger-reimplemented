@@ -9,6 +9,7 @@
 /* field/frames.c */
 void field_draw_next_frame(Snes *s);
 bool field_frames_can_draw(Snes *s);
+enum { FIELD_DRAW_NEXT_FRAME_ENTRY = 0xC0CAD9 };
 /* The frame queue drawn through, while the frame has time. */
 void field_draw_queued_frames(Snes *s);
 bool field_queued_frames_can_be_drawn(Snes *s);

@@ -44,9 +44,6 @@ static inline uint8_t field_starting_color_math(void)
                                              .sub_screen = true });
 }
 
-/* The window whose corners are marked (field_window_tile_slot), or none. */
-enum { FIELD_NO_WINDOW_MARKED = 0x80 };
-
 /* The map's levels, as a tile's part gives one; the party starts on the
  * first. */
 typedef enum { NO_LEVEL = 0, FIRST_LEVEL = 1, STAIRS = 3 } MapLevel;
@@ -186,6 +183,16 @@ static inline void mark_dialog_opened_by_the_field(GameState *g)
 {
     field_mode_flag(g, FIELD_DIALOG_OPENED_BY_THE_FIELD, true);
 }
+static inline bool dialog_opened_by_the_field(const GameState *g)
+{
+    return (field_mode_flags(g) & FIELD_DIALOG_OPENED_BY_THE_FIELD) != 0;
+}
+
+/* The play clock stops while the field is put aside for a menu, and runs
+ * again once it is faded back in (play_time_stopped). */
+enum { PLAY_CLOCK_STOPPED = 0xFF, PLAY_CLOCK_RUNS = 0x00 };
+static inline void stop_play_clock(GameState *g) { set_play_time_stopped(g, PLAY_CLOCK_STOPPED); }
+static inline void start_play_clock(GameState *g) { set_play_time_stopped(g, PLAY_CLOCK_RUNS); }
 
 /* Whether the player has the party (field_player_control): only then does
  * the pad walk the leader, the confirm button talk and open chests, and Start
@@ -204,11 +211,6 @@ static inline void set_leader_contact(GameState *g, FieldLink object)
     set_field_leader_contact_high(g, 0);
 }
 static inline void leader_loses_contact(GameState *g) { set_field_leader_contact(g, field_link_byte(field_no_link())); }
-
-/* dialog_state: a dialog a script asked for, and the dialog ended from
- * outside it: the object a script's dialog waits on left view, or the chest
- * whose message the field opened left the screen. */
-enum { DIALOG_ENDS = 0x0D };
 
 /* dialog_choice_active: where a dialog with choices is (event/dialog.c):
  * none open, its text still showing, the player picking an answer, or one
@@ -354,6 +356,10 @@ void field_nmi(Snes *s);
 void field_wait_for_frame_loop(Snes *s);
 void field_change_location_wait_for_vblank_loop(Snes *s);
 void field_restart_wait_for_vblank_loop(Snes *s);
+/* The screen's setup turning the screen back on: one pass of its wait for
+ * the vblank ($C0:0B38), and the handlers back on after it ($C0:0B3D). */
+void field_screen_on_wait_for_vblank_loop(Snes *s);
+void field_turn_the_handlers_on(Snes *s);
 
 /* field/motion.c */
 void field_direction_to_target(Snes *s);

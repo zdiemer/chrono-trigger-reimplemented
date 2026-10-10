@@ -63,9 +63,9 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 14% left (86% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 82% (212.6 KiB run by the 28 movies; battle 97%, field and events 86%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 38.6 KiB, 199 M instructions (handback 25.8 KiB, unported 13.7 KiB, refused 2.3 KiB); shipping mode with the routes 36.8 KiB, 431 M (the long routes); 23 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: an action shown") | 0, no refusal, the native shape passing |
+| ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 84% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 71%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (28 movies): 33.1 KiB, 187 M instructions (handback 20.6 KiB, unported 10.8 KiB, refused 2.2 KiB); shipping mode with the routes 31.4 KiB, 414 M (the long routes); 21 entries refuse in real play; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "Phase 3, battle: an action shown") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -79,7 +79,7 @@ time: a call-out, a stop, a refused guard. Of the 49.7 KiB real play still runs
 as the original, 25 KiB is code burndown counts as ported -- battle's
 animation commands and call-outs (9.1 KiB), the menus and overworld (6.6 KiB),
 the battle frame work's renderer pieces and waits (2.4 KiB) among it. So a
-fully native game is two pieces of work, not one: porting the 14% burndown
+fully native game is two pieces of work, not one: porting the 12% burndown
 lists, and retiring the fallbacks inside code it counts as done, which is
 about two thirds as much again. Native coverage is the headline; burndown says
 how much has a port. The second piece is mostly callees a port calls out to,
@@ -153,15 +153,12 @@ play still runs as the original (`tools/fallbacks.py --by routine`), not by
 which bank has the most unported bytes: a handback is a port calling code that
 isn't ported yet, so retiring it is porting its callee. In order:
 
-1. **The field** (86% native): the screen's setup and fade in, the map's
-   unpacking, the objects' setup and the dialog window -- its largest
-   handbacks and its last unported code at once.
-2. **The menus and the overworld** (71%, the lowest): the vehicles, and the
+1. **The menus and the overworld** (71%, the lowest): the vehicles, and the
    object scripts' handbacks (`$C2:0553`, `$C2:1836`).
-3. **The refusals in real play**, as one batch (TODO.md, "Refusals in real
+2. **The refusals in real play**, as one batch (TODO.md, "Refusals in real
    play").
-4. **The scene program**, its unported modes after movies reach them.
-5. **The battle's frame work** (75%): its loads and fills (`$CD:107D`,
+3. **The scene program**, its unported modes after movies reach them.
+4. **The battle's frame work** (75%): its loads and fills (`$CD:107D`,
    `$CD:1061`, `$CD:1052`, and the loads behind `$CD:0015`, `$CD:002A`,
    `$CD:0018`), now its largest handbacks; they are work, not waits on the
    display.
@@ -218,7 +215,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 270 files, 117 of 79,339 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 273 files, 117 of 81,491 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -265,24 +262,24 @@ Phase 3a has brought every existing port but one to the bar, so a conversion
 here only has to hold them there, which the gate's ratchets do.
 
 Where it stands, from `python3 tools/burndown.py` (an estimate; the tool's
-docstring says which way it is wrong). **14% of the code is still generated.**
+docstring says which way it is wrong). **12% of the code is still generated.**
 
 | Subsystem | Code | Ported | of it inlined | Left | Entries |
 |---|--:|--:|--:|--:|--:|
-| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 23.1K | 0% | 412 |
-| field engine, events (`$C0`) | 59.4K | 52.2K | 11.7K | 12% | 349 |
-| menus, text, overworld (`$C2`) | 59.1K | 46.1K | 12.2K | 22% | 462 |
+| battle (`$C1`, `$CE`) | 63.9K | 63.9K | 17.0K | 0% | 436 |
+| field engine, events (`$C0`) | 59.4K | 57.5K | 14.0K | 3% | 384 |
+| menus, text, overworld (`$C2`) | 59.1K | 46.3K | 12.2K | 22% | 467 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
-| battle frame work (`$CD`) | 15.4K | 14.5K | 6.1K | 6% | 184 |
-| field graphics (`$FD`) | 15.1K | 11.8K | 0.7K | 22% | 86 |
-| battle sprites (`$CF`) | 6.8K | 6.8K | 0.4K | 0% | 44 |
+| battle frame work (`$CD`) | 15.4K | 14.4K | 6.0K | 6% | 185 |
+| field graphics (`$FD`) | 15.1K | 11.8K | 0.5K | 22% | 87 |
+| battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 45 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
-| battle setup (`$CC`) | 4.8K | 4.8K | 0.3K | 0% | 9 |
+| battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
 | scene engine (`$C3`) | 3.8K | 3.6K | 0.9K | 7% | 28 |
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
-| **total** | **266.5K** | **229.6K** | **59.6K** | **14%** | **1789** |
+| **total** | **266.5K** | **235.0K** | **55.3K** | **12%** | **1858** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
 (RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
@@ -483,17 +480,14 @@ The equipment screen's preview of an item's figures (`$C2:A5C3`,
 after the list's move returns, which leaves them as none of its paths work
 out yet (TODO.md).
 
-**`$C0`: the field and events**, 12% left after sixteen chunks, and all of
-it routines the ports call out to. **Next** is the screen's setup and fade in
-(`$C0:2824`-`$C0:2C40`, with `$C0:0A50` and `$C0:0B28`, whose wait on the
-vblank's flag is a `tm_wait_frame`; the window tile maps `$C0:29F7`/`$2B78`
-and the transfers `$C0:6E5C`-`$6F5E` it and the vblank's screen jobs run),
-then the objects' setup at a map's start (`$C0:56A6`) with the map's
-unpacking (`$C0:A33B`, `$C0:7399`, `$C0:A66B`), the dialog window's opening
-(`$C0:1F24`), the sprite lists (`$C0:B192`), a choice's buttons
-(`$C0:1ADF`) and the sprite blocks objects take coming into view
-(`$C0:6FBA`). Every event command has a row; event's bridges still call the
-unpacker (`$C3:0002`, TODO.md).
+**`$C0`: the field and events**, 3% left after seventeen chunks, and 98% of
+what real play runs of it native. What is left is the map's own script's
+start (`$C0:595C`) and the script's unpacking (`$C0:56D4`), which the
+objects' setup and the loadings call out to, the switch's sound
+(`$C0:1B90`), and waits the timing service takes over where their callers
+are ports (TODO.md, "Frame waits still made on the machine"). Every event
+command has a row; event's bridges still call the unpacker (`$C3:0002`,
+TODO.md).
 
 **`$7E`: the scene program**, the program the field and the game over
 decompress to `$7E:3000` (the title, the attract sequence, the jet bike race

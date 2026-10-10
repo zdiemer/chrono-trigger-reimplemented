@@ -10,11 +10,16 @@
  *
  * Objects that only matter while on screen (a role of their own) are simply
  * marked in view or not by the screen itself. */
+#include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/object.h"
 #include "field/palettes.h"
+#include "field/cast.h"
+#include "field/sprites.h"
 
 #include "charge.h"
+#include "cpu_io.h"
+#include "ram.h"
 #include "field/bridge.h"
 #include "field/scratch.h"
 #include "port/machine.h"
@@ -133,12 +138,65 @@ static void come_into_view(GameState *g, FieldObject obj)
     object_forget_frame_drawn(g, obj);
 }
 
+static bool take_what_it_needs(GameState *g, FieldObject obj);
+
+/* ---- The screen's start ------------------------------------------------------------------- */
+
+// $C0:A7E9
+/* A map's screen starts with every object out of view, no frame of its
+ * drawn. (The original writes the two bytes of each through the work RAM
+ * port, whose cursor it leaves past the last.) */
+static void leave_the_cursor_past(GameState *g, unsigned objects)
+{
+    enum { WORK_RAM_LOWER_BANK = 0 };
+    hw_port_seek(g, (uint16_t)(RAM_ABS(RAM_FIELD_OBJECT_IN_VIEW) + objects * 2), WORK_RAM_LOWER_BANK);
+}
+
+void objects_all_out_of_view(GameState *g)
+{
+    unsigned objects = event_object_count(g);
+    for (FieldObject obj = 0; obj < objects; obj++) {
+        object_set_in_view(g, obj, false);
+        object_forget_frame_drawn(g, obj);
+    }
+    ORIGINAL_EFFECT(leave_the_cursor_past(g, objects));
+}
+
+/* The window an object is in view in at the screen's start: the screen
+ * widened four tiles to either side and five below, held at the map's top
+ * and left (an edge past the middle of the map counts as off its top or
+ * left, as the original's signed test has it); unlike the view's window as
+ * the screen moves, nothing above. */
+static ViewWindow start_window(const GameState *g)
+{
+    uint8_t left = (uint8_t)(field_screen_left(g) - WIDER_ACROSS), top = field_screen_top(g);
+    return (ViewWindow){ (int8_t)left < 0 ? 0 : left, (uint8_t)(field_screen_right(g) + WIDER_ACROSS),
+                         (int8_t)top < 0 ? 0 : top, (uint8_t)(field_screen_bottom(g) + WIDER_BELOW) };
+}
+
+// $C0:B127
+/* At a map's screen's start, an object that shows comes into view where it
+ * is in the start's window, taking its palette and its block as it does
+ * whenever it comes into view. True where it did. */
+bool object_in_view_at_the_start(GameState *g, FieldObject obj)
+{
+    if (!object_can_be_seen(g, obj))
+        return false;
+    ViewWindow w = start_window(g);
+    ORIGINAL_EFFECT(leave_window(g, w));
+    if (!in_window(g, w, obj))
+        return false;
+    come_into_view(g, obj);
+    (void)take_what_it_needs(g, obj);
+    return true;
+}
+
 /* Left view: a dialog waiting on the object ends, unless the dialog box has
  * its place. */
 static void after_leaving_view(GameState *g, FieldObject obj)
 {
     if (event_object_wait_dialog(g, obj) != 0 && dialog_box_position(g) == 0)
-        set_dialog_state(g, DIALOG_ENDS);
+        dialog_end(g);
 }
 
 // $C0:A947
@@ -158,6 +216,26 @@ static bool check_on_screen(GameState *g, FieldObject obj)
     return inside;
 }
 
+/* Coming into view, the object takes its palette slot and its block of
+ * sprite tiles (field/palettes.c, field/cast.c) and joins its row; leaving,
+ * it lets go of its frame areas, its slot and its block, and leaves its row.
+ * True where it took colours or a block: either leaves the overflow clear,
+ * which the original's callers read where nothing after it sets one. */
+static bool take_what_it_needs(GameState *g, FieldObject obj)
+{
+    bool coloured, blocked;
+    TIMED_AS(g, FIELD_TAKE_PALETTE_ENTRY, coloured = object_take_palette(g, obj));
+    TIMED_AS(g, FIELD_TAKE_SPRITE_BLOCK_ENTRY, blocked = object_take_sprite_block(g, obj));
+    return coloured || blocked;
+}
+
+static void give_up_what_it_had(GameState *g, FieldObject obj)
+{
+    TIMED_AS(g, FIELD_RELEASE_FRAME_AREAS_ENTRY, sprites_release_frame_areas(g, obj));
+    TIMED_AS(g, FIELD_GIVE_UP_PALETTE_ENTRY, object_give_up_palette(g, obj));
+    TIMED_AS(g, FIELD_GIVE_UP_SPRITE_BLOCK_ENTRY, object_give_up_sprite_block(g, obj));
+}
+
 /* ---- Where it meets the original ---------------------------------------------------------- */
 
 /* The overflow of the window's lower edge's sum, which the callers read where
@@ -167,48 +245,18 @@ static bool bottom_overflows(const GameState *g, uint8_t by)
     return field_add_overflows8(field_screen_bottom(g), by);
 }
 
-/* An object coming into view is given a palette and a block of sprite records
- * by the original's routines, each by the object's role, and joins its row;
- * leaving, it gives back its slots in the frame builder, its palette (as C,
- * field/palettes.c) and its sprite records, and leaves its row. The field
- * calls them in turn, going on
- * where each came back with the machine as it runs, and stopping at the
- * call's return otherwise. None of them reads the registers it is entered
- * with but the overflow. */
-enum {
-    GIVE_PALETTE = 0xC07170,          /* a palette slot (of the eight at $0B80), its colors loaded */
-    GIVE_SPRITE_RECORDS = 0xC06F9A,   /* a block of sprite records, for the roles that need one */
-    FREE_FRAME_SLOTS = 0xC0EA42,      /* its slots among the frame builder's four */
-    FREE_SPRITE_RECORDS = 0xC07056,
-};
-enum { VIEW_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
+/* The rows' step (field/object_update.c) as C, timed as the routine it is;
+ * where the rows' links are ones its entry's guard would turn away, the
+ * entry is called, and the original runs it. Nothing it is entered with is
+ * read but the overflow. */
+enum { ROWS_CALL_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-static bool call_out(Snes *s, uint32_t site, uint32_t routine)
-{
-    return bridge_call(s, site, routine, VIEW_CALL_DONT_CARE, on_the_field_page(s, true));
-}
-
-/* The current object joins or leaves its row (field/object_update.c), run
- * as C and timed as the routine it is; where the rows' links are ones its
- * entry's guard would turn away, the entry is called, and the original runs
- * it. */
 static bool rows_step(Snes *s, uint32_t site, FieldObject obj, bool join)
 {
     if (field_rows_step_as_c(s, obj, join))
         return true;
-    return join ? call_out(s, site, FIELD_JOIN_ROW_ENTRY) : call_out(s, site, FIELD_LEAVE_ROW_ENTRY);
-}
-
-/* Its palette slot given up (field/palettes.c) as C, timed as the routine it
- * is; where the slot or its sharers are ones the tables don't hold, the entry
- * is called, and the original runs it. */
-static bool give_up_palette(Snes *s, uint32_t site, FieldObject obj)
-{
-    GameState *g = state_of(s);
-    if (!object_palette_links_in_the_tables(g, obj))
-        return call_out(s, site, FIELD_GIVE_UP_PALETTE_ENTRY);
-    TIMED_AS(g, FIELD_GIVE_UP_PALETTE_ENTRY, object_give_up_palette(g, obj));
-    return true;
+    return bridge_call(s, site, join ? FIELD_JOIN_ROW_ENTRY : FIELD_LEAVE_ROW_ENTRY, ROWS_CALL_DONT_CARE,
+                       on_the_field_page(s, true));
 }
 
 bool field_view_changes(const GameState *g, unsigned obj)
@@ -216,9 +264,20 @@ bool field_view_changes(const GameState *g, unsigned obj)
     return belongs_in_view(g, (FieldObject)obj) != object_in_view(g, (FieldObject)obj);
 }
 
+/* Whether what coming into view or leaving it reads of the tables is in
+ * them: the palette slots it looks at, its palette's sharers, its kind and
+ * its block (the view's guard). */
+bool field_view_change_in_the_tables(const GameState *g, FieldObject obj)
+{
+    if (object_in_view(g, obj))
+        return object_palette_links_in_the_tables(g, obj) && object_sprite_block_in_the_tables(g, obj);
+    ObjectRole role = object_role(g, obj);
+    return object_takes_a_palette_the_tables_hold(g, obj) && (role.disabled || role.kind <= ROLE_LEFT_ALONE);
+}
+
 // $C0:A88D
 /* The carry says whether the object is in view. False where the bridge
- * stopped. The object is the current one, which the routines it calls read. */
+ * stopped. The object is the current one, which the steps read. */
 bool field_update_visibility(Snes *s, FieldObject obj)
 {
     GameState *g = state_of(s);
@@ -231,8 +290,9 @@ bool field_update_visibility(Snes *s, FieldObject obj)
     if (inside) {
         if (!was_in_view) {
             come_into_view(g, obj);
-            if (!call_out(s, 0xC0A905, GIVE_PALETTE) || !call_out(s, 0xC0A908, GIVE_SPRITE_RECORDS) ||
-                !rows_step(s, 0xC0A90B, obj, true))
+            if (take_what_it_needs(g, obj))
+                m_set_flag(s, CPU_FLAG_V, false);
+            if (!rows_step(s, 0xC0A90B, obj, true))
                 return false;
         }
         m_set_flag(s, CPU_FLAG_C, true);
@@ -240,14 +300,28 @@ bool field_update_visibility(Snes *s, FieldObject obj)
     }
     if (was_in_view) {
         object_set_in_view(g, obj, false);
-        if (!call_out(s, 0xC0A918, FREE_FRAME_SLOTS) || !give_up_palette(s, 0xC0A91B, obj) ||
-            !call_out(s, 0xC0A91E, FREE_SPRITE_RECORDS) || !rows_step(s, 0xC0A921, obj, false))
+        give_up_what_it_had(g, obj);
+        if (!rows_step(s, 0xC0A921, obj, false))
             return false;
         after_leaving_view(g, obj);
     }
     object_hurry_animation(g, obj);
     m_set_flag(s, CPU_FLAG_C, false);
     return true;
+}
+
+/* The view's guard: the current object one the tables hold, the data bank
+ * reaching low RAM, and what its coming or going reads in the tables. */
+bool field_view_can_run(Snes *s)
+{
+    if (!field_current_object_low_bank(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    FieldObject obj = (FieldObject)field_current_object_slot(s);
+    bool ok = !field_view_changes(g, obj) || field_view_change_in_the_tables(g, obj);
+    vars_peek(false);
+    return ok;
 }
 
 /* The current object's (8-bit X). */

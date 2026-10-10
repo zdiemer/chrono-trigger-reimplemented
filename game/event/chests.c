@@ -24,13 +24,11 @@
 #include "field/field.h"
 #include "field/field_data.h"
 #include "field/object.h"
+#include "field/layers.h"
 #include "field/scratch.h"
 
 /* A tile's byte in the walkable table. */
 enum { WALKABLE_BIT = 0x80, CHEST_INDEX_BITS = 0x7F };
-
-/* Where field_chests says the game's list starts, and the location's run. */
-enum { THE_GAMES_CHESTS = 0, THE_LOCATIONS_CHESTS = 1 };
 
 /* What a chest holds, by its contents word: gold (halved, in the bits below
  * this one), nothing of its own, or else the item in the low nine bits. */
@@ -114,6 +112,12 @@ static StoryOffset chest_flag_byte(uint16_t number)
 }
 static uint8_t chest_flag_bit(const GameState *g, uint16_t number) { return bit_mask(g, (uint8_t)(number & 7)); }
 
+/* A chest's number among the game's, from where its record is. */
+static uint16_t chest_number(const GameState *g, uint16_t place)
+{
+    return (uint16_t)((uint16_t)(place - field_games_chests(g)) / FIELD_CHEST_BYTES);
+}
+
 static bool chest_opened(const GameState *g, uint16_t number)
 {
     return (story_byte(g, chest_flag_byte(number)) & chest_flag_bit(g, number)) != 0;
@@ -173,10 +177,10 @@ static ChestBefore chest_before_the_leader(const GameState *g)
     if (!c.wall.found)
         return c;
     c.index = c.wall.walkable & CHEST_INDEX_BITS;
-    c.place = field_chest_place(field_chests(g, THE_LOCATIONS_CHESTS), c.index);
+    c.place = field_chest_place(field_location_chests(g), c.index);
     c.chest = field_chest_at(g, c.place);
     c.there = c.chest.tile == tile_number(c.wall.row, c.wall.column);
-    c.number = (uint16_t)((uint16_t)(c.place - field_chests(g, THE_GAMES_CHESTS)) / FIELD_CHEST_BYTES);
+    c.number = chest_number(g, c.place);
     return c;
 }
 
@@ -202,7 +206,7 @@ ChestGift open_the_chest_before_the_leader(GameState *g)
     ORIGINAL_EFFECT(keep_word(g, KEPT_SECOND, tile_number(c.wall.row, c.wall.column)));
     if (!c.wall.found)
         return nothing;
-    ORIGINAL_EFFECT(leave_chest_lookup(c.index, field_chests(g, THE_LOCATIONS_CHESTS)));
+    ORIGINAL_EFFECT(leave_chest_lookup(c.index, field_location_chests(g)));
     if (!c.there)
         return nothing;
     uint16_t number = c.number;
@@ -221,4 +225,89 @@ ChestGift open_the_chest_before_the_leader(GameState *g)
 void announce_the_gift(GameState *g, ChestGift gift)
 {
     field_message_opens(g, the_leader(g), gift.kind == GIFT_ITEM ? MESSAGE_ITEM : MESSAGE_GOLD);
+}
+
+/* ---- The map's chests, marked ----------------------------------------------------------- */
+
+/* For the original's code and shadow mode: where it was in its lookups, in
+ * cells of the layers' page -- the last location whose run it looked up
+ * (doubled), or else the last chest's flag bit and its number's high byte;
+ * the last chest's place and how many it marked; and where the run ends. */
+static void leave_marking(GameState *g, const uint16_t *location_twice, const uint16_t *last_place, uint8_t marked,
+                          bool counted, uint16_t end)
+{
+    if (last_place) {
+        uint16_t number = chest_number(g, *last_place);
+        original_layer_cell8(g, 0x50, chest_flag_bit(g, number));
+        original_layer_cell8(g, 0x51, (uint8_t)(number >> 8));
+        original_layer_cell16(g, 0x52, *last_place);
+    } else if (location_twice) {
+        original_layer_cell16(g, 0x50, *location_twice);
+    }
+    if (counted)
+        original_layer_cell16(g, 0x54, marked);
+    original_layer_cell16(g, 0x56, end);
+}
+
+/* A location's run whose first chest stands on tile 0 is a pointer: what it
+ * holds names the location whose run to take. A run of a run of pointers the
+ * game's data never makes; the search gives up after a location's worth. */
+enum { NO_TILE = 0, MOST_POINTERS = 0x200 };
+
+/* An opened chest shows open: its BG1 tile the next one, where the tile
+ * takes BG1's look from the looks' second half (the changing tiles'). */
+enum { CHEST_AT_THE_SET_END_TILE = 0xFE, CHEST_FIRST_OF_THE_CHANGING_TILES_TILE = 0xE0 };
+
+static void show_open(GameState *g, MapPlace p)
+{
+    if (!(field_tile_properties(g, p.row, p.column) & BG1_TILE_SET_HALF))
+        return;
+    uint8_t tile = field_layer_maps(g, FIELD_BG1, p.row, p.column);
+    if (tile == CHEST_AT_THE_SET_END_TILE || tile == CHEST_FIRST_OF_THE_CHANGING_TILES_TILE)
+        set_field_layer_maps(g, FIELD_BG1, p.row, p.column, (uint8_t)(tile + 1));
+}
+
+enum { WALKABLE_TABLE_ROWS = 64, WALKABLE_TABLE_COLUMNS = 64 };
+
+// $C0:A712 (with $C0:A7BC, a chest's flag)
+/* As a map's screen is set up, every tile is one the leader may walk onto
+ * but the location's chests', which hold each chest's index; and each chest
+ * opened before shows open. */
+void chests_mark_the_map(GameState *g)
+{
+    for (unsigned row = 0; row < WALKABLE_TABLE_ROWS; row++)
+        for (unsigned column = 0; column < WALKABLE_TABLE_COLUMNS; column++)
+            set_field_tile_walkable(g, row, column, WALKABLE_BIT);
+    set_field_games_chests(g, field_games_chests_start(g));
+    uint16_t location_twice = (uint16_t)((location_id(g) & LOCATION_NUMBER_BITS) << 1), looked = 0;
+    bool looked_any = false;
+    FieldChestRun run = field_location_chest_run(g, location_twice);
+    for (unsigned pointers = 0; run.first != run.end && pointers < MOST_POINTERS; pointers++) {
+        set_field_location_chests(g, run.first);
+        looked = location_twice;
+        looked_any = true;
+        FieldChest first = field_chest_at(g, run.first);
+        if (first.tile != NO_TILE)
+            break;
+        location_twice = (uint16_t)(first.contents << 1);
+        run = field_location_chest_run(g, location_twice);
+    }
+    if (run.first == run.end) {
+        ORIGINAL_EFFECT(leave_marking(g, looked_any ? &looked : NULL, NULL, 0, false, run.end));
+        return;
+    }
+    uint16_t mask = field_map_index_mask(g);
+    uint8_t index = 0;
+    uint16_t last = run.first;
+    bool any = false;
+    for (uint16_t at = run.first; at < run.end; at = (uint16_t)(at + FIELD_CHEST_BYTES)) {
+        MapPlace p = map_place_at((uint16_t)(field_chest_at(g, at).tile & mask));
+        set_field_tile_walkable(g, p.row, p.column, index);
+        if (chest_opened(g, chest_number(g, at)))
+            show_open(g, p);
+        index++;
+        last = at;
+        any = true;
+    }
+    ORIGINAL_EFFECT(leave_marking(g, &looked, any ? &last : NULL, index, true, run.end));
 }

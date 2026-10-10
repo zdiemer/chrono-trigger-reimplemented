@@ -3129,118 +3129,115 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
-### Phase 3, field and events: the console's start and the field's frame
+### Phase 3, field and events: the screen set up, the map unpacked, the objects started
 
-The sixteenth chunk of bank `$C0`, with the console's own entries: what runs
-from power-on to the field's main loop, the loop's frame, a location's
-loading, and the field put aside and taken up again around a menu and a
-battle.
+The seventeenth chunk of bank `$C0`, picked by native coverage rather than by
+bytes left (PLAN.md, "The order now"): the field's largest handbacks over the
+reference play were the routines its ports still called out to at a map's
+start and in its frame -- the screen's setup and fade in, the map's unpacking,
+the objects' setup, the dialog window's step and its looks.
 
-**How it was chosen.** The plan named the power-on path and the interrupt
-entries (Phase 4a: `ct_play --recomp off --interpreted stop` stopped in frame
-0) and, for `$C0`, the field's setup and keeping (`$C0:0000`, `$01A5`,
-`$038F`, `$011B`). By concept that is the field mode's skeleton: its two
-starts, its frame, the location's loading the starts and the menus share, and
-both sides of the hand-over to a battle. The fade in (`$C0:2824`-`$2C40`)
-belongs to it too but is mostly calls into routines no port covers yet (the
-window tile maps, the screen jobs' transfers, the map's unpacking), so it was
-left for the next chunk; about 2.6 KiB in all, short of the plan's 8-12.
+**What it is.** Six concepts, each a module:
 
-**What it is.** `core/console.c`: the reset stub (`$00:FF00`, entered in
-emulation mode at power-on and in native mode by the game's own resets, and
-its copy at `$C0:FF00`), the boot (`$FD:C000`: the console's registers as the
-game starts them, three timing and input calls added for what had none,
-`tm_fast_rom`, `tm_reset_timers`, `in_set_io_lines`, and the picture's
-power-on screen, which moved here from `core/display.c`), the vectors
-(`$00:FF10`, `$FF14`) and the two stubs in work RAM (`$00:0500`, `$0504`),
-which go to the handler the running mode installed (`console_install_*`, the
-stub's encoding in one place now) or return where the mode turned the
-interrupt away. `field/main_loop.c`: the field's first start (`$C0:000E`:
-work RAM cleared, the sound driver started, the menus asked about the
-saves), its entry from the other modes (`$C0:0000`/`$005D`, the menus' sprite
-screens past location `$1F0` handed to them), one pass of the main loop
-(`$C0:0097`, a stop at its own head, so a save state never holds it), the
-frame's work (`$00BF`), the effects' refresh (`$00DE`), a frame of the
-leader's walk (`$00EB`) and the start of the frame wait (`$C0:EC60`).
-`field/location.c`: the location's record (MD2's `location_records`, named
-fields in `field_data.h`), its song (`$C0:1B53`), its tile set's graphics
-(`$C0:0960`/`$6D2F`/`$6D65`, `$6DCF`) and looks (`$09DD`, `$0A14`), and the
-field put aside for a menu (`$011B`) and set up after it (`$01A5`): the state
-block moved to the event script's place and back, the party's places, the
-party scripts' destinations the script's unpacking writes over, a gathering
-the menu cut short. `field/battle_start.c` (`$C0:024C`, `$038F`): the enemies
-on the screen found, the battle's ground, places, kinds and screen handed
-over; `field/battle_return.c` gained the field after the battle (`$C0:0283`:
-the game over, the place put aside, or the field taken up a frame at a time);
-`field/palettes.c` the enemies' palette slots (`$C0:72B4`).
+- `field/screen_setup.c`: a map's screen put together from nothing
+  (`$C0:286C`, with `$C0:0A50` the map's drawing and `$C0:0B28` the line
+  effects readied): the switches pressed again, the chests marked, the video
+  mode and screens, the screen placed around the party
+  (`$C0:74A6`/`$7506`/`$7553`), each layer drawn whole and sent, the columns
+  right of the view; the objects let go and those in view drawn at once
+  (`$C0:B0E6`); the dialog window's looks; then the handlers on at the next
+  vblank, through the timing service's new `tm_wait_frame_then_enable`. And
+  the fade in (`$C0:2848`, and `$C0:2824` after a menu): a step of brightness
+  a frame, the leader walking on the spot.
+- `field/map.c`: the map's unpacking (`$C0:A33B`): the packed map
+  decompressed, its header taken in (`field_map_header`: sizes, flags, BG2's
+  half pace, the screens, colour math, the layers' drift, and the repeat
+  masks and edges, `$C0:7399`), the tile maps unpacked as C where they fit,
+  and the exits marked (`$C0:A66B`). The chests' marking (`$C0:A712`) is
+  `event/chests.c`'s, with `field_chests` split into the game's list and the
+  location's run.
+- `field/objects_start.c`: the objects at a map's start (`$C0:56A6`):
+  whatever the last map's objects held let go, each object as its script
+  first finds it (`$C0:5709`: at its opening, the lowest level, off the map),
+  the slots past them disabled, the scripts' variables and saved places
+  cleared; then the openings (`$C0:58DE`, a port already), the map's own
+  script (`$C0:595C`, still a call-out) and the party's looks
+  (`party_wear_it_shows`, the menus' service `$0B`, timed as `$C2:8004`).
+- `field/dialog_window.c`: the dialog window's step (`$C0:1F87`) as a state
+  machine (`DialogState`: the text cleared a row a frame, the window opened,
+  the text set a glyph a frame, read, the next page cleared and set, the
+  window closed), a choice's buttons (`$C0:1ADF`), the text's row sent
+  (`$C0:6ECB`), the choice pointer (`$C0:F05E`, the old "window corners",
+  which are the hand pointing at a choice's line), and the window's looks:
+  its frame and text area tile maps (`$C0:29F7`, `$2B78`), their transfers
+  and the window design's (`$C0:6E5C`-`$6F5E`), its colours (`$C0:70E9`).
+  The dialog's opening and closing are operations in its header
+  (`dialog_begin`, `dialog_shut`, ...) that the events, the location, the
+  battle's start and the views call.
+- The objects coming into view take their palette slot (`$C0:7170`) and sprite
+  block (`$C0:6F9A`/`$6FBA`, given up `$C0:7056`) as C, and the sprite
+  lists are built afresh as a map starts (`$C0:B192`).
+- The vblank's screen jobs after a battle and the map's transfers
+  (`$C0:7F58`-`$7F77`, `$C0:EC77`) are the video service's calls.
 
-**Third trap, settled first.** Every call-out was checked against liveness
-before the logic was written; three registers liveness keeps that the
-callees never use were given the original's value as marked scaffolding
-rather than threaded: A's high byte at the sound driver's start and the
-menus' routine (the field's page, which the original set D through), and at
-the song's driver calls (the record's place, which the original worked out
-in A). Where a callee reads the overflow (the scripts, the dialog window,
-the frame wait), the ports leave it as the steps before them do.
+**Third trap, settled first.** Three registers liveness keeps through a
+port's new C calls were made exact rather than declared: the right columns'
+bringing in (`$C0:87F1`) ends with what the edges' working out leaves
+(`field_edges_leave`: the last layer's right column's start and row in X and
+Y, and the carry and overflow of its VRAM address), which the requests' stop
+at the frame wait compares; the wait for the vblank with the handlers off
+(`$C0:0B38`) is no routine liveness knew, so a `[[entry]]` hint names it, and
+`field_turn_the_handlers_on` leaves the picture's last line in A as the
+original does; the objects' start leaves Y and the overflow as the
+defaults' writes do for the openings; and the party's start after the
+openings (`$C0:9DC3`, event/bridge.c) now leaves X as the original does, the
+second member's link word, which the map's own script can carry unchanged to
+the menus' service after it (`endings-bucket-lavos` found it, once the
+objects' setup compared X there).
 
-**What the shipping mode found.** Shadow mode passed a main loop that the
-long routes (`suite.py --long-routes`) did not. A pass that called the
-frame wait was a native routine held over every frame's end, which a
-machine copy can only rebuild by replaying input from the last frame where
-none was held (ct_drive, docs/MOVIES.md), so the routes' every probe
-replayed from the field's entry; the pass now stops at the wait
-(`$C0:00BA`), which sets A for the next pass itself. And a step the
-registry turns away (the requests' guard, at a location change it can't
-run) is a real call from the bottom of the field's stack, where the
-original's location change resets the stack to its top and goes back to the
-field's entry: that leaves the stack just as the call's return would, so
-the runtime couldn't tell it from one, and the pass waited under the next
-pass for good (eight deep after the Lavos cavern's fight in
-`bucket_lavos`, which then spun in replays). The main loop's steps are
-`field_run_or_hand_over` (`field/bridge.h`): where the sibling won't run as
-C, the port makes the call and stops at it, and the rest of the pass is the
-runtime's. The tile graphics' transfer cells are described
-for each of the six places whether the set has a block there or not. And a
-runtime limit: the object update run as C inside the frame's work, inside
-the frame, made the original's own entry into it a third nested comparison
-waiting at the same multi-pass call (the views' `$C0:A88D`) as the frame,
-which settles it as a mismatch; the update is a call of the frame's work's
-(docs/PORTING.md, "Call-outs"), and runs as its own port.
+**What it took in.** Two refusals in real play went with it: the field put
+aside for a menu, and a location change, with no leader on the map (a save's
+load, the attract demo's scenes) read the leader's place from the first slot
+past the tables as the original does (`field_leaders_place`, the accessors'
+`unchecked` notes saying where). A script's menu now runs the fade in after it
+as C rather than stopping at it.
 
-**What fuzzing found and cost.** Each new entry has a `tools/fuzz_routines.toml`
-entry (seed 1; 0 mismatched on all of them, the counts in `docs/ports.tsv`).
-The battle's start was interrupted on all 31 of its library calls and the
-field after a battle on 25 of 26, so fuzzing is their check: it found the
-current object the original names before an enemy without a sprite takes its
-palette slot. The battle's start needed constraints to reach its body (the
-objects' roles, sprite tiles and view, the party's places); the setting up
-after a menu needs the dialog window where the game puts it, since elsewhere
-the original's line effects' builder runs off its table. The callers whose
-call-outs became C calls (the requests, the menus, the screen effects, the
-party commands) were fuzzed against `main` with the same seeds: the same
-counts.
+**Numbers.** `burndown.py` for `$C0`: 52.2 KiB ported and 12% left in 349
+entries before, 57.5 KiB and 3% in 384 after. Over the reference play the
+code run in place of hand ports fell from 38.6 KiB and 199.0 million
+instructions to 33.1 KiB and 187.3 million; the field engine's share from 9.5
+KiB and 16.0 million to 1.2 KiB and 4.3 million (native coverage from 86% to
+about 98%), and the refusals in real play from 23 entries to 21. The one new
+line in the baseline, `$C0:0B38`, is the original's wait for the vblank the
+setup still runs on the SNES backend (630 instructions), which `$C0:0B28`'s
+fallback held before.
 
-**What is left at the edges.** The fade in and the objects' and sprite
-lists' setup (`$C0:2848`, `$C0:56A6`, `$C0:B192`) are call-outs from the
-entry, the map's unpacking (`$C0:A33B`) and the script's (`$C0:56D4`) from
-both loadings, the dialog window's step (`$C0:1F87`) and the scheduler
-(`$C0:59D9`, `$C0:5A46`, `$C0:CA76`, beam-coupled, PLAN.md Phase 4b) from the
-frame; and the menus' routine `$C2:8004` from the first start, where
-`ct_play --recomp off --interpreted stop` now stops, in frame 2 (it stopped
-at the reset, in frame 0). The palettes' jumps `$FD:FFF4`/`$FFF7` stay
-call-outs: registering them as the routines they jump to would make the
-battle's own calls through them calls into a registered port. `$C0` stands
-at 52.1 KiB ported, 12% left.
+**What fuzzing found.** Every new entry has a `tools/fuzz_routines.toml`
+row (seed 1, 0 mismatched; the counts in `docs/ports.tsv`). It found four
+things no movie reaches: a dialog text row past 127 carries its doubling's top
+bit into the VRAM address, and a map number past `$7FFF` its doubling's carry
+into the packed maps' index, as the original's additions take them; a party
+place's palette slot held by an object of other colours makes the original
+give up with its accumulator left 16-bit, which its callers then run with, so
+the guards turn that state away; and the objects in view drew their frames'
+parts with the builder's core rather than its entry, which left the overflow
+the sprite table reads unset. The fades (`$C0:2848`, `$2824`) are checked by
+shadow mode only: the setup they call first waits for the vblank, which no
+random state reaches.
 
-**The timing gate.** The new rows were calibrated over the library, and
-thirteen entries have exceptions (`tools/timing_exceptions.txt`). The console's
-vectors are a jump with no access of its own to scale. The field's frame, its
-entry, the loadings and the returns run nearly all their work as C at their
-callees' calibrated times, and what is left as their own is a remainder one
-scalar can't fit, or a data-dependent unpacking with the screen blanked. The
-leader's walk, now run as C under the frame, has two kinds of call: the
-value that removes its drift leaves the short ones' tail. The vblank check
-finds none of their writes moved.
+**The timing gate.** The new rows were calibrated over the library, with the
+rows of the callers whose work moved (`field_nmi`, `field_after_battle`,
+`field_walk_the_leader`, `event_run_init_scripts`); six entries have
+exceptions (`tools/timing_exceptions.txt`): the setup, the fades,
+the objects drawn at once and the map's unpacking run with the screen blanked,
+their parts attributed, and what is left of them one scalar can't fit; the
+dialog window's step differs in its own work by its state.
+
+**What is left at the edges.** The map's own script (`$C0:595C`) and the
+script's unpacking (`$C0:56D4`) are call-outs; the switch's sound
+(`$C0:1B90`) is the largest run left in `$C0` (`burndown.py --uncovered
+C0`); the line effects' builders in `$FD` stay their own ports, run through
+the machine.
 
 ### Phase 3, battle: the screen script's shapes (`$CD:1F47`-`$CD:3BFC`) and the frame work's line moves
 

@@ -21,6 +21,16 @@ void object_take_palette_slot(GameState *g, FieldObject obj, uint8_t slot);
 /* An enemy takes one of the slots the enemies use, shared or free; false
  * where all of them are taken by other colours ($C0:72B4). */
 bool object_take_enemy_palette_slot(GameState *g, FieldObject obj);
+/* An object coming into view takes a slot for its colours, by what it is
+ * (each party place its own, the enemies theirs, the people theirs), shared
+ * with an object of the same colours or free; false where none is, where a
+ * script has set the palettes itself, or for a disabled object ($C0:7170).
+ * And whether the slots it would look at are ones the tables hold, and its
+ * kind one the original's table of slots has (the guards'). */
+bool object_take_palette(GameState *g, FieldObject obj);
+/* Every slot free, as a map's screen is set up ($C0:7155). */
+void palette_slots_all_free(GameState *g);
+bool object_takes_a_palette_the_tables_hold(const GameState *g, FieldObject obj);
 
 /* The object's twelve colours into its slot (above), where a script ends an
  * effect on them (event $88); and the first of its slot's colours, in the
@@ -41,7 +51,10 @@ void field_give_up_palette(Snes *s);
 bool field_palette_can_be_given_up(Snes *s);
 void field_take_enemy_palette_slot(Snes *s);
 bool field_enemy_palette_slot_can_be_taken(Snes *s);
+void field_take_palette(Snes *s);
+bool field_palette_can_be_taken(Snes *s);
 
-enum { FIELD_GIVE_UP_PALETTE_ENTRY = 0xC0734C, FIELD_TAKE_ENEMY_PALETTE_ENTRY = 0xC072B4 };
+enum { FIELD_GIVE_UP_PALETTE_ENTRY = 0xC0734C, FIELD_TAKE_ENEMY_PALETTE_ENTRY = 0xC072B4,
+       FIELD_TAKE_PALETTE_ENTRY = 0xC07170 };
 
 #endif

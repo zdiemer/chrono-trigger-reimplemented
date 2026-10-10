@@ -630,10 +630,34 @@ bool sprites_records_in_the_tables(const GameState *g, FieldObject obj, SpriteLa
 
 // $C0:E935
 /* A map's start frees every area. */
-static void free_every_frame_area(GameState *g)
+void sprites_free_every_frame_area(GameState *g)
 {
     for (unsigned k = 0; k < FIELD_FRAME_STAGING_CLAIMS_COUNT; k++)
         set_area_owner(g, k, field_no_link());
+}
+
+// $C0:EA42
+/* An object leaving view lets go of the areas it holds, whatever its
+ * layout: the run of them from the first it holds. */
+void sprites_release_frame_areas(GameState *g, FieldObject obj)
+{
+    unsigned k = 0;
+    while (k < FIELD_FRAME_AREAS && !field_same_link(area_owner(g, k), field_link_to(obj)))
+        k++;
+    for (; k < FIELD_FRAME_AREAS && field_same_link(area_owner(g, k), field_link_to(obj)); k++)
+        set_area_owner(g, k, field_no_link());
+}
+
+// $C0:B192
+/* As a map's objects start, each one's sprites are to be built afresh from
+ * its next frame, and every frame area is free. (A map of no objects has
+ * the original run its loop round the bytes, which no map makes.) */
+void sprites_all_to_build_afresh(GameState *g)
+{
+    unsigned objects = event_object_count(g);
+    for (FieldObject obj = 0; obj < objects; obj++)
+        object_records_to_build(g, obj);
+    sprites_free_every_frame_area(g);
 }
 
 // $C0:E9E2 (4), $C0:E9FF (8), $C0:EA1F (12)
@@ -957,7 +981,7 @@ void field_free_4_sprite_areas(Snes *s) { free_entry(s, LAYOUT_4); }
 
 void field_free_every_sprite_area(Snes *s)
 {
-    free_every_frame_area(state_of(s));
+    sprites_free_every_frame_area(state_of(s));
     m_rts(s);
 }
 
@@ -1067,3 +1091,27 @@ static bool places_object(Snes *s, SpriteLayout layout)
 bool field_sprites_place_object(Snes *s) { return places_object(s, LAYOUT_4); }
 bool field_sprites_place_8(Snes *s) { return places_object(s, LAYOUT_8); }
 bool field_sprites_place_12(Snes *s) { return places_object(s, LAYOUT_12); }
+
+/* The current object (8-bit index registers), leaving view; nothing it
+ * leaves in the registers is read. */
+void field_release_frame_areas(Snes *s)
+{
+    sprites_release_frame_areas(state_of(s), (FieldObject)field_current_object_slot(s));
+    m_rts(s);
+}
+
+/* On the field's page; nothing it leaves in the registers is read. */
+void field_build_the_sprites_afresh(Snes *s)
+{
+    sprites_all_to_build_afresh(state_of(s));
+    m_rts(s);
+}
+
+/* Its guard: a count of objects the tables hold. */
+bool field_sprites_can_be_built_afresh(Snes *s)
+{
+    vars_peek(true);
+    unsigned objects = event_object_count(state_of(s));
+    vars_peek(false);
+    return objects != 0 && objects <= FIELD_OBJECTS;
+}
