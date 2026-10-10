@@ -34,6 +34,7 @@ struct Fiber {
 };
 
 static Fiber main_fiber;
+static Fiber *current = &main_fiber;
 
 static void WINAPI trampoline(LPVOID param)
 {
@@ -72,7 +73,13 @@ void fiber_destroy(Fiber *f)
     free(f);
 }
 
-void fiber_switch(Fiber *to) { SwitchToFiber(to->handle); }
+void fiber_switch(Fiber *to)
+{
+    current = to;
+    SwitchToFiber(to->handle);
+}
+
+Fiber *fiber_current(void) { return current; }
 
 #else
 
@@ -132,5 +139,7 @@ void fiber_switch(Fiber *to)
     if (swapcontext(&from->ctx, &to->ctx) != 0)
         abort();
 }
+
+Fiber *fiber_current(void) { return current; }
 
 #endif

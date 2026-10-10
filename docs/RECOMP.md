@@ -3791,8 +3791,11 @@ the original's three shifts before the add always clear it.
 take only a queue whose links run from its head to its tail, which random
 links rarely make); the menus' wait, wait for frames and end 0 of 20,000 each,
 the frame's turns 0 of 20,000, the first wait 0 of 20,000. The menus' guards
-take only waiting tasks whose stacks lie in low RAM: past it the original
-takes the registers it resumes with from open reads.
+take only waiting tasks whose stacks lie in low RAM (past it the original
+takes the registers it resumes with from open reads) and starting tasks whose
+start is one of the game's fifteen, at each of which liveness finds every
+register dead but A's high byte, so a start declares the rest rather than
+building them.
 
 **Timing.** `field_queue_due_turns` and, through it, `field_frame_work`
 exceed the vblank tail (3.6% of their vblank calls off by a line), their time

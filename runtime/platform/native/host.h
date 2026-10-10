@@ -11,10 +11,12 @@
  *      for the next frame (tm_wait_frame);
  *   3. the line handler, if the game has it enabled, which ends the picture.
  *
- * The main thread runs as one coroutine (runtime/port/fiber.h): its waits are
+ * The main thread runs as a coroutine (runtime/port/fiber.h): its waits are
  * deep in its call stack (event commands, fades, battle scripts), and a wait
- * gives the rest of the frame back to the driver. Nothing here sleeps or
- * reads a clock; a frame takes as long as its work. */
+ * gives the rest of the frame back to the driver. A coroutine the main thread
+ * runs in turn (the menus' tasks) may wait too: the next frame resumes
+ * whichever fiber waited. Nothing here sleeps or reads a clock; a frame takes
+ * as long as its work. */
 #ifndef CT_PLATFORM_NATIVE_HOST_H
 #define CT_PLATFORM_NATIVE_HOST_H
 
@@ -38,6 +40,7 @@ typedef struct {
     TmHostProgram program;
     Fiber *driver;          /* the driver's stack, which tm_host_frame runs on */
     Fiber *main;            /* the main thread's */
+    Fiber *waiting;         /* the fiber that waited for this frame, which it resumes */
     TmHostPart part;
     uint8_t interrupts;     /* tm_enable_interrupts' */
     uint16_t line;          /* tm_set_line's */

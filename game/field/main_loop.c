@@ -113,10 +113,11 @@ enum {
 };
 
 /* The frame's two budgets, ports called on the machine: each reads where the
- * beam is (platform/timing.h, tm_frame_time_left), which is the original's
- * only where its time has passed on the machine first (in shadow mode, the
- * copy a port runs on is the original's machine again at each call), so the
- * frame's work calls them as the original does rather than as C. */
+ * beam is (platform/timing.h, tm_frame_time_left) and calls out per object,
+ * and shadow mode compares them a call at a time, with only a short wait for
+ * the original's latch, where a C call would stretch the comparison across
+ * the frame's work and leave more of it interrupted. A build with no machine
+ * calls them as C. */
 enum {
     SCRIPT_TURNS = 0xC05A46,         /* the queued objects' turns run, as the frame's time allows */
     SPRITE_FRAMES = 0xC0CA76,        /* the objects' new frames drawn, as the frame's time allows */

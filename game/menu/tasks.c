@@ -39,9 +39,6 @@ static bool takes_turns(uint8_t state) { return !((uint8_t)(state - 1) & TAKES_N
 enum { RECORD_BYTES = 8 };
 static unsigned running_task(const GameState *g) { return menu_current_task(g) / RECORD_BYTES; }
 
-/* Where a task waits: on the original's machine, its stack pointer. */
-typedef uint16_t TaskPlace;
-
 /* The task that goes on next, if any, and what it was doing: waiting, to go
  * on from where it waited, or anything else, to run from its start. */
 typedef struct {
@@ -76,14 +73,14 @@ static TaskTurn next_turn(GameState *g, unsigned task)
 }
 
 // $C2:821E, $C2:822B
-/* The running task waits `frames` frames (a frame, mostly), from `place`,
- * in the screen step it is in; the next task goes on. */
-static TaskTurn task_waits(GameState *g, uint8_t frames, TaskPlace place)
+/* The running task waits `frames` frames (a frame, mostly), in the screen
+ * step it is in; the next task goes on. Where it goes on from is the
+ * machine's, which its entries keep. */
+static TaskTurn task_waits(GameState *g, uint8_t frames)
 {
     unsigned task = running_task(g);
     set_menu_tasks_state(g, task, TASK_WAITING);
     set_menu_tasks_countdown(g, task, frames);
-    set_menu_tasks_stack(g, task, place);
     set_menu_tasks_step(g, task, menu_screen_step(g));
     return next_turn(g, task + 1);
 }
@@ -144,10 +141,28 @@ static void go_back_into(Snes *s, unsigned task)
     m_switch_back(s, place);
 }
 
-/* A task from its start, on its own stack, with the registers the original's
- * jump into it leaves: its start in A, its record in X, what it was doing
- * less two in Y (the loop's decrements of it), 16-bit, on the menus' page; the
- * flags of its start's load and of the stack's add. */
+/* Where the game's tasks start (the menus' screen, the cursor's sprite, a
+ * fade's wait, the description's typing, the scroll bar, the held cursors, the records, the
+ * healing's numbers, the gate's song): what each reads of the registers the
+ * scheduler's jump leaves is its page, its data bank and, two of them, A's
+ * high byte, which the start's address leaves there. The rest are dead
+ * (tools/dontcare_check.py checks each row). */
+static const uint16_t task_starts_known[] = {
+    0x826F, 0x83BD, 0x89F2, 0x8A45, 0x8AB2, 0x8AF5, 0x8BB8, 0x9016, 0xCBBF, 0xCECE, 0xE91B, 0xF657, 0xF9B2, 0xFA06, 0xFA9F,
+};
+enum { TASK_STARTS_KNOWN = sizeof task_starts_known / sizeof task_starts_known[0] };
+enum { A_START_READS_ITS_PAGE = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+static bool start_is_known(uint16_t at)
+{
+    for (unsigned i = 0; i < TASK_STARTS_KNOWN; i++)
+        if (task_starts_known[i] == at)
+            return true;
+    return false;
+}
+
+/* A task from its start, on its own stack, 16-bit, on the menus' page, its
+ * start's address in A. */
 static void start(Snes *s, const TaskTurn *turn)
 {
     GameState *g = state_of(s);
@@ -155,13 +170,10 @@ static void start(Snes *s, const TaskTurn *turn)
     s->cpu.s = (uint16_t)(FIRST_TASK_STACK + turn->task * TASK_STACK_BYTES);
     s->cpu.d = 0;
     s->cpu.a = at;
-    s->cpu.x = (uint16_t)(turn->task * RECORD_BYTES);
-    s->cpu.y = (uint16_t)((uint8_t)(turn->was - 1) - 1);
     m_rep(s, CPU_FLAG_M | CPU_FLAG_X);
-    m_set_nz16(s, at);
-    m_set_flag(s, CPU_FLAG_V, false);
-    m_set_flag(s, CPU_FLAG_C, false);
-    m_jump_to(s, (uint32_t)MENUS_BANK << 16 | at);
+    for (unsigned i = 0; i < TASK_STARTS_KNOWN; i++)
+        if (task_starts_known[i] == at)
+            m_stop_at(s, (uint32_t)MENUS_BANK << 16 | task_starts_known[i], A_START_READS_ITS_PAGE);
 }
 
 /* For shadow mode: the bytes the original's way onto the menus' page leaves
@@ -194,15 +206,16 @@ static void take_turn(Snes *s, TaskTurn turn)
         go_back_into(s, turn.task);
 }
 
-/* The task's registers kept on its stack, where it goes on from; then on the
- * menus' page. */
+/* The task's registers kept on its stack, and where its stack is kept in its
+ * record: where it goes on from. Then on the menus' page. */
 static void wait_entry(Snes *s, uint8_t frames)
 {
+    GameState *g = state_of(s);
     m_keep_registers_to_switch(s);
-    TaskPlace place = s->cpu.s;
-    ORIGINAL_EFFECT(leave_the_page_below(s, place));
+    set_menu_tasks_stack(g, running_task(g), s->cpu.s);
+    ORIGINAL_EFFECT(leave_the_page_below(s, s->cpu.s));
     s->cpu.d = 0;
-    take_turn(s, task_waits(state_of(s), frames, place));
+    take_turn(s, task_waits(g, frames));
 }
 
 // $C2:821E
@@ -251,8 +264,23 @@ static bool stacks_in_low_ram(const GameState *g)
     return true;
 }
 
+/* Every task that would start, one of the game's starts: the port knows what
+ * those read (above), and the game starts no other. The running task (the one
+ * waiting or ending now) goes on from where it waits, not from its start. */
+static bool starts_known(const GameState *g)
+{
+    for (unsigned task = 0; task < MENU_TASKS; task++) {
+        uint8_t state = menu_tasks_state(g, task);
+        bool running = state == TASK_RUNNING && menu_current_task(g) == task * RECORD_BYTES;
+        if (takes_turns(state) && state != TASK_WAITING && !running && !start_is_known(menu_tasks_start(g, task)))
+            return false;
+    }
+    return true;
+}
+
 /* A task's wait or end: the running task one of the records, the waiting
- * tasks' stacks in low RAM, and a data bank that reaches low RAM, where the
+ * tasks' stacks in low RAM, the starting tasks' starts the game's, and a data
+ * bank that reaches low RAM, where the
  * frame's end marks the uploads waiting. The end reads the running task on
  * the menus' page. */
 bool menu_task_can_wait(Snes *s)
@@ -261,7 +289,7 @@ bool menu_task_can_wait(Snes *s)
         return false;
     vars_peek(true);
     const GameState *g = state_of(s);
-    bool ok = running_task_is_one(g) && stacks_in_low_ram(g);
+    bool ok = running_task_is_one(g) && stacks_in_low_ram(g) && starts_known(g);
     vars_peek(false);
     return ok;
 }
@@ -269,13 +297,14 @@ bool menu_task_can_wait(Snes *s)
 bool menu_task_can_end(Snes *s) { return m_direct_page(s) == 0x0000 && menu_task_can_wait(s); }
 
 /* The frame's turns: on the menus' page, the data bank work RAM's, the
- * waiting tasks' stacks in low RAM. */
+ * waiting tasks' stacks in low RAM, the starting tasks' starts the game's. */
 bool menu_tasks_can_run(Snes *s)
 {
     if (m_direct_page(s) != 0x0000 || !m_bank_reaches_low_ram(s))
         return false;
     vars_peek(true);
-    bool ok = stacks_in_low_ram(state_of(s));
+    const GameState *g = state_of(s);
+    bool ok = stacks_in_low_ram(g) && starts_known(g);
     vars_peek(false);
     return ok;
 }

@@ -22,8 +22,9 @@ The emulator under `runtime/` -- the 65816 interpreter, the SPC700, the S-DSP,
 the PPU and the bus -- **must not ship**, and neither must the generated C,
 shadow mode, the oracle or the timing model. What does ship from `runtime/` is
 the platform services' interfaces (`runtime/platform/`) with their host
-backends, and `runtime/port/fiber.h` for the one coroutine the game's main
-thread runs as (below, and PLATFORM.md, "Timing without a beam"). They exist to prove the
+backends, and `runtime/port/fiber.h` for the coroutines the game's main
+thread and the menus' tasks run as (below, and PLATFORM.md, "Timing without a
+beam"). They exist to prove the
 reimplementation correct, and they are load-bearing until the subsystem they
 check is finished. But they are a means, so:
 
@@ -38,11 +39,17 @@ check is finished. But they are a means, so:
 - **So is most of the stack question.** The per-port fibers exist only
   because a hand port must run to completion while an emulated machine waits
   mid-instruction (`job_run`, `runtime/port/fiber.h`). No emulated machine, no
-  call-outs, no per-port fibers. What stays is one coroutine for the game's
-  main thread, whose waits for the next frame are deep in its call stack
-  (PLATFORM.md, "Timing without a beam"), unless every caller of those waits
-  is rewritten to resume. So a browser build still needs one stack switch; the
-  wasm backend spike is not scheduled, and when it is, it is for that one.
+  call-outs, no per-port fibers. What stays is the game's own design: a
+  coroutine for its main thread, whose waits for the next frame are deep in its
+  call stack (PLATFORM.md, "Timing without a beam"), and one for each of the
+  menus' eight cooperative tasks, which the original runs on stacks of their
+  own and which wait a frame from deep in their work (`menu/tasks.c`). Nine
+  fibers at `fiber.c`'s 512 KiB each is more than a GBA has, so a small target
+  wants the tasks rewritten to resume (each a state machine called once a
+  frame) and its main thread's stack sized to what it uses; the way out for
+  the main thread is the same rewrite of every caller of its waits. So a
+  browser build still needs stack switching; the wasm backend spike is not
+  scheduled, and when it is, it is for that.
 - **M4** (recompiler speed) buys nothing the targets want.
 
 ### What "done" means, measured
@@ -576,8 +583,8 @@ by an audit; the fourth is the program itself.
      This happens anyway as subsystems finish; the census says where it is
      still owed.
   3. **The skeleton.** `game/` gets the program's top: a boot function, the
-     main thread as the one coroutine (`runtime/port/fiber.h`) whose frame
-     waits yield to the driver, and the frame's work -- the vblank handler,
+     main thread and the menus' tasks as coroutines (`runtime/port/fiber.h`)
+     whose frame waits yield to the driver, and the frame's work -- the vblank handler,
      the line handler -- as functions the driver calls each frame, in place
      of the interrupt vectors and the RAM trampolines the game points them
      through. The power-on item above ports what those entries do; this

@@ -534,11 +534,12 @@ void field_draw_next_frame(Snes *s)
 
 /* Each object's frame is the frame builder's entry ($C0:CAD9), called on the
  * machine from the original's call of it: one call for the only object in
- * the queue, another for the first of several. Through the machine, the time
- * the drawing takes passes before the frame's time is read again (in shadow
- * mode, the copy this port runs on is the original's machine again after
- * each call). The builder reads the current object and the overflow, and
- * says in the carry whether the frame has more parts to draw. */
+ * the queue, another for the first of several. As for the scripts' turns
+ * (field/script_turns.c), the call is for shadow mode's comparison, a frame's
+ * drawing at a time, not for the beam, which a C call would read right too. A
+ * build with no machine calls the builder as C. It reads the current object
+ * and the overflow, and says in the carry whether the frame has more parts to
+ * draw. */
 enum { DRAW_A_FRAME = 0xC0CAD9, THE_FIRST_OF_SEVERAL = 0xC0CAAE, THE_ONLY_ONE = 0xC0CAC2 };
 enum { THE_BUILDER_READS_THE_OBJECT = DC_A | DC_X | DC_Y | DC_N | DC_Z };
 

@@ -16,4 +16,7 @@ Fiber *fiber_main(void);
 /* Suspend the current fiber and run `to`. */
 void fiber_switch(Fiber *to);
 
+/* The fiber running now (fiber_main() before any switch). */
+Fiber *fiber_current(void);
+
 #endif

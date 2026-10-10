@@ -1789,10 +1789,11 @@ re-runs the census.
 - **The menus' tasks are coroutines of their own.** The scheduler is C
   (`menu/tasks.c`), but each task runs on its own stack and yields from deep
   in its calls (the description typed a letter a frame, the cursor's sprite),
-  so a build with no machine needs a fiber per task besides the main thread's
-  one, or the tasks rewritten to resume (each a state machine called once a
-  frame). PLAN.md's "one coroutine for the main thread" holds for the field and
-  the battle only; decide this before `ct_native` reaches the menus.
+  so a build with no machine runs a fiber per task besides the main thread's
+  (the host backend resumes whichever fiber waited), or the tasks rewritten to
+  resume, each a state machine called once a frame: the way for a target that
+  can't afford nine 512 KiB stacks (PLAN.md, "What that makes
+  scaffolding").
 - **The clock's controller read inside the effect work** (RECOMP.md, "Phase 3,
   battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
   work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
@@ -2111,12 +2112,13 @@ waits on M5 rather than on a backend.
     (`runtime/port/fiber.c`, `job_run` in `runtime/port/native.c`), which is
     Windows fibers or POSIX `ucontext`, and wasm has neither. The targets
     delete most of the problem rather than solve it: a finished `game/` makes
-    no call-outs. One stack stays, the game's main thread, which waits for the
-    next frame from deep in its call stack (PLATFORM.md, "Timing without a
-    beam"), so a finished build still needs one stack switch per frame, or
-    Emscripten's asyncify around it. **So the third backend is not scheduled**
-    (PLAN.md, "What this plan deprioritizes"), and when a browser build is
-    wanted it is for that one coroutine.
+    no call-outs. What stays is the game's own: its main thread, which waits
+    for the next frame from deep in its call stack (PLATFORM.md, "Timing
+    without a beam"), and the menus' cooperative tasks (`menu/tasks.c`), so a
+    finished build still switches stacks each frame, or has Emscripten's
+    asyncify around them, unless the tasks are rewritten to resume. **So the
+    third backend is not scheduled** (PLAN.md, "What this plan deprioritizes"),
+    and when a browser build is wanted it is for those coroutines.
   - **What the browser build is made of.** The default path generates C from the
     user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
     (CLAUDE.md), so a public build cannot contain it. That leaves a build the

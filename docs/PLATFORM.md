@@ -2139,7 +2139,9 @@ The host backend is `runtime/platform/native/` (`host.h`, `timing.c`,
 driver calls `tm_host_start` with the game's main thread and its two handlers,
 then `tm_host_frame` once a displayed frame: the vblank handler if enabled,
 the main thread resumed until its `tm_wait_frame`, the line handler if
-enabled. The main thread is one fiber (`runtime/port/fiber.h`); the
+enabled. The main thread is a fiber (`runtime/port/fiber.h`), and a wait
+resumes whichever fiber made it, so the menus' tasks can be fibers the main
+thread runs in turn; the
 acknowledges answer "pending" inside their own handler; `tm_host_picture_lines`
 is where the picture ends (the line handler's line and those above it). No
 build links it with the game yet -- `ct_play` still runs on the emulated

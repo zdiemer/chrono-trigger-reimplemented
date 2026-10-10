@@ -156,11 +156,13 @@ void field_queue_due_turns(Snes *s)
 
 /* Each turn is the event engine's entry ($C0:5A93), called on the machine
  * from the original's call of it: one call for the last object in the
- * queue, another for the rest. Through the machine, the time a turn takes
- * passes before the frame's time is read again (in shadow mode, the copy this
- * port runs on is the original's machine again after each call). A build with
- * no machine calls the engine for each. The engine reads the object from X
- * and nothing else of the registers. */
+ * queue, another for the rest. The beam would read right through a C call
+ * too (platform/timing.h waits for the original's latch in shadow mode); the
+ * call is for shadow mode's comparison, which then compares at each turn and
+ * waits only a turn for the original's latch, where a C call would stretch
+ * one comparison across the frame's turns and leave more calls interrupted.
+ * A build with no machine calls the engine for each. The engine reads the
+ * object from X and nothing else of the registers. */
 enum { RUN_A_TURN = 0xC05A93, A_TURN_AMONG_OTHERS = 0xC05A7C, THE_LAST_TURN = 0xC05A8B };
 enum { THE_ENGINE_READS_X = DC_A | DC_Y | DC_N | DC_Z | DC_C };
 

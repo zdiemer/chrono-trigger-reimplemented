@@ -626,6 +626,10 @@ int main(int argc, char **argv)
     }
     if (!rom_path)
         return usage();
+    if (pf_snes_drain_budgets && native_mode != NATIVE_ON) {
+        fprintf(stderr, "--drain-budgets needs --native on: shadow mode compares the budgets with the original's\n");
+        return 2;
+    }
     if (c_sound_driver && (native_mode != NATIVE_ON || recomp_only)) {
         fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: it "
                         "needs --native on with the ported routines (not --recomp only)\n");

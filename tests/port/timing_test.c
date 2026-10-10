@@ -1,7 +1,8 @@
 /* Checks the timing service's host backend (runtime/platform/native/timing.c)
  * on a made-up game: the frame's order (the vblank handler, the main thread to
  * its wait, the line handler), the handlers following what the game enables,
- * a wait deep in the main thread's stack, the acknowledges answering inside
+ * a wait deep in the main thread's stack, a wait from a coroutine the main
+ * thread runs (as the menus' tasks are), the acknowledges answering inside
  * their own handler, the budget and the line wait, the frame parity, the
  * picture's end, the generator's replay, and the pads. Exits non-zero on
  * failure.
@@ -86,6 +87,34 @@ static void game_line(Platform *pf, void *ctx)
         acks_ok = false;
 }
 
+/* A second game: its main thread runs a task, a coroutine of its own, which
+ * waits a frame; the next frame goes on in the task, which hands back to the
+ * main thread, which then waits. */
+static Fiber *task_fiber, *main_fiber_of_game;
+
+static void task_body(void *arg)
+{
+    Platform *p = arg;
+    note('T');
+    tm_wait_frame(p, PF_CALL(0, 0));
+    note('t');
+    fiber_switch(main_fiber_of_game);
+    for (;;)
+        fiber_switch(main_fiber_of_game);
+}
+
+static void tasks_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    main_fiber_of_game = fiber_current();
+    task_fiber = fiber_create(task_body, p);
+    fiber_switch(task_fiber);
+    for (;;) {
+        note('M');
+        tm_wait_frame(p, PF_CALL(0, 0));
+    }
+}
+
 static Platform pf;
 
 int main(void)
@@ -140,6 +169,18 @@ int main(void)
     CHECK(in_read_low(&pf, PF_AT(0), 1) == (uint8_t)IN_BUTTON_A, "its low half");
     CHECK(in_read_high(&pf, PF_AT(0), 1) == (uint8_t)(IN_BUTTON_START >> 8), "its high half");
     CHECK(in_read(&pf, PF_AT(0), 0) == 0, "pad 1 untouched");
+
+    /* a wait from the task resumes the task, not the main thread */
+    static Platform tasks;
+    TmHostProgram with_tasks = { tasks_main, NULL, NULL, NULL };
+    order_len = 0;
+    tm_host_start(&tasks, &with_tasks, 1);
+    for (int i = 0; i < 3; i++) {
+        tm_host_frame(&tasks);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "T|tM|M|") == 0, "a task's wait resumes the task: %s", order);
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

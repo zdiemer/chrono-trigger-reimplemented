@@ -17286,28 +17286,28 @@ why = "the objects as the field state has them, the frame queue's links and ends
 name = "menu_task_waits_a_frame"
 subsystem = "menu"
 state = "menus"
-args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E"]
+args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
 why = "the running task one of the eight, each task's state stopped, starting, waiting or running and its countdown 0-3; the stacks in low RAM (the guard's: past it the registers would come from open reads), the starts and steps random, so a task going on returns wherever its stack says, as the original does"
 
 [[routine]]
 name = "menu_task_waits_frames"
 subsystem = "menu"
 state = "menus"
-args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E"]
+args = ["--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
 why = "as menu_task_waits_a_frame, A's low byte the frames"
 
 [[routine]]
 name = "menu_task_ends"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E006E-7E006E=00,08,10,18,20,28,30,38", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
 why = "as menu_task_waits_a_frame, on the menus' page"
 
 [[routine]]
 name = "menu_run_the_tasks"
 subsystem = "menu"
 state = "menus"
-args = ["--d", "0000", "--db", "7E", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E"]
+args = ["--d", "0000", "--db", "7E", "--fill", "7E00B0-7E00EF:8=00-03", "--fill", "7E00B1-7E00EF:8=00-03", "--fill", "7E00B5-7E00EF:8=00-1E", "--fill", "7E00B2-7E00EF:8=826F,83BD,89F2,8A45,8AB2,8AF5,8BB8,9016,CBBF,CECE,E91B,F657,F9B2,FA06,FA9F"]
 why = "each task's state and countdown random as above, from the first"
 
 [[routine]]

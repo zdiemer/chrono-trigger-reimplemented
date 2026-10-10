@@ -19,16 +19,19 @@ static void main_thread_body(void *arg)
     t->program.main_thread(pf, t->program.ctx);
     /* the game's main thread doesn't return; should it, every frame after has
      * no main thread's work */
-    for (;;)
+    for (;;) {
+        t->waiting = t->main;
         fiber_switch(t->driver);
+    }
 }
 
 void tm_host_start(Platform *pf, const TmHostProgram *program, uint32_t seed)
 {
     TmHost *t = &pf->timing;
     *t = (TmHost){ .program = *program, .entropy = seed ? seed : 1 };
-    t->driver = fiber_main();
+    t->driver = fiber_current();
     t->main = fiber_create(main_thread_body, pf);
+    t->waiting = t->main;
 }
 
 void tm_host_frame(Platform *pf)
@@ -39,8 +42,8 @@ void tm_host_frame(Platform *pf)
         t->program.vblank(pf, t->program.ctx);
     }
     t->part = TM_HOST_IN_MAIN;
-    if (t->main)
-        fiber_switch(t->main);
+    if (t->waiting)
+        fiber_switch(t->waiting);
     if ((t->interrupts & TM_INT_LINE) && t->program.line) {
         t->part = TM_HOST_IN_LINE;
         t->program.line(pf, t->program.ctx);
@@ -95,14 +98,17 @@ bool tm_odd_frame(Platform *pf, PfOrigin o)
 uint8_t tm_reset_beam_latch(Platform *pf, PfOrigin o) { (void)pf; (void)o; return 0; }
 void tm_sync(Platform *pf) { (void)pf; }
 
-/* Only the main thread waits for a frame; a handler that asked would have no
- * frame to give up, and goes on. */
+/* The main thread waits for a frame, or a coroutine it runs in turn; the next
+ * frame resumes the one that waited. A handler that asked would have no frame
+ * to give up, and goes on. */
 void tm_wait_frame(Platform *pf, PfOrigin o)
 {
     (void)o;
     TmHost *t = &pf->timing;
-    if (t->part == TM_HOST_IN_MAIN)
-        fiber_switch(t->driver);
+    if (t->part != TM_HOST_IN_MAIN)
+        return;
+    t->waiting = fiber_current();
+    fiber_switch(t->driver);
 }
 
 bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
