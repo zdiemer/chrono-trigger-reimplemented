@@ -1768,7 +1768,8 @@ rest waits, is [PLAN.md](PLAN.md).
 
 PLATFORM.md, "Timing without a beam", is the design: the census of every use of
 the timing registers, what each is for, the native backend, and the rewrites
-below. `python3 tools/timing_census.py` re-runs the census.
+below; its "as built" says what is done. `python3 tools/timing_census.py`
+re-runs the census.
 
 - **The gate's wait for its song to play** (`$C2:CBE0`,
   `menu/sound_bridge.c`): once the gate's screen has started its song, its
@@ -1779,17 +1780,19 @@ below. `python3 tools/timing_census.py` re-runs the census.
   at once. The native backend wants it as a wait the audio service owns (a
   call that comes back once the song plays).
 
-- **The native backend and the new calls.** Add `tm_wait_frame`,
-  `tm_frame_time_left`, `tm_wait_line`, `tm_entropy` and `tm_odd_frame` to
-  `timing.h`, and `in_ready` to `input.h`, each with a SNES backend that makes
-  the original's accesses; then the native backend: a frame of vblank handler,
-  main thread to its `tm_wait_frame`, line handler and picture, with
-  `tm_enable_interrupts` and `tm_set_line` recording which handlers run and
-  where, `VID_AT_LINE_HANDLER` resolved from the recorded line, and the
-  acknowledges answering "pending" inside their own handler. The main thread
-  runs as one coroutine through `runtime/port/fiber.h`: its frame waits are
-  deep in its call stack (the field's `$C0:EC60` has 28 call sites, the
-  battle's `$C1:007E` 20).
+- **The host backend in a build.** `runtime/platform/native/` has timing
+  and input as a host runs them, checked only by `timing_test` on a made-up
+  game: nothing links it with the game until `ct_native` (PLAN.md, "The native
+  program", step 4). Still to write for it: `VID_AT_LINE_HANDLER` resolved
+  from the recorded line by the native renderer (the picture's height,
+  `tm_host_picture_lines`), and the other services' host backends.
+- **The menus' tasks are coroutines of their own.** The scheduler is C
+  (`menu/tasks.c`), but each task runs on its own stack and yields from deep
+  in its calls (the description typed a letter a frame, the cursor's sprite),
+  so a build with no machine needs a fiber per task besides the main thread's
+  one, or the tasks rewritten to resume (each a state machine called once a
+  frame). PLAN.md's "one coroutine for the main thread" holds for the field and
+  the battle only; decide this before `ct_native` reaches the menus.
 - **The clock's controller read inside the effect work** (RECOMP.md, "Phase 3,
   battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
   work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
@@ -2043,17 +2046,8 @@ below. `python3 tools/timing_census.py` re-runs the census.
   Event's movement bridges were reshaped around it (tables of rows, no zero
   sites); following a table row's index through the callers would let them
   say it plainly.
-- **The event scheduler `$C0:5A46` and the sprite frame queue `$C0:CA76`**:
-  port them as "run the queued work while `tm_frame_time_left(limit)`". Name
-  the event queue (`$0174`/`$0175`, linked through `$1080`) and the scripts'
-  line limit (`$0169`, 72, set by `$C0:56A6`) in `re/ram.toml`, beside the
-  animation updates' (`field_animation_line_limit`, 120, which event command
-  `$47` sets). Shadow mode can disagree where the port's
-  beam read and the original's fall on either side of a line boundary; keep
-  the per-object work a call-out and measure it on the first run. Then run
-  the routes with the native backend's drained budgets.
-- **Frame waits to `tm_wait_frame`**: the races `$C0:3B71` and `$C0:4181`
-  (`field/frame.c`); the attract's `$7E:31B0`/`$7E:31B7`
+- **Frame waits still made on the machine**: the races `$C0:3B71` and
+  `$C0:4181` (`field/frame.c`); the attract's `$7E:31B0`/`$7E:31B7`
   (`attract/main_loop.c`, which reads `$4212` itself rather than through the
   service); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
@@ -2062,25 +2056,26 @@ below. `python3 tools/timing_census.py` re-runs the census.
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
   `attract_wait_loop`); and the generated `$C0:0B28` and `$FD:EADA` (vblank
   with the handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
-  `$FD:EAEB`.
-- **The line handlers' hblank waits go**: `field_irq_wait_hblank_loop`
+  `$FD:EAEB`. Ports that called the modes' wait routines now call
+  `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`); each of these
+  becomes one where its caller is a port. The modes' wait routines themselves
+  (the battle's `$C1:007E`, the sprite-object mode's `$C2:0346`) are still the
+  original's around their idle loops, and the pass that leaves an idle loop
+  stays counted as a fallback.
+- **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
-  boot's `$C3:0530`/`$C3:0538` exist to land the forced blank at the end of
-  line 211, which `vid_raster_display` at the handler's line already says.
-- **The controller-busy waits to `in_ready`**: `$C2:84EC` (`core/input.c`)
-  and the scene handler's `$C3:0A8E` (`scene/frame.c`), which stop at the
-  original's loop while the automatic read is busy. With these and the waits
-  above rewritten, no caller of `tm_video_status` needs a native answer, and
-  it becomes SNES-only.
-- **The battle's wait for a line `$CD:3B82`** (`battle/wait.c`, which reads
-  `$4212` and the counters directly): `tm_wait_line`. Its purpose isn't
-  established: the frame work waits for line 64 before the screen script
-  channels run while the timed effect slots do (`$CD:09AC`), and screen script
-  command `$C1` (`$CD:1D93`, in no movie) waits for a line from the script.
-  Neither is followed by a register write: the channels (`$CD:1609`, now C)
-  write only work RAM after the wait, the window table's coming buffer among
-  it, so the wait looks like pacing; take it out when the frame work's own
-  remainder is ported.
+  boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
+  which `vid_raster_display` at the handler's line already says. They read
+  through the SNES-only `tm_snes_video_status` and have no host half; they
+  go when the line handlers become functions the driver calls.
+- **The battle's wait for a line `$CD:3B82`**: its callers call
+  `tm_wait_line` now, and its three loops are the SNES backend's idle
+  entries (`battle/wait.c`). Its purpose isn't established: the frame work
+  waits for line 64 before the screen script channels run while the timed
+  effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`,
+  in no movie) waits for a line from the script. Neither is followed by a
+  register write, so the wait looks like pacing; take it out when the frame
+  work's own remainder is ported.
 - **The scene program's randomness and parity**: `$C3:02DD` mixes the beam
   counters into its seed and stays generated, with `$C3:01E4` (the noise
   effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through

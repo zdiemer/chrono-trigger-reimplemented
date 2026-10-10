@@ -40,7 +40,9 @@ class Machine:
     $CT_DRIVE_NATIVE, $CT_DRIVE_RECOMP and $CT_DRIVE_SOUND). With --native on
     and $CT_DRIVE_FALLBACKS naming a directory, each machine also counts what
     the original's code runs in place of hand ports (ct_drive --fallbacks) into
-    a file of its own there, for tools/fallbacks.py."""
+    a file of its own there, for tools/fallbacks.py. With $CT_DRIVE_DRAIN_BUDGETS
+    set and --native on, the field's frame budgets have time for all their work,
+    as a host's do (ct_drive --drain-budgets)."""
 
     _count = 0
 
@@ -55,6 +57,8 @@ class Machine:
             command += ["--native", native, "--recomp", recomp]
         if sound != "original":
             command += ["--sound-driver", sound]
+        if os.environ.get("CT_DRIVE_DRAIN_BUDGETS") and native == "on":
+            command += ["--drain-budgets"]
         fallbacks = os.environ.get("CT_DRIVE_FALLBACKS")
         if fallbacks and native == "on":
             Machine._count += 1

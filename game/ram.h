@@ -817,6 +817,11 @@
 /* The choice made in a dialog with choices, copied to the object's event_object_result */
 #define RAM_DIALOG_CHOICE 0x7E0166u
 #define RAM_DIALOG_CHOICE_DP 0x66u           /* page field */
+/* The scanline the queued object scripts' turns stop at each frame ($C0:5A46): once the beam has
+ * reached it, until the vertical blank, the rest of the queue waits for the next frame; $0048
+ * after a map loads ($C0:56A9) [2 bytes] */
+#define RAM_FIELD_SCRIPT_LINE_LIMIT 0x7E0169u
+#define RAM_FIELD_SCRIPT_LINE_LIMIT_DP 0x69u /* page field */
 /* The scanline the objects' animation updates stop at each frame ($C0:CA99; $0078 after a map
  * loads, $C0:56AB); event $47 sets its low byte [2 bytes] */
 #define RAM_FIELD_ANIMATION_LINE_LIMIT 0x7E016Bu
@@ -837,6 +842,13 @@
  * graphics. The leader's walk uses the cell as its next place's row once the map runs ($C0:9D35) */
 #define RAM_FIELD_NPC_GRAPHICS_COUNT 0x7E0173u
 #define RAM_FIELD_NPC_GRAPHICS_COUNT_DP 0x73u /* page field */
+/* Queue of objects whose scripts are due a turn ($C0:59D9), which the frame works through while
+ * it has time ($C0:5A46), linked through field_object_script_link (objects as links: slots
+ * doubled, negative none) [2 bytes] */
+#define RAM_FIELD_SCRIPT_QUEUE 0x7E0174u
+#define RAM_FIELD_SCRIPT_QUEUE_DP 0x74u      /* page field */
+#define RAM_FIELD_SCRIPT_QUEUE_HEAD 0x7E0174u /* The first object queued (negative: the queue is empty) */
+#define RAM_FIELD_SCRIPT_QUEUE_TAIL 0x7E0175u /* The last object queued (negative: the queue is empty) */
 /* Queue of objects due a new animation frame, which the frame builder works through, linked
  * through field_object_animation_link (objects as links: slots doubled, negative none) [2 bytes] */
 #define RAM_FIELD_ANIMATION_QUEUE 0x7E0176u
@@ -1294,17 +1306,25 @@
 #define RAM_FIELD_OBJECT_PALETTE 0x7E0F81u
 #define RAM_FIELD_OBJECT_PALETTE_COUNT 64u
 #define RAM_FIELD_OBJECT_PALETTE_STRIDE 0x02u
-/* Steps a move starts with (event $87 sets operand + 1); bit 7 makes calls skip the object [64 x
- * $2 bytes, by object slot (X = slot * 2)] */
+/* Steps a move starts with (event $87 sets operand + 1), which is also how many frames the
+ * object's script waits between turns ($C0:59D9); bit 7 makes calls skip the object, and keeps
+ * its script from being queued [64 x $2 bytes, by object slot (X = slot * 2)] */
 #define RAM_FIELD_OBJECT_STEP_LENGTH 0x7E1000u
 #define RAM_FIELD_OBJECT_STEP_LENGTH_COUNT 64u
 #define RAM_FIELD_OBJECT_STEP_LENGTH_STRIDE 0x02u
-/* Set with field_object_step_length by event $87 and cleared by the party's scripted moves
- * ($C0:31AA and on); what reads it isn't established [64 x $2 bytes, by object slot (X = slot *
- * 2)] */
-#define RAM_FIELD_OBJECT_STEP_COUNT 0x7E1001u
-#define RAM_FIELD_OBJECT_STEP_COUNT_COUNT 64u
-#define RAM_FIELD_OBJECT_STEP_COUNT_STRIDE 0x02u
+/* Frames until the object's script is due its next turn: counted down every frame ($C0:59D9),
+ * and when it runs out the object is queued for a turn and the countdown starts again from
+ * field_object_step_length; event $87 sets it with the length, and the field clears it where it
+ * hands an object a script of its own (a talk, a touch, the party's scripts), whose turn is then
+ * due on the next frame [64 x $2 bytes, by object slot (X = slot * 2)] */
+#define RAM_FIELD_OBJECT_TURN_COUNTDOWN 0x7E1001u
+#define RAM_FIELD_OBJECT_TURN_COUNTDOWN_COUNT 64u
+#define RAM_FIELD_OBJECT_TURN_COUNTDOWN_STRIDE 0x02u
+/* Next object in the script queue (negative: not queued) [64 x $2 bytes, by object slot (X =
+ * slot * 2)] */
+#define RAM_FIELD_OBJECT_SCRIPT_LINK 0x7E1080u
+#define RAM_FIELD_OBJECT_SCRIPT_LINK_COUNT 64u
+#define RAM_FIELD_OBJECT_SCRIPT_LINK_STRIDE 0x02u
 /* Next object in the animation queue (negative: not queued) [64 x $2 bytes, by object slot (X =
  * slot * 2)] */
 #define RAM_FIELD_OBJECT_ANIMATION_LINK 0x7E1081u
@@ -2062,6 +2082,7 @@
  * [16 bytes] */
 #define RAM_MENU_SCRATCH 0x7E0000u
 #define RAM_MENU_SCRATCH_DP 0x00u            /* page menu */
+#define RAM_MENU_SCRATCH_TASK_START 0x7E0000u /* Where the scheduler starts a task, from the task's record, which it jumps through ($C2:81FF) */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER 0x7E0000u /* The load screen: the character of the party member it is drawing a row for (its record's first byte; the portrait clears the high byte) */
 #define RAM_MENU_SCRATCH_PORTRAIT_TILE 0x7E0000u /* A character's large portrait ($C2:EC38): the tile word it lays next, its first tile in the low byte (the portrait writes it) over the attribute its caller gives in the high one; the portrait leaves it past the last tile, and takes the palette for the colours from it then */
 #define RAM_MENU_SCRATCH_SAVE_MEMBER_CHARACTER 0x7E0000u /* The same, its low byte alone: the rows' loop writes the character a byte wide */
@@ -2395,6 +2416,10 @@
  * handlers, in the table the screen's number picks */
 #define RAM_MENU_SCREEN_STEP 0x7E0068u
 #define RAM_MENU_SCREEN_STEP_DP 0x68u        /* page menu */
+/* The byte after menu_screen_step, which a task's start clears with it as a word ($C2:81FD);
+ * nothing reads it */
+#define RAM_MENU_SCREEN_STEP_HIGH 0x7E0069u
+#define RAM_MENU_SCREEN_STEP_HIGH_DP 0x69u   /* page menu */
 /* The task the scheduler is running, its record's offset from the first ($B0) */
 #define RAM_MENU_CURRENT_TASK 0x7E006Eu
 #define RAM_MENU_CURRENT_TASK_DP 0x6Eu       /* page menu */
@@ -2545,6 +2570,7 @@
 #define RAM_MENU_TASKS_START 0x7E00B2u       /* Where a task to start begins, in bank C2 */
 #define RAM_MENU_TASKS_STACK 0x7E00B4u       /* The task's stack pointer while it waits */
 #define RAM_MENU_TASKS_STEP 0x7E00B6u        /* The screen step (menu_screen_step) the task waits in, put back when it goes on */
+#define RAM_MENU_TASKS_STEP_HIGH 0x7E00B7u   /* The byte after the step, which a task's start clears with it as a word ($C2:81FB); nothing reads it */
 /* Where the wave on the layer over a map screen's map is in its sine, which moves on 4 steps a
  * frame. The handler means its object's own phase (+$22) but reaches it through an index its
  * loop has run on to $01C0, so it keeps it here, in the field page's scratch; it clears the

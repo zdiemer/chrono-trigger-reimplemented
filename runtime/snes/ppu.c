@@ -86,6 +86,7 @@ void ppu_latch_counters(Ppu *p)
     p->h_latch = p->hcounter;
     p->v_latch = p->vcounter;
     p->counters_latched = true;
+    p->latch_count++;
 }
 
 void ppu_write(void *ctx, uint8_t reg, uint8_t v)

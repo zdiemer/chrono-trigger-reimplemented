@@ -3,6 +3,7 @@
 #include "battle/bridge.h"
 
 #include "battle/battle.h"
+#include "platform/timing.h"
 #include "port/native.h"
 
 /* The machine's state a guard or a call's check looks at. */
@@ -39,6 +40,22 @@ bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     uint8_t bank = data_bank(s);
     m_jsl_dc(s, site, routine, dont_care);
     return battle_back(s, site + BATTLE_JSL_SIZE, page, bank);
+}
+
+bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
+{
+    uint16_t page = m_direct_page(s);
+    uint8_t bank = data_bank(s);
+    tm_wait_frame(m_platform(s), PF_CALL_DC(site, routine, dont_care));
+    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+}
+
+bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line)
+{
+    uint16_t page = m_direct_page(s);
+    uint8_t bank = data_bank(s);
+    tm_wait_line(m_platform(s), PF_CALL_DC(site, routine, dont_care), line);
+    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 
 void battle_stop_after_call(Snes *s, uint32_t site) { m_stop_at_own(s, site + BATTLE_JSR_SIZE, 0); }

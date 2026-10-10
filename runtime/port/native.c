@@ -38,7 +38,7 @@ typedef struct SegmentPart {
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
-typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_DONE } JobState;
+typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_LATCHING, JOB_DONE } JobState;
 
 /* A native routine in progress. It runs on a fiber so that calling code that
  * isn't ported (m_jsr/m_jsl) can suspend it: the call is set up on the machine,
@@ -128,6 +128,7 @@ typedef enum {
     PH_SEGMENT,   /* native code ran up to a call or return; the original is catching up */
     PH_CALLOUT,   /* both are inside a callee the native routine called */
     PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
+    PH_LATCH,     /* SHADOW: suspended in native_await_latch until the original latches the counters */
 } Phase;
 
 /* ON mode: time a hand port still owes, and where the machine is while it is
@@ -199,6 +200,11 @@ typedef struct Active {
     char failed_why[256], last_why[200];
     uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
     uint16_t sync_s;
+    /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
+     * and that the stretch the original is catching up with began before the
+     * wait, which the stretch's timing goes on from. */
+    uint32_t latch_mark;
+    bool stretch_goes_on;
     /* SHADOW: the stretch's bus clocks by the routine they are attributed to
      * (the job's parts when it stopped), and its attributions that named no
      * hand port or found no room. */
@@ -1126,14 +1132,17 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     } else {
         a->segment_bus_clocks = m->bus.clocks;
         a->segment_dma_clocks = m->bus.dma_clocks - a->dma_mark;
-        a->segment_start = s->master - s->stall_total;
-        a->segment_frame = s->frame;
-        a->segment_vblank = s->vline >= SNES_VBLANK_LINE;
-        a->segment_horizon = snes_horizon(s);
-        a->segment_interrupt_horizon = snes_interrupt_horizon(s);
-        memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
-        a->segment_interrupted = false;
-        a->segment_low_s = s->cpu.s;
+        if (!a->stretch_goes_on) {
+            a->segment_start = s->master - s->stall_total;
+            a->segment_frame = s->frame;
+            a->segment_vblank = s->vline >= SNES_VBLANK_LINE;
+            a->segment_horizon = snes_horizon(s);
+            a->segment_interrupt_horizon = snes_interrupt_horizon(s);
+            memcpy(a->segment_port_clears, apu_port_clears, sizeof apu_port_clears);
+            a->segment_interrupted = false;
+            a->segment_low_s = s->cpu.s;
+        }
+        a->stretch_goes_on = j->state == JOB_LATCHING;
         a->segment_nparts = j->nparts;
         memcpy(a->segment_parts, j->parts, sizeof *j->parts * (size_t)j->nparts);
         a->segment_bad_tags = j->bad_tags;
@@ -1157,6 +1166,11 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         a->job = NULL;
         a->ret_s = m->cpu.s;
         a->ret_pc = cpu_pc24(&m->cpu);
+    }
+    if (rt->mode == NATIVE_SHADOW && j->state == JOB_LATCHING) {
+        a->phase = PH_LATCH;
+        a->latch_mark = s->ppu.latch_count;
+        return;
     }
     a->phase = rt->mode == NATIVE_ON ? PH_CALLOUT : PH_SEGMENT;
     if (rt->mode == NATIVE_ON && !a->job)
@@ -1249,6 +1263,27 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             return true;
         }
         return false;
+    }
+
+    if (a->phase == PH_LATCH) {   /* SHADOW only */
+        if (a->segment_interrupted) {
+            a->interrupted = true;   /* the latch may be the handler's */
+            finish(rt);
+            return true;
+        }
+        if (s->cpu.s > a->entry_s + 1) {
+            a->mismatched = true;
+            detail(rt, "mismatch", a->entry, "original returned without reading the beam where the native routine did");
+            finish(rt);
+            return true;
+        }
+        if (s->ppu.latch_count == a->latch_mark)
+            return false;
+        a->clone->ppu.h_latch = s->ppu.h_latch;
+        a->clone->ppu.v_latch = s->ppu.v_latch;
+        job_run(a->job);
+        after_run(rt, a, s);
+        return true;
     }
 
     if (a->phase == PH_SYNC) {   /* ON only; intercept has paid the debt by now */
@@ -2118,7 +2153,7 @@ static int32_t intercept(void *ctx, Snes *s)
     if (rt->mode == NATIVE_SHADOW) {
         for (int i = 0; i < rt->nactive; i++) {
             Active *a = &rt->active[i];
-            if (a->phase == PH_SEGMENT && s->cpu.s < a->segment_low_s)
+            if ((a->phase == PH_SEGMENT || a->phase == PH_LATCH) && s->cpu.s < a->segment_low_s)
                 a->segment_low_s = s->cpu.s;
         }
     }
@@ -2133,7 +2168,7 @@ static int32_t intercept(void *ctx, Snes *s)
 
     if (interrupt_deliverable(s)) {
         for (int i = 0; i < rt->nactive; i++) {
-            if (rt->active[i].phase == PH_SEGMENT)
+            if (rt->active[i].phase == PH_SEGMENT || rt->active[i].phase == PH_LATCH)
                 rt->active[i].segment_interrupted = true;
         }
         return -1;
@@ -2420,6 +2455,21 @@ void native_sync(Snes *s)
     if (!j || j->m != s || !active_runtime || active_runtime->mode != NATIVE_ON || !s->bus.clocks)
         return;
     j->state = JOB_SYNCING;
+    fiber_switch(fiber_main());
+}
+
+void native_await_latch(Snes *s)
+{
+    Job *j = current_job;
+    if (!j || j->m != s || !active_runtime)
+        return;
+    if (active_runtime->mode == NATIVE_ON) {
+        native_sync(s);
+        return;
+    }
+    if (active_runtime->mode != NATIVE_SHADOW)
+        return;
+    j->state = JOB_LATCHING;
     fiber_switch(fiber_main());
 }
 

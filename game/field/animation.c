@@ -342,6 +342,45 @@ static bool queue_last(GameState *g, FieldObject obj)
     return true;
 }
 
+FrameQueueFront object_frame_queue_front(const GameState *g)
+{
+    FieldLink head = queue_head(g);
+    if (!field_link_is_object(head))
+        return (FrameQueueFront){ false, 0, false };
+    return (FrameQueueFront){ true, field_linked_object(head), field_same_link(head, queue_tail(g)) };
+}
+
+/* The original decides whether the first was alone before drawing its
+ * frame, and takes it off as the queue then stands. */
+void object_frame_queue_take_first(GameState *g, bool alone)
+{
+    FieldObject first = field_linked_object(queue_head(g));
+    if (alone) {
+        set_queue_head(g, field_no_link());
+        set_queue_tail(g, field_no_link());
+    } else {
+        set_queue_head(g, queued_after(g, first));
+    }
+    set_queued_after(g, first, field_no_link());
+}
+
+enum { LONGEST_QUEUE = FIELD_OBJECTS };
+
+bool object_frame_queue_in_the_tables(const GameState *g)
+{
+    FieldLink at = queue_head(g);
+    if (!field_link_is_object(at))
+        return true;
+    for (unsigned n = 0; n < LONGEST_QUEUE; n++) {
+        if (!field_link_names_object(at))
+            return false;
+        if (field_same_link(at, queue_tail(g)))
+            return true;
+        at = queued_after(g, field_linked_object(at));
+    }
+    return false;
+}
+
 /* A character joining the party (event $D3) marks the queue's front for the
  * member it becomes; that member's load (field/cast.c) turns the mark into
  * the asking, and the next of the party due a frame comes first, once. */

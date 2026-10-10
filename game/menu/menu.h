@@ -44,6 +44,17 @@ void menu_stop_tasks(GameState *g, uint8_t tasks);
 void menu_stop_tasks_entry(Snes *s);
 
 
+/* menu/tasks.c: a task waits a frame or some frames, or ends, and the next
+ * goes on; the frame's turns from the first task; the menus' first wait. */
+void menu_task_waits_a_frame(Snes *s);
+void menu_task_waits_frames(Snes *s);
+void menu_task_ends(Snes *s);
+void menu_run_the_tasks(Snes *s);
+void menu_wait_for_the_first_frame(Snes *s);
+bool menu_task_can_wait(Snes *s);
+bool menu_task_can_end(Snes *s);
+bool menu_tasks_can_run(Snes *s);
+
 /* menu/frame.c */
 void menu_wait_for_frame_loop(Snes *s);
 void menu_wait_ready_loop(Snes *s);

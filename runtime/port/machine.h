@@ -427,6 +427,42 @@ static inline void m_return_to_caller_long(Snes *s)
     m_rtl(s);
 }
 
+/* A coroutine's switch, as the menus' tasks make one (game/menu/tasks.c):
+ * the registers a coroutine keeps on its own stack as it gives the processor
+ * up -- X and Y at the width it has them, P and D (PHX, PHY, PHP, PHD) -- and
+ * the switch back into one that kept them so: S set to where it kept them,
+ * the same pulled back (PLD, PLP, then PLY and PLX at the width P gives, the
+ * last of which sets N and Z) and its RTS. */
+static inline void m_keep_registers_to_switch(Snes *s)
+{
+    if (m_x8(s)) {
+        m_push8(s, (uint8_t)s->cpu.x);
+        m_push8(s, (uint8_t)s->cpu.y);
+    } else {
+        m_push16(s, s->cpu.x);
+        m_push16(s, s->cpu.y);
+    }
+    m_push8(s, s->cpu.p);
+    m_push16(s, s->cpu.d);
+}
+
+static inline void m_switch_back(Snes *s, uint16_t stack)
+{
+    s->cpu.s = stack;
+    s->cpu.d = m_pull16(s);
+    s->cpu.p = m_pull8(s);
+    if (m_x8(s)) {
+        s->cpu.y = m_pull8(s);
+        s->cpu.x = m_pull8(s);
+        m_set_nz8(s, (uint8_t)s->cpu.x);
+    } else {
+        s->cpu.y = m_pull16(s);
+        s->cpu.x = m_pull16(s);
+        m_set_nz16(s, s->cpu.x);
+    }
+    m_rts(s);
+}
+
 /* An MVN of `bytes` bytes (at least 1) from src_bank:from to dst_bank:to,
  * with the registers it leaves: X and Y past the ends, A $FFFF, the data bank
  * dst_bank. */

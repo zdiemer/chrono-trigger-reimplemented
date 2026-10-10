@@ -124,8 +124,8 @@ static void script_menu_shown(GameState *g)
 
 /* The original's routines. */
 enum {
-    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     MENUS = 0xC28000,               /* the menus, at the mode in A */
+    FRAME_WAIT = 0xC0EC60,          /* waits for the next frame */
     SPRITE_LISTS = 0xC0B192,
     FADE_IN = 0xC02824,
     CHOICE = 0xC01ADF,              /* a dialog's choice taking the buttons */
@@ -147,7 +147,10 @@ static bool call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care)
     return bridge_call(s, site, routine, dont_care, on_the_field_page(s, false));
 }
 
-static bool wait_frame(Snes *s, uint32_t site) { return call(s, site, FRAME_WAIT, READS_NOTHING); }
+static bool wait_frame(Snes *s, uint32_t site)
+{
+    return field_wait_frame(s, site, FRAME_WAIT, READS_NOTHING, on_the_field_page(s, false));
+}
 
 /* The field put aside before a menu, and set up again after it
  * (field/location.c). */

@@ -9,6 +9,9 @@
 /* field/frames.c */
 void field_draw_next_frame(Snes *s);
 bool field_frames_can_draw(Snes *s);
+/* The frame queue drawn through, while the frame has time. */
+void field_draw_queued_frames(Snes *s);
+bool field_queued_frames_can_be_drawn(Snes *s);
 #include "field/object.h"
 #include "platform/platform.h"
 

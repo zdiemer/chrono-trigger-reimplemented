@@ -56,6 +56,10 @@ typedef struct Ppu {
     uint16_t h_latch, v_latch;
     bool h_second, v_second;
     bool counters_latched;
+    /* Latches since power-on (wrapping), for the shadow runtime to see the
+     * original latch the counters (native_await_latch). Emulation never reads
+     * it. */
+    uint32_t latch_count;
     uint8_t ppu1_open_bus, ppu2_open_bus;
 
     /* Supplied by the system before each register access. */

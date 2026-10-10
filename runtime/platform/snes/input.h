@@ -1,10 +1,21 @@
-/* Input service, SNES backend: the auto-joypad registers $4218-$421F and the I/O port $4201.
+/* Input service, SNES backend: the auto-joypad registers $4218-$421F, its status in $4212 and the I/O port
+ * $4201.
  * Included by platform/input.h. */
 #ifndef CT_PLATFORM_SNES_INPUT_H
 #define CT_PLATFORM_SNES_INPUT_H
 
 #include "platform/input.h"
 #include "platform/snes/backend.h"
+
+/* The console reads the controllers for a few lines from the start of the
+ * vertical blank; $4212 bit 0 is set meanwhile. */
+PF_API bool in_ready(Platform *pf, PfOrigin o)
+{
+    pf_snes_begin("in_ready", o);
+    uint8_t status = pf_snes_get(pf_snes(pf), 0x4212);
+    pf_snes_end();
+    return !(status & 0x01);
+}
 
 PF_API PadBits in_read(Platform *pf, PfOrigin o, uint8_t pad)
 {

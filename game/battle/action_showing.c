@@ -242,7 +242,10 @@ static void apply_the_animation_switch(GameState *g)
  * none of the registers but A's high byte, which it takes along. */
 enum { FRAME_WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS };
 
-static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_call(s, site, 0xC1007E, FRAME_WAIT_READS); }
+static bool wait_for_the_next_frame(Snes *s, uint32_t site)
+{
+    return battle_wait_frame(s, site, 0xC1007E, FRAME_WAIT_READS);
+}
 
 static bool frame_step(Snes *s, uint32_t site) { return battle_run(s, site, 0xC110FA, battle_frame_step); }
 

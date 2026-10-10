@@ -428,6 +428,19 @@ void object_show_movement(GameState *g, FieldObject obj, uint8_t animation);
 /* Every frame, for an object in view: count down to its next frame, and when
  * it is due, queue the object for the frame builder and move to the frame. */
 void object_animation_tick(GameState *g, FieldObject obj);
+/* The frame builder's queue, from its front (field/frames.c): the object
+ * first in it, if any, and whether it is the only one; and the first taken
+ * off once its frame is whole. */
+typedef struct {
+    bool queued;
+    FieldObject first;
+    bool alone;
+} FrameQueueFront;
+FrameQueueFront object_frame_queue_front(const GameState *g);
+void object_frame_queue_take_first(GameState *g, bool alone);
+/* Whether the queue's objects are in the object tables, each named by its
+ * slot doubled from the head to the tail (the frame builder's guard). */
+bool object_frame_queue_in_the_tables(const GameState *g);
 
 /* The frame builder takes the object's next frame to draw, if there is one:
  * a one-off animation at the end of its frames counts half a pass and has
@@ -487,18 +500,25 @@ bool object_lines_up(const GameState *g, FieldObject obj, ObjectArrival how);
 
 /* How many steps a script's walks take at a time: the length it sets, and
  * what the walks start with, which carries the object's unreachable mark
- * (object_start_walk). */
+ * (object_start_walk). The length is also how many frames the object's
+ * script waits between its turns (field/script_turns.c), so a script that
+ * sets off on a walk gets its next turn as the walk's steps run out: setting
+ * the length starts the countdown to the next turn from it. */
 void object_set_move_length(GameState *g, FieldObject obj, uint8_t steps);
 uint8_t object_move_length(const GameState *g, FieldObject obj);
 /* A member of the party moves a step at a time (its walks are the trail's):
- * the length alone, keeping the mark, and not the copy below. */
+ * the length alone, keeping the mark, and not the countdown. */
 void object_move_a_step_at_a_time(GameState *g, FieldObject obj);
-/* The original keeps a second copy of the length, the steps a move has left,
- * and clears it where the field hands an object a script of its own (a talk,
- * a touch, the party's scripts: event/calls.h). The event scheduler, still
- * the original's ($C0:59F0), reads it: a walk the object was on ends there,
- * where a stale count would carry it on and stop it short of the next. */
-void object_clear_move_length_copy(GameState *g, FieldObject obj);
+
+/* The countdown to the script's next turn (field/script_turns.c): counted
+ * down a frame, true once the turn has come (and while it waits to be
+ * queued); an unreachable object's script takes no turns. Once queued, the
+ * countdown starts again from the move length. Where the field hands an
+ * object a script of its own (a talk, a touch, the party's scripts:
+ * event/calls.h), its turn comes at once, on the next frame. */
+bool object_turn_comes(GameState *g, FieldObject obj);
+void object_restart_turn_countdown(GameState *g, FieldObject obj);
+void object_turn_now(GameState *g, FieldObject obj);
 
 /* Whether a move's steps may take the object out of its tile: never, once
  * (the move's first step may cross), or always. */

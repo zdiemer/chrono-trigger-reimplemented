@@ -119,21 +119,21 @@ void scene_boot_line_irq(Snes *s)
 /* The status the waits load into A: bits 1-5 are open bus, which the original
  * reads as the load's last operand byte, 0. The load sets N, and the test of
  * hblank Z. */
-enum { STATUS_BITS = TM_STATUS_VBLANK | TM_STATUS_HBLANK | TM_STATUS_JOYPAD_BUSY };
+enum { STATUS_BITS = TM_SNES_IN_VBLANK | TM_SNES_IN_HBLANK | TM_SNES_JOYPAD_BUSY };
 static void load_status(Snes *s, uint8_t status)
 {
     m_set_a8(s, status & STATUS_BITS);
-    m_set_flag(s, CPU_FLAG_N, status & TM_STATUS_VBLANK);
-    m_set_flag(s, CPU_FLAG_Z, !(status & TM_STATUS_HBLANK));
+    m_set_flag(s, CPU_FLAG_N, status & TM_SNES_IN_VBLANK);
+    m_set_flag(s, CPU_FLAG_Z, !(status & TM_SNES_IN_HBLANK));
 }
 
 // $C3:0530
 /* One pass of the wait for the current hblank to end. Idle entry. */
 void scene_boot_line_irq_wait_hblank_end_loop(Snes *s)
 {
-    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xC30530));
+    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC30530));
     load_status(s, status);
-    if (!(status & TM_STATUS_HBLANK))
+    if (!(status & TM_SNES_IN_HBLANK))
         s->cpu.pc = 0x0538;
 }
 
@@ -141,9 +141,9 @@ void scene_boot_line_irq_wait_hblank_end_loop(Snes *s)
 /* One pass of the wait for the next hblank to start. Idle entry. */
 void scene_boot_line_irq_wait_hblank_loop(Snes *s)
 {
-    uint8_t status = tm_video_status(m_platform(s), PF_AT(0xC30538));
+    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xC30538));
     load_status(s, status);
-    if (status & TM_STATUS_HBLANK)
+    if (status & TM_SNES_IN_HBLANK)
         s->cpu.pc = 0x0540;
 }
 
