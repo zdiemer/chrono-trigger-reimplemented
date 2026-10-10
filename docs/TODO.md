@@ -384,6 +384,20 @@ rest waits, is [PLAN.md](PLAN.md).
     `right_side(at.x) + step.x` near `$FF8F` never feeds a carry the port
     drops.
 
+  - what an action shown's review left (none rated translation): cells
+    incremented where they are bools or known 0 (`action_showing.c`,
+    `pose_looks.c`, `frame_step.c`); `damage.c` keeps tech points as a word
+    and a byte with a hand-made carry (a wide accessor), and tests
+    `& 0x8000` where it means below nothing; `pose_looks.c` works out the
+    palette's colour place again (as `from_field.c` and `object_motion.c`
+    do), and names `POSE_HELD` by its byte rather than its status;
+    `action_animation.c` repeats `battle_decoded_tiles`' address as
+    `DECODE_BUFFER` and names action `0x37` only for its effect;
+    `battle_poses_round_done` is read back as a loop flag where
+    `battle_go_round_the_poses` could return it; `frame_step.c`'s queue
+    shift (place 3 from place 2) doesn't say what the player sees, and it
+    calls a guard then calls out by hand rather than through `battle_run`.
+
   - what the triangles, circles and special effects' review left (none
     blocking): `screen_triangles.c` works out the bit-serial divider's
     leftover (`last_bit_scaled_out`, `left_of_the_dividend`) outside
