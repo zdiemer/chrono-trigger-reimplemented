@@ -68,7 +68,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
-  adding a movie or a port, recalibrate with its `--calibrate game/registry.c`; docs/RECOMP.md, "The
+  adding a port, recalibrate with its `--calibrate game/registry.c`, and after adding a movie with
+  `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/RECOMP.md, "The
   timing gate"); no video write in the shipping mode (`--recomp on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
   (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
