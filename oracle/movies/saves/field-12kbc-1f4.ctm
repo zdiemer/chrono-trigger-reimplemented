@@ -1,0 +1,15 @@
+# Walk the 12,000 B.C. world map at location $1F4: load the save (standing on the world map), walk
+# until a location's door is found and step through it, then walk back out onto the world map.
+# Save: ctsave08 slot 2 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 2953
+# sram crc32 C2813AC8
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 2 DOWN
+2452 2 DOWN
+2484 2 DOWN
+2516 4 A
+2650 16 UP
+2670 3 A
+2853 32 DOWN
+2885 8 UP

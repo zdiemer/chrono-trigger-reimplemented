@@ -3,6 +3,7 @@
     python3 tools/timing_gate.py build/suite/shadow-*.log            (check, as tools/suite.py does)
     python3 tools/timing_gate.py build/suite/shadow-*.log --table    (every entry's numbers)
     python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c
+    python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c --drifted
 
 A hand port charges its time as an estimate: its DMA transfers' time as it is,
 and `cost_milli`/1000 times the rest of its own bus clocks (docs/PORTING.md).
@@ -11,17 +12,19 @@ original, which runs on the interpreter in shadow mode, over every stretch of a
 port no interrupt fell in (runtime/port/native.c, end_segment): the totals of
 the original's time, the port's bus clocks and their DMA part, the total
 absolute error, the largest, a histogram of the error by bit length, and the
-same for the stretches that began in vblank. This reads those reports from the
+same for the stretches within one vblank. This reads those reports from the
 movie library's shadow logs, sums them per entry over the movies, and checks
 each entry against four limits, each tied to the budget an error could break
 (docs/RECOMP.md, "The timing gate"):
 
 - drift: the estimate's systematic error over the library, as a share of the
   entry's time (what one scalar fixes, and what --calibrate does fix);
-- vblank-tail: of the stretches that began in vblank, the share off by three
-  quarters of a scanline or more;
-- vblank-worst: the largest error of a stretch that began in vblank;
-- worst: the largest error of a stretch that began on a picture line.
+- vblank-tail: of the stretches that lie within one vblank (the original
+  began and ended them in it), the share off by three quarters of a scanline
+  or more;
+- vblank-worst: the largest error of a stretch within one vblank;
+- worst: the largest error of any other stretch, which ends on a picture
+  line: one that began there, or began in vblank and outlasted it.
 
 An entry that exceeds a limit fails unless tools/timing_exceptions.txt lists
 it for that limit with a reason. Exceptions that no longer exceed their limit
@@ -37,9 +40,10 @@ shadow mode measures and calibrates on their own calls. An attribution to an
 address with no hand port fails the check.
 
 --calibrate rewrites each measured entry's `cost_milli` in game/registry.c
-to the value the totals imply: the original's time over the port's bus clocks,
-DMA's time (the same in both) left out of both, and for an entry with parts,
-the parts' estimates (at their routines' calibrated values) left out too.
+to the value the totals imply (with --drifted, only the entries over the drift
+limit: what adding movies to the library needs, docs/RECOMP.md): the original's
+time over the port's bus clocks, DMA's time (the same in both) left out of
+both, and for an entry with parts, the parts' estimates (at their routines' calibrated values) left out too.
 """
 
 import argparse
@@ -439,20 +443,48 @@ def calibrated_values(agg):
     return out
 
 
-def calibrate(agg, registry):
+def drifted_values(agg, exceptions):
+    """{name: cost_milli} for the entries over the drift limit, and only those:
+    each set to what its totals imply with its parts at their routines'
+    present values. A handler's new value moves the dispatchers that run it
+    inline, so this goes round again until nothing is over (or stops after a
+    few rounds; the check says what is left). Entries listed for drift in the
+    exceptions are left alone. The smallest change to the registry that puts
+    the library back within the drift limit, for adding movies: a full
+    recalibration rewrites every measured entry and collides with every other
+    branch that touches the registry."""
+    out = {}
+    for _round in range(8):
+        over = sorted(name for name, e in agg.items()
+                      if e.measured and (name, "drift") not in exceptions and "drift" in exceeded(e))
+        if not over:
+            break
+        for name in over:
+            value = agg[name].calibrated
+            agg[name].cost_milli = value
+            out[name] = value
+            for e in agg.values():
+                if name in e.parts:
+                    e.parts[name].cost_milli = value
+    return out
+
+
+def calibrate(agg, registry, values=None):
     """Rewrite each measured entry's cost_milli in registry to its calibrated
-    value. Entries are either `{ .addr = 0x..., .name = "n", ..., .cost_milli
+    value, or with `values` ({name: cost_milli}, drifted_values) only those.
+    Entries are either `{ .addr = 0x..., .name = "n", ..., .cost_milli
     = N, ... }` or a table macro's `MACRO(0x..., n, N)`, which may take more
     arguments after N (event's guard). Returns the changes,
     [(name, old, new)]; an entry measured but not found is an error."""
     text = pathlib.Path(registry).read_text()
     changes = []
     seen = set()
-    values = calibrated_values(agg)
+    if values is None:
+        values = calibrated_values(agg)
 
     def measured(name):
         e = agg.get(name)
-        return e is not None and e.measured
+        return e is not None and e.measured and name in values
 
     def new_value(name, old):
         seen.add(name)
@@ -492,6 +524,8 @@ def main(argv=None):
     ap.add_argument("--table", action="store_true", help="print every entry's numbers")
     ap.add_argument("--calibrate", type=pathlib.Path, metavar="REGISTRY",
                     help="rewrite cost_milli in this registry from the measurement")
+    ap.add_argument("--drifted", action="store_true",
+                    help="with --calibrate, rewrite only the entries over the drift limit (after adding movies)")
     args = ap.parse_args(argv)
 
     agg = load(args.logs)
@@ -501,7 +535,8 @@ def main(argv=None):
         table(agg)
     distribution(agg)
     if args.calibrate:
-        for name, old, new in calibrate(agg, args.calibrate):
+        values = drifted_values(agg, read_exceptions(args.exceptions)) if args.drifted else None
+        for name, old, new in calibrate(agg, args.calibrate, values):
             print("  %s: %d -> %d" % (name, old, new))
         return 0
     result = check(agg, read_exceptions(args.exceptions))

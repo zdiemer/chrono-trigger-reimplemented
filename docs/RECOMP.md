@@ -1058,7 +1058,7 @@ every shadow run whether or not `--timing-report` is given; the switch only
 prints them, a few lines per entry at exit, so the suite's runs carry it at no
 cost. The report now also gives the exact totals (the original's time, the
 port's bus clocks and their DMA part, the summed error), the error histogram by
-bit length, and the same for the stretches that began on a vblank line, with
+bit length, and the same for the stretches within one vblank (below), with
 the largest error there and on picture lines. The original runs on the
 interpreter in shadow mode, so none of it moves with the estimates; only the
 error does. `tools/timing_gate.py` sums the reports over the 26 movies, weighted
@@ -1113,15 +1113,31 @@ rest.
 | Limit | Bound | Why |
 |---|---|---|
 | `drift` | \|mean signed error\| <= 1364/357368 = 0.38% of the entry's time | A systematic error adds up over every call in a frame. At this bound, a frame spent entirely in the entry would end its work one scanline off. |
-| `vblank-tail` | at most 1% of the stretches that begin in vblank off by >= 1024 clocks | In vblank the NMI handler does the frame's video work, and an error of about a line (the histogram's bound nearest one, 3/4 of a line) moves the handler's later writes a line nearer the picture. |
-| `vblank-worst` | no stretch that begins in vblank off by more than 12617 clocks | A quarter of vblank (37 lines, 50468 clocks): a spike that takes a quarter of the handler's time. |
-| `worst` | no stretch on a picture line off by more than 50468 clocks | On picture lines an error moves the main loop's work within its frame; interrupts come on time and raster writes are the vblank check's. What it can break is the frame: an error longer than vblank can push work that ended before the NMI past it, and the frame's update slips. |
+| `vblank-tail` | at most 1% of the stretches within one vblank off by >= 1024 clocks | In vblank the NMI handler does the frame's video work, and an error of about a line (the histogram's bound nearest one, 3/4 of a line) moves the handler's later writes a line nearer the picture. |
+| `vblank-worst` | no stretch within one vblank off by more than 12617 clocks | A quarter of vblank (37 lines, 50468 clocks): a spike that takes a quarter of the handler's time. |
+| `worst` | no other stretch off by more than 50468 clocks | The rest end on a picture line, where an error moves the main loop's work within its frame; interrupts come on time and raster writes are the vblank check's. What it can break is the frame: an error longer than vblank can push work that ended before the NMI past it, and the frame's update slips. |
 
 Mean and worst are kept apart because they break different things: the mean
 error (drift) accumulates and is what a scalar fixes, so its bound is tight and
 relative; single spikes don't accumulate, so their bounds are absolute and sized
 by the budget they could hit. Drift and `vblank-tail` need 100 stretches to
 judge.
+
+A stretch is a vblank one when the original began *and ended* it in the same
+vblank (`end_segment`, `runtime/port/native.c`; the frame counter goes up as
+vblank begins, so that is the same frame count and a vblank line at both ends).
+At first it was one that began there, which judged the calls that begin in
+vblank and run on into the picture -- a load, an object setup, the load screen's
+frame, 80-120 lines long -- by vblank's budget, though their error moves only
+work that comes after them on the picture, in the original as in the port;
+`worst` judges them now. That retired 92 of the exceptions' 146 lines, most of
+whose reasons said as much ("the calls are as long as vblank or longer, so the
+original's own time already runs them into the picture"), and it is what the
+world-map movies needed: `field_set_up_the_objects` (calls of 78 lines) passed
+`MIN_STRETCHES` vblank stretches with them, and in `field-12kbc-1f5`, whose
+save's names and figures draw shorter, every frame of the load screen
+(`menu_show_save_slot`, `menu_choose_on_load_screen`, 117 lines each) was off by
+about 2200 clocks, a one-off per save that no calibration moves.
 
 The drift bound is tight enough that it holds only for a calibrated value: an
 entry's drift over one part of the library differs from its drift over all of it
@@ -1131,6 +1147,38 @@ a port, means running `--calibrate` again, which is the point: `cost_milli` is
 the measured value, not a guess. That variation between scenes is real
 systematic error in the frames it happens in, and the per-stretch limits are
 what bound it where it could matter.
+
+**Adding movies.** Every movie moves some entries' drift past the bound when it
+joins: leaving each of the 32 movies out, calibrating on the rest and adding it
+back puts 11 (each world-map walk) to 156 (`endings-bucket-lavos`) entries
+over, because each entry's ratio of the original's time to the port's differs
+between scenes (`overworld_follow` +96% in `field`, where Crono walks alone, -7%
+with two followers in `field-65m-bc`) and the bound holds the library's mean of them. That is
+calibration falling behind, not a broken estimate, and recalibrating clears it
+(with the four world-map movies, all 15 entries over). A full `--calibrate`
+rewrites every measured row of `game/registry.c` and collides with every branch
+that calibrates its own, so a batch of movies is added this way:
+
+1. Write the movies (a route's `--movie`, docs/MOVIES.md) into
+   `oracle/movies/saves/` with their headers, and add their rows to RUNTIME.md's
+   table.
+2. Run the suite. The fallback ratchet's instruction counts grow with the
+   library, so `python3 tools/fallbacks.py build/suite/fallbacks/shadow --update`
+   takes them (a routine whose distinct bytes rose is original code the new
+   movies run in place of a port: say which in the commit; the world-map walks
+   added 146 bytes in bank `$C2`, 59 with no port yet and 87 handed back by
+   `menu_run_objects`). Drift failures are the
+   expected ones:
+   `python3 tools/timing_gate.py build/suite/shadow-*.log --calibrate game/registry.c --drifted`
+   sets only the entries over the bound to their calibrated values, going round
+   again for the dispatchers that run a recalibrated handler inline, and leaves
+   the rest of the registry alone (15 rows for the world-map movies).
+3. Run the suite again (the shipping mode's checks move with the values). What
+   is left over is a real finding: a vblank or worst limit, which calibration
+   doesn't move, belongs to an entry whose time follows data its estimate
+   doesn't follow; make it follow (a charge per unit of work, `game/charge.h`,
+   or the part timed as its own routine), and only where that can't reach it,
+   an exception with the vblank check's word that no write moved.
 
 An entry over a limit fails unless `tools/timing_exceptions.txt` lists it
 for that limit with a reason; an exception an entry no longer needs is reported,
