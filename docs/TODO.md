@@ -927,6 +927,29 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the world map's setup review left** (none rated translation; the
+  `menu_epoch_build_map` guard is a real precondition and the main loop's
+  call-out unreachable): `overworld/setup.c`'s loaders take the ROM call
+  site (`0xC2280C`...) so the machine's unpacker can rebuild the original's
+  frame, threading the call graph through the logic (give the unpacker a
+  game-state form); `overworld_load_the_map_tiles` is called without
+  `TIMED_AS(0xC227DE)` though the sends around it are tagged; the
+  `doubled >> 15` carry term is 0 for every member byte the game makes;
+  `menu_mode_beside`/`menu_random_beside` name a 16-bit clear's second byte
+  after its neighbours; `display.c`'s raw shadow bytes `0x09`/`0x17`/`0x13`;
+  `epoch.c` still calls `$C2:26A8` through the machine though
+  `menu_clear_all_of_vram` exists; `object_commands.c`'s story flags aren't
+  named for what they mean; `music.h`'s `region` exists only for the wrapper;
+  `terrain.h` exports a carry derivation; `0x7E4000` is spelled in both
+  `setup.c` and `main_loop.c`. In `tools/timing_exceptions.txt`,
+  `overworld_load_the_map_tiles` and `_load_the_map_again` give "its time
+  following the packed data" as the reason, but the unpacker is timed as
+  itself and their own work is a few table reads (map_tiles is calibrated
+  at 340x): find what they carry -- likely the untagged call above -- and
+  make the reasons say it (or the entries leave the file); and
+  `overworld_back_from_the_menus` went from 21663 to 343895 cost_milli
+  unexplained.
+
 - **What the battlefield change's review left** (none rated translation):
   `battlefield_change.c`'s map build keeps its working state in work RAM
   (`battle_map_cycle`, `_strip_step`, `_strip_cells`) and reads which places
@@ -1398,13 +1421,10 @@ rest waits, is [PLAN.md](PLAN.md).
     the handlers and of the routines the scripts name, each row the
     operation's own (`NATIVE_TIME_AS`), with what nothing ports handed to the
     original;
-  - what the scenes' scripts call and nothing ports yet: `$C2:2F0F` (a
-    location's region song, sent to the driver directly), `$C2:7860`-
-    `$C2:78A0` (the party hidden, kept and brought back), `$C2:79E0`-
-    `$C2:7A55` (places picked from the random table), `$C2:7B44`,
-    `$C2:7BC4` and the story's other flags there, and `$C6:E241`,
-    `$C6:E27E` (the endings' scenes); they are filed under their own
-    addresses now rather than under the call command's jump;
+  - what the scenes' scripts call and nothing ports yet: `$C6:E241` and
+    `$C6:E27E`, the endings' scenes' line effects, which call the scene
+    engine's `$C3:000E` (unported) and program a line channel the line
+    service would take;
   - no movie flies the Epoch over the Black Omen or enters it
     (`$C2:4510`-`$C2:452F`, `$C2:4A0A`-`$C2:4A19`), takes off at the story's
     point `$D3` or boards at `$D2`, or sets off for `$1F2` before the Epoch
@@ -1414,6 +1434,28 @@ rest waits, is [PLAN.md](PLAN.md).
     animation it may be given to be one the language reads, which random
     sprite scripts rarely are): a variant with the slot's scripts kept would
     cover it better.
+
+- **What the world map's set up left** (RECOMP.md, "Phase 3, menus and
+  overworld: the world map set up, its scenes' calls and the frame's
+  input"):
+  - the reference play runs 5.0 KiB of bank `$C2` with no call on record
+    (`C2:----`): the menus' screens' code after a task's yield (`$C2:821E`),
+    resumed on the task's own stack, which the fallback measure can't file
+    under the port that stopped at the yield. Ports whose work spans a yield
+    (or the measure following a task's resumption to the port that yielded)
+    would show how much of it is really the original's;
+  - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
+    frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
+    step), which the equipment, items, techs and shop screens' bridges call
+    out to, and the equipment screen's preview (`$C2:A5C3`, `$C2:A5E7`);
+  - the world map's loads reach the unpacker through the machine
+    (`overworld/setup.c`'s `Unpacker`): a C unpacker taking a stream and a
+    destination would make them plain calls (the event commands' TODO wants
+    the same);
+  - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
+    random states make through the original's call (a map the loader can't
+    take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
+    and checked in shadow mode (7 calls).
 
 - **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
   party's exchange"):

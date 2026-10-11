@@ -126,3 +126,9 @@ menu_type_on_the_name_grid drift the typing: its own share is at the floor and t
 menu_choose_gauge_layout vblank-tail as menu_step_setting_meter: 2 of 164 calls off by more than 1024 clocks, at most 2328, writing RAM only
 menu_describe_setting vblank-tail the settings screen's description: a new option clears the row and starts the typing; 1.57% of its calls off by more than 1024 clocks, at most 2675, writing RAM only
 menu_work_out_figures vblank-tail a member's figures: the shop's members' window works them out for every member each frame it is redrawn (menus-shop-equip); mean |error| 3.4% with no drift, at most 1554 clocks, writing RAM only
+
+overworld_set_up worst sets the world map up with the screen blanked and the frame's interrupt off, unpacking every stream of its record (the unpacker timed as itself) and drawing the map: at most 429671 clocks in calls of 13.3 million on average (1.5%), ending the set up sooner or later
+overworld_load_the_map_tiles worst unpacks the map's seven blocks of tiles with the screen blanked, its time following the packed data: at most 378672 clocks in calls of 4.0 million, ending a load sooner or later
+overworld_load_the_map_again worst loads the world map again after the menus or the map view with the screen blanked, its time following the packed data: at most 112445 clocks in calls of 10.7 million
+overworld_back_from_the_menus worst brings the world map back after the menus with the screen blanked, its reload (overworld_load_the_map_again) timed as itself and carrying its spread: at most 120766 clocks in calls of 5.7 million
+overworld_main_loop worst the main loop's frame that brings the map back from the map view or the time dial runs the map's reload with the screen blanked (overworld_load_the_map_again, timed as itself): at most 119804 clocks, in those frames only

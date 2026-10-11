@@ -8289,3 +8289,101 @@ depth cut, so a function first reached deep in the call graph lost its plain
 writes for every later caller: the window's digits showed as written only as
 scaffolding once this chunk's calls moved the order. A summary made under the
 cut is no longer kept.
+
+## Phase 3, menus and overworld: the vehicles, the screen's objects and the calls made where they go (`$C2:309E`-`$C2:324B`, `$C2:2345`-`$C2:23A7`, `$C2:42DD`-`$C2:4A9A`, `$C2:1CF5`-`$C2:2259`, `$C2:8953`, `$C2:7849`, `$C2:78A1`)
+
+The twelfth chunk of bank `$C2` (history file, "Phase 3, overworld: the world
+map on foot", for the one before), and the first picked by native coverage:
+PLAN's first item, `$C2` at 71%, the lowest of the subsystems. Its two largest
+fallbacks were trampolines rather than code: the objects' loop called every
+handler through the original's `JMP ($0050)` at `$C2:0553`, and the scripts'
+call commands every routine they name through `JMP ($005B)` at `$C2:1819` and
+`JML [$005B]` at `$C2:1836`, so whatever those reached was filed under them.
+Behind them were the handlers nothing had ported -- the vehicles, and the
+objects a script starts to change the screen -- and the routines the scenes'
+scripts call. The equipment screen's list of what fits (`$C2:8953`), the
+largest single routine still called out to, came with it.
+
+**What it is.**
+
+- `menu/objects.c` and `menu/script_bridge.c`: the loop calls a handler, and a
+  script's call command its routine, at the routine's own address, as the
+  original's call reaches it after the jump (the stack is the same, and shadow
+  mode pairs the call where the original arrives). A ported one runs as C
+  through its registered entry; the jump itself no longer runs.
+- `menu/screen_objects.c`, the objects that change the screen: the fades out
+  and in (`$C2:20A2`, `$C2:2105`, one of each at a time, `menu_fades_running`),
+  the mosaic growing and clearing (`$C2:21F8`, `$C2:2194`), the palette loader
+  (`$C2:1DD4`) and its fade of a row over 32 steps (`$C2:1E38`-`$C2:2061`: each
+  colour's part that falls moves on the first steps, one that rises on the
+  last, by a count kept in the object), the tile streamer (`$C2:1CF5`), and
+  clearing the palette as the mode starts (`$C2:1DB5`). The display's two
+  bytes are fields now (`menu_object_display_blank`, `_brightness`), and the
+  loader's "hand-over" flag was the fade's speed (`palette_frames_a_step`).
+- `overworld/vehicles.c`, the vehicles' controller (`$C2:309E`): the confirm
+  button next to the Epoch or the dactyl boards it, all aboard the party rides
+  it, the vehicle letting the party out gets it off; and the test of whether
+  two things on the map are within reach of each other (`$C2:2345`), each by
+  its reach record (`overworld_data.h`).
+- `overworld/epoch.c`, the Epoch on the world map (`$C2:42DD`): standing,
+  rising, flying a tile at a time with the map carried under it, coming down
+  where the ground under it is open, the time gate's dial and the scenes it
+  leaves and arrives in; its second sprite (`$C2:495E`), the watch for the
+  Black Omen under it (`$C2:49CF`, the sign `$4C`), and the two routines its
+  scenes' scripts call (`$C2:48A9`, `$C2:48CD`). The song of what the view
+  shows as it lands (`$C2:2F4E`) and the tempo put back as it arrives through
+  time are `music.c`'s; the two tiles under it below the four a walker's feet
+  stand on, `terrain.c`'s (`$C2:4A58`).
+- `menu/map_scenes.c`: whether an object is in view (`$C2:78A1`, which the
+  scenes' scripts call most) and an object drifting the map along
+  (`$C2:7849`).
+- `menu/equipment.c`, the list of what fits the slot and the loaded member
+  (`$C2:8953`), called as C from the equipment screen's two sites.
+
+**The third trap.** A handler's caller, the objects' loop, reads the carry
+(done) and nothing else: it sets the accumulator's width again before it uses
+A (`$C2:0545`, `$C2:054C`), so the width a handler leaves is declared dead.
+That needed a new don't-care bit, `DC_WIDTH` (P's M bit), which shadow mode
+leaves out of P's comparison at an entry's return and
+`tools/dontcare_check.py` checks against `Liveness.width_read_after_return`
+(PORTING.md); the walkers' derivation of the width went with it. The routines
+the scenes' scripts call leave X and a carry that the interpreter after the
+call command never reads (the command's length is never 0), but liveness
+follows the interpreter's branch for a length of 0 and keeps them live, so the
+wrappers leave them as scaffolding for shadow mode's comparison. The Epoch's
+scenes go through the interpreter's bridge as the walkers' scripts do.
+
+**What the gate found.** Shadow mode: the Epoch's step stored as a word on
+reaching a tile, which clears the frame count beside it; and setting off for
+`$1F2` without its wings, the original keeps the Epoch's spot through the
+register it has just loaded with the arrival's place, the fourth object's
+goal (`keep_a_stray_spot`, plain: the spot is the game's, and is set again
+before it is seen). Fuzzing: the step note cleared as a word on one path only;
+and commands and colours aliasing the slots, the mode's page or the work RAM
+port, which the guards now keep apart (none of the game's are). The refusals
+a first guard made of the game's commands in work RAM (event scripts) showed
+in the library's refusal check and went with it.
+
+**Numbers.** Over the reference play the code run in place of hand ports fell
+from 33.1 KiB and 187.3 million instructions to 29.9 KiB and 179.1 million;
+the menus and the overworld's handbacks from 6.2 KiB and 11.7 million to 2.9
+KiB and 3.6 million, and `$C2`'s native coverage from 71.9% to 79.1% (47.1 KiB
+run). Every new entry matches in every movie, and is fuzzed (seed 1,
+`tools/fuzz_routines.toml`; counts in `docs/ports.tsv`). Calibrated rows:
+the new entries, `menu_run_objects`, `menu_object_nmi` and the scripts' two
+call commands, whose time moved with the trampolines, and the equipment
+screen's and the shop's steps that make the list inline. Timing exceptions
+(`tools/timing_exceptions.txt`): the Epoch's and the drift's frames that
+build a strip of the map, as the leader's; and the list of what fits, 35
+lines a call whose time follows the inventory, with the three steps that
+make it.
+
+**Left.** The dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB, reached
+by no movie). The objects' loop still runs the handlers through the machine at
+their own addresses, so each keeps its shadow comparison and calibration; a C
+table of the handlers is the native program's (TODO.md). The rest of what the
+scenes' scripts call (`$C2:2F0F`, `$C2:786F`, `$C2:79E0`-`$C2:7A55`,
+`$C2:7B44`, `$C2:7BC4`, `$C6:E241`, `$C6:E27E`) is filed under itself now
+rather than the trampoline, the same code; and the two menu refusals in these
+files (`$C2:18F9` entered by the fall-through from `$C2:18F1`, `$C2:12B8`'s
+cell in the endings) stay on the allowlist (TODO.md).

@@ -217,6 +217,93 @@ static void give_random_velocity(GameState *g, MenuObject o)
     menu_object_set_velocity(g, o, (MenuPlace){ menu_scene_velocity_x(g, pick), menu_scene_velocity_y(g, pick) });
 }
 
+/* The original scales the random byte with the CPU's multiplier, and
+ * leaves it holding the product. */
+static void leave_scaled(GameState *g, uint8_t random, uint8_t by)
+{
+    hw_set_multiplicand(g, random);
+    (void)hw_multiply_by(g, by);
+}
+
+// $C2:79E0
+/* Move the object a random step to the right, up to 48 pixels: a random
+ * byte scaled to 48 256ths of itself, rounded to the nearest pixel. */
+enum { STEP_SCALE = 0x30, HALF_A_PIXEL = 0x80 };
+
+static void step_right_at_random(GameState *g, MenuObject o)
+{
+    uint8_t random = next_random(g);
+    uint16_t scaled = (uint16_t)(random * STEP_SCALE);
+    uint8_t step = (uint8_t)((scaled >> 8) + ((scaled & HALF_A_PIXEL) ? 1 : 0));
+    ORIGINAL_EFFECT(leave_scaled(g, random, STEP_SCALE));
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(menu_object_slots_x_pixel(g, o) + step));
+}
+
+/* A stretch of the map 256 pixels square, from its top-left corner (which
+ * may lie above the map's top: the place then comes round from its foot). */
+typedef struct {
+    uint16_t left, top;
+} Stretch;
+
+static const Stretch EAST_STRETCH = { 0x220, 0x38 };
+static const Stretch WEST_STRETCH = { 0xE0, (uint16_t)-0x48 };
+
+// $C2:7A0C, $C2:7A31
+/* Put the object somewhere in a stretch of the map, at random: one random
+ * byte for how far across, the next for how far down. */
+static void place_in_the_stretch(GameState *g, MenuObject o, Stretch at)
+{
+    set_menu_object_slots_x_pixel(g, o, (uint16_t)(at.left + next_random(g)));
+    set_menu_object_slots_y_pixel(g, o, (uint16_t)(at.top + next_random(g)));
+}
+
+/* ---- the party ------------------------------------------------------------------------------- */
+
+/* A scene that plays without the party empties its three places, keeping
+ * who was in them to bring back after. */
+enum { NO_MEMBER = 0x80, PARTY_SLOTS = 3 };
+
+// $C2:7860
+static void hide_the_party(GameState *g)
+{
+    for (unsigned slot = 0; slot < PARTY_SLOTS; slot++)
+        set_party_members(g, slot, NO_MEMBER);
+}
+
+// $C2:786F
+static void keep_the_party(GameState *g)
+{
+    for (unsigned slot = 0; slot < PARTY_SLOTS; slot++)
+        set_menu_kept_party(g, slot, party_members(g, slot));
+}
+
+// $C2:7888
+static void bring_the_party_back(GameState *g)
+{
+    for (unsigned slot = 0; slot < PARTY_SLOTS; slot++)
+        set_party_members(g, slot, menu_kept_party(g, slot));
+}
+
+/* ---- the story -------------------------------------------------------------------------------- */
+
+/* The two story flags the scenes look after themselves, as bits of event
+ * memory bytes: one a scene sets as it has played, one a scene asks about
+ * to choose its way. */
+typedef struct {
+    uint16_t byte;
+    uint8_t bit;
+} StoryFlag;
+
+static const StoryFlag SCENE_HAS_PLAYED = { 0xAA, 0x01 };
+static const StoryFlag SCENE_ASKS_ABOUT = { 0xF7, 0x02 };
+
+static bool story_flag(const GameState *g, StoryFlag f) { return (event_memory_byte(g, f.byte) & f.bit) != 0; }
+
+static void set_story_flag(GameState *g, StoryFlag f)
+{
+    set_event_memory_byte(g, f.byte, (uint8_t)(event_memory_byte(g, f.byte) | f.bit));
+}
+
 /* ---- the entries ----------------------------------------------------------------------------- */
 
 /* They run on the mode's page, reaching the object and the scene's cells
@@ -394,6 +481,85 @@ void menu_object_give_random_velocity(Snes *s)
     s->cpu.x = (uint16_t)(pick * VELOCITY_BYTES);
     m_set_flag(s, CPU_FLAG_C, false);
     m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+/* The random steps and places come back 16 bits wide with X on the object
+ * and the carry of the last add: the down place's, or the across step's,
+ * which runs past the top exactly where the new place comes out below what
+ * was added to it. */
+static void leave_stepped(Snes *s, uint16_t place, uint16_t added)
+{
+    s->cpu.x = menu_object_current(state_of(s));
+    m_set_flag(s, CPU_FLAG_C, place < added);
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
+// $C2:79E0
+void menu_object_step_right_at_random(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    uint16_t was = menu_object_slots_x_pixel(g, o);
+    step_right_at_random(g, o);
+    leave_stepped(s, menu_object_slots_x_pixel(g, o), (uint16_t)(menu_object_slots_x_pixel(g, o) - was));
+}
+
+static void place_in_a_stretch_entry(Snes *s, Stretch at)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    place_in_the_stretch(g, o, at);
+    leave_stepped(s, menu_object_slots_y_pixel(g, o), at.top);
+}
+
+// $C2:7A0C
+void menu_object_place_in_the_east_stretch(Snes *s) { place_in_a_stretch_entry(s, EAST_STRETCH); }
+
+// $C2:7A31
+void menu_object_place_in_the_west_stretch(Snes *s) { place_in_a_stretch_entry(s, WEST_STRETCH); }
+
+/* -- the party -- */
+
+/* They leave X and the carry as they found them. */
+
+// $C2:7860
+void menu_object_hide_the_party(Snes *s)
+{
+    hide_the_party(state_of(s));
+    m_rts(s);
+}
+
+// $C2:786F
+void menu_object_keep_the_party(Snes *s)
+{
+    keep_the_party(state_of(s));
+    m_rts(s);
+}
+
+// $C2:7888
+void menu_object_bring_the_party_back(Snes *s)
+{
+    bring_the_party_back(state_of(s));
+    m_rts(s);
+}
+
+/* -- the story -- */
+
+// $C2:7B44
+void menu_object_mark_the_scene_played(Snes *s)
+{
+    set_story_flag(state_of(s), SCENE_HAS_PLAYED);
+    m_rts(s);
+}
+
+// $C2:7BC4
+/* The answer goes to the mode's first cell, which the script tests next. */
+void menu_object_ask_the_story(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_menu_object_scratch_answer(g, story_flag(g, SCENE_ASKS_ABOUT));
     m_rts(s);
 }
 

@@ -9,6 +9,8 @@
  * tasks (menu/menu.h), which a screen starts and stops. */
 #include "menu/menu.h"
 
+#include "core/input.h"
+#include "menu/bridge.h"
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -64,4 +66,21 @@ void menu_stop_tasks_entry(Snes *s)
     uint8_t tasks = (uint8_t)s->cpu.a;
     menu_stop_tasks(state_of(s), tasks);
     m_rts(s);
+}
+
+/* ---- The frame's input, from another bank ------------------------------------------------------- */
+
+// $C2:8002
+/* The long entry the field's and the battle's vblank handlers, and the
+ * sprite-object mode's, take the frame's input through: the controller, the
+ * button assignments and the play time clock (core/input.c), run as its call
+ * at $C2:8006 reaches it. Where the controller isn't read yet, the input work
+ * stops where the original goes on waiting for it, and the original returns
+ * from there. */
+enum { INPUT_CALL = 0xC28006, INPUT_WORK = 0xC284D2 };
+
+void menu_take_the_frames_input(Snes *s)
+{
+    if (menu_run(s, INPUT_CALL, INPUT_WORK, input_update))
+        m_rtl(s);
 }

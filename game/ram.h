@@ -2701,6 +2701,8 @@
 #define RAM_MENU_GLYPH_RIGHT_PIXELS_DP 0x79u /* page menu_glyph */
 /* Which of the menus' screens is running; each screen's loop ends when it changes */
 #define RAM_MENU_MODE 0x7E027Cu
+/* The byte after menu_mode, which the world map's setup clears with it */
+#define RAM_MENU_MODE_BESIDE 0x7E027Du
 /* Where on its map the Epoch is parked [2 x $2 bytes, by 0 horizontal, 1 vertical] */
 #define RAM_MENU_EPOCH_POSITION 0x7E0290u
 #define RAM_MENU_EPOCH_POSITION_COUNT 2u
@@ -3396,6 +3398,8 @@
 #define RAM_MENU_TECH_PARTS_ROW_STRIDE 0x40u
 /* Where the menus' next random byte comes from in the table at $C0:FE00 */
 #define RAM_MENU_RANDOM_INDEX 0x7E1B30u
+/* The byte after menu_random_index, which the world map's setup clears with it */
+#define RAM_MENU_RANDOM_BESIDE 0x7E1B31u
 /* The sprite script each of a map screen's four objects runs, which object script command $08
  * sets: three of them by naming a party member, the fourth by naming 7 [4 x $2 bytes, by 0-2 the
  * party member of that slot (party_members), 3 the object a script asks for by the number 7] */
@@ -3404,6 +3408,11 @@
 #define RAM_MENU_MEMBER_SCRIPTS_STRIDE 0x02u
 /* Nonzero while a sprite script is running, which stops an object handler starting another */
 #define RAM_MENU_SPRITE_SCRIPT_BUSY 0x7E1B48u
+/* The party as a world map's scene found it, kept while the scene plays with its places empty
+ * and put back as it ends [3 x $1 bytes, by party slot] */
+#define RAM_MENU_KEPT_PARTY 0x7E1BA3u
+#define RAM_MENU_KEPT_PARTY_COUNT 3u
+#define RAM_MENU_KEPT_PARTY_STRIDE 0x01u
 /* How far the story has gone, which decides the map view's graphics and the time dial's set of
  * locations */
 #define RAM_MENU_STORY_PROGRESS 0x7E1BA6u
@@ -4493,6 +4502,9 @@
  * the next look starts its song) */
 #define RAM_OVERWORLD_REGION 0x7E00EBu
 #define RAM_OVERWORLD_REGION_DP 0xEBu        /* page menu */
+/* The world map's record of the streams its screen is built from (overworld_data.h), noted as
+ * the map is set up; every load of the map reads it [3 bytes] */
+#define RAM_OVERWORLD_MAP_RECORD 0x7E00EDu
 /* How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3
  * on a dactyl, 4 walking to a vehicle to board it, 5 getting off one */
 #define RAM_OVERWORLD_TRAVEL 0x7E027Eu

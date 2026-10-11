@@ -362,3 +362,22 @@ void menu_object_step_position(Snes *s)
     m_rep(s, CPU_FLAG_M);
     m_rts(s);
 }
+
+// $C2:0471
+/* Free every object slot: none of them runs a handler, and the first is the
+ * one running. */
+void menu_free_every_object(GameState *g)
+{
+    menu_object_make_running(g, 0);
+    for (unsigned o = 0; o < MENU_OBJECTS; o++)
+        set_menu_object_slots_handler(g, o, 0);
+}
+
+// $C2:0471
+/* It comes back with an 8-bit accumulator. */
+void menu_free_every_object_entry(Snes *s)
+{
+    menu_free_every_object(state_of(s));
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}

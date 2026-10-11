@@ -11198,6 +11198,14 @@ meaning = "Where the menus' next random byte comes from in the table at $C0:FE00
 source = "game/menu/epoch.c, menu_object_place_under_the_view $C2:754D ($C2:2336 reads it, $C2:232D clears it)"
 
 [[var]]
+name = "menu_random_beside"
+addr = "7E:1B31"
+size = 1
+subsystem = "menu"
+meaning = "The byte after menu_random_index, which the world map's setup clears with it"
+source = "game/overworld/setup.c, overworld_set_up ($C2:232D)"
+
+[[var]]
 name = "menu_sprite_script_busy"
 addr = "7E:1B48"
 size = 1
@@ -11212,6 +11220,14 @@ size = 1
 subsystem = "menu"
 meaning = "Which of the menus' screens is running; each screen's loop ends when it changes"
 source = "game/menu/epoch.c, menu_epoch_map_screen $C2:631F (6: the map view), menu_epoch_time_dial_screen $C2:6A34 (8: the time dial)"
+
+[[var]]
+name = "menu_mode_beside"
+addr = "7E:027D"
+size = 1
+subsystem = "menu"
+meaning = "The byte after menu_mode, which the world map's setup clears with it"
+source = "game/overworld/setup.c, start_the_overworld_afresh ($C2:2C20)"
 
 [[var]]
 name = "menu_travel_location"
@@ -11277,6 +11293,15 @@ addr = "7F:00CC"
 subsystem = "core"
 meaning = "Event memory $CC: bit 0 set as the Epoch, before it has its wings, leaves through time for the world map $1F2 (it arrives at location $F3 instead), for the story's scripts there"
 source = "game/overworld/epoch.c ($C2:47E7)"
+
+[[var]]
+name = "menu_kept_party"
+addr = "7E:1BA3"
+count = 3
+index = "party slot"
+subsystem = "menu"
+meaning = "The party as a world map's scene found it, kept while the scene plays with its places empty and put back as it ends"
+source = "game/menu/object_commands.c, $C2:7860, $C2:786F, $C2:7888"
 
 [[var]]
 name = "menu_story_progress"
@@ -20360,6 +20385,14 @@ index = "step, round"
 subsystem = "overworld"
 meaning = "And where down"
 source = "game/overworld/walk.c ($C2:391C, $C2:3934), followers.c ($C2:3F6D)"
+
+[[var]]
+name = "overworld_map_record"
+addr = "7E:00ED"
+size = 3
+subsystem = "overworld"
+meaning = "The world map's record of the streams its screen is built from (overworld_data.h), noted as the map is set up; every load of the map reads it"
+source = "game/overworld/setup.c ($C2:274D, $C2:2768-$C2:2A44)"
 
 [[var]]
 name = "overworld_region_songs"

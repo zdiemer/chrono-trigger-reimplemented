@@ -12,4 +12,12 @@
  * read. */
 bool overworld_sign_can_show(const GameState *g, MenuObject self);
 
+/* Build the sign's sprite script afresh from the ROM's, its six sprites
+ * hidden until it shows a name; the world map does as it comes back. */
+void overworld_build_the_sign_script(GameState *g);
+
+/* Clear the label the sign's name is set in, which the map view's markers
+ * are set in too. */
+void overworld_clear_the_sign_label(GameState *g);
+
 #endif

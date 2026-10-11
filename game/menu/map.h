@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "menu/object.h"
+#include "platform/platform.h"
 #include "snes/system.h"
 #include "state.h"
 
@@ -35,6 +36,15 @@ typedef struct {
     uint16_t column, row;
 } MenuViewCentre;
 MenuViewCentre menu_map_view_centre(const GameState *g);
+
+/* Put the camera where the party is (the location's place), for a C
+ * caller; whether that puts it on the map. Redraw a plane (0 or 1) whole, as
+ * its plane's redraw does, the screen blanked; whether it can be (the plane on
+ * the map, the upload buffer in work RAM). */
+void menu_map_centre_on_the_party(GameState *g);
+bool menu_map_party_centres_on_the_map(const GameState *g);
+void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane);
+bool menu_map_can_redraw(const GameState *g, uint8_t plane);
 
 /* The entries run on the menus' page, with the data bank on low RAM; the
  * scrolls and the redraw take the plane and the step from the object mode's
