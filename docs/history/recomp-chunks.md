@@ -358,7 +358,7 @@ through it on the machine, which changed the calls it is measured on.
 ## Phase 3, menus: what the menus' ports called most
 
 The menus' fourth chunk, picked by value rather than by run: a profile of
-`--native on --recomp off --misses` over the menus' movies, the interpreted
+`--native on --generated off --misses` over the menus' movies, the interpreted
 instructions summed by the function they are in, put five routines the
 existing ports call out to at the top once the task scheduler (`$C2:821E`
 and its neighbours, about 9%, left for fibers) is set aside. The window
@@ -869,7 +869,7 @@ call to `$C0:91AC`, in five movies). Then, over the 26 movies: every entry match
 `field_press_confirm` 190,882, `field_recentre_the_screen` 174,
 `event_party_back_together` 25, and `event_run_init_scripts` 243 with the
 start as C; every other entry's totals are the first chunk's, the renamed
-button conditions included. `ct_dev --native on --recomp only --misses`
+button conditions included. `ct_dev --native on --generated only --misses`
 interprets nothing on `field`.
 
 **What fuzzing found** (seed 1, 20,000 states each, `tools/fuzz_routines.toml`):
@@ -3837,7 +3837,7 @@ through it on the machine, which changed the calls it is measured on.
 ## Phase 3, menus: what the menus' ports called most
 
 The menus' fourth chunk, picked by value rather than by run: a profile of
-`--native on --recomp off --misses` over the menus' movies, the interpreted
+`--native on --generated off --misses` over the menus' movies, the interpreted
 instructions summed by the function they are in, put five routines the
 existing ports call out to at the top once the task scheduler (`$C2:821E`
 and its neighbours, about 9%, left for fibers) is set aside. The window
@@ -4348,7 +4348,7 @@ call to `$C0:91AC`, in five movies). Then, over the 26 movies: every entry match
 `field_press_confirm` 190,882, `field_recentre_the_screen` 174,
 `event_party_back_together` 25, and `event_run_init_scripts` 243 with the
 start as C; every other entry's totals are the first chunk's, the renamed
-button conditions included. `ct_dev --native on --recomp only --misses`
+button conditions included. `ct_dev --native on --generated only --misses`
 interprets nothing on `field`.
 
 **What fuzzing found** (seed 1, 20,000 states each, `tools/fuzz_routines.toml`):
@@ -7339,7 +7339,7 @@ interrupted), and the gate song's change back is compared only inside its
 caller. `menus-field-menu` reorders the active party from the main menu,
 `menus-end-of-time` and `menus-shop-equip` open the gate's screen (in
 Medina its song changes). The shipping mode's traces over those three
-(`--native on --recomp only` against `--native off`) are the same at every
+(`--native on --generated only` against `--native off`) are the same at every
 frame. Fuzzed seed 1 (`tools/fuzz_routines.toml`, 14 entries, 2,000 states
 each, the whole party listed in both columns as a variant): 0 of 27,764
 compared states mismatching. What fuzzing found: the overflow and carry of
@@ -7702,7 +7702,7 @@ loading, and the field put aside and taken up again around a menu and a
 battle.
 
 **How it was chosen.** The plan named the power-on path and the interrupt
-entries (Phase 4a: `ct_play --recomp off --interpreted stop` stopped in frame
+entries (Phase 4a: `ct_play --generated off --interpreted stop` stopped in frame
 0) and, for `$C0`, the field's setup and keeping (`$C0:0000`, `$01A5`,
 `$038F`, `$011B`). By concept that is the field mode's skeleton: its two
 starts, its frame, the location's loading the starts and the menus share, and
@@ -7791,7 +7791,7 @@ entry, the map's unpacking (`$C0:A33B`) and the script's (`$C0:56D4`) from
 both loadings, the dialog window's step (`$C0:1F87`) and the scheduler
 (`$C0:59D9`, `$C0:5A46`, `$C0:CA76`, beam-coupled, PLAN.md Phase 4b) from the
 frame; and the menus' routine `$C2:8004` from the first start, where
-`ct_play --recomp off --interpreted stop` now stops, in frame 2 (it stopped
+`ct_play --generated off --interpreted stop` now stops, in frame 2 (it stopped
 at the reset, in frame 0). The palettes' jumps `$FD:FFF4`/`$FFF7` stay
 call-outs: registering them as the routines they jump to would make the
 battle's own calls through them calls into a registered port. `$C0` stands

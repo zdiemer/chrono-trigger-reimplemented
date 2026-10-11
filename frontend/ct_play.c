@@ -1,7 +1,7 @@
 /* ct_play: plays the game in a window, with the ported routines running natively
  * and the rest on the development system (docs/PLAYING.md).
  *
- *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--recomp only|on|off]
+ *   ct_play [--rom] <rom> [--scale N] [--fullscreen] [--mute] [--native on|shadow|off] [--generated only|on|off]
  *           [--audio snes|direct] [--sound-driver c|original] [--mixer dsp|native] [--renderer native|scanline]
  *           [--save-dir dir] [--keys f] [--bind IN=ACTION]...
  *           [--movie m.ctm [--movie-frames N]] [--record out.ctm] [--sram save.srm] [--load-zst in.zst]
@@ -21,8 +21,8 @@
  * instruction without generated code is a miss, logged to <rom name>.misses.txt
  * and run on the interpreter (1, FALLBACK), or, with the interpreter not linked
  * at all (2, OFF), the game stops there. --interpreted gives the player with
- * the interpreter the same two behaviours at run time, over whatever --recomp
- * leaves the interpreter: with --recomp off, everything no hand port covers.
+ * the interpreter the same two behaviours at run time, over whatever --generated
+ * leaves the interpreter: with --generated off, everything no hand port covers.
  */
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -66,22 +66,22 @@ static void usage(FILE *out)
             "  --mute               no sound\n"
             "  --native MODE        on: run ported routines natively (default); off: interpret everything;\n"
             "                       shadow: interpret, and check each ported routine against the original\n"
-            "  --recomp MODE        on: the ported routines, and the blocks generated from the ROM where there\n"
+            "  --generated MODE     on: the ported routines, and the blocks generated from the ROM where there\n"
             "                       is no port (default; the ports' timing is estimated, within the timing\n"
             "                       gate's bounds); only: the generated blocks alone, which keep the original\n"
-            "                       timing exactly (what --movie and --record use unless --recomp is given);\n"
+            "                       timing exactly (what --movie and --record use unless --generated is given);\n"
             "                       off: no generated blocks\n"
             "  --audio BACKEND      snes: the APU on the machine's timeline (default); direct: the sound driver's\n"
             "                       uploads and commands take no CPU time (APU-direct; needs --native on, and\n"
-            "                       runs the ported routines, so --recomp on is implied)\n"
+            "                       runs the ported routines, so --generated on is implied)\n"
             "  --sound-driver D     c: the sound driver ported to C (game/sound/), playing through --mixer in the\n"
             "                       SPC700's place, its commands taking no time (default); original: the game's\n"
             "                       own on the SPC700, with the original's timing, which movies, recording,\n"
-            "                       --load-zst, --audio direct, --native off|shadow and --recomp only use; a\n"
+            "                       --load-zst, --audio direct, --native off|shadow and --generated only use; a\n"
             "                       saved state loads only with the driver it was saved with\n"
             "  --interpreted W      what an instruction no native code runs does (--native on): log, run it on\n"
             "                       the interpreter and list it in <rom name>.interpreted.txt; stop, stop the\n"
-            "                       game there. With --recomp off that is everything no hand port covers\n"
+            "                       game there. With --generated off that is everything no hand port covers\n"
             "  --mixer M            what makes the C driver's sound: native, the native mixer (default); dsp,\n"
             "                       the emulated S-DSP it was checked against (the same sound, frame for frame); a saved\n"
             "                       state loads only with the mixer it was saved with\n"
@@ -121,9 +121,9 @@ static void usage(FILE *out)
     fprintf(out, "\nThis build runs %s.\n", player_build_mode[CT_PLAYER_NO_INTERPRETER]);
     if (CT_PLAYER_NO_INTERPRETER)
         fprintf(out,
-                "Only --native on works (with --recomp only or on). An instruction nothing was generated for is a\n"
+                "Only --native on works (with --generated only or on). An instruction nothing was generated for is a\n"
                 "miss: it is logged to <rom name>.misses.txt next to the saves, a coverage file to feed back into\n"
-                "the build (CT_RECOMP_COVERAGE), and %s.\n",
+                "the build (CT_GENERATED_COVERAGE), and %s.\n",
                 CT_PLAYER_NO_INTERPRETER == 1 ? "runs on the interpreter" : "stops the game");
 }
 
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
     uint32_t movie_sram_crc = 0;
     static Player pl;   /* large; keep it off the stack */
     static Files files;
-    bool native_given = false, recomp = true, recomp_only = false, recomp_given = false, audio_direct = false;
+    bool native_given = false, use_generated = true, generated_only = false, generated_given = false, audio_direct = false;
     int sound_driver = -1;   /* -1 the default, 0 the original, 1 the C driver */
     SoundMixer mixer = SOUND_MIXER_NATIVE;
     bool mixer_given = false;
@@ -308,13 +308,13 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
-        else if (!strcmp(a, "--recomp")) {
-            recomp_given = true;
-            if (!strcmp(v, "off")) recomp = false, recomp_only = false;
-            else if (!strcmp(v, "on")) recomp = true, recomp_only = false;
-            else if (!strcmp(v, "only")) recomp = true, recomp_only = true;
+        else if (!strcmp(a, "--generated")) {
+            generated_given = true;
+            if (!strcmp(v, "off")) use_generated = false, generated_only = false;
+            else if (!strcmp(v, "on")) use_generated = true, generated_only = false;
+            else if (!strcmp(v, "only")) use_generated = true, generated_only = true;
             else {
-                fprintf(stderr, "--recomp must be only, on or off\n");
+                fprintf(stderr, "--generated must be only, on or off\n");
                 return 2;
             }
         }
@@ -375,8 +375,8 @@ int main(int argc, char **argv)
         usage(stderr);
         return 2;
     }
-    if (CT_PLAYER_NO_INTERPRETER && (pl.native_mode != NATIVE_ON || !recomp)) {
-        fprintf(stderr, "this player runs %s: it needs --native on and generated blocks (--recomp only or on)\n",
+    if (CT_PLAYER_NO_INTERPRETER && (pl.native_mode != NATIVE_ON || !use_generated)) {
+        fprintf(stderr, "this player runs %s: it needs --native on and generated blocks (--generated only or on)\n",
                 player_build_mode[CT_PLAYER_NO_INTERPRETER]);
         return 2;
     }
@@ -388,23 +388,23 @@ int main(int argc, char **argv)
     /* A movie is button presses at frame numbers, recorded against the original's
      * timing: replayed or recorded with the ported routines' estimated timing it
      * would drift and go off its route, so a movie means the exact mode unless
-     * --recomp says otherwise. */
-    if ((movie_path || record_path) && !recomp_given)
-        recomp_only = true;
+     * --generated says otherwise. */
+    if ((movie_path || record_path) && !generated_given)
+        generated_only = true;
     if (audio_direct) {
         /* APU-direct runs in the sound driver's ported routines and changes timing */
-        if (pl.native_mode != NATIVE_ON || record_path || (recomp_given && recomp_only)) {
-            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only), "
+        if (pl.native_mode != NATIVE_ON || record_path || (generated_given && generated_only)) {
+            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --generated only), "
                             "and can't record: it changes the original's timing\n");
             return 2;
         }
-        recomp_only = false;
+        generated_only = false;
     }
     if (record_path) {
         /* A movie replays the same only where the original code's timing is kept,
          * from power-on with the SRAM ct_dev starts with. */
-        if (native_given && pl.native_mode == NATIVE_ON && !recomp_only) {
-            fprintf(stderr, "--record needs --native shadow or off, or on with --recomp only: ported routines "
+        if (native_given && pl.native_mode == NATIVE_ON && !generated_only) {
+            fprintf(stderr, "--record needs --native shadow or off, or on with --generated only: ported routines "
                             "change timing, so the movie wouldn't replay the same\n");
             return 2;
         }
@@ -423,9 +423,9 @@ int main(int argc, char **argv)
      * half's ported entries, which run only with --native on and the ported
      * routines); or its state on the SPC700 (a ZSNES state's). */
     bool needs_original = movie_path || record_path || zst_path || audio_direct || pl.native_mode != NATIVE_ON ||
-                          recomp_only;
+                          generated_only;
     if (sound_driver == 1 && needs_original) {
-        fprintf(stderr, "--sound-driver c needs --native on with the ported routines (not --recomp only or --audio "
+        fprintf(stderr, "--sound-driver c needs --native on with the ported routines (not --generated only or --audio "
                         "direct), and can't replay or record a movie or load a ZSNES state: its commands take none "
                         "of the original's time\n");
         return 2;
@@ -472,7 +472,7 @@ int main(int argc, char **argv)
     }
 
     pl.misses_name = files.misses;
-    int rc = player_init(&pl, rom + header, rom_len - header, recomp, recomp_only);
+    int rc = player_init(&pl, rom + header, rom_len - header, use_generated, generated_only);
     if (rc != 0)
         return rc;
     if (CT_PLAYER_NO_INTERPRETER) {
@@ -488,7 +488,7 @@ int main(int argc, char **argv)
                 player_build_mode[CT_PLAYER_NO_INTERPRETER], files.misses);
     } else if (own_list) {
         fprintf(stderr, "ct_play: instructions with %s %s; listed in %s\n",
-                recomp ? "no generated code or hand port" : "no hand port",
+                use_generated ? "no generated code or hand port" : "no hand port",
                 pl.interpreted == PLAYER_INTERPRETED_STOP ? "stop the game" : "run on the interpreter",
                 files.misses);
     }

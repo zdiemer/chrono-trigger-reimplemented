@@ -78,7 +78,7 @@ The checks that give the classification its meaning are therefore separate:
      a moved label (a "pointer-shaped literal") is an error unless a hint says
      it isn't an address.
    - *Dynamic:* the shifted ROM plays the movie library on `ct_dev --native off
-     --recomp off` with framebuffer hashes and audio identical to the original,
+     --generated off` with framebuffer hashes and audio identical to the original,
      frame for frame. WRAM isn't compared: pointers stored in RAM legitimately
      differ.
    - Some addresses can't move: the cartridge header and vectors
@@ -130,7 +130,7 @@ The checks that give the classification its meaning are therefore separate:
 interpreter runs, with its widths and count, as ROM code or RAM code, and RAM
 code by the enumerated section whose image holds its bytes, "modified" (in a
 section's range, with bytes no section has, and whether the opcode or only
-operands differ) or "unknown" (in no section). With `--native on --recomp only`
+operands differ) or "unknown" (in no section). With `--native on --generated only`
 everything generated code doesn't run is listed, so it is this check. The file
 is also a coverage file, so its ROM lines can seed the analysis. Zero misses on
 every movie is necessary but not sufficient: it only covers the paths the
@@ -356,7 +356,7 @@ blobs, and decoded forms where a type has one (decompressed streams, BRR as
 is, graphics as planar tiles). Source refers to them with `incbin`. The
 reassembled ROM is also written only to the build tree. Nothing extracted,
 decoded or reassembled is ever in the repository, and the build fails with a
-clear message without a ROM, as `tools.recomp` does.
+clear message without a ROM, as `tools.generate` does.
 
 Text regions are assembled from their decoded form: the extraction writes a
 region of a text format as `data/text/<label>.txt`, and the `.bin` its `incbin`
@@ -418,7 +418,7 @@ needs to understand the pictures.
 ### Round trip
 
 `python3 -m tools.matching` (and the `ct_matching` CMake target when `CT_ROM`
-exists, like `cmake/recomp.cmake`): extract, emit, assemble, compare CRC32 and
+exists, like `cmake/generated.cmake`): extract, emit, assemble, compare CRC32 and
 SHA-1. On a mismatch it prints the first differing address and the source file
 and line that wrote it, never the bytes. From MD2, every format parser also
 re-serializes its region in the same run.
@@ -429,7 +429,7 @@ re-serializes its region in the same run.
 python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching \
     --coverage traces/coverage-gato.txt ... --calls traces/calls-gato.txt ... [--asar auto|off|PATH]
 python3 -m tools.matching.asm build/main/matching/src/rom.asm -o out.sfc [--sym out.sym]
-cmake --build build/main --target ct_matching     # with the recompiler's CT_ROM, CT_RECOMP_COVERAGE, CT_RECOMP_CALLS
+cmake --build build/main --target ct_matching     # with the recompiler's CT_ROM, CT_GENERATED_COVERAGE, CT_GENERATED_CALLS
 ```
 
 | Path | What |
@@ -982,7 +982,7 @@ and `$05` (1535).
 **Result.** 4702 regions, 181170 bytes, are assembled from text, all of them
 round-tripping; none of a text format is kept raw. Census unknown 43481 ->
 42590 bytes (`$DE` 882 -> 19); `mixed` 330262 -> 319422 bytes (322.5 -> 311.9
-KiB). The generator's input is unchanged: `python3 -m tools.recomp` without
+KiB). The generator's input is unchanged: `python3 -m tools.generate` without
 coverage gives 12431 blocks, 148301 instructions, 127045 in the analysis and a
 code set of 127181 instruction variants on `main` and on this work, and the 65
 generated C files are byte-identical. `unittest` passes (178 tests); CRC32
@@ -1148,7 +1148,7 @@ layout (11 and 96 before; the battle script formats took it to 23 and 84). The t
 table's `or`, the 16-bit table's last three, `$FF`'s `$A0-$A3`) stay in the
 code set, which is unchanged.
 
-**The recompiler's input is unchanged**: `python3 -m tools.recomp` gives 12431
+**The recompiler's input is unchanged**: `python3 -m tools.generate` gives 12431
 blocks, 148301 instructions, 127045 in the analysis and 127181 instruction
 variants on `main` and on this work, and the 65 generated C files are
 byte-identical, without coverage and with the build's coverage files and call
@@ -1307,7 +1307,7 @@ set doesn't change.
 all round-tripping. `mixed` 319422 -> 233732 bytes (311.9 -> 228.3 KiB); the
 census's unknown count doesn't move (42590), since these bytes were typed
 `mixed` already. The generator's input is unchanged: `python3 -m
-tools.recomp` gives 12431 blocks, 148301 instructions, 127045 in the analysis
+tools.generate` gives 12431 blocks, 148301 instructions, 127045 in the analysis
 and a code set of 127181 variants on `main` and on this work, without and with
 the coverage and call logs, and the 65 generated C files are byte-identical.
 `unittest` passes (207 tests); CRC32 `2D206BF7` and SHA-1 `de5822f4...`
@@ -1333,7 +1333,7 @@ MD3 adds a `shift` subcommand (`python3 -m tools.matching shift`, not written
 yet) that builds a set of shifted ROMs: padding at the
 start of each module (within its bank's trailing padding), plus a few
 cross-bank moves of whole modules. For each: the pointer-shaped literal lint,
-then `ct_dev --native off --recomp off --rom <shifted>` over the movies
+then `ct_dev --native off --generated off --rom <shifted>` over the movies
 compared with the original's framebuffer hashes and audio. Hand ports and
 generated blocks are keyed to addresses, so shifted runs use the interpreter
 only. The dynamic part runs movies and belongs in a manual or nightly job, not
@@ -1362,7 +1362,7 @@ DISASSEMBLY.md for the new hint fields, parsers and derivations.
 | `tools/disasm/codeargs.py` | Constant register values at an instruction over every path into it |
 | `tools/disasm/closure.py` | Checks C1, C2, C3, C5, C6, C7 and the code set |
 | `tools/disasm/analyze.py` | `derive` sites traced to a fixpoint in rounds, `PER` calls, header vectors, `patch` sections' entries, `follow = false` |
-| `tools/recomp/blocks.py`, `__main__.py` | Entries at `PER` call returns and derived table targets; the code set check |
+| `tools/generate/blocks.py`, `__main__.py` | Entries at `PER` call returns and derived table targets; the code set check |
 | `tests/test_md4.py` | Arguments, `PER` calls, derivations and their rounds, sequence scripts, closure checks |
 
 **C3, data-driven dispatch.** The "only what runs in the movies" target lists
@@ -1448,7 +1448,7 @@ and call logs gives 12412 blocks (148491 instructions); the six main movies in
 `--native shadow` report 0 mismatched generated blocks and no mismatching hand
 port (`new-game` 44087249 block checks, `menu` 55489410, `field` 68908992,
 `fair` 73751643, `fair-companion` 99024398, `gato-battle` 116449525), and
-`--native on --recomp only --misses` reports 0 misses on `new-game` and
+`--native on --generated only --misses` reports 0 misses on `new-game` and
 `gato-battle`. **Without any coverage file or call log** (static analysis and
 hints only) the generator writes the same blocks, byte for byte (`table.c` is
 identical), the matching source is the same, and the miss report is 0 on
@@ -1499,7 +1499,7 @@ doesn't find.
   (MD0), with typed extraction and the format codecs since MD2 (the codecs
   live in `tools/disasm/dataformats.py` and `text.py`, and `lz.py` decodes);
   to come: `shift` (MD3) and an `lz` encoder.
-- **`tools/recomp`** takes its code set from the source model instead of
+- **`tools/generate`** takes its code set from the source model instead of
   `Analyzer.code`, and the build checks the two agree (at MD4, exactly). RAM
   sections are guarded blocks since M3 (RECOMP.md).
 - **Runtime**: `ct_dev --misses` (section 1, built in M3).
@@ -1537,7 +1537,7 @@ from the user's ROM, checked by CRC, as the recompiler does.
 
 That isn't the whole question. A symbolic source without a single data byte
 is still a transcription of the game's code: every opcode and operand, and so
-every code byte, can be recovered from it. The same holds for `tools/recomp`
+every code byte, can be recovered from it. The same holds for `tools/generate`
 output, which RECOMP.md keeps in the build tree for that reason. There are two
 ways to handle it:
 

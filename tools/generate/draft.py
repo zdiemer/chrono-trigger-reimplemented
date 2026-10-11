@@ -1,6 +1,6 @@
 """From lifted instructions to the statements of a draft (docs/RECOMP.md, M5).
 
-tools/recomp/lift.py says what every instruction does, flags and all. This
+tools/generate/lift.py says what every instruction does, flags and all. This
 makes that readable without changing what it computes:
 
 1. **Blocks.** Instructions chain into basic blocks in address order.

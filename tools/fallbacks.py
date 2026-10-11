@@ -22,7 +22,7 @@ from two kinds of run:
   everything at its own timing and the runtime says where a port stands for it
   (dev/fallbacks.h). A movie plays the same there whatever the ports' timing,
   so this count moves only when a port changes, and the ratchet is taken over it.
-- **The shipping mode** (`--native on --recomp on --sound-driver c`): every
+- **The shipping mode** (`--native on --generated on --sound-driver c`): every
   movie, and the routes the routes check plays. Hand ports estimate their time
   there, so a movie's presses land on other frames and it wanders off where it
   was recorded (the native-shape build's timing alone moved 99 of 1068 keys and

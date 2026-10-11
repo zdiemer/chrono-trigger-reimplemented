@@ -1,6 +1,6 @@
 """Translate a linear run of ROM code to C, to read what the generator emits.
 
-    python3 -m tools.recomp.linear C0:0B4E [-n 20] [--m 8] [--x 16]
+    python3 -m tools.generate.linear C0:0B4E [-n 20] [--m 8] [--x 16]
 
 Decodes like tools.disasm.linear, following REP/SEP, and stops at an
 instruction whose widths are only known at run time (after PLP, XCE) or that
@@ -75,11 +75,11 @@ def emit_block(run: list) -> list[str]:
     last_insn, _, last = translations[-1]
     if last.falls_through:
         body += [f"c->pc = 0x{last_insn.next_pc & 0xFFFF:04X};"]
-    return [f"// ${fmt(entry)}", f"void recomp_{entry:06X}_{entry_ctx.name()}(Snes *s)", "{", *indent(body), "}"]
+    return [f"// ${fmt(entry)}", f"void generated_{entry:06X}_{entry_ctx.name()}(Snes *s)", "{", *indent(body), "}"]
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="python3 -m tools.recomp.linear")
+    ap = argparse.ArgumentParser(prog="python3 -m tools.generate.linear")
     ap.add_argument("addr")
     ap.add_argument("-n", type=int, default=20)
     ap.add_argument("--m", type=int, choices=(8, 16), default=8)

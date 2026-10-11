@@ -273,7 +273,7 @@ the example.
 2. **Draft every routine of the chunk in one run.** The analysis is solved once
    and is nearly all the time, so four drafts cost the same 27 seconds as one:
    ```sh
-   python3 -m tools.recomp.show C2:0568 C2:066C C2:09C5 > <scratch>/drafts.c
+   python3 -m tools.generate.show C2:0568 C2:066C C2:09C5 > <scratch>/drafts.c
    ```
    The draft is a **reference, not a starting text** — the pilot carried over
    0–7% of its lines. Read the original beside it with

@@ -2,7 +2,7 @@
 
     python3 -m unittest discover tests
 
-tools/recomp/show.py turns a routine into a draft: a logic function on C
+tools/generate/show.py turns a routine into a draft: a logic function on C
 locals, a wrapper that moves the machine's registers in and out, and call-out
 stubs. Whether drafts do what the original does is checked by registering them
 in a scratch build and running shadow mode (docs/RECOMP.md, M5); these tests
@@ -16,10 +16,10 @@ import unittest
 from tools.disasm.analyze import Analyzer
 from tools.disasm.hints import Hints
 from tools.ram_map import RamMap
-from tools.recomp import names, show
-from tools.recomp.frame import Frames, single
-from tools.recomp.ir import Bin, Branch, Cast, Const, Goto, Part, Un, Var, simplify, substitute
-from tools.recomp.structure import If, Label, Loop, structure
+from tools.generate import names, show
+from tools.generate.frame import Frames, single
+from tools.generate.ir import Bin, Branch, Cast, Const, Goto, Part, Un, Var, simplify, substitute
+from tools.generate.structure import If, Label, Loop, structure
 from tests.test_disasm import FakeRom
 
 RAM_TOML = '''

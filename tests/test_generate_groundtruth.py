@@ -1,4 +1,4 @@
-"""tools/recomp/groundtruth.py's reading of a port, on a made-up port (no ROM needed).
+"""tools/generate/groundtruth.py's reading of a port, on a made-up port (no ROM needed).
 
     python3 -m unittest discover tests
 
@@ -12,7 +12,7 @@ import pathlib
 import tempfile
 import unittest
 
-from tools.recomp import groundtruth as gt
+from tools.generate import groundtruth as gt
 
 RAM_H = """
 #define RAM_ABS(addr) ((uint16_t)((addr) & 0xFFFFu))

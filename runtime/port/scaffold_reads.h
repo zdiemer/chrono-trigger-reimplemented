@@ -56,7 +56,7 @@ static inline void scaffold_note_write(Snes *s, uint32_t addr)
 /* Also note the original's code's reads of marked bytes (through the bus's
  * work RAM observer, which it takes: not with ct_dev --event-reads). The host
  * says where each instruction begins with scaffold_reads_note_pc; generated
- * code's are taken from recomp_insn_hook, chained to whatever held it. */
+ * code's are taken from generated_insn_hook, chained to whatever held it. */
 void scaffold_reads_watch_original(void);
 void scaffold_reads_note_pc(uint32_t pc);
 

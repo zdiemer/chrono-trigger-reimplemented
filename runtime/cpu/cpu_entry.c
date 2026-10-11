@@ -3,7 +3,7 @@
  * (cpu65816.c) has its own copy of the entry sequence inside cpu_step; this one
  * is for the system loop without the interpreter, where generated blocks run
  * every instruction (docs/RECOMP.md, "Without the interpreter"), and it must do
- * exactly what cpu_step does: tests/cpu/recomp_bus_diff.c compares the two from
+ * exactly what cpu_step does: tests/cpu/generated_bus_diff.c compares the two from
  * random states. */
 #include "cpu65816.h"
 

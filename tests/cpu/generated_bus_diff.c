@@ -1,10 +1,10 @@
-/* Runs the C generated for every opcode and context (tools/recomp/sst.py,
+/* Runs the C generated for every opcode and context (tools/generate/sst.py,
  * bound to the development system's bus) against the interpreter on the SNES
  * machine, from random states.
  *
- *   recomp_bus_diff [--iterations N] [--seed S]
+ *   generated_bus_diff [--iterations N] [--seed S]
  *
- * SingleStepTests (sst_recomp_runner) check instruction semantics on a flat
+ * SingleStepTests (sst_generated_runner) check instruction semantics on a flat
  * memory. This checks what that memory can't show: I/O side effects and the
  * order of bus accesses, open bus, and bus time, including the bytes the
  * interpreter fetches and generated code doesn't. Instructions are placed in
@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "port/native.h"
-#include "sst_recomp.h"
+#include "sst_generated.h"
 
 static uint64_t rng_state;
 
@@ -121,7 +121,7 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "--seed") && i + 1 < argc) {
             seed = strtoull(argv[++i], NULL, 0);
         } else {
-            fprintf(stderr, "usage: recomp_bus_diff [--iterations N] [--seed S]\n");
+            fprintf(stderr, "usage: generated_bus_diff [--iterations N] [--seed S]\n");
             return 2;
         }
     }
@@ -145,7 +145,7 @@ int main(int argc, char **argv)
                 setup(interp, (uint8_t)op, ctx);
                 snes_clone(gen, interp);
                 cpu_step(&interp->cpu);
-                sst_recomp_table[op][ctx](&gen->cpu);
+                sst_generated_table[op][ctx](&gen->cpu);
                 runs++;
                 char why[200];
                 if (differ(interp, gen, why, sizeof why)) {

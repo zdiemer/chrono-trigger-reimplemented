@@ -169,7 +169,7 @@ def main() -> None:
                  "or pass -- -DCMAKE_PREFIX_PATH=<SDL2 prefix>)")
 
     run(["cmake", "--build", str(BUILD_DIR), "--config", "Release", "--target", "ct_play"])
-    if args.interpreter != "ON" and not (BUILD_DIR / "recomp" / "generated.stamp").exists():
+    if args.interpreter != "ON" and not (BUILD_DIR / "generated" / "generated.stamp").exists():
         sys.exit("no blocks were generated (no ROM at CT_ROM, or no Python 3.11+), and a player without the "
                  "interpreter can't run without them: pass -- -DCT_ROM=<rom>, or --interpreter")
     DIST_DIR.mkdir(exist_ok=True)

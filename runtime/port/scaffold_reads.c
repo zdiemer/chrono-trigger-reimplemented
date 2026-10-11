@@ -127,9 +127,9 @@ void scaffold_reads_watch_original(void)
 {
     snes_bus_wram_observer = on_wram;
     snes_bus_wram_observer_ctx = NULL;
-    if (recomp_insn_hook != on_generated) {
-        next_insn_hook = recomp_insn_hook;
-        recomp_insn_hook = on_generated;
+    if (generated_insn_hook != on_generated) {
+        next_insn_hook = generated_insn_hook;
+        generated_insn_hook = on_generated;
     }
 }
 

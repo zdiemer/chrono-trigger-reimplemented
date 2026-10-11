@@ -1,4 +1,4 @@
-"""Routine graphs, and what D and DB are at each instruction (tools/recomp/show.py).
+"""Routine graphs, and what D and DB are at each instruction (tools/generate/show.py).
 
 A draft names a direct-page access only when it knows D, and an absolute one
 only when it knows DB. Neither is in the analysis (tools/disasm/analyze.py

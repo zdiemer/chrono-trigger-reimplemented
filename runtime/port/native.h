@@ -74,7 +74,7 @@ typedef struct NativeEntry {
      * mode, so it must only peek (snes_bus_peek): a bus read costs time and
      * sets open bus, which would make shadow runs differ from plain ones. */
     bool (*guard)(Snes *s);
-    /* A block generated from the ROM (tools/recomp, docs/RECOMP.md): it runs to
+    /* A block generated from the ROM (tools/generate, docs/RECOMP.md): it runs to
      * completion on the machine without a fiber and never calls out, and its
      * time is exact. Hand-written entries at the same address take precedence.
      * cost_milli, dont_care and idle are unused; guard is set for blocks of RAM
@@ -89,12 +89,12 @@ typedef struct NativeEntry {
  * (docs/RECOMP.md, M3): for every instruction of every generated block, a block
  * whose function starts there, keyed by address | P's M and X bits << 24 |
  * E << 30 and sorted by key; guard as in NativeEntry. */
-typedef struct RecompIndexEntry {
+typedef struct GeneratedIndexEntry {
     uint32_t key;
     NativeFn fn;
     bool (*guard)(Snes *s);
     const char *name;
-} RecompIndexEntry;
+} GeneratedIndexEntry;
 
 typedef enum { NATIVE_OFF, NATIVE_SHADOW, NATIVE_ON } NativeMode;
 
@@ -196,7 +196,7 @@ void native_destroy(NativeRuntime *rt);
 
 /* ON mode: continue in generated code at any instruction of a generated block
  * (index sorted by key), not only at entries and where a block stopped. */
-void native_set_index(NativeRuntime *rt, const RecompIndexEntry *index, int count);
+void native_set_index(NativeRuntime *rt, const GeneratedIndexEntry *index, int count);
 
 void native_set_port_timing(NativeRuntime *rt, PortTiming timing);
 void native_set_port_horizon(NativeRuntime *rt, bool interrupts_only);
@@ -250,7 +250,7 @@ void native_set_observer(NativeRuntime *rt, const NativeObserver *observer);
 /* Called at the start of every instruction a generated block executes, with
  * PC at it (PB:pc24), for a tool that counts what runs where (ct_dev
  * --fallbacks). NULL by default, which costs a test per instruction. */
-extern void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
+extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
 
 /* Install on a system (sets snes->intercept). */
 void native_attach(NativeRuntime *rt, Snes *snes);

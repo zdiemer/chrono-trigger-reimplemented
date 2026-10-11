@@ -412,7 +412,7 @@ subsystem around a language table.
 
 **The evidence.** `ct_dev --event-reads` (dev/event_reads.h, off by default)
 follows what a command leaves beyond X and the carry, on the interpreter
-(`--native off --recomp off`, so everything that runs is the original's): Y
+(`--native off --generated off`, so everything that runs is the original's): Y
 and V from the handler's return until something overwrites them, through
 pushes and pulls, and into memory when Y is stored; and every byte of the
 field page's event cells (`$C1-$E4`) a command writes, until code outside a

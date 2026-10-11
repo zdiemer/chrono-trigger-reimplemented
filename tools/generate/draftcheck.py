@@ -1,9 +1,9 @@
 """A scratch tree where routines run as their drafts, to shadow them.
 
-    python3 -m tools.recomp.draftcheck --out <scratch dir outside the repo> [name | BB:AAAA ...] [--m 8 --x 16]
+    python3 -m tools.generate.draftcheck --out <scratch dir outside the repo> [name | BB:AAAA ...] [--m 8 --x 16]
 
 Drafts compile against the runtime and do what the original does
-(tools/recomp/show.py), so the way to know a draft is right is the way a port
+(tools/generate/show.py), so the way to know a draft is right is the way a port
 is known to be right: register it and run shadow mode over the movie library.
 This exports the committed tree (`git archive HEAD`, or --rev) into --out/src and drafts
 routines there:
@@ -142,7 +142,7 @@ class Tree:
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="python3 -m tools.recomp.draftcheck", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="python3 -m tools.generate.draftcheck", description=__doc__.split("\n")[0])
     ap.add_argument("which", nargs="*", help="registry entry names, or BB:AAAA addresses (default: every entry)")
     ap.add_argument("--out", type=Path, required=True, help="scratch directory, outside the repository")
     ap.add_argument("--m", type=int, choices=(8, 16), help="widths for the addresses given")

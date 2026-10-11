@@ -53,9 +53,9 @@ shows is dead, and nothing else:
 
 The first two only ever leave out bytes and registers the original itself
 overwrites before reading; the suite's other checks (trace identity with
-`--recomp only`, timing, vblank, routes) are untouched by them.
+`--generated only`, timing, vblank, routes) are untouched by them.
 
-**Per routine**, what survived of the draft (`python3 -m tools.recomp.show`,
+**Per routine**, what survived of the draft (`python3 -m tools.generate.show`,
 with the pilot's hints and the library's coverage) and what changed:
 
 | Routine | Draft / port lines | Close lines, similarity | What changed from the draft, and why |
@@ -106,7 +106,7 @@ run (a loop that must run at least once, an 8-bit read written 16-bit).
 **Sound.** The driver broke once in exactly this kind of change (a song
 upload scrambled when native time opened a gap between APU writes;
 PORTING.md, `native_sync`), so the shipping mode's audio was compared with
-`tools/audio_compare.py` (4 s segments) against the reference, `--recomp
+`tools/audio_compare.py` (4 s segments) against the reference, `--generated
 only`, for the pilot's build and for the build before it:
 
 | Movie | Audible segments | Spectrum correlation, median (before / after) | Segments below 0.9 (before / after) | Log-spectral distance, median (before / after) |
@@ -424,7 +424,7 @@ with the five routines that start an object and make its per-frame move.
 13.6 KiB and 77% after, 81 entries to 169. All of it is 1700 lines of C for
 3.5 KiB of 65816.
 
-**How the chunk was chosen.** `ct_dev --io-log --native on --recomp off` over
+**How the chunk was chosen.** `ct_dev --io-log --native on --generated off` over
 `menus-field-menu` and `menus-shop-inn` says that no unported code in `$C2`
 touches a PPU, APU or DMA register at all any more: what is left of the bank's
 I/O is the multiplier and a handful of `$42xx` writes. So the io-log, which

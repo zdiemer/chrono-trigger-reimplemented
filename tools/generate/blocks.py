@@ -5,7 +5,7 @@ which addresses are code and with which M/X widths. From it this module
 picks the *entries*, the addresses the runtime can arrive at with known widths,
 and forms one block per entry: the instructions reachable from it through
 fall-through and static jumps without reaching another entry, translated with
-tools.recomp.translate. The runtime runs a block only when P's M and X match
+tools.generate.translate. The runtime runs a block only when P's M and X match
 the widths it was generated for, and every instruction is decoded from the ROM
 with the widths it really runs with, so a wrong analysis costs speed, never
 correctness.
@@ -19,7 +19,7 @@ instructions are fetched at run time (translate's `live`), so code the program
 patches (call targets, immediates, addresses) runs as generated code too.
 
 Everything here works on a Rom and an Analyzer, so tests can use synthetic
-code; tools.recomp.__main__ runs it on the real ROM and writes the files.
+code; tools.generate.__main__ runs it on the real ROM and writes the files.
 """
 
 from dataclasses import dataclass, field
@@ -101,7 +101,7 @@ class Block:
 
     @property
     def name(self) -> str:
-        return f"recomp_{self.entry:06X}_{self.ctx.name()}" + (f"_{self.section}" if self.section else "")
+        return f"generated_{self.entry:06X}_{self.ctx.name()}" + (f"_{self.section}" if self.section else "")
 
     @property
     def guard(self) -> str | None:
@@ -419,8 +419,8 @@ class BlockBuilder:
         if b.section:
             sec = self.sections[b.space]
             ranges = self.code_ranges(b)
-            checks = [f"rc_ram_matches(s, 0x{lo & 0x1FFFF:05X}, recomp_ram_image_{b.space} + {lo - sec.base}, "
-                      f"recomp_ram_mask_{b.space} + {lo - sec.base}, {n})" for lo, n in ranges]
+            checks = [f"rc_ram_matches(s, 0x{lo & 0x1FFFF:05X}, generated_ram_image_{b.space} + {lo - sec.base}, "
+                      f"generated_ram_mask_{b.space} + {lo - sec.base}, {n})" for lo, n in ranges]
             head += [f"static const uint32_t {b.name}_code[] = {{ "
                      + ", ".join(f"0x{lo:06X}, {n}" for lo, n in ranges) + " };",
                      f"bool {b.guard}(Snes *s)", "{",

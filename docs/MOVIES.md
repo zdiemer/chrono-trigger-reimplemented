@@ -39,14 +39,14 @@ python3 -m tools.movies.check_drive --rom roms/ct-usa.sfc --sram save.srm \
 ```sh
 cmake --build build/main --target ct_drive
 build/main/ct_drive roms/ct-usa.sfc save.srm
-build/main/ct_drive --native on --recomp on roms/ct-usa.sfc save.srm   # the shipping mode
+build/main/ct_drive --native on --generated on roms/ct-usa.sfc save.srm   # the shipping mode
 ```
 
-`--native off|shadow|on` and `--recomp off|on|only` mean what they mean to
+`--native off|shadow|on` and `--generated off|on|only` mean what they mean to
 `ct_play`: `frontend/natives.c` chooses the registered entries for both, and
-for `ct_dev` (generated blocks only for the ROM they came from; `--recomp only`
+for `ct_dev` (generated blocks only for the ROM they came from; `--generated only`
 leaves the ported routines out in on mode, and in `ct_dev` in every mode; see
-`natives.h`). `--recomp` defaults to `on`. Only `--native
+`natives.h`). `--generated` defaults to `on`. Only `--native
 off` is the machine movies are made on; see Native code for what the others
 change.
 
@@ -119,9 +119,9 @@ and the mismatches found so far are reported first.
 Checked with the same command script (movie into a battle, slots saved and
 loaded while routines were suspended, a state file, a poke) against the
 previous `ct_drive`: `--native off` answers identically and ends with identical
-work RAM, and so do `--native on --recomp only` (generated code alone keeps the
+work RAM, and so do `--native on --generated only` (generated code alone keeps the
 original's timing) and `--native shadow` (no mismatches); `--native on
---recomp on` gives the same result on every run.
+--generated on` gives the same result on every run.
 
 ## Routes
 
@@ -142,8 +142,8 @@ Each starts from the technoplaza cartridge save its movie header names
 `--prefix` is where the run's checkpoints, log and
 screenshots go — a scratch directory, not the repo. Add `--rom` or `--drive` (or
 `$CT_ROM`, `$CT_DRIVE`) when they aren't at `roms/ct-usa.sfc` and
-`build/main/ct_drive`, and `--native`/`--recomp` (or `$CT_DRIVE_NATIVE`,
-`$CT_DRIVE_RECOMP`) to run it on native code. `--until <phase>` stops it once
+`build/main/ct_drive`, and `--native`/`--generated` (or `$CT_DRIVE_NATIVE`,
+`$CT_DRIVE_GENERATED`) to run it on native code. `--until <phase>` stops it once
 that phase's checkpoint is written. A route ends by printing `outcome reached
 <goal> frame <n>` (exit status 0) or `outcome failed <why>` (1): its asserts
 along the way, and a check of its goal at the end (the Dream Team all spoken
@@ -214,10 +214,10 @@ a timing change lands, re-run the routes rather than patching the movies.
 
 ## Routes as a test
 
-The player ships with `--native on --recomp on`: hand ports where they exist,
+The player ships with `--native on --generated on`: hand ports where they exist,
 generated code elsewhere. Hand ports charge estimated time, so a run in that
 mode drifts from the original's timing, and a movie's presses land on the wrong
-frames; the movie library can only test `--recomp only`, which is exact. A
+frames; the movie library can only test `--generated only`, which is exact. A
 route plays the same scene whatever the timing, so whether it still reaches its
 goal is a test of the shipping mode: of what the hand ports do along a whole
 scene, not of their timing.
@@ -232,7 +232,7 @@ python3 -m tools.movies.route_check --mode off --mode on:on --scratch work/check
     telepod_lavos:shell beyond_time
 ```
 
-A mode is `off` or `<native>:<recomp>[:<sound driver>]`: `on:on:c`, the
+A mode is `off` or `<native>:<generated>[:<sound driver>]`: `on:on:c`, the
 default and the suite's, is the build that ships, with the C sound driver
 playing in the SPC700's place (`ct_drive --sound-driver c`, as `ct_play` does
 by default; SOUND.md, "Playing it"), whose commands take no time, so its

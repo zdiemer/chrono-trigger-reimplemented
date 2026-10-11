@@ -180,7 +180,7 @@ Nothing lands without it, and it is the same gate for every phase:
   page the map declares no instance for) and no `accessor out of range`
   lines (a port that reached past a variable the map declares, into
   whatever follows it in work RAM; both in DISASSEMBLY.md, "The accessors");
-- `--native on --recomp only` traces identically to `--native off`;
+- `--native on --generated only` traces identically to `--native off`;
 - every hand port's estimated time stays within the timing gate's limits over
   the shadow runs, or is on its exceptions list with a reason
   (`tools/timing_gate.py`; RECOMP.md, "The timing gate");
@@ -548,7 +548,7 @@ by an audit; the fourth is the program itself.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; RECOMP.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
-  and main loop: `ct_play --recomp off --interpreted stop` (PLAYING.md) runs
+  and main loop: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
   to frame 2 and stops at `$C0:7084`, in the field's code after its first
   start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
   program (`$7E`) is ported.
@@ -570,7 +570,7 @@ by an audit; the fourth is the program itself.
   ports. It is taken down in deliberate steps, each its own commit, none of
   them by accident:
   1. **Measure it.** A census from a shipping-mode run (`ct_dev --native on
-     --recomp on`): for each registered entry, how often it was entered by
+     --generated on`): for each registered entry, how often it was entered by
      the machine (from generated code, the interpreter or a vector) and how
      often a port called it as C. The count entered by the machine is the
      number this item drives to 0, and goes in the table above. The census
@@ -707,7 +707,7 @@ What stays deprioritized is what serves the scaffolding or nothing:
   for that alone when a browser build is wanted, not before. A browser build,
   if it is wanted, is a frontend on top of a finished `game/` -- which is the
   same thing targets 1 and 2 need.
-- **Anything that makes the hybrid modes nicer to live in.** `--recomp on` and
+- **Anything that makes the hybrid modes nicer to live in.** `--generated on` and
   shadow mode are how the work is checked, not what is being built.
 
 The host seam was never deferred, because it was the same work as making the

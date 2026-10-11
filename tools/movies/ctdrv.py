@@ -36,9 +36,9 @@ class DriveError(RuntimeError):
 
 
 class Machine:
-    """`native`, `recomp` and `sound` are ct_drive's --native, --recomp and
+    """`native`, `generated` and `sound` are ct_drive's --native, --generated and
     --sound-driver (default: the interpreter and the original sound driver, or
-    $CT_DRIVE_NATIVE, $CT_DRIVE_RECOMP and $CT_DRIVE_SOUND). With --native on
+    $CT_DRIVE_NATIVE, $CT_DRIVE_GENERATED and $CT_DRIVE_SOUND). With --native on
     and $CT_DRIVE_FALLBACKS naming a directory, each machine also counts what
     the original's code runs in place of hand ports (ct_drive --fallbacks) into
     a file of its own there, for tools/fallbacks.py. With $CT_DRIVE_DRAIN_BUDGETS
@@ -47,15 +47,15 @@ class Machine:
 
     _count = 0
 
-    def __init__(self, rom=None, sram=None, drive=None, native=None, recomp=None, sound=None):
+    def __init__(self, rom=None, sram=None, drive=None, native=None, generated=None, sound=None):
         rom = str(rom or os.environ.get("CT_ROM") or DEFAULT_ROM)
         drive = str(drive or os.environ.get("CT_DRIVE") or DEFAULT_DRIVE)
         native = native or os.environ.get("CT_DRIVE_NATIVE") or "off"
-        recomp = recomp or os.environ.get("CT_DRIVE_RECOMP") or "on"
+        generated = generated or os.environ.get("CT_DRIVE_GENERATED") or "on"
         sound = sound or os.environ.get("CT_DRIVE_SOUND") or "original"
         command = [drive]
         if native != "off":
-            command += ["--native", native, "--recomp", recomp]
+            command += ["--native", native, "--generated", generated]
         if sound != "original":
             command += ["--sound-driver", sound]
         if os.environ.get("CT_DRIVE_DRAIN_BUDGETS") and native == "on":
@@ -66,7 +66,7 @@ class Machine:
             command += ["--fallbacks", os.path.join(fallbacks, "drive-%d-%d.txt" % (os.getpid(), Machine._count))]
         command += [rom] + ([str(sram)] if sram else [])
         self.rom, self.sram, self.drive = rom, sram, drive
-        self.native, self.recomp, self.sound = native, recomp, sound
+        self.native, self.generated, self.sound = native, generated, sound
         self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         self.frame = 0

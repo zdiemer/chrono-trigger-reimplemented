@@ -1,10 +1,10 @@
 """How close a draft comes to the hand port of the same routine (docs/RECOMP.md, M5).
 
-    python3 -m tools.recomp.groundtruth BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--show]
+    python3 -m tools.generate.groundtruth BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--show]
 
 The routines already ported were validated call by call against the original
 in shadow mode, so each is a known-correct target for the draft of its
-address. This drafts them (tools/recomp/show.py) and measures, in terms a
+address. This drafts them (tools/generate/show.py) and measures, in terms a
 porter cares about:
 
 - **accesses**: the work RAM addresses the port reads and writes (its literals,
@@ -21,7 +21,7 @@ porter cares about:
   part of the port.
 
 It prints numbers only, never a draft (--show prints the draft too, to stdout,
-like tools.recomp.show). Nothing it prints is committed.
+like tools.generate.show). Nothing it prints is committed.
 """
 
 import argparse
@@ -417,7 +417,7 @@ def report(rows: list, out=sys.stdout):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="python3 -m tools.recomp.groundtruth", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="python3 -m tools.generate.groundtruth", description=__doc__.split("\n")[0])
     ap.add_argument("addr", nargs="+")
     ap.add_argument("--m", type=int, choices=(8, 16))
     ap.add_argument("--x", type=int, choices=(8, 16))

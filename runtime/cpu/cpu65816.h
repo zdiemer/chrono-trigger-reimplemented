@@ -76,7 +76,7 @@ CpuStep cpu_step(Cpu *cpu);
  * Returns CPU_STEP_INTERRUPT or CPU_STEP_IDLE where cpu_step would, and
  * CPU_STEP_READY where cpu_step would go on to execute the instruction at PC
  * (an IRQ held off by I ends WAI first, as in cpu_step). Bus accesses, internal
- * cycles and state changes are cpu_step's; tests/cpu/recomp_bus_diff.c
+ * cycles and state changes are cpu_step's; tests/cpu/generated_bus_diff.c
  * compares the two. */
 CpuStep cpu_service(Cpu *cpu);
 

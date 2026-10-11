@@ -1,10 +1,10 @@
-"""Lift a routine's instructions into draft statements (tools/recomp/ir.py).
+"""Lift a routine's instructions into draft statements (tools/generate/ir.py).
 
 One instruction becomes the statements that say what it does to the locals,
 memory and the machine, with every flag it sets as its own assignment: the
-cleanup (tools/recomp/draft.py) drops the ones liveness shows nobody reads.
+cleanup (tools/generate/draft.py) drops the ones liveness shows nobody reads.
 Addresses come out as constants wherever D and DB are known
-(tools/recomp/frame.py), so the renderer can name them; where they aren't,
+(tools/generate/frame.py), so the renderer can name them; where they aren't,
 `m_dp`/`m_abs` read the machine's, which the draft keeps current.
 
 Decimal mode isn't modelled (ADC/SBC are binary): a draft that has them says so

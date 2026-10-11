@@ -1,15 +1,15 @@
 /* Binding for the SingleStepTests harness of generated instructions
- * (tools/recomp/sst.py): a flat 24-bit memory that counts bus cycles, like
- * sst_runner.c's interpreter bus. With SST_RECOMP_SNES the same generated code
+ * (tools/generate/sst.py): a flat 24-bit memory that counts bus cycles, like
+ * sst_runner.c's interpreter bus. With SST_GENERATED_SNES the same generated code
  * binds to the development system's bus instead, to check it compiles there. */
-#ifndef CT_TESTS_SST_RECOMP_H
-#define CT_TESTS_SST_RECOMP_H
+#ifndef CT_TESTS_SST_GENERATED_H
+#define CT_TESTS_SST_GENERATED_H
 
 #include <stdint.h>
 
-#ifdef SST_RECOMP_SNES
+#ifdef SST_GENERATED_SNES
 
-#include "port/recomp_snes.h"
+#include "port/generated_snes.h"
 #define SST_PEEK(c, addr) snes_bus_peek((c)->bus.ctx, (addr))
 
 #else
@@ -36,13 +36,13 @@ static inline void sst_write(uint32_t addr, uint8_t v)
 #define RC_FETCH(c, addr, n, last) ((void)(c), (void)(addr), (void)(last), sst_bus_cycles += (n))
 #define SST_PEEK(c, addr) ((void)(c), sst_mem[(addr)])
 
-#include "port/recomp.h"
+#include "port/generated.h"
 
 #endif
 
-typedef void (*SstRecompFn)(Cpu *c);
+typedef void (*SstGeneratedFn)(Cpu *c);
 
 /* By opcode, then context: m8x8, m8x16, m16x8, m16x16, emulation. */
-extern const SstRecompFn sst_recomp_table[256][5];
+extern const SstGeneratedFn sst_generated_table[256][5];
 
 #endif

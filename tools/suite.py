@@ -13,7 +13,7 @@ count) and no `accessor out of range` line (a port that called an accessor with
 an index past what re/ram.toml declares, reaching the next variable in work RAM,
 which only the original's layout makes work; both in docs/DISASSEMBLY.md, "The
 accessors"); then the checks
-in CHECKS run, each printing one line: `--native on --recomp only` must produce
+in CHECKS run, each printing one line: `--native on --generated only` must produce
 a trace identical to `--native off`; every hand port's estimated time must
 stay within the timing gate's limits over the shadow runs' `--timing-report`
 (tools/timing_gate.py); no video write in the shipping mode may land on the
@@ -132,7 +132,7 @@ def run_movie(binary, rom, out, name, path, frames, lockstep):
 
 
 def trace_check(binary, rom, out, movie, frames):
-    """`--recomp only` against `--native off` on one movie. Returns (ok, detail).
+    """`--generated only` against `--native off` on one movie. Returns (ok, detail).
 
     The two runs are given their own copy of the binary so they can run at once
     on hosts that lock a running image.
@@ -143,7 +143,7 @@ def trace_check(binary, rom, out, movie, frames):
     traces = {}
     procs = []
     for tag, extra in (("off", ["--native", "off"]),
-                       ("only", ["--native", "on", "--recomp", "only"])):
+                       ("only", ["--native", "on", "--generated", "only"])):
         exe = out / ("ct_dev_%s%s" % (tag, binary.suffix))
         shutil.copy2(binary, exe)
         traces[tag] = out / ("%s.cttr" % tag)
@@ -169,7 +169,7 @@ def trace_check(binary, rom, out, movie, frames):
 # and a row in CHECKS, with a --no-<name> switch to skip it while iterating.
 
 def check_trace(args, ctx):
-    """`--recomp only` against `--native off` on one movie."""
+    """`--generated only` against `--native off` on one movie."""
     ok, detail = trace_check(ctx["binary"], args.rom, args.out, args.trace_movie, args.trace_frames)
     return ok, "trace identity (%s)" % args.trace_movie, detail, []
 
@@ -262,7 +262,7 @@ def check_routes(args, ctx):
 
 # ---- the shipping mode's fallbacks and the native shape -----------------------------
 
-SHIP = ["--native", "on", "--recomp", "on", "--sound-driver", "c"]
+SHIP = ["--native", "on", "--generated", "on", "--sound-driver", "c"]
 HALTED = re.compile(rb"^halted: .*$", re.M)
 SHIP_PROBLEMS = (OUT_OF_RANGE, HALTED, REFUSED)
 
@@ -580,7 +580,7 @@ def check_evidence(args, ctx):
 
 CHECKS = (
     # name, function, what --no-<name> skips
-    ("trace", check_trace, "the --recomp only trace comparison"),
+    ("trace", check_trace, "the --generated only trace comparison"),
     ("timing", check_timing, "the timing gate over the shadow runs"),
     ("vblank", check_vblank, "the check for video writes on the picture in the shipping mode"),
     ("routes", check_routes, "the route scripts in the shipping mode"),

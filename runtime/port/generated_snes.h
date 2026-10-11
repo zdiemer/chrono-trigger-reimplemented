@@ -1,10 +1,10 @@
-/* Binds generated code (port/recomp.h) to the development system's bus: the
+/* Binds generated code (port/generated.h) to the development system's bus: the
  * same bus functions the interpreter calls, so I/O side effects, bus time and
  * open bus match it. Accesses go through the Cpu's bus hooks (snes_init points
  * them at the SnesBus), which is also how shadow mode replays a block against
  * the accesses the interpreter recorded (runtime/port/native.c). */
-#ifndef CT_PORT_RECOMP_SNES_H
-#define CT_PORT_RECOMP_SNES_H
+#ifndef CT_PORT_GENERATED_SNES_H
+#define CT_PORT_GENERATED_SNES_H
 
 #include "cpu/cpu65816.h"
 #include "snes/bus.h"
@@ -108,6 +108,6 @@ static inline void rc_snes_write(Cpu *c, uint32_t addr, uint8_t v)
 #define RC_FETCH_LIVE(c, addr, n, start) rc_snes_fetch_live((c), (addr), (n), (start))
 #define RC_IO(c, n) ((c)->io_cycles += (n), (c)->last_cycle_io = true)
 
-#include "port/recomp.h"
+#include "port/generated.h"
 
 #endif

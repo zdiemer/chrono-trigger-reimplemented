@@ -59,7 +59,7 @@ CMake option `CT_PLAYER_INTERPRETER` decides what `ct_play` keeps of it (`ct_dev
 
 | Value | `ct_play` | Used by |
 |---|---|---|
-| `ON` (default) | the interpreter is linked and every `--native` and `--recomp` mode works | `cmake` builds |
+| `ON` (default) | the interpreter is linked and every `--native` and `--generated` mode works | `cmake` builds |
 | `FALLBACK` | generated code only; an instruction without generated code (a *miss*) runs on the interpreter and is logged | `tools/dist.py` |
 | `OFF` | generated code only; the interpreter isn't linked (about 28 KB of code), and a miss stops the game | `tools/dist.py --strict` |
 
@@ -68,7 +68,7 @@ cmake -S . -B build/main -G Ninja -DCT_PLAYER_INTERPRETER=FALLBACK && cmake --bu
 ```
 
 The two players without the interpreter only run `--native on` with
-`--recomp on` (the default) or `--recomp only`, and refuse to start when they
+`--generated on` (the default) or `--generated only`, and refuse to start when they
 have no generated blocks for the ROM (a build without `CT_ROM`, or another
 ROM). `ct_play --help` ends with the mode the build runs in; so do the first
 line on stderr and the title bar (`[generated code, fallback]`,
@@ -88,18 +88,18 @@ the quick save and `Esc` quits; headless (`--frames`), it exits with status 1.
 
 The player built with the interpreter does either at run time with
 `--interpreted log` or `--interpreted stop` (with `--native on`), over what
-`--recomp` leaves the interpreter: with `--recomp on` or `only`, code nothing
-was generated for; with `--recomp off`, everything no hand port covers, which
+`--generated` leaves the interpreter: with `--generated on` or `only`, code nothing
+was generated for; with `--generated off`, everything no hand port covers, which
 is how far the hand ports alone carry the game. The list goes to
 `<rom name>.interpreted.txt`, the same format, started afresh each session, and
 the title bar shows `[hand ports]` or `[generated code]` with the count. A
-build without `CT_ROM` is enough for `--recomp off`.
+build without `CT_ROM` is enough for `--generated off`.
 
 A misses file is a coverage file, so feeding it back is adding it to the
 build's coverage and rebuilding, which generates blocks for that code:
 
 ```sh
-python3 tools/dist.py -- "-DCT_RECOMP_COVERAGE=traces/coverage-*.txt;path/to/ct.misses.txt"
+python3 tools/dist.py -- "-DCT_GENERATED_COVERAGE=traces/coverage-*.txt;path/to/ct.misses.txt"
 ```
 
 That covers ROM code and RAM code inside the RAM sections `re/hints.toml`
@@ -129,18 +129,18 @@ without a ROM (`.github/workflows/ci.yml`).
 
 ```sh
 dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native on|shadow|off] \
-    [--recomp only|on|off] [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
+    [--generated only|on|off] [--audio snes|direct] [--renderer native|scanline] [--save-dir dir]
 ```
 
 The ROM can also be given as the only argument, so dropping it onto the
-executable works. By default (`--native on --recomp on`) the game runs as the
+executable works. By default (`--native on --generated on`) the game runs as the
 hand-ported routines, the readable C in `game/`, with the C generated from your
 ROM at build time ([RECOMP.md](RECOMP.md)) wherever no routine is ported yet.
 The ports' timing is estimated rather than the original's, so events can play
 out differently from the original (a battle may go another way); the timing
 gate bounds how far the estimates may be off and checks that no display write
 lands on the picture where the original's doesn't (RECOMP.md, "The timing
-gate"). `--recomp only` runs the generated C alone, which keeps the original's
+gate"). `--generated only` runs the generated C alone, which keeps the original's
 timing exactly: it behaves frame for frame like `--native off`, and it is what
 movies replay and record in (below). `--native off` interprets everything, the
 reference behavior;
@@ -161,7 +161,7 @@ there are gaps of silence.
 `--audio direct` selects the APU-direct audio backend ([PLATFORM.md](PLATFORM.md),
 P1): the sound driver's uploads and commands no longer take the game's time,
 so there are no pauses while a new song loads. It runs in the hand-ported
-sound driver, so it implies `--recomp on`, and it can't be combined with
+sound driver, so it implies `--generated on`, and it can't be combined with
 `--record`. After a long upload the APU has produced its sound ahead of the
 game and then waits for it; the buffer absorbs short leads, and a long one can
 show up as a short gap. `--audio snes` (the default) keeps the original timing.
@@ -177,7 +177,7 @@ buffer as the original does, and has the driver play into the same S-DSP
 model. So a new song starts at once rather than after its upload, and the
 game's timing is not the original's. What needs that timing or the
 original's code gets the original driver: replaying or recording a movie,
-`--load-zst`, `--audio direct`, `--native off` or `shadow` and `--recomp only`
+`--load-zst`, `--audio direct`, `--native off` or `shadow` and `--generated only`
 (the C driver takes the CPU half's calls in its ported entries, which run only
 with `--native on` and the ported routines); `--sound-driver c` with any of
 them is refused. The C driver's voices are made into sound by the native mixer
@@ -316,8 +316,8 @@ power-on, so a recording:
   game quickly); the movie records the save's CRC-32, and `ct_dev` then needs
   the same file with `--sram`;
 - runs in shadow mode by default, which also checks the ported routines while
-  you play. `--native off`, or `--native on` (which records with `--recomp only`
-  unless `--recomp` is given; fastest), keep the timing exact too; `--recomp on`
+  you play. `--native off`, or `--native on` (which records with `--generated only`
+  unless `--generated` is given; fastest), keep the timing exact too; `--generated on`
   doesn't, so it's refused.
   A player built without the interpreter records in `--native on` mode;
 - can continue an existing movie: `--movie base.ctm` replays it at full speed
@@ -343,9 +343,9 @@ dist/ct_play --rom path/to/ct.sfc --movie oracle/movies/saves/battle-magus.ctm -
 
 A movie started from a cartridge save finds that save by its CRC-32 among the
 committed ones in `oracle/saves/` (or below the ROM's directory); `--sram`
-picks one explicitly. A movie replays with `--recomp only` unless `--recomp` is
+picks one explicitly. A movie replays with `--generated only` unless `--generated` is
 given, because that is where it replays exactly what `ct_dev` validates (so
-does `--native off`); with `--recomp on` or `--audio direct` the timing differs
+does `--native off`); with `--generated on` or `--audio direct` the timing differs
 and the replay drifts from the recording, since a movie is button presses at
 frame numbers.
 
@@ -389,7 +389,7 @@ holds the rules that keep it that way).
 | File | What it is |
 |---|---|
 | `frontend/player.h`, `player.c` | the machine, its renderer and native runtime, the input track that replays and records, quick saves |
-| `frontend/natives.h`, `natives.c` | which entries `--native`, `--recomp` (and `ct_dev`'s `--exclude` and `--include`) register, and a runtime over them; shared with `ct_drive` and `ct_dev` so the three can't drift apart |
+| `frontend/natives.h`, `natives.c` | which entries `--native`, `--generated` (and `ct_dev`'s `--exclude` and `--include`) register, and a runtime over them; shared with `ct_drive` and `ct_dev` so the three can't drift apart |
 | `frontend/audio_fill.h`, `audio_fill.c` | the resampler and ring buffer between the APU's 32000 Hz and an audio device's rate (above) |
 | `frontend/window.c` | `run_window`: the SDL window, audio device, keyboard and gamepads, and the frame pacing |
 | `frontend/bindings.h`, `bindings.c` | the window's controls: keys and pad inputs to SNES buttons and player actions |
@@ -409,25 +409,25 @@ for it.
 
 The three tools that run native code choose it with one `natives_select`, and
 differ in one deliberate place, a parameter of it (`NativesOnly`): which
-ported routines `--recomp only` leaves out. The option exists for the
+ported routines `--generated only` leaves out. The option exists for the
 original's exact timing, which hand ports lose (they charge an estimate) and
 generated blocks keep. `ct_play` and `ct_drive` leave the ports out only where
 that changes anything, in on mode when there are generated blocks
 (`NATIVES_ONLY_TIMED`): shadow and off modes run the original code whatever
-the table holds, so a shadow recording with `--recomp only` still checks the
+the table holds, so a shadow recording with `--generated only` still checks the
 ports, and a build
 without generated blocks still has the ports to run. `ct_dev` leaves them out
-in every mode (`NATIVES_ONLY_ALWAYS`): its `--recomp only` means the generated
+in every mode (`NATIVES_ONLY_ALWAYS`): its `--generated only` means the generated
 code alone, so shadow mode checks the generated blocks without the ports, and
 on mode without generated blocks is the interpreter, still exact.
-Neither choice reaches the gate, which runs `--native shadow` with `--recomp
-on` and `--recomp only` in on mode with generated blocks, where the two agree;
-nor `ct_play --record`, which runs shadow mode with `--recomp on` unless told
+Neither choice reaches the gate, which runs `--native shadow` with `--generated
+on` and `--generated only` in on mode with generated blocks, where the two agree;
+nor `ct_play --record`, which runs shadow mode with `--generated on` unless told
 otherwise, and a shadow run's machine doesn't depend on the table. Moving
 `ct_dev` onto `natives.c` left its reports, coverage, call logs and traces
 byte-identical (`new-game`, `menu`, `field` and `battle-magus` in shadow mode,
-the first three with `--native on --recomp only`, and `--exclude`, `--include`
-and shadow `--recomp only` runs of `menu` and `field`).
+the first three with `--native on --generated only`, and `--exclude`, `--include`
+and shadow `--generated only` runs of `menu` and `field`).
 
 Nor does the player know a path. What it persists it takes and hands out as
 bytes: the cartridge save (through the save service's `sv_host_bytes`), a quick

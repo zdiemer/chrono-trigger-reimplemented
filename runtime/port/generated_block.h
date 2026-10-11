@@ -1,16 +1,16 @@
-/* Included by the blocks tools/recomp generates from the ROM (docs/RECOMP.md). */
-#ifndef CT_PORT_RECOMP_BLOCK_H
-#define CT_PORT_RECOMP_BLOCK_H
+/* Included by the blocks tools/generate generates from the ROM (docs/RECOMP.md). */
+#ifndef CT_PORT_GENERATED_BLOCK_H
+#define CT_PORT_GENERATED_BLOCK_H
 
 #include <string.h>
 
-#include "port/recomp_snes.h"
+#include "port/generated_snes.h"
 #include "snes/system.h"
 
 /* Instructions executed in generated code (native.c reports them). */
-extern uint64_t recomp_executed;
+extern uint64_t generated_executed;
 /* A tool's observer of every instruction, or NULL (native.h). */
-extern void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
+extern void (*generated_insn_hook)(Snes *s, uint32_t pc24);
 
 /* At the start of every instruction of a block (pc16 is the instruction's
  * address in the block's bank). In ON mode, a block whose time has passed its
@@ -27,9 +27,9 @@ extern void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
             goto rc_stop;                                               \
         }                                                               \
         rc_timing.insn_start = rc_t_;                                   \
-        recomp_executed++;                                              \
-        if (recomp_insn_hook)                                           \
-            recomp_insn_hook(s, (uint32_t)(c)->pb << 16 | (pc16));      \
+        generated_executed++;                                              \
+        if (generated_insn_hook)                                           \
+            generated_insn_hook(s, (uint32_t)(c)->pb << 16 | (pc16));      \
     } while (0)
 
 /* `self` is the block's function, recorded so it resumes where it stopped. */

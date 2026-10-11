@@ -1,6 +1,6 @@
 # Static recompiler
 
-`tools/recomp` translates the game's 65816 code into C when the project is
+`tools/generate` translates the game's 65816 code into C when the project is
 built, from the user's ROM. The generated code replaces the interpreter as
 what runs routines nobody has ported yet: hand ports take precedence, generated
 code runs the rest, and the interpreter is left for code the generator can't
@@ -46,11 +46,11 @@ stream, not the whole run of them.
 
 | Path | What |
 |---|---|
-| `tools/recomp/translate.py` | One instruction to C statements |
-| `runtime/port/recomp.h` | The helpers those statements call (`rc_*`) |
-| `runtime/port/recomp_snes.h` | Binds the helpers to the development system's bus (through the Cpu's bus hooks) |
-| `tools/recomp/linear.py` | Prints a linear run of ROM code as a C function, for reading the output (stdout only) |
-| `tools/recomp/sst.py` | Generates the SingleStepTests harness (below) |
+| `tools/generate/translate.py` | One instruction to C statements |
+| `runtime/port/generated.h` | The helpers those statements call (`rc_*`) |
+| `runtime/port/generated_snes.h` | Binds the helpers to the development system's bus (through the Cpu's bus hooks) |
+| `tools/generate/linear.py` | Prints a linear run of ROM code as a C function, for reading the output (stdout only) |
+| `tools/generate/sst.py` | Generates the SingleStepTests harness (below) |
 
 `translate(opcode, operand, pc, pb, ctx, flow)` returns the statements, the
 instruction size, whether execution falls through, the widths after it and its
@@ -60,7 +60,7 @@ what `runtime/cpu/cpu65816.c` does:
 - **Registers and flags**, decimal-mode `ADC`/`SBC` included (the D flag is
   tested at run time; everything width-dependent is fixed at generation).
 - **Bus accesses in the interpreter's order** through `RC_READ`/`RC_WRITE`,
-  which `recomp_snes.h` maps to the Cpu's bus hooks, `snes_bus_read`/
+  which `generated_snes.h` maps to the Cpu's bus hooks, `snes_bus_read`/
   `snes_bus_write` on the development system, so I/O side effects match. Read-modify-write instructions write the high byte first;
   `JSL` and `JSR (abs,X)` push between their fetches.
 - **Fetches.** Generated code doesn't fetch its operands, but the interpreter
@@ -93,11 +93,11 @@ move one byte per pass and jump back to themselves while bytes remain, as the
 interpreter re-executes the instruction, so interrupts can land between passes.
 
 A synthetic example (`REP #$20 ; LDX #$10 ; LDA $1000,X ; STA [$20],Y ; DEY ;
-DEX ; BPL ; JSR $9000`), as `python3 -m tools.recomp.linear` prints it:
+DEX ; BPL ; JSR $9000`), as `python3 -m tools.generate.linear` prints it:
 
 ```c
 // $C0:8000
-void recomp_C08000_m8x8(Snes *s)
+void generated_C08000_m8x8(Snes *s)
 {
     Cpu *const c = &s->cpu;
     /* C0:8000  REP #$20 */
@@ -135,21 +135,21 @@ L_C08004:
 ### Validation
 
 ```sh
-build/main/sst_recomp_runner tests/cpu/data/*.bin   # must report 0 failures
-build/main/recomp_bus_diff [--iterations N] [--seed S]   # must report 0 mismatches
+build/main/sst_generated_runner tests/cpu/data/*.bin   # must report 0 failures
+build/main/generated_bus_diff [--iterations N] [--seed S]   # must report 0 mismatches
 python3 -m unittest discover tests
 ```
 
-- **`sst_recomp_runner`** is `tests/cpu/sst_runner.c` built with `SST_RECOMP`:
+- **`sst_generated_runner`** is `tests/cpu/sst_runner.c` built with `SST_GENERATED`:
   instead of `cpu_step` it calls the generated function for the opcode at PC and
-  the current widths (`tools/recomp/sst.py` writes one per opcode and context,
-  1280 in all, into `build/.../recomp_sst/`, reading the operand bytes, PC and
+  the current widths (`tools/generate/sst.py` writes one per opcode and context,
+  1280 in all, into `build/.../generated_sst/`, reading the operand bytes, PC and
   PB at run time). It compares registers, memory and cycle counts exactly as
   `sst_runner` does. Result: all 5.12M tests pass, native and emulation, with
   cycle counts (which the flat test bus reports as bus accesses plus internal
   cycles).
-- **`recomp_bus_diff`** compiles the same generated functions with
-  `recomp_snes.h` and runs each against the interpreter on the SNES machine:
+- **`generated_bus_diff`** compiles the same generated functions with
+  `generated_snes.h` and runs each against the interpreter on the SNES machine:
   instructions in WRAM, random registers and WRAM, operands, data bank and
   direct page biased toward PPU, APU and CPU I/O registers. After each
   instruction both machines must match in everything shadow validation compares
@@ -158,7 +158,7 @@ python3 -m unittest discover tests
   flat SST memory can't show those. Result: 256000 instructions (200 per opcode
   and context), 0 mismatches. A deliberately wrong open bus in `RC_FETCH` fails
   about 28% of them.
-- **`tests/test_recomp.py`** covers what block generation relies on: every
+- **`tests/test_generate.py`** covers what block generation relies on: every
   opcode translates in every context with constants folding completely, braces
   balance, targets and widths are reported correctly.
 
@@ -168,7 +168,7 @@ Generated code already accounts for time exactly: an instruction costs the bus
 clocks its accesses and fetches add to `bus.clocks` plus 6 clocks per internal
 cycle counted in `cpu.io_cycles`, the same two counters the system loop charges
 after `cpu_step`. Both are validated per opcode (SST cycle counts, and
-`recomp_bus_diff` against the interpreter's clocks), so no per-opcode cost table
+`generated_bus_diff` against the interpreter's clocks), so no per-opcode cost table
 is needed: a block's time is `bus.clocks + 6 * io_cycles` at any instruction
 boundary.
 
@@ -176,13 +176,13 @@ boundary.
 
 | Path | What |
 |---|---|
-| `tools/recomp/__main__.py` | `python3 -m tools.recomp`: runs the analysis, writes the shards and the table |
-| `tools/recomp/blocks.py` | Entries, block formation, C emission |
-| `cmake/recomp.cmake` | The build step and the `ct_recomp` library (generated, or the stub) |
-| `runtime/port/recomp_block.h` | Included by generated shards: `RC_INSN`, `RC_YIELD` (and `RC_IRQ_UNMASKED`, M2) |
-| `runtime/port/recomp_table.h`, `recomp_table_stub.c` | The table's declaration, and the empty table built without a ROM |
+| `tools/generate/__main__.py` | `python3 -m tools.generate`: runs the analysis, writes the shards and the table |
+| `tools/generate/blocks.py` | Entries, block formation, C emission |
+| `cmake/generated.cmake` | The build step and the `ct_generated` library (generated, or the stub) |
+| `runtime/port/generated_block.h` | Included by generated shards: `RC_INSN`, `RC_YIELD` (and `RC_IRQ_UNMASKED`, M2) |
+| `runtime/port/generated_table.h`, `generated_table_stub.c` | The table's declaration, and the empty table built without a ROM |
 | `runtime/port/native.c` | Several entries per address, running blocks in `on` mode, checking them in `shadow` mode |
-| `tests/test_recomp_blocks.py` | Entries and block boundaries on synthetic code |
+| `tests/test_generate_blocks.py` | Entries and block boundaries on synthetic code |
 
 The generator runs the disassembler's analysis in process
 (`tools.disasm.analyze.Analyzer` with `re/hints.toml` and the coverage files),
@@ -213,7 +213,7 @@ the analysis has there (an unknown width gives both variants):
    address reached with other widths than its entry's) becomes an entry, and
    blocks are rebuilt until there are none.
 
-A **block** is one C function per entry (`recomp_C08000_m8x16`): the
+A **block** is one C function per entry (`generated_C08000_m8x16`): the
 instructions reachable from it through fall-through, branches, `JMP abs`, `BRL`
 and `JML`, with widths following `REP`/`SEP`. Every other entry address ends
 the block (PC set, return), so each loop has exactly one copy: the block of its
@@ -238,23 +238,23 @@ that never run or that stop early.
 
 ## Build (M1)
 
-`cmake/recomp.cmake` adds the step when Python 3.11+ is found and `CT_ROM`
+`cmake/generated.cmake` adds the step when Python 3.11+ is found and `CT_ROM`
 exists:
 
 ```sh
 cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc \
-    "-DCT_RECOMP_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt" \
-    "-DCT_RECOMP_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt"
+    "-DCT_GENERATED_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt" \
+    "-DCT_GENERATED_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt"
 cmake --build build/main
 ```
 
 | Cache variable | Default | |
 |---|---|---|
-| `CT_ROM` | `roms/ct-usa.sfc` | the ROM; without it `ct_recomp` is the empty stub table and CMake says so |
-| `CT_RECOMP_COVERAGE` | none | coverage files or glob patterns, `;`-separated |
-| `CT_RECOMP_CALLS` | none | call logs or glob patterns |
-| `CT_RECOMP_SHARDS` | 64 | generated source files |
-| `CT_RECOMP_OPT` | `-O1` | optimization level for the shards |
+| `CT_ROM` | `roms/ct-usa.sfc` | the ROM; without it `ct_generated` is the empty stub table and CMake says so |
+| `CT_GENERATED_COVERAGE` | none | coverage files or glob patterns, `;`-separated |
+| `CT_GENERATED_CALLS` | none | call logs or glob patterns |
+| `CT_GENERATED_SHARDS` | 64 | generated source files |
+| `CT_GENERATED_OPT` | `-O1` | optimization level for the shards |
 
 Coverage and call logs are optional and gitignored (`traces/`). They come from
 the development system running movies, for example:
@@ -268,15 +268,15 @@ Coverage matters: it adds the code only the movies reach (the analysis goes
 from 94400 to 109800 instructions with the 19 coverage files of the main and
 save movies).
 
-- `python3 -m tools.recomp` verifies the ROM's CRC-32 (`2D206BF7`), then writes
-  `blocks_000.c` ... `blocks_063.c` and `table.c` (`recomp_natives[]` and
-  `recomp_rom_crc`) into `build/.../recomp/`. A block's shard is a hash of its
+- `python3 -m tools.generate` verifies the ROM's CRC-32 (`2D206BF7`), then writes
+  `blocks_000.c` ... `blocks_063.c` and `table.c` (`generated_natives[]` and
+  `generated_rom_crc`) into `build/.../recomp/`. A block's shard is a hash of its
   address's kilobyte, so a change to one routine touches few shards. Output is
   deterministic, and files whose content didn't change aren't rewritten: the
   custom command's output is a stamp and the sources are byproducts, so Ninja
   (which re-checks byproducts' times) recompiles only changed shards.
 - It reruns when the ROM, `re/hints.toml`, `game/registry.c`, the coverage and
-  call files, or `tools/recomp`/`tools/disasm` change. A new coverage file
+  call files, or `tools/generate`/`tools/disasm` change. A new coverage file
   matching a pattern is picked up at the next configure.
 - Numbers (this ROM, the 19 coverage files and 18 call logs): 10667 blocks,
   127518 instructions (the analysis has 109832; loop-free code shared by several
@@ -286,10 +286,10 @@ save movies).
   rewrote no file and recompiled nothing (10 s). `-O2` for the shards took 52 s
   instead of about 30 s to compile and made `on` mode no faster (the renderer
   dominates, below), so the default is `-O1`.
-- `ct_dev` and `ct_play` link `ct_recomp`. They register generated entries
-  after the hand-written ones (`--recomp on`, the default) only if the loaded
-  ROM's CRC-32 is the table's, and warn otherwise. `--recomp off` leaves them
-  out; `ct_dev --exclude recomp_C08000` leaves out blocks by name prefix.
+- `ct_dev` and `ct_play` link `ct_generated`. They register generated entries
+  after the hand-written ones (`--generated on`, the default) only if the loaded
+  ROM's CRC-32 is the table's, and warn otherwise. `--generated off` leaves them
+  out; `ct_dev --exclude generated_C08000` leaves out blocks by name prefix.
   `ct_fuzz` doesn't use them.
 
 ## Registration and `on` mode (M1)
@@ -305,7 +305,7 @@ and the reset vector's block is an `emulation` entry.
   entry at the address and `intercept` tries them in order. A hand port wins,
   and a generated block runs when the port's precondition or guard rejects the
   call, or when an idle entry is skipped. Without generated entries the path is
-  the same as before: over the six main movies, `--native shadow --recomp off`
+  the same as before: over the six main movies, `--native shadow --generated off`
   prints exactly the same report as before M1.
 - **Running a block.** Blocks run directly on the machine, without a fiber
   (they never call out). The intercept clears `bus.clocks` and `io_cycles`,
@@ -316,12 +316,12 @@ and the reset vector's block is an `emulation` entry.
   interpreter. In M1 interrupts landed at block boundaries; M2 makes them land
   where the interpreter's do.
 - **Loops.** In M1 `RC_YIELD` was true once the block had spent a scanline
-  (`ct_dev --recomp-yield`, removed in M2).
-- **Bus.** `recomp_snes.h` makes `RC_READ`/`RC_WRITE` call through the Cpu's
+  (`ct_dev --generated-yield`, removed in M2).
+- **Bus.** `generated_snes.h` makes `RC_READ`/`RC_WRITE` call through the Cpu's
   bus hooks (`snes_init` points them at `snes_bus_read`/`snes_bus_write`) and
   `RC_FETCH` checks that the hook is the SNES bus, so shadow mode can serve a
-  block's accesses from a record (below). `recomp_bus_diff` and
-  `sst_recomp_runner` still pass with 0 mismatches and failures.
+  block's accesses from a record (below). `generated_bus_diff` and
+  `sst_generated_runner` still pass with 0 mismatches and failures.
 - **Calls and returns.** Generated code never calls anything: a `JSR` pushes
   the return address, sets PC and returns; the callee (whatever runs it) returns
   to that address, which is an entry. All state is on the emulated stack, so
@@ -425,7 +425,7 @@ with an interpreter-only run (`--native off`) at the same frame.
   block running when a movie ends). No block is excluded and no hint was needed.
 - **On:** all 21 run to the end without hangs. Sampling every 100th frame,
   1405 of 2447 frames are identical to the interpreter-only run; with hand
-  ports only (`--recomp off`) it's 1391, and the late-game battle movies drift
+  ports only (`--generated off`) it's 1391, and the late-game battle movies drift
   the same way there (TerraMutant 75% of pixels differ, Zeal 60%). Only
   `late-omen-battles` ends in a different room with generated blocks and not
   without: battles run on real time, and input landing a frame apart changes
@@ -435,7 +435,7 @@ with an interpreter-only run (`--native off`) at the same frame.
   attract sequence); in `new-game` 2.05 of 2.12 million; in
   `events-jetbike-race` 10.87 of 11.08 million (the race's RAM code).
 - **Speed** (`gato-battle`, 21600 frames, on a machine shared with other
-  jobs): `--native off` 44.7 s, `--native on --recomp off` 36.5 s,
+  jobs): `--native off` 44.7 s, `--native on --generated off` 36.5 s,
   `--native on` 33.9 s. A sampling profile of `on` mode puts 81% of the time in
   the scanline renderer (`render_line`, `draw_bg`), 5% in the S-DSP and 2% in
   the SPC700; the CPU side (blocks, dispatch, bus) is about 7%, against about
@@ -451,17 +451,17 @@ In `on` mode a generated block now runs with the machine's time right at every
 instruction: everything that happens between two of the interpreter's steps
 (line events, interrupt recognition, the end of a frame) happens between the
 same two instructions, and I/O sees the master clock the interpreter's I/O
-sees. With only generated code (`ct_dev --recomp only`), `--native on` produces
+sees. With only generated code (`ct_dev --generated only`), `--native on` produces
 the same traces and audio as `--native off` over every movie (Results below).
 
 | Path | What |
 |---|---|
 | `runtime/snes/system.c` | `snes_horizon`, `snes_sync`, and the last cycle native code reports (`intercept_last_cycle`) |
-| `runtime/port/recomp_snes.h` | `RcTiming`; `RC_READ`/`RC_WRITE` sync before I/O; `RC_IO` and `RC_FETCH` keep the last cycle |
-| `runtime/port/recomp_block.h` | `RC_INSN(c, pc)`: the stop check, and `RC_STOP(block)` at the end of each block; `RC_YIELD`; `RC_IRQ_UNMASKED` |
+| `runtime/port/generated_snes.h` | `RcTiming`; `RC_READ`/`RC_WRITE` sync before I/O; `RC_IO` and `RC_FETCH` keep the last cycle |
+| `runtime/port/generated_block.h` | `RC_INSN(c, pc)`: the stop check, and `RC_STOP(block)` at the end of each block; `RC_YIELD`; `RC_IRQ_UNMASKED` |
 | `runtime/port/native.c` | `run_block`, `rc_io_sync`, where blocks stopped |
-| `tools/recomp/blocks.py` | Blocks that start at any of their instructions, `RC_IRQ_UNMASKED` after `CLI` and `REP` clearing I |
-| `dev/ct_dev.c` | `--recomp only` |
+| `tools/generate/blocks.py` | Blocks that start at any of their instructions, `RC_IRQ_UNMASKED` after `CLI` and `REP` clearing I |
+| `dev/ct_dev.c` | `--generated only` |
 
 ### What the interpreter does between steps
 
@@ -521,7 +521,7 @@ The last cycle is what the interpreter tracks with `last_cycle_io` and the
 bus's `access_start`: `RC_IO` sets `last_cycle_io`, `RC_READ` and `RC_WRITE`
 clear it (the bus sets `access_start`), and `RC_FETCH` clears it and sets
 `access_start` for the last byte. Fetches are emitted before the operation in
-generated code but interleave with it in the interpreter; `recomp_bus_diff` now
+generated code but interleave with it in the interpreter; `generated_bus_diff` now
 also compares the last cycle's kind and length, and all 256000 instructions
 match.
 
@@ -580,13 +580,13 @@ any stop.
   `$4212`'s bit, which I/O syncs for.
 - The design didn't say how a block continues after stopping inside it:
   resumable blocks and the table of stops above.
-- `ct_dev --recomp only` registers the generated blocks without the hand ports;
-  `--recomp-yield` is gone.
+- `ct_dev --generated only` registers the generated blocks without the hand ports;
+  `--generated-yield` is gone.
 
 ### Results
 
 Built from the ROM with the 19 coverage files and 18 call logs (10671 blocks,
-127536 instructions). "Traces" compares `--native on --recomp only` with
+127536 instructions). "Traces" compares `--native on --generated only` with
 `--native off` over every frame: the WRAM, VRAM, SRAM, CGRAM, OAM and
 written-WRAM hashes and the framebuffer hash of each frame. "Generated" is the
 share of instructions that ran in generated code in that run (the attract
@@ -625,13 +625,13 @@ blocks stopped at the horizon.
   movies: 1337405091 block checks, 0 mismatched, 211792 interrupted, 9
   unfinished, and every hand port's counts as before; each movie's report is
   byte-identical to the one M1 prints for it (shadow replays don't stop at the
-  horizon, and back edges still return there). With `--recomp off` the reports
+  horizon, and back edges still return there). With `--generated off` the reports
   are identical to M1's too.
-- **Conformance:** `sst_runner` and `sst_recomp_runner` 0 failures,
-  `recomp_bus_diff` 0 mismatches (with the last-cycle check).
+- **Conformance:** `sst_runner` and `sst_generated_runner` 0 failures,
+  `generated_bus_diff` 0 mismatches (with the last-cycle check).
 - **Speed** (`gato-battle`, 21600 frames, process CPU time averaged over four
   alternating runs each on a machine shared with other jobs): `--native on`
-  40.8 s with the M1 build and 41.1 s with M2; `--native on --recomp only`
+  40.8 s with the M1 build and 41.1 s with M2; `--native on --generated only`
   42.9 s; `--native off` 46.7 s and 46.4 s. The renderer still dominates (see
   M1's results); the stop check before every instruction, the 411 stops per
   frame and the I/O syncs cost about 1%, within the noise. The generated C grew
@@ -690,7 +690,7 @@ differently. The late battles still go differently from the interpreter-only
 run: in `late-lavos` the party ends up in the tech menu against the outer shell
 from about frame 25000 to the end in both M1 and M2 (the movie's input no
 longer fits the fight; the menu keeps moving, the game doesn't hang), while
-`--native off`, and `--native on --recomp only`, reach Lavos's core. Two ways of
+`--native off`, and `--native on --generated only`, reach Lavos's core. Two ways of
 giving hand ports more exact time were tried on six movies (`new-game`, `field`,
 `gato-battle`, `late-omen-battles`, `late-omen-terramutant`,
 `events-prison-escape`) and not kept:
@@ -706,7 +706,7 @@ giving hand ports more exact time were tried on six movies (`new-game`, `field`,
   generated blocks instead of skipping ahead: worse (`field` 75.8% to 49.9%,
   `gato-battle` 64.7% to 53.0%, `new-game` 70.5% to 57.9%).
 
-So `--recomp only` is the configuration for checking `on` mode against the
+So `--generated only` is the configuration for checking `on` mode against the
 interpreter; hand ports are checked by shadow mode as before. Whether a hand
 port could carry exact time instead is the spike below; it could, only for a
 class of calls, and the decision it led to is to ship the readable code with
@@ -715,7 +715,7 @@ estimated time and measure the estimates instead.
 ### Can a hand port be exact? (the timing spike)
 
 Phase 2 of [PLAN.md](PLAN.md) opened with a question: can a hand port carry
-its code's exact time, so that `--native on --recomp on` traces identically to
+its code's exact time, so that `--native on --generated on` traces identically to
 `--native off` and the readable code, rather than the generated blocks, is what
 the SNES build runs? The answer was **partly**: the mechanism exists and was
 demonstrated, but only for a class of calls, and the class excludes what the
@@ -779,7 +779,7 @@ The stack bytes and registers an interrupt right after the call pushes were a
 concern (ports may leave don't-care registers different): over every call the
 oracle below ran, no port left any register different from the original's.
 
-**Measured drift** (`--native on --recomp on` against `--native off`, first
+**Measured drift** (`--native on --generated on` against `--native off`, first
 divergent frame, `new-game` unless noted). All hand ports: frame 1. By
 subsystem (`--include PREFIX`): `field_` 1 (`field_fill_memory` alone), `sound_`
 27, `decompress` 27, `display_` 28, `event_` 29, `play_` 34, `palette_` and
@@ -849,7 +849,7 @@ state with it.
   other 24 movies were run with it, where its time did match).
   `scene_clear_sprite_table` always falls back: its time is exact, but it
   programs a DMA.
-- *Cost.* `gato-battle` without a trace, CPU seconds: `--recomp only` 7.2, the
+- *Cost.* `gato-battle` without a trace, CPU seconds: `--generated only` 7.2, the
   14 self-timed ports 8.0, the oracle 31.0, estimated hand ports 5.3,
   interpreter 9.5. The prototype's copy per call is what costs; a write
   journal would be cheaper.
@@ -891,12 +891,12 @@ plays out differently -- is acceptable; a timing *error* that shows, such as a
 video write landing outside vblank where the original's was inside it, is not.
 So:
 
-- The readable code ships: `--recomp on`, hand ports with generated code
+- The readable code ships: `--generated on`, hand ports with generated code
   wherever no port exists, becomes the player's default, but only once the
   timing gate exists (PLAN.md).
-- `--recomp only` stays as the exact mode and the gate's reference; the movie
+- `--generated only` stays as the exact mode and the gate's reference; the movie
   library stays the regression suite on it, since movies desync under
-  `--recomp on` and can't test it end to end.
+  `--generated on` and can't test it end to end.
 - Timing errors are measured and gated: each port's estimate error per call
   from shadow mode's counters above, which don't drift; a threshold; the worst
   offenders fixed case by case; `cost_milli` recalibrated from the measured
@@ -910,7 +910,7 @@ So:
 ### Where video writes land
 
 Timing that differs from the original is acceptable in the shipping mode
-(`--native on --recomp on`); timing that damages the picture isn't. One class
+(`--native on --generated on`); timing that damages the picture isn't. One class
 of damage is a display update that must land in vblank or forced blank landing
 on the picture instead, because a routine ran late or long: the battle's black
 bands and missing window before the DMA timing fix (RUNTIME.md) were this.
@@ -948,7 +948,7 @@ also stops HDMA writes made during a generated block's catch-up being counted
 as the block's (the log did before).
 
 **The comparison.** Run the same movie in the reference (`--native on
---recomp only`, generated code timed exactly like the original) and in the
+--generated only`, generated code timed exactly like the original) and in the
 shipping mode. The two runs desync within a few dozen frames, so a
 frame-by-frame diff means nothing; instead the check compares, per movie, what
 each *routine* does with each *register group* (display, OAM, BG, VRAM, mode 7,
@@ -1041,7 +1041,7 @@ estimated time is measured against the original's over the movie library, on
 every suite run, and each entry is held to limits tied to the budgets an error
 could break. It is one check of `tools/suite.py`, beside the vblank check above
 and the route runner, which joined it; `ct_play`'s default is the shipping mode
-(`--native on --recomp on`) since.
+(`--native on --generated on`) since.
 
 | Path | What |
 |---|---|
@@ -1261,7 +1261,7 @@ NMI disabled. Both are idle entries now (`field_change_location_wait_for_vblank_
 `field_restart_wait_for_vblank_loop`): a pass reads the flag as the original
 does and leaves when it is set or, if the handler got there first, when the
 blanking status says vblank. That is what the loop waits for, and it can't lose
-the race; the reference (`--recomp only`) and shadow mode don't run idle entries,
+the race; the reference (`--generated only`) and shadow mode don't run idle entries,
 so nothing they check moves.
 
 **The vblank check, before and after** (failing findings over the 26 movies):
@@ -1289,7 +1289,7 @@ it restarts (`scene_program_restart`, display and HDMA enable), once each per
 movie. They land wherever the frame's main-loop work has got to, which in the
 shipping mode is estimated; they are in `tools/vblank_check_exceptions.txt`.
 
-None of this touches `--recomp only` (no hand ports, so no debt and no idle
+None of this touches `--generated only` (no hand ports, so no debt and no idle
 entries) or shadow mode (no debt), and the trace identity check is unchanged:
 `new-game` shows no divergence in 7200 frames.
 
@@ -1429,16 +1429,16 @@ the rest: code in RAM (the program decompressed to `$7E:3000`, the code the jet
 bike race generates at `$7E:B574`, the `$00:0500` interrupt stubs, the
 `$7E:9690` block move stub), the reset vector's first instructions (emulation
 mode), and ROM code without an entry. M3 measures that remainder and removes
-it: over the 25 movies of the library, `--native on --recomp only` now runs
+it: over the 25 movies of the library, `--native on --generated only` now runs
 every instruction in generated code.
 
 | Path | What |
 |---|---|
 | `dev/misses.c` | `ct_dev --misses`: the miss report |
-| `tools/recomp/blocks.py` | Spaces (ROM and each RAM section), guards, live operands, the emulation-mode reset block |
-| `tools/recomp/__main__.py` | The instruction index (`recomp_index[]`), section images and guard masks in `table.c` |
-| `tools/recomp/translate.py` | `live`: operands fetched at run time (`RC_FETCH_LIVE`) |
-| `runtime/port/recomp_block.h`, `recomp_snes.h` | `rc_ram_matches`, `RC_CODE`, `RC_STOP_GUARDED`, `RC_FETCH_LIVE`, the self-write check |
+| `tools/generate/blocks.py` | Spaces (ROM and each RAM section), guards, live operands, the emulation-mode reset block |
+| `tools/generate/__main__.py` | The instruction index (`generated_index[]`), section images and guard masks in `table.c` |
+| `tools/generate/translate.py` | `live`: operands fetched at run time (`RC_FETCH_LIVE`) |
+| `runtime/port/generated_block.h`, `generated_snes.h` | `rc_ram_matches`, `RC_CODE`, `RC_STOP_GUARDED`, `RC_FETCH_LIVE`, the self-write check |
 | `runtime/port/native.c` | Guards on generated entries and resumes, `native_set_index` and continuing at any instruction, guards decided while recording in shadow mode, emulation-mode entries |
 | `tools/disasm/ram.py`, `re/hints.toml` | Section formats `run` and `writes` from RAM code, `patch` sections |
 
@@ -1446,7 +1446,7 @@ every instruction in generated code.
 
 ```sh
 build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/new-game.ctm --frames 7200 \
-    --native on --recomp only --misses traces/misses-newgame.txt
+    --native on --generated only --misses traces/misses-newgame.txt
 ```
 
 Every instruction the interpreter runs is counted by address, widths and
@@ -1454,10 +1454,10 @@ emulation mode (from the CPU's instruction hook, so it costs nothing without
 the option) and written as `BB:AAAA m x # count kind`, which is also the
 coverage format: the ROM lines can seed the analysis directly. The kind is
 `ROM`, `RAM` with the section whose image holds the instruction's bytes when it
-ran (`recomp_ram_sections[]`, which the generator writes with the images),
+ran (`generated_ram_sections[]`, which the generator writes with the images),
 `modified` (in a section's range, but with bytes no image has, and whether the
 opcode or only operands differ) or `unknown` (in no section). A summary line
-per kind goes to stderr. With `--native on --recomp only` everything that isn't
+per kind goes to stderr. With `--native on --generated only` everything that isn't
 generated code is interpreted, so the report is the closure check C7 of
 [MATCHING.md](MATCHING.md).
 
@@ -1486,7 +1486,7 @@ images, checked by the matching build (MATCHING.md, MD1). The generator now
 forms blocks for them too. Each section is a *space*: an entry is (address,
 widths, space), a block's instructions are decoded from its section's image and
 never leave it, and blocks are named after the section
-(`recomp_7E3000_m16x16_attract_program`). Several sections at one address are
+(`generated_7E3000_m16x16_attract_program`). Several sections at one address are
 alternatives, each with its own blocks (the seven `$00:0500` stubs, the block
 move stub over the program, the patches below).
 
@@ -1561,7 +1561,7 @@ would have kept 2.1 to 6.5 million instructions per movie there.
 ### Continuing at any instruction
 
 A block's function already starts where PC points (M2). The generator now also
-writes `recomp_index[]`: for every instruction of every block, one block that
+writes `generated_index[]`: for every instruction of every block, one block that
 contains it with those widths (the block entered there if there is one; one
 per section for RAM code), sorted by address | M, X << 24 | E << 30. When no
 entry applies and no stopped block is in the resume slot, `continue_generated`
@@ -1574,7 +1574,7 @@ mode doesn't use it. Blocks entered this way are counted as `indexed`.
 ### The reset vector
 
 The emulation-mode reset vector (`$00:FFFC`) gets a block with the emulation
-context (`recomp_00FF00_emu`, up to its `XCE`), registered with
+context (`generated_00FF00_emu`, up to its `XCE`), registered with
 `NativeEntry.emulation` and p_mask 0; `entry_applies` now requires the entry's
 emulation flag to match E, resume keys carry E, and shadow replays load E from
 the boundary.
@@ -1582,7 +1582,7 @@ the boundary.
 ### Misses fed back
 
 The miss report is a coverage file, so feeding it back is adding it to
-`CT_RECOMP_COVERAGE`. With the M3 generator and only the 20 coverage files the
+`CT_GENERATED_COVERAGE`. With the M3 generator and only the 20 coverage files the
 M2 build had (none for the three ending movies), the ROM part of the report is
 already 0 over all 25 movies: the ROM misses of the M2 build were the reset
 vector and instructions of existing blocks, which the emulation-mode block and
@@ -1598,8 +1598,8 @@ ROM code.
 Code that no movie reaches can be covered from ZSNES save states
 ([RUNTIME.md](RUNTIME.md), "ZSNES save states"): `ct_dev --load-zst <state>`
 with `--coverage` and `--calls` (in `--native off`, where every instruction goes
-through the instruction hook) writes files that go into `CT_RECOMP_COVERAGE`
-and `CT_RECOMP_CALLS` like a movie's, and `--native on --recomp only --misses`
+through the instruction hook) writes files that go into `CT_GENERATED_COVERAGE`
+and `CT_GENERATED_CALLS` like a movie's, and `--native on --generated only --misses`
 gives the miss report from the same point. The runs aren't replayable, so they
 only feed the analysis; shadow validation of what they add still needs a movie
 from power-on. The twelve ending states' miss reports were already empty with
@@ -1616,7 +1616,7 @@ generated C grew from 27 to 41 MB (`table.c`, with the index, images and
 masks, is 12 MB) and `ct_dev` from 27 to 34 MB; generation takes about 5 s.
 
 "Before" is the M2 build (20 coverage files, 19 call logs), "after" this one,
-both `--native on --recomp only --misses`. Before, every movie also
+both `--native on --generated only --misses`. Before, every movie also
 interpreted 13.2 million RAM instructions or more in the program's sections
 (the attract sequence or the load menu); RAM misses are given as in a section /
 modified / in no section.
@@ -1654,7 +1654,7 @@ saves; all 25 movies were run in full, 561550 frames.)
 
 - **Misses:** 0 ROM and 0 RAM instructions interpreted in every movie, the
   reset vector's included. Nothing is left to the interpreter in the library.
-- **Traces:** `--native on --recomp only` against `--native off`, every frame's
+- **Traces:** `--native on --generated only` against `--native off`, every frame's
   WRAM, VRAM, SRAM, CGRAM, OAM and framebuffer hash (`trace.py diff
   --framebuffer`): identical for `new-game`, `gato-battle`,
   `events-jetbike-race`, `battle-golem-twins-gameover`, `late-omen-zeal`
@@ -1666,12 +1666,12 @@ saves; all 25 movies were run in full, 561550 frames.)
   `endings-beyond-time` (428248169 checks) and `endings-telepod-lavos`
   (145144310): 0 mismatched. `endings-bucket-lavos` wasn't run in shadow mode
   (118400 frames, about half an hour); its miss report is 0 like the others'.
-- **Conformance:** `sst_recomp_runner` 5120000 tests, 0 failures;
-  `recomp_bus_diff` 256000 instructions, 0 mismatches. `unittest` passes
-  (`tests/test_recomp_m3.py` covers RAM blocks, live operands, the index, the
+- **Conformance:** `sst_generated_runner` 5120000 tests, 0 failures;
+  `generated_bus_diff` 256000 instructions, 0 mismatches. `unittest` passes
+  (`tests/test_generate_m3.py` covers RAM blocks, live operands, the index, the
   emulation block and the new section formats).
 - **Speed** (process CPU time, best of three, on a machine shared with other
-  jobs): `--native on --recomp only` `new-game` 2.83 s before and after,
+  jobs): `--native on --generated only` `new-game` 2.83 s before and after,
   `gato-battle` 9.94 s and 9.86 s, `events-jetbike-race` 5.02 s and 5.14 s;
   `--native on` `gato-battle` 7.03 s and 7.03 s, `events-jetbike-race` 3.44 s
   and 3.56 s. Rendering still dominates; the 13 million instructions the attract
@@ -1719,7 +1719,7 @@ and the frame ends at once, before the step (a state load clears it). Time,
 polling and the last cycle are computed exactly as for the interpreter's steps.
 
 `cpu_service` is a separate implementation of the interpreter's entry
-sequence, so `recomp_bus_diff` now also runs it against `cpu_step` from random
+sequence, so `generated_bus_diff` now also runs it against `cpu_step` from random
 states (every context, random NMI and IRQ inputs, I, WAI and STP), comparing
 the same things as for instructions (registers, memory, open bus, bus clocks,
 internal cycles, the last cycle, halt state) and the result kind: 50180 entries
@@ -1733,7 +1733,7 @@ mismatch.
 miss stops the run with exit status 1 and names the address and its section),
 `--no-interpreter fallback` the fallback player's (misses run on the
 interpreter, the first ten are printed, `--misses` counts them). Built as in M3
-(12022 blocks), `--native on --recomp only --no-interpreter strict` against
+(12022 blocks), `--native on --generated only --no-interpreter strict` against
 `--native off` over every frame (`trace.py diff --framebuffer`):
 
 | Movie | Frames | Traces | Exit |
@@ -1746,10 +1746,10 @@ interpreter, the first ten are printed, `--misses` counts them). Built as in M3
 
 Every run ran to its end in strict mode, so no instruction reached an
 interpreter, and every NMI, IRQ and WAI went through `cpu_service`. The fallback
-path was checked by taking blocks away: `new-game` with `--exclude recomp_C0
---exclude recomp_FD --no-interpreter fallback` interprets 38.3 million
+path was checked by taking blocks away: `new-game` with `--exclude generated_C0
+--exclude generated_FD --no-interpreter fallback` interprets 38.3 million
 instructions at 10978 addresses through the miss path and its trace is still
-identical to `--native off`; `--no-interpreter strict --exclude recomp_FD` stops
+identical to `--native off`; `--no-interpreter strict --exclude generated_FD` stops
 in frame 0 at `FD:C000` (the reset code after the emulation-mode block).
 
 ### The player builds
@@ -1783,7 +1783,7 @@ the miss, stops the game and says where.
   wrote `7E:1F00 8 8 # 1 RAM unknown`.
 
 Feeding the misses file back is the same as for `ct_dev --misses` reports
-("Misses fed back"): add it to `CT_RECOMP_COVERAGE` and rebuild.
+("Misses fed back"): add it to `CT_GENERATED_COVERAGE` and rebuild.
 
 ### A patch the library didn't reach
 
@@ -1795,7 +1795,7 @@ covers the patched `BMI`. Coverage can't fix that, as the code is already
 analysed; a patch the hints don't describe needs a section. The run was
 `endings-telepod-lavos` re-recorded for the DMA, HDMA and refresh timing change
 (the version before it, and `endings-beyond-time`, which now loses its final
-battle, don't get that far): `--native on --recomp only --misses` over
+battle, don't get that far): `--native on --generated only --misses` over
 140000 frames gave the same 26 addresses, 1298176 runs each, all after the
 program dispatches mode `$0D` for the staff credits (frame 129854). A bus write
 watch in a scratch build of `ct_dev` (`--native off`) showed `$7E:5643` storing
@@ -1807,7 +1807,7 @@ variant; sequence command `$A0` at `$7E:55EA` (mode 4's script) calls the same
 routine.
 
 With the section (12418 blocks, 6 more): the telepod run has 0 misses and its
-`--native on --recomp only` trace is identical to `--native off` over all 140000
+`--native on --generated only` trace is identical to `--native off` over all 140000
 frames (`trace.py diff --framebuffer`), and in `--native shadow` its 485100616
 block checks have 0 mismatched; `new-game` and `gato-battle` have 0 misses,
 `new-game`'s trace is identical too, and the six main movies in shadow mode
@@ -1818,17 +1818,17 @@ have 0 mismatched blocks and hand ports.
 A port starts from a draft, not from the listing:
 
 ```sh
-python3 -m tools.recomp.show C1:423A              # widths from the analysis, or --m 8 --x 16
-python3 -m tools.recomp.show C0:62DE C0:5FB6 > <scratch file outside the repo>
+python3 -m tools.generate.show C1:423A              # widths from the analysis, or --m 8 --x 16
+python3 -m tools.generate.show C0:62DE C0:5FB6 > <scratch file outside the repo>
 ```
 
-`tools/recomp/show.py` prints the routine shaped the way the porting rules
+`tools/generate/show.py` prints the routine shaped the way the porting rules
 (CLAUDE.md, "Writing a port from generated code") ask a port to be, derived
-mechanically from the ROM. It prints to stdout like `tools.recomp.linear`: a
+mechanically from the ROM. It prints to stdout like `tools.generate.linear`: a
 draft is a mechanical image of the ROM, so it is never committed, and nothing in
 the repository contains one. What is committed is the tool, its tests on
-synthetic code, and two checks: `tools.recomp.draftcheck`, which registers
-drafts in a scratch tree to shadow them, and `tools.recomp.groundtruth`, which
+synthetic code, and two checks: `tools.generate.draftcheck`, which registers
+drafts in a scratch tree to shadow them, and `tools.generate.groundtruth`, which
 compares a draft with the hand port of the same routine. The workflow a porter
 follows is PORTING.md's "From a draft to a port"; this section is how the tool
 is built and how good its drafts are.
@@ -1879,7 +1879,7 @@ static uint8_t sub_C08010_logic(Snes *s)
 
 ### How it is made
 
-The draft is not made from the generator's C. `tools/recomp/translate.py`
+The draft is not made from the generator's C. `tools/generate/translate.py`
 writes what the emulated CPU does -- every flag, every bus access in order, the
 fetches and cycles -- which is what makes generated blocks exact, and none of
 which a port wants; rewriting that text into values would be parsing C back
@@ -1894,7 +1894,7 @@ the instructions again, into values.
    context of its own. The draft stops -- hands back to the interpreter -- at
    another registered entry, as generated blocks do, since that code is its own
    port.
-2. **D and DB** (`tools/recomp/frame.py`). The analysis tracks widths, not D,
+2. **D and DB** (`tools/generate/frame.py`). The analysis tracks widths, not D,
    and a direct-page offset has a name only relative to its page. A forward
    pass over each routine follows D, DB, the accumulator's bytes and what the
    stack holds, so `LDA #$1D00 : TCD`, `PEA #$0300 : PLD`, `PHK : PLB` and a
@@ -1917,7 +1917,7 @@ the instructions again, into values.
    assumed its callers' D or DB registers with a guard on them, so a caller
    the analysis missed falls back to the original instead of reading the
    wrong page.
-3. **Lifting** (`tools/recomp/lift.py`): each instruction becomes statements on
+3. **Lifting** (`tools/generate/lift.py`): each instruction becomes statements on
    the locals -- every flag it sets its own assignment -- with addresses as
    constants wherever D and DB are known. The stack, D, DB, S and P's other
    bits stay the machine's (`m_push16`, `s->cpu.d = ...`), so a call-out or the
@@ -1926,7 +1926,7 @@ the instructions again, into values.
    precondition). XCE, WAI, STP, BRK, COP, instructions whose widths the
    analysis doesn't know, and jump tables it didn't size hand back at that
    instruction.
-4. **Cleanup** (`tools/recomp/draft.py`): basic blocks in address order;
+4. **Cleanup** (`tools/generate/draft.py`): basic blocks in address order;
    liveness per flag and per byte of A, from what the routine's callers read
    after it (`ret_live`, over every routine the address is part of), what is
    read where it hands back (`live_at`), and what each callee reads before it
@@ -1946,12 +1946,12 @@ the instructions again, into values.
    nothing (a flag an interrupt sets), would never end in a draft; the draft
    hands back where the loop is entered and says what it waits on, and a
    routine that starts with one says to register it as an idle entry instead.
-6. **Structure** (`tools/recomp/structure.py`): the statements come in address
+6. **Structure** (`tools/generate/structure.py`): the statements come in address
    order with labels and gotos; loops (`do`/`while`, `for (;;)` with `break` and
    `continue`), then `if`, then `else` are formed, smallest first, only where
    nothing outside a region jumps into it. What matches no pattern keeps its
    goto.
-7. **Names** (`tools/recomp/names.py`): work RAM from the RAM map, by the rules
+7. **Names** (`tools/generate/names.py`): work RAM from the RAM map, by the rules
    its coverage count uses (a name from the routine's own subsystem, `core`, or
    the subsystem sharing its page; arrays and records as `RAM_X + k *
    RAM_X_STRIDE`), the subsystem being the bank's or, in the banks several
@@ -1982,7 +1982,7 @@ indexed past `$1FFF` is drafted in bank `$7E` (the original would reach bank
 0's I/O area), and an event handler's operand read at an offset past `$FFFF`
 doesn't wrap. No game code does either.
 
-**The workflow gets its own gate.** `python3 -m tools.recomp.draftcheck --out
+**The workflow gets its own gate.** `python3 -m tools.generate.draftcheck --out
 <scratch>` exports the committed tree to a scratch directory outside the
 repository, drafts every routine `game/registry.c` registers, writes the drafts
 there and points each registry entry at its draft, with the draft's own
@@ -2030,7 +2030,7 @@ widths than the draft's. 58 drafts are never called by the movies.
 
 **Ground truth.** The ports were validated call by call against the original,
 so each is a known-correct target for the draft of its address.
-`python3 -m tools.recomp.groundtruth BB:AAAA ...` drafts routines that are
+`python3 -m tools.generate.groundtruth BB:AAAA ...` drafts routines that are
 already ported and compares, in terms that mean something to a porter: the work
 RAM addresses the port's text reads and writes (literals, `RAM_` names and
 direct-page offsets resolved with the draft's D) that the draft also accesses,
@@ -2136,9 +2136,9 @@ driver's common exit), 3 where control leaves (2). Routines whose entry reads
 all four flags went from 424 of 3136 to 164; flag bits read at entries, summed,
 from 4336 to 3671; flag bits live after returns from 5400 to 5141. The
 generated blocks don't use liveness (M4's dead flags aren't built), so `python3
--m tools.recomp` writes byte-identical C before and after (all 65 files), and
+-m tools.generate` writes byte-identical C before and after (all 65 files), and
 the gate passed unchanged (`suite OK` with `--long-routes`; trace identity,
-`sst_recomp_runner` and `recomp_bus_diff` 0 failures). What changes is the
+`sst_generated_runner` and `generated_bus_diff` 0 failures). What changes is the
 drafts, checked by `draftcheck` (below). The draft of a routine that starts
 with `PHP` now pushes the machine's P as it is (a `PHP` reached only along a
 straight line from the entry through instructions that leave P alone, where the
@@ -2261,7 +2261,7 @@ callee reaches the byte, 13 where control leaves. The solve takes 15 s.
   where the helper reads or writes through them, and call-outs are followed
   through the file's stubs to their targets.
 
-Drafts before and after (`python3 -m tools.recomp.show`, the library's coverage
+Drafts before and after (`python3 -m tools.generate.show`, the library's coverage
 and call logs):
 
 | Routine | Flag assignments | Flag parameters | Call-out stubs | `m_dp` accesses | Logic lines | Stops declared |
@@ -2602,7 +2602,7 @@ declaration the new liveness allows and the old one refused (`menu_object_read_m
 `DC_X`, which its callers read) is still a finding; and the drafts, which are
 made from liveness, match the original over the library (below).
 
-**Drafts before and after.** `tools.recomp.draftcheck` over the library (26
+**Drafts before and after.** `tools.generate.draftcheck` over the library (26
 movies, shadow mode), with the committed tools and with these: 194 drafts
 registered before, 197 after (three entries the analysis enters with several
 widths now pick one, below); 166 and 169 called, 39.09 and 39.10 million calls,
@@ -2656,7 +2656,7 @@ middle column also counts the targets of `$C3:0F32`'s indirect jump, which the
 walk now follows. `$FD`, `$CF` and `$D1` barely move because wave 1 had
 already registered what their ports inline, to get it counted.
 
-**Draft names** (`tools/recomp/names.py`). A routine's subsystem was its
+**Draft names** (`tools/generate/names.py`). A routine's subsystem was its
 bank's, and banks `$C3`, `$C6` and `$FD` serve several (and `$FD` had none,
 so any subsystem's name was taken). In those banks it is now the one every
 caller comes back to, through the call sites, call logs and followed indirect
@@ -3706,7 +3706,7 @@ been compiled. Three gate checks look now (tools/suite.py's `fallbacks`,
 **The measure.** `ct_dev --fallbacks` and `ct_drive --fallbacks`
 (`dev/fallbacks.c`) count every instruction the original's code executes in
 place of hand ports, interpreted (the CPU's instruction hook) or generated
-(`recomp_insn_hook`, a test per instruction in `RC_INSN` when it is unset),
+(`generated_insn_hook`, a test per instruction in `RC_INSN` when it is unset),
 by address, by the routine it belongs to, and by why it ran. The runtime
 tells the tool when it hands off (`NativeObserver`, `runtime/port/native.h`):
 every hand entry at an address refused (with which condition: the P
@@ -3735,7 +3735,7 @@ and an idle entry's pass of its wait loop, counted as the original runs it, is
 taken back when the loop comes round to its head (the pass that leaves stays
 counted). That count changes only when a port does. It costs the shadow runs
 nothing measurable (gato-battle 47 s with it, 49 s without). The shipping
-mode's count is still made, over every movie (`--native on --recomp on
+mode's count is still made, over every movie (`--native on --generated on
 --sound-driver c`, 43 s for the library) and the routes (`route_check
 --fallbacks`, `$CT_DRIVE_FALLBACKS` through `tools/movies/ctdrv.py`), and
 reported beside it. The shadow runs use the original sound driver, so the CPU
@@ -3936,7 +3936,7 @@ attract demo's and the ending's calls are new to their stretches),
   the system does between steps that the CPU can see without I/O, and on I/O
   syncing. A new time-driven event in `system.c` (or a register whose value
   moves with time outside the synced I/O area) must be added to
-  `snes_horizon`; the `--recomp only` trace comparison is the check.
+  `snes_horizon`; the `--generated only` trace comparison is the check.
 - **Left for later.** `ct_fuzz` doesn't fuzz generated blocks.
 - **RAM code nobody enumerated.** Blocks exist only for the RAM sections the
   hints describe and are guarded by their images, so other RAM code, a patch

@@ -19,7 +19,7 @@
  *   routines it calls, in a later command, outside any command and in
  *   interrupt handlers are counted apart.
  *
- * Meaningful with --native off --recomp off, where everything the CPU runs is
+ * Meaningful with --native off --generated off, where everything the CPU runs is
  * the original's and the interpreter's instruction hook sees all of it. */
 #ifndef CT_DEV_EVENT_READS_H
 #define CT_DEV_EVENT_READS_H

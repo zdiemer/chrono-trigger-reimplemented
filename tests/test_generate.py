@@ -2,8 +2,8 @@
 
     python3 -m unittest discover tests
 
-Semantics are checked by build/main/sst_recomp_runner (SingleStepTests) and
-build/main/recomp_bus_diff (against the interpreter on the SNES bus); these tests
+Semantics are checked by build/main/sst_generated_runner (SingleStepTests) and
+build/main/generated_bus_diff (against the interpreter on the SNES bus); these tests
 cover what the generator relies on: every opcode translates in every context,
 constants fold, and control flow and widths are reported correctly.
 """
@@ -12,9 +12,9 @@ import re
 import unittest
 
 from tools.disasm.cpu import OPCODES, decode, operand_size
-from tools.recomp import sst
-from tools.recomp.linear import decode_run, emit_block
-from tools.recomp.translate import Ctx, Operand, indent, translate
+from tools.generate import sst
+from tools.generate.linear import decode_run, emit_block
+from tools.generate.translate import Ctx, Operand, indent, translate
 from tests.test_disasm import FakeRom
 
 CONTEXTS = sst.CONTEXTS

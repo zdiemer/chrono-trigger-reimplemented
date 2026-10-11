@@ -41,7 +41,7 @@ class VblankCheckTest(unittest.TestCase):
         # The reference's block at $C0:1010 lies between the port's entry and its
         # last call site, so it is the same routine.
         routines, found = self.findings(
-            [row("generated", "recomp_C01010_m8x16", "C0:1010", 0x2100, vblank=50)],
+            [row("generated", "generated_C01010_m8x16", "C0:1010", 0x2100, vblank=50)],
             [row("port-service", "demo_nmi", "C0:1000", 0x4200, vblank=50, entry="C0:1000",
                  service="tm_enable_interrupts", group="cpu"),
              row("port-service", "demo_nmi", "C0:1020", 0x2100, vblank=40, blank=10, entry="C0:1000",
@@ -53,19 +53,19 @@ class VblankCheckTest(unittest.TestCase):
 
     def test_visible_writes(self):
         _, found = self.findings(
-            [row("generated", "recomp_C02000_m8x16", "C0:2000", 0x2118, vblank=100, group="dma-data"),
-             row("generated", "recomp_C02000_m8x16", "C0:2000", 0x2105, vblank=5)],
-            [row("generated", "recomp_C02000_m8x16", "C0:2000", 0x2118, vblank=90, visible=10, group="dma-data",
+            [row("generated", "generated_C02000_m8x16", "C0:2000", 0x2118, vblank=100, group="dma-data"),
+             row("generated", "generated_C02000_m8x16", "C0:2000", 0x2105, vblank=5)],
+            [row("generated", "generated_C02000_m8x16", "C0:2000", 0x2118, vblank=90, visible=10, group="dma-data",
                  visible_lines="0:10"),
-             row("generated", "recomp_C02000_m8x16", "C0:2000", 0x2105, vblank=3, visible=2,
+             row("generated", "generated_C02000_m8x16", "C0:2000", 0x2105, vblank=3, visible=2,
                  visible_lines="1:2")])
         # Lost VRAM data counts on any line; a mode change seen by every shown line doesn't.
         self.assertEqual([(f.category, f.group, f.count) for f in found], [("visible", "vram", 10)])
 
     def test_raster_writes_that_moved(self):
         _, found = self.findings(
-            [row("generated", "recomp_C03000_m8x16", "C0:3000", 0x2100, visible=100, visible_lines="212:100")],
-            [row("generated", "recomp_C03000_m8x16", "C0:3000", 0x2100, visible=100,
+            [row("generated", "generated_C03000_m8x16", "C0:3000", 0x2100, visible=100, visible_lines="212:100")],
+            [row("generated", "generated_C03000_m8x16", "C0:3000", 0x2100, visible=100,
                  visible_lines="212:97,211:3")])
         self.assertEqual([(f.category, f.count, dict(f.lines)) for f in found], [("lines", 3, {211: 3})])
 
@@ -79,7 +79,7 @@ class VblankCheckTest(unittest.TestCase):
         self.assertEqual(vc.report([("m", found)], routines, set(), out=out), 0)
 
         _, found = self.findings(
-            [row("generated", "recomp_C04000_m8x16", "C0:4000", 0x2100, vblank=5)],
+            [row("generated", "generated_C04000_m8x16", "C0:4000", 0x2100, vblank=5)],
             [row("port-service", "demo_irq", "C0:4000", 0x2100, visible=5, entry="C0:4000",
                  visible_lines="100:5")])
         self.assertEqual(vc.report([("m", found)], routines, set(), out=io.StringIO()), 1)

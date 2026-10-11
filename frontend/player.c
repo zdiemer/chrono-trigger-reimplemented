@@ -10,7 +10,7 @@
 #include "platform/input.h"
 #include "platform/save.h"
 #include "port/machine.h"
-#include "port/recomp_table.h"
+#include "port/generated_table.h"
 #include "snes/zst.h"
 #include "trace.h"
 
@@ -26,7 +26,7 @@ static const char *const title_mode[] = { "", " [generated code, fallback]", " [
 
 /* ---- misses ------------------------------------------------------------------- */
 
-/* What a miss is, in the words of this build and --recomp: with the generated
+/* What a miss is, in the words of this build and --generated: with the generated
  * blocks, code nothing was generated for; without them, code no port covers. */
 static const char *missing_code(const Player *pl)
 {
@@ -321,11 +321,11 @@ void player_movie_stored(Player *pl) { pl->track.written_frames = pl->track.pend
 
 /* ---- frames --------------------------------------------------------------------- */
 
-int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bool recomp_only)
+int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool use_generated, bool generated_only)
 {
     Track *t = &pl->track;
     snes_init(&pl->snes, rom, rom_size);
-    NativeChoice choice = { .mode = pl->native_mode, .recomp = recomp, .recomp_only = recomp_only,
+    NativeChoice choice = { .mode = pl->native_mode, .generated = use_generated, .generated_only = generated_only,
                             .only = NATIVES_ONLY_TIMED };
     if (natives_select(&pl->table, rom, rom_size, &choice) != 0) {
         fprintf(stderr, "out of memory\n");
@@ -335,7 +335,7 @@ int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bo
     if (!pl->table.generated) {
         fprintf(stderr, "this player runs %s, and it has no generated blocks for this ROM (%s): build it with the "
                         "ROM as CT_ROM\n",
-                player_build_mode[CT_PLAYER_NO_INTERPRETER], recomp_native_count ? "they are for another ROM" : "none");
+                player_build_mode[CT_PLAYER_NO_INTERPRETER], generated_native_count ? "they are for another ROM" : "none");
         return 1;
     }
     if (CT_PLAYER_NO_INTERPRETER == 2)

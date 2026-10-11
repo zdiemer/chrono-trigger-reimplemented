@@ -1,12 +1,12 @@
 /* The miss report: every instruction the interpreter ran where generated code
  * was expected, counted by address and widths, and classified as ROM or RAM
  * code, and RAM code by the RAM section ([[ramcode]] hints) it lies in.
- * `ct_dev --misses` writes it (with --native on --recomp only, the miss report
+ * `ct_dev --misses` writes it (with --native on --generated only, the miss report
  * of docs/RECOMP.md, M3, and docs/MATCHING.md, C7: what generated blocks didn't
  * run), and so does a player built without the interpreter, to
  * <rom name>.misses.txt (docs/PLAYING.md). The file is also a coverage file
  * (tools/disasm reads `BB:AAAA m x` and ignores what follows `#`), which is how
- * misses are fed back (CT_RECOMP_COVERAGE). */
+ * misses are fed back (CT_GENERATED_COVERAGE). */
 #ifndef CT_DEV_MISSES_H
 #define CT_DEV_MISSES_H
 

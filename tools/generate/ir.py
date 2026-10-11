@@ -1,4 +1,4 @@
-"""Expressions and statements of a draft (tools/recomp/show.py, docs/RECOMP.md M5).
+"""Expressions and statements of a draft (tools/generate/show.py, docs/RECOMP.md M5).
 
 A draft is lifted from the ROM into these: C locals for the registers the
 routine computes with, instead of the emulated CPU the generated blocks run on.

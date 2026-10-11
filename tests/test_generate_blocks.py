@@ -11,8 +11,8 @@ import unittest
 
 from tools.disasm.analyze import Analyzer
 from tools.disasm.hints import Hints
-from tools.recomp.blocks import BlockBuilder, unmasks_irq
-from tools.recomp.translate import Ctx
+from tools.generate.blocks import BlockBuilder, unmasks_irq
+from tools.generate.translate import Ctx
 from tests.test_disasm import FakeRom
 
 M8X8, M16X8 = Ctx(True, True), Ctx(False, True)
@@ -56,7 +56,7 @@ class Blocks(unittest.TestCase):
         blk = blocks[(0xC08000, M8X8)]
         self.assertEqual(sorted(blk.steps), [0xC08000])
         text = "\n".join(b.emit(blk))
-        self.assertTrue(text.endswith("c->pc = 0x8002;\nreturn;\nRC_STOP(recomp_C08000_m8x8);\n}"), text)
+        self.assertTrue(text.endswith("c->pc = 0x8002;\nreturn;\nRC_STOP(generated_C08000_m8x8);\n}"), text)
 
     def test_loop_yields_at_its_back_edge(self):
         b, blocks = builder()
@@ -68,7 +68,7 @@ class Blocks(unittest.TestCase):
         self.assertIn("rc_push16(c, 0x8007);\nc->pc = 0x8010;\nreturn;", text)
         self.assertEqual(text.count("RC_INSN(c, "), 3)
         self.assertIn("RC_INSN(c, 0x8003);", text)
-        self.assertTrue(text.endswith("RC_STOP(recomp_C08002_m8x8);\n}"), text)
+        self.assertTrue(text.endswith("RC_STOP(generated_C08002_m8x8);\n}"), text)
 
     def test_block_resumes_before_any_instruction(self):
         b, blocks = builder()

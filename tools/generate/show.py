@@ -1,6 +1,6 @@
 """Print a routine as a draft for a hand port (docs/RECOMP.md, "Cleanup into hand ports (M5)").
 
-    python3 -m tools.recomp.show BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--d 0100] [--db 7E]
+    python3 -m tools.generate.show BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--d 0100] [--db 7E]
                                  [--page NAME] [--asm] [--no-preamble]
 
 A draft is the routine the way the porting rules (CLAUDE.md, "Writing a port
@@ -18,14 +18,14 @@ from generated code") ask a port to be shaped, derived mechanically:
   around each m_jsr/m_jsl, so the logic calls `x = call_...(s, site, a)` and
   never touches an emulated register.
 
-It prints to stdout, like tools.recomp.linear: a draft is a mechanical image
+It prints to stdout, like tools.generate.linear: a draft is a mechanical image
 of the ROM, so it is never written into the repository. Drafts compile against
 runtime/port/machine.h and game/ram.h and do what the original does (as
-tools/recomp/draft.py says), so one registered in a scratch build is checked
+tools/generate/draft.py says), so one registered in a scratch build is checked
 by shadow mode like any port. They are drafts: what they say about names,
 structure and meaning is a starting point for the porter, not a port.
 
-D and DB come from the routine and its callers (tools/recomp/frame.py);
+D and DB come from the routine and its callers (tools/generate/frame.py);
 --d/--db give them by hand, and --page names a direct page whose D isn't fixed
 (a page kind in re/ram.toml: `scene_program`, `menu_record`), whose variables are
 then used by offset.
@@ -61,7 +61,7 @@ FLAG_BITS = {"n": "CPU_FLAG_N", "v": "CPU_FLAG_V", "z": "CPU_FLAG_Z", "c": "CPU_
 ORDER = ("a", "x", "y", "n", "v", "z", "c")
 
 PREAMBLE = """\
-/* Drafts from tools/recomp/show (docs/RECOMP.md, M5). ROM-derived: don't commit them. */
+/* Drafts from tools/generate/show (docs/RECOMP.md, M5). ROM-derived: don't commit them. */
 #include "port/machine.h"
 #include "ram.h"
 
@@ -922,7 +922,7 @@ class Draft:
         k = self.k
         lines = [f"Draft of ${fmt(self.addr)}"
                  + (f" (ported as {self.port_name})" if self.port_name and self.port_name != self.name else "")
-                 + ", from tools/recomp/show. ROM-derived: don't commit it."]
+                 + ", from tools/generate/show. ROM-derived: don't commit it."]
         for interp, text, _ in self.commands:
             lines.append(f"It is the handler of {text}.")
         if self.event_cmd is not None:
@@ -1207,7 +1207,7 @@ widths_at = entry_widths
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(prog="python3 -m tools.recomp.show", description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="python3 -m tools.generate.show", description=__doc__.split("\n")[0])
     ap.add_argument("addr", nargs="+", help="BB:AAAA entry addresses")
     ap.add_argument("--m", type=int, choices=(8, 16))
     ap.add_argument("--x", type=int, choices=(8, 16))

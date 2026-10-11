@@ -1,4 +1,4 @@
-"""Gotos into if, else, loops, break and continue (tools/recomp/show.py).
+"""Gotos into if, else, loops, break and continue (tools/generate/show.py).
 
 The draft's statements come in address order with labels and gotos, the way
 the original is laid out. This rewrites patterns of them into structured C

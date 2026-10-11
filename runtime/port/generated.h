@@ -1,4 +1,4 @@
-/* Instruction semantics for C that tools/recomp generates from 65816 code.
+/* Instruction semantics for C that tools/generate generates from 65816 code.
  *
  * Each helper does what runtime/cpu/cpu65816.c does for the same piece of an
  * instruction: the same bus reads and writes in the same order, the same flag
@@ -15,10 +15,10 @@
  *       the bank), the last of which is `last`: bus time and open bus
  *   RC_IO(c, n)
  *       n internal cycles (default: counted in c->io_cycles, as the interpreter does)
- * runtime/port/recomp_snes.h binds them to the development system's bus.
+ * runtime/port/generated_snes.h binds them to the development system's bus.
  */
-#ifndef CT_PORT_RECOMP_H
-#define CT_PORT_RECOMP_H
+#ifndef CT_PORT_GENERATED_H
+#define CT_PORT_GENERATED_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -26,7 +26,7 @@
 #include "cpu/cpu65816.h"
 
 #if !defined(RC_READ) || !defined(RC_WRITE) || !defined(RC_FETCH)
-#error "define RC_READ, RC_WRITE and RC_FETCH before including port/recomp.h"
+#error "define RC_READ, RC_WRITE and RC_FETCH before including port/generated.h"
 #endif
 #ifndef RC_IO
 #define RC_IO(c, n) ((c)->io_cycles += (n))

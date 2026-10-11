@@ -85,7 +85,7 @@ typedef struct {
     NativeRuntime *natives;
     NativeMode native_mode;    /* the mode asked for */
     NativeMode runtime_mode;   /* the mode natives runs in now */
-    NativeTable table;         /* what --native and --recomp registered */
+    NativeTable table;         /* what --native and --generated registered */
     bool persist_sram;                    /* hand out the SRAM when the game changes it */
     uint8_t sram_saved[SNES_SRAM_SIZE];   /* SRAM as last loaded or stored */
     Track track;
@@ -105,11 +105,11 @@ typedef struct {
 
 /* Build the machine for a ROM (without a copier header; it must outlive the
  * player) and power it on. native_mode, scanline and track.record_name are set
- * first (and interpreted and misses_name, when misses are watched). `recomp` uses the
- * generated blocks if they are for this ROM, `recomp_only` leaves the ported
+ * first (and interpreted and misses_name, when misses are watched). `use_generated` uses the
+ * generated blocks if they are for this ROM, `generated_only` leaves the ported
  * routines out in on mode. Returns 0, or the exit status after printing why
  * not. */
-int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool recomp, bool recomp_only);
+int player_init(Player *pl, const uint8_t *rom, size_t rom_size, bool use_generated, bool generated_only);
 
 /* Replay these buttons from power-on before live input takes over. Before player_start. */
 void player_replay(Player *pl, const uint16_t *pads, uint32_t frames, const char *movie_name);

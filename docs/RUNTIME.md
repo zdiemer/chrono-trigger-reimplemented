@@ -61,14 +61,14 @@ as built").
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
 | `runtime/snes/zst.c` | ZSNES save state import, for coverage runs (see ZSNES save states) | Chrono Trigger states run on |
 | `runtime/snes/state.c` | Save states, written field by field so later builds load them (see Save states) | `state_test`; states resumed against uninterrupted traces |
-| `runtime/port/recomp.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
+| `runtime/port/generated.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
 `spc700_runner`); test data comes from `tests/cpu/fetch_sst.py` and
 `tests/apu/fetch_sst_spc700.py`. `dsp_test` needs no data: it checks the
 envelope rate counter, BRR decoding, and key-on, envelope, ENDX and echo
-timing, and must print "all checks passed". `sst_recomp_runner` (same CPU test
-data) and `recomp_bus_diff` check the static recompiler's instruction
+timing, and must print "all checks passed". `sst_generated_runner` (same CPU test
+data) and `generated_bus_diff` check the static recompiler's instruction
 translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
 
 ## Design notes
@@ -685,7 +685,7 @@ loaded machine in work RAM and VRAM, and the state holds no tracking; with the
 load's `snes_mark_all_written` removed, that check fails.
 
 On the game: a state saved at frame 2500 of `battle-magus.ctm` (with
-`--native on --recomp only`) and resumed traces identically to the
+`--native on --generated only`) and resumed traces identically to the
 uninterrupted run over frames 2500-3999. Across builds: with a field added to
 `Ppu` (so `sizeof(Snes)` changed), the build with it loaded the state the build
 without it had saved, and the reverse, and both resumed to traces identical to
@@ -828,7 +828,7 @@ shows the old OAM until the game's NMI handler uploads it.
 
 The twelve ending states (ct-state15 slot 7, ct-state16-26 slot 4) were then
 run for 30000 frames with A pressed for 3 frames every 90, once with `--native
-off --coverage --calls` and once with `--native on --recomp only --misses`
+off --coverage --calls` and once with `--native on --generated only --misses`
 (same screenshots at every 3000th frame in both):
 
 | State | Ending | Result |

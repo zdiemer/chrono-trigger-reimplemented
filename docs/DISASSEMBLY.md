@@ -496,7 +496,7 @@ direct-page scratch cells. The gate didn't move: `tools/suite.py --only core` pa
 this file, though: every call of `battle_setup_state` and
 `battle_setup_graphics` in the library is interrupted by NMI, and interrupted
 calls aren't compared. So the check that does is the port running: `--native
-on --recomp off` over `gato-battle` (21600 frames) and `battle-magus` (18000)
+on --generated off` over `gato-battle` (21600 frames) and `battle-magus` (18000)
 traces identically before and after the rename. A side effect: `$7E:213A`, a palette destination that the
 platform lint had to be told was not the register `$213A`, is now
 `RAM_PALETTE_BASE + 0x13A`, so setup.c left the lint's exception list.

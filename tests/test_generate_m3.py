@@ -6,7 +6,7 @@ block, the instruction index, and the RAM section formats M3 added (`run`,
     python3 -m unittest discover tests
 
 Whether such blocks behave like the interpreter is checked over the movies
-(--native on --recomp only traces, shadow mode, ct_dev --misses).
+(--native on --generated only traces, shadow mode, ct_dev --misses).
 """
 
 import unittest
@@ -14,9 +14,9 @@ import unittest
 from tools.disasm.analyze import Analyzer
 from tools.disasm.hints import Entry, Hints, RamCodeHint
 from tools.disasm.ram import build, simulate_run
-from tools.recomp.__main__ import index_key, instruction_index
-from tools.recomp.blocks import EMULATION_RESET, BlockBuilder
-from tools.recomp.translate import Ctx
+from tools.generate.__main__ import index_key, instruction_index
+from tools.generate.blocks import EMULATION_RESET, BlockBuilder
+from tools.generate.translate import Ctx
 from tests.test_disasm import FakeRom
 
 M16X16 = Ctx(False, False)
@@ -58,14 +58,14 @@ class RamBlocks(unittest.TestCase):
         b, blocks = blocks_of(an)
         prog = next(i for i, s in enumerate(an.ram.sections) if s.name == "prog")
         blk = blocks[(0x7E3000, M16X16, prog)]
-        self.assertEqual(blk.name, "recomp_7E3000_m16x16_prog")
+        self.assertEqual(blk.name, "generated_7E3000_m16x16_prog")
         self.assertEqual(sorted(blk.steps), [0x7E3000, 0x7E3003, 0x7E3006])
         text = "\n".join(b.emit(blk))
-        self.assertIn("bool recomp_7E3000_m16x16_prog_guard(Snes *s)", text)
-        self.assertIn(f"rc_ram_matches(s, 0x03000, recomp_ram_image_{prog} + 0, recomp_ram_mask_{prog} + 0, 9)", text)
-        self.assertIn("RC_CODE(recomp_7E3000_m16x16_prog_code, 1);", text)
-        self.assertTrue(text.endswith("RC_STOP_GUARDED(recomp_7E3000_m16x16_prog, "
-                                      "recomp_7E3000_m16x16_prog_guard);\n}"), text)
+        self.assertIn("bool generated_7E3000_m16x16_prog_guard(Snes *s)", text)
+        self.assertIn(f"rc_ram_matches(s, 0x03000, generated_ram_image_{prog} + 0, generated_ram_mask_{prog} + 0, 9)", text)
+        self.assertIn("RC_CODE(generated_7E3000_m16x16_prog_code, 1);", text)
+        self.assertTrue(text.endswith("RC_STOP_GUARDED(generated_7E3000_m16x16_prog, "
+                                      "generated_7E3000_m16x16_prog_guard);\n}"), text)
 
     def test_operands_are_fetched_at_run_time_and_left_out_of_the_guard(self):
         an = analyzed()
@@ -96,7 +96,7 @@ class RamBlocks(unittest.TestCase):
         keys = [int(line.split(",")[0].strip(" {"), 16) for line in lines if line.startswith("    { 0x")]
         self.assertEqual(keys, sorted(keys))
         self.assertIn(index_key(0x7E3003, M16X16), keys)
-        self.assertIn('recomp_7E3000_m16x16_prog_guard, "recomp_7E3000_m16x16_prog" },', "\n".join(lines))
+        self.assertIn('generated_7E3000_m16x16_prog_guard, "generated_7E3000_m16x16_prog" },', "\n".join(lines))
 
 
 class Emulation(unittest.TestCase):
@@ -109,7 +109,7 @@ class Emulation(unittest.TestCase):
         b = BlockBuilder(an)
         blocks = {(blk.entry, blk.ctx): blk for blk in b.build_all()}
         blk = blocks[(0x008000, EMULATION_RESET)]
-        self.assertEqual(blk.name, "recomp_008000_emu")
+        self.assertEqual(blk.name, "generated_008000_emu")
         self.assertEqual(sorted(blk.steps), [0x008000, 0x008001, 0x008002])
         self.assertEqual(index_key(0x008000, EMULATION_RESET), 0x70008000)
 

@@ -792,7 +792,7 @@ movie is the attract sequence's RAM code).
   refuse; `ct_fuzz --db` sets it); `scene_nmi` 19901 of 20000 (`--interrupt`,
   from the attract sequence). `field_nmi`, not fuzzed before, 2916 of 3000
   (`--interrupt --step-limit 20000`, the same as before conversion).
-  `recomp_bus_diff` still reports 0 mismatches.
+  `generated_bus_diff` still reports 0 mismatches.
 
 ### P1: audio behind the API
 
@@ -976,7 +976,7 @@ ran ahead of the machine (the boot upload is about 0.34 s of it); no run gave up
   included) and events `$ED`/`$EE` pass 20000 states each with `--apu-loopback`
   (constraints in PORTING.md).
 - End states with APU-direct, by final frame, against the SNES backend
-  (`--native on`) and the original timing (`--native on --recomp only`,
+  (`--native on`) and the original timing (`--native on --generated only`,
   identical to `--native off`). `gato-battle` is won (the robot's "You won"
   dialog on the stage). 18 movies end in the original's room and scene:
   `new-game`, `menu`, `field`, `fair`, `fair-companion`, `gato-battle`, the
@@ -1470,7 +1470,7 @@ color three times, one channel each.
 **Results.** Shadow mode: all 22 movies up to `late-omen-zeal` exit 0 with no
 mismatch (the four ending runs, 100000 frames and more each, aren't run in
 shadow mode); the new entries' call counts are in [PORTING.md](PORTING.md)'s
-status table. `--native on --recomp only` still traces identically to
+status table. `--native on --generated only` still traces identically to
 `--native off` over `new-game` and `events-jetbike-race`, so the block
 boundaries the new entries move change nothing. The lint and the unit tests pass
 and the build is warning-free.
@@ -1609,7 +1609,7 @@ original writes -- with any other value the original writes at whatever offsets
 the operand gives -- so that is part of the entry's guard. The per-routine
 counts and the constraints each needs are in [PORTING.md](PORTING.md).
 
-`--native on --recomp only` still produces traces identical to `--native off`
+`--native on --generated only` still produces traces identical to `--native off`
 (3600 frames of `new-game`, no divergence in WRAM, VRAM, SRAM, CGRAM or OAM),
 so the block boundaries the new registry entries move change nothing.
 
@@ -1875,7 +1875,7 @@ spans a frame, the menus and the Epoch 55-85, the End of Time's gate 120. That
 is also what the decoder costs, since it rebuilds and compares a `VidLineState`
 at every line whatever happens.
 
-Speed, `ct_play` headless with `--native on --recomp only`, on a shared machine,
+Speed, `ct_play` headless with `--native on --generated only`, on a shared machine,
 runs alternating between the two renderers (five pairs for `gato-battle`, three
 for the others):
 

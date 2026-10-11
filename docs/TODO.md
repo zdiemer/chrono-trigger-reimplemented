@@ -8,7 +8,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 ## Correctness and accuracy
 
-- **Hand ports' time is an estimate**, so `--native on --recomp on` drifts from
+- **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
   (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
   (RECOMP.md, "The timing gate"). Left open there: 25 entries whose
@@ -24,7 +24,7 @@ rest waits, is [PLAN.md](PLAN.md).
   instead (RECOMP.md, "Dispatchers"), and the menu text's control codes would
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
-  `--recomp only` stays exact.
+  `--generated only` stays exact.
 - **Fuzzing coverage of existing ports.** Fuzzing is now part of every port's
   definition of done (PORTING.md); ports registered before that without a
   recorded fuzz run should get one, subsystem by subsystem as Phase 3a
@@ -1372,7 +1372,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `A X Y N V Z C` and `tools/dontcare_check.py` -- the gate -- accepted it. They
   are answering different questions: the JSON's `after_return` adds what an
   escaped return may read through a caller's frame, the draft's
-  `ret_live_mask` (in `tools/recomp/show.py`, not in `liveness.py`) asks
+  `ret_live_mask` (in `tools/generate/show.py`, not in `liveness.py`) asks
   `live_after_return` at the entry's own contexts and falls back to
   `after_return` only where that is unknown. Both are defensible and neither
   says so, which cost the map chunk time and left it reproducing registers it
@@ -2474,7 +2474,7 @@ waits on M5 rather than on a backend.
   (`$CC:E2E4`) and `battle_setup_graphics` (`$CC:ED87`) in the library is
   interrupted by NMI, so shadow mode counts them and compares none; the gate
   passes on them without looking. What checks them today is `--native on
-  --recomp off` tracing identically to a known-good build (DISASSEMBLY.md,
+  --generated off` tracing identically to a known-good build (DISASSEMBLY.md,
   "The RAM map"). A fuzz state at their entry, or comparing interrupted calls
   when the interrupt touches none of their state, would close it. The same
   holds for the battle's start from the field (`battle_start_from_field`,

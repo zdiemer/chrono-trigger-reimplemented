@@ -135,10 +135,10 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
 - **Generated blocks.** A build given the ROM also registers C blocks
   generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
-  `--recomp off` leaves them out. In `on` mode a block's time passes per
+  `--generated off` leaves them out. In `on` mode a block's time passes per
   instruction, I/O sees the time the interpreter's would, and interrupts land
   between the same instructions (RECOMP.md, "Exact timing"): with
-  `--recomp only`, which leaves the hand ports out, `on` mode produces the same
+  `--generated only`, which leaves the hand ports out, `on` mode produces the same
   traces as `off` mode, frame for frame. Since M3 the code the game runs from
   RAM has guarded blocks too, so a guarded hand port for RAM code competes with
   a block generated from the same image (the port wins where its guard holds).
@@ -279,7 +279,7 @@ to frame 21600 add up to the straight 21600-frame run, routine by routine
 mismatched), except one generated block in flight at the cut, and their
 coverage and call files together are the straight run's. The suite's 26 shadow
 reports, coverage files and call files are byte-identical before and after, as
-are `new-game`'s `--native off` and `--recomp only` traces, framebuffer hashes
+are `new-game`'s `--native off` and `--generated only` traces, framebuffer hashes
 included.
 
 CPU time of single shadow runs with the suite's options, the old and new
@@ -318,7 +318,7 @@ hand ports (M5)".
 2. **Draft.**
 
    ```sh
-   python3 -m tools.recomp.show C1:423A C1:44B0 C1:4512 > <scratch dir outside the repo>/drafts.c
+   python3 -m tools.generate.show C1:423A C1:44B0 C1:4512 > <scratch dir outside the repo>/drafts.c
    ```
 
    Ask for every routine of a chunk at once: the analysis is solved once for
@@ -347,7 +347,7 @@ hand ports (M5)".
    are `SCRATCH_01DB`-style names the draft defines, the direct page being
    where each mode keeps its scratch. Name the ones that mean something in
    `re/ram.toml`, with their `page`.
-4. **Check the draft, if in doubt.** `python3 -m tools.recomp.draftcheck --out
+4. **Check the draft, if in doubt.** `python3 -m tools.generate.draftcheck --out
    <scratch> C1:423A` registers the draft in a scratch tree outside the
    repository (a registry entry's name works too, and replaces that port);
    built there, `ct_dev --native shadow` checks it like a port, so a question
@@ -370,7 +370,7 @@ hand ports (M5)".
    below. The header's registry line is the starting point, with its guard if
    the draft assumed D or DB from its callers.
 
-`python3 -m tools.recomp.groundtruth BB:AAAA` compares a draft with the port of
+`python3 -m tools.generate.groundtruth BB:AAAA` compares a draft with the port of
 the same routine; it is how the tool is measured, and a quick way to see what a
 port changed from the mechanical version.
 
@@ -463,7 +463,7 @@ self-check to run before reporting done, and the worktree rules a wave needs.
    python3 -m tools.disasm --coverage traces/coverage.txt --calls traces/calls.txt
    ```
 
-2. Start from the draft (`python3 -m tools.recomp.show BB:AAAA`, above), and
+2. Start from the draft (`python3 -m tools.generate.show BB:AAAA`, above), and
    read the original with `python3 -m tools.disasm.linear BB:AAAA` and the
    listing where the draft leaves a question. `disasm/out/functions.json` has
    the M/X widths it's entered with, and `disasm/out/liveness.json`
@@ -925,7 +925,7 @@ battle's direct page `$0000`, which the note's parenthesis says it rests on,
 and a 16-bit load or transfer, an `XBA` or a callee that returns with it
 unknown make it unknown). A hint that fails any of these is a finding, and the
 tool lists why. `ct_dev --index-check BBAAAA` (on the interpreter alone,
-`--native off --recomp off`) also records X at each dispatch over the library,
+`--native off --generated off`) also records X at each dispatch over the library,
 which must never pass `$FE`. The tool lists what reads V in the code the
 callee reaches: a `BVS` or `BVC`, or a `PHP` whose byte is taken back other
 than by `PLP` (liveness follows where it goes). `ct_dev --poison-site BBAAAA`

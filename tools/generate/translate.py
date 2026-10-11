@@ -1,6 +1,6 @@
 """Translation of one 65816 instruction into C statements.
 
-The statements operate on a `Cpu *c` through the helpers in runtime/port/recomp.h
+The statements operate on a `Cpu *c` through the helpers in runtime/port/generated.h
 and match the interpreter (runtime/cpu/cpu65816.c) exactly: registers, flags,
 bus accesses in order, internal cycles, and the bytes it fetches.
 
@@ -137,7 +137,7 @@ FLAG_OPS = {
     "CLD": "c->p &= (uint8_t)~CPU_FLAG_D;", "SED": "c->p |= CPU_FLAG_D;",
     "CLV": "c->p &= (uint8_t)~CPU_FLAG_V;",
 }
-# Effective address helpers (runtime/port/recomp.h) per addressing mode. `always`
+# Effective address helpers (runtime/port/generated.h) per addressing mode. `always`
 # is whether indexing takes its extra cycle regardless of page crossing.
 EFFECTIVE_ADDRESS = {
     Mode.DP: "rc_dp(c, {o8})", Mode.DPX: "rc_dp_index{emu}(c, {o8}, c->x)",
