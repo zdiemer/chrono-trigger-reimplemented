@@ -917,6 +917,22 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the attract refusals' review left** (none rated translation):
+  `race_projection.c`'s `+ (gap <= SCREEN_LINES)` is a compare's carry
+  (write the game's test, the bike at the camera with the gap wrapped), and
+  `horizon_gap`'s `- !wrapped` carries an earlier sum's carry with a comment
+  on the mechanics rather than what the player sees; its
+  `keep_divisor(g, last_divisor(g))` writes back what the cell holds (drop
+  it); `perspective.c`'s line-above-the-screen cells are written plainly
+  though nothing reads them (ORIGINAL_EFFECT, or name the reader), and the
+  two in `$7F` have no `reuses`; `attract/main_loop.c` runs the registered
+  `scene_race_scale_pictures` through `m_jsr` (confirm it must, item 102) and
+  describes the scene program's main loop from `game/attract/`; `native.c`'s
+  entries at one address are sorted by `qsort`, which isn't stable, so two
+  hand entries with overlapping guards would run in a library-picked order
+  (break ties by table index, or assert at start that guards at one address
+  don't overlap).
+
 - **What the Epoch's, the vehicles' and the screen objects' review left**
   (none rated translation): the objects' loop (`objects.c`) and the
   scripts' call command (`script_bridge.c`) still `m_jsr` each handler at its
