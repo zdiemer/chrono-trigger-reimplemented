@@ -4736,11 +4736,12 @@
 /* Offset of the screen script channel whose command runs (0 or $10) [2 bytes] */
 #define RAM_BATTLE_SCREEN_CHANNEL 0x7E0043u
 #define RAM_BATTLE_SCREEN_CHANNEL_DP 0x43u   /* page battle */
-/* Direct-page scratch the battle's routines share ($45-$6A): counts, thresholds, operands and
+/* Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and
  * table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and
- * counts at $53-$6A, the count of tiles its callers hand it at $67 [38 x $1 bytes, by byte] */
+ * counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map
+ * builder its pointers and counts at $53-$75 [49 x $1 bytes, by byte] */
 #define RAM_BATTLE_SCRATCH 0x7E0045u
-#define RAM_BATTLE_SCRATCH_COUNT 38u
+#define RAM_BATTLE_SCRATCH_COUNT 49u
 #define RAM_BATTLE_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_SCRATCH_DP 0x45u          /* page battle */
 /* Which window a battle message call that names a combatant asks for ($0B with its HP, $0C
@@ -7687,6 +7688,12 @@
 #define RAM_BATTLE_EFFECT_LINE_WORK_STRIDE 0x01u
 /* Set to $80 as a demo battle exits to the reset code */
 #define RAM_BATTLE_LEAVING 0x7EBB80u
+/* Each layer's tile map setting as the per-line effects set it below the split, from
+ * battle_start_tile_maps at the battle's start ($CD:0CA1); a battlefield with a BG3 layer of its
+ * own puts BG3's at $7C00 [4 x $1 bytes, by layer (BG1-BG4)] */
+#define RAM_BATTLE_LAYER_MAP_SETTINGS 0x7EBC85u
+#define RAM_BATTLE_LAYER_MAP_SETTINGS_COUNT 4u
+#define RAM_BATTLE_LAYER_MAP_SETTINGS_STRIDE 0x01u
 /* The layers' per-line scroll tables, 32 entries a layer, refilled each frame with the layer's
  * scroll [128 x $4 bytes, by layer (BG1-BG3) * 32 + entry (BG3's run on to 64 in the finer line
  * wave)] */
@@ -7792,6 +7799,14 @@
 #define RAM_BATTLE_WINDOW_LINE_TABLES 0x7EC9A2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_COUNT 2u
 #define RAM_BATTLE_WINDOW_LINE_TABLES_STRIDE 0x2Du
+/* How the battlefield's BG3 layer is laid out, as its loading took it from the ROM ($D1:A233,
+ * $CD:11B8): its tile set and the strips of 16x16 tiles its map is built from [6 bytes] */
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT 0x7EC9FCu
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT_STRIPS 0x7EC9FCu /* The strips of map to build in its low six bits, counted down as each is built; bit 6 is the tile set's high bit */
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT_TILE_SET 0x7EC9FDu /* The tile set's low byte: its graphics' descriptors are $CF:8000 + 64 bytes a set, four sets the layer's */
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT_MAP 0x7EC9FEu /* The strip of map built next ($D1:A575, a pointer a strip), stepped on as each is built */
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT_KEPT 0x7ECA00u /* A byte copied, with the rows after it, to $CA1B and to screen channel 0's record; nothing found reading it */
+#define RAM_BATTLE_BATTLEFIELD_LAYOUT_ROWS 0x7ECA01u /* Rows of 16 tiles in each strip */
 /* The layers' scroll on the 24 lines of the battle window in the arrangements that show it short
  * (18-27) [5 x $4 bytes, by 0 BG1 in layout 0, 1 BG1 in layout 1, 2 BG2, 3 BG3 in layout 0, 4
  * BG3 in layout 1] */
@@ -7806,6 +7821,9 @@
 #define RAM_BATTLE_BLOCK_UPLOAD_REQUEST 0x7ECA17u
 /* Source address in $7E of the requested block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOAD_SOURCE 0x7ECA18u
+/* The battlefield layout's last word (its byte $CA00 and its rows) as loading the battlefield
+ * left it ($CD:0F72); nothing found reading it [2 bytes] */
+#define RAM_BATTLE_BATTLEFIELD_KEPT_WORD 0x7ECA1Bu
 /* Which per-line effects are enabled each frame */
 #define RAM_BATTLE_LINE_EFFECTS_ON 0x7ECA1Du
 /* Sliding window state: 0 idle, positive sliding one way, $FF starting the other way, other
@@ -7844,6 +7862,7 @@
 #define RAM_BATTLE_SCREEN_CHANNELS_COUNT 2u
 #define RAM_BATTLE_SCREEN_CHANNELS_STRIDE 0x10u
 #define RAM_BATTLE_SCREEN_CHANNELS_RUNNING 0x7ECA32u /* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
+#define RAM_BATTLE_SCREEN_CHANNELS_LAYOUT_WORD 0x7ECA33u /* Channel 0's: the battlefield layout's last word, which loading a battlefield leaves here ($CD:11DD) until its channels are started over ($CD:0D33) clear it; nothing reads it */
 #define RAM_BATTLE_SCREEN_CHANNELS_PLACE 0x7ECA35u /* Where the channel is in its script (bank $D1), kept while it waits */
 #define RAM_BATTLE_SCREEN_CHANNELS_PACE 0x7ECA38u /* Frames between the channel's steps (command $81 sets it) */
 #define RAM_BATTLE_SCREEN_CHANNELS_COUNTDOWN 0x7ECA39u /* Frames until the channel's next step */
@@ -7924,6 +7943,12 @@
 #define RAM_BATTLE_SCREEN_ORBIT_SWAY_STRIDE 0x10u
 /* Which scroll table routine runs each frame (through $CD:06BC) */
 #define RAM_BATTLE_SCROLL_MODE 0x7ECA92u
+/* The screen scripts the battlefield's two channels run, as its loading took them from the ROM
+ * ($D1:6240), $FF for none; its channels are started on them ($CD:0D33) [2 x $1 bytes, by screen
+ * script channel] */
+#define RAM_BATTLE_BATTLEFIELD_SCRIPTS 0x7ECA93u
+#define RAM_BATTLE_BATTLEFIELD_SCRIPTS_COUNT 2u
+#define RAM_BATTLE_BATTLEFIELD_SCRIPTS_STRIDE 0x01u
 /* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
  * $FF for none [2 x $1 bytes, by which (first, second)] */
 #define RAM_BATTLE_SCREEN_BACKGROUND_COLORS 0x7ECA95u
@@ -7965,6 +7990,27 @@
 /* The screen script circle being drawn, 0 or 1, which the original's drawing hands its routines
  * (the square's drawing sets 0); nothing reads it after */
 #define RAM_BATTLE_CIRCLE_DRAWN 0x7ECAAAu
+/* How far the battlefield's map bytes step for each tile of the strip being built: from its
+ * first byte; $80 and up, the strip's bytes cycle through 32 one at a time instead ($CD:107D) [2
+ * bytes] */
+#define RAM_BATTLE_MAP_STRIP_STEP 0x7ECAABu
+/* Tiles taken from cycling strips' bytes, counted across every strip of the map; each 32 the
+ * strip's bytes start over ($CD:107D) */
+#define RAM_BATTLE_MAP_CYCLE 0x7ECAADu
+/* Which places of the strip being built have a tile, a bit each from the top bit, sixteen to a
+ * row; the rest of the map keeps its blank tile ($CD:107D) [32 x $1 bytes, by byte (two a row)] */
+#define RAM_BATTLE_MAP_STRIP_CELLS 0x7ECAAEu
+#define RAM_BATTLE_MAP_STRIP_CELLS_COUNT 32u
+#define RAM_BATTLE_MAP_STRIP_CELLS_STRIDE 0x01u
+/* The row set of the battlefield's tiles decoded next into VRAM's slots ($CD:1323, $CD:1314), or
+ * the tile set counted while a battlefield's layer loads ($CD:0F9F) */
+#define RAM_BATTLE_TILE_ROWS_NEXT 0x7ECACEu
+/* The VRAM slot the next row set of an effect's tiles goes to ($CD:1308, a VRAM address a slot),
+ * counted up to battle_tile_rows_end */
+#define RAM_BATTLE_TILE_ROWS_SLOT 0x7ECACFu
+/* The slot past the last an effect's tile rows go to: the first graphics set fills slots 0-3,
+ * the second 4-5 */
+#define RAM_BATTLE_TILE_ROWS_END 0x7ECAD0u
 /* How a circle is drawn into the window table (one of six ways, through $CD:319E) [2 x $1 bytes,
  * by circle] */
 #define RAM_BATTLE_SCREEN_CIRCLE_KIND 0x7ECAD1u
@@ -8179,6 +8225,9 @@
 #define RAM_BATTLE_BLOCK_UPLOADED_ROW 0x7ECD1Fu
 /* Source of the last block upload [2 bytes] */
 #define RAM_BATTLE_BLOCK_UPLOADED_SOURCE 0x7ECD20u
+/* The byte after the last block's source, which forgetting the last block sets with it
+ * ($CD:0F68); nothing reads it */
+#define RAM_BATTLE_BLOCK_UPLOADED_PAD 0x7ECD22u
 /* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
 #define RAM_BATTLE_SCRIPT_SOUND_REQUEST 0x7ECD23u
 /* The sound battle_script_sound_request asks for */
@@ -8298,6 +8347,14 @@
 #define RAM_BATTLE_FRAME_ADVANCE_COUNT_HIGH 0x7ECE1Au
 /* Nonzero to pause palette animation; clearing it restores the saved slot types */
 #define RAM_BATTLE_PALETTE_PAUSE_REQUEST 0x7ECFFFu
+/* The battlefield's BG3 tile map as its loading builds it, every entry the blank tile ($00EE)
+ * where the map has none; $7E:D000-$D7FF goes to VRAM $7C00 ($CD:107D, $CD:1052). Loading a
+ * battlefield clears all of $D000-$FFFF to the blank tile, the waves' lines with it, which the
+ * effects that use them lay out again [6144 x $2 bytes, by tile map entry (16 a row of 16x16
+ * tiles)] */
+#define RAM_BATTLE_MAP_BUFFER 0x7ED000u
+#define RAM_BATTLE_MAP_BUFFER_COUNT 6144u
+#define RAM_BATTLE_MAP_BUFFER_STRIDE 0x02u
 /* The lines the waves ripple window 1 about, which the special effects mark and shift [212 x $4
  * bytes, by line of the battlefield (the waves take every other one, for a pair of lines)] */
 #define RAM_BATTLE_WAVE_LINES 0x7EE500u

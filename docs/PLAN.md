@@ -64,8 +64,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 86% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 79%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 28.3 KiB, 172 M instructions (handback 17.4 KiB, unported 11.1 KiB); shipping mode with the routes 26.2 KiB, 391 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 79%, scene program 56%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 27.1 KiB, 142 M instructions (handback 16.2 KiB, unported 11.1 KiB); shipping mode with the routes 24.9 KiB, 357 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -161,10 +161,11 @@ isn't ported yet, so retiring it is porting its callee. In order:
    the attract program's own frame tasks, which the attract demo runs as the
    original's (`$7E:6A23`, `$7E:5D71`, `$7E:69AF` and their neighbours, the
    largest of its handbacks).
-3. **The battle's frame work** (75%): its loads and fills (`$CD:107D`,
-   `$CD:1061`, `$CD:1052`, and the loads behind `$CD:0015`, `$CD:002A`,
-   `$CD:0018`), now its largest handbacks; they are work, not waits on the
-   display.
+3. **The battle's frame work** (87%): its largest handbacks now are waits on
+   the display -- the line wait (`$CD:3B82`), the pause's (`$CD:3E44`) and the
+   frame waits with their transfers (`$CD:3E75`, `$CD:3ED2`), which go with the
+   timing service -- and the frame work's message and window calls
+   (`$CD:0036`, `$CD:0239`, `$CD:04DF`).
 
 ## The validation gate
 
@@ -218,7 +219,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 277 files, 117 of 83,063 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 278 files, 117 of 83,805 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -273,7 +274,7 @@ docstring says which way it is wrong). **12% of the code is still generated.**
 | field engine, events (`$C0`) | 59.4K | 57.5K | 14.0K | 3% | 384 |
 | menus, text, overworld (`$C2`) | 59.1K | 46.3K | 12.2K | 22% | 467 |
 | scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
-| battle frame work (`$CD`) | 15.4K | 14.4K | 6.0K | 6% | 185 |
+| battle frame work (`$CD`) | 15.4K | 14.5K | 5.2K | 6% | 194 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.5K | 22% | 87 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 45 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |

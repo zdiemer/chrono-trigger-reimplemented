@@ -14,6 +14,9 @@
  *               requests the rest of the battle makes for it
  *   display.c   the display's setup, the window's per-line tables, loading the
  *               battle's graphics, and the vblank handler of the battle's end
+ *   tiles.c     decoding the battlefield's tiles for upload
+ *   battlefield_change.c  changing the battlefield's BG3 layer for another,
+ *               and loading an effect's rows of the battlefield's tiles
  *
  * Their logic takes the game's state and the platform; what reaches the
  * original's code (the battle's routines still generated from the ROM) is in
@@ -109,6 +112,12 @@ void battle_leave_arrangement_registers(Snes *s);
 void battle_hide_sprites(GameState *g);
 /* Turn the HP gradient's rows a phase, in step with palette animation. */
 void battle_turn_the_gradient(GameState *g);
+
+/* ---- tiles.c ------------------------------------------------------------------------------- */
+
+/* Decode `tiles` tiles of a row set of the battlefield's tiles into the
+ * decode buffer, from its start. */
+void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles);
 
 /* ---- The guards (registry .guard) ------------------------------------------------------ */
 

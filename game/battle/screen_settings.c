@@ -207,7 +207,7 @@ SCREEN_OPERATION(copy_color, from, onto)
 enum { NO_SET = 0xFF, FIRST_SET_COLOR = 25, SECOND_SET_COLOR = 29 };
 
 // $CD:1004
-static void show_background_sets(GameState *g)
+void battle_show_background_sets(GameState *g)
 {
     static const unsigned onto[2] = { FIRST_SET_COLOR, SECOND_SET_COLOR };
     for (unsigned which = 0; which < 2; which++) {
@@ -225,7 +225,7 @@ static ScreenFlow show_background_colors(GameState *g, uint8_t set)
 {
     set_battle_screen_background_colors(g, 0, set);
     set_battle_screen_background_colors(g, 1, set);
-    show_background_sets(g);
+    battle_show_background_sets(g);
     return screen_on();
 }
 SCREEN_OPERATION(show_background_colors, set)

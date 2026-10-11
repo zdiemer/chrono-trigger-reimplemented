@@ -24,6 +24,14 @@
 /* A byte of a screen script, at its 24-bit address. */
 static inline uint8_t battle_screen_script_byte(const GameState *g, uint32_t at) { return rom_read8(g, at & 0xFFFFFFu); }
 
+/* Where each of the screen scripts a battlefield runs starts, in their bank
+ * ($D1:646C, a word a script). */
+enum { SCREEN_SCRIPT_BANK = 0xD10000 };
+static inline uint16_t screen_script_start(const GameState *g, uint8_t script)
+{
+    return rom_read16(g, 0xD1646Cu + script * 2u);
+}
+
 /* ---- The HP gradient ---------------------------------------------------------------------- */
 
 /* The HP gradient's colors: 14 a set, one set per HP level, at a byte offset

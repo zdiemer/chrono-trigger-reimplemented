@@ -8154,3 +8154,138 @@ triangle's from 5,899 to 9,906 (its stretches now include the ones entered
 from the model commands), and the script commands that ask for a channel for
 nobody or take a fall-through by a few percent (`script_end`,
 `script_play_and_wait` and its two siblings, `script_throw_moves`).
+
+## Phase 3, battle: an action shown (`$C1:4058`-`$C1:4A70`, `$C1:305C`-`$C1:3215`, `$C1:106E`-`$C1:1114`, `$C1:1B67`, `$C1:EC39`-`$C1:ED88`, `$FD:ABA2`, `$CC:F102`, `$CC:F156`)
+
+Chosen by the fallback measure: after the player's choosing, the battle's
+largest handbacks were all the original's code its ports called into to show
+an action -- the showing's step (`$C1:4058`, which spans frames), the loaders
+of the action's animation (`$C1:432C`, `$C1:45A0`, `$C1:475B`), the hits
+landing (`$C1:EC7F`), the combatants' poses (`$C1:305C`, `$C1:308C`) and the
+frame step the showing and the effects' loading take between their waits
+(`$C1:10FA`, with `$C1:106E`, the battle's step 3). The chunk takes the whole
+of showing an action, from the battle's step 4 to the damage applied.
+
+**What it is** (each file's header says how its pieces fit):
+- `action_showing.c`, the showing: the objects reset, the action's subjects
+  listed for the scripts' channels (the actor, the two others taking part or
+  for a member alone the other two members, the targets), the animation
+  loaded and played a frame at a time until its scripts signal, the effects'
+  sounds cut off, the screen's scripts let finish, the effects stopped, the
+  enemies drifting on from where they stand, every combatant's pose taken
+  afresh, and a party member the damage shown takes to nothing falling at
+  once.
+- `action_animation.c` and `action_animation_data.h`, the action's animation:
+  a record of seven parts (script set, two graphics sets, sprite tiles,
+  palette animation, animation records, background) chosen by the kind of
+  action -- a party member's weapon in one of three views (from afar, up close
+  where it finds the way to its target, a critical hit), an enemy's first or
+  second attack, a tech of either side, an item -- each kind's tables
+  (`AnimationKeeper`) behind named accessors; the script set's channels
+  started (a missed action shows the set's second half); the graphics loaded,
+  the background changed, the tiles unpacked and the bitmap shapes built over
+  the frames that follow.
+- `pose_looks.c`, what a pose shows beside its frames: a marker (the clock,
+  confusion, sleep, the sealed techs, blindness, poison), the palette cycling
+  (haste, slow, shield, barrier), or the held pose's tint, as a C table of the
+  poses (`Pose`, named from the status that gives each, `$CC:F77F`); and the
+  poses' round. The party's animation step (`$C1:2D9F`, `animation.c`) now
+  calls the look as C, so it is C whole.
+- `frame_step.c`, the battle's own frame: the menu's turn every fourth frame
+  (the next member in line takes the menu, `$C1:1B67`, which moves the line up
+  as the original does, the third place keeping its member), the frame work's
+  tail, and the step 3 of waiting (the combatants' and the enemies' effects'
+  steps, and L and R refused where the battle can't be run from).
+- `damage.c`, the hits landing: a target any of whose hits missed takes none
+  of them, the rest come off HP or MP held between nothing and the maximum, a
+  combatant brought to nothing is knocked out, a felled enemy's spoils go to
+  the winnings (`$FD:ABA2`: experience, gold, tech points, its charm or, nine
+  times in ten where it still has it, the item it drops). The enemy's turn and
+  the status timers now apply them as C.
+
+**The third trap, settled first.** Every call-out the chunk keeps was checked
+with `tools/dontcare_check.py --list`: the frame waits (`$C1:007E`) read A's
+high byte alone, the frame work's loads (`$CD:0015`, `$CD:002A`, `$CD:0018`)
+A whole, the messages A's low byte, the sound driver nothing. The registers
+the original's callers read after the new entries are worked out in their
+wrappers from what the work leaves: the showing's carry (the poses' round's
+last count, set), the step 3's (the boxes' last test), the loaders' A's high
+byte. One declaration needed evidence: the scripts' channels
+(`battle/scripts.c`, `$C1:4C9E`) read neither X nor the overflow they are
+called with, which the showing's C steps no longer leave as the original's
+did; `ct_fuzz --poison-dc battle_run_scripts` scrambled 15,072 call-outs over
+3,000 states with none differing, and the call carries the note.
+
+**Narrowed.** The step dispatch (`$C1:0003`) and the showing's own stub
+(`$C1:BFA4`) stay the original's: their callers' declarations carry the
+library evidence for the overflow they hand the steps, and the gain is 0.1
+KiB. The menu's turn through the frame work's wait (`$C1:0012`, `$C1:10E3`)
+has every register live after it. The frame work's loads (`$CD:0015`,
+`$CD:002A`) and the background's change (`$CD:0018`, `$CD:0EBD` and on) are
+the next chunk: they wait on the vblank handler to send VRAM.
+
+**What the gate and fuzzing found.** The script set's halves are read in long
+addressing, a set at the bank's end running on into the next bank (a random
+item's); the 16-bit flag-and-pointer writes that start a channel clear the
+next channel's flag and the pointer's pad, kept in one storage function
+(`start_channel`); the poses' palette-cycle and marker tables are by battle
+slot, eleven, not the party's three (`re/ram.toml`); a party member's palette
+past the sprites' would run the colours on into the working palette (the
+looks' guards take only the game's five to seven). The felled enemy's spoils
+read their enemy's cell (`$0E`) as a word with the one after it, which ten
+landings of hits in the Lavos fights find set: the port reads it as the
+original does (`felled_enemy`, the standing and id that many pages on), after
+a guard that asked for it clear refused those real calls. None of the ten
+fells an enemy, so the quirk changes no spoils over the library. The native shape found the
+loaders' guards first asking for cells the showing writes only as
+scaffolding (its note of the second half, the animation's cells forgotten):
+compiled out, they refused, and the original's loader ran on stale cells and
+hung two of the late movies; the guards now ask only for the combatants.
+
+**Validation.** The library's 28 movies in shadow mode, none mismatching: the
+showing 984 calls (853 interrupted, every one of them spanning frames; its
+call-outs are compared at each), the poses' round 10,791 and the looks 134,063,
+the hits 1,146 and the missed targets' 1,146, the spoils 70, the step 3 27,547,
+the next member's menu 105,265, the subjects' listing and the poses forgotten
+984 each, the falling 504, the up close 131, the party's animation step 27,547;
+the loaders (984, by kind 154, 736 and 94) and the frame step (296,180) run
+nested in the showing and the frame work and are compared within theirs. No
+real-play refusal.
+The reference play's fallbacks fell from 41.9 KiB and 321.9 million
+instructions to 38.9 KiB and 311.4 million, 26 routines leaving the baseline
+(the showing, its loaders and the up close, the poses' round and looks with
+five of their handlers, the hits, the missed targets and the spoils with the
+stubs they were called through, the step 3, the frame step and the next
+member's menu, `$CC:F102`, `$CC:F156`); the battle's native coverage rose
+from 91% to 97% of the code real play runs. What the showing still hands
+back is the frame work's: the background's change (29 million instructions),
+the graphics sets' loads and the frame waits.
+
+**Fuzzing**, seed 1 (`tools/fuzz_routines.toml`), none mismatching: the
+showing up to its first wait 0 of 3,000, the loading up to the graphics' load
+0 of 2,453 and with a missed action up to its kind's loader 0 of 5,000 (the
+dispatch leaves the kind doubled in A and X, as the original's loaders are
+called with), each kind's loader 0 of 3,000 (entered with the animation's cells
+forgotten, as the loading leaves them; the loaders' guards ask only for
+a combatant acting, since those cells are the showing's scaffolding), the up close, the
+subjects, the falling, the next member's menu, the hits, the missed targets
+and the spoils 0 of 20,000 each, the poses' round 0 of 4,102 and the looks 0 of
+4,135 (the rest a party palette past the sprites', which the guards refuse),
+the frame step up to the frame work's tail and the step 3 up to its first
+wait 0 of 3,000. Against the tree before the chunk, all 804 battle entries the
+same counts but the party's animation step, whose guard now refuses the same
+palettes (896-962 states, the same mismatches), and the timers' HP loss, the
+same with the felled cell read as the original reads it. A fuzz run calls a
+sibling port as the original's call, so the bridges leave the registers the
+original's code leaves at the calls it makes into siblings (the menu's count
+tested before the frame work's tail, the kind doubled).
+
+**Timing.** The new entries and the battle's entries whose time moved with
+them were calibrated from the shadow runs; the showing's worst stretch (81,509
+clocks, one in 2.3 million) is in `tools/timing_exceptions.txt`.
+
+**Tools.** `tools/effects_check.py` cached a function's summary made under its
+depth cut, so a function first reached deep in the call graph lost its plain
+writes for every later caller: the window's digits showed as written only as
+scaffolding once this chunk's calls moved the order. A summary made under the
+cut is no longer kept.

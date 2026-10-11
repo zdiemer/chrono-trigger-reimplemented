@@ -161,6 +161,17 @@ static inline void screen_set_cell_word(GameState *g, uint8_t cell, uint16_t v)
 static inline void screen_leave_cell(GameState *g, uint8_t cell, uint8_t v) { screen_set_cell(g, cell, v); }
 static inline void screen_leave_word(GameState *g, uint8_t cell, uint16_t v) { screen_set_cell_word(g, cell, v); }
 
+/* ---- What loading a battlefield takes from the screen effects ----------------------------- */
+
+/* Whether the battlefield keeps BG3 still, the channels' layer leaving it be
+ * (screen_script.c); start the battlefield's own screen scripts on the
+ * channels, forgetting what ran on them (screen_script.c); and show its two
+ * sets of background colors (screen_settings.c). */
+bool battle_keeps_bg3_still(uint16_t battlefield);
+bool battle_bg3_stays_still(const GameState *g);
+void battle_start_battlefield_scripts(GameState *g);
+void battle_show_background_sets(GameState *g);
+
 /* ---- What the special effects ($80) share with the other effects ------------------------- */
 
 /* The palette effects (screen_palette.c): background rows 2-7 and sprite
@@ -300,6 +311,7 @@ bool battle_screen_triangle_ready(Snes *s);
 void battle_run_screen_scripts(Snes *s);
 void battle_run_screen_channel(Snes *s);
 void battle_run_screen_command(Snes *s);
+void battle_start_battlefield_scripts_entry(Snes *s);
 void battle_screen_command(Snes *s);
 void battle_screen_draw_triangle(Snes *s);
 

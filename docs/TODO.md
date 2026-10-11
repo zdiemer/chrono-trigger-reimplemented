@@ -834,12 +834,8 @@ rest waits, is [PLAN.md](PLAN.md).
     original does). The library sets it at ten landings of hits in the Lavos
     fights, none felling an enemy; a native build, which doesn't keep the
     cell, decides it otherwise.
-- **What an action's showing left at its edge** (RECOMP.md, "Phase 3, battle:
-  an action shown"): the frame work's loads the animation calls (`$CD:0015`,
-  `$CD:002A`, the effects' graphics sets sent to VRAM over the vblank
-  handler's waits) and the background's change (`$CD:0018`, `$CD:0D28`,
-  `$CD:0EBD` and its tile and map moves, `$CD:107D`-`$CD:12B8`), the largest
-  of the battle frame work's handbacks; the steps' dispatch (`$C1:0003`) and
+- **What an action's showing left at its edge** (history/recomp-chunks.md,
+  "Phase 3, battle: an action shown"): the steps' dispatch (`$C1:0003`) and
   the showing's stub (`$C1:BFA4`), whose callers' declarations rest on the
   library's evidence for the overflow they hand the steps, so a port of the
   dispatch moves that evidence with it; the menu's turn the frame work's wait
@@ -847,6 +843,20 @@ rest waits, is [PLAN.md](PLAN.md).
   register is live; and the frame waits (`$C1:007E`), which wait on the
   vblank handler and go with the timing service (PLAN.md, "Timing is
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
+- **What the battlefield's change left** (RECOMP.md, "Phase 3, battle: the
+  battlefield changed and an effect's rows of its tiles"): the frame work's
+  waits it calls out to, for the next frame (`$CD:3E75`, which gives the menu
+  its turn), for a number of them (`$CD:3E3B`) and for its transfers to go
+  (`$CD:3ED2`), which go with the timing service; the rest of the original
+  that loads a battlefield, the screen effects' song and the HP gradient's
+  (`$CD:0D62`, `$CD:0D93`-`$CD:0DF9`, `$CD:0E05`) and the battlefield put
+  back (`$CD:0453`, with `$CD:0E23`-`$CD:0E61`), which call the ports; and
+  the map buffer's clear (`$CD:1052`), whose every call in the library spans
+  the vblank handler, so its `cost_milli` is an estimate from its loop (the
+  original's time over the port's accesses in the shadow runs) the timing gate
+  has never measured. The first row set an effect loads takes A's high byte
+  as the frame work's wait leaves it (`$CD:1339`); it is 0 in every call the
+  library makes, which the port assumes.
 - **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:

@@ -17891,11 +17891,11 @@ source = "game/battle/screen.h; $CD:16A6"
 name = "battle_scratch"
 addr = "7E:0045"
 page = "battle"
-count = 0x26
+count = 0x31
 index = "byte"
 subsystem = "battle"
-meaning = "Direct-page scratch the battle's routines share ($45-$6A): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67"
-source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368"
+meaning = "Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map builder its pointers and counts at $53-$75"
+source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/battlefield_change.c $CD:0EBD-$CD:12B8"
 
 [[var]]
 name = "battle_background_flags"
@@ -18363,6 +18363,11 @@ source = "game/battle/screen_script.c battle_run_screen_scripts $CD:1609, battle
   offset = 0
   meaning = "Nonzero while the channel runs its script; cleared by the script's end ($FF)"
   [[var.field]]
+  name = "layout_word"
+  offset = 1
+  size = 2
+  meaning = "Channel 0's: the battlefield layout's last word, which loading a battlefield leaves here ($CD:11DD) until its channels are started over ($CD:0D33) clear it; nothing reads it"
+  [[var.field]]
   name = "place"
   offset = 3
   size = 3
@@ -18712,6 +18717,124 @@ index = "which (first, second)"
 subsystem = "battle"
 meaning = "Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette, $FF for none"
 source = "game/battle/screen_script.c, commands $B9 and $D2; $CD:1004"
+
+[[var]]
+name = "battle_battlefield_scripts"
+addr = "7E:CA93"
+count = 2
+index = "screen script channel"
+subsystem = "battle"
+meaning = "The screen scripts the battlefield's two channels run, as its loading took them from the ROM ($D1:6240), $FF for none; its channels are started on them ($CD:0D33)"
+source = "game/battle/battlefield_change.c $CD:0EBD, $CD:0D33"
+
+[[var]]
+name = "battle_battlefield_layout"
+addr = "7E:C9FC"
+stride = 6
+subsystem = "battle"
+meaning = "How the battlefield's BG3 layer is laid out, as its loading took it from the ROM ($D1:A233, $CD:11B8): its tile set and the strips of 16x16 tiles its map is built from"
+source = "game/battle/battlefield_change.c $CD:0EBD, $CD:107D"
+  [[var.field]]
+  name = "strips"
+  offset = 0
+  meaning = "The strips of map to build in its low six bits, counted down as each is built; bit 6 is the tile set's high bit"
+  [[var.field]]
+  name = "tile_set"
+  offset = 1
+  meaning = "The tile set's low byte: its graphics' descriptors are $CF:8000 + 64 bytes a set, four sets the layer's"
+  [[var.field]]
+  name = "map"
+  offset = 2
+  size = 2
+  meaning = "The strip of map built next ($D1:A575, a pointer a strip), stepped on as each is built"
+  [[var.field]]
+  name = "kept"
+  offset = 4
+  meaning = "A byte copied, with the rows after it, to $CA1B and to screen channel 0's record; nothing found reading it"
+  [[var.field]]
+  name = "rows"
+  offset = 5
+  meaning = "Rows of 16 tiles in each strip"
+
+[[var]]
+name = "battle_battlefield_kept_word"
+addr = "7E:CA1B"
+size = 2
+subsystem = "battle"
+meaning = "The battlefield layout's last word (its byte $CA00 and its rows) as loading the battlefield left it ($CD:0F72); nothing found reading it"
+source = "game/battle/battlefield_change.c $CD:0EBD"
+
+[[var]]
+name = "battle_map_strip_step"
+addr = "7E:CAAB"
+size = 2
+subsystem = "battle"
+meaning = "How far the battlefield's map bytes step for each tile of the strip being built: from its first byte; $80 and up, the strip's bytes cycle through 32 one at a time instead ($CD:107D)"
+source = "game/battle/battlefield_change.c $CD:107D"
+
+[[var]]
+name = "battle_map_cycle"
+addr = "7E:CAAD"
+subsystem = "battle"
+meaning = "Tiles taken from cycling strips' bytes, counted across every strip of the map; each 32 the strip's bytes start over ($CD:107D)"
+source = "game/battle/battlefield_change.c $CD:107D"
+
+[[var]]
+name = "battle_map_strip_cells"
+addr = "7E:CAAE"
+count = 32
+index = "byte (two a row)"
+subsystem = "battle"
+meaning = "Which places of the strip being built have a tile, a bit each from the top bit, sixteen to a row; the rest of the map keeps its blank tile ($CD:107D)"
+source = "game/battle/battlefield_change.c $CD:107D"
+
+[[var]]
+name = "battle_tile_rows_next"
+addr = "7E:CACE"
+subsystem = "battle"
+meaning = "The row set of the battlefield's tiles decoded next into VRAM's slots ($CD:1323, $CD:1314), or the tile set counted while a battlefield's layer loads ($CD:0F9F)"
+source = "game/battle/battlefield_change.c $CD:1323, $CD:0EBD"
+
+[[var]]
+name = "battle_tile_rows_slot"
+addr = "7E:CACF"
+subsystem = "battle"
+meaning = "The VRAM slot the next row set of an effect's tiles goes to ($CD:1308, a VRAM address a slot), counted up to battle_tile_rows_end"
+source = "game/battle/battlefield_change.c $CD:1323"
+
+[[var]]
+name = "battle_tile_rows_end"
+addr = "7E:CAD0"
+subsystem = "battle"
+meaning = "The slot past the last an effect's tile rows go to: the first graphics set fills slots 0-3, the second 4-5"
+source = "game/battle/battlefield_change.c $CD:1323, $CD:1314"
+
+[[var]]
+name = "battle_map_buffer"
+addr = "7E:D000"
+size = 2
+count = 0x1800
+index = "tile map entry (16 a row of 16x16 tiles)"
+reuses = ["battle_wave_lines", "battle_wave_marks"]
+subsystem = "battle"
+meaning = "The battlefield's BG3 tile map as its loading builds it, every entry the blank tile ($00EE) where the map has none; $7E:D000-$D7FF goes to VRAM $7C00 ($CD:107D, $CD:1052). Loading a battlefield clears all of $D000-$FFFF to the blank tile, the waves' lines with it, which the effects that use them lay out again"
+source = "game/battle/battlefield_change.c $CD:1052, $CD:107D"
+
+[[var]]
+name = "battle_layer_map_settings"
+addr = "7E:BC85"
+count = 4
+index = "layer (BG1-BG4)"
+subsystem = "battle"
+meaning = "Each layer's tile map setting as the per-line effects set it below the split, from battle_start_tile_maps at the battle's start ($CD:0CA1); a battlefield with a BG3 layer of its own puts BG3's at $7C00"
+source = "$CD:0CA1; game/battle/battlefield_change.c $CD:0EBD"
+
+[[var]]
+name = "battle_block_uploaded_pad"
+addr = "7E:CD22"
+subsystem = "battle"
+meaning = "The byte after the last block's source, which forgetting the last block sets with it ($CD:0F68); nothing reads it"
+source = "game/battle/battlefield_change.c $CD:0EBD"
 
 [[var]]
 name = "battle_background"
