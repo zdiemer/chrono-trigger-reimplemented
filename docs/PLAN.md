@@ -159,8 +159,8 @@ isn't ported yet, so retiring it is porting its callee. In order:
    `$C3:000E` (TODO.md, "What the world map's set up left", "What the
    vehicles and the screen's objects left"); then what the menus' tasks run
    after a yield (`C2:----`, 5.0 KiB), which wants the measure to follow a
-   task back to its port first; and the dactyl's flight, once a route rides
-   it.
+   task back to its port first; and the dactyl's flight, which
+   `field-65m-bc-dactyl.ctm` rides now.
 2. **The scene program**, its unported modes after movies reach them, and
    the attract program's own frame tasks, which the attract demo runs as the
    original's (`$7E:6A23`, `$7E:5D71`, `$7E:69AF` and their neighbours, the
