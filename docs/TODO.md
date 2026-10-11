@@ -1398,13 +1398,10 @@ rest waits, is [PLAN.md](PLAN.md).
     the handlers and of the routines the scripts name, each row the
     operation's own (`NATIVE_TIME_AS`), with what nothing ports handed to the
     original;
-  - what the scenes' scripts call and nothing ports yet: `$C2:2F0F` (a
-    location's region song, sent to the driver directly), `$C2:7860`-
-    `$C2:78A0` (the party hidden, kept and brought back), `$C2:79E0`-
-    `$C2:7A55` (places picked from the random table), `$C2:7B44`,
-    `$C2:7BC4` and the story's other flags there, and `$C6:E241`,
-    `$C6:E27E` (the endings' scenes); they are filed under their own
-    addresses now rather than under the call command's jump;
+  - what the scenes' scripts call and nothing ports yet: `$C6:E241` and
+    `$C6:E27E`, the endings' scenes' line effects, which call the scene
+    engine's `$C3:000E` (unported) and program a line channel the line
+    service would take;
   - no movie flies the Epoch over the Black Omen or enters it
     (`$C2:4510`-`$C2:452F`, `$C2:4A0A`-`$C2:4A19`), takes off at the story's
     point `$D3` or boards at `$D2`, or sets off for `$1F2` before the Epoch
@@ -1414,6 +1411,28 @@ rest waits, is [PLAN.md](PLAN.md).
     animation it may be given to be one the language reads, which random
     sprite scripts rarely are): a variant with the slot's scripts kept would
     cover it better.
+
+- **What the world map's set up left** (RECOMP.md, "Phase 3, menus and
+  overworld: the world map set up, its scenes' calls and the frame's
+  input"):
+  - the reference play runs 5.0 KiB of bank `$C2` with no call on record
+    (`C2:----`): the menus' screens' code after a task's yield (`$C2:821E`),
+    resumed on the task's own stack, which the fallback measure can't file
+    under the port that stopped at the yield. Ports whose work spans a yield
+    (or the measure following a task's resumption to the port that yielded)
+    would show how much of it is really the original's;
+  - the scrolling lists' cursor kept within the rows (`$C2:EA53`) and their
+    frame laid out (`$C2:EA81`, the divider's quotient the scroll bar's
+    step), which the equipment, items, techs and shop screens' bridges call
+    out to, and the equipment screen's preview (`$C2:A5C3`, `$C2:A5E7`);
+  - the world map's loads reach the unpacker through the machine
+    (`overworld/setup.c`'s `Unpacker`): a C unpacker taking a stream and a
+    destination would make them plain calls (the event commands' TODO wants
+    the same);
+  - `overworld_back_from_the_menus` is fuzzed up to the map's reload, which
+    random states make through the original's call (a map the loader can't
+    take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
+    and checked in shadow mode (7 calls).
 
 - **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
   party's exchange"):

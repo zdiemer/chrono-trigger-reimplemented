@@ -22,8 +22,10 @@
 #include "overworld/overworld.h"
 #include "overworld/places.h"
 #include "overworld/sign.h"
+#include "overworld/terrain.h"
 #include "overworld/vehicles.h"
 #include "original_effects.h"
+#include "platform/audio.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -526,3 +528,66 @@ bool overworld_epoch_scene_call_runs(Snes *s)
 
 /* The loop runs on the mode's page with the data bank on low RAM. */
 bool overworld_main_loop_runs(Snes *s) { return menu_objects_on_page(s); }
+
+/* ---- The location's song, from a scene's script ------------------------------------------ */
+
+/* The driver ($C7:0004) reads nothing of the registers, and hands back X,
+ * the carry and A's high byte as it found them; the script's call command
+ * passes X and the carry on, so the wrapper leaves them as the lookup did: X
+ * the region (the song table's index), the carry the lookup's last shift,
+ * and A's high byte the region word's, clear. A song a screen keeps leaves
+ * them as they came. */
+enum { SOUND_DRIVER = 0xC70004, LOCATION_SONG_SENT = 0xC22F49 };
+#define DRIVER_IGNORES (DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C)
+
+static void leave_the_lookup(Snes *s, LocationSong song)
+{
+    if (!song.of_a_region)
+        return;
+    s->cpu.x = song.region;
+    s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF);
+    m_set_flag(s, CPU_FLAG_C, overworld_region_lookup_carry_at_the_location(state_of(s)));
+}
+
+// $C2:2F0F
+void overworld_start_the_location_song_entry(Snes *s)
+{
+    LocationSong song = overworld_location_song(state_of(s));
+    ORIGINAL_EFFECT(leave_the_lookup(s, song));
+    au_command(m_platform(s), PF_CALL_DC(LOCATION_SONG_SENT, SOUND_DRIVER, DRIVER_IGNORES),
+               overworld_song_command(song.song));
+    m_rts(s);
+}
+
+/* It runs on the mode's page, its place on the region map where it looks a
+ * region up. */
+bool overworld_location_song_runs(Snes *s)
+{
+    if (!menu_objects_on_page(s))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = menu_song_kept(g) || overworld_location_has_a_region(g);
+    vars_peek(false);
+    return ok;
+}
+
+/* ---- The sound request, from the original's callers ---------------------------------------- */
+
+// $C2:2ED9
+/* The carry says the request couldn't be passed on; X is left as it came. */
+void overworld_pass_on_sound_entry(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_C, !overworld_pass_on_sound(state_of(s)));
+    m_rts(s);
+}
+
+// $C2:5798
+/* Its block move leaves nothing a caller reads (the registry declares it),
+ * and an 8-bit accumulator. */
+void overworld_clear_the_sign_label_entry(Snes *s)
+{
+    overworld_clear_the_sign_label(state_of(s));
+    m_sep(s, CPU_FLAG_M);
+    m_rts(s);
+}

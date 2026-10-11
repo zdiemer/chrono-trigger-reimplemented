@@ -40,7 +40,8 @@ void overworld_mark_sound_sending(GameState *g, bool sending)
 
 // $C2:2ED9
 /* Pass the request on to the driver's cells, unless one is being sent, or
- * one waits there that is younger than it. */
+ * one waits there that is younger than it (overworld_pass_on_sound_entry
+ * hands the answer to the original's callers). */
 bool overworld_pass_on_sound(GameState *g)
 {
     if (overworld_sound_waits(g)
@@ -76,6 +77,8 @@ enum { SONG_THIRD = 0x80, FADE_OUT_STEPS = 0x0C, AT_ONCE = 0, SILENT = 0, FADE_T
 
 static AudioCommand song_request(uint8_t song) { return (AudioCommand){ AU_START_SONG, song, AU_FULL_VOLUME, SONG_THIRD, 3 }; }
 
+AudioCommand overworld_song_command(uint8_t song) { return song_request(song); }
+
 static void play_song(GameState *g, uint8_t song)
 {
     if (ask_for(g, song_request(song)))
@@ -99,6 +102,20 @@ void overworld_play_the_song_in_view(GameState *g)
     set_menu_sound_request_third(g, c.p3);
     if (overworld_pass_on_sound(g))
         set_menu_song_playing(g, song);
+}
+
+// $C2:2F0F
+LocationSong overworld_location_song(GameState *g)
+{
+    LocationSong s = { .of_a_region = !menu_song_kept(g) };
+    if (s.of_a_region) {
+        s.region = overworld_region_of_the_location(g);
+        s.song = overworld_region_songs(g, s.region);
+    } else {
+        s.song = current_song(g);
+    }
+    set_menu_song_playing(g, s.song);
+    return s;
 }
 
 // $C2:4387-$C2:4395

@@ -633,6 +633,24 @@ void menu_map_scroll_x(Snes *s) { scroll_entry(s, MENU_ACROSS); }
 void menu_map_scroll_y(Snes *s) { scroll_entry(s, MENU_DOWN); }
 
 // $C2:2720
+void menu_map_centre_on_the_party(GameState *g) { centre_on_party(g); }
+
+void menu_map_redraw_plane(GameState *g, Platform *pf, uint8_t plane)
+{
+    ORIGINAL_EFFECT(set_menu_object_scratch_plane(g, (uint8_t)(plane + 1)));
+    TIMED_AS(g, 0xC209C5, redraw_plane(g, pf, plane));
+}
+
+bool menu_map_can_redraw(const GameState *g, uint8_t plane)
+{
+    return plane < 2 && plane_is_on_the_map(g, plane) && buffer_is_in_work_ram(g);
+}
+
+bool menu_map_party_centres_on_the_map(const GameState *g)
+{
+    return location_x(g) < TILE_COLUMNS + CENTRING_COLUMNS && location_y(g) < TILE_ROWS + CENTRING_ROWS;
+}
+
 void menu_map_centre_on_party(Snes *s)
 {
     centre_on_party(state_of(s));

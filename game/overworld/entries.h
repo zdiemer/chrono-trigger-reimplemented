@@ -40,4 +40,10 @@ void overworld_main_loop_entry(Snes *s);
 void overworld_back_from_the_menus_entry(Snes *s);
 bool overworld_main_loop_runs(Snes *s);
 
+/* The song of where the party is, which a scene's script starts. */
+void overworld_start_the_location_song_entry(Snes *s);
+void overworld_pass_on_sound_entry(Snes *s);
+void overworld_clear_the_sign_label_entry(Snes *s);
+bool overworld_location_song_runs(Snes *s);
+
 #endif

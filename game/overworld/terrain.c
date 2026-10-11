@@ -163,6 +163,20 @@ bool overworld_spot_has_a_region(WorldSpot at)
     return on_the_region_map((uint8_t)(at.x / MAP_TILE_PIXELS), region_row_of(at));
 }
 
+/* The location's place is kept in 8x8 tiles: a map tile is two of them each
+ * way, and its row is taken as a row of the region map, as the view's
+ * centre's is. */
+static uint8_t location_column(const GameState *g) { return (uint8_t)(location_x(g) >> 1); }
+static uint8_t location_row(const GameState *g) { return (uint8_t)(location_y(g) >> 1); }
+
+// $C2:2F15-$C2:2F21
+uint8_t overworld_region_of_the_location(GameState *g) { return region_in(g, location_column(g), location_row(g)); }
+
+bool overworld_location_has_a_region(const GameState *g)
+{
+    return on_the_region_map(location_column(g), location_row(g));
+}
+
 uint8_t overworld_region_at(GameState *g, WorldSpot at)
 {
     ORIGINAL_EFFECT(set_overworld_scratch_region_row_word(g, (uint16_t)(at.y / MAP_TILE_PIXELS - 1)));
@@ -212,21 +226,34 @@ bool overworld_region_at_runs(Snes *s)
     return ok;
 }
 
+/* The carry the lookup's last shift leaves: the column's half for an odd
+ * column, the region byte's fourth bit for an even one. */
+static bool lookup_carry(const GameState *g, uint8_t column, uint8_t row)
+{
+    enum { LAST_BIT_SHIFTED_OUT = 0x08 };
+    vars_peek(true);
+    uint8_t pair = region_pair(g, column, row);
+    vars_peek(false);
+    return (column & 1) || (pair & LAST_BIT_SHIFTED_OUT);
+}
+
 // $C2:62ED
 /* It hands back the region in a 16-bit word (its callers index a table with
  * it), with the carry its last shift left: the column's half for an odd
- * column, the region byte's fourth bit for an even one. */
+ * column, the region byte's fourth bit for an even one (lookup_carry). */
 void overworld_region_at_entry(Snes *s)
 {
     GameState *g = state_of(s);
     uint8_t column = overworld_scratch_region_column(g), row = overworld_scratch_region_row(g);
-    vars_peek(true);
-    uint8_t pair = region_pair(g, column, row);
-    vars_peek(false);
+    bool carry = lookup_carry(g, column, row);
     uint8_t region = region_in(g, column, row);
     m_sep(s, CPU_FLAG_M);
     s->cpu.a = region;
-    enum { LAST_BIT_SHIFTED_OUT = 0x08 };
-    m_set_flag(s, CPU_FLAG_C, (column & 1) || (pair & LAST_BIT_SHIFTED_OUT));
+    m_set_flag(s, CPU_FLAG_C, carry);
     m_rts(s);
+}
+
+bool overworld_region_lookup_carry_at_the_location(const GameState *g)
+{
+    return lookup_carry(g, location_column(g), location_row(g));
 }

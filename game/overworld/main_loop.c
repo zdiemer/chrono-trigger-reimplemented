@@ -27,16 +27,19 @@
 
 #include "charge.h"
 #include "menu/bridge.h"
+#include "menu/display.h"
 #include "menu/epoch.h"
 #include "menu/vram.h"
 #include "original_effects.h"
 #include "overworld/music.h"
 #include "overworld/overworld.h"
 #include "overworld/places.h"
+#include "overworld/setup.h"
 #include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/native.h"
+#include "port/vars_ram.h"
 #include "ram.h"
 #include "vars.h"
 #include "wram.h"
@@ -213,10 +216,29 @@ static void show_again(Snes *s, uint32_t site)
     interrupts(s, site, true);
 }
 
-/* The map's screen set up again, the original's loaders still: the upload
- * queue reset and the map's streams loaded. */
-static bool reset_the_uploads(Snes *s, uint32_t site) { return menu_call(s, site, 0xC203EF, READS_NOTHING | DC_DB); }
-static bool load_the_map(Snes *s, uint32_t site) { return menu_call(s, site, 0xC22C93, READS_NOTHING); }
+/* The map's screen set up again: the upload queue reset and the map loaded
+ * (setup.c). False where the unpacker stopped. A map the loader can't take
+ * as it stands (none the game makes) is left to the original's call. */
+static bool reset_the_uploads(Snes *s)
+{
+    NATIVE_TIME_AS(s, 0xC203EF, menu_object_reset_the_upload_queue(state_of(s)));
+    return true;
+}
+
+static bool load_the_map(Snes *s, uint32_t site)
+{
+    vars_peek(true);
+    bool loadable = overworld_map_can_be_loaded_again(state_of(s));
+    vars_peek(false);
+    if (!loadable)
+        return menu_call(s, site, 0xC22C93, READS_NOTHING);
+    Unpacker u = overworld_unpacker_on_the_machine(s);
+    bool loaded;
+    NATIVE_TIME_AS(s, 0xC22C93, loaded = overworld_load_the_map_again(state_of(s), &u, m_platform(s)));
+    if (loaded)
+        m_sep(s, CPU_FLAG_M);
+    return loaded;
+}
 
 /* ---- The arms --------------------------------------------------------------------------- */
 
@@ -289,10 +311,9 @@ static bool enter_the_place(Snes *s)
 static bool come_back_from_the_menus(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!menu_call(s, 0xC2255A, 0xC20110, READS_NOTHING))
-        return false;
+    NATIVE_TIME_AS(s, 0xC20110, menu_object_take_the_interrupts(g));
     bring_back(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    if (!reset_the_uploads(s, 0xC22560) || !load_the_map(s, 0xC22563))
+    if (!reset_the_uploads(s) || !load_the_map(s, 0xC22563))
         return false;
     start_a_script(s, FADE_IN);
     set_the_sign_again(g);
@@ -347,7 +368,7 @@ static bool open_the_map_view(Snes *s)
     if (!menu_run(s, 0xC225CF, 0xC2631F, menu_epoch_map_screen))
         return false;
     bring_back(g, MAP_VIEW_ASIDE, MAP_VIEW_PIECES);
-    if (!reset_the_uploads(s, 0xC225F0) || !load_the_map(s, 0xC225F3))
+    if (!reset_the_uploads(s) || !load_the_map(s, 0xC225F3))
         return false;
     start_a_script(s, FADE_IN_FROM_THE_MAP_VIEW);
     set_the_sign_again(g);
@@ -376,7 +397,7 @@ static bool run_the_time_dial(Snes *s)
     if (!menu_run(s, 0xC22655, 0xC26A34, menu_epoch_time_dial_screen))
         return false;
     bring_back(g, OVERWORLD_ASIDE, OVERWORLD_PIECES);
-    if (!reset_the_uploads(s, 0xC2265B))
+    if (!reset_the_uploads(s))
         return false;
     bool sent_on = the_dial_sent_the_party_on(g);
     if (!sent_on) {

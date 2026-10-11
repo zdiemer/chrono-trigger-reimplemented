@@ -13,6 +13,11 @@
 /* Give an object one of the sprite scripts by its number, from its start. */
 void menu_give_sprite_script(GameState *g, MenuObject o, uint8_t script);
 
+/* Lay out the links the sprite list's free nodes start every frame from, as
+ * the sprite-object mode starts. */
+void menu_lay_out_the_sprite_nodes(GameState *g);
+void menu_lay_out_the_sprite_nodes_entry(Snes *s);
+
 /* Run the running object's sprite script for this frame: it shows the
  * object's sprites where the object is. */
 void menu_object_animate(GameState *g);

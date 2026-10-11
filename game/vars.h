@@ -3929,6 +3929,10 @@ void set_menu_glyph_right_pixels(GameState *g, uint32_t v);
 uint8_t menu_mode(const GameState *g);
 void set_menu_mode(GameState *g, uint8_t v);
 
+/* The byte after menu_mode, which the world map's setup clears with it */
+uint8_t menu_mode_beside(const GameState *g);
+void set_menu_mode_beside(GameState *g, uint8_t v);
+
 enum { MENU_EPOCH_POSITION_COUNT = 2 };   /* by 0 horizontal, 1 vertical */
 /* Where on its map the Epoch is parked */
 uint16_t menu_epoch_position(const GameState *g, unsigned i);
@@ -5017,6 +5021,10 @@ void set_menu_tech_parts(GameState *g, unsigned row, unsigned column, uint8_t v)
 uint8_t menu_random_index(const GameState *g);
 void set_menu_random_index(GameState *g, uint8_t v);
 
+/* The byte after menu_random_index, which the world map's setup clears with it */
+uint8_t menu_random_beside(const GameState *g);
+void set_menu_random_beside(GameState *g, uint8_t v);
+
 enum { MENU_MEMBER_SCRIPTS_COUNT = 4 };   /* by 0-2 the party member of that slot (party_members), 3 the object a script asks for by the number 7 */
 /* The sprite script each of a map screen's four objects runs, which object script command $08
  * sets: three of them by naming a party member, the fourth by naming 7 */
@@ -5026,6 +5034,12 @@ void set_menu_member_scripts(GameState *g, unsigned slot, uint16_t v);
 /* Nonzero while a sprite script is running, which stops an object handler starting another */
 uint8_t menu_sprite_script_busy(const GameState *g);
 void set_menu_sprite_script_busy(GameState *g, uint8_t v);
+
+enum { MENU_KEPT_PARTY_COUNT = 3 };   /* by party slot */
+/* The party as a world map's scene found it, kept while the scene plays with its places empty
+ * and put back as it ends */
+uint8_t menu_kept_party(const GameState *g, unsigned slot);
+void set_menu_kept_party(GameState *g, unsigned slot, uint8_t v);
 
 /* How far the story has gone, which decides the map view's graphics and the time dial's set of
  * locations */
@@ -6993,6 +7007,11 @@ void set_overworld_scratch_trail_way_round(GameState *g, uint8_t v);
  * the next look starts its song) */
 uint8_t overworld_region(const GameState *g);
 void set_overworld_region(GameState *g, uint8_t v);
+
+/* The world map's record of the streams its screen is built from (overworld_data.h), noted as
+ * the map is set up; every load of the map reads it */
+uint32_t overworld_map_record(const GameState *g);
+void set_overworld_map_record(GameState *g, uint32_t v);
 
 /* How the party is going about the world map: 0 on foot, 1 standing as it is, 2 in the Epoch, 3
  * on a dactyl, 4 walking to a vehicle to board it, 5 getting off one */
