@@ -74,6 +74,20 @@ rest waits, is [PLAN.md](PLAN.md).
   program's own routines (PLAN.md, "The scene program"); the refusals go with
   it. `python3 tools/fallbacks.py build/suite/fallbacks --refusals -v` prints
   each with its first states.
+- **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
+  object scripts' byte command `$13` names its cell by address, and an ending
+  writes the sprites' size and tile-place register through it; the port hands
+  the write to the SNES escape `vid_snes_write_register`
+  (`menu/script_bridge.c`, `set_console_byte`), which only the SNES backend
+  has. A build without it needs the script's write as what it means: decode
+  the scripts as an asset so a command naming `$2101` becomes a sprite
+  setting (`VidObjConfig`) the service takes, and drop the escape.
+- **The attract program's frame routine is still the original's.** The
+  attract demo rewrites the frame wait's call (`$7E:3024`) to its own frame
+  work at `$7E:51D1`, and `attract_wait_loop` now runs that routine as the
+  attract program's code (`game/attract/main_loop.c`). For a native build
+  that is a fallback until `$7E:51D1` is ported, with the rest of the
+  attract program (PLAN.md, "The scene program").
 - **What the original's code reads of scaffolding** (RECOMP.md, "The
   fallback measure"). It broke the native shape's three whole routes until
   the targeting was ported; what it reads now (101 byte and instruction
@@ -770,7 +784,8 @@ rest waits, is [PLAN.md](PLAN.md).
   - the palette's send from the vblank handler in bank D1, which doesn't set
     the data bank: on code with work RAM's bank its transfer's writes land in
     work RAM (`$7E:2121`, `$7E:420B`, `$7E:4370`-`$4377`) and the palette
-    isn't sent that frame (`uploads.c`, `miss_the_palette_send`); what the
+    isn't sent that frame (`uploads.c`, `send_palette_through_work_ram`,
+    the SNES escape `vid_snes_send_palette_into_memory`); what the
     battle keeps at those cells isn't worked out, and a native build sends
     the palette;
   - a party tech's part with no member: the original reads the slot of the

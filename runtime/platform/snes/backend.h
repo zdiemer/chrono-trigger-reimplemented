@@ -15,6 +15,7 @@ static inline Snes *pf_snes(Platform *pf) { return (Snes *)pf; }
 typedef struct {
     const char *name;
     uint32_t site;
+    uint32_t bank;   /* where the register writes go: bank $00, or a send into memory's bank */
 } PfSnesCall;
 extern PfSnesCall pf_snes_call;
 
@@ -26,8 +27,9 @@ static inline void pf_snes_begin(const char *name, PfOrigin o)
 static inline void pf_snes_end(void) { pf_snes_call.name = NULL; }
 
 /* A register in bank $00, where the original's absolute and long addressing
- * reached it. */
-static inline void pf_snes_put(Snes *s, uint16_t reg, uint8_t v) { m_write8(s, reg, v); }
+ * reached it (or, for a send whose data bank misses the registers, the same
+ * address in that bank: vid_snes_send_palette_into_memory). */
+static inline void pf_snes_put(Snes *s, uint16_t reg, uint8_t v) { m_write8(s, pf_snes_call.bank | reg, v); }
 static inline uint8_t pf_snes_get(Snes *s, uint16_t reg) { return m_read8(s, reg); }
 
 #endif

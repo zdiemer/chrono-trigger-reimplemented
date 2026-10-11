@@ -30,7 +30,6 @@
 #include "port/native.h"
 #include "ram.h"
 #include "vars.h"
-#include "wram.h"
 
 /* The described transfers are in words to the VRAM port, as the channel takes
  * them. */
@@ -47,6 +46,20 @@ enum { PALETTE_COLORS = 256 };
 void battle_send_palette(Platform *pf)
 {
     vid_send_palette(pf, PF_AT(0xCD09CE), 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
+}
+
+/* The send the battle's vblank handler in bank D1 makes ($D1:F4DE) without
+ * setting the data bank: coming in on code with work RAM's bank, the
+ * original's register writes miss the hardware and land in work RAM. The
+ * player sees the battle's palette change a frame late on such a frame, and
+ * the game is left stray bytes in work RAM, one at $7E:2121, eight at
+ * $7E:4370-$4377 and one at $7E:420B (the map names them the field's loaded
+ * palette's and the menus' back layer's tilemap's; what the battle keeps
+ * there isn't worked out: docs/TODO.md). A build without the SNES sends the
+ * palette every time. */
+static void send_palette_through_work_ram(Platform *pf, uint8_t bank)
+{
+    vid_snes_send_palette_into_memory(pf, PF_AT(0xCD09CE), bank, 0, PF_GAME(RAM_PALETTE_WORKING), PALETTE_COLORS);
 }
 
 /* ---- A queued transfer ------------------------------------------------------------------- */
@@ -365,31 +378,6 @@ bool battle_transfers_apart(const GameState *g, uint16_t stack)
     return queued_transfer_apart(g, stack) && block_apart(g, stack);
 }
 
-/* The palette's send where its transfer's writes miss the hardware. The
- * battle's vblank handler in bank D1 calls the send ($D1:F4DE) without
- * setting the data bank, so when the vblank comes in on code with work RAM's
- * bank ($7E) the original's writes of the channel's settings, the palette's
- * start and the transfer's start land in work RAM at those registers'
- * addresses, and that frame shows the palette sent before. They are kept as
- * they land, since the game may read on there: the map names $7E:2121 as a
- * byte of the field's loaded palette (palette_base) and $7E:4370 on as the
- * menus' back layer's tilemap, and what the battle keeps there isn't worked
- * out (docs/TODO.md). */
-static const struct {
-    uint32_t at;
-    uint8_t value;
-} palette_send_in_work_ram[] = {
-    { 0x7E4377, 0x00 }, { 0x7E2121, 0x00 }, { 0x7E4370, 0x02 }, { 0x7E4371, 0x22 }, { 0x7E4372, 0x00 },
-    { 0x7E4373, 0x22 }, { 0x7E4374, 0x7E }, { 0x7E4375, 0x00 }, { 0x7E4376, 0x02 }, { 0x7E420B, 0x80 },
-};
-
-// $CD:09CE
-static void miss_the_palette_send(GameState *g)
-{
-    for (unsigned i = 0; i < sizeof palette_send_in_work_ram / sizeof palette_send_in_work_ram[0]; i++)
-        wram_write8(g, palette_send_in_work_ram[i].at, palette_send_in_work_ram[i].value);
-}
-
 /* ---- The entries ------------------------------------------------------------------------ */
 
 /* The send reaches the hardware through the data bank the caller left. */
@@ -398,7 +386,7 @@ void battle_upload_palette(Snes *s)
     if (m_bank_reaches_io(s))
         battle_send_palette(m_platform(s));
     else
-        miss_the_palette_send(state_of(s));
+        send_palette_through_work_ram(m_platform(s), s->cpu.db);
     m_rtl(s);
 }
 

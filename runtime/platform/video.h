@@ -675,6 +675,17 @@ PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t
 PF_API bool vid_snes_takes_register(uint16_t address);
 PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t v);
 
+/* SNES-only escape for a palette send made through a data bank that doesn't
+ * reach the registers: the battle's vblank handler in bank D1 sends the
+ * palette without setting the data bank, and coming in on code with work
+ * RAM's ($7E), the original's writes of the transfer's settings, the
+ * palette's start and the transfer's start land in that bank's memory at the
+ * registers' addresses, in the site's write order, and nothing is sent. A
+ * host without the SNES sends the palette instead (vid_send_palette). Listed
+ * by the lint test. */
+PF_API void vid_snes_send_palette_into_memory(Platform *pf, PfOrigin o, uint8_t bank, uint8_t first, PfData src,
+                                              uint16_t count);
+
 /* The registers the game's transfers through the escape name, by the low byte
  * of their address ($21xx), as VidSnesTransfer.dest and .target_reg take it. */
 enum {

@@ -572,6 +572,14 @@ PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src
         vid_obs_upload_palette(vid_observer, first, src, count);
 }
 
+PF_API void vid_snes_send_palette_into_memory(Platform *pf, PfOrigin o, uint8_t bank, uint8_t first, PfData src,
+                                              uint16_t count)
+{
+    pf_snes_call.bank = (uint32_t)bank << 16;
+    pf_snes_send(pf, o, "vid_snes_send_palette_into_memory", 0x22, 0x21, first, src, 2u * count, NULL, false, 0);
+    pf_snes_call.bank = 0;
+}
+
 PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam)
 {
     pf_snes_send(pf, o, "vid_send_oam", 0x04, 0x02, 0, oam, 0x220, NULL, false, 0);

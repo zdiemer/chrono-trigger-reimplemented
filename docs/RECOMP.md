@@ -3949,7 +3949,10 @@ so they are plain writes, the same in both builds.
 **The machine's own state.** The battle's vblank handler in bank D1 sends the
 palette without setting the data bank, so on code with work RAM's bank the
 transfer's register writes land in work RAM and the palette isn't sent
-(`uploads.c`, `miss_the_palette_send`, a table of the ten bytes). And an
+(`uploads.c`, `send_palette_through_work_ram`, through the SNES escape
+`vid_snes_send_palette_into_memory`, which makes the site's writes in the
+data bank's memory: the palette change shows a frame late, and ten stray
+bytes land at `$7E:2121`, `$7E:4370`-`$4377` and `$7E:420B`). And an
 ending's menu object script sets the sprites' sizes by writing `$2101`
 through its byte command: a SNES escape for a register a game's data names
 by its address (`vid_snes_takes_register`, `vid_snes_write_register`,
@@ -3980,7 +3983,13 @@ where `main` didn't, and the 13 new variants (one per state the batch takes:
 `main`'s triangle took 764 of the from-model states and mismatched 754; the
 end unless listed first mismatched where its script pointer read I/O, whose
 operand the port reads and the end's handler doesn't, and the guard now asks
-for the script where the game keeps them.
+for the script where the game keeps them. A `high_places` variant of each of
+the 15 commands that name a place forces the places `$80`-`$88` from a script
+in work RAM: 0 mismatched, after one finding -- a sound played from a place
+whose subject is a slot far past the combatants reads its position from the
+sound driver's command, which the original has already written the sound
+into; no script names one, and the sound commands' guard turns it away
+(`script_place_reads_the_sound_command`).
 
 **The native shape's New Game+.** The native-shape build took 58 frames from
 the load screen's menus closing to the Battle Mode question, against 14

@@ -230,7 +230,7 @@ typedef struct {
 typedef enum {
     NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_ONE_MOVER, NEEDS_EFFECT, NEEDS_COLORS,
     NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE, NEEDS_SUBJECTS_AND_THE_USUAL_LIFT,
-    NEEDS_SUBJECTS_OR_NOBODY
+    NEEDS_SUBJECTS_OR_NOBODY, NEEDS_A_PLACE_APART_FROM_THE_SOUND
 } ScriptNeeds;
 
 /* The subject of a combatant channel for no one: an empty place of the
@@ -299,6 +299,12 @@ BattlePoint script_find_place(GameState *g, uint8_t place);
  * an orbit's circle), so those commands leave such places to the original
  * (NEEDS_SUBJECTS_AND_A_QUIET_PLACE). */
 bool script_place_works_in_cells(uint8_t place);
+
+/* Whether working the place out reads the sound driver's command, which a
+ * sound played from a place has written its sound into first: a subject far
+ * past the combatants, whose place the original reads on past the
+ * battlefield's objects' into it (script_places.c). No script names one. */
+bool script_place_reads_the_sound_command(const GameState *g, uint8_t place);
 
 /* Whether a place is one the original's table has, worked out on what the
  * game has (the place along the heading takes the running channel's mover,
