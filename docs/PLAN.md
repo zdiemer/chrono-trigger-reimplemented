@@ -64,8 +64,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 79%, scene program 56%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 27.1 KiB, 142 M instructions (handback 16.2 KiB, unported 11.1 KiB); shipping mode with the routes 24.9 KiB, 357 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program 56%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 24.8 KiB, 139 M instructions (handback 13.8 KiB, unported 11.1 KiB); shipping mode with the routes 22.1 KiB, 342 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -153,10 +153,14 @@ play still runs as the original (`tools/fallbacks.py --by routine`), not by
 which bank has the most unported bytes: a handback is a port calling code that
 isn't ported yet, so retiring it is porting its callee. In order:
 
-1. **The menus and the overworld** (79%): the dactyl's flight, and what
-   the scenes' scripts call (TODO.md, "What the vehicles and the screen's
-   objects left"); then the menus' and the overworld's own still-called
-   routines by size (`$C2:8002`, the overworld's setup below).
+1. **The menus and the overworld** (84%): the scrolling lists' cursor and
+   frame (`$C2:EA53`, `$C2:EA81`) that four screens call out to, the
+   equipment screen's preview, and the endings' scenes' line effects behind
+   `$C3:000E` (TODO.md, "What the world map's set up left", "What the
+   vehicles and the screen's objects left"); then what the menus' tasks run
+   after a yield (`C2:----`, 5.0 KiB), which wants the measure to follow a
+   task back to its port first; and the dactyl's flight, once a route rides
+   it.
 2. **The scene program**, its unported modes after movies reach them, and
    the attract program's own frame tasks, which the attract demo runs as the
    original's (`$7E:6A23`, `$7E:5D71`, `$7E:69AF` and their neighbours, the
@@ -219,7 +223,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/recomp-phase3a.md has each subsystem's account).
-**1 of 278 files, 117 of 83,805 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 279 files, 117 of 84,656 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -461,24 +465,16 @@ name entry and the battle mode's screen, the shop's steps on the party
 (a member's slots and the list of what fits), and the party's exchange
 (screens 5 and 7, the main menu's panel for it and the gate's song), the
 objects that change the screen (the fades, the mosaic, the palette's loads
-and fades, the tile streamer), the equipment screen's list of what fits, and
-what the scenes' scripts call most. The
+and fades, the tile streamer), the equipment screen's list of what fits,
+what the scenes' scripts call, the sprite-object mode's start and the frame's
+input from the other banks. The
 world map walked on foot is its own subsystem, `game/overworld/` (the
 leader, the followers, the ground and its places, the regions' music, the
 place's sign and the main loop with its round trips to the menus and the
 Epoch's screens), with the vehicles' controller and the Epoch flown over the
-map and through time. What is left, in the order to take it (`python3
-tools/burndown.py --uncovered C2`):
-
-1. **The dactyl's flight** (`$C2:4CDA`-`$C2:5627`, about 2.4K), which no
-   movie reaches yet.
-2. **The overworld's setup** (about 2.5K, last): the scene stream loaders
-   (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
-   `menu/display.c`'s loader half, and only once the streams it decompresses
-   are typed: it is the object mode's screen setup, about fifteen routines
-   that each load one stream named by a byte of the scene record at
-   `$C6:FD00`, and without knowing what each stream holds their ports would
-   be named after their destination addresses.
+map and through time, and the world map's set up from its record's streams.
+What is left (`python3 tools/burndown.py --uncovered C2`) is the dactyl's
+flight (`$C2:4CDA`-`$C2:5627`, about 2.4K), which no movie reaches yet.
 
 The equipment screen's preview of an item's figures (`$C2:A5C3`,
 `$C2:A5E7`, 138 bytes) is still the original's: the flags it saves come

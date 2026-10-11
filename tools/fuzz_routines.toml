@@ -6272,14 +6272,6 @@ args = ["--d", "0000", "--db", "00"]
 iterations = 2000
 why = "the menus' page with the data bank on the I/O registers, as the loaders run"
 
-[[routine]]
-name = "menu_upload_loaded_palette"
-at = "C2:2D47"
-subsystem = "menu"
-state = "menus"
-args = ["--d", "0000", "--db", "00"]
-iterations = 2000
-why = "the menus' page with the data bank on the I/O registers, as the loaders run"
 
 [[routine]]
 name = "menu_init_video"
@@ -8200,10 +8192,10 @@ why = "the object mode's page and data bank"
 name = "menu_epoch_build_map"
 at = "C2:63DF"
 subsystem = "menu"
-state = "objects"
-args = ["--d", "0000", "--db", "00"]
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7E0100-7E0103", "--keep", "7E00ED-7E00EF"]
 iterations = 2000
-why = "the object mode's page and data bank"
+why = "the object mode's page and data bank, on the world map with its record noted as the state has them (the guard: the map's tiles are loaded from the record)"
 
 [[routine]]
 name = "menu_epoch_map_cursor"
@@ -18184,3 +18176,177 @@ subsystem = "attract"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E3024-7E3025=51D1"]
 why = "the main loop's pass with the attract demo's frame routine, the race's scaling of its pictures, named in the call"
+
+# ---- the menus and the overworld: the world map's setup, its scenes' calls, the frame's input ----------------
+
+[[routine]]
+name = "menu_take_the_frames_input"
+at = "C2:8002"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00"]
+why = "called by JSL from the vblank handlers, on the object mode's page: any controller, buttons and play time"
+
+[[routine]]
+name = "menu_object_reset_the_mode"
+at = "C2:012F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard), as its start runs it"
+
+[[routine]]
+name = "menu_object_take_the_interrupts"
+at = "C2:0110"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "a data bank on low RAM (the guard)"
+
+[[routine]]
+name = "menu_object_reset_the_upload_queue"
+at = "C2:03EF"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard)"
+
+[[routine]]
+name = "menu_free_every_object"
+at = "C2:0471"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page and a data bank on low RAM, either accumulator width"
+
+[[routine]]
+name = "menu_lay_out_the_sprite_nodes"
+at = "C2:0BF6"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard)"
+
+[[routine]]
+name = "menu_object_step_right_at_random"
+at = "C2:79E0"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+why = "a scene's script's call on the object mode's page, the running object a slot (the guard)"
+
+[[routine]]
+name = "menu_object_place_in_the_east_stretch"
+at = "C2:7A0C"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+why = "as menu_object_step_right_at_random"
+
+[[routine]]
+name = "menu_object_place_in_the_west_stretch"
+at = "C2:7A31"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+why = "as menu_object_step_right_at_random"
+
+[[routine]]
+name = "menu_object_hide_the_party"
+at = "C2:7860"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "a scene's script's call: it reaches the party by long address, whatever the page and bank"
+
+[[routine]]
+name = "menu_object_keep_the_party"
+at = "C2:786F"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "as menu_object_hide_the_party"
+
+[[routine]]
+name = "menu_object_bring_the_party_back"
+at = "C2:7888"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "as menu_object_hide_the_party"
+
+[[routine]]
+name = "menu_object_mark_the_scene_played"
+at = "C2:7B44"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "as menu_object_hide_the_party"
+
+[[routine]]
+name = "menu_object_ask_the_story"
+at = "C2:7BC4"
+subsystem = "menu"
+state = "objects"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard), any story"
+
+[[routine]]
+name = "overworld_set_up"
+at = "C2:23A8"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0100-7E0100=F0-F7", "--fill", "7E0101-7E0101=01-01", "--fill", "7E0102-7E0102=00-CF", "--fill", "7E0103-7E0103=00-8D", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F0000-7F0000=00-FF"]
+iterations = 200
+why = "one of the eight world maps, the party anywhere its camera centres on the map (the guard), any party (or an empty place) and any point of the story; few states, each unpacking the map's every stream"
+
+[[routine]]
+name = "overworld_load_the_map_again"
+at = "C2:2C93"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7E0100-7E0103", "--keep", "7E00E0-7E00EF", "--fill", "7E2980-7E2982=00,01,02,03,04,05,06,80", "--fill", "7F0000-7F0000=00-FF"]
+iterations = 200
+why = "the world map, its record and the camera as the state has them (the guard), any party and point of the story"
+
+[[routine]]
+name = "overworld_load_the_map_tiles"
+at = "C2:27DE"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--keep", "7E0100-7E0103", "--keep", "7E00ED-7E00EF"]
+iterations = 500
+why = "the world map and its record as the state has them (the guard)"
+
+[[routine]]
+name = "overworld_finish_the_graphics"
+at = "C2:2D47"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0100-7E0100=F0-F7", "--fill", "7E0101-7E0101=01-01", "--fill", "7F0000-7F0000=C0-FF"]
+iterations = 500
+why = "entered 16 bits wide on the object mode's page with the data bank on the registers, on a world map at a point of the story either side of the Black Omen's rising"
+
+[[routine]]
+name = "overworld_pass_on_sound"
+at = "C2:2ED9"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E1BEC-7E1BEC=00,01,FF"]
+why = "the sound mailbox empty, waiting or being sent, the ages random"
+
+[[routine]]
+name = "overworld_clear_the_sign_label"
+at = "C2:5798"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00"]
+why = "the object mode's page (the guard)"
+
+[[routine]]
+name = "overworld_start_the_location_song"
+at = "C2:2F0F"
+subsystem = "overworld"
+state = "overworld"
+args = ["--d", "0000", "--db", "00", "--fill", "7E0103-7E0103=00-7F", "--fill", "7F01ED-7F01ED=00,00,00,01"]
+why = "a scene's script's call on the object mode's page, the party anywhere on the region map (the guard), a screen keeping the song a quarter of the time"

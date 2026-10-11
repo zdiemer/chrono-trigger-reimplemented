@@ -87,6 +87,10 @@ bool menu_start_object(GameState *g, uint16_t handler, MenuSlotKind kind, MenuOb
  * running; so does this. */
 MenuObject menu_start_script(GameState *g, uint32_t script, MenuSlotKind kind);
 
+/* Free every slot, as the mode and the Epoch's screens start: no object
+ * runs, and the first slot is the running one. */
+void menu_free_every_object(GameState *g);
+
 /* The slot an object would start in: the first free one of the kind, or
  * MENU_OBJECTS where there is none. */
 unsigned menu_first_free_object(const GameState *g, MenuSlotKind kind);

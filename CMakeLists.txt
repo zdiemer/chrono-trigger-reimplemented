@@ -216,6 +216,7 @@ add_library(ct_game STATIC
   game/overworld/music.c
   game/overworld/party.c
   game/overworld/places.c
+  game/overworld/setup.c
   game/overworld/sign.c
   game/overworld/terrain.c
   game/overworld/vehicles.c

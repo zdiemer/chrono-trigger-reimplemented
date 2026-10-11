@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "overworld/overworld.h"
+#include "platform/audio.h"
 
 /* The request a script or the music leaves (menu_sound_request) is passed on
  * to the driver's command cells when the mailbox lets it; the main loop sends
@@ -20,6 +21,19 @@ void overworld_mark_sound_sending(GameState *g, bool sending);
 void overworld_play_song(GameState *g, uint8_t song);
 void overworld_play_the_song_in_view(GameState *g);
 bool overworld_restore_the_tempo(GameState *g);
+
+/* The song of where the party is on the world map, as a scene's script
+ * starts it (straight to the driver, not through the request): the song a
+ * screen keeps, or the song of the region the location's place is in, which
+ * comes back too; it is noted as the song playing. And the command that
+ * starts a song as the map's music does. */
+typedef struct {
+    uint8_t song;
+    bool of_a_region;
+    uint8_t region;
+} LocationSong;
+LocationSong overworld_location_song(GameState *g);
+AudioCommand overworld_song_command(uint8_t song);
 
 /* The guard's: whether the music's object is on one of its steps, and where
  * it looks up the party's region, the party is on the region map. */

@@ -13,6 +13,7 @@ void menu_object_spawn_high(Snes *s);
 void menu_object_start_script(Snes *s);
 void menu_object_start_script_high(Snes *s);
 void menu_object_step_position(Snes *s);
+void menu_free_every_object_entry(Snes *s);
 bool menu_objects_on_page(Snes *s);
 bool menu_objects_can_start(Snes *s);
 bool menu_object_can_move(Snes *s);

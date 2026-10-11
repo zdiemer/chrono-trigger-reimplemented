@@ -33,6 +33,7 @@
 
 #include "charge.h"
 #include "cpu_io.h"
+#include "menu/display.h"
 #include "menu/line_effects.h"
 #include "menu/menu_data.h"
 #include "menu/typeset.h"
@@ -40,6 +41,7 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "overworld/setup.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -1355,7 +1357,7 @@ enum {
 static void load_map_view_graphics(Snes *s)
 {
     GameState *g = state_of(s);
-    m_jsr_dc(s, 0xC26965, 0xC25798, READS_NOTHING | DC_DB);   /* clear the loader's buffer */
+    NATIVE_TIME_AS(s, 0xC25798, overworld_clear_the_sign_label(g));   /* clear the loader's buffer */
     request_map_view_graphics(g);
     m_jsl_dc(s, 0xC269BB, 0xC257DF, READS_NOTHING | DC_DB | DC_D);
     set_menu_text_budget(g, MAP_VIEW_GLYPHS);
@@ -1364,21 +1366,29 @@ static void load_map_view_graphics(Snes *s)
 }
 
 // $C2:63DF
-/* Load the world map ($C2:27DE), then build the view's plane from it. */
-static void build_map_view_on_the_machine(Snes *s)
+/* Load the world map's tiles (overworld/setup.c), then build the view's
+ * plane from them. False where the unpacker stopped. */
+static bool build_map_view_on_the_machine(Snes *s)
 {
-    m_jsr_dc(s, 0xC263DF, 0xC227DE, READS_NOTHING);
+    Unpacker u = overworld_unpacker_on_the_machine(s);
+    bool loaded;
+    NATIVE_TIME_AS(s, 0xC227DE, loaded = overworld_load_the_map_tiles(state_of(s), &u));
+    if (!loaded)
+        return false;
     build_map_view(state_of(s), m_platform(s));
+    return true;
 }
 
 /* The routines both screens call: the menus' VRAM cleared (menu/display.c's
  * entry), the mode reset, every object slot freed, a frame waited, a number
  * of frames waited while the sound's requests go on. */
-static void clear_the_screen(Snes *s, uint32_t clear_vram, uint32_t reset_the_mode, uint32_t free_the_slots)
+static void clear_the_screen(Snes *s, uint32_t clear_vram)
 {
     m_jsr_dc(s, clear_vram, 0xC226A8, READS_NOTHING);
-    m_jsr_dc(s, reset_the_mode, 0xC203EF, READS_NOTHING | DC_DB);
-    m_jsr_dc(s, free_the_slots, 0xC20471, READS_NOTHING);
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, 0xC203EF, menu_object_reset_the_upload_queue(g));
+    NATIVE_TIME_AS(s, 0xC20471, menu_free_every_object(g));
+    m_sep(s, CPU_FLAG_M);
 }
 
 static void wait_frames(Snes *s, uint32_t site, uint16_t frames)
@@ -1443,7 +1453,7 @@ void menu_epoch_map_screen(Snes *s)
     vid_set_obj_config(pf, PF_AT(0xC26325), &sprites);
     set_menu_object_shadows_math_control(g, 0);
     set_menu_object_shadows_math_layers(g, BACKDROP);
-    clear_the_screen(s, 0xC2632E, 0xC26331, 0xC26334);
+    clear_the_screen(s, 0xC2632E);
     m_jsr_dc(s, 0xC26337, 0xC26965, READS_NOTHING);
     NATIVE_TIME_AS(s, 0xC268F4, map_view_gradient(g, pf));
     m_jsr_dc(s, 0xC2633D, 0xC263DF, READS_NOTHING);
@@ -1532,7 +1542,7 @@ void menu_epoch_time_dial_screen(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
-    clear_the_screen(s, 0xC26A34, 0xC26A37, 0xC26A3A);
+    clear_the_screen(s, 0xC26A34);
     set_menu_object_shadows_bg_mode(g, MODE_7);
     const VidObjConfig sprites = { .size_select = 0, .base = 0x6000, .name_select = 0 };
     vid_set_obj_config(pf, PF_AT(0xC26A43), &sprites);
@@ -1720,7 +1730,8 @@ static void handler_returns(Snes *s, bool done, bool wide)
 /* It comes back with an 8-bit accumulator. */
 void menu_epoch_build_map(Snes *s)
 {
-    build_map_view_on_the_machine(s);
+    if (!build_map_view_on_the_machine(s))
+        return;
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }

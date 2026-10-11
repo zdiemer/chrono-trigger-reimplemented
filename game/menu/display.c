@@ -18,11 +18,15 @@
 #include "menu/display.h"
 
 #include "charge.h"
+#include "core/console.h"
 #include "cpu_io.h"
+#include "menu/bridge.h"
+#include "menu/menu.h"
 #include "menu/menu_data.h"
 #include "menu/screen_objects.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "platform/input.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -490,9 +494,14 @@ void menu_build_math_line_table(Snes *s)
 // $C2:000F
 /* Entering the sprite-object mode: interrupts, uploads and per-line effects
  * off, then forced blank at full brightness, which is the brightness the
- * mode's vblank handler goes on using. Stops at $C2:0024, where the routine
- * moves on to the CPU's memory speed, which has no service, and its own
- * state. */
+ * mode's vblank handler goes on using; the cartridge read at its fast speed;
+ * the mode's screen, its own state, its vblank handler and its upload queue
+ * set up and its palette cleared. The world map it shows is set up next
+ * (overworld/setup.c), where the original jumps ($C2:23A8). */
+enum { WORLD_MAP_SET_UP = 0xC223A8, MENU_OBJECT_PAGE = 0x0000 };
+
+static void set_up_the_mode(GameState *g, Platform *pf);
+
 void menu_object_mode_start(Snes *s)
 {
     Platform *pf = m_platform(s);
@@ -503,7 +512,11 @@ void menu_object_mode_start(Snes *s)
     vid_stop_uploads(pf, PF_AT(0xC20019));
     vid_enable_line_effects(pf, PF_AT(0xC2001C), 0);
     vid_set_display(pf, PF_AT(0xC20021), &(VidDisplay){ .blank = true, .brightness = 0x0F });
-    m_stop_at(s, 0xC20024, 0);
+    tm_fast_rom(pf, PF_AT(0xC20026), true);
+    s->cpu.db = 0x00;
+    s->cpu.d = MENU_OBJECT_PAGE;
+    set_up_the_mode(state_of(s), pf);
+    m_stop_at_own(s, WORLD_MAP_SET_UP, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
 }
 
 /* The mode's screen: the sprites' smaller size 16x16, their tiles at VRAM 0;
@@ -528,14 +541,117 @@ static const VidScreen object_mode_screen = {
     .vram_port = { .step = 1, .after_high = true },
 };
 
+/* The controller port's programmable lines, all high: nothing latched. */
+enum { IO_LINES_RELEASED = 0xFF };
+
+/* The multiplier and the divider start from nothing, which only the
+ * comparison with the original sees: nothing reads them before setting them. */
+static void clear_arithmetic(GameState *g)
+{
+    hw_set_multiplicand(g, 0);
+    (void)hw_multiply_by(g, 0);
+    hw_set_dividend(g, 0);
+    hw_divide_by(g, 0);
+}
+
 // $C2:0043
-/* Set the mode's screen up. Stops at $C2:00F2, where the routine moves on to
- * the CPU registers; the caller's direct page is kept on the stack. */
+/* Set the mode's screen up, and the console's own registers as the mode
+ * starts them: the controller port's lines released, the arithmetic unit
+ * cleared, the timers back at the frame's start. */
+static void set_up_the_screen(GameState *g, Platform *pf)
+{
+    vid_apply_screen(pf, PF_AT(0xC20043), &object_mode_screen);
+    in_set_io_lines(pf, PF_AT(0xC200F8), IO_LINES_RELEASED);
+    ORIGINAL_EFFECT(clear_arithmetic(g));
+    tm_reset_timers(pf, PF_AT(0xC2010C));
+}
+
 void menu_object_init_video(Snes *s)
 {
-    m_push16(s, s->cpu.d);
-    vid_apply_screen(m_platform(s), PF_AT(0xC20043), &object_mode_screen);
-    m_stop_at(s, 0xC200F2, 0);
+    set_up_the_screen(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+// $C2:012F
+/* The mode's own state starts from nothing: its direct page cleared, the
+ * screen off, and the display it sends each frame as the screen starts --
+ * mode 1 with BG3 in front, the Mode 7 plane at its identity, both windows
+ * shut (each opening a pixel past where it closes), BG1-BG3 and the sprites
+ * on the main screen, BG1, BG2 and the sprites on the sub screen. */
+enum { MODE_PAGE_BYTES = 0xF0, SCREEN_OFF = 0x80, MODE_1_BG3_IN_FRONT = 0x09 };
+enum { MATRIX_A_HIGH = 1, MATRIX_D_HIGH = 7, IDENTITY_HIGH = 0x01 };
+enum { WINDOW_1_OPENS = 3, WINDOW_2_OPENS = 5, A_PIXEL_PAST_SHUT = 0x01 };
+enum { MAIN_LAYERS = 0x17, SUB_LAYERS = 0x13 };
+
+void menu_object_reset_the_mode(GameState *g)
+{
+    wram_fill8(g, RAM_MENU_OBJECT_SCRATCH, MODE_PAGE_BYTES, 0);
+    ORIGINAL_EFFECT(charge_block_move(g, MODE_PAGE_BYTES - 1));
+    set_menu_object_display_blank(g, SCREEN_OFF);
+    set_menu_object_shadows_bg_mode(g, MODE_1_BG3_IN_FRONT);
+    set_menu_object_shadows_mode7_matrix_byte(g, MATRIX_A_HIGH, IDENTITY_HIGH);
+    set_menu_object_shadows_mode7_matrix_byte(g, MATRIX_D_HIGH, IDENTITY_HIGH);
+    set_menu_object_shadows_windows_byte(g, WINDOW_1_OPENS, A_PIXEL_PAST_SHUT);
+    set_menu_object_shadows_windows_byte(g, WINDOW_2_OPENS, A_PIXEL_PAST_SHUT);
+    set_menu_object_shadows_main_screen(g, MAIN_LAYERS);
+    set_menu_object_shadows_sub_screen(g, SUB_LAYERS);
+}
+
+// $C2:0110
+/* The mode's frame is its own vblank handler's; it has no line handler, so
+ * the line interrupt (which it never enables) only returns. */
+enum { MENU_OBJECT_VBLANK_HANDLER = 0xC2015E, NO_LINE_HANDLER = 0xC20345 };
+
+void menu_object_take_the_interrupts(GameState *g)
+{
+    console_install_vblank_handler(g, MENU_OBJECT_VBLANK_HANDLER);
+    console_install_line_handler(g, NO_LINE_HANDLER);
+}
+
+/* Where the uploads the mode builds are put together, in work RAM. */
+enum { UPLOAD_BUFFER = 0x7EF000 };
+
+// $C2:03EF
+/* Empty the mode's upload queue, every record cleared, and start its
+ * buffer over. */
+void menu_object_reset_the_upload_queue(GameState *g)
+{
+    set_menu_object_vram_queue_busy(g, 0);
+    set_menu_object_vram_queue_end(g, 0);
+    set_menu_object_upload_buffer(g, UPLOAD_BUFFER);
+    wram_fill8(g, RAM_MENU_OBJECT_VRAM_QUEUE, MENU_OBJECT_VRAM_QUEUE_COUNT * MENU_OBJECT_UPLOAD_BYTES, 0);
+}
+
+static void set_up_the_mode(GameState *g, Platform *pf)
+{
+    TIMED_AS(g, 0xC20043, set_up_the_screen(g, pf));
+    TIMED_AS(g, 0xC2012F, menu_object_reset_the_mode(g));
+    TIMED_AS(g, 0xC20110, menu_object_take_the_interrupts(g));
+    TIMED_AS(g, 0xC203EF, menu_object_reset_the_upload_queue(g));
+    TIMED_AS(g, 0xC21DB5, menu_clear_the_palette(g));
+}
+
+// $C2:012F
+void menu_object_reset_the_mode_entry(Snes *s)
+{
+    menu_object_reset_the_mode(state_of(s));
+    m_rts(s);
+}
+
+// $C2:0110
+void menu_object_take_the_interrupts_entry(Snes *s)
+{
+    menu_object_take_the_interrupts(state_of(s));
+    m_rts(s);
+}
+
+// $C2:03EF
+/* It leaves the buffer's bank in A, which a caller may read. */
+void menu_object_reset_the_upload_queue_entry(Snes *s)
+{
+    menu_object_reset_the_upload_queue(state_of(s));
+    m_set_a8(s, (uint8_t)(UPLOAD_BUFFER >> 16));
+    m_rts(s);
 }
 
 /* The mode's shadows, as its vblank handler sends them: the BG mode and
@@ -631,8 +747,7 @@ static bool run_frame_work(Snes *s)
     m_jsr_dc(s, 0xC20318, 0xC20405, NOTHING_READ);
     if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
         return false;
-    m_jsl_dc(s, 0xC2031B, 0xC28002, DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C);
-    if (!back_as_the_menus_run(s, OBJECT_MODE_PAGE))
+    if (!menu_run_long(s, 0xC2031B, 0xC28002, menu_take_the_frames_input))
         return false;
     VidDisplay display = vid_display_decode(menu_screen_display(g));
     vid_set_display(pf, PF_AT(0xC20323), &display);
@@ -703,7 +818,6 @@ void menu_object_nmi(Snes *s)
  * upload buffer starts over. */
 static void send_object_queue(GameState *g, Platform *pf)
 {
-    enum { UPLOAD_BUFFER = 0x7EF000 };
     uint8_t end = menu_object_vram_queue_end(g);
     if (menu_object_vram_queue_busy(g) != 0 || end == 0)
         return;
@@ -751,37 +865,44 @@ bool menu_object_queue_is_sendable(Snes *s)
 /* ---- Loading a screen's graphics ------------------------------------------------------------------ */
 
 // $C2:26A8
-/* Clear all of VRAM with the word at $C2:26D4, a whole 64 KiB from word 0.
- * It leaves X at 0. */
+/* Clear all of VRAM with the word at $C2:26D4, a whole 64 KiB from word 0. */
+void menu_clear_all_of_vram(Platform *pf)
+{
+    vid_send_vram_fill(pf, PF_AT(0xC226AB), 0x0000, PF_GAME(0xC226D4), 0x10000, &word_port);
+}
+
+/* It leaves X at 0. */
 void menu_clear_vram(Snes *s)
 {
-    vid_send_vram_fill(m_platform(s), PF_AT(0xC226AB), 0x0000, PF_GAME(0xC226D4), 0x10000, &word_port);
+    menu_clear_all_of_vram(m_platform(s));
     s->cpu.x = 0x0000;
     m_rts(s);
 }
 
 // $C2:2D70
-/* The graphics loader's transfer: A bytes from $7F:X to VRAM word Y, a word at
- * a time. A size of 0 is a whole 64 KiB, as the registers read it. */
+/* The graphics loader's transfer: `bytes` from bank $7F at `from` to VRAM
+ * word `vram`, a word at a time. A size of 0 is a whole 64 KiB, as the
+ * registers read it. */
+void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint16_t bytes)
+{
+    vid_send_vram(pf, PF_AT(0xC22D70), vram, PF_GAME(0x7F0000 | from), bytes ? bytes : 0x10000, &word_port);
+}
+
 void menu_upload_vram(Snes *s)
 {
-    uint32_t size = s->cpu.a;
-    vid_send_vram(m_platform(s), PF_AT(0xC22D70), s->cpu.y, PF_GAME(0x7F0000 | s->cpu.x), size ? size : 0x10000,
-                  &word_port);
+    menu_send_loaded_graphics(m_platform(s), s->cpu.y, s->cpu.x, s->cpu.a);
     m_sep(s, CPU_FLAG_M);
     m_rts(s);
 }
 
 // $C2:2D47
-/* The palette the graphics loader decompressed to $7F:8C00, sent to CGRAM.
- * Reached by falling out of the loader's last block move; stops at the call to
- * $C2:2D91, which the original carries on with. */
-void menu_upload_loaded_palette(Snes *s)
+/* The palette the graphics loader decompressed (menu_loaded_palette), sent
+ * to CGRAM. */
+void menu_send_the_loaded_palette(Platform *pf)
 {
-    vid_send_palette(m_platform(s), PF_AT(0xC22D4B), 0, PF_GAME(0x7F8C00), 256);
-    m_sep(s, CPU_FLAG_M);
-    m_stop_at(s, 0xC22D6A, 0);
+    vid_send_palette(pf, PF_AT(0xC22D4B), 0, PF_GAME(RAM_MENU_LOADED_PALETTE), 256);
 }
+
 
 /* The screen the graphics loader's screens are built on: forced blank; the
  * sprites 8x8 and 16x16 with their tiles at VRAM $4000; mode 1 with BG3 in

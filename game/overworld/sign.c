@@ -48,7 +48,7 @@ enum { SIGN_LOOK = MENU_LOOK_ON_THE_MAP | MENU_LOOK_PRIORITY };
 enum { BELOW_THE_EPOCH = 0x40 };
 
 // $C2:5775
-static void build_the_sprite_script(GameState *g)
+void overworld_build_the_sign_script(GameState *g)
 {
     for (unsigned at = 0; at < OVERWORLD_SIGN_SPRITES_BYTES; at++)
         set_overworld_sign_sprites(g, at, overworld_sign_sprites_byte(g, at));
@@ -57,7 +57,7 @@ static void build_the_sprite_script(GameState *g)
 // $C2:5798
 /* The original clears the label's first word and moves the zero on through
  * the rest of it, a block move of all but its first byte. */
-static void clear_the_label(GameState *g)
+void overworld_clear_the_sign_label(GameState *g)
 {
     wram_fill8(g, RAM_OVERWORLD_SIGN_LABEL, LABEL_BYTES, 0);
     ORIGINAL_EFFECT(charge_block_move(g, LABEL_BYTES - 1));
@@ -69,7 +69,7 @@ static void set_up(GameState *g, MenuObject self)
     overworld_set_step(g, self, WAITS_FOR_A_NAME);
     set_menu_object_slots_look(g, self, SIGN_LOOK);
     set_menu_object_slots_tiles(g, self, 0);
-    build_the_sprite_script(g);
+    overworld_build_the_sign_script(g);
     set_menu_object_slots_sprite_script(g, self, RAM_OVERWORLD_SIGN_SPRITES);
 }
 
@@ -124,11 +124,11 @@ static void show(GameState *g, MenuObject self)
 {
     if (overworld_sign(g) == 0) {
         overworld_set_step(g, self, WAITS_FOR_A_NAME);
-        clear_the_label(g);
+        overworld_clear_the_sign_label(g);
     } else if (overworld_sign_again(g)) {
         overworld_set_step(g, self, WAITS_FOR_A_NAME);
         set_overworld_sign_again(g, 0);
-        clear_the_label(g);
+        overworld_clear_the_sign_label(g);
         return;
     }
     if (overworld_epoch_state(g) & EPOCH_LEAVING_THROUGH_TIME)

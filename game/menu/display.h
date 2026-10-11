@@ -36,16 +36,29 @@ void menu_upload_vram_queue(Snes *s);
 void menu_upload_palette(Snes *s);
 void menu_build_math_line_table(Snes *s);
 
-/* The mode at $C2:0000 (sprite objects) */
+/* The mode at $C2:0000 (sprite objects): its own state started over (its
+ * direct page cleared and the shadows of its display set as the screen
+ * starts), its vblank handler taken, and its upload queue emptied. */
+void menu_object_reset_the_mode(GameState *g);
+void menu_object_take_the_interrupts(GameState *g);
+void menu_object_reset_the_upload_queue(GameState *g);
+
 void menu_object_mode_start(Snes *s);
+void menu_object_reset_the_mode_entry(Snes *s);
+void menu_object_take_the_interrupts_entry(Snes *s);
+void menu_object_reset_the_upload_queue_entry(Snes *s);
 void menu_object_init_video(Snes *s);
 void menu_object_nmi(Snes *s);
 void menu_object_upload_vram_queue(Snes *s);
 
-/* Loading a screen's graphics */
+/* Loading a screen's graphics: all of VRAM cleared; graphics sent from the
+ * loader's buffer in bank $7F; the loaded palette sent to CGRAM. */
+void menu_clear_all_of_vram(Platform *pf);
+void menu_send_loaded_graphics(Platform *pf, uint16_t vram, uint16_t from, uint16_t bytes);
+void menu_send_the_loaded_palette(Platform *pf);
+
 void menu_clear_vram(Snes *s);
 void menu_upload_vram(Snes *s);
-void menu_upload_loaded_palette(Snes *s);
 void menu_init_video(Snes *s);
 void menu_init_video_memory(Snes *s);
 void menu_fill_memory(Snes *s);

@@ -188,6 +188,41 @@ static void set_group_of(GameState *g, NodeLink l, NodeGroup v)
     wram_write8(g, stray(l, AT_LOOK), v.look);
 }
 
+/* For the original's code and shadow mode: the laying out works its links
+ * out in the mode's ninth and tenth bytes, and leaves the one past the last
+ * node there. */
+static void leave_last_link_worked(GameState *g)
+{
+    enum { LINK_CELL = 0x08 };
+    uint16_t past = FIRST_NODE + NODES * NODE_BYTES;
+    set_menu_object_scratch_bytes_byte(g, LINK_CELL, (uint8_t)past);
+    set_menu_object_scratch_bytes_byte(g, LINK_CELL + 1, (uint8_t)(past >> 8));
+}
+
+static NodeLink node_link(unsigned n) { return (NodeLink)(FIRST_NODE + n * NODE_BYTES); }
+
+// $C2:0BF6
+/* Lay out the links the free list starts every frame from (empty_the_list):
+ * the nodes in order, each linked to its neighbours, the first and the last
+ * to the free list's head. */
+void menu_lay_out_the_sprite_nodes(GameState *g)
+{
+    for (unsigned n = 0; n < NODES; n++) {
+        set_menu_sprite_node_links_prev(g, n, n == 0 ? (NodeLink)FREE_LIST : node_link(n - 1));
+        set_menu_sprite_node_links_next(g, n, n == NODES - 1 ? (NodeLink)FREE_LIST : node_link(n + 1));
+    }
+    ORIGINAL_EFFECT(leave_last_link_worked(g));
+}
+
+// $C2:0BF6
+/* It comes back with a 16-bit accumulator. */
+void menu_lay_out_the_sprite_nodes_entry(Snes *s)
+{
+    menu_lay_out_the_sprite_nodes(state_of(s));
+    m_rep(s, CPU_FLAG_M);
+    m_rts(s);
+}
+
 // $C2:0C4D
 /* Empty the list for a new frame: every node back on the free list, in order,
  * from the links the mode's start laid out for them. */

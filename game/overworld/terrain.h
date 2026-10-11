@@ -67,6 +67,15 @@ bool overworld_spot_has_a_region(WorldSpot at);
  * below the middle. */
 uint8_t overworld_region_in_view(GameState *g, MenuViewCentre centre);
 
+/* The region the party's place in the location record is in (music.c's
+ * location song), and whether the place is on the region map. */
+uint8_t overworld_region_of_the_location(GameState *g);
+bool overworld_location_has_a_region(const GameState *g);
+
+/* For the original's code and shadow mode: the carry the region lookup of
+ * the location's place leaves (terrain.c says which bit). */
+bool overworld_region_lookup_carry_at_the_location(const GameState *g);
+
 /* The registered entries (game/registry.c) and their guards: a lookup of the
  * ground with the map and the kinds where the overworld keeps them, and one
  * of the regions on the region map. */
