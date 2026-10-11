@@ -2588,7 +2588,7 @@ const NativeEntry game_natives[] = {
     { .addr = 0xC2821E, .name = "menu_task_waits_a_frame", .fn = menu_task_waits_a_frame, .p_mask = CPU_FLAG_D,
       .p_value = 0, .cost_milli = 4614, .guard = menu_task_can_wait },
     { .addr = 0xC2822B, .name = "menu_task_waits_frames", .fn = menu_task_waits_frames, .p_mask = CPU_FLAG_D,
-      .p_value = 0, .cost_milli = 4213, .guard = menu_task_can_wait },
+      .p_value = 0, .cost_milli = 4234, .guard = menu_task_can_wait },
     { .addr = 0xC28216, .name = "menu_task_ends", .fn = menu_task_ends, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 4035, .guard = menu_task_can_end },
     { .addr = 0xC281CF, .name = "menu_run_the_tasks", .fn = menu_run_the_tasks, NEEDS_M8_X8, .cost_milli = 4107,

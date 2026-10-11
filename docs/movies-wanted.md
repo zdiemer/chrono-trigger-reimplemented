@@ -164,31 +164,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Shadow**: found the curtain's call made a frame above the original's, 31
   mismatches (`field_run_table_step`, PORTING.md); every call matches now.
 
-### 2. The 65,000,000 B.C. world map
-- **Save**: ctsave05 slot 1 (on `$1F3`); ctsave07 slot 2 for the Dactyl's Nest.
-- **Do**: walk the map, enter and leave a location; with ctsave07, ride the dactyls.
-- **Reaches**: up to 2.63 KiB (0.38 ported), about 1.3 KiB a minute.
-- **Route**: yes (`ow_bfs`); the dactyl ride needs its own movement.
-- **Route written, not merged**: `tools/movies/routes/field_65m_bc.py` (ctsave05 slot 1), 2921
-  frames, reaches the goal and passes `--native shadow` clean. A world-map exit
-  is only entered by standing on it and pressing the confirm button
-  (`game/overworld/walk.c`), not by walking onto it, so `ow_bfs` needed a
-  `confirm` mode that presses A at every tile it tries (`tools/movies/bfs.py`).
-  Reaches 0 KiB no other movie runs: the exit found is a few tiles from the
-  save point, and the shared overworld-walking and generic location-entry code
-  it exercises is already covered by `field.ctm`, `fair.ctm` and
-  `attract-demo`; this era's own object scripts (the "world-map objects"
-  cluster above) sit elsewhere on the map and a plain walk-and-enter doesn't
-  pass them. The dactyl ride (ctsave07) wasn't attempted. **Not added to
-  `oracle/movies/saves/`**: feeding its `--timing-report` into the library's
-  aggregate (with the other three below) moves `overworld_follow` and
-  `overworld_sign`'s measured drift past the gate's limit, among 16 entries
-  total (docs/TODO.md, "World-map movies and the timing gate"); recalibrating
-  cannot satisfy all of them at once (tried), and clearing the rest needs the
-  vblank evidence `tools/timing_exceptions.txt` requires, which this pass
-  didn't have time for.
-
-### 3. Every tech
+### 2. Every tech
 - **Save**: zophar chrono-5 (all but Magus maxed) and zophar chrono-trigger (all techs).
 - **Do**: in a long fight against something weak, cast every single, double and
   triple tech once, Magus's too.
@@ -224,25 +200,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   the techs between them, and any triple tech (this trio and Crono/Magus/Marle have none) needs a
   different starting point than the save gives.
 
-### 4. The three 12,000 B.C. world maps
-- **Save**: ctsave08 slot 2 (`$1F4`), zophar chrono-5 (`$1F5`), zophar chrono-6 slot 2 (`$1F6`).
-- **Do**: walk each map and into a location.
-- **Reaches**: up to 1.72 KiB (1.61 ported), about 0.4 KiB a minute.
-- **Route**: yes (`ow_bfs`).
-- **Routes written, not merged**: `field_12kbc_1f4.py` (ctsave08 slot 2, 2953 frames),
-  `field_12kbc_1f5.py` (zophar chrono-5 slot 1, 2993 frames) and `field_12kbc_1f6.py`
-  (zophar chrono-6 slot 2, 2873 frames), each a short walk to the nearest exit
-  and back (as target 2's, with `ow_bfs`'s `confirm` mode) and clean under
-  `--native shadow`. Reach 0 KiB no other movie runs each -- far under the KiB
-  predicted, for the same reason as target 2: the nearby exit and the walk to
-  it are already covered ground, and the maps' own object scripts are
-  elsewhere. **Not added to `oracle/movies/saves/`** for the same timing-gate
-  reason as target 2 (docs/TODO.md); `field_12kbc_1f4`'s nearest exit is also
-  far enough that its own search takes about six minutes in the shipping mode,
-  so it would stay a script run by hand rather than one `route_check.py` runs
-  by default even once merged.
-
-### 5. Menu sweep
+### 3. Menu sweep
 - **Save**: ctsave14 slot 1 (seven members).
 - **Do**: tech screen scrolled past three members and eight techs; equipment
   changed member to member from its slide; items: the tabs, the users list, an
@@ -251,14 +209,14 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Reaches**: up to 2.08 KiB (1.82 ported) of the menu clusters, about 0.4 KiB a minute.
 - **Route**: possible (the cursors are in RAM); by hand is quicker.
 
-### 6. The jet bike race won
+### 4. The jet bike race won
 - **Save**: ctsave03 slot 1 (Lab 32), as `events-jetbike-race`.
 - **Do**: win the race (the boosts late, against Johnny's catch-up).
 - **Reaches**: mode 0's finish (0.56 ported) and the race's event commands at
   `$0DF`/`$0E1` (about 0.25): up to 0.81 KiB, about 0.3 KiB a minute.
 - **Route**: yes, with timed input (TODO.md, "The jet bike race won").
 
-### 7. New Game+ and an erased slot
+### 5. New Game+ and an erased slot
 - **Save**: technoplaza ct-state16 (a finished cartridge).
 - **Do**: on the load screen, erase a slot (answer no, then yes), then start a New Game+.
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
@@ -274,7 +232,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   new game doing the same); and the New Game+ question's guard refused the byte-wide call the load
   screen makes.
 
-### 8. Boss fights
+### 6. Boss fights
 - **Saves**: Guardian at Arris Dome, ctsave02 slot 3 (`$0D6`); R Series in the
   factory, ctsave03 slot 2; Nizbel II in Tyrano Lair, ctsave07 slot 3;
   MotherBrain in Geno Dome, ctsave14 slot 2 (slot 3 is after it).
@@ -283,13 +241,13 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   animation commands and effects they use; about 0.1 KiB a minute on the AI alone.
 - **Route**: yes (walking, `talk()`, the battle bot).
 
-### 9. Black Tyrano and Lavos's fall
+### 7. Black Tyrano and Lavos's fall
 - **Save**: ctsave08 slot 1 (`$12F`).
 - **Do**: beat Azala and the Black Tyrano; watch the scene at `$12D`.
 - **Reaches**: mode 4 (0.46 KiB unported) and the Black Tyrano's AI; about 0.08 KiB a minute.
 - **Route**: yes (walking and the battle bot).
 
-### 10. The other endings
+### 8. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
 - **Reaches**: mode 10's unrun paths (0.74 KiB), mode 7 at `$1DC` (0.50); which
