@@ -407,6 +407,9 @@ typedef enum {
     /* One Mode 7 matrix value per line, which the Epoch's screens drive from
      * four tables at once rather than in pairs */
     VID_LINE_MODE7_A, VID_LINE_MODE7_B, VID_LINE_MODE7_C, VID_LINE_MODE7_D,
+    /* BG2's tilemap address and size alone, which a scene of the attract
+     * sequence changes down the screen (its table of effects, $7E:685E) */
+    VID_LINE_BG2_MAP,
     VID_LINE_TARGETS,
 } VidLineTarget;
 
@@ -456,12 +459,12 @@ static inline void vid_line_snes_encoding(VidLineTarget target, uint8_t *mode, u
 {
     static const uint8_t modes[VID_LINE_TARGETS] = {
         4, 1, 1, 3, 3, 3, 0, 0, 4, 4, 4, 1, 1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2,
-        0, 3, 3, 2, 2, 2, 2,
+        0, 3, 3, 2, 2, 2, 2, 0,
     };
     static const uint8_t regs[VID_LINE_TARGETS] = {
         0x26, 0x26, 0x28, 0x0D, 0x0F, 0x11, 0x32, 0x00, 0x07, 0x2C, 0x30, 0x05,
         0x31, 0x28, 0x29, 0x05, 0x2C, 0x31, 0x0D, 0x0E, 0x10, 0x11, 0x12,
-        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E,
+        0x26, 0x1B, 0x1D, 0x1B, 0x1C, 0x1D, 0x1E, 0x08,
     };
     *mode = modes[target];
     *reg = regs[target];

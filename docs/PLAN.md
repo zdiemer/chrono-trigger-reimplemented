@@ -65,7 +65,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 86% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 79%, scene program 56%, battle frame work 75%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 29.1 KiB, 172 M instructions (handback 17.4 KiB, unported 11.1 KiB, refused 0.8 KiB); shipping mode with the routes 27.0 KiB, 391 M (the long routes); 4 entries refuse in real play, all the attract program's own code; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The refusals in real play, retired") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 28.3 KiB, 172 M instructions (handback 17.4 KiB, unported 11.1 KiB); shipping mode with the routes 26.2 KiB, 391 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -157,9 +157,10 @@ isn't ported yet, so retiring it is porting its callee. In order:
    the scenes' scripts call (TODO.md, "What the vehicles and the screen's
    objects left"); then the menus' and the overworld's own still-called
    routines by size (`$C2:8002`, the overworld's setup below).
-2. **The scene program**, its unported modes after movies reach them, the
-   attract program's own routines among them: the last four refusals in real
-   play are their calls (TODO.md, "Refusals in real play").
+2. **The scene program**, its unported modes after movies reach them, and
+   the attract program's own frame tasks, which the attract demo runs as the
+   original's (`$7E:6A23`, `$7E:5D71`, `$7E:69AF` and their neighbours, the
+   largest of its handbacks).
 3. **The battle's frame work** (75%): its loads and fills (`$CD:107D`,
    `$CD:1061`, `$CD:1052`, and the loads behind `$CD:0015`, `$CD:002A`,
    `$CD:0018`), now its largest handbacks; they are work, not waits on the
@@ -506,7 +507,9 @@ shares (RECOMP.md, "Phase 3, the scene program: the staff roll"). **Next**, by
 what the library reaches: the endings that share `$7E:8538` (modes 10, 11, 14
 and 15; both Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its
 helpers from `$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and
-its frame tasks). The stars the endings show (`$7E:5777`, `$7E:579B`,
+its frame tasks, and the scaling the main loop calls each pass, `$7E:8930`,
+which `attract_frame_pass` takes once it is a port: RECOMP.md, "The last
+refusals in real play: the attract demo's states"). The stars the endings show (`$7E:5777`, `$7E:579B`,
 `$7E:9897`) wait for the program's random numbers as game code (TODO.md, "The
 scene program's randomness and parity"). The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that

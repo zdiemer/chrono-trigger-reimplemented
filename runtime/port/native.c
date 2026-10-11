@@ -2220,7 +2220,9 @@ static int32_t intercept(void *ctx, Snes *s)
                 st->skipped++;
                 if (rt->observer.idle)
                     rt->observer.idle(rt->observer.ctx, s, e);
-                continue;
+                /* the original runs the pass: no later entry here applies,
+                 * and none turned it away */
+                return -1;
             }
             running_direct = e;
             e->fn(s);

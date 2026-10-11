@@ -592,6 +592,9 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
         ob->m7_latch = v;
         break;
     }
+    case VID_LINE_BG2_MAP:
+        vid_bg_map_decode(&ob->state.bg[1], v);
+        break;
     case VID_LINE_TARGETS:
         break;
     }

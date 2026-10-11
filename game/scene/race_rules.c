@@ -954,16 +954,19 @@ static bool await_victory_song(GameState *g, Platform *pf)
 
 /* ---- Leaving -------------------------------------------------------------------------------------- */
 
-enum { ENDING_BEGUN = 2, END_WAIT = 0x20 };
+enum { END_WAIT = 0x20 };
 
 /* After the race (the script's last task), any button begins the scene's end:
- * a sound, and the scene ends 32 frames later. The story byte the menus'
- * scenes clear is cleared too. Returns whether the end has begun. */
+ * the curtain starts across the way the scene's setup chose (the program keeps
+ * it in its own code, scene_race_ending_sweep: from the right after the race,
+ * from the left where the attract sequence set its own curtain up), a sound,
+ * and the scene ends 32 frames later. The story byte the menus' scenes clear
+ * is cleared too. Returns whether the end has begun. */
 static bool begin_ending(GameState *g)
 {
     if (scene_joypad(g) == 0 || scene_race_ending(g) != 0)
         return false;
-    set_scene_race_ending(g, ENDING_BEGUN);
+    set_scene_race_ending(g, scene_race_ending_sweep(g));
     return true;
 }
 
@@ -1026,9 +1029,11 @@ bool scene_race_await_victory_song_present(Snes *s)
     return on_scene(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E4755, 0x1D, 0xCC9805F66890E906ull);
 }
 
+/* The hash leaves out the curtain's way, which the scenes' setups write. */
 bool scene_race_wait_to_leave_present(Snes *s)
 {
-    return on_scene(s) && m_code_matches(s, 0x7E424D, 0x36, 0xD8C63B5FA73846EBull);
+    return on_scene(s) && m_code_matches(s, 0x7E424D, 0x0C, 0x7A9A012413CE0841ull) &&
+           m_code_matches(s, 0x7E425A, 0x29, 0x239A23CA2369EDC7ull);
 }
 
 bool scene_race_leave_present(Snes *s) { return on_scene(s) && m_code_matches(s, 0x7E4283, 8, 0x773BF38DAF64A867ull); }

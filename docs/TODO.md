@@ -63,21 +63,14 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The last of `$CF`**: `$CF:FAE2` (259 bytes) and `$CF:FD9E` (231) are the
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
-- **Refusals in real play** (`tools/refusal_allowlist.txt`; RECOMP.md, "The
-  fallback measure", "The refusals in real play, retired"). What is left are
-  four code-presence guards that meet the attract program's own code at the
-  RAM address a port of another program's was written for: the jet bike race
-  program's `scene_race_wait_to_leave` (`$7E:424D`), `scene_race_place_bikes`
-  (`$7E:4D0D`) and `scene_build_perspective` (`$7E:357B`), and the title's
-  `scene_setup_line_effects` (`$7E:36CC`), in the attract demo and the Beyond
-  Time ending's closing scene. What is missing there is a port of the attract
-  program's own routines (PLAN.md, "The scene program"); the refusals go with
-  it. One more is found by the tech sweep's route, not yet in the library:
-  `script_return_from_call` (`$C1:56FB`), whose `command_ready` turns away
-  the sweep's battle script 8 times from frame 11015 on; the movie
-  (`tools/movies/routes/tech_sweep.py`) waits on it. `python3
-  tools/fallbacks.py build/suite/fallbacks --refusals -v` prints each with
-  its first states.
+- **A refusal the tech sweep's route finds** (`tools/refusal_allowlist.txt`;
+  RECOMP.md, "The fallback measure", "The last refusals in real play: the
+  attract demo's states"). The library makes none now; the tech sweep's
+  route, not yet in it, finds `script_return_from_call` (`$C1:56FB`), whose
+  `command_ready` turns away the sweep's battle script 8 times from frame
+  11015 on; the movie (`tools/movies/routes/tech_sweep.py`) waits on it.
+  `python3 tools/fallbacks.py build/suite/fallbacks --refusals -v` prints it
+  with its first states.
 - **The tech sweep's fight never ends in the native shape.** The route
   (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
   Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
@@ -94,12 +87,6 @@ rest waits, is [PLAN.md](PLAN.md).
   has. A build without it needs the script's write as what it means: decode
   the scripts as an asset so a command naming `$2101` becomes a sprite
   setting (`VidObjConfig`) the service takes, and drop the escape.
-- **The attract program's frame routine is still the original's.** The
-  attract demo rewrites the frame wait's call (`$7E:3024`) to its own frame
-  work at `$7E:51D1`, and `attract_wait_loop` now runs that routine as the
-  attract program's code (`game/attract/main_loop.c`). For a native build
-  that is a fallback until `$7E:51D1` is ported, with the rest of the
-  attract program (PLAN.md, "The scene program").
 - **What the original's code reads of scaffolding** (RECOMP.md, "The
   fallback measure"). It broke the native shape's three whole routes until
   the targeting was ported; what it reads now (101 byte and instruction
@@ -2096,10 +2083,7 @@ re-runs the census.
     (`$C0:0B38`, an `[[entry]]` hint so that liveness knows it as a routine);
     the host backend waits a frame and turns them on;
   - the map's own script (`$C0:595C`) and the script's unpacking (`$C0:56D4`)
-    are still call-outs from the objects' setup and both loadings; the
-    confirm button with no leader on the map (the Beyond Time ending, the
-    Zeal palace) and `event_cmd_set_solidity` (the attract demo) still
-    refuse (above, "Refusals in real play");
+    are still call-outs from the objects' setup and both loadings;
   - the dialog window's look (its frame and text area tile maps, the window
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the

@@ -142,10 +142,14 @@ static uint16_t distance_of(const GameState *g, uint16_t down, DistanceUnits u)
     return (uint16_t)(ahead_of_camera(g, down, u) + camera_height(g) + u.farther);
 }
 
+/* A divisor is kept less one as the next search's start. */
+static void keep_divisor(GameState *g, uint8_t divisor) { set_scene_race_divisor_start(g, (uint16_t)(divisor - 1)); }
+
+static uint8_t last_divisor(const GameState *g) { return (uint8_t)(scene_race_divisor_start(g) + 1); }
+
 // $7E:4EEB
 /* The divisor kept for a distance, or the first that brings the camera's height
- * under the distance, from the one found last; it is kept less one as the next
- * search's start. */
+ * under the distance, from the one found last. */
 static uint8_t divisor_for(GameState *g, uint16_t distance)
 {
     uint8_t kept = scene_race_divisors(g, (uint8_t)distance);
@@ -155,34 +159,34 @@ static uint8_t divisor_for(GameState *g, uint16_t distance)
         kept = (uint8_t)(scene_find_divisor_from(g, height, from, distance) + 1);
         set_scene_race_divisors(g, (uint8_t)distance, kept);
     }
-    set_scene_race_divisor_start(g, (uint16_t)(kept - 1));
+    keep_divisor(g, kept);
     return kept;
 }
 
 /* The lines from the horizon down to the plane's top, less one (the guard
- * keeps the horizon above the plane's top, and the gap on the screen). */
-static uint16_t horizon_gap(const GameState *g)
+ * keeps the horizon above the plane's top, and the gap on the screen); for a
+ * bike at the camera whose place down the plane wrapped (DistanceUnits'
+ * farther), not less one. */
+static uint16_t horizon_gap(const GameState *g, bool wrapped_at_the_camera)
 {
-    return (uint16_t)(race_camera(g, CAMERA_PITCH) - race_camera(g, CAMERA_PLANE_TOP) - 1);
+    return (uint16_t)(race_camera(g, CAMERA_PITCH) - race_camera(g, CAMERA_PLANE_TOP) - !wrapped_at_the_camera);
 }
 
-/* The line under the plane's top a distance stands on: the lines below the
- * gap shared out by the distance's divisor. The multiply carries the top bit of
- * the cell after its product into it, and the program keeps the gap there. */
-static uint16_t line_at(GameState *g, uint16_t distance)
+/* The line under the plane's top a divisor stands for: the lines below the
+ * gap shared out by it. The multiply carries the top bit of the cell after its
+ * product into it, and the program keeps the gap there. */
+static uint16_t line_at(GameState *g, uint8_t divisor, uint16_t gap)
 {
-    uint8_t divisor = divisor_for(g, distance);
-    uint16_t gap = horizon_gap(g);
     set_scene_call_divisor_less_one(g, own(), gap);
     return (uint16_t)(scene_multiply16(g, own(), (uint16_t)(divisor << 8), (uint16_t)(SCREEN_LINES - gap)) >> 16);
 }
 
-/* A bike's top on the screen: its line, from the horizon, above it by its
- * last picture's height. */
-static uint16_t top_on_screen(const GameState *g, Racer r, uint16_t line)
+/* A bike's top on the screen: its line, from the horizon (the gap and the
+ * line under it, where the gap is on the screen), above it by its last
+ * picture's height. */
+static uint16_t top_on_screen(const GameState *g, Racer r, uint16_t line, uint16_t gap)
 {
-    return (uint16_t)(line + race_camera(g, CAMERA_PITCH) - race_camera(g, CAMERA_PLANE_TOP) -
-                      scene_race_racers_height(g, r));
+    return (uint16_t)(line + gap + (gap <= SCREEN_LINES) - scene_race_racers_height(g, r));
 }
 
 /* The camera's height over the line, through the CPU's divider as the program
@@ -243,10 +247,10 @@ static ScreenUnits johnny_screen_units(uint16_t size, uint16_t middle, uint16_t 
 // $7E:4E06
 /* Crono in perspective: his top on the screen, his picture's size for the
  * scaler, its height and width, its edges, and where across the screen he is. */
-static void place_crono(GameState *g, OnPlane p, uint16_t line)
+static void place_crono(GameState *g, OnPlane p, uint16_t line, uint16_t gap)
 {
     uint16_t size = size_at(g, line);
-    uint16_t y = top_on_screen(g, RACER_CRONO, line);
+    uint16_t y = top_on_screen(g, RACER_CRONO, line, gap);
     set_race_channel_1(g, RACE_CRONO_SCALE, size);
     uint16_t half = half_of(size);
     uint16_t height = over_half(g, PICTURE_HEIGHT, half);
@@ -262,10 +266,10 @@ static void place_crono(GameState *g, OnPlane p, uint16_t line)
 
 // $7E:4E7D
 /* Johnny the same way: his pictures are square. */
-static void place_johnny(GameState *g, OnPlane p, uint16_t line)
+static void place_johnny(GameState *g, OnPlane p, uint16_t line, uint16_t gap)
 {
     uint16_t size = size_at(g, line);
-    uint16_t y = top_on_screen(g, RACER_JOHNNY, line);
+    uint16_t y = top_on_screen(g, RACER_JOHNNY, line, gap);
     set_race_channel_1(g, RACE_JOHNNY_SCALE, size);
     uint16_t side = over_half(g, PICTURE_HEIGHT, half_of(size)) & 0xFF;
     uint16_t middle = middle_on_screen(g, p.across, size);
@@ -352,15 +356,26 @@ static bool unit_after(const GameState *g, Racer first)
     return (uint32_t)scene_race_racers_screen_y(g, RACER_JOHNNY) + width + johnny_units_as_placed(g).into_bottom > 0xFFFF;
 }
 
-static DistanceUnits distance_units(const GameState *g, Places p, Racer r)
+static DistanceUnits units_with(const GameState *g, uint16_t down, bool into_ahead)
+{
+    uint16_t back = (uint16_t)-down;
+    DistanceUnits u = { into_ahead, false };
+    u.farther = (uint32_t)(uint16_t)(back >> 8 | back << 8) + race_camera(g, CAMERA_DISTANCE) + into_ahead > 0xFFFF;
+    return u;
+}
+
+/* Whether no bike is placed before this one this frame: it is the first, or
+ * the first is Johnny and he is gone. */
+static bool placed_first(const GameState *g, Places p, Racer r)
 {
     Racer first = first_placed(p);
-    bool first_shown = first == RACER_CRONO || johnny_shown(g);
-    DistanceUnits u;
-    u.into_ahead = r == first || !first_shown ? p.crono.down >= p.johnny.down : unit_after(g, first);
-    uint16_t down = place_of(p, r).down, back = (uint16_t)-down;
-    u.farther = (uint32_t)(uint16_t)(back >> 8 | back << 8) + race_camera(g, CAMERA_DISTANCE) + u.into_ahead > 0xFFFF;
-    return u;
+    return r == first || !(first == RACER_CRONO || johnny_shown(g));
+}
+
+static DistanceUnits distance_units(const GameState *g, Places p, Racer r)
+{
+    bool into_ahead = placed_first(g, p, r) ? p.crono.down >= p.johnny.down : unit_after(g, first_placed(p));
+    return units_with(g, place_of(p, r).down, into_ahead);
 }
 
 /* Johnny's picture on the screen: a pixel further right at his nearest (a
@@ -396,13 +411,13 @@ static ScreenUnits johnny_units_as_placed(const GameState *g)
  * edge's half width and middle, Crono's half size and the horizon's gap. The
  * scene's cells share their page with the controller's on the field's side,
  * which takes them over at its first read after the race. */
-static void hand_over_working_cells(GameState *g, Racer last)
+static void hand_over_working_cells(GameState *g, Racer last, uint16_t gap)
 {
     uint16_t width = scene_race_racers_width(g, last);
     set_scene_call_race_edge_half_width(g, own(), width >> 1);
     set_scene_call_race_edge_middle(g, own(), middle_of(scene_race_racers_screen_x(g, last), width));
     set_scene_call_race_half_size(g, own(), half_of(race_channel_1(g, RACE_CRONO_SCALE)));
-    set_scene_call_race_gap(g, own(), horizon_gap(g));
+    set_scene_call_race_gap(g, own(), gap);
 }
 
 /* The distance the last bike placed was looked up at, which the program
@@ -414,17 +429,32 @@ static struct {
 
 static void note_lookup(uint16_t distance) { last_lookup.distance = (uint8_t)distance; }
 
-static void place_one(GameState *g, Places p, Racer r)
+/* A bike right at the camera (nothing of it ahead) has no distance to look a
+ * divisor up for, and stands where the bike placed before it this frame does
+ * (the guard turns away a first bike at the camera). Returns the horizon's gap
+ * the bike was placed over. */
+static uint16_t place_one(GameState *g, Places p, Racer r)
 {
     OnPlane at = place_of(p, r);
-    uint16_t distance = distance_of(g, at.down, distance_units(g, p, r));
-    ORIGINAL_EFFECT(note_lookup(distance));
-    uint16_t line = line_at(g, distance);
+    DistanceUnits u = distance_units(g, p, r);
+    bool at_the_camera = ahead_of_camera(g, at.down, u) == 0;
+    uint8_t divisor;
+    if (at_the_camera) {
+        divisor = last_divisor(g);
+        keep_divisor(g, divisor);
+    } else {
+        uint16_t distance = distance_of(g, at.down, u);
+        ORIGINAL_EFFECT(note_lookup(distance));
+        divisor = divisor_for(g, distance);
+    }
+    uint16_t gap = horizon_gap(g, at_the_camera && u.farther);
+    uint16_t line = line_at(g, divisor, gap);
     ORIGINAL_EFFECT(leave_divider(g, line));
     if (r == RACER_CRONO)
-        place_crono(g, at, line);
+        place_crono(g, at, line, gap);
     else
-        place_johnny(g, at, line);
+        place_johnny(g, at, line, gap);
+    return gap;
 }
 
 // $7E:4D0D
@@ -436,15 +466,16 @@ static void place_bikes(GameState *g)
     Places p = places_of(g);
     set_scene_race_divisor_start(g, race_camera(g, CAMERA_PITCH));
     Racer first = first_placed(p), second = second_placed(p), last = RACER_CRONO;
+    uint16_t gap = 0;
     if (first == RACER_CRONO || johnny_shown(g)) {
-        place_one(g, p, first);
+        gap = place_one(g, p, first);
         last = first;
     }
     if (second == RACER_CRONO || johnny_shown(g)) {
-        place_one(g, p, second);
+        gap = place_one(g, p, second);
         last = second;
     }
-    hand_over_working_cells(g, last);
+    hand_over_working_cells(g, last, gap);
 }
 
 /* ---- Entry ------------------------------------------------------------------------------------- */
@@ -457,14 +488,16 @@ static bool placing_code_present(Snes *s)
            m_code_matches(s, 0x7E32E2, 189, 0xD04B8C1274AF93C8ull);
 }
 
-/* The states the port places the bikes in: the camera below the height whose
- * search for a divisor never ends ($FF); the horizon above the plane's top,
+/* The states the port places the bikes in: the horizon above the plane's top,
  * with the gap between them on the screen (otherwise the original's sums
- * borrow and wrap into the bikes' lines); and each bike placed at a distance
- * ahead of the camera (for none the original keeps the last divisor's place).
- * The data bank reaches the CPU's divider, which the program reaches through
+ * borrow and wrap into the bikes' lines); and each bike either at a distance
+ * whose search for a divisor ends (one the program has kept, or one some
+ * divisor brings the camera's height under; with none the original searches
+ * forever), or right at the camera after another bike was placed (a first
+ * bike there takes whatever the turn's arithmetic left as its divisor). The
+ * data bank reaches the CPU's divider, which the program reaches through
  * it. */
-enum { ENDLESS_SEARCH_HEIGHT = 0xFF };
+enum { LARGEST_DIVISOR = 0xFF };
 
 static bool horizon_fits(const GameState *g)
 {
@@ -472,12 +505,27 @@ static bool horizon_fits(const GameState *g)
     return pitch > top && (uint16_t)(pitch - top - 1) <= SCREEN_LINES;
 }
 
-/* Whether a bike shown is placed ahead of the camera, whichever unit the bike
- * before it hands on (the guard looks before either is placed). */
-static bool ahead_whatever_the_unit(const GameState *g, uint16_t down)
+/* The largest divisor gives the smallest quotient, so a search ends where it
+ * brings the height under the distance. */
+static bool divisor_found_for(const GameState *g, uint16_t distance)
 {
-    return ahead_of_camera(g, down, (DistanceUnits){ false, false }) != 0 &&
-           ahead_of_camera(g, down, (DistanceUnits){ true, false }) != 0;
+    if (scene_race_divisors(g, (uint8_t)distance) != 0)
+        return true;
+    return (uint16_t)(camera_height(g) << 8) / LARGEST_DIVISOR < distance;
+}
+
+static bool placeable(const GameState *g, uint16_t down, DistanceUnits u, bool after_another)
+{
+    if (ahead_of_camera(g, down, u) == 0)
+        return after_another;
+    return divisor_found_for(g, distance_of(g, down, u));
+}
+
+/* A bike placed after another takes a unit from how the first was placed,
+ * which the guard can't know before either is: it takes both. */
+static bool placeable_whatever_the_unit(const GameState *g, uint16_t down)
+{
+    return placeable(g, down, units_with(g, down, false), true) && placeable(g, down, units_with(g, down, true), true);
 }
 
 bool scene_race_place_bikes_present(Snes *s)
@@ -487,10 +535,18 @@ bool scene_race_place_bikes_present(Snes *s)
     vars_peek(true);
     const GameState *g = state_of(s);
     Places p = places_of(g);
-    bool fits = camera_height(g) != ENDLESS_SEARCH_HEIGHT && horizon_fits(g);
-    if (johnny_shown(g))
-        fits = fits && ahead_whatever_the_unit(g, p.johnny.down);
-    fits = fits && ahead_whatever_the_unit(g, p.crono.down);
+    bool fits = horizon_fits(g);
+    static const Racer racers[] = { RACER_CRONO, RACER_JOHNNY };
+    for (unsigned i = 0; i < sizeof racers / sizeof racers[0]; i++) {
+        Racer r = racers[i];
+        if (r == RACER_JOHNNY && !johnny_shown(g))
+            continue;
+        uint16_t down = place_of(p, r).down;
+        if (placed_first(g, p, r))
+            fits = fits && placeable(g, down, distance_units(g, p, r), false);
+        else
+            fits = fits && placeable_whatever_the_unit(g, down);
+    }
     vars_peek(false);
     return fits;
 }
