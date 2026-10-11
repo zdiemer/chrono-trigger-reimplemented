@@ -573,6 +573,7 @@ game/menu/shop.c menu_shop_some_to_sell menu_item_operand menu_item_operand # th
 game/menu/shop.c menu_shop_start_panel menu_item_operand menu_item_operand # the shop sets the item plainly when a row is pointed at or taken; the scaffolding write is the equipment list's
 game/menu/shop.c menu_shop_take_the_row menu_cursor_index menu_object_sprite_script # work RAM the sprite object mode reuses; in the menus the cursor's step sets it plainly
 game/menu/shop.c sellable menu_item_operand menu_item_operand # the shop sets the item plainly when a row is pointed at or taken; the scaffolding write is the equipment list's
+game/menu/shop_bridge.c choosing_a_member menu_cursor_index menu_object_sprite_script # work RAM the sprite object mode reuses; in the menus the cursor's step sets it plainly
 game/menu/shop_bridge.c menu_choose_shop_tab menu_cursor_index menu_object_sprite_script # work RAM the sprite object mode reuses; in the menus the cursor's step sets it plainly
 game/menu/shop_bridge.c take_the_row menu_cursor_index menu_object_sprite_script # work RAM the sprite object mode reuses; in the menus the cursor's step sets it plainly
 game/menu/shop_bridge.c take_the_row menu_item_operand menu_item_operand # the shop sets the item plainly when a row is pointed at or taken; the scaffolding write is the equipment list's

@@ -99,13 +99,18 @@ static ScriptFlow skip(GameState *g)
 }
 SCRIPT_OPERATION_TAKING_NOTHING(skip)
 
+bool script_ends_unless_listed(const GameState *g, uint8_t listed)
+{
+    uint8_t target;
+    return !script_listed(g, OTHER_TARGETS_START + listed, &target);
+}
+
 // $C1:5769
 /* The channel ends where the other targets have no target at the operand's
  * place in their list. */
 static ScriptFlow end_unless_listed(GameState *g, ScriptChannel channel, uint8_t listed)
 {
-    uint8_t target;
-    if (!script_listed(g, OTHER_TARGETS_START + listed, &target))
+    if (script_ends_unless_listed(g, listed))
         return end(g, channel);
     return SCRIPT_NEXT;
 }

@@ -102,6 +102,9 @@ bool battle_page(Snes *s);
 bool battle_on_page_io_bank(Snes *s);
 /* A data bank that reaches the I/O registers. */
 bool battle_data_bank_is_io(Snes *s);
+/* ... or work RAM's, where the palette's send misses the hardware
+ * (battle/uploads.c). */
+bool battle_data_bank_is_io_or_work_ram(Snes *s);
 /* On the sprite drawers' page with the data bank at $7E; with A's high byte
  * 0; and on any page, the bank $7E and A's high byte 0. */
 bool battle_sprite_page(Snes *s);

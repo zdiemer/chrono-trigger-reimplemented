@@ -184,10 +184,63 @@ static uint8_t marked_combatant(const GameState *g, ScriptChannel ch)
     return ch.kind == SCRIPT_OTHER_TARGETS ? battle_script_subjects(g, OTHER_TARGETS_START) : script_combatant(g, ch);
 }
 
+/* ---- Nobody's animation ----------------------------------------------------------------- */
+
+/* A combatant channel for nobody (SCRIPT_NOBODY) plays and waits as the
+ * original does for any slot: it indexes the combatants' tables by the slot,
+ * and by the slot doubled and tripled in a byte for the tables of words and of
+ * long pointers, so at $FF every cell it reads and writes is past the tables,
+ * in the battle's other cells. Nobody animates, and the wait lasts until the
+ * byte it reads past the animating table is clear. This is the one place the
+ * port reads and writes them (docs/TODO.md). */
+enum { WORD_BYTES = 2, LONG_POINTER_BYTES = 3 };
+
+static uint8_t byte_of_longs(uint32_t (*entry)(const GameState *, unsigned), const GameState *g, unsigned offset)
+{
+    return (uint8_t)(entry(g, offset / LONG_POINTER_BYTES) >> 8 * (offset % LONG_POINTER_BYTES));
+}
+
+/* The two bytes at a byte offset into a table of long pointers, read as a
+ * word whether or not the offset is an entry's. */
+static uint16_t word_of_longs(uint32_t (*entry)(const GameState *, unsigned), const GameState *g, uint8_t offset)
+{
+    return (uint16_t)(byte_of_longs(entry, g, offset) | byte_of_longs(entry, g, offset + 1u) << 8);
+}
+
+static void play_nobodys_animation(GameState *g, uint8_t nobody, uint8_t animation, PlayMode mode)
+{
+    uint8_t words = (uint8_t)(nobody * WORD_BYTES), longs = (uint8_t)(nobody * LONG_POINTER_BYTES);
+    uint16_t part = (uint16_t)(animation * FRAMES_PER_ANIMATION);
+    set_battle_scheduled_frame_lists_unchecked(
+        g, words / WORD_BYTES, (uint16_t)(word_of_longs(battle_object_frame_lists_unchecked, g, longs) + part));
+    set_battle_scheduled_delay_lists_unchecked(
+        g, words / WORD_BYTES, (uint16_t)(word_of_longs(battle_object_delay_lists_unchecked, g, longs) + part));
+    set_battle_animating_unchecked(g, nobody, mode);
+    set_battle_animation_delay_unchecked(g, nobody, 0);
+    set_battle_animation_frame_unchecked(g, nobody, BEFORE_THE_FIRST_FRAME);
+    set_battle_object_facing_shown_unchecked(g, nobody, TAKE_AFRESH);
+}
+
+static ScriptFlow nobody_plays_and_waits(GameState *g, ScriptChannel ch, uint8_t animation, WaitStyle style)
+{
+    if (battle_animation_wait_unchecked(g, SCRIPT_NOBODY) == NOT_WAITING) {
+        set_battle_animation_wait_unchecked(g, SCRIPT_NOBODY, style.mark);
+        play_nobodys_animation(g, SCRIPT_NOBODY, animation, PLAY_ONCE);
+        ORIGINAL_EFFECT(leave_played(g, ch, animation, PLAY_ONCE, 1, SCRIPT_NOBODY));
+        return SCRIPT_STAY;
+    }
+    if (battle_animating_unchecked(g, SCRIPT_NOBODY) != 0)
+        return SCRIPT_STAY;
+    set_battle_animation_wait_unchecked(g, SCRIPT_NOBODY, NOT_WAITING);
+    return SCRIPT_NEXT_FRAME;
+}
+
 static ScriptFlow play_and_wait_as(GameState *g, ScriptChannel ch, uint8_t animation, WaitStyle style)
 {
     if (ch.kind == SCRIPT_EFFECT)
         return effect_plays_and_waits(g, ch, animation, style);
+    if (ch.kind == SCRIPT_ONE_COMBATANT && script_combatant(g, ch) == SCRIPT_NOBODY)
+        return nobody_plays_and_waits(g, ch, animation, style);
     uint8_t marked = marked_combatant(g, ch);
     if (combatant_mark(g, style, marked) == NOT_WAITING) {
         set_combatant_mark(g, style, marked, style.mark);
@@ -525,9 +578,9 @@ SCRIPT_OPERATION(trail, channel, length, on, trail_period, afterimage_period)
 SCRIPT_OPCODES(script_pose_opcodes,
     { 0x02, OPERATION(play_animation), .animation = OPERAND(1), .mode = CONSTANT(PLAY_LOOPING), .length = 2, .needs = NEEDS_SUBJECTS },
     { 0x03, OPERATION(play_and_wait_shown), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x04, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x05, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
-    { 0x06, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS },
+    { 0x04, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS_OR_NOBODY },
+    { 0x05, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS_OR_NOBODY },
+    { 0x06, OPERATION(play_and_wait), .animation = OPERAND(1), .length = 2, .needs = NEEDS_SUBJECTS_OR_NOBODY },
     { 0x26, OPERATION(play_and_wait_marked), .animation = OPERAND(1), .mark = OPERAND(2), .length = 3, .needs = NEEDS_A_COMBATANT_CHANNEL },
 
     { 0x07, OPERATION(own_speed), .length = 1, .needs = NEEDS_SUBJECTS },

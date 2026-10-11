@@ -489,12 +489,16 @@ typedef uint8_t ObjectBlocking;
 enum { BLOCKED_BY_THE_MAP = 0x01, BLOCKED_BY_OBJECTS = 0x02 };
 void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blocking);
 
-/* Whether it stands in other objects' way: a solid object blocks their
- * moves. */
+/* How the object meets others: whether it stands in their way (a solid
+ * object blocks their moves), and whether the leader can push it a tile by
+ * walking into it (event/contact.c): a crate, a statue. A script sets the
+ * two at once, as the byte the game keeps them in, whose other bits nothing
+ * reads. */
+typedef uint8_t ObjectContact;
+enum { CONTACT_SOLID = 0x01, CONTACT_PUSHABLE = 0x02 };
+void object_set_contact(GameState *g, FieldObject obj, ObjectContact contact);
 void object_set_solidity(GameState *g, FieldObject obj, bool solid);
 bool object_solid(const GameState *g, FieldObject obj);
-/* Whether the leader can push it a tile by walking into it (event/contact.c):
- * a crate, a statue. */
 bool object_can_be_pushed(const GameState *g, FieldObject obj);
 
 /* What the object does on arriving where a script walked it: line itself up
@@ -691,6 +695,23 @@ void object_set_sprite_priorities_past_the_tables(GameState *g, FieldObject slot
  * isn't the out-of-view one, and whether it reads as solid. */
 ObjectView object_view_past_the_tables(const GameState *g, FieldObject slot);
 bool object_solid_past_the_tables(const GameState *g, FieldObject slot);
+
+/* The party's leader on the map. Its place can be empty -- its marker a link
+ * to no object ($80), as in a scene with the party taken off the map -- and
+ * the original goes on all the same, taking the marker for an object like
+ * any other: the slot it names, the first past the object tables, walks
+ * (field/walk.c), and the confirm button searches and looks for a chest
+ * before it (event/contact.c, event/chests.c). Where that slot stands, its
+ * tile and the way it faces are the bytes of the tables after the objects';
+ * these are the only reads of them (docs/TODO.md, "Nobody leading"). */
+typedef struct {
+    FieldObject obj;
+    bool nobody_leads;
+} FieldLeader;
+FieldLeader field_leader(const GameState *g);
+FieldPosition field_leader_position(const GameState *g, FieldLeader leader);
+MapTile field_leader_tile(const GameState *g, FieldLeader leader);
+Facing field_leader_facing(const GameState *g, FieldLeader leader);
 
 /* The object a dialog's window is placed by, which is waiting on it. */
 void dialog_set_speaker(GameState *g, FieldObject speaker);

@@ -1346,6 +1346,14 @@ color three times, one channel each.
   is the video service's, so the transfers go through `vid_snes_transfer`, and
   the observer now ignores a transfer whose destination is `$2180-$2183`
   instead of counting it as not modelled.
+- **A register a script names by its address.** The menus' object scripts'
+  byte commands name their cell by its bank-$00 address, and an ending's sets
+  `$2101` (the sprites' sizes and their tiles' place) that way. That one write
+  goes through `vid_snes_write_register`, an escape that takes only the
+  registers `vid_snes_takes_register` says (the one, so far) and makes the
+  write as `vid_set_obj_config`, so the observer and the native renderer see
+  the setting; the guard leaves every other register to the original, which
+  the game never meets (RECOMP.md, "The refusals in real play, retired").
 - **An address register written in the other order.** `$7E:380E` writes OAM's
   address high byte before its low one; `vid_set_oam_address` writes the low one
   first, which leaves the same address, the same rotation and the same reload.

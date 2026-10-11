@@ -666,6 +666,15 @@ PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t);
 /* The older form, with the channel and its write order at the call. */
 PF_API void vid_snes_transfer(Platform *pf, PfOrigin o, const VidSnesTransfer *t, const VidSnesXfer *x);
 
+/* SNES-only escape for a byte the game's data writes to a register of the
+ * picture's by its address: the menus' object scripts name the byte a command
+ * sets by its address, and an ending's sets the sprites' sizes and their
+ * tiles' place ($2101) so. Which addresses it takes (the ones the game's
+ * scripts write), and the write. Listed by the lint test, which allows it only
+ * where registered. */
+PF_API bool vid_snes_takes_register(uint16_t address);
+PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t v);
+
 /* The registers the game's transfers through the escape name, by the low byte
  * of their address ($21xx), as VidSnesTransfer.dest and .target_reg take it. */
 enum {

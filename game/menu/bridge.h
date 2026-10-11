@@ -103,5 +103,8 @@ void menu_leave_a_high_byte_clear(Snes *s);
 /* On the menus' page; and with the data bank on work RAM's as well. */
 bool menu_on_page(Snes *s);
 bool menu_on_page_work_ram(Snes *s);
+/* ... or with a data bank that reaches low RAM, for a routine whose cells are
+ * all there (bank $00's low RAM is work RAM's). */
+bool menu_on_page_low_ram(Snes *s);
 
 #endif

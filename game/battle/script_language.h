@@ -135,6 +135,13 @@ typedef enum { DRAWN_IN_FRONT = 0x80, DRAWN_BEHIND = 0x40 } EffectSide;
  * after it, or none. */
 typedef enum { NO_WAIT, WAIT_BEFORE, WAIT_AFTER } ThrowWait;
 
+/* Whether a throw's wait of that kind is over (battle/script_moves.c). */
+bool script_throw_wait_over(const GameState *g, ThrowWait wait);
+
+/* Whether the channel ends for nobody being at the place `listed` in the
+ * other targets' list (battle/script_flow.c). */
+bool script_ends_unless_listed(const GameState *g, uint8_t listed);
+
 /* Every parameter of the language: a row says which operands give the ones
  * its operation takes. */
 #define SCRIPT_PARAMETERS(X)                                                                       \
@@ -216,12 +223,19 @@ typedef struct {
  * one, a combatant's channel); the channel's effect being one, on any
  * channel; for the colors, the lists and colors they reach in range too.
  * Where it isn't, the original's handler runs, whose indexed writes reach past
- * the tables (an ending's script runs on a channel whose subject is none).
- * The jumps to the script's point need the usual lift besides (below). */
+ * the tables, but for the waits on an animation, which take a combatant
+ * channel whose subject is nobody too (an ending's script runs on a channel
+ * for a partner the party doesn't have; script_poses.c). The jumps to the
+ * script's point need the usual lift besides (below). */
 typedef enum {
     NEEDS_NOTHING, NEEDS_SUBJECTS, NEEDS_A_COMBATANT_CHANNEL, NEEDS_ONE_MOVER, NEEDS_EFFECT, NEEDS_COLORS,
-    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE, NEEDS_SUBJECTS_AND_THE_USUAL_LIFT
+    NEEDS_A_SCREEN_EFFECT, NEEDS_SUBJECTS_AND_A_QUIET_PLACE, NEEDS_SUBJECTS_AND_THE_USUAL_LIFT,
+    NEEDS_SUBJECTS_OR_NOBODY
 } ScriptNeeds;
+
+/* The subject of a combatant channel for no one: an empty place of the
+ * action's (a partner the party doesn't have). */
+enum { SCRIPT_NOBODY = 0xFF };
 
 /* The lift a jump to the script's point takes: once, at full bounce. The
  * original takes it from a work cell it shares with other work ($90), which
@@ -270,9 +284,9 @@ void script_move_on(GameState *g, const ScriptOpcode *row, ScriptFlow flow);
 
 /* ---- Places and facings (battle/script_places.c) ----------------------------------------- */
 
-/* The places a command can name, 0-$47, and the facings, 0-$18: the
- * original's tables end there, and a command naming one past them is the
- * original's to run. */
+/* The places a command can name, 0-$47 (and their kinds again from $80,
+ * script_places.c), and the facings, 0-$18: the original's tables end there,
+ * and a command naming one past them is the original's to run. */
 enum { LAST_PLACE = 0x47, LAST_FACING = 0x18 };
 
 /* $C1:762E: the point on the battlefield a place names, worked out now. The

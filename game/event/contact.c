@@ -32,6 +32,7 @@
 #include "field/dialog_window.h"
 #include "field/field.h"
 #include "field/layers.h"
+#include "field/main_loop.h"
 #include "field/party.h"
 
 enum { TALK_LEVEL = 1, TALK_FUNCTION = 1, TOUCH_LEVEL = 2, TOUCH_FUNCTION = 2, PUSHED_LEVEL = 0 };
@@ -153,8 +154,6 @@ void touch_what_the_leader_met(GameState *g)
  * the leader faces, under 28 pixels; across, under 12. */
 enum { TALK_REACH_ALONG = 0x01C0, TALK_REACH_ACROSS = 0x00C0 };
 
-static FieldObject the_leader(const GameState *g) { return field_linked_object(party_member_link(g, PARTY_LEADER)); }
-
 /* Whether the original measures the object a sixteenth nearer along
  * (field/object.h, object_bearing): its subtraction borrows what its
  * comparison with the leader's slot left, for an object in a slot before
@@ -183,21 +182,21 @@ typedef struct {
  * the first), that is in view, not disabled and not the leader, and near
  * enough before it. An object that only comes and goes with the view is
  * looked at even in the leader's slot. */
-static Search search_before_the_leader(const GameState *g, FieldObject leader)
+static Search search_before_the_leader(const GameState *g, FieldLeader leader)
 {
     Search r = { field_no_link(), 0, 0, 0 };
-    FieldPosition at = object_position(g, leader);
-    Facing facing = object_facing(g, leader);
+    FieldPosition at = field_leader_position(g, leader);
+    Facing facing = field_leader_facing(g, leader);
     for (FieldObject obj = object_search_start(g); obj >= 1; obj--) {
         r.passed++;
         if (object_view(g, obj) == OUT_OF_VIEW)
             continue;
         ObjectRole role = object_role(g, obj);
-        if (role.disabled || (role.kind != ROLE_WINDOW_ONLY && obj == leader))
+        if (role.disabled || (role.kind != ROLE_WINDOW_ONLY && obj == leader.obj))
             continue;
         r.measured++;
         r.last_measured = obj;
-        ObjectBearing b = object_bearing(at, object_position(g, obj), facing, measured_nearer(g, obj, leader));
+        ObjectBearing b = object_bearing(at, object_position(g, obj), facing, measured_nearer(g, obj, leader.obj));
         if (within_talking_reach(b)) {
             r.found = field_link_to(obj);
             break;
@@ -218,17 +217,17 @@ static bool subtraction_overflows(uint16_t from, uint16_t take, bool borrow)
     return field_add_with_carry_overflows16(from, (uint16_t)~take, !borrow);
 }
 
-static void leave_search(GameState *g, FieldObject leader, Search r)
+static void leave_search(GameState *g, FieldLeader leader, Search r)
 {
-    FieldPosition at = object_position(g, leader);
-    Facing facing = object_facing(g, leader);
+    FieldPosition at = field_leader_position(g, leader);
+    Facing facing = field_leader_facing(g, leader);
     keep_word(g, KEPT_SECOND, (uint16_t)(facing * 2));
     original_cell16(g, CELL_LEADER_X, at.x);
     original_cell16(g, CELL_LEADER_Y, at.y);
     if (r.measured == 0)
         return;
     FieldPosition there = object_position(g, r.last_measured);
-    bool nearer = measured_nearer(g, r.last_measured, leader);
+    bool nearer = measured_nearer(g, r.last_measured, leader.obj);
     ObjectBearing b = object_bearing(at, there, facing, nearer);
     bool vertical = facing == FACING_UP || facing == FACING_DOWN;
     if (b.ahead && b.along < TALK_REACH_ALONG)
@@ -245,7 +244,7 @@ enum { CONFIRM_BUTTON = 0xC01AAC, ACCESSES_A_SLOT = 1, ACCESSES_A_MEASURE = 6 };
 
 static void find_the_object_before_the_leader(GameState *g)
 {
-    FieldObject leader = the_leader(g);
+    FieldLeader leader = field_leader(g);
     Search r = search_before_the_leader(g, leader);
     ORIGINAL_EFFECT(leave_search(g, leader, r));
     ORIGINAL_EFFECT(charge_as(g, CONFIRM_BUTTON, (uint32_t)r.passed * ACCESSES_A_SLOT +
@@ -403,24 +402,24 @@ bool event_touch_can_run(Snes *s)
 }
 
 /* The confirm button's: what a press reads is the game's where it goes on
- * past the pad. The leader is an object the tables hold, as the game keeps
- * it (a word whose high byte is 0); the search looks at slots inside the
- * tables; the object talked to, the walk's or the search's, is one; and
- * where no dialog is open, the chest's look stays on the map. */
+ * past the pad. The leader is an object the tables hold or nobody (the
+ * empty place's marker), as the game keeps it (a word whose high byte is
+ * 0); the search looks at slots inside the tables; the object talked to,
+ * the walk's or the search's, is one; and where no dialog is open, the
+ * chest's look stays on the map (and with nobody leading finds no chest). */
 static bool confirm_fits(const GameState *g)
 {
     if (!(input_mapped(g, ASSIGNED_PRESSED) & ASSIGNED_CONFIRM) || field_dialog_hold(g) == DIALOG_HOLD_UNTIL_CONFIRMED ||
         !party_is_the_players(g))
         return true;
-    FieldLink leader = party_member_link(g, PARTY_LEADER);
-    if (field_party_objects_high(g, PARTY_LEADER) != 0 || !field_link_names_object(leader))
+    if (!field_leader_readable(g))
         return false;
     FieldLink talked_to = leader_contact(g);
     uint8_t high = field_leader_contact_high(g);
     if (!field_link_is_object(talked_to)) {
         if (!object_search_fits(g))
             return false;
-        talked_to = search_before_the_leader(g, field_linked_object(leader)).found;
+        talked_to = search_before_the_leader(g, field_leader(g)).found;
         high = 0;
     }
     if (field_link_is_object(talked_to) && !names_a_contact(g, talked_to, high))

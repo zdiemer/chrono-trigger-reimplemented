@@ -100,7 +100,6 @@ static bool names_what_it_says(const GameState *g, const EventOpcode *row, const
     case ARG_MEMBER_PRESENT: return member_named(g, operand, row->member_may_be_absent);
     case ARG_BIT: return operand <= LAST_BIT_READ;
     case ARG_ALL_BUT_BIT: return operand <= LAST_CLEAR_BIT_READ;
-    case ARG_FLAG: return operand <= 1;
     default: return true;
     }
 }
@@ -146,7 +145,6 @@ static uint32_t decode(const GameState *g, const EventArg *arg, uint16_t at)
     case ARG_STORY_PROGRESS: return story_progress(g);
     case ARG_BIT: return bit_mask(g, script_byte(g, operand));
     case ARG_ALL_BUT_BIT: return bit_clear_mask(g, script_byte(g, operand));
-    case ARG_FLAG: return script_byte(g, operand) != 0;
     default: return 0;
     }
 }

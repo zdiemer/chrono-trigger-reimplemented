@@ -16,6 +16,9 @@
 
 enum { TIMER_RUNNING = 0x01, TIMER_RUN_OUT = 0x80, TIMER_STOPPED = 0 };
 
+/* A status that wears off does so on the tenth run of its timer. */
+enum { RUNS_A_CYCLE = 10 };
+
 /* The status bits the kinds time: the first status byte in the low byte, the
  * fourth in the high (battle/combatant.h). Kind 11 follows the third byte's
  * $02, whose meaning isn't worked out. */
@@ -157,6 +160,27 @@ static bool has_run_out(const GameState *g, BattleTimer timer, uint8_t slot)
     if (slot < BATTLE_COMBATANTS)
         return battle_timer_run_out(g, timer, slot);
     return (battle_timer_flags_byte_unchecked(g, timer, slot) & TIMER_RUN_OUT) != 0;
+}
+
+// $C1:8876, $C1:8975, $C1:89B9, $C1:8A05, $C1:8A51, $C1:8BB9
+/* The original's handlers for a status that wears off take the timer at the
+ * empty place's slot as a combatant's: they start it again from its length,
+ * count a run of the ten off, and on the tenth stop it and clear the status in
+ * the stat block at that slot. The cells are past the kind's rows, in the
+ * battle's other tables (the evading much better's state is the poison's
+ * length for the third slot), which the game goes on reading: this is the one
+ * place the port writes them (docs/TODO.md). */
+void battle_timer_wears_off_past_the_rows(GameState *g, BattleTimer kind, uint8_t nobody, Statuses clears)
+{
+    uint8_t length = battle_timer_lengths_byte_unchecked(g, kind, nobody);
+    set_battle_timer_flags_byte_unchecked(g, kind, nobody, TIMER_RUNNING);
+    set_battle_timer_counts_byte_unchecked(g, kind, nobody, length);
+    uint8_t left = (uint8_t)(battle_timer_runs_left_byte_unchecked(g, kind, nobody) - 1);
+    set_battle_timer_runs_left_byte_unchecked(g, kind, nobody, left == 0 ? RUNS_A_CYCLE : left);
+    if (left != 0)
+        return;
+    combatant_lose_statuses(g, nobody, clears);
+    set_battle_timer_flags_byte_unchecked(g, kind, nobody, TIMER_STOPPED);
 }
 
 /* The due bits run from kind 0 at bit 12 down to the turn at bit 0. Seeing

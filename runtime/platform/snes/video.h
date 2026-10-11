@@ -602,6 +602,16 @@ PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
     pf_snes_escape(pf, o, "vid_snes_copy", t, &x);
 }
 
+PF_API bool vid_snes_takes_register(uint16_t address) { return address == PF_SNES_OBSEL; }
+
+PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t v)
+{
+    if (address != PF_SNES_OBSEL)
+        pf_snes_encoding_mismatch(o.site, "vid_snes_write_register");
+    VidObjConfig c = vid_obj_config_decode(v);
+    vid_set_obj_config(pf, o, &c);
+}
+
 PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)
 {
     for (const PfScreenStep *st = pf_snes_screen_steps(o.site); st->part != PF_SCREEN_END; st++) {

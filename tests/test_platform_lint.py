@@ -29,6 +29,9 @@ ESCAPES = {
     "battle/uploads.c": 1, # $CF:E338, the transfer described by the table at $9EEA
     "field/display.c": 1,  # $C0:2DF1, which copies a PPU register into memory rather than writing one
     "menu/display.c": 2,   # $C2:9512 and $C2:9542, which fill and copy memory through the work RAM port
+    "menu/script.c": 1,    # the object scripts' byte commands, which name a register of the picture's by its
+                           # address (an ending's sets the sprites' sizes, $2101): whether the console takes it
+    "menu/script_bridge.c": 1,  # ... and the write
     "scene/race.c": 4,     # the buffer clears through the multiplier (one call, three sites), the read
                            # back out of VRAM at $7E:3D41, and the column at $7E:4671 and the plane at
                            # $7E:876E, which write the data port's low half alone

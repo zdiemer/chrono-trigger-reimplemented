@@ -2920,93 +2920,6 @@ finding: their call-outs reach no run-time transfer that reads what they
 declare. Stops and entries aren't held to the strict solve yet (TODO.md).
 
 
-### The absent party member and the object off the map
-
-Two guards from event's and field's combined pass refused calls the game
-really makes, so the original ran them, and a build without the original has
-nowhere to send them (PLAN.md, "A guard becomes an assertion"). Both are
-ported now: what the game does in each case is decided in its own terms, and
-what the original reads past its tables to get there is one marked piece of
-scaffolding each, which the native-shape build compiles out.
-
-**A member who isn't in the party.** Scripts written for a full party address
-its second and third members whether or not anyone is there. The party keeps
-an empty place as a link to none, `$80`, and the original takes that byte for
-an object's offset like any other: the slot one past the object tables, whose
-role is object 0's script position's low byte, whose position is object 0's
-vertical position and horizontal velocity. In the game's terms the member is
-nowhere: the language has an operand kind for a member by their place
-(`MEMBER`, `event/script.h`), and the commands that take one ask for them as
-`Someone` (`event/party.h`) -- whether anyone is there, whether they are
-disabled, where they stand. A walk or a follow toward nobody is over at once,
-as toward a disabled object; noting the tile of nobody leaves the variables as
-they were. For the gate, `member_in_place` fills in the original's phantom
-through `ORIGINAL_EFFECT(see_what_the_original_finds(...))` (`event/party.c`),
-which reads the slot through the unchecked accessors of the role and
-position (`field/object.h`, `object_past_the_tables`; `unchecked` in the map
-says why). Over the library the phantom mostly reads as disabled, which is
-what the game means; 3 calls in each of the stand-in objects' 5,000 (the
-objects for members 1 and 2 in the first maps of a new game, out of view)
-catch object 0's script at an offset whose top bit is clear, and set off
-toward a tile that isn't anywhere, and the ending that notes an absent
-leader's tile every frame has nothing read the variables before the map
-changes. Neither shows. One read comes later in the original than in the
-port -- lining up, it stops the walker before reading the other's position,
-which for walker 0 zeroes the phantom's fine vertical position -- and the
-scaffolding function makes that correction too. The guard now refuses only an
-odd marker, which would read the tables out of step and which the game never
-makes. `$24`, `$A9` and `$07` (waiting) still take a member's object without
-asking, and leave an empty place to the original; the game makes none of
-those calls (TODO.md).
-
-**An object off the map.** Scripts put an object that follows the map at tile
-column 64, or at (255, 255), to take it out of the way, and the original
-layers its sprite from the bytes past the attribute tables' rows (column 64's
-upper attributes are column 0's lower ones; (255, 255) reaches bank `$7F`).
-Off the map there is nothing to layer against: `object_layer_as_the_map`
-keeps the priorities the object had, and `ORIGINAL_EFFECT(layer_as_past_the_map(...))`
-(`field/object.c`, through `map_tile_attributes_past_the_map` in
-`field/layers.c` and the attribute tables' unchecked accessors) does what the
-original does. The guards on `$8B`, `$8C`, `$8D` and `$8E` are gone, and the
-map's openings run those commands as C too. The field's own step onto a tile
-off the map (`field_start_step`) is still only reached by fuzzing (TODO.md).
-
-**What moved.** Shadow mode over the 26 movies, against `main`'s logs: no
-mismatch, and every call these guards refused is compared.
-
-| Entry | Calls | Refused before | Refused after |
-|---|---|---|---|
-| `event_cmd_move_toward_party_member` | 72,121 | 52,898 | 0 |
-| `event_cmd_follow_party_member` | 70,971 | 52,898 | 0 |
-| `event_cmd_note_tile_member` | 38,500 | 2,735 | 0 |
-| `event_cmd_stand_on_tile` | 1,013 | 9 | 0 |
-| `event_cmd_place` | 520 | 1 | 0 |
-
-Every call of each matches. (The 10 commands the openings ran inline were
-handed to the original's handler through the table before, and are the
-openings' own C now.)
-
-**Fuzzing.** `tools/fuzz_compare.py` against `main`'s `ct_fuzz`, seed 1,
-20,000 states each, over the 60 entries these touch: 0 routines differ in
-mismatches. Each member command has an `absent` variant with every place of
-the party empty and its marker any byte from `$80` (odd ones refused): `main`
-compares none of those states, this tree about 2,400 each, all matching; the
-tile commands have an `offmap` variant with the tile from column 64 on, where
-`main` compares 4,875 and this tree 9,987, all matching.
-
-**Timing.** The member entries' time now includes calls that were the
-original's, and reading `Someone` reads the fine position too, so their rows
-were recalibrated. The search for an object in the way, which the moves run
-inline, charges the original's per-slot work the port doesn't do
-(`field/motion.c`, `charge_search`: accesses for each slot passed, each in
-view and each measured, at `field_object_in_the_way`'s own rate, through
-`charge_as`). That took `field_object_in_the_way`'s mean error from 69% to
-40% of its time, and the vblank tail of it, `event_cmd_move_to_tile` and
-`event_cmd_move_toward_party_member` from 1.08%, 3.09% and 1.23% of their
-vblank calls off by 1024 clocks or more to none, so their three exceptions
-left `tools/timing_exceptions.txt`. `event_run_init_scripts` keeps its own:
-its error follows its walk over the slots, which this doesn't touch.
-
 ### The tooling pass after Phase 3's first chunks
 
 The first chunk of each of the three big banks (battle's `$C1`, field and
@@ -3977,6 +3890,116 @@ empty:
 
 The movies don't see either: their presses drift in the shipping mode
 anyway, and nothing in them checks an outcome.
+
+### The refusals in real play, retired
+
+Of the 21 entries whose guards turned away calls real play makes (7,300
+refusals over the gate's runs when the batch began), 17 were gaps and 4 the
+attract program's own code at an address a port of another program's reads.
+Each gap's state was found from `tools/fallbacks.py --refusals -v` and from
+the guard's own conditions printed at the refusal, and is ported now. What
+the four have in common, and what the gaps fell into:
+
+**A handler that goes on into another's.** Four of the refusals were never
+the game's calls at all in a build without the original: shadow mode runs the
+original as the reference for a port, and where the original's handler jumps
+or falls into another routine's code the runtime meets that routine's entry
+in the middle of the first one's work. A fifth is the game's own: a task that
+comes back round to its head. The menus' song unless kept (`$3D`)
+goes on into the song's handler (`$C2:18F9`) with an 8-bit accumulator; the
+battle's end unless listed (`$25`) into the end's (`$C1:4CF0`) with Y past
+its byte; the throw that waits first (`$D4`) into the plain throw's
+(`$C1:7364`) once its wait is over; the screen script's two model commands
+into the sized triangle's (`$CD:2173`) with X the shape and the carry clear;
+and the gate's song task (`$C2:CBBF`) comes back to its own head with an
+8-bit accumulator after each frame's wait. Each guard now takes the state
+the other handler leaves -- the command at the script pointer is the one
+that goes on into this one, where what it found makes it do what this one
+does (`menu/script_bridge.c`, `goes_on_into`; `battle/scripts.c`, the same)
+-- and the triangle has an entry of its own that draws the command's
+triangle whatever X holds (`battle_screen_draw_triangle`). The precondition
+of a routine that sets its widths itself no longer asks for them
+(`NEEDS_X16_BINARY`: the gate's song, the description).
+
+**A guard narrower than the game.** The scroll bar's start asked for the
+menus' data bank where its one cell is low RAM any bank reaching it gives;
+the shop's member opening asked that the member worked on be a reachable
+one, where the opening takes the member from the cursor (the equip screen
+reaches it with the last one past them); the event command `$84` took only
+0 and 1 where the script sets the object's contact byte whole, a pushable
+object's bit included (`ObjectContact`, `field/object.h`); and the jump to a
+place took only the 72 places, where the original picks a place's kind by
+its byte doubled in a byte: `$80` is place 0's kind, channel `$80`'s subject
+(`script_places.c`, `decode_place`).
+
+**Nobody where the original reads a slot.** Four states have the original
+read or write past a table for an empty place, kept in one marked function
+each, as typed "nobody"s (rubric item 103), and in docs/TODO.md: a timer of
+nobody's wearing off (`battle_timer_wears_off_past_the_rows`, whose writes
+land on the poison's length for the third slot among others); an enemy whose
+target is nobody waiting on where nobody stands
+(`where_the_original_finds_nobody`); a combatant channel for a partner the
+party doesn't have playing and waiting on that slot, its indexes doubled and
+tripled in a byte (`play_nobodys_animation`); and the confirm button pressed
+with nobody leading, searching before the slot past the object tables and
+looking for a chest on the tiles off the map before it (`FieldLeader`, now
+the walk's too, and `walkable_past_the_map`). The game's state reads them on,
+so they are plain writes, the same in both builds.
+
+**The machine's own state.** The battle's vblank handler in bank D1 sends the
+palette without setting the data bank, so on code with work RAM's bank the
+transfer's register writes land in work RAM and the palette isn't sent
+(`uploads.c`, `miss_the_palette_send`, a table of the ten bytes). And an
+ending's menu object script sets the sprites' sizes by writing `$2101`
+through its byte command: a SNES escape for a register a game's data names
+by its address (`vid_snes_takes_register`, `vid_snes_write_register`,
+registered in the lint test for `menu/script.c` and its bridge), which takes
+only that register. The attract program's frame wait (`$7E:3023`) calls the
+routine its call's operand names, which the attract demo rewrites to its own
+frame work: the port reads the operand and runs that routine as the attract
+program's.
+
+**What stays.** The four code-presence refusals left are the attract
+program's own routines at `$7E:424D`, `$7E:4D0D`, `$7E:357B` and `$7E:36CC`
+(their bytes match its image, `attract_program`, and not the jet bike race's
+or the title's the ports read): the scene program's port is what retires them
+(PLAN.md).
+
+**Measured.** Shadow mode over the library: 0 mismatches, every refused
+entry compared where it was refused (`script_play_and_wait` 1,959 calls in
+the Bucket ending, 2 interrupted; `battle_upload_palette` 277 in the attract
+demo). Refusals in real play: 1,043 at 4 entries, all four the attract program's (7,300 at 21 before). Fallbacks, reference play:
+29.1 KiB of code and 171.6 million instructions in place of hand ports, refused 0.8 KiB and 14,521 (30.3 KiB, 181.5 M, refused 2.2 KiB and 10.1 M before); the shipping mode 27.0 KiB, 391 M, refused 0.8 KiB and 44,314 (28.0 KiB, 410 M, refused 2.4 KiB and 40.3 M). The attract demo's frame wait moved its passes from `$7E:3023` to the scene engine's `$C3:0000` in the baseline: a pass that runs the attract program's frame routine is longer than the idle entry's pass takes back. **Fuzzing**, seed 1, `tools/fuzz_compare.py` against `main`'s
+`ct_fuzz` over the 422 entries the batch touches (the menus' object script's
+commands, the battle's script and screen script commands, the timers, the
+movements, the confirm button, the walk), 5,000 states each: none mismatch
+where `main` didn't, and the 13 new variants (one per state the batch takes:
+`tools/fuzz_routines.toml`, `nobody`, `unlisted`, `waited`, `from_model`,
+`work_ram`, `register`, `nobody_leads`, `bank00`, `stale`, `m8`, `m16`,
+`unless_kept`) compare every state their guards take with 0 mismatched.
+`main`'s triangle took 764 of the from-model states and mismatched 754; the
+end unless listed first mismatched where its script pointer read I/O, whose
+operand the port reads and the end's handler doesn't, and the guard now asks
+for the script where the game keeps them.
+
+**The native shape's New Game+.** The native-shape build took 58 frames from
+the load screen's menus closing to the Battle Mode question, against 14
+(docs/TODO.md had it):
+`TIMED_AS` was compiled out with the scaffolding, so the work a port runs
+inline as another routine's was estimated at the outer port's rate, and the
+New Game+'s start runs inside the menus' ports. A dump of work RAM each
+frame over the two builds (`ct_drive`'s `wram`) showed the time spent in one
+stretch with the menus closed and nothing in work RAM moving: 60 frames to the
+default build's 17. With `TIMED_AS` kept the native shape takes 13 (the rest
+is the scaffolding's own charges and accesses, which it leaves out). The tag
+isn't scaffolding -- it says whose rate the logic's accesses are estimated
+at -- and both builds keep it now (`game/charge.h`).
+
+**Timing.** Six rows moved and were recalibrated (`--drifted`): the sized
+triangle's from 5,899 to 9,906 (its stretches now include the ones entered
+from the model commands), and the script commands that ask for a channel for
+nobody or take a fall-through by a few percent (`script_end`,
+`script_play_and_wait` and its two siblings, `script_throw_moves`).
 
 ## Risks
 

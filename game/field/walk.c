@@ -252,50 +252,23 @@ typedef struct {
 
 /* ---- Who walks ----------------------------------------------------------------------------------- */
 
-/* The walk moves the leader's object. The leader's place can be empty -- its
- * marker a link to no object ($80), as in a scene with the party taken off
- * the map -- and the original walks all the same: it takes the marker for an
- * object like any other, and walks the slot it names, the first past the
- * object tables. Where that slot stands, its tile and its place on the
- * screen come from the bytes of the tables after the objects' (the
- * horizontal place from the objects' vertical tiles and fines, the screen's
- * across from the objects' screen downs), and the ground it steps onto lays
- * its sprite priorities on the bytes after the priorities'. The screen
- * follows that place as it would a leader's, which shows. A walker is the
- * leader's object, or that slot; the four functions below are the only
- * place the slot is read or written (docs/TODO.md, "A walk with nobody
- * leading"). */
-typedef struct {
-    FieldObject obj;
-    bool nobody_leads;
-} Walker;
+/* The walk moves the leader's object, or with nobody leading the slot past
+ * the object tables (field/object.h, FieldLeader). That slot's place on the
+ * screen comes from the bytes of the tables after the objects' too (the
+ * screen's across from the objects' screen downs), and the ground it steps
+ * onto lays its sprite priorities on the bytes after the priorities'. The
+ * screen follows that place as it would a leader's, which shows. The two
+ * functions below and field/object.h's are the only place the slot is read
+ * or written (docs/TODO.md, "Nobody leading"). */
 
-static Walker the_walker(const GameState *g)
-{
-    FieldLink leader = party_member_link(g, PARTY_LEADER);
-    return (Walker){ field_linked_object(leader), !field_link_names_object(leader) };
-}
-
-static FieldPosition walker_position(const GameState *g, Walker w)
-{
-    return w.nobody_leads ? object_past_the_tables(g, w.obj).at : object_position(g, w.obj);
-}
-
-static MapTile walker_tile(const GameState *g, Walker w)
-{
-    if (!w.nobody_leads)
-        return object_tile(g, w.obj);
-    return (MapTile){ field_object_x_tile_unchecked(g, w.obj), field_object_y_tile_unchecked(g, w.obj) };
-}
-
-static uint16_t walker_on_screen(const GameState *g, Walker w, Axis axis)
+static uint16_t walker_on_screen(const GameState *g, FieldLeader w, Axis axis)
 {
     if (axis == AXIS_X)
         return w.nobody_leads ? field_object_screen_x_unchecked(g, w.obj) : field_object_screen_x(g, w.obj);
     return w.nobody_leads ? field_object_screen_y_unchecked(g, w.obj) : field_object_screen_y(g, w.obj);
 }
 
-static void walker_take_priorities(GameState *g, Walker w, uint8_t upper, uint8_t lower)
+static void walker_take_priorities(GameState *g, FieldLeader w, uint8_t upper, uint8_t lower)
 {
     if (w.nobody_leads)
         object_set_sprite_priorities_past_the_tables(g, w.obj, upper, lower);
@@ -306,7 +279,7 @@ static void walker_take_priorities(GameState *g, Walker w, uint8_t upper, uint8_
 /* The walk as it is worked out: the leader, where it stands, its step so far,
  * and the last point it looked at. */
 typedef struct {
-    Walker leader;
+    FieldLeader leader;
     FieldPosition at;
     Step step;
     MapPoint look;
@@ -773,12 +746,12 @@ static Velocity pad_walk(const GameState *g)
 // $C0:9175
 /* The leader walks no further than the map's edges: its step on each axis,
  * or none where its tile is at the edge it walks toward. */
-static Velocity keep_to_the_map(GameState *g, Walker leader, Velocity step)
+static Velocity keep_to_the_map(GameState *g, FieldLeader leader, Velocity step)
 {
     Velocity moved = step;
     if (step.x == 0 && step.y == 0)
         return moved;
-    MapTile t = walker_tile(g, leader);
+    MapTile t = field_leader_tile(g, leader);
     if (step.x < 0 && field_map_edges_left(g) >= t.x)
         moved.x = 0;
     if (step.x > 0) {
@@ -803,7 +776,7 @@ static Velocity keep_to_the_map(GameState *g, Walker leader, Velocity step)
  * the leader stands a little below it. */
 enum { SCREEN_MIDDLE_X = 0x80, SCREEN_MIDDLE_Y = 0x88 };
 
-static uint8_t leader_on_screen(const GameState *g, Walker leader, Axis axis)
+static uint8_t leader_on_screen(const GameState *g, FieldLeader leader, Axis axis)
 {
     return (uint8_t)walker_on_screen(g, leader, axis);
 }
@@ -831,7 +804,7 @@ static uint8_t fine_scroll(const GameState *g, Axis axis)
 /* Whether the screen follows the leader forward (right, down) or back by
  * `pixels`: short of the map's edge, while the leader is past the screen's
  * middle that way; at the edge, only as far as the screen's last tile. */
-static bool screen_follows(const GameState *g, Walker leader, Axis axis, bool forward, uint8_t pixels)
+static bool screen_follows(const GameState *g, FieldLeader leader, Axis axis, bool forward, uint8_t pixels)
 {
     uint8_t screen = screen_leading_edge(g, axis, forward), edge = map_edge(g, axis, forward);
     uint8_t middle = axis == AXIS_X ? SCREEN_MIDDLE_X : SCREEN_MIDDLE_Y;
@@ -875,7 +848,7 @@ static void leave_check_down_turned_back(const GameState *g, uint8_t pixels)
 static uint8_t pixels_of(int8_t step) { return (uint8_t)((step < 0 ? -step : step) >> 4); }
 
 /* Whether the screen follows the leader one way on an axis. */
-static bool screen_follows_step(const GameState *g, Walker leader, Axis axis, int8_t step)
+static bool screen_follows_step(const GameState *g, FieldLeader leader, Axis axis, int8_t step)
 {
     bool forward = step > 0;
     ORIGINAL_EFFECT(leave_screen_check(g, axis, forward, pixels_of(step)));
@@ -884,7 +857,7 @@ static bool screen_follows_step(const GameState *g, Walker leader, Axis axis, in
 
 // $C0:99DE
 /* The screen follows the leader's step on each axis where it may. */
-static Velocity follow_with_the_screen(GameState *g, Walker leader, Velocity step)
+static Velocity follow_with_the_screen(GameState *g, FieldLeader leader, Velocity step)
 {
     Velocity screen = step;
     if (step.x != 0 && !screen_follows_step(g, leader, AXIS_X, step.x))
@@ -930,11 +903,12 @@ static Velocity pad_and_pull(const GameState *g, Velocity *walk)
  * it stays within the map's edges; and the screen follows it where it may.
  * The step, the leader's movement and the screen's step are what the party's
  * step and the layers' scroll take on from here. With nobody leading the
- * party, the original walks the slot its empty place names (Walker, above). */
+ * party, the original walks the slot its empty place names (FieldLeader,
+ * field/object.h). */
 void leader_walks(GameState *g)
 {
     ORIGINAL_EFFECT(forget_walk_cells());
-    Walker leader = the_walker(g);
+    FieldLeader leader = field_leader(g);
     leader_loses_contact(g);
     Velocity walk;
     Velocity first = pad_and_pull(g, &walk);
@@ -943,7 +917,7 @@ void leader_walks(GameState *g)
     Walk w = { leader, { 0, 0 }, { first.x, first.y }, { 0, 0 } };
     bool against_the_map = field_leader_collides(g) != 0 && (w.step.x != 0 || w.step.y != 0);
     if (against_the_map) {
-        w.at = walker_position(g, leader);
+        w.at = field_leader_position(g, leader);
         walk_against_the_map(g, &w);
     }
     Velocity step = { (int8_t)w.step.x, (int8_t)w.step.y };
@@ -981,7 +955,7 @@ bool screen_is_recentred(const GameState *g) { return field_screen_recentring(g)
  * True where the screen moves this frame. */
 bool screen_recentres(GameState *g)
 {
-    Walker leader = the_walker(g);
+    FieldLeader leader = field_leader(g);
     uint8_t off_x = fine_scroll(g, AXIS_X), off_y = fine_scroll(g, AXIS_Y);
     switch ((Recentring)field_screen_recentring(g)) {
     case RECENTRED:
@@ -1109,7 +1083,7 @@ void field_recentre_the_screen(Snes *s)
 
 /* The guards. The walk reads the ROM's tables and the requests through the
  * data bank, on the field's page; the leader is an object the tables hold,
- * or an empty place's marker the original can read as a slot (Walker), as
+ * or an empty place's marker the original can read as a slot (FieldLeader), as
  * the game keeps its place (a word whose high byte is 0); the search for
  * objects starts somewhere (a count of 0, or 128, would start it on object
  * 0, which no map has); the map's tables are indexed
@@ -1127,7 +1101,7 @@ static bool walk_fits(const GameState *g)
 {
     if (field_party_objects_high(g, PARTY_LEADER) != 0)
         return false;
-    Walker leader = the_walker(g);
+    FieldLeader leader = field_leader(g);
     if (!field_link_readable(party_member_link(g, PARTY_LEADER)))
         return false;
     if (leader.nobody_leads) {
@@ -1136,7 +1110,7 @@ static bool walk_fits(const GameState *g)
         if (first.x == 0 && first.y == 0)
             return true;   /* nobody steps: nothing of the slot is read */
     }
-    FieldPosition at = walker_position(g, leader);
+    FieldPosition at = field_leader_position(g, leader);
     return object_search_start(g) != 0 && (field_map_index_mask(g) & ~WITHIN_THE_MAPS) == 0 &&
            clear_of_the_end(at);
 }

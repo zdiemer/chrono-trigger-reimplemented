@@ -105,6 +105,7 @@ bool battle_on_page(Snes *s) { return battle_page(s) && data_bank(s) == BATTLE_D
 bool battle_on_page_a_high_clear(Snes *s) { return battle_on_page(s) && a_high_clear(s); }
 bool battle_on_page_io_bank(Snes *s) { return battle_page(s) && m_bank_reaches_io(s); }
 bool battle_data_bank_is_io(Snes *s) { return m_bank_reaches_io(s); }
+bool battle_data_bank_is_io_or_work_ram(Snes *s) { return m_bank_reaches_io(s) || data_bank(s) == BATTLE_DATA_BANK; }
 
 bool battle_sprite_page(Snes *s) { return m_direct_page(s) == BATTLE_SPRITE_PAGE && data_bank(s) == BATTLE_DATA_BANK; }
 bool battle_sprite_page_ready(Snes *s) { return battle_sprite_page(s) && a_high_clear(s); }

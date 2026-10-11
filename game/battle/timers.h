@@ -69,6 +69,11 @@ TimerOwner battle_timer_found_run_out(const GameState *g, BattleTimer kind);
 /* A kind's run-out timer seen to: it is no longer due. */
 void battle_timer_seen_to(GameState *g, BattleTimer kind);
 
+/* A status's timer of nobody's run out, worn off as the original wears off a
+ * combatant's: at the empty place's slot, past the kind's rows, and clearing
+ * `clears` in the stat block past the combatants' (status_timers.c). */
+void battle_timer_wears_off_past_the_rows(GameState *g, BattleTimer kind, uint8_t nobody, Statuses clears);
+
 /* The combatant at a place in the order the timers are looked for in (a
  * place past the order reads on, as the original does: battle/timers.c). */
 uint8_t battle_timer_order_at(const GameState *g, uint8_t place);

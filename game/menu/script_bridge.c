@@ -15,6 +15,7 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "original_effects.h"
+#include "platform/video.h"
 #include "port/machine.h"
 #include "port/native.h"
 #include "port/vars_ram.h"
@@ -239,6 +240,16 @@ static bool pass_on_sound(void *ctx)
     }
 }
 
+static uint32_t handler_of(Snes *s, uint8_t opcode);
+
+/* A register of the picture's a command sets, written as the command's
+ * handler writes it. */
+static void set_console_byte(void *ctx, uint16_t at, uint8_t v)
+{
+    OnTheMachine *m = ctx;
+    vid_snes_write_register(m_platform(m->s), PF_AT(handler_of(m->s, m->opcode)), at, v);
+}
+
 /* A routine a script names is called where it is, as the command's call
  * through the call target reaches it (its jump through it at $C2:1819, or
  * its long jump at $C2:1836, adds nothing to the call but the jump), a
@@ -403,7 +414,7 @@ static void leave(OnTheMachine *m, const ScriptOpcode *row, const ScriptCommand 
 static void on_the_machine(OnTheMachine *m, Snes *s, uint8_t opcode)
 {
     bool overflow = m->s == s && m->overflow;
-    *m = (OnTheMachine){ s, { scroll_map, redraw_map, pass_on_sound, call_routine, m }, opcode, false, false, 0, false,
+    *m = (OnTheMachine){ s, { scroll_map, redraw_map, pass_on_sound, call_routine, set_console_byte, m }, opcode, false, false, 0, false,
                          overflow };
 }
 
@@ -582,9 +593,28 @@ static void command_entry(Snes *s, uint8_t opcode)
     m_rts(s);
 }
 
+/* A command's handler entered from another's: the screen's song unless the
+ * screen keeps the one playing goes on into the song's handler once it finds
+ * the song isn't kept, with the accumulator 8-bit and its own byte doubled
+ * still in X. From there the original is the song's command on the operands
+ * at the script pointer, which have the same form. */
+static const struct {
+    uint8_t command, into;
+} goes_on_into[] = { { 0x3D, 0x4A } };
+
+static bool entered_from(Snes *s, uint8_t opcode, uint8_t command)
+{
+    if (command == opcode)
+        return !m_m8(s) && s->cpu.a == opcode * 2 && s->cpu.x == opcode * 2 && !m_flag(s, CPU_FLAG_C);
+    for (unsigned i = 0; i < sizeof goes_on_into / sizeof goes_on_into[0]; i++)
+        if (goes_on_into[i].command == command && goes_on_into[i].into == opcode)
+            return s->cpu.x == command * 2;
+    return false;
+}
+
 static bool command_accepts(Snes *s, uint8_t opcode)
 {
-    if (!on_the_mode_page(s) || m_m8(s) || s->cpu.a != opcode * 2 || s->cpu.x != opcode * 2 || m_flag(s, CPU_FLAG_C))
+    if (!on_the_mode_page(s))
         return false;
     vars_peek(true);
     GameState *g = state_of(s);
@@ -593,7 +623,7 @@ static bool command_accepts(Snes *s, uint8_t opcode)
         const ScriptOpcode *row = menu_script_opcode(opcode);
         uint32_t at = menu_object_script(g);
         ScriptCommand c = menu_script_decode(g, row, menu_object_running(g), at, NULL);
-        ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && menu_script_opcode(menu_script_byte(g, at)) == row
+        ok = script_bank_holds_scripts((uint8_t)(at >> 16)) && entered_from(s, opcode, menu_script_byte(g, at))
              && menu_script_runs_here(g, row, &c) && menu_sprite_list_is_sound(g);
     }
     vars_peek(false);

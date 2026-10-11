@@ -137,10 +137,18 @@ static const struct {
 };
 enum { PLACE_RUNS = sizeof place_runs / sizeof place_runs[0] };
 
+/* The original picks a place's kind by its byte doubled in a byte, which
+ * drops the top bit, and the kind's routine counts its subject or blend from
+ * the whole byte: a byte from $80 on is the kind of the one $80 below it, its
+ * n $80 further on. The Beyond Time ending's battle jumps to $80, where
+ * channel $80's subject stands: past the subjects (script_place_known). */
+enum { PLACE_KIND_BITS = 0x7F };
+
 static Place decode_place(uint8_t place)
 {
+    uint8_t picked = place & PLACE_KIND_BITS;
     unsigned run = PLACE_RUNS - 1;
-    while (place < place_runs[run].first)
+    while (picked < place_runs[run].first)
         run--;
     return (Place){ place_runs[run].kind, (uint8_t)(place - place_runs[run].first) };
 }
@@ -294,10 +302,15 @@ BattlePoint script_find_place(GameState *g, uint8_t named)
     return last_found(g);
 }
 
+/* A place from $80 on is known where its kind reads its subject: the
+ * subjects' table reads on past its end as the original's indexed read
+ * does. */
 bool script_place_known(const GameState *g, uint8_t place)
 {
-    return place <= LAST_PLACE
-           && (decode_place(place).kind != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS);
+    Place p = decode_place(place);
+    if ((place & PLACE_KIND_BITS) > LAST_PLACE || (place > PLACE_KIND_BITS && p.kind != WHERE_A_SUBJECT_STANDS))
+        return false;
+    return p.kind != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS;
 }
 
 bool script_place_works_in_cells(uint8_t place)
