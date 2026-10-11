@@ -1,4 +1,4 @@
-"""Blocks: C functions for statically found code (docs/RECOMP.md, M1 and M3).
+"""Blocks: C functions for statically found code (docs/GENERATED.md, M1 and M3).
 
 The disassembler's analysis (tools.disasm.analyze.Analyzer, already run) says
 which addresses are code and with which M/X widths. From it this module

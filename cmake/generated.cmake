@@ -1,4 +1,4 @@
-# Generated blocks (tools/generate, docs/RECOMP.md): C for every statically found
+# Generated blocks (tools/generate, docs/GENERATED.md): C for every statically found
 # code block of the user's ROM, generated into the build tree at build time.
 #
 #   CT_ROM              the ROM to generate from (default roms/ct-usa.sfc); without

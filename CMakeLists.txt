@@ -458,7 +458,7 @@ add_executable(vars_test tests/port/vars_test.c)
 target_include_directories(vars_test PRIVATE game)
 target_link_libraries(vars_test PRIVATE ct_vars_checked ct_runtime)
 
-# Instruction translation (tools/generate, docs/RECOMP.md), with C generated into
+# Instruction translation (tools/generate, docs/GENERATED.md), with C generated into
 # the build tree for every opcode and context: sst_generated_runner runs it on the
 # same test data as sst_runner; generated_bus_diff binds it to the development
 # system's bus and compares it with the interpreter there.

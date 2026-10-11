@@ -61,7 +61,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   update's demo exit to the reset at `$C0:FF00`, which reads Y and V): the
   entry keeps the larger set for its returns. Every declaration is a claim about the original, and
   `tools/dontcare_check.py` checks each against liveness where it applies (the
-  gate runs it; RECOMP.md, "Before the bulk"). Nor are the stack bytes the original pushed and pulled
+  gate runs it; REIMPLEMENTATION.md, "Before the bulk"). Nor are the stack bytes the original pushed and pulled
   again since the last comparison, between the lowest S it reached and its S
   now: nothing reads below S, so a port needn't rebuild the frames of the
   subroutines it inlines or the P bytes a callee saves and restores (the $C7
@@ -106,7 +106,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   events still happen. An interrupt that comes due meanwhile is taken at the
   instruction boundary where the port stopped, and the rest of the time is paid
   when the handler returns there, wherever the handler moves the stack in the
-  meantime (RECOMP.md, "The timing gate", and "The tooling pass after Phase
+  meantime (REIMPLEMENTATION.md, "The timing gate", and "The tooling pass after Phase
   3's first chunks"; a port that spans frames, below). Each call's
   cost is the time of its DMA transfers, as it is, plus the rest of its own
   bus-access clocks times the routine's `cost_milli`/1000 (or, for the clocks
@@ -131,13 +131,13 @@ build/main/ct_dev --rom roms/ct-usa.sfc --frames 7200 --movie oracle/movies/new-
   it (generated blocks stay). A port's time stays an estimate and ports don't
   carry cycle costs; `--timing-report` in shadow mode measures each entry's
   estimate error per call and the `cost_milli` its totals imply, and the timing
-  gate in `tools/suite.py` bounds it (RECOMP.md, "The timing gate").
+  gate in `tools/suite.py` bounds it (REIMPLEMENTATION.md, "The timing gate").
 - **Generated blocks.** A build given the ROM also registers C blocks
-  generated from it ([RECOMP.md](RECOMP.md)) behind the ported routines: a port
+  generated from it ([GENERATED.md](GENERATED.md)) behind the ported routines: a port
   takes precedence at its address, and shadow mode checks the blocks too.
   `--generated off` leaves them out. In `on` mode a block's time passes per
   instruction, I/O sees the time the interpreter's would, and interrupts land
-  between the same instructions (RECOMP.md, "Exact timing"): with
+  between the same instructions (GENERATED.md, "Exact timing"): with
   `--generated only`, which leaves the hand ports out, `on` mode produces the same
   traces as `off` mode, frame for frame. Since M3 the code the game runs from
   RAM has guarded blocks too, so a guarded hand port for RAM code competes with
@@ -163,7 +163,7 @@ interpreter's dispatch), every pass is compared and the first where the
 machines are the same counts, so a port can run any number of passes before it
 calls out or stops; a port that is the same at no pass is reported with the
 first pass's difference once the original leaves the point's frame or an
-interrupt comes (RECOMP.md, "Between the waves: the validator"). While the callee
+interrupt comes (REIMPLEMENTATION.md, "Between the waves: the validator"). While the callee
 runs, only the original machine moves. When it returns, the clone is reloaded
 from it, and the native routine continues to the next call or its return,
 except that a register the call declared don't-care and the callee left as it
@@ -200,7 +200,7 @@ original makes from inside the callee. And where several calls come from one
 shared site (every draw of a frame is made from the same two), they must all
 be inlined or none, or a call the port makes would be paired with the
 original's call for another object. The field rewrite learned this from
-105,923 mismatched draws (RECOMP.md, "Phase 3a: the field subsystem off the
+105,923 mismatched draws (history/reimplementation-phase3a.md, "Phase 3a: the field subsystem off the
 machine"); `every_draw_is_own` and `field_view_changes` exist for it. A call is
 paired by its stack too, so a port that runs a step the original reaches
 through a table's `JSR` makes the step's call-outs under that `JSR`'s return
@@ -306,7 +306,7 @@ call, besides running the machine.
 ## From a draft to a port
 
 The workflow for converting generated code into ports (PLAN.md, Phase 3). The
-draft tool and how good its drafts are is [RECOMP.md](RECOMP.md), "Cleanup into
+draft tool and how good its drafts are is [REIMPLEMENTATION.md](REIMPLEMENTATION.md), "Cleanup into
 hand ports (M5)".
 
 1. **Pick.** `python3 tools/burndown.py --uncovered C1 --top 20` lists the
@@ -374,7 +374,7 @@ hand ports (M5)".
 the same routine; it is how the tool is measured, and a quick way to see what a
 port changed from the mechanical version.
 
-What the $C7 pilot added (RECOMP.md, "The $C7 pilot", has the measurements):
+What the $C7 pilot added (history/reimplementation-waves.md, "The $C7 pilot", has the measurements):
 
 - **Use the draft as a reference, not as text to edit.** What carried over was
   its header (widths, D and DB, what callers read, what each callee takes), its
@@ -532,7 +532,7 @@ self-check to run before reporting done, and the worktree rules a wave needs.
    isn't, and the gate fails on it (a literal one is also caught by
    `tests/test_timing_gate.py`). The address is a tag, not a time: nothing in
    `game/` says how long anything takes. `--calibrate` works out the handlers
-   first and the dispatcher's own part from what they leave (RECOMP.md, "The
+   first and the dispatcher's own part from what they leave (REIMPLEMENTATION.md, "The
    timing gate", "Dispatchers").
 
    A port that does in one plain step what the original does at length -- a
@@ -581,7 +581,7 @@ set_variable_byte(g, v, value);
   what goes inside is a call.
 - **Evidence first.** A write is scaffolding when nothing but the command
   that made it, or shadow mode, reads it: establish that over the whole movie
-  library (`ct_dev --event-reads` is event's instrument; RECOMP.md, "The event
+  library (`ct_dev --event-reads` is event's instrument; history/reimplementation-phase3a.md, "The event
   language") and by reading the listing. A value some other code reads for a
   reason has a meaning: name it in `re/ram.toml` and keep it in the logic. A
   reader that reads it without a reason (an uninitialized variable elsewhere)
@@ -633,12 +633,12 @@ set_variable_byte(g, v, value);
   something else sets (the original's caller, before every call), and its
   line goes in the baseline with the reason after a `#`. `python3
   tools/effects_check.py --new` lists what the baseline doesn't have
-  (RECOMP.md, "The tooling pass after Phase 3's first chunks").
+  (REIMPLEMENTATION.md, "The tooling pass after Phase 3's first chunks").
 
 - **Run, in the native shape.** `ct_dev_native_shape` and
   `ct_drive_native_shape` are the ports with their scaffolding compiled out,
   and the gate runs them over the movies and routes in the shipping mode
-  (tools/suite.py's `native-shape` check; RECOMP.md, "The fallback
+  (tools/suite.py's `native-shape` check; REIMPLEMENTATION.md, "The fallback
   measure"). What the original's still-generated code reads of scaffolding
   is listed by `ct_dev --native on
   --scaffold-reads original` and `tools/effects_check.py --originals`, with
@@ -654,7 +654,7 @@ A routine whose original takes longer than a frame (the load screen's drawing,
 its work is done at once and its time owed at the boundary where it stopped;
 the interrupts that fall due while the time is paid are taken there, each
 handler seeing the finished work (a timing difference, as with any port), and
-the debt waits for a handler wherever it moves the stack (RECOMP.md, "The
+the debt waits for a handler wherever it moves the stack (REIMPLEMENTATION.md, "The
 tooling pass after Phase 3's first chunks"). What such a port must still do
 is stop where the original yields: a task switch or a wait for the next frame
 partway through is a stop (`m_stop_at` at the yield's address) or a call-out,
@@ -711,7 +711,7 @@ and frame, which it makes with `--ct-dev` the first time and keeps in
 `traces/fuzz/`. A routine listed again with `variant = "loose"` and fewer
 constraints is where a reordered access shows, since that is where buffers and
 cursors land on each other; it is also where a rewrite that names a buffer
-finds out how far the name reaches (the scene's sprite writers, RECOMP.md,
+finds out how far the name reaches (the scene's sprite writers, history/reimplementation-phase3a.md,
 "Phase 3a: the scene subsystem off the machine"). A subsystem's rewrite adds its
 entries from the constraints its rows record, which makes them exact.
 
@@ -958,7 +958,7 @@ trace, an index past `$FE`, a bounded dispatch the library never ran
 first**: the notes' counts are the library's, and a change there can move them.
 The effect worked out for an enemy's action hands the action's showing
 (`$C1:BFA4`) and the battle's step (`$C1:0003`) an overflow flag they only
-save and restore across their frame waits (RECOMP.md, "Phase 3, battle chunk 2: an effect worked out"), which is
+save and restore across their frame waits (history/reimplementation-chunks.md, "Phase 3, battle chunk 2: an effect worked out"), which is
 the case it was made for.
 
 The third form is an entry's own carry after it returns, where liveness
@@ -984,7 +984,7 @@ its trace with the unscrambled one's. The menu's frame (`$C1:1153`) was the
 case: its carry runs out through the frame step into a battle message's frame
 waits, and the first multiply of the party's statuses cleared after the
 message takes it into a product's high word the next pass clears
-(RECOMP.md, "Phase 3, battle: the player choosing").
+(history/reimplementation-chunks.md, "Phase 3, battle: the player choosing").
 
 ## Status
 
@@ -1020,7 +1020,7 @@ different frames than in an interpreter-only run. The new-game movie still
 plays identically. In the field movie, where walking is sensitive to that, 8658
 of 11400 frames also appear in the interpreter-only run. Use shadow mode, not
 `on` mode, to judge correctness. (Generated blocks alone are exact; see
-RECOMP.md for what making hand ports' time more exact did and didn't change.)
+REIMPLEMENTATION.md for what making hand ports' time more exact did and didn't change.)
 
 A first attempt at the event script loop that runs each object's init script
 (`$C0:58DE`) predated suspending call-outs. Back then a call-out interpreted

@@ -61,15 +61,15 @@ as built").
 | `runtime/snes/system.c` | Scanline timing, NMI/IRQ, HDMA, auto-joypad | Oracle traces |
 | `runtime/snes/zst.c` | ZSNES save state import, for coverage runs (see ZSNES save states) | Chrono Trigger states run on |
 | `runtime/snes/state.c` | Save states, written field by field so later builds load them (see Save states) | `state_test`; states resumed against uninterrupted traces |
-| `runtime/port/generated.h` | Instruction semantics for generated code ([RECOMP.md](RECOMP.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
+| `runtime/port/generated.h` | Instruction semantics for generated code ([GENERATED.md](GENERATED.md)) | SingleStepTests, 5.12M cases with cycle counts; the interpreter on the SNES bus |
 
 Build the conformance runners with the same CMake project (`sst_runner`,
 `spc700_runner`); test data comes from `tests/cpu/fetch_sst.py` and
 `tests/apu/fetch_sst_spc700.py`. `dsp_test` needs no data: it checks the
 envelope rate counter, BRR decoding, and key-on, envelope, ENDX and echo
 timing, and must print "all checks passed". `sst_generated_runner` (same CPU test
-data) and `generated_bus_diff` check the static recompiler's instruction
-translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
+data) and `generated_bus_diff` check the C generator's instruction
+translation ([GENERATED.md](GENERATED.md)); they're built when Python 3.11+ is found.
 
 ## Design notes
 
@@ -135,7 +135,7 @@ translation ([RECOMP.md](RECOMP.md)); they're built when Python 3.11+ is found.
     (`snes_horizon`: the next line event or interrupt recognition), lets time
     pass up to its current instruction before I/O (`snes_sync`), and reports
     its last instruction's last cycle, so its interrupts and I/O land exactly
-    where the interpreter's do ([RECOMP.md](RECOMP.md), "Exact timing").
+    where the interpreter's do ([GENERATED.md](GENERATED.md), "Exact timing").
 
   Chrono Trigger depends on this. Its location-change event command waits for
   vblank with `LDA $4210 / BPL` at `$C0:3B71` while NMIs are enabled, and the
@@ -563,7 +563,7 @@ changes before, 17 now, cursor included): hand ports charge estimated time
 and interrupts waited until it was paid (PORTING.md), so an NMI could arrive
 dozens of lines late (frame 19313: no NMI in the frame before, then one at line
 27). That was the ports' time estimate, not the hardware model; the timing gate
-takes interrupts during a port's time now (RECOMP.md, "The timing gate"). Load lengths now agree better
+takes interrupts during a port's time now (REIMPLEMENTATION.md, "The timing gate"). Load lengths now agree better
 with bsnes (accuracy core) as well: in `new-game`, the static runs at 3208,
 5591 and 6134 last 89, 252 and 36 frames in bsnes and here, 88, 250 and 30
 before; the world map load in `field` lasts 47 frames in bsnes, 48 here (46

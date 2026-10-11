@@ -1,1 +1,1 @@
-"""65816-to-C static recompiler (docs/RECOMP.md)."""
+"""65816-to-C generator (docs/GENERATED.md)."""

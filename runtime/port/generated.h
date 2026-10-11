@@ -5,7 +5,7 @@
  * effects (decimal mode included) and the same internal cycles. Register widths
  * and emulation mode are fixed when the code is generated, so there are separate
  * 8-bit, 16-bit and emulation-mode helpers where the interpreter tests them at
- * run time. See docs/RECOMP.md.
+ * run time. See docs/GENERATED.md.
  *
  * The including file binds the bus before including this header:
  *   RC_READ(c, addr), RC_WRITE(c, addr, v)

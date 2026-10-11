@@ -2,7 +2,7 @@
  *
  * While the gate is byte-exact, a port consumes emulated time as an estimate:
  * its own memory accesses times one scalar, calibrated over its calls
- * (docs/RECOMP.md, "The timing gate"). Where a port does in one plain step what
+ * (docs/REIMPLEMENTATION.md, "The timing gate"). Where a port does in one plain step what
  * the original does at length -- a block move done as a fill, a search done in
  * locals -- that estimate misses the original's time, and keeping the
  * original's shape so it gets counted is the wrong fix (the review's item 36).
@@ -41,7 +41,7 @@ void charge_uncounted_end(GameState *g, uint32_t mark);
  * native-shape build keeps it too, and runs on the machine at the default
  * build's pace but for the scaffolding's own time. Without it the statement's
  * accesses went at the rate of the port around it, and a New Game+'s start,
- * at the menus' ports' rates, took 58 frames where it takes 14 (RECOMP.md,
+ * at the menus' ports' rates, took 58 frames where it takes 14 (history/reimplementation-chunks.md,
  * "The refusals in real play, retired"). A build with no machine has no time
  * to charge: its backing of these does nothing. */
 int charge_time_as_begin(GameState *g, uint32_t routine);

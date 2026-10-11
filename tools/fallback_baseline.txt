@@ -1,4 +1,4 @@
-# The fallback measure's baseline (tools/fallbacks.py --check; docs/RECOMP.md, "The fallback
+# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, "The fallback
 # measure"): every routine whose code the reference play (the movies in shadow mode) still
 # runs as the original's in place of hand ports, as `routine instructions bytes # reason`.
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes

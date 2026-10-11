@@ -3,11 +3,11 @@
 The per-chunk record for the three big banks -- the menus, the field and
 events, and the battle -- and for the scene program in bank `$7E`, as each
 chunk of routines became C. The newest section
-stays in docs/RECOMP.md as the shape a new one follows (the field's and the
+stays in docs/REIMPLEMENTATION.md as the shape a new one follows (the field's and the
 battle's, at the split; the menus' next chunk will keep its section there until
 the one after it lands).
 
-Split out of docs/RECOMP.md, which keeps the mechanisms, the current
+Split out of docs/REIMPLEMENTATION.md, which keeps the mechanisms, the current
 phase and an index of these files.
 
 ## Phase 3, menus: the load screen, the window language and the opening
@@ -2708,7 +2708,7 @@ mark's sum a variable's). The full gate then passes with no new exception.
 ## Phase 3, battle chunk 9b: the animation script language's second half (`$C1:762E`)
 
 Chunk 9a put the language's table in C with the commands that need neither
-places nor paths (docs/history/recomp-chunks.md). This chunk is the rest: the
+places nor paths (docs/history/reimplementation-chunks.md). This chunk is the rest: the
 places and facings (`$C1:762E`, `$C1:75CC`, their 97 handlers), every move,
 the grid walk with its search (`$C1:4A71`), the sound commands, the screen
 effect `$80`, and the number commands, which moved onto the rows: 64 command
@@ -3482,11 +3482,11 @@ movie reaches keep the default.
 The per-chunk record for the three big banks -- the menus, the field and
 events, and the battle -- and for the scene program in bank `$7E`, as each
 chunk of routines became C. The newest section
-stays in docs/RECOMP.md as the shape a new one follows (the field's and the
+stays in docs/REIMPLEMENTATION.md as the shape a new one follows (the field's and the
 battle's, at the split; the menus' next chunk will keep its section there until
 the one after it lands).
 
-Split out of docs/RECOMP.md, which keeps the mechanisms, the current
+Split out of docs/REIMPLEMENTATION.md, which keeps the mechanisms, the current
 phase and an index of these files.
 
 ## Phase 3, menus: the load screen, the window language and the opening
@@ -6187,7 +6187,7 @@ mark's sum a variable's). The full gate then passes with no new exception.
 ## Phase 3, battle chunk 9b: the animation script language's second half (`$C1:762E`)
 
 Chunk 9a put the language's table in C with the commands that need neither
-places nor paths (docs/history/recomp-chunks.md). This chunk is the rest: the
+places nor paths (docs/history/reimplementation-chunks.md). This chunk is the rest: the
 places and facings (`$C1:762E`, `$C1:75CC`, their 97 handlers), every move,
 the grid walk with its search (`$C1:4A71`), the sound commands, the screen
 effect `$80`, and the number commands, which moved onto the rows: 64 command

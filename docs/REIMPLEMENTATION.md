@@ -1449,7 +1449,7 @@ command, so at the loop's head, on every pass, the port's machine is one the
 original never has. The port went back to the call-out (which the fuzzer
 compares only at the return, after the original has run the command itself);
 it now hands such a command to the original's code for that command, entered
-as its dispatch enters it (RECOMP.md, "Phase 3, the scene program: the staff
+as its dispatch enters it (REIMPLEMENTATION.md, "Phase 3, the scene program: the staff
 roll").
 
 **An entry on another port's path.** An entry the original reached while it
@@ -2323,7 +2323,7 @@ from the shadow runs; what is left over the limits is the circles' spread
 
 ### Phase 3, battle: the battlefield changed and an effect's rows of its tiles (`$CD:0D28`-`$CD:12FF`, `$CD:1314`-`$CD:1367`, `$CD:15D5`-`$CD:1608`)
 
-The battle's previous chunk is in history/recomp-chunks.md ("Phase 3, battle:
+The battle's previous chunk is in history/reimplementation-chunks.md ("Phase 3, battle:
 an action shown").
 
 **How it was chosen.** By the fallback measure: once an action's showing was
@@ -2671,8 +2671,8 @@ following which objects are due; both are exceptions with that reason.
 By field chunk 13 and battle chunk 6, three streams were landing a chunk and a
 review every couple of hours, and most of what each one cost was reading rather
 than porting. The fixed reading was measured: docs/PORTING.md 240 KB,
-docs/RECOMP.md 556 KB, docs/TODO.md 108 KB, the review rubric 49 KB and 112
-items, against a chunk's own diff of 2-3 thousand lines. Four changes cut it,
+docs/RECOMP.md (since split into this file and GENERATED.md) 556 KB,
+docs/TODO.md 108 KB, the review rubric 49 KB and 112 items, against a chunk's own diff of 2-3 thousand lines. Four changes cut it,
 none of them to the bar:
 
 - **The rubric's decidable items are a tool.** `tools/portsmell.py` checks
@@ -2692,11 +2692,12 @@ none of them to the bar:
   citations and 17 sibling ports called through the machine among them. It says
   nothing about whether a port reads as hand-written -- that is still
   `portstyle.py` and the review.
-- **RECOMP.md holds mechanisms, not a log.** The per-wave, per-subsystem and
-  per-chunk accounts moved to docs/history/ (waves, phase3a, chunks), leaving
-  the mechanisms, the measurements and the newest section of each stream as the
-  shape a new one follows: 8,420 lines to about 3,300, with an index here that a
-  citation of the form "RECOMP.md, *section*" resolves through.
+- **The milestone doc holds mechanisms, not a log.** The per-wave,
+  per-subsystem and per-chunk accounts moved to docs/history/ (waves, phase3a,
+  chunks), leaving the mechanisms, the measurements and the newest section of
+  each stream as the shape a new one follows: 8,420 lines to about 3,300, with
+  an index of the history files here. A citation names the file that holds its
+  section.
 - **The ports ledger is a file to grep.** docs/PORTING.md's Status table, a row
   of prose per entry, was 140 KB of the doc's 240 KB; it is docs/ports.tsv now,
   and PORTING.md is 63 KB.
@@ -2818,7 +2819,7 @@ pairs over the library.
 When the check came in, all 28 movies ran to their end in the native shape,
 and the fast routes passed, but all three whole routes failed, each traced and
 confirmed by making the writes plain in a scratch build and running the route
-again. The targeting's port fixed all three (docs/history/recomp-chunks.md,
+again. The targeting's port fixed all three (docs/history/reimplementation-chunks.md,
 "Phase 3, battle: the targeting"), and `tools/native_shape_exceptions.txt` is
 empty:
 

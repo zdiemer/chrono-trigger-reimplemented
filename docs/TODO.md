@@ -2,7 +2,8 @@
 
 Loose ends the milestone docs record in passing, collected so they don't get
 lost. Each line says where the detail lives. Milestones themselves are in
-[APPROACH.md](APPROACH.md), [RECOMP.md](RECOMP.md), [MATCHING.md](MATCHING.md)
+[APPROACH.md](APPROACH.md), [GENERATED.md](GENERATED.md),
+[REIMPLEMENTATION.md](REIMPLEMENTATION.md), [MATCHING.md](MATCHING.md)
 and [PLATFORM.md](PLATFORM.md); which of these to work on next, and why the
 rest waits, is [PLAN.md](PLAN.md).
 
@@ -10,8 +11,8 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Hand ports' time is an estimate**, so `--native on --generated on` drifts from
   the original (battles play out differently). That difference is accepted
-  (RECOMP.md, "Can a hand port be exact?"); the timing gate bounds the errors
-  (RECOMP.md, "The timing gate"). Left open there: 25 entries whose
+  (REIMPLEMENTATION.md, "Can a hand port be exact?"); the timing gate bounds the errors
+  (REIMPLEMENTATION.md, "The timing gate"). Left open there: 25 entries whose
   time follows a path inside one routine, or a loop of the port's own, are on
   `tools/timing_exceptions.txt` (the decompressor, the menu's text, glyphs and
   wave table, `field_rasterize_quad`, the field's sprite table, line-effect
@@ -21,7 +22,7 @@ rest waits, is [PLAN.md](PLAN.md).
   windows and HP gradient, the free-slot walk that starts a menu object, and
   the own loops of the effect slots, the object
   drawing and its underlays); a dispatcher's handlers are attributed to
-  instead (RECOMP.md, "Dispatchers"), and the menu text's control codes would
+  instead (REIMPLEMENTATION.md, "Dispatchers"), and the menu text's control codes would
   be too once their handlers are entries. Adding a movie or a port means
   recalibrating, since the drift limit holds only for the measured value.
   `--generated only` stays exact.
@@ -42,7 +43,7 @@ rest waits, is [PLAN.md](PLAN.md).
 - **ZSNES state import** approximates DSP voice history, timer phase and
   in-frame position (RUNTIME.md, "ZSNES save states"), so those runs are for
   coverage only.
-- **`ct_fuzz` doesn't use generated blocks**, only hand ports (RECOMP.md).
+- **`ct_fuzz` doesn't use generated blocks**, only hand ports (GENERATED.md).
 - **`battle_draw_objects` on unbounded counts.** Fuzzed with the part and
   sprite set counts unbounded (which the fuzzer can do now that it stops a
   port's own loop), 40 of 20000 states from a `gato-battle` state differ: in 28
@@ -64,7 +65,7 @@ rest waits, is [PLAN.md](PLAN.md).
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
 - **A refusal the tech sweep's route finds** (`tools/refusal_allowlist.txt`;
-  RECOMP.md, "The fallback measure", "The last refusals in real play: the
+  REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the
   attract demo's states"). The library makes none now; the tech sweep's
   route, not yet in it, finds `script_return_from_call` (`$C1:56FB`), whose
   `command_ready` turns away the sweep's battle script 8 times from frame
@@ -87,7 +88,7 @@ rest waits, is [PLAN.md](PLAN.md).
   has. A build without it needs the script's write as what it means: decode
   the scripts as an asset so a command naming `$2101` becomes a sprite
   setting (`VidObjConfig`) the service takes, and drop the escape.
-- **What the original's code reads of scaffolding** (RECOMP.md, "The
+- **What the original's code reads of scaffolding** (REIMPLEMENTATION.md, "The
   fallback measure"). It broke the native shape's three whole routes until
   the targeting was ported; what it reads now (101 byte and instruction
   pairs over the library when the measure came in, `tools/effects_check.py --originals`
@@ -143,7 +144,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - `title.c:332`'s `move_logo` sets channel 0's script through the raw
     accessor: export a `scene_channel_go_to` from `script.c`.
 
-- **What core's rewrite left** (RECOMP.md, "Phase 3a: the controller off the
+- **What core's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the controller off the
   machine" and "Phase 3a: the rest of core"):
   - `sound_driver.c` still reads as translation, and is not to be rewritten: it
     is the original driver's upload protocol, which the C driver doesn't use
@@ -162,24 +163,24 @@ rest waits, is [PLAN.md](PLAN.md).
     declares as bytes; the block-move stub's two bank bytes want fields of
     their own, and `memory_move_stub` a name for what it does.
 
-- **What battle's rewrite left** (RECOMP.md, "Phase 3a: the battle off the
+- **What battle's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the battle off the
   machine"). It waits for its qualitative review (`.claude/skills/review-port/`).
   - The original's routines the battle still calls out to: the battle steps
     (`$C1:0003`) and the rewards' gold `$C1:D0A2` and messages `$FD:AD17`;
-    from a member's chosen action carried out (RECOMP.md, "Phase 3, battle
-    chunk 5"), the messages `$CD:0021`; from an enemy's turn (RECOMP.md,
+    from a member's chosen action carried out (history/reimplementation-chunks.md, "Phase 3, battle
+    chunk 5"), the messages `$CD:0021`; from an enemy's turn (history/reimplementation-waves.md,
     "Phase 3, wave 2: the enemies' minds"), an enemy's
     coming in `$FD:B438`, the calling in
     `$FD:A990`, the message `$CD:0033` and the action's showing
     `$C1:BFA4`/`$C1:EC7F`; what an effect's working out turns away to the
-    original (RECOMP.md, "Phase 3, battle chunk 4: the party's working
+    original (history/reimplementation-chunks.md, "Phase 3, battle chunk 4: the party's working
     out"): a hit that steals as well (no record has one); the effect's start a status's timer asks for
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
     the decompressor and
     `$CD:3ECE` from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
-    from the menu window; from a member that comes back once (RECOMP.md, "Phase 3,
+    from the menu window; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
     battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
     the message `$CD:0021`; from the battle's start and its return to the
     field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
@@ -188,12 +189,12 @@ rest waits, is [PLAN.md](PLAN.md).
     work, and its wait for a line `$CD:3B82` (from the frame work and the
     screen script's `$C1`, which no script has: the beam's line is the
     console's, and a native build that draws a frame at a time has no use
-    for the wait, RECOMP.md, "Phase 3, battle: the screen script's shapes");
-    and from the screen's start (RECOMP.md, "Phase 3, battle: cuts, bands and the screen's
+    for the wait, REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes");
+    and from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle: cuts, bands and the screen's
     start"), the start settings' copy `$CD:0C9D`, the message tiles' clear
     `$CD:0235` and the battle music's start `$C0:0008`.
   - What the screen script's rows still turn away to the original
-    (RECOMP.md, "Phase 3, battle: the screen script's shapes"), none of it a
+    (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
     the cell `$46` (whatever the last effect left there), isn't clear, or its
     operand names an amount past the six; the centering on the corners
@@ -243,7 +244,7 @@ rest waits, is [PLAN.md](PLAN.md).
     walk's count at `$A166`, which nothing reads; the five window tile blocks the frame
     loads and what reads `battle_block_uploads_made`; what the marker sprite
     is to the player; why the upload lets enemies in slots 4 and 6+ through.
-  - Quirks of the enemies' scripts reproduced on purpose (RECOMP.md, "Phase 3,
+  - Quirks of the enemies' scripts reproduced on purpose (history/reimplementation-waves.md, "Phase 3,
     wave 2: the enemies' minds"): the test of a stat's value goes on from a
     candidate to the one at twice its slot in the list; the walk toward a
     target measures its reach against a box the multiplier's leftover picks,
@@ -270,7 +271,7 @@ rest waits, is [PLAN.md](PLAN.md).
     step keeping its list places in the scheduler's entry 0; the weak pose
     restarting frames every step; the pose's restart for an enemy writing past
     the party's frame table; the colour rotation from colour 0 storing a bank on.
-    The animation script commands' (RECOMP.md, "Phase 3, battle chunk 9a"):
+    The animation script commands' (history/reimplementation-chunks.md, "Phase 3, battle chunk 9a"):
     the waits on the other targets leaving their mark set (`$03`, `$26`) and
     `$04` waiting on the first target only; `$26` on an effect channel looping
     the animation and running its second operand as a command; the shadows'
@@ -284,7 +285,7 @@ rest waits, is [PLAN.md](PLAN.md).
     27, a subject or an anchor named by an operand, an effect record found in
     a byte, an effect animation past the 16), reach the next variable only
     while storage is the RAM image: a native layout needs a decision for each.
-    Chunk 9b's (RECOMP.md, "Phase 3, battle chunk 9b"): the middle of the
+    Chunk 9b's (history/reimplementation-chunks.md, "Phase 3, battle chunk 9b"): the middle of the
     first three subjects taking its Y from the sum of their X; a channel's
     line or jump going past the length its last move kept, whatever command
     it is at; the other targets' forms -- lines setting every target off and
@@ -322,7 +323,7 @@ rest waits, is [PLAN.md](PLAN.md).
     sprites (`$CF:E83A`), a frame's graphics built over the direct page's cells
     or the stack (`$C1:1C55`).
   - What an effect's working out still leaves the machine as scaffolding
-    (RECOMP.md, "Phase 3, battle chunk 2"), for the party's code and the
+    (history/reimplementation-chunks.md, "Phase 3, battle chunk 2"), for the party's code and the
     showing, which are the original's: the carry the long multiply keeps in
     its second number's cell (`battle_leave_multiply_carry`, at eight places in
     the work and the enemy's turn, each the carry of what came just before a
@@ -346,10 +347,10 @@ rest waits, is [PLAN.md](PLAN.md).
   - Bit 4 of a party member's action record's choice (`CHOICE_HELD`,
     battle.h): a knocked-out member's choice loses it (`combatants.c`), and a
     choice of it alone leaves the member's turn as it is, its timer and record
-    untouched (`member_turn.c`, RECOMP.md, "Phase 3, battle chunk 5"). Which
+    untouched (`member_turn.c`, history/reimplementation-chunks.md, "Phase 3, battle chunk 5"). Which
     menu command sets it, and what the player sees, is to work out; name it
     then.
-  - The statuses' timers (RECOMP.md, "Phase 3, battle chunk 3"): the first
+  - The statuses' timers (history/reimplementation-chunks.md, "Phase 3, battle chunk 3"): the first
     status byte's `$10` (a point of HP lost each time its timer runs out) and
     the fourth's `$20` (5 MP back every tenth) are named for what the battle
     does with them; what the player calls them is to work out. Timer kinds 6,
@@ -404,7 +405,7 @@ rest waits, is [PLAN.md](PLAN.md).
     that address implies; `play_nobodys_animation` takes a parameter only
     ever `SCRIPT_NOBODY`; the registered `event_cmd_set_solidity` names an
     operation now called `set_contact`; `charge.h`'s comment carries a
-    history note that belongs in RECOMP.md.
+    history note that belongs in REIMPLEMENTATION.md.
 
   - what the triangles, circles and special effects' review left (none
     blocking): `screen_triangles.c` works out the bit-serial divider's
@@ -506,7 +507,7 @@ rest waits, is [PLAN.md](PLAN.md).
       ...), `battle_target_display`'s fields, and the stale `source` lines
       naming functions that no longer exist (`battle_run_queued_scripts`
       and about fifty others);
-    - from the enemies' minds' review (RECOMP.md, "Phase 3, wave 2: the
+    - from the enemies' minds' review (history/reimplementation-waves.md, "Phase 3, wave 2: the
       enemies' minds"): `enemy_turn.c` runs the actions' turns, which are C,
       as sibling entries through `battle_run` and the dispatch's registers,
       and they give their results (the outcome, the follow-up, the message
@@ -531,7 +532,7 @@ rest waits, is [PLAN.md](PLAN.md).
       handlers sit in `nmi.c` and `display.c` without pointing at each other;
       `frame.h` describes `BattleScrollMode` by what is still the original's.
 
-- **What menu's rewrite left** (RECOMP.md, "Phase 3a: the menus off the
+- **What menu's rewrite left** (history/reimplementation-phase3a.md, "Phase 3a: the menus off the
   machine", and "Phase 3a: the menus' follow-ups and the Epoch"):
   - a divergence the rewrite accepts, on inputs no game state makes: a
     string's control code past `$0C`, or one included deeper than four, draws
@@ -578,7 +579,7 @@ rest waits, is [PLAN.md](PLAN.md).
     - sign-bit compares, an uncommented `_unchecked` read in `group_pixel`,
       and the numbered entries `menu_object_window1_lines_2`/`_3`.
 
-- **What event's and field's combined pass left** (RECOMP.md, "Phase 3a: event
+- **What event's and field's combined pass left** (history/reimplementation-phase3a.md, "Phase 3a: event
   onto the field's objects"):
   - a location is still decoded from its two words in the operation
     (`location_of` in `event/locations.c`): the rows decode an operand into
@@ -649,7 +650,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `field_hold_party_if_defeated`).
 
 - **What only the original's memory has, past the object tables.** The
-  stray accesses are explicit and marked now (RECOMP.md, "Phase 3a: event onto
+  stray accesses are explicit and marked now (history/reimplementation-phase3a.md, "Phase 3a: event onto
   the field's objects"), and a build without the original's memory has to
   decide each: the sprite table's high part running on past its end
   (`sprites.c`, by address through `game/wram.h`), the fifth sprite's Y above
@@ -660,7 +661,7 @@ rest waits, is [PLAN.md](PLAN.md).
   place to the original, where it reads the slot past the tables; the game
   makes none of those calls over the library. The moves, following and
   noting a member's tile ask for the member as `Someone` (`event/party.h`),
-  which has nobody in an empty place, and these would do the same (RECOMP.md,
+  which has nobody in an empty place, and these would do the same (history/reimplementation-chunks.md,
   "The absent party member and the object off the map").
   The party's place taken as the leader's with no leader on the map (a
   save's load, the attract demo's scenes, until the map's objects start), for
@@ -669,7 +670,7 @@ rest waits, is [PLAN.md](PLAN.md).
   the unchecked accessors (`field/location.c`, `field_leaders_place`): the
   map's start then puts the party where the location says, so a build without
   the original's memory can take the location's own place there instead.
-- **What battle's chunk 6 left** (RECOMP.md, "Phase 3, battle chunk 6"; its
+- **What battle's chunk 6 left** (history/reimplementation-chunks.md, "Phase 3, battle chunk 6"; its
   review's follow-ups):
   - one accessor for the other items' battle records (`$CC:0ABC`):
     `equipment_data.h`'s `item_in_battle` and `effect_data.h`'s item-use
@@ -695,7 +696,7 @@ rest waits, is [PLAN.md](PLAN.md).
     past the recorded ones is the original's leftover X; say so at the call,
     or give the item no record.
 
-- **What battle's chunk 7 left** (RECOMP.md, "Phase 3, battle chunk 7"):
+- **What battle's chunk 7 left** (history/reimplementation-chunks.md, "Phase 3, battle chunk 7"):
   - the attack's second part is a byte of bank CC at the member's block's
     place, where the original means the weapon's record (it has just found
     it by a multiply, then reloads the index): a native build decides
@@ -717,7 +718,7 @@ rest waits, is [PLAN.md](PLAN.md).
     marks and spare, `battle_enemy_family_bits`): find a reader or drop
     them with the gate.
 
-- **What battle's chunk 8 left** (RECOMP.md, "Phase 3, battle chunk 8"):
+- **What battle's chunk 8 left** (history/reimplementation-chunks.md, "Phase 3, battle chunk 8"):
   - the rewards' messages (`$FD:AD17`) are still the original's: each waits
     for the player through `$CD:0021`, so their port waits on the messages'
     own (the window's text and the wait for a button);
@@ -736,7 +737,7 @@ rest waits, is [PLAN.md](PLAN.md).
     as it clears its own cell (`rewards_share_with_reserve`): nothing after
     the battle's end reads it before the next fight's start clears it, so a
     native build can drop the write.
-- **What the targeting left** (docs/history/recomp-chunks.md, "Phase 3,
+- **What the targeting left** (docs/history/reimplementation-chunks.md, "Phase 3,
   battle: the targeting"),
   its review's findings not yet taken:
   - `aim.c` tests who can take part with its own `in_fight`, `knocked_out` and
@@ -770,7 +771,7 @@ rest waits, is [PLAN.md](PLAN.md).
   do then, and drop the slot's reads and writes with the tables' native
   storage.
 
-- **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
+- **What only the original's memory has, in the battle** (history/reimplementation-chunks.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
   - a status's timer of nobody's: the search for run-out timers takes the
     order's empty place (`$FF`) for a combatant and reads its state past the
@@ -808,21 +809,21 @@ rest waits, is [PLAN.md](PLAN.md).
     of work RAM at `$7E:B1F5` plus eleven times the tech, which the original
     reads where the tech's record is meant (`party_work.c`,
     `stops_after_miss`, through `wram_read8`);
-  - from the setup (RECOMP.md, "Phase 3, battle chunk 6"): the search for a
+  - from the setup (history/reimplementation-chunks.md, "Phase 3, battle chunk 6"): the search for a
     member's triple tech reads the byte after the fifteen learned ones as it
     ends (`tech_records.c`, `learned_byte`); a member wearing an item past
     the recorded ones ($F2 on) has bank CC's first bytes, at twice its slot,
     copied into its block as that item's record (`member_stats.c`,
     `copy_equipment_records`); and the item list's building reads the
     inventory's 256 places, the fourteen past its own included
-    (`inventory.c`); from the fight's start (RECOMP.md, "Phase 3, battle
+    (`inventory.c`); from the fight's start (history/reimplementation-chunks.md, "Phase 3, battle
     chunk 7"): a demo battle gives HP and MP to eight characters' records,
     the eighth landing on the techs learned after the seventh's record
     (`fight_party.c`, `fight_load_demo_party`); the double techs' setup reads
     the byte after the last learned double tech as it ends
     (`tech_records.c`); and a weapon made for no character reads past the
     characters' slots for its owner (`fight_party.c`, `owners_slot_bit`);
-    and from an action's showing (RECOMP.md, "Phase 3, battle: an action
+    and from an action's showing (history/reimplementation-chunks.md, "Phase 3, battle: an action
     shown"): the subjects' list of an action with more than six other targets
     runs past `battle_script_subjects` onto the block uploads' count and the
     enemies' family bits (`action_showing.c`, `list_subject`), and the
@@ -834,7 +835,7 @@ rest waits, is [PLAN.md](PLAN.md).
     original does). The library sets it at ten landings of hits in the Lavos
     fights, none felling an enemy; a native build, which doesn't keep the
     cell, decides it otherwise.
-- **What an action's showing left at its edge** (history/recomp-chunks.md,
+- **What an action's showing left at its edge** (history/reimplementation-chunks.md,
   "Phase 3, battle: an action shown"): the steps' dispatch (`$C1:0003`) and
   the showing's stub (`$C1:BFA4`), whose callers' declarations rest on the
   library's evidence for the overflow they hand the steps, so a port of the
@@ -843,7 +844,7 @@ rest waits, is [PLAN.md](PLAN.md).
   register is live; and the frame waits (`$C1:007E`), which wait on the
   vblank handler and go with the timing service (PLAN.md, "Timing is
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
-- **What the battlefield's change left** (RECOMP.md, "Phase 3, battle: the
+- **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
   battlefield changed and an effect's rows of its tiles"): the frame work's
   waits it calls out to, for the next frame (`$CD:3E75`, which gives the menu
   its turn), for a number of them (`$CD:3E3B`) and for its transfers to go
@@ -857,7 +858,7 @@ rest waits, is [PLAN.md](PLAN.md).
   has never measured. The first row set an effect loads takes A's high byte
   as the frame work's wait leaves it (`$CD:1339`); it is 0 in every call the
   library makes, which the port assumes.
-- **What the accessor checks' fuzzing left** (RECOMP.md, "The accessor bounds
+- **What the accessor checks' fuzzing left** (REIMPLEMENTATION.md, "The accessor bounds
   checks"). Random states still drive these accessors out of range, where no
   guard turns the state away; no movie does:
   - the tile ahead of a moving object, off the map: `field_start_step`
@@ -881,7 +882,7 @@ rest waits, is [PLAN.md](PLAN.md).
 - **The shadow movies ran 20% longer with the accessor checks in two suite
   runs** (393 s against 317 s, and 398 s against 327 s, `-j 5`), but a movie
   run alone or four at a time, the builds alternating, shows 1% or less
-  (RECOMP.md, "The accessor bounds checks"). Find what differs in the suite's
+  (REIMPLEMENTATION.md, "The accessor bounds checks"). Find what differs in the suite's
   runs before reading the gap as the checks' cost.
 
 - **What the jet bike race's review left** (none blocking after its fixes):
@@ -1015,7 +1016,7 @@ rest waits, is [PLAN.md](PLAN.md).
   frames that build a map strip are off by 7,000-14,000 clocks (the scroll is
   timed as itself, at its own 1,445) -- charge the scroll per strip built (its
   two timing exceptions went with the vblank limits' change to stretches
-  within one vblank, RECOMP.md, "The timing gate"); `followers.c`'s route is a packed byte and
+  within one vblank, REIMPLEMENTATION.md, "The timing gate"); `followers.c`'s route is a packed byte and
   `walls_between` returns a bare byte (a `Route` type), `place & 1` stands
   for the second member, scaffolding is written on every try along the
   trail, and `set_off` places the walker another way than the leader;
@@ -1228,7 +1229,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (characters.c, `event_cmd_cast_enemy`): accepted, and kept to the bank's
   upper half in the variants that must be clean.
 
-## Recompiler
+## Generator
 
 - **What the dc-evidence tooling doesn't check yet** (PORTING.md,
   "Declarations liveness can't prove"; the audit of `tools/v_readers.py`):
@@ -1257,7 +1258,7 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **Stops and entries don't get the strict solve yet.** The don't-care check
   holds call-outs to liveness that trusts no target set the machine picks at
-  run time (RECOMP.md, "Call-outs into targets the machine picks"), but not a
+  run time (REIMPLEMENTATION.md, "Call-outs into targets the machine picks"), but not a
   registry entry's set after its return or a stop's. Held to it, 132 would be
   findings: 108 menu entries (the menus' `JMP (abs)` through RAM, `$C2:0553`,
   `$C2:1819`, `$C2:1836`, `$C2:8203`, `$C2:828E`, `$C2:EFD0`, in the callers
@@ -1287,7 +1288,7 @@ rest waits, is [PLAN.md](PLAN.md).
   (following the field loop's `JML`s) would remove most of the Y/V
   derivations the state routines' ports carry.
 - **Reads of scaffolding the effects check holds in its baseline**
-  (`tools/effects_baseline.txt`; RECOMP.md, "The tooling pass after Phase 3's
+  (`tools/effects_baseline.txt`; REIMPLEMENTATION.md, "The tooling pass after Phase 3's
   first chunks"). Each is a value the native build reads stale unless shown
   otherwise; answering one deletes its line. What the library's shipping-mode
   runs catch (`ct_dev --native on --scaffold-reads`), by subsystem:
@@ -1351,13 +1352,13 @@ rest waits, is [PLAN.md](PLAN.md).
 
 - **M4**: skip flags nobody reads, call generated blocks directly where it's
   safe. Speed only; rendering and sound dominate now.
-- **The draft tool's gaps** (RECOMP.md, "What drafts don't do yet"): D and DB
+- **The draft tool's gaps** (REIMPLEMENTATION.md, "What drafts don't do yet"): D and DB
   for code only interrupts reach, and the field's main loop after a battle,
   which the frame analysis gets wrong (a guard catches it: 432877 calls of
   `field_scroll_layers`); operand names for the battle script handlers;
   turning I/O register writes and the multiplier into platform calls and C
   arithmetic; stub signatures that still vary by what a call reads back.
-- **Drafts and ports don't use the new declarations yet** (RECOMP.md, "Between
+- **Drafts and ports don't use the new declarations yet** (REIMPLEMENTATION.md, "Between
   the waves: the validator"). The draft tool writes A's low byte back wherever
   its high byte is live and gives a stop the entry's set; `DC_AL` and
   `m_stop_at_own` would let it name exactly what is dead. Among the ports,
@@ -1379,7 +1380,7 @@ rest waits, is [PLAN.md](PLAN.md).
   could have declared dead. Moving `ret_live_mask` into `liveness.py`, emitting
   it in the JSON beside the other, and naming in each docstring which question
   it answers would settle it once.
-- **What the overworld on foot left** (RECOMP.md, "Phase 3, overworld: the
+- **What the overworld on foot left** (history/reimplementation-chunks.md, "Phase 3, overworld: the
   world map on foot"):
   - the walkers' event steps run their scripts through the interpreter's
     bridge (`menu_run_object_script_from`, `menu/script_call.h`), which, as
@@ -1407,7 +1408,7 @@ rest waits, is [PLAN.md](PLAN.md).
     from one region into another (`$C2:3011`-`$C2:309D`, the music's fade
     and the new song), nor clears the sign from the menus (`$C2:5711`).
 
-- **What the vehicles and the screen's objects left** (RECOMP.md, "Phase 3,
+- **What the vehicles and the screen's objects left** (history/reimplementation-chunks.md, "Phase 3,
   menus and overworld: the vehicles, the screen's objects and the calls made
   where they go"):
   - the dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB) is still the
@@ -1435,7 +1436,7 @@ rest waits, is [PLAN.md](PLAN.md).
     sprite scripts rarely are): a variant with the slot's scripts kept would
     cover it better.
 
-- **What the world map's set up left** (RECOMP.md, "Phase 3, menus and
+- **What the world map's set up left** (REIMPLEMENTATION.md, "Phase 3, menus and
   overworld: the world map set up, its scenes' calls and the frame's
   input"):
   - the reference play runs 5.0 KiB of bank `$C2` with no call on record
@@ -1457,7 +1458,7 @@ rest waits, is [PLAN.md](PLAN.md).
     take); the reload itself is fuzzed alone (`overworld_load_the_map_again`)
     and checked in shadow mode (7 calls).
 
-- **What the menus' tenth chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' tenth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   party's exchange"):
   - the main menu's exchange (the active party alone) takes the reserve's
     count as the screen before it left it: with a count, a push across
@@ -1485,7 +1486,7 @@ rest waits, is [PLAN.md](PLAN.md).
     back in to) has no writer the disassembly reaches by its address: find
     it, or drop the cell's name for what writes there.
 
-- **What the menus' ninth chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' ninth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   main menu, the save screen's opening, name entry, the description, the
   list slide and the shop's equipping"):
   - the save screen's own opening and frame (`$C2:D4F8`, `$C2:D506`) are
@@ -1499,7 +1500,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - the description keeps the typing's spare cells (`_pad`) and the upload
     record's eighth byte as the original's, as scaffolding; a native
     storage drops them.
-- **What the menus' eighth chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' eighth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   party's services, its figures and its healing"):
   - the figures and the healing leave the multiplier's and the divider's
     results (`hw_set_multiplicand`, `hw_divide_by`) and the healing's
@@ -1513,7 +1514,7 @@ rest waits, is [PLAN.md](PLAN.md).
     record holding something else would index past the characters' records,
     as the original would. A native storage makes the record a type that
     can't.
-- **What the menus' seventh chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' seventh chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   settings screen and the shop"):
   - the settings screen's eighth button assignment (the shoulder buttons'
     row) reads its list of rivals past the table's end, into the code after
@@ -1526,7 +1527,7 @@ rest waits, is [PLAN.md](PLAN.md).
     `menus-shop-equip`) without paging or sliding the goods' list; fuzzing
     is the check for the slide, the quantity's limits and a full purse, and
     a movie through a big shop's list would add shadow mode's.
-- **What the menus' sixth chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' sixth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   items screen and the equipment screen's windows"):
   - the window of who can equip an item reads an accessory's power past the
     table the menus build (`menu_item_powers`, 148 entries: the weapons',
@@ -1540,7 +1541,7 @@ rest waits, is [PLAN.md](PLAN.md).
     tonic `menus-field-menu` uses: fuzzing compares each up to its first
     wait for a frame. A library movie that does them (from a save with tabs
     and a Lapis, more than ten places of items) would keep them checked.
-- **What the menus' fifth chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' fifth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   equipment screen and its member list"):
   - the equipment screen's preview of an item's figures (`$C2:A5C3`,
     `$C2:A5E7`) stays the original's: the P it saves (under its calls to the
@@ -1562,14 +1563,14 @@ rest waits, is [PLAN.md](PLAN.md).
     shoulder assignments, slides the list of what fits or refuses a slot, and
     the main menu's panel is interrupted on its one call in each movie that
     opens the menu: a scratch movie from `menus-field-menu`'s save checked them
-    (RECOMP.md), and fuzzing reaches each only up to its first wait for a
+    (REIMPLEMENTATION.md), and fuzzing reaches each only up to its first wait for a
     frame. A library movie that does the same (the equipment screen from a
     save with more than three members to choose among, an accessory list of
     more than nine) would keep them checked;
   - the member list's colouring of one row (`$C2:9EB0`) reads where the row
     is from a cell its two callers write before the call; both are ports now
     that colour the row as C, so the entry is reached only by fuzzing.
-- **What the menus' fourth chunk left** (RECOMP.md, "Phase 3, menus: what
+- **What the menus' fourth chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: what
   the menus' ports called most"):
   - the menus' vblank work (`$C2:842A`) calls the per-frame input as a
     call-out (`m_jsr_dc`), not as C: run through `menu_run` it changed what
@@ -1613,7 +1614,7 @@ rest waits, is [PLAN.md](PLAN.md).
     length, keeps before the fight (MOVIES.md, "resume"); a base ct_drive
     could take inside a battle, or fewer restores in `campaign.fight`,
     would bound it.
-- **What the menus' third chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' third chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   characters in the records"):
   - a record's load calls the unpacker (`$C2:F542`, the decompressor's port
     on the machine) as a call-out; the unpacker as C on the game's state
@@ -1639,7 +1640,7 @@ rest waits, is [PLAN.md](PLAN.md).
     doesn't say;
   - the save screen's chapter label builds its place and calls the label
     setting inline in its entry and its guard; a helper would say it once;
-- **What the menus' second chunk left** (RECOMP.md, "Phase 3, menus: the
+- **What the menus' second chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the
   typesetter, the graphics and the items"):
   - the typesetter's `$12` followed by 2-7, which jumps into code in the
     original that isn't a handler, ends the call in the port as a pause does,
@@ -1659,7 +1660,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - what the three bytes at `$7E:2C53` the menus copy as they open are, and
     the story's bits the item lists read (`menu_story_items`,
     `menu_place_items`), is not worked out.
-- **What the save code's chunk left** (RECOMP.md, "Phase 3, menus: the save
+- **What the save code's chunk left** (history/reimplementation-chunks.md, "Phase 3, menus: the save
   code and the rest of bank `$FF`"):
   - `$FF:FF3E`-`$FFF4`, a menu record's routine with a jump table at
     `$FF:FFE2`, behind a return the analysis finds nothing reaching, is not
@@ -1672,7 +1673,7 @@ rest waits, is [PLAN.md](PLAN.md).
   - what the cartridge's count at save memory's `$1FE1`
     (`SAVES_TIMES_FINISHED`) counts: the save moves it on when the game's
     `times_finished` equals it, which doesn't read as a count of finishes.
-- **What the menus' first Phase 3 chunk left** (RECOMP.md, "Phase 3, menus"):
+- **What the menus' first Phase 3 chunk left** (history/reimplementation-chunks.md, "Phase 3, menus"):
   - `menu_erase_slot` (`$C2:E8B7`) is fuzzed only up to its wait for the next
     frame (`ct_fuzz --stop-at-call C2821E`, 1,875 of 2,000 states compared,
     none mismatching). `menus-new-game-plus` erases a slot, but the wait is a
@@ -1685,14 +1686,14 @@ rest waits, is [PLAN.md](PLAN.md).
     them up to their first point and sets them aside there (`abandoned`); the
     timing of that part calibrates them, what they do after it is in
     `menu_open`'s own rate (28004, against about 5000 for the menus' other
-    bridges; RECOMP.md, "The tooling pass after Phase 3's first chunks");
+    bridges; REIMPLEMENTATION.md, "The tooling pass after Phase 3's first chunks");
     `$C2:D306` (a label moved two pixels right) is inline in `$C2:D2C4` and no
     entry;
   - a window list's strings that include work RAM (a name, a number) draw
     through the text port's accepted divergences when fuzzing fills that RAM
     at random (7 of 2,000 fuzzed `menu_window_draw_string` states, 2 and 1 of
     the lists'); no list of the game's reaches them.
-- **What chunk 1's review of the menus left for later** (RECOMP.md, "Phase 3,
+- **What chunk 1's review of the menus left for later** (history/reimplementation-chunks.md, "Phase 3,
   menus"): `save_screen.c` renamed for what it holds (the slots' summaries);
   `menu_save_slot_in_use`'s fourth entry, the fourth row, split out in the map
   with named values, and the load screen's steps by name rather than
@@ -1719,14 +1720,14 @@ rest waits, is [PLAN.md](PLAN.md).
   leave through `JMP $39A7` into the loop's own code and carry on with the
   next task rather than return.
   Following S through the cell it is saved in, and a callee that finishes its
-  caller's iteration, would free them (RECOMP.md, "The tooling pass after
+  caller's iteration, would free them (REIMPLEMENTATION.md, "The tooling pass after
   wave 1: the analysis"). The menus' task switch (`$C2:821E`, `$C2:822B`) is
-  a `[[keeps]]` hint instead (RECOMP.md, "Phase 3, menus"); the scene's task
+  a `[[keeps]]` hint instead (history/reimplementation-chunks.md, "Phase 3, menus"); the scene's task
   lists could take the same.
 - **Scene cells the menu objects use.** The C6 irises and motion routines
   (`menu/object_commands.c`) run on the menu's direct page and use the circle
   drawer's and the scaler's cells, which the map files under the scene; their
-  drafts now give those cells scratch names (RECOMP.md, "The tooling pass
+  drafts now give those cells scratch names (REIMPLEMENTATION.md, "The tooling pass
   after wave 1: the analysis"). Filing them where both subsystems see them (`core`, or
   entries on the menu's page) would name them again.
 - **Stops after a call-out that changed the widths.** Ports that give up there
@@ -1735,8 +1736,8 @@ rest waits, is [PLAN.md](PLAN.md).
   the entry, shadow mode and `ct_fuzz` report it if it ever happens, but the
   check can't see the point. None of the movies reaches one; declaring them
   (`m_stop_dont_care` at the return address) would make them checkable.
-- **Gaps in the vblank check** (RECOMP.md, "Where video writes land"), which
-  the suite runs with seven findings accepted (RECOMP.md, "The timing gate"): a
+- **Gaps in the vblank check** (REIMPLEMENTATION.md, "Where video writes land"), which
+  the suite runs with seven findings accepted (REIMPLEMENTATION.md, "The timing gate"): a
   hand port's region ends at its last service call, so the reference's work in
   code the original jumps to past it is `unmatched` (the menu loads);
   following the call stack in the reference would close that. And it names the
@@ -1947,7 +1948,7 @@ rest waits, is [PLAN.md](PLAN.md).
   write the window table through the work RAM port with 16-bit stores, so each
   edge's low byte also lands on APU port 3, as the quadrilaterals' `$D1:F9E7`
   did before it was C and left that byte as scaffolding, `hw_port_leave_spill`;
-  RECOMP.md, "Phase 3, wave 1"),
+  history/reimplementation-waves.md, "Phase 3, wave 1"),
   and the APU-direct backend's audio comparison misses one measure on
   `new-game` (PLATFORM.md, "P1 as built").
 - **The sound driver's waits on time and on the SPC700** (`core/sound_driver.c`):
@@ -1997,14 +1998,14 @@ re-runs the census.
   resume, each a state machine called once a frame: the way for a target that
   can't afford nine 512 KiB stacks (PLAN.md, "What that makes
   scaffolding").
-- **The clock's controller read inside the effect work** (RECOMP.md, "Phase 3,
+- **The clock's controller read inside the effect work** (history/reimplementation-chunks.md, "Phase 3,
   battle chunk 4"): the clock's modifier (`$C1:EE27`) runs the frame's input
   work again (`$C2:8002`) mid-work, and the port (`input_take_frame`) can't
   stop where the original waits for the console's controller read
   (`$C2:84F9`) or resets for the reset buttons: it goes on with the sets and
   the play time as they are. No movie reaches either; both want the input
   frame as a `tm_`/`in_` call that has an answer without a wait.
-- **The event commands still on the machine** (RECOMP.md, "Phase 3a: event
+- **The event commands still on the machine** (history/reimplementation-phase3a.md, "Phase 3a: event
   onto the field's objects"): 21 bridges, rows of the language's table that
   call out to code still the original's: the sound driver (`sound.c`),
   `$D6`'s and `$D4`'s carries (`party.c`, whose calls to the menus'
@@ -2014,7 +2015,7 @@ re-runs the census.
   machine-shaped port: `$82` and `$83`, `characters.c`, call it on the
   machine between their halves of C). A C unpacker taking a source and a
   destination would make those two operations.
-- **What the party on the map left** (RECOMP.md, "Phase 3, field and events:
+- **What the party on the map left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the party on the map"):
   - an object is made pushable by bit 1 of the byte event `$84` stores, and
     `$84`'s row decodes that byte as solidity alone, its guard taking only 0
@@ -2029,7 +2030,7 @@ re-runs the census.
     horizontal parts twice); the vertical half is never read there, since a
     member waiting on a footprint with no ground stands, so a native build
     can wipe it whole.
-- **What the leader's walk left** (RECOMP.md, "Phase 3, field and events:
+- **What the leader's walk left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the leader's walk and the confirm button"):
   - the walk and the screen's recentring call the layers' scroll
     (`$C0:91AC`) and the streaming (`$C0:93E1`) as call-outs on the layers'
@@ -2038,7 +2039,7 @@ re-runs the census.
     without their own calls (they have no other callers);
   - a chest's gift goes to the party through the battle bank's inventory
     service (`$C1:8003`, A 1 for an item, 4 for gold) as a call-out. The
-    service is C now (`battle/inventory.h`, RECOMP.md, "Phase 3, battle
+    service is C now (`battle/inventory.h`, history/reimplementation-chunks.md, "Phase 3, battle
     chunk 6"): the confirm button can call `battle_inventory_add` and
     `battle_give_gold` instead, timed as the service;
   - from chunk 2's review: name `field_exit`'s record size. The four collision nudges of the walk
@@ -2059,11 +2060,11 @@ re-runs the census.
     where it indexes the tables with the empty place's marker (`$80`); the
     library makes neither. The counts of 64-127 it makes on a frame or two in
     six movies (112 and 123 at `$7F:2000`) are ports with scaffolding
-    (RECOMP.md, "Phase 3, field and events: the map scrolling in"): what
+    (history/reimplementation-chunks.md, "Phase 3, field and events: the map scrolling in"): what
     `$7F:2000` holds on those frames, and whether the confirm button's and
     the moves' searches meet it too (their guards still require a count
     under 64), is still to be read.
-- **What the larger sprite layouts left** (RECOMP.md, "Phase 3, field and
+- **What the larger sprite layouts left** (history/reimplementation-chunks.md, "Phase 3, field and
   events: the larger sprite layouts"):
   - the layouts' show rules differ between routines for the same object (the
     8-sprite placing shows sprites its rebuild hides); a native renderer that
@@ -2074,7 +2075,7 @@ re-runs the census.
     with a few objects in view would compare it;
   - `field_frame_staging_claims`' last four entries are cleared with the four
     areas' and claim nothing read so far.
-- **What the frame builder left** (RECOMP.md, "Phase 3, field and events:
+- **What the frame builder left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the frame builder"):
   - a 12-sprite object holding a frame is never drawn and stays at the
     queue's head, so the queue spends the rest of its lines on it every
@@ -2089,7 +2090,7 @@ re-runs the census.
     names run past the bank (the copies would read low RAM through bank
     `$80`, the builder's own cells among it, which the port writes at other
     moments); no object the game makes does.
-- **What the main loop's requests left** (RECOMP.md, "Phase 3, field and
+- **What the main loop's requests left** (history/reimplementation-chunks.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
   - `$C0:0C76` hands the field's new start after a location change to the
     original (`$C0:0CC0`: a fresh stack, then `$C0:0000`), and stops at the
@@ -2110,7 +2111,7 @@ re-runs the census.
     pans it on the leader by reading the objects' screen X with the party's
     first two places as one index word); the port calls it and hands it A's
     high byte as the original has it (field/leaves.c);
-- **What the screen effects left** (RECOMP.md, "Phase 3, field and events:
+- **What the screen effects left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the screen effects and the credits"):
   - the curtain's sweep is still bank `$C3`'s (`$C3:01E4`, through the jump
     at `$C3:000E`): each frame it moves every line's edge on by a few pixels
@@ -2143,7 +2144,7 @@ re-runs the census.
   chunk 10's build reports it) and matches the original, which writes there
   too; no movie builds such a table. Bound the rows' window and wave cells
   to what the game sets, or find what keeps a table within its size.
-- **What the map scrolling in left** (RECOMP.md, "Phase 3, field and events:
+- **What the map scrolling in left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the map scrolling in"):
   - the rows BG1's and BG2's builders end with the second half of the map
     tile past the last, where the first would continue the line; it lies
@@ -2159,7 +2160,7 @@ re-runs the census.
   - the blank that clears the staging at `$C0:75A0` (a block move from
     `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
     1104 bytes left in the run) are the original's.
-- **What the screen's setup and the objects' setup left** (RECOMP.md,
+- **What the screen's setup and the objects' setup left** (REIMPLEMENTATION.md,
   "Phase 3, field and events: the screen set up, the map unpacked, the
   objects started"):
   - a switch pressed again after a menu or a battle shows the one-by-two
@@ -2184,7 +2185,7 @@ re-runs the census.
   matched, while the engine's entries match on every call. They are still checked (every call-out's registers, the
   engine's state at its end), and fuzzing covers them one by one; a way for
   shadow mode to compare a nested port's stretch would count them again.
-- **Event's scaffolding, and what would let liveness drop it** (RECOMP.md,
+- **Event's scaffolding, and what would let liveness drop it** (history/reimplementation-phase3a.md,
   "The event language"). The `ORIGINAL_EFFECT`s and the parallel table
   `event/leaves.c` reproduce what nothing in the library reads but shadow
   mode:
@@ -2295,7 +2296,7 @@ re-runs the census.
   registers its callers have (A, X and the carry), so the routines that only
   hand it on stay the original's with it: the stars' scatter, flight and
   drift (`$7E:5777`, `$7E:579B`, and The End's `$7E:9897`/`$7E:98AC` with
-  `$7E:98E3`; RECOMP.md, "Phase 3, the scene program: the staff roll").
+  `$7E:98E3`; REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll").
   `$7E:9AB3` reads `$213F`'s field bit to move something every other frame:
   `tm_odd_frame`, as the credits' scroll (`$7E:9ED6`) now does.
 - **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
@@ -2329,7 +2330,7 @@ waits on M5 rather than on a backend.
     third backend is not scheduled** (PLAN.md, "What this plan deprioritizes"),
     and when a browser build is wanted it is for those coroutines.
   - **What the browser build is made of.** The default path generates C from the
-    user's ROM at build time (RECOMP.md), and nothing ROM-derived can be shipped
+    user's ROM at build time (GENERATED.md), and nothing ROM-derived can be shipped
     (CLAUDE.md), so a public build cannot contain it. That leaves a build the
     user compiles, or one that is hand ports plus the interpreter over a ROM the
     page loads at run time -- which makes M5's coverage the gate on it, and asks
@@ -2490,7 +2491,7 @@ waits on M5 rather than on a backend.
 
 ## Player and tooling
 
-- **The fallback measure's edges** (RECOMP.md, "The fallback measure"):
+- **The fallback measure's edges** (REIMPLEMENTATION.md, "The fallback measure"):
   - it follows extents by the stack, so a task switch to a stack within
     `STACK_SPAN` of the one it left (`dev/fallbacks.c`) keeps the extent it
     was in, and a routine reached by a jump rather than a call is filed under
@@ -2534,7 +2535,7 @@ waits on M5 rather than on a backend.
 - **The burndown ranks by bytes, and can't say a run is blocked.** `--uncovered`
   put `$C2:27DE` among the largest runs in the bank, but its 1385 bytes are
   about fifteen loaders whose only real content is *which resource each stream
-  is*, so porting them to the bar needs the resources typed first (RECOMP.md,
+  is*, so porting them to the bar needs the resources typed first (history/reimplementation-waves.md,
   "Phase 3, wave 2: the menus' map"). A chunk picked off that list can be
   unportable for a reason that has nothing to do with porting, and the map
   chunk lost an hour discovering it. A column saying how much of a run is calls
@@ -2552,7 +2553,7 @@ waits on M5 rather than on a backend.
   matcher wants the parameter list's closing parenthesis at the end of a line)
   and counts guards and entry wrappers with everything else, so "45% on the
   machine" for scene reads as a backlog when it is entries, guards and bridges
-  (RECOMP.md lists them by name). Matching definitions properly, and splitting
+  (REIMPLEMENTATION.md lists them by name). Matching definitions properly, and splitting
   the column into registered entries, guards and the rest, would make the rest
   the number to drive to zero.
 - **`tools/fuzz_routines.toml` has the scene's, the events' and the field's
@@ -2577,7 +2578,7 @@ waits on M5 rather than on a backend.
   (`scene_title_load_*`), each named for what it puts in VRAM, because the
   loader around them calls the program's unpacker and its own routines
   (`$7E:3691`, `$7E:38AF`, `$7E:89ED`, `$7E:5E3C`). The race's setup was
-  ported whole as a list of graphics, each unpacked and sent (RECOMP.md,
+  ported whole as a list of graphics, each unpacked and sent (history/reimplementation-chunks.md,
   "Phase 3, the scene program: the rest of the jet bike race"); the title's
   would retire five entries the same way.
 - **The race's setup calls the original three times.** The program's unpacker
@@ -2602,7 +2603,7 @@ waits on M5 rather than on a backend.
   stops) and the ripple's new first offset each frame (`$7E:600E`, where
   `scene_title_ripple_columns` stops) are the program's code; porting them
   would end two stops mid-routine.
-- **What scene's second review accepted as later work** (RECOMP.md, "Phase
+- **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:
   - `scaler.c`: the carry into the leftover's measure is threaded through

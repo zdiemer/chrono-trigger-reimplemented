@@ -1,5 +1,5 @@
 /* Built when no ROM was given at configure time: no generated blocks, so hosts
- * run hand ports and the interpreter only (docs/RECOMP.md). */
+ * run hand ports and the interpreter only (docs/GENERATED.md). */
 #include "port/generated_table.h"
 
 const NativeEntry generated_natives[1] = { { 0 } };

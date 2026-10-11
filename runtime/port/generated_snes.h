@@ -11,7 +11,7 @@
 
 struct Snes;
 
-/* Exact timing for a block running in ON mode (docs/RECOMP.md, "Exact timing").
+/* Exact timing for a block running in ON mode (docs/GENERATED.md, "Exact timing").
  * Times are the block's clocks so far: bus clocks plus 6 per internal cycle. */
 typedef struct RcTiming {
     struct Snes *s;         /* the machine an ON mode block runs on; NULL otherwise */

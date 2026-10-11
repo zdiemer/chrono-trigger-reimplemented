@@ -53,7 +53,7 @@ player instead.
 
 The development system's 65816 interpreter is the reference everything is
 checked against, not something a player needs: the code generated from the ROM
-runs every instruction of the movie library ([RECOMP.md](RECOMP.md), M3). The
+runs every instruction of the movie library ([GENERATED.md](GENERATED.md), M3). The
 CMake option `CT_PLAYER_INTERPRETER` decides what `ct_play` keeps of it (`ct_dev`,
 `ct_fuzz` and the test runners always have it):
 
@@ -104,7 +104,7 @@ python3 tools/dist.py -- "-DCT_GENERATED_COVERAGE=traces/coverage-*.txt;path/to/
 
 That covers ROM code and RAM code inside the RAM sections `re/hints.toml`
 describes; RAM code in no section needs a `[[ramcode]]` section first
-([RECOMP.md](RECOMP.md), "RAM code as generated blocks"). Like coverage files,
+([GENERATED.md](GENERATED.md), "RAM code as generated blocks"). Like coverage files,
 misses files stay out of the repository.
 
 ### Linux and macOS
@@ -135,11 +135,11 @@ dist/ct_play --rom path/to/ct.sfc [--scale 3] [--fullscreen] [--mute] [--native 
 The ROM can also be given as the only argument, so dropping it onto the
 executable works. By default (`--native on --generated on`) the game runs as the
 hand-ported routines, the readable C in `game/`, with the C generated from your
-ROM at build time ([RECOMP.md](RECOMP.md)) wherever no routine is ported yet.
+ROM at build time ([GENERATED.md](GENERATED.md)) wherever no routine is ported yet.
 The ports' timing is estimated rather than the original's, so events can play
 out differently from the original (a battle may go another way); the timing
 gate bounds how far the estimates may be off and checks that no display write
-lands on the picture where the original's doesn't (RECOMP.md, "The timing
+lands on the picture where the original's doesn't (REIMPLEMENTATION.md, "The timing
 gate"). `--generated only` runs the generated C alone, which keeps the original's
 timing exactly: it behaves frame for frame like `--native off`, and it is what
 movies replay and record in (below). `--native off` interprets everything, the

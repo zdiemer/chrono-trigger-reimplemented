@@ -203,7 +203,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --sram save.srm --movie m.ctm --frames N
 
 Adding it to the library (`oracle/movies/saves/`) moves the gate's measures
 that sum over the library, the timing gate's drift and the fallback ratchet's
-counts; [RECOMP.md](RECOMP.md), "The timing gate", says what a batch of movies
+counts; [REIMPLEMENTATION.md](REIMPLEMENTATION.md), "The timing gate", says what a batch of movies
 needs ("Adding movies").
 
 **Routes are timing-independent; movies are not.** A route reads the machine, so

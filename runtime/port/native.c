@@ -162,7 +162,7 @@ typedef struct Debt {
  * falls through its branch. Charging nothing put the code after the loop at
  * the change itself: the line IRQs' forced blank after their hblank wait
  * landed at hclock 1102, before the line is drawn (1104), and blacked out the
- * playfield's last line in every field and battle frame (docs/RECOMP.md,
+ * playfield's last line in every field and battle frame (docs/REIMPLEMENTATION.md,
  * "The timing gate"). This is the shortest such loop's pass, LDA
  * abs / AND # / BEQ (9 cycles, 6 master clocks each at FastROM and I/O
  * speed), so the exit lands no earlier than the original's could. */
@@ -1067,7 +1067,7 @@ enum { DEBT_INTERRUPT = -1, DEBT_WAITS = -2 };
  * work already done, a timing difference), returns to the boundary, and the
  * rest is paid then. Holding interrupts until the whole debt was paid, as
  * this did before, started NMI handlers late by up to the length of the call
- * they interrupted, and pushed their video writes out of vblank (docs/RECOMP.md,
+ * they interrupted, and pushed their video writes out of vblank (docs/REIMPLEMENTATION.md,
  * "Where video writes land"). So a payment step also ends just after the next
  * point an interrupt can be raised (snes_interrupt_horizon), where the poll
  * can see it. A port suspended in native_sync is interrupted the same way: its
@@ -1969,7 +1969,7 @@ static uint64_t span_of(const NativeRuntime *rt, const Snes *s, uint64_t cpu_clo
 /* The oracle: exact time for a hand port (PORT_TIMING_ORACLE).
  *
  * A prototype, to test whether a port can be exact when given the original's
- * exact time (docs/RECOMP.md, "Can a hand port be exact?"): the port runs on
+ * exact time (docs/REIMPLEMENTATION.md, "Can a hand port be exact?"): the port runs on
  * the machine, then the generated code for the call runs on a copy of the
  * machine as it was, to where the port stopped, which gives the exact time,
  * the last cycle and whether it did anything that depends on the time. Only if

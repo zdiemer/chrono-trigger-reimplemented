@@ -1,4 +1,4 @@
-/* Included by the blocks tools/generate generates from the ROM (docs/RECOMP.md). */
+/* Included by the blocks tools/generate generates from the ROM (docs/GENERATED.md). */
 #ifndef CT_PORT_GENERATED_BLOCK_H
 #define CT_PORT_GENERATED_BLOCK_H
 

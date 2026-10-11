@@ -1609,7 +1609,7 @@ size = 2
 # (absolute, long, or indexed from up to $400 below), and its value is a constant,
 # so the patch has one image. Nothing in the program writes the BMI back; entering
 # the program through C3:0000 decompresses it again. Found by the fallback player's misses file
-# (docs/RECOMP.md, "Without the interpreter"): endings-telepod-lavos, retimed,
+# (docs/GENERATED.md, "Without the interpreter"): endings-telepod-lavos, retimed,
 # reaches the credits, and a bus write watch shows $7E:5643 writing the word
 # 3 frames after the program dispatches mode $0D, and nothing else writing it there.
 [[ramcode]]

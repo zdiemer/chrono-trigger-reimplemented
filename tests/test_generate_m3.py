@@ -1,4 +1,4 @@
-"""M3 of the static recompiler (docs/RECOMP.md), no ROM needed: blocks for RAM
+"""M3 of the C generator (docs/GENERATED.md), no ROM needed: blocks for RAM
 sections with guards and live operands, the reset vector's emulation-mode
 block, the instruction index, and the RAM section formats M3 added (`run`,
 `writes` from RAM, `patch`).

@@ -34,7 +34,7 @@ typedef enum {
 static const char *const group_names[GROUPS] = { "ppu", "apu", "apu-mirror", "joypad", "cpu", "math", "dma-reg",
                                                  "dma-data" };
 
-/* When in the frame an access happened, as the PPU sees it (docs/RECOMP.md,
+/* When in the frame an access happened, as the PPU sees it (docs/REIMPLEMENTATION.md,
  * "Where video writes land"): on a vblank line (225-261); on a picture line
  * (0-224) in forced blank ($2100 bit 7, as it was before the access); or on a
  * picture line with the display on, where ppu.c drops VRAM and OAM data writes

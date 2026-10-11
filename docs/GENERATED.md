@@ -257,7 +257,7 @@ save movies).
 
 - `python3 -m tools.generate` verifies the ROM's CRC-32 (`2D206BF7`), then writes
   `blocks_000.c` ... `blocks_063.c` and `table.c` (`generated_natives[]` and
-  `generated_rom_crc`) into `build/.../recomp/`. A block's shard is a hash of its
+  `generated_rom_crc`) into `build/.../generated/`. A block's shard is a hash of its
   address's kilobyte, so a change to one routine touches few shards. Output is
   deterministic, and files whose content didn't change aren't rewritten: the
   custom command's output is a stamp and the sources are byproducts, so Ninja
@@ -1033,11 +1033,11 @@ have 0 mismatched blocks and hand ports.
   the same block overwrites is invisible, as it is to the rest of the machine.
 - **Timing.** In M1 interrupts and events landed late by up to a block in `on`
   mode, and I/O inside a block saw the time the block started. M2 made blocks
-  exact; what still drifts in `on` mode is the hand ports' estimated time (see
-  "Hand ports in `on` mode"). The timing spike found that only short,
-  computational calls could be made exact, and the decision is to ship hand
-  ports with estimates and gate the estimates' error ("Can a hand port be
-  exact?").
+  exact; what still drifts in `on` mode is the hand ports' estimated time
+  ([REIMPLEMENTATION.md](REIMPLEMENTATION.md), "Hand ports in `on` mode"). The
+  timing spike found that only short, computational calls could be made exact,
+  and the decision is to ship hand ports with estimates and gate the estimates'
+  error (REIMPLEMENTATION.md, "Can a hand port be exact?").
 - **Horizon completeness.** Exactness rests on the horizon listing everything
   the system does between steps that the CPU can see without I/O, and on I/O
   syncing. A new time-driven event in `system.c` (or a register whose value

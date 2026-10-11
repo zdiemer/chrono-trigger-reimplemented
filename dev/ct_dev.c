@@ -33,7 +33,7 @@
  * recorded from a save names its CRC-32 and must be replayed with the same one.
  * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
  * --generated on (the default when the build generated blocks from this ROM)
- * registers the generated blocks after the ported routines (docs/RECOMP.md);
+ * registers the generated blocks after the ported routines (docs/GENERATED.md);
  * --generated only registers the generated blocks without the ported routines, for
  * checking that --native on produces the same traces as --native off.
  * --page-report prints, under each hand port in the native report, the direct
@@ -61,7 +61,7 @@
  * it with render.c's pixel for pixel (dev/px_check.h, docs/PLATFORM.md P3). It
  * works in any --native mode, and a run with a differing frame exits 1.
  * --no-interpreter strict|fallback (with --native on) runs the system loop the
- * way a player built without the interpreter does (docs/RECOMP.md, "Without the
+ * way a player built without the interpreter does (docs/GENERATED.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
  * instruction no native code runs stops the run (strict, exit status 1) or runs
  * on the interpreter and is reported (fallback).

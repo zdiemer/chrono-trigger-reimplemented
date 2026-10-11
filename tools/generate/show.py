@@ -1,4 +1,4 @@
-"""Print a routine as a draft for a hand port (docs/RECOMP.md, "Cleanup into hand ports (M5)").
+"""Print a routine as a draft for a hand port (docs/REIMPLEMENTATION.md, "Cleanup into hand ports (M5)").
 
     python3 -m tools.generate.show BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--d 0100] [--db 7E]
                                  [--page NAME] [--asm] [--no-preamble]
@@ -61,7 +61,7 @@ FLAG_BITS = {"n": "CPU_FLAG_N", "v": "CPU_FLAG_V", "z": "CPU_FLAG_Z", "c": "CPU_
 ORDER = ("a", "x", "y", "n", "v", "z", "c")
 
 PREAMBLE = """\
-/* Drafts from tools/generate/show (docs/RECOMP.md, M5). ROM-derived: don't commit them. */
+/* Drafts from tools/generate/show (docs/REIMPLEMENTATION.md, M5). ROM-derived: don't commit them. */
 #include "port/machine.h"
 #include "ram.h"
 

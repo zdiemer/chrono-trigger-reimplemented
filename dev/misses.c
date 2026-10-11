@@ -322,7 +322,7 @@ char *misses_format(Misses *m, size_t *len, FILE *summary)
     uint64_t *sec_insns = calloc((size_t)generated_ram_section_count + 1, sizeof *sec_insns);
     uint64_t *sec_addrs = calloc((size_t)generated_ram_section_count + 1, sizeof *sec_addrs);
     put(&f, "# instructions without generated code: BB:AAAA m x # count, ROM or RAM and its section "
-               "(docs/RECOMP.md, miss report)\n");
+               "(docs/GENERATED.md, miss report)\n");
     for (size_t i = 0; i < n; i++) {
         const Miss *ms = &list[i];
         uint32_t key = ms->key - 1, pc = key >> 3;

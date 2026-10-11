@@ -97,7 +97,7 @@ the disassembler.
    map is `re/ram.toml`, with a header ports include). Pull in
    community documentation of event commands and data tables as reference.
    *(in progress: [DISASSEMBLY.md](DISASSEMBLY.md); a byte-identical,
-   reassemblable disassembly as the proof that the recompiled code set is
+   reassemblable disassembly as the proof that the generated code set is
    complete is scoped in [MATCHING.md](MATCHING.md))*
 2. **Oracle harness.** libretro frontend, input-movie format, per-frame state
    dumps, divergence tool. *(done: [ORACLE.md](ORACLE.md); Snes9x is the

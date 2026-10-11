@@ -5,7 +5,7 @@
 tools/generate/show.py turns a routine into a draft: a logic function on C
 locals, a wrapper that moves the machine's registers in and out, and call-out
 stubs. Whether drafts do what the original does is checked by registering them
-in a scratch build and running shadow mode (docs/RECOMP.md, M5); these tests
+in a scratch build and running shadow mode (docs/REIMPLEMENTATION.md, M5); these tests
 cover the transformations one by one on small made-up routines: call
 rewriting, helper mapping, dead flags, RAM and direct-page names, the wrapper
 split, structure, wait loops, and the D/DB analysis.

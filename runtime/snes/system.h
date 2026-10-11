@@ -91,7 +91,7 @@ typedef struct Snes {
      * by hosts that link it (snes_init leaves it NULL, so the system code
      * itself never pulls the interpreter into a program). */
     CpuStep (*interpreter)(Cpu *cpu);
-    /* Without the interpreter (native_only, or no interpreter set; docs/RECOMP.md,
+    /* Without the interpreter (native_only, or no interpreter set; docs/GENERATED.md,
      * "Without the interpreter"): interrupt entry, WAI and STP go through
      * cpu_service, and an instruction the intercept doesn't run is a miss.
      * on_miss is called with PC at it; returning true runs it on the
@@ -196,7 +196,7 @@ void snes_enter_vblank(Snes *snes);
 void snes_run_frame(Snes *snes, uint16_t pad1);
 
 /* For native code standing in for several instructions within one step (a
- * generated block, docs/RECOMP.md "Exact timing"):
+ * generated block, docs/GENERATED.md "Exact timing"):
  *
  * snes_horizon: the latest master clock at which an instruction can start
  * without the system having anything to do before it: no line event (HDMA and
@@ -213,7 +213,7 @@ void snes_run_frame(Snes *snes, uint16_t pad1);
 uint64_t snes_horizon(const Snes *snes);
 void snes_sync(Snes *snes, uint32_t clocks);
 
-/* The timing spike's measure (docs/RECOMP.md, "Can a hand port be exact?"):
+/* The timing spike's measure (docs/REIMPLEMENTATION.md, "Can a hand port be exact?"):
  * like snes_horizon, but only the points no atomic stand-in for a stretch of
  * code can move past in any design -- the next interrupt the system may
  * recognize (a scheduled NMI, a raised IRQ, the H/V timer's next position), and

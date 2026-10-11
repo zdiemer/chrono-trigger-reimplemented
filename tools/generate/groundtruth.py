@@ -1,4 +1,4 @@
-"""How close a draft comes to the hand port of the same routine (docs/RECOMP.md, M5).
+"""How close a draft comes to the hand port of the same routine (docs/REIMPLEMENTATION.md, M5).
 
     python3 -m tools.generate.groundtruth BB:AAAA [BB:AAAA ...] [--m 8 --x 16] [--show]
 

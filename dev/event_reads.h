@@ -1,5 +1,6 @@
 /* ct_dev --event-reads: what reads the effects an event command leaves beyond
- * its protocol (docs/RECOMP.md, "The event commands' scaffolding, measured").
+ * its protocol (docs/history/reimplementation-phase3a.md, "Phase 3a: the event
+ * language, and its scaffolding").
  *
  * A command handler, entered through the table at $C0:5D6E, returns X (where
  * the script goes on) and the carry (whether the turn goes on); that is the

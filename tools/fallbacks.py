@@ -318,7 +318,7 @@ def update(m, baseline_path):
         old = base.get(routine)
         reason = old[2] if old else describe(m, routine, row)
         lines.append("%s %d %d  # %s" % (routine, row[0], len(row[1]), reason))
-    head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/RECOMP.md, \"The fallback\n"
+    head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, \"The fallback\n"
             "# measure\"): every routine whose code the reference play (the movies in shadow mode) still\n"
             "# runs as the original's in place of hand ports, as `routine instructions bytes # reason`.\n"
             "# A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes\n"

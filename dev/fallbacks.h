@@ -1,6 +1,6 @@
 /* The fallback measure: how much of a run was the original's code --
  * generated or interpreted -- running in place of hand ports, and why
- * (docs/RECOMP.md, "The fallback measure"; tools/fallbacks.py reads what this
+ * (docs/REIMPLEMENTATION.md, "The fallback measure"; tools/fallbacks.py reads what this
  * writes). In the shipping mode (`--native on --generated on`) the ports run, and
  * what runs besides is counted. In shadow mode the original runs everything,
  * and the runtime says where a port stands for it (NativeObserver): from where

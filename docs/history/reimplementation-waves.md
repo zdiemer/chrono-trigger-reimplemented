@@ -2,9 +2,9 @@
 
 The pilot and the first two waves of Phase 3, bank by bank: what each wave
 converted, what it found and what it cost. The mechanisms these sections
-exercise are described in docs/RECOMP.md; this is the record of using them.
+exercise are described in docs/REIMPLEMENTATION.md; this is the record of using them.
 
-Split out of docs/RECOMP.md, which keeps the mechanisms, the current
+Split out of docs/REIMPLEMENTATION.md, which keeps the mechanisms, the current
 phase and an index of these files.
 
 ## The $C7 pilot

@@ -1,4 +1,4 @@
-/* The table of generated blocks (docs/RECOMP.md, M1).
+/* The table of generated blocks (docs/GENERATED.md, M1).
  *
  * With a ROM at configure time the build generates it from the ROM
  * (tools/generate); without one, runtime/port/generated_table_stub.c provides an

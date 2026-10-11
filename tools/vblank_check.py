@@ -10,7 +10,7 @@ Runs each movie twice with `ct_dev --io-log`: under `--native on --generated onl
 The log counts every write to the video registers ($2100-$2133 and HDMAEN
 $420C, transfer bytes included) by who made it and when it landed: on a
 vblank line, on a picture line in forced blank, or on a picture line with the
-display on (dev/io_log.c; docs/RECOMP.md, "Where video writes land").
+display on (dev/io_log.c; docs/REIMPLEMENTATION.md, "Where video writes land").
 
 The two runs desync after a few dozen frames, so this is not a frame-by-frame
 diff. It compares, per routine and register group, *when* each run writes: a

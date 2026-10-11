@@ -1,4 +1,4 @@
-"""From lifted instructions to the statements of a draft (docs/RECOMP.md, M5).
+"""From lifted instructions to the statements of a draft (docs/REIMPLEMENTATION.md, M5).
 
 tools/generate/lift.py says what every instruction does, flags and all. This
 makes that readable without changing what it computes:

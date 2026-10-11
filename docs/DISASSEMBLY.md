@@ -80,7 +80,7 @@ at every call site, and unknown control flow keeps everything live. A push
 reads the register it saves only as far as the pull that restores it is
 followed by a read: `PHP`/`PLP` and the other push/pull pairs are followed on
 the stack, and where the pairing can't be established the push reads
-everything it saves (docs/RECOMP.md, "Before the bulk"). Functions entered as
+everything it saves (docs/REIMPLEMENTATION.md, "Before the bulk"). Functions entered as
 vectors, hints, coverage seeds or indirect targets, and functions that
 `--calls` shows being called from sites static analysis doesn't know, keep
 everything live after return. Ported routines use the dead set to skip
@@ -102,7 +102,7 @@ the target in place itself: the scene interpreter stores a script's routine at
 of the named ones do. `Liveness.dynamic_transfer` says which transfers these
 are (29 sites in the traced code), `dynamic_sites` which ones a routine reaches,
 and `Liveness(an, calls, strict=True)` solves with each keeping everything live;
-the don't-care check holds call-outs to that solve too (RECOMP.md, "Call-outs
+the don't-care check holds call-outs to that solve too (REIMPLEMENTATION.md, "Call-outs
 into targets the machine picks").
 
 ## Hints (`re/hints.toml`)
@@ -297,7 +297,7 @@ draw each; and `save_check`, the menus' page or the clock's (`$0400`) the save
 code's check of a slot runs on. Variables on a page kind have an offset (`dp`) and no address. The
 controller reader's cells were thought to be a third, since the reader is
 entered with eight different D's; it sets D = `$0000` itself, and the measurement
-agrees (RECOMP.md, "Page kinds"), so they are on the fixed page `input`.
+agrees (REIMPLEMENTATION.md, "Page kinds"), so they are on the fixed page `input`.
 
 **The header.** `python3 tools/ram_map.py header` writes `game/ram.h`, which
 ports include (`#include "ram.h"`):
@@ -368,7 +368,7 @@ guard refuses, and counts it: `ct_dev` prints a `page refused: <page> <count>
 (last D $XXXX)` line for each kind that refused any, and `tools/suite.py` fails
 a movie that prints one. A guard that assumed one page once turned away 5412 of
 the jet bike race's multiplies with nothing to show for it but a drop in a
-shadow count (RECOMP.md, "Phase 3a: the scene subsystem off the machine"); the
+shadow count (history/reimplementation-phase3a.md, "Phase 3a: the scene subsystem off the machine"); the
 refusal is now a line in the log, and a gate failure.
 
 **Bounds.** Every accessor that takes an index -- an element, a buffer's
@@ -404,7 +404,7 @@ object, whether a table is set -- does it between `vars_peek(true)` and
 `snes_bus_peek`, taking none of the machine's time and leaving the bus as it
 was. A guard runs between the original's instructions, and a timed read there
 lands in shadow mode's record of the original's run, which the generated blocks
-are checked against (RECOMP.md, "Phase 3a: the event subsystem off the
+are checked against (history/reimplementation-phase3a.md, "Phase 3a: the event subsystem off the
 machine").
 
 **No layout reaches `game/`** -- no address, offset or stride -- and that is the
@@ -431,7 +431,7 @@ escape by address and so a finding: `grep -rn wram_ game/` is the list, and it
 is meant to empty.
 
 Two more seams, found by the first subsystem rewritten against the accessors
-(`game/scene/`, RECOMP.md, "Phase 3a: the scene subsystem off the machine"),
+(`game/scene/`, history/reimplementation-phase3a.md, "Phase 3a: the scene subsystem off the machine"),
 sit beside `vars.h` with the same backing arrangement, in
 `runtime/port/state_io.c`: `game/cpu_io.h`, the multiplier, divider and work RAM
 port as the game drives them (registers, not variables, but an operand or a
@@ -539,7 +539,7 @@ the code-shaped runs (linear decodes that look like routines calling known
 code) left in unknown bytes and in hints typed `mixed` or `undetermined`. It measures the remaining work for
 a byte-identical, reassemblable disassembly, scoped in
 [MATCHING.md](MATCHING.md): every byte classified, every address symbolic, and
-closure checks that make the recompiler's code set provably complete.
+closure checks that make the generator's code set provably complete.
 
 `python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching
 [--coverage ...] [--calls ...]` (or the `ct_matching` CMake target) is its first

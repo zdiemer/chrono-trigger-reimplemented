@@ -23,7 +23,7 @@ what must match. Exits 0 only if every run reached its outcome.
 code runs in place of hand ports (ct_drive --fallbacks, through
 $CT_DRIVE_FALLBACKS), kept with the run's checkpoints and copied to DIR as
 `<route>-<mode>/` when it ends, for tools/fallbacks.py (the gate's fallback
-measure; docs/RECOMP.md, "The fallback measure").
+measure; docs/REIMPLEMENTATION.md, "The fallback measure").
 
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
 the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time

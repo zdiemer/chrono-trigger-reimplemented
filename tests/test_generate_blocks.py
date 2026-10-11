@@ -3,7 +3,7 @@
     python3 -m unittest discover tests
 
 Whether generated blocks behave like the interpreter is checked by shadow mode
-over the movies (docs/RECOMP.md); these tests cover how entries are chosen and
+over the movies (docs/GENERATED.md); these tests cover how entries are chosen and
 where blocks end.
 """
 

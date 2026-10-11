@@ -74,7 +74,7 @@ typedef struct NativeEntry {
      * mode, so it must only peek (snes_bus_peek): a bus read costs time and
      * sets open bus, which would make shadow runs differ from plain ones. */
     bool (*guard)(Snes *s);
-    /* A block generated from the ROM (tools/generate, docs/RECOMP.md): it runs to
+    /* A block generated from the ROM (tools/generate, docs/GENERATED.md): it runs to
      * completion on the machine without a fiber and never calls out, and its
      * time is exact. Hand-written entries at the same address take precedence.
      * cost_milli, dont_care and idle are unused; guard is set for blocks of RAM
@@ -86,7 +86,7 @@ typedef struct NativeEntry {
 } NativeEntry;
 
 /* Where generated code can continue at an instruction that isn't an entry
- * (docs/RECOMP.md, M3): for every instruction of every generated block, a block
+ * (docs/GENERATED.md, M3): for every instruction of every generated block, a block
  * whose function starts there, keyed by address | P's M and X bits << 24 |
  * E << 30 and sorted by key; guard as in NativeEntry. */
 typedef struct GeneratedIndexEntry {
@@ -108,7 +108,7 @@ typedef struct NativeStats {
      * (excluding call-outs), and the native routine's bus-access clocks for them. */
     uint64_t original_clocks;
     uint64_t native_bus_clocks;
-    /* Timing measurement (docs/RECOMP.md, "Can a hand port be exact?"),
+    /* Timing measurement (docs/REIMPLEMENTATION.md, "Can a hand port be exact?"),
      * reported with native_set_timing_report. SHADOW, over every stretch no
      * interrupt fell in (a stretch is a call, or the part of one between
      * call-outs): how many; the original's CPU time and the port's bus clocks
@@ -326,7 +326,7 @@ int native_failed(const NativeRuntime *rt);
 const NativeStats *native_stats_named(const NativeRuntime *rt, const char *name);
 const char *native_detail(const NativeRuntime *rt, int i);
 
-/* Generated blocks (docs/RECOMP.md). ON mode: a block runs until the system's
+/* Generated blocks (docs/GENERATED.md). ON mode: a block runs until the system's
  * horizon (snes_horizon) and stops before the first instruction past it, with
  * I/O catching the machine up to its instruction first, so time and interrupts
  * are exactly the interpreter's; a block that stopped resumes where it stopped.

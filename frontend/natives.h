@@ -1,4 +1,4 @@
-/* The native code a host runs the game with (docs/RECOMP.md): which registered
+/* The native code a host runs the game with (docs/GENERATED.md): which registered
  * entries --native, --generated, --exclude and --include select, and a runtime
  * over them. Shared by ct_play (frontend/player.c), ct_drive (dev/ct_drive.c)
  * and ct_dev (dev/ct_dev.c), so the three mean the same by those options.

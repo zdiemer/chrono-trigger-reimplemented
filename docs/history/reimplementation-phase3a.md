@@ -5,7 +5,7 @@ into functions over the game's own state, the machine into a thin wrapper at
 each entry. The rules are in CLAUDE.md and docs/PLAN.md; this is what each
 subsystem's move actually took.
 
-Split out of docs/RECOMP.md, which keeps the mechanisms, the current
+Split out of docs/REIMPLEMENTATION.md, which keeps the mechanisms, the current
 phase and an index of these files.
 
 ## Phase 3a: the scene subsystem off the machine

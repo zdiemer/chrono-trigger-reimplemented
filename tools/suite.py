@@ -212,7 +212,7 @@ def check_vblank(args, ctx):
 # ending routes are most of an hour of CPU, so they run on request. The fast
 # set is a field route and the ending's approach to the second form, which is
 # where a race in the original's wait for vblank hung the shipping mode once
-# its timing moved (RECOMP.md, "The timing gate").
+# its timing moved (REIMPLEMENTATION.md, "The timing gate").
 FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 
