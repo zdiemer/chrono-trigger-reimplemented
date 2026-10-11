@@ -1,4 +1,4 @@
-# chrono-trigger-recomp
+# chrono-trigger-reimplemented
 
 Native C reimplementation of Chrono Trigger (SNES, USA), validated by
 per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.

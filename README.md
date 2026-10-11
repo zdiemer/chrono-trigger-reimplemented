@@ -1,4 +1,4 @@
-# chrono-trigger-recomp
+# chrono-trigger-reimplemented
 
 A native PC port of *Chrono Trigger* (SNES, USA), reimplemented in C and
 validated frame by frame against the original ROM.
