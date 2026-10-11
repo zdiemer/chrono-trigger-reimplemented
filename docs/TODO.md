@@ -927,6 +927,29 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the world map's setup review left** (none rated translation; the
+  `menu_epoch_build_map` guard is a real precondition and the main loop's
+  call-out unreachable): `overworld/setup.c`'s loaders take the ROM call
+  site (`0xC2280C`...) so the machine's unpacker can rebuild the original's
+  frame, threading the call graph through the logic (give the unpacker a
+  game-state form); `overworld_load_the_map_tiles` is called without
+  `TIMED_AS(0xC227DE)` though the sends around it are tagged; the
+  `doubled >> 15` carry term is 0 for every member byte the game makes;
+  `menu_mode_beside`/`menu_random_beside` name a 16-bit clear's second byte
+  after its neighbours; `display.c`'s raw shadow bytes `0x09`/`0x17`/`0x13`;
+  `epoch.c` still calls `$C2:26A8` through the machine though
+  `menu_clear_all_of_vram` exists; `object_commands.c`'s story flags aren't
+  named for what they mean; `music.h`'s `region` exists only for the wrapper;
+  `terrain.h` exports a carry derivation; `0x7E4000` is spelled in both
+  `setup.c` and `main_loop.c`. In `tools/timing_exceptions.txt`,
+  `overworld_load_the_map_tiles` and `_load_the_map_again` give "its time
+  following the packed data" as the reason, but the unpacker is timed as
+  itself and their own work is a few table reads (map_tiles is calibrated
+  at 340x): find what they carry -- likely the untagged call above -- and
+  make the reasons say it (or the entries leave the file); and
+  `overworld_back_from_the_menus` went from 21663 to 343895 cost_milli
+  unexplained.
+
 - **What the battlefield change's review left** (none rated translation):
   `battlefield_change.c`'s map build keeps its working state in work RAM
   (`battle_map_cycle`, `_strip_step`, `_strip_cells`) and reads which places
