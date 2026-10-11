@@ -13673,7 +13673,9 @@ void set_scene_plane_line_above_d(GameState *g, uint16_t v);
 uint16_t scene_call_first(const GameState *g, SceneProgramPage page);
 void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v);
 /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8
- * divide's divisor */
+ * divide's divisor. On the scene's own page this is the controller's held buttons (input_held):
+ * what the race's motion leaves here, the next frame's controller read takes as the buttons held
+ * the frame before */
 uint16_t scene_call_second(const GameState *g, SceneProgramPage page);
 void set_scene_call_second(GameState *g, SceneProgramPage page, uint16_t v);
 /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and

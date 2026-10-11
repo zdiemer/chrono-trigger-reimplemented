@@ -89,7 +89,6 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | 6 (`$7E:78DD`) | 1.40 | event `$FF $26` at `$1B0` (era 0), a location the attract demo passes without starting it; unknown otherwise |
 | 10/11/14/15 (`$7E:8538`) | 0.74 | the endings (`$FF $2A`/`$2B` at `$051`, `$2E`/`$2F` at `$05A`); paths the three recorded endings don't take |
 | 3 (`$7E:671F`) | 0.62 (+0.16 shared with 5) | the attract demo (`$0384` = `$63` after location `$06B`); event `$FF $23`/`$63` at `$066`-`$06B` (era 6) |
-| 0/9 (`$7E:3B48`) | 0.56 ported | the jet bike race won (`scene_race_coast`, `ride`, the curtain), and the attract demo's race (`$0384` = `$60`) |
 | 7 (`$7E:6248`) | 0.50 | event `$FF $07` at `$1DC` (era 0, beside the final battle's `$1DA`) |
 | 4 (`$7E:53BB`) | 0.46 | event `$FF $24` at `$12D` (era 4, beside ctsave08 slot 1's `$12F`, Azala and the Black Tyrano) |
 | 1 (`$7E:6B04`) | 0.39 | the attract demo (`$0384` = `$61`); event `$FF $61` at `$1AF`/`$1B1` (the title's), `$0AD`, `$16E` |
@@ -105,7 +104,7 @@ B.C., 6 the Black Omen, 7 the End of Time, 0 1999 A.D. and the title's).
 | 12,000 B.C. (`$1F4`, scene 4) | 0.54 (0.46) + 0.21 shared with 1, 5 | ctsave08 slot 2; ct-state7, ct-state8 |
 | 1999 A.D. (`$1F7`, scene 7) | 0.23 (0.23) | none; the bucket ending and the attract demo pass over it |
 | 12,000 B.C. (`$1F5`, scene 5) | 0.19 (0.16) | zophar chrono-5 (all three slots) |
-| shared by several maps | 1.82 (1.35) | the overworld on foot (`game/overworld/`, ported): an exit to an event (`$C2:2417`), the party's exchange opened from the map, a walk into another region's song (`$C2:3011`-`$C2:309D`), a dactyl boarded or left, the halts, the walkers' steps while an event's scripts run; generated: the vehicles' controller (`$C2:309E`) and routines several maps' scripts call |
+| shared by several maps | 1.82 (1.35) | the overworld on foot (`game/overworld/`, ported): an exit to an event (`$C2:2417`), the party's exchange opened from the map, a walk into another region's song (`$C2:3011`-`$C2:309D`), the halts, the walkers' steps while an event's scripts run; generated: the vehicles' controller (`$C2:309E`) and routines several maps' scripts call |
 | scene not attributed | 1.94 (1.44) | object commands no scene's script has (`show_tile_group` `$50`, `copy_byte_slot_to_slot`, `branch_if_slot_no_bit`) and code beside them |
 
 ### Bosses (enemy AI by script)
@@ -209,14 +208,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
 - **Reaches**: up to 2.08 KiB (1.82 ported) of the menu clusters, about 0.4 KiB a minute.
 - **Route**: possible (the cursors are in RAM); by hand is quicker.
 
-### 4. The jet bike race won
-- **Save**: ctsave03 slot 1 (Lab 32), as `events-jetbike-race`.
-- **Do**: win the race (the boosts late, against Johnny's catch-up).
-- **Reaches**: mode 0's finish (0.56 ported) and the race's event commands at
-  `$0DF`/`$0E1` (about 0.25): up to 0.81 KiB, about 0.3 KiB a minute.
-- **Route**: yes, with timed input (TODO.md, "The jet bike race won").
-
-### 5. New Game+ and an erased slot
+### 4. New Game+ and an erased slot
 - **Save**: technoplaza ct-state16 (a finished cartridge).
 - **Do**: on the load screen, erase a slot (answer no, then yes), then start a New Game+.
 - **Reaches**: 0.62 KiB (ported), about 0.3 KiB a minute.
@@ -232,7 +224,7 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   new game doing the same); and the New Game+ question's guard refused the byte-wide call the load
   screen makes.
 
-### 6. Boss fights
+### 5. Boss fights
 - **Saves**: Guardian at Arris Dome, ctsave02 slot 3 (`$0D6`); R Series in the
   factory, ctsave03 slot 2; Nizbel II in Tyrano Lair, ctsave07 slot 3;
   MotherBrain in Geno Dome, ctsave14 slot 2 (slot 3 is after it).
@@ -241,13 +233,13 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   animation commands and effects they use; about 0.1 KiB a minute on the AI alone.
 - **Route**: yes (walking, `talk()`, the battle bot).
 
-### 7. Black Tyrano and Lavos's fall
+### 6. Black Tyrano and Lavos's fall
 - **Save**: ctsave08 slot 1 (`$12F`).
 - **Do**: beat Azala and the Black Tyrano; watch the scene at `$12D`.
 - **Reaches**: mode 4 (0.46 KiB unported) and the Black Tyrano's AI; about 0.08 KiB a minute.
 - **Route**: yes (walking and the battle bot).
 
-### 8. The other endings
+### 7. The other endings
 - **Saves**: technoplaza ct-state17 and ct-state19 to ct-state26 (New Game+ at each ending's story point).
 - **Do**: beat Lavos at that point and watch the ending.
 - **Reaches**: mode 10's unrun paths (0.74 KiB), mode 7 at `$1DC` (0.50); which
