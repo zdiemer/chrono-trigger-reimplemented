@@ -3355,7 +3355,10 @@ then send each row set straight after the last (the loop goes back past the
 wait); a port waiting before every row paired its second send with the
 original's fifth. The guards read the layout from the ROM through the bus,
 which charged the original's run their reads (36 clocks a call) until they
-peeked.
+peeked. And the shipping mode's scaffold reads found the animation scripts'
+channel reading what the loading leaves in the cells `$53`-`$57`, where a
+screen effect takes the settings its command doesn't give: what the loading
+leaves up to `$61` is kept plainly, the rest of its cells as scaffolding.
 
 **Validation.** The library's 33 movies in shadow mode, none mismatching:
 the change 484 calls, the load 487 (15 compared alone, the rest within the
@@ -3372,7 +3375,9 @@ most states run past the budget). Over the reference play the code run in
 place of hand ports fell from 28.3 KiB and 171.6 million instructions to 27.1
 KiB and 141.9 million, the frame work's handbacks from 3.0 KiB and 48.5
 million to 1.7 KiB and 18.9 million, and its native coverage from 77% to 87%
-of the 12.7 KiB real play runs; 16 routines left the baseline.
+of the 12.7 KiB real play runs; 16 routines left the baseline. In the
+shipping mode over the movies and the routes, from 26.2 KiB and 391 million to
+24.9 KiB and 357 million.
 
 **Timing.** The new entries were calibrated from the shadow runs
 (`--drifted`); the map's building from its six whole stretches, and the
