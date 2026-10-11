@@ -78,6 +78,14 @@ rest waits, is [PLAN.md](PLAN.md).
   (`tools/movies/routes/tech_sweep.py`) waits on it. `python3
   tools/fallbacks.py build/suite/fallbacks --refusals -v` prints each with
   its first states.
+- **The tech sweep's fight never ends in the native shape.** The route
+  (`tools/movies/routes/tech_sweep.py`, zophar chrono-trigger slot 1, the Lavos
+  Core) reaches its outcome in the shipping mode, but `ct_drive_native_shape`
+  ran it 400,000 frames without the fight ending: with the scaffolding
+  compiled out, something in that battle stops the fight from finishing.
+  Find what logic reads a cell only scaffolding writes there
+  (`ct_dev --scaffold-reads original`, the route's frames) and make the two
+  builds agree. The route runs by hand (`tools/suite.py`'s `HAND_RUN_ROUTES`).
 - **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
   object scripts' byte command `$13` names its cell by address, and an ending
   writes the sprites' size and tile-place register through it; the port hands

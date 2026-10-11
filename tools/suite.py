@@ -216,10 +216,17 @@ def check_vblank(args, ctx):
 FAST_ROUTES = ["telepod_lavos:shell", "beyond_time:form2"]
 
 
+# Routes run by hand rather than in every --long-routes gate: the tech sweep
+# fights for about forty minutes for under a KiB of code no movie runs
+# (docs/movies-wanted.md, "Every tech").
+HAND_RUN_ROUTES = {"tech_sweep"}
+
+
 def all_routes():
-    """Every route in tools/movies/routes, whole rather than up to a phase."""
+    """Every route in tools/movies/routes, whole rather than up to a phase,
+    except those run by hand."""
     return sorted(p.stem for p in (ROOT / "tools/movies/routes").glob("*.py")
-                  if not p.stem.startswith("_"))
+                  if not p.stem.startswith("_") and p.stem not in HAND_RUN_ROUTES)
 
 
 def check_routes(args, ctx):

@@ -114,7 +114,6 @@ $CC:F38C + m + i, and $FF marks a blank row. mark_tech_list and draw_tech_page
 (game/battle/menu_window.c) use the same two tables."""
 
 BATTLE_TECH_LIST_IDS = 0x7E94D0
-TECHS_A_MEMBER = 20
 """Each member's tech list by tech id rather than by record number: entry `i`
 of member `m` is at $94D0 + the same $CC:F38C base BATTLE_TECH_LIST uses, plus
 `i`. $FC marks the double techs' heading, $FD the triple techs', $FE/$FF a

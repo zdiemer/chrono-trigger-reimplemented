@@ -237,6 +237,10 @@ def crono_and_marle_core(bot, state, rng, inventory):
     return ("attack", target)
 
 
+# The rows of one member's tech list (addresses.BATTLE_TECH_LIST_IDS).
+TECHS_A_MEMBER = 20
+
+
 def tech_list_entries(bot, member):
     """`(entry, tech_id)` for every real tech in `member`'s tech list, in list
     order (singles, then the double techs' section, then the triple techs'):
@@ -245,7 +249,7 @@ def tech_list_entries(bot, member):
     table of which combination techs a party can make -- whatever the game's
     own setup put in the list is what this walks."""
     base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
-    ids = bot.machine.peek(A.BATTLE_TECH_LIST_IDS + base, A.TECHS_A_MEMBER)
+    ids = bot.machine.peek(A.BATTLE_TECH_LIST_IDS + base, TECHS_A_MEMBER)
     return [(entry, tech_id) for entry, tech_id in enumerate(ids) if tech_id < 0xFB]
 
 
