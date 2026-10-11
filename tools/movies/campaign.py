@@ -406,7 +406,7 @@ class Run:
     # ---- fighting ------------------------------------------------------------------------
 
     def fight(self, policy, until, party=3, seed=1, delays=(0, 0, 0, 3, 8, 15), max_tries=20000,
-              max_frames=400000, idle=None):
+              max_frames=400000, idle=None, setup=None):
         """Fight with the bot until `until(run, state)`; backtrack over wipes.
 
         Every command menu becomes a checkpoint. A wipe reloads one of the last
@@ -415,10 +415,17 @@ class Run:
 
         `idle` is called when nothing has happened for a while with no menu and
         no window - the Day of Lavos shell uses it to keep walking into Lavos.
-        """
+
+        `setup`, if given, is called with the bot right after it is made (before
+        the first action): a hook for a policy that needs to wrap `Bot.do`, such
+        as the tech sweep's `policies.tracking_do` (its own bot each call, so a
+        caller fighting more than once keeps the wrap by passing the same `setup`
+        to every call)."""
         machine = self.machine
         choose = policies.POLICIES[policy] if isinstance(policy, str) else policy
         bot = Bot(machine, party=party, log=self.say)
+        if setup:
+            setup(bot)
         rng = random.Random(seed)
         checkpoints, free_slots = [], list(range(4000, 0, -1))
         tries = fails_here = deepest = 0

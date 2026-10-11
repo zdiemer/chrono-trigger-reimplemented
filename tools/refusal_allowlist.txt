@@ -28,6 +28,7 @@ C14CF0 script_end guard  # gap: command_ready asks for A=0, and the endings' bat
 C14EA2 script_play_and_wait guard  # gap: command_ready (battle/scripts.c) turns away the Bucket ending's script channel at frame 98059 on (endings-bucket-lavos, the routes): the channel's command or place is one script_runs_here doesn't take
 C16299 script_jump_to_a_place guard  # gap: command_ready turns away the Beyond Time ending's battle script (endings-beyond-time, frame 31293 on, and the route)
 C17364 script_throw_moves guard  # gap: command_ready turns away the attract demo's battle script (attract-demo, frame 9830 on)
+C156FB script_return_from_call guard  # gap: command_ready turns away the tech sweep's battle script, 8 times (battle-tech-sweep, frame 11015 on)
 C18A05 battle_evasion_timer_ran_out guard  # gap: battle_evasion_timer_ran_out_ready turns away the Lavos fights' and gato-battle's timer (endings-telepod-lavos, gato-battle)
 C13772 battle_enemy_waits_for_target guard  # gap: battle_script_entry_ready turns away an enemy's wait in the Omen's battles (late-omen-battles, frames 15911-16112)
 C04867 event_cmd_set_solidity guard  # gap: event_command_accepts turns away the command's object or operands in the attract demo's events (frames 3605-6476)

@@ -196,6 +196,25 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   effects (2.17) and screen scripts; up to 10.87 KiB, about 0.7 KiB a minute.
   The rewards' tech learning (0.55) wants a save with tech points to earn instead.
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
+- **Recorded**: `battle-tech-sweep.ctm` (route `tech_sweep`, zophar chrono-trigger slot 1: Crono, Magus
+  and Marle inside Lavos's shell), 142380 frames: walks to the second Lavos form, fights it and then the
+  Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
+  takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
+  so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
+  falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
+  target needs an ally down); heals and revives with items. Casts the three members' 12 single techs and
+  8 double techs between them (ids 1-5, 9-15, 49-56), each once; no triple tech appears for this trio.
+  Reaches 0.84 KiB no other movie runs (against the library this pass started from): battle script
+  commands (`script_return_from_call`, `script_return_at_the_top`, `script_wait_for_variable`,
+  `script_end`), an action effect (`battle_effect_anchor_chase`) and an accessory's effect
+  (`fight_apply_accessory_effects`), mostly in `$C1`. Shadow clean; one new refusal
+  (`script_return_from_call` guard, 8 times, `tools/refusal_allowlist.txt`).
+- **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
+  three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its
+  whole reachable ground is 57 tiles with no door out and, over 20 laps of it, no random encounter --
+  this era's overworld looks to have none. A second movie for Lucca, Robo, Frog and Ayla's own techs,
+  the techs between them, and any triple tech (this trio and Crono/Magus/Marle have none) needs a
+  different starting point than the save gives.
 
 ### 4. The three 12,000 B.C. world maps
 - **Save**: ctsave08 slot 2 (`$1F4`), zophar chrono-5 (`$1F5`), zophar chrono-6 slot 2 (`$1F6`).
