@@ -9100,7 +9100,7 @@
  * offsets, the script's kept word. Each field is one routine's use, so fields overlap [16 bytes] */
 #define RAM_SCENE_CALL_DP 0xF0u              /* page scene_program, D per instance */
 #define RAM_SCENE_CALL_FIRST_DP 0xF0u        /* The first operand: the multiplicand, or the 8.8 divide's dividend */
-#define RAM_SCENE_CALL_SECOND_DP 0xF2u       /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor */
+#define RAM_SCENE_CALL_SECOND_DP 0xF2u       /* The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor. On the scene's own page this is the controller's held buttons (input_held): what the race's motion leaves here, the next frame's controller read takes as the buttons held the frame before */
 #define RAM_SCENE_CALL_DIVIDEND_DP 0xF0u     /* The 32-bit divide's dividend, which the divide leaves as the caller's carry in its top bit and zeros below */
 #define RAM_SCENE_CALL_PRODUCT_DP 0xF4u      /* The multiplies' 32-bit product */
 #define RAM_SCENE_CALL_PRODUCT_THIRD_BYTE_DP 0xF6u /* The product's third byte as the last routine to use the cells left it, which the signed multiply adds into its product */
