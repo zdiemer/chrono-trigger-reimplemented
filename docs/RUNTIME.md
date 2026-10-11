@@ -456,6 +456,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the shell's boss imitations and the shell, the inner cavern, the inner Lavos and the Core, then the Good Night ending credits | 196000 |
 | `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the fair, the outer shell, the inner cavern, the inner Lavos and the Core, then the whole Dream Project ending: the developer rooms, the Dream Team and the credits to The End | 132885 |
 | `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
+| `events-jetbike-race-won.ctm` | ctsave03, 1 | Lab 32: the race won, recorded by hand: the boosts late against Johnny's catch-up, the finish and the scene after it | 8083 |
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
