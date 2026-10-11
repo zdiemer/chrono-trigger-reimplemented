@@ -1250,7 +1250,9 @@ matrix value alone, both bytes, which the scene program's memory clear writes
 where `VID_M7_MATRIX_B_HIGH` (the multiplier's 8-bit operand) writes one.
 `VID_LINE_MODE7_AB` and `VID_LINE_MODE7_CD` are the race's per-line matrix, a
 pair of values to a line; `VID_LINE_WINDOW1_LEFT` is window 1's left edge alone,
-which the same table drives. `VidLineEffect.snes_spill` with
+which the same table drives; `VID_LINE_BG2_MAP` is BG2's tilemap address
+alone, which a scene of the attract sequence drives down the screen (RECOMP.md,
+"The last refusals in real play: the attract demo's states"). `VidLineEffect.snes_spill` with
 `VID_STEP_SPILL_SIZE_LO` and `VID_STEP_SPILL_CURSOR_LO` carries the byte a
 five-byte descriptor read as a word leaves in the channel's unused size and
 table-cursor registers: it is video state nowhere but in what shadow mode

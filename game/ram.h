@@ -8598,7 +8598,8 @@
 /* Nonzero once A has been pressed after the finish and the picture is fading out [2 bytes] */
 #define RAM_SCENE_RACE_LEAVING 0x7E00BEu
 #define RAM_SCENE_RACE_LEAVING_DP 0xBEu      /* page scene */
-/* Nonzero (2) once a button has been pressed after the race and its ending has begun */
+/* Nonzero once a button has been pressed after the race and its ending has begun: the way the
+ * curtain sweeps, scene_race_ending_sweep */
 #define RAM_SCENE_RACE_ENDING 0x7E0350u
 /* X of the center of the circle $C3:0077 draws into a per-line window table: an 8-bit value in a
  * 16-bit cell, whose high byte the routine clears so it can do its arithmetic on the pair [2
@@ -8870,8 +8871,9 @@
 #define RAM_SCENE_RACE_OPENINGS 0x7E3F66u
 #define RAM_SCENE_RACE_OPENINGS_COUNT 2u
 #define RAM_SCENE_RACE_OPENINGS_STRIDE 0x02u
-/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
- * program's own load, which the setup of the race without its panel writes again */
+/* Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the
+ * attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own
+ * load, which the setup of the race without its panel writes again */
 #define RAM_SCENE_RACE_ENDING_SWEEP 0x7E4259u
 /* The control pad direction that steers toward the lower lanes for each way the camera can face,
  * then the one toward the higher lanes (the program's data) [16 x $2 bytes, by the way the
@@ -8983,6 +8985,9 @@
 #define RAM_SCENE_RACE_ROAD_STRIP 0x7EE100u
 /* The per-line tables the race's line effects read, cleared at setup [4096 bytes] */
 #define RAM_SCENE_RACE_LINE_TABLES 0x7EF000u
+/* The second matrix entry of the line above the screen (scene_plane_line_above_a), just before
+ * scene_plane_matrix_top_row [2 bytes] */
+#define RAM_SCENE_PLANE_LINE_ABOVE_B 0x7EF0FEu
 /* The first half of each screen line's Mode 7 matrix for the plane in perspective, which a
  * per-line effect sends: the camera's cosine and sine times its height over the line's distance
  * [224 x $4 bytes, by screen line] */
@@ -8991,6 +8996,9 @@
 #define RAM_SCENE_PLANE_MATRIX_TOP_ROW_STRIDE 0x04u
 #define RAM_SCENE_PLANE_MATRIX_TOP_ROW_A 0x7EF100u /* The matrix's first entry: the cosine's */
 #define RAM_SCENE_PLANE_MATRIX_TOP_ROW_B 0x7EF102u /* The matrix's second entry: the sine's */
+/* The third matrix entry of the line above the screen (scene_plane_line_above_a), just before
+ * scene_plane_matrix_bottom_row [2 bytes] */
+#define RAM_SCENE_PLANE_LINE_ABOVE_C 0x7EF484u
 /* The second half of each screen line's Mode 7 matrix for the plane in perspective
  * (scene_plane_matrix_top_row) [224 x $4 bytes, by screen line] */
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW 0x7EF488u
@@ -9010,6 +9018,13 @@
 /* Half of the race's 128x128 Mode 7 name table, sent into the low byte of VRAM words; the loader
  * sends it twice to cover the whole table [8192 bytes] */
 #define RAM_SCENE_RACE_PLANE_MAP 0x7F2200u
+/* The first matrix entry of the line above the screen, which an ending's plane builds from a
+ * horizon of 0: the perspective loop's index has run below the tables and wraps, so the store
+ * lands a bank on from scene_plane_matrix_top_row's [2 bytes] */
+#define RAM_SCENE_PLANE_LINE_ABOVE_A 0x7FF0FCu
+/* The fourth matrix entry of the line above the screen (scene_plane_line_above_a), a bank on
+ * from scene_plane_matrix_bottom_row's [2 bytes] */
+#define RAM_SCENE_PLANE_LINE_ABOVE_D 0x7FF486u
 /* The sixteen bytes a scene program's routine takes its values in and leaves its results in, on
  * whichever page it is called on (the scene's own, or a sequence channel's): the arithmetic's
  * operands and results, the program's transfer's mode and register, the matrix code generator's

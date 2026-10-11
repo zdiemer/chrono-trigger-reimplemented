@@ -62,14 +62,18 @@ enum { LINE_BYTES = 4, SCREEN_LINES = 224, SCREEN_END = SCREEN_LINES * LINE_BYTE
  * divider. */
 enum { CPU_REGISTERS_PAGE = M_DP_CPU };
 
-/* The first line's offset in the tables, 4 a line: the race's at the horizon
- * (a horizon of 0 counts as line 1), the endings' on the line above it. */
-static uint16_t first_line(const GameState *g, SceneChannel ch)
+/* The line above the screen's first, which an ending's plane starts from when
+ * its horizon is 0 (set_line_above_the_screen, below). */
+enum { LINE_ABOVE_THE_SCREEN = -1 };
+
+/* The first line built: the race's at the horizon (a horizon of 0 counts as
+ * line 1), the endings' on the line above it. */
+static int16_t first_line(const GameState *g, SceneChannel ch)
 {
     uint16_t horizon = plane_register(g, ch, PLANE_HORIZON);
     if (start_routine(g) == START_RACE)
-        return (uint16_t)((horizon ? horizon : 1) * LINE_BYTES);
-    return (uint16_t)((horizon - 1) * LINE_BYTES);
+        return (int16_t)(horizon ? horizon : 1);
+    return (int16_t)(horizon - 1);
 }
 
 // $7E:45B0, $7E:9B46
@@ -92,14 +96,31 @@ static uint16_t over_distance(uint16_t value, uint16_t distance) { return scene_
 
 static uint16_t magnitude(int16_t v) { return v < 0 ? (uint16_t)-v : (uint16_t)v; }
 
+/* The line above the screen, where an ending's plane starts from a horizon of
+ * 0. Nothing shows it, but the original builds it as it builds the others,
+ * through an index that has run below the tables: its middle entries land
+ * just before them, and the first and last, whose index wraps, a bank on. The
+ * cells are kept as the original writes them. */
+static void set_line_above_the_screen(GameState *g, uint16_t along, uint16_t across)
+{
+    set_scene_plane_line_above_a(g, along);
+    set_scene_plane_line_above_b(g, across);
+    set_scene_plane_line_above_c(g, (uint16_t)-across);
+    set_scene_plane_line_above_d(g, along);
+}
+
 /* A line's matrix: its first two entries in one table, its last two in the
  * other; the first and last are the cosine's, the middle two the sine's. */
-static void set_line(GameState *g, unsigned line, uint16_t along, uint16_t across)
+static void set_line(GameState *g, int16_t line, uint16_t along, uint16_t across)
 {
-    set_scene_plane_matrix_top_row_a(g, line, along);
-    set_scene_plane_matrix_top_row_b(g, line, across);
-    set_scene_plane_matrix_bottom_row_c(g, line, (uint16_t)-across);
-    set_scene_plane_matrix_bottom_row_d(g, line, along);
+    if (line == LINE_ABOVE_THE_SCREEN) {
+        set_line_above_the_screen(g, along, across);
+        return;
+    }
+    set_scene_plane_matrix_top_row_a(g, (unsigned)line, along);
+    set_scene_plane_matrix_top_row_b(g, (unsigned)line, across);
+    set_scene_plane_matrix_bottom_row_c(g, (unsigned)line, (uint16_t)-across);
+    set_scene_plane_matrix_bottom_row_d(g, (unsigned)line, along);
 }
 
 /* What the camera turned and scaled gives each line: the cosine's and the
@@ -154,12 +175,13 @@ void scene_build_perspective(GameState *g, SceneChannel ch)
     bool paired = scene_perspective_line_step(g) == STEP_PAIRS;
     unsigned lines_each = paired ? 2 : 1;
     uint16_t distance = plane_register(g, ch, PLANE_TOP), last_distance = distance;
-    for (unsigned line = first_line(g, ch) / LINE_BYTES; line < scene_perspective_end(g) / LINE_BYTES; line += lines_each) {
+    int16_t end = (int16_t)(scene_perspective_end(g) / LINE_BYTES);
+    for (int16_t line = first_line(g, ch); line < end; line = (int16_t)(line + lines_each)) {
         uint16_t along = over_distance(t.along, distance), across = over_distance(t.across, distance);
         along = t.along_negative ? (uint16_t)-along : along;
         across = t.across_negative ? (uint16_t)-across : across;
         for (unsigned i = 0; i < lines_each; i++)
-            set_line(g, line + i, along, across);
+            set_line(g, (int16_t)(line + i), along, across);
         last_distance = distance;
         distance = (uint16_t)(distance + lines_each);
     }
@@ -190,8 +212,8 @@ static bool start_known(Snes *s, PerspectiveStart start)
 }
 
 /* The lines the port builds: a step it knows, ending at the bottom of the
- * screen, from a first line on it that the step reaches the end from (in
- * pairs, an even number of lines). Past these the original's loop runs on
+ * screen, from a first line on it or the line above it that the step reaches
+ * the end from (in pairs, an even number of lines). Past these the original's loop runs on
  * through memory, or it was patched to another scene's step. */
 static bool lines_known(const GameState *g, SceneChannel ch)
 {
@@ -203,10 +225,10 @@ static bool lines_known(const GameState *g, SceneChannel ch)
             return false;
     } else if (step != STEP_IMAGE && step != STEP_RACE && step != STEP_PAIRS)
         return false;
-    uint16_t first = first_line(g, ch);
-    if (scene_perspective_end(g) != SCREEN_END || first >= SCREEN_END)
+    int16_t first = first_line(g, ch);
+    if (scene_perspective_end(g) != SCREEN_END || first < LINE_ABOVE_THE_SCREEN || first >= SCREEN_LINES)
         return false;
-    return !paired || (SCREEN_END - first) % (2 * LINE_BYTES) == 0;
+    return !paired || (SCREEN_LINES - first) % 2 == 0;
 }
 
 /* Whether the port builds the perspective for the channel at `d`: on a
@@ -241,7 +263,7 @@ void scene_leave_perspective_registers(Snes *s, SceneChannel ch)
     bool paired = scene_perspective_line_step(g) == STEP_PAIRS;
     bool sine_stored_last_in_b = !paired && scene_perspective_against_entries(g) == B_ENTRIES;
     s->cpu.a = sine_stored_last_in_b ? scene_plane_matrix_top_row_b(g, last) : scene_plane_matrix_bottom_row_c(g, last);
-    s->cpu.x = (uint16_t)(plane_register(g, ch, PLANE_TOP) + (SCREEN_END - first_line(g, ch)) / LINE_BYTES);
+    s->cpu.x = (uint16_t)(plane_register(g, ch, PLANE_TOP) + (SCREEN_LINES - first_line(g, ch)));
     s->cpu.y = SCREEN_END;
     uint16_t turn = plane_register(g, ch, PLANE_TURN);
     m_set_flag(s, CPU_FLAG_V, ((turn ^ (uint16_t)(turn + QUARTER_TURN)) & ~(turn ^ QUARTER_TURN) & 0x8000) != 0);

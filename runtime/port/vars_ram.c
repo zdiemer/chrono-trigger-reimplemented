@@ -6922,10 +6922,14 @@ uint8_t scene_race_road_strip_byte(const GameState *g, unsigned at) { IN_RANGE(g
 void set_scene_race_road_strip_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 868, "set_scene_race_road_strip_byte", "bytes", at, 64u); w8(g, 0x7EE100u + at, v); }
 uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at) { IN_RANGE(g, 869, "scene_race_line_tables_byte", "bytes", at, 4096u); return r8(g, 0x7EF000u + at); }
 void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 869, "set_scene_race_line_tables_byte", "bytes", at, 4096u); w8(g, 0x7EF000u + at, v); }
+uint16_t scene_plane_line_above_b(const GameState *g) { return r16(g, 0x7EF0FEu); }
+void set_scene_plane_line_above_b(GameState *g, uint16_t v) { w16(g, 0x7EF0FEu, v); }
 uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line) { IN_RANGE(g, 870, "scene_plane_matrix_top_row_a", "count", line, 224u); return r16(g, 0x7EF100u + (uint32_t)line * 0x04u); }
 void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 870, "set_scene_plane_matrix_top_row_a", "count", line, 224u); w16(g, 0x7EF100u + (uint32_t)line * 0x04u, v); }
 uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line) { IN_RANGE(g, 870, "scene_plane_matrix_top_row_b", "count", line, 224u); return r16(g, 0x7EF102u + (uint32_t)line * 0x04u); }
 void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 870, "set_scene_plane_matrix_top_row_b", "count", line, 224u); w16(g, 0x7EF102u + (uint32_t)line * 0x04u, v); }
+uint16_t scene_plane_line_above_c(const GameState *g) { return r16(g, 0x7EF484u); }
+void set_scene_plane_line_above_c(GameState *g, uint16_t v) { w16(g, 0x7EF484u, v); }
 uint16_t scene_plane_matrix_bottom_row_c(const GameState *g, unsigned line) { IN_RANGE(g, 871, "scene_plane_matrix_bottom_row_c", "count", line, 224u); return r16(g, 0x7EF488u + (uint32_t)line * 0x04u); }
 void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 871, "set_scene_plane_matrix_bottom_row_c", "count", line, 224u); w16(g, 0x7EF488u + (uint32_t)line * 0x04u, v); }
 uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line) { IN_RANGE(g, 871, "scene_plane_matrix_bottom_row_d", "count", line, 224u); return r16(g, 0x7EF48Au + (uint32_t)line * 0x04u); }
@@ -6936,6 +6940,10 @@ uint8_t scene_race_scaler_output_byte(const GameState *g, unsigned at) { IN_RANG
 void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 873, "set_scene_race_scaler_output_byte", "bytes", at, 1792u); w8(g, 0x7F0300u + at, v); }
 uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at) { IN_RANGE(g, 874, "scene_race_plane_map_byte", "bytes", at, 8192u); return r8(g, 0x7F2200u + at); }
 void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 874, "set_scene_race_plane_map_byte", "bytes", at, 8192u); w8(g, 0x7F2200u + at, v); }
+uint16_t scene_plane_line_above_a(const GameState *g) { return r16(g, 0x7FF0FCu); }
+void set_scene_plane_line_above_a(GameState *g, uint16_t v) { w16(g, 0x7FF0FCu, v); }
+uint16_t scene_plane_line_above_d(const GameState *g) { return r16(g, 0x7FF486u); }
+void set_scene_plane_line_above_d(GameState *g, uint16_t v) { w16(g, 0x7FF486u, v); }
 uint16_t scene_call_first(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 875, "scene_call_first", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
 void set_scene_call_first(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 875, "set_scene_call_first", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
 uint16_t scene_call_second(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 875, "scene_call_second", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF2u); }

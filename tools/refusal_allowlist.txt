@@ -5,10 +5,3 @@
 # reason is "gap", the line comes out when the port takes the state, and the gap is
 # in docs/TODO.md, "Refusals in real play". `run` names a movie (shadow: its
 # reference play; movies: the shipping mode) or a route.
-#
-# Code-presence guards (m_code_matches) turned away code in work RAM that is not
-# the routine the port was written for:
-7E424D scene_race_wait_to_leave guard  # another program's code: in the attract demo $7E:424D holds the attract program's (RAM section attract_program, matching its image), not the race program's routine the port reads; that code is unported
-7E4D0D scene_race_place_bikes guard  # another program's code: the attract program's at $7E:4D0D in the attract demo (section attract_program), not the race's; unported
-7E36CC scene_setup_line_effects guard  # another program's code: the attract program's at $7E:36CC in the attract demo (section attract_program); unported
-7E357B scene_build_perspective guard  # another program's code: the attract program's at $7E:357B in the Beyond Time ending's closing scene (section attract_program); unported

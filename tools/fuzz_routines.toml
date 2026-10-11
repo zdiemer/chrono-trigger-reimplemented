@@ -433,6 +433,14 @@ args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--apu-loopback"
 why = "a frame task; the driver's echo looped back for the sound that begins the end"
 
 [[routine]]
+name = "scene_race_wait_to_leave"
+variant = "attract"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E4259-7E4259=01,02", "--apu-loopback"]
+why = "the curtain's way in the program's own code, as the race (2) and the attract sequence's curtain setup (1, $7E:6838) write it"
+
+[[routine]]
 name = "scene_race_leave"
 subsystem = "scene"
 state = "race"
@@ -678,6 +686,14 @@ args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=3D45-3D45"]
 why = "the race's own table, since the guard refuses any other"
 
 [[routine]]
+name = "scene_setup_line_effects"
+variant = "attract"
+subsystem = "scene"
+state = "race"
+args = ["--db", "00", "--keep", "7E3000-7EB5FF", "--range", "Y=685E-685E"]
+why = "the attract sequence's table at $7E:685E, with BG2's tilemap among its targets"
+
+[[routine]]
 name = "scene_race_set_up"
 subsystem = "scene"
 state = "race"
@@ -704,8 +720,8 @@ name = "scene_build_perspective"
 variant = "ending"
 subsystem = "scene"
 state = "race"
-args = ["--d", "0B00", "--keep", "7E3000-7EC994", "--fill", "7E35FD-7E35FE=9B46", "--fill", "7E0B0C-7E0B0C=01-DF", "--fill", "7E0B0D-7E0B0D=00-00"]
-why = "on channel 1's page with the endings' start of the lines, from the line above the horizon, with the step the program has (the endings' start is the call's other operand)"
+args = ["--d", "0B00", "--keep", "7E3000-7EC994", "--fill", "7E35FD-7E35FE=9B46", "--fill", "7E0B0C-7E0B0C=00-DF", "--fill", "7E0B0D-7E0B0D=00-00"]
+why = "on channel 1's page with the endings' start of the lines, from the line above the horizon (for a horizon of 0, the line above the screen, which the Beyond Time ending's last scene builds), with the step the program has (the endings' start is the call's other operand)"
 
 [[routine]]
 name = "scene_race_place_bikes"
@@ -721,6 +737,14 @@ subsystem = "scene"
 state = "race"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E1446-7E1545=00-00", "--fill", "7E1444-7E1445=0000,0001", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
 why = "the divisors forgotten, as a new camera height leaves them, so every distance is searched for; Johnny in the picture or gone"
+
+[[routine]]
+name = "scene_race_place_bikes"
+variant = "at_the_camera"
+subsystem = "scene"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0A04-7E0A05=0000", "--fill", "7E0A0C-7E0A0C=20-7F", "--fill", "7E0A0D-7E0A0D=00-00", "--fill", "7E0A10-7E0A10=00-1F", "--fill", "7E0A11-7E0A11=00-00"]
+why = "the camera's distance 0, as the attract demo's race has it when a bike stands right at the camera: such a bike takes the divisor of the one placed before it"
 
 [[routine]]
 name = "scene_race_scale_pictures"
@@ -18085,3 +18109,10 @@ subsystem = "menu"
 state = "menus"
 args = []
 why = "nothing it reads: it sets the stack, page and data bank"
+
+[[routine]]
+name = "attract_frame_pass"
+subsystem = "attract"
+state = "race"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E3024-7E3025=51D1"]
+why = "the main loop's pass with the attract demo's frame routine, the race's scaling of its pictures, named in the call"

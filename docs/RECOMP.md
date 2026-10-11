@@ -3891,124 +3891,88 @@ empty:
 The movies don't see either: their presses drift in the shipping mode
 anyway, and nothing in them checks an outcome.
 
-### The refusals in real play, retired
+### The last refusals in real play: the attract demo's states
 
-Of the 21 entries whose guards turned away calls real play makes (7,300
-refusals over the gate's runs when the batch began), 17 were gaps and 4 the
-attract program's own code at an address a port of another program's reads.
-Each gap's state was found from `tools/fallbacks.py --refusals -v` and from
-the guard's own conditions printed at the refusal, and is ported now. What
-the four have in common, and what the gaps fell into:
+The four refusals the batch before left (1,043 calls at `$7E:424D`,
+`$7E:4D0D`, `$7E:36CC` and `$7E:357B`; the history file, "The refusals in
+real play, retired") were put down to the attract program's own code sitting
+where a port of another program's reads. It isn't: there is one scene
+program, and RAM at those addresses matched each port's hash in the attract
+demo as in the race (compared from save states). What the guards turned away
+were states the race never makes, found by printing the guards' conditions at
+the refusal, and each is ported now:
 
-**A handler that goes on into another's.** Four of the refusals were never
-the game's calls at all in a build without the original: shadow mode runs the
-original as the reference for a port, and where the original's handler jumps
-or falls into another routine's code the runtime meets that routine's entry
-in the middle of the first one's work. A fifth is the game's own: a task that
-comes back round to its head. The menus' song unless kept (`$3D`)
-goes on into the song's handler (`$C2:18F9`) with an 8-bit accumulator; the
-battle's end unless listed (`$25`) into the end's (`$C1:4CF0`) with Y past
-its byte; the throw that waits first (`$D4`) into the plain throw's
-(`$C1:7364`) once its wait is over; the screen script's two model commands
-into the sized triangle's (`$CD:2173`) with X the shape and the carry clear;
-and the gate's song task (`$C2:CBBF`) comes back to its own head with an
-8-bit accumulator after each frame's wait. Each guard now takes the state
-the other handler leaves -- the command at the script pointer is the one
-that goes on into this one, where what it found makes it do what this one
-does (`menu/script_bridge.c`, `goes_on_into`; `battle/scripts.c`, the same)
--- and the triangle has an entry of its own that draws the command's
-triangle whatever X holds (`battle_screen_draw_triangle`). The precondition
-of a routine that sets its widths itself no longer asks for them
-(`NEEDS_X16_BINARY`: the gate's song, the description).
+- **The curtain's way** (`scene_race_wait_to_leave`). The race's end starts
+  the curtain from the way the program keeps in its own load's operand
+  (`scene_race_ending_sweep`, `$7E:4259`): the race's setup writes 2, from
+  the right, and the attract sequence's own curtain setup (`$7E:6838`) writes
+  1. The port wrote the race's 2 and hashed the operand with the code; it
+  takes the operand now, and the hash leaves it out.
+- **A camera height of `$FF`** (`scene_race_place_bikes`). The guard refused
+  the height whose divisor search it took never to end, where the search only
+  never ends for a distance no divisor brings the height under: the guard now
+  asks that of each bike's distance (one the program has kept, or the
+  largest divisor's quotient under it).
+- **A bike right at the camera** (the same). With nothing of a bike ahead of
+  the camera the original looks no divisor up and keeps the one in X, which
+  only the divisor lookup changes: the bike placed before it this frame, so
+  the second bike stands on the first's line (`last_divisor`). Its horizon
+  gap takes the carry of the place's sum, and a bike's top the carry of the
+  gap's compare, both of which the port had as constants. A first bike at
+  the camera would take what the turn's arithmetic left in X; the guard
+  still refuses that, and no movie makes it.
+- **BG2's tilemap per line** (`scene_setup_line_effects`). A scene of the
+  attract sequence (`$7E:685E`) drives BG2's tilemap address from a line
+  table, a target the video service had no name for: `VID_LINE_BG2_MAP`,
+  added (additively: the SNES encoding, the observer's state for the native
+  renderer).
+- **The line above the screen** (`scene_build_perspective`). The Beyond Time
+  ending's last scene builds the plane from a horizon of 0, and the endings'
+  start is the line above the horizon: line -1. The original builds it like
+  any line, through an index that has run below the tables, so its middle
+  entries land just before them (`$7E:F0FE`, `$7E:F484`) and its first and
+  last, whose index wraps, a bank on (`$7F:F0FC`, `$7F:F486`). The port
+  writes them where the original does (`scene_plane_line_above_*`, plain
+  writes in both builds).
 
-**A guard narrower than the game.** The scroll bar's start asked for the
-menus' data bank where its one cell is low RAM any bank reaching it gives;
-the shop's member opening asked that the member worked on be a reachable
-one, where the opening takes the member from the cursor (the equip screen
-reaches it with the last one past them); the event command `$84` took only
-0 and 1 where the script sets the object's contact byte whole, a pushable
-object's bit included (`ObjectContact`, `field/object.h`); and the jump to a
-place took only the 72 places, where the original picks a place's kind by
-its byte doubled in a byte: `$80` is place 0's kind, channel `$80`'s subject
-(`script_places.c`, `decode_place`).
+**The frame routine's pass.** The attract demo names the race's scaling of
+its pictures (`$7E:51D1`, a port) as the main loop's frame routine. The loop's
+idle entry, which can't call (idle entries run outside a job), stopped at the
+routine and left the loop's test after it to the original. A second entry at
+`$7E:3023`, `attract_frame_pass`, takes the passes that name the race's
+scaling: it calls the scaling through the machine (it stops in the scaler's
+code, which takes frames) and makes the test. The idle entry keeps the other
+passes: the empty routine's, and the endings' own scaling (`$7E:8930`, still
+the original's; with the pass a port, its 1.5 million calls in the Beyond
+Time ending counted as the port's handbacks, so it waits for the endings'
+port, PLAN.md). For the two entries at one address, shadow mode no longer
+considers the entries after an idle entry it skips: the original runs that
+pass, and a later entry's guard turning it away is not a refusal.
 
-**Nobody where the original reads a slot.** Four states have the original
-read or write past a table for an empty place, kept in one marked function
-each, as typed "nobody"s (rubric item 103), and in docs/TODO.md: a timer of
-nobody's wearing off (`battle_timer_wears_off_past_the_rows`, whose writes
-land on the poison's length for the third slot among others); an enemy whose
-target is nobody waiting on where nobody stands
-(`where_the_original_finds_nobody`); a combatant channel for a partner the
-party doesn't have playing and waiting on that slot, its indexes doubled and
-tripled in a byte (`play_nobodys_animation`); and the confirm button pressed
-with nobody leading, searching before the slot past the object tables and
-looking for a chest on the tiles off the map before it (`FieldLeader`, now
-the walk's too, and `walkable_past_the_map`). The game's state reads them on,
-so they are plain writes, the same in both builds.
-
-**The machine's own state.** The battle's vblank handler in bank D1 sends the
-palette without setting the data bank, so on code with work RAM's bank the
-transfer's register writes land in work RAM and the palette isn't sent
-(`uploads.c`, `send_palette_through_work_ram`, through the SNES escape
-`vid_snes_send_palette_into_memory`, which makes the site's writes in the
-data bank's memory: the palette change shows a frame late, and ten stray
-bytes land at `$7E:2121`, `$7E:4370`-`$4377` and `$7E:420B`). And an
-ending's menu object script sets the sprites' sizes by writing `$2101`
-through its byte command: a SNES escape for a register a game's data names
-by its address (`vid_snes_takes_register`, `vid_snes_write_register`,
-registered in the lint test for `menu/script.c` and its bridge), which takes
-only that register. The attract program's frame wait (`$7E:3023`) calls the
-routine its call's operand names, which the attract demo rewrites to its own
-frame work: the port reads the operand and runs that routine as the attract
-program's.
-
-**What stays.** The four code-presence refusals left are the attract
-program's own routines at `$7E:424D`, `$7E:4D0D`, `$7E:357B` and `$7E:36CC`
-(their bytes match its image, `attract_program`, and not the jet bike race's
-or the title's the ports read): the scene program's port is what retires them
-(PLAN.md).
-
-**Measured.** Shadow mode over the library: 0 mismatches, every refused
-entry compared where it was refused (`script_play_and_wait` 1,959 calls in
-the Bucket ending, 2 interrupted; `battle_upload_palette` 277 in the attract
-demo). Refusals in real play: 1,043 at 4 entries, all four the attract program's (7,300 at 21 before). Fallbacks, reference play:
-29.1 KiB of code and 171.6 million instructions in place of hand ports, refused 0.8 KiB and 14,521 (30.3 KiB, 181.5 M, refused 2.2 KiB and 10.1 M before); the shipping mode 27.0 KiB, 391 M, refused 0.8 KiB and 44,314 (28.0 KiB, 410 M, refused 2.4 KiB and 40.3 M). The attract demo's frame wait moved its passes from `$7E:3023` to the scene engine's `$C3:0000` in the baseline: a pass that runs the attract program's frame routine is longer than the idle entry's pass takes back. **Fuzzing**, seed 1, `tools/fuzz_compare.py` against `main`'s
-`ct_fuzz` over the 422 entries the batch touches (the menus' object script's
-commands, the battle's script and screen script commands, the timers, the
-movements, the confirm button, the walk), 5,000 states each: none mismatch
-where `main` didn't, and the 13 new variants (one per state the batch takes:
-`tools/fuzz_routines.toml`, `nobody`, `unlisted`, `waited`, `from_model`,
-`work_ram`, `register`, `nobody_leads`, `bank00`, `stale`, `m8`, `m16`,
-`unless_kept`) compare every state their guards take with 0 mismatched.
-`main`'s triangle took 764 of the from-model states and mismatched 754; the
-end unless listed first mismatched where its script pointer read I/O, whose
-operand the port reads and the end's handler doesn't, and the guard now asks
-for the script where the game keeps them. A `high_places` variant of each of
-the 15 commands that name a place forces the places `$80`-`$88` from a script
-in work RAM: 0 mismatched, after one finding -- a sound played from a place
-whose subject is a slot far past the combatants reads its position from the
-sound driver's command, which the original has already written the sound
-into; no script names one, and the sound commands' guard turns it away
-(`script_place_reads_the_sound_command`).
-
-**The native shape's New Game+.** The native-shape build took 58 frames from
-the load screen's menus closing to the Battle Mode question, against 14
-(docs/TODO.md had it):
-`TIMED_AS` was compiled out with the scaffolding, so the work a port runs
-inline as another routine's was estimated at the outer port's rate, and the
-New Game+'s start runs inside the menus' ports. A dump of work RAM each
-frame over the two builds (`ct_drive`'s `wram`) showed the time spent in one
-stretch with the menus closed and nothing in work RAM moving: 60 frames to the
-default build's 17. With `TIMED_AS` kept the native shape takes 13 (the rest
-is the scaffolding's own charges and accesses, which it leaves out). The tag
-isn't scaffolding -- it says whose rate the logic's accesses are estimated
-at -- and both builds keep it now (`game/charge.h`).
-
-**Timing.** Six rows moved and were recalibrated (`--drifted`): the sized
-triangle's from 5,899 to 9,906 (its stretches now include the ones entered
-from the model commands), and the script commands that ask for a channel for
-nobody or take a fall-through by a few percent (`script_end`,
-`script_play_and_wait` and its two siblings, `script_throw_moves`).
+**Measured.** Shadow mode over the library: 0 mismatches; the four entries
+compare every call real play makes (`scene_race_wait_to_leave` 1,243 in the
+attract demo, `scene_race_place_bikes` 759, `scene_setup_line_effects` 4,
+`scene_build_perspective` 1,521 in the Beyond Time ending, the line above
+the screen among them, 1 interrupted), and `attract_frame_pass` 110 in the
+attract demo and 474 in the race. Refusals in real play: 0 (1,043 at 4
+entries before). Fallbacks, reference play: 28.3 KiB of code and 171.6
+million instructions in place of hand ports, none refused (29.1 KiB, 171.6 M,
+refused 0.8 KiB and 14,521 before); the shipping mode 26.2 KiB, 390.6 M (27.0
+KiB, 391 M). The divisor searches the attract demo's race now makes in the
+port add 5,000 instructions to the scene engine's skipped `$C3:0E29`.
+**Fuzzing**, seed 1, `tools/fuzz_compare.py` against `main`'s `ct_fuzz`,
+20,000 states each: no entry mismatches where `main` didn't, and the new
+variants compare every state (`attract` for the curtain's way and the
+attract's line table, `at_the_camera` with the camera's distance 0, the
+endings' perspective from a horizon of 0); the place's guard turns away 79
+of the plain variant's states against `main`'s 246, and 2 of
+`at_the_camera`'s against 230. `attract_frame_pass`, 20,000 states with the
+scaling named: 0 mismatched. **Timing.** Four rows recalibrated
+(`--drifted`): `scene_build_perspective` from 7,540 to 9,337 and
+`scene_race_check_perspective`, which runs it inline, from 2,458 to 1,729 (the
+attract demo's and the ending's calls are new to their stretches),
+`scene_race_place_bikes` from 11,455 to 11,889, and `attract_frame_pass` at
+3,125.
 
 ## Risks
 

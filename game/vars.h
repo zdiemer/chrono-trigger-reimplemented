@@ -12978,7 +12978,8 @@ void set_scene_race_frames(GameState *g, uint16_t v);
 uint16_t scene_race_leaving(const GameState *g);
 void set_scene_race_leaving(GameState *g, uint16_t v);
 
-/* Nonzero (2) once a button has been pressed after the race and its ending has begun */
+/* Nonzero once a button has been pressed after the race and its ending has begun: the way the
+ * curtain sweeps, scene_race_ending_sweep */
 uint8_t scene_race_ending(const GameState *g);
 void set_scene_race_ending(GameState *g, uint8_t v);
 
@@ -13382,8 +13383,9 @@ enum { SCENE_RACE_OPENINGS_COUNT = 2 };   /* by which opening */
 uint16_t scene_race_openings(const GameState *g, unsigned i);
 void set_scene_race_openings(GameState *g, unsigned i, uint16_t v);
 
-/* Which way the curtain sweeps as the race ends (2, from the right): the operand of the
- * program's own load, which the setup of the race without its panel writes again */
+/* Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the
+ * attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own
+ * load, which the setup of the race without its panel writes again */
 uint8_t scene_race_ending_sweep(const GameState *g);
 void set_scene_race_ending_sweep(GameState *g, uint8_t v);
 
@@ -13526,6 +13528,11 @@ enum { SCENE_RACE_LINE_TABLES_BYTES = 4096 };
 uint8_t scene_race_line_tables_byte(const GameState *g, unsigned at);
 void set_scene_race_line_tables_byte(GameState *g, unsigned at, uint8_t v);
 
+/* The second matrix entry of the line above the screen (scene_plane_line_above_a), just before
+ * scene_plane_matrix_top_row */
+uint16_t scene_plane_line_above_b(const GameState *g);
+void set_scene_plane_line_above_b(GameState *g, uint16_t v);
+
 enum { SCENE_PLANE_MATRIX_TOP_ROW_COUNT = 224 };   /* by screen line */
 /* The matrix's first entry: the cosine's */
 uint16_t scene_plane_matrix_top_row_a(const GameState *g, unsigned line);
@@ -13533,6 +13540,11 @@ void set_scene_plane_matrix_top_row_a(GameState *g, unsigned line, uint16_t v);
 /* The matrix's second entry: the sine's */
 uint16_t scene_plane_matrix_top_row_b(const GameState *g, unsigned line);
 void set_scene_plane_matrix_top_row_b(GameState *g, unsigned line, uint16_t v);
+
+/* The third matrix entry of the line above the screen (scene_plane_line_above_a), just before
+ * scene_plane_matrix_bottom_row */
+uint16_t scene_plane_line_above_c(const GameState *g);
+void set_scene_plane_line_above_c(GameState *g, uint16_t v);
 
 enum { SCENE_PLANE_MATRIX_BOTTOM_ROW_COUNT = 224 };   /* by screen line */
 /* The matrix's third entry: the sine's, negated */
@@ -13559,6 +13571,17 @@ void set_scene_race_scaler_output_byte(GameState *g, unsigned at, uint8_t v);
 enum { SCENE_RACE_PLANE_MAP_BYTES = 8192 };
 uint8_t scene_race_plane_map_byte(const GameState *g, unsigned at);
 void set_scene_race_plane_map_byte(GameState *g, unsigned at, uint8_t v);
+
+/* The first matrix entry of the line above the screen, which an ending's plane builds from a
+ * horizon of 0: the perspective loop's index has run below the tables and wraps, so the store
+ * lands a bank on from scene_plane_matrix_top_row's */
+uint16_t scene_plane_line_above_a(const GameState *g);
+void set_scene_plane_line_above_a(GameState *g, uint16_t v);
+
+/* The fourth matrix entry of the line above the screen (scene_plane_line_above_a), a bank on
+ * from scene_plane_matrix_bottom_row's */
+uint16_t scene_plane_line_above_d(const GameState *g);
+void set_scene_plane_line_above_d(GameState *g, uint16_t v);
 
 /* The first operand: the multiplicand, or the 8.8 divide's dividend */
 uint16_t scene_call_first(const GameState *g, SceneProgramPage page);

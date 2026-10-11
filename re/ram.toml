@@ -1400,6 +1400,40 @@ size = 2
 meaning = "The matrix's fourth entry: the cosine's, as the first"
 
 [[var]]
+name = "scene_plane_line_above_a"
+addr = "7F:F0FC"
+size = 2
+subsystem = "scene"
+meaning = "The first matrix entry of the line above the screen, which an ending's plane builds from a horizon of 0: the perspective loop's index has run below the tables and wraps, so the store lands a bank on from scene_plane_matrix_top_row's"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_plane_line_above_b"
+addr = "7E:F0FE"
+size = 2
+subsystem = "scene"
+reuses = "scene_race_line_tables"
+meaning = "The second matrix entry of the line above the screen (scene_plane_line_above_a), just before scene_plane_matrix_top_row"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_plane_line_above_c"
+addr = "7E:F484"
+size = 2
+subsystem = "scene"
+reuses = "scene_race_line_tables"
+meaning = "The third matrix entry of the line above the screen (scene_plane_line_above_a), just before scene_plane_matrix_bottom_row"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
+name = "scene_plane_line_above_d"
+addr = "7F:F486"
+size = 2
+subsystem = "scene"
+meaning = "The fourth matrix entry of the line above the screen (scene_plane_line_above_a), a bank on from scene_plane_matrix_bottom_row's"
+source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
+
+[[var]]
 name = "scene_perspective_start"
 addr = "7E:35FD"
 size = 2
@@ -1610,7 +1644,7 @@ name = "scene_race_ending"
 addr = "7E:0350"
 subsystem = "scene"
 reuses = ["scene_circle_center_x", "scene_curtain_sweep"]
-meaning = "Nonzero (2) once a button has been pressed after the race and its ending has begun"
+meaning = "Nonzero once a button has been pressed after the race and its ending has begun: the way the curtain sweeps, scene_race_ending_sweep"
 source = "game/scene/race_rules.c, scene_race_wait_to_leave $7E:424D"
 
 [[var]]
@@ -1897,7 +1931,7 @@ source = "game/scene/race_rules.c, scene_race_finish $7E:4788"
 name = "scene_race_ending_sweep"
 addr = "7E:4259"
 subsystem = "scene"
-meaning = "Which way the curtain sweeps as the race ends (2, from the right): the operand of the program's own load, which the setup of the race without its panel writes again"
+meaning = "Which way the curtain sweeps as the race ends (2, from the right; 1, from the left, as the attract sequence's own curtain setup at $7E:6838 writes it): the operand of the program's own load, which the setup of the race without its panel writes again"
 source = "game/scene/race.c, scene_race_set_up $7E:3B48"
 
 [[var]]
