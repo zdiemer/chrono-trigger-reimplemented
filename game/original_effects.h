@@ -30,7 +30,9 @@
 
 #ifdef CT_WITHOUT_ORIGINAL_EFFECTS
 #define ORIGINAL_EFFECTS 0
-#define ORIGINAL_EFFECT(...) ((void)sizeof((__VA_ARGS__), 0))
+/* Behind a constant false, not inside sizeof: an unevaluated operand doesn't
+ * count as a use, so clang would call a helper only scaffolding calls unneeded. */
+#define ORIGINAL_EFFECT(...) ((void)(0 && ((__VA_ARGS__), 1)))
 #else
 #define ORIGINAL_EFFECTS 1
 /* The count lets the runtime tell scaffolding's writes from the logic's
