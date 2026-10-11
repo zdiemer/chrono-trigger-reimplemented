@@ -1,0 +1,15 @@
+# Ride a dactyl on the 65,000,000 B.C. world map: load the save (standing beside a dactyl at Tyrano
+# Lair), board it, fly a short way, then land and get off, back on foot. Reaches the dactyl's
+# flight, $C2:4CDA-$C2:5627, still the original's (game/overworld/overworld.h).
+# Save: ctsave07 slot 3 (oracle/saves/fantasyanime, fantasyanime.com Chrono Trigger saves).
+# frames 2810
+# sram crc32 7AA2049D
+# <start_frame> <frame_count> <buttons>
+1620 5 START
+2420 4 A
+2554 16 DOWN
+2574 16 DOWN
+2594 16 RIGHT
+2614 3 A
+2707 16 LEFT
+2727 3 A

@@ -41,6 +41,25 @@ UP/DOWN from a saved state and keeping the words that moved with the direction
 and stayed put on the other axis. The overworld moves in 16-pixel steps, so
 world-map searches use whole-tile moves (bfs.ow_bfs)."""
 
+OVERWORLD_TRAVEL = 0x7E027E
+"""How the party is going about the world map (overworld_travel,
+game/overworld/overworld.h): 0 on foot, 2 in the Epoch, 3 on a dactyl, 4
+walking to a vehicle to board it, 5 getting off one. The vehicles'
+controller (`$C2:309E`) sets it; a route presses confirm next to a vehicle
+and watches this turn away from 0 to know boarding started."""
+
+OVERWORLD_DACTYL_STATE = 0x7E029E
+"""The dactyl's state on the 65,000,000 B.C. world map (overworld_dactyl's
+`state` field, offset 4 of the 5-byte record at $7E:029A): bits 0-1 how many
+of the party are aboard, bit 6 it is out (flying or boarded), bit 7 it is on
+this map at all (game/overworld/overworld.h, VEHICLE_ABOARD/VEHICLE_OUT/
+VEHICLE_HERE). A save earlier in the story than recruiting the dactyls has
+bit 7 clear and nothing to board; ctsave07 slot 3 is at Tyrano Lair, already
+past that point, standing beside one. Bit 5, set while the landing the route
+presses confirm into plays out, was found the same way (single-stepping a
+confirm press while flying) since the dactyl's own flight, `$C2:4CDA`-
+`$C2:5627`, is still the original's and has no accessor yet."""
+
 EVENT_MEMORY = 0x7F0000
 """Story flags: the event engine's memory, addressed as $7F:0000 + offset by the
 script commands ported in game/event/story.c and variables.c ($53-$5A read and write it, $65

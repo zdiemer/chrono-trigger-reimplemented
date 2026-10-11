@@ -3475,7 +3475,8 @@ frame waits (`$C2:0346`, `$C2:046E`, `$C2:0454`), the timing service's. The
 scrolling lists' cursor and frame (`$C2:EA53`, `$C2:EA81`), which four
 screens' bridges call out to; the equipment screen's preview (`$C2:A5C3`);
 the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
-scene engine's unported `$C3:000E`; and the dactyl's flight.
+scene engine's unported `$C3:000E`; and the dactyl's flight, which
+`field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.
 
 ### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
 

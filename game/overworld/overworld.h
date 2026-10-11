@@ -25,7 +25,7 @@
  * - **The vehicles** (vehicles.c, epoch.c): the party walks to the Epoch or
  *   a dactyl to board it and gets off it again; the vehicles' controller
  *   decides when, and the Epoch flies over the map and through time. Flying
- *   the dactyl is still the original's (no movie reaches it).
+ *   the dactyl is still the original's.
  *
  * A walker's position is a pixel of the map, which is MENU_MAP_WIDTH pixels
  * round and MENU_MAP_HEIGHT high (menu/object.h); a tile is TILE_PIXELS of it. */

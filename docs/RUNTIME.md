@@ -456,6 +456,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `endings-bucket-lavos.ctm` | technoplaza ct-state18, 2 | New Game+: the End of Time bucket, the Day of Lavos, the shell's boss imitations and the shell, the inner cavern, the inner Lavos and the Core, then the Good Night ending credits | 196000 |
 | `endings-telepod-lavos.ctm` | technoplaza ct-state16, 2 | New Game+ with Crono and Marle: Taban's telepod at the fair, the outer shell, the inner cavern, the inner Lavos and the Core, then the whole Dream Project ending: the developer rooms, the Dream Team and the credits to The End | 132885 |
 | `events-jetbike-race.ctm` | ctsave03, 1 | Lab 32: Johnny's challenge and the Mode 7 race with turbo boosts | 9400 |
+| `events-jetbike-race-won.ctm` | ctsave03, 1 | Lab 32: the race won, recorded by hand: the boosts late against Johnny's catch-up, the finish and the scene after it | 8083 |
 | `events-end-of-time-gate.ctm` | ctsave03, 3 | End of Time pillar, yes/no prompt, gate effect, arrival in Medina | 5600 |
 | `events-prison-escape.ctm` | ctsave01, 3 | Prison countdown captions, the march to the guillotine, Lucca's rescue | 12900 |
 | `events-keepers-dome.ctm` | ctsave09, 1 | Keeper's Dome: the pendant opens the sealed door, Belthasar's hall | 5000 |
@@ -467,6 +468,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `menus-end-of-time.ctm` | ctsave12, 2 | Party exchange, the Guru of Time, saving over a slot | 8800 |
 | `menus-new-game-plus.ctm` | technoplaza ct-state16 | The load screen of a finished cartridge: the erase question on the second controller answered no, then yes; New Game+ from the fourth row, carrying on from the first slot, the battle mode and naming, onto the 1000 A.D. world map (route `new_game_plus`) | 3116 |
 | `field-65m-bc.ctm` | ctsave05, 1 | The 65,000,000 B.C. world map on foot with followers, into a location and back out (route `field_65m_bc`) | 2921 |
+| `field-65m-bc-dactyl.ctm` | ctsave07, 3 | The 65,000,000 B.C. world map on a dactyl at Tyrano Lair: boarded, flown a short way, landed and got off (route `dactyl_65m_bc`) | 2810 |
 | `field-12kbc-1f4.ctm` | ctsave08, 2 | The 12,000 B.C. world map at `$1F4`, into a location and back out (route `field_12kbc_1f4`) | 2953 |
 | `field-12kbc-1f5.ctm` | zophar chrono-5, 1 | The 12,000 B.C. world map at `$1F5`, likewise (route `field_12kbc_1f5`) | 2993 |
 | `field-12kbc-1f6.ctm` | zophar chrono-6, 2 | The 12,000 B.C. world map at `$1F6`, likewise (route `field_12kbc_1f6`) | 2873 |

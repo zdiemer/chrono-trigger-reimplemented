@@ -971,7 +971,7 @@ meaning = "The first operand: the multiplicand, or the 8.8 divide's dividend"
 name = "second"
 offset = 0x2
 size = 2
-meaning = "The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor"
+meaning = "The second operand: the multiplier (a signed byte for the signed multiply), or the 8.8 divide's divisor. On the scene's own page this is the controller's held buttons (input_held): what the race's motion leaves here, the next frame's controller read takes as the buttons held the frame before"
 [[var.field]]
 name = "dividend"
 offset = 0x0

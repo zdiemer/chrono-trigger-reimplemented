@@ -69,11 +69,15 @@ static uint16_t marked(uint16_t mark) { return (uint16_t)(mark + 1); }
 /* Compared as the race compares: by the sign of the difference. */
 static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
 
-/* What the motion leaves in the arithmetic's working cells, which nothing
- * reads before the next routine sets them again. */
+/* What the motion leaves in the arithmetic's working cells. Nothing reads the
+ * first before the next routine sets it again. The second is game state: the
+ * scene's page is the controller's, and that cell is its held buttons
+ * (input_held), which the next frame's controller read takes as the buttons
+ * held the frame before. What the race leaves there decides which buttons
+ * that read counts as newly pressed and repeating. */
 static void leave_working_cells(GameState *g, uint16_t first, uint16_t second)
 {
-    set_scene_call_first(g, scene_program_own(), first);
+    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), first));
     set_scene_call_second(g, scene_program_own(), second);
 }
 
@@ -298,7 +302,7 @@ static uint16_t contact(GameState *g, const ContactUnits *u)
     else if (!at_least((uint16_t)(johnny_lane + ACROSS_REACH + u->johnny_below), crono_lane))
         across = JOHNNY_WELL_BELOW >> ACROSS_SHIFT;
     set_scene_race_contact_across(g, across);
-    ORIGINAL_EFFECT(leave_working_cells(g, c, j));
+    leave_working_cells(g, c, j);
     return (uint16_t)(across << ACROSS_SHIFT | along);
 }
 
@@ -328,7 +332,7 @@ static void bump_along(GameState *g, Racer front, uint16_t front_nose, Racer oth
     uint32_t push = push_of(f, front_nose, o, other_nose);
     set_scene_race_racers_distance(g, front, f + push + u->overlapping);
     set_scene_race_racers_distance(g, other, o - (push >> 16) * 0x10001u - u->drops_back);
-    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)(f - front_nose), (uint16_t)((f - front_nose) >> 16)));
+    leave_working_cells(g, (uint16_t)(f - front_nose), (uint16_t)((f - front_nose) >> 16));
     /* The push stays in the arithmetic's cells, where the placing of the bikes'
      * next multiplies take bytes of it in (scene/math.c): it is game state. */
     set_scene_call_bump_push(g, scene_program_own(), push);
@@ -648,8 +652,8 @@ static BikeSounds ride_bikes(GameState *g)
     bool into_lead = unit_into_lead(g);
     bool into_touching = unit_from_lead(g, into_lead);
     set_scene_race_lead(g, lead(g, into_lead));
-    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)(distance(g, RACER_CRONO) >> 16) >> LEAD_SHIFT,
-                                        in_32nds(distance(g, RACER_JOHNNY))));
+    leave_working_cells(g, (uint16_t)(distance(g, RACER_CRONO) >> 16) >> LEAD_SHIFT,
+                        in_32nds(distance(g, RACER_JOHNNY)));
     if (!sounds.running)
         return sounds;
 
@@ -820,7 +824,7 @@ static void see_who_is_ahead(GameState *g)
     set_scene_race_racers_out_of_sight(g, RACER_JOHNNY, 0);
     set_scene_race_racers_out_of_sight(g, RACER_CRONO, 0);
     uint32_t ahead = distance(g, RACER_CRONO) - distance(g, RACER_JOHNNY);
-    ORIGINAL_EFFECT(leave_working_cells(g, (uint16_t)ahead, (uint16_t)(ahead >> 16)));
+    leave_working_cells(g, (uint16_t)ahead, (uint16_t)(ahead >> 16));
     if ((int32_t)ahead >= 0 && at_least((uint16_t)ahead, OUT_OF_SIGHT)) {
         set_scene_race_racers_out_of_sight(g, RACER_CRONO, 1);
         set_scene_race_racers_out_of_sight(g, RACER_JOHNNY, 1);
