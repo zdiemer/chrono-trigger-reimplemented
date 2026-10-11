@@ -29,6 +29,7 @@
 
 #include "battle/bridge.h"
 #include "battle/frame.h"
+#include "charge.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/input.h"
@@ -608,16 +609,18 @@ static bool step_channel(Snes *s, ScreenChannel channel)
 /* ---- The channels, each frame ------------------------------------------------------------- */
 
 /* A few battlefields keep BG3 still while the screen scripts run; on the
- * others it follows channel 0's layer. */
-static bool bg3_stays_still(const GameState *g)
+ * others it follows channel 0's layer. They are also the ones whose BG3 isn't
+ * a layer of their own (battlefield_change.c). */
+bool battle_keeps_bg3_still(uint16_t battlefield)
 {
     static const uint8_t still[] = { 0x86, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F };
-    uint8_t background = (uint8_t)battle_background(g);
     for (unsigned i = 0; i < sizeof still; i++)
-        if (background == still[i])
+        if ((uint8_t)battlefield == still[i])
             return true;
     return false;
 }
+
+bool battle_bg3_stays_still(const GameState *g) { return battle_keeps_bg3_still(battle_background(g)); }
 
 /* Whether a channel's step comes round this frame: its countdown runs out,
  * and starts again from its pace. */
@@ -655,7 +658,7 @@ static bool run_screen_scripts(Snes *s)
     GameState *g = state_of(s);
     if (battle_background_restore_request(g) || !battle_screen_scripts_running(g))
         return true;
-    set_battle_scroll_mode(g, bg3_stays_still(g) ? BATTLE_SCROLL_STEADY : BATTLE_SCROLL_BG3_MOVING);
+    set_battle_scroll_mode(g, battle_bg3_stays_still(g) ? BATTLE_SCROLL_STEADY : BATTLE_SCROLL_BG3_MOVING);
     uint16_t ended = 0;
     for (ScreenChannel channel = 0; channel < SCREEN_CHANNELS; channel++) {
         if (!battle_screen_channels_running(g, channel))
@@ -670,12 +673,62 @@ static bool run_screen_scripts(Snes *s)
     return true;
 }
 
+/* ---- A battlefield's own channels ------------------------------------------------------- */
+
+/* A battlefield can run screen scripts of its own: when it is loaded, the
+ * channels forget what ran on them, and each it names a script for starts on
+ * it at once, the script's first byte giving its pace and its first step
+ * coming on the next frame. */
+enum { NO_BATTLEFIELD_SCRIPT = 0xFF, SCRIPT_PACE = 0x0F };
+
+/* Everything the channels keep: their records, their layers' moves, and their
+ * loops, calls, waves and swings, three runs of 32 bytes. Each is every
+ * channel variable there rather than one the RAM map names, so they are
+ * cleared by address (game/wram.h). */
+enum { CHANNELS_STATE_AT = 0x7ECA32, CHANNELS_STATE_WORDS = 0x30, CHANNELS_STATE_BYTES = 2 * CHANNELS_STATE_WORDS };
+
+/* The original keeps the script's place in the battle's cells $53-$55; the
+ * last started is left there. */
+enum { LEFT_SCRIPT = 0x53, LEFT_SCRIPT_BANK = 0x55 };
+
+// $CD:15D5
+static void start_battlefield_script(GameState *g, ScreenChannel channel, uint8_t script)
+{
+    uint16_t start = screen_script_start(g, script);
+    set_battle_screen_channels_pace(g, channel, battle_screen_script_byte(g, SCREEN_SCRIPT_BANK | start) & SCRIPT_PACE);
+    set_battle_screen_channels_place(g, channel, SCREEN_SCRIPT_BANK | (uint16_t)(start + 1));
+    set_battle_screen_channels_countdown(g, channel, 1);
+    set_battle_screen_channels_running(g, channel, 1);
+    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_SCRIPT, start));
+    ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_SCRIPT_BANK, (uint8_t)(SCREEN_SCRIPT_BANK >> 16)));
+}
+
+// $CD:0D33
+void battle_start_battlefield_scripts(GameState *g)
+{
+    wram_fill16(g, CHANNELS_STATE_AT, CHANNELS_STATE_WORDS, 0);
+    ORIGINAL_EFFECT(charge_as(g, 0xCD0D33, CHANNELS_STATE_BYTES));
+    for (ScreenChannel channel = 0; channel < SCREEN_CHANNELS; channel++) {
+        uint8_t script = battle_battlefield_scripts(g, channel);
+        if (script != NO_BATTLEFIELD_SCRIPT)
+            start_battlefield_script(g, channel, script);
+    }
+}
+
 /* ---- The entries ------------------------------------------------------------------------ */
 
 void battle_run_screen_scripts(Snes *s)
 {
     if (run_screen_scripts(s))
         m_rts(s);
+}
+
+/* It leaves A's high byte clear for its callers. */
+void battle_start_battlefield_scripts_entry(Snes *s)
+{
+    battle_start_battlefield_scripts(state_of(s));
+    s->cpu.a = 0;
+    m_rts(s);
 }
 
 /* The channel's offset in X, which the original keeps on the stack while the

@@ -629,6 +629,19 @@ void battle_update_combatant(Snes *s);
 void battle_decode_tile_row(Snes *s);
 bool battle_decodes_tile_row(Snes *s);
 
+/* battle/battlefield_change.c */
+void battle_change_battlefield(Snes *s);
+void battle_load_battlefield(Snes *s);
+void battle_fade_old_battlefield_layer(Snes *s);
+void battle_decode_battlefield_tile_set(Snes *s);
+void battle_clear_battlefield_map(Snes *s);
+void battle_build_battlefield_map(Snes *s);
+void battle_load_effect_tile_rows(Snes *s);
+void battle_load_second_effect_tile_rows(Snes *s);
+bool battle_changed_battlefield_fits(Snes *s);
+bool battle_battlefield_fits(Snes *s);
+bool battle_battlefield_map_fits(Snes *s);
+
 /* battle/animation.c */
 void battle_step_combatant_animations(Snes *s);
 bool battle_steps_animations(Snes *s);

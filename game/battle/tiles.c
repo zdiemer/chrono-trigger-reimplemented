@@ -13,6 +13,7 @@
 #include "battle/animation_data.h"
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/frame.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -160,7 +161,7 @@ static void leave_row_end(GameState *g, uint16_t descriptors, uint16_t tiles)
 
 // $CD:1368
 /* Decode `tiles` tiles of a row set into the decode buffer from its start. */
-static void decode_tile_row(GameState *g, uint16_t row_set, uint16_t tiles)
+void battle_decode_tiles(GameState *g, uint16_t row_set, uint16_t tiles)
 {
     uint16_t descriptors = (uint16_t)(row_set * ROW_SET_BYTES);
     uint16_t palettes = battle_tile_row_palette_word(g, (uint16_t)(row_set * 2));
@@ -192,7 +193,7 @@ void battle_decode_tile_row(Snes *s)
 {
     GameState *g = state_of(s);
     uint16_t tiles = (uint16_t)(battle_scratch(g, TILE_COUNT) | battle_scratch(g, TILE_COUNT + 1) << 8);
-    decode_tile_row(g, s->cpu.x, tiles);
+    battle_decode_tiles(g, s->cpu.x, tiles);
     s->cpu.a = 0;
     m_rts(s);
 }

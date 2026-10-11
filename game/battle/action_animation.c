@@ -11,8 +11,7 @@
  *
  * Choosing the animation and starting its scripts is C on the game's state.
  * Loading the rest spans frames: the effects' graphics sets go to VRAM and
- * the background may change (the frame work's $CD:0015, $CD:002A and
- * $CD:0018, still the original's), the sprite tiles are unpacked (the
+ * the background may change (battle/battlefield_change.c), the sprite tiles are unpacked (the
  * decompressor) and the bitmap shapes built a few a frame (battle/sprites.c),
  * between waits for the next frame with the frame step between them
  * (battle/frame_step.c). So the loading is a bridge that makes those calls
@@ -266,13 +265,12 @@ static bool wait_for_the_next_frame(Snes *s, uint32_t site)
 
 static bool frame_step(Snes *s, uint32_t site) { return battle_run(s, site, 0xC110FA, battle_frame_step); }
 
-/* The frame work's loads take what they load in A, a byte. */
-enum { FRAME_WORK_LOAD_READS = DC_X | DC_Y | DC_FLAGS };
-
-static bool frame_work_load(Snes *s, uint32_t site, uint32_t routine, uint8_t what)
+/* The frame work's loads (battle/battlefield_change.c) take what they load in
+ * A, a byte, and run as the original's calls make them. */
+static bool frame_work_load(Snes *s, uint32_t site, uint32_t routine, void (*load)(Snes *), uint8_t what)
 {
     s->cpu.a = what;
-    return battle_call_long(s, site, routine, FRAME_WORK_LOAD_READS);
+    return battle_run_long(s, site, routine, load);
 }
 
 /* The battlefield changes where the animation has one to change to: always
@@ -328,10 +326,10 @@ static bool build_the_shapes(Snes *s)
 static bool load_the_animation(Snes *s, LoadedAnimation a)
 {
     GameState *g = state_of(s);
-    if (!frame_work_load(s, 0xC14836, 0xCD0015, a.parts.graphics)
-        || !frame_work_load(s, 0xC1483D, 0xCD002A, a.parts.second_graphics) || !wait_for_the_next_frame(s, 0xC14841))
+    if (!frame_work_load(s, 0xC14836, 0xCD0015, battle_load_effect_tile_rows, a.parts.graphics)
+        || !frame_work_load(s, 0xC1483D, 0xCD002A, battle_load_second_effect_tile_rows, a.parts.second_graphics) || !wait_for_the_next_frame(s, 0xC14841))
         return false;
-    if (changes_the_background(g, a.parts) && !frame_work_load(s, 0xC14857, 0xCD0018, a.parts.background))
+    if (changes_the_background(g, a.parts) && !frame_work_load(s, 0xC14857, 0xCD0018, battle_change_battlefield, a.parts.background))
         return false;
     if (!wait_for_the_next_frame(s, 0xC1485B) || !frame_step(s, 0xC1485E))
         return false;

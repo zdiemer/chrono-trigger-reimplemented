@@ -347,6 +347,7 @@ add_library(ct_game STATIC
   game/battle/draw_objects.c
   game/battle/object_motion.c
   game/battle/tiles.c
+  game/battle/battlefield_change.c
   game/battle/uploads.c
   game/battle/timers.c
   game/battle/wait.c

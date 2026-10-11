@@ -7335,10 +7335,11 @@ void set_battle_shrugged_off_mark(GameState *g, uint8_t v);
 uint16_t battle_screen_channel(const GameState *g);
 void set_battle_screen_channel(GameState *g, uint16_t v);
 
-enum { BATTLE_SCRATCH_COUNT = 38 };   /* by byte */
-/* Direct-page scratch the battle's routines share ($45-$6A): counts, thresholds, operands and
+enum { BATTLE_SCRATCH_COUNT = 49 };   /* by byte */
+/* Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and
  * table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and
- * counts at $53-$6A, the count of tiles its callers hand it at $67 */
+ * counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map
+ * builder its pointers and counts at $53-$75 */
 uint8_t battle_scratch(const GameState *g, unsigned i);
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v);
 
@@ -11700,6 +11701,13 @@ void set_battle_effect_line_work(GameState *g, unsigned i, uint8_t v);
 uint8_t battle_leaving(const GameState *g);
 void set_battle_leaving(GameState *g, uint8_t v);
 
+enum { BATTLE_LAYER_MAP_SETTINGS_COUNT = 4 };   /* by layer (BG1-BG4) */
+/* Each layer's tile map setting as the per-line effects set it below the split, from
+ * battle_start_tile_maps at the battle's start ($CD:0CA1); a battlefield with a BG3 layer of its
+ * own puts BG3's at $7C00 */
+uint8_t battle_layer_map_settings(const GameState *g, unsigned layer);
+void set_battle_layer_map_settings(GameState *g, unsigned layer, uint8_t v);
+
 enum { BATTLE_SCROLL_TABLES_COUNT = 128 };   /* by layer (BG1-BG3) * 32 + entry (BG3's run on to 64 in the finer line wave) */
 /* Horizontal scroll */
 uint16_t battle_scroll_tables_x(const GameState *g, unsigned layer);
@@ -11832,6 +11840,25 @@ enum { BATTLE_WINDOW_LINE_TABLES_BYTES = 45 };
 uint8_t battle_window_line_tables_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_window_line_tables_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
 
+/* The strips of map to build in its low six bits, counted down as each is built; bit 6 is the
+ * tile set's high bit */
+uint8_t battle_battlefield_layout_strips(const GameState *g);
+void set_battle_battlefield_layout_strips(GameState *g, uint8_t v);
+/* The tile set's low byte: its graphics' descriptors are $CF:8000 + 64 bytes a set, four sets
+ * the layer's */
+uint8_t battle_battlefield_layout_tile_set(const GameState *g);
+void set_battle_battlefield_layout_tile_set(GameState *g, uint8_t v);
+/* The strip of map built next ($D1:A575, a pointer a strip), stepped on as each is built */
+uint16_t battle_battlefield_layout_map(const GameState *g);
+void set_battle_battlefield_layout_map(GameState *g, uint16_t v);
+/* A byte copied, with the rows after it, to $CA1B and to screen channel 0's record; nothing
+ * found reading it */
+uint8_t battle_battlefield_layout_kept(const GameState *g);
+void set_battle_battlefield_layout_kept(GameState *g, uint8_t v);
+/* Rows of 16 tiles in each strip */
+uint8_t battle_battlefield_layout_rows(const GameState *g);
+void set_battle_battlefield_layout_rows(GameState *g, uint8_t v);
+
 enum { BATTLE_SHORT_WINDOW_SCROLL_COUNT = 5 };   /* by 0 BG1 in layout 0, 1 BG1 in layout 1, 2 BG2, 3 BG3 in layout 0, 4 BG3 in layout 1 */
 /* Across */
 uint16_t battle_short_window_scroll_x(const GameState *g, unsigned i);
@@ -11851,6 +11878,11 @@ void set_battle_block_upload_request(GameState *g, uint8_t v);
 /* Source address in $7E of the requested block upload */
 uint16_t battle_block_upload_source(const GameState *g);
 void set_battle_block_upload_source(GameState *g, uint16_t v);
+
+/* The battlefield layout's last word (its byte $CA00 and its rows) as loading the battlefield
+ * left it ($CD:0F72); nothing found reading it */
+uint16_t battle_battlefield_kept_word(const GameState *g);
+void set_battle_battlefield_kept_word(GameState *g, uint16_t v);
 
 /* Which per-line effects are enabled each frame */
 uint8_t battle_line_effects_on(const GameState *g);
@@ -11915,6 +11947,10 @@ enum { BATTLE_SCREEN_CHANNELS_COUNT = 2 };   /* by screen script channel */
 /* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
 uint8_t battle_screen_channels_running(const GameState *g, unsigned channel);
 void set_battle_screen_channels_running(GameState *g, unsigned channel, uint8_t v);
+/* Channel 0's: the battlefield layout's last word, which loading a battlefield leaves here
+ * ($CD:11DD) until its channels are started over ($CD:0D33) clear it; nothing reads it */
+uint16_t battle_screen_channels_layout_word(const GameState *g, unsigned channel);
+void set_battle_screen_channels_layout_word(GameState *g, unsigned channel, uint16_t v);
 /* Where the channel is in its script (bank $D1), kept while it waits */
 uint32_t battle_screen_channels_place(const GameState *g, unsigned channel);
 void set_battle_screen_channels_place(GameState *g, unsigned channel, uint32_t v);
@@ -12019,6 +12055,12 @@ void set_battle_screen_orbit_sway(GameState *g, unsigned channel, uint8_t v);
 uint8_t battle_scroll_mode(const GameState *g);
 void set_battle_scroll_mode(GameState *g, uint8_t v);
 
+enum { BATTLE_BATTLEFIELD_SCRIPTS_COUNT = 2 };   /* by screen script channel */
+/* The screen scripts the battlefield's two channels run, as its loading took them from the ROM
+ * ($D1:6240), $FF for none; its channels are started on them ($CD:0D33) */
+uint8_t battle_battlefield_scripts(const GameState *g, unsigned channel);
+void set_battle_battlefield_scripts(GameState *g, unsigned channel, uint8_t v);
+
 enum { BATTLE_SCREEN_BACKGROUND_COLORS_COUNT = 2 };   /* by which (first, second) */
 /* Two sets of colors from the ROM ($D1:6002) that $CD:1004 writes over the background's palette,
  * $FF for none */
@@ -12068,6 +12110,37 @@ void set_battle_screen_circle_y(GameState *g, unsigned i, uint8_t v);
  * (the square's drawing sets 0); nothing reads it after */
 uint8_t battle_circle_drawn(const GameState *g);
 void set_battle_circle_drawn(GameState *g, uint8_t v);
+
+/* How far the battlefield's map bytes step for each tile of the strip being built: from its
+ * first byte; $80 and up, the strip's bytes cycle through 32 one at a time instead ($CD:107D) */
+uint16_t battle_map_strip_step(const GameState *g);
+void set_battle_map_strip_step(GameState *g, uint16_t v);
+
+/* Tiles taken from cycling strips' bytes, counted across every strip of the map; each 32 the
+ * strip's bytes start over ($CD:107D) */
+uint8_t battle_map_cycle(const GameState *g);
+void set_battle_map_cycle(GameState *g, uint8_t v);
+
+enum { BATTLE_MAP_STRIP_CELLS_COUNT = 32 };   /* by byte (two a row) */
+/* Which places of the strip being built have a tile, a bit each from the top bit, sixteen to a
+ * row; the rest of the map keeps its blank tile ($CD:107D) */
+uint8_t battle_map_strip_cells(const GameState *g, unsigned i);
+void set_battle_map_strip_cells(GameState *g, unsigned i, uint8_t v);
+
+/* The row set of the battlefield's tiles decoded next into VRAM's slots ($CD:1323, $CD:1314), or
+ * the tile set counted while a battlefield's layer loads ($CD:0F9F) */
+uint8_t battle_tile_rows_next(const GameState *g);
+void set_battle_tile_rows_next(GameState *g, uint8_t v);
+
+/* The VRAM slot the next row set of an effect's tiles goes to ($CD:1308, a VRAM address a slot),
+ * counted up to battle_tile_rows_end */
+uint8_t battle_tile_rows_slot(const GameState *g);
+void set_battle_tile_rows_slot(GameState *g, uint8_t v);
+
+/* The slot past the last an effect's tile rows go to: the first graphics set fills slots 0-3,
+ * the second 4-5 */
+uint8_t battle_tile_rows_end(const GameState *g);
+void set_battle_tile_rows_end(GameState *g, uint8_t v);
 
 enum { BATTLE_SCREEN_CIRCLE_KIND_COUNT = 2 };   /* by circle */
 /* How a circle is drawn into the window table (one of six ways, through $CD:319E) */
@@ -12377,6 +12450,11 @@ void set_battle_block_uploaded_row(GameState *g, uint8_t v);
 uint16_t battle_block_uploaded_source(const GameState *g);
 void set_battle_block_uploaded_source(GameState *g, uint16_t v);
 
+/* The byte after the last block's source, which forgetting the last block sets with it
+ * ($CD:0F68); nothing reads it */
+uint8_t battle_block_uploaded_pad(const GameState *g);
+void set_battle_block_uploaded_pad(GameState *g, uint8_t v);
+
 /* Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has */
 uint8_t battle_script_sound_request(const GameState *g);
 void set_battle_script_sound_request(GameState *g, uint8_t v);
@@ -12575,6 +12653,14 @@ void set_battle_frame_advance_count_high(GameState *g, uint8_t v);
 /* Nonzero to pause palette animation; clearing it restores the saved slot types */
 uint8_t battle_palette_pause_request(const GameState *g);
 void set_battle_palette_pause_request(GameState *g, uint8_t v);
+
+enum { BATTLE_MAP_BUFFER_COUNT = 6144 };   /* by tile map entry (16 a row of 16x16 tiles) */
+/* The battlefield's BG3 tile map as its loading builds it, every entry the blank tile ($00EE)
+ * where the map has none; $7E:D000-$D7FF goes to VRAM $7C00 ($CD:107D, $CD:1052). Loading a
+ * battlefield clears all of $D000-$FFFF to the blank tile, the waves' lines with it, which the
+ * effects that use them lay out again */
+uint16_t battle_map_buffer(const GameState *g, unsigned i);
+void set_battle_map_buffer(GameState *g, unsigned i, uint16_t v);
 
 enum { BATTLE_WAVE_LINES_COUNT = 212 };   /* by line of the battlefield (the waves take every other one, for a pair of lines) */
 /* Window 1's edges (left, right) */
