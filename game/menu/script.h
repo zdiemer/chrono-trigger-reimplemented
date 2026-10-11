@@ -87,11 +87,17 @@ typedef struct {
 
 uint8_t script_byte_at(const GameState *g, MenuObject self, ByteRef b);
 void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v);
+/* Whether a cell is the console's own rather than low RAM: a register of the
+ * picture's, which the scripts set through the services. */
+bool script_byte_is_the_consoles(ByteRef b);
 
 typedef enum {
     BYTE_CLEAR, BYTE_COUNT_UP, BYTE_COUNT_DOWN, BYTE_SET, BYTE_SET_BITS, BYTE_CLEAR_BITS, BYTE_ADD,
     BYTE_SUBTRACT,
 } ByteChange;
+/* Whether a change looks at what the byte held (all but clearing and setting
+ * it; menu/object_script.c). */
+bool menu_byte_change_reads(ByteChange change);
 
 typedef enum {
     TEST_ZERO, TEST_NONZERO, TEST_EQUAL, TEST_NOT_EQUAL, TEST_ANY_BIT, TEST_NO_BIT, TEST_BELOW, TEST_AT_LEAST,
@@ -133,6 +139,9 @@ typedef struct {
     bool (*pass_on_sound)(void *ctx);
     /* Run a routine a script names, in bank C2 or anywhere. */
     bool (*call_routine)(void *ctx, uint32_t routine, bool far);
+    /* Set a byte of the console's own a command names by its address: a
+     * register of the picture's. */
+    void (*set_console_byte)(void *ctx, uint16_t at, uint8_t v);
     void *ctx;
 } ScriptServices;
 

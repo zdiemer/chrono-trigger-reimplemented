@@ -192,12 +192,29 @@ static Step head_for(GameState *g, unsigned enemy, uint8_t heading)
 /* ---- Waiting for the target to move ($C1:3772) ------------------------------------------- */
 
 // $C1:3772
+/* Where an enemy that saw no target ($FF) finds it standing: the original
+ * reads the slot's place past the combatants', in the bytes after the
+ * battlefield's objects' places, which nothing keeps for it. A target of
+ * nobody is a place no one stands on in a build that keeps the game's own
+ * storage (docs/TODO.md). */
+static BattlePoint where_the_original_finds_nobody(const GameState *g, uint8_t nobody)
+{
+    unsigned object = battle_object_of(nobody);
+    return (BattlePoint){ battle_object_x_unchecked(g, object), battle_object_y_unchecked(g, object) };
+}
+
+static BattlePoint target_standing(const GameState *g, unsigned enemy)
+{
+    uint8_t target = target_of(g, enemy);
+    return battle_names_combatant(target) ? standing(g, target) : where_the_original_finds_nobody(g, target);
+}
+
 static void wait_for_target_to_move(GameState *g, unsigned enemy)
 {
     if (!stopped_to_act(g, enemy))
         return;
     stop_weaving(g, enemy);
-    BattlePoint target = standing(g, target_of(g, enemy));
+    BattlePoint target = target_standing(g, enemy);
     if (target.x == battle_enemy_target_seen_x(g, enemy) && target.y == battle_enemy_target_seen_y(g, enemy))
         return;
     set_battle_enemy_animation(g, enemy, battle_enemy_animation_work(g, enemy));
@@ -585,6 +602,10 @@ bool battle_enemy_movement_needs_target(EnemyMovement movement)
     return movement <= MOVEMENT_CIRCLE;
 }
 
+/* Waiting for the target to move goes on when the enemy saw no target: it
+ * waits on where nobody stands (where_the_original_finds_nobody). */
+static bool takes_no_target(EnemyMovement movement) { return movement == MOVEMENT_WAIT_FOR_TARGET; }
+
 void battle_move_enemy(GameState *g, unsigned enemy, EnemyMovement movement, uint8_t animation)
 {
     switch (movement) {
@@ -617,7 +638,8 @@ static bool entry_ready(Snes *s, EnemyMovement movement)
     const GameState *g = state_of(s);
     unsigned enemy = battle_effect_enemy(g);
     bool fits = enemy < BATTLE_ENEMIES && battle_enemy_animation_effect(g, battle_effect_kind(g)) == movement
-                && (!battle_enemy_movement_needs_target(movement) || battle_names_combatant(target_of(g, enemy)));
+                && (!battle_enemy_movement_needs_target(movement) || takes_no_target(movement)
+                    || battle_names_combatant(target_of(g, enemy)));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && fits;
 }

@@ -230,6 +230,7 @@ bool menu_shop_panel_shows(Snes *s);
 bool menu_shop_members_step_runs(Snes *s);
 bool menu_shop_slots_step_runs(Snes *s);
 bool menu_shop_equipping_runs(Snes *s);
+bool menu_shop_member_opens(Snes *s);
 bool menu_shop_goes_down(Snes *s);
 
 #endif

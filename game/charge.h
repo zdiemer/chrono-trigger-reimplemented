@@ -36,22 +36,21 @@ void charge_uncounted_end(GameState *g, uint32_t mark);
 /* The time of the work a statement does, estimated as the routine at
  * `routine`'s, for logic that runs another routine's work inline: the same
  * tag as NATIVE_TIME_AS (runtime/port/native.h) for code that has no machine.
- * A tag, never a number. The native-shape build runs the statement alone. */
+ * A tag, never a number. Unlike the charges above it isn't scaffolding: it
+ * says which routine's rate the logic's own accesses are estimated at, so the
+ * native-shape build keeps it too, and runs on the machine at the default
+ * build's pace but for the scaffolding's own time. Without it the statement's
+ * accesses went at the rate of the port around it, and a New Game+'s start,
+ * at the menus' ports' rates, took 58 frames where it takes 14 (RECOMP.md,
+ * "The refusals in real play, retired"). A build with no machine has no time
+ * to charge: its backing of these does nothing. */
 int charge_time_as_begin(GameState *g, uint32_t routine);
 void charge_time_as_end(GameState *g, int was);
-#ifdef CT_WITHOUT_ORIGINAL_EFFECTS
-#define TIMED_AS(g, routine, statement) \
-    do {                                \
-        (void)(g);                      \
-        statement;                      \
-    } while (0)
-#else
 #define TIMED_AS(g, routine, statement)                           \
     do {                                                          \
         int timed_as_was_ = charge_time_as_begin((g), (routine)); \
         statement;                                                \
         charge_time_as_end((g), timed_as_was_);                   \
     } while (0)
-#endif
 
 #endif

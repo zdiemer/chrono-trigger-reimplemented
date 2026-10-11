@@ -158,7 +158,7 @@ typedef struct {
     /* objects */                                                                                \
     X(FieldObject, object) X(FieldObject, target) X(PartyPlace, member) X(bool, there)              X(uint8_t, level)                                                                            \
     X(uint8_t, function) X(bool, takes) X(Facing, facing) X(EventVariable, column)              \
-    X(EventVariable, row) X(uint8_t, speed) X(bool, solid)                                       \
+    X(EventVariable, row) X(uint8_t, speed) X(ObjectContact, contact)                                       \
     X(ObjectBlocking, blocked_by) X(ObjectArrival, arrival) X(uint8_t, move_length)             \
     X(uint8_t, tile_x) X(uint8_t, tile_y) X(bool, centred) X(uint16_t, x) X(uint16_t, y)        \
     X(uint8_t, layering) X(ObjectSprite, sprite)                                                 \
@@ -284,7 +284,6 @@ typedef enum {
     ARG_STORY_PROGRESS,  /* the story's progress counter */
     ARG_BIT,             /* the operand is a bit number: the byte with that bit set */
     ARG_ALL_BUT_BIT,     /* the operand is a bit number: the byte with every other bit set */
-    ARG_FLAG,            /* the operand is 0 or 1: false or true */
     ARG_FORMATION_PLACE, /* two operands, a tile's column and row, their top bits the way it faces */
     ARG_SEARCHLIGHT_MOVE, /* sixteen operands: each corner's x and y, each a start and an end */
     ARG_OBJECT_COLOUR_EFFECT,   /* an effect on the object's colours: its form, then its form's operands */
@@ -317,7 +316,6 @@ typedef struct {
 #define STORY_PROGRESS { ARG_STORY_PROGRESS, 0, 0, 0 }
 #define BIT(n) { ARG_BIT, (n), 0, 0 }
 #define ALL_BUT_BIT(n) { ARG_ALL_BUT_BIT, (n), 0, 0 }
-#define FLAG(n) { ARG_FLAG, (n), 0, 0 }
 #define FORMATION_PLACE(n) { ARG_FORMATION_PLACE, (n), 0, 0 }
 #define SEARCHLIGHT_MOVE(n) { ARG_SEARCHLIGHT_MOVE, (n), 0, 0 }
 #define OBJECT_COLOUR_EFFECT(n) { ARG_OBJECT_COLOUR_EFFECT, (n), 0, 0 }

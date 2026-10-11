@@ -7,22 +7,40 @@
 
 #include "port/machine.h"
 
-/* Guard for the frame-wait loop at $7E:3023: the loop's 7 bytes, and an RTS
- * at $7E:3176, the routine the loop calls. */
+/* The frame wait at $7E:3023 calls a routine each pass, whose address the
+ * program keeps in the call's own operand ($7E:3024): the title's is an empty
+ * one (an RTS, $7E:3176), and the attract demo sets its own frame work there
+ * ($7E:51D1), which is the attract program's still. */
+enum { WAIT_LOOP = 0x7E3023, FRAME_ROUTINE_OPERAND = 0x7E3024, CODE_BANK = 0x7E0000, RTS = 0x60 };
+enum { JSR = 0x20 };
+
+static uint16_t frame_routine(Snes *s)
+{
+    return (uint16_t)(snes_bus_peek(&s->bus, FRAME_ROUTINE_OPERAND) | snes_bus_peek(&s->bus, FRAME_ROUTINE_OPERAND + 1) << 8);
+}
+
+/* Guard for the frame-wait loop: the call, then the loop's test (its 4 bytes
+ * after the call's 3), whatever routine the call names. */
 bool attract_wait_loop_present(Snes *s)
 {
-    return snes_bus_peek(&s->bus, 0x7E3176) == 0x60 && m_code_matches(s, 0x7E3023, 7, 0x8FB1B63AAE3F69D0ull);
+    return snes_bus_peek(&s->bus, WAIT_LOOP) == JSR && m_code_matches(s, WAIT_LOOP + 3, 4, 0x2B0A967642BA802Bull);
 }
 
 /* $7E:3023 (attract/title main loop)
  * Waits for a sequence script to stop, which sets the 16-bit flag at direct
- * page $00 (scene_program_over; scene/script.c), calling an empty routine on
- * each pass. Idle entry: one pass of the loop, entered
- * with 16-bit A. Exits to $7E:302A. */
+ * page $00 (scene_program_over; scene/script.c), calling the program's frame
+ * routine on each pass. Idle entry: one pass of the loop, entered with 16-bit
+ * A. Exits to $7E:302A. A frame routine that does anything runs as the
+ * attract program's, and the loop goes on after the call at $7E:3026. */
 void attract_wait_loop(Snes *s)
 {
-    m_push16(s, 0x3025);   /* JSR $3176 ... */
-    m_rts(s);              /* ... which is an RTS */
+    uint16_t routine = frame_routine(s);
+    m_push16(s, 0x3025);   /* JSR (routine) */
+    if (snes_bus_peek(&s->bus, CODE_BANK | routine) != RTS) {
+        s->cpu.pc = routine;
+        return;
+    }
+    m_rts(s);
     uint16_t flag = m_lda16(s, m_read16(s, m_dp(s, 0x00)));
     s->cpu.pc = flag ? 0x302A : 0x3023;
 }

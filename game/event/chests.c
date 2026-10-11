@@ -43,7 +43,6 @@ enum { THE_ITEM_FOUND = 0 };
 /* A tile as the chests keep it: its row in the high byte. */
 static uint16_t tile_number(uint8_t row, uint8_t column) { return (uint16_t)(row << 8 | column); }
 
-static FieldObject the_leader(const GameState *g) { return field_linked_object(party_member_link(g, PARTY_LEADER)); }
 
 /* ---- The chest before the leader ------------------------------------------------------ */
 
@@ -65,18 +64,29 @@ static void step_toward(Facing facing, uint8_t *row, uint8_t *column)
     }
 }
 
+/* A tile off the map, which only a leader who is nobody looks at (field/
+ * object.h, FieldLeader): the original reads its byte at its row and column
+ * all the same, past the table's rows and columns, up into bank $7F for the
+ * last rows. The one place the port reads them (docs/TODO.md, "Nobody
+ * leading"). */
+static uint8_t walkable_past_the_map(const GameState *g, uint8_t row, uint8_t column)
+{
+    return field_tile_walkable_unchecked(g, row, column);
+}
+
 static Wall look_at(const GameState *g, uint8_t row, uint8_t column)
 {
-    uint8_t walkable = field_tile_walkable(g, row, column);
+    uint8_t walkable = tile_on_the_map((MapTile){ column, row }) ? field_tile_walkable(g, row, column)
+                                                                  : walkable_past_the_map(g, row, column);
     return (Wall){ !(walkable & WALKABLE_BIT), row, column, walkable };
 }
 
 // $C0:1E9A-$C0:1F0D
 static Wall wall_before_the_leader(const GameState *g)
 {
-    FieldObject leader = the_leader(g);
-    MapTile at = object_tile(g, leader);
-    Facing facing = object_facing(g, leader);
+    FieldLeader leader = field_leader(g);
+    MapTile at = field_leader_tile(g, leader);
+    Facing facing = field_leader_facing(g, leader);
     uint8_t row = at.y, column = at.x;
     step_toward(facing, &row, &column);
     Wall w = look_at(g, row, column);
@@ -89,9 +99,11 @@ static Wall wall_before_the_leader(const GameState *g)
 
 bool chest_look_fits(const GameState *g)
 {
-    FieldObject leader = the_leader(g);
-    MapTile at = object_tile(g, leader);
-    Facing facing = object_facing(g, leader);
+    FieldLeader leader = field_leader(g);
+    if (leader.nobody_leads)
+        return true;
+    MapTile at = field_leader_tile(g, leader);
+    Facing facing = field_leader_facing(g, leader);
     uint8_t row = at.y, column = at.x;
     for (unsigned looks = facing == FACING_UP ? 2 : 1; looks > 0; looks--) {
         step_toward(facing, &row, &column);
@@ -189,10 +201,14 @@ static ChestBefore chest_before_the_leader(const GameState *g)
  * which only the original gives (the guards'). */
 enum { INVENTORY_ITEMS = 0x100 };
 
+/* ... and with nobody leading, there is none: the message a chest opens
+ * stands over the leader. */
 bool chest_gift_fits(const GameState *g)
 {
     ChestBefore c = chest_before_the_leader(g);
     uint16_t contents = c.chest.contents;
+    if (c.there && field_leader(g).nobody_leads)
+        return false;
     return !c.there || (contents & (HOLDS_GOLD | HOLDS_NOTHING_OF_ITS_OWN)) || (contents & ITEM_BITS) < INVENTORY_ITEMS;
 }
 
@@ -213,7 +229,7 @@ ChestGift open_the_chest_before_the_leader(GameState *g)
     FieldChest chest = c.chest;
     ORIGINAL_EFFECT(leave_chest_found(g, c.place, number));
     if (chest_opened(g, number)) {
-        field_message_opens(g, the_leader(g), MESSAGE_EMPTY);
+        field_message_opens(g, field_leader(g).obj, MESSAGE_EMPTY);
         return nothing;
     }
     mark_chest_opened(g, number);
@@ -224,7 +240,7 @@ ChestGift open_the_chest_before_the_leader(GameState *g)
 
 void announce_the_gift(GameState *g, ChestGift gift)
 {
-    field_message_opens(g, the_leader(g), gift.kind == GIFT_ITEM ? MESSAGE_ITEM : MESSAGE_GOLD);
+    field_message_opens(g, field_leader(g).obj, gift.kind == GIFT_ITEM ? MESSAGE_ITEM : MESSAGE_GOLD);
 }
 
 /* ---- The map's chests, marked ----------------------------------------------------------- */

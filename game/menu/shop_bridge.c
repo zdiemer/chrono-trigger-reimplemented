@@ -1109,4 +1109,14 @@ bool menu_shop_slots_step_runs(Snes *s)
     return on_the_menus_page(s) && menu_cursor_is_movable(s) && peek(s, equipping) && menu_figures_are_workable(s);
 }
 bool menu_shop_equipping_runs(Snes *s) { return on_the_menus_page(s) && peek(s, equipping) && menu_figures_are_workable(s); }
+
+/* The member chosen is the one under the cursor: the opening takes the member
+ * worked on from it, so what was worked on before doesn't matter. */
+static bool choosing_a_member(const GameState *g)
+{
+    return zero_is_zero(g) && menu_shop_members_are_shown(g) && menu_members_reachable(g) >= 1
+           && menu_members_reachable(g) <= menu_shop_member_count(g) && menu_cursor_index(g) >= SHOP_FIRST_MEMBER
+           && menu_cursor_index(g) < SHOP_FIRST_MEMBER + menu_members_reachable(g);
+}
+bool menu_shop_member_opens(Snes *s) { return on_the_menus_page(s) && peek(s, choosing_a_member) && menu_figures_are_workable(s); }
 bool menu_shop_goes_down(Snes *s) { return on_the_menus_page(s) && peek(s, on_the_tabs); }

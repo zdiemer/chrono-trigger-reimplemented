@@ -118,17 +118,23 @@ static uint8_t changed(ByteChange change, uint8_t was, uint8_t value)
 }
 
 /* The two changes that put a value there don't look at what was there. */
-static bool reads_first(ByteChange change) { return change != BYTE_CLEAR && change != BYTE_SET; }
+bool menu_byte_change_reads(ByteChange change) { return change != BYTE_CLEAR && change != BYTE_SET; }
 
 // $C2:120C-$C2:12E7, $C2:1ACA-$C2:1B15
-/* Change a byte of the object's state or of the game's. */
-static ScriptFlow change_byte(GameState *g, MenuObject self, ByteChange change, ByteRef byte, uint8_t value)
+/* Change a byte of the object's state or of the game's, or set one of the
+ * console's (a register of the picture's). */
+static ScriptFlow change_byte(GameState *g, MenuObject self, const ScriptServices *console, ByteChange change,
+                              ByteRef byte, uint8_t value)
 {
-    uint8_t was = reads_first(change) ? script_byte_at(g, self, byte) : 0;
+    if (script_byte_is_the_consoles(byte)) {
+        console->set_console_byte(console->ctx, byte.at, changed(change, 0, value));
+        return next_command();
+    }
+    uint8_t was = menu_byte_change_reads(change) ? script_byte_at(g, self, byte) : 0;
     script_set_byte_at(g, self, byte, changed(change, was, value));
     return next_command();
 }
-SCRIPT_OPERATION(change_byte, change, byte, value)
+SCRIPT_SERVED_OPERATION(change_byte, change, byte, value)
 
 // $C2:1302, $C2:131C, $C2:1336, $C2:1350
 /* Copy a byte of the object's state or the game's to another. */

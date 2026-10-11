@@ -122,6 +122,7 @@ void menu_leave_load(Snes *s, uint8_t v)
 
 bool menu_on_page(Snes *s) { return m_direct_page(s) == MENU_PAGE; }
 bool menu_on_page_work_ram(Snes *s) { return menu_on_page(s) && data_bank(s) == MENU_DATA_BANK; }
+bool menu_on_page_low_ram(Snes *s) { return menu_on_page(s) && m_bank_reaches_low_ram(s); }
 
 void menu_leave_a_high_byte_clear(Snes *s) { s->cpu.a = (uint16_t)(s->cpu.a & 0x00FF); }
 

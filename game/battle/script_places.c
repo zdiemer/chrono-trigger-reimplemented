@@ -30,6 +30,7 @@
 #include "battle/sprite_data.h"
 #include "battle/window.h"
 #include "original_effects.h"
+#include "ram.h"
 #include "vars.h"
 
 /* ---- Where a combatant stands, and where it is aimed at -------------------------------- */
@@ -137,10 +138,18 @@ static const struct {
 };
 enum { PLACE_RUNS = sizeof place_runs / sizeof place_runs[0] };
 
+/* The original picks a place's kind by its byte doubled in a byte, which
+ * drops the top bit, and the kind's routine counts its subject or blend from
+ * the whole byte: a byte from $80 on is the kind of the one $80 below it, its
+ * n $80 further on. The Beyond Time ending's battle jumps to $80, where
+ * channel $80's subject stands: past the subjects (script_place_known). */
+enum { PLACE_KIND_BITS = 0x7F };
+
 static Place decode_place(uint8_t place)
 {
+    uint8_t picked = place & PLACE_KIND_BITS;
     unsigned run = PLACE_RUNS - 1;
-    while (place < place_runs[run].first)
+    while (picked < place_runs[run].first)
         run--;
     return (Place){ place_runs[run].kind, (uint8_t)(place - place_runs[run].first) };
 }
@@ -294,10 +303,34 @@ BattlePoint script_find_place(GameState *g, uint8_t named)
     return last_found(g);
 }
 
+/* A place from $80 on is known where its kind reads its subject: the
+ * subjects' table reads on past its end as the original's indexed read
+ * does. */
 bool script_place_known(const GameState *g, uint8_t place)
 {
-    return place <= LAST_PLACE
-           && (decode_place(place).kind != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS);
+    Place p = decode_place(place);
+    if ((place & PLACE_KIND_BITS) > LAST_PLACE || (place > PLACE_KIND_BITS && p.kind != WHERE_A_SUBJECT_STANDS))
+        return false;
+    return p.kind != OUT_ALONG_THE_HEADING || (uint8_t)battle_script_channel(g) < SCRIPT_CHANNELS;
+}
+
+/* The sound driver's command and its parameters, which follow the
+ * battlefield's objects' places in work RAM. */
+enum { SOUND_COMMAND_BYTES = 1 + RAM_SOUND_COMMAND_PARAMETERS_COUNT };
+
+static bool reads_the_sound_command(uint32_t table, uint8_t slot)
+{
+    uint32_t at = table + battle_object_of(slot);
+    return at >= RAM_SOUND_COMMAND && at < RAM_SOUND_COMMAND + SOUND_COMMAND_BYTES;
+}
+
+bool script_place_reads_the_sound_command(const GameState *g, uint8_t place)
+{
+    Place p = decode_place(place);
+    if (p.kind != WHERE_A_SUBJECT_STANDS && p.kind != WHERE_A_SUBJECT_IS_AIMED)
+        return false;
+    uint8_t slot = subject(g, p.n);
+    return reads_the_sound_command(RAM_BATTLE_OBJECT_X, slot) || reads_the_sound_command(RAM_BATTLE_OBJECT_Y, slot);
 }
 
 bool script_place_works_in_cells(uint8_t place)

@@ -572,6 +572,14 @@ PF_API void vid_send_palette(Platform *pf, PfOrigin o, uint8_t first, PfData src
         vid_obs_upload_palette(vid_observer, first, src, count);
 }
 
+PF_API void vid_snes_send_palette_into_memory(Platform *pf, PfOrigin o, uint8_t bank, uint8_t first, PfData src,
+                                              uint16_t count)
+{
+    pf_snes_call.bank = (uint32_t)bank << 16;
+    pf_snes_send(pf, o, "vid_snes_send_palette_into_memory", 0x22, 0x21, first, src, 2u * count, NULL, false, 0);
+    pf_snes_call.bank = 0;
+}
+
 PF_API void vid_send_oam(Platform *pf, PfOrigin o, PfData oam)
 {
     pf_snes_send(pf, o, "vid_send_oam", 0x04, 0x02, 0, oam, 0x220, NULL, false, 0);
@@ -600,6 +608,16 @@ PF_API void vid_snes_copy(Platform *pf, PfOrigin o, const VidSnesTransfer *t)
     const PfSnesEncoding *e = pf_snes_encoding(o.site, "vid_snes_copy");
     VidSnesXfer x = pf_snes_site_xfer(e, t->mode_from_data ? t->mode : e->control, t->port, "vid_snes_copy");
     pf_snes_escape(pf, o, "vid_snes_copy", t, &x);
+}
+
+PF_API bool vid_snes_takes_register(uint16_t address) { return address == PF_SNES_OBSEL; }
+
+PF_API void vid_snes_write_register(Platform *pf, PfOrigin o, uint16_t address, uint8_t v)
+{
+    if (address != PF_SNES_OBSEL)
+        pf_snes_encoding_mismatch(o.site, "vid_snes_write_register");
+    VidObjConfig c = vid_obj_config_decode(v);
+    vid_set_obj_config(pf, o, &c);
 }
 
 PF_API void vid_apply_screen(Platform *pf, PfOrigin o, const VidScreen *sc)

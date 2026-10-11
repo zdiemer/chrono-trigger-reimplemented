@@ -255,10 +255,42 @@ bool battle_script_channel_in_y(Snes *s)
     return battle_on_page(s) && s->cpu.y < SCRIPT_CHANNELS && s->cpu.a == (uint16_t)(s->cpu.y * 4);
 }
 
+/* The commands whose handler goes on into another's once what it found makes
+ * the command do what the other does: the end unless listed into the end's
+ * where nobody is listed, the throw that waits first into the plain throw's
+ * once its wait is over. Entered so, the command's own operation runs there
+ * and does the same. */
+enum { END = 0x00, END_UNLESS_LISTED = 0x25, THROW_WAITING_FIRST = 0xD4, THROW = 0xD6 };
+
+/* The end's handler doesn't read the operand the port decides by, so it is
+ * read where the game keeps scripts: the ROM's banks or work RAM's, within
+ * the bank. */
+enum { WORK_RAM_BANK = 0x7E, LAST_WORK_RAM_BANK = 0x7F, FIRST_ROM_BANK = 0xC0, BANK_END = 0xFFFF };
+
+static bool operand_where_scripts_are(const GameState *g)
+{
+    uint32_t at = battle_script_pointer(g);
+    uint8_t bank = (uint8_t)(at >> 16);
+    return (bank >= FIRST_ROM_BANK || bank == WORK_RAM_BANK || bank == LAST_WORK_RAM_BANK) && (uint16_t)at != BANK_END;
+}
+
+static bool goes_on_into(const GameState *g, uint8_t command, const ScriptOpcode *row, uint16_t handler)
+{
+    switch (command) {
+    case END_UNLESS_LISTED:
+        return handler == handlers[END] && operand_where_scripts_are(g)
+               && script_ends_unless_listed(g, script_decode(g, row).listed);
+    case THROW_WAITING_FIRST: return handler == handlers[THROW] && script_throw_wait_over(g, WAIT_BEFORE);
+    default: return false;
+    }
+}
+
 /* A command whose operation is C, where the original's handler is entered:
- * the command's byte where the channel's runner leaves it, one this handler
- * serves, its operands from the channel's place, Y clear (they are read
- * through it), A clear, and what the operation needs in range. */
+ * the command's byte where the channel's runner leaves it, its operands from
+ * the channel's place, and what the operation needs in range; and either the
+ * command one this handler serves, entered from the runner with Y clear (the
+ * operands are read through it) and A clear, or one whose handler goes on
+ * into this one. */
 static bool command_ready(Snes *s, uint16_t handler)
 {
     vars_peek(true);
@@ -266,8 +298,9 @@ static bool command_ready(Snes *s, uint16_t handler)
     uint16_t channel = battle_script_channel(g);
     uint8_t command = battle_script_command(g), offset = battle_script_offset(g);
     const ScriptOpcode *row = command <= LAST_COMMAND ? script_opcode(command) : NULL;
-    bool ready = battle_on_page(s) && s->cpu.a == 0 && s->cpu.y == 0 && channel < SCRIPT_CHANNELS && offset == channel * 4
-                 && row && handlers[command] == handler && script_runs_here(g, row);
+    bool ready = battle_on_page(s) && channel < SCRIPT_CHANNELS && offset == channel * 4 && row && script_runs_here(g, row)
+                 && ((handlers[command] == handler && s->cpu.a == 0 && s->cpu.y == 0)
+                     || goes_on_into(g, command, row, handler));
     vars_peek(false);
     return ready;
 }

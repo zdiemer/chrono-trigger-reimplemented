@@ -292,6 +292,7 @@ bool battle_circle_run_fits(Snes *s);
 bool battle_screen_channel_ready(Snes *s);
 bool battle_screen_dispatch_ready(Snes *s);
 bool battle_screen_command_ready(Snes *s);
+bool battle_screen_triangle_ready(Snes *s);
 
 /* ---- The entries (game/registry.c) --------------------------------------------------------- */
 
@@ -300,6 +301,7 @@ void battle_run_screen_scripts(Snes *s);
 void battle_run_screen_channel(Snes *s);
 void battle_run_screen_command(Snes *s);
 void battle_screen_command(Snes *s);
+void battle_screen_draw_triangle(Snes *s);
 
 /* screen_palette.c */
 void battle_screen_swap_palette_rows(Snes *s);

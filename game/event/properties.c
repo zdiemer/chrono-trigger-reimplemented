@@ -19,13 +19,14 @@ static EventFlow set_speed(GameState *g, FieldObject self, uint8_t speed)
 EVENT_OPERATION(set_speed, self, speed)
 
 // $C0:4867
-/* Whether other objects bump into this one or pass through it. */
-static EventFlow set_solidity(GameState *g, FieldObject self, bool solid)
+/* Whether other objects bump into this one or pass through it, and whether
+ * the leader can push it. */
+static EventFlow set_contact(GameState *g, FieldObject self, ObjectContact contact)
 {
-    object_set_solidity(g, self, solid);
+    object_set_contact(g, self, contact);
     return next_command();
 }
-EVENT_OPERATION(set_solidity, self, solid)
+EVENT_OPERATION(set_contact, self, contact)
 
 // $C0:6295
 /* What stops the object's moves: the map's blocked tiles, other objects,
@@ -172,7 +173,7 @@ EVENT_OPERATION(note_member_tile, self, member, column, row)
 EVENT_OPCODES(event_properties_opcodes,
     { 0x89, OPERATION(set_speed), .speed = OPERAND(1), .length = 2 },
     { 0x8A, OPERATION(set_speed), .speed = VARIABLE_BYTE(1), .length = 2 },
-    { 0x84, OPERATION(set_solidity), .solid = FLAG(1), .length = 2 },
+    { 0x84, OPERATION(set_contact), .contact = OPERAND(1), .length = 2 },
     { 0x0D, OPERATION(set_blocked_by), .blocked_by = OPERAND(1), .length = 2 },
     { 0x0E, OPERATION(set_arrival), .arrival = OPERAND(1), .length = 2 },
     { 0x87, OPERATION(set_move_length), .move_length = OPERAND(1), .length = 2 },

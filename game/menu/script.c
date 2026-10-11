@@ -6,6 +6,7 @@
 #include "menu/sprites.h"
 #include "menu/vram.h"
 #include "vars.h"
+#include "platform/video.h"
 #include "wram.h"
 
 /* ---- The bytes a command names ---------------------------------------------------------------- */
@@ -18,6 +19,10 @@ uint8_t script_byte_at(const GameState *g, MenuObject self, ByteRef b)
 {
     return b.of_the_object ? menu_object_byte(g, self, b.at) : wram_read8(g, cell_address(b.at));
 }
+
+enum { LOW_RAM_END = 0x2000 };
+
+bool script_byte_is_the_consoles(ByteRef b) { return !b.of_the_object && b.at >= LOW_RAM_END; }
 
 void script_set_byte_at(GameState *g, MenuObject self, ByteRef b, uint8_t v)
 {
@@ -101,7 +106,16 @@ enum { MARKED_TABLES = 3 };
 static bool names_low_ram(ScriptArg spec, ByteRef b)
 {
     enum { INTERPRETER_CELLS = 0x4E, INTERPRETER_CELLS_END = 0x5B };
-    return spec.kind != ARG_CELL || (b.at < 0x2000 && (b.at < INTERPRETER_CELLS || b.at >= INTERPRETER_CELLS_END));
+    return spec.kind != ARG_CELL || (b.at < LOW_RAM_END && (b.at < INTERPRETER_CELLS || b.at >= INTERPRETER_CELLS_END));
+}
+
+/* ... or a register of the picture's the console takes from a script, which
+ * a command changing a byte sets without reading it first (an ending's
+ * scripts set the sprites' sizes so). */
+static bool sets_a_register(const ScriptOpcode *row, const ScriptCommand *c)
+{
+    return row->change.kind != ARG_NONE && row->byte.kind == ARG_CELL && !menu_byte_change_reads(c->change)
+           && script_byte_is_the_consoles(c->byte) && vid_snes_takes_register(c->byte.at);
 }
 
 /* The commands that queue an upload write their records at the queue's end,
@@ -145,7 +159,7 @@ bool menu_script_runs_here(const GameState *g, const ScriptOpcode *row, const Sc
         return false;
     if (queues_an_upload(row) && !(menu_object_queue_is_whole(g) && upload_buffer_is_clear(g)))
         return false;
-    if (!names_low_ram(row->byte, c->byte) || !names_low_ram(row->from, c->from))
+    if (!(names_low_ram(row->byte, c->byte) || sets_a_register(row, c)) || !names_low_ram(row->from, c->from))
         return false;
     if (row->table.kind != ARG_NONE && (uint8_t)(c->table << 1) >= 2 * MARKED_TABLES)
         return false;

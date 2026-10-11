@@ -1901,7 +1901,9 @@ void set_field_object_facing(GameState *g, unsigned slot, uint8_t v);
  * taken as the leader's, for a menu or a change of location, while the party has no leader on
  * the map (its marker $80, as a save's load and the attract demo's scenes leave it until the
  * map's objects start), which reads the first slot past the tables (game/field/location.c,
- * field_leaders_place; frame 1704 of every movie from a save, and the attract demo) */
+ * field_leaders_place; frame 1704 of every movie from a save, and the attract demo); and the way
+ * that slot faces, for the confirm button's search and chest before a leader who is nobody
+ * (game/field/object.c, field_leader_facing; the endings' fields) */
 uint8_t field_object_facing_unchecked(const GameState *g, unsigned slot);
 void set_field_object_facing_unchecked(GameState *g, unsigned slot, uint8_t v);
 
@@ -2444,6 +2446,13 @@ void set_field_tile_exits(GameState *g, unsigned row, unsigned column, uint8_t v
 enum { FIELD_TILE_WALKABLE_ROWS = 64, FIELD_TILE_WALKABLE_COLUMNS = 64 };
 uint8_t field_tile_walkable(const GameState *g, unsigned row, unsigned column);
 void set_field_tile_walkable(GameState *g, unsigned row, unsigned column, uint8_t v);
+/* Bit 7: the leader may walk onto the tile; clear, a wall to it, whose low 7 bits are the chest
+ * it holds (field_location_chests) [a byte by row and column] Unchecked, for marked scaffolding
+ * only: the confirm button's look for a chest before a leader who is nobody, whose tile past the
+ * object tables is off the map: the original reads the tile's byte at its row and column all the
+ * same, past the table's rows (game/event/chests.c, walkable_past_the_map; the endings' fields) */
+uint8_t field_tile_walkable_unchecked(const GameState *g, unsigned row, unsigned column);
+void set_field_tile_walkable_unchecked(GameState *g, unsigned row, unsigned column, uint8_t v);
 
 enum { FIELD_TILE_LOOKS_COUNT = 512 };   /* by look: a layer's map tile, with the tile set half the tile's properties give BG1 and BG2 (bit 8) */
 /* The top left quarter's entry */
@@ -7629,11 +7638,22 @@ enum { BATTLE_OBJECT_FRAME_LISTS_COUNT = 11 };   /* by battle slot */
  * per pose) */
 uint32_t battle_object_frame_lists(const GameState *g, unsigned slot);
 void set_battle_object_frame_lists(GameState *g, unsigned slot, uint32_t v);
+/* Long pointer (bank $E4) to the object's animation frame lists (the frames' graphics numbers,
+ * per pose) Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody
+ * ($FF) plays and waits on its slot as the original does, past the table
+ * (game/battle/script_poses.c, play_nobodys_animation) */
+uint32_t battle_object_frame_lists_unchecked(const GameState *g, unsigned slot);
+void set_battle_object_frame_lists_unchecked(GameState *g, unsigned slot, uint32_t v);
 
 enum { BATTLE_OBJECT_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
 /* Long pointer (bank $E4) to the object's animation frame delay lists */
 uint32_t battle_object_delay_lists(const GameState *g, unsigned slot);
 void set_battle_object_delay_lists(GameState *g, unsigned slot, uint32_t v);
+/* Long pointer (bank $E4) to the object's animation frame delay lists Unchecked, for marked
+ * scaffolding only: a combatant channel whose subject is nobody ($FF) plays and waits on its
+ * slot as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint32_t battle_object_delay_lists_unchecked(const GameState *g, unsigned slot);
+void set_battle_object_delay_lists_unchecked(GameState *g, unsigned slot, uint32_t v);
 
 enum { BATTLE_TECH_ROWS_SELECTABLE_COUNT = 20 };   /* by entry of the member's tech list */
 /* Whether the tech list's cursor stops on each of the menu member's twenty entries: 1 for a
@@ -7648,7 +7668,8 @@ void set_battle_object_x(GameState *g, unsigned i, uint8_t v);
 /* Battle objects' screen X positions Unchecked, for marked scaffolding only: a combatant's
  * position read for a slot past the combatants, as the original's indexed reads do: the grid's
  * marking with the party off the grid (game/battle/battlefield.c), the menu's cursors at a
- * target entry no battle makes (game/battle/battle.h combatant_x) */
+ * target entry no battle makes (game/battle/battle.h combatant_x), an enemy waiting on a target
+ * of nobody (game/battle/enemy_movement.c where_the_original_finds_nobody) */
 uint8_t battle_object_x_unchecked(const GameState *g, unsigned i);
 void set_battle_object_x_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -7660,7 +7681,8 @@ void set_battle_object_y(GameState *g, unsigned i, uint8_t v);
  * marked scaffolding only: a combatant's position read for a slot past the combatants, as the
  * original's indexed reads do: the grid's marking with the party off the grid
  * (game/battle/battlefield.c), the menu's cursors at a target entry no battle makes
- * (game/battle/battle.h combatant_x) */
+ * (game/battle/battle.h combatant_x), an enemy waiting on a target of nobody
+ * (game/battle/enemy_movement.c where_the_original_finds_nobody) */
 uint8_t battle_object_y_unchecked(const GameState *g, unsigned i);
 void set_battle_object_y_unchecked(GameState *g, unsigned i, uint8_t v);
 
@@ -9403,17 +9425,33 @@ enum { BATTLE_ANIMATING_COUNT = 11 };   /* by battle slot */
 /* Set while the object has an animation in the scheduler */
 uint8_t battle_animating(const GameState *g, unsigned slot);
 void set_battle_animating(GameState *g, unsigned slot, uint8_t v);
+/* Set while the object has an animation in the scheduler Unchecked, for marked scaffolding only:
+ * a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the original
+ * does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint8_t battle_animating_unchecked(const GameState *g, unsigned slot);
+void set_battle_animating_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ANIMATION_DELAY_COUNT = 11 };   /* by battle slot */
 /* Frames until the object's next animation step in the scheduler */
 uint8_t battle_animation_delay(const GameState *g, unsigned slot);
 void set_battle_animation_delay(GameState *g, unsigned slot, uint8_t v);
+/* Frames until the object's next animation step in the scheduler Unchecked, for marked
+ * scaffolding only: a combatant channel whose subject is nobody ($FF) plays and waits on its
+ * slot as the original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint8_t battle_animation_delay_unchecked(const GameState *g, unsigned slot);
+void set_battle_animation_delay_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ANIMATION_FRAME_COUNT = 11 };   /* by battle slot */
 /* The frame of its animation a combatant shows ($FF before its first, as starting an animation
  * leaves it) */
 uint8_t battle_animation_frame(const GameState *g, unsigned slot);
 void set_battle_animation_frame(GameState *g, unsigned slot, uint8_t v);
+/* The frame of its animation a combatant shows ($FF before its first, as starting an animation
+ * leaves it) Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody
+ * ($FF) plays and waits on its slot as the original does, past the table
+ * (game/battle/script_poses.c, play_nobodys_animation) */
+uint8_t battle_animation_frame_unchecked(const GameState *g, unsigned slot);
+void set_battle_animation_frame_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_ANIMATION_SHOWN_WAIT_COUNT = 11 };   /* by battle slot */
 /* Set while a script waits for the animation it started on the combatant to end (the wait that
@@ -9427,6 +9465,13 @@ enum { BATTLE_ANIMATION_WAIT_COUNT = 11 };   /* by battle slot */
  * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark */
 uint8_t battle_animation_wait(const GameState *g, unsigned slot);
 void set_battle_animation_wait(GameState *g, unsigned slot, uint8_t v);
+/* Set while a script waits for the animation it started on the combatant to end (the plain wait
+ * and the marked one: game/battle/script_poses.c, $C1:4EA2, $C1:577D), to the marked wait's mark
+ * Unchecked, for marked scaffolding only: a combatant channel whose subject is nobody ($FF)
+ * plays and waits on its slot as the original does, past the table (game/battle/script_poses.c,
+ * play_nobodys_animation) */
+uint8_t battle_animation_wait_unchecked(const GameState *g, unsigned slot);
+void set_battle_animation_wait_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 enum { BATTLE_PATH_ACTIVE_COUNT = 11 };   /* by battle slot */
 /* Set while the object moves along a scripted path */
@@ -9524,18 +9569,36 @@ enum { BATTLE_SCHEDULED_FRAME_LISTS_COUNT = 11 };   /* by battle slot */
  * party member's frame step keeps its own in the first entry */
 uint16_t battle_scheduled_frame_lists(const GameState *g, unsigned slot);
 void set_battle_scheduled_frame_lists(GameState *g, unsigned slot, uint16_t v);
+/* Offset (bank $E4) of the frame list of the animation the scheduler plays on the object; a
+ * party member's frame step keeps its own in the first entry Unchecked, for marked scaffolding
+ * only: a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the
+ * original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint16_t battle_scheduled_frame_lists_unchecked(const GameState *g, unsigned slot);
+void set_battle_scheduled_frame_lists_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { BATTLE_SCHEDULED_DELAY_LISTS_COUNT = 11 };   /* by battle slot */
 /* Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a
  * party member's frame step keeps its own in the first entry */
 uint16_t battle_scheduled_delay_lists(const GameState *g, unsigned slot);
 void set_battle_scheduled_delay_lists(GameState *g, unsigned slot, uint16_t v);
+/* Offset (bank $E4) of the delay list of the animation the scheduler plays on the object; a
+ * party member's frame step keeps its own in the first entry Unchecked, for marked scaffolding
+ * only: a combatant channel whose subject is nobody ($FF) plays and waits on its slot as the
+ * original does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint16_t battle_scheduled_delay_lists_unchecked(const GameState *g, unsigned slot);
+void set_battle_scheduled_delay_lists_unchecked(GameState *g, unsigned slot, uint16_t v);
 
 enum { BATTLE_OBJECT_FACING_SHOWN_COUNT = 11 };   /* by battle slot */
 /* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
  * frame taken afresh, as starting an animation does */
 uint8_t battle_object_facing_shown(const GameState *g, unsigned slot);
 void set_battle_object_facing_shown(GameState *g, unsigned slot, uint8_t v);
+/* The facing (battle_object_facing) a combatant's frames were last taken for; $FF has the next
+ * frame taken afresh, as starting an animation does Unchecked, for marked scaffolding only: a
+ * combatant channel whose subject is nobody ($FF) plays and waits on its slot as the original
+ * does, past the table (game/battle/script_poses.c, play_nobodys_animation) */
+uint8_t battle_object_facing_shown_unchecked(const GameState *g, unsigned slot);
+void set_battle_object_facing_shown_unchecked(GameState *g, unsigned slot, uint8_t v);
 
 /* Where the animation scheduler's round-robin search resumes */
 uint8_t battle_animation_cursor(const GameState *g);
@@ -10912,6 +10975,13 @@ enum { BATTLE_TIMER_COUNTS_COUNT = 13 };   /* by kind of timer (0-11 the timed s
 enum { BATTLE_TIMER_COUNTS_BYTES = 11 };
 uint8_t battle_timer_counts_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_counts_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* Each combatant's timers, counting down: a row per kind of timer (twelve timed statuses, then
+ * the turn), a column per battle slot [11 bytes, one at a time] Unchecked, for marked
+ * scaffolding only: a status's timer of nobody's (the order's empty place, $FF) wearing off,
+ * which the original sees to as a slot's, past the kind's row (game/battle/timers.c,
+ * battle_timer_wears_off_past_the_rows) */
+uint8_t battle_timer_counts_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_counts_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_FLAGS_COUNT = 13 };   /* by kind of timer (0-11 the timed statuses, 12 the turn); a byte a battle slot */
 /* Each combatant's timers' state, as battle_timer_counts: 0 stopped, nonzero running, bit 7 once
@@ -10924,7 +10994,8 @@ void set_battle_timer_flags_byte(GameState *g, unsigned i, unsigned at, uint8_t 
  * it has run out; bit 0 of a status's timer follows the status's bit in the stat block [11
  * bytes, one at a time] Unchecked, for marked scaffolding only: an empty place in
  * battle_timer_order ($FF) names a timer past the kind's row, which the search for run-out
- * timers reads as the original's indexed read does (game/battle/timers.c) */
+ * timers reads as the original's indexed read does, and which wears off as a slot's would
+ * (game/battle/timers.c) */
 uint8_t battle_timer_flags_byte_unchecked(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_flags_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
@@ -10935,6 +11006,13 @@ enum { BATTLE_TIMER_RUNS_LEFT_COUNT = 13 };   /* by kind of timer (0-11 the time
 enum { BATTLE_TIMER_RUNS_LEFT_BYTES = 11 };
 uint8_t battle_timer_runs_left_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_runs_left_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How many more times each combatant's status timer runs out before the status wears off (or,
+ * for magic regained, before it regains): counted down, and set back to 10 when it gets there
+ * [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's timer of nobody's
+ * (the order's empty place, $FF) wearing off, which the original sees to as a slot's, past the
+ * kind's row (game/battle/timers.c, battle_timer_wears_off_past_the_rows) */
+uint8_t battle_timer_runs_left_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_runs_left_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed statuses); a byte a battle slot */
 /* How long each combatant's status timers run once a status starts them; the turn's are
@@ -10942,6 +11020,12 @@ enum { BATTLE_TIMER_LENGTHS_COUNT = 12 };   /* by kind of timer (0-11, the timed
 enum { BATTLE_TIMER_LENGTHS_BYTES = 11 };
 uint8_t battle_timer_lengths_byte(const GameState *g, unsigned i, unsigned at);
 void set_battle_timer_lengths_byte(GameState *g, unsigned i, unsigned at, uint8_t v);
+/* How long each combatant's status timers run once a status starts them; the turn's are
+ * battle_turn_wait [11 bytes, one at a time] Unchecked, for marked scaffolding only: a status's
+ * timer of nobody's (the order's empty place, $FF) wearing off, which the original sees to as a
+ * slot's, past the kind's row (game/battle/timers.c, battle_timer_wears_off_past_the_rows) */
+uint8_t battle_timer_lengths_byte_unchecked(const GameState *g, unsigned i, unsigned at);
+void set_battle_timer_lengths_byte_unchecked(GameState *g, unsigned i, unsigned at, uint8_t v);
 
 enum { BATTLE_TURN_WAIT_COUNT = 11 };   /* by battle slot */
 /* The combatant's turn wait: what its turn timer starts from again after it acts */

@@ -2682,8 +2682,8 @@ name = "event_cmd_set_solidity"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-01"]
-why = "the field's page and data bank, the running object a slot, the script offset below $8000; the solidity operand 0 or 1, which the FLAG operand's guard requires (event/engine.c)"
+args = ["--d", "0100", "--db", "00", "--range", "Y=0000-7FFF", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-FF"]
+why = "the field's page and data bank, the running object a slot, the script offset below $8000; the contact byte any (event/properties.c)"
 
 [[routine]]
 name = "event_cmd_set_solidity"
@@ -2691,8 +2691,8 @@ variant = "loose"
 at = "C0:4867"
 subsystem = "event"
 state = "field"
-args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-01"]
-why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the solidity operand 0 or 1, which the FLAG operand's guard requires (event/engine.c)"
+args = ["--d", "0100", "--db", "00", "--fill", "7E016D-7E016D=00-7F", "--fill", "7E016E-7E016E=00-00", "--fill", "7F:[Y]+2002,1=00-FF"]
+why = "the script offset anywhere: the guard refuses commands whose operands would pass the buffer's end; the contact byte any (event/properties.c)"
 
 [[routine]]
 name = "event_cmd_set_move_length"
@@ -5500,6 +5500,15 @@ state = "field"
 args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0197=00-7E", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E1100-7E117F=00-08", "--fill", "7E1800-7E18FF=10-11"]
 why = "the confirm button pressed with nobody met: the search, every object within a tile or so of the leader, their roles the kinds the search tells apart (the window-only one's), the talk to what it finds and the chests' look"
 
+
+[[routine]]
+name = "field_press_confirm"
+variant = "nobody_leads"
+subsystem = "event"
+state = "field"
+args = ["--d", "0100", "--db", "00", "--fill", "7E00F6-7E00F6=80-FF", "--fill", "7E0134-7E0135=00-00", "--fill", "7E011F-7E011F=01-01", "--fill", "7E01EB-7E01EB=80-80", "--fill", "7E01EC-7E01EC=00-00", "--fill", "7E0197-7E0197=80-80", "--fill", "7E0198-7E0198=00-00", "--fill", "7F2000-7F2000=01-3F", "--fill", "7E1C00-7E1C7F=00-07", "--fill", "7E1100-7E117F=00-08", "--fill", "7E1800-7E18FF=10-11"]
+why = "as the talking variant with the leader's place empty ($80), as the endings' fields press it: the search and the chest's look before the slot past the object tables, which stands among the objects"
+
 [[routine]]
 name = "field_press_confirm"
 variant = "item"
@@ -7384,6 +7393,17 @@ args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004
 iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
 
+
+[[routine]]
+name = "menu_object_cmd_change_byte_cell_set"
+variant = "register"
+at = "C2:12B8"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0026-0026", "--range", "X=0026-0026", "--fill", "7E0058-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C1C-7E1C1C=13-13", "--fill", "7E1C1D-7E1C1D=01-01", "--fill", "7E1C1E-7E1C1E=21-21", "--fill", "7E1C1F-7E1C25=00-FF", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "as the plain entry, the cell the picture's register for the sprites' sizes and tiles' place ($2101), as an ending's menu object script sets it; the value any"
+
 [[routine]]
 name = "menu_object_cmd_change_byte_cell_set_bits"
 at = "C2:12CE"
@@ -7806,6 +7826,17 @@ state = "objects"
 args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0094-0094", "--range", "X=0094-0094", "--fill", "7E0058-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C1C-7E1C1C=4A-4A", "--fill", "7E1C1D-7E1C25=00-1F", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
 iterations = 2000
 why = "the upload buffer where the game keeps it ($7E:F000-$F3FF; nearer the bank's end the map's strips run past it, where map.c's port and the original part, as they did before this rewrite); the sprite list as the mode lays it out, the running object on a sprite script of one show and a jump back ($7E:1D1D); entered as the interpreter's dispatch enters it: A and X the opcode doubled, the command at the script pointer ($7E:1C1C, operands below $20 so its cells are low RAM), the running object a slot"
+
+
+[[routine]]
+name = "menu_object_cmd_play_song"
+variant = "unless_kept"
+at = "C2:18F9"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A", "--range", "A=0000-0000", "--range", "X=007A-007A", "--widths", "8,16", "--fill", "7E0058-7E0059=1C-1C", "--fill", "7E005A-7E005A=7E-7E", "--fill", "7E1C1C-7E1C1C=3D-3D", "--fill", "7E1C1D-7E1C25=00-1F", "--fill", "[7E004E]+0B,2=1D-1D", "--fill", "[7E004E]+0D,1=7E-7E", "--fill", "7E1D1D-7E1D1D=04-04", "--fill", "7E1D1E-7E1D1F=00-FF", "--fill", "7E1D20-7E1D20=00-08", "--fill", "7E1D21-7E1D21=03-03", "--fill", "7E1D22-7E1D22=FC-FC", "--fill", "7E00E1-7E00E1=F0-F3", "--fill", "7E00E2-7E00E2=7E-7E"]
+iterations = 2000
+why = "entered from the song-unless-kept command's handler, which goes on into the song's once it finds the song not kept: the command $3D at the script pointer, its byte doubled in X, A 8-bit and clear"
 
 [[routine]]
 name = "menu_object_cmd_send_sound_command"
@@ -10386,6 +10417,15 @@ state = "battle"
 args = ["--long", "--db", "00"]
 why = "the data bank on the registers, as the frame work and the vblank handlers call it"
 
+
+[[routine]]
+name = "battle_upload_palette"
+variant = "work_ram"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--db", "7E"]
+why = "the data bank work RAM's, as the vblank handler in bank D1 leaves it when it comes in on such code: the send's writes land in work RAM"
+
 [[routine]]
 name = "battle_vram_transfer"
 subsystem = "battle"
@@ -12403,6 +12443,15 @@ state = "battle"
 args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=005C-005C", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=AE-AE", "--fill", "7E0101-7E010F=00-FF"]
 why = "entered as the dispatch enters command $AE's handler: its byte doubled in X, A's high byte clear, its operands random bytes in work RAM"
 
+
+[[routine]]
+name = "battle_screen_script_draw_triangle"
+variant = "from_model"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "X=0000-00FF", "--fill", "7E0040-7E0040=01-01", "--fill", "7E0041-7E0041=01-01", "--fill", "7E0042-7E0042=7E-7E", "--fill", "7E0043-7E0043=00,10", "--fill", "7E0044-7E0044=00-00", "--fill", "7E0100-7E0100=BA,BB", "--fill", "7E0101-7E010F=00-FF"]
+why = "entered from a model's command, whose handler goes on into the triangle's: the model's byte at the place, X the shape's byte or bit, the carry any"
+
 [[routine]]
 name = "battle_screen_script_spin_model"
 subsystem = "battle"
@@ -13943,6 +13992,18 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
 iterations = 8000
 why = "its commands, on any channel with its pointer's offset (the guard turns away the states where they differ), anywhere in a script, with any state"
 
+
+[[routine]]
+name = "script_end"
+variant = "unlisted"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-00FF", "--range", "Y=0001-0001",
+        "--fill", "7E9895-7E9895=25", "--fill", "7E00E8-7E00E8=C0-FF", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C"]
+iterations = 8000
+why = "the end-unless-listed command ($25) whose handler goes on into the end's: Y past its command byte, A the list's byte; the script in the ROM, where the game keeps them; the guard takes the states where nobody is listed"
+
 [[routine]]
 name = "script_halt"
 subsystem = "battle"
@@ -14261,6 +14322,21 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and animations running or not, waits marked or not and sprites at or near the heights the glides test"
+
+
+[[routine]]
+name = "script_play_and_wait"
+variant = "nobody"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=04,05,06", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA010-7EA011=0000,0001,0002,0003", "--fill", "7EA014-7EA01F=FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA124-7EA12E=00,00,01,02", "--fill", "7EA1A8-7EA1AF=00,00,01,02", "--fill", "7EA145-7EA15A=00,00,01,02",
+        "--fill", "7EA1C0-7EA1CF=00,00,01", "--fill", "7EA4AF-7EA4B9=00,01,02,FE,FF"]
+iterations = 8000
+why = "a combatant channel whose subject is nobody ($FF), as the Bucket ending's channel for a partner the party doesn't have: the plays and waits past the tables"
 
 [[routine]]
 name = "script_own_speed"
@@ -14755,6 +14831,20 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
 
 [[routine]]
+name = "script_line_to_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=12", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=12", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_chase_to_coordinates"
 subsystem = "battle"
 state = "battle"
@@ -14789,6 +14879,20 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
+
+[[routine]]
+name = "script_chase_to_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=15", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=15", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_walk_to_coordinates"
@@ -14827,6 +14931,20 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset, over subjects that are combatants or end the list, combatants walking or not with their steps due or not, and any grid"
 
 [[routine]]
+name = "script_walk_to_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=18", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA15B-7EA165=00,01", "--fill", "7EA500-7EA50A=00,07,80,FF", "--fill", "7EA548-7EA552=00,01,02,03,FF",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=18", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_put_at_coordinates"
 subsystem = "battle"
 state = "battle"
@@ -14860,6 +14978,19 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
+name = "script_put_at_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=1B", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=1B", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_point_at_place"
 subsystem = "battle"
 state = "battle"
@@ -14869,6 +15000,19 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_point_at_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=33", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=33", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_slot_at_place"
@@ -14882,6 +15026,19 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
+name = "script_slot_at_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=3D,3E,3F,40,45,46", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=3D,3E,3F,40,45,46", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_point_off_place"
 subsystem = "battle"
 state = "battle"
@@ -14891,6 +15048,19 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_point_off_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=43", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=43", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_point_at_the_mover"
@@ -14949,6 +15119,19 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
 
 [[routine]]
+name = "script_heading_between"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=76", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=76", "--fill", "7EF001-7EF001=80-88", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_turn_heading"
 subsystem = "battle"
 state = "battle"
@@ -14980,6 +15163,19 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_play_sound_at"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=7A,7B", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=7A,7B", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_weapon_swing_sound"
@@ -15049,6 +15245,20 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
 
 [[routine]]
+name = "script_jump_to_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=98,9C", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=98,9C", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_jump_to_the_point"
 subsystem = "battle"
 state = "battle"
@@ -15072,6 +15282,20 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
+
+[[routine]]
+name = "script_jump_down_to_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=9A", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=9A", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_jump_down_to_the_point"
@@ -15135,6 +15359,20 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
 
 [[routine]]
+name = "script_orbit_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=C0", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=C0", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_orbit_the_point"
 subsystem = "battle"
 state = "battle"
@@ -15159,6 +15397,20 @@ iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
 
 [[routine]]
+name = "script_orbit_flat_a_place"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=C2", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=C2", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
+
+[[routine]]
 name = "script_orbit_flat_the_point"
 subsystem = "battle"
 state = "battle"
@@ -15181,6 +15433,20 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
+
+[[routine]]
+name = "script_aim_throw"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D2", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=D2", "--fill", "7EF001-7EF001=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_throw_rise"
@@ -15232,6 +15498,20 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, any effect, and movers moving or not, their paths ended or not"
 
+
+[[routine]]
+name = "script_throw_moves"
+variant = "waited"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D4", "--fill", "7EAAFC-7EAAFD=00-00", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7EA337-7EA349=00,01", "--fill", "7EA19D-7EA1A7=00,00,01", "--fill", "7EA1E0-7EA1E7=00,00,01"]
+iterations = 8000
+why = "the throw that waits first ($D4), whose handler goes on into the plain throw's once its wait before is over"
+
 [[routine]]
 name = "script_point_along"
 subsystem = "battle"
@@ -15242,6 +15522,19 @@ args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=000
         "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00"]
 iterations = 8000
 why = "its commands on any channel with its pointer's offset (the guard turns away the states where they differ), over subjects that are combatants or end the list, and any effect"
+
+[[routine]]
+name = "script_point_along"
+variant = "high_places"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0000", "--range", "Y=0000-0000",
+        "--fill", "7E9895-7E9895=D7", "--fill", "7EA010-7EA011=0000,0001,0002,0003,0004,0005,0006,0007,0008,0009,000A,000B,000C,000D,000E,000F",
+        "--fill", "7EA00E-7EA00E=00,04,08,0C,10,14,18,1C,20,24,28,2C,30,34,38,3C",
+        "--fill", "7EA014-7EA01F=00,01,02,03,04,05,06,07,08,09,0A,80,FF", "--fill", "7EA2B6-7EA2B6=00-07", "--fill", "7EA2B7-7EA2B7=00",
+        "--fill", "7E00E6-7E00E7=F000", "--fill", "7E00E8-7E00E8=7E", "--fill", "7EF001-7EF007=00-FF", "--fill", "7EF000-7EF000=D7", "--fill", "7EF002-7EF002=80-88"]
+iterations = 8000
+why = "the places from $80 to $88, which the original reads as the kinds of $00-$08 with their subjects $80 further on (game/battle/script_places.c, decode_place), from a script in work RAM at $7E:F000"
 
 [[routine]]
 name = "script_flicker"
@@ -15272,6 +15565,17 @@ args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", 
         "--fill", "7E9752-7E9759=00-0A", "--range", "A=0000-00FF"]
 iterations = 8000
 why = "any enemy, an animation that names the movement as the table does (the guard takes no other), a target that is a combatant, A's high byte clear as the loop leaves it; the positions, the grid, the boxes and the movement's own state at random"
+
+
+[[routine]]
+name = "battle_enemy_waits_for_target"
+variant = "nobody"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009C-7E009C=00-07", "--fill", "7E009D-7E009D=00", "--fill", "7EA2B5-7EA2B5=00,04,1A,20,21,23,24,25,26,27",
+        "--fill", "7E9752-7E9759=FF", "--range", "A=0000-00FF"]
+iterations = 8000
+why = "an enemy that saw no target ($FF), as the Omen's battles leave one: where nobody stands, read past the combatants'"
 
 [[routine]]
 name = "battle_enemy_approaches"
@@ -16858,6 +17162,16 @@ state = "menus"
 args = ["--d", "0000", "--db", "7E"]
 why = "the menus' page and data bank"
 
+
+[[routine]]
+name = "menu_start_the_scroll_bar"
+variant = "bank00"
+at = "C2:8B93"
+subsystem = "menu"
+state = "menus"
+args = ["--d", "0000", "--db", "00"]
+why = "the menus' page and the data bank $00, whose low RAM is work RAM's, as the field menu and the shop's equip screen call it"
+
 [state.shop_equip]
 movie = "oracle/movies/saves/menus-shop-equip.ctm"
 frames = 12400
@@ -16892,6 +17206,16 @@ state = "items"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--range", "A=0000-00FF", "--fill", "7E0D77-7E0D78=00-FF"]
 iterations = 3000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; the item asked for and the description shown and its staleness random"
+
+
+[[routine]]
+name = "menu_describe_item"
+variant = "m16"
+at = "C2:F2F3"
+subsystem = "menu"
+state = "items"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--range", "A=0000-00FF", "--fill", "7E0D77-7E0D78=00-FF", "--widths", "16,16"]
+why = "as the plain entry, entered with a 16-bit accumulator, as the shop's equip screen calls it (the routine sets its widths itself)"
 
 [[routine]]
 name = "menu_start_typing"
@@ -17160,6 +17484,17 @@ args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF"
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; compared up to its wait for the next frame or the sound driver's call"
 
+
+[[routine]]
+name = "menu_play_the_gate_song"
+variant = "m8"
+at = "C2:CBBF"
+subsystem = "menu"
+state = "exchange"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--stop-at-call", "C2821E", "--stop-at-call", "C70004", "--widths", "8,16"]
+iterations = 2000
+why = "as the plain entry, entered with an 8-bit accumulator, as the task's own wait comes back round to it (the routine sets its widths itself)"
+
 [[routine]]
 name = "menu_switch_back_to_the_field_song"
 at = "C2:CC0E"
@@ -17285,6 +17620,16 @@ state = "shop_equip"
 args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--keep", "7E6E00-7E7FFF", "--fill", "7E0085-7E0086=01-03", "--fill", "7E0086-7E0086=00", "--fill", "7E0071-7E0071=00-02", "--fill", "7E0072-7E0072=00", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0054-7E0054=0C-0E", "--stop-at-call", "C2821E"]
 iterations = 2000
 why = "low RAM, the tilemaps, the screen's tables and the menu text as the state has them; the menus' page and data bank, room in the queue; one to three members the player can choose among, the shop working on one of them; the cursor on a member; compared up to the wait"
+
+
+[[routine]]
+name = "menu_open_shop_member"
+variant = "stale"
+at = "C2:E0A5"
+subsystem = "menu"
+state = "shop_equip"
+args = ["--d", "0000", "--db", "7E", "--apu-loopback", "--keep", "7E0000-7E1FFF", "--keep", "7E2000-7E5FFF", "--keep", "7E9000-7E9FFF", "--keep", "7E7700-7E7FFF", "--fill", "7E0051-7E0052=00-00", "--fill", "7E0D11-7E0D11=00,08", "--keep", "7E6E00-7E7FFF", "--fill", "7E0085-7E0086=01-03", "--fill", "7E0086-7E0086=00", "--fill", "7E0071-7E0071=00-FF", "--fill", "7E0072-7E0072=00", "--fill", "7E0D88-7E0D88=00-01", "--fill", "7E0054-7E0054=0C-0E", "--stop-at-call", "C2821E"]
+why = "as the plain entry, with the member worked on before anything: the opening takes the member from the cursor (the shop's equip screen reaches it with the last one worked on past the members)"
 
 [[routine]]
 name = "menu_show_shop_member_slots"

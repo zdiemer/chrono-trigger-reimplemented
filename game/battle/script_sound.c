@@ -103,8 +103,10 @@ SCRIPT_OPERATION(screen_effect, settings)
 SCRIPT_OPCODES(script_sound_opcodes,
     { 0x78, .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .length = 2 },
     { 0x79, .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .length = 2 },
-    { 0x7A, .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3 },
-    { 0x7B, .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3 },
+    { 0x7A, .voices = CONSTANT(AU_START_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3,
+      .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
+    { 0x7B, .voices = CONSTANT(AU_START_OTHER_EFFECT), .sound = OPERAND(1), .place = OPERAND(2), .length = 3,
+      .needs = NEEDS_A_PLACE_APART_FROM_THE_SOUND },
     { 0x7C, .hit = CONSTANT(false), .length = 1 },
     { 0x7D, .hit = CONSTANT(true), .length = 1 },
     { 0x80, OPERATION(screen_effect), .settings = OPERAND(1), .length = 1, .needs = NEEDS_A_SCREEN_EFFECT });

@@ -863,6 +863,15 @@ static ScriptFlow throw_rise(GameState *g, ScriptChannel ch)
 }
 SCRIPT_OPERATION(throw_rise, channel)
 
+bool script_throw_wait_over(const GameState *g, ThrowWait wait)
+{
+    switch (wait) {
+    case WAIT_BEFORE: return battle_throw_wait_before(g) == 0;
+    case WAIT_AFTER: return battle_throw_wait_after(g) == 0;
+    default: return true;
+    }
+}
+
 /* Count a frame off the throw's wait, if it has one left. */
 static bool waits(GameState *g, ThrowWait wait)
 {

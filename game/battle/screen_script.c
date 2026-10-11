@@ -700,12 +700,9 @@ void battle_run_screen_command(Snes *s)
     m_rts(s);
 }
 
-/* A command whose operation is C, entered as its handler: the command found
- * from its table's index in X, its operands at the place. */
-void battle_screen_command(Snes *s)
+static void run_entered(Snes *s, uint8_t opcode)
 {
     GameState *g = state_of(s);
-    uint8_t opcode = (uint8_t)(FIRST_COMMAND + (uint8_t)s->cpu.x / 2);
     const ScreenOpcode *row = screen_opcode(opcode);
     ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
     ScreenFlow flow = row->operation(g, &c);
@@ -714,6 +711,18 @@ void battle_screen_command(Snes *s)
     s->cpu.a = 0;
     m_rts(s);
 }
+
+/* A command whose operation is C, entered as its handler: the command found
+ * from its table's index in X, its operands at the place. */
+void battle_screen_command(Snes *s) { run_entered(s, (uint8_t)(FIRST_COMMAND + (uint8_t)s->cpu.x / 2)); }
+
+/* The triangle drawn at its size, entered as its handler from the dispatch or
+ * from a model's command, whose original goes on into the triangle's code
+ * once it has placed the corners: either way the triangle the command's
+ * operand numbers (draw_model, screen_shapes.c, does the same in C). */
+enum { DRAW_TRIANGLE = 0xAE };
+
+void battle_screen_draw_triangle(Snes *s) { run_entered(s, DRAW_TRIANGLE); }
 
 /* The guards. Every entry runs on the battle's page with the data bank $7E
  * and A's high byte clear, as the original's runner leaves them; a channel is
@@ -739,18 +748,29 @@ bool battle_screen_dispatch_ready(Snes *s)
            && opcode <= LAST_COMMAND;
 }
 
+static bool command_runs_here(const GameState *g, const ScreenOpcode *row)
+{
+    if (!row || !on_a_channel(g, battle_screen_channel(g)))
+        return false;
+    ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
+    return runs_here(g, row, &c) && !row->bridge;
+}
+
 bool battle_screen_command_ready(Snes *s)
 {
     vars_peek(true);
-    const GameState *g = state_of(s);
     uint16_t index = s->cpu.x;
     uint8_t opcode = (uint8_t)(FIRST_COMMAND + index / 2);
-    const ScreenOpcode *row = index < 2 * COMMANDS && index % 2 == 0 ? screen_opcode(opcode) : NULL;
-    bool ready = false;
-    if (row && on_a_channel(g, battle_screen_channel(g))) {
-        ScreenCommand c = decode(g, row, screen_running_channel(g), screen_place(g));
-        ready = runs_here(g, row, &c) && !row->bridge;
-    }
+    bool ready = index < 2 * COMMANDS && index % 2 == 0 && command_runs_here(state_of(s), screen_opcode(opcode));
     vars_peek(false);
     return battle_on_page_a_high_clear(s) && m_flag(s, CPU_FLAG_C) && ready;
+}
+
+/* The triangle reads neither the index nor the carry it is entered with. */
+bool battle_screen_triangle_ready(Snes *s)
+{
+    vars_peek(true);
+    bool ready = command_runs_here(state_of(s), screen_opcode(DRAW_TRIANGLE));
+    vars_peek(false);
+    return battle_on_page_a_high_clear(s) && ready;
 }

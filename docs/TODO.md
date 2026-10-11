@@ -64,37 +64,34 @@ rest waits, is [PLAN.md](PLAN.md).
   bank's unported runs (`python3 tools/burndown.py --uncovered CF`).
 
 - **Refusals in real play** (`tools/refusal_allowlist.txt`; RECOMP.md, "The
-  fallback measure"). Each is a call a
-  native build would have nothing to run; its allowlist line comes out when the
-  port takes the state. `python3 tools/fallbacks.py build/suite/fallbacks
-  --refusals -v` prints each with its first states. By subsystem:
-  - battle: `script_play_and_wait` (`$C1:4EA2`, the Bucket ending's script
-    channel, 735 times), `script_jump_to_a_place` (`$C1:6299`, the Beyond Time
-    ending), `script_throw_moves` (`$C1:7364`, the attract demo's battle),
-    `script_end` (`$C1:4CF0`, entered with A=`$00FF` where `command_ready` asks
-    for 0), `battle_evasion_timer_ran_out` (`$C1:8A05`),
-    `battle_enemy_waits_for_target` (`$C1:3772`, the Omen's battles), and
-    `script_return_from_call` (`$C1:56FB`, `command_ready` turns away the tech
-    sweep's battle script 8 times from frame 11015 on: `battle-tech-sweep`);
-  - battle frame work: `battle_screen_script_draw_triangle` (`$CD:2173`, 3140
-    times in the Beyond Time ending, the carry clear where
-    `battle_screen_command_ready` asks for it set) and `battle_upload_palette`
-    (`$CD:09CE`, called with the data bank `$7E`);
-  - field and events: `event_cmd_set_solidity` (`$C0:4867`, the attract
-    demo) and `field_press_confirm` (`$C0:1AAC`, a press with no leader on
-    the map, whose search for what is before the leader reads past the
-    object tables);
-  - menus: three entered with the other width of A (`menu_play_the_gate_song`
-    `$C2:CBBF` and `menu_object_cmd_play_song` `$C2:18F9` with 8-bit A,
-    `menu_describe_item` `$C2:F2F3` with 16-bit), `menu_start_the_scroll_bar`
-    (`$C2:8B93`, data bank `$00`), `menu_open_shop_member` (`$C2:E0A5`) and
-    `menu_object_cmd_change_byte_cell_set` (`$C2:12B8`);
-  - scene program: `attract_wait_loop` (`$7E:3023`), whose code-presence guard
-    turns away the attract program's own wait with an operand the program
-    rewrites. The other four RAM entries that refuse (`$7E:424D`, `$7E:4D0D`,
-    `$7E:36CC`, `$7E:357B`) meet the attract program's code, not the routine
-    each was written for: what is missing there is a port of the attract
-    program's own routines.
+  fallback measure", "The refusals in real play, retired"). What is left are
+  four code-presence guards that meet the attract program's own code at the
+  RAM address a port of another program's was written for: the jet bike race
+  program's `scene_race_wait_to_leave` (`$7E:424D`), `scene_race_place_bikes`
+  (`$7E:4D0D`) and `scene_build_perspective` (`$7E:357B`), and the title's
+  `scene_setup_line_effects` (`$7E:36CC`), in the attract demo and the Beyond
+  Time ending's closing scene. What is missing there is a port of the attract
+  program's own routines (PLAN.md, "The scene program"); the refusals go with
+  it. One more is found by the tech sweep's route, not yet in the library:
+  `script_return_from_call` (`$C1:56FB`), whose `command_ready` turns away
+  the sweep's battle script 8 times from frame 11015 on; the movie
+  (`tools/movies/routes/tech_sweep.py`) waits on it. `python3
+  tools/fallbacks.py build/suite/fallbacks --refusals -v` prints each with
+  its first states.
+- **An ending's menu script sets the sprites' sizes by `$2101`.** The menus'
+  object scripts' byte command `$13` names its cell by address, and an ending
+  writes the sprites' size and tile-place register through it; the port hands
+  the write to the SNES escape `vid_snes_write_register`
+  (`menu/script_bridge.c`, `set_console_byte`), which only the SNES backend
+  has. A build without it needs the script's write as what it means: decode
+  the scripts as an asset so a command naming `$2101` becomes a sprite
+  setting (`VidObjConfig`) the service takes, and drop the escape.
+- **The attract program's frame routine is still the original's.** The
+  attract demo rewrites the frame wait's call (`$7E:3024`) to its own frame
+  work at `$7E:51D1`, and `attract_wait_loop` now runs that routine as the
+  attract program's code (`game/attract/main_loop.c`). For a native build
+  that is a fallback until `$7E:51D1` is ported, with the rest of the
+  attract program (PLAN.md, "The scene program").
 - **What the original's code reads of scaffolding** (RECOMP.md, "The
   fallback measure"). It broke the native shape's three whole routes until
   the targeting was ported; what it reads now (101 byte and instruction
@@ -105,16 +102,6 @@ rest waits, is [PLAN.md](PLAN.md).
   on), the equipment screens' `$0022`-`$0027` and `$0DAB`, the battle's
   `$0084`, `$0092` and the enemies' `$A020`-`$A026`, and a block copy at
   `$C0:0924` that reads the field's cells whole.
-- **A New Game+ is slower in the native shape.** From the load screen's
-  menus closing to the Battle Mode question opening takes 58 frames in
-  `ct_drive_native_shape` and 14 in the default build, both `--native on`
-  (`menus-new-game-plus`'s route, which waits on the menus' screen rather
-  than a frame count, reaches its outcome in both). Every change on that
-  path the scaffolding makes is compiled out there, so something the game
-  runs between the two menus either reads a cell only scaffolding writes
-  (not one `originals.txt` or `effects_check.py` lists) or waits out time
-  the scaffolding's accesses were charged. Finding it is a bisection over
-  the ports that run there.
 
 ## Phase 3a work in flight
 
@@ -409,6 +396,20 @@ rest waits, is [PLAN.md](PLAN.md).
     `battle_go_round_the_poses` could return it; `frame_step.c`'s queue
     shift (place 3 from place 2) doesn't say what the player sees, and it
     calls a guard then calls out by hand rather than through `battle_run`.
+
+  - what the refusals batch's review left (none rated translation): the
+    wear-off rule (restart from its length, ten runs, stop and clear) is
+    written in both `timers.c` and `status_timers.c` -- the timer storage
+    should take a nobody-aware owner so `timer_ran_out` serves both, and
+    clearing nobody's statuses is a second stray place through
+    `combatant_lose_statuses`; `enemy_movement.c`'s
+    `where_the_original_finds_nobody` repeats what `combatant_x`/`_y`
+    already read, and `takes_no_target` admits every non-combatant where the
+    comments say `$FF`; the `goes_on_into` guards re-decide what entering at
+    that address implies; `play_nobodys_animation` takes a parameter only
+    ever `SCRIPT_NOBODY`; the registered `event_cmd_set_solidity` names an
+    operation now called `set_contact`; `charge.h`'s comment carries a
+    history note that belongs in RECOMP.md.
 
   - what the triangles, circles and special effects' review left (none
     blocking): `screen_triangles.c` works out the bit-serial divider's
@@ -759,25 +760,52 @@ rest waits, is [PLAN.md](PLAN.md).
     `equipment_data.h` differently, `effect_data.h`'s as not worked out: one
     record type each.
 
-- **A walk with nobody leading** (game/field/walk.c, `Walker`). With the
+- **Nobody leading** (game/field/object.h, `FieldLeader`). With the
   leader's place empty, the original walks the slot its marker names, past
   the object tables: where that slot stands, its tile and its place on the
   screen come from the tables after the objects', and the ground it steps
   onto lays its priorities on the bytes after the priorities'. The screen
   follows it, which shows (the shipping mode's late-omen-terramutant reaches
-  it at frame 14887 with a direction held). A native build has nobody to
-  walk: decide what the screen does then, and drop the slot's reads and
-  writes with the tables' native storage.
+  it at frame 14887 with a direction held). The confirm button searches
+  before that slot, facing the way the byte after the facings' says, and
+  looks for a chest on the tiles before it, off the map (the walkable
+  table's bytes past its rows, up into bank `$7F`; `event/chests.c`,
+  `walkable_past_the_map`): the endings' fields press it so. A native build
+  has nobody to walk or to look before: decide what the screen and the press
+  do then, and drop the slot's reads and writes with the tables' native
+  storage.
 
 - **What only the original's memory has, in the battle** (RECOMP.md, "Phase 3,
   battle chunk 4", after the review). A build without the original's memory has to decide each:
   - a status's timer of nobody's: the search for run-out timers takes the
     order's empty place (`$FF`) for a combatant and reads its state past the
-    kind's row (`timers.c`, `has_run_out`, the one read); the handler for it
-    is the original's, which works past every table it touches, a real
-    timer's length among them (the entries' guards turn it away: the evading
-    much better's, 4 calls over the library, `gato-battle` and
-    `endings-telepod-lavos`);
+    kind's row (`timers.c`, `has_run_out`); a status that wears off is worn
+    off there as a slot's, its writes past the rows landing in the battle's
+    other tables (the evading much better's state is the poison's length for
+    the third slot; `timers.c`, `battle_timer_wears_off_past_the_rows`, the
+    one place; 4 calls over the library, `gato-battle` and
+    `endings-telepod-lavos`), and the other kinds' handlers for nobody are
+    still the original's, which the game doesn't reach;
+  - an enemy that saw no target (`$FF`) waits on where nobody stands, the
+    battlefield's objects' places read past the combatants'
+    (`enemy_movement.c`, `where_the_original_finds_nobody`; the Omen's
+    battles);
+  - a combatant channel whose subject is nobody (`$FF`, the Bucket ending's
+    channel for a partner the party doesn't have) plays and waits on that
+    slot, its indexes doubled and tripled in a byte into the scheduled lists'
+    and the frame lists' tables (`script_poses.c`, `play_nobodys_animation`,
+    the one place), and waits as long as the byte past the animating table
+    says;
+  - a place from `$80` names the kind of the one `$80` below it, its subject
+    `$80` further on, past the subjects' table (`script_places.c`,
+    `decode_place`; the Beyond Time ending's jump to `$80`);
+  - the palette's send from the vblank handler in bank D1, which doesn't set
+    the data bank: on code with work RAM's bank its transfer's writes land in
+    work RAM (`$7E:2121`, `$7E:420B`, `$7E:4370`-`$4377`) and the palette
+    isn't sent that frame (`uploads.c`, `send_palette_through_work_ram`,
+    the SNES escape `vid_snes_send_palette_into_memory`); what the
+    battle keeps at those cells isn't worked out, and a native build sends
+    the palette;
   - a party tech's part with no member: the original reads the slot of the
     id `$FF` past the character slots (`$7E:B2BD`) and ends the tech only
     where that byte is `$FF` (the guard asks, `no_member_ends_the_tech`);

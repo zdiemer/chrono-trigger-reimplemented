@@ -13,6 +13,7 @@
 
 #include "field/field_data.h"
 #include "field/layers.h"
+#include "field/party.h"
 #include "original_effects.h"
 #include "vars.h"
 
@@ -75,9 +76,6 @@ bool object_runs_a_script(const GameState *g, FieldObject obj)
     return !(field_object_character(g, obj) & NO_SCRIPT_BIT);
 }
 
-/* Solidity is kept as a byte, 1 or 0, beside whether the leader can push the
- * object. */
-enum { SOLID = 0x01, PUSHABLE = 0x02 };
 
 /* ---- Past the tables: the original's effects only (field/object.h) ------------------------ */
 
@@ -92,7 +90,7 @@ ObjectPastTheTables object_past_the_tables(const GameState *g, FieldObject slot)
 
 bool object_solid_past_the_tables(const GameState *g, FieldObject slot)
 {
-    return (field_object_solid_unchecked(g, slot) & SOLID) != 0;
+    return (field_object_solid_unchecked(g, slot) & CONTACT_SOLID) != 0;
 }
 
 /* An unreachable object's mark is kept as the top bit of its move length
@@ -268,6 +266,31 @@ enum { FACINGS = 4 };
 Facing object_facing(const GameState *g, FieldObject obj) { return (Facing)(field_object_facing(g, obj) % FACINGS); }
 bool object_facing_is_one(const GameState *g, FieldObject obj) { return field_object_facing(g, obj) < FACINGS; }
 
+FieldLeader field_leader(const GameState *g)
+{
+    FieldLink leader = party_member_link(g, PARTY_LEADER);
+    return (FieldLeader){ field_linked_object(leader), !field_link_names_object(leader) };
+}
+
+FieldPosition field_leader_position(const GameState *g, FieldLeader leader)
+{
+    return leader.nobody_leads ? object_past_the_tables(g, leader.obj).at : object_position(g, leader.obj);
+}
+
+MapTile field_leader_tile(const GameState *g, FieldLeader leader)
+{
+    if (!leader.nobody_leads)
+        return object_tile(g, leader.obj);
+    return (MapTile){ field_object_x_tile_unchecked(g, leader.obj), field_object_y_tile_unchecked(g, leader.obj) };
+}
+
+Facing field_leader_facing(const GameState *g, FieldLeader leader)
+{
+    if (!leader.nobody_leads)
+        return object_facing(g, leader.obj);
+    return (Facing)(field_object_facing_unchecked(g, leader.obj) % FACINGS);
+}
+
 void object_set_facing(GameState *g, FieldObject obj, Facing facing) { set_field_object_facing(g, obj, (uint8_t)facing); }
 
 // $C0:554D
@@ -398,9 +421,10 @@ void object_set_blocked_by(GameState *g, FieldObject obj, ObjectBlocking blockin
 
 
 // $C0:4867
-void object_set_solidity(GameState *g, FieldObject obj, bool solid) { set_field_object_solid(g, obj, solid ? SOLID : 0); }
-bool object_solid(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & SOLID) != 0; }
-bool object_can_be_pushed(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & PUSHABLE) != 0; }
+void object_set_contact(GameState *g, FieldObject obj, ObjectContact contact) { set_field_object_solid(g, obj, contact); }
+void object_set_solidity(GameState *g, FieldObject obj, bool solid) { object_set_contact(g, obj, solid ? CONTACT_SOLID : 0); }
+bool object_solid(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & CONTACT_SOLID) != 0; }
+bool object_can_be_pushed(const GameState *g, FieldObject obj) { return (field_object_solid(g, obj) & CONTACT_PUSHABLE) != 0; }
 
 // $C0:62A4
 void object_set_arrival(GameState *g, FieldObject obj, ObjectArrival arrival) { set_field_object_arrival_flags(g, obj, arrival); }

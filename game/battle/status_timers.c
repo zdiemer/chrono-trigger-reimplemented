@@ -10,8 +10,12 @@
  * is still the original's (battle/enemy_turn.c's start of it).
  *
  * The search can find a timer of nobody's run out (battle/timers.h), which
- * the original's handlers see to as any slot's, past every table they touch;
- * the entries' guards leave those to the original (docs/TODO.md). */
+ * the original's handlers see to as any slot's, past every table they touch.
+ * Nobody has a status: in the game nothing happens but the kind being seen
+ * to, and for a status that wears off the original's writes past the tables
+ * are made in one place (battle_timer_wears_off_past_the_rows); the other
+ * kinds of nobody's the entries' guards leave to the original, and the game
+ * makes none of them (docs/TODO.md). */
 #include "battle/status_timers.h"
 
 #include "battle/battle.h"
@@ -190,6 +194,16 @@ static TimerOutcome timer_ran_out(GameState *g, BattleTimer kind, uint8_t slot)
     }
 }
 
+/* A timer of nobody's run out: there is no status to wear off, and nothing
+ * to show. */
+static TimerOutcome nobodys_timer_ran_out(GameState *g, BattleTimer kind, uint8_t nobody)
+{
+    battle_timer_seen_to(g, kind);
+    battle_timer_wears_off_past_the_rows(g, kind, nobody,
+                                         timed_statuses[kind].wearing_off_clears ? battle_timed_status(kind) : 0);
+    return NOTHING_TO_SHOW;
+}
+
 // $C1:895B
 /* A status's number shown as an action of its own: the showing numbered
  * `showing`, as a tech of the first slot's, aimed at the first slot's bit. */
@@ -223,7 +237,8 @@ enum { POISON_SHOWS_CALL = 0xC18945, MAGIC_SHOWS_CALL = 0xC18BB1, SHOW_NUMBER = 
 static bool see_to_run_out_timer(Snes *s, BattleTimer kind)
 {
     GameState *g = state_of(s);
-    TimerOutcome outcome = timer_ran_out(g, kind, battle_timer_found_run_out(g, kind).slot);
+    TimerOwner owner = battle_timer_found_run_out(g, kind);
+    TimerOutcome outcome = owner.nobody ? nobodys_timer_ran_out(g, kind, owner.slot) : timer_ran_out(g, kind, owner.slot);
     if (outcome == NUMBER_TO_SHOW) {
         m_set_a8(s, STATUS_NUMBER_SHOWING);
         uint32_t site = kind == BATTLE_TIMER_POISON ? POISON_SHOWS_CALL : MAGIC_SHOWS_CALL;
@@ -244,14 +259,14 @@ static void handler_entry(Snes *s, BattleTimer kind)
         m_rts(s);
 }
 
-/* A timer of nobody's is the original's: its handler works past every table
- * it touches (battle/timers.h). */
+/* A timer of nobody's that does anything but wear off is the original's: its
+ * handler works past every table it touches (battle/timers.h). */
 static bool handler_ready(Snes *s, BattleTimer kind)
 {
     vars_peek(true);
-    bool somebody = !battle_timer_found_run_out(state_of(s), kind).nobody;
+    bool ours = !battle_timer_found_run_out(state_of(s), kind).nobody || timed_statuses[kind].effect == WEARS_OFF;
     vars_peek(false);
-    return battle_on_page(s) && somebody;
+    return battle_on_page(s) && ours;
 }
 
 #define HANDLER(name, kind) \
