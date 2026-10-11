@@ -927,6 +927,26 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the battlefield change's review left** (none rated translation):
+  `battlefield_change.c`'s map build keeps its working state in work RAM
+  (`battle_map_cycle`, `_strip_step`, `_strip_cells`) and reads which places
+  have a tile with the original's shift-left bit reader (keep them in locals,
+  test the place's bit, write the final values once); the battlefield
+  accessors in `frame_data.h` take a built bank-and-place address, a byte
+  offset into the fades and the descriptors' `0x8000` (take the set, strip,
+  tile and fade kind and return records); the screen effects' settings
+  (`$53`-`$61`, `battle_screen_effect_settings`) are written through the
+  scaffolding writers `screen_leave_*` under `LEFT_*` names (they are game
+  state the scripts read: write them through the settings, named for what
+  the effect takes); `MODE_1_BG3_FRONT_16x16`, `BG3_MAP_AT_7C00` and the
+  hand-packed tile entries are register encodings (the video service's
+  terms), and `BG3_MAP_AT_7C00` repeats `MAP_VRAM`; `flip_tile`'s result and
+  `MapBuilder`'s `last_*`/`built_any` exist only for leftover cells;
+  `screen_script.c` clears the channels' state with `wram_fill16` at an
+  address (name the block in the map). The uploads go through the
+  original's transfer (`$CD:3ED2`) from a bridge, as there is no upload
+  service yet.
+
 - **What the attract refusals' review left** (none rated translation):
   `race_projection.c`'s `+ (gap <= SCREEN_LINES)` is a compare's carry
   (write the game's test, the bike at the camera with the gap wrapped), and
