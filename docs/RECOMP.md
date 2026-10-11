@@ -3471,8 +3471,8 @@ build a strip of the map, as the leader's; and the list of what fits, 35
 lines a call whose time follows the inventory, with the three steps that
 make it.
 
-**Left.** The dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB, reached
-by no movie). The objects' loop still runs the handlers through the machine at
+**Left.** The dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB; reached now
+by `field-65m-bc-dactyl.ctm`, route `dactyl_65m_bc`, docs/MOVIES.md). The objects' loop still runs the handlers through the machine at
 their own addresses, so each keeps its shadow comparison and calibration; a C
 table of the handlers is the native program's (TODO.md). The rest of what the
 scenes' scripts call (`$C2:2F0F`, `$C2:786F`, `$C2:79E0`-`$C2:7A55`,

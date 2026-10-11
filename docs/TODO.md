@@ -1382,15 +1382,15 @@ rest waits, is [PLAN.md](PLAN.md).
     (`$C2:2417`-`$C2:244F`) or opens the party's exchange from the map
     (mode 9, the `menus-end-of-time` exchange is the gate's); nor walks
     from one region into another (`$C2:3011`-`$C2:309D`, the music's fade
-    and the new song), rides or gets off a dactyl, nor clears the sign from
-    the menus (`$C2:5711`).
+    and the new song), nor clears the sign from the menus (`$C2:5711`).
 
 - **What the vehicles and the screen's objects left** (RECOMP.md, "Phase 3,
   menus and overworld: the vehicles, the screen's objects and the calls made
   where they go"):
   - the dactyl's flight (`$C2:4CDA`-`$C2:5627`, about 2.4 KiB) is still the
-    original's: no movie rides one, and a route that boards it on the
-    65,000,000 B.C. map would let it be ported and checked;
+    original's; `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) boards one at
+    Tyrano Lair, flies a short way and lands, so it is ready to be ported and
+    checked;
   - the objects' loop (`menu/objects.c`) and the scripts' call command
     (`menu/script_bridge.c`) still call a handler or a named routine through
     the machine, at its own address, so that each keeps its shadow

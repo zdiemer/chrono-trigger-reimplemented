@@ -470,8 +470,8 @@ Epoch's screens), with the vehicles' controller and the Epoch flown over the
 map and through time. What is left, in the order to take it (`python3
 tools/burndown.py --uncovered C2`):
 
-1. **The dactyl's flight** (`$C2:4CDA`-`$C2:5627`, about 2.4K), which no
-   movie reaches yet.
+1. **The dactyl's flight** (`$C2:4CDA`-`$C2:5627`, about 2.4K), reached now by
+   `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`).
 2. **The overworld's setup** (about 2.5K, last): the scene stream loaders
    (`$C2:27DE`-`$C2:2D46`, `$C2:2D91`-`$C2:2EC0`). `$C2:27DE` goes with
    `menu/display.c`'s loader half, and only once the streams it decompresses

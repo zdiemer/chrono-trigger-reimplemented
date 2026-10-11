@@ -468,6 +468,7 @@ build/main/ct_dev --rom roms/ct-usa.sfc --movie oracle/movies/saves/battle-magus
 | `menus-end-of-time.ctm` | ctsave12, 2 | Party exchange, the Guru of Time, saving over a slot | 8800 |
 | `menus-new-game-plus.ctm` | technoplaza ct-state16 | The load screen of a finished cartridge: the erase question on the second controller answered no, then yes; New Game+ from the fourth row, carrying on from the first slot, the battle mode and naming, onto the 1000 A.D. world map (route `new_game_plus`) | 3116 |
 | `field-65m-bc.ctm` | ctsave05, 1 | The 65,000,000 B.C. world map on foot with followers, into a location and back out (route `field_65m_bc`) | 2921 |
+| `field-65m-bc-dactyl.ctm` | ctsave07, 3 | The 65,000,000 B.C. world map on a dactyl at Tyrano Lair: boarded, flown a short way, landed and got off (route `dactyl_65m_bc`) | 2810 |
 | `field-12kbc-1f4.ctm` | ctsave08, 2 | The 12,000 B.C. world map at `$1F4`, into a location and back out (route `field_12kbc_1f4`) | 2953 |
 | `field-12kbc-1f5.ctm` | zophar chrono-5, 1 | The 12,000 B.C. world map at `$1F5`, likewise (route `field_12kbc_1f5`) | 2993 |
 | `field-12kbc-1f6.ctm` | zophar chrono-6, 2 | The 12,000 B.C. world map at `$1F6`, likewise (route `field_12kbc_1f6`) | 2873 |
