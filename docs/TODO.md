@@ -72,8 +72,10 @@ rest waits, is [PLAN.md](PLAN.md).
     channel, 735 times), `script_jump_to_a_place` (`$C1:6299`, the Beyond Time
     ending), `script_throw_moves` (`$C1:7364`, the attract demo's battle),
     `script_end` (`$C1:4CF0`, entered with A=`$00FF` where `command_ready` asks
-    for 0), `battle_evasion_timer_ran_out` (`$C1:8A05`), and
-    `battle_enemy_waits_for_target` (`$C1:3772`, the Omen's battles);
+    for 0), `battle_evasion_timer_ran_out` (`$C1:8A05`),
+    `battle_enemy_waits_for_target` (`$C1:3772`, the Omen's battles), and
+    `script_return_from_call` (`$C1:56FB`, `command_ready` turns away the tech
+    sweep's battle script 8 times from frame 11015 on: `battle-tech-sweep`);
   - battle frame work: `battle_screen_script_draw_triangle` (`$CD:2173`, 3140
     times in the Beyond Time ending, the carry clear where
     `battle_screen_command_ready` asks for it set) and `battle_upload_palette`

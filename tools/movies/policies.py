@@ -237,6 +237,64 @@ def crono_and_marle_core(bot, state, rng, inventory):
     return ("attack", target)
 
 
+def tech_list_entries(bot, member):
+    """`(entry, tech_id)` for every real tech in `member`'s tech list, in list
+    order (singles, then the double techs' section, then the triple techs'):
+    the section headings and blank rows are skipped. Reads straight from the
+    battle's tech-by-id table (addresses.BATTLE_TECH_LIST_IDS), so it needs no
+    table of which combination techs a party can make -- whatever the game's
+    own setup put in the list is what this walks."""
+    base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
+    ids = bot.machine.peek(A.BATTLE_TECH_LIST_IDS + base, A.TECHS_A_MEMBER)
+    return [(entry, tech_id) for entry, tech_id in enumerate(ids) if tech_id < 0xFB]
+
+
+def tech_sweep(cast_ids, healer_threshold=0.5, self_threshold=0.35):
+    """A policy that casts every tech a party's members' lists can show, once
+    each: on a member's turn, the next tech list entry whose id isn't in
+    `cast_ids` yet (singles before doubles before triples, as the list orders
+    them), or an attack once its whole list has been tried. Heals and revives
+    with items first, to keep a long fight going. `cast_ids` is the caller's
+    set, read fresh every turn, so several members (and a double or triple
+    tech's partners) share the one record of what has already been cast; wrap
+    `Bot.do` (see tools/movies/routes/tech_sweep.py) to add to it when a tech
+    is actually taken, since a dimmed entry here is skipped, not cast.
+    """
+    def policy(bot, state, rng, inventory):
+        member = state.member
+        members = [slot for slot in range(bot.party) if state.max_hp(slot) > 0]
+        action = survival(state, rng, inventory, member, members,
+                          healer_threshold=healer_threshold, self_threshold=self_threshold)
+        if action:
+            return action
+        for entry, tech_id in tech_list_entries(bot, member):
+            if tech_id not in cast_ids:
+                return ("tech", entry, None)
+        living = enemies(state)
+        return ("attack", rng.choice(living) if living else None)
+    return policy
+
+
+def tracking_do(bot, cast_ids):
+    """Wrap `bot.do` so a tech the bot actually takes (not one tried and found
+    dimmed) is added to `cast_ids` by id, not by list position: the member and
+    the list entry are read before the action runs (`bot.do` moves the menu on
+    to the next member once it succeeds), then turned into a tech id through
+    the same table `tech_list_entries` reads."""
+    original = bot.do
+
+    def do(action):
+        member = bot.state.member
+        ok = original(action)
+        if ok and action[0] == "tech":
+            base = bot.machine.b(A.BATTLE_TECH_LIST_BASE + member)
+            tech_id = bot.machine.b(A.BATTLE_TECH_LIST_IDS + base + action[1])
+            if tech_id < 0xFB:
+                cast_ids.add(tech_id)
+        return ok
+    bot.do = do
+
+
 POLICIES = {
     "party": party,
     "crono_and_marle": crono_and_marle,

@@ -196,6 +196,33 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   effects (2.17) and screen scripts; up to 10.87 KiB, about 0.7 KiB a minute.
   The rewards' tech learning (0.55) wants a save with tech points to earn instead.
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
+- **Route written, not merged**: `tools/movies/routes/tech_sweep.py` (zophar chrono-trigger slot 1:
+  Crono, Magus and Marle inside Lavos's shell): walks to the second Lavos form, fights it and then the
+  Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
+  takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
+  so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
+  falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
+  target needs an ally down); heals and revives with items. Casts the three members' 12 single techs and
+  8 double techs between them (ids 1-5, 9-15, 49-56), each once, well inside the first third of the
+  fight; no triple tech appears for this trio. Its recording, cut to the shortest length (found by
+  bisecting the `--coverage` cutoff) that still reaches everything it reaches -- the Lavos Core down to
+  its last few hits, not beaten outright, since that's as early as two of its addresses (inside
+  `battle_select_random_member`, an enemy target selector) are reached, an artifact of the Core's own AI
+  nearing death rather than of the sweep's tech order -- is 140500 frames and would reach 0.84 KiB (406
+  addresses) no other movie runs, in 28 routines, mostly in `$C1`: the three largest are
+  `battle_work_out_enemy_attack`, `script_point_along` and `battle_apply_damage` (uncommon branches
+  inside routines every battle already reaches), plus a few reached for the first time outright,
+  `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them. Shadow clean, but
+  **not added to `oracle/movies/saves/`**: it also makes `script_return_from_call`'s guard
+  (`command_ready`, turning away a battle script state it doesn't model) refuse 8 times, a real gap
+  (docs/TODO.md, "Refusals in real play") rather than an allowlist entry, and the gate's refusals check
+  fails on it. Record the movie once that guard's gap is closed.
+- **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
+  three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its
+  whole reachable ground is 57 tiles with no door out and, over 20 laps of it, no random encounter --
+  this era's overworld looks to have none. A second movie for Lucca, Robo, Frog and Ayla's own techs,
+  the techs between them, and any triple tech (this trio and Crono/Magus/Marle have none) needs a
+  different starting point than the save gives.
 
 ### 4. The three 12,000 B.C. world maps
 - **Save**: ctsave08 slot 2 (`$1F4`), zophar chrono-5 (`$1F5`), zophar chrono-6 slot 2 (`$1F6`).
