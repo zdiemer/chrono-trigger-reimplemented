@@ -197,18 +197,25 @@ Ranked by KiB reachable per minute of play. **Route**: whether a route script
   The rewards' tech learning (0.55) wants a save with tech points to earn instead.
 - **Route**: yes (the battle bot with a policy that walks the tech lists).
 - **Recorded**: `battle-tech-sweep.ctm` (route `tech_sweep`, zophar chrono-trigger slot 1: Crono, Magus
-  and Marle inside Lavos's shell), 142380 frames: walks to the second Lavos form, fights it and then the
+  and Marle inside Lavos's shell), 140500 frames: walks to the second Lavos form, fights it and then the
   Lavos Core with a policy (`tools/movies/policies.tech_sweep`) that opens Tech on each member's turn and
   takes the first list entry -- by tech id, read from the tech-by-id table at $94D0, not list position,
   so a double tech is found once whichever partner's turn reaches it first -- that isn't cast yet,
   falling back to Attack once a member's list is exhausted for now (not enough MP, or a tech whose only
   target needs an ally down); heals and revives with items. Casts the three members' 12 single techs and
-  8 double techs between them (ids 1-5, 9-15, 49-56), each once; no triple tech appears for this trio.
-  Reaches 0.84 KiB no other movie runs (against the library this pass started from): battle script
-  commands (`script_return_from_call`, `script_return_at_the_top`, `script_wait_for_variable`,
-  `script_end`), an action effect (`battle_effect_anchor_chase`) and an accessory's effect
-  (`fight_apply_accessory_effects`), mostly in `$C1`. Shadow clean; one new refusal
-  (`script_return_from_call` guard, 8 times, `tools/refusal_allowlist.txt`).
+  8 double techs between them (ids 1-5, 9-15, 49-56), each once, well inside the first third of the
+  fight; no triple tech appears for this trio. Cut at the shortest length (found by bisecting the
+  `--coverage` cutoff) that still reaches everything the movie reaches: the Lavos Core down to its last
+  few hits, not beaten outright, since that's as early as two of the 0.84 KiB's addresses (inside
+  `battle_select_random_member`, an enemy target selector) are reached -- an artifact of the Core's own
+  AI nearing death, not of the sweep's tech order, so reordering the policy wouldn't shorten it further.
+  Reaches 0.84 KiB (406 addresses) no other movie runs, in 28 routines, mostly in `$C1`: the three
+  largest are `battle_work_out_enemy_attack`, `script_point_along` and `battle_apply_damage`
+  (uncommon branches inside routines every battle already reaches), plus a few routines reached for the
+  first time outright, `battle_effect_anchor_chase` and `fight_apply_accessory_effects` among them.
+  Shadow clean. One refusal in real play, `script_return_from_call`'s guard (`command_ready` turning
+  away a battle script state it doesn't model, 8 times): not allowlisted -- recorded in docs/TODO.md,
+  "Refusals in real play", for the gap to be closed rather than carried.
 - **Not attempted**: zophar chrono-5 (Crono, Marle and Ayla, all but Magus maxed). Its only slot (all
   three point to the same save) stands on an isolated 12,000 B.C. floating island: `ow_bfs` finds its
   whole reachable ground is 57 tiles with no door out and, over 20 laps of it, no random encounter --

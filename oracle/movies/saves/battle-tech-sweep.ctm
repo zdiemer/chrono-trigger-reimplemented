@@ -3,7 +3,7 @@
 # tech not yet cast (singles, then the double techs its party can make) instead of always attacking,
 # healing and reviving with items to keep the fight going.
 # Save: zophar chrono-trigger (oracle/saves/zophar, zophar.net Chrono Trigger saves), slot 1.
-# frames 142380
+# frames 140500
 # sram crc32 B19EBD6B
 # <start_frame> <frame_count> <buttons>
 1620 5 START
@@ -3150,21 +3150,3 @@
 139069 2 A
 139075 2 RIGHT
 139079 2 A
-141899 2 DOWN
-141904 2 DOWN
-141909 2 A
-141926 2 A
-141940 2 A
-141954 2 A
-141968 2 B
-141980 2 A
-141993 2 A
-142007 2 A
-142021 2 A
-142035 2 B
-142046 2 UP
-142053 2 UP
-142060 2 A
-142065 2 RIGHT
-142071 2 RIGHT
-142077 2 A
