@@ -112,8 +112,8 @@ static void fade_the_old_layer_out(GameState *g)
     restore_the_kept_colors(g);
     uint8_t halved = (battle_start_screens_math_layers(g) & HALVED_MATH) ? 1 : 0;
     uint8_t kind = battlefield_fade_kind(g, halved);
-    ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_HALVED, halved));
-    ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_FADE_KIND, kind));
+    screen_leave_cell(g, LEFT_HALVED, halved);
+    screen_leave_cell(g, LEFT_FADE_KIND, kind);
     if (halved)
         return;
     uint8_t fade = (battle_background_flags(g) & GRADIENT) ? GRADIENT_FADES : 0;
@@ -166,7 +166,7 @@ static uint16_t take_the_look_and_layout(GameState *g, uint16_t battlefield)
     set_battle_battlefield_layout_rows(g, l.rows);
     ORIGINAL_EFFECT(set_battle_screen_channels_layout_word(g, 0, layout_word(l)));
     ORIGINAL_EFFECT(set_battle_battlefield_kept_word(g, layout_word(l)));
-    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_TILE_SET, tile_set_of(l)));
+    screen_leave_word(g, LEFT_TILE_SET, tile_set_of(l));
     set_battle_band_fade(g, BANDS_DIMMEST);
     return tile_set_of(l);
 }
@@ -250,13 +250,13 @@ static void decode_tile_set(GameState *g, uint16_t set)
             mirrored_any = true;
         }
     }
-    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(descriptors + SET_TILES * DESCRIPTOR_BYTES)));
-    ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_DESCRIPTOR_BANK, DESCRIPTOR_BANK));
+    screen_leave_word(g, LEFT_DESCRIPTORS, (uint16_t)(descriptors + SET_TILES * DESCRIPTOR_BYTES));
+    screen_leave_cell(g, LEFT_DESCRIPTOR_BANK, DESCRIPTOR_BANK);
     ORIGINAL_EFFECT(screen_leave_word(g, LEFT_TILES_LEFT, 0));
     if (flipped_any)
         ORIGINAL_EFFECT(screen_leave_word(g, LEFT_FLIPPED_ROW, flipped_row));
     if (mirrored_any)
-        ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_MIRROR_ROWS, 0));
+        screen_leave_cell(g, LEFT_MIRROR_ROWS, 0);
 }
 
 /* The map's empty places show the layer's last 16x16 tile ($EE), which the
@@ -291,7 +291,7 @@ static void clear_the_map(GameState *g)
 {
     for (unsigned entry = 0; entry < BATTLE_MAP_BUFFER_COUNT; entry++)
         set_battle_map_buffer(g, entry, BLANK_ENTRY);
-    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_CLEARED_TO, LAST_STRETCH_END));
+    screen_leave_word(g, LEFT_CLEARED_TO, LAST_STRETCH_END);
 }
 
 /* The map is built from strips of 16 places a row, each strip 256 places on
@@ -368,20 +368,18 @@ static uint8_t next_tile(GameState *g, MapBuilder *b)
 
 /* The original builds the map in its cells $53-$75, and leaves them as the
  * last place left them: its pointers into the strip and the buffer, its
- * counts, the last tile and its place, attributes and palette. */
+ * counts, the last tile and its place, attributes and palette. Those up to
+ * $61 are where an animation script's screen effect takes the settings its
+ * command doesn't give (battle_screen_effect_settings), so what this and the
+ * rest of the loading leave there is the game's, and kept plainly; the rest
+ * is scaffolding. */
 enum { LEFT_STRIP_AT = 0x53, LEFT_STRIP_BANK = 0x55, LEFT_BUFFER_AT = 0x57, LEFT_BUFFER_BANK = 0x59,
        LEFT_CELLS_LEFT = 0x5F, LEFT_CELLS_READ = 0x61, LEFT_CELLS = 0x63, LEFT_COLUMN_AND_ROW = 0x65,
        LEFT_TILE = 0x67, LEFT_PLACE = 0x69, LEFT_SHEET_COLUMN = 0x6B, LEFT_ROWS_LEFT = 0x6D, LEFT_FLIPS = 0x6F,
        LEFT_ATTRIBUTES = 0x71, LEFT_TILE_SET_AT = 0x73, LEFT_PALETTE = 0x75 };
 
-static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t strips, uint8_t rows)
+static void leave_the_builder_counts(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t rows)
 {
-    screen_leave_word(g, LEFT_STRIP_AT, b->at);
-    screen_leave_cell(g, LEFT_STRIP_BANK, (uint8_t)(BATTLEFIELD_STRIP_BANK >> 16));
-    screen_leave_word(g, LEFT_BUFFER_AT, (uint16_t)(MAP_BUFFER + strips * STRIP_PLACES * 2));
-    screen_leave_cell(g, LEFT_BUFFER_BANK, WORK_RAM_BANK);
-    screen_leave_cell(g, LEFT_CELLS_LEFT, b->cells_left);
-    screen_leave_word(g, LEFT_CELLS_READ, b->cells_read);
     screen_leave_cell(g, LEFT_CELLS, b->cells);
     screen_leave_word(g, LEFT_COLUMN_AND_ROW, (uint16_t)(rows << 8));
     if (b->built_any) {
@@ -394,6 +392,17 @@ static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_s
     screen_leave_word(g, LEFT_FLIPS, 0);
     screen_leave_cell(g, LEFT_ATTRIBUTES, IN_FRONT_PALETTE_6);
     screen_leave_word(g, LEFT_TILE_SET_AT, tile_set);
+}
+
+static void leave_the_builder(GameState *g, const MapBuilder *b, uint16_t tile_set, uint8_t strips, uint8_t rows)
+{
+    screen_leave_word(g, LEFT_STRIP_AT, b->at);
+    screen_leave_cell(g, LEFT_STRIP_BANK, (uint8_t)(BATTLEFIELD_STRIP_BANK >> 16));
+    screen_leave_word(g, LEFT_BUFFER_AT, (uint16_t)(MAP_BUFFER + strips * STRIP_PLACES * 2));
+    screen_leave_cell(g, LEFT_BUFFER_BANK, WORK_RAM_BANK);
+    screen_leave_cell(g, LEFT_CELLS_LEFT, b->cells_left);
+    screen_leave_word(g, LEFT_CELLS_READ, b->cells_read);
+    ORIGINAL_EFFECT(leave_the_builder_counts(g, b, tile_set, rows));
 }
 
 /* Put a tile in its place of the map: the strip's 256 places, sixteen a row. */
@@ -435,7 +444,7 @@ static void build_the_map(GameState *g, uint16_t tile_set)
     } while (built != strips);
     set_battle_battlefield_layout_strips(g, 0);
     set_battle_battlefield_layout_map(g, strip);
-    ORIGINAL_EFFECT(leave_the_builder(g, &b, tile_set, built, rows));
+    leave_the_builder(g, &b, tile_set, built, rows);
 }
 
 /* ---- Loading the battlefield ------------------------------------------------------------------ */

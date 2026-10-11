@@ -688,7 +688,8 @@ enum { NO_BATTLEFIELD_SCRIPT = 0xFF, SCRIPT_PACE = 0x0F };
 enum { CHANNELS_STATE_AT = 0x7ECA32, CHANNELS_STATE_WORDS = 0x30, CHANNELS_STATE_BYTES = 2 * CHANNELS_STATE_WORDS };
 
 /* The original keeps the script's place in the battle's cells $53-$55; the
- * last started is left there. */
+ * last started is left there, where a screen effect may take its settings
+ * from. */
 enum { LEFT_SCRIPT = 0x53, LEFT_SCRIPT_BANK = 0x55 };
 
 // $CD:15D5
@@ -699,8 +700,8 @@ static void start_battlefield_script(GameState *g, ScreenChannel channel, uint8_
     set_battle_screen_channels_place(g, channel, SCREEN_SCRIPT_BANK | (uint16_t)(start + 1));
     set_battle_screen_channels_countdown(g, channel, 1);
     set_battle_screen_channels_running(g, channel, 1);
-    ORIGINAL_EFFECT(screen_leave_word(g, LEFT_SCRIPT, start));
-    ORIGINAL_EFFECT(screen_leave_cell(g, LEFT_SCRIPT_BANK, (uint8_t)(SCREEN_SCRIPT_BANK >> 16)));
+    screen_leave_word(g, LEFT_SCRIPT, start);
+    screen_leave_cell(g, LEFT_SCRIPT_BANK, (uint8_t)(SCREEN_SCRIPT_BANK >> 16));
 }
 
 // $CD:0D33
