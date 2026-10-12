@@ -38,6 +38,17 @@ const PfSnesEncoding *pf_snes_encoding(uint32_t site, const char *call);
  * program with the site. */
 void pf_snes_encoding_mismatch(uint32_t site, const char *call);
 
+/* The modes' routines that send a buffer to VRAM from the main thread,
+ * queueing it for the vblank handler and waiting for it to go
+ * (vid_send_vram_and_wait), and where each takes its arguments: the source's
+ * bank in A, its address in X, the VRAM address in Y and the size in a word of
+ * the caller's direct page. NULL where the routine is none of them. */
+typedef struct {
+    uint32_t routine;
+    uint8_t size_cell;
+} PfSnesVramSender;
+const PfSnesVramSender *pf_snes_vram_sender(uint32_t routine);
+
 /* What the original writes, in order, where one call sets a whole screen up
  * (vid_apply_screen). Each part is one of the service's setters with the site
  * of the instruction it stands for; `arg` is the part's layer, register group

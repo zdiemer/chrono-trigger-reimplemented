@@ -5,7 +5,8 @@
  * frame. Every frame of the fight: the sprite table, the working palette, and
  * whatever the rest of the battle has asked to be sent --
  *
- *   - a transfer a routine queued (battle_vram_request), which it waits on;
+ *   - a buffer the main thread sends (battle_vram_request), a piece a frame,
+ *     each of which it waits for (below);
  *   - a block of sixteen tiles a routine asked for, which isn't sent again
  *     while the same block comes from the same place;
  *   - a battle message's tiles, a half each frame, while one shows, or
@@ -24,6 +25,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "battle/wait.h"
 #include "battle/window.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -89,6 +91,114 @@ void battle_send_queued_transfer(GameState *g, Platform *pf)
                  (uint32_t)battle_vram_request_bank(g) << 16 | battle_vram_request_source(g), bytes);
     ORIGINAL_EFFECT(leave_size(g, bytes));
     set_battle_vram_request_pending(g, 0);
+}
+
+/* ---- A buffer sent from the main thread ------------------------------------------------------ */
+
+/* The main thread's sends to VRAM (vid_send_vram_and_wait's battle half) go
+ * through the vblank handler a piece a frame: 1 KiB, or 4 KiB while the frame
+ * work is cut down to the palette and this (battle_frame_work_reduced), which
+ * leaves it the time. */
+enum { PIECE_BYTES = 0x400, PIECE_BYTES_REDUCED = 0x1000 };
+
+/* Which of its waits the main thread makes: its first for a piece it has
+ * just queued, or a later one while the queue still holds a piece. */
+typedef enum { WAITING_FOR_A_PIECE_QUEUED, WAITING_WHILE_QUEUED } SendWait;
+
+/* For shadow mode: the frame work's wait keeps A on the stack while it waits,
+ * so the original's A there, which nothing reads after, is left for it: 0
+ * after it queued a piece, its sums' leftovers cleared, or the queue's flag it
+ * last tested. */
+static void leave_what_the_wait_keeps(Snes *s, const GameState *g, SendWait what)
+{
+    if (what == WAITING_WHILE_QUEUED)
+        m_set_a8(s, battle_vram_request_pending(g));
+    else
+        s->cpu.a = 0;
+}
+
+/* The frame work's wait for the next frame ($CD:3E75), from the call at
+ * `site`. */
+static bool wait_a_frame(Snes *s, uint32_t site, SendWait what)
+{
+    ORIGINAL_EFFECT(leave_what_the_wait_keeps(s, state_of(s), what));
+    return battle_run(s, site, 0xCD3E75, battle_wait_for_the_next_frame);
+}
+
+/* The menu's turn the waits give reads the carry the original's comparison
+ * of what is left with a piece leaves: set where at least a piece is left. */
+static void leave_the_carry_of_what_is_left(Snes *s, uint16_t left, uint16_t piece)
+{
+    m_set_flag(s, CPU_FLAG_C, left >= piece);
+}
+
+/* Queue the next piece and wait until the vblank handler has sent it; then
+ * on past it. False where a wait didn't come back as the battle runs. */
+static bool send_a_piece(Snes *s)
+{
+    GameState *g = state_of(s);
+    bool reduced = battle_frame_work_reduced(g) != 0;
+    uint16_t piece = reduced ? PIECE_BYTES_REDUCED : PIECE_BYTES;
+    uint16_t left = battle_vram_send_left(g);
+    bool last = left <= piece;
+    set_battle_vram_send_last(g, last);
+    set_battle_vram_request_size(g, last ? left : piece);
+    set_battle_vram_request_pending(g, (uint8_t)(battle_vram_request_pending(g) + 1));
+    uint32_t site = reduced ? 0xCD3F1D : 0xCD3F67;
+    leave_the_carry_of_what_is_left(s, left, piece);
+    if (!wait_a_frame(s, site, WAITING_FOR_A_PIECE_QUEUED))
+        return false;
+    while (battle_vram_request_pending(g))
+        if (!wait_a_frame(s, site, WAITING_WHILE_QUEUED))
+            return false;
+    set_battle_vram_request_source(g, (uint16_t)(battle_vram_request_source(g) + piece));
+    set_battle_vram_request_vram(g, (uint16_t)(battle_vram_request_vram(g) + piece / 2));
+    set_battle_vram_send_left(g, (uint16_t)(left - piece));
+    return true;
+}
+
+/* While it waits for a buffer queued before to go, the original keeps the
+ * new one's place and size on the stack, the size on top. */
+static void keep_the_buffer(Snes *s, uint32_t source, uint16_t vram, uint16_t bytes)
+{
+    m_push16(s, (uint16_t)source);
+    m_push16(s, vram);
+    m_push8(s, (uint8_t)(source >> 16));
+    m_push16(s, bytes);
+}
+
+static void take_the_buffer_back(Snes *s)
+{
+    (void)m_pull16(s);
+    (void)m_pull8(s);
+    s->cpu.y = m_pull16(s);
+    s->cpu.x = m_pull16(s);
+}
+
+// $CD:3ED2
+/* Send `bytes` bytes from `source` to VRAM at `vram` from the main thread, a
+ * piece a frame, once a buffer queued before has gone; meanwhile the frame
+ * wait's tail leaves the background's and the effects' loads alone
+ * (battle_vram_request_busy). */
+static bool send_vram_and_wait(Snes *s, uint32_t source, uint16_t vram, uint16_t bytes)
+{
+    GameState *g = state_of(s);
+    set_battle_vram_request_busy(g, (uint8_t)(battle_vram_request_busy(g) + 1));
+    keep_the_buffer(s, source, vram, bytes);
+    while (battle_vram_request_pending(g))
+        if (!wait_a_frame(s, 0xCD3EE0, WAITING_WHILE_QUEUED))
+            return false;
+    take_the_buffer_back(s);
+    set_battle_vram_send_left(g, bytes);
+    set_battle_vram_request_bank(g, (uint8_t)(source >> 16));
+    set_battle_vram_request_vram(g, vram);
+    set_battle_vram_request_source(g, (uint16_t)source);
+    do
+        if (!send_a_piece(s))
+            return false;
+    while (!battle_vram_send_last(g));
+    set_battle_vram_request_busy(g, 0);
+    return true;
 }
 
 /* ---- A block of tiles, and the message's --------------------------------------------------- */
@@ -398,6 +508,35 @@ void battle_vram_transfer(Snes *s)
     uint16_t bytes = (uint16_t)(battle_scratch(g, 0) | battle_scratch(g, 1) << 8);
     send_to_vram(m_platform(s), s->cpu.y, (uint32_t)(uint8_t)s->cpu.a << 16 | s->cpu.x, bytes);
     m_rts(s);
+}
+
+/* It leaves A 1, the last piece's mark, and the carry the count of what was
+ * left leaves: set where nothing is left past the last piece, which its
+ * callers read. */
+static void leave_the_last_piece(Snes *s, const GameState *g)
+{
+    s->cpu.a = 1;
+    m_set_flag(s, CPU_FLAG_C, battle_vram_send_left(g) == 0);
+}
+
+/* Entered with the source in A (bank) and X, VRAM in Y and the size in the
+ * page's $53, where vid_send_vram_and_wait's SNES backend puts them. */
+void battle_send_vram_and_wait(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint32_t source = (uint32_t)(uint8_t)s->cpu.a << 16 | s->cpu.x;
+    if (!send_vram_and_wait(s, source, s->cpu.y, battle_vram_send_size(g)))
+        return;
+    leave_the_last_piece(s, g);
+    m_rts(s);
+}
+
+// $CD:3ECE
+void battle_send_vram_and_wait_long(Snes *s)
+{
+    if (!battle_run(s, 0xCD3ECE, 0xCD3ED2, battle_send_vram_and_wait))
+        return;
+    m_rtl(s);
 }
 
 /* A transfer that goes leaves its VRAM address in Y. */

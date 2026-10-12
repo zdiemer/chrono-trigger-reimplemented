@@ -111,6 +111,17 @@ void tm_wait_frame(Platform *pf, PfOrigin o)
     fiber_switch(t->driver);
 }
 
+void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames)
+{
+    do
+        tm_wait_frame(pf, o);
+    while (--frames);
+}
+
+/* The handlers run once a frame, after which the game looks again at what
+ * they left. */
+void tm_wait_for_handlers(Platform *pf, PfOrigin o) { tm_wait_frame(pf, o); }
+
 void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
 {
     tm_wait_frame(pf, o);

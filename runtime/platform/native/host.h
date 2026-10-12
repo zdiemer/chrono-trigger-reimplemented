@@ -3,7 +3,8 @@
  * build defines CT_PLATFORM_EXTERN, so the services' headers declare the calls
  * and these files define them.
  *
- * Timing and input exist so far. The frame is the driver's: it calls
+ * Timing and input exist so far, and of video the VRAM the game's main thread
+ * sends to (vid_send_vram_and_wait). The frame is the driver's: it calls
  * tm_host_frame once per displayed frame, and that runs, in order,
  *
  *   1. the vblank handler, if the game has it enabled;
@@ -22,6 +23,7 @@
 
 #include "platform/input.h"
 #include "platform/timing.h"
+#include "platform/video.h"
 #include "port/fiber.h"
 
 /* The game, as the driver runs it: its main thread from power-on, which never
@@ -48,9 +50,16 @@ typedef struct {
     uint32_t entropy;       /* tm_entropy's generator */
 } TmHost;
 
+/* Video memory, as the calls that have a host half so far leave it. */
+enum { VID_HOST_VRAM_BYTES = 0x10000 };
+typedef struct {
+    uint8_t vram[VID_HOST_VRAM_BYTES];
+} VidHost;
+
 struct Platform {
     TmHost timing;
     PadBits pads[4];        /* in_host_set's, which in_read reads */
+    VidHost video;
 };
 
 /* Start the game: its main thread is made, to run from the first frame, and

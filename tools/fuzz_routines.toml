@@ -9416,12 +9416,132 @@ state = "battle"
 args = ["--long", "--d", "0000", "--db", "7E"]
 why = "on the battle's page, either unit busy"
 
+# -- the battle's waits (battle/wait.c, battle/sound.c, battle/message.c, battle/uploads.c): no interrupt
+# comes under ct_fuzz, so each is compared up to its first wait for a handler (--stop-at-call at the
+# loop's head: the frame wait $C1:0080, the handler's $CD:3E81, the pause's $CD:3E5B, the last frame's
+# $CF:FCFD, the small handler's $CD:044E), or past it where the count it asks with wraps to 0. ct_fuzz
+# has no runtime, so a sibling the port runs as C (battle_run) is a real call there, to the original's
+# wait, which spins until the budget: a state that reaches one is skipped (a call-out past the budget)
+
 [[routine]]
-name = "battle_sound_resume"
+name = "battle_wait_for_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-01", "--stop-at-call", "C10080",
+        "--stop-at-call", "CD3E5B"]
+why = "on the battle's page, paused or not: up to the wait, or the pause's"
+
+[[routine]]
+name = "battle_wait_for_frame"
+variant = "answered"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009E-7E009E=FF-FF", "--fill", "7ECD02-7ECD02=00-00"]
+why = "the request's count wrapping to 0, so the frame is there at once: the whole wait"
+
+[[routine]]
+name = "battle_wait_for_a_last_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7E009E-7E009E=FE-FF", "--stop-at-call", "CFFCFD"]
+why = "on the battle's page, the request's count wrapping to 0 or not"
+
+[[routine]]
+name = "battle_wait_for_the_handler"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-01", "--fill", "7ECA20-7ECA20=FE-FF",
+        "--stop-at-call", "CD3E81", "--stop-at-call", "CD3E5B"]
+why = "on the battle's page, paused or not, the request's count wrapping to 0 or not (then the message's letter, whose guard takes only a text the menus' code can go on with)"
+
+[[routine]]
+name = "battle_wait_for_the_next_frame"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-01", "--fill", "7ECA20-7ECA20=FE-FF",
+        "--stop-at-call", "CD3E81", "--stop-at-call", "CD3E5B"]
+why = "as the handler's wait, then the menu's turn (the original's, $C1:0012)"
+
+[[routine]]
+name = "battle_wait_some_frames"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=0000-0003", "--fill", "7ECD02-7ECD02=00-01",
+        "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E81", "--stop-at-call", "CD3E5B"]
+why = "a few frames, A's high byte clear, up to the first wait that waits"
+
+[[routine]]
+name = "battle_wait_for_the_small_handler"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--stop-at-call", "CD044E"]
+why = "on the battle's page, up to the wait (what it asks with is a flag, never answered at once)"
+
+[[routine]]
+name = "battle_sit_out_the_pause"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-02", "--stop-at-call", "CD3E5B"]
+why = "paused or not, up to the first frame sat out"
+
+[[routine]]
+name = "battle_sit_out_the_pause_long"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--fill", "7ECD02-7ECD02=00-02", "--stop-at-call", "CD3E5B"]
+why = "the same from another bank"
+
+[[routine]]
+name = "battle_play_the_script_sound"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD23-7ECD23=00-01"]
+why = "on the battle's page, a sound asked for or not"
+
+[[routine]]
+name = "battle_type_the_message"
 subsystem = "battle"
 state = "battle"
 args = ["--d", "0000", "--db", "7E"]
-why = "the pause's end, on the battle's page"
+why = "on the battle's page; the guard takes only a text the menus' code can go on with"
+
+[[routine]]
+name = "battle_type_the_message"
+variant = "typing"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--fill", "7ECD05-7ECD05=01-FF", "--fill", "7E0215-7E0215=00-10"]
+why = "a message being set, stopped where the menus' code stops"
+
+[[routine]]
+name = "battle_clear_the_message_tiles"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_clear_the_message_tiles_long"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E"]
+why = "on the battle's page"
+
+[[routine]]
+name = "battle_send_vram_and_wait"
+subsystem = "battle"
+state = "battle"
+args = ["--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--fill", "7ECA26-7ECA26=00-01",
+        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E81"]
+why = "a buffer of work RAM, a transfer queued before or not, up to the first wait that waits"
+
+[[routine]]
+name = "battle_send_vram_and_wait_long"
+subsystem = "battle"
+state = "battle"
+args = ["--long", "--d", "0000", "--db", "7E", "--range", "A=007E-007E", "--fill", "7ECA26-7ECA26=00-01",
+        "--fill", "7ECD02-7ECD02=00-00", "--fill", "7ECA20-7ECA20=FE-FF", "--stop-at-call", "CD3E81"]
+why = "the same from another bank"
 
 # -- draw: the combatants' drawing and the effects' motion (battle/draw_objects.c, battle/object_motion.c,
 # battle/effect_paths.c, battle/effect_animation.c)

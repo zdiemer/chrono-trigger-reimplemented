@@ -38,7 +38,7 @@ typedef struct SegmentPart {
 
 /* ---- jobs: native routines running on their own stacks ------------------------ */
 
-typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_LATCHING, JOB_DONE } JobState;
+typedef enum { JOB_RUNNING, JOB_CALLING, JOB_SYNCING, JOB_LATCHING, JOB_WAITING, JOB_DONE } JobState;
 
 /* A native routine in progress. It runs on a fiber so that calling code that
  * isn't ported (m_jsr/m_jsl) can suspend it: the call is set up on the machine,
@@ -53,6 +53,9 @@ typedef struct Job {
     uint32_t call_ret;     /* where the callee returns to, and S after it has */
     uint16_t call_s_after;
     uint16_t call_dont_care;
+    bool call_waits;           /* JOB_CALLING: native_wait_call's, which stands for the port's own wait */
+    uint32_t wait_exit;        /* JOB_WAITING: native_wait_loop's exit (its head is call_target)... */
+    int32_t wake;              /* ...and what ends the wait (NATIVE_WAKE_HANDLER, or a line) */
     uint16_t stop_dont_care;   /* set by native_dont_care_at_stop */
     uint32_t stop_at;          /* ...with where it applies (0: not called) */
     bool stop_own;             /* ...and whether it is the stop's own (native_own_dont_care_at_stop) */
@@ -129,6 +132,7 @@ typedef enum {
     PH_CALLOUT,   /* both are inside a callee the native routine called */
     PH_SYNC,      /* ON: suspended in native_sync until its time has passed */
     PH_LATCH,     /* SHADOW: suspended in native_await_latch until the original latches the counters */
+    PH_WAIT,      /* ON: suspended in native_wait_loop or native_wait_call until what it waits for */
 } Phase;
 
 /* ON mode: time a hand port still owes, and where the machine is while it is
@@ -198,8 +202,11 @@ typedef struct Active {
      * differed, and the first one's difference (see reach_point). */
     unsigned failed_passes;
     char failed_why[256], last_why[200];
-    uint32_t sync_pc;      /* ON, PH_SYNC: where the machine is while the port is suspended */
+    uint32_t sync_pc;      /* ON, PH_SYNC and PH_WAIT: where the machine is while the port is suspended */
     uint16_t sync_s;
+    int32_t wake;          /* ON, PH_WAIT: what ends the wait... */
+    bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
+    bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
     /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
      * and that the stretch the original is catching up with began before the
      * wait, which the stretch's timing goes on from. */
@@ -1129,10 +1136,12 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         owe(rt, s, (uint32_t)estimate_parts(rt, a->entry, m->bus.clocks, m->bus.dma_clocks - a->dma_mark, j->parts,
                                             j->nparts));
         m->bus.clocks = 0;
-        if (j->state == JOB_SYNCING) {
-            a->phase = PH_SYNC;
+        if (j->state == JOB_SYNCING || j->state == JOB_WAITING) {
+            a->phase = j->state == JOB_SYNCING ? PH_SYNC : PH_WAIT;
             a->sync_pc = cpu_pc24(&s->cpu);
             a->sync_s = s->cpu.s;
+            a->wake = j->wake;
+            a->woke = false;
             return;
         }
     } else {
@@ -1149,13 +1158,14 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
             a->segment_low_s = s->cpu.s;
         }
         a->stretch_goes_on = j->state == JOB_LATCHING;
+        a->wait_compared = false;
         a->segment_nparts = j->nparts;
         memcpy(a->segment_parts, j->parts, sizeof *j->parts * (size_t)j->nparts);
         a->segment_bad_tags = j->bad_tags;
         a->segment_bad_tag = j->bad_tag;
         a->segment_part_overflows = j->part_overflows;
     }
-    if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && rt->observer.called_out)
+    if (rt->mode == NATIVE_ON && j->state == JOB_CALLING && !j->call_waits && rt->observer.called_out)
         rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
     if (rt->mode == NATIVE_ON && j->state == JOB_DONE && !j->returned && rt->observer.stopped)
         rt->observer.stopped(rt->observer.ctx, s, a->entry, a->entry_s);
@@ -1181,6 +1191,48 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
     a->phase = rt->mode == NATIVE_ON ? PH_CALLOUT : PH_SEGMENT;
     if (rt->mode == NATIVE_ON && !a->job)
         finish(rt);
+}
+
+/* ON: whether the wait a port is suspended in is over (native_wait_loop,
+ * native_wait_call): a handler has been taken where the port stands, or the
+ * picture has reached the line, past the vertical blank. */
+static bool wait_over(const Active *a, const Snes *s)
+{
+    if (a->wake == NATIVE_WAKE_HANDLER)
+        return a->woke;
+    return s->vline < SNES_VBLANK_LINE && s->vline >= (uint32_t)a->wake;
+}
+
+/* SHADOW: the original at the head of the loop a port waits in, or at its
+ * exit, with the port's S (native_wait_loop). The stretch the port ran
+ * before the wait is compared at the first such point no interrupt came
+ * before. Nothing the port waits on changes until a handler has run, so the
+ * port goes on at the first point after one, with the handler's work taken
+ * from the original and its own registers kept, or where the original leaves
+ * the loop. The pass the handler fell in is the one not compared. */
+static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
+{
+    const Job *j = a->job;
+    bool leaves = pc == j->wait_exit;
+    Cpu mine = a->clone->cpu;
+    if (!a->wait_compared) {
+        /* the port stands in the loop where the original is */
+        a->clone->cpu.pb = (uint8_t)(pc >> 16);
+        a->clone->cpu.pc = (uint16_t)pc;
+        bool same = reach_point(rt, a, s, j->call_dont_care, "at the wait");   /* interrupted: counted so */
+        a->clone->cpu = mine;
+        if (!same)
+            return false;
+        end_segment(rt, a, s);
+        a->wait_compared = true;
+    }
+    if (!a->segment_interrupted && !leaves)
+        return false;
+    clone_refresh(rt, a, s);
+    a->clone->cpu = mine;
+    job_run(a->job);
+    after_run(rt, a, s);
+    return true;
 }
 
 /* Check the innermost active routine against where the machine is now.
@@ -1242,6 +1294,8 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             finish(rt);
             return true;
         }
+        if (j->state == JOB_WAITING && s->cpu.s == a->clone->cpu.s && (pc == j->call_target || pc == j->wait_exit))
+            return wait_point(rt, a, s, pc);
         if (pc == j->call_target && s->cpu.s == a->clone->cpu.s) {
             char where[48];
             snprintf(where, sizeof where, "at call to %06X", j->call_target);
@@ -1250,7 +1304,7 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
             end_segment(rt, a, s);
             a->call_cpu = s->cpu;
             a->phase = PH_CALLOUT;
-            if (rt->observer.called_out)
+            if (rt->observer.called_out && !j->call_waits)
                 rt->observer.called_out(rt->observer.ctx, s, a->entry, j->call_target);
             return false;
         }
@@ -1289,6 +1343,23 @@ static bool check_top(NativeRuntime *rt, Snes *s, uint32_t pc, int32_t *result)
         a->clone->ppu.v_latch = s->ppu.v_latch;
         job_run(a->job);
         after_run(rt, a, s);
+        return true;
+    }
+
+    if (a->phase == PH_WAIT) {   /* ON only; intercept has paid the debt by now */
+        /* The machine stands where the port is while it waits: the handlers
+         * taken there return to it, and until the wait is over the time
+         * passes a step at a time, as the original's loop would pass it. */
+        if (pc != a->sync_pc || s->cpu.s != a->sync_s || interrupt_deliverable(s))
+            return false;
+        if (!wait_over(a, s)) {
+            *result = (int32_t)until_interrupt(s, SNES_CLOCKS_PER_LINE);
+            return true;
+        }
+        count_from(a, s);
+        job_run(a->job);
+        after_run(rt, a, s);
+        *result = 0;
         return true;
     }
 
@@ -1348,7 +1419,8 @@ static bool at_point(const Active *a, const Snes *s, uint32_t pc)
     if (a->phase != PH_SEGMENT)
         return false;
     if (a->job)
-        return pc == a->job->call_target && s->cpu.s == a->clone->cpu.s;
+        return (pc == a->job->call_target || (a->job->state == JOB_WAITING && pc == a->job->wait_exit)) &&
+               s->cpu.s == a->clone->cpu.s;
     return pc == a->ret_pc && s->cpu.s == a->ret_s;
 }
 
@@ -2148,6 +2220,14 @@ static int32_t intercept(void *ctx, Snes *s)
     rt->prev_step_master = rt->step_master;
     rt->step_master = s->master;
 
+    /* ON: a handler taken where a port waits for one (PH_WAIT), whether the
+     * time it owes is still being paid there or not. */
+    if (rt->mode == NATIVE_ON && rt->nactive) {
+        Active *top = &rt->active[rt->nactive - 1];
+        if (top->phase == PH_WAIT && pc == top->sync_pc && s->cpu.s == top->sync_s && interrupt_deliverable(s))
+            top->woke = true;
+    }
+
     /* Native code finishes instantly but the original took time: pay it
      * (pay_debt), unless an interrupt taken during the payment is running. */
     if (rt->ndebts) {
@@ -2174,8 +2254,9 @@ static int32_t intercept(void *ctx, Snes *s)
 
     if (interrupt_deliverable(s)) {
         for (int i = 0; i < rt->nactive; i++) {
-            if (rt->active[i].phase == PH_SEGMENT || rt->active[i].phase == PH_LATCH)
-                rt->active[i].segment_interrupted = true;
+            Active *a = &rt->active[i];
+            if (a->phase == PH_SEGMENT || a->phase == PH_LATCH)
+                a->segment_interrupted = true;
         }
         return -1;
     }
@@ -2214,6 +2295,7 @@ static int32_t intercept(void *ctx, Snes *s)
             st->in_latch_wait++;
             return -1;
         }
+
         if (rt->page_report)
             count_page(st, s->cpu.d);
         if (!entry_applies(e, s)) {
@@ -2408,7 +2490,7 @@ static void keep_untouched_scrambled(Cpu *out, const Cpu *mine, const Cpu *scram
 static Snes *poison_trial;
 static bool poisoning;
 
-void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
+static void call_out(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, bool waits)
 {
     uint16_t s_after = s->cpu.s;
     uint32_t ret;
@@ -2435,6 +2517,7 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
         j->call_ret = ret;
         j->call_s_after = s_after;
         j->call_dont_care = dont_care;
+        j->call_waits = waits;
         fiber_switch(fiber_main());
         return;
     }
@@ -2463,6 +2546,52 @@ void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uin
     call_in_place(s, site, target, ret, s_after);
     keep_untouched_scrambled(&s->cpu, &mine, &scrambled, &clean, dont_care);
     poisoning = false;
+}
+
+void native_call_dc(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care)
+{
+    call_out(s, site, target, long_call, dont_care, false);
+}
+
+void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake)
+{
+    Job *j = current_job;
+    if (j && j->m == s && active_runtime && active_runtime->mode == NATIVE_ON) {
+        j->state = JOB_WAITING;
+        j->call_target = target;
+        j->wait_exit = 0;
+        j->wake = wake;
+        fiber_switch(fiber_main());
+        return;
+    }
+    call_out(s, site, target, long_call, dont_care, true);
+}
+
+void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake)
+{
+    Job *j = current_job;
+    if (j && j->m == s && active_runtime) {
+        j->state = JOB_WAITING;
+        j->call_target = head;
+        j->wait_exit = exit;
+        j->wake = wake;
+        j->call_dont_care = NATIVE_WAIT_DONT_CARE;
+        j->call_waits = false;
+        fiber_switch(fiber_main());
+        return;
+    }
+    /* Outside the runtime: the original's loop, from its head until it leaves
+     * (no interrupts come, so a loop that waits for one runs out of steps),
+     * unless the tool ends the run at its head (ct_fuzz --stop-at-call). */
+    uint8_t pb = s->cpu.pb;
+    uint16_t at = s->cpu.pc;
+    s->cpu.pb = (uint8_t)(head >> 16);
+    s->cpu.pc = (uint16_t)head;
+    if (native_call_stop)
+        native_call_stop(head, head, NATIVE_WAIT_DONT_CARE);
+    call_in_place(s, head, head, exit, s->cpu.s);
+    s->cpu.pb = pb;
+    s->cpu.pc = at;
 }
 
 void native_call_poison_reset(void)
@@ -2614,6 +2743,7 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  abandoned %u", st->abandoned);
         if (st->in_latch_wait)
             fprintf(out, "  in a latch wait %u (not compared)", st->in_latch_wait);
+
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");

@@ -43,11 +43,13 @@ bool battle_call(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 bool battle_call_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
 
 /* The battle's waits on the display, as the timing service's (platform/
- * timing.h) from the JSR at `site` to the original's wait `routine`: for the
- * next frame (the battle's frame wait, $C1:007E), and for the picture to
+ * timing.h) from the JSR at `site` to the battle's wait `routine`: for the
+ * next frame (the battle's frame wait, $C1:007E, battle/wait.c, and the
+ * others there), for a number of frames ($CD:3E3B), and for the picture to
  * reach `line` (the wait at $CD:3B82). Each comes back as battle_call's
  * callee must. */
 bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care);
+bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames);
 bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line);
 
 /* Stop at the return of the JSR at `site`, where the original carries on with

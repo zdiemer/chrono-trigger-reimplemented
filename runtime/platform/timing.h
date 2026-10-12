@@ -63,6 +63,16 @@ PF_API void tm_sync(Platform *pf);
  * mode's own wait routine it stands for (PF_CALL_DC: the site, the routine,
  * and what the routine doesn't read), which the SNES backend makes. */
 PF_API void tm_wait_frame(Platform *pf, PfOrigin o);
+/* The same for `frames` frames, as one call of the mode's routine that waits
+ * a number of them (`o`, as tm_wait_frame's). */
+PF_API void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames);
+/* Inside a wait of the game's own -- a mode's wait routine, which asks the
+ * vblank handler for something and looks again until it has been done --
+ * give the processor up until one of the frame's handlers has run. `o` names
+ * the original's loop the call stands in (PF_LOOP), whose passes the port
+ * makes as C around the call. A host runs the handlers once a frame, so this
+ * is its wait for the next frame. */
+PF_API void tm_wait_for_handlers(Platform *pf, PfOrigin o);
 /* The same with the frame's handlers off, as a mode brings its screen back
  * after loading it: the main thread waits for the next frame, then turns
  * `sources` on (TM_INT_*) with the line handler at `line`. `o` names the call

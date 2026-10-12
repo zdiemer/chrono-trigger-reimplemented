@@ -532,6 +532,16 @@ def check_dontcare(args, ctx):
     return rc == 0, "dontcare", summary, [] if rc == 0 else lines[:-1][-40:]
 
 
+def check_uncompared(args, ctx):
+    """No hand port mostly goes uncompared in the shadow runs (interrupted, or
+    abandoned inside another port's stretch) without a reason recorded
+    (tools/uncompared.py, a ratchet against tools/uncompared_baseline.txt)."""
+    logs = [str(args.out / ("shadow-%s.log" % name)) for name in ctx["movies"]]
+    rc, lines = run_tool([sys.executable, str(ROOT / "tools/uncompared.py"), "--check"] + logs)
+    summary = lines[-1] if lines else "no output"
+    return rc == 0, "uncompared", summary, [] if rc == 0 else lines[:-1][-40:]
+
+
 def check_effects(args, ctx):
     """No port reads, as logic, what some port writes only as scaffolding
     (tools/effects_check.py, a ratchet against its baseline): in the source,
@@ -592,6 +602,7 @@ CHECKS = (
                                  "in them)"),
     ("sound-fuzz", check_sound_fuzz, "the short ct_sound_fuzz runs"),
     ("dontcare", check_dontcare, "the don't-care declarations against liveness"),
+    ("uncompared", check_uncompared, "the ratchet on hand ports the shadow runs mostly leave uncompared"),
     ("effects", check_effects, "the ratchet on logic that reads scaffolding"),
     ("portstyle", check_portstyle, "the ratchet on ports that transliterate the assembly"),
     ("portsmell", check_portsmell, "the ratchet on the review rubric's mechanical items"),

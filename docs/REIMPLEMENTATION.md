@@ -26,7 +26,7 @@ beside this file:
 |---|---|
 | [history/reimplementation-waves.md](history/reimplementation-waves.md) | the `$C7` pilot and Phase 3's waves 1 and 2, bank by bank |
 | [history/reimplementation-phase3a.md](history/reimplementation-phase3a.md) | Phase 3a: each subsystem taken off the machine |
-| [history/reimplementation-chunks.md](history/reimplementation-chunks.md) | Phase 3's per-chunk sections for the menus, the field, the battle and the scene program |
+| [history/reimplementation-chunks.md](history/reimplementation-chunks.md) | Phase 3's per-chunk sections for the menus, the field, the battle and the scene program, and Phase 4a's timing chunks |
 
 A new as-built section goes in **this** file, under the phase it belongs to;
 when the next chunk of the same stream lands, the one before it moves to its
@@ -2605,53 +2605,102 @@ mode, the movies and the routes run 21.5 KiB and 190 million instructions
 of the original's code in place of hand ports, from 22.1 KiB and 342
 million.
 
-### Phase 4a, timing: the frame's budgets and the menus' tasks (`$C0:59D9`-`$C0:5A92`, `$C0:CA76`-`$C0:CAD8`, `$C2:81B9`-`$C2:8247`)
+### Phase 4a, timing: the battle's waits and its transfer from the main thread (`$C1:007E`, `$CF:FCFB`, `$CD:3E3B`-`$CD:3E89`, `$CD:3ECE`-`$CD:3F9D`, `$CD:3E44`, `$CD:0036`, `$CD:044A`, `$CD:04DF`, `$CD:0235`-`$CD:025D`, `$CD:3B5F`)
 
-The first chunk of the timing service's stream (PLATFORM.md, "Timing without
-a beam, as built", has the service, the host backend and the runtime's part).
+The second chunk of the timing service's stream (PLATFORM.md, "Timing without
+a beam, as built", has the calls, the runtime's wait and the host backend).
 
-**How it was chosen.** By what real play ran as the original
-(`tools/fallbacks.py --by routine`): the field's three budgets were 67% of
-every instruction the reference play and the routes ran in place of ports
-(`$C0:59D9` 819 million, `$C0:5A46` 446 million, `$C0:CA76` 123 million), and
-the menus' task switch `$C2:821E` came next among the waits. The battle's
-`$CD:107D`, `$CD:1061`, `$CD:1052` and its loads through `$CD:0015`,
-`$CD:002A` and `$CD:0018` turned out to be its frame work's loads and fills,
-not waits on the display, and stay with the battle's frame work.
+**How it was chosen.** By `tools/fallbacks.py --by routine` over the reference
+play: after the time warp, the battle's waits were its largest handbacks --
+the wait for a line `$CD:3B82` 4.8 M instructions, the pause's turn `$CD:3E44`
+4.0 M and its long form `$CD:0036` 2.8 M, the frame wait `$C1:007E` 4.0 M, the
+return to the field's `$CF:FCFB` 1.9 M, the start's `$CD:044A` 0.8 M, the
+frame work's waits `$CD:3E7D`, `$CD:3E75` and `$CD:3E3B` 0.8 M -- with the
+work the waits do each frame, the message's letter `$CD:04DF` 1.3 M, the
+script's sound `$CD:3B5F` 1.1 M, and the transfer that waits on them
+`$CD:3ED2` 0.6 M; and the message tiles' clear `$CD:0239` 1.8 M, which the
+message's start makes. The battle's frame work was 19.9 M of the 60.3 M.
 
-**What it is.** `field/script_turns.c` (the objects' turns, counted down and
-queued, and run while the frame has time), the frame queue's loop in
-`field/frames.c` with its queue's operations in `field/animation.c`, and
-`menu/tasks.c` (the menus' scheduler). The turn countdown at `$1001` was
-"not established" in the map: it is the frames until the object's script's
-next turn, restarted from the object's move length, which is why a script's
-turn comes as its walk's steps run out (`field_object_turn_countdown`). The
-per-object work stays a call-out to its port, so the beam is read after the
-turn's time has passed; `native_await_latch` makes the read exact in shadow
-mode.
+**What it is.** A wait was a call-out to the original's routine, whose
+loop ran on the machine (in shadow mode, and as a pass in the shipping
+mode), so moving its callers onto `tm_wait_frame` alone would have retired
+nothing. The routines became ports (`battle/wait.c`), and what they wait on
+became the service's: a wait asks the vblank handler for something (the
+frame's update, the handler's frame, the small handler's) and calls
+`tm_wait_for_handlers` until it is answered, the pause given its turn on each
+pass as the original's loop gives it. That needed the runtime to let a port
+wait (`native_wait_loop`, PLATFORM.md). The wait for a line has no game work
+in it, so `tm_wait_line` waits in place itself (`native_wait_call`). The
+pause (`battle/sound.c`) sits a paused fight out a frame at a time through
+the same wait; the letter's typing and the tiles' clear are
+`battle/message.c`; the transfer is `battle/uploads.c`, behind the new
+`vid_send_vram_and_wait`, which the battlefield's change calls instead of the
+original's routine. The vars it named: `battle_alternate_frame_pending`
+(`$47`, the small handler's flag), `battle_vram_send_left`, `_last` and
+`_size`.
 
-**What shadow mode found.** The frame queue's first run mismatched on 20% of
-calls: the turn's carry, the builder's answer, was declared don't-care at the
-call, so shadow mode gave the port its own carry back wherever the builder's
-equalled the original's before the call. Then 2 of 11,498 calls disagreed on
-the beam across a line boundary, which the latch wait removed. The menus'
-scheduler first worked a task's stack top out with the carry its loop leaves;
-the original's three shifts before the add always clear it.
+**What shadow mode found.** Registers that flow out of the waits to their
+callers through the original's code: the typing leaves the message's speed in
+X and a bit of the settings in the carry, which the callers read (`$CD:04DF`'s
+entry derives them from the state); the transfer leaves A 1 and the carry its
+count's, likewise; the frame work's wait keeps A on the stack while it waits,
+so the transfer's A there had to be the original's (scaffolding, its
+`leave_what_the_wait_keeps`); and the message tiles' clear leaves the flags the
+battle's setup pushes. Comparing the port's X and Y at the wait points, where
+the menus' text code leaves its own, found nothing a reader reads: the wait
+points compare memory, S, the page and the bank, and the registers where
+something reads them. The pause's entry is reached on every pass of the
+original's loop and compared on its own each time, which makes the library's
+shadow runs about half as long again; the frame work's waits that a port runs
+as C are compared in that port's stretch and abandoned on their own, which
+`tools/uncompared.py`'s baseline records.
 
-**Fuzzing.** Seed 1 (`tools/fuzz_routines.toml`): the turns' countdown 0 of
-20,000; the turns 0 of 348 compared and the frame queue 0 of 424 (the guards
-take only a queue whose links run from its head to its tail, which random
-links rarely make); the menus' wait, wait for frames and end 0 of 20,000 each,
-the frame's turns 0 of 20,000, the first wait 0 of 20,000. The menus' guards
-take only waiting tasks whose stacks lie in low RAM (past it the original
-takes the registers it resumes with from open reads) and starting tasks whose
-start is one of the game's fifteen, at each of which liveness finds every
-register dead but A's high byte, so a start declares the rest rather than
-building them.
+**Fuzzing.** No interrupt comes under `ct_fuzz`, so a wait is compared up to
+its first pass (`--stop-at-call` at the loop's head, which `native_wait_loop`
+honours outside the runtime), or through it where the count it asks with
+wraps to 0; and a sibling the port runs as C (`battle_run`) is a real call
+of the original's wait there, which spins until the budget, so a state that
+reaches one is skipped. Seed 1, 20,000 states each, compared and mismatched:
+the frame wait 0 of 9,985 to its wait and 0 of 20,000 answered at once, the
+last frame's 0 of 20,000, the small handler's 0 of 20,000, the pause 0 of
+13,176 and its long form 0 of 6,578, the script's sound 0 of 14,870, the
+tiles' clear 0 of 20,000 (each form), the handler's wait 0 of 44, the next
+frame's 0 of 21, some frames' 0 of 5 and the letter 0 of 97 (the menus' text
+guard takes few random texts), the transfer 0 of 108; the callers changed,
+the frame wait's tail 0 of 14, the return to the field 0 of 16,509, the
+screen's setup 0 of 1,360 and the battlefield's five 0 of 71,296. The
+transfer's first run mismatched 4 of 108, a VRAM byte's low bit: the carry
+at its waits reached the original's typing of a message's letter, whose
+menus' text code reads it on texts the game never sets though liveness has
+it dead (`--poison-site` runs: 199 of 6,982 at the typing's call, 0 of
+17,684 at the menu's turn; docs/TODO.md). The shipping mode types the letter
+as C, which reads no carry, behind the menus' text guard that turns those
+texts away; the transfer leaves the original's carry anyway.
 
-**Timing.** `field_queue_due_turns` and, through it, `field_frame_work`
-exceed the vblank tail (3.6% of their vblank calls off by a line), their time
-following which objects are due; both are exceptions with that reason.
+**Measured.** Shadow mode over the 35 movies, 0 mismatching: the frame wait
+358,694 calls (2 interrupted), the letter 400,276 (806 interrupted: the
+vblank handler fell in the typing), the script's sound 357,611 (24), the
+transfer 10,657 (8) and its long form 403, the tiles' clear 2,487 (331) and
+37, the last frame's 200, the small handler's 78; the frame work's waits
+42,666, 37,244 and 17,735 calls, of which 37,244, 31,106 and 16,571 the
+original reaches inside an enclosing wait's stretch, compared there as that
+port's; the pause's entries 299.7 million calls, 299.2 million compared and 0.5 million interrupted. The
+reference play's fallbacks went from 60.3 M instructions to 36.2 M (the
+battle's frame work 19.9 M to 1.8 M, the battle's 4.7 M to 0.7 M, its
+sprites' 1.9 M to 12 K). The menu's turn `$C1:0012` counts 7% more and the
+message call `$CD:0021` 23% more: the measure left an idle loop's pass open
+after the loop, until the next pass through the same head with the same S
+took back what had run between, and the frame work's wait for the handler,
+an idle loop until this chunk, left its pass open across the menu's turn.
+`dev/fallbacks.c` closes a pass where its routine returns past the loop's
+level now: the library's total rose by 4.6 K instructions, the overworld's
+frame wait (`$C2:0346`, `$C2:0454`) taking less back.
+
+**Timing.** Calibrated (and the frame work's waits again once their nested
+calls were compared): the waits' `cost_milli` are their passes' (a pass
+is a few reads, which the original spends 40 to 100 clocks on), and the
+callers whose stretches now take the waits' work inline (the frame wait's
+tail, the battle's frame step) moved with them.
 
 ### The reading cost of a chunk
 

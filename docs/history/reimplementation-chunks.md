@@ -8719,3 +8719,51 @@ script's unpacking (`$C0:56D4`) are call-outs; the switch's sound
 (`$C0:1B90`) is the largest run left in `$C0` (`burndown.py --uncovered
 C0`); the line effects' builders in `$FD` stay their own ports, run through
 the machine.
+
+## Phase 4a, timing: the frame's budgets and the menus' tasks (`$C0:59D9`-`$C0:5A92`, `$C0:CA76`-`$C0:CAD8`, `$C2:81B9`-`$C2:8247`)
+
+The first chunk of the timing service's stream (PLATFORM.md, "Timing without
+a beam, as built", has the service, the host backend and the runtime's part).
+
+**How it was chosen.** By what real play ran as the original
+(`tools/fallbacks.py --by routine`): the field's three budgets were 67% of
+every instruction the reference play and the routes ran in place of ports
+(`$C0:59D9` 819 million, `$C0:5A46` 446 million, `$C0:CA76` 123 million), and
+the menus' task switch `$C2:821E` came next among the waits. The battle's
+`$CD:107D`, `$CD:1061`, `$CD:1052` and its loads through `$CD:0015`,
+`$CD:002A` and `$CD:0018` turned out to be its frame work's loads and fills,
+not waits on the display, and stay with the battle's frame work.
+
+**What it is.** `field/script_turns.c` (the objects' turns, counted down and
+queued, and run while the frame has time), the frame queue's loop in
+`field/frames.c` with its queue's operations in `field/animation.c`, and
+`menu/tasks.c` (the menus' scheduler). The turn countdown at `$1001` was
+"not established" in the map: it is the frames until the object's script's
+next turn, restarted from the object's move length, which is why a script's
+turn comes as its walk's steps run out (`field_object_turn_countdown`). The
+per-object work stays a call-out to its port, so the beam is read after the
+turn's time has passed; `native_await_latch` makes the read exact in shadow
+mode.
+
+**What shadow mode found.** The frame queue's first run mismatched on 20% of
+calls: the turn's carry, the builder's answer, was declared don't-care at the
+call, so shadow mode gave the port its own carry back wherever the builder's
+equalled the original's before the call. Then 2 of 11,498 calls disagreed on
+the beam across a line boundary, which the latch wait removed. The menus'
+scheduler first worked a task's stack top out with the carry its loop leaves;
+the original's three shifts before the add always clear it.
+
+**Fuzzing.** Seed 1 (`tools/fuzz_routines.toml`): the turns' countdown 0 of
+20,000; the turns 0 of 348 compared and the frame queue 0 of 424 (the guards
+take only a queue whose links run from its head to its tail, which random
+links rarely make); the menus' wait, wait for frames and end 0 of 20,000 each,
+the frame's turns 0 of 20,000, the first wait 0 of 20,000. The menus' guards
+take only waiting tasks whose stacks lie in low RAM (past it the original
+takes the registers it resumes with from open reads) and starting tasks whose
+start is one of the game's fifteen, at each of which liveness finds every
+register dead but A's high byte, so a start declares the rest rather than
+building them.
+
+**Timing.** `field_queue_due_turns` and, through it, `field_frame_work`
+exceed the vblank tail (3.6% of their vblank calls off by a line), their time
+following which objects are due; both are exceptions with that reason.

@@ -26,8 +26,10 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "battle/message.h"
 #include "battle/screen.h"
 #include "battle/screen_data.h"
+#include "battle/sound.h"
 #include "original_effects.h"
 #include "platform/input.h"
 #include "platform/video.h"
@@ -604,17 +606,17 @@ static bool work_the_frame(Snes *s)
 /* ---- The frame wait's tail ---------------------------------------------------------------- */
 
 // $CD:04AA
-/* After the main loop's wait for the frame: unless paused, a sound an
- * animation script asked for; the sound's pause; then, unless a routine is
+/* After the main loop's wait for the frame: unless paused, a sound a screen
+ * script asked for; the pause's turn; then, unless a routine is
  * waiting on a queued transfer, the battlefield put back once the effects
  * stop, and an effect's graphics loaded where a script asked for them and
- * none are loading; and the menu's work for the frame. */
+ * none are loading; and the next letter of a battle message. */
 static bool finish_the_wait(Snes *s)
 {
     GameState *g = state_of(s);
-    if (!battle_paused(g) && !battle_call(s, 0xCD04AF, 0xCD3B5F, READS_A_HIGH))
+    if (!battle_paused(g) && !battle_run(s, 0xCD04AF, 0xCD3B5F, battle_play_the_script_sound))
         return false;
-    if (!battle_call(s, 0xCD04B2, 0xCD3E44, READS_A_HIGH))
+    if (battle_paused(g) && !battle_run(s, 0xCD04B2, 0xCD3E44, battle_sit_out_the_pause))
         return false;
     if (!battle_vram_request_busy(g)) {
         if (battle_background_restore_request(g) && !battle_effects_running(g)
@@ -627,7 +629,7 @@ static bool finish_the_wait(Snes *s)
             set_battle_effect_graphics_wanted(g, 0);
         }
     }
-    return battle_call(s, 0xCD04DB, 0xCD04DF, READS_NOTHING);
+    return battle_run(s, 0xCD04DB, 0xCD04DF, battle_type_the_message_entry);
 }
 
 /* ---- The entries ------------------------------------------------------------------------ */

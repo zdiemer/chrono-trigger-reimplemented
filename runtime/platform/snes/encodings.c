@@ -229,6 +229,23 @@ const PfSnesEncoding *pf_snes_encoding(uint32_t site, const char *call)
     return e;
 }
 
+/* ---- The main thread's transfers ---- */
+
+/* The battle's ($CD:3ED2, and $CD:3ECE, its long form), with the size at
+ * $53. */
+static const PfSnesVramSender vram_senders[] = {
+    { 0xCD3ED2, 0x53 },
+    { 0xCD3ECE, 0x53 },
+};
+
+const PfSnesVramSender *pf_snes_vram_sender(uint32_t routine)
+{
+    for (size_t i = 0; i < sizeof vram_senders / sizeof vram_senders[0]; i++)
+        if (vram_senders[i].routine == routine)
+            return &vram_senders[i];
+    return NULL;
+}
+
 /* ---- Whole screens ---- */
 
 enum {

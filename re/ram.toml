@@ -13071,8 +13071,8 @@ name = "battle_frame_pending"
 addr = "7E:009E"
 page = "battle"
 subsystem = "battle"
-meaning = "Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears"
-source = "game/battle/wait.c battle_wait_for_frame_loop $C1:0080; game/battle/frame.c battle_frame_update $CF:E58A"
+meaning = "Counted up by the battle's frame wait to ask for the frame's update, which clears it when it has run (unless the battle is paused); the wait looks again after each handler until it is clear"
+source = "game/battle/wait.c battle_wait_for_frame $C1:007E, battle_wait_for_a_last_frame $CF:FCFB; game/battle/frame.c battle_frame_update $CF:E58A"
 
 [[var]]
 name = "battle_frame_pending_next"
@@ -17813,8 +17813,8 @@ source = "game/battle/frame.c battle_step_window_slide $CD:05B2; game/battle/wai
 name = "battle_nmi_pending"
 addr = "7E:CA20"
 subsystem = "battle"
-meaning = "Cleared by the NMI handler at the end of each frame, which releases the battle's wait-for-frame loops"
-source = "game/battle/nmi.c battle_nmi $D1:E77C; game/battle/wait.c battle_wait_for_nmi_loop $CD:3E81"
+meaning = "Counted up by the battle's waits for the vblank handler to finish a frame, and cleared by the handler when it has"
+source = "game/battle/nmi.c battle_nmi $D1:E77C; game/battle/wait.c battle_wait_for_the_handler $CD:3E7D; game/battle/sound.c battle_sit_out_the_pause $CD:3E44"
 
 [[var]]
 name = "battle_alternate_request"
@@ -17855,8 +17855,8 @@ source = "game/battle/frame.c battle_frame_work $CD:088D"
 name = "battle_vram_request_busy"
 addr = "7E:CE11"
 subsystem = "battle"
-meaning = "Counted up while a routine queues a VRAM transfer and waits for the one before it to go ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile"
-source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA"
+meaning = "Counted up while the main thread sends a buffer to VRAM ($CD:3ED2), and cleared once it has; the frame wait's tail leaves the background and effects' loads alone meanwhile"
+source = "game/battle/frame.c battle_frame_wait_tail $CD:04AA; game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2"
 
 [[var]]
 name = "battle_background_restore_request"
@@ -17903,6 +17903,31 @@ source = "game/battle/uploads.c battle_flush_vram_transfer $CD:3EB4"
   offset = 6
   size = 2
   meaning = "Size in bytes"
+
+[[var]]
+name = "battle_vram_send_left"
+addr = "7E:CA2E"
+size = 2
+subsystem = "battle"
+meaning = "Bytes of a buffer the main thread sends to VRAM ($CD:3ED2) that are still to be queued, a piece a frame"
+source = "game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2"
+
+[[var]]
+name = "battle_vram_send_last"
+addr = "7E:CA30"
+subsystem = "battle"
+meaning = "Set once the piece queued is the last of a buffer the main thread sends to VRAM ($CD:3ED2)"
+source = "game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2"
+
+[[var]]
+name = "battle_vram_send_size"
+addr = "7E:0053"
+size = 2
+page = "battle"
+reuses = ["battle_scratch", "battle_screen_effect_settings", "battle_message_window_kind"]
+subsystem = "battle"
+meaning = "The size in bytes of a buffer a caller has the main thread's transfer send to VRAM ($CD:3ED2), as it hands it over"
+source = "game/battle/uploads.c battle_send_vram_and_wait $CD:3ED2; runtime/platform/snes/video.h vid_send_vram_and_wait"
 
 [[var]]
 name = "battle_block_upload_row"
@@ -18222,6 +18247,15 @@ index = "byte"
 subsystem = "battle"
 meaning = "Direct-page scratch the battle's routines share ($45-$75): counts, thresholds, operands and table offsets, each routine's own; the battlefield tile decoder keeps its pointers, masks and counts at $53-$6A, the count of tiles its callers hand it at $67, and the battlefield's map builder its pointers and counts at $53-$75"
 source = "game/battle/screen_gradient.c battle_step_hp_gradient $D1:EA4B, battle_load_effect_graphics $D1:ECF3; game/battle/display.c; game/battle/tiles.c battle_decode_tile_row $CD:1368; game/battle/battlefield_change.c $CD:0EBD-$CD:12B8"
+
+[[var]]
+name = "battle_alternate_frame_pending"
+addr = "7E:0047"
+page = "battle"
+reuses = "battle_scratch"
+subsystem = "battle"
+meaning = "Set by the battle's start and end to wait for the small vblank handler they run (battle_nmi_alternate), which clears it once it has finished a frame"
+source = "game/battle/wait.c battle_wait_for_the_small_handler $CD:044A; game/battle/display.c battle_nmi_alternate $D1:F4C0"
 
 [[var]]
 name = "battle_background_flags"
@@ -19241,7 +19275,7 @@ name = "battle_script_sound_request"
 addr = "7E:CD23"
 subsystem = "battle"
 meaning = "Set by a screen script to have the frame wait play a sound ($CD:3B5F); cleared when it has"
-source = "game/battle/screen_settings.c, commands $DC and $E4; $CD:3B5F"
+source = "game/battle/screen_settings.c, commands $DC and $E4; game/battle/sound.c battle_play_the_script_sound $CD:3B5F"
 
 [[var]]
 name = "battle_script_sound"

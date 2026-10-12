@@ -35,6 +35,15 @@ static inline BattleQueuedTransfer battle_queued_transfer(const GameState *g, ui
                                    rom_read16(g, 0xCCF977u + at) };
 }
 
+/* ---- The battle message ------------------------------------------------------------------ */
+
+/* The frames a battle message stays up once set, at each of the player's
+ * eight message speeds ($CD:019D, a byte each, the fastest first). */
+static inline uint8_t battle_message_frames_at_speed(const GameState *g, uint8_t speed)
+{
+    return rom_read8(g, 0xCD019Du + (speed & 0x07u));
+}
+
 /* ---- Blocks of rows ---------------------------------------------------------------------- */
 
 /* Where each of the four blocks a routine can ask for goes in VRAM ($CD:05FF,

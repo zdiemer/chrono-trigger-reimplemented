@@ -7362,6 +7362,11 @@ enum { BATTLE_SCRATCH_COUNT = 49 };   /* by byte */
 uint8_t battle_scratch(const GameState *g, unsigned i);
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v);
 
+/* Set by the battle's start and end to wait for the small vblank handler they run
+ * (battle_nmi_alternate), which clears it once it has finished a frame */
+uint8_t battle_alternate_frame_pending(const GameState *g);
+void set_battle_alternate_frame_pending(GameState *g, uint8_t v);
+
 /* Which window a battle message call that names a combatant asks for ($0B with its HP, $0C
  * without), noted as the call starts ($CD:02CB, $CD:02D8); the draw reads it after */
 uint8_t battle_message_window_kind(const GameState *g);
@@ -7372,6 +7377,11 @@ enum { BATTLE_SCREEN_EFFECT_SETTINGS_COUNT = 15 };   /* by setting */
  * as its first byte says; the effect reads five) */
 uint8_t battle_screen_effect_settings(const GameState *g, unsigned i);
 void set_battle_screen_effect_settings(GameState *g, unsigned i, uint8_t v);
+
+/* The size in bytes of a buffer a caller has the main thread's transfer send to VRAM ($CD:3ED2),
+ * as it hands it over */
+uint16_t battle_vram_send_size(const GameState *g);
+void set_battle_vram_send_size(GameState *g, uint16_t v);
 
 enum { BATTLE_MULTIPLIER_OPERANDS_COUNT = 2 };   /* by operand (multiplicand, multiplier) */
 /* Copies of the last operands written to the hardware multiplier, which the interrupt handlers
@@ -7418,7 +7428,9 @@ void set_battle_jump_lift(GameState *g, uint8_t v);
 uint16_t battle_effect_enemy(const GameState *g);
 void set_battle_effect_enemy(GameState *g, uint16_t v);
 
-/* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
+/* Counted up by the battle's frame wait to ask for the frame's update, which clears it when it
+ * has run (unless the battle is paused); the wait looks again after each handler until it is
+ * clear */
 uint8_t battle_frame_pending(const GameState *g);
 void set_battle_frame_pending(GameState *g, uint8_t v);
 
@@ -11916,8 +11928,8 @@ void set_battle_window_slide(GameState *g, uint8_t v);
 uint8_t battle_window_slide_frames(const GameState *g);
 void set_battle_window_slide_frames(GameState *g, uint8_t v);
 
-/* Cleared by the NMI handler at the end of each frame, which releases the battle's
- * wait-for-frame loops */
+/* Counted up by the battle's waits for the vblank handler to finish a frame, and cleared by the
+ * handler when it has */
 uint8_t battle_nmi_pending(const GameState *g);
 void set_battle_nmi_pending(GameState *g, uint8_t v);
 
@@ -11961,6 +11973,15 @@ void set_battle_vram_request_vram(GameState *g, uint16_t v);
 /* Size in bytes */
 uint16_t battle_vram_request_size(const GameState *g);
 void set_battle_vram_request_size(GameState *g, uint16_t v);
+
+/* Bytes of a buffer the main thread sends to VRAM ($CD:3ED2) that are still to be queued, a
+ * piece a frame */
+uint16_t battle_vram_send_left(const GameState *g);
+void set_battle_vram_send_left(GameState *g, uint16_t v);
+
+/* Set once the piece queued is the last of a buffer the main thread sends to VRAM ($CD:3ED2) */
+uint8_t battle_vram_send_last(const GameState *g);
+void set_battle_vram_send_last(GameState *g, uint8_t v);
 
 enum { BATTLE_SCREEN_CHANNELS_COUNT = 2 };   /* by screen script channel */
 /* Nonzero while the channel runs its script; cleared by the script's end ($FF) */
@@ -12629,8 +12650,8 @@ void set_battle_frame_work_reduced(GameState *g, uint8_t v);
 uint8_t battle_gradient_reversed(const GameState *g);
 void set_battle_gradient_reversed(GameState *g, uint8_t v);
 
-/* Counted up while a routine queues a VRAM transfer and waits for the one before it to go
- * ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile */
+/* Counted up while the main thread sends a buffer to VRAM ($CD:3ED2), and cleared once it has;
+ * the frame wait's tail leaves the background and effects' loads alone meanwhile */
 uint8_t battle_vram_request_busy(const GameState *g);
 void set_battle_vram_request_busy(GameState *g, uint8_t v);
 

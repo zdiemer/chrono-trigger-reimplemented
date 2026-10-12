@@ -90,6 +90,22 @@ static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
 
 PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
 
+/* The battle's wait for a number of frames ($CD:3E3B) takes the count in A. */
+PF_API void tm_wait_frames(Platform *pf, PfOrigin o, uint8_t frames)
+{
+    m_set_a8(pf_snes(pf), frames);
+    pf_snes_call_wait(pf, o);
+}
+
+/* The wait inside a mode's own wait routine: the machine takes its
+ * interrupts where the port stands, and no original code runs; shadow mode
+ * lets the original's loop run and compares the port's passes against it
+ * (native_wait_loop). */
+PF_API void tm_wait_for_handlers(Platform *pf, PfOrigin o)
+{
+    native_wait_loop(pf_snes(pf), o.site, o.target, NATIVE_WAKE_HANDLER);
+}
+
 /* The original's routines wait on the vblank's flag and then turn the
  * handlers on themselves: the vblank handler and the controllers' reading,
  * with the field's line handler at line 211 ($C0:0B38), or, the time warp's,
@@ -104,11 +120,16 @@ PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources,
     pf_snes_call_wait(pf, o);
 }
 
-/* The battle's wait for a line ($CD:3B82) takes the line in A. */
+/* The battle's wait for a line ($CD:3B82) takes the line in A, and only
+ * waits: the machine waits where the port stands, the line left in A as the
+ * original's compare leaves the line it reached; shadow mode and the tools
+ * call the original's routine, whose run counts as the port's
+ * (native_wait_call). */
 PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line)
 {
-    pf_snes(pf)->cpu.a = line;
-    pf_snes_call_wait(pf, o);
+    Snes *s = pf_snes(pf);
+    s->cpu.a = line;
+    native_wait_call(s, o.site, o.target, (o.site >> 16) != (o.target >> 16), o.dont_care, line);
 }
 
 /* The vertical counter, latched and read as the field's budgets read it: the
@@ -178,24 +199,12 @@ PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width)
  * time are the SNES backend's half of the waits above and of the line
  * handlers' end of the picture: a host has no beam to poll, and its handlers
  * run after the picture rather than at a line of it (docs/PLATFORM.md,
- * "Timing without a beam"). They read $4212 and the vertical counter here. */
+ * "Timing without a beam"). They read $4212 here. */
 enum { TM_SNES_IN_VBLANK = 0x80, TM_SNES_IN_HBLANK = 0x40, TM_SNES_JOYPAD_BUSY = 0x01 };
 
 static inline uint8_t tm_snes_video_status(Platform *pf, PfOrigin o)
 {
     return pf_snes_status_read(pf, o, "tm_snes_video_status", 0x4212);
-}
-
-/* The line the beam is on, its low byte, latched and read as the battle's
- * wait for a line reads it ($2137, $213F, $213D). */
-static inline uint8_t tm_snes_beam_line_low(Platform *pf, PfOrigin o)
-{
-    pf_snes_begin("tm_snes_beam_line_low", o);
-    pf_snes_get(pf_snes(pf), 0x2137);
-    pf_snes_get(pf_snes(pf), 0x213F);
-    uint8_t line = pf_snes_get(pf_snes(pf), 0x213D);
-    pf_snes_end();
-    return line;
 }
 
 #endif

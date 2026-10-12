@@ -330,6 +330,7 @@ add_library(ct_game STATIC
   game/battle/setup_reset.c
   game/battle/setup_screen.c
   game/battle/sound.c
+  game/battle/message.c
   game/battle/sprites.c
   game/battle/status.c
   game/battle/targets.c
@@ -436,7 +437,7 @@ target_include_directories(fiber_test PRIVATE runtime)
 # (CT_PLATFORM_EXTERN) rather than the SNES backend's. timing_test runs a made-up
 # game's frames on them.
 add_library(ct_platform_native STATIC runtime/platform/native/timing.c runtime/platform/native/input.c
-  runtime/port/fiber.c)
+  runtime/platform/native/video.c runtime/port/fiber.c)
 target_compile_definitions(ct_platform_native PUBLIC CT_PLATFORM_EXTERN)
 target_include_directories(ct_platform_native PUBLIC runtime)
 add_executable(timing_test tests/port/timing_test.c)

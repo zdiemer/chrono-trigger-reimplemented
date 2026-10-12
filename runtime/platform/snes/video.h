@@ -541,6 +541,24 @@ PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData s
         vid_obs_upload_vram(vid_observer, vram_addr, src, len, false, port);
 }
 
+/* The call of the mode's routine that queues the buffer for the vblank
+ * handler and waits for it to go, with the arguments where it takes them (A
+ * whole, its high byte clear, as the original's callers leave it). */
+PF_API void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len)
+{
+    Snes *s = pf_snes(pf);
+    const PfSnesVramSender *sender = pf_snes_vram_sender(o.target);
+    if (!sender || len == 0 || len > 0x10000) {
+        pf_snes_encoding_mismatch(o.site, "vid_send_vram_and_wait");
+        return;
+    }
+    m_write16(s, (uint16_t)(s->cpu.d + sender->size_cell), (uint16_t)len);
+    s->cpu.a = (uint8_t)(src.addr >> 16);
+    s->cpu.x = (uint16_t)src.addr;
+    s->cpu.y = vram_addr;
+    native_call_dc(s, o.site, o.target, (o.site >> 16) != (o.target >> 16), o.dont_care);
+}
+
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                                   const VidVramPort *port, uint8_t snes_mode)
 {

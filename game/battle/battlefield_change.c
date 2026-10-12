@@ -32,6 +32,7 @@
 #include "battle/screen.h"
 #include "charge.h"
 #include "original_effects.h"
+#include "platform/video.h"
 #include "vars.h"
 
 /* ---- Which battlefield --------------------------------------------------------------------- */
@@ -449,32 +450,30 @@ static void build_the_map(GameState *g, uint16_t tile_set)
 
 /* ---- Loading the battlefield ------------------------------------------------------------------ */
 
-/* The frame work's transfer ($CD:3ED2) sends a buffer of bank $7E to VRAM and
- * waits for it to go: it takes the bank in A, the buffer in X, VRAM in Y and
- * the size in the cells $53-$54. */
-enum { SEND_SIZE = 0x53, DECODE_BUFFER = 0x2D00, MAP_VRAM = 0x7C00, MAP_BYTES = 0x800 };
+/* A buffer of work RAM sent to VRAM from the main thread, which waits for it
+ * to go (the battle's transfer, $CD:3ED2, which reads none of the flags). */
+enum { DECODE_BUFFER = 0x2D00, MAP_VRAM = 0x7C00, MAP_BYTES = 0x800 };
 enum { SEND_READS = DC_FLAGS };
 
 static bool send(Snes *s, uint32_t site, uint16_t buffer, uint16_t vram, uint16_t bytes)
 {
-    screen_set_cell_word(state_of(s), SEND_SIZE, bytes);
-    s->cpu.a = WORK_RAM_BANK;
-    s->cpu.x = buffer;
-    s->cpu.y = vram;
-    return battle_call(s, site, 0xCD3ED2, SEND_READS);
+    uint16_t page = m_direct_page(s);
+    uint8_t bank = s->cpu.db;
+    vid_send_vram_and_wait(m_platform(s), PF_CALL_DC(site, 0xCD3ED2, SEND_READS), vram,
+                           PF_GAME((uint32_t)WORK_RAM_BANK << 16 | buffer), bytes);
+    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 
 /* The frame work's waits for the next frame ($CD:3E75) and for a number of
- * them ($CD:3E3B, the count in A). Each carries A's high byte on to the
- * battle's pause, which reads it. */
+ * them ($CD:3E3B). Each carries A's high byte on to the battle's pause, which
+ * reads it. */
 enum { WAIT_READS = DC_AL | DC_X | DC_Y | DC_FLAGS, WAIT_FRAMES_READS = DC_X | DC_Y | DC_FLAGS };
 
-static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_call(s, site, 0xCD3E75, WAIT_READS); }
+static bool wait_for_the_next_frame(Snes *s, uint32_t site) { return battle_wait_frame(s, site, 0xCD3E75, WAIT_READS); }
 
 static bool wait_frames(Snes *s, uint32_t site, uint8_t frames)
 {
-    s->cpu.a = frames;
-    return battle_call(s, site, 0xCD3E3B, WAIT_FRAMES_READS);
+    return battle_wait_frames(s, site, 0xCD3E3B, WAIT_FRAMES_READS, frames);
 }
 
 // $CD:0EF8-$CD:0F3F

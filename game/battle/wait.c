@@ -1,18 +1,182 @@
-/* Battle: waiting for the display.
+/* Battle: waiting for the frame.
  *
- * The battle's code waits, a pass of a loop at a time, for things the vblank
- * and line handlers do (battle/nmi.c): for the next frame's update to have run,
- * for the vblank handler to have finished a frame, for the window's slide to
- * have finished, and at the start for the battle's graphics to have loaded. A
- * screen effect waits for a line of the picture, and the line handler for the
- * horizontal blank before it writes. Each is an idle entry: one pass, which
- * stays at the loop's head while it waits and goes on at its exit once the
- * wait is over; what the pass leaves in A and the flags (the value it tested)
- * is what the original's code after the loop finds. */
+ * The battle's main thread paces itself on its vblank handler (battle/nmi.c).
+ * It asks the handler for something, gives the processor up until a handler
+ * has run (the timing service's tm_wait_for_handlers), and looks again:
+ *
+ *   - the frame wait asks for the frame's update -- the game's per-frame work,
+ *     which the handler runs unless the battle is paused -- and gives the
+ *     pause its turn while it waits (battle_wait_for_frame); the return to the
+ *     field waits for its last frames the same way, with no pause to give a
+ *     turn to;
+ *   - the frame work's wait asks only that the handler finish a frame, giving
+ *     the pause its turn the same way, and then types the next letter of a
+ *     battle message (battle/message.c); its wait for the next frame adds the
+ *     menu's turn, and its wait for some frames makes a number of those;
+ *   - the battle's start and end wait for their own small handler
+ *     (battle_nmi_alternate) to finish a frame.
+ *
+ * Other waits stay passes of the original's loops, run on the machine, each
+ * an idle entry: for the window's slide to have finished, for the battle's
+ * graphics to have loaded at its start, and the line handler's wait for the
+ * horizontal blank before it writes. What a pass leaves in A and the flags
+ * (the value it tested) is what the original's code after the loop finds. */
 #include "battle/bridge.h"
 #include "battle/entries.h"
+#include "battle/message.h"
+#include "battle/sound.h"
+#include "battle/wait.h"
 #include "platform/timing.h"
 #include "vars.h"
+
+/* ---- The waits ------------------------------------------------------------------------------ */
+
+// $CD:3E58
+/* A frame of a paused fight sat out: the vblank handler has finished a frame
+ * once it clears what the battle counted up to ask for it (battle_nmi). */
+void battle_sit_out_a_paused_frame(GameState *g, Platform *pf)
+{
+    set_battle_nmi_pending(g, (uint8_t)(battle_nmi_pending(g) + 1));
+    while (battle_nmi_pending(g))
+        tm_wait_for_handlers(pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
+}
+
+/* The pause's turn, on every pass of a wait: only a paused battle has
+ * anything to do in it (battle/sound.c), and it does it from the call at
+ * `site` (a JSR, or the JSL of the long form at $CD:0036). */
+static bool give_the_pause_its_turn(Snes *s, uint32_t site, bool long_call)
+{
+    if (!battle_paused(state_of(s)))
+        return true;
+    return long_call ? battle_run_long(s, site, 0xCD0036, battle_sit_out_the_pause_long)
+                     : battle_run(s, site, 0xCD3E44, battle_sit_out_the_pause);
+}
+
+// $C1:007E
+/* The battle's wait for the next frame: the frame's update asked for, and
+ * waited for. A paused battle sits the pause out on a pass of it, and its
+ * update, held while paused, comes after. */
+static bool wait_for_the_frame(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_battle_frame_pending(g, (uint8_t)(battle_frame_pending(g) + 1));
+    for (;;) {
+        if (!give_the_pause_its_turn(s, 0xC10080, true))
+            return false;
+        if (!battle_frame_pending(g))
+            return true;
+        tm_wait_for_handlers(m_platform(s), PF_LOOP(0xC10080, 0xC10088));
+    }
+}
+
+// $CF:FCFB
+/* The same as the battle hands back to the field, when there is no pause. */
+static void wait_for_a_last_frame(GameState *g, Platform *pf)
+{
+    set_battle_frame_pending(g, (uint8_t)(battle_frame_pending(g) + 1));
+    while (battle_frame_pending(g))
+        tm_wait_for_handlers(pf, PF_LOOP(0xCFFCFD, 0xCFFD01));
+}
+
+// $CD:3E7D
+/* The frame work's wait: the vblank handler's frame waited for, the pause
+ * given its turn on each pass, then the next letter of a battle message
+ * typed. */
+static bool wait_for_the_handler(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_battle_nmi_pending(g, (uint8_t)(battle_nmi_pending(g) + 1));
+    for (;;) {
+        if (!give_the_pause_its_turn(s, 0xCD3E81, false))
+            return false;
+        if (!battle_nmi_pending(g))
+            break;
+        tm_wait_for_handlers(m_platform(s), PF_LOOP(0xCD3E81, 0xCD3E89));
+    }
+    return battle_run(s, 0xCD3E89, 0xCD04DF, battle_type_the_message_entry);
+}
+
+// $CD:044A
+/* The battle's start and end run a small vblank handler of their own
+ * (battle_nmi_alternate), which clears what this sets once it has finished a
+ * frame. */
+static void wait_for_the_small_handler(GameState *g, Platform *pf)
+{
+    set_battle_alternate_frame_pending(g, 1);
+    while (battle_alternate_frame_pending(g))
+        tm_wait_for_handlers(pf, PF_LOOP(0xCD044E, 0xCD0452));
+}
+
+/* ---- The entries ---------------------------------------------------------------------------- */
+
+/* The waits leave A's low byte as the test that ended them left it, 0, which
+ * their callers don't read; they are declared so (registry.c). */
+
+void battle_wait_for_frame(Snes *s)
+{
+    if (!wait_for_the_frame(s))
+        return;
+    m_rts(s);
+}
+
+void battle_wait_for_a_last_frame(Snes *s)
+{
+    wait_for_a_last_frame(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+/* The original keeps A on the stack while it waits, and hands it back as a
+ * pull does. */
+void battle_wait_for_the_handler(Snes *s)
+{
+    m_push8(s, (uint8_t)s->cpu.a);
+    if (!wait_for_the_handler(s))
+        return;
+    uint8_t kept = m_pull8(s);
+    m_set_a8(s, kept);
+    m_set_nz8(s, kept);
+    m_rts(s);
+}
+
+// $CD:3E75
+/* The frame work's wait for the next frame: the handler's frame, then the
+ * menu's turn ($C1:0012, the original's), which reads of the registers A's
+ * high byte and the carry. */
+enum { MENU_TURN_READS_A_HIGH_AND_CARRY = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z };
+
+void battle_wait_for_the_next_frame(Snes *s)
+{
+    if (!battle_run(s, 0xCD3E75, 0xCD3E7D, battle_wait_for_the_handler))
+        return;
+    if (!battle_call_long(s, 0xCD3E78, 0xC10012, MENU_TURN_READS_A_HIGH_AND_CARRY))
+        return;
+    m_rts(s);
+}
+
+// $CD:3E3B
+/* A number of those, A's low byte (0 is 256); the count goes down in A and
+ * on the stack, where the original keeps it. */
+void battle_wait_some_frames(Snes *s)
+{
+    uint8_t left = (uint8_t)s->cpu.a;
+    do {
+        m_set_a8(s, left);
+        m_push8(s, left);
+        if (!battle_run(s, 0xCD3E3C, 0xCD3E75, battle_wait_for_the_next_frame))
+            return;
+        left = (uint8_t)(m_pull8(s) - 1);
+    } while (left);
+    m_set_a8(s, left);
+    m_rts(s);
+}
+
+void battle_wait_for_the_small_handler(Snes *s)
+{
+    wait_for_the_small_handler(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+/* ---- The waits still made on the machine ---------------------------------------------------- */
 
 /* One pass of a wait on a byte the interrupts clear: on to `done` (in the
  * loop's bank) once it is 0, the byte tested left in A. */
@@ -23,16 +187,6 @@ static void wait_for_zero(Snes *s, uint8_t byte, uint16_t done)
     if (byte == 0)
         s->cpu.pc = done;
 }
-
-// $C1:0080 (the loop in $C1:007E)
-/* Wait for the next frame: the frame's update clears its pending flag. Each
- * pass also lets the sound's pause run ($CD:3E44, which does nothing unless
- * the battle is paused: the guard). */
-void battle_wait_for_frame_loop(Snes *s) { wait_for_zero(s, battle_frame_pending(state_of(s)), 0x0088); }
-
-// $CD:3E81 (the loop in $CD:3E7D)
-/* Wait for the vblank handler to have finished its frame. */
-void battle_wait_for_nmi_loop(Snes *s) { wait_for_zero(s, battle_nmi_pending(state_of(s)), 0x3E89); }
 
 // $C1:003C
 /* Wait for the window's slide to have finished (through $CD:0012, which
@@ -57,70 +211,13 @@ void battle_wait_graphics_loaded_loop(Snes *s)
         s->cpu.pc = 0xF062;
 }
 
-/* ---- Waiting for the beam ---------------------------------------------------------------- */
-
-/* A pass of a wait on the display's status: on to `done` once `ready`, the
- * status (as the loop masks it) in A. */
-static void wait_on_status(Snes *s, uint8_t status, bool ready, uint16_t done)
-{
-    m_set_a8(s, status);
-    m_set_nz8(s, status);
-    if (ready)
-        s->cpu.pc = done;
-}
-
-// $CD:3B84 (the first loop of the wait for a line at $CD:3B82)
-/* Wait for the vertical blank to end. */
-void battle_wait_vblank_end_loop(Snes *s)
-{
-    uint8_t status = tm_snes_video_status(m_platform(s), PF_AT(0xCD3B84));
-    wait_on_status(s, status, !(status & TM_SNES_IN_VBLANK), 0x3B8A);
-}
-
-// $CD:3B8A
-/* Then for a horizontal blank. */
-void battle_wait_hblank_loop(Snes *s)
-{
-    uint8_t hblank = tm_snes_video_status(m_platform(s), PF_AT(0xCD3B8A)) & TM_SNES_IN_HBLANK;
-    wait_on_status(s, hblank, hblank != 0, 0x3B92);
-}
-
 // $D1:FEB8 (in the line handler)
 /* The line handler waits for the horizontal blank before it writes. */
 void battle_irq_wait_hblank_loop(Snes *s)
 {
     uint8_t hblank = tm_snes_video_status(m_platform(s), PF_AT(0xD1FEB8)) & TM_SNES_IN_HBLANK;
-    wait_on_status(s, hblank, hblank != 0, 0xFEBF);
-}
-
-// $CD:3B92
-/* Then, past the horizontal blank, for the beam to reach the line the effect
- * waits for (the first of the battle's scratch cells), whereupon the routine
- * returns. */
-void battle_wait_line_loop(Snes *s)
-{
-    Platform *pf = m_platform(s);
-    uint8_t hblank = tm_snes_video_status(pf, PF_AT(0xCD3B92)) & TM_SNES_IN_HBLANK;
-    if (hblank) {
-        wait_on_status(s, hblank, false, 0);
-        return;
-    }
-    uint8_t line = tm_snes_beam_line_low(pf, PF_AT(0xCD3B99));
-    uint8_t target = battle_scratch(state_of(s), 0);
-    m_set_a8(s, line);
-    m_cmp8(s, line, target);
-    if (line < target)
-        return;
-    s->cpu.pc = 0x3BAA;
-    m_rts(s);
-}
-
-/* The frame waits' passes do nothing else while the battle isn't paused
- * (the sound's pause is the original's then). */
-bool battle_frame_wait_is_idle(Snes *s)
-{
-    vars_peek(true);
-    bool paused = battle_paused(state_of(s)) != 0;
-    vars_peek(false);
-    return battle_on_page(s) && !paused;
+    m_set_a8(s, hblank);
+    m_set_nz8(s, hblank);
+    if (hblank)
+        s->cpu.pc = 0xFEBF;
 }

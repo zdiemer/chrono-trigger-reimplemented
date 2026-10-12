@@ -69,6 +69,8 @@ void battle_shake_screen(GameState *g);
 void battle_send_palette(Platform *pf);
 /* The VRAM transfer a routine queued for the next frame, if one is. */
 void battle_send_queued_transfer(GameState *g, Platform *pf);
+void battle_send_vram_and_wait(Snes *s);
+void battle_send_vram_and_wait_long(Snes *s);
 /* A block of tiles a routine asked for, and half of a battle message's tiles
  * (or of the VRAM they go to, cleared). */
 void battle_send_block_and_message_tiles(GameState *g, Platform *pf);

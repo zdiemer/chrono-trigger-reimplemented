@@ -222,11 +222,11 @@ void battle_start_from_field(Snes *s)
     m_stop_at(s, MAIN_LOOP, READS_NOTHING);
 }
 
-/* A frame, waited for by the original's wait ($CF:FCFB), which the vblank's
- * work ends. */
+/* A frame, waited for with the battle's last frame wait ($CF:FCFB), which the
+ * vblank's work ends. */
 enum { WAIT_FOR_FRAME = 0xCFFCFB };
 
-static bool frame_passes(Snes *s, uint32_t site) { return battle_call(s, site, WAIT_FOR_FRAME, READS_NOTHING); }
+static bool frame_passes(Snes *s, uint32_t site) { return battle_wait_frame(s, site, WAIT_FOR_FRAME, READS_NOTHING); }
 
 static bool last_frames(Snes *s)
 {

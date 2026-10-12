@@ -25,6 +25,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame.h"
+#include "battle/message.h"
 #include "battle/screen_lines.h"
 #include "core/console.h"
 #include "original_effects.h"
@@ -284,7 +285,7 @@ static void keep_the_row_colors(GameState *g)
 }
 
 /* The original's calls out, by the site each is made from. */
-enum { SCROLL_MAP_LAYERS = 0xCD0C89, LOAD_START_SETTINGS = 0xCD0C9D, CLEAR_MESSAGE_TILES = 0xCD0235,
+enum { SCROLL_MAP_LAYERS = 0xCD0C89, LOAD_START_SETTINGS = 0xCD0C9D,
        START_BATTLE_MUSIC = 0xC00008, READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
 
 // $D1:F1B0
@@ -316,7 +317,7 @@ static bool set_the_screen_up(Snes *s)
     keep_the_row_colors(g);
     NATIVE_TIME_AS(s, 0xCEEE6E, battle_arrange_line_effects(g, BATTLEFIELD_ARRANGEMENT));
     NATIVE_TIME_AS(s, 0xD1F83D, build_fade_tables(g));
-    if (!battle_call_long(s, 0xD1F3FE, CLEAR_MESSAGE_TILES, READS_NOTHING))
+    if (!battle_run_long(s, 0xD1F3FE, 0xCD0235, battle_clear_the_message_tiles_long))
         return false;
     /* the music's start keeps the data bank, the page and the flags on the
        stack around its call, where the original keeps them */
