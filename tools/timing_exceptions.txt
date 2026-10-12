@@ -1,5 +1,5 @@
 # Accepted over-limit entries of the timing gate (tools/timing_gate.py;
-# docs/RECOMP.md, "The timing gate").
+# docs/REIMPLEMENTATION.md, "The timing gate").
 #
 # One per line: entry limit reason...
 #   entry   a hand port's name, as in game/registry.c
@@ -10,7 +10,7 @@
 # can't, and whose error was shown not to reach a budget that matters: the
 # vblank check (tools/vblank_check.py) finds none of their writes moved. A port
 # whose time follows which other routines it runs inline attributes their part
-# to them instead (NATIVE_TIME_AS; docs/RECOMP.md, "The timing gate",
+# to them instead (NATIVE_TIME_AS; docs/REIMPLEMENTATION.md, "The timing gate",
 # "Dispatchers"), which is what emptied this list of palette_animate and the
 # fades: what is left follows a path inside one routine, or a loop of the
 # port's own. The vblank limits judge only the stretches the original began
@@ -111,7 +111,7 @@ menu_step_message_speed vblank-tail as menu_step_setting_meter: at most 2277 clo
 menu_step_window_design vblank-tail as menu_step_setting_meter, the window's colours reloaded with the design: mean |error| 0.2%, at most 2253 clocks, writing RAM only
 menu_choose_shop_tab worst the shop's tabs: most frames only read the buttons; the frame a tab is taken opens its list, which pages it, works out the panel's figures and who can use the item (menu_turn_page, menu_work_out_figures, menu_ask_who_can_use: original code until this chunk, timed exactly as call-outs, now C charged at their own rates), so that one call carries their errors added up: at most 81369 clocks, on the picture (at most 1750 in vblank), no drift, writing RAM only
 
-# The ninth chunk of the menus (RECOMP.md, "Phase 3, menus: the main menu, the
+# The ninth chunk of the menus (history/reimplementation-chunks.md, "Phase 3, menus: the main menu, the
 # save screen's opening, name entry, the description, the list slide and the
 # shop's equipping") and the movie it added (menus-shop-equip). The screens'
 # steps now run the slide, the description and the window lists as C charged at

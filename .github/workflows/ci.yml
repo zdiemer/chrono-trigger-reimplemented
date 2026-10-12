@@ -173,8 +173,8 @@ jobs:
       - name: 65816 SingleStepTests (interpreter)
         run: build/ci/sst_runner tests/cpu/data/*.bin
       - name: 65816 SingleStepTests (generated code)
-        run: build/ci/sst_recomp_runner tests/cpu/data/*.bin
+        run: build/ci/sst_generated_runner tests/cpu/data/*.bin
       - name: SPC700 SingleStepTests
         run: build/ci/spc700_runner tests/apu/data/*.bin
       - name: Generated code against the interpreter on the SNES bus
-        run: build/ci/recomp_bus_diff
+        run: build/ci/generated_bus_diff

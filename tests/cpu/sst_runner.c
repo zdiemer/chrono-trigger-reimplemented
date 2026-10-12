@@ -1,9 +1,9 @@
 /* Runs converted SingleStepTests 65816 files (see fetch_sst.py) against the
- * interpreter, or, built as sst_recomp_runner (SST_RECOMP), against the C that
- * tools/recomp generates for each instruction.
+ * interpreter, or, built as sst_generated_runner (SST_GENERATED), against the C that
+ * tools/generate generates for each instruction.
  *
  *   sst_runner [-v] tests/cpu/data/<op>.<mode>.bin ...
- *   sst_recomp_runner [-v] tests/cpu/data/<op>.<mode>.bin ...
+ *   sst_generated_runner [-v] tests/cpu/data/<op>.<mode>.bin ...
  *
  * Prints one line per file and a summary; exits non-zero on any failure.
  */
@@ -14,15 +14,15 @@
 
 #include "../../runtime/cpu/cpu65816.h"
 
-#ifdef SST_RECOMP
-#include "sst_recomp.h"
+#ifdef SST_GENERATED
+#include "sst_generated.h"
 
 /* The generated function for the opcode at PC and the current widths. */
 static void step(Cpu *cpu)
 {
     uint8_t opcode = sst_mem[cpu_pc24(cpu)];
     int ctx = cpu->e ? 4 : ((cpu->p & CPU_FLAG_M) ? 0 : 2) + ((cpu->p & CPU_FLAG_X) ? 0 : 1);
-    sst_recomp_table[opcode][ctx](cpu);
+    sst_generated_table[opcode][ctx](cpu);
 }
 #else
 #define step cpu_step

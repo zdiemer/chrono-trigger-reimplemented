@@ -1,7 +1,7 @@
 # Matching source (tools/matching, docs/MATCHING.md): source generated from the
 # user's ROM into the build tree, reassembled and checked against the ROM's CRC32
-# and SHA-1. Uses CT_ROM, CT_RECOMP_COVERAGE and CT_RECOMP_CALLS from
-# cmake/recomp.cmake (include that first).
+# and SHA-1. Uses CT_ROM, CT_GENERATED_COVERAGE and CT_GENERATED_CALLS from
+# cmake/generated.cmake (include that first).
 #
 #   CT_MATCHING  build ct_matching with the default target (default ON); off, it
 #                runs only with --target ct_matching
@@ -13,8 +13,8 @@ find_program(CT_ASAR NAMES asar DOC "asar, to assemble the matching source a sec
 
 if(Python3_Interpreter_FOUND AND EXISTS "${CT_ROM}")
   set(MATCHING_DIR ${CMAKE_CURRENT_BINARY_DIR}/matching)
-  ct_recomp_expand(MATCHING_COVERAGE_FILES ${CT_RECOMP_COVERAGE})
-  ct_recomp_expand(MATCHING_CALLS_FILES ${CT_RECOMP_CALLS})
+  ct_generated_expand(MATCHING_COVERAGE_FILES ${CT_GENERATED_COVERAGE})
+  ct_generated_expand(MATCHING_CALLS_FILES ${CT_GENERATED_CALLS})
   set(MATCHING_ARGS --rom "${CT_ROM}" --out "${MATCHING_DIR}" --hints re/hints.toml
       --registry game/registry.c --stamp "${MATCHING_DIR}/matching.stamp")
   foreach(f IN LISTS MATCHING_COVERAGE_FILES)

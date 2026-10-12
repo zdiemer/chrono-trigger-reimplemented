@@ -5,7 +5,7 @@
  * DMA transfer (attributed to whoever started the transfer). Counted by origin
  * and register, and by when in the frame each access landed: a vblank line,
  * a picture line in forced blank, or a picture line with the display on (the
- * PPU's own view; docs/RECOMP.md, "Where video writes land", which also says
+ * PPU's own view; docs/REIMPLEMENTATION.md, "Where video writes land", which also says
  * how tools/vblank_check.py compares two runs' logs). See docs/PLATFORM.md. */
 #ifndef CT_DEV_IO_LOG_H
 #define CT_DEV_IO_LOG_H

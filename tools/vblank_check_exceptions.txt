@@ -1,4 +1,4 @@
-# Accepted findings of tools/vblank_check.py (docs/RECOMP.md, "Where video writes land").
+# Accepted findings of tools/vblank_check.py (docs/REIMPLEMENTATION.md, "Where video writes land").
 #
 # One per line: routine group category reason...
 #   routine   a hand port's name, or an address ($C0:1234 or C0:1234) for a port or generated block
@@ -14,7 +14,7 @@
 #
 
 # The boot and title program's main-loop writes, which the original also makes
-# with the display on (docs/RECOMP.md, "The timing gate"): they land wherever
+# with the display on (docs/REIMPLEMENTATION.md, "The timing gate"): they land wherever
 # the frame's work before them has got to, and in the shipping mode that work
 # is estimated, so they land a line or two later. One frame each.
 scene_title_move_logo screens lines the title's layers appear from line 32 instead of 31, on the one frame they are turned on; the write is mid-picture in the original too
@@ -36,7 +36,7 @@ battle_irq hdma-enable lines taken late behind the battle's masked frame work, a
 menu_mode_start display visible the menu's blank at line 172 of frame 1705 lands on a frame already at brightness 0: every pixel is black with or without it
 overworld_main_loop hdma-enable visible the world map's HDMA stops, as the menus open from it, at line 90 of the fade-out's last frame, at brightness 1 of 15, instead of in forced blank
 # The menus' vblank work, behind a frame whose work the shipping mode estimates
-# since the load screen's and the windows' ports (RECOMP.md, "Phase 3, menus"):
+# since the load screen's and the windows' ports (history/reimplementation-chunks.md, "Phase 3, menus"):
 # once in each of four save movies the frame's work ends past vblank, and the
 # work's display write, which ends the forced blank, lands on line 41-44
 # instead of in vblank. menus-shop-inn frame 2702 in screenshots: lines 41 and

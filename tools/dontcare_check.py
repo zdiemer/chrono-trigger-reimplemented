@@ -99,7 +99,7 @@ With `--list`, a declaration that could leave out more than it does says what
 (`could add`): liveness has it dead there too.
 
 Needs the ROM and the analysis's inputs (coverage and call logs, as for
-tools.recomp.show): more call logs only make liveness more conservative. Exit
+tools.generate.show): more call logs only make liveness more conservative. Exit
 status is 0 when every declaration is readable and agrees with liveness (and
 every call-out's, with the strict solve or a fuzz note).
 """

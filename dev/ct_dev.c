@@ -5,7 +5,7 @@
  *   ct_dev --rom roms/ct-usa.sfc --frames 1800 [--movie m.ctm] [--trace out.cttr]
  *          [--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N]
  *          [--native off|shadow|on] [--calls out.txt] [--load-state in.state] [--save-state out.state]
- *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--recomp off|on|only]
+ *          [--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--generated off|on|only]
  *          [--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback]
  *          [--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] [--vid-check-from N]
  *          [--px-check [out.txt]] [--spc-coverage out.txt] [--dsp-log out.txt] [--timing-report]
@@ -32,9 +32,9 @@
  * --sram starts with that cartridge save (8 KiB) in place of blank SRAM; a movie
  * recorded from a save names its CRC-32 and must be replayed with the same one.
  * --wav writes the DSP's output (32000 Hz stereo) over the frames run.
- * --recomp on (the default when the build generated blocks from this ROM)
- * registers the generated blocks after the ported routines (docs/RECOMP.md);
- * --recomp only registers the generated blocks without the ported routines, for
+ * --generated on (the default when the build generated blocks from this ROM)
+ * registers the generated blocks after the ported routines (docs/GENERATED.md);
+ * --generated only registers the generated blocks without the ported routines, for
  * checking that --native on produces the same traces as --native off.
  * --page-report prints, under each hand port in the native report, the direct
  * pages (D) its calls were made with and how many of each: the evidence for the
@@ -43,14 +43,14 @@
  * turned a D away (runtime/port/vars_pages.h).
  * --event-reads writes every read of what an event command leaves beyond its
  * protocol -- Y, the V flag, the field page's event cells $C1-$E4 -- by the command
- * and the reader (dev/event_reads.h; meaningful with --native off --recomp off).
+ * and the reader (dev/event_reads.h; meaningful with --native off --generated off).
  * --insn-stats reports how many instructions the interpreter and generated
  * blocks executed.
  * --io-log writes every hardware register access counted by what made it
  * (dev/io_log.h; meaningful with --native on).
  * --misses writes every instruction the interpreter ran, with counts, as ROM or
  * RAM code and the RAM section it lies in (dev/misses.h; the miss report with
- * --native on --recomp only).
+ * --native on --generated only).
  * --vid-check [out.txt] compares the VidFrame the video service calls build with
  * the one decoded from the PPU registers, frame by frame (dev/vid_check.h,
  * docs/PLATFORM.md P2); it needs --native on. --vid-check-from N seeds the
@@ -61,7 +61,7 @@
  * it with render.c's pixel for pixel (dev/px_check.h, docs/PLATFORM.md P3). It
  * works in any --native mode, and a run with a differing frame exits 1.
  * --no-interpreter strict|fallback (with --native on) runs the system loop the
- * way a player built without the interpreter does (docs/RECOMP.md, "Without the
+ * way a player built without the interpreter does (docs/GENERATED.md, "Without the
  * interpreter"): interrupt entry, WAI and STP without the interpreter, and an
  * instruction no native code runs stops the run (strict, exit status 1) or runs
  * on the interpreter and is reported (fallback).
@@ -136,7 +136,7 @@
  * registered at that address returns to the original's code, to the set its
  * entry declares (native_return_poison), and prints each entry's returns and
  * how many had the carry inverted.
- * --index-check BBAAAA (with --native off --recomp off, where the interpreter
+ * --index-check BBAAAA (with --native off --generated off, where the interpreter
  * runs everything) notes the X register each time the instruction there runs,
  * and prints the largest and how often it was past $FE: the check of a jump
  * table's `index_reach` hint (re/hints.toml). Both are the evidence for a
@@ -514,7 +514,7 @@ int main(int argc, char **argv)
     long vid_check_from = 0;
     long start_frame = -1;
     NativeMode native_mode = NATIVE_OFF;
-    bool recomp = true, recomp_only = false, insn_stats = false, audio_direct = false;
+    bool use_generated = true, generated_only = false, insn_stats = false, audio_direct = false;
     long frames = -1, status_every = 0, shot_every = 0;
     const char *excludes[64], *includes[64];
     int nexcludes = 0, nincludes = 0;
@@ -671,12 +671,12 @@ int main(int argc, char **argv)
                 return 2;
             }
         }
-        else if (!strcmp(a, "--recomp")) {
+        else if (!strcmp(a, "--generated")) {
             if (!strcmp(v, "off") || !strcmp(v, "on") || !strcmp(v, "only")) {
-                recomp = strcmp(v, "off") != 0;
-                recomp_only = strcmp(v, "only") == 0;
+                use_generated = strcmp(v, "off") != 0;
+                generated_only = strcmp(v, "only") == 0;
             } else {
-                fprintf(stderr, "--recomp must be off, on or only\n");
+                fprintf(stderr, "--generated must be off, on or only\n");
                 return 2;
             }
         }
@@ -700,7 +700,7 @@ int main(int argc, char **argv)
                         "[--shot-every N --shot-dir dir] [--coverage out.txt] [--status-every N] "
                         "[--native off|shadow|on] [--calls out.txt] [--load-state f] [--save-state f] "
                         "[--sram save.srm] [--wav out.wav] [--exclude name-prefix]... [--include name-prefix]... "
-                        "[--recomp off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
+                        "[--generated off|on|only] [--port-timing estimate|oracle] [--port-horizon strict|interrupts] "
                         "[--timing-report] [--page-report] [--event-reads out.txt] "
                         "[--insn-stats] [--io-log out.txt] [--misses out.txt] [--no-interpreter strict|fallback] "
                         "[--audio snes|direct] [--load-zst in.zst [--frame F]] [--vid-check [out.txt]] "
@@ -784,10 +784,10 @@ int main(int argc, char **argv)
                 zst_path, (unsigned)snes.frame);
     }
     /* The entries, as ct_play and ct_drive choose them (frontend/natives.h),
-     * with --exclude and --include. --recomp only leaves the ported routines
+     * with --exclude and --include. --generated only leaves the ported routines
      * out in every mode (NATIVES_ONLY_ALWAYS), where those two keep them in
      * shadow and off modes and without generated blocks. */
-    NativeChoice choice = { .mode = native_mode, .recomp = recomp, .recomp_only = recomp_only,
+    NativeChoice choice = { .mode = native_mode, .generated = use_generated, .generated_only = generated_only,
                             .only = NATIVES_ONLY_ALWAYS, .exclude = excludes, .nexclude = nexcludes,
                             .include = includes, .ninclude = nincludes };
     NativeTable table;
@@ -806,8 +806,8 @@ int main(int argc, char **argv)
         native_set_details(natives, shadow_details);
     if (audio_direct) {
         /* the sound driver's registry entries run the backend */
-        if (native_mode != NATIVE_ON || recomp_only) {
-            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --recomp only)\n");
+        if (native_mode != NATIVE_ON || generated_only) {
+            fprintf(stderr, "--audio direct needs --native on with the ported routines (not --generated only)\n");
             return 2;
         }
         au_select_backend(m_platform(&snes), AU_BACKEND_DIRECT);
@@ -846,8 +846,8 @@ int main(int argc, char **argv)
     }
     if (event_reads_path)
         event_reads = event_reads_create(&snes);
-    if (nindex_checks && (native_mode != NATIVE_OFF || recomp))
-        fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --recomp off\n");
+    if (nindex_checks && (native_mode != NATIVE_OFF || use_generated))
+        fprintf(stderr, "warning: --index-check sees only what the interpreter runs; use --native off --generated off\n");
     if (coverage_path || calls_path || insn_stats || io_log_path || misses_path || event_reads_path || nindex_checks ||
         fallbacks_path || scaffold_reads_original) {
         snes.cpu.on_insn = on_insn;
@@ -952,9 +952,9 @@ int main(int argc, char **argv)
             fprintf(stderr, "--sound-driver c runs from power-on, without the SPC700's hooks\n");
             return 2;
         }
-        if (native_mode != NATIVE_ON || recomp_only || audio_direct) {
+        if (native_mode != NATIVE_ON || generated_only || audio_direct) {
             fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: "
-                            "it needs --native on with the ported routines (not --recomp only or --audio direct)\n");
+                            "it needs --native on with the ported routines (not --generated only or --audio direct)\n");
             return 2;
         }
         sound_host = sound_host_attach_mixer(&snes, mixer);

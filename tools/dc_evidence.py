@@ -7,7 +7,7 @@ evidence (docs/PORTING.md, "Declarations liveness can't prove") cites two runs
 of the movie library, and the counts in its note are only as good as the last
 time someone made them. This makes them again:
 
-- every movie in the shipping mode (--native on --recomp on) twice, once with
+- every movie in the shipping mode (--native on --generated on) twice, once with
   `ct_dev --poison-site` at every site the notes name and `--poison-set V`,
   whose traces must be the same (the picture's hash included) outside the stack
   page, $7E:0600-06FF: a register the callee pushes and pulls again stays there
@@ -17,7 +17,7 @@ time someone made them. This makes them again:
   `--poison-set C`, whose trace must be the same as the first (an entry's
   carry after it returns, which liveness has read where the run shows no
   reader acts on it);
-- every movie on the interpreter alone (--native off --recomp off) with
+- every movie on the interpreter alone (--native off --generated off) with
   `ct_dev --index-check` at every dispatch an `index_reach` hint bounds
   (re/hints.toml), whose X must never be past $FE.
 
@@ -88,13 +88,13 @@ def run_movie(binary, rom, out, movie, sites, dispatches, entries):
     base = [str(rom), "--movie", str(path), "--frames", str(frames)]
     traces = {tag: out / f"{name}-{tag}.cttr" for tag in ("plain", "poisoned", "returns")}
     runs = {
-        "plain": ["--native", "on", "--recomp", "on", "--trace", str(traces["plain"])],
-        "poisoned": ["--native", "on", "--recomp", "on", "--trace", str(traces["poisoned"]), "--poison-set", "V"]
+        "plain": ["--native", "on", "--generated", "on", "--trace", str(traces["plain"])],
+        "poisoned": ["--native", "on", "--generated", "on", "--trace", str(traces["poisoned"]), "--poison-set", "V"]
                     + sum((["--poison-site", f"{s:06X}"] for s in sites), []),
-        "index": ["--native", "off", "--recomp", "off"] + sum((["--index-check", f"{d:06X}"] for d in dispatches), []),
+        "index": ["--native", "off", "--generated", "off"] + sum((["--index-check", f"{d:06X}"] for d in dispatches), []),
     }
     if entries:
-        runs["returns"] = (["--native", "on", "--recomp", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
+        runs["returns"] = (["--native", "on", "--generated", "on", "--trace", str(traces["returns"]), "--poison-set", "C"]
                            + sum((["--poison-return", f"{e:06X}"] for e in entries), []))
     procs = {tag: subprocess.Popen([str(binary), "--rom"] + base + extra, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT) for tag, extra in runs.items()}

@@ -15,7 +15,7 @@ absolute error, the largest, a histogram of the error by bit length, and the
 same for the stretches within one vblank. This reads those reports from the
 movie library's shadow logs, sums them per entry over the movies, and checks
 each entry against four limits, each tied to the budget an error could break
-(docs/RECOMP.md, "The timing gate"):
+(docs/REIMPLEMENTATION.md, "The timing gate"):
 
 - drift: the estimate's systematic error over the library, as a share of the
   entry's time (what one scalar fixes, and what --calibrate does fix);
@@ -41,7 +41,7 @@ address with no hand port fails the check.
 
 --calibrate rewrites each measured entry's `cost_milli` in game/registry.c
 to the value the totals imply (with --drifted, only the entries over the drift
-limit: what adding movies to the library needs, docs/RECOMP.md): the original's
+limit: what adding movies to the library needs, docs/REIMPLEMENTATION.md): the original's
 time over the port's bus clocks, DMA's time (the same in both) left out of
 both, and for an entry with parts, the parts' estimates (at their routines' calibrated values) left out too.
 """
@@ -62,7 +62,7 @@ VBLANK_LINE = 225
 VBLANK_CLOCKS = (LINES_PER_FRAME - VBLANK_LINE) * CLOCKS_PER_LINE   # 37 lines, 50468
 CLOCKS_PER_FRAME = CLOCKS_PER_LINE * LINES_PER_FRAME
 
-# The limits (docs/RECOMP.md, "The timing gate").
+# The limits (docs/REIMPLEMENTATION.md, "The timing gate").
 #
 # Drift: a systematic error accumulates over every call in a frame, so it is
 # bounded by what it does to a whole frame of work: if every clock of a frame

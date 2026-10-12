@@ -5,8 +5,8 @@ validated frame by frame against the original ROM.
 
 The goal is readable, hand-written C, not an emulator. Until every routine is
 ported, the original code runs on a development hardware model and a 65816
-interpreter, with each ported routine checked against it. A static recompiler
-([docs/RECOMP.md](docs/RECOMP.md)) is being built as scaffolding: it turns the
+interpreter, with each ported routine checked against it. A C generator
+([docs/GENERATED.md](docs/GENERATED.md)) is being built as scaffolding: it turns the
 remaining original code into mechanical C at build time from your ROM, as a
 starting point for hand ports. See [docs/APPROACH.md](docs/APPROACH.md) for the
 strategy and roadmap.
@@ -16,12 +16,12 @@ strategy and roadmap.
 Porting: the attract sequence, field, menu, event and battle systems are
 partly native, validated in shadow mode over 26 input movies
 ([docs/PORTING.md](docs/PORTING.md)). The development runtime plays the game
-with sound ([docs/PLAYING.md](docs/PLAYING.md)). The recompiler generates C for
+with sound ([docs/PLAYING.md](docs/PLAYING.md)). The C generator writes C for
 all statically found code at build time, with the original's timing exactly,
 and it runs every instruction of the movie library, leaving the interpreter
-nothing ([docs/RECOMP.md](docs/RECOMP.md)); turning the generated code into
+nothing ([docs/GENERATED.md](docs/GENERATED.md)); turning the generated code into
 readable hand-written C is the remaining bulk of the work
-([docs/PLAN.md](docs/PLAN.md)).
+([docs/REIMPLEMENTATION.md](docs/REIMPLEMENTATION.md), [docs/PLAN.md](docs/PLAN.md)).
 [docs/PLATFORM.md](docs/PLATFORM.md) designs the platform services
 (video, audio, timing, input, saves) that let the game run on backends other
 than the SNES hardware model: a native renderer, widescreen, and possibly GBA.

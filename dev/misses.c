@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "port/recomp_table.h"
+#include "port/generated_table.h"
 
 /* Operand bytes per opcode; M and X: 1 or 2 by the width flag. */
 static const char operand_bytes[257] =
@@ -102,8 +102,8 @@ static int find_section(const Snes *s, uint32_t w, bool m8, bool x8, int *range,
     int len = misses_instruction_length(code[0], m8, x8);
     *range = -1;
     *diff = 0;
-    for (int i = 0; i < recomp_ram_section_count; i++) {
-        const RecompRamSection *sec = &recomp_ram_sections[i];
+    for (int i = 0; i < generated_ram_section_count; i++) {
+        const GeneratedRamSection *sec = &generated_ram_sections[i];
         if (w < sec->base || w + (uint32_t)len > sec->base + sec->size)
             continue;
         const uint8_t *img = sec->image + (w - sec->base);
@@ -169,8 +169,8 @@ static bool parse_line(Misses *m, const char *line)
     ms->count += count;
     char name[128];
     if (sscanf(rest, " RAM %127s", name) == 1)
-        for (int i = 0; i < recomp_ram_section_count; i++)
-            if (!strcmp(recomp_ram_sections[i].name, name))
+        for (int i = 0; i < generated_ram_section_count; i++)
+            if (!strcmp(generated_ram_sections[i].name, name))
                 ms->section = (int16_t)i;
     const char *mod = strstr(rest, " modified ");
     unsigned long long modified;
@@ -247,9 +247,9 @@ void misses_describe(const Snes *s, char *out, size_t n)
         uint8_t diff;
         int section = find_section(s, w, m8, x8, &range, &diff);
         if (section >= 0)
-            snprintf(out, n, "RAM in section %s", recomp_ram_sections[section].name);
+            snprintf(out, n, "RAM in section %s", generated_ram_sections[section].name);
         else if (range >= 0)
-            snprintf(out, n, "RAM in section %s, but its %s differs from the image", recomp_ram_sections[range].name,
+            snprintf(out, n, "RAM in section %s, but its %s differs from the image", generated_ram_sections[range].name,
                      diff & 1 ? "opcode" : "operand");
         else
             snprintf(out, n, "RAM in no section");
@@ -319,10 +319,10 @@ char *misses_format(Misses *m, size_t *len, FILE *summary)
     enum { ROM, SECTION, MODIFIED, UNKNOWN, OTHER, KINDS };
     static const char *kind_names[KINDS] = { "ROM", "RAM in a section", "RAM modified", "RAM unknown", "other" };
     uint64_t insns[KINDS] = { 0 }, addrs[KINDS] = { 0 };
-    uint64_t *sec_insns = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_insns);
-    uint64_t *sec_addrs = calloc((size_t)recomp_ram_section_count + 1, sizeof *sec_addrs);
+    uint64_t *sec_insns = calloc((size_t)generated_ram_section_count + 1, sizeof *sec_insns);
+    uint64_t *sec_addrs = calloc((size_t)generated_ram_section_count + 1, sizeof *sec_addrs);
     put(&f, "# instructions without generated code: BB:AAAA m x # count, ROM or RAM and its section "
-               "(docs/RECOMP.md, miss report)\n");
+               "(docs/GENERATED.md, miss report)\n");
     for (size_t i = 0; i < n; i++) {
         const Miss *ms = &list[i];
         uint32_t key = ms->key - 1, pc = key >> 3;
@@ -335,7 +335,7 @@ char *misses_format(Misses *m, size_t *len, FILE *summary)
                 (unsigned long long)ms->count, kind == ROM ? "ROM" : kind == OTHER ? "other" : "RAM");
         if (kind == SECTION || kind == MODIFIED) {
             if (ms->section >= 0) {
-                put(&f, " %s", recomp_ram_sections[ms->section].name);
+                put(&f, " %s", generated_ram_sections[ms->section].name);
                 sec_insns[ms->section] += ms->count;
                 sec_addrs[ms->section]++;
             }
@@ -358,9 +358,9 @@ char *misses_format(Misses *m, size_t *len, FILE *summary)
         fprintf(summary, "%s %s %llu at %llu", k ? "," : "", kind_names[k], (unsigned long long)insns[k],
                 (unsigned long long)addrs[k]);
     fprintf(summary, "\n");
-    for (int i = 0; i < recomp_ram_section_count; i++)
+    for (int i = 0; i < generated_ram_section_count; i++)
         if (sec_addrs[i])
-            fprintf(summary, "  section %s: %llu at %llu\n", recomp_ram_sections[i].name,
+            fprintf(summary, "  section %s: %llu at %llu\n", generated_ram_sections[i].name,
                     (unsigned long long)sec_insns[i], (unsigned long long)sec_addrs[i]);
     free(sec_insns);
     free(sec_addrs);

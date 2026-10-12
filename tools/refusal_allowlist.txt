@@ -1,5 +1,5 @@
 # Refusals in real play that the gate lets stand (tools/fallbacks.py --refusals;
-# docs/RECOMP.md, "The fallback measure"). A native build has no original to hand a
+# docs/REIMPLEMENTATION.md, "The fallback measure"). A native build has no original to hand a
 # refused call to, so each line here is a gap with its reason, not a permission:
 # `BBAAAA name why # reason`, `why` being widths, emulation or guard. Where the
 # reason is "gap", the line comes out when the port takes the state, and the gap is

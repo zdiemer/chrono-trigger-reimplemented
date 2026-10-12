@@ -1,5 +1,5 @@
-/* The native code a host runs the game with (docs/RECOMP.md): which registered
- * entries --native, --recomp, --exclude and --include select, and a runtime
+/* The native code a host runs the game with (docs/GENERATED.md): which registered
+ * entries --native, --generated, --exclude and --include select, and a runtime
  * over them. Shared by ct_play (frontend/player.c), ct_drive (dev/ct_drive.c)
  * and ct_dev (dev/ct_dev.c), so the three mean the same by those options.
  */
@@ -13,7 +13,7 @@
 #include "port/native.h"
 #include "snes/system.h"
 
-/* Where --recomp only leaves the ported routines out. The option exists for
+/* Where --generated only leaves the ported routines out. The option exists for
  * the original's exact timing, which ported routines lose (they charge an
  * estimate) and generated blocks keep; the tools differ in what else they
  * want from it:
@@ -32,11 +32,11 @@ typedef enum { NATIVES_ONLY_TIMED, NATIVES_ONLY_ALWAYS } NativesOnly;
 
 typedef struct NativeChoice {
     NativeMode mode;
-    bool recomp;         /* the generated blocks, if they were generated from this ROM */
-    bool recomp_only;    /* without the ported routines, where `only` says */
+    bool generated;      /* the generated blocks, if they were generated from this ROM */
+    bool generated_only; /* without the ported routines, where `only` says */
     NativesOnly only;
     /* Entries (ported routines, generated blocks and generated continuation
-     * points, recomp_BBAAAA_...) whose names start with one of these are left
+     * points, generated_BBAAAA_...) whose names start with one of these are left
      * out, for narrowing down which one causes a difference. */
     const char *const *exclude;
     int nexclude;
@@ -50,7 +50,7 @@ typedef struct NativeTable {
     NativeEntry *entries;   /* ported routines, then generated blocks */
     int count;
     int ported, generated;
-    RecompIndexEntry *index;   /* where generated code can continue (native_set_index) */
+    GeneratedIndexEntry *index;   /* where generated code can continue (native_set_index) */
     int index_count;
 } NativeTable;
 

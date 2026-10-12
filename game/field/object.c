@@ -139,7 +139,7 @@ void object_take_off_the_map(GameState *g, FieldObject obj)
  * records' state (and past the last slot, the first object's falling flag,
  * where its memory has that table). The game doesn't depend on it: an
  * object's records state is set again as it comes into view, before its
- * sprite is drawn (object_view.c; docs/RECOMP.md says how that was
+ * sprite is drawn (object_view.c; docs/history/reimplementation-phase3a.md says how that was
  * checked). */
 static void leave_word_clear_spill(GameState *g, FieldObject obj)
 {

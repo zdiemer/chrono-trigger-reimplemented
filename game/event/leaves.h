@@ -2,7 +2,7 @@
  * (original_effects.h), written only through ORIGINAL_EFFECT and never read
  * by the commands' logic.
  *
- * Three things, each established by evidence (docs/RECOMP.md, "Phase 3a: the
+ * Three things, each established by evidence (docs/history/reimplementation-phase3a.md, "Phase 3a: the
  * event language, and its scaffolding"; ct_dev --event-reads over the movie library):
  *
  * - Y. The original's handlers leave Y where their parse of the operands

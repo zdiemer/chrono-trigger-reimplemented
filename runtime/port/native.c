@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "fiber.h"
-#include "port/recomp_snes.h"
+#include "port/generated_snes.h"
 
 static void push8_raw(Snes *s, uint8_t v)
 {
@@ -162,7 +162,7 @@ typedef struct Debt {
  * falls through its branch. Charging nothing put the code after the loop at
  * the change itself: the line IRQs' forced blank after their hblank wait
  * landed at hclock 1102, before the line is drawn (1104), and blacked out the
- * playfield's last line in every field and battle frame (docs/RECOMP.md,
+ * playfield's last line in every field and battle frame (docs/REIMPLEMENTATION.md,
  * "The timing gate"). This is the shortest such loop's pass, LDA
  * abs / AND # / BEQ (9 cycles, 6 master clocks each at FastROM and I/O
  * speed), so the exit lands no earlier than the original's could. */
@@ -291,7 +291,7 @@ struct NativeRuntime {
     unsigned long gen_stops, gen_resumes;
     /* ON mode: every instruction of every block (native_set_index), for
      * continuing in generated code where no entry or stop applies. */
-    const RecompIndexEntry *index;
+    const GeneratedIndexEntry *index;
     int index_count;
     uint8_t index_filter[0x2000];   /* bit per 16-bit address: some index entry might be here */
     unsigned long gen_indexed;
@@ -352,11 +352,11 @@ static unsigned long rc_timed_io;
 
 static const NativeRuntime *active_runtime;   /* for synchronous native_call */
 
-uint64_t recomp_executed;
-void (*recomp_insn_hook)(Snes *s, uint32_t pc24);
+uint64_t generated_executed;
+void (*generated_insn_hook)(Snes *s, uint32_t pc24);
 RcTiming rc_timing = { .limit = UINT32_MAX };
 
-uint64_t native_generated_instructions(void) { return recomp_executed; }
+uint64_t native_generated_instructions(void) { return generated_executed; }
 
 /* By address; hand-written entries before generated ones at the same address. */
 static int entry_cmp(const void *a, const void *b)
@@ -1067,7 +1067,7 @@ enum { DEBT_INTERRUPT = -1, DEBT_WAITS = -2 };
  * work already done, a timing difference), returns to the boundary, and the
  * rest is paid then. Holding interrupts until the whole debt was paid, as
  * this did before, started NMI handlers late by up to the length of the call
- * they interrupted, and pushed their video writes out of vblank (docs/RECOMP.md,
+ * they interrupted, and pushed their video writes out of vblank (docs/REIMPLEMENTATION.md,
  * "Where video writes land"). So a payment step also ends just after the next
  * point an interrupt can be raised (snes_interrupt_horizon), where the poll
  * can see it. A port suspended in native_sync is interrupted the same way: its
@@ -1838,7 +1838,7 @@ void rc_code_write(uint32_t addr)
             rc_timing.limit = 0;
 }
 
-/* Address and widths, as recomp_index's keys: pc | P's M and X << 24 | E << 30
+/* Address and widths, as generated_index's keys: pc | P's M and X << 24 | E << 30
  * (emulation mode counts as 8-bit). */
 static inline uint32_t resume_key(const Snes *s)
 {
@@ -1885,7 +1885,7 @@ static int32_t run_block(NativeRuntime *rt, Snes *s, NativeFn fn, const NativeEn
 
 static const NativeEntry indexed_block = { .name = "(generated block at an instruction)", .generated = true };
 
-void native_set_index(NativeRuntime *rt, const RecompIndexEntry *index, int count)
+void native_set_index(NativeRuntime *rt, const GeneratedIndexEntry *index, int count)
 {
     rt->index = index;
     rt->index_count = count;
@@ -1922,7 +1922,7 @@ static int32_t continue_generated(NativeRuntime *rt, Snes *s)
             hi = mid;
     }
     for (; lo < rt->index_count && rt->index[lo].key == key; lo++) {
-        const RecompIndexEntry *x = &rt->index[lo];
+        const GeneratedIndexEntry *x = &rt->index[lo];
         if (x->guard && !x->guard(s))
             continue;
         rt->gen_indexed++;
@@ -1969,7 +1969,7 @@ static uint64_t span_of(const NativeRuntime *rt, const Snes *s, uint64_t cpu_clo
 /* The oracle: exact time for a hand port (PORT_TIMING_ORACLE).
  *
  * A prototype, to test whether a port can be exact when given the original's
- * exact time (docs/RECOMP.md, "Can a hand port be exact?"): the port runs on
+ * exact time (docs/REIMPLEMENTATION.md, "Can a hand port be exact?"): the port runs on
  * the machine, then the generated code for the call runs on a copy of the
  * machine as it was, to where the port stopped, which gives the exact time,
  * the last cycle and whether it did anything that depends on the time. Only if
@@ -2672,7 +2672,7 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  matched %lu  mismatched %lu  interrupted %lu  unfinished %lu", gen_matched, gen_mismatched,
                     gen_interrupted, rt->gen_unfinished);
         else
-            fprintf(out, "  instructions %llu  stops %lu  resumed %lu  indexed %lu", (unsigned long long)recomp_executed,
+            fprintf(out, "  instructions %llu  stops %lu  resumed %lu  indexed %lu", (unsigned long long)generated_executed,
                     rt->gen_stops, rt->gen_resumes, rt->gen_indexed);
         fprintf(out, "\n");
     }

@@ -447,7 +447,7 @@ typedef struct {
  * for every slot, more for one in view, and more again for each it measures.
  * What the port charges is that difference, in accesses at the search's own
  * rate, so that one scalar fits a search of any length -- the moves that run
- * it inline included (docs/RECOMP.md, "The absent party member and the
+ * it inline included (docs/history/reimplementation-chunks.md, "The absent party member and the
  * object off the map"). */
 enum { OBJECT_IN_THE_WAY = 0xC05B95, ACCESSES_A_SLOT = 1, ACCESSES_IN_VIEW = 2, ACCESSES_A_MEASURE = 5 };
 

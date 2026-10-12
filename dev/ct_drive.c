@@ -2,21 +2,21 @@
  * movies from game state instead of from timing, and for testing the build
  * that ships with the route scripts that do (docs/MOVIES.md).
  *
- *   ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c]
+ *   ct_drive [--native off|shadow|on] [--generated off|on|only] [--sound-driver original|c]
  *            [--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]
  *
- * --native and --recomp mean what they mean to ct_play (frontend/natives.h
+ * --native and --generated mean what they mean to ct_play (frontend/natives.h
  * chooses the entries for both). The default, --native off, is the machine of
  * `ct_dev --native off`: the interpreter and the modeled hardware, with no
  * ported routines and no generated blocks, so a run here and a `ct_dev --native
  * off` replay of the same input reach the same state
- * (tools/movies/check_drive.py). --native on --recomp on is the mode the player
+ * (tools/movies/check_drive.py). --native on --generated on is the mode the player
  * ships in: hand ports where they exist, generated code elsewhere, and time
  * that drifts from the original's where the ports estimate it, which is why
  * only a route can test it (a movie's presses land on the wrong frames).
- * --recomp defaults to on. --sound-driver c plays the C sound driver in the
+ * --generated defaults to on. --sound-driver c plays the C sound driver in the
  * SPC700's place, as ct_play does by default (frontend/sound_host.h), with
- * --native on and the ported routines: with --native on --recomp on it is the
+ * --native on and the ported routines: with --native on --generated on it is the
  * build that ships, which the gate's route check runs. Its machine copies and
  * state files hold the driver's fields beside the machine's, as ct_play's
  * states do; at quit a run in which the host placed samples where the echo
@@ -576,7 +576,7 @@ static const char *const mode_names[] = { "off", "shadow", "on" };
 
 static int usage(void)
 {
-    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--recomp off|on|only] [--sound-driver original|c] "
+    fprintf(stderr, "usage: ct_drive [--native off|shadow|on] [--generated off|on|only] [--sound-driver original|c] "
                     "[--mixer dsp|native|check] [--fallbacks out.txt] [--drain-budgets] <rom> [sram.srm]\n");
     return 2;
 }
@@ -584,7 +584,7 @@ static int usage(void)
 int main(int argc, char **argv)
 {
     const char *rom_path = NULL, *sram_path = NULL, *fallbacks_path = NULL;
-    bool recomp = true, recomp_only = false, c_sound_driver = false;
+    bool use_generated = true, generated_only = false, c_sound_driver = false;
     SoundMixer mixer = SOUND_MIXER_NATIVE;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -604,7 +604,7 @@ int main(int argc, char **argv)
                 return 2;
             }
             c_sound_driver = !strcmp(v, "c");
-        } else if (!strcmp(a, "--native") || !strcmp(a, "--recomp")) {
+        } else if (!strcmp(a, "--native") || !strcmp(a, "--generated")) {
             const char *v = i + 1 < argc ? argv[++i] : "";
             if (a[2] == 'n') {
                 if (!strcmp(v, "off")) native_mode = NATIVE_OFF;
@@ -615,11 +615,11 @@ int main(int argc, char **argv)
                     return 2;
                 }
             } else {
-                if (!strcmp(v, "off")) recomp = false, recomp_only = false;
-                else if (!strcmp(v, "on")) recomp = true, recomp_only = false;
-                else if (!strcmp(v, "only")) recomp = true, recomp_only = true;
+                if (!strcmp(v, "off")) use_generated = false, generated_only = false;
+                else if (!strcmp(v, "on")) use_generated = true, generated_only = false;
+                else if (!strcmp(v, "only")) use_generated = true, generated_only = true;
                 else {
-                    fprintf(stderr, "--recomp must be off, on or only\n");
+                    fprintf(stderr, "--generated must be off, on or only\n");
                     return 2;
                 }
             }
@@ -640,9 +640,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "--drain-budgets needs --native on: shadow mode compares the budgets with the original's\n");
         return 2;
     }
-    if (c_sound_driver && (native_mode != NATIVE_ON || recomp_only)) {
+    if (c_sound_driver && (native_mode != NATIVE_ON || generated_only)) {
         fprintf(stderr, "--sound-driver c takes the boot and the commands from the CPU half's ported entries: it "
-                        "needs --native on with the ported routines (not --recomp only)\n");
+                        "needs --native on with the ported routines (not --generated only)\n");
         return 2;
     }
     if (fallbacks_path && native_mode == NATIVE_OFF) {
@@ -682,13 +682,13 @@ int main(int argc, char **argv)
         free(sram);
     }
     if (native_mode != NATIVE_OFF) {
-        NativeChoice choice = { .mode = native_mode, .recomp = recomp, .recomp_only = recomp_only,
+        NativeChoice choice = { .mode = native_mode, .generated = use_generated, .generated_only = generated_only,
                                 .only = NATIVES_ONLY_TIMED };
         if (natives_select(&table, rom + header, rom_len - header, &choice) != 0) {
             fprintf(stderr, "out of memory\n");
             return 1;
         }
-        if (recomp && !table.generated)
+        if (use_generated && !table.generated)
             fprintf(stderr, "ct_drive: no generated blocks for this ROM in this build; running the ported "
                             "routines only\n");
         restart_natives();

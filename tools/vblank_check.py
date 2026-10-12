@@ -2,15 +2,15 @@
 
     python3 tools/vblank_check.py --ct-dev build/main/ct_dev [--only core|saves] [--movies NAME...] [-j 2]
     python3 tools/vblank_check.py --no-run [--movies NAME...]      (compare the logs already in --out)
-    python3 tools/vblank_check.py --compare REF.txt SHIP.txt [--blocks build/main/recomp]
+    python3 tools/vblank_check.py --compare REF.txt SHIP.txt [--blocks build/main/generated]
 
-Runs each movie twice with `ct_dev --io-log`: under `--native on --recomp only`
+Runs each movie twice with `ct_dev --io-log`: under `--native on --generated only`
 (the reference: generated code, which times like the original) and under
-`--native on --recomp on` (the shipping mode: hand ports where they exist).
+`--native on --generated on` (the shipping mode: hand ports where they exist).
 The log counts every write to the video registers ($2100-$2133 and HDMAEN
 $420C, transfer bytes included) by who made it and when it landed: on a
 vblank line, on a picture line in forced blank, or on a picture line with the
-display on (dev/io_log.c; docs/RECOMP.md, "Where video writes land").
+display on (dev/io_log.c; docs/REIMPLEMENTATION.md, "Where video writes land").
 
 The two runs desync after a few dozen frames, so this is not a frame-by-frame
 diff. It compares, per routine and register group, *when* each run writes: a
@@ -216,11 +216,11 @@ class Routines:
         return out
 
 
-def block_starts(recomp_dir):
+def block_starts(generated_dir):
     """Entry addresses of the generated blocks, from the build's generated C."""
     starts = set()
-    pat = re.compile(r"^void recomp_([0-9A-F]{6})_", re.M)
-    for path in sorted(pathlib.Path(recomp_dir).glob("blocks_*.c")):
+    pat = re.compile(r"^void generated_([0-9A-F]{6})_", re.M)
+    for path in sorted(pathlib.Path(generated_dir).glob("blocks_*.c")):
         starts.update(int(m.group(1), 16) for m in pat.finditer(path.read_text(errors="replace")))
     return starts
 
@@ -395,7 +395,7 @@ def report(per_movie, routines, exceptions, out=sys.stdout, show_info=True):
 def run_one(binary, rom, out, name, path, frames, mode):
     # The shipping mode's run also notes the ports' reads of scaffolding, which
     # tools/effects_check.py --runs reads from its log.
-    extra = {"ref": ["--recomp", "only"], "ship": ["--recomp", "on", "--scaffold-reads"]}[mode]
+    extra = {"ref": ["--generated", "only"], "ship": ["--generated", "on", "--scaffold-reads"]}[mode]
     cmd = [str(binary), "--rom", str(rom), "--movie", str(path), "--frames", str(frames),
            "--native", "on", "--io-log", str(out / ("%s-%s.txt" % (name, mode)))] + extra
     started = time.time()
@@ -428,7 +428,7 @@ def main(argv=None):
     ap.add_argument("--no-run", action="store_true", help="compare the logs already in --out")
     ap.add_argument("--compare", nargs=2, metavar=("REF", "SHIP"), type=pathlib.Path,
                     help="compare two --io-log tables instead of running movies")
-    ap.add_argument("--blocks", type=pathlib.Path, help="the build's generated C (default: recomp/ beside --ct-dev)")
+    ap.add_argument("--blocks", type=pathlib.Path, help="the build's generated C (default: generated/ beside --ct-dev)")
     ap.add_argument("--exceptions", type=pathlib.Path, default=EXCEPTIONS)
     ap.add_argument("--failing-only", action="store_true", help="leave out the late and unmatched findings")
     args = ap.parse_args(argv)
@@ -461,14 +461,14 @@ def main(argv=None):
 
     blocks_dir = args.blocks
     if blocks_dir is None and args.ct_dev:
-        blocks_dir = args.ct_dev.resolve().parent / "recomp"
+        blocks_dir = args.ct_dev.resolve().parent / "generated"
     starts = block_starts(blocks_dir) if blocks_dir and blocks_dir.is_dir() else ()
     if not starts:
         # Without the build's generated blocks, generated code is keyed by its own
         # address instead of its block's, so findings split differently and the
         # exceptions (keyed by block) stop matching: the verdict would silently
         # change. A ct_dev copied away from its build directory loses them.
-        sys.exit("no generated blocks found at %s: pass --blocks <build>/recomp (the build's "
+        sys.exit("no generated blocks found at %s: pass --blocks <build>/generated (the build's "
                  "generated C), or run the ct_dev in its own build directory" % blocks_dir)
     routines = Routines([ship for _n, _r, ship in pairs], starts)
     per_movie = [(name, compare(read_log(ref), read_log(ship), routines)) for name, ref, ship in pairs]

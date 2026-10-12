@@ -1,5 +1,5 @@
 # Failures of the native-shape build (the ports with ORIGINAL_EFFECT compiled out) that the
-# gate lets stand (tools/suite.py, "native-shape"; docs/RECOMP.md, "The fallback measure"):
+# gate lets stand (tools/suite.py, "native-shape"; docs/REIMPLEMENTATION.md, "The fallback measure"):
 # `movie|route NAME # reason`, the reason the trace to
 # the scaffolding the original's code reads. Each comes out when its reader is ported or its
 # write made plain; docs/TODO.md, "The native shape's failures", has them.
