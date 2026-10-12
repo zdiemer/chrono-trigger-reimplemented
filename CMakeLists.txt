@@ -227,6 +227,9 @@ add_library(ct_game STATIC
   game/sound/songs.c
   game/sound/voices.c
   game/attract/main_loop.c
+  game/warp/circle.c
+  game/warp/picture.c
+  game/warp/warp.c
   game/scene/boot.c
   game/scene/bridge.c
   game/scene/circle.c

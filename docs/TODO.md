@@ -2181,9 +2181,9 @@ re-runs the census.
   - the blank that clears the staging at `$C0:75A0` (a block move from
     `$D2:0000`) and the map's other loaders around the drawing (`$C0:7199`,
     1104 bytes left in the run) are the original's.
-- **What the screen's setup and the objects' setup left** (REIMPLEMENTATION.md,
-  "Phase 3, field and events: the screen set up, the map unpacked, the
-  objects started"):
+- **What the screen's setup and the objects' setup left**
+  (history/reimplementation-chunks.md, "Phase 3, field and events: the screen
+  set up, the map unpacked, the objects started"):
   - a switch pressed again after a menu or a battle shows the one-by-two
     switch's upper tile as the lower one's pressed tile (the original sets it
     so, `field/switches.c`): a native build decides what it shows once the
@@ -2286,9 +2286,11 @@ re-runs the census.
   `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
   `battle_wait_for_nmi_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
-  `attract_wait_loop`); and the generated `$FD:EADA` (vblank with the
-  handler off, then on), `$CD:044A`, `$CD:3E55`, `$CF:FCFB` and
-  `$FD:EAEB`. Ports that called the modes' wait routines now call
+  `attract_wait_loop`, `warp_wait_for_frame_loop`); the time warp's wait for
+  the vblank before it turns its picture on (`warp_screen_on_wait_for_vblank_loop`,
+  `$FD:EADA`, reached through `tm_wait_frame_then_enable` as the field's
+  `$C0:0B38` is); and the generated `$CD:044A`, `$CD:3E55` and `$CF:FCFB`.
+  Ports that called the modes' wait routines now call
   `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`); each of these
   becomes one where its caller is a port. The modes' wait routines themselves
   (the battle's `$C1:007E`, the sprite-object mode's `$C2:0346`) are still the
@@ -2312,11 +2314,12 @@ re-runs the census.
   and from bank C6's `$C6:E27E` through `$C3:000E`, which no movie runs)
   still calls the original's stir `$C3:02DD`; it takes `scene_draw_random`
   (scene/random.c) when it is ported.
-- **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
-  `$C2:94B8` and `$FD:EB13` clear `$4207-$420A` in a run of CPU register
-  writes (where the menu ports stop). Nothing enables the timers after them, so
-  natively they are nothing; the boot (`$FD:C000`, `core/console.c`) makes the
-  same clear through `tm_reset_timers`, which these can take too.
+- **The timer resets.** `$C2:0043` past `$C2:00F2` and `$C2:940D` past
+  `$C2:94B8` clear `$4207-$420A` in a run of CPU register writes (where the
+  menu ports stop). Nothing enables the timers after them, so natively they
+  are nothing; the boot (`$FD:C000`, `core/console.c`) and the time warp's
+  screen (`$FD:EB81`, `warp/picture.c`) make the same clear through
+  `tm_reset_timers`, which these can take too.
 
 ## Targets beyond the desktop SNES build
 

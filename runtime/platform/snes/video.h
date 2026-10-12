@@ -298,6 +298,7 @@ static inline void pf_snes_program(Snes *s, const PfSnesChannel *c, const uint8_
         case VID_STEP_VRAM_PORT: pf_snes_put(s, PF_SNES_VMAIN, pf_snes_vram_port_byte(c->port)); break;
         case VID_STEP_SPILL_SIZE_LO: pf_snes_put(s, (uint16_t)(base + 5), c->spill); break;
         case VID_STEP_SPILL_CURSOR_LO: pf_snes_put(s, (uint16_t)(base + 8), c->spill); break;
+        case VID_STEP_INDIRECT_BANK_IS_SOURCE: pf_snes_put(s, (uint16_t)(base + 7), (uint8_t)(c->source >> 16)); break;
         }
     }
 }

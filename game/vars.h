@@ -13965,4 +13965,172 @@ void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v);
 uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page);
 void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v);
 
+/* ---- warp ---------------------------------------------------------------------------------- */
+
+/* A zero the warp keeps on its page and starts its indexes from: the original's routines index
+ * from it, and the ports' guards take only a page that holds it (game/warp/warp.c
+ * warp_on_its_page) */
+uint16_t warp_zero(const GameState *g);
+void set_warp_zero(GameState *g, uint16_t v);
+
+enum { WARP_WORK_COUNT = 16 };   /* by byte of the work area */
+/* The warp's working cells, which its routines take in turn: the circle's builder (its radius,
+ * the area left and the run down its edge, the lines of its lower half), the light's rays (a
+ * ray's steps, place and band, a pixel's colour and row), the plane's scale (a product and a
+ * quotient) and the palette's turn and pulse (the colours taken out, the last colour made).
+ * Nothing reads them after the routine that wrote them; the ports leave their last values as
+ * scaffolding */
+uint8_t warp_work(const GameState *g, unsigned i);
+void set_warp_work(GameState *g, unsigned i, uint8_t v);
+
+/* Frames since the warp's picture came on: the vblank handler counts them, and the main loop
+ * reads them for the plane's place, the circle's size, the colours' pulse and the warp's end */
+uint16_t warp_frame(const GameState *g);
+void set_warp_frame(GameState *g, uint16_t v);
+
+/* Nonzero once the vblank handler has taken the frame the main loop finished; the wait for the
+ * next frame clears it and waits for it */
+uint8_t warp_frame_ended(const GameState *g);
+void set_warp_frame_ended(GameState *g, uint8_t v);
+
+/* Where the circle's centre is across the screen: the middle, set each time the circle is built */
+uint8_t warp_circle_center_x(const GameState *g);
+void set_warp_circle_center_x(GameState *g, uint8_t v);
+
+/* Where the circle's centre is down its window table: the middle, set each time the circle is
+ * built */
+uint8_t warp_circle_center_y(const GameState *g);
+void set_warp_circle_center_y(GameState *g, uint8_t v);
+
+/* The circle's radius this frame, 0 for none: it grows as the tunnel opens and again as it
+ * closes */
+uint8_t warp_circle_radius(const GameState *g);
+void set_warp_circle_radius(GameState *g, uint8_t v);
+
+/* How many times the circle's window table has been built: it alternates between two tables, and
+ * the vblank handler shows the one built last (the second while this is odd) */
+uint8_t warp_circle_tables_built(const GameState *g);
+void set_warp_circle_tables_built(GameState *g, uint8_t v);
+
+enum { WARP_PIXEL_SET_MASKS_COUNT = 8 };   /* by pixel across a tile's row */
+/* A bit for each pixel of a tile's row, leftmost first, which the light's drawing sets in a
+ * bitplane; they stay after the warp, where the field's palette animations, which share the
+ * bytes (palette_animations), read some of them on the next location */
+uint8_t warp_pixel_set_masks(const GameState *g, unsigned row);
+void set_warp_pixel_set_masks(GameState *g, unsigned row, uint8_t v);
+
+enum { WARP_PIXEL_CLEAR_MASKS_COUNT = 8 };   /* by pixel across a tile's row */
+/* The same bits cleared, for the bitplanes a pixel's colour leaves clear; they stay after the
+ * warp as the set masks do */
+uint8_t warp_pixel_clear_masks(const GameState *g, unsigned row);
+void set_warp_pixel_clear_masks(GameState *g, unsigned row, uint8_t v);
+
+/* Where the flickering warp is in its brightness pattern: the step in the high byte (0-31), the
+ * fraction of one in the low */
+uint16_t warp_flicker(const GameState *g);
+void set_warp_flicker(GameState *g, uint16_t v);
+
+/* The tunnel's plane as Mode 7 tile numbers, 128 tiles a row, built here and sent to video
+ * memory as the warp starts [a byte by row and column] */
+enum { WARP_PLANE_MAP_ROWS = 128, WARP_PLANE_MAP_COLUMNS = 128 };
+uint8_t warp_plane_map(const GameState *g, unsigned row, unsigned column);
+void set_warp_plane_map(GameState *g, unsigned row, unsigned column, uint8_t v);
+
+/* The light at the tunnel's end, a quarter of it drawn as 256 four-bitplane sprite tiles, 16 a
+ * row (128 by 128 pixels), and sent to video memory as the warp starts [8192 bytes, one at a
+ * time] */
+enum { WARP_LIGHT_TILES_BYTES = 8192 };
+uint8_t warp_light_tiles_byte(const GameState *g, unsigned at);
+void set_warp_light_tiles_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { WARP_PLANE_LISTS_COUNT = 4 };   /* by line effect: the plane's matrix A and B, its C and D, its centre, its scroll (WarpPlaneEffect) */
+/* The top half's 112 lines, with the bit that takes a table's line for each */
+uint8_t warp_plane_lists_top_lines(const GameState *g, unsigned line);
+void set_warp_plane_lists_top_lines(GameState *g, unsigned line, uint8_t v);
+/* Where the top half's values are */
+uint16_t warp_plane_lists_top_values(const GameState *g, unsigned line);
+void set_warp_plane_lists_top_values(GameState *g, unsigned line, uint16_t v);
+/* The bottom half's lines, as the top's */
+uint8_t warp_plane_lists_bottom_lines(const GameState *g, unsigned line);
+void set_warp_plane_lists_bottom_lines(GameState *g, unsigned line, uint8_t v);
+/* Where the bottom half's values are */
+uint16_t warp_plane_lists_bottom_values(const GameState *g, unsigned line);
+void set_warp_plane_lists_bottom_values(GameState *g, unsigned line, uint16_t v);
+/* 0: the list's end */
+uint8_t warp_plane_lists_end(const GameState *g, unsigned line);
+void set_warp_plane_lists_end(GameState *g, unsigned line, uint8_t v);
+
+enum { WARP_PLANE_MATRIX_FIRST_ROW_COUNT = 256 };   /* by line of the table (the picture's from 16) */
+/* The plane's scale across, 8.8 (Mode 7's A) */
+uint16_t warp_plane_matrix_first_row_scale(const GameState *g, unsigned line);
+void set_warp_plane_matrix_first_row_scale(GameState *g, unsigned line, uint16_t v);
+/* 0: the plane doesn't turn (Mode 7's B) */
+uint16_t warp_plane_matrix_first_row_turn(const GameState *g, unsigned line);
+void set_warp_plane_matrix_first_row_turn(GameState *g, unsigned line, uint16_t v);
+
+enum { WARP_PLANE_MATRIX_SECOND_ROW_COUNT = 256 };   /* by line of the table (the picture's from 16) */
+/* 0: the plane doesn't turn (Mode 7's C) */
+uint16_t warp_plane_matrix_second_row_turn(const GameState *g, unsigned line);
+void set_warp_plane_matrix_second_row_turn(GameState *g, unsigned line, uint16_t v);
+/* The plane's scale down, 8.8, the same as across (Mode 7's D) */
+uint16_t warp_plane_matrix_second_row_scale(const GameState *g, unsigned line);
+void set_warp_plane_matrix_second_row_scale(GameState *g, unsigned line, uint16_t v);
+
+enum { WARP_PLANE_CENTRES_COUNT = 2 };   /* by half of the picture: top, bottom */
+/* Across: the plane's middle */
+uint16_t warp_plane_centres_x(const GameState *g, unsigned i);
+void set_warp_plane_centres_x(GameState *g, unsigned i, uint16_t v);
+/* Down: following the plane's scroll */
+uint16_t warp_plane_centres_y(const GameState *g, unsigned i);
+void set_warp_plane_centres_y(GameState *g, unsigned i, uint16_t v);
+
+enum { WARP_PLANE_SCROLLS_COUNT = 2 };   /* by half of the picture: top, bottom */
+/* 0 */
+uint16_t warp_plane_scrolls_across(const GameState *g, unsigned i);
+void set_warp_plane_scrolls_across(GameState *g, unsigned i, uint16_t v);
+/* Four lines a frame, round the plane's 512 */
+uint16_t warp_plane_scrolls_down(const GameState *g, unsigned i);
+void set_warp_plane_scrolls_down(GameState *g, unsigned i, uint16_t v);
+
+enum { WARP_CIRCLE_HALF_WIDTHS_COUNT = 128 };   /* by line out from the circle's middle */
+/* Half the circle's width on each line out from its middle, as the circle's builder works them
+ * out; nothing reads them after it */
+uint8_t warp_circle_half_widths(const GameState *g, unsigned line);
+void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v);
+/* Half the circle's width on each line out from its middle, as the circle's builder works them
+ * out; nothing reads them after it Unchecked, for marked scaffolding only: the circle's builder
+ * stores each half width as a word, whose second byte lands one past the line: past the table,
+ * on the first window table's first byte, when the radius is 127 (game/warp/circle.c
+ * leave_half_widths) */
+uint8_t warp_circle_half_widths_unchecked(const GameState *g, unsigned line);
+void set_warp_circle_half_widths_unchecked(GameState *g, unsigned line, uint8_t v);
+
+enum { WARP_CIRCLE_WINDOWS_COUNT = 512 };   /* by line, the second table's from 256 */
+/* The circle as window 1's edges down the screen (left in the low byte), in two tables built in
+ * turn; the vblank handler shows the one built last */
+uint16_t warp_circle_windows(const GameState *g, unsigned line);
+void set_warp_circle_windows(GameState *g, unsigned line, uint16_t v);
+
+/* The top half's 112 lines, a table's line for each */
+uint8_t warp_circle_window_list_top_lines(const GameState *g);
+void set_warp_circle_window_list_top_lines(GameState *g, uint8_t v);
+/* Where in the table the top half starts */
+uint16_t warp_circle_window_list_top_values(const GameState *g);
+void set_warp_circle_window_list_top_values(GameState *g, uint16_t v);
+/* The bottom half's lines, as the top's */
+uint8_t warp_circle_window_list_bottom_lines(const GameState *g);
+void set_warp_circle_window_list_bottom_lines(GameState *g, uint8_t v);
+/* Where in the table the bottom half starts */
+uint16_t warp_circle_window_list_bottom_values(const GameState *g);
+void set_warp_circle_window_list_bottom_values(GameState *g, uint16_t v);
+/* 0: the list's end */
+uint8_t warp_circle_window_list_end(const GameState *g);
+void set_warp_circle_window_list_end(GameState *g, uint8_t v);
+
+/* The event memory (the story flags) kept aside while the plane's map is built over it, and put
+ * back as the warp ends [512 bytes, one at a time] */
+enum { WARP_KEPT_EVENT_MEMORY_BYTES = 512 };
+uint8_t warp_kept_event_memory_byte(const GameState *g, unsigned at);
+void set_warp_kept_event_memory_byte(GameState *g, unsigned at, uint8_t v);
+
 #endif

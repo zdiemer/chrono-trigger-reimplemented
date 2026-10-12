@@ -2102,118 +2102,107 @@ instruction: a checker over every active comparison rather than the innermost.
 The enclosing comparison covers the stretch, and the shipping mode never calls
 the nested entry there, so that is left (docs/TODO.md).
 
-### Phase 3, field and events: the screen set up, the map unpacked, the objects started
+### Phase 3, field graphics: the time warp (`$FD:DA00`-`$FD:F28F`)
 
-The seventeenth chunk of bank `$C0`, picked by native coverage rather than by
-bytes left (PLAN.md, "The order now"): the field's largest handbacks over the
-reference play were the routines its ports still called out to at a map's
-start and in its frame -- the screen's setup and fade in, the map's unpacking,
-the objects' setup, the dialog window's step and its looks.
+Picked by the fallback measure: over the reference play, the largest code
+still run as the original in bank `$FD` was one mode, the tunnel the party
+falls through between eras -- its frame wait `$FD:EAEB` (18.7 million
+instructions), the light's drawing `$FD:ECD5` (3.9 M), its start `$FD:DB97`
+(2.6 M), the colours' pulse `$FD:F123` (2.0 M) and the rest of its helpers:
+31.6 M of the bank's 31.7 M. Three movies reach it: `events-end-of-time-gate`
+(the shortest kind, a gate), `endings-telepod-lavos` (the short kind, twice)
+and `endings-bucket-lavos` (the long, flickering kind).
 
-**What it is.** Six concepts, each a module:
+**What it is.** A mode of its own, so a subsystem of its own, `game/warp/`
+(`re/ram.toml`'s and the tools' subsystem lists take `warp`): event `$FF`
+with a scene of `$80`-`$83` jumps to it from the field (`$C0:3FD6`), it runs
+on the palette fades' page with its own vblank handler, and it ends at the
+field's entry.
 
-- `field/screen_setup.c`: a map's screen put together from nothing
-  (`$C0:286C`, with `$C0:0A50` the map's drawing and `$C0:0B28` the line
-  effects readied): the switches pressed again, the chests marked, the video
-  mode and screens, the screen placed around the party
-  (`$C0:74A6`/`$7506`/`$7553`), each layer drawn whole and sent, the columns
-  right of the view; the objects let go and those in view drawn at once
-  (`$C0:B0E6`); the dialog window's looks; then the handlers on at the next
-  vblank, through the timing service's new `tm_wait_frame_then_enable`. And
-  the fade in (`$C0:2848`, and `$C0:2824` after a menu): a step of brightness
-  a frame, the leader walking on the spot.
-- `field/map.c`: the map's unpacking (`$C0:A33B`): the packed map
-  decompressed, its header taken in (`field_map_header`: sizes, flags, BG2's
-  half pace, the screens, colour math, the layers' drift, and the repeat
-  masks and edges, `$C0:7399`), the tile maps unpacked as C where they fit,
-  and the exits marked (`$C0:A66B`). The chests' marking (`$C0:A712`) is
-  `event/chests.c`'s, with `field_chests` split into the game's list and the
-  location's run.
-- `field/objects_start.c`: the objects at a map's start (`$C0:56A6`):
-  whatever the last map's objects held let go, each object as its script
-  first finds it (`$C0:5709`: at its opening, the lowest level, off the map),
-  the slots past them disabled, the scripts' variables and saved places
-  cleared; then the openings (`$C0:58DE`, a port already), the map's own
-  script (`$C0:595C`, still a call-out) and the party's looks
-  (`party_wear_it_shows`, the menus' service `$0B`, timed as `$C2:8004`).
-- `field/dialog_window.c`: the dialog window's step (`$C0:1F87`) as a state
-  machine (`DialogState`: the text cleared a row a frame, the window opened,
-  the text set a glyph a frame, read, the next page cleared and set, the
-  window closed), a choice's buttons (`$C0:1ADF`), the text's row sent
-  (`$C0:6ECB`), the choice pointer (`$C0:F05E`, the old "window corners",
-  which are the hand pointing at a choice's line), and the window's looks:
-  its frame and text area tile maps (`$C0:29F7`, `$2B78`), their transfers
-  and the window design's (`$C0:6E5C`-`$6F5E`), its colours (`$C0:70E9`).
-  The dialog's opening and closing are operations in its header
-  (`dialog_begin`, `dialog_shut`, ...) that the events, the location, the
-  battle's start and the views call.
-- The objects coming into view take their palette slot (`$C0:7170`) and sprite
-  block (`$C0:6F9A`/`$6FBA`, given up `$C0:7056`) as C, and the sprite
-  lists are built afresh as a map starts (`$C0:B192`).
-- The vblank's screen jobs after a battle and the map's transfers
-  (`$C0:7F58`-`$7F77`, `$C0:EC77`) are the video service's calls.
+- `warp.c`: the mode. The start (`$FD:DB97`): everything stopped, the
+  handlers installed, the story flags kept aside (the plane's map is built
+  over `$7F:0000`), the picture drawn, the circle's tables built and the line
+  effects started, then the screen on through `tm_wait_frame_then_enable`
+  (its wait `$FD:EADA` an idle entry, the turning on `$FD:EADF` a port). A
+  frame: one function for the four kinds, entered after each kind's wait
+  (`$FD:DA06`, `$DA65`, `$DAC4`, `$DB27`), a row of `kinds` each (how long,
+  whether it flickers): the plane moved, the light's palette turned, the
+  phase (opening, running, closing, gone) choosing the circle and where the
+  tunnel shows, the circle built, the colours pulsed. The waits (`$FD:EAEB`,
+  and its loop `$FD:EAED` an idle entry), the vblank handler (`$FD:DE15`:
+  the palette and the sprites sent, the circle's table built last shown, the
+  frame counted) and the end (`$FD:EAC8` dark, `$FD:EAB7` the story flags
+  back).
+- `picture.c`: the screen (one `VidScreen`), the plane's tiles (tile n all
+  colour n) and its map (a gradient a sine bends), the palette, the light's
+  sprites, the light drawn as a quarter turn of rays in widening bands, and the
+  line effects with the plane's perspective scales.
+- `circle.c`: the circle window, a quarter of it traced Minsky's way in
+  256ths of a pixel, built into the table the vblank handler doesn't show.
 
-**Third trap, settled first.** The right columns' bringing in (`$C0:87F1`)
-ends with what the edges' working out leaves (`field_edges_leave`,
-field/leaves.c: the last layer's right column's start and row in X and Y,
-and the carry and overflow of its VRAM address). Nothing in the game reads
-them, but the requests' stop at the frame wait (`$C0:EC60`) can't declare
-them: the battle's start waits there too and goes on into the battle bank's
-entry, which liveness keeps everything live into. The wait for the vblank
-with the handlers off (`$C0:0B38`) was no routine liveness knew; an
-`[[entry]]` hint names it, with a new field, `tail_of = "C0:0B28"`, that
-has liveness take its returns as `$C0:0B28`'s (DISASSEMBLY.md), so the
-setup's call to it and the A `field_turn_the_handlers_on` leaves are
-declared dead rather than reproduced. The objects' start leaves Y and the overflow as the
-defaults' writes do for the openings; and the party's start after the
-openings (`$C0:9DC3`, event/bridge.c) now leaves X as the original does, the
-second member's link word, which the map's own script can carry unchanged to
-the menus' service after it (`endings-bucket-lavos` found it, once the
-objects' setup compared X there).
+**The services**, additive: `VID_LINE_MODE7_CENTER` (Mode 7's centre per
+line, which the warp sets a half of the picture at a time),
+`VID_STEP_INDIRECT_BANK_IS_SOURCE` (the vblank's two uploads write their own
+bank into the indirect bank's register too), `TM_LINE_UNCHANGED` (the warp's
+screen comes on with no line handler), and in the SNES backend's tables the
+warp's screen (`$FD:EB13`), its five line effects and four transfers.
 
-**What it took in.** Two refusals in real play went with it: the field put
-aside for a menu, and a location change, with no leader on the map (a save's
-load, the attract demo's scenes) read the leader's place from the first slot
-past the tables as the original does (`field_leaders_place`, the accessors'
-`unchecked` notes saying where). A script's menu now runs the fade in after it
-as C rather than stopping at it.
+**What shadow mode and fuzzing found.**
 
-**Numbers.** `burndown.py` for `$C0`: 52.2 KiB ported and 12% left in 349
-entries before, 57.5 KiB and 3% in 384 after. Over the reference play the
-code run in place of hand ports fell from 38.6 KiB and 199.0 million
-instructions to 33.1 KiB and 187.3 million; the field engine's share from 9.5
-KiB and 16.0 million to 1.2 KiB and 4.3 million (native coverage from 86% to
-about 98%), and the refusals in real play from 23 entries to 21. The one new
-line in the baseline, `$C0:0B38`, is the original's wait for the vblank the
-setup still runs on the SNES backend (630 instructions), which `$C0:0B28`'s
-fallback held before.
+- *The circle's builder.* The point that traces the circle leaves the quarter
+  on a line it never gives a width to; the port first took that line for the
+  last one written and left a byte past it. Shadow mode saw it twice in the
+  gate's warp, and fuzzing every frame of the shortest kind from a state in
+  it narrowed it to the radius of 6.
+- *The end.* The original goes dark from its main loop by calls, partway
+  through the picture, and the registers the line effects drive keep what the
+  last line before it wrote; a port that went dark at the frame's start left
+  the previous frame's. The frame stops at the end's calls, and going dark and
+  putting the flags back are entries of their own.
+- *The first flickering frame.* Its brightness's index takes A's high byte
+  along, which every frame leaves clear but the start leaves holding the bottom
+  line's scale, so the first frame's brightness comes from far past its
+  pattern (`$FE:1CF5`). Kept, from the state: the pattern's place is 0 only on
+  the first frame.
+- *What the field reads after.* The light's drawing keeps a pixel's bit masks
+  on the page (`$0525`-`$0534`), which the field's palette animations share
+  and read on the next location (the effects check's run found it): they are
+  plain writes, not scaffolding. So is the zero the warp keeps on its page,
+  which the original's routines index from and the ports' guards ask for:
+  written as scaffolding, the build without it turned the frames away, the
+  original ran on a page with no zero, and the bucket's route reached the Day
+  of Lavos standing in the wrong place (the native-shape check's long routes).
+- Kept as the original has it: the start's two empty builds of the circle both
+  land on the second table (the count is cleared, then stepped between them);
+  the builder's half widths are words, so the largest radius's last fraction
+  lands on the first table's first byte (an `unchecked` accessor); A's high
+  byte at the start's return and each frame's stop is the original's, which
+  the next frame reads and shifts out.
 
-**What fuzzing found.** Every new entry has a `tools/fuzz_routines.toml`
-row (seed 1, 0 mismatched; the counts in `docs/ports.tsv`). It found four
-things no movie reaches: a dialog text row past 127 carries its doubling's top
-bit into the VRAM address, and a map number past `$7FFF` its doubling's carry
-into the packed maps' index, as the original's additions take them; a party
-place's palette slot held by an object of other colours makes the original
-give up with its accumulator left 16-bit, which its callers then run with, so
-the guards turn that state away; and the objects in view drew their frames'
-parts with the builder's core rather than its entry, which left the overflow
-the sprite table reads unset. The fades (`$C0:2848`, `$2824`) are checked by
-shadow mode only: the setup they call first waits for the vblank, which no
-random state reaches.
+**Numbers.** Shadow over the library: 0 mismatches; `warp_set_up` 4 calls,
+`warp_shortest_frame` 159, `warp_short_frame` 510, `warp_flickering_frame`
+767, `warp_vblank` and `warp_wait_for_frame` 1,436 each, the end's and the
+screen's 4 each, none interrupted; `warp_long_frame` no movie reaches.
+Fuzzing, seed 1 (`tools/fuzz_routines.toml`): every entry 0 mismatched, the
+frames 5,000 states each with the frame count anywhere, so every phase and
+the end; the start 200, compared up to its wait. `burndown.py` for `$FD`:
+11.8 KiB ported and 22% left in 87 entries before, 14.3 KiB and 5% in 99
+after. The reference play's code in
+place of hand ports fell from 24.1 KiB and 90.5 million instructions to 21.7
+KiB and 60.3 M, field graphics' from 3.5 KiB and 31.7 M to 1.1 KiB and 1.5 M
+(its native share from 74% to 92% of the 13.5 KiB the movies run); the
+shipping mode from 18.9 KiB and 98.6 M to 16.5 KiB and 78.8 M. Left of the
+warp: each frame's call of its wait and the end's calls (13 bytes a kind, a
+JSR a frame), the idle waits' leaving passes, its empty line handler
+`$FD:DE87` (never enabled) and a palette turn `$FD:DD1D` no code reaches.
 
-**The timing gate.** The new rows were calibrated over the library, with the
-rows of the callers whose work moved (`field_nmi`, `field_after_battle`,
-`field_walk_the_leader`, `event_run_init_scripts`); six entries have
-exceptions (`tools/timing_exceptions.txt`): the setup, the fades,
-the objects drawn at once and the map's unpacking run with the screen blanked,
-their parts attributed, and what is left of them one scalar can't fit; the
-dialog window's step differs in its own work by its state.
-
-**What is left at the edges.** The map's own script (`$C0:595C`) and the
-script's unpacking (`$C0:56D4`) are call-outs; the switch's sound
-(`$C0:1B90`) is the largest run left in `$C0` (`burndown.py --uncovered
-C0`); the line effects' builders in `$FD` stay their own ports, run through
-the machine.
+**Timing.** Calibrated over the three movies: the start at 24,782, the frames
+at 8,303-8,332 (the long kind, which no movie plays, at 8,320), the vblank
+handler at 6,710. The original steps the circle's point a line at a time with
+the multiplier and its waits, where the port works the widths out in locals,
+so a frame's time followed the circle's radius: up to 104,051 clocks off at a
+radius of 127, against the gate's 50,468. Each frame now charges eight of its
+own accesses a step (`charge_as`), and its worst is 8,805. No exceptions.
 
 ### Phase 3, battle: the screen script's shapes (`$CD:1F47`-`$CD:3BFC`) and the frame work's line moves
 

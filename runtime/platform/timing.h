@@ -69,6 +69,9 @@ PF_API void tm_wait_frame(Platform *pf, PfOrigin o);
  * of the original's routine that does all three, which the SNES backend
  * makes. */
 PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line);
+/* tm_wait_frame_then_enable's `line` for a mode that runs no line handler:
+ * the line stays as it was (the time warp's). */
+enum { TM_LINE_UNCHANGED = 0xFFFF };
 /* Whether the frame still has time for work that can wait for the next one
  * (the field's object scripts and new animation frames): the original stops
  * such work once the picture has reached `line`, until the frame's end. A

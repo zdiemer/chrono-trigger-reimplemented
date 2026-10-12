@@ -90,15 +90,16 @@ static inline void pf_snes_call_wait(Platform *pf, PfOrigin o)
 
 PF_API void tm_wait_frame(Platform *pf, PfOrigin o) { pf_snes_call_wait(pf, o); }
 
-/* The original's routine waits on the vblank's flag and then turns the
- * handlers on itself: the vblank handler and the controllers' reading, the
- * line handler at line 211 ($C0:0B38). A call asking for anything else has
- * no routine of the original's to call. */
+/* The original's routines wait on the vblank's flag and then turn the
+ * handlers on themselves: the vblank handler and the controllers' reading,
+ * with the field's line handler at line 211 ($C0:0B38), or, the time warp's,
+ * no line handler but the picture turned on, dark ($FD:EADA). A call asking for
+ * anything else has no routine of the original's to call. */
 enum { SNES_SCREEN_ON_SOURCES = TM_INT_VBLANK | TM_INT_AUTO_JOYPAD, SNES_SCREEN_ON_LINE = 211 };
 
 PF_API void tm_wait_frame_then_enable(Platform *pf, PfOrigin o, uint8_t sources, uint16_t line)
 {
-    if (sources != SNES_SCREEN_ON_SOURCES || line != SNES_SCREEN_ON_LINE)
+    if (sources != SNES_SCREEN_ON_SOURCES || (line != SNES_SCREEN_ON_LINE && line != TM_LINE_UNCHANGED))
         pf_snes_encoding_mismatch(o.site, "tm_wait_frame_then_enable");
     pf_snes_call_wait(pf, o);
 }

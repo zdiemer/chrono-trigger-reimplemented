@@ -100,6 +100,7 @@
 #include "overworld/setup.h"
 #include "overworld/main_loop.h"
 #include "overworld/terrain.h"
+#include "warp/warp.h"
 
 /* Entry preconditions on P. */
 #define NEEDS_M8 .p_mask = CPU_FLAG_M, .p_value = CPU_FLAG_M
@@ -4177,6 +4178,31 @@ const NativeEntry game_natives[] = {
       .guard = attract_vblank_wait_present },
     { .addr = 0x7E31B7, .name = "attract_vblank_start_loop", .fn = attract_vblank_start_loop, NEEDS_M8, .idle = true,
       .guard = attract_vblank_wait_present },
+
+    /* the time warp, on its own page (D = $0500) */
+    { .addr = 0xFDDB97, .name = "warp_set_up", .fn = warp_set_up, .cost_milli = 24782,
+      .dont_care = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xFDDA06, .name = "warp_long_frame", .fn = warp_long_frame, NEEDS_M8_X16, .cost_milli = 8320,
+      .guard = warp_on_its_page },
+    { .addr = 0xFDDA65, .name = "warp_short_frame", .fn = warp_short_frame, NEEDS_M8_X16, .cost_milli = 8332,
+      .guard = warp_on_its_page },
+    { .addr = 0xFDDAC4, .name = "warp_shortest_frame", .fn = warp_shortest_frame, NEEDS_M8_X16, .cost_milli = 8303,
+      .guard = warp_on_its_page },
+    { .addr = 0xFDDB27, .name = "warp_flickering_frame", .fn = warp_flickering_frame, NEEDS_M8_X16,
+      .cost_milli = 8325, .guard = warp_on_its_page },
+    { .addr = 0xFDEAC8, .name = "warp_go_dark", .fn = warp_go_dark, NEEDS_M8, .cost_milli = 4300,
+      .dont_care = DC_A | DC_N | DC_Z, .guard = warp_bank_reaches_io },
+    { .addr = 0xFDEAB7, .name = "warp_put_back_the_story_flags", .fn = warp_put_back_the_story_flags, NEEDS_M8_X16,
+      .cost_milli = 6994, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C, .guard = warp_on_its_page },
+    { .addr = 0xFDEAEB, .name = "warp_wait_for_frame", .fn = warp_wait_for_frame, NEEDS_M8, .cost_milli = 2500,
+      .guard = warp_on_its_page },
+    { .addr = 0xFDEAED, .name = "warp_wait_for_frame_loop", .fn = warp_wait_for_frame_loop, NEEDS_M8, .idle = true,
+      .guard = warp_on_its_page },
+    { .addr = 0xFDEADA, .name = "warp_screen_on_wait_for_vblank_loop", .fn = warp_screen_on_wait_for_vblank_loop,
+      NEEDS_M8, .idle = true, .guard = warp_bank_reaches_io },
+    { .addr = 0xFDEADF, .name = "warp_turn_the_screen_on", .fn = warp_turn_the_screen_on, NEEDS_M8,
+      .cost_milli = 4429, .dont_care = DC_AL | DC_N | DC_Z, .guard = warp_bank_reaches_io },
+    { .addr = 0xFDDE15, .name = "warp_vblank", .fn = warp_vblank, .cost_milli = 6710 },
 };
 
 const int game_native_count = (int)(sizeof game_natives / sizeof game_natives[0]);

@@ -21,6 +21,7 @@ enum {
     SB = VID_STEP_SOURCE_BANK, ZL = VID_STEP_SIZE_LO, ZH = VID_STEP_SIZE_HI, ZC = VID_STEP_SIZE_CLEAR,
     IB = VID_STEP_INDIRECT_BANK, TL = VID_STEP_TARGET_LO, TH = VID_STEP_TARGET_HI, GO = VID_STEP_START,
     P = VID_STEP_VRAM_PORT, SPZ = VID_STEP_SPILL_SIZE_LO, SPC = VID_STEP_SPILL_CURSOR_LO,
+    IBS = VID_STEP_INDIRECT_BANK_IS_SOURCE,
 };
 #define STEPS(...) ((const uint8_t[]){ __VA_ARGS__, VID_STEP_END })
 
@@ -33,6 +34,8 @@ enum {
     FILL_WORDS = 0x09,         /* the same byte into both halves of a word */
     WORDS_INDIRECT_BIT = 0x41, /* words, with HDMA's indirect bit, which a transfer ignores */
     FROM_REGISTER = 0x80,      /* out of the register into memory */
+    ONE_REGISTER_INDIRECT_BIT = 0x40,   /* a byte at a time, with HDMA's indirect bit */
+    TWO_BYTES_INDIRECT_BIT = 0x42,      /* two bytes at a time, with HDMA's indirect bit */
 };
 
 /* The steps a run of sites share. */
@@ -49,6 +52,8 @@ enum {
 #define BATTLE_SAME_STEPS STEPS(SL, SH, SB, ZL, ZH, TL, TH, GO)
 #define MENU_LINE(site) { site, 0, 0, 0, 0, STEPS(C, D, SL, SH, SB, IB), 0 }
 #define EPOCH_UPLOAD_STEPS STEPS(TL, TH, P, C, D, SL, SH, SB, ZL, ZH, GO)
+#define WARP_LINE(site) { site, 0, 0, 0, 0, STEPS(C, D, SL, SH, SB, IB), 0 }
+#define WARP_VBLANK_STEPS STEPS(TL, C, D, SL, SH, SB, IBS, ZL, ZH, GO)
 
 static const PfSnesEncoding encodings[] = {
     /* ---- Shared ---- */
@@ -119,6 +124,14 @@ static const PfSnesEncoding encodings[] = {
     { 0xC2722F, 0, 0, 7, ONE_REGISTER, EPOCH_UPLOAD_STEPS, 0 },   /* the gate's picture */
     MENU_LINE(0xC26AFA),                                           /* the gate's window */
     MENU_LINE(0xC26FBB), MENU_LINE(0xC26FC1), MENU_LINE(0xC26FDE), MENU_LINE(0xC26FE4),   /* its spin's matrix */
+
+    /* ---- The time warp ---- */
+    { 0xFDF1C1, 0, 0, 0, ONE_REGISTER_INDIRECT_BIT, STEPS(P, C, D, SB, SL, SH, TL, TH, ZL, ZH, GO), 0 },  /* the plane's map */
+    { 0xFDEC91, 0, 0, 0, WORDS_INDIRECT_BIT, STEPS(P, C, D, SB, SL, SH, ZL, ZH, TL, TH, GO), 0 },  /* the light's tiles */
+    { 0xFDF266, 0, 0, 0, TWO_BYTES_INDIRECT_BIT, WARP_VBLANK_STEPS, 0 },    /* the palette */
+    { 0xFDF222, 0, 0, 0, ONE_REGISTER_INDIRECT_BIT, WARP_VBLANK_STEPS, 0 }, /* the sprite table */
+    /* the five line effects, $FD:ED89 */
+    WARP_LINE(0xFDED8B), WARP_LINE(0xFDEDA3), WARP_LINE(0xFDEDBB), WARP_LINE(0xFDEDD3), WARP_LINE(0xFDEDEB),
 
     /* ---- The battle ---- */
     { 0xCD09CE, 0, 0, 7, TWO_BYTES, STEPS(IB, TL, C, D, SL, SH, SB, ZL, ZH, GO), 0 },   /* the palette */
@@ -291,6 +304,15 @@ static const PfScreenStep loader_screen[] = {
     END,
 };
 
+/* $FD:EB13, the time warp's screen: no display, scroll, Mode 7 or VRAM part. */
+static const PfScreenStep warp_screen[] = {
+    PART(SPRITES, 0, 0xFDEB1B), PART(OAM_ADDRESS, 0, 0xFDEB1E), PART(MODE, 0, 0xFDEB26), PART(MOSAIC, 0, 0xFDEB29),
+    PART(BG_MAP, VID_BG1, 0xFDEB2E), PART(BG_CHARS, VID_BG1, 0xFDEB31), PART(BG_CHARS, VID_BG3, 0xFDEB34),
+    PART(WINDOWS, EVERY_WINDOW_SETTING, 0xFDEB39), PART(SCREENS, BOTH_SCREENS, 0xFDEB58),
+    PART(WINDOWS, WINDOW_MASKS, 0xFDEB62), PART(COLOR_MATH, VID_MATH_CONTROL | VID_MATH_LAYERS, 0xFDEB6C),
+    PART(FIXED_COLOR, RGB, 0xFDEB76), PART(VIDEO_CONFIG, 0, 0xFDEB79), END,
+};
+
 static const struct {
     uint32_t site;
     const PfScreenStep *steps;
@@ -299,6 +321,7 @@ static const struct {
     { 0x7E30F9, scene_first },
     { 0xC20043, object_mode },
     { 0xC2940D, loader_screen },
+    { 0xFDEB13, warp_screen },
 };
 
 const PfScreenStep *pf_snes_screen_steps(uint32_t site)

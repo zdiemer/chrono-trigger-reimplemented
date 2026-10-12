@@ -66,7 +66,8 @@ GAME = ROOT / "game"
 # it names bytes for the directory it shares with (SHARES). `overworld` is a
 # directory of its own (the world map walked on foot, game/overworld/) that runs
 # in that same mode, on its page and in its slots, so it shares with both.
-SUBSYSTEMS = ("core", "data", "event", "field", "menu", "menu_object", "overworld", "battle", "scene", "attract")
+SUBSYSTEMS = ("core", "data", "event", "field", "menu", "menu_object", "overworld", "battle", "scene", "attract",
+              "warp")
 NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 ADDR = re.compile(r"^(7[EF]):([0-9A-Fa-f]{4})$")
 
