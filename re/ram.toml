@@ -1749,6 +1749,16 @@ meaning = "Window 1's right edge on the zooming picture's lines: 64 pixels on fr
 source = "game/scene/endings.c, the picture's placing $7E:8850"
 
 [[var]]
+name = "scene_caption_letters"
+addr = "7E:662F"
+count = 0x120
+index = "a character code for its width, 32 more for its first tile"
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "The program's tables of its captions' letters, by character code: each letter's width in pixels, and 32 bytes on, its first tile ($7E:664F)"
+source = "game/scene/captions.c, the caption's drawing $7E:64CA"
+
+[[var]]
 name = "scene_caption_line_x"
 addr = "7E:64D6"
 subsystem = "scene"

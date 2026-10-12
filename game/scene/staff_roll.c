@@ -335,9 +335,9 @@ enum { SCATTER_STARS = 0x7E5777 };
 static void scatter_stars(Snes *s)
 {
     GameState *g = state_of(s);
-    SceneRandom last = { 0, false, false };
-    TIMED_AS(g, SCATTER_STARS, last = scene_scatter_stars(g, m_platform(s), (SceneRandom){ s->cpu.a, m_flag(s, CPU_FLAG_C), false }));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, last.overflow));
+    SceneDraw first = scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* The program's unpacker ($7E:3691): the resource's place in its list in X,

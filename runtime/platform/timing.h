@@ -80,9 +80,12 @@ PF_API bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line);
 PF_API void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line);
 /* Noise for effects that look random (the scenes' random numbers stir it into
  * their seed): four values, bytes or words as the caller stirs them. The
- * original takes them from where the beam is; the SNES backend reads the
- * counters as the original's stir does, so a port given the same beam draws
- * the same numbers. A host takes them from a generator the driver seeds, so a
+ * SNES backend reads them as the scenes' stir ($C3:02DD) does, so a port
+ * given the same beam draws the same numbers: the first is what the read
+ * that latches the counters gives, which is no counter (the bus's last byte,
+ * and for a word a byte of sprite memory), then the horizontal counter and
+ * the vertical one twice. The call is shaped by that one stir, its only
+ * caller. A host takes all four from a generator the driver seeds, so a
  * replay draws the same noise. */
 enum { TM_ENTROPY_VALUES = 4 };
 typedef struct {

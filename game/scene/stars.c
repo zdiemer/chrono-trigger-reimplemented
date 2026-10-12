@@ -20,12 +20,11 @@
  *   random number of frames and then take a new random value.
  *
  * The random numbers are the program's stirred ones (scene/random.c), byte
- * draws for the stars and word draws for the drift, each handed on to the
- * next. The flight's sums keep the original's habit of adding in the last
- * sum's overflow, which moves a star a pixel now and then and is stirred into
- * the next draw; a port without it would draw other stars, so it is kept, as
- * a carry handed from sum to sum. What the draws are salted with is what the
- * original's X holds: the task's slot, or what the code before it left. */
+ * draws for the stars and word draws for the drift, each going on from the
+ * one before. A star's sums carry from one to the next (sum_after), as the
+ * original's do; the stars' places, and through them the stir, depend on it.
+ * What the draws are salted with is what the original has at hand: the
+ * task's slot, or what the code before it left. */
 #include "scene/scene.h"
 
 #include "cpu_io.h"
@@ -59,46 +58,51 @@ static unsigned star_at(uint16_t entry) { return entry / STAR_BYTES; }
 /* ---- The scatter ------------------------------------------------------------------------------ */
 
 // $7E:5777
-/* Every star at a random place and depth. The scatter keeps the star it is at
- * in the scene's second call cell, which the stir mixes in. Returns the last
- * draw. */
-SceneRandom scene_scatter_stars(GameState *g, Platform *pf, SceneRandom r)
+/* Every star at a random place and depth, each place and depth a byte draw
+ * salted with the star's entry; the scatter keeps the entry in the scene's
+ * second call cell, which the stir mixes in. Each star's draws start from the
+ * last star's depth. */
+void scene_scatter_stars(GameState *g, Platform *pf, SceneDraw first)
 {
+    SceneDraw d = first;
     for (uint16_t entry = 0; entry < STARS * STAR_BYTES; entry += STAR_BYTES) {
-        r = scene_draw_random(g, pf, PF_AT(0x7E577A), r, entry, TM_ENTROPY_BYTES);
-        set_scene_stars_across(g, star_at(entry), (uint8_t)r.value);
-        r = scene_draw_random(g, pf, PF_AT(0x7E5780), r, entry, TM_ENTROPY_BYTES);
-        set_scene_stars_down(g, star_at(entry), (uint8_t)r.value);
-        r = scene_draw_random(g, pf, PF_AT(0x7E5786), r, entry, TM_ENTROPY_BYTES);
-        r.value &= FARTHEST;
-        set_scene_star_depths(g, star_at(entry), (uint8_t)r.value);
+        d = scene_draw_random(g, pf, PF_AT(0x7E577A), d, entry, TM_ENTROPY_BYTES);
+        set_scene_stars_across(g, star_at(entry), (uint8_t)d);
+        d = scene_draw_random(g, pf, PF_AT(0x7E5780), d, entry, TM_ENTROPY_BYTES);
+        set_scene_stars_down(g, star_at(entry), (uint8_t)d);
+        d = scene_draw_random(g, pf, PF_AT(0x7E5786), d, entry, TM_ENTROPY_BYTES);
+        d &= FARTHEST;
+        set_scene_star_depths(g, star_at(entry), (uint8_t)d);
         set_scene_call_second(g, scene_program_own(), entry);
-        r.carry = false;   /* the next star's first draw starts from this one's depth alone */
     }
-    return r;
 }
 
 /* ---- The flight ------------------------------------------------------------------------------- */
 
+/* A star's sums, one after another -- its depth moved, its distance, its
+ * place drifted across and down, and where it lands across and down -- are
+ * byte sums that never start afresh: each takes in the bit the sum before it
+ * spilled over 255. With two operands under 128 that bit is set only when the
+ * sum passes 255; with one from 128 up (a negative drift, speed or offset,
+ * which wraps round), it is set unless the true sum went below 0, so it is
+ * nearly always set and the next sum comes out one more. The original adds so,
+ * and the stars' places, and through them the stir, follow it. A sum is kept
+ * as nine bits, the spilled one on top. */
+static uint16_t sum_after(uint16_t before, uint8_t a, uint8_t b) { return (uint16_t)(a + b + (before >> 8 & 1)); }
+
 /* A star's distance from the middle of the screen along one axis: its place
  * over its distance, halved, on the side its place is, by the CPU's divider.
  * The quotient's low byte is what counts: past a byte (a place of -128 at the
- * nearest distance), it wraps. The farthest star with a carry into its
- * distance wraps it to 0, where the divider gives $FFFF. The carry comes
- * from the sum before, as the original adds it in. */
-static uint8_t projected(int8_t place, uint8_t distance, uint8_t middle, bool *carry)
+ * nearest distance), it wraps. The farthest star with a bit spilled into its
+ * distance has a distance of 0, where the divider gives $FFFF. */
+static uint8_t offset_from_middle(int8_t place, uint8_t distance)
 {
     uint8_t size = (uint8_t)(place < 0 ? -place : place);
     uint8_t offset = (uint8_t)scene_divider_quotient((uint16_t)(size << 8), distance) >> 1;
-    if (place < 0)
-        offset = (uint8_t)-offset;
-    uint16_t sum = (uint16_t)(offset + middle + *carry);
-    *carry = sum > 0xFF;
-    return (uint8_t)sum;
+    return place < 0 ? (uint8_t)-offset : offset;
 }
 
 typedef struct {
-    SceneRandom r;          /* the draws handed from one star to the next */
     uint8_t last_distance;  /* what the last star's projection divided by */
     int8_t last_down;
 } Flight;
@@ -107,39 +111,33 @@ typedef struct {
  * at a new random place, its depth wrapping round to the other end. Flying
  * away, a star leaves at the far end or past it (a depth of 255, 127 at the
  * fastest speed, wraps round unseen); coming nearer, past the viewer, where
- * its depth wraps below 0. */
-enum { PAST_THE_FAR_END = 0xFF };
+ * its depth wraps below 0. Returns the moved depth's sum: what goes on into
+ * the distance is, flying away, whether the star reached the far end (the
+ * test the original makes), coming nearer the sum's own spilled bit, and for
+ * a star that comes back, the last draw's. */
+enum { PAST_THE_FAR_END = 0xFF, SPILLED = 0x100 };
 
-static void move_star(GameState *g, Platform *pf, Flight *f, unsigned star, uint16_t salt)
+static uint16_t move_star(GameState *g, Platform *pf, unsigned star, uint16_t before, uint16_t salt)
 {
     int8_t speed = field_speed(g);
-    uint8_t depth = scene_star_depths(g, star);
-    uint16_t sum = (uint16_t)(depth + (uint8_t)speed + f->r.carry);
+    uint16_t sum = sum_after(before, scene_star_depths(g, star), (uint8_t)speed);
     uint8_t moved = (uint8_t)sum;
     bool leaves;
     if (speed >= 0) {
-        f->r.carry = moved >= FARTHEST;
         leaves = moved >= FARTHEST && moved != PAST_THE_FAR_END;
+        sum = (uint16_t)(moved | (moved >= FARTHEST ? SPILLED : 0));
     } else {
-        f->r.carry = sum > 0xFF;
         leaves = moved > FARTHEST;
     }
     if (leaves) {
-        SceneRandom r = scene_draw_random(g, pf, PF_AT(0x7E57B3), (SceneRandom){ moved, f->r.carry, false }, salt, TM_ENTROPY_BYTES);
-        set_scene_stars_across(g, star, (uint8_t)r.value);
-        r = scene_draw_random(g, pf, PF_AT(0x7E57B9), r, salt, TM_ENTROPY_BYTES);
-        set_scene_stars_down(g, star, (uint8_t)r.value);
-        f->r.carry = r.carry;
+        SceneDraw d = scene_draw_random(g, pf, PF_AT(0x7E57B3), sum, salt, TM_ENTROPY_BYTES);
+        set_scene_stars_across(g, star, (uint8_t)d);
+        d = scene_draw_random(g, pf, PF_AT(0x7E57B9), d, salt, TM_ENTROPY_BYTES);
+        set_scene_stars_down(g, star, (uint8_t)d);
+        sum = (uint16_t)(moved | (d & SPILLED));
     }
     set_scene_star_depths(g, star, (uint8_t)(moved & FARTHEST));
-}
-
-/* The field's drift added to a star's place on one axis. */
-static uint8_t drifted(uint8_t place, uint8_t drift, bool *carry)
-{
-    uint16_t sum = (uint16_t)(place + drift + *carry);
-    *carry = sum > 0xFF;
-    return (uint8_t)sum;
+    return sum;
 }
 
 static uint8_t star_attributes(const GameState *g, uint8_t tile)
@@ -149,37 +147,37 @@ static uint8_t star_attributes(const GameState *g, uint8_t tile)
     return STAR_IN_FRONT;
 }
 
-/* A star drifted, and drawn into its sprite entry. */
-static void draw_star(GameState *g, Flight *f, unsigned star, uint16_t entry)
+/* A star drifted, and drawn into its sprite entry, its sums following on from
+ * its move. */
+static void draw_star(GameState *g, Flight *f, unsigned star, uint16_t entry, uint16_t moved)
 {
-    uint8_t depth = scene_star_depths(g, star);
-    uint16_t distance_sum = (uint16_t)(depth + NEAREST + f->r.carry);
-    uint8_t distance = (uint8_t)distance_sum;
-    bool carry = distance_sum > 0xFF;
+    uint16_t distance = sum_after(moved, scene_star_depths(g, star), NEAREST);
+    uint16_t across = sum_after(distance, scene_stars_across(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_ACROSS));
+    uint16_t down = sum_after(across, scene_stars_down(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_DOWN));
+    set_scene_stars_across(g, star, (uint8_t)across);
+    set_scene_stars_down(g, star, (uint8_t)down);
 
-    uint8_t across = drifted(scene_stars_across(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_ACROSS), &carry);
-    set_scene_stars_across(g, star, across);
-    uint8_t down = drifted(scene_stars_down(g, star), (uint8_t)scene_channel_register(g, FIELD_CHANNEL, FIELD_DRIFT_DOWN), &carry);
-    set_scene_stars_down(g, star, down);
-
-    uint8_t tile = (uint8_t)(FIRST_STAR_TILE + ((distance >> 3) & 0x0F));
-    uint8_t x = projected((int8_t)across, distance, MIDDLE_ACROSS, &carry);
-    uint8_t y = projected((int8_t)down, distance, MIDDLE_DOWN, &carry);
-    scene_place_sprite(g, entry, (SceneSprite){ .x = x, .y = y, .tile = tile, .attributes = star_attributes(g, tile) });
-    f->r.carry = false;   /* the next star's moves start from the loop's compare */
-    f->last_distance = distance;
+    uint8_t near = (uint8_t)distance;
+    uint8_t tile = (uint8_t)(FIRST_STAR_TILE + ((near >> 3) & 0x0F));
+    uint16_t x = sum_after(down, offset_from_middle((int8_t)across, near), MIDDLE_ACROSS);
+    uint16_t y = sum_after(x, offset_from_middle((int8_t)down, near), MIDDLE_DOWN);
+    scene_place_sprite(g, entry, (SceneSprite){ .x = (uint8_t)x, .y = (uint8_t)y, .tile = tile, .attributes = star_attributes(g, tile) });
+    f->last_distance = near;
     f->last_down = (int8_t)down;
 }
 
 // $7E:579B
-/* Every star from the first free sprite entry on moved and drawn. `r` is
- * what the task was called with, which the first star's move carries in. */
-static Flight fly_stars(GameState *g, Platform *pf, SceneRandom r, uint16_t salt)
+/* Every star from the first free sprite entry on moved and drawn. The first
+ * star's sums start with `first_spilled`, what the task was called with; the
+ * others' start clean (the loop's own test leaves nothing). */
+static Flight fly_stars(GameState *g, Platform *pf, bool first_spilled, uint16_t salt)
 {
-    Flight f = { .r = r };
+    Flight f = { 0, 0 };
+    uint16_t before = first_spilled ? SPILLED : 0;
     for (uint16_t entry = scene_sprite_index(g); entry != STARS * STAR_BYTES; entry += STAR_BYTES) {
-        move_star(g, pf, &f, star_at(entry), salt);
-        draw_star(g, &f, star_at(entry), entry);
+        uint16_t moved = move_star(g, pf, star_at(entry), before, salt);
+        draw_star(g, &f, star_at(entry), entry, moved);
+        before = 0;
     }
     return f;
 }
@@ -203,7 +201,7 @@ static bool make_room_after_the_captions(GameState *g)
 /* ---- The drift behind The End ----------------------------------------------------------------- */
 
 typedef struct {
-    SceneRandom r;
+    SceneDraw last;   /* the draws go on from one pick to the next */
     uint16_t drift;   /* -4 to 3 */
 } Drift;
 
@@ -212,23 +210,25 @@ typedef struct {
 enum { DRIFTS = 3 };
 static const unsigned drift_register[DRIFTS] = { FIELD_DRIFT_ACROSS, FIELD_DRIFT_DOWN, FIELD_SPEED };
 
-enum { DRIFT_RANGE = 8, DRIFT_LEAST = 4, LONGEST_DRIFT = 0x400 };
+enum { DRIFT_RANGE = 8, DRIFT_LEAST = 4, LONGEST_DRIFT = 0x400, WORD_SPILLED = 0x10000 };
 
 // $7E:98E3
-/* A new drift, -4 to 3, and how many frames it holds, 1 to 1024. The second
- * draw is salted with the drift. */
+/* A new drift, -4 to 3, and how many frames it holds, 1 to 1024, both word
+ * draws salted with the drift before (the second with the new one). The
+ * second draw goes on from the drift as the pick less four, its spilled bit
+ * set where that didn't go below 0; the frames keep the second draw's
+ * spilled bit, for the next pick. */
 static Drift pick_drift(GameState *g, Platform *pf, Drift d, uint32_t site)
 {
-    SceneRandom r = scene_draw_random(g, pf, PF_AT(site), d.r, d.drift, TM_ENTROPY_WORDS);
-    uint16_t pick = r.value & (DRIFT_RANGE - 1);
-    d.drift = (uint16_t)(pick - DRIFT_LEAST);
-    r.value = d.drift;
-    r.carry = pick >= DRIFT_LEAST;
-    r = scene_draw_random(g, pf, PF_AT(0x7E98EE), r, d.drift, TM_ENTROPY_WORDS);
-    r.value = (uint16_t)((r.value & (LONGEST_DRIFT - 1)) + 1);
-    d.r = r;
+    SceneDraw pick = scene_draw_random(g, pf, PF_AT(site), d.last, d.drift, TM_ENTROPY_WORDS) & (DRIFT_RANGE - 1);
+    SceneDraw from_drift = pick + WORD_SPILLED - DRIFT_LEAST;
+    d.drift = (uint16_t)from_drift;
+    SceneDraw frames = scene_draw_random(g, pf, PF_AT(0x7E98EE), from_drift, d.drift, TM_ENTROPY_WORDS);
+    d.last = (frames & WORD_SPILLED) | ((frames & (LONGEST_DRIFT - 1)) + 1);
     return d;
 }
+
+static uint16_t frames_held(const Drift *d) { return (uint16_t)d->last; }
 
 // $7E:9897
 /* The drift starts: each of the three holds for a random time first. */
@@ -237,14 +237,14 @@ static Drift start_drift(GameState *g, Platform *pf, Drift d)
     static const uint32_t sites[DRIFTS] = { 0x7E9897, 0x7E989C, 0x7E98A1 };
     for (unsigned i = 0; i < DRIFTS; i++) {
         d = pick_drift(g, pf, d, sites[i]);
-        set_scene_stars_drift_frames(g, i, d.r.value);
+        set_scene_stars_drift_frames(g, i, frames_held(&d));
     }
     return d;
 }
 
 // $7E:98AC
 /* A frame of the drift: each whose time is up takes a new value and a new
- * time. Returns the last draw. */
+ * time. */
 static Drift keep_drifting(GameState *g, Platform *pf, Drift d)
 {
     static const uint32_t sites[DRIFTS] = { 0x7E98B0, 0x7E98BC, 0x7E98C8 };
@@ -255,7 +255,7 @@ static Drift keep_drifting(GameState *g, Platform *pf, Drift d)
             continue;
         d = pick_drift(g, pf, d, sites[i]);
         set_scene_channel_register(g, FIELD_CHANNEL, drift_register[i], d.drift);
-        set_scene_stars_drift_frames(g, i, d.r.value);
+        set_scene_stars_drift_frames(g, i, frames_held(&d));
     }
     return d;
 }
@@ -296,8 +296,8 @@ bool scene_stars_scatter_present(Snes *s) { return m_bank_reaches_io(s) && scene
  * overflow is the last draw's. */
 void scene_stars_scatter(Snes *s)
 {
-    SceneRandom last = scene_scatter_stars(state_of(s), m_platform(s), (SceneRandom){ s->cpu.a, m_flag(s, CPU_FLAG_C), false });
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, last.overflow));
+    scene_scatter_stars(state_of(s), m_platform(s), scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
     m_rts(s);
 }
 
@@ -358,23 +358,24 @@ static void leave_flight(Snes *s, const Flight *f)
     hw_divide_by(g, f->last_distance);
 }
 
-/* The flight, the first star's move carrying in `carry`, and `salt` salting
- * the draws. */
-static void fly(Snes *s, bool carry, uint16_t salt)
+/* The flight, the first star's sums starting with `spilled`, and `salt`
+ * salting the draws. */
+static void fly(Snes *s, bool spilled, uint16_t salt)
 {
-    Flight f = fly_stars(state_of(s), m_platform(s), (SceneRandom){ 0, carry, false }, salt);
+    Flight f = fly_stars(state_of(s), m_platform(s), spilled, salt);
     ORIGINAL_EFFECT(leave_flight(s, &f));
     m_set_flag(s, CPU_FLAG_M, true);
     m_rts(s);
 }
 
-/* A frame task, entered with 16-bit A: the slot it runs in and the list's
- * carry are what the first star's move carries in. */
+/* A frame task, entered with 16-bit A: the slot it runs in salts the draws,
+ * and the list's carry is what the first star's sums start with. */
 void scene_stars_fly(Snes *s) { fly(s, m_flag(s, CPU_FLAG_C), s->cpu.x); }
 
-/* Here the carry the first move takes is always set: by the compare that
- * finds the room made, or by the end of the group's hiding, which leaves its
- * count of a group's sprites to salt the draws in place of the slot. */
+/* Here the first star's sums always start with the bit set: the original
+ * comes to the flight from a compare that finds the room made, or from the
+ * group's hiding, whose count of a group's sprites then salts the draws in
+ * place of the slot. */
 enum { HIDING_LEAVES = 4 };
 
 void scene_stars_fly_after_captions(Snes *s)
@@ -396,7 +397,7 @@ bool scene_stars_start_drift_present(Snes *s)
 
 /* The drift's tasks start from what they were called with: their own address
  * in A, the slot in X and the list's carry. */
-static Drift called_with(Snes *s) { return (Drift){ { s->cpu.a, m_flag(s, CPU_FLAG_C), false }, s->cpu.x }; }
+static Drift called_with(Snes *s) { return (Drift){ scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_WORDS), s->cpu.x }; }
 
 /* The list's exit for a task that hands its slot to another, the task in X. */
 enum { REPLACE_THIS_TASK = 0x7E39B1, KEEP_DRIFTING = 0x98AC };

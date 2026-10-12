@@ -13747,6 +13747,12 @@ void set_scene_caption_line_y(GameState *g, uint8_t v);
 uint8_t scene_caption_letter_attributes(const GameState *g);
 void set_scene_caption_letter_attributes(GameState *g, uint8_t v);
 
+enum { SCENE_CAPTION_LETTERS_COUNT = 288 };   /* by a character code for its width, 32 more for its first tile */
+/* The program's tables of its captions' letters, by character code: each letter's width in
+ * pixels, and 32 bytes on, its first tile ($7E:664F) */
+uint8_t scene_caption_letters(const GameState *g, unsigned i);
+void set_scene_caption_letters(GameState *g, unsigned i, uint8_t v);
+
 enum { SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT = 2 };   /* by the picture: 0 the short one, 1 the tall one */
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of

@@ -155,4 +155,9 @@ static inline void original_shape_cell16(GameState *g, uint8_t cell, uint16_t v)
     original_shape_cell8(g, (uint8_t)(cell + 1), (uint8_t)(v >> 8));
 }
 
+/* What the window shapes' drawing leaves in Y, for the scaffolding of the
+ * routines that call it and leave it in turn (field/window_shape.c; the
+ * shared endings' swept window, scene/endings.c). */
+uint16_t field_window_shape_leaves_y(const GameState *g);
+
 #endif

@@ -284,7 +284,7 @@ void field_draw_window_shape(GameState *g)
 /* Where the original's fill leaves Y: past the last line it copied down,
  * of the lines above the top where there are any, or else of those below the
  * right side; past the first of those where there are none. */
-uint16_t field_window_shape_fill_leaves_y(const GameState *g)
+uint16_t field_window_shape_leaves_y(const GameState *g)
 {
     uint16_t table = field_window_shape_table_address(g), right_start = field_window_shape_right_start(g);
     uint16_t top = field_window_shape_top(g);
@@ -304,6 +304,6 @@ void field_rasterize_quad(Snes *s)
 {
     GameState *g = state_of(s);
     field_draw_window_shape(g);
-    ORIGINAL_EFFECT(s->cpu.y = field_window_shape_fill_leaves_y(g));
+    ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
     m_rtl(s);
 }

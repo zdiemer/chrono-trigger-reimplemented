@@ -2509,31 +2509,37 @@ that hand it their registers stayed the original's with it. So the stir came
 first.
 
 **The random numbers, and how they are checked.** `scene/random.c`. A draw
-(`scene_draw_random`) stirs into the seed what the caller hands it -- a
-number and a carry, which a run of draws passes from one to the next, and a
-salt -- with the frame counter, the scene's call cells and four values of
-noise from the timing service, a byte or a word at a time as the original's
-8- and 16-bit callers do. The stir is the original's step for step, carries
-included, so given the same noise it draws the same numbers. `tm_entropy`
-changed to give those four values (`TmEntropy`, bytes or words): the SNES
-backend reads them as `$C3:02DD` does -- `$2137` (whose read gives the bus's
-last byte, the compare's operand's `$21`, and latches the counters),
-`$213C`, `$213D` twice, a word read taking the next register as its high
-byte -- and in shadow mode waits for the original's latch
-(`native_await_latch`), so the port reads the beam the original latched; a
-host draws them from its seeded generator. **The choice: exact reproduction,
-compared by shadow mode**, not `--native on` alone as TODO.md suggested:
-every star placed, every drift and the seed itself are compared on every
-call, where the shipping mode would only show the stars look random. What
-it cost: the stars' sums keep the original's habit of adding in the last
-sum's overflow (a pixel now and then, stirred into the next draw), carried
-as a value from sum to sum, and the salt is whatever the original's X holds
-(the task's slot; 4 after the sprites' last group). The runtime needed one
-change: an entry the original reaches while a port waits for its latch is
-no longer compared on its own (`runtime/port/native.c`), since only the
-innermost comparison watches the latches and the nested one hid them (the
-scatter, registered, inside the setups that run it inline). The stir's
-other caller, the noise effect `$C3:01E4`, is still the original's.
+(`scene_draw_random`) stirs a seed with where the beam is, the frame
+counter, the scene's call cells, a salt and the draw before it: a byte or a
+word as the original's 8- and 16-bit callers draw, and one bit more, the bit
+its last sum spilled (`SceneDraw`), which the next draw starts from, turned
+over by a bit. The stir is a ones'-complement sum -- what one step spills
+over the top comes back in at the bottom of the next, and a value is taken
+away by adding its complement -- which is the original's mix exactly, so
+given the same noise it draws the same numbers. `tm_entropy` changed to give
+the four values it stirs (`TmEntropy`, bytes or words): the SNES backend
+reads them as `$C3:02DD` does -- `$2137`, whose read latches the counters and
+gives no counter but the bus's last byte (`$21`, and for a word a byte of
+sprite memory), then `$213C` and `$213D` twice -- and in shadow mode waits
+for the original's latch (`native_await_latch`), so the port reads the beam
+the original latched; a host draws all four from its seeded generator. The
+call is shaped by this one stir, its only caller. **The choice: exact
+reproduction, compared by shadow mode**, not `--native on` alone as TODO.md
+suggested: every star placed, every drift and the seed itself are compared
+on every call, where the shipping mode would only show the stars look
+random. What it cost: a star's byte sums each take in the bit the sum
+before spilled (`sum_after`, nine-bit sums), as the original's do -- for a
+negative drift, speed or offset that bit is nearly always set -- and the
+salt is what the original has at hand (the task's slot; 4 after the
+sprites' last group). The runtime needed one change: an entry the original
+reaches while a port waits for its latch is not compared on its own
+(`runtime/port/native.c`), since only the innermost comparison watches the
+latches and the nested one hid them (the scatter, registered, inside the
+setups that run it inline); such calls show on the entry's line as `in a
+latch wait N (not compared)`, and their guards don't run. Over the library
+that is the scatter's 2 calls and, inside the captioned field's flight, the
+flight's and the last group's 557 each. The stir's other caller, the noise
+effect `$C3:01E4`, is still the original's.
 
 **What it is.** `scene/stars.c`: the field of 128 stars the staff roll and
 the shared endings fly through, each a place across and down and a depth

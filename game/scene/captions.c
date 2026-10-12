@@ -27,9 +27,12 @@
  * follow), the end of a line, and a space; anything else is a letter. */
 enum { TEXT_END = 0x40, TEXT_PLACE = 0x00, TEXT_NEW_LINE = 0x2F, TEXT_SPACE = 0x20 };
 
-/* The program's tables of the letters, by code: the first tile of each, and
- * its width in pixels. */
-enum { LETTER_TILES = 0x7E664F, LETTER_WIDTHS = 0x7E662F };
+/* The program's tables of the letters, by code (scene_caption_letters): its
+ * width in pixels, and 32 bytes on, its first tile. */
+enum { TILES_AFTER_WIDTHS = 0x20 };
+
+static uint8_t letter_width(const GameState *g, uint8_t code) { return scene_caption_letters(g, code); }
+static uint8_t letter_tile(const GameState *g, uint8_t code) { return scene_caption_letters(g, (unsigned)code + TILES_AFTER_WIDTHS); }
 
 /* A line is 16 pixels; a space 8. A letter 9 pixels wide or wider is drawn
  * as a large sprite; a narrower one as two small ones, the lower half's tiles
@@ -49,7 +52,7 @@ typedef struct {
 /* A letter drawn at the pen, which moves on past it. */
 static void draw_letter(GameState *g, Pen *pen, uint8_t code)
 {
-    uint8_t tile = wram_read8(g, LETTER_TILES + code), width = wram_read8(g, LETTER_WIDTHS + code);
+    uint8_t tile = letter_tile(g, code), width = letter_width(g, code);
     uint8_t attributes = scene_caption_letter_attributes(g);
     SceneSprite upper = { pen->x, pen->y, tile, attributes };
     if (is_wide(width)) {
@@ -74,7 +77,7 @@ static bool measure_caption(const GameState *g, uint16_t text, unsigned most, un
         if (code == TEXT_PLACE)
             read += 2;
         else if (code != TEXT_NEW_LINE && code != TEXT_SPACE)
-            *sprites += is_wide(wram_read8(g, LETTER_WIDTHS + code)) ? 1 : 2;
+            *sprites += is_wide(letter_width(g, code)) ? 1 : 2;
     }
     return false;
 }
@@ -103,8 +106,7 @@ static uint16_t draw_caption(GameState *g, uint16_t text)
             draw_letter(g, &pen, code);
         }
     }
-    set_scene_sprite_offset_x(g, (uint16_t)((scene_sprite_offset_x(g) & 0xFF00) | pen.x));
-    set_scene_sprite_offset_y(g, pen.y);
+    scene_move_sprite_offset(g, pen.x, pen.y);
     return text;
 }
 

@@ -210,6 +210,17 @@ void scene_hide_rest_of_group(GameState *g)
     set_scene_sprite_high_table_byte(g, c.high, bits);
 }
 
+/* How many sprites a list in the program holds. */
+uint8_t scene_sprite_list_length(const GameState *g, uint16_t list) { return list_sprites(g, list); }
+
+/* Where the scenes' sprite lists are drawn from next: X and Y. X's 9th bit,
+ * which only the clipped lists use, stays as it was. */
+void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y)
+{
+    set_scene_sprite_offset_x(g, (uint16_t)((scene_sprite_offset_x(g) >> 8) << 8 | x));
+    set_scene_sprite_offset_y(g, y);
+}
+
 /* As C calls, for the program's routines ported as C. */
 void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }

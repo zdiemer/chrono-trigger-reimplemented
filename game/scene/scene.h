@@ -130,25 +130,32 @@ void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite);
  * `sprites` more fit from the cursor. */
 void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large);
 bool scene_sprites_fit(const GameState *g, unsigned sprites);
+/* How many sprites a list in the program holds; and where the lists are
+ * drawn from next (X's 9th bit kept). */
+uint8_t scene_sprite_list_length(const GameState *g, uint16_t list);
+void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y);
 /* The rest of the cursor's group of four sprites put off the screen, as the
  * frame's last sprites leave it. */
 void scene_hide_rest_of_group(GameState *g);
 
 /* scene/random.c: the program's random numbers -- the next of the game's
- * table of random bytes, and a stirred draw, a byte or a word: the number and
- * the carry a run of draws hands from one to the next, stirred with a salt. */
-typedef struct {
-    uint16_t value;
-    bool carry;
-    bool overflow;   /* the stir's last step's: nothing in the game reads it, the original leaves it (scaffolding) */
-} SceneRandom;
+ * table of random bytes, and a stirred draw, a byte or a word. A draw is its
+ * number with one bit more above it, the bit its sum spilled; the next draw
+ * starts from it (scene_draw_from makes a first one). Whether the last draw's
+ * final step lost its sign is the original's to leave behind (scaffolding). */
+typedef uint32_t SceneDraw;
+static inline SceneDraw scene_draw_from(uint16_t number, bool spilled, TmEntropyWidth width)
+{
+    unsigned bits = width == TM_ENTROPY_WORDS ? 16 : 8;
+    return (SceneDraw)(number & ((1u << bits) - 1)) | (spilled ? 1u << bits : 0);
+}
 uint8_t scene_next_random_byte(GameState *g);
-SceneRandom scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneRandom from, uint16_t salt,
-                              TmEntropyWidth width);
+SceneDraw scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneDraw last, uint16_t salt, TmEntropyWidth width);
+bool scene_random_last_overflow(void);
 
 /* scene/stars.c: every star of the field scattered at random, from a first
- * draw (returns the last). */
-SceneRandom scene_scatter_stars(GameState *g, Platform *pf, SceneRandom r);
+ * draw. */
+void scene_scatter_stars(GameState *g, Platform *pf, SceneDraw first);
 
 /* A sequence channel: one of the two the program runs a script on
  * (scene_channels), whose page its routines run on when a script calls them. */

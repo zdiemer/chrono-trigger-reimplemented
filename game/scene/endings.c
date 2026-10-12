@@ -40,6 +40,7 @@
 #include "core/palette.h"
 #include "cpu_io.h"
 #include "field/field.h"
+#include "field/scratch.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -483,9 +484,9 @@ enum { SCATTER_STARS = 0x7E5777, BLANKING_LEFT_IN_A = 0x0080 };
 static void scatter_stars(Snes *s)
 {
     GameState *g = state_of(s);
-    SceneRandom last = { 0, false, false };
-    TIMED_AS(g, SCATTER_STARS, last = scene_scatter_stars(g, m_platform(s), (SceneRandom){ BLANKING_LEFT_IN_A, m_flag(s, CPU_FLAG_C), false }));
-    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, last.overflow));
+    SceneDraw first = scene_draw_from(BLANKING_LEFT_IN_A, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
 }
 
 /* The program's loop over a picture's tiles ($7E:5E3C), Y of them, each
@@ -1016,6 +1017,17 @@ static void draw_sweep_window(GameState *g)
 
 typedef enum { SWEEP_GOES_ON, SWEEP_OVER } Sweep;
 
+/* BG2's picture drifts down a line: its scroll, which the steering channel
+ * keeps as a word, steps back in its low byte alone, as the original's byte
+ * step does, so it wraps round within 256 lines and the high byte stays as
+ * the script set it. */
+static void drift_picture_down(GameState *g)
+{
+    uint16_t scroll = scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL);
+    uint8_t line = (uint8_t)(scroll - 1);
+    set_scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL, (uint16_t)((scroll >> 8) << 8 | line));
+}
+
 /* The window's edges after the rider's frame: the left edge in by two, its
  * corners down together (the rider follows the top one) or, at 0, on down
  * at their own speeds; the right side's down. */
@@ -1039,8 +1051,7 @@ static Sweep move_sweep_window(GameState *g, Platform *pf)
     set_scene_ending_window_corners(g, RIGHT_BOTTOM, (uint16_t)(scene_ending_window_corners(g, RIGHT_BOTTOM) + 1));
     move_corner(g, RIGHT_TOP, 3);
     if (tm_odd_frame(pf, PF_AT(0x7E9AB3))) {
-        uint16_t scroll = scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL);
-        set_scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL, (uint16_t)((scroll & 0xFF00) | (uint8_t)(scroll - 1)));
+        drift_picture_down(g);
     }
     return SWEEP_GOES_ON;
 }
@@ -1266,7 +1277,7 @@ bool scene_ending_sweep_window_present(Snes *s)
     const GameState *g = state_of(s);
     bool ok = scene_ending_window_left(g) < 0x8000 && field_window_shape_right_start(g) < SCREEN_RIGHT_EDGE;
     if (scene_ending_window_left(g))   /* the rider's sprites stay in the table, and off the sweep's cells */
-        ok = ok && scene_sprites_fit(g, (uint8_t)(wram_read8(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | RIDER) - 1));
+        ok = ok && scene_sprites_fit(g, scene_sprite_list_length(g, RIDER));
     SweepCorner corners[4];
     sweep_corners(g, corners);
     for (unsigned c = 0; c < 4; c++)
@@ -1307,7 +1318,7 @@ void scene_ending_sweep_window(Snes *s)
     if (scene_ending_window_left(g))
         draw_rider(s);
     else
-        ORIGINAL_EFFECT(s->cpu.y = field_window_shape_fill_leaves_y(g));
+        ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
     if (move_sweep_window(g, pf) == SWEEP_OVER) {
         ORIGINAL_EFFECT(s->cpu.a = 0);
         m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);

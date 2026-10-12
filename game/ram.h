@@ -9150,6 +9150,12 @@
  * the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's
  * high half of the names) where the shared endings' setup writes it */
 #define RAM_SCENE_CAPTION_LETTER_ATTRIBUTES 0x7E6525u
+/* The program's tables of its captions' letters, by character code: each letter's width in
+ * pixels, and 32 bytes on, its first tile ($7E:664F) [288 x $1 bytes, by a character code for
+ * its width, 32 more for its first tile] */
+#define RAM_SCENE_CAPTION_LETTERS 0x7E662Fu
+#define RAM_SCENE_CAPTION_LETTERS_COUNT 288u
+#define RAM_SCENE_CAPTION_LETTERS_STRIDE 0x01u
 /* The count bytes of the zooming picture's two sprite lists in the program (one more than the
  * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
  * its sprites as the picture covers [2 x $21 bytes, by the picture: 0 the short one, 1 the tall
