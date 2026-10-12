@@ -36,7 +36,8 @@
  *   guards.c      what the ports assume of the machine they're entered on
  *
  * The endings are the program's scripts, using the iris, the scaler and the
- * arithmetic, with the perspective and the staff roll's setup and tasks.
+ * arithmetic, with the perspective, the shared endings' setup and scenes and
+ * the staff roll's setup and tasks.
  *
  * game/attract/ holds more of the same program: its main loop ($7E:3023, which
  * waits for scene_program_over) and the ports of its idle waits, written
@@ -163,9 +164,10 @@ uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, u
  * effects from a table of descriptors (returns where it ends). */
 void scene_send_unpacked(const GameState *g, Platform *pf);
 uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at);
-/* scene/screen.c: the bank the unpacker's destination names; `bytes` of a
- * resource copied as they are to `to` in that bank, the count handed over in
- * `page`'s first cell; and the loaded palette made the one the frame sends. */
+/* scene/screen.c: the working palette sent; the bank the unpacker's
+ * destination names; `bytes` of a resource copied as they are to `to` in that
+ * bank, the count handed over in `page`'s first cell; and the loaded palette
+ * made the one the frame sends. */
 void scene_send_palette(Platform *pf);
 uint8_t scene_unpacked_bank(const GameState *g);
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes);
