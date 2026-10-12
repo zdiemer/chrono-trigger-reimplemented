@@ -1,5 +1,6 @@
 /* ct_dev --event-reads: what reads the effects an event command leaves beyond
- * its protocol (docs/RECOMP.md, "The event commands' scaffolding, measured").
+ * its protocol (docs/history/reimplementation-phase3a.md, "Phase 3a: the event
+ * language, and its scaffolding").
  *
  * A command handler, entered through the table at $C0:5D6E, returns X (where
  * the script goes on) and the carry (whether the turn goes on); that is the
@@ -19,7 +20,7 @@
  *   routines it calls, in a later command, outside any command and in
  *   interrupt handlers are counted apart.
  *
- * Meaningful with --native off --recomp off, where everything the CPU runs is
+ * Meaningful with --native off --generated off, where everything the CPU runs is
  * the original's and the interpreter's instruction hook sees all of it. */
 #ifndef CT_DEV_EVENT_READS_H
 #define CT_DEV_EVENT_READS_H

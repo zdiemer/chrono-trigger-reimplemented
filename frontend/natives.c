@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "port/recomp_table.h"
+#include "port/generated_table.h"
 #include "registry.h"
 #include "trace.h"
 
@@ -19,17 +19,17 @@ static bool has_prefix(const char *name, const char *const *prefixes, int n)
 int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const NativeChoice *c)
 {
     memset(t, 0, sizeof *t);
-    bool recomp = c->recomp;
-    if (recomp && recomp_native_count > 0 && ct_crc32(rom, rom_size) != recomp_rom_crc) {
+    bool use_generated = c->generated;
+    if (use_generated && generated_native_count > 0 && ct_crc32(rom, rom_size) != generated_rom_crc) {
         fprintf(stderr, "warning: generated blocks are for ROM CRC-32 %08X, not this one; not using them\n",
-                (unsigned)recomp_rom_crc);
-        recomp = false;
+                (unsigned)generated_rom_crc);
+        use_generated = false;
     }
-    int generated = recomp ? recomp_native_count : 0;
-    bool ports = !c->recomp_only ||
+    int generated = use_generated ? generated_native_count : 0;
+    bool ports = !c->generated_only ||
                  (c->only == NATIVES_ONLY_TIMED && (c->mode != NATIVE_ON || generated == 0));
     t->entries = malloc(sizeof *t->entries * (size_t)(game_native_count + generated + 1));
-    t->index = malloc(sizeof *t->index * (size_t)((recomp ? recomp_index_count : 0) + 1));
+    t->index = malloc(sizeof *t->index * (size_t)((use_generated ? generated_index_count : 0) + 1));
     if (!t->entries || !t->index) {
         natives_free(t);
         return -1;
@@ -41,14 +41,14 @@ int natives_select(NativeTable *t, const uint8_t *rom, size_t rom_size, const Na
             t->entries[t->ported++] = *e;
     }
     for (int i = 0; i < generated; i++) {
-        const NativeEntry *e = &recomp_natives[i];
+        const NativeEntry *e = &generated_natives[i];
         if (!has_prefix(e->name, c->exclude, c->nexclude))
             t->entries[t->ported + t->generated++] = *e;
     }
     t->count = t->ported + t->generated;
-    for (int i = 0; recomp && i < recomp_index_count; i++)
-        if (!has_prefix(recomp_index[i].name, c->exclude, c->nexclude))
-            t->index[t->index_count++] = recomp_index[i];
+    for (int i = 0; use_generated && i < generated_index_count; i++)
+        if (!has_prefix(generated_index[i].name, c->exclude, c->nexclude))
+            t->index[t->index_count++] = generated_index[i];
     return 0;
 }
 

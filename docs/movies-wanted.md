@@ -10,7 +10,7 @@ cluster, save or address.
 
 Against the commit that added this file, over the 27 movies of the library
 (`menus-shop-equip` included); the world maps' figures moved to ported where
-the overworld on foot landed (docs/RECOMP.md, "Phase 3, overworld"):
+the overworld on foot landed (docs/history/reimplementation-chunks.md, "Phase 3, overworld"):
 
 - **Code**: the analysis `tools/burndown.py` runs (its `Analyzer`, with
   `reached_code`), so code only an `unreached` hint starts is left out.

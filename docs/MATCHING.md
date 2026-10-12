@@ -2,7 +2,7 @@
 
 This is a scoping document: what a byte-identical, reassemblable disassembly of
 Chrono Trigger would take in this project, what it would prove, and how it
-would plug into the disassembler, the static recompiler and the runtime. Built
+would plug into the disassembler, the C generator and the runtime. Built
 so far: the measuring tool, `tools/disasm/census.py`, milestone MD0, the naive
 split with its assembler and round trip (`tools/matching`, see
 [MD0 as built](#md0-as-built)), and most of MD1, all code in source form (see
@@ -13,7 +13,7 @@ and the streams, strings and records they name (see
 scripts and the battle script formats, each with a round trip (see the
 "MD2 as built" sections that follow it).
 
-The motivation is completeness. The recompiler ([RECOMP.md](RECOMP.md)) turns
+The motivation is completeness. The generator ([GENERATED.md](GENERATED.md)) turns
 the code the analysis finds into C, and the interpreter runs whatever it
 doesn't find. Movies show that almost everything they reach is found, but
 nothing shows that nothing is missing. If every ROM byte is classified (code
@@ -43,7 +43,7 @@ closure checks on top, it can be shown to be all of the game's code.
   can make, where every indirect transfer has an enumerated target set with a
   stated argument for why it's complete.
 
-The claim at the end (MD4 below) is: **the recompiler's code set equals the
+The claim at the end (MD4 below) is: **the generator's code set equals the
 source's code set, which is closed; every byte outside it is data that no
 transfer reaches.** It's a proof relative to the committed hints, each of
 which is an assumption with the evidence written next to it, as in
@@ -78,7 +78,7 @@ The checks that give the classification its meaning are therefore separate:
      a moved label (a "pointer-shaped literal") is an error unless a hint says
      it isn't an address.
    - *Dynamic:* the shifted ROM plays the movie library on `ct_dev --native off
-     --recomp off` with framebuffer hashes and audio identical to the original,
+     --generated off` with framebuffer hashes and audio identical to the original,
      frame for frame. WRAM isn't compared: pointers stored in RAM legitimately
      differ.
    - Some addresses can't move: the cartridge header and vectors
@@ -126,17 +126,17 @@ The checks that give the classification its meaning are therefore separate:
 
 ### The miss report
 
-`ct_dev --misses FILE` (built in RECOMP.md's M3) lists every instruction the
+`ct_dev --misses FILE` (built in GENERATED.md's M3) lists every instruction the
 interpreter runs, with its widths and count, as ROM code or RAM code, and RAM
 code by the enumerated section whose image holds its bytes, "modified" (in a
 section's range, with bytes no section has, and whether the opcode or only
-operands differ) or "unknown" (in no section). With `--native on --recomp only`
+operands differ) or "unknown" (in no section). With `--native on --generated only`
 everything generated code doesn't run is listed, so it is this check. The file
 is also a coverage file, so its ROM lines can seed the analysis. Zero misses on
 every movie is necessary but not sufficient: it only covers the paths the
 movies take. C1-C6 are the sufficient part; the miss report catches a wrong
 argument in them. Since M3 it is zero over the movie library as it stood then
-(25 movies, 561550 frames; RECOMP.md, M3); re-running it over the movies added
+(25 movies, 561550 frames; GENERATED.md, M3); re-running it over the movies added
 since is open (TODO.md, "Movies and coverage").
 
 ## 2. Current state, measured
@@ -316,7 +316,7 @@ The assembler must handle:
 | ca65/ld65 | Mature, relocatable objects and a linker config per bank (natural for moving regions), `.smart` width tracking, map files | 65816 support has rough edges (address size inference, `MVN`/`MVP` operand syntax differs between versions); HiROM layout has to be spelled out in the linker config |
 | WLA-DX | 65816 with SNES header and HiROM directives, sections and a linker | Less common for 65816 disassembly projects; another dependency |
 | bass | Table-driven, small | Little maintenance, few users |
-| Our own (Python) | No new dependency (the build already runs Python for the recompiler); reuses `tools/disasm/cpu.py`, whose opcode table the recompiler's 5.12M SingleStepTests already exercise; exact control of encodings and of the symbol-field record the shift test needs | A new tool to write and test; a bug shared by emitter and assembler cancels in the round trip |
+| Our own (Python) | No new dependency (the build already runs Python for the generator); reuses `tools/disasm/cpu.py`, whose opcode table the generator's 5.12M SingleStepTests already exercise; exact control of encodings and of the symbol-field record the shift test needs | A new tool to write and test; a bug shared by emitter and assembler cancels in the round trip |
 
 **Chosen (no strong preference either way, so the recommendation stands):**
 generate one closed, explicit dialect (every operand size
@@ -356,7 +356,7 @@ blobs, and decoded forms where a type has one (decompressed streams, BRR as
 is, graphics as planar tiles). Source refers to them with `incbin`. The
 reassembled ROM is also written only to the build tree. Nothing extracted,
 decoded or reassembled is ever in the repository, and the build fails with a
-clear message without a ROM, as `tools.recomp` does.
+clear message without a ROM, as `tools.generate` does.
 
 Text regions are assembled from their decoded form: the extraction writes a
 region of a text format as `data/text/<label>.txt`, and the `.bin` its `incbin`
@@ -418,7 +418,7 @@ needs to understand the pictures.
 ### Round trip
 
 `python3 -m tools.matching` (and the `ct_matching` CMake target when `CT_ROM`
-exists, like `cmake/recomp.cmake`): extract, emit, assemble, compare CRC32 and
+exists, like `cmake/generated.cmake`): extract, emit, assemble, compare CRC32 and
 SHA-1. On a mismatch it prints the first differing address and the source file
 and line that wrote it, never the bytes. From MD2, every format parser also
 re-serializes its region in the same run.
@@ -429,7 +429,7 @@ re-serializes its region in the same run.
 python3 -m tools.matching --rom roms/ct-usa.sfc --out build/main/matching \
     --coverage traces/coverage-gato.txt ... --calls traces/calls-gato.txt ... [--asar auto|off|PATH]
 python3 -m tools.matching.asm build/main/matching/src/rom.asm -o out.sfc [--sym out.sym]
-cmake --build build/main --target ct_matching     # with the recompiler's CT_ROM, CT_RECOMP_COVERAGE, CT_RECOMP_CALLS
+cmake --build build/main --target ct_matching     # with the generator's CT_ROM, CT_GENERATED_COVERAGE, CT_GENERATED_CALLS
 ```
 
 | Path | What |
@@ -574,7 +574,7 @@ Analysis changes (`tools/disasm`):
   stream decoded by `tools/disasm/lz.py` (the `$C3:0557` format, written from
   `game/data/decompress.c`), bytes copied from ROM, or the constants a run of
   code stores (`writes`, simulated from `source` to `end`). The analysis traces
-  them like ROM code; the recompiler still skips non-ROM code.
+  them like ROM code; the generator still skips non-ROM code.
 - **Hint kinds**: `[[data]]` gains `type` and `name`; `[[overlap]]`;
   `[[ramcode]]`; `[[noreturn]] addr` per entry; `[[entry]]` without widths
   (interrupt handlers, entered with any); `jumptable` `targets` for tables
@@ -645,12 +645,12 @@ Analysis changes (`tools/disasm`):
 | Code-shaped runs in unknown bytes / in `mixed` and `undetermined` hints | - | 0 / 3 (135 bytes) |
 
 CRC32 `2D206BF7` and SHA-1 `de5822f4...` still match; the run takes about 5 s.
-The recompiler builds from the same analysis (11160 blocks), and the six main
+The generator builds from the same analysis (11160 blocks), and the six main
 movies (`new-game` 7200, `menu` 8900, `field` 11400, `fair` 12450,
 `fair-companion` 17900, `gato-battle` 21600 frames) in `--native shadow` report 0
 mismatched generated blocks and no mismatching hand port.
 
-**Since (recompiler M3).** Five sections more: `race_matrix_code` (format
+**Since (generator M3).** Five sections more: `race_matrix_code` (format
 `run`) and four `patch` sections for the opcodes the race and the Beyond Time
 ending write into the program. With the 23 coverage files of the main, save
 and ending movies, the build checks 14 RAM sections against their images and
@@ -663,8 +663,8 @@ instructions of the patched code it cuts or branches to).
 - `$7E:B574-C994`: the jet bike race runs code at 2065 addresses that `C3:09E9` writes
   through the WRAM port at run time (it emits `LDA` immediate, `TCD`, `LDA`
   absolute, `STA` direct page and a final `RTS`). A section format that runs
-  the generator would make them a checked section. Done in M3 of the
-  recompiler: the `run` format, section `race_matrix_code` (5153 bytes, all
+  the generator would make them a checked section. Done in the C generator's
+  M3: the `run` format, section `race_matrix_code` (5153 bytes, all
   instructions, assembled and compared like the others).
 - The partial vector installers (`C3:08DF`, `C3:093E`, `CD:041D`) only
   replace the target of a stub another installer wrote; their handlers are
@@ -982,7 +982,7 @@ and `$05` (1535).
 **Result.** 4702 regions, 181170 bytes, are assembled from text, all of them
 round-tripping; none of a text format is kept raw. Census unknown 43481 ->
 42590 bytes (`$DE` 882 -> 19); `mixed` 330262 -> 319422 bytes (322.5 -> 311.9
-KiB). The generator's input is unchanged: `python3 -m tools.recomp` without
+KiB). The generator's input is unchanged: `python3 -m tools.generate` without
 coverage gives 12431 blocks, 148301 instructions, 127045 in the analysis and a
 code set of 127181 instruction variants on `main` and on this work, and the 65
 generated C files are byte-identical. `unittest` passes (178 tests); CRC32
@@ -1148,7 +1148,7 @@ layout (11 and 96 before; the battle script formats took it to 23 and 84). The t
 table's `or`, the 16-bit table's last three, `$FF`'s `$A0-$A3`) stay in the
 code set, which is unchanged.
 
-**The recompiler's input is unchanged**: `python3 -m tools.recomp` gives 12431
+**The generator's input is unchanged**: `python3 -m tools.generate` gives 12431
 blocks, 148301 instructions, 127045 in the analysis and 127181 instruction
 variants on `main` and on this work, and the 65 generated C files are
 byte-identical, without coverage and with the build's coverage files and call
@@ -1160,7 +1160,7 @@ logs. The analysis takes about 1.5 s longer (one parse per ROM).
 - Names: some command and operand names say what the handler does to the
   machine (`set_bc`, `set_54_bit2`, `party_routine_6`); they get better
   names as Phase 3 ports and names the RAM they touch (event's rewrite named
-  36, RECOMP.md, "Phase 3a: the event subsystem off the machine"). The layouts of the 39
+  36, history/reimplementation-phase3a.md, "Phase 3a: the event subsystem off the machine"). The layouts of the 39
   unported commands rest on their handlers and on the parse's consistency
   over 144503 commands, not on a trace.
 - The dispatch on the command byte (`$C0:5910` and its copies) keeps its guard
@@ -1307,7 +1307,7 @@ set doesn't change.
 all round-tripping. `mixed` 319422 -> 233732 bytes (311.9 -> 228.3 KiB); the
 census's unknown count doesn't move (42590), since these bytes were typed
 `mixed` already. The generator's input is unchanged: `python3 -m
-tools.recomp` gives 12431 blocks, 148301 instructions, 127045 in the analysis
+tools.generate` gives 12431 blocks, 148301 instructions, 127045 in the analysis
 and a code set of 127181 variants on `main` and on this work, without and with
 the coverage and call logs, and the 65 generated C files are byte-identical.
 `unittest` passes (207 tests); CRC32 `2D206BF7` and SHA-1 `de5822f4...`
@@ -1333,7 +1333,7 @@ MD3 adds a `shift` subcommand (`python3 -m tools.matching shift`, not written
 yet) that builds a set of shifted ROMs: padding at the
 start of each module (within its bank's trailing padding), plus a few
 cross-bank moves of whole modules. For each: the pointer-shaped literal lint,
-then `ct_dev --native off --recomp off --rom <shifted>` over the movies
+then `ct_dev --native off --generated off --rom <shifted>` over the movies
 compared with the original's framebuffer hashes and audio. Hand ports and
 generated blocks are keyed to addresses, so shifted runs use the interpreter
 only. The dynamic part runs movies and belongs in a manual or nightly job, not
@@ -1350,7 +1350,7 @@ into data; reachability from the entries. Built in MD4, below.
 
 Same commands as MD0 and MD1. The matching run now also runs the closure
 checks (`tools/disasm/closure.py`), writes them to `report.md` and fails when
-one fails (`--closure report` only reports them); the recompiler's generator
+one fails (`--closure report` only reports them); the generator
 fails unless its blocks' instruction variants are the analysis's. See
 DISASSEMBLY.md for the new hint fields, parsers and derivations.
 
@@ -1362,7 +1362,7 @@ DISASSEMBLY.md for the new hint fields, parsers and derivations.
 | `tools/disasm/codeargs.py` | Constant register values at an instruction over every path into it |
 | `tools/disasm/closure.py` | Checks C1, C2, C3, C5, C6, C7 and the code set |
 | `tools/disasm/analyze.py` | `derive` sites traced to a fixpoint in rounds, `PER` calls, header vectors, `patch` sections' entries, `follow = false` |
-| `tools/recomp/blocks.py`, `__main__.py` | Entries at `PER` call returns and derived table targets; the code set check |
+| `tools/generate/blocks.py`, `__main__.py` | Entries at `PER` call returns and derived table targets; the code set check |
 | `tests/test_md4.py` | Arguments, `PER` calls, derivations and their rounds, sequence scripts, closure checks |
 
 **C3, data-driven dispatch.** The "only what runs in the movies" target lists
@@ -1434,7 +1434,7 @@ static analysis alone finds every executed ROM and RAM address (MD1 needed 66
 seed contexts, 1899 addresses). The analysis has 127044 instructions without
 coverage (MD1: 121760 without, 123716 with).
 
-**Code set.** The recompiler's blocks hold exactly the analysis's 127178
+**Code set.** The generator's blocks hold exactly the analysis's 127178
 instruction variants (address and widths, unknown widths as both; RAM code
 compared by address and widths across alternative sections), 12412 blocks.
 
@@ -1448,7 +1448,7 @@ and call logs gives 12412 blocks (148491 instructions); the six main movies in
 `--native shadow` report 0 mismatched generated blocks and no mismatching hand
 port (`new-game` 44087249 block checks, `menu` 55489410, `field` 68908992,
 `fair` 73751643, `fair-companion` 99024398, `gato-battle` 116449525), and
-`--native on --recomp only --misses` reports 0 misses on `new-game` and
+`--native on --generated only --misses` reports 0 misses on `new-game` and
 `gato-battle`. **Without any coverage file or call log** (static analysis and
 hints only) the generator writes the same blocks, byte for byte (`table.c` is
 identical), the matching source is the same, and the miss report is 0 on
@@ -1499,9 +1499,9 @@ doesn't find.
   (MD0), with typed extraction and the format codecs since MD2 (the codecs
   live in `tools/disasm/dataformats.py` and `text.py`, and `lz.py` decodes);
   to come: `shift` (MD3) and an `lz` encoder.
-- **`tools/recomp`** takes its code set from the source model instead of
+- **`tools/generate`** takes its code set from the source model instead of
   `Analyzer.code`, and the build checks the two agree (at MD4, exactly). RAM
-  sections are guarded blocks since M3 (RECOMP.md).
+  sections are guarded blocks since M3 (GENERATED.md).
 - **Runtime**: `ct_dev --misses` (section 1, built in M3).
 - **Coverage movies** stop being seeds at MD4 and become checks: an executed
   address outside the closed code set is a closure failure, not new input.
@@ -1514,13 +1514,13 @@ No dates.
 | | Goal | Done when | Main drivers | Effort | Status |
 |---|---|---|---|---|---|
 | MD0 | Naive split: toolchain and extraction | The build extracts, emits and assembles a ROM with CRC32 `2D206BF7` and the SHA-1 from APPROACH.md; code the analysis finds (238421 bytes) is instructions, everything else `incbin` from the build tree; the 10 length conflicts and overlaps are `db` with labels; assembler encodings are unit-tested for every opcode and width; with asar available, the asar build matches too; nothing ROM-derived is tracked by git | Assembler, emitter, extraction, CMake target | 1 | done, except the asar build: unchecked, asar wasn't available ([MD0 as built](#md0-as-built)) |
-| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in recompiler M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
+| MD1 | All code in source form | Every executed ROM address in the coverage files is in the source's code; 0 heuristic jump tables (108 at MD0), 0 assumed returns (26), pruned returns and the width conflict pinned by hints; RAM programs and stubs are code sections checked against their decompressed or copied images; each blob in the 13 banks with code has a data type or a reason; census shows no unknown bytes in C0-C2 (10.6 KiB at MD0) | Code discovery in 348 KiB of unknown bytes in C3, C6, C7, CC-CF, D1, FD and FF; derived table bounds; RAM sections; the SPC700 driver as a typed blob | 4-6 | done except the partial vector installers (the code C3:09E9 generates at `$7E:B574` became a section in generator M3); 565 KiB of the code banks are typed `mixed`, for MD2 ([MD1 as built](#md1-as-built)) |
 | MD2 | All data typed | Census unknown is 0; every region has a parser that consumes it exactly and re-serializes it; all 1449 stream candidates confirmed or rejected, their contents typed; all scripts parse with command lengths | 1.19 MiB unknown, 2.20 MiB of streams with 3.76 MiB of contents, 204 KiB of samples, undocumented formats (dialog, battle and enemy scripts, sequences) | 10-15 | in progress: 38 resource pointer tables type 1371 streams, 4405 strings, 145 sound blocks and 617 records, and the graphics pool, sprite and exit records have reader-backed formats; census unknown 877473 -> 42590 bytes (1.0%); left are `$F6:24B1-7FFF` and the other gaps, 228.3 KiB still typed `mixed`, and re-encoding for `lz` (the event, battle and enemy scripts and the strings round-trip) ([MD2 as built](#md2-as-built-first-part)) |
 | MD3 | All pointers symbolic | Lint finds no unexplained pointer-shaped literal; every shifted build's symbol fields move with their labels; shifted ROMs play every movie with identical frames and audio | Data-bank tracking; 1485 long, 23190 absolute and 6237 immediate operands to resolve or clear; 913 pointer runs and pointers inside typed data; LZ encoder; shift harness | 6-10 | |
-| MD4 | Closure proven | C1-C6 pass in the build; the recompiler's code set equals the source's; `--misses` reports 0 on every movie in the library; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (84) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
+| MD4 | Closure proven | C1-C6 pass in the build; the generator's code set equals the source's; `--misses` reports 0 on every movie in the library; coverage adds no address | 134 indirect sites with arguments; script-derived targets for 7 interpreters; RAM code enumeration | 3-5 | C1, C2, C3, C5, C6, C7 checks pass and fail the build; code set equal; static analysis alone reaches every executed address; left: layout-bounded tables (84) and the battle animation and enemy script parses that would bound some of them, C4 beyond the miss report ([MD4 as built](#md4-as-built)) |
 
 **Order.** MD0 and MD1 first. For the goal that motivates this (a provably
-complete code set for the recompiler), MD4's checks need only the data that
+complete code set for the generator), MD4's checks need only the data that
 feeds control flow typed: scripts and handler tables with code addresses, and
 the RAM programs. That subset of MD2 plus MD4 (about 5-8 units) could come
 before typing graphics, maps and audio, and before MD3. MD2 and MD3 in full
@@ -1533,12 +1533,12 @@ consistency check of the shift test need.
 CLAUDE.md forbids committing ROM bytes or anything derived from them,
 including disassembly listings with data bytes. The design keeps to that: the
 source refers to data only through `incbin` of files extracted at build time
-from the user's ROM, checked by CRC, as the recompiler does.
+from the user's ROM, checked by CRC, as the generator does.
 
 That isn't the whole question. A symbolic source without a single data byte
 is still a transcription of the game's code: every opcode and operand, and so
-every code byte, can be recovered from it. The same holds for `tools/recomp`
-output, which RECOMP.md keeps in the build tree for that reason. There are two
+every code byte, can be recovered from it. The same holds for `tools/generate`
+output, which GENERATED.md keeps in the build tree for that reason. There are two
 ways to handle it:
 
 **Decided: A.** Only tools and knowledge are committed, on the condition that
@@ -1547,7 +1547,7 @@ the full source can always be derived from them and the user's ROM.
 - **A. Generate the source at build time.** Commit the tools, the
   format parsers and the knowledge in `re/`: names, types, bounds, pointer
   facts, layout and comments, keyed by address. The source is generated from
-  the user's ROM into the build tree, like `disasm/out/` and the recompiler's
+  the user's ROM into the build tree, like `disasm/out/` and the generator's
   shards, and the round trip, shift test and closure checks run there. This
   fits the current rules unchanged. The cost is that the source can't be
   browsed, diffed or reviewed on the host; review happens on the hints, and

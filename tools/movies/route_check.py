@@ -1,6 +1,6 @@
 """Run routes as a test of a native-code mode, and report each outcome.
 
-Movies can't test `--native on --recomp on` with the C sound driver, the mode
+Movies can't test `--native on --generated on` with the C sound driver, the mode
 the player ships in: hand ports charge estimated time there, and the driver's
 commands take none, so a movie's presses land on the wrong frames. A route decides what to press from the game's memory, so it plays the
 same scene whatever the timing; whether it still reaches its goal (an ending, a
@@ -11,7 +11,7 @@ battle won, a place) is the test (docs/MOVIES.md, "Routes as a test").
 
 A route is `name` (routes/<name>.py, to its end) or `name:phase` (stopped at that
 phase's checkpoint). A mode is `off` (the interpreter) or
-`<native>:<recomp>[:<sound>]`, ct_drive's --native, --recomp and
+`<native>:<generated>[:<sound>]`, ct_drive's --native, --generated and
 --sound-driver (`original`, the default, or `c`, which needs --native on); the
 shipping mode is `on:on:c`, the default. Every route runs in every mode, from its own
 cartridge save and from scratch, in `--scratch` (checkpoints, logs and screens;
@@ -23,7 +23,7 @@ what must match. Exits 0 only if every run reached its outcome.
 code runs in place of hand ports (ct_drive --fallbacks, through
 $CT_DRIVE_FALLBACKS), kept with the run's checkpoints and copied to DIR as
 `<route>-<mode>/` when it ends, for tools/fallbacks.py (the gate's fallback
-measure; docs/RECOMP.md, "The fallback measure").
+measure; docs/REIMPLEMENTATION.md, "The fallback measure").
 
 `--resume` (with `--scratch`) keeps each run's directory where the last run of
 the same route, mode, ct_drive, ROM and route scripts left it, so a run cut short -- a time
@@ -57,21 +57,21 @@ def parse_mode(text):
     if text == "off":
         return "off", None, "original"
     native, _, rest = text.partition(":")
-    recomp, _, sound = rest.partition(":")
-    if native not in ("off", "shadow", "on") or recomp not in ("", "off", "on", "only") or \
+    generated, _, sound = rest.partition(":")
+    if native not in ("off", "shadow", "on") or generated not in ("", "off", "on", "only") or \
             sound not in ("", "original", "c"):
         raise argparse.ArgumentTypeError("a mode is off or <off|shadow|on>:<off|on|only>[:<original|c>], not %r"
                                          % text)
-    if sound == "c" and (native != "on" or recomp == "only"):
+    if sound == "c" and (native != "on" or generated == "only"):
         raise argparse.ArgumentTypeError("the C sound driver needs --native on with the ported routines: %r" % text)
-    return native, recomp or "on", sound or "original"
+    return native, generated or "on", sound or "original"
 
 
 def mode_name(mode):
-    native, recomp, sound = mode
+    native, generated, sound = mode
     if native == "off":
         return "off"
-    return "%s:%s%s" % (native, recomp, "" if sound == "original" else ":" + sound)
+    return "%s:%s%s" % (native, generated, "" if sound == "original" else ":" + sound)
 
 
 def file_digest(path):
@@ -134,7 +134,7 @@ def run_one(route, mode, scratch, rom, drive, timeout, resume=False, fallbacks=N
     command = [sys.executable, "-m", "tools.movies.routes." + name, "--prefix", os.path.join(where, name),
                "--native", mode[0]]
     if mode[1]:
-        command += ["--recomp", mode[1]]
+        command += ["--generated", mode[1]]
     if mode[2] != "original":
         command += ["--sound-driver", mode[2]]
     if until:
@@ -186,7 +186,7 @@ def main(argv=None):
     parser.add_argument("routes", nargs="*", default=DEFAULT_ROUTES,
                         help="name or name:phase (default %s)" % " ".join(DEFAULT_ROUTES))
     parser.add_argument("--mode", action="append", type=parse_mode,
-                        help="off or <native>:<recomp>[:<sound driver>], repeatable (default on:on:c, the "
+                        help="off or <native>:<generated>[:<sound driver>], repeatable (default on:on:c, the "
                              "shipping mode)")
     parser.add_argument("--scratch", help="where runs go (default a temporary directory, removed afterwards)")
     parser.add_argument("--rom", help="ROM (default roms/ct-usa.sfc, or $CT_ROM)")

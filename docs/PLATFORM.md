@@ -124,7 +124,7 @@ The CPU side of Square's driver is in bank C7 (`game/core/sound_driver.c`):
 | Wait for a line, wait for hblank | `$CD:3B82`, `$D1:FEB8` | Battle writes at a chosen line; the IRQ handler forces blank after hblank |
 | Frame parity | `$C9A2`/`$C9CF`, `$FD:E022`, `$CD:0607`, battle IRQ odd/even frames | Work split over two frames; the game assumes every frame runs |
 | Interrupts clobbering math registers | `$D1:FE71` | Handlers restore `$4202-$4206`; irrelevant to native arithmetic |
-| Real-time battles | the ATB fight | Input a frame apart changes the fight ([RECOMP.md](RECOMP.md) results) |
+| Real-time battles | the ATB fight | Input a frame apart changes the fight ([REIMPLEMENTATION.md](REIMPLEMENTATION.md) results) |
 | Auto-joypad busy bit | `$C2:84EC`, `$C3:0A8E` | Input reads wait for `$4212` bit 0 |
 
 This table was the survey before the ports; [Timing without a
@@ -737,7 +737,7 @@ replayed off the machine. The log is a table rather than a stream because the
 DMA bytes alone run to tens of millions per movie. Each row also counts when
 its accesses landed (vblank, forced blank on a picture line, or the display
 on), with a per-line histogram of the picture-line ones, for the vblank check
-(RECOMP.md, "Where video writes land"); those columns are appended after the
+(REIMPLEMENTATION.md, "Where video writes land"); those columns are appended after the
 original nine, generated-block rows now carry the block's address as their
 site, and HDMA writes made during a generated block's catch-up are counted as
 HDMA rather than as the block's. Summed over the 22 movies
@@ -792,7 +792,7 @@ movie is the attract sequence's RAM code).
   refuse; `ct_fuzz --db` sets it); `scene_nmi` 19901 of 20000 (`--interrupt`,
   from the attract sequence). `field_nmi`, not fuzzed before, 2916 of 3000
   (`--interrupt --step-limit 20000`, the same as before conversion).
-  `recomp_bus_diff` still reports 0 mismatches.
+  `generated_bus_diff` still reports 0 mismatches.
 
 ### P1: audio behind the API
 
@@ -817,7 +817,7 @@ comparison allows per-segment lag.
 
 | Path | What |
 |---|---|
-| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set since the $C7 pilot, RECOMP.md); `AuBackend`, `au_select_backend` |
+| `runtime/platform/audio.h` | `au_driver_write`, `au_driver_read`, `au_driver_run_direct`, `au_driver_call` (the protocol level, below `au_command`; the call-out takes the callee's don't-care set since the $C7 pilot, history/reimplementation-waves.md); `AuBackend`, `au_select_backend` |
 | `runtime/platform/snes/audio.h` | the SNES backend, which hands the protocol-level calls to APU-direct while one of its runs is in progress |
 | `runtime/platform/direct/` | APU-direct: synchronous runs of the driver, the APU's lead, the sample buffer |
 | `runtime/apu/apu.c` | `Apu.lead`, `apu_run_ahead` |
@@ -976,7 +976,7 @@ ran ahead of the machine (the boot upload is about 0.34 s of it); no run gave up
   included) and events `$ED`/`$EE` pass 20000 states each with `--apu-loopback`
   (constraints in PORTING.md).
 - End states with APU-direct, by final frame, against the SNES backend
-  (`--native on`) and the original timing (`--native on --recomp only`,
+  (`--native on`) and the original timing (`--native on --generated only`,
   identical to `--native off`). `gato-battle` is won (the robot's "You won"
   dialog on the stage). 18 movies end in the original's room and scene:
   `new-game`, `menu`, `field`, `fair`, `fair-companion`, `gato-battle`, the
@@ -984,7 +984,7 @@ ran ahead of the machine (the boot upload is about 0.34 s of it); no run gave up
   `battle-magus` (in the Magus fight) and `battle-golem-twins-gameover` (back
   at the title). The SNES backend itself misses the original's end in seven
   long battle movies, where hand ports' estimated time already changes the
-  fights ([RECOMP.md](RECOMP.md)); there APU-direct ends in the SNES backend's
+  fights ([REIMPLEMENTATION.md](REIMPLEMENTATION.md)); there APU-direct ends in the SNES backend's
   scene in four (`late-lavos` and `endings-bucket-lavos` still fighting
   Lavos, `endings-beyond-time` in the same field, `late-omen-terramutant` in
   the same room, after the fight rather than in it) and elsewhere in three:
@@ -1178,7 +1178,7 @@ Order: shared code (display blank, palette upload, animated tiles), battle
 (most of its vblank path is already ported), field (NMI copies, the deferred
 uploads flagged in `$1D78-$1D7B`, the sprite upload), scenes (Mode 7,
 offset-per-tile), menus. Each subsystem's unported register writers are ported
-from their generated drafts ([RECOMP.md](RECOMP.md), M5).
+from their generated drafts ([REIMPLEMENTATION.md](REIMPLEMENTATION.md), M5).
 
 **Done when**, per subsystem: over the movies that cover it, the I/O log shows
 no PPU, DMA or HDMA register write outside `vid_*`; shadow mode has 0
@@ -1192,7 +1192,7 @@ mismatches; and the observer's command-built `VidFrame` equals the decoder's
 | shared | done: display blank (P0), the palette upload `$C0:712E`, the animated tiles (P0), and the register block the boot writes at power-on (`$FD:C036`), which the observer needs before it can be compared from frame 0 |
 | battle | done in `gato-battle` and `battle-magus`, where no PPU, DMA or HDMA register write is left outside `vid_*`, and the two frames agree on 2198 of the fight's 2200 frames. `$D1:F4E6`, which `battle-golem-twins-gameover` reaches on its way back to the title, is in as well |
 | field | done: over `field.ctm` no routine in banks `$C0` or `$FD` writes a register any more, and with the menus behind the API as well the two frames agree on all 5000 frames sampled from frame 4000 |
-| menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. The Epoch's map view and time dial, twenty-five routines between `$C2:631F` and `$C2:7758` that only `menus-epoch` reaches, and the End of Time's gate screen `$C2:CE9D`, went in with Phase 3's conversion of the menus (`menu/epoch.c`, [RECOMP.md](RECOMP.md), "Phase 3, wave 2"); both movies now agree on every frame |
+| menus | done: both modes of bank `$C2` -- the menus proper at `$C2:800E` and the sprite objects at `$C2:0000`, whose entry `$C2:000F` sets the brightness the mode then runs at -- and the window commands. No PPU, DMA or HDMA register write is left outside `vid_*` from bank `$C2` or from `$FF:FC04` in `field.ctm`, `menus-field-menu` or `gato-battle`. The Epoch's map view and time dial, twenty-five routines between `$C2:631F` and `$C2:7758` that only `menus-epoch` reaches, and the End of Time's gate screen `$C2:CE9D`, went in with Phase 3's conversion of the menus (`menu/epoch.c`, [history/reimplementation-waves.md](history/reimplementation-waves.md), "Phase 3, wave 2"); both movies now agree on every frame |
 | scenes | done: the attract sequence, the title screen and the jet bike race. Twenty entries cover the program at `$7E:3000` and eighteen more the race's own code in it, with `$C3:08D0` an entry of its own, so nothing in the scenes writes a PPU, DMA or HDMA register outside the services in any movie. `$7E:59D5`, the fill the graphics loader starts without programming a source, goes through the SNES-only escape, which resolves what the call site leaves unprogrammed from the channel |
 
 **The frame, its two builders and their comparison.**
@@ -1251,7 +1251,7 @@ where `VID_M7_MATRIX_B_HIGH` (the multiplier's 8-bit operand) writes one.
 `VID_LINE_MODE7_AB` and `VID_LINE_MODE7_CD` are the race's per-line matrix, a
 pair of values to a line; `VID_LINE_WINDOW1_LEFT` is window 1's left edge alone,
 which the same table drives; `VID_LINE_BG2_MAP` is BG2's tilemap address
-alone, which a scene of the attract sequence drives down the screen (RECOMP.md,
+alone, which a scene of the attract sequence drives down the screen (REIMPLEMENTATION.md,
 "The last refusals in real play: the attract demo's states"). `VidLineEffect.snes_spill` with
 `VID_STEP_SPILL_SIZE_LO` and `VID_STEP_SPILL_CURSOR_LO` carries the byte a
 five-byte descriptor read as a word leaves in the channel's unused size and
@@ -1355,7 +1355,7 @@ color three times, one channel each.
   registers `vid_snes_takes_register` says (the one, so far) and makes the
   write as `vid_set_obj_config`, so the observer and the native renderer see
   the setting; the guard leaves every other register to the original, which
-  the game never meets (RECOMP.md, "The refusals in real play, retired").
+  the game never meets (history/reimplementation-chunks.md, "The refusals in real play, retired").
 - **A palette send whose writes land in memory.** The battle's vblank handler
   in bank D1 sends the palette without setting the data bank, and on code
   with work RAM's the original's register writes land in work RAM.
@@ -1396,7 +1396,7 @@ color three times, one channel each.
   graphics loader decompressed) and `$C2:94D5` (the memory the video setup
   clears) are reached by falling through, and `$C2:0043` and `$C2:940D` stop
   where their routines move on from the PPU to the CPU registers, which have no
-  service. The recompiler ends a generated block at every registered address,
+  service. The generator ends a generated block at every registered address,
   so an entry inside a routine still runs.
 - **Lines are compared, not spans.** `vid_frame_diff` compares the state each
   line ends up with rather than the span boundaries: an upload that rewrites a
@@ -1458,7 +1458,7 @@ color three times, one channel each.
   can check -- shadow mode and the fuzzer both look for the original at the
   address the port stopped at, and a loop passes the same address every time, so
   they compared the wrong iteration (both now compare every pass and take the
-  one where the machines are the same: RECOMP.md, "Between the waves: the
+  one where the machines are the same: REIMPLEMENTATION.md, "Between the waves: the
   validator"). The race's own table needed three targets
   that did not exist (above).
 - **Two of the race's uploads write the data port's low half alone.** The column
@@ -1470,7 +1470,7 @@ color three times, one channel each.
 **Results.** Shadow mode: all 22 movies up to `late-omen-zeal` exit 0 with no
 mismatch (the four ending runs, 100000 frames and more each, aren't run in
 shadow mode); the new entries' call counts are in [PORTING.md](PORTING.md)'s
-status table. `--native on --recomp only` still traces identically to
+status table. `--native on --generated only` still traces identically to
 `--native off` over `new-game` and `events-jetbike-race`, so the block
 boundaries the new entries move change nothing. The lint and the unit tests pass
 and the build is warning-free.
@@ -1581,7 +1581,7 @@ The two menu movies were the milestone's last leftover, and Phase 3's conversion
 of bank `$C2` closed it: `menus-epoch` went from 5506 of 8799 to all of them and
 `menus-end-of-time` from 8234 to all of them, once the Epoch's map view and time
 dial and the End of Time's gate went behind the service
-([RECOMP.md](RECOMP.md), "Phase 3, wave 2"). Two calls were added for them:
+([history/reimplementation-waves.md](history/reimplementation-waves.md), "Phase 3, wave 2"). Two calls were added for them:
 `vid_upload_vram_half`, for an upload that writes one byte of each VRAM word and
 leaves the other, which is how a Mode 7 plane's tile numbers and pixels are
 loaded separately; and the four `VID_LINE_MODE7_A`-`_D` targets, for a matrix
@@ -1609,7 +1609,7 @@ original writes -- with any other value the original writes at whatever offsets
 the operand gives -- so that is part of the entry's guard. The per-routine
 counts and the constraints each needs are in [PORTING.md](PORTING.md).
 
-`--native on --recomp only` still produces traces identical to `--native off`
+`--native on --generated only` still produces traces identical to `--native off`
 (3600 frames of `new-game`, no divergence in WRAM, VRAM, SRAM, CGRAM or OAM),
 so the block boundaries the new registry entries move change nothing.
 
@@ -1693,7 +1693,7 @@ first pass; that is a `vid_start_vram_uploads` at the instruction that does
 (`$C2:867A`) now, the same writes in the same order. The menus' pass
 after it moved the other three menu files (`menu/epoch.c`, `menu/map.c`,
 `menu/line_effects.c`): the Epoch's Mode 7 uploads, the map's strip uploads
-and every per-line slot the sprite-object mode starts, 25 sites (RECOMP.md,
+and every per-line slot the sprite-object mode starts, 25 sites (history/reimplementation-phase3a.md,
 "Phase 3a: the menus' follow-ups and the Epoch"). **Not moved:** the battle
 (`battle/display.c`, `battle/frame.c`, `battle/nmi.c`), which a rewrite is
 changing; docs/TODO.md lists its calls.
@@ -1717,7 +1717,7 @@ runs of `ct_sound_fuzz`, none differing.
 - Fed by the decoder, so it runs on every movie from the start; fed by
   commands for subsystems past P2.
 - It should also make runs faster: the scanline renderer is 81% of `on` mode's
-  time ([RECOMP.md](RECOMP.md)).
+  time ([GENERATED.md](GENERATED.md)).
 
 **Done when:** every frame of all 21 movies is pixel-identical to `render.c`
 at 256x224, including battle windows, split-screen dialogs and the Mode 7
@@ -1875,7 +1875,7 @@ spans a frame, the menus and the Epoch 55-85, the End of Time's gate 120. That
 is also what the decoder costs, since it rebuilds and compares a `VidLineState`
 at every line whatever happens.
 
-Speed, `ct_play` headless with `--native on --recomp only`, on a shared machine,
+Speed, `ct_play` headless with `--native on --generated only`, on a shared machine,
 runs alternating between the two renderers (five pairs for `gato-battle`, three
 for the others):
 
@@ -2097,7 +2097,7 @@ compares what it compared before):
 | *new* `bool tm_frame_time_left(pf, o, line)` | True: a host has time for all of it. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true while it is above `line` or at line 240 or later |
 | *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
 | *new* `uint16_t tm_entropy(pf, o)` | A host generator the driver seeds, so a replay reproduces it. SNES backend: latch and read the counters as `$C3:02DD` does |
-| `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, RECOMP.md, "Phase 3, the scene program: the staff roll") |
+| `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll") |
 | *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
 `tm_frame_time_left` is a budget, not a model of one. A SNES ROM compiled from

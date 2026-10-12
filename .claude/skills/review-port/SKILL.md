@@ -29,7 +29,7 @@ where the code still reads as a translation, not to confirm that it doesn't.
   here. Spend the reading on the items that need a reader.
 - **Read every file of the subsystem in full.** Not excerpts, not a grep. The
   failures this review exists for only show in the reading.
-- **You are not given the author's report, and don't look for it** (RECOMP.md's
+- **You are not given the author's report, and don't look for it** (REIMPLEMENTATION.md's
   section for the change, commit messages). Judge the code as a reader meets it.
   You may read the rest of the repo for context: other subsystems, the headers
   a file includes, `re/ram.toml`, CLAUDE.md's porting rules.
@@ -1020,5 +1020,5 @@ answer:
 
 **What merging needs:** no file rated **translation**, and every **mostly**
 finding either fixed or accepted by the user with a reason, recorded in the
-subsystem's RECOMP.md section. The reviewer doesn't fix anything; the finding
+subsystem's REIMPLEMENTATION.md section. The reviewer doesn't fix anything; the finding
 goes back to the author, or to a follow-up.

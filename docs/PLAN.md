@@ -2,7 +2,8 @@
 
 What to do next, in order. [TODO.md](TODO.md) lists every open follow-up; this
 says which of them to work on and why the rest waits. Milestones themselves are
-in [APPROACH.md](APPROACH.md), [RECOMP.md](RECOMP.md), [MATCHING.md](MATCHING.md)
+in [APPROACH.md](APPROACH.md), [GENERATED.md](GENERATED.md),
+[REIMPLEMENTATION.md](REIMPLEMENTATION.md), [MATCHING.md](MATCHING.md)
 and [PLATFORM.md](PLATFORM.md).
 
 ## The targets
@@ -50,7 +51,7 @@ check is finished. But they are a means, so:
   the main thread is the same rewrite of every caller of its waits. So a
   browser build still needs stack switching; the wasm backend spike is not
   scheduled, and when it is, it is for that.
-- **M4** (recompiler speed) buys nothing the targets want.
+- **M4** (generator speed) buys nothing the targets want.
 
 ### What "done" means, measured
 
@@ -65,7 +66,7 @@ in place of the ports: the native coverage.
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
 | Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program 56%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 24.8 KiB, 139 M instructions (handback 13.8 KiB, unported 11.1 KiB); shipping mode with the routes 22.1 KiB, 342 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (RECOMP.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 24.8 KiB, 139 M instructions (handback 13.8 KiB, unported 11.1 KiB); shipping mode with the routes 22.1 KiB, 342 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -180,10 +181,10 @@ Nothing lands without it, and it is the same gate for every phase:
   page the map declares no instance for) and no `accessor out of range`
   lines (a port that reached past a variable the map declares, into
   whatever follows it in work RAM; both in DISASSEMBLY.md, "The accessors");
-- `--native on --recomp only` traces identically to `--native off`;
+- `--native on --generated only` traces identically to `--native off`;
 - every hand port's estimated time stays within the timing gate's limits over
   the shadow runs, or is on its exceptions list with a reason
-  (`tools/timing_gate.py`; RECOMP.md, "The timing gate");
+  (`tools/timing_gate.py`; REIMPLEMENTATION.md, "The timing gate");
 - no video write in the shipping mode lands on the picture where the
   reference's doesn't, unless it is an accepted exception
   (`tools/vblank_check.py`);
@@ -196,7 +197,7 @@ Nothing lands without it, and it is the same gate for every phase:
   and over a short `ct_sound_fuzz` in both its modes (SOUND.md, "How it was
   checked");
 - every don't-care declaration in `game/` is one liveness agrees with
-  (`tools/dontcare_check.py`; RECOMP.md, "Before the bulk");
+  (`tools/dontcare_check.py`; REIMPLEMENTATION.md, "Before the bulk");
 - no port transliterates the assembly where one didn't before
   (`tools/portstyle.py`, a ratchet against its baseline);
 - no port's logic reads what some port writes only as scaffolding where
@@ -206,14 +207,14 @@ Nothing lands without it, and it is the same gate for every phase:
   didn't before (`tools/portsmell.py`, a ratchet against its baseline);
 - the original's code runs in place of hand ports nowhere new, and no more of
   it where it did, over every movie's reference play (`tools/fallbacks.py
-  --check`, a ratchet against its baseline; RECOMP.md, "The fallback
+  --check`, a ratchet against its baseline; REIMPLEMENTATION.md, "The fallback
   measure");
 - no hand port's guard refuses a call real play makes unless its allowlist
   line says why (`tools/fallbacks.py --refusals`; "Retiring the gate,
   deliberately", above);
 - the build with the scaffolding compiled out runs every movie to its end and
   reaches the routes' outcomes in the shipping mode (`ct_dev_native_shape`,
-  `ct_drive_native_shape`; RECOMP.md, "The native shape, run");
+  `ct_drive_native_shape`; REIMPLEMENTATION.md, "The native shape, run");
 - `--misses` stays empty;
 - `python3 -m unittest discover tests` passes and the build is warning-free on
   all four CI platforms.
@@ -222,7 +223,7 @@ Nothing lands without it, and it is the same gate for every phase:
 
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
-merged (docs/history/recomp-phase3a.md has each subsystem's account).
+merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
 **1 of 279 files, 117 of 84,656 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
@@ -290,7 +291,7 @@ docstring says which way it is wrong). **12% of the code is still generated.**
 | **total** | **266.5K** | **235.0K** | **55.3K** | **12%** | **1858** |
 
 `$CD`, the battle's frame work, has the whole screen script language in C
-(RECOMP.md, "Phase 3, battle: the screen script's shapes"): its runner, every
+(REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"): its runner, every
 command, the triangles', circles' and squares' drawing and the special
 effects, with the frame work's table moves. What is left (`python3
 tools/burndown.py --uncovered CD`, about 0.9 KiB) is the frame work's waits
@@ -309,7 +310,7 @@ The three big banks are the work; the entries are concentrated in small hot
 routines (and the 225 event command entries), which is why the shares are so high
 despite the count. The burndown follows the jump tables the analysis has sized,
 counts the registry's macro rows, and credits the callees a port inlines (no
-call-out at their call; RECOMP.md, "The tooling pass after wave 1: the
+call-out at their call; REIMPLEMENTATION.md, "The tooling pass after wave 1: the
 analysis", has what each of those moved): helpers no longer need a registry
 entry of their own to count. `$CC` is the
 one subsystem near done. `$C3` (the scene engine) is done but for code the
@@ -391,14 +392,14 @@ because the merge costs, not the porting, are what a new wave gets wrong.
   the rubric in `.claude/skills/review-port/`, and rates each file hand-written,
   mostly, or translation, with findings by line. A file rated translation
   doesn't merge; a "mostly" finding is fixed, or accepted with a reason in the
-  subsystem's RECOMP.md section. The gate proves behaviour and `portstyle.py`
+  subsystem's REIMPLEMENTATION.md section. The gate proves behaviour and `portstyle.py`
   measures syntax, so this is the only check that sees whether the code reads
   as a hand reimplementation, which is the goal. Event scored 0.02 on
   portstyle and still read as a translation.
 - **A wave ends with a review**: each agent reports where the workflow and the
   tools still hurt, and those answers decide whether the next thing is another
   wave or a tooling pass. Wave 1's review produced the tooling pass recorded in
-  RECOMP.md, which cut the cost every later port pays.
+  REIMPLEMENTATION.md, which cut the cost every later port pays.
 
 **Wave 2: the three big banks**, `$C0`, `$C1` and `$C2`, in chunks of
 roughly 8-12 KiB, taken in an order the burndown's `--uncovered` and the
@@ -411,8 +412,8 @@ reimplement rather than translate, not the smallest slice that will pass the
 gate. Each chunk's gate run stands alone; the **review** is once per branch, on
 the accumulated diff of its chunks, before it merges
 (`.claude/skills/review-port/`, "One review per merge"). The per-chunk
-accounts are in docs/history/recomp-waves.md and recomp-chunks.md, the latest
-in RECOMP.md.
+accounts are in docs/history/reimplementation-waves.md and reimplementation-chunks.md, the latest
+in REIMPLEMENTATION.md.
 
 **`$C1`: the battle.** The bank is in: the enemies' scripts, the
 target search, the random numbers, an enemy's turn, the statuses' timers,
@@ -430,7 +431,7 @@ demo's party, and the battle's end's bookkeeping; and the leftovers: the
 battle's start from the field and its return there, the setup's last part,
 the scheduler's animation step, an effect's next frame and a member that comes
 back once; the player choosing (the menu's frame, its lists, the target
-kinds and the area search); and an action shown (RECOMP.md, "Phase 3, battle:
+kinds and the area search); and an action shown (history/reimplementation-chunks.md, "Phase 3, battle:
 an action shown"): the showing's step, the action's animation chosen and
 loaded, the poses' looks, the battle's own frame step and step 3, and the
 hits landing with a felled enemy's spoils. `python3 tools/burndown.py
@@ -501,12 +502,12 @@ placed in perspective, the plane's perspective (shared with the endings), the
 main loop's scaling and the setup as one routine (history file, "Phase 3, the
 scene program: the rest of the jet bike race"); and so is the telepod
 ending's staff roll, mode 13, with the credits' roll the Beyond Time ending
-shares (RECOMP.md, "Phase 3, the scene program: the staff roll"). **Next**, by
+shares (REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll"). **Next**, by
 what the library reaches: the endings that share `$7E:8538` (modes 10, 11, 14
 and 15; both Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its
 helpers from `$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and
 its frame tasks, and the scaling the main loop calls each pass, `$7E:8930`,
-which `attract_frame_pass` takes once it is a port: RECOMP.md, "The last
+which `attract_frame_pass` takes once it is a port: REIMPLEMENTATION.md, "The last
 refusals in real play: the attract demo's states"). The stars the endings show (`$7E:5777`, `$7E:579B`,
 `$7E:9897`) wait for the program's random numbers as game code (TODO.md, "The
 scene program's randomness and parity"). The program's other scenes (modes 1 and 3-8, whose routines lie around the
@@ -514,7 +515,7 @@ title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a
 port there would rest on fuzzing alone.
 
-**What `$FD` has left** after wave 1 (docs/history/recomp-waves.md, "Phase 3,
+**What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
 wave 1: bank `$FD`"): the time-gate tunnel scenes event `$FF` starts with
 `$DF` = `$80`-`$83` (`$FD:DA00`-`$DD95`, their interrupt handlers
 `$FD:DE15`/`$DE87` and helpers `$FD:EAA6`-`$F2xx`, 2.6 KiB), which draw through
@@ -523,7 +524,7 @@ loader `$FD:DE98`, blocked on the work RAM port writes through `$217F`
 (TODO.md, "P1 leftovers"). The battle's routines in the bank go with `$C1`
 (above).
 
-RECOMP.md's "What drafts don't do yet" lists where the draft tool still falls
+REIMPLEMENTATION.md's "What drafts don't do yet" lists where the draft tool still falls
 short, starting with D and DB where only interrupts reach.
 
 ## Phase 4a: what still runs on emulation
@@ -546,9 +547,9 @@ by an audit; the fourth is the program itself.
   carry the host's half). Audio is the native mixer (PLATFORM.md), which
   already makes the sound from the voices with no S-DSP.
 - **The native frame.** The power-on path and the interrupts' entries are
-  hand ports (`core/console.c`; RECOMP.md, "Phase 3, field and events: the
+  hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
-  and main loop: `ct_play --recomp off --interpreted stop` (PLAYING.md) runs
+  and main loop: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
   to frame 2 and stops at `$C0:7084`, in the field's code after its first
   start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
   program (`$7E`) is ported.
@@ -570,7 +571,7 @@ by an audit; the fourth is the program itself.
   ports. It is taken down in deliberate steps, each its own commit, none of
   them by accident:
   1. **Measure it.** A census from a shipping-mode run (`ct_dev --native on
-     --recomp on`): for each registered entry, how often it was entered by
+     --generated on`): for each registered entry, how often it was entered by
      the machine (from generated code, the interpreter or a vector) and how
      often a port called it as C. The count entered by the machine is the
      number this item drives to 0, and goes in the table above. The census
@@ -695,7 +696,7 @@ compiled from the reimplementation are targets 2 and 3, not interests, and they
 are scheduled above (Phase 4a's asset seam, Phase 5's MD3) rather than deferred.
 What stays deprioritized is what serves the scaffolding or nothing:
 
-- **M4** (recompiler speed). The generated C is a means; making it faster helps
+- **M4** (generator speed). The generated C is a means; making it faster helps
   no target.
 - **Emulator accuracy**: the IRQ trigger delay, the S-DSP's KON poll,
   re-measuring the audio comparison table, big-endian hosts, the ZSNES state
@@ -707,7 +708,7 @@ What stays deprioritized is what serves the scaffolding or nothing:
   for that alone when a browser build is wanted, not before. A browser build,
   if it is wanted, is a frontend on top of a finished `game/` -- which is the
   same thing targets 1 and 2 need.
-- **Anything that makes the hybrid modes nicer to live in.** `--recomp on` and
+- **Anything that makes the hybrid modes nicer to live in.** `--generated on` and
   shadow mode are how the work is checked, not what is being built.
 
 The host seam was never deferred, because it was the same work as making the

@@ -116,7 +116,7 @@
 /* Entries are keyed by the original entry address. cost_milli is the
  * original's time per native bus-access clock, x1000, DMA's time left out:
  * calibrated from the movie library by `tools/timing_gate.py --calibrate`
- * (docs/RECOMP.md, "The timing gate"). dont_care comes from
+ * (docs/REIMPLEMENTATION.md, "The timing gate"). dont_care comes from
  * disasm/out/liveness.json ("dont_care"), and applies wherever the port
  * finishes: after it returns and at every stop it declares with m_stop_at.
  * tools/dontcare_check.py checks it against liveness. */

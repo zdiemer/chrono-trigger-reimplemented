@@ -273,7 +273,7 @@ the example.
 2. **Draft every routine of the chunk in one run.** The analysis is solved once
    and is nearly all the time, so four drafts cost the same 27 seconds as one:
    ```sh
-   python3 -m tools.recomp.show C2:0568 C2:066C C2:09C5 > <scratch>/drafts.c
+   python3 -m tools.generate.show C2:0568 C2:066C C2:09C5 > <scratch>/drafts.c
    ```
    The draft is a **reference, not a starting text** — the pilot carried over
    0–7% of its lines. Read the original beside it with
@@ -401,7 +401,7 @@ an assertion"). So:
 The absent party member was the example: 52,898 real calls, correctly
 refused, until the case was ported -- what the game does with a member who
 isn't there decided in its own terms, and the original's stray reads kept in
-one marked scaffolding function (RECOMP.md, "The absent party member and the
+one marked scaffolding function (history/reimplementation-chunks.md, "The absent party member and the
 object off the map").
 
 **When the counts disagree, fix the port, not the fuzz.** If your rewrite
@@ -453,12 +453,12 @@ tight (±0.38%). Sequence the work so only the final code pays for a
 
 In the same commit as the work:
 
-- `docs/RECOMP.md`: a new "as built" section in the style of the **one** before
+- `docs/REIMPLEMENTATION.md`: a new "as built" section in the style of the **one** before
   yours in the same stream — how the chunk was chosen, what it is, what shadow
   mode found, what fuzzing found and what it cost to set up, any exception and
   why. Then move that previous section to its file under `docs/history/`, in this
   commit: the file keeps the mechanisms and one worked example per stream, and
-  the run of chunk sections lives beside it (docs/RECOMP.md, "What is here").
+  the run of chunk sections lives beside it (docs/REIMPLEMENTATION.md, "What is here").
 - `docs/ports.tsv`: a row per entry — name, `$BB:AAAA`, and the validation in a
   sentence, with the fuzz run recorded. It is tab-separated and appended to, not
   a table to read (docs/PORTING.md, "Status").

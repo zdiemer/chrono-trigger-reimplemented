@@ -18061,7 +18061,7 @@ subsystem = "overworld"
 state = "overworld"
 args = ["--d", "0000", "--db", "00", "--stop-at-call", "C2046E"]
 iterations = 200
-why = "compared at its first call, the wait for the next frame, which nothing ends without interrupts; the arms after it are shadow mode's alone (docs/RECOMP.md)"
+why = "compared at its first call, the wait for the next frame, which nothing ends without interrupts; the arms after it are shadow mode's alone (docs/GENERATED.md)"
 
 [[routine]]
 name = "overworld_put_aside"

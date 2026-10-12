@@ -4,8 +4,8 @@
     python3 tools/burndown.py --rom roms/ct-usa.sfc --by subsystem
     python3 tools/burndown.py --rom roms/ct-usa.sfc --uncovered C1 --top 20
 
-The recompilation runs the whole game from generated C ([RECOMP.md](../docs/RECOMP.md));
-what is left to build is readable source, routine by routine (RECOMP.md's M5).
+The generated code runs the whole game from generated C ([GENERATED.md](../docs/GENERATED.md));
+what is left to build is readable source, routine by routine (REIMPLEMENTATION.md's M5).
 This says how far along that is, so the work can be sequenced and its progress
 seen.
 

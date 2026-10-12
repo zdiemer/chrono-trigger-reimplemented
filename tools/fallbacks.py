@@ -22,7 +22,7 @@ from two kinds of run:
   everything at its own timing and the runtime says where a port stands for it
   (dev/fallbacks.h). A movie plays the same there whatever the ports' timing,
   so this count moves only when a port changes, and the ratchet is taken over it.
-- **The shipping mode** (`--native on --recomp on --sound-driver c`): every
+- **The shipping mode** (`--native on --generated on --sound-driver c`): every
   movie, and the routes the routes check plays. Hand ports estimate their time
   there, so a movie's presses land on other frames and it wanders off where it
   was recorded (the native-shape build's timing alone moved 99 of 1068 keys and
@@ -318,7 +318,7 @@ def update(m, baseline_path):
         old = base.get(routine)
         reason = old[2] if old else describe(m, routine, row)
         lines.append("%s %d %d  # %s" % (routine, row[0], len(row[1]), reason))
-    head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/RECOMP.md, \"The fallback\n"
+    head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, \"The fallback\n"
             "# measure\"): every routine whose code the reference play (the movies in shadow mode) still\n"
             "# runs as the original's in place of hand ports, as `routine instructions bytes # reason`.\n"
             "# A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes\n"

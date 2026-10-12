@@ -51,8 +51,8 @@ def route_arguments(description, save=None):
     parser.add_argument("--seed", type=int, default=1, help="seed for the fights' choices")
     parser.add_argument("--native", choices=("off", "shadow", "on"),
                         help="ct_drive --native (default off, the interpreter; or $CT_DRIVE_NATIVE)")
-    parser.add_argument("--recomp", choices=("off", "on", "only"),
-                        help="ct_drive --recomp with --native (default on; or $CT_DRIVE_RECOMP)")
+    parser.add_argument("--generated", choices=("off", "on", "only"),
+                        help="ct_drive --generated with --native (default on; or $CT_DRIVE_GENERATED)")
     parser.add_argument("--sound-driver", choices=("original", "c"),
                         help="ct_drive --sound-driver, c with --native on (default original; or $CT_DRIVE_SOUND)")
     parser.add_argument("--until", metavar="PHASE", help="stop once this phase's checkpoint is written")
@@ -79,11 +79,11 @@ class Run:
 
     cell = 6            # BFS cell size in pixels for field maps
 
-    def __init__(self, prefix, rom=None, sram=None, drive=None, native=None, recomp=None, sound=None, until=None):
+    def __init__(self, prefix, rom=None, sram=None, drive=None, native=None, generated=None, sound=None, until=None):
         self.until = until
         self.prefix = str(prefix)
         os.makedirs(os.path.dirname(self.prefix) or ".", exist_ok=True)
-        self.machine = Machine(rom=rom, sram=sram, drive=drive, native=native, recomp=recomp, sound=sound)
+        self.machine = Machine(rom=rom, sram=sram, drive=drive, native=native, generated=generated, sound=sound)
         self.logfile = open(self.prefix + ".log", "a", encoding="utf-8")
         self.player = 1
 

@@ -22,14 +22,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   --rom roms/ct-usa.sfc --frames N --movie <.ctm> --trace traces/<name>.cttr`. Inspect and diff with
   `python3 tools/trace.py`. Snes9x is the trace oracle. See docs/ORACLE.md.
 - Main build: `cmake -S . -B build/main -G Ninja -DCT_ROM=roms/ct-usa.sfc
-  "-DCT_RECOMP_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt"
-  "-DCT_RECOMP_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt" && cmake --build build/main` builds
+  "-DCT_GENERATED_COVERAGE=traces/coverage-*.txt;traces/saves/cov-*.txt"
+  "-DCT_GENERATED_CALLS=traces/calls-*.txt;traces/saves/calls-*.txt" && cmake --build build/main` builds
   `ct_dev` (ROM on our runtime, writes `.cttr` traces; see docs/RUNTIME.md), `ct_play` (docs/PLAYING.md),
-  `ct_fuzz`, the conformance runners, the C generated from the ROM (docs/RECOMP.md) and the matching
+  `ct_fuzz`, the conformance runners, the C generated from the ROM (docs/GENERATED.md) and the matching
   reassembly check (docs/MATCHING.md). Coverage and call files are optional, gitignored inputs.
 - CPU tests: `python3 tests/cpu/fetch_sst.py` and `python3 tests/apu/fetch_sst_spc700.py` once, then
-  `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_recomp_runner tests/cpu/data/*.bin`,
-  `build/main/recomp_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
+  `build/main/sst_runner tests/cpu/data/*.bin`, `build/main/sst_generated_runner tests/cpu/data/*.bin`,
+  `build/main/generated_bus_diff` and `build/main/spc700_runner tests/apu/data/*.bin` (all must report 0
   failures). `build/main/dsp_test`, `fiber_test`, `state_test`, `shadow_test`, `debt_test`, `fuzz_test`, `time_parts_test`, `bindings_test`, `vars_test`, `sound_test` and `timing_test` need no data; `build/main/ct_sound_fuzz` checks
   the C sound driver against the original's in lockstep (docs/SOUND.md).
 - CI (`.github/workflows/ci.yml`): Linux gcc and clang, macOS Apple clang, Windows MSYS2 MinGW gcc, all
@@ -55,22 +55,22 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   checks and the rubric items each stands for, `--files` per file). `--check` is the gate's ratchet
   against `tools/portsmell_baseline.txt`. A port clears its findings before it is submitted, so a
   review spends its reading on the items that need a reader (`.claude/skills/review-port/`).
-- `python3 -m tools.recomp.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
+- `python3 -m tools.generate.show BB:AAAA... [--m 8 --x 16]`: routines as drafts for their hand ports, to
   stdout, never into the repo. **Ask for every routine of a chunk in one run**: the analysis is solved
   once for the whole run and is nearly all of its time, so four drafts cost the same 27 seconds as one.
-  `tools.recomp.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
+  `tools.generate.draftcheck` shadows drafts in a scratch tree (docs/PORTING.md, "From a draft to a port").
 - Validation: `python3 tools/suite.py --ct-dev build/main/ct_dev` runs the gate and exits 0 only when
   it passes (`--only core|saves`, `--movies <name>...` and `-j N` narrow it while iterating). The gate
   is: every movie in `--native shadow` exits 0 with no `mismatched [1-9]` lines, no `page refused` line (a
   guard that turned away a call whose direct page is no instance `re/ram.toml` declares) and no `accessor out
   of range` line (a port that called an accessor with an index past what the map declares, reaching the next
   variable in work RAM; both in docs/DISASSEMBLY.md, "The accessors");
-  `--native on --recomp only` produces traces identical to `--native off` (`python3 tools/trace.py
+  `--native on --generated only` produces traces identical to `--native off` (`python3 tools/trace.py
   diff`); every hand port's estimated time stays within the timing gate's limits over the shadow runs
   or is in `tools/timing_exceptions.txt` with a reason (`tools/timing_gate.py`, run by the suite; after
   adding a port, recalibrate with its `--calibrate game/registry.c`, and after adding a movie with
-  `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/RECOMP.md, "The
-  timing gate"); no video write in the shipping mode (`--recomp on`, `ct_play`'s default) lands on the
+  `--calibrate game/registry.c --drifted`, which rewrites only the entries a new movie moved; docs/REIMPLEMENTATION.md, "The
+  timing gate"); no video write in the shipping mode (`--generated on`, `ct_play`'s default) lands on the
   picture where the reference's doesn't, or it is in `tools/vblank_check_exceptions.txt`
   (`tools/vblank_check.py`); the route scripts reach their outcomes in the shipping mode, with the C
   sound driver that ships (`tools/movies/route_check.py`, `ct_drive --sound-driver c`; the suite runs
@@ -80,7 +80,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   `ct_sound_fuzz` in both its modes, the hosted one with the native mixer making the S-DSP's every frame
   (`--mixer check`; docs/SOUND.md, docs/PLATFORM.md "The native mixer, as built"); every
   don't-care declaration in `game/` is one the liveness analysis agrees with
-  (`tools/dontcare_check.py`, run by the suite, static; docs/RECOMP.md, "Before the bulk"); no
+  (`tools/dontcare_check.py`, run by the suite, static; docs/REIMPLEMENTATION.md, "Before the bulk"); no
   port's logic reads what some port writes only inside `ORIGINAL_EFFECT` where none did before
   (`tools/effects_check.py`, run by the suite, in the source and over the vblank check's shipping-mode
   runs with `ct_dev --scaffold-reads`, a ratchet on `tools/effects_baseline.txt`; docs/PORTING.md,
@@ -91,7 +91,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   hand ports nowhere new, and no more of it where it did, over every movie's reference play
   (`ct_dev --fallbacks` in the shadow runs; `tools/fallbacks.py --check`, a ratchet on
   `tools/fallback_baseline.txt`, with the shipping mode's count over the movies and routes reported
-  beside it; docs/RECOMP.md, "The fallback measure"); no hand port's guard refuses a call real play
+  beside it; docs/REIMPLEMENTATION.md, "The fallback measure"); no hand port's guard refuses a call real play
   makes -- in the shadow runs, the movies in the shipping mode or the routes -- unless
   `tools/refusal_allowlist.txt` says why (`tools/fallbacks.py --refusals`); and the build with the
   ports' scaffolding compiled out (`ct_dev_native_shape`, `ct_drive_native_shape`) runs every movie
@@ -99,7 +99,7 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   or `page refused` line the default build's run doesn't show, and its routes reach their outcomes
   (the fast set; all of them with `--long-routes`).
   Two checks the suite doesn't run, so run them by hand when a change could move them:
-  `ct_dev --native on --recomp only --misses out.txt` lists anything still interpreted, and
+  `ct_dev --native on --generated only --misses out.txt` lists anything still interpreted, and
   `ct_dev --px-check` must report every frame identical (the native renderer against `render.c`,
   docs/PLATFORM.md P3).
 
@@ -116,13 +116,13 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   commit, the review once on the accumulated diff of a branch's chunks, before it merges
   (`.claude/skills/review-port/`, "One review per merge").
 - A port's row goes in docs/ports.tsv, a tab-separated ledger to `grep` (docs/PORTING.md, "Status").
-  A chunk's as-built section goes in docs/RECOMP.md; the section it replaces moves to
-  docs/history/ in the same commit (docs/RECOMP.md, "What is here").
+  A chunk's as-built section goes in docs/REIMPLEMENTATION.md; the section it replaces moves to
+  docs/history/ in the same commit (docs/REIMPLEMENTATION.md, "What is here").
 
 ## Rules
 
-- **Writing a port from generated code** (docs/PLAN.md, docs/RECOMP.md's M5). The draft
-  `tools.recomp` prints is a mechanical image of the ROM; the port is source, and the later
+- **Writing a port from generated code** (docs/PLAN.md, docs/REIMPLEMENTATION.md's M5). The draft
+  `tools.generate` prints is a mechanical image of the ROM; the port is source, and the later
   goals (a native renderer, widescreen, a GBA or browser build, assets as data, a SNES ROM
   compiled from the ports themselves) are made
   easy or hard here rather than in a backend:
@@ -209,14 +209,14 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
     why, as docs/PLATFORM.md's "as built" sections do.
   - Ports don't carry cycle costs: no per-path timing numbers in `game/`. A port's time is
     its `cost_milli` estimate, and the timing gate measures and bounds the estimates' error
-    (docs/RECOMP.md, "The timing gate"). A port that runs another routine's work inline (a
+    (docs/REIMPLEMENTATION.md, "The timing gate"). A port that runs another routine's work inline (a
     dispatcher's handlers) names that routine with `NATIVE_TIME_AS(s, 0xBBAAAA, ...)`, so the
     work is estimated at that routine's own calibrated value: a tag, never a number
     (docs/PORTING.md, "Writing a port"). Fuzzing is part of a port's definition of done,
     and a shadow run's `interrupted` count is not noise: an interrupted call is one shadow
     mode did **not** compare, so a new entry with a non-zero count has paths nothing has
     checked. Fuzz those deliberately (two of the Epoch screens' five fuzz-found bugs were on
-    such paths; docs/RECOMP.md, "Phase 3, wave 2").
+    such paths; docs/history/reimplementation-waves.md, "Phase 3, wave 2").
   - Declare what the original leaves dead rather than reproduce it: flags nobody reads,
     either byte of A (`DC_AH`, `DC_AL`), a subroutine's stack frame. An entry's don't-care
     set, `m_stop_at` where a port stops (`m_stop_at_own` where the stop's set is its own,
@@ -263,8 +263,8 @@ per-frame state diffs against the original ROM. Strategy: docs/APPROACH.md.
   from the sound CPU (`game/sound/`) uses `// SPC $AAAA`, with every address where one
   function stands for several routines.
 - Keep the docs current as work lands, in the same commit as the work: the
-  milestone docs (docs/APPROACH.md, RECOMP.md, MATCHING.md, PLATFORM.md,
-  RUNTIME.md, PORTING.md) say what was built and how it was measured,
+  milestone docs (docs/APPROACH.md, GENERATED.md, REIMPLEMENTATION.md, MATCHING.md,
+  PLATFORM.md, RUNTIME.md, PORTING.md) say what was built and how it was measured,
   docs/TODO.md holds the open follow-ups, and docs/PLAN.md says what to do next
   and why the rest waits.
 - **A milestone doc is a document, not a log.** It holds the mechanisms, the

@@ -106,9 +106,9 @@ Fallbacks *fallbacks_create(Snes *s)
     }
     fallbacks_reset(f);
     current = f;
-    if (recomp_insn_hook != on_generated) {
-        next_insn_hook = recomp_insn_hook;
-        recomp_insn_hook = on_generated;
+    if (generated_insn_hook != on_generated) {
+        next_insn_hook = generated_insn_hook;
+        generated_insn_hook = on_generated;
     }
     s->interpreter = fallbacks_interpreter;
     return f;
@@ -120,8 +120,8 @@ void fallbacks_destroy(Fallbacks *f)
         return;
     if (current == f) {
         current = NULL;
-        if (recomp_insn_hook == on_generated)
-            recomp_insn_hook = next_insn_hook;
+        if (generated_insn_hook == on_generated)
+            generated_insn_hook = next_insn_hook;
     }
     free(f->slots);
     free(f->refusals);
