@@ -35,6 +35,9 @@ typedef struct {
  * call: a port written as logic apart from the registers sets only what the
  * callee takes. tools/dontcare_check.py checks the set against liveness. */
 #define PF_CALL_DC(site, target, dont_care) ((PfOrigin){ (site), (target), (dont_care) })
+/* A loop of the original's that a call stands in for: the instruction it
+ * comes back to (`head`) and the first after it (`exit`). */
+#define PF_LOOP(head, exit) ((PfOrigin){ (head), (exit), 0 })
 
 /* The data a call refers to: a 24-bit game address while the WRAM layout is
  * kept, a host pointer once a subsystem owns its memory. The SNES backend only

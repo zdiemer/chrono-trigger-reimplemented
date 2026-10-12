@@ -1,9 +1,10 @@
-/* Battle: the sound while the battle is paused, and the waits for the music's
- * fade.
+/* Battle: the pause, and the waits for the music's fade.
  *
- * Pausing the battle (Start, battle/nmi.c) silences its sound -- the sound
- * driver is told to (command $F5), and told again to carry on when the pause
- * ends -- and stops the play time clock. And before the battle changes the music -- at its start, for a screen
+ * Pausing the battle (Start, battle/nmi.c) holds the fight: the battle's waits
+ * give the pause a turn on every pass (battle/wait.c), and while it is paused
+ * the game sits it out there a frame at a time. It silences the battle's sound
+ * -- the sound driver is told to (command $F5), and told again to carry on
+ * when the pause ends -- and stops the play time clock. And before the battle changes the music -- at its start, for a screen
  * effect's own song -- it has the driver fade the song out and waits, a frame
  * at a time, for the fade to run out (the driver counts its steps left on its
  * status, platform/audio.h); a battle an event starts with the field's song
@@ -12,6 +13,7 @@
 #include "battle/sound.h"
 
 #include "battle/bridge.h"
+#include "battle/wait.h"
 #include "platform/audio.h"
 #include "vars.h"
 
@@ -25,29 +27,71 @@ static void silence(GameState *g, Platform *pf, PfOrigin o, uint8_t on)
     au_command(pf, o, (AudioCommand){ .command = SILENCE, .p1 = on, .count = 1 });
 }
 
-// $CD:3E49
-/* The battle is paused: silence it, then on to the original's loop at
- * $CD:3E58, which waits a frame at a time for the pause to end. (The test of
- * the pause before it, in $CD:3E44, stays the original's, since the battle
- * calls it every frame.) */
-void battle_sound_pause(Snes *s)
+/* The sound driver's command reads none of the registers. */
+enum { DRIVER_IGNORES = DC_AL | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $CD:3E44
+/* The pause's turn: a paused battle is silenced, waits a frame at a time for
+ * the pause to end (the vblank handler still reads Start), and carries on
+ * with its sound. */
+static void sit_out_the_pause(GameState *g, Platform *pf)
 {
-    m_set_a8(s, SILENCE_ON);
-    silence(state_of(s), m_platform(s), PF_CALL(0xCD3E54, 0xC70004), SILENCE_ON);
+    if (!battle_paused(g))
+        return;
+    silence(g, pf, PF_CALL_DC(0xCD3E54, 0xC70004, DRIVER_IGNORES), SILENCE_ON);
+    do
+        battle_wait_for_the_handler_to_finish(g, pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
+    while (battle_paused(g));
+    silence(g, pf, PF_CALL_DC(0xCD3E70, 0xC70004, DRIVER_IGNORES), SILENCE_OFF);
 }
 
-// $CD:3E65
-/* The pause ended: let the sound carry on. */
-void battle_sound_resume(Snes *s)
+void battle_sit_out_the_pause(Snes *s)
 {
-    m_set_a8(s, SILENCE);
-    silence(state_of(s), m_platform(s), PF_CALL(0xCD3E70, 0xC70004), SILENCE_OFF);
+    sit_out_the_pause(state_of(s), m_platform(s));
     m_rts(s);
 }
 
-/* The driver's commands are built in its buffer at $1E00, which the data
- * bank must reach (low RAM's banks, or $7E). */
-bool battle_sound_buffer_reachable(Snes *s) { return m_bank_reaches_low_ram(s); }
+// $CD:0036
+/* The pause's turn from another bank: a call of the same. */
+void battle_sit_out_the_pause_long(Snes *s)
+{
+    if (!battle_run(s, 0xCD04A6, 0xCD3E44, battle_sit_out_the_pause))
+        return;
+    m_rtl(s);
+}
+
+// $CD:3B5F
+/* A sound a screen script asked for, played once, from the frame wait's
+ * tail, panned where the script said. */
+static void play_the_script_sound(GameState *g, Platform *pf)
+{
+    if (!battle_script_sound_request(g))
+        return;
+    set_battle_script_sound_request(g, 0);
+    au_play_effect(pf, PF_CALL_DC(0xCD3B7D, 0xC70004, DRIVER_IGNORES), battle_script_sound(g),
+                   (uint8_t)battle_script_sound_pan(g));
+}
+
+/* A sound played leaves its pan in X, and its low byte in A; none asked for,
+ * A clear. */
+static void leave_the_pan(Snes *s, const GameState *g, bool played)
+{
+    if (!played) {
+        m_set_a8(s, 0);
+        return;
+    }
+    s->cpu.x = battle_script_sound_pan(g);
+    m_set_a8(s, (uint8_t)battle_script_sound_pan(g));
+}
+
+void battle_play_the_script_sound(Snes *s)
+{
+    GameState *g = state_of(s);
+    bool asked = battle_script_sound_request(g) != 0;
+    play_the_script_sound(g, m_platform(s));
+    leave_the_pan(s, g, asked);
+    m_rts(s);
+}
 
 /* ---- The fade's waits ------------------------------------------------------------------ */
 

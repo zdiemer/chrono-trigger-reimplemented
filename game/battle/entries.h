@@ -569,16 +569,7 @@ bool battle_search_ready(Snes *s);
 bool battle_reach_test_ready(Snes *s);
 bool battle_combatant_in_work_ready(Snes *s);
 
-/* battle/wait.c */
-bool battle_frame_wait_is_idle(Snes *s);
-void battle_wait_for_frame_loop(Snes *s);
-void battle_wait_vblank_end_loop(Snes *s);
-void battle_wait_hblank_loop(Snes *s);
-void battle_wait_line_loop(Snes *s);
-void battle_wait_for_nmi_loop(Snes *s);
-void battle_wait_window_slide_loop(Snes *s);
-void battle_irq_wait_hblank_loop(Snes *s);
-void battle_wait_graphics_loaded_loop(Snes *s);
+/* battle/wait.c: battle/wait.h; battle/message.c: battle/message.h */
 
 /* battle/battlefield.c, menu_window.c, damage.c, reset.c */
 void battle_mark_object_grid(Snes *s);

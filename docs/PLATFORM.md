@@ -2143,19 +2143,22 @@ handlers never preempting and the scene program's randomness from the host.
 added -- `tm_wait_frame`, `tm_frame_time_left`, `tm_wait_line`, `tm_entropy`
 and `tm_odd_frame` -- with `tm_wait_frame_then_enable`, which the field's
 screen setup added (a frame's wait with the handlers off, then the handlers
-on), and `input.h` has `in_ready` as a backend call.
+on), `tm_wait_frames` and `tm_wait_for_handlers`, which the battle's waits
+added (below), and `input.h` has `in_ready` as a backend call.
 `tm_video_status` and `tm_beam_line` left the portable interface: what they
 returned was the hardware's status byte and counter, which no host can answer
-(review rubric item 118). They are SNES-only now (`tm_snes_video_status`,
-`tm_snes_beam_line_low`, in `platform/snes/timing.h`), like `vid_snes_write`,
-and only idle entries call them (below).
+(review rubric item 118). The status is SNES-only now (`tm_snes_video_status`,
+in `platform/snes/timing.h`), like `vid_snes_write`, and only idle entries
+call it (below).
 
 | Call | SNES backend | Host backend |
 |---|---|---|
 | `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another) | yields the main thread to the driver |
 | `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`; the time warp's start, `$FD:EADA`, whose mode runs no line handler: `line` is `TM_LINE_UNCHANGED`) | waits a frame, then `tm_set_line` (unless `TM_LINE_UNCHANGED`) and `tm_enable_interrupts` |
 | `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
-| `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line in A, and the call of `$CD:3B82` | returns |
+| `tm_wait_frames(pf, PF_CALL_DC(...), frames)` | the count in A's low byte, and the call of the mode's routine that waits that many (the battle's `$CD:3E3B`) | waits that many frames |
+| `tm_wait_for_handlers(pf, PF_LOOP(head, exit))` | the machine waits where the port stands, taking its interrupts there, until one has been taken; no original code runs (`native_wait_loop`, below) | yields the main thread to the driver: the next frame's handlers run |
+| `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line left in A; the machine waits where the port stands until the picture is at the line, and only shadow mode and the tools call `$CD:3B82` (`native_wait_call`) | returns |
 | `tm_entropy(pf, o, width)` | `$2137`, `$213C`, `$213D` twice, a byte or a word at a time as `$C3:02DD` reads them (a word's high bytes are `$2138`, `$213D` and `$213E`), `$2137` reading as the bus's last byte, the compare's operand's `$21`; shadow mode waits for the original's latch | four values from a 32-bit xorshift the driver seeds |
 | `in_ready(pf, o)` | `$4212` bit 0 clear | true |
 
@@ -2209,16 +2212,66 @@ a mismatch. In the shipping mode it lets the port's time so far pass first
   (`battle_wait_frame`, `field_wait_frame`), and the battle's wait for a line
   (`$CD:3B82`, from `$CD:09AC` and screen script command `$C1`) through
   `tm_wait_line`.
+- the battle's wait routines themselves (`battle/wait.c`): the frame wait
+  (`$C1:007E`), which asks the vblank handler for the frame's update, and the
+  return to the field's (`$CF:FCFB`); the frame work's wait for the handler's
+  frame (`$CD:3E7D`), with the menu's turn after it (`$CD:3E75`) and a number
+  of those (`$CD:3E3B`); the start's and end's wait for their small handler
+  (`$CD:044A`); and the pause the waits give a turn (`$CD:3E44`, `$CD:0036`,
+  `battle/sound.c`). Each asks the handler, then calls `tm_wait_for_handlers`
+  until the handler has answered; what the original did on each pass of its
+  loop -- the pause's turn -- the port does between the calls. The battle's
+  transfer from the main thread (`$CD:3ED2`, below) waits through them.
+
+**Waiting inside a port.** A port that waits for an interrupt's handler
+can't spin: nothing runs the handler until the port gives the machine back.
+`native_wait_loop(s, head, exit, wake)` (`port/native.h`) is that giving
+back, for a loop of the port's own routine whose head and exit it names. In
+the shipping mode the port's fiber is suspended where the machine stands,
+its time paid there, and the machine takes its interrupts at that point,
+stepping a line at a time between them, until a handler has been taken
+(`NATIVE_WAKE_HANDLER`) or the picture is at a line, past the vertical blank;
+the original's loop never runs. In shadow mode the original runs its loop: the
+port's stretch before the wait is compared where the original first comes to
+the loop's head or exit with the port's S (memory, S, the page and the bank;
+the port's other registers are its own across the wait and compared where
+something reads them), and the port goes on at the first such point after a
+handler has run, with the handler's work taken from the original, or where
+the original leaves the loop. The pass the handler fell in is the one not
+compared; an entry the original reaches in the passes, outside the handlers,
+is counted as "in a wait's passes" and not compared on its own (the port
+makes those passes), so the fallback measure counts them as the port's.
+Outside the runtime the original's loop runs in place, and `ct_fuzz
+--stop-at-call` with the loop's head ends a run there. `native_wait_call` is
+the same for a call of a routine that only waits (the battle's wait for a
+line): no call in the shipping mode; a call-out, counted as the port's own
+work, in shadow mode.
+
+**A transfer from the main thread.** `vid_send_vram_and_wait(pf, o, vram,
+src, len)` (`video.h`) sends a buffer to VRAM from the main thread and
+returns once it is there. A host copies it at once, the picture being drawn
+after the frame's work (`runtime/platform/native/video.c`, the host
+backend's first video call). The SNES backend calls the mode's routine that
+queues it for the vblank handler and waits (`PF_CALL_DC`), with the arguments
+where that routine takes them (`pf_snes_vram_sender`, `encodings.c`: the
+battle's `$CD:3ED2` and `$CD:3ECE`, the bank in A, the source in X, VRAM in
+Y, the size at `$53`). That routine is a port (`battle/uploads.c`): it waits
+for a buffer queued before to go, then queues a piece a frame -- 1 KiB, or
+4 KiB while the frame work is cut down to it -- and waits for each, the
+vblank handler sending them (`battle_send_queued_transfer`). The
+battlefield's change (`battle/battlefield_change.c`) sends its tiles and its
+map through it; the original's other callers (the battlefield put back
+`$CD:0453`, the effect graphics loader `$D1:ECF3`) reach the port.
 
 **The six status reads.** The controller-busy waits (`$C2:84EC`, `$C3:0A8E`)
 call `in_ready`. The other reads are idle entries -- one pass of the
 original's loop, run on the machine -- which are the SNES backend's half of
 a wait a host doesn't make: the line handlers' hblank waits (`$C0:ECEB`,
 `$D1:FEB8`, `$C3:0530`, `$C3:0538`), whose blank `vid_raster_display` at the
-handler's line already says; `$CD:3B82`'s three loops, the SNES half of
-`tm_wait_line`; and the location change's and restart's vblank race
-(`$C0:3B71`, `$C0:4181`). They read through `tm_snes_video_status` and
-`tm_snes_beam_line_low`, and no port does.
+handler's line already says; and the location change's and restart's vblank
+race (`$C0:3B71`, `$C0:4181`). They read through `tm_snes_video_status`, and
+no port does. `$CD:3B82`'s three loops were idle entries too, until
+`tm_wait_line` waited in place.
 
 **Measured.** Over the reference play (the 28 movies in shadow mode) the
 original's code running in place of hand ports fell from 311.4 million
@@ -2226,7 +2279,9 @@ instructions to 199.0 million; over the shipping mode's movies and the long
 routes, from 1,752 million to 431 million (the routes' long stretches in the
 field and the menus). The routes reach their outcomes with the budgets drained as a host
 drains them (`ct_drive --drain-budgets`, `$CT_DRIVE_DRAIN_BUDGETS` for
-`tools/movies/route_check.py`).
+`tools/movies/route_check.py`). The battle's waits took the reference play
+(35 movies by then) from 60.3 million instructions to 36.2 million; the
+battle's frame work's own from 19.9 million to 1.8 million.
 
 ## Risks and open questions
 

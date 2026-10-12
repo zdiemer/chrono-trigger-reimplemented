@@ -95,11 +95,13 @@ game/battle/targets.c battle_select_party battle_enemy_turn battle_enemy_turn
 game/battle/targets.c selector_entry battle_enemy_turn battle_enemy_turn
 game/battle/tiles.c battle_decode_tile_row battle_scratch[34] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
 game/battle/tiles.c battle_decode_tile_row battle_scratch[35] battle_scratch                                  # the entry's operand: the original's callers put the count of tiles in the cell, every call
+game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_message_window_kind # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
+game/battle/uploads.c battle_send_vram_and_wait battle_vram_send_size battle_scratch # the entry's operand: vid_send_vram_and_wait's SNES backend, and the original's callers, put the size there plainly before every call
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[0] battle_scratch only
 game/battle/uploads.c battle_upload_tile_rows battle_scratch[1] battle_scratch only
 game/battle/uploads.c battle_vram_transfer battle_scratch[0] battle_scratch only
 game/battle/uploads.c battle_vram_transfer battle_scratch[1] battle_scratch only
-game/battle/wait.c battle_wait_line_loop battle_scratch[0] battle_scratch only
+game/battle/wait.c wait_for_the_small_handler battle_alternate_frame_pending battle_scratch # the wait sets the flag plainly itself, and only the small handler clears it (battle_nmi_alternate)
 game/battle/window.h battle_work16 battle_work[0] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window.h battle_work16 battle_work[1] battle_work only # the entries' operands: the original's callers put them there first, every call
 game/battle/window_leaves.c party_status_carry battle_digits[3] battle_digits

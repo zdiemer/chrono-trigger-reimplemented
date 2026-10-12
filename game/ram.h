@@ -4756,6 +4756,10 @@
 #define RAM_BATTLE_SCRATCH_COUNT 49u
 #define RAM_BATTLE_SCRATCH_STRIDE 0x01u
 #define RAM_BATTLE_SCRATCH_DP 0x45u          /* page battle */
+/* Set by the battle's start and end to wait for the small vblank handler they run
+ * (battle_nmi_alternate), which clears it once it has finished a frame */
+#define RAM_BATTLE_ALTERNATE_FRAME_PENDING 0x7E0047u
+#define RAM_BATTLE_ALTERNATE_FRAME_PENDING_DP 0x47u /* page battle */
 /* Which window a battle message call that names a combatant asks for ($0B with its HP, $0C
  * without), noted as the call starts ($CD:02CB, $CD:02D8); the draw reads it after */
 #define RAM_BATTLE_MESSAGE_WINDOW_KIND 0x7E0053u
@@ -4766,6 +4770,10 @@
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS_COUNT 15u
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS_STRIDE 0x01u
 #define RAM_BATTLE_SCREEN_EFFECT_SETTINGS_DP 0x53u /* page battle */
+/* The size in bytes of a buffer a caller has the main thread's transfer send to VRAM ($CD:3ED2),
+ * as it hands it over [2 bytes] */
+#define RAM_BATTLE_VRAM_SEND_SIZE 0x7E0053u
+#define RAM_BATTLE_VRAM_SEND_SIZE_DP 0x53u   /* page battle */
 /* Copies of the last operands written to the hardware multiplier, which the interrupt handlers
  * write back after their own arithmetic [2 x $1 bytes, by operand (multiplicand, multiplier)] */
 #define RAM_BATTLE_MULTIPLIER_OPERANDS 0x7E0077u
@@ -4807,7 +4815,9 @@
  * the effects' handlers take it from here [2 bytes] */
 #define RAM_BATTLE_EFFECT_ENEMY 0x7E009Cu
 #define RAM_BATTLE_EFFECT_ENEMY_DP 0x9Cu     /* page battle */
-/* Nonzero until the frame's update has run; the wait-for-next-frame loop spins until it clears */
+/* Counted up by the battle's frame wait to ask for the frame's update, which clears it when it
+ * has run (unless the battle is paused); the wait looks again after each handler until it is
+ * clear */
 #define RAM_BATTLE_FRAME_PENDING 0x7E009Eu
 #define RAM_BATTLE_FRAME_PENDING_DP 0x9Eu    /* page battle */
 /* The byte after battle_frame_pending, which the battle's start clears with it; nothing reads it */
@@ -7843,8 +7853,8 @@
 #define RAM_BATTLE_WINDOW_SLIDE 0x7ECA1Eu
 /* Frames of window slide left (a wait loop spins until it is 0) */
 #define RAM_BATTLE_WINDOW_SLIDE_FRAMES 0x7ECA1Fu
-/* Cleared by the NMI handler at the end of each frame, which releases the battle's
- * wait-for-frame loops */
+/* Counted up by the battle's waits for the vblank handler to finish a frame, and cleared by the
+ * handler when it has */
 #define RAM_BATTLE_NMI_PENDING 0x7ECA20u
 /* Which of the window's two arrangements of the per-line effects the line handler applies (0 or
  * 1, with battle_alternate_base, through $CE:EE6E), when it changes; the frame work has it
@@ -7868,6 +7878,11 @@
 #define RAM_BATTLE_VRAM_REQUEST_BANK 0x7ECA29u /* Source bank */
 #define RAM_BATTLE_VRAM_REQUEST_VRAM 0x7ECA2Au /* VRAM word address */
 #define RAM_BATTLE_VRAM_REQUEST_SIZE 0x7ECA2Cu /* Size in bytes */
+/* Bytes of a buffer the main thread sends to VRAM ($CD:3ED2) that are still to be queued, a
+ * piece a frame [2 bytes] */
+#define RAM_BATTLE_VRAM_SEND_LEFT 0x7ECA2Eu
+/* Set once the piece queued is the last of a buffer the main thread sends to VRAM ($CD:3ED2) */
+#define RAM_BATTLE_VRAM_SEND_LAST 0x7ECA30u
 /* The screen script's two channels: where each is in its script and how fast it goes [2 x $10
  * bytes, by screen script channel] */
 #define RAM_BATTLE_SCREEN_CHANNELS 0x7ECA32u
@@ -8335,8 +8350,8 @@
 #define RAM_BATTLE_FRAME_WORK_REDUCED 0x7ECE0Fu
 /* Nonzero to rotate the gradient's rows the other way */
 #define RAM_BATTLE_GRADIENT_REVERSED 0x7ECE10u
-/* Counted up while a routine queues a VRAM transfer and waits for the one before it to go
- * ($CD:3ED2); the frame wait's tail leaves the background and effects' loads alone meanwhile */
+/* Counted up while the main thread sends a buffer to VRAM ($CD:3ED2), and cleared once it has;
+ * the frame wait's tail leaves the background and effects' loads alone meanwhile */
 #define RAM_BATTLE_VRAM_REQUEST_BUSY 0x7ECE11u
 /* Set once palette animation has been paused for $CFFF */
 #define RAM_BATTLE_PALETTE_PAUSED 0x7ECE12u

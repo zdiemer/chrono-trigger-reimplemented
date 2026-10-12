@@ -584,6 +584,15 @@ PF_API void vid_start_vram_uploads(Platform *pf, PfOrigin o, const VidVramPort *
  * (NULL: as vid_start_vram_uploads left it). A `len` of 0 uploads nothing. */
 PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,
                           const VidVramPort *port);
+/* From the game's main thread rather than a handler: `len` bytes (1-65536)
+ * from `src` into VRAM at word address `vram_addr`, there before the next
+ * picture, the call returning once they are. A machine that can reach VRAM
+ * only between pictures has its vblank handler send them, a piece a frame,
+ * and the caller waits a frame for each: `o` names the call of the mode's
+ * routine that queues them and waits (PF_CALL_DC), which the SNES backend
+ * makes with the arguments it takes (platform/snes/encodings.c). A host
+ * draws the picture after the frame's work, so it copies them now. */
+PF_API void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len);
 /* The same where the game's data holds the transfer's mode in the SNES's form
  * (a screen transition's, field_transfer). */
 PF_API void vid_send_vram_in_mode(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len,

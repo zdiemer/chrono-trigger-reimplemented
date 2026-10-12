@@ -105,6 +105,7 @@ typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
     unsigned abandoned;         /* a callee unwound the routine's frame, so it never finished */
     unsigned in_latch_wait;     /* SHADOW: reached while a port waited for the original's latch: not compared */
+    unsigned in_wait;           /* SHADOW: reached in the passes of a loop a port waits in: not compared */
     /* SHADOW: time the original spent in the stretches native code replaces
      * (excluding call-outs), and the native routine's bus-access clocks for them. */
     uint64_t original_clocks;
@@ -401,6 +402,38 @@ void native_sync(Snes *s);
  * lets the routine's time so far pass first (native_sync). No effect outside
  * the runtime. */
 void native_await_latch(Snes *s);
+
+/* For native routines that wait -- for the frame's handlers to have run, or
+ * for the picture to reach a line -- where the original spins in a loop.
+ *
+ * native_wait_loop stands for a loop of the port's own routine, from its head
+ * (the instruction it comes back to) until its exit (the first instruction
+ * after it), whose passes look at what a handler leaves: the port runs its
+ * passes as C and calls this between them. In ON mode the machine stands
+ * where the port is, taking interrupts there, until a handler has been taken
+ * (`wake` NATIVE_WAKE_HANDLER) or the picture is at the line `wake`, past the
+ * vertical blank; no original code runs. In SHADOW mode the original runs its
+ * loop: the port's stretch before the wait is compared where the original
+ * first comes to the head or the exit with the port's S (its memory, S, the
+ * page and the bank: the port's other registers are its own across the wait,
+ * NATIVE_WAIT_DONT_CARE, and compared where something reads them), and the
+ * port goes on at the first
+ * such point after a handler has run there, with the handler's work taken
+ * from the original, or where the original leaves the loop; an entry the
+ * original reaches in those passes, outside the handlers, isn't compared on
+ * its own. Outside the runtime the original's loop runs in place, as a
+ * call-out's callee does, and ct_fuzz --stop-at-call can end the run at its
+ * head.
+ *
+ * native_wait_call stands for a call of a wait routine of the original's
+ * that only waits (the battle's wait for a line): ON mode waits as above,
+ * without the call; SHADOW mode and outside the runtime make the call, as
+ * native_call_dc does, but the callee counts as the port's own work (no
+ * observer is told of a call-out). */
+enum { NATIVE_WAKE_HANDLER = -1 };
+enum { NATIVE_WAIT_DONT_CARE = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+void native_wait_loop(Snes *s, uint32_t head, uint32_t exit, int32_t wake);
+void native_wait_call(Snes *s, uint32_t site, uint32_t target, bool long_call, uint16_t dont_care, int32_t wake);
 
 /* Time attribution, for a port that runs another routine's work as C rather
  * than calling out to it: a dispatcher that runs its handlers inline. A port's

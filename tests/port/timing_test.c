@@ -4,8 +4,10 @@
  * a wait deep in the main thread's stack, a wait from a coroutine the main
  * thread runs (as the menus' tasks are), the acknowledges answering inside
  * their own handler, the budget and the line wait, the frame parity, the
- * picture's end, the generator's replay, and the pads. Exits non-zero on
- * failure.
+ * picture's end, the generator's replay, the pads, a wait routine that looks
+ * again after the handlers until its request is answered, a wait for a
+ * number of frames, and a send to VRAM from the main thread. Exits non-zero
+ * on failure.
  *
  *   timing_test */
 #include <stdio.h>
@@ -131,6 +133,39 @@ static void bring_back_main(Platform *p, void *ctx)
     }
 }
 
+/* A fourth game: its main thread asks the vblank handler for a frame and
+ * looks again after the handlers have run until the handler has done it, as
+ * the battle's wait routines do; then waits three frames in one call, and
+ * sends to VRAM from the main thread. */
+static uint8_t asked;
+static int asking_frames_done;
+static const uint8_t tiles[4] = { 0x12, 0x34, 0x56, 0x78 };
+
+static void asking_main(Platform *p, void *ctx)
+{
+    (void)ctx;
+    tm_enable_interrupts(p, PF_AT(0), TM_INT_VBLANK);
+    for (;;) {
+        note('M');
+        asked++;
+        while (asked)
+            tm_wait_for_handlers(p, PF_LOOP(0, 0));
+        note('m');
+        tm_wait_frames(p, PF_CALL(0, 0), 3);
+        note('w');
+        vid_send_vram_and_wait(p, PF_CALL(0, 0), 0x7FFF, (PfData){ 0, tiles }, sizeof tiles);
+        asking_frames_done++;
+    }
+}
+
+static void asking_vblank(Platform *p, void *ctx)
+{
+    (void)p;
+    (void)ctx;
+    note('V');
+    asked = 0;
+}
+
 static Platform pf;
 
 int main(void)
@@ -212,6 +247,24 @@ int main(void)
     order[order_len] = 0;
     CHECK(strcmp(order, "M|mML|VML|") == 0, "the handlers come on after the wait: %s", order);
     CHECK(tm_host_picture_lines(&back) == 212, "the picture ends after line 211 again (%u)", tm_host_picture_lines(&back));
+
+    /* the battle's waits: the handler answers the main thread's request; a
+     * number of frames is that many; the VRAM a send names gets its bytes,
+     * the address wrapping round */
+    static Platform asking;
+    TmHostProgram ask = { asking_main, asking_vblank, NULL, NULL };
+    order_len = 0;
+    tm_host_start(&asking, &ask, 1);
+    for (int i = 0; i < 6; i++) {
+        tm_host_frame(&asking);
+        note('|');
+    }
+    order[order_len] = 0;
+    CHECK(strcmp(order, "M|Vm|V|V|VwM|Vm|") == 0, "the handler's answer and the frames waited: %s", order);
+    CHECK(asking_frames_done == 1, "one round sent (%d)", asking_frames_done);
+    CHECK(asking.video.vram[0xFFFE] == 0x12 && asking.video.vram[0xFFFF] == 0x34 && asking.video.vram[0] == 0x56
+              && asking.video.vram[1] == 0x78,
+          "the bytes in VRAM from word $7FFF on, wrapping");
 
     printf("timing_test: %s\n", failures ? "FAILED" : "ok");
     return failures != 0;

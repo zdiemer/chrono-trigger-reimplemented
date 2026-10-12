@@ -65,8 +65,8 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 8% left (92% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 87%, field graphics 92%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 21.7 KiB, 60 M instructions (handback 13.1 KiB, unported 8.8 KiB); shipping mode with the routes 19.1 KiB, 108 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 90%, field graphics 92%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 21.3 KiB, 36 M instructions (handback 12.7 KiB, unported 8.8 KiB); shipping mode with the routes 18.8 KiB, 104 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 286 files, 117 of 86,892 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 287 files, 117 of 87,175 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -562,12 +562,13 @@ by an audit; the fourth is the program itself.
   program (`$7E`) is ported.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
-  their host backend are built, the field's budgets and the menus' task
-  switch are ports, and no port reads the beam's status. What is left is in
-  TODO.md, "Timing without a beam": the waits still made on the machine (idle
-  entries the native program replaces with `tm_wait_frame` as their callers
-  become ports), the host backend's place in `ct_native`, and the menus'
-  tasks, which each need a coroutine of their own or a rewrite to resume.
+  their host backend are built, the field's budgets, the menus' task switch
+  and the battle's wait routines are ports, and no port reads the beam's
+  status. What is left is in TODO.md, "Timing without a beam": the waits
+  still made on the machine (the field's `$C0:EC60` the largest, which takes
+  the battle's shape), the host backend's place in `ct_native`, and the
+  menus' tasks, which each need a coroutine of their own or a rewrite to
+  resume.
 
 - **The native program, and the registry taken down.** Today the emulated
   CPU walks the ROM from its reset vector, and a port runs because the

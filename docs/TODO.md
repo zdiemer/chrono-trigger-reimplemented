@@ -178,21 +178,18 @@ rest waits, is [PLAN.md](PLAN.md).
     (`$C1:EC7F`); the
     pose's setup `$C1:308C`, and an animation that names no movement
     (`$C1:3760`'s table past its nine rows, no animation the battle gives);
-    the decompressor and
-    `$CD:3ECE` from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
+    the decompressor from the effect graphics loader; `$CD:0027`/`$002D`/`$0030`
     from the menu window; from a member that comes back once (history/reimplementation-chunks.md, "Phase 3,
     battle: the leftovers"), the showing's step `$C1:BFA4`/`$C1:EC7F` and
     the message `$CD:0021`; from the battle's start and its return to the
     field, the battle screen's setup `$CD:0000` (`$D1:F1B0`), the display's
-    closing `$CD:0006` and the frame wait `$CF:FCFB`, and from the setup's
+    closing `$CD:0006`, and from the setup's
     end the party's poses `$C1:35DD`; the wait tail's callees from the frame
-    work, and its wait for a line `$CD:3B82` (from the frame work and the
-    screen script's `$C1`, which no script has: the beam's line is the
-    console's, and a native build that draws a frame at a time has no use
-    for the wait, REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes");
-    and from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle: cuts, bands and the screen's
-    start"), the start settings' copy `$CD:0C9D`, the message tiles' clear
-    `$CD:0235` and the battle music's start `$C0:0008`.
+    work, the battlefield put back `$CD:0453` and an effect's graphics
+    loaded `$D1:ECF3`; the menu's turn the frame work's wait gives
+    (`$C1:0012`); and from the screen's start (history/reimplementation-chunks.md, "Phase 3, battle:
+    cuts, bands and the screen's start"), the start settings' copy
+    `$CD:0C9D` and the battle music's start `$C0:0008`.
   - What the screen script's rows still turn away to the original
     (REIMPLEMENTATION.md, "Phase 3, battle: the screen script's shapes"), none of it a
     call the library makes: the drift `$D7` where its amount's high byte,
@@ -845,10 +842,7 @@ rest waits, is [PLAN.md](PLAN.md).
   vblank handler and go with the timing service (PLAN.md, "Timing is
   decided"). Poses 1, 10 and 11 have looks (`pose_looks.c`) no status gives.
 - **What the battlefield's change left** (REIMPLEMENTATION.md, "Phase 3, battle: the
-  battlefield changed and an effect's rows of its tiles"): the frame work's
-  waits it calls out to, for the next frame (`$CD:3E75`, which gives the menu
-  its turn), for a number of them (`$CD:3E3B`) and for its transfers to go
-  (`$CD:3ED2`), which go with the timing service; the rest of the original
+  battlefield changed and an effect's rows of its tiles"): the rest of the original
   that loads a battlefield, the screen effects' song and the HP gradient's
   (`$CD:0D62`, `$CD:0D93`-`$CD:0DF9`, `$CD:0E05`) and the battlefield put
   back (`$CD:0453`, with `$CD:0E23`-`$CD:0E61`), which call the ports; and
@@ -1013,9 +1007,7 @@ rest waits, is [PLAN.md](PLAN.md).
   terms), and `BG3_MAP_AT_7C00` repeats `MAP_VRAM`; `flip_tile`'s result and
   `MapBuilder`'s `last_*`/`built_any` exist only for leftover cells;
   `screen_script.c` clears the channels' state with `wram_fill16` at an
-  address (name the block in the map). The uploads go through the
-  original's transfer (`$CD:3ED2`) from a bridge, as there is no upload
-  service yet.
+  address (name the block in the map).
 
 - **What the attract refusals' review left** (none rated translation):
   `race_projection.c`'s `+ (gap <= SCREEN_LINES)` is a compare's carry
@@ -2307,19 +2299,32 @@ re-runs the census.
   (`attract/main_loop.c`, which reads `$4212` itself rather than through the
   service); the idle entries on flags a handler clears
   (`field_wait_for_frame_loop`, `menu_wait_for_frame_loop`,
-  `menu_wait_ready_loop`, `battle_wait_for_frame_loop`,
-  `battle_wait_for_nmi_loop`, `battle_wait_window_slide_loop`,
+  `menu_wait_ready_loop`, `battle_wait_window_slide_loop`,
   `battle_wait_graphics_loaded_loop`, `scene_race_wait_for_tilemap_upload_loop`,
   `attract_wait_loop`, `warp_wait_for_frame_loop`); the time warp's wait for
   the vblank before it turns its picture on (`warp_screen_on_wait_for_vblank_loop`,
   `$FD:EADA`, reached through `tm_wait_frame_then_enable` as the field's
-  `$C0:0B38` is); and the generated `$CD:044A`, `$CD:3E55` and `$CF:FCFB`.
-  Ports that called the modes' wait routines now call
-  `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`); each of these
-  becomes one where its caller is a port. The modes' wait routines themselves
-  (the battle's `$C1:007E`, the sprite-object mode's `$C2:0346`) are still the
-  original's around their idle loops, and the pass that leaves an idle loop
-  stays counted as a fallback.
+  `$C0:0B38` is). Ports that called the modes' wait routines call
+  `tm_wait_frame` (`field_wait_frame`, `battle_wait_frame`). The battle's
+  wait routines are ports whose loops give the processor up through
+  `tm_wait_for_handlers` (`battle/wait.c`; PLATFORM.md, "Timing without a
+  beam, as built"); the field's `$C0:EC60` (2.5 M instructions of the
+  reference play, the largest wait left) and the sprite-object mode's
+  `$C2:0346` are still the original's around their idle loops, and the pass
+  that leaves an idle loop stays counted as a fallback: they take the
+  battle's shape.
+- **What the battle's waits left** (REIMPLEMENTATION.md, "Phase 4a, timing: the
+  battle's waits and its transfer from the main thread"): the menu's turn the
+  frame work's wait gives (`$C1:0012`, `$C1:10E3`) reads the carry on some path
+  though liveness has it dead there: `ct_fuzz` over the transfer found a VRAM
+  byte's low bit following it, and the transfer now leaves the original's
+  carry before each wait. Find the read; then the frame work's other callers
+  that declare the carry dead at a wait (`battlefield_change.c`'s
+  `WAIT_READS`, `WAIT_FRAMES_READS`) want the same. The waits' fuzz runs stop
+  at the first pass, or at a sibling run as C (a real call under `ct_fuzz`,
+  which has no runtime), so a wait's passes and the transfer's pieces are
+  checked by shadow mode alone; `ct_fuzz` with a runtime, or interrupts it
+  can raise, would reach them.
 - **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
   boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,
@@ -2327,8 +2332,9 @@ re-runs the census.
   through the SNES-only `tm_snes_video_status` and have no host half; they
   go when the line handlers become functions the driver calls.
 - **The battle's wait for a line `$CD:3B82`**: its callers call
-  `tm_wait_line` now, and its three loops are the SNES backend's idle
-  entries (`battle/wait.c`). Its purpose isn't established: the frame work
+  `tm_wait_line`, whose SNES backend waits where the port stands in the
+  shipping mode and calls the original's routine only in shadow mode and the
+  tools (`native_wait_call`). Its purpose isn't established: the frame work
   waits for line 64 before the screen script channels run while the timed
   effect slots do (`$CD:09AC`), and screen script command `$C1` (`$CD:1D93`,
   in no movie) waits for a line from the script. Neither is followed by a

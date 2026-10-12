@@ -3,6 +3,7 @@
 #include "battle/bridge.h"
 
 #include "battle/battle.h"
+#include "original_effects.h"
 #include "platform/timing.h"
 #include "port/native.h"
 
@@ -50,11 +51,24 @@ bool battle_wait_frame(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_c
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 
+bool battle_wait_frames(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t frames)
+{
+    uint16_t page = m_direct_page(s);
+    uint8_t bank = data_bank(s);
+    tm_wait_frames(m_platform(s), PF_CALL_DC(site, routine, dont_care), frames);
+    return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
+}
+
+/* For the original's code: its wait for a line keeps the line in the first
+ * of the battle's scratch cells. */
+static void leave_the_line(GameState *g, uint8_t line) { set_battle_scratch(g, 0, line); }
+
 bool battle_wait_line(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, uint8_t line)
 {
     uint16_t page = m_direct_page(s);
     uint8_t bank = data_bank(s);
     tm_wait_line(m_platform(s), PF_CALL_DC(site, routine, dont_care), line);
+    ORIGINAL_EFFECT(leave_the_line(state_of(s), line));
     return battle_back(s, site + BATTLE_JSR_SIZE, page, bank);
 }
 

@@ -4397,10 +4397,14 @@ uint16_t battle_screen_channel(const GameState *g) { return r16(g, 0x7E0043u); }
 void set_battle_screen_channel(GameState *g, uint16_t v) { w16(g, 0x7E0043u, v); }
 uint8_t battle_scratch(const GameState *g, unsigned i) { IN_RANGE(g, 387, "battle_scratch", "count", i, 49u); return r8(g, 0x7E0045u + (uint32_t)i * 0x01u); }
 void set_battle_scratch(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 387, "set_battle_scratch", "count", i, 49u); w8(g, 0x7E0045u + (uint32_t)i * 0x01u, v); }
+uint8_t battle_alternate_frame_pending(const GameState *g) { return r8(g, 0x7E0047u); }
+void set_battle_alternate_frame_pending(GameState *g, uint8_t v) { w8(g, 0x7E0047u, v); }
 uint8_t battle_message_window_kind(const GameState *g) { return r8(g, 0x7E0053u); }
 void set_battle_message_window_kind(GameState *g, uint8_t v) { w8(g, 0x7E0053u, v); }
 uint8_t battle_screen_effect_settings(const GameState *g, unsigned i) { IN_RANGE(g, 388, "battle_screen_effect_settings", "count", i, 15u); return r8(g, 0x7E0053u + (uint32_t)i * 0x01u); }
 void set_battle_screen_effect_settings(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 388, "set_battle_screen_effect_settings", "count", i, 15u); w8(g, 0x7E0053u + (uint32_t)i * 0x01u, v); }
+uint16_t battle_vram_send_size(const GameState *g) { return r16(g, 0x7E0053u); }
+void set_battle_vram_send_size(GameState *g, uint16_t v) { w16(g, 0x7E0053u, v); }
 uint8_t battle_multiplier_operands(const GameState *g, unsigned i) { IN_RANGE(g, 389, "battle_multiplier_operands", "count", i, 2u); return r8(g, 0x7E0077u + (uint32_t)i * 0x01u); }
 void set_battle_multiplier_operands(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 389, "set_battle_multiplier_operands", "count", i, 2u); w8(g, 0x7E0077u + (uint32_t)i * 0x01u, v); }
 uint8_t battle_divider_operands(const GameState *g, unsigned i) { IN_RANGE(g, 390, "battle_divider_operands", "count", i, 3u); return r8(g, 0x7E0079u + (uint32_t)i * 0x01u); }
@@ -6281,6 +6285,10 @@ uint16_t battle_vram_request_vram(const GameState *g) { return r16(g, 0x7ECA2Au)
 void set_battle_vram_request_vram(GameState *g, uint16_t v) { w16(g, 0x7ECA2Au, v); }
 uint16_t battle_vram_request_size(const GameState *g) { return r16(g, 0x7ECA2Cu); }
 void set_battle_vram_request_size(GameState *g, uint16_t v) { w16(g, 0x7ECA2Cu, v); }
+uint16_t battle_vram_send_left(const GameState *g) { return r16(g, 0x7ECA2Eu); }
+void set_battle_vram_send_left(GameState *g, uint16_t v) { w16(g, 0x7ECA2Eu, v); }
+uint8_t battle_vram_send_last(const GameState *g) { return r8(g, 0x7ECA30u); }
+void set_battle_vram_send_last(GameState *g, uint8_t v) { w8(g, 0x7ECA30u, v); }
 uint8_t battle_screen_channels_running(const GameState *g, unsigned channel) { IN_RANGE(g, 783, "battle_screen_channels_running", "count", channel, 2u); return r8(g, 0x7ECA32u + (uint32_t)channel * 0x10u); }
 void set_battle_screen_channels_running(GameState *g, unsigned channel, uint8_t v) { IN_RANGE(g, 783, "set_battle_screen_channels_running", "count", channel, 2u); w8(g, 0x7ECA32u + (uint32_t)channel * 0x10u, v); }
 uint16_t battle_screen_channels_layout_word(const GameState *g, unsigned channel) { IN_RANGE(g, 783, "battle_screen_channels_layout_word", "count", channel, 2u); return r16(g, 0x7ECA33u + (uint32_t)channel * 0x10u); }
