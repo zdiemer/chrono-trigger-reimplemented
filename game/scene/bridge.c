@@ -44,6 +44,24 @@ void scene_bridge_scale_picture(Snes *s, Racer r, bool row_nudge)
     m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
 }
 
+/* The shared endings' main loop hands their picture to the scaler from
+ * $7E:8930, which keeps the data bank to come back to on the stack (the low
+ * byte of the word it pushes to set the scaler's) and calls the scaler's start
+ * from $7E:897F; the scaler's rows then run as the original's, and its return
+ * lands on the routine's gathering ($7E:8983). The carry its first row takes is
+ * the last shift's, of a zoom under $8000: clear. */
+enum { ENDINGS_SCALER_CALL = 0x7E897F };
+
+void scene_bridge_scale_ending_picture(Snes *s)
+{
+    m_push8(s, DATA_BANK_AFTER);
+    m_push8(s, (uint8_t)(ENDINGS_SCALER_CALL >> 16));
+    m_push16(s, (uint16_t)(ENDINGS_SCALER_CALL + JSL_LENGTH - 1));
+    on_page(s, SCENE_PAGE, SCENE_UPPER_WORK_RAM);
+    m_set_flag(s, CPU_FLAG_C, false);
+    m_stop_at(s, SCALER_ROWS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
+}
+
 /* ---- The race's setup ------------------------------------------------------------------------- */
 
 enum { JSR_SIZE_HERE = 3 };

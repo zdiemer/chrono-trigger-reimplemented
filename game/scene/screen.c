@@ -19,10 +19,13 @@
  * every entry is guarded by a hash of its code. */
 #include "scene/scene.h"
 
+#include "charge.h"
+#include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "scene/scene_data.h"
 #include "vars.h"
 #include "wram.h"
 
@@ -195,14 +198,14 @@ bool scene_upload_palette_present(Snes *s) { return m_code_matches(s, 0x7E388B, 
 
 // $7E:388B
 /* Send the working palette to CGRAM. */
-static void upload_palette(Platform *pf)
+void scene_send_palette(Platform *pf)
 {
     vid_send_palette(pf, PF_AT(0x7E388D), 0, PF_GAME(WORKING_PALETTE), COLORS);
 }
 
 void scene_upload_palette(Snes *s)
 {
-    upload_palette(m_platform(s));
+    scene_send_palette(m_platform(s));
     m_rts(s);
 }
 
@@ -232,6 +235,37 @@ void scene_transfer(Snes *s)
 {
     scene_send_unpacked(state_of(s), m_platform(s));
     m_rtl(s);
+}
+
+/* ---- Resources copied as they are, and the palette made current ------------------------------ */
+
+/* The bank of work RAM the unpacker's destination names, by its bank byte's
+ * low bit, as the unpacker and the resource copies take it. */
+uint8_t scene_unpacked_bank(const GameState *g)
+{
+    return ((decompress_dest(g) >> 16) & 1) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM;
+}
+
+// $7E:36AA
+/* `bytes` of a resource (by its number in the program's list) as they are, to
+ * `to` in the bank the unpacker's destination names. The caller hands the
+ * count over in its page's first cell, which keeps it. */
+void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes)
+{
+    ORIGINAL_EFFECT(set_scene_call_first(g, page, bytes));
+    scene_copy_resource_bytes(g, scene_unpacked_bank(g), scene_resource_offset(g, resource), to, bytes);
+    ORIGINAL_EFFECT(charge_block_move(g, bytes));
+}
+
+/* The loaded palette and the working one the frame sends, in the first bank. */
+enum { LOADED_PALETTE = 0x7E2000, PALETTE_BYTES = 0x200 };
+
+// $7E:38AF
+/* The palette as loaded becomes the one the frame sends. */
+void scene_use_loaded_palette(GameState *g)
+{
+    wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
+    ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
 }
 
 /* ---- Per-line effects from descriptors --------------------------------------------------- */

@@ -42,6 +42,9 @@ menu_object_cmd_for_frames_moving vblank-tail runs its object's sprite script in
 # The jet bike race's frame tasks, writing RAM the next vblank sends.
 scene_race_draw vblank-tail draws the race's sprites into the RAM sprite table in 22-line calls, longer than vblank, through the scene's sprite routines, each timed as itself (TIMED_AS), whose scalars fit their own calls only on average; at most 1723 clocks (1.3 lines), which moves only when the table is ready
 scene_race_set_up worst the race's setup, with the display blanked and the frame's interrupt off, unpacking its graphics and arranging the racers' pictures in long loops: at most 88787 clocks (65 lines) in a setup of a few frames, moving when the race starts
+scene_ending_set_up worst the shared endings' setup, with the display blanked, unpacking the ground and widening the captions' letters into VRAM a word at a time: at most 83560 clocks (61 lines) in a setup of 234,000 on average, moving when the ending's first scene starts
+scene_ending_load_ground_and_picture worst a script's scene change in the shared endings, with the per-line effects off: the ground's name table and the picture's 240 rows mirrored in long loops, two or four calls whose time the vblank's interrupt splits; at most 542602 clocks in calls of 448,000 on average, moving when the picture first shows
+scene_ending_load_picture worst as scene_ending_load_ground_and_picture without the ground: the picture's 240 rows mirrored, at most 542602 clocks in calls of 583,000 on average, moving when the picture first shows
 
 # The telepod ending's staff roll, a frame task writing RAM the next vblank sends.
 scene_roll_credits vblank-tail writes the next line of the staff credits into a RAM row buffer every 16th frame (every frame when they roll fast) and only hands on to its scroll otherwise, so its time follows the line's length, which one scalar fits only on average; at most 4037 clocks (3.0 lines), writing only RAM

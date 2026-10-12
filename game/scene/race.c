@@ -136,7 +136,7 @@ static void fill_racers_map(Platform *pf)
  * calls cover it all. One byte to a word is what the upload calls model as
  * words, so it goes through the SNES-only escape, which the observer follows
  * byte by byte. */
-static void upload_plane_half(Platform *pf)
+void scene_upload_plane_half(Platform *pf)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E8752), SCENE_VRAM_LOW_BYTES);
     const VidSnesTransfer t = { .dest = VID_SNES_VRAM_DATA_LOW, .source = PLANE_MAP_HALF, .size = PLANE_MAP_HALF_BYTES };
@@ -275,7 +275,7 @@ enum { BYTES_ONE_REGISTER = 0x00 };
 // $7E:37A6
 /* Half the plane's name table, from what was unpacked: each 64-tile row of
  * the track sent twice across the 128 tiles of the plane's row. */
-static void double_plane_rows(GameState *g)
+void scene_double_plane_rows(GameState *g)
 {
     for (uint32_t row = 0; row < PLANE_ROWS_A_HALF; row++) {
         uint32_t from = UNPACK_BUFFER + row * PLANE_ROW_BYTES, to = PLANE_MAP_HALF + row * 2 * PLANE_ROW_BYTES;
@@ -305,8 +305,8 @@ static void load_graphics(Snes *s, uint32_t unpack_site, const RaceGraphics *r)
         TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf));
         return;
     case PLANE_MAP_PART:
-        double_plane_rows(g);
-        TIMED_AS(g, 0x7E8752, upload_plane_half(pf));
+        scene_double_plane_rows(g);
+        TIMED_AS(g, 0x7E8752, scene_upload_plane_half(pf));
         return;
     case LAYER_MAP:
         set_decompress_length(g, LAYER_MAP_BYTES);
@@ -390,7 +390,7 @@ static void place_crono_blocks(GameState *g)
 /* `rows` rows of pictures mirrored into the rows from `to`: from each source
  * row, its pixels from `last` back to the row's start, then empty ones to
  * the end of the row. Returns where the next row goes. */
-static uint32_t mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t last, unsigned rows)
+uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t last, unsigned rows)
 {
     for (unsigned row = 0; row < rows; row++) {
         for (unsigned i = 0; i < MIRRORED_PIXELS; i++)
@@ -416,9 +416,9 @@ enum { CRONO_SECOND_PART = 0x7F2C00 };
 
 static void mirror_crono(GameState *g)
 {
-    uint32_t to = mirror_rows(g, MIRRORED_FIRST, PICTURES, FIRST_LAST, CRONO_FIRST_ROWS);
-    mirror_rows(g, to, CRONO_SECOND_PART, FIRST_LAST, CRONO_SECOND_ROWS);
-    mirror_rows(g, MIRRORED_SECOND, CRONO_PICTURES_COPY, FIRST_LAST, CRONO_COPY_ROWS);
+    uint32_t to = scene_mirror_rows(g, MIRRORED_FIRST, PICTURES, FIRST_LAST, CRONO_FIRST_ROWS);
+    scene_mirror_rows(g, to, CRONO_SECOND_PART, FIRST_LAST, CRONO_SECOND_ROWS);
+    scene_mirror_rows(g, MIRRORED_SECOND, CRONO_PICTURES_COPY, FIRST_LAST, CRONO_COPY_ROWS);
 }
 
 /* The last part, unpacked over Crono's second, mirrored from its 24th pixel. */
@@ -450,7 +450,7 @@ static void load_racers_pictures(Snes *s)
     ORIGINAL_EFFECT(leave_mirror_last(g, THIRD_LAST));
     ORIGINAL_EFFECT(hw_port_seek(g, AFTER_CRONO_MIRRORED, PORT_SECOND_BANK));
     unpack_holding(s, 0x7E3BEF, THIRD_RESOURCE);
-    mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
+    scene_mirror_rows(g, MIRRORED_THIRD, CRONO_PICTURES_SECOND, THIRD_LAST, THIRD_RUNS * MIRROR_RUN_ROWS);
     ORIGINAL_EFFECT(leave_mirror_runs(g, 0));
     ORIGINAL_EFFECT(hw_port_seek_address(g, AFTER_THIRD_MIRRORED));
 }
@@ -608,7 +608,7 @@ bool scene_race_upload_plane_present(Snes *s) { return m_code_matches(s, 0x7E875
 
 void scene_race_upload_plane(Snes *s)
 {
-    upload_plane_half(m_platform(s));
+    scene_upload_plane_half(m_platform(s));
     m_rts(s);
 }
 

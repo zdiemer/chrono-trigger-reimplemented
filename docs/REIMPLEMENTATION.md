@@ -2490,133 +2490,97 @@ the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
 scene engine's unported `$C3:000E`; and the dactyl's flight, which
 `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.
 
-### Phase 3, the scene program: the staff roll (`$7E:8EA8`, `$7E:9E7B`-`$7E:9F2A`), and the scene engine's leftovers
+### Phase 3, the scene program: the shared endings (`$7E:8538`-`$7E:8E94`, `$7E:8983`)
 
-The third chunk of bank `$7E`, after the scene engine's and the scene data's
-last unported runs (history file, "Phase 3, the scene program: the rest of
-the jet bike race", for the one before).
+The fourth chunk of bank `$7E`, after the staff roll (history file, "Phase
+3, the scene program: the staff roll", for the one before).
 
-**How it was chosen.** The brief: the last runs `tools/burndown.py --uncovered`
-listed in `$C3` and `$C6`, then the telepod ending. Finding out what each run
-was came first, and most were ported already:
+**How it was chosen.** PLAN.md's next: the endings that share `$7E:8538`.
+Ranked by `tools/fallbacks.py --by routine` over the Beyond Time ending, the
+group was the setup (408 bytes), the main loop's scaling `$7E:8930` (refused
+by the idle entry, 121,332 instructions, 1.5 million passes), the picture's
+placing `$7E:8850` (182,861), its upload `$7E:89C0` (65,439) and frame
+`$7E:891B` (38,203), and the scripts' scene routines and vblank tasks
+between them; about 1.9 KiB. The helpers from `$7E:7FC4` and the routines
+at `$7E:8A01`-`$7E:8B51` no movie reaches and are left for a movie or a
+chunk of their own; `$7E:8EA8` and `$7E:9E7B` on were the staff roll's.
 
-- `$C3:0B03`, `$C3:0B95`, `$C3:0C41` (467 bytes) are the sequence interpreter
-  (`scene/script.c`), uncredited because the entry handed a command it doesn't
-  take back to the original's whole loop, a call-out to `$C3:0B03` the walk
-  can't go past. It no longer calls the loop. A command no script has (a store
-  outside low RAM, a video setting the service doesn't express, a task taken
-  off a list it isn't on or put on a full one) is handed to the original's
-  code for that command, entered as the dispatch enters it: the script past
-  the opcode, A and X the handler's place in the dispatch table with the flags
-  of the shift that made it, and the dispatch's scratch word kept, so the
-  stop is exactly the machine the original has there (what TODO.md asked for
-  at the loop's head, one step further on). A call-out that comes back with
-  the machine otherwise stops where the call returns. A script that never
-  ends its turn now hangs as the original's does (the old limit of 65536
-  commands, which handed it back, is gone: review item 113). What stays the
-  original's are those handlers and the task searches they call (about 160
-  bytes, which only what no script has reaches) and `$C3:0BEF`-`$C3:0C18`,
-  which nothing reaches (`re/hints.toml`, "unreached").
-- `$C3:09A4` (53 bytes) is the NMI's song send (`scene/frame.c`), uncredited
-  because the burndown read `PF_CALL_DC(site, target, set)` as `(target,
-  set)` and took the port as unreadable (fixed in the tool, which moved
-  several banks a little); its stop where the data bank doesn't reach the
-  registers was dead, since the handler goes on only where the frame's work
-  left a bank that does, and is gone.
-- `$C3:0A95` (106 bytes) is the frame's controller read past the console's
-  busy wait, ported, behind the stop at that wait; it stays the census's
-  `in_ready` rewrite (PLATFORM.md, "Timing without a beam").
-- `$C6:E6D0` (126 bytes) was unported: a sprite-object scene's routine that
-  jolts the running object a random step in a random direction, which a
-  script at `$C3:B5AF` calls and no movie reaches. `menu_object_jolt`
-  (`menu/object_commands.c`) takes two of the menus' random bytes, the
-  direction and the size, and moves the object's pixel along each axis by the
-  sine's size times the jolt's in 256ths; the menus' sine (`$C2:2273`/`$2277`,
-  the table at `$C0:F800` with the quarter turns put in by hand) is inlined.
-  The carry the scripts read is the place down wrapping, worked out in the
-  wrapper from before and after.
+**What it is.** `scene/endings.c`. The setup (`scene_ending_set_up`) loads
+the captions' letters (2-bit tiles widened to 4, `$7E:66B0`, ported inline),
+the regrouping code for the zooming picture, the Mode 7 ground (its pixels,
+its name table in two halves, each row followed by 64 empty tiles,
+`$7E:37CA`, and blanked past it), mode 10's picture laid out from tile numbers
+(`$7E:860C`) with its vblank task added, the ground's line tables and the
+scene's colors, and picks the two scripts by mode (modes 10 and 11 start the
+captions' text). The zooming picture is a module: two shapes (32 rows as
+eight sprites, 64 as sixteen), the main loop's scaling (`$7E:8930`) handing
+the animation's frame to the scaler at the zoom channel 1 holds unless the last
+picture waits to be sent, its gathering after the scaler returns (`$7E:8983`,
+a new entry: the list cut to the sprites the picture covers at its zoom), its
+placing round channel 1's point with the window table round it (`$7E:8850`,
+a frame and a vblank task), its frame (`$7E:891B`) and its upload
+(`$7E:89C0`). The scripts' scenes: a new picture (`$7E:87CC`) or a picture
+over a new ground (`$7E:8790`), its frames mirrored into place as the race's
+are (`scene_mirror_rows`); the stars (`$7E:8BAF`); a Mode 7 picture
+(`$7E:8C14`, through the title's name-table loader, now a C call); the
+credits made ready (`$7E:8CD0`: a 4x4 pattern of tiles across a 32x32 map,
+mode 15 instead going on with its script) and shown (`$7E:8D56`, the staff
+roll's blanking with its own site for the in-front fill); and the last
+scene's colors and window (`$7E:8DF3`, `$7E:8E44`), with BG2's scroll in the
+credits (`$7E:8E88`). Shared with the race and the staff roll and made C
+calls: the resource copy `$7E:36AA` and the palette's `$7E:38AF` (screen.c),
+the plane's halves `$7E:8752` and `$7E:37A6`, the mirroring `$7E:3ED3`, the
+regrouping `$7E:B574` and the letters' colors `$7E:8CB2`. `attract_frame_pass`
+takes the passes that name the endings' scaling as it took the race's.
+Left at the edge, as call-outs: the unpacker and a script's first step as in
+the race, the stars' scatter and the captions' first timing (`$7E:5777`,
+`$7E:9BB8`, the program's random numbers, TODO.md), and the Mode 7 picture's
+tiles' expansion (`$7E:5E3C` through `$7E:5EF8`, the call-out's set resting on
+a `--poison-dc` run since the loop's call is patched at run time).
 
-Then the telepod ending, mode 13, which does not go through the shared ending
-at `$7E:8538`: its setup, the credits' roll and upload (which the Beyond Time
-ending shares, reaching them through `$7E:8538` at the slow speed), the
-sprites' high bits, and the two routines its script calls. Left at the edge:
-the stars (the scatter `$7E:5777`, the flight `$7E:579B`, and The End's drift
-`$7E:9897`/`$7E:98AC` with `$7E:98E3`), whose work is to hand the random mixer
-`$C3:02DD` the registers it mixes into the seed (A, X and the carry): they wait
-for the mixer as game code (TODO.md, "The scene program's randomness and
-parity"). The unpacker and the first script step stay call-outs, as in the
-race. `$7E` stands at 12.6 KiB ported and 1.9 KiB inlined, 49% left; `$C3` at
-8% and `$C6` at 0% (52%, 15% and 4% before, with the tool's fix).
+**The registers.** Settled from liveness before the logic: the scripts'
+routines leave Y and V, read after the call command; each leaves Y where the
+original's last block move or copy left it (named in the wrapper) and V as
+the last call-out did, or clear after the mirroring's last step. The frame
+and vblank tasks leave A's high byte and Y as the sprite lists' code does
+(scaffolding), the scaling the carry as it came and the gathering the carry
+of its last compare (the picture under half its size). The script routines
+keep the calling page and a byte of the bank on the stack, as the original
+does, under their call-outs; they run with 8-bit A between.
 
-**What it is.** `scene/staff_roll.c` is the scene: the staff credits rolling up
-over a field of stars, then The End. The setup plays the music fast (the
-driver's fast forward through the program's own send), sets the stars coming
-and scatters them, stops the palette's animations (`palette_stop_animations`,
-the call through `$FD:FFEE` made C), copies two palettes out of the program's
-resources and unpacks four pictures into VRAM (a table, as the race's), sets
-the letters' colours, blanks the credits' map (both halves of each word
-filled, through the SNES-only escape, as the title's low-byte fill), sets up
-the per-line effect, patches the star field's drawing to put every star
-behind the layers and the credits' upload to scroll BG3 (both program
-operands, now variables in `re/ram.toml`), starts the script, sets the layers
-and starts the song (`scene_bridge_start_song`, now from any call). The roll
-writes the next line of text into a row buffer as tiles when one is due
-(every 16 frames, every frame fast) and moves the map's row on; at the end of
-the text it takes the upload off the vblank list and itself off the frame's.
-Its scroll (`$7E:9ED6`) is an entry of its own: a row a frame fast, otherwise a
-pixel on the odd frames, which it asks the timing service through
-`tm_odd_frame`, new, only where the roll is slow, as the original reads it
-(the SNES backend makes the original's 16-bit read of `$213E`-`$213F` and
-keeps the word for the scaffolding that leaves it in A, the SNES-only
-`tm_snes_odd_frame_read`). The upload sends the row into the low bytes of its map row and the
-scroll. The script's test sends it on to The End once the credits are over;
-The End's routine starts a fade of the picture in from white
-(`palette_start_fade_to_white`, core/palette.c).
+**What shadow mode and fuzzing found.** Over the 35 movies every call matches; only `endings-beyond-time` reaches
+the group, in modes 11 and 14: the setup 2, the main loop's scaling 1,547,154
+(901 interrupted), its gathering 3,025 (1,020 interrupted), the placing 5,375,
+the frame 3,473, the upload 6,698, BG2's scroll 3,211, the picture's loads 1
+and 2 (one interrupted), the stars 1 and the Mode 7 picture 1 (both
+interrupted), the credits' preparation, their screen, the last colors and the
+last screen 1 each, and `attract_frame_pass` 1,547,826 compared. Shadow mode found the
+script routines' 8-bit A at their call-outs, the rows' counts the plane's
+padding and doubling leave on their page, the data bank the darkening's block
+move leaves before the first script step (and the one the captions' timing
+leaves at the setup's return), and the task lists the stops clear (the
+list at `$0920`, not the frame's copy). Fuzzed seed 1 from a state in the ending (`tools/fuzz_routines.toml`,
+`ending`), the program kept: the setup in all four modes 300 (202 compared,
+98 refused by the guard where the random vblank list had no room for mode
+10's task), the scripts' scenes 300 each, the frame and vblank tasks, the
+scaling, the gathering and the endings' pass 20,000 each; 0 mismatched. The
+expansion's call-out, `--poison-dc`, 300 states and 1,200 call-outs
+scrambled, 0 mismatched. Fuzzing found the
+sprites' Y offset's high byte the placing clears (the movie's is 0 already)
+and the Y mode 15's credits leave (past the task list the stop cleared). Only
+fuzzing reaches mode 10 (its mosaic and captions) and mode 15 (no credits):
+the movie runs modes 11 and 14.
 
-**The registers, settled first.** Every call-out's registers were settled
-before the logic was written. The setup's: the sound send reads nothing, and
-what it leaves in A and the carry is what the stars' scatter mixes in, so
-nothing touches them between the two; the unpacker takes its resource; the
-first script step reads Y where the per-line effects' descriptors end and the
-overflow clear, on the program's bank with the pushed word's other byte under
-it, and comes back on its channel's page (the setup puts the scene's back);
-the song's driver call takes A's high byte as the step left it. Liveness has
-A's high byte and Y live after a frame task: the list's loop loads the next
-slot's task over A, but past its last slot the frame's work returns to the
-NMI with it, whose song send enters the sound driver, and the driver saves A
-(the NMI's own restore then overwrites it). An entry's set can't rest on
-evidence, so the roll stops at its scroll rather than scroll itself: the
-line's Y and data bank are left there as scaffolding, and the scroll's own
-entry leaves in A the word it read, shifted, where the roll is slow, and the
-scroll where it is fast. Which way the roll ended its wrapper works out from
-the state, the credits counted over or the text moved on. The
-overflow after both is dead (liveness), as is everything the vblank tasks and
-the script's routines leave but Y and the overflow, which they don't touch.
-
-**What shadow mode and fuzzing found.** Over the 26 movies every call matches,
-none interrupted and none refused: in `endings-telepod-lavos` the setup 1,
-the roll 240, its scroll 239, the upload 240, the high bits' clear 3027, the
-script's test 242 and The End's fade 1; in `endings-beyond-time` the slow roll
-3281, its scroll 3280, the upload 3281, the clear 784; the interpreter 79996
-over the library, the NMI 61618, the frame's work 61649. Shadow mode found the
-clear's 16-bit A at its return and the direct page the first step leaves at
-the song's driver call; the don't-care check found that the scroll reads the
-data bank (its stop declares its own set). Fuzzed seed 1 from a state in the
-telepod ending's credits (`tools/fuzz_routines.toml`, `staff_roll`), the
-program kept: the roll 20000 (the text at one of the credits' lines, the last
-the end; the speed fast or slow), the scroll 20000, the upload 20000, the
-clear 20000, the test 20000, the fade 20000, the setup 300 (the driver's echo
-looped back), 0 mismatched; fuzzing found the scroll's overflow, dead after a
-frame task, declared. `menu_object_jolt` 20000 from the `objects` state, 0
-mismatched. Against main's ports (the same seed): the interpreter 0 of 17459
-and 0 of 17466 on its two channels (0 of 14061 and 0 of 14049 before, where
-the call-out to the loop left more states uncompared), the frame's work, the
-NMI, the race's setup, the resource copies and the palette's clear unchanged.
-
-**Timing.** The new rows and the NMI's (whose song send no longer reads the
-song playing) were calibrated over the library. The roll carries a timing
-exception (`tools/timing_exceptions.txt`, vblank-tail): its time follows the
-line it writes, every 16th frame, writing only RAM.
+**Numbers.** Over the reference play the code run in place of hand ports
+(the baseline's lines summed) fell from 29.8 KiB and 140.5 million
+instructions to 27.7 KiB and 139.8 million; the scene program's from 8.2 KiB
+to 6.2 KiB and 61.4 to 60.8 million (its native share from about 56% to about
+67%). One line is new: `$7E:3023`, the main loop's test after the passes the
+endings' pass doesn't take (8 bytes, 29,631 instructions), filed under the
+pass's port where the boot's call held them before (15,785 passes then,
+10,448 now). Calibrated: the new rows (`--drifted`, and the setups by hand
+from the measure); the setup and the two picture loaders carry worst-error
+timing exceptions, as the race's setup does.
 
 ### Phase 4a, timing: the frame's budgets and the menus' tasks (`$C0:59D9`-`$C0:5A92`, `$C0:CA76`-`$C0:CAD8`, `$C2:81B9`-`$C2:8247`)
 
@@ -2891,10 +2855,9 @@ routine and left the loop's test after it to the original. A second entry at
 `$7E:3023`, `attract_frame_pass`, takes the passes that name the race's
 scaling: it calls the scaling through the machine (it stops in the scaler's
 code, which takes frames) and makes the test. The idle entry keeps the other
-passes: the empty routine's, and the endings' own scaling (`$7E:8930`, still
-the original's; with the pass a port, its 1.5 million calls in the Beyond
-Time ending counted as the port's handbacks, so it waits for the endings'
-port, PLAN.md). For the two entries at one address, shadow mode no longer
+passes: the empty routine's, and then the endings' own scaling (`$7E:8930`,
+which the pass took over once it was a port: "Phase 3, the scene program:
+the shared endings"). For the two entries at one address, shadow mode no longer
 considers the entries after an idle entry it skips: the original runs that
 pass, and a later entry's guard turning it away is not a refusal.
 

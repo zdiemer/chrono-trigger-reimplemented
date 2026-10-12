@@ -229,24 +229,14 @@ enum { PICTURE_PALETTE = 16, STARS_PALETTE = 144 };
  * start of its page. */
 enum { LOADED_PALETTE_PAGE = 0x2000, COLOR_BYTES = 2 };
 
-/* The unpacker's destination's bank, which the copies of colors go into. */
-static uint8_t copies_bank(const GameState *g)
-{
-    return ((decompress_dest(g) >> 16) & 1) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM;
-}
-
-// $7E:36AA
-/* A resource's colors into the loaded palette from color `first`, in the bank the
- * unpacker's destination is in; the setup moves that to the first bank (a
- * page and bank of 0) before each copy. The count goes in the scene's cell,
- * which the program's copy reads. */
+/* A resource's colors into the loaded palette from color `first`, in the first
+ * bank: the setup moves the unpacker's destination there (a page and bank of
+ * 0) before each copy. */
 static void copy_colors(GameState *g, unsigned resource, unsigned first)
 {
-    uint16_t to = (uint16_t)(LOADED_PALETTE_PAGE + first * COLOR_BYTES);
     set_decompress_dest(g, decompress_dest(g) & 0xFF);
-    ORIGINAL_EFFECT(set_scene_call_first(g, scene_program_own(), COLORS_COPIED_BYTES));
-    scene_copy_resource_bytes(g, copies_bank(g), scene_resource_offset(g, resource), to, COLORS_COPIED_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, COLORS_COPIED_BYTES));
+    scene_copy_resource_to(g, scene_program_own(), resource, (uint16_t)(LOADED_PALETTE_PAGE + first * COLOR_BYTES),
+                           COLORS_COPIED_BYTES);
 }
 
 /* The credits' letters: white, light grey and dark grey on the clear color,
@@ -254,31 +244,21 @@ static void copy_colors(GameState *g, unsigned resource, unsigned first)
 static const uint16_t letter_colors[] = { 0x0000, 0x77BD, 0x4631, 0x1CE7 };
 
 // $7E:8CB2
-static void set_letter_colors(GameState *g)
+void scene_set_letter_colors(GameState *g)
 {
     for (unsigned i = 0; i < sizeof letter_colors / sizeof letter_colors[0]; i++)
         set_palette_base(g, i, letter_colors[i]);
-}
-
-/* The loaded palette and the working one the frame sends, in the first bank. */
-enum { LOADED_PALETTE = 0x7E2000, WORKING_PALETTE = 0x7E2200, PALETTE_BYTES = 0x200 };
-
-// $7E:38AF
-static void use_loaded_palette(GameState *g)
-{
-    wram_copy(g, LOADED_PALETTE, WORKING_PALETTE, PALETTE_BYTES);
-    ORIGINAL_EFFECT(charge_block_move(g, PALETTE_BYTES));
 }
 
 /* The credits' map blanked: every tile the blank one, in front. The program
  * fills the low bytes from its blank tile and the high bytes from the byte
  * before the roll's code, $20, the priority bit; a fill of one half of each
  * word is what the upload calls don't model, so both go through the SNES-only
- * escape. */
+ * escape. The high bytes' fill is the caller's own code, at `in_front_site`. */
 enum { IN_FRONT = 0x7E9E7A };
 
 // $7E:90A7
-static void blank_credits_map(Platform *pf)
+void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site)
 {
     const VidSnesTransfer tiles = { .dest = VID_SNES_VRAM_DATA_LOW, .source = SCENE_BLANK_TILE,
                                     .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
@@ -287,7 +267,7 @@ static void blank_credits_map(Platform *pf)
     const VidSnesTransfer attributes = { .dest = VID_SNES_VRAM_DATA_HIGH, .source = IN_FRONT,
                                          .size = CREDITS_MAP_ROWS_BYTES, .target_reg = VID_SNES_VRAM_ADDRESS,
                                          .target = CREDITS_MAP_VRAM, .port = SCENE_VRAM_WHOLE_WORDS };
-    vid_snes_copy(pf, PF_AT(0x7E8F77), &attributes);
+    vid_snes_copy(pf, in_front_site, &attributes);
 }
 
 /* The scene's layers: the picture on BG1, scrolled to where it shows, its map
@@ -425,9 +405,9 @@ static void set_up_staff_roll(Snes *s)
         load_graphics(s, staff_roll_graphics_unpacked_at[i], &staff_roll_graphics[i]);
 
     copy_colors(g, STARS_COLORS, STARS_PALETTE);
-    set_letter_colors(g);
-    use_loaded_palette(g);
-    blank_credits_map(pf);
+    scene_set_letter_colors(g);
+    scene_use_loaded_palette(g);
+    scene_blank_credits_map(pf, PF_AT(0x7E8F77));
     uint16_t descriptors_end = 0;
     TIMED_AS(g, 0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, STAFF_ROLL_LINE_EFFECTS));
     set_scene_line_effects(g, STAFF_ROLL_LINE_CHANNELS);

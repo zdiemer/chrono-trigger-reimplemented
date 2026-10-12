@@ -2296,7 +2296,9 @@ re-runs the census.
   registers its callers have (A, X and the carry), so the routines that only
   hand it on stay the original's with it: the stars' scatter, flight and
   drift (`$7E:5777`, `$7E:579B`, and The End's `$7E:9897`/`$7E:98AC` with
-  `$7E:98E3`; REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll").
+  `$7E:98E3`; history file, "Phase 3, the scene program: the staff roll"), and
+  the shared endings' first timing of their captions (`$7E:9BB8`, a call-out
+  of `$7E:8538`'s port).
   `$7E:9AB3` reads `$213F`'s field bit to move something every other frame:
   `tm_odd_frame`, as the credits' scroll (`$7E:9ED6`) now does.
 - **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past

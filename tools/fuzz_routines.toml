@@ -870,6 +870,132 @@ state = "staff_roll"
 args = ["--db", "7E", "--keep", "7E3000-7EC994"]
 why = "called by the script's call command"
 
+# The endings modes 10, 11, 14 and 15 share (game/scene/endings.c), from the Beyond Time ending's movie while
+# its zooming picture shows: the program kept, as the program's mode table, its lists and its scripts call them.
+
+[state.ending]
+movie = "oracle/movies/saves/endings-beyond-time.ctm"
+frames = 90000
+
+[[routine]]
+name = "scene_ending_set_up"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0384-7E0384=0A,0B,0E,0F,2A,8B"]
+iterations = 300
+why = "the setup from the program's mode table in each of its four modes (with the scene's other flags in two), the program kept; its unpacking, the first script step and the captions' timing the original's"
+
+[[routine]]
+name = "scene_ending_load_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "called by a script's call command on channel 0's page, with the scripts' bank"
+
+[[routine]]
+name = "scene_ending_load_ground_and_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "called by a script's call command on channel 1's page, with the scripts' bank"
+
+[[routine]]
+name = "scene_ending_start_stars"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "called by a script's call command; the stars' scatter the original's"
+
+[[routine]]
+name = "scene_ending_start_mode7_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+iterations = 300
+why = "called by a script's call command; the tiles' expansion the original's"
+
+[[routine]]
+name = "scene_ending_prepare_credits"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0B00", "--db", "7E", "--keep", "7E3000-7EC994", "--fill", "7E0384-7E0384=0A,0B,0E,0F"]
+iterations = 300
+why = "called by a script's call command, in each of the four modes (mode 15 has no credits)"
+
+[[routine]]
+name = "scene_ending_set_last_colors"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0A00", "--db", "7E", "--keep", "7E3000-7EC994"]
+why = "called by a script's call command on a channel's page, whose first cell takes the copies' count"
+
+[[routine]]
+name = "scene_ending_show_credits"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task, on the scene's page"
+
+[[routine]]
+name = "scene_ending_show_last_scene"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_ending_scroll_bg2"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a vblank task"
+
+[[routine]]
+name = "scene_ending_upload_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E002B-7E002C=0400,0800"]
+why = "a vblank task, the picture's tiles either shape's (the upload's size the scaling's source limit)"
+
+[[routine]]
+name = "scene_ending_place_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E007B-7E007B=00-01"]
+why = "a frame and a vblank task, the sprite cursor at the table's start, as the frames place the picture; either shape"
+
+[[routine]]
+name = "scene_ending_pick_picture_frame"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "a frame task"
+
+[[routine]]
+name = "scene_ending_scale_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0021-7E0022=0000,0000,0001", "--fill", "7E007B-7E007B=00-01", "--fill", "7E007C-7E007C=00-00"]
+why = "the main loop's call, mostly with no picture waiting (compared to the scaler's first row, where it stops); either shape, its high byte 0 as the guard asks"
+
+[[routine]]
+name = "scene_ending_gather_picture"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "7F", "--keep", "7E3000-7EC994", "--fill", "7E007B-7E007B=00-01"]
+why = "back from the scaler, the data bank its (the regrouping reads the picture through it); either shape"
+
+[[routine]]
+name = "attract_frame_pass"
+variant = "ending"
+subsystem = "attract"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E3024-7E3025=8930", "--fill", "7E007C-7E007C=00-00"]
+why = "the main loop's pass with the endings' frame routine, their picture's scaling, named in the call"
+
 # ---- event: bank C0 (the event script's engine and command handlers) ---------------------------------
 #
 # The handlers run on the field's page (D = $0100) with the data bank $00; the

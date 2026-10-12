@@ -65,7 +65,7 @@ in place of the ports: the native coverage.
 | | Now | Done when |
 |---|---|---|
 | ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program 56%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program 67%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
 | Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 24.8 KiB, 139 M instructions (handback 13.8 KiB, unported 11.1 KiB); shipping mode with the routes 22.1 KiB, 342 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
@@ -224,7 +224,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 279 files, 117 of 84,656 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 280 files, 117 of 85,527 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -502,14 +502,18 @@ placed in perspective, the plane's perspective (shared with the endings), the
 main loop's scaling and the setup as one routine (history file, "Phase 3, the
 scene program: the rest of the jet bike race"); and so is the telepod
 ending's staff roll, mode 13, with the credits' roll the Beyond Time ending
-shares (REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll"). **Next**, by
-what the library reaches: the endings that share `$7E:8538` (modes 10, 11, 14
-and 15; both Beyond Time movies reach it: `$7E:8538`-`$7E:8E94` with its
-helpers from `$7E:7FC4`, about 3 KiB, a loader of the race setup's kind and
-its frame tasks, and the scaling the main loop calls each pass, `$7E:8930`,
-which `attract_frame_pass` takes once it is a port: REIMPLEMENTATION.md, "The last
-refusals in real play: the attract demo's states"). The stars the endings show (`$7E:5777`, `$7E:579B`,
-`$7E:9897`) wait for the program's random numbers as game code (TODO.md, "The
+shares (history file, "Phase 3, the scene program: the staff roll"); and so
+are the endings that share `$7E:8538` (modes 10, 11, 14 and 15): their
+setup, the picture the main loop zooms, and the scenes their scripts start
+(REIMPLEMENTATION.md, "Phase 3, the scene program: the shared endings").
+**Next**, by what the library reaches: the endings' own frame tasks, which
+still run as the original's -- the captions' drawing and timing (`$7E:64CA`,
+`$7E:9B4F`), the stars' and the swept window's (`$7E:999C`, `$7E:99B5`,
+`$7E:9A0C`), the vblank tasks `$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B` and the
+mode 7 picture's expansion `$7E:5EF8` -- the largest of the scene program's
+handbacks. The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
+`$7E:8A01`-`$7E:8B51` no movie reaches. The stars the endings show (`$7E:5777`, `$7E:579B`,
+`$7E:9897`) and the captions' first timing (`$7E:9BB8`) wait for the program's random numbers as game code (TODO.md, "The
 scene program's randomness and parity"). The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a

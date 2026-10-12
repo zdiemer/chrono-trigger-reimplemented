@@ -12775,6 +12775,12 @@ void set_scene_sprite_list_left(GameState *g, uint8_t v);
 uint16_t scene_scaler_pairs(const GameState *g);
 void set_scene_scaler_pairs(GameState *g, uint16_t v);
 
+/* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
+ * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
+ * loop scales no new picture until then */
+uint16_t scene_ending_picture_ready(const GameState *g);
+void set_scene_ending_picture_ready(GameState *g, uint16_t v);
+
 /* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
  * request leaves the request's state; nothing reads them */
 uint16_t scene_scaler_request_state(const GameState *g);
@@ -12926,6 +12932,23 @@ void set_scene_credits_row_vram(GameState *g, uint16_t v);
 uint16_t scene_credits_text(const GameState *g);
 void set_scene_credits_text(GameState *g, uint16_t v);
 
+/* In the shared endings: how far the zooming picture reaches out from the point it is drawn
+ * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
+ * what the drawing reads) */
+uint16_t scene_ending_picture_half(const GameState *g);
+void set_scene_ending_picture_half(GameState *g, uint16_t v);
+
+/* In the shared endings: where in the second bank of work RAM the frame of the zooming picture
+ * to scale next starts, $1200 on by $400 a frame of its animation */
+uint16_t scene_ending_picture_source(const GameState *g);
+void set_scene_ending_picture_source(GameState *g, uint16_t v);
+
+/* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
+ * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
+ * gathering */
+uint16_t scene_ending_picture_zoom(const GameState *g);
+void set_scene_ending_picture_zoom(GameState *g, uint16_t v);
+
 /* Matrix parameter A */
 uint16_t scene_mode7_matrix_a(const GameState *g);
 void set_scene_mode7_matrix_a(GameState *g, uint16_t v);
@@ -12965,6 +12988,38 @@ void set_scene_race_score(GameState *g, uint16_t v);
  * go on to The End (counted up as it is set) */
 uint8_t scene_credits_over(const GameState *g);
 void set_scene_credits_over(GameState *g, uint8_t v);
+
+/* In the shared endings: the left edge of the four-sided window an ending's frame task
+ * ($7E:9A0C) sweeps across the screen, two pixels a frame to 0 */
+uint16_t scene_ending_window_left(const GameState *g);
+void set_scene_ending_window_left(GameState *g, uint16_t v);
+
+enum { SCENE_ENDING_WINDOW_CORNERS_COUNT = 4 };   /* by the corner, in the order the task hands them to the window's drawing */
+/* In the shared endings: the lines of the swept window's four corners, in quarter lines, each
+ * moved down a little a frame until $390 */
+uint16_t scene_ending_window_corners(const GameState *g, unsigned corner);
+void set_scene_ending_window_corners(GameState *g, unsigned corner, uint16_t v);
+
+/* In the shared endings: nonzero while the zooming picture is the tall one, 64 rows drawn as
+ * sixteen sprites, rather than 32 rows as eight; the scaling reads it as a word, the drawing its
+ * low byte */
+uint16_t scene_ending_picture_tall(const GameState *g);
+void set_scene_ending_picture_tall(GameState *g, uint16_t v);
+
+/* In the shared endings: how many frames go by between one caption fading out and the next
+ * starting to fade in */
+uint16_t scene_ending_caption_gap(const GameState *g);
+void set_scene_ending_caption_gap(GameState *g, uint16_t v);
+
+/* In the shared endings: how many frames a caption stays up once it has faded in, its last 32
+ * fading it out */
+uint16_t scene_ending_caption_shown(const GameState *g);
+void set_scene_ending_caption_shown(GameState *g, uint16_t v);
+
+/* In the shared endings: the frames left of the caption's gap or of its time up; the setup
+ * starts it at 1, so the first caption comes the next frame */
+uint16_t scene_ending_caption_countdown(const GameState *g);
+void set_scene_ending_caption_countdown(GameState *g, uint16_t v);
 
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed */
@@ -13143,6 +13198,11 @@ void set_scene_race_winner(GameState *g, uint8_t v);
  * reaching 1300, 1500 and 2000 */
 uint8_t scene_race_prize(const GameState *g);
 void set_scene_race_prize(GameState *g, uint8_t v);
+
+/* In the shared endings: where the next caption's text is in the program; the captions end at
+ * the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651 */
+uint16_t scene_ending_caption_text(const GameState *g);
+void set_scene_ending_caption_text(GameState *g, uint16_t v);
 
 /* Crono's score as he won, as it is shown (half scene_race_score) */
 uint16_t scene_race_final_score(const GameState *g);
@@ -13512,6 +13572,12 @@ enum { SCENE_RACE_MATH_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the ho
 uint8_t scene_race_math_line_counts(const GameState *g, unsigned i);
 void set_scene_race_math_line_counts(GameState *g, unsigned i, uint8_t v);
 
+/* The color math's layers on the last line of the race's per-line table for it
+ * (scene_race_math_line_counts), which the endings' plane shares; the shared endings' second
+ * picture writes 5 */
+uint8_t scene_plane_far_color_math(const GameState *g);
+void set_scene_plane_far_color_math(GameState *g, uint8_t v);
+
 enum { SCENE_RACE_SCROLL_LINE_COUNTS_COUNT = 2 };   /* by 0 the lines above the horizon, 1 the lines from it */
 /* The line counts of the race's per-line table for BG1's scroll, set from the horizon as
  * scene_race_line_counts are */
@@ -13609,6 +13675,53 @@ void set_scene_race_corner_sprites(GameState *g, uint8_t v);
  * the next instruction over it ($0080), which draws every star behind them, behind the credits */
 uint16_t scene_stars_depth_branch(const GameState *g);
 void set_scene_stars_depth_branch(GameState *g, uint16_t v);
+
+/* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
+ * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
+ * shared endings' third scene writes ($5EF8) */
+uint16_t scene_plane_tiles_expander(const GameState *g);
+void set_scene_plane_tiles_expander(GameState *g, uint16_t v);
+
+/* How far the loop over a picture's tiles ($7E:5E3C) moves on after each, the operand of its
+ * add: $10, or $30 where the shared endings' third scene writes it */
+uint8_t scene_plane_tiles_stride(const GameState *g);
+void set_scene_plane_tiles_stride(GameState *g, uint8_t v);
+
+/* The attributes the program's captions give their letters' sprites, the operand of a load in
+ * the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's
+ * high half of the names) where the shared endings' setup writes it */
+uint8_t scene_caption_letter_attributes(const GameState *g);
+void set_scene_caption_letter_attributes(GameState *g, uint8_t v);
+
+enum { SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT = 2 };   /* by the picture: 0 the short one, 1 the tall one */
+/* The count bytes of the zooming picture's two sprite lists in the program (one more than the
+ * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
+ * its sprites as the picture covers */
+uint8_t scene_ending_picture_sprite_counts(const GameState *g, unsigned i);
+void set_scene_ending_picture_sprite_counts(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_ENDING_WINDOW_ABOVE_COUNT = 2 };   /* by the entry: the lines above the picture, split in two */
+/* The line counts of the first two entries of the per-line table for window 1's edges in the
+ * shared endings: together, the lines above the zooming picture, where the window is shut */
+uint8_t scene_ending_window_above(const GameState *g, unsigned i);
+void set_scene_ending_window_above(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_ENDING_WINDOW_LINES_COUNT = 2 };   /* by the entry: the picture's upper and lower half */
+/* The line counts of the window table's entries for the zooming picture's two halves: 16 lines
+ * each for the short picture, 32 for the tall */
+uint8_t scene_ending_window_lines(const GameState *g, unsigned i);
+void set_scene_ending_window_lines(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_ENDING_WINDOW_FROM_COUNT = 2 };   /* by the entry: the picture's upper and lower half */
+/* Window 1's left edge on the zooming picture's lines: the picture's left */
+uint8_t scene_ending_window_from(const GameState *g, unsigned i);
+void set_scene_ending_window_from(GameState *g, unsigned i, uint8_t v);
+
+enum { SCENE_ENDING_WINDOW_TO_COUNT = 2 };   /* by the entry: the picture's upper and lower half */
+/* Window 1's right edge on the zooming picture's lines: 64 pixels on from its left, or the
+ * screen's edge */
+uint8_t scene_ending_window_to(const GameState *g, unsigned i);
+void set_scene_ending_window_to(GameState *g, unsigned i, uint8_t v);
 
 enum { SCENE_CREDITS_SCROLL_REGISTER_COUNT = 2 };   /* by the store: 0 the scroll's low byte's, 1 its high byte's */
 /* The scroll register the credits' upload sends their scroll to, the low byte of its address as
