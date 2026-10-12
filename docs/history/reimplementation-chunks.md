@@ -8606,3 +8606,116 @@ pass's port where the boot's call held them before (15,785 passes then,
 10,448 now). Calibrated: the new rows (`--drifted`, and the setups by hand
 from the measure); the setup and the two picture loaders carry worst-error
 timing exceptions, as the race's setup does.
+
+## Phase 3, field and events: the screen set up, the map unpacked, the objects started
+
+The seventeenth chunk of bank `$C0`, picked by native coverage rather than by
+bytes left (PLAN.md, "The order now"): the field's largest handbacks over the
+reference play were the routines its ports still called out to at a map's
+start and in its frame -- the screen's setup and fade in, the map's unpacking,
+the objects' setup, the dialog window's step and its looks.
+
+**What it is.** Six concepts, each a module:
+
+- `field/screen_setup.c`: a map's screen put together from nothing
+  (`$C0:286C`, with `$C0:0A50` the map's drawing and `$C0:0B28` the line
+  effects readied): the switches pressed again, the chests marked, the video
+  mode and screens, the screen placed around the party
+  (`$C0:74A6`/`$7506`/`$7553`), each layer drawn whole and sent, the columns
+  right of the view; the objects let go and those in view drawn at once
+  (`$C0:B0E6`); the dialog window's looks; then the handlers on at the next
+  vblank, through the timing service's new `tm_wait_frame_then_enable`. And
+  the fade in (`$C0:2848`, and `$C0:2824` after a menu): a step of brightness
+  a frame, the leader walking on the spot.
+- `field/map.c`: the map's unpacking (`$C0:A33B`): the packed map
+  decompressed, its header taken in (`field_map_header`: sizes, flags, BG2's
+  half pace, the screens, colour math, the layers' drift, and the repeat
+  masks and edges, `$C0:7399`), the tile maps unpacked as C where they fit,
+  and the exits marked (`$C0:A66B`). The chests' marking (`$C0:A712`) is
+  `event/chests.c`'s, with `field_chests` split into the game's list and the
+  location's run.
+- `field/objects_start.c`: the objects at a map's start (`$C0:56A6`):
+  whatever the last map's objects held let go, each object as its script
+  first finds it (`$C0:5709`: at its opening, the lowest level, off the map),
+  the slots past them disabled, the scripts' variables and saved places
+  cleared; then the openings (`$C0:58DE`, a port already), the map's own
+  script (`$C0:595C`, still a call-out) and the party's looks
+  (`party_wear_it_shows`, the menus' service `$0B`, timed as `$C2:8004`).
+- `field/dialog_window.c`: the dialog window's step (`$C0:1F87`) as a state
+  machine (`DialogState`: the text cleared a row a frame, the window opened,
+  the text set a glyph a frame, read, the next page cleared and set, the
+  window closed), a choice's buttons (`$C0:1ADF`), the text's row sent
+  (`$C0:6ECB`), the choice pointer (`$C0:F05E`, the old "window corners",
+  which are the hand pointing at a choice's line), and the window's looks:
+  its frame and text area tile maps (`$C0:29F7`, `$2B78`), their transfers
+  and the window design's (`$C0:6E5C`-`$6F5E`), its colours (`$C0:70E9`).
+  The dialog's opening and closing are operations in its header
+  (`dialog_begin`, `dialog_shut`, ...) that the events, the location, the
+  battle's start and the views call.
+- The objects coming into view take their palette slot (`$C0:7170`) and sprite
+  block (`$C0:6F9A`/`$6FBA`, given up `$C0:7056`) as C, and the sprite
+  lists are built afresh as a map starts (`$C0:B192`).
+- The vblank's screen jobs after a battle and the map's transfers
+  (`$C0:7F58`-`$7F77`, `$C0:EC77`) are the video service's calls.
+
+**Third trap, settled first.** The right columns' bringing in (`$C0:87F1`)
+ends with what the edges' working out leaves (`field_edges_leave`,
+field/leaves.c: the last layer's right column's start and row in X and Y,
+and the carry and overflow of its VRAM address). Nothing in the game reads
+them, but the requests' stop at the frame wait (`$C0:EC60`) can't declare
+them: the battle's start waits there too and goes on into the battle bank's
+entry, which liveness keeps everything live into. The wait for the vblank
+with the handlers off (`$C0:0B38`) was no routine liveness knew; an
+`[[entry]]` hint names it, with a new field, `tail_of = "C0:0B28"`, that
+has liveness take its returns as `$C0:0B28`'s (DISASSEMBLY.md), so the
+setup's call to it and the A `field_turn_the_handlers_on` leaves are
+declared dead rather than reproduced. The objects' start leaves Y and the overflow as the
+defaults' writes do for the openings; and the party's start after the
+openings (`$C0:9DC3`, event/bridge.c) now leaves X as the original does, the
+second member's link word, which the map's own script can carry unchanged to
+the menus' service after it (`endings-bucket-lavos` found it, once the
+objects' setup compared X there).
+
+**What it took in.** Two refusals in real play went with it: the field put
+aside for a menu, and a location change, with no leader on the map (a save's
+load, the attract demo's scenes) read the leader's place from the first slot
+past the tables as the original does (`field_leaders_place`, the accessors'
+`unchecked` notes saying where). A script's menu now runs the fade in after it
+as C rather than stopping at it.
+
+**Numbers.** `burndown.py` for `$C0`: 52.2 KiB ported and 12% left in 349
+entries before, 57.5 KiB and 3% in 384 after. Over the reference play the
+code run in place of hand ports fell from 38.6 KiB and 199.0 million
+instructions to 33.1 KiB and 187.3 million; the field engine's share from 9.5
+KiB and 16.0 million to 1.2 KiB and 4.3 million (native coverage from 86% to
+about 98%), and the refusals in real play from 23 entries to 21. The one new
+line in the baseline, `$C0:0B38`, is the original's wait for the vblank the
+setup still runs on the SNES backend (630 instructions), which `$C0:0B28`'s
+fallback held before.
+
+**What fuzzing found.** Every new entry has a `tools/fuzz_routines.toml`
+row (seed 1, 0 mismatched; the counts in `docs/ports.tsv`). It found four
+things no movie reaches: a dialog text row past 127 carries its doubling's top
+bit into the VRAM address, and a map number past `$7FFF` its doubling's carry
+into the packed maps' index, as the original's additions take them; a party
+place's palette slot held by an object of other colours makes the original
+give up with its accumulator left 16-bit, which its callers then run with, so
+the guards turn that state away; and the objects in view drew their frames'
+parts with the builder's core rather than its entry, which left the overflow
+the sprite table reads unset. The fades (`$C0:2848`, `$2824`) are checked by
+shadow mode only: the setup they call first waits for the vblank, which no
+random state reaches.
+
+**The timing gate.** The new rows were calibrated over the library, with the
+rows of the callers whose work moved (`field_nmi`, `field_after_battle`,
+`field_walk_the_leader`, `event_run_init_scripts`); six entries have
+exceptions (`tools/timing_exceptions.txt`): the setup, the fades,
+the objects drawn at once and the map's unpacking run with the screen blanked,
+their parts attributed, and what is left of them one scalar can't fit; the
+dialog window's step differs in its own work by its state.
+
+**What is left at the edges.** The map's own script (`$C0:595C`) and the
+script's unpacking (`$C0:56D4`) are call-outs; the switch's sound
+(`$C0:1B90`) is the largest run left in `$C0` (`burndown.py --uncovered
+C0`); the line effects' builders in `$FD` stay their own ports, run through
+the machine.

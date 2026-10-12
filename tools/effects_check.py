@@ -715,7 +715,7 @@ ORIGINAL_READ = re.compile(r"^scaffold read by the original: \$([0-9A-F]{2}):([0
                            r"\((\d+) times?, first at frame (\d+), written by (\S+)\)", re.M)
 # The subsystem a port's name begins with, for picking its own write among a
 # scratch byte's many.
-NAME_SUBSYSTEMS = ("battle", "field", "event", "menu", "scene", "overworld", "attract", "sound", "console")
+NAME_SUBSYSTEMS = ("battle", "field", "event", "menu", "scene", "overworld", "attract", "sound", "console", "warp")
 
 
 def original_reads(logs, root: pathlib.Path = ROOT, map_path: pathlib.Path | None = None, out=sys.stdout) -> int:

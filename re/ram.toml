@@ -70,7 +70,7 @@
 #
 # name is lower_snake_case and says what the thing is, not where it is; the
 # header spells it RAM_<NAME>. subsystem is one of game/'s directories (core,
-# data, event, field, menu, overworld, battle, scene, attract), or `menu_object`, a second
+# data, event, field, menu, overworld, battle, scene, attract, warp), or `menu_object`, a second
 # tag for game/menu/: bank $C2 holds two modes, the menus proper and the
 # sprite-object mode at $C2:0000, and they reuse the same bytes, so one owner
 # per subsystem would leave the second mode's nameless. The same bytes can be two
@@ -20200,6 +20200,288 @@ index = "battle slot"
 subsystem = "battle"
 meaning = "Nonzero for combatants whose numbers rise by the second table"
 source = "game/battle/object_motion.c raise_numbers $CF:E781"
+
+# ==============================================================================
+# The time warp
+# ==============================================================================
+# The tunnel the party falls through between eras (game/warp/), a mode of its
+# own that the field's event command $FF starts with $80-$83 and that hands back
+# to the field's entry. Its code runs on the palette fades' page (D = $0500), and
+# it builds its picture over bank $7F's first half, keeping the story flags aside.
+
+[[var]]
+name = "warp_zero"
+addr = "7E:0508"
+size = 2
+subsystem = "warp"
+meaning = "A zero the warp keeps on its page and starts its indexes from: the original's routines index from it, and the ports' guards take only a page that holds it (game/warp/warp.c warp_on_its_page)"
+source = "game/warp/warp.c warp_set_up $FD:DBB3"
+
+[[var]]
+name = "warp_work"
+addr = "7E:050A"
+count = 16
+index = "byte of the work area"
+subsystem = "warp"
+meaning = "The warp's working cells, which its routines take in turn: the circle's builder (its radius, the area left and the run down its edge, the lines of its lower half), the light's rays (a ray's steps, place and band, a pixel's colour and row), the plane's scale (a product and a quotient) and the palette's turn and pulse (the colours taken out, the last colour made). Nothing reads them after the routine that wrote them; the ports leave their last values as scaffolding"
+source = "game/warp/picture.c, game/warp/circle.c, game/warp/warp.c ($FD:DB97, $FD:DCBD, $FD:EB8B, $FD:ECD5, $FD:ED89, $FD:F123)"
+
+[[var]]
+name = "warp_frame"
+addr = "7E:051B"
+size = 2
+subsystem = "warp"
+meaning = "Frames since the warp's picture came on: the vblank handler counts them, and the main loop reads them for the plane's place, the circle's size, the colours' pulse and the warp's end"
+source = "game/warp/warp.c warp_vblank $FD:DE6E, warp_set_up $FD:DCB8"
+
+[[var]]
+name = "warp_frame_ended"
+addr = "7E:051E"
+subsystem = "warp"
+meaning = "Nonzero once the vblank handler has taken the frame the main loop finished; the wait for the next frame clears it and waits for it"
+source = "game/warp/warp.c warp_vblank $FD:DE73, warp_wait_for_frame $FD:EAEB"
+
+[[var]]
+name = "warp_circle_center_x"
+addr = "7E:051F"
+subsystem = "warp"
+meaning = "Where the circle's centre is across the screen: the middle, set each time the circle is built"
+source = "game/warp/circle.c $FD:EB8B"
+
+[[var]]
+name = "warp_circle_center_y"
+addr = "7E:0521"
+subsystem = "warp"
+meaning = "Where the circle's centre is down its window table: the middle, set each time the circle is built"
+source = "game/warp/circle.c $FD:EB8B"
+
+[[var]]
+name = "warp_circle_radius"
+addr = "7E:0523"
+subsystem = "warp"
+meaning = "The circle's radius this frame, 0 for none: it grows as the tunnel opens and again as it closes"
+source = "game/warp/warp.c $FD:DA09-$FD:DA42; game/warp/circle.c $FD:EB8B"
+
+[[var]]
+name = "warp_circle_tables_built"
+addr = "7E:0524"
+subsystem = "warp"
+meaning = "How many times the circle's window table has been built: it alternates between two tables, and the vblank handler shows the one built last (the second while this is odd)"
+source = "game/warp/circle.c $FD:EB91; game/warp/warp.c warp_vblank $FD:DE3C"
+
+[[var]]
+name = "warp_pixel_set_masks"
+addr = "7E:0525"
+count = 8
+index = "pixel across a tile's row"
+subsystem = "warp"
+meaning = "A bit for each pixel of a tile's row, leftmost first, which the light's drawing sets in a bitplane; they stay after the warp, where the field's palette animations, which share the bytes (palette_animations), read some of them on the next location"
+source = "game/warp/picture.c $FD:DBC3, $FD:ECD5"
+
+[[var]]
+name = "warp_pixel_clear_masks"
+addr = "7E:052D"
+count = 8
+index = "pixel across a tile's row"
+subsystem = "warp"
+meaning = "The same bits cleared, for the bitplanes a pixel's colour leaves clear; they stay after the warp as the set masks do"
+source = "game/warp/picture.c $FD:DBCA, $FD:ECD5"
+
+[[var]]
+name = "warp_flicker"
+addr = "7E:0535"
+size = 2
+subsystem = "warp"
+meaning = "Where the flickering warp is in its brightness pattern: the step in the high byte (0-31), the fraction of one in the low"
+source = "game/warp/warp.c $FD:DB20, $FD:DB27"
+
+[[var]]
+name = "warp_plane_map"
+addr = "7F:0000"
+size = 0x80
+rows = 0x80
+row_stride = 0x80
+subsystem = "warp"
+meaning = "The tunnel's plane as Mode 7 tile numbers, 128 tiles a row, built here and sent to video memory as the warp starts"
+source = "game/warp/picture.c $FD:F1ED, $FD:F1C1"
+
+[[var]]
+name = "warp_light_tiles"
+addr = "7F:4000"
+size = 0x2000
+subsystem = "warp"
+meaning = "The light at the tunnel's end, a quarter of it drawn as 256 four-bitplane sprite tiles, 16 a row (128 by 128 pixels), and sent to video memory as the warp starts"
+source = "game/warp/picture.c $FD:ECC0, $FD:DC1E, $FD:ECD5, $FD:EC91"
+
+[[var]]
+name = "warp_plane_lists"
+addr = "7F:6000"
+stride = 7
+count = 4
+index = "line effect: the plane's matrix A and B, its C and D, its centre, its scroll (WarpPlaneEffect)"
+subsystem = "warp"
+meaning = "The plane's four line effects' lists: the picture's top half from one place in their tables, its bottom half from another, then the end"
+source = "game/warp/picture.c $FD:EE01"
+[[var.field]]
+name = "top_lines"
+offset = 0
+meaning = "The top half's 112 lines, with the bit that takes a table's line for each"
+[[var.field]]
+name = "top_values"
+offset = 1
+size = 2
+meaning = "Where the top half's values are"
+[[var.field]]
+name = "bottom_lines"
+offset = 3
+meaning = "The bottom half's lines, as the top's"
+[[var.field]]
+name = "bottom_values"
+offset = 4
+size = 2
+meaning = "Where the bottom half's values are"
+[[var.field]]
+name = "end"
+offset = 6
+meaning = "0: the list's end"
+
+[[var]]
+name = "warp_plane_matrix_first_row"
+addr = "7F:601C"
+stride = 4
+count = 0x100
+index = "line of the table (the picture's from 16)"
+subsystem = "warp"
+meaning = "The plane's matrix A and B down the screen: its scale on each line, and no turn"
+source = "game/warp/picture.c $FD:EE90"
+[[var.field]]
+name = "scale"
+offset = 0
+size = 2
+meaning = "The plane's scale across, 8.8 (Mode 7's A)"
+[[var.field]]
+name = "turn"
+offset = 2
+size = 2
+meaning = "0: the plane doesn't turn (Mode 7's B)"
+
+[[var]]
+name = "warp_plane_matrix_second_row"
+addr = "7F:681C"
+stride = 4
+count = 0x100
+index = "line of the table (the picture's from 16)"
+subsystem = "warp"
+meaning = "The plane's matrix C and D down the screen: no turn, and its scale on each line"
+source = "game/warp/picture.c $FD:EEDF"
+[[var.field]]
+name = "turn"
+offset = 0
+size = 2
+meaning = "0: the plane doesn't turn (Mode 7's C)"
+[[var.field]]
+name = "scale"
+offset = 2
+size = 2
+meaning = "The plane's scale down, 8.8, the same as across (Mode 7's D)"
+
+[[var]]
+name = "warp_plane_centres"
+addr = "7F:701C"
+stride = 4
+count = 2
+index = "half of the picture: top, bottom"
+subsystem = "warp"
+meaning = "The plane's centre this frame, for the top half of the picture and the bottom, as their line effect takes it"
+source = "game/warp/warp.c $FD:DCBD"
+[[var.field]]
+name = "x"
+offset = 0
+size = 2
+meaning = "Across: the plane's middle"
+[[var.field]]
+name = "y"
+offset = 2
+size = 2
+meaning = "Down: following the plane's scroll"
+
+[[var]]
+name = "warp_plane_scrolls"
+addr = "7F:7024"
+stride = 4
+count = 2
+index = "half of the picture: top, bottom"
+subsystem = "warp"
+meaning = "The plane's scroll this frame, for the top half of the picture and the bottom, which run opposite ways"
+source = "game/warp/warp.c $FD:DCBD"
+[[var.field]]
+name = "across"
+offset = 0
+size = 2
+meaning = "0"
+[[var.field]]
+name = "down"
+offset = 2
+size = 2
+meaning = "Four lines a frame, round the plane's 512"
+
+[[var]]
+name = "warp_circle_half_widths"
+addr = "7F:702C"
+count = 0x80
+index = "line out from the circle's middle"
+unchecked = "the circle's builder stores each half width as a word, whose second byte lands one past the line: past the table, on the first window table's first byte, when the radius is 127 (game/warp/circle.c leave_half_widths)"
+subsystem = "warp"
+meaning = "Half the circle's width on each line out from its middle, as the circle's builder works them out; nothing reads them after it"
+source = "game/warp/circle.c $FD:EBEF"
+
+[[var]]
+name = "warp_circle_windows"
+addr = "7F:70AC"
+size = 2
+count = 0x200
+index = "line, the second table's from 256"
+subsystem = "warp"
+meaning = "The circle as window 1's edges down the screen (left in the low byte), in two tables built in turn; the vblank handler shows the one built last"
+source = "game/warp/circle.c $FD:EB8B"
+
+[[var]]
+name = "warp_circle_window_list"
+addr = "7F:74AC"
+stride = 7
+subsystem = "warp"
+meaning = "The circle window's line effect list: the picture's top half from one part of a table, the bottom half from the next, then the end; the vblank handler points it at the table built last"
+source = "game/warp/picture.c $FD:EE13; game/warp/warp.c warp_vblank $FD:DE42"
+[[var.field]]
+name = "top_lines"
+offset = 0
+meaning = "The top half's 112 lines, a table's line for each"
+[[var.field]]
+name = "top_values"
+offset = 1
+size = 2
+meaning = "Where in the table the top half starts"
+[[var.field]]
+name = "bottom_lines"
+offset = 3
+meaning = "The bottom half's lines, as the top's"
+[[var.field]]
+name = "bottom_values"
+offset = 4
+size = 2
+meaning = "Where in the table the bottom half starts"
+[[var.field]]
+name = "end"
+offset = 6
+meaning = "0: the list's end"
+
+[[var]]
+name = "warp_kept_event_memory"
+addr = "7F:74B3"
+size = 0x200
+subsystem = "warp"
+meaning = "The event memory (the story flags) kept aside while the plane's map is built over it, and put back as the warp ends"
+source = "game/warp/warp.c $FD:EAA6, $FD:EAB7"
 
 # ==============================================================================
 # Found by measurement (tools/movies/addresses.py): no port reads these yet

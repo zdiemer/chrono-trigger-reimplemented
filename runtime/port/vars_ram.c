@@ -1055,6 +1055,19 @@ static VarsRangeFault range_faults[] = {
     { .var = "scene_race_scaler_output" },
     { .var = "scene_race_plane_map" },
     { .var = "scene_call" },
+    { .var = "warp_work" },
+    { .var = "warp_pixel_set_masks" },
+    { .var = "warp_pixel_clear_masks" },
+    { .var = "warp_plane_map" },
+    { .var = "warp_light_tiles" },
+    { .var = "warp_plane_lists" },
+    { .var = "warp_plane_matrix_first_row" },
+    { .var = "warp_plane_matrix_second_row" },
+    { .var = "warp_plane_centres" },
+    { .var = "warp_plane_scrolls" },
+    { .var = "warp_circle_half_widths" },
+    { .var = "warp_circle_windows" },
+    { .var = "warp_kept_event_memory" },
 };
 
 static void out_of_range(const GameState *g, unsigned var, const char *accessor, const char *bound,
@@ -1075,7 +1088,7 @@ static void out_of_range(const GameState *g, unsigned var, const char *accessor,
 
 const VarsRangeFault *vars_range_faults(unsigned *count)
 {
-    *count = 891;
+    *count = 904;
     return range_faults;
 }
 
@@ -7117,3 +7130,76 @@ uint16_t scene_call_race_pose(const GameState *g, SceneProgramPage page) { IN_RA
 void set_scene_call_race_pose(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 890, "set_scene_call_race_pose", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xFEu, v); }
 uint16_t scene_call_script_scratch(const GameState *g, SceneProgramPage page) { IN_RANGE(g, 890, "scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); return r16(g, scene_program_page_base(page) + 0xF0u); }
 void set_scene_call_script_scratch(GameState *g, SceneProgramPage page, uint16_t v) { IN_RANGE(g, 890, "set_scene_call_script_scratch", "instances", page.index, scene_program_page_count(page)); w16(g, scene_program_page_base(page) + 0xF0u, v); }
+
+/* ---- warp ---------------------------------------------------------------------------------- */
+
+uint16_t warp_zero(const GameState *g) { return r16(g, 0x7E0508u); }
+void set_warp_zero(GameState *g, uint16_t v) { w16(g, 0x7E0508u, v); }
+uint8_t warp_work(const GameState *g, unsigned i) { IN_RANGE(g, 891, "warp_work", "count", i, 16u); return r8(g, 0x7E050Au + (uint32_t)i * 0x01u); }
+void set_warp_work(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 891, "set_warp_work", "count", i, 16u); w8(g, 0x7E050Au + (uint32_t)i * 0x01u, v); }
+uint16_t warp_frame(const GameState *g) { return r16(g, 0x7E051Bu); }
+void set_warp_frame(GameState *g, uint16_t v) { w16(g, 0x7E051Bu, v); }
+uint8_t warp_frame_ended(const GameState *g) { return r8(g, 0x7E051Eu); }
+void set_warp_frame_ended(GameState *g, uint8_t v) { w8(g, 0x7E051Eu, v); }
+uint8_t warp_circle_center_x(const GameState *g) { return r8(g, 0x7E051Fu); }
+void set_warp_circle_center_x(GameState *g, uint8_t v) { w8(g, 0x7E051Fu, v); }
+uint8_t warp_circle_center_y(const GameState *g) { return r8(g, 0x7E0521u); }
+void set_warp_circle_center_y(GameState *g, uint8_t v) { w8(g, 0x7E0521u, v); }
+uint8_t warp_circle_radius(const GameState *g) { return r8(g, 0x7E0523u); }
+void set_warp_circle_radius(GameState *g, uint8_t v) { w8(g, 0x7E0523u, v); }
+uint8_t warp_circle_tables_built(const GameState *g) { return r8(g, 0x7E0524u); }
+void set_warp_circle_tables_built(GameState *g, uint8_t v) { w8(g, 0x7E0524u, v); }
+uint8_t warp_pixel_set_masks(const GameState *g, unsigned row) { IN_RANGE(g, 892, "warp_pixel_set_masks", "count", row, 8u); return r8(g, 0x7E0525u + (uint32_t)row * 0x01u); }
+void set_warp_pixel_set_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 892, "set_warp_pixel_set_masks", "count", row, 8u); w8(g, 0x7E0525u + (uint32_t)row * 0x01u, v); }
+uint8_t warp_pixel_clear_masks(const GameState *g, unsigned row) { IN_RANGE(g, 893, "warp_pixel_clear_masks", "count", row, 8u); return r8(g, 0x7E052Du + (uint32_t)row * 0x01u); }
+void set_warp_pixel_clear_masks(GameState *g, unsigned row, uint8_t v) { IN_RANGE(g, 893, "set_warp_pixel_clear_masks", "count", row, 8u); w8(g, 0x7E052Du + (uint32_t)row * 0x01u, v); }
+uint16_t warp_flicker(const GameState *g) { return r16(g, 0x7E0535u); }
+void set_warp_flicker(GameState *g, uint16_t v) { w16(g, 0x7E0535u, v); }
+uint8_t warp_plane_map(const GameState *g, unsigned row, unsigned column) { IN_RANGE(g, 894, "warp_plane_map", "rows", row, 128u); IN_RANGE(g, 894, "warp_plane_map", "columns", column, 128u); return r8(g, 0x7F0000u + (uint32_t)row * 0x80u + column); }
+void set_warp_plane_map(GameState *g, unsigned row, unsigned column, uint8_t v) { IN_RANGE(g, 894, "set_warp_plane_map", "rows", row, 128u); IN_RANGE(g, 894, "set_warp_plane_map", "columns", column, 128u); w8(g, 0x7F0000u + (uint32_t)row * 0x80u + column, v); }
+uint8_t warp_light_tiles_byte(const GameState *g, unsigned at) { IN_RANGE(g, 895, "warp_light_tiles_byte", "bytes", at, 8192u); return r8(g, 0x7F4000u + at); }
+void set_warp_light_tiles_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 895, "set_warp_light_tiles_byte", "bytes", at, 8192u); w8(g, 0x7F4000u + at, v); }
+uint8_t warp_plane_lists_top_lines(const GameState *g, unsigned line) { IN_RANGE(g, 896, "warp_plane_lists_top_lines", "count", line, 4u); return r8(g, 0x7F6000u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_top_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 896, "set_warp_plane_lists_top_lines", "count", line, 4u); w8(g, 0x7F6000u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_lists_top_values(const GameState *g, unsigned line) { IN_RANGE(g, 896, "warp_plane_lists_top_values", "count", line, 4u); return r16(g, 0x7F6001u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_top_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 896, "set_warp_plane_lists_top_values", "count", line, 4u); w16(g, 0x7F6001u + (uint32_t)line * 0x07u, v); }
+uint8_t warp_plane_lists_bottom_lines(const GameState *g, unsigned line) { IN_RANGE(g, 896, "warp_plane_lists_bottom_lines", "count", line, 4u); return r8(g, 0x7F6003u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_bottom_lines(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 896, "set_warp_plane_lists_bottom_lines", "count", line, 4u); w8(g, 0x7F6003u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_lists_bottom_values(const GameState *g, unsigned line) { IN_RANGE(g, 896, "warp_plane_lists_bottom_values", "count", line, 4u); return r16(g, 0x7F6004u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_bottom_values(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 896, "set_warp_plane_lists_bottom_values", "count", line, 4u); w16(g, 0x7F6004u + (uint32_t)line * 0x07u, v); }
+uint8_t warp_plane_lists_end(const GameState *g, unsigned line) { IN_RANGE(g, 896, "warp_plane_lists_end", "count", line, 4u); return r8(g, 0x7F6006u + (uint32_t)line * 0x07u); }
+void set_warp_plane_lists_end(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 896, "set_warp_plane_lists_end", "count", line, 4u); w8(g, 0x7F6006u + (uint32_t)line * 0x07u, v); }
+uint16_t warp_plane_matrix_first_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 897, "warp_plane_matrix_first_row_scale", "count", line, 256u); return r16(g, 0x7F601Cu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_first_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 897, "set_warp_plane_matrix_first_row_scale", "count", line, 256u); w16(g, 0x7F601Cu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_first_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 897, "warp_plane_matrix_first_row_turn", "count", line, 256u); return r16(g, 0x7F601Eu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_first_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 897, "set_warp_plane_matrix_first_row_turn", "count", line, 256u); w16(g, 0x7F601Eu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_second_row_turn(const GameState *g, unsigned line) { IN_RANGE(g, 898, "warp_plane_matrix_second_row_turn", "count", line, 256u); return r16(g, 0x7F681Cu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_second_row_turn(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 898, "set_warp_plane_matrix_second_row_turn", "count", line, 256u); w16(g, 0x7F681Cu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_matrix_second_row_scale(const GameState *g, unsigned line) { IN_RANGE(g, 898, "warp_plane_matrix_second_row_scale", "count", line, 256u); return r16(g, 0x7F681Eu + (uint32_t)line * 0x04u); }
+void set_warp_plane_matrix_second_row_scale(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 898, "set_warp_plane_matrix_second_row_scale", "count", line, 256u); w16(g, 0x7F681Eu + (uint32_t)line * 0x04u, v); }
+uint16_t warp_plane_centres_x(const GameState *g, unsigned i) { IN_RANGE(g, 899, "warp_plane_centres_x", "count", i, 2u); return r16(g, 0x7F701Cu + (uint32_t)i * 0x04u); }
+void set_warp_plane_centres_x(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 899, "set_warp_plane_centres_x", "count", i, 2u); w16(g, 0x7F701Cu + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_centres_y(const GameState *g, unsigned i) { IN_RANGE(g, 899, "warp_plane_centres_y", "count", i, 2u); return r16(g, 0x7F701Eu + (uint32_t)i * 0x04u); }
+void set_warp_plane_centres_y(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 899, "set_warp_plane_centres_y", "count", i, 2u); w16(g, 0x7F701Eu + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_scrolls_across(const GameState *g, unsigned i) { IN_RANGE(g, 900, "warp_plane_scrolls_across", "count", i, 2u); return r16(g, 0x7F7024u + (uint32_t)i * 0x04u); }
+void set_warp_plane_scrolls_across(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 900, "set_warp_plane_scrolls_across", "count", i, 2u); w16(g, 0x7F7024u + (uint32_t)i * 0x04u, v); }
+uint16_t warp_plane_scrolls_down(const GameState *g, unsigned i) { IN_RANGE(g, 900, "warp_plane_scrolls_down", "count", i, 2u); return r16(g, 0x7F7026u + (uint32_t)i * 0x04u); }
+void set_warp_plane_scrolls_down(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 900, "set_warp_plane_scrolls_down", "count", i, 2u); w16(g, 0x7F7026u + (uint32_t)i * 0x04u, v); }
+uint8_t warp_circle_half_widths(const GameState *g, unsigned line) { IN_RANGE(g, 901, "warp_circle_half_widths", "count", line, 128u); return r8(g, 0x7F702Cu + (uint32_t)line * 0x01u); }
+void set_warp_circle_half_widths(GameState *g, unsigned line, uint8_t v) { IN_RANGE(g, 901, "set_warp_circle_half_widths", "count", line, 128u); w8(g, 0x7F702Cu + (uint32_t)line * 0x01u, v); }
+uint8_t warp_circle_half_widths_unchecked(const GameState *g, unsigned line) { return r8(g, 0x7F702Cu + (uint32_t)line * 0x01u); }
+void set_warp_circle_half_widths_unchecked(GameState *g, unsigned line, uint8_t v) { w8(g, 0x7F702Cu + (uint32_t)line * 0x01u, v); }
+uint16_t warp_circle_windows(const GameState *g, unsigned line) { IN_RANGE(g, 902, "warp_circle_windows", "count", line, 512u); return r16(g, 0x7F70ACu + (uint32_t)line * 0x02u); }
+void set_warp_circle_windows(GameState *g, unsigned line, uint16_t v) { IN_RANGE(g, 902, "set_warp_circle_windows", "count", line, 512u); w16(g, 0x7F70ACu + (uint32_t)line * 0x02u, v); }
+uint8_t warp_circle_window_list_top_lines(const GameState *g) { return r8(g, 0x7F74ACu); }
+void set_warp_circle_window_list_top_lines(GameState *g, uint8_t v) { w8(g, 0x7F74ACu, v); }
+uint16_t warp_circle_window_list_top_values(const GameState *g) { return r16(g, 0x7F74ADu); }
+void set_warp_circle_window_list_top_values(GameState *g, uint16_t v) { w16(g, 0x7F74ADu, v); }
+uint8_t warp_circle_window_list_bottom_lines(const GameState *g) { return r8(g, 0x7F74AFu); }
+void set_warp_circle_window_list_bottom_lines(GameState *g, uint8_t v) { w8(g, 0x7F74AFu, v); }
+uint16_t warp_circle_window_list_bottom_values(const GameState *g) { return r16(g, 0x7F74B0u); }
+void set_warp_circle_window_list_bottom_values(GameState *g, uint16_t v) { w16(g, 0x7F74B0u, v); }
+uint8_t warp_circle_window_list_end(const GameState *g) { return r8(g, 0x7F74B2u); }
+void set_warp_circle_window_list_end(GameState *g, uint8_t v) { w8(g, 0x7F74B2u, v); }
+uint8_t warp_kept_event_memory_byte(const GameState *g, unsigned at) { IN_RANGE(g, 903, "warp_kept_event_memory_byte", "bytes", at, 512u); return r8(g, 0x7F74B3u + at); }
+void set_warp_kept_event_memory_byte(GameState *g, unsigned at, uint8_t v) { IN_RANGE(g, 903, "set_warp_kept_event_memory_byte", "bytes", at, 512u); w8(g, 0x7F74B3u + at, v); }

@@ -1252,7 +1252,11 @@ where `VID_M7_MATRIX_B_HIGH` (the multiplier's 8-bit operand) writes one.
 pair of values to a line; `VID_LINE_WINDOW1_LEFT` is window 1's left edge alone,
 which the same table drives; `VID_LINE_BG2_MAP` is BG2's tilemap address
 alone, which a scene of the attract sequence drives down the screen (REIMPLEMENTATION.md,
-"The last refusals in real play: the attract demo's states"). `VidLineEffect.snes_spill` with
+"The last refusals in real play: the attract demo's states"). `VID_LINE_MODE7_CENTER`
+is Mode 7's centre down the screen, which the time warp sets a half of the
+picture at a time (game/warp/), and `VID_STEP_INDIRECT_BANK_IS_SOURCE` the
+indirect bank's register written with a transfer's own bank, as the warp's
+vblank uploads write it. `VidLineEffect.snes_spill` with
 `VID_STEP_SPILL_SIZE_LO` and `VID_STEP_SPILL_CURSOR_LO` carries the byte a
 five-byte descriptor read as a word leaves in the channel's unused size and
 table-cursor registers: it is video state nowhere but in what shadow mode
@@ -2115,11 +2119,11 @@ without a beam", tracks them):
 | The event scheduler `$C0:5A46` | generated, beam budget | run the due object scripts while `tm_frame_time_left(pf, o, limit)`; natively, all of them every frame |
 | The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
 | `$C3:02DD` for `$C3:01E4` | generated | the stir as game code (`scene_draw_random`, ported for the star field), over `tm_entropy` |
-| The races `$C0:3B71` and `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; `$FD:EADA` before it enables the vblank handler (the field's `$C0:0B28` is `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`, `$FD:EAEB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
+| The races `$C0:3B71` and `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; the waits before a mode enables its vblank handler, the field's `$C0:0B38` and the time warp's `$FD:EADA` (both reached through `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
 | `$CD:3B82` | idle entries reading the registers directly | `tm_wait_line`, or nothing once its purpose is known |
-| The timer resets in `$C2:0043`, `$C2:940D`, `$FD:EB13` | generated (the boot's, `$FD:C000`, is `tm_reset_timers`; the battle's line, `$D1:F1B0`, is `tm_set_line`) | a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
+| The timer resets in `$C2:0043`, `$C2:940D` | generated (the boot's, `$FD:C000`, and the time warp's, `$FD:EB81`, are `tm_reset_timers`; the battle's line, `$D1:F1B0`, is `tm_set_line`) | a reset of timers nothing enables is `tm_reset_timers`, which a native backend leaves empty |
 
 **Validation.** A call that re-expresses a use keeps its accesses, so shadow
 mode compares it as it compares the ports now. The schedulers are the
@@ -2149,7 +2153,7 @@ and only idle entries call them (below).
 | Call | SNES backend | Host backend |
 |---|---|---|
 | `tm_wait_frame(pf, PF_CALL_DC(site, routine, set))` | the call of the mode's own wait routine the original made (JSR in its bank, JSL from another) | yields the main thread to the driver |
-| `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`) | waits a frame, then `tm_set_line` and `tm_enable_interrupts` |
+| `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`; the time warp's start, `$FD:EADA`, whose mode runs no line handler: `line` is `TM_LINE_UNCHANGED`) | waits a frame, then `tm_set_line` (unless `TM_LINE_UNCHANGED`) and `tm_enable_interrupts` |
 | `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
 | `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line in A, and the call of `$CD:3B82` | returns |
 | `tm_entropy(pf, o, width)` | `$2137`, `$213C`, `$213D` twice, a byte or a word at a time as `$C3:02DD` reads them (a word's high bytes are `$2138`, `$213D` and `$213E`), `$2137` reading as the bus's last byte, the compare's operand's `$21`; shadow mode waits for the original's latch | four values from a 32-bit xorshift the driver seeds |

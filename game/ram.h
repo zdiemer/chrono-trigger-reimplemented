@@ -9272,4 +9272,123 @@
 #define RAM_SCENE_CALL_RACE_POSE_DP 0xFEu    /* The pose the race draws its bikes in this frame, doubled: a byte offset into its tables of pictures */
 #define RAM_SCENE_CALL_SCRIPT_SCRATCH_DP 0xF0u /* A sequence channel's: what the interpreter last kept there -- the command it read, the address of the register an assignment names, or the routine of the program a script calls (on the scene's own page) */
 
+/* ---- warp ---------------------------------------------------------------------------------- */
+
+/* A zero the warp keeps on its page and starts its indexes from: the original's routines index
+ * from it, and the ports' guards take only a page that holds it (game/warp/warp.c
+ * warp_on_its_page) [2 bytes] */
+#define RAM_WARP_ZERO 0x7E0508u
+/* The warp's working cells, which its routines take in turn: the circle's builder (its radius,
+ * the area left and the run down its edge, the lines of its lower half), the light's rays (a
+ * ray's steps, place and band, a pixel's colour and row), the plane's scale (a product and a
+ * quotient) and the palette's turn and pulse (the colours taken out, the last colour made).
+ * Nothing reads them after the routine that wrote them; the ports leave their last values as
+ * scaffolding [16 x $1 bytes, by byte of the work area] */
+#define RAM_WARP_WORK 0x7E050Au
+#define RAM_WARP_WORK_COUNT 16u
+#define RAM_WARP_WORK_STRIDE 0x01u
+/* Frames since the warp's picture came on: the vblank handler counts them, and the main loop
+ * reads them for the plane's place, the circle's size, the colours' pulse and the warp's end [2
+ * bytes] */
+#define RAM_WARP_FRAME 0x7E051Bu
+/* Nonzero once the vblank handler has taken the frame the main loop finished; the wait for the
+ * next frame clears it and waits for it */
+#define RAM_WARP_FRAME_ENDED 0x7E051Eu
+/* Where the circle's centre is across the screen: the middle, set each time the circle is built */
+#define RAM_WARP_CIRCLE_CENTER_X 0x7E051Fu
+/* Where the circle's centre is down its window table: the middle, set each time the circle is
+ * built */
+#define RAM_WARP_CIRCLE_CENTER_Y 0x7E0521u
+/* The circle's radius this frame, 0 for none: it grows as the tunnel opens and again as it
+ * closes */
+#define RAM_WARP_CIRCLE_RADIUS 0x7E0523u
+/* How many times the circle's window table has been built: it alternates between two tables, and
+ * the vblank handler shows the one built last (the second while this is odd) */
+#define RAM_WARP_CIRCLE_TABLES_BUILT 0x7E0524u
+/* A bit for each pixel of a tile's row, leftmost first, which the light's drawing sets in a
+ * bitplane; they stay after the warp, where the field's palette animations, which share the
+ * bytes (palette_animations), read some of them on the next location [8 x $1 bytes, by pixel
+ * across a tile's row] */
+#define RAM_WARP_PIXEL_SET_MASKS 0x7E0525u
+#define RAM_WARP_PIXEL_SET_MASKS_COUNT 8u
+#define RAM_WARP_PIXEL_SET_MASKS_STRIDE 0x01u
+/* The same bits cleared, for the bitplanes a pixel's colour leaves clear; they stay after the
+ * warp as the set masks do [8 x $1 bytes, by pixel across a tile's row] */
+#define RAM_WARP_PIXEL_CLEAR_MASKS 0x7E052Du
+#define RAM_WARP_PIXEL_CLEAR_MASKS_COUNT 8u
+#define RAM_WARP_PIXEL_CLEAR_MASKS_STRIDE 0x01u
+/* Where the flickering warp is in its brightness pattern: the step in the high byte (0-31), the
+ * fraction of one in the low [2 bytes] */
+#define RAM_WARP_FLICKER 0x7E0535u
+/* The tunnel's plane as Mode 7 tile numbers, 128 tiles a row, built here and sent to video
+ * memory as the warp starts [128 bytes] [128 rows, $80 bytes apart] */
+#define RAM_WARP_PLANE_MAP 0x7F0000u
+#define RAM_WARP_PLANE_MAP_ROWS 128u
+#define RAM_WARP_PLANE_MAP_ROW_STRIDE 0x80u
+/* The light at the tunnel's end, a quarter of it drawn as 256 four-bitplane sprite tiles, 16 a
+ * row (128 by 128 pixels), and sent to video memory as the warp starts [8192 bytes] */
+#define RAM_WARP_LIGHT_TILES 0x7F4000u
+/* The plane's four line effects' lists: the picture's top half from one place in their tables,
+ * its bottom half from another, then the end [4 x $7 bytes, by line effect: the plane's matrix A
+ * and B, its C and D, its centre, its scroll (WarpPlaneEffect)] */
+#define RAM_WARP_PLANE_LISTS 0x7F6000u
+#define RAM_WARP_PLANE_LISTS_COUNT 4u
+#define RAM_WARP_PLANE_LISTS_STRIDE 0x07u
+#define RAM_WARP_PLANE_LISTS_TOP_LINES 0x7F6000u /* The top half's 112 lines, with the bit that takes a table's line for each */
+#define RAM_WARP_PLANE_LISTS_TOP_VALUES 0x7F6001u /* Where the top half's values are */
+#define RAM_WARP_PLANE_LISTS_BOTTOM_LINES 0x7F6003u /* The bottom half's lines, as the top's */
+#define RAM_WARP_PLANE_LISTS_BOTTOM_VALUES 0x7F6004u /* Where the bottom half's values are */
+#define RAM_WARP_PLANE_LISTS_END 0x7F6006u   /* 0: the list's end */
+/* The plane's matrix A and B down the screen: its scale on each line, and no turn [256 x $4
+ * bytes, by line of the table (the picture's from 16)] */
+#define RAM_WARP_PLANE_MATRIX_FIRST_ROW 0x7F601Cu
+#define RAM_WARP_PLANE_MATRIX_FIRST_ROW_COUNT 256u
+#define RAM_WARP_PLANE_MATRIX_FIRST_ROW_STRIDE 0x04u
+#define RAM_WARP_PLANE_MATRIX_FIRST_ROW_SCALE 0x7F601Cu /* The plane's scale across, 8.8 (Mode 7's A) */
+#define RAM_WARP_PLANE_MATRIX_FIRST_ROW_TURN 0x7F601Eu /* 0: the plane doesn't turn (Mode 7's B) */
+/* The plane's matrix C and D down the screen: no turn, and its scale on each line [256 x $4
+ * bytes, by line of the table (the picture's from 16)] */
+#define RAM_WARP_PLANE_MATRIX_SECOND_ROW 0x7F681Cu
+#define RAM_WARP_PLANE_MATRIX_SECOND_ROW_COUNT 256u
+#define RAM_WARP_PLANE_MATRIX_SECOND_ROW_STRIDE 0x04u
+#define RAM_WARP_PLANE_MATRIX_SECOND_ROW_TURN 0x7F681Cu /* 0: the plane doesn't turn (Mode 7's C) */
+#define RAM_WARP_PLANE_MATRIX_SECOND_ROW_SCALE 0x7F681Eu /* The plane's scale down, 8.8, the same as across (Mode 7's D) */
+/* The plane's centre this frame, for the top half of the picture and the bottom, as their line
+ * effect takes it [2 x $4 bytes, by half of the picture: top, bottom] */
+#define RAM_WARP_PLANE_CENTRES 0x7F701Cu
+#define RAM_WARP_PLANE_CENTRES_COUNT 2u
+#define RAM_WARP_PLANE_CENTRES_STRIDE 0x04u
+#define RAM_WARP_PLANE_CENTRES_X 0x7F701Cu   /* Across: the plane's middle */
+#define RAM_WARP_PLANE_CENTRES_Y 0x7F701Eu   /* Down: following the plane's scroll */
+/* The plane's scroll this frame, for the top half of the picture and the bottom, which run
+ * opposite ways [2 x $4 bytes, by half of the picture: top, bottom] */
+#define RAM_WARP_PLANE_SCROLLS 0x7F7024u
+#define RAM_WARP_PLANE_SCROLLS_COUNT 2u
+#define RAM_WARP_PLANE_SCROLLS_STRIDE 0x04u
+#define RAM_WARP_PLANE_SCROLLS_ACROSS 0x7F7024u /* 0 */
+#define RAM_WARP_PLANE_SCROLLS_DOWN 0x7F7026u /* Four lines a frame, round the plane's 512 */
+/* Half the circle's width on each line out from its middle, as the circle's builder works them
+ * out; nothing reads them after it [128 x $1 bytes, by line out from the circle's middle] */
+#define RAM_WARP_CIRCLE_HALF_WIDTHS 0x7F702Cu
+#define RAM_WARP_CIRCLE_HALF_WIDTHS_COUNT 128u
+#define RAM_WARP_CIRCLE_HALF_WIDTHS_STRIDE 0x01u
+/* The circle as window 1's edges down the screen (left in the low byte), in two tables built in
+ * turn; the vblank handler shows the one built last [512 x $2 bytes, by line, the second table's
+ * from 256] */
+#define RAM_WARP_CIRCLE_WINDOWS 0x7F70ACu
+#define RAM_WARP_CIRCLE_WINDOWS_COUNT 512u
+#define RAM_WARP_CIRCLE_WINDOWS_STRIDE 0x02u
+/* The circle window's line effect list: the picture's top half from one part of a table, the
+ * bottom half from the next, then the end; the vblank handler points it at the table built last
+ * [7 bytes] */
+#define RAM_WARP_CIRCLE_WINDOW_LIST 0x7F74ACu
+#define RAM_WARP_CIRCLE_WINDOW_LIST_TOP_LINES 0x7F74ACu /* The top half's 112 lines, a table's line for each */
+#define RAM_WARP_CIRCLE_WINDOW_LIST_TOP_VALUES 0x7F74ADu /* Where in the table the top half starts */
+#define RAM_WARP_CIRCLE_WINDOW_LIST_BOTTOM_LINES 0x7F74AFu /* The bottom half's lines, as the top's */
+#define RAM_WARP_CIRCLE_WINDOW_LIST_BOTTOM_VALUES 0x7F74B0u /* Where in the table the bottom half starts */
+#define RAM_WARP_CIRCLE_WINDOW_LIST_END 0x7F74B2u /* 0: the list's end */
+/* The event memory (the story flags) kept aside while the plane's map is built over it, and put
+ * back as the warp ends [512 bytes] */
+#define RAM_WARP_KEPT_EVENT_MEMORY 0x7F74B3u
+
 #endif

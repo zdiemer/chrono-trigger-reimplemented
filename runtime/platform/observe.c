@@ -465,7 +465,8 @@ static uint8_t effect_unit_len(VidLineTarget target)
     case VID_LINE_SCROLL_BG3_H:
     case VID_LINE_SCROLL_BG3_V: return 2;
     case VID_LINE_MODE7_AB:
-    case VID_LINE_MODE7_CD: return 4;
+    case VID_LINE_MODE7_CD:
+    case VID_LINE_MODE7_CENTER: return 4;
     case VID_LINE_MODE7_A:
     case VID_LINE_MODE7_B:
     case VID_LINE_MODE7_C:
@@ -595,6 +596,14 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
     case VID_LINE_BG2_MAP:
         vid_bg_map_decode(&ob->state.bg[1], v);
         break;
+    case VID_LINE_MODE7_CENTER: {
+        /* through the Mode 7 latch, as the matrix's pairs */
+        VidMode7 *m = &ob->state.mode7;
+        int16_t *value = i < 2 ? &m->cx : &m->cy;
+        *value = vid_mode7_13bit((uint16_t)((uint16_t)v << 8 | ob->m7_latch));
+        ob->m7_latch = v;
+        break;
+    }
     case VID_LINE_TARGETS:
         break;
     }
