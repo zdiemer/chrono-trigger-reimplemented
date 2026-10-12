@@ -31,13 +31,14 @@
 
 /* ---- The waits ------------------------------------------------------------------------------ */
 
-/* The vblank handler has finished a frame once it clears what the battle
- * counted up to ask for it (battle_nmi). */
-void battle_wait_for_the_handler_to_finish(GameState *g, Platform *pf, PfOrigin loop)
+// $CD:3E58
+/* A frame of a paused fight sat out: the vblank handler has finished a frame
+ * once it clears what the battle counted up to ask for it (battle_nmi). */
+void battle_sit_out_a_paused_frame(GameState *g, Platform *pf)
 {
     set_battle_nmi_pending(g, (uint8_t)(battle_nmi_pending(g) + 1));
     while (battle_nmi_pending(g))
-        tm_wait_for_handlers(pf, loop);
+        tm_wait_for_handlers(pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
 }
 
 /* The pause's turn, on every pass of a wait: only a paused battle has

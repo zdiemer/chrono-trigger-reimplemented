@@ -591,7 +591,9 @@ PF_API void vid_send_vram(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData s
  * and the caller waits a frame for each: `o` names the call of the mode's
  * routine that queues them and waits (PF_CALL_DC), which the SNES backend
  * makes with the arguments it takes (platform/snes/encodings.c). A host
- * draws the picture after the frame's work, so it copies them now. */
+ * draws the picture after the frame's work, so it copies them now, from a
+ * host pointer: a game address, which a host can't resolve until the game's
+ * state is its own, stops the program with the call's site. */
 PF_API void vid_send_vram_and_wait(Platform *pf, PfOrigin o, uint16_t vram_addr, PfData src, uint32_t len);
 /* The same where the game's data holds the transfer's mode in the SNES's form
  * (a screen transition's, field_transfer). */

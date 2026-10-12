@@ -2237,10 +2237,12 @@ the loop's head or exit with the port's S (memory, S, the page and the bank;
 the port's other registers are its own across the wait and compared where
 something reads them), and the port goes on at the first such point after a
 handler has run, with the handler's work taken from the original, or where
-the original leaves the loop. The pass the handler fell in is the one not
-compared; an entry the original reaches in the passes, outside the handlers,
-is counted as "in a wait's passes" and not compared on its own (the port
-makes those passes), so the fallback measure counts them as the port's.
+the original leaves the loop. A stretch a handler fell in is counted
+interrupted, as any is; an entry the original reaches in the passes (the
+pause's, on every pass) is compared on its own, nested, and the fallback
+measure counts it as the port's. `tools/uncompared.py`, which the suite runs,
+fails on an entry past half its calls uncompared that
+`tools/uncompared_baseline.txt` doesn't list with its reason.
 Outside the runtime the original's loop runs in place, and `ct_fuzz
 --stop-at-call` with the loop's head ends a run there. `native_wait_call` is
 the same for a call of a routine that only waits (the battle's wait for a
@@ -2251,7 +2253,10 @@ work, in shadow mode.
 src, len)` (`video.h`) sends a buffer to VRAM from the main thread and
 returns once it is there. A host copies it at once, the picture being drawn
 after the frame's work (`runtime/platform/native/video.c`, the host
-backend's first video call). The SNES backend calls the mode's routine that
+backend's first video call), from a host pointer: a game address, which
+has no host memory behind it until the game's state is the host's own,
+stops the program with the call's site, and the battlefield's change, the
+one caller, passes one. The SNES backend calls the mode's routine that
 queues it for the vblank handler and waits (`PF_CALL_DC`), with the arguments
 where that routine takes them (`pf_snes_vram_sender`, `encodings.c`: the
 battle's `$CD:3ED2` and `$CD:3ECE`, the bank in A, the source in X, VRAM in

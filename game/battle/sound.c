@@ -40,7 +40,7 @@ static void sit_out_the_pause(GameState *g, Platform *pf)
         return;
     silence(g, pf, PF_CALL_DC(0xCD3E54, 0xC70004, DRIVER_IGNORES), SILENCE_ON);
     do
-        battle_wait_for_the_handler_to_finish(g, pf, PF_LOOP(0xCD3E5B, 0xCD3E60));
+        battle_sit_out_a_paused_frame(g, pf);
     while (battle_paused(g));
     silence(g, pf, PF_CALL_DC(0xCD3E70, 0xC70004, DRIVER_IGNORES), SILENCE_OFF);
 }

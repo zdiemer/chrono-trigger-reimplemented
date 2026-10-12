@@ -206,9 +206,7 @@ typedef struct Active {
     uint16_t sync_s;
     int32_t wake;          /* ON, PH_WAIT: what ends the wait... */
     bool woke;             /* ...and, for a wait on the handlers, that one has been taken where the port is */
-    bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared... */
-    bool in_handler;       /* ...an interrupt's handler is running, taken where S was handler_s */
-    uint16_t handler_s;
+    bool wait_compared;    /* SHADOW, a wait in the port's loop: the stretch before it was compared */
     /* SHADOW, PH_LATCH: the original's latches when the port began to wait;
      * and that the stretch the original is catching up with began before the
      * wait, which the stretch's timing goes on from. */
@@ -1161,7 +1159,6 @@ static void after_run(NativeRuntime *rt, Active *a, Snes *s)
         }
         a->stretch_goes_on = j->state == JOB_LATCHING;
         a->wait_compared = false;
-        a->in_handler = false;
         a->segment_nparts = j->nparts;
         memcpy(a->segment_parts, j->parts, sizeof *j->parts * (size_t)j->nparts);
         a->segment_bad_tags = j->bad_tags;
@@ -1222,7 +1219,7 @@ static bool wait_point(NativeRuntime *rt, Active *a, Snes *s, uint32_t pc)
         /* the port stands in the loop where the original is */
         a->clone->cpu.pb = (uint8_t)(pc >> 16);
         a->clone->cpu.pc = (uint16_t)pc;
-        bool same = a->segment_interrupted || reach_point(rt, a, s, j->call_dont_care, "at the wait");
+        bool same = reach_point(rt, a, s, j->call_dont_care, "at the wait");   /* interrupted: counted so */
         a->clone->cpu = mine;
         if (!same)
             return false;
@@ -2244,8 +2241,6 @@ static int32_t intercept(void *ctx, Snes *s)
             Active *a = &rt->active[i];
             if ((a->phase == PH_SEGMENT || a->phase == PH_LATCH) && s->cpu.s < a->segment_low_s)
                 a->segment_low_s = s->cpu.s;
-            if (a->in_handler && s->cpu.s >= a->handler_s)
-                a->in_handler = false;   /* the handler has returned */
         }
     }
 
@@ -2262,10 +2257,6 @@ static int32_t intercept(void *ctx, Snes *s)
             Active *a = &rt->active[i];
             if (a->phase == PH_SEGMENT || a->phase == PH_LATCH)
                 a->segment_interrupted = true;
-            if (!a->in_handler && a->job && a->job->state == JOB_WAITING) {
-                a->in_handler = true;
-                a->handler_s = s->cpu.s;
-            }
         }
         return -1;
     }
@@ -2304,16 +2295,7 @@ static int32_t intercept(void *ctx, Snes *s)
             st->in_latch_wait++;
             return -1;
         }
-        /* SHADOW: the same for an entry the original reaches in the passes of
-         * a loop a port waits in (native_wait_loop), outside the handlers
-         * that end the wait: the port makes those passes itself. */
-        if (rt->mode == NATIVE_SHADOW && rt->nactive > 0) {
-            const Active *top = &rt->active[rt->nactive - 1];
-            if (top->job && top->job->state == JOB_WAITING && !top->in_handler) {
-                st->in_wait++;
-                return -1;
-            }
-        }
+
         if (rt->page_report)
             count_page(st, s->cpu.d);
         if (!entry_applies(e, s)) {
@@ -2761,8 +2743,7 @@ void native_report(const NativeRuntime *rt, FILE *out)
             fprintf(out, "  abandoned %u", st->abandoned);
         if (st->in_latch_wait)
             fprintf(out, "  in a latch wait %u (not compared)", st->in_latch_wait);
-        if (st->in_wait)
-            fprintf(out, "  in a wait's passes %u (not compared)", st->in_wait);
+
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");

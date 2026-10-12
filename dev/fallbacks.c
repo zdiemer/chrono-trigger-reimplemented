@@ -238,6 +238,12 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
         enter(f, (Frame){ .kind = f->eff.kind, .routine = pc, .port = f->eff.port, .floor = sp });
     f->pending = false;
 
+    /* A wait loop's pass ends where its routine returns past the loop's level:
+     * left open, the next pass through the same head took back whatever ran
+     * between (the routine's tail, its caller's next work). */
+    if (f->pass.open && sp > f->pass.s)
+        f->pass.open = false;
+
     Frame eff = f->frames[f->depth - 1];
     if (f->depth > 1 && eff.floor - sp > STACK_SPAN)
         eff = (Frame){ .kind = UNPORTED, .routine = BANK_ONLY, .port = NO_PORT, .floor = sp };

@@ -6,9 +6,9 @@
 #include "snes/system.h"
 #include "state.h"
 
-/* Wait until the vblank handler has finished a frame, as a wait of the
- * battle's own whose loop is `loop` (PF_LOOP). */
-void battle_wait_for_the_handler_to_finish(GameState *g, Platform *pf, PfOrigin loop);
+/* Wait out a frame of a paused fight, until the vblank handler has finished
+ * it (battle/sound.c's pause). */
+void battle_sit_out_a_paused_frame(GameState *g, Platform *pf);
 
 void battle_wait_for_frame(Snes *s);
 void battle_wait_for_a_last_frame(Snes *s);

@@ -105,7 +105,6 @@ typedef struct NativeStats {
     unsigned calls, matched, mismatched, interrupted, skipped;
     unsigned abandoned;         /* a callee unwound the routine's frame, so it never finished */
     unsigned in_latch_wait;     /* SHADOW: reached while a port waited for the original's latch: not compared */
-    unsigned in_wait;           /* SHADOW: reached in the passes of a loop a port waits in: not compared */
     /* SHADOW: time the original spent in the stretches native code replaces
      * (excluding call-outs), and the native routine's bus-access clocks for them. */
     uint64_t original_clocks;
@@ -420,8 +419,8 @@ void native_await_latch(Snes *s);
  * port goes on at the first
  * such point after a handler has run there, with the handler's work taken
  * from the original, or where the original leaves the loop; an entry the
- * original reaches in those passes, outside the handlers, isn't compared on
- * its own. Outside the runtime the original's loop runs in place, as a
+ * original reaches in those passes is compared on its own, nested, as any
+ * entry inside a port's stretch is. Outside the runtime the original's loop runs in place, as a
  * call-out's callee does, and ct_fuzz --stop-at-call can end the run at its
  * head.
  *

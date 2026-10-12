@@ -2314,17 +2314,37 @@ re-runs the census.
   that leaves an idle loop stays counted as a fallback: they take the
   battle's shape.
 - **What the battle's waits left** (REIMPLEMENTATION.md, "Phase 4a, timing: the
-  battle's waits and its transfer from the main thread"): the menu's turn the
-  frame work's wait gives (`$C1:0012`, `$C1:10E3`) reads the carry on some path
-  though liveness has it dead there: `ct_fuzz` over the transfer found a VRAM
-  byte's low bit following it, and the transfer now leaves the original's
-  carry before each wait. Find the read; then the frame work's other callers
-  that declare the carry dead at a wait (`battlefield_change.c`'s
-  `WAIT_READS`, `WAIT_FRAMES_READS`) want the same. The waits' fuzz runs stop
-  at the first pass, or at a sibling run as C (a real call under `ct_fuzz`,
-  which has no runtime), so a wait's passes and the transfer's pieces are
-  checked by shadow mode alone; `ct_fuzz` with a runtime, or interrupts it
-  can raise, would reach them.
+  battle's waits and its transfer from the main thread"):
+  - The menus' text code the battle message's typing calls (`$CD:04DF` ->
+    `$C2:0009` -> `$C2:5823`) reads the carry it is entered with, which
+    liveness has dead there (`live_at($C2:5823)` is `V DB D`): scrambling the
+    carry at the typing's call (`ct_fuzz --poison-site CD3E89`, the guard
+    lifted) changes a VRAM byte's low bit on 199 of 6,982 random texts, while
+    scrambling it at the menu's turn (`$C1:0012`, `--poison-site CD3E78`)
+    changes nothing over 17,684. The texts that show it are ones the menus'
+    text guard turns away (`menu_text_can_carry_on`), so real play doesn't
+    reach it, but the instruction isn't found and the analysis isn't fixed:
+    find the read, then list the declarations `tools/dontcare_check.py`
+    would reject. The shipping mode runs the typing as C (`menu_text_go_on`,
+    which reads no carry, behind that guard), and a port reaching a wait
+    doesn't carry the original's carry: declaring it live at the
+    battlefield's waits mismatched at every battle's (`$CD:132E`, the ports
+    above it leave their own), so those keep it dead, and `wait.c`'s call of
+    the menu's turn and the transfer's waits keep it live.
+  - The waits' fuzz runs stop at the first pass, or at a sibling run as C (a
+    real call under `ct_fuzz`, which has no runtime), so a wait's passes and
+    the transfer's pieces are checked by shadow mode alone; `ct_fuzz` with a
+    runtime, or interrupts it can raise, would reach them.
+  - Machine shape the review left: `uploads.c`'s `keep_the_buffer`/
+    `take_the_buffer_back` push the original's frame and write X and Y that
+    nothing reads, and `leave_the_carry_of_what_is_left` writes the carry
+    plainly in the transfer's logic; `wait.c`'s `battle_wait_some_frames`
+    keeps its count in A and on the stack. Both exist so shadow mode's points
+    line up with the original's stack and registers; they go when the waits'
+    callers call them as C.
+  - The host's `vid_send_vram_and_wait` stops the program on a game address
+    (no host memory behind it yet): the battlefield's change, its one caller,
+    passes one.
 - **The line handlers' hblank waits**: `field_irq_wait_hblank_loop`
   (`$C0:ECEB`), `battle_irq_wait_hblank_loop` (`$D1:FEB8`) and the scene
   boot's `$C3:0530`/`$C3:0538` land the forced blank at the end of line 211,

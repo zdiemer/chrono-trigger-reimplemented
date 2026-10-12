@@ -2650,9 +2650,10 @@ battle's setup pushes. Comparing the port's X and Y at the wait points, where
 the menus' text code leaves its own, found nothing a reader reads: the wait
 points compare memory, S, the page and the bank, and the registers where
 something reads them. The pause's entry is reached on every pass of the
-original's loop: compared on its own each time, it made the shadow runs 60%
-slower, so entries the original reaches in a wait's passes, outside the
-handlers, aren't compared on their own (they are the port's passes).
+original's loop and compared on its own each time, which makes the library's
+shadow runs about half as long again; the frame work's waits that a port runs
+as C are compared in that port's stretch and abandoned on their own, which
+`tools/uncompared.py`'s baseline records.
 
 **Fuzzing.** No interrupt comes under `ct_fuzz`, so a wait is compared up to
 its first pass (`--stop-at-call` at the loop's head, which `native_wait_loop`
@@ -2668,9 +2669,13 @@ frame's 0 of 21, some frames' 0 of 5 and the letter 0 of 97 (the menus' text
 guard takes few random texts), the transfer 0 of 108; the callers changed,
 the frame wait's tail 0 of 14, the return to the field 0 of 16,509, the
 screen's setup 0 of 1,360 and the battlefield's five 0 of 71,296. The
-transfer's first run mismatched 4 of 108, a VRAM byte's low bit: the menu's
-turn after the wait reads the carry the original's comparison of what is
-left with a piece leaves, which liveness had dead (docs/TODO.md).
+transfer's first run mismatched 4 of 108, a VRAM byte's low bit: the carry
+at its waits reached the original's typing of a message's letter, whose
+menus' text code reads it on texts the game never sets though liveness has
+it dead (`--poison-site` runs: 199 of 6,982 at the typing's call, 0 of
+17,684 at the menu's turn; docs/TODO.md). The shipping mode types the letter
+as C, which reads no carry, behind the menus' text guard that turns those
+texts away; the transfer leaves the original's carry anyway.
 
 **Measured.** Shadow mode over the 35 movies, 0 mismatching: the frame wait
 358,694 calls (2 interrupted), the letter 400,276 (806 interrupted: the
@@ -2679,17 +2684,20 @@ transfer 10,657 (8) and its long form 403, the tiles' clear 2,487 (331) and
 37, the last frame's 200, the small handler's 78; the frame work's waits
 42,666, 37,244 and 17,735 calls, of which 37,244, 31,106 and 16,571 the
 original reaches inside an enclosing wait's stretch, compared there as that
-port's; the pause's 299.7 million calls are nearly all passes of a wait's
-loop (431,980 and 63,071 compared on their own, 28 interrupted). The
+port's; the pause's entries 299.7 million calls, 299.2 million compared and 0.5 million interrupted. The
 reference play's fallbacks went from 60.3 M instructions to 36.2 M (the
 battle's frame work 19.9 M to 1.8 M, the battle's 4.7 M to 0.7 M, its
 sprites' 1.9 M to 12 K). The menu's turn `$C1:0012` counts 7% more and the
-message call `$CD:0021` 23% more: the measure used to take an idle loop's
-last pass back at the next pass through the same head with the same S, and
-the frame work's wait for the handler left its pass open across the menu's
-turn and whatever followed until its next wait, which took them back too.
+message call `$CD:0021` 23% more: the measure left an idle loop's pass open
+after the loop, until the next pass through the same head with the same S
+took back what had run between, and the frame work's wait for the handler,
+an idle loop until this chunk, left its pass open across the menu's turn.
+`dev/fallbacks.c` closes a pass where its routine returns past the loop's
+level now: the library's total rose by 4.6 K instructions, the overworld's
+frame wait (`$C2:0346`, `$C2:0454`) taking less back.
 
-**Timing.** Calibrated: the waits' `cost_milli` are their passes' (a pass
+**Timing.** Calibrated (and the frame work's waits again once their nested
+calls were compared): the waits' `cost_milli` are their passes' (a pass
 is a few reads, which the original spends 40 to 100 clocks on), and the
 callers whose stretches now take the waits' work inline (the frame wait's
 tail, the battle's frame step) moved with them.

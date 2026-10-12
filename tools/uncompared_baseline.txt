@@ -1,0 +1,64 @@
+# Hand ports the shadow runs mostly leave uncompared (tools/uncompared.py): an entry past
+# half its calls interrupted or abandoned over the library, and why, after `#`. --check (the
+# suite) fails on one this file doesn't list. The lines without a reason are the entries past
+# the limit when the check came in: the backlog, each to be given its reason or compared.
+
+battle_build_battlefield_map
+battle_build_bitmap_shapes
+battle_carry_out_member_action
+battle_change_battlefield
+battle_clear_battlefield_map
+battle_click_cursor
+battle_draw_menu_window
+battle_effect_hit
+battle_enemy_takes_turn
+battle_enemy_tech_body
+battle_enemy_tech_turn
+battle_frame_update
+battle_frame_work
+battle_give_turn
+battle_hp_loss_timer_ran_out
+battle_load_action_animation
+battle_load_attack_animation
+battle_load_battlefield
+battle_load_effect_tile_rows
+battle_load_second_effect_tile_rows
+battle_load_tech_animation
+battle_member_attacks
+battle_run_scripts
+battle_set_up_double_techs
+battle_setup_display
+battle_show_action
+battle_start_action_showing
+battle_wait_for_the_handler  # run as C by the frame work's wait for the next frame (battle_run), whose stretch compares it; called on its own, it is compared
+battle_wait_for_the_next_frame  # run as C by the waits for some frames and the transfer (battle_run), whose stretches compare it; called on its own, it is compared
+battle_wait_some_frames  # its own loop comes back to its entry, each pass inside the stretch its first call stands for, which compares them
+battle_work_out_member_tech
+event_cmd_cast_npc
+event_cmd_fade_music
+event_cmd_play_effect
+event_cmd_play_song
+event_cmd_send_sound_command
+field_fade_in
+field_frame_work
+field_load_location
+field_recentre_the_screen
+field_refresh_effects
+field_set_the_screen_up
+field_set_up_the_objects
+field_start_location_song
+field_walk_the_leader
+menu_make_equipment_list
+menu_move_among_tech_members
+menu_object_cmd_call_routine
+menu_object_cmd_call_routine_far
+menu_object_cmd_play_effect_on_voices_67
+menu_play_cursor_sound
+menu_point_along_equipment_list
+menu_send_sound
+menu_show_shop_member_slots
+menu_type_the_description
+menu_type_the_description_task
+script_play_sound
+script_play_sound_at
+script_weapon_swing_sound
