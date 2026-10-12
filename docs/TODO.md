@@ -928,6 +928,30 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **The time warp's flicker reads past its table.** `warp.c` takes the
+  flicker's row 256 x `past` bytes beyond the flicker table
+  (`warp_data.h`), `past` being the bottom line's scale left in A's high
+  byte, as the original does. It is deliberate and matches, but it reads
+  whatever ROM follows the table: a build that loads the table from an
+  asset pack has to carry those bytes too, or the warp has to be shown
+  never to reach past the table (fuzz the scale's range) and the read
+  clamped.
+- **What the time warp's review left** (none rated translation):
+  `WarpKind` carries ROM columns (`frame_entry`, `window_site`) beside the
+  kinds' length and flicker, used as `PF_AT(...)` and `charge_as(...)`
+  (a parallel dispatch table); `warp_build_circle` returns its step count
+  only for the timing charge, and `HalfWidths`' `left_on`, `area` and `run`
+  exist only for scaffolding; `circle.c`'s `h->area & NEGATIVE` is a sign
+  test (`(int16_t)area < 0`), and its comment calls the fraction in
+  `width[line+1]` scaffolding though the logic's own `h->width` may read it
+  on the last line (check); `picture.c`'s callers pass origin tags into
+  `start_line_effect`, and the plane's tiles are filled byte by byte
+  through the VRAM port; `warp_work`'s offsets are reused across files
+  under different names (name the cells in the map); a third private
+  accessor for the `$C0:F800` sine (one, shared); `TM_LINE_UNCHANGED` is an
+  in-band `0xFFFF`, and the SNES backend's comment says the call also
+  turns the picture on dark, which the native `timing.c` doesn't.
+
 - **What the endings' review left** (none rated translation):
   `scene/endings.c`'s modes are numbers with names, not the endings they
   are (`ending_mode` returns `unsigned`, `MODE_CAPTIONED_TOO` names
