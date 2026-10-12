@@ -45,6 +45,8 @@
 
 #include "charge.h"
 #include "original_effects.h"
+#include "core/console.h"
+#include "core/palette.h"
 #include "core/display.h"
 #include "core/input.h"
 #include "event/contact.h"
@@ -98,8 +100,8 @@ static void finish_frame(GameState *g)
 
 /* ---- The routines it calls on the machine ------------------------------------------------------- */
 
-/* The original's routines; the palettes' animation, through the original's
- * jump to it at $FD:FFF7, which isn't an entry; and the sound driver's start,
+/* The original's routines; the palettes' animation, a port called through
+ * the original's jump to it at $FD:FFF7, an entry of its own; and the sound driver's start,
  * a port that waits on the sound processor across frames, which only a call
  * can run: it hands every register back as it found it, A's low byte and the
  * flags aside. */
@@ -248,7 +250,8 @@ bool field_location_is_a_number(Snes *s)
  * The pass stops at the wait rather than calling it: the wait spans the
  * frame's end, and a pass still running there would be a native routine held
  * over every frame, which a machine copy can only rebuild by replaying input
- * (ct_drive, docs/MOVIES.md). The wait sets A for the next pass itself. */
+ * (ct_drive, docs/MOVIES.md). The wait is an entry of its own, and sets A for
+ * the next pass itself. */
 void field_frame(Snes *s)
 {
     latch_presses(state_of(s));
@@ -264,6 +267,21 @@ void field_frame(Snes *s)
         m_stop_at(s, WAIT_FOR_THE_NEXT_FRAME, READS_THE_OVERFLOW);
 }
 
+// $C0:00BA
+/* The main loop's wait for the next frame: its start as C, which stops where
+ * it waits (field_finish_frame); the vblank ends the wait, which returns to
+ * the loop's next pass. Nothing the pass leaves but A's high byte and the
+ * overflow is read after it (the entry's set). */
+void field_wait_for_the_next_frame(Snes *s)
+{
+    (void)field_run_or_hand_over(s, WAIT_FOR_THE_NEXT_FRAME, FIELD_FRAME_WAIT, READS_THE_OVERFLOW, field_finish_frame,
+                                 page(s));
+}
+
+// $C0:00BD
+/* Back from the wait, the main loop goes round. */
+void field_main_loop_goes_round(Snes *s) { m_stop_at(s, MAIN_LOOP, THE_LOOP_READS_A_HIGH_AND_THE_OVERFLOW); }
+
 // $C0:00BF
 /* The frame's work, on 8-bit index registers but for the palettes and the
  * sprite table: the objects' scripts and the line effects for the next
@@ -277,7 +295,7 @@ void field_frame_work(Snes *s)
         !field_run_long(s, 0xC000C7, LINE_EFFECTS, READS_THE_OVERFLOW, field_build_line_effect_tables, page_x8(s)))
         return;
     m_rep(s, CPU_FLAG_X);
-    if (!bridge_call_long(s, 0xC000CD, PALETTE_ANIMATION, READS_THE_OVERFLOW, page(s)))
+    if (!field_run_long(s, 0xC000CD, PALETTE_ANIMATION, READS_THE_OVERFLOW, palette_animate, page(s)))
         return;
     m_sep(s, CPU_FLAG_X);
     if (!bridge_call(s, 0xC000D3, UPDATE_OBJECTS, READS_THE_OVERFLOW, page_x8(s)) ||
@@ -297,7 +315,7 @@ void field_refresh_effects(Snes *s)
     if (!field_run_long(s, 0xC000E0, LINE_EFFECTS, READS_NOTHING, field_build_line_effect_tables, page_x8(s)))
         return;
     m_rep(s, CPU_FLAG_X);
-    if (bridge_call_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, page(s)))
+    if (field_run_long(s, 0xC000E6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, page(s)))
         m_rts(s);
 }
 
@@ -313,6 +331,72 @@ void field_walk_a_frame(Snes *s)
         !field_run(s, 0xC000EE, FIELD_REFRESH_EFFECTS_ENTRY, READS_NOTHING, field_refresh_effects, page(s)))
         return;
     m_stop_at(s, FIELD_FRAME_WAIT, THE_WAIT_SETS_A);
+}
+
+/* ---- Starting afresh ------------------------------------------------------------------------- */
+
+/* Where the field goes when it is done with the game it was playing: back to
+ * its own start for a new location, or out to a scene, each on the game's
+ * fresh stack. The original sets the stack through X, which keeps its top. */
+static void on_a_fresh_stack(Snes *s)
+{
+    s->cpu.x = CONSOLE_STACK_TOP;
+    s->cpu.s = CONSOLE_STACK_TOP;
+}
+
+enum { FIELD_STARTS = 0xC00000, THE_FIELD_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $C0:0CC0
+/* The field starts again, for the location the party has moved to. */
+void field_start_again(Snes *s)
+{
+    on_a_fresh_stack(s);
+    m_stop_at(s, FIELD_STARTS, THE_FIELD_READS_NOTHING);
+}
+
+/* The scenes an event command asks for: below $80 the scene engine's (its
+ * flags, scene.h, in A), from $80 bank $FD's, by the original's jumps to
+ * them, the time gate's tunnels and the rest of bank $FD's own (warp/). What
+ * each reads first it sets, the flags the look at the scene's number left
+ * among it. */
+enum { SCENE_ENGINE = 0xC30000, FIRST_FD_SCENE = 0x80, SCENE_FIELD_CLOSES_INTO = 0x85 };
+enum { THE_SCENE_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
+static const uint32_t fd_scenes[] = { 0xFDFFF1, 0xFDFFEB, 0xFDFFE8, 0xFDFFE5 };   /* $80, $81, $82, the rest */
+enum { FD_SCENES = sizeof fd_scenes / sizeof fd_scenes[0] };
+
+static unsigned fd_scene(uint8_t scene)
+{
+    unsigned n = (unsigned)(scene - FIRST_FD_SCENE);
+    return n < FD_SCENES ? n : FD_SCENES - 1;
+}
+
+/* The scene's number in A, over the field's page's low byte (which the
+ * original moves into A's high byte on the way). */
+static void hand_over_the_scene(Snes *s, uint8_t scene)
+{
+    on_a_fresh_stack(s);
+    s->cpu.a = (uint16_t)((FIELD_PAGE & 0x00FF) << 8 | scene);
+}
+
+// $C0:3FD6
+/* The field ends for the scene an event command asked for (event/screen.c). */
+void field_start_the_scene(Snes *s)
+{
+    uint8_t scene = field_scene_to_start(state_of(s));
+    hand_over_the_scene(s, scene);
+    if (scene < FIRST_FD_SCENE)
+        m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
+    else
+        m_stop_at(s, fd_scenes[fd_scene(scene)], THE_SCENE_READS_A);
+}
+
+// $C0:2643
+/* The field closes into the scene its close leads to (field/screen_effects.c),
+ * always the scene engine's, whatever its number. */
+void field_close_into_the_scene(Snes *s)
+{
+    hand_over_the_scene(s, SCENE_FIELD_CLOSES_INTO);
+    m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* Where the wait for the vblank goes on: an idle entry of its own

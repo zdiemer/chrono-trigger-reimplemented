@@ -21,7 +21,7 @@
  *
  * A fade or pulse can change some of the channels and leave the others
  * (FadeChannels). Each location has a set of animations in the ROM, which
- * load_animations starts in the first six slots when the location is entered;
+ * palette_load_location_animations starts in the first six slots when the location is entered;
  * the modes put their own in the others.
  *
  * The functions here take the game's state; the entries at the end translate
@@ -429,7 +429,7 @@ static void load_slot(GameState *g, unsigned slot, SetStream *in, uint8_t *table
 // $FD:E292
 /* Start the current location's palette animations in the first six slots,
  * from the set its record names, and stop the others. */
-static void load_animations(GameState *g)
+void palette_load_location_animations(GameState *g)
 {
     uint8_t set = location_palette_animation_set(g, location_record_offset(g));
     SetStream in = { g, palette_animation_set_start(g, set) };
@@ -693,7 +693,7 @@ void palette_clear_animations(Snes *s)
 
 void palette_load_animations(Snes *s)
 {
-    load_animations(state_of(s));
+    palette_load_location_animations(state_of(s));
     m_rtl(s);
 }
 

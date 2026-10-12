@@ -6,6 +6,7 @@
 #include <stdbool.h>
 
 #include "snes/system.h"
+#include "platform/platform.h"
 #include "state.h"
 
 /* field/main_loop.c: the entries. The field's first start at power-on, its
@@ -19,6 +20,13 @@ void field_frame_work(Snes *s);
 void field_refresh_effects(Snes *s);
 void field_walk_a_frame(Snes *s);
 void field_finish_frame(Snes *s);
+void field_wait_for_the_next_frame(Snes *s);
+void field_main_loop_goes_round(Snes *s);
+/* The field starting again on a fresh stack for a new location, and ending
+ * for a scene: the one an event command asked for, or the field's close's. */
+void field_start_again(Snes *s);
+void field_start_the_scene(Snes *s);
+void field_close_into_the_scene(Snes *s);
 bool field_location_is_a_number(Snes *s);
 
 /* The routines, for the ports that run them as C. */
@@ -55,6 +63,14 @@ void field_load_bg3_graphics(Snes *s);
 void field_load_tile_looks(Snes *s);
 void field_load_bg3_tile_looks(Snes *s);
 bool field_party_can_be_put_aside(Snes *s);
+/* The location's palette, the map's layers' state cleared, and its event
+ * script unpacked with the built-in commands after it. */
+void field_load_location_palette(GameState *g);
+void field_clear_the_layers_state(GameState *g, Platform *pf);
+void field_load_location_palette_entry(Snes *s);
+void field_clear_the_layers_state_entry(Snes *s);
+void field_load_the_script(Snes *s);
+bool field_script_can_be_loaded(Snes *s);
 bool field_can_be_set_up_again(Snes *s);
 enum { FIELD_LOAD_LOCATION_ENTRY = 0xC000F4, FIELD_PUT_ASIDE_ENTRY = 0xC0011B, FIELD_SET_UP_AGAIN_ENTRY = 0xC001A5 };
 

@@ -133,9 +133,9 @@ bool event_call_bridge(Snes *s, uint32_t site, uint32_t routine, EventBridge bri
 
 /* The original's two dispatches the engine stands in for: its JSR ($5D6E,X)
  * in the per-frame turn and in the openings, and where each returns to. */
-typedef enum { IN_A_TURN, IN_AN_OPENING } Dispatch;
-static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910 };     /* by Dispatch */
-static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913 };   /* by Dispatch */
+typedef enum { IN_A_TURN, IN_AN_OPENING, IN_THE_MAP_SCRIPT } Dispatch;
+static const uint32_t dispatch_site[] = { 0xC05AB1, 0xC05910, 0xC05977 };     /* by Dispatch */
+static const uint32_t dispatch_return[] = { 0xC05AB4, 0xC05913, 0xC0597A };   /* by Dispatch */
 
 /* The registers the original's dispatch leaves a handler: the opcode doubled
  * in A and X (the table's index, with the flags its making leaves: its
@@ -277,6 +277,35 @@ static void start_the_party(Snes *s)
     m_rep(s, CPU_FLAG_X);
     m_rts(s);
 }
+
+// $C0:595C
+/* The map's own script, on the machine. It returns with the script's offset
+ * at its zero byte in X, and Y and the overflow as its last command left them
+ * (as it came, where none ran), which the menus' service after it keeps;
+ * where the port gives the rest up, the original's loop goes on from the
+ * command it got to, with Y and the overflow as they are. */
+enum { MAP_SCRIPT_LOOP = 0xC05967, THE_LOOP_READS_Y_AND_THE_OVERFLOW = DC_A | DC_N | DC_Z | DC_C };
+
+void event_run_map_script(Snes *s)
+{
+    OnTheMachine m = { s, IN_THE_MAP_SCRIPT };
+    EventRunner r = { run_on_the_machine, bank_reaches_low_ram, &m };
+    uint16_t at = 0;
+    switch (event_run_map_script_commands(state_of(s), &r, &at)) {
+    case TURN_HANDED_BACK:
+        return;
+    case TURN_OVER:
+        s->cpu.x = at;
+        m_rts(s);
+        return;
+    default:
+        hand_over(s, at, MAP_SCRIPT_LOOP, THE_LOOP_READS_Y_AND_THE_OVERFLOW);
+        return;
+    }
+}
+
+/* The map's script's: the engine's machine. */
+bool event_map_script_can_run(Snes *s) { return machine_as_the_engine_keeps_it(s); }
 
 // $C0:58DE (inside the map setup routine)
 /* The map's openings, on the machine, and then the party's start on the map

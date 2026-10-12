@@ -1693,6 +1693,8 @@ uint32_t field_tile_set_list_place(const GameState *g) { return r24(g, 0x7E01D6u
 void set_field_tile_set_list_place(GameState *g, uint32_t v) { w24(g, 0x7E01D6u, v); }
 uint16_t field_sprite_range_next(const GameState *g, unsigned i) { IN_RANGE(g, 53, "field_sprite_range_next", "count", i, 3u); return r16(g, 0x7E01DBu + (uint32_t)i * 0x02u); }
 void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v) { IN_RANGE(g, 53, "set_field_sprite_range_next", "count", i, 3u); w16(g, 0x7E01DBu + (uint32_t)i * 0x02u, v); }
+uint8_t field_scene_to_start(const GameState *g) { return r8(g, 0x7E01DFu); }
+void set_field_scene_to_start(GameState *g, uint8_t v) { w8(g, 0x7E01DFu, v); }
 uint8_t field_scratch_more(const GameState *g, unsigned i) { IN_RANGE(g, 54, "field_scratch_more", "count", i, 2u); return r8(g, 0x7E01E7u + (uint32_t)i * 0x01u); }
 void set_field_scratch_more(GameState *g, unsigned i, uint8_t v) { IN_RANGE(g, 54, "set_field_scratch_more", "count", i, 2u); w8(g, 0x7E01E7u + (uint32_t)i * 0x01u, v); }
 uint16_t field_target_object(const GameState *g) { return r16(g, 0x7E01E9u); }

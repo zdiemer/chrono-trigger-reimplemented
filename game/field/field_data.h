@@ -352,6 +352,31 @@ static inline MapEdges location_map_edges(const GameState *g, uint16_t place)
     return (MapEdges){ rom_read8(g, at), rom_read8(g, at + 1), rom_read8(g, at + 2), rom_read8(g, at + 3) };
 }
 
+/* A location's palette: its record's byte 3 names one of the palettes at
+ * $F6:24C0, 210 bytes each: seven rows of fifteen colours, BGR words, for the
+ * background palettes 1-7 but each one's colour 0. The place is worked out in
+ * 16 bits, as the original's sum is. */
+enum { LOCATION_PALETTE_ROWS = 7, LOCATION_PALETTE_ROW_COLOURS = 15 };
+
+static inline uint8_t location_palette(const GameState *g, uint16_t place) { return rom_read8(g, 0xF60003u + place); }
+static inline uint16_t location_palette_colour(const GameState *g, uint8_t palette, unsigned row, unsigned colour)
+{
+    enum { PALETTES = 0x24C0, PALETTE_BYTES = 2 * LOCATION_PALETTE_ROWS * LOCATION_PALETTE_ROW_COLOURS };
+    uint16_t at = (uint16_t)(PALETTES + palette * PALETTE_BYTES + 2u * (row * LOCATION_PALETTE_ROW_COLOURS + colour));
+    return rom_read16(g, 0xF60000u + at);
+}
+
+/* A location's event script: its record's word at +8 names one, and a long
+ * pointer per script from $FC:F9F0 says where it is packed (the index tripled
+ * in 16 bits as the original adds it, the doubling's carry going into the
+ * third, as for the maps). */
+static inline uint16_t location_script(const GameState *g, uint16_t place) { return rom_read16(g, 0xF60008u + place); }
+static inline uint32_t field_packed_script(const GameState *g, uint16_t script)
+{
+    uint32_t at = 0xFCF9F0u + (uint16_t)(3u * script + (script >> 15));
+    return rom_read16(g, at) | (uint32_t)rom_read8(g, at + 2) << 16;
+}
+
 /* Where a map's packed data is: a long pointer per map from $F6:1E00. */
 static inline uint32_t field_packed_map(const GameState *g, uint16_t map)
 {

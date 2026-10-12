@@ -6,8 +6,8 @@
  * event language, and its scaffolding"; ct_dev --event-reads over the movie library):
  *
  * - Y. The original's handlers leave Y where their parse of the operands
- *   stopped. After the map-setup run of object 0 ($C0:595C, still the
- *   original's) and after the openings the engine runs at map setup, the last
+ *   stopped. After the map-setup run of object 0 ($C0:595C,
+ *   event_run_map_script) and after the openings the engine runs at map setup, the last
  *   command's Y reaches the menus' dispatcher ($C2:8C36), which stores its
  *   low byte at $04C0; nothing the library runs reads it there.
  * - V. The additions in a command (a jump's, the arithmetic's, the calls'

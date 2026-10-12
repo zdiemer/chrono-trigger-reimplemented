@@ -1980,9 +1980,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
   GBA's constraints.
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code
-  (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
-  which writes `$7F:0400` through the work RAM port that way; the others are
-  the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
+  (the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
   write the window table through the work RAM port with 16-bit stores, so each
   edge's low byte also lands on APU port 3, as the quadrilaterals' `$D1:F9E7`
   did before it was C and left that byte as scaffolding, `hw_port_leave_spill`;
@@ -2129,8 +2127,8 @@ re-runs the census.
     moments); no object the game makes does.
 - **What the main loop's requests left** (history/reimplementation-chunks.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
-  - `$C0:0C76` hands the field's new start after a location change to the
-    original (`$C0:0CC0`: a fresh stack, then `$C0:0000`), and stops at the
+  - `$C0:0C76` stops at the field's new start after a location change
+    (`$C0:0CC0`, a port: a fresh stack, then `$C0:0000`), and at the
     frame wait or the field's turn the original jumps to at the tile copy's
     and the battle's ends; the tile copy's and the battle's stretches span
     frames, so shadow mode counts some of their calls interrupted and fuzzing
@@ -2208,8 +2206,6 @@ re-runs the census.
     handlers off through `tm_wait_frame_then_enable` on the SNES backend
     (`$C0:0B38`, an `[[entry]]` hint so that liveness knows it as a routine);
     the host backend waits a frame and turns them on;
-  - the map's own script (`$C0:595C`) and the script's unpacking (`$C0:56D4`)
-    are still call-outs from the objects' setup and both loadings;
   - the dialog window's look (its frame and text area tile maps, the window
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the
@@ -2239,8 +2235,8 @@ re-runs the census.
     `$04C0` afterwards, and the menus' port shows the service those calls
     ask for (`$0B`, what the party wears) ignores it (`menu/party_bridge.c`),
     so `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
-    once `$C0:595C`/`$C0:597D` are ported too (they reach the handlers' entries
-    as the original's code). The sound commands' calls to the driver keep Y
+    once `$C0:597D` is ported too (it reaches the handlers' entries as the
+    original's code; `$C0:595C` is the engine's now). The sound commands' calls to the driver keep Y
     and A's high byte for the same reason.
   - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`, the
     saved position among them) are read only by the command that wrote them --

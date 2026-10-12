@@ -8,8 +8,15 @@
  * the slot's place in VRAM from where the slot's table says they are
  * (tile_animation_tables, a step and a source for each frame). The slots take
  * turns: 0-5 are sent on even frames of the count (tile_animation_frame), 6-11
- * on odd ones. A slot whose VRAM address has its top bit set is unused. */
+ * on odd ones. A slot whose VRAM address has its top bit set is unused.
+ *
+ * A location's tile set names the set of animations its slots start with,
+ * loaded as the location is (tile_animations_load). */
 #include "core/tile_animation.h"
+#include "core/tile_animation_data.h"
+
+#include "cpu_io.h"
+#include "original_effects.h"
 
 #include "platform/video.h"
 #include "port/machine.h"
@@ -78,6 +85,118 @@ static void send_animated_tiles(GameState *g, Platform *pf)
         send_slot(g, pf, 10, PF_AT(0xFDE216));
         send_slot(g, pf, 11, PF_AT(0xFDE242));
     }
+}
+
+/* ---- A location's animations ------------------------------------------------------------------ */
+
+/* The ROM's sets of animations, a stream of twelve slots. A slot the set
+ * leaves unused is one byte, UNUSED_IN_SET. Any other starts with how many
+ * distinct frames the animation has, then the slot's place in VRAM, then the
+ * frames' steps, a byte each, and their tiles' addresses, a word each, in bank
+ * $7F. An animation of two or four frames is played round twice or four times
+ * over the slot's eight; any other number in the stream is a full eight. A
+ * step is kept four times as long as the stream gives it. */
+enum { UNUSED_IN_SET = 0x80, SLOT_UNUSED_HIGH = 0x80, TILES_BANK = 0x7F, STEP_SCALE = 4 };
+
+typedef struct {
+    const GameState *g;
+    uint16_t at;
+} SetStream;
+
+static uint8_t next_byte(SetStream *in) { return tile_animation_set_byte(in->g, in->at++); }
+static uint16_t next_word(SetStream *in)
+{
+    uint16_t lo = next_byte(in);
+    return (uint16_t)(lo | next_byte(in) << 8);
+}
+
+static uint8_t distinct_frames(uint8_t kind) { return kind == 2 || kind == 4 ? kind : FRAMES; }
+
+/* What the original leaves for its own sake: the last step's low byte on the
+ * sound CPU's port 3 (it writes the steps of the two- and four-frame
+ * animations with a word store just below the work RAM port), and its two
+ * counters, the frames' and the slots', run down to 0. Scaffolding. */
+typedef struct {
+    bool spilled, any_used;
+    uint8_t last_spill;
+} LoadLeft;
+
+/* The tables are written in the order of the slots in use: the n-th slot in
+ * use gets the n-th table, whatever its number. Every set the game has puts its
+ * unused slots last, so the n-th table is the n-th slot's, which is where the
+ * uploads read it. */
+static void load_slot(GameState *g, unsigned slot, unsigned table, SetStream *in, LoadLeft *left)
+{
+    uint8_t kind = next_byte(in);
+    uint16_t vram = next_word(in);
+    set_tile_animations_accumulator(g, slot, 0);
+    set_tile_animations_vram(g, slot, vram);
+    set_tile_animations_bank(g, slot, TILES_BANK);
+    uint8_t distinct = distinct_frames(kind);
+    uint16_t steps[FRAMES], sources[FRAMES];
+    for (unsigned f = 0; f < distinct; f++)
+        steps[f] = (uint16_t)(next_byte(in) * STEP_SCALE);
+    for (unsigned f = 0; f < distinct; f++)
+        sources[f] = next_word(in);
+    for (unsigned f = 0; f < FRAMES; f++) {
+        uint16_t step = steps[f % distinct], source = sources[f % distinct];
+        set_tile_animation_tables_steps_byte(g, table, 2 * f, (uint8_t)step);
+        set_tile_animation_tables_steps_byte(g, table, 2 * f + 1, (uint8_t)(step >> 8));
+        set_tile_animation_tables_sources_byte(g, table, 2 * f, (uint8_t)source);
+        set_tile_animation_tables_sources_byte(g, table, 2 * f + 1, (uint8_t)(source >> 8));
+    }
+    left->any_used = true;
+    if (distinct != FRAMES) {
+        left->spilled = true;
+        left->last_spill = (uint8_t)steps[distinct - 1];
+    }
+}
+
+/* A slot the set leaves unused keeps what it had but its place, marked. */
+static void leave_unused(GameState *g, unsigned slot)
+{
+    set_tile_animations_vram(g, slot, (uint16_t)(SLOT_UNUSED_HIGH << 8 | (tile_animations_vram(g, slot) & 0x00FF)));
+}
+
+enum { TABLE_BYTES = 0x20, TABLES_IN_WORK_RAM = 0x0400, TABLES_BANK = 0x7F, SCRATCH_FRAMES = 2 };
+
+static void leave_load(GameState *g, unsigned tables, const LoadLeft *left)
+{
+    hw_port_seek(g, (uint16_t)(TABLES_IN_WORK_RAM + tables * TABLE_BYTES), TABLES_BANK);
+    if (left->spilled)
+        hw_port_leave_spill(g, left->last_spill);
+    if (left->any_used)
+        set_palette_animation_scratch(g, SCRATCH_FRAMES, palette_animation_scratch(g, SCRATCH_FRAMES) & 0xFF00);
+    set_palette_animation_pointer(g, palette_animation_pointer(g) & 0xFF0000u);
+}
+
+// $FD:DE98
+/* Start the animated tiles of the current location's tile set, all twelve
+ * slots, from the set its record names. */
+void tile_animations_load(GameState *g)
+{
+    SetStream in = { g, tile_animation_set_start(g, location_tile_animation_set(g, location_record_offset(g))) };
+    LoadLeft left = { false, false, 0 };
+    unsigned tables = 0;
+    for (unsigned slot = 0; slot < TILE_ANIMATIONS_COUNT; slot++) {
+        if (tile_animation_set_byte(g, in.at) == UNUSED_IN_SET) {
+            in.at++;
+            leave_unused(g, slot);
+            continue;
+        }
+        load_slot(g, slot, tables++, &in, &left);
+    }
+    ORIGINAL_EFFECT(leave_load(g, tables, &left));
+}
+
+/* ---- The entries ----------------------------------------------------------------------------- */
+
+/* The loader saves its caller's flags, direct page and data bank and gives
+ * them back; what it leaves in A, X and Y nobody reads (the entry's set). */
+void tile_animation_load(Snes *s)
+{
+    tile_animations_load(state_of(s));
+    m_rtl(s);
 }
 
 /* ---- The entry ------------------------------------------------------------------------------ */

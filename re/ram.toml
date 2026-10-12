@@ -3298,6 +3298,15 @@ meaning = "The field page's scratch cells, $D9-$E6. Each event command keeps its
 source = "game/event/leaves.h keep_byte, keep_word (scaffolding: ORIGINAL_EFFECT); game/field/scratch.h"
 
 [[var]]
+name = "field_scene_to_start"
+addr = "7E:01DF"
+page = "field"
+reuses = ["event_scratch", "field_sprite_range_next"]
+subsystem = "field"
+meaning = "The scene the field ends for: event $FF's screen command keeps it here while the picture fades, and the field's end ($C0:3FD6) starts it, the scene engine's below $80 and bank $FD's from $80"
+source = "game/event/screen.c, end_the_field_for_a_scene $C0:3FBB; game/field/main_loop.c, field_start_the_scene $C0:3FD6"
+
+[[var]]
 name = "event_searchlight_work"
 addr = "7E:01EE"
 page = "field"

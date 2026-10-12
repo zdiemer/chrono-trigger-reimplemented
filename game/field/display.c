@@ -16,6 +16,7 @@
 #include "field/switches.h"
 
 #include "charge.h"
+#include "core/tile_animation.h"
 #include "field/bridge.h"
 #include "field/field.h"
 #include "field/layers.h"
@@ -413,6 +414,10 @@ void field_irq_wait_hblank_loop(Snes *s)
         s->cpu.pc = 0xECF2;
 }
 
+/* The animated tiles' uploads, through the original's jump to them at
+ * $FD:FFFD; the handler puts every register back after either job. */
+enum { TILE_ANIMATION_UPLOADS = 0xFDFFFD, THE_HANDLER_PUTS_EVERYTHING_BACK = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
 /* The rest of the line interrupt, from hblank: the picture ends, then the
  * time to vblank goes to one of two jobs, which alternate with the line
  * effects' table set: the windows' corner tiles among other work
@@ -428,12 +433,14 @@ void field_irq_after_hblank(Snes *s)
     uint8_t second_set = field_display_flags(g) & FIELD_SECOND_TABLE_SET;
     s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | second_set);
     m_set_nz8(s, second_set);
-    if (!second_set)
+    if (!second_set) {
         m_jsr(s, 0xC0ED03, 0xC0ED15);
-    else
-        m_jsl(s, 0xC0ED08, 0xFDFFFD);
-    if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+        if (s->cpu.e || (s->cpu.p & (CPU_FLAG_M | CPU_FLAG_X)) != CPU_FLAG_M)
+            return;
+    } else if (!field_run_long(s, 0xC0ED08, TILE_ANIMATION_UPLOADS, THE_HANDLER_PUTS_EVERYTHING_BACK,
+                               tile_animation_upload, bridge_machine_now(s))) {
         return;
+    }
     m_return_to_interrupted(s);
 }
 

@@ -1022,6 +1022,11 @@
 #define RAM_FIELD_SPRITE_RANGE_NEXT_COUNT 3u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_STRIDE 0x02u
 #define RAM_FIELD_SPRITE_RANGE_NEXT_DP 0xDBu /* page field */
+/* The scene the field ends for: event $FF's screen command keeps it here while the picture
+ * fades, and the field's end ($C0:3FD6) starts it, the scene engine's below $80 and bank $FD's
+ * from $80 */
+#define RAM_FIELD_SCENE_TO_START 0x7E01DFu
+#define RAM_FIELD_SCENE_TO_START_DP 0xDFu    /* page field */
 /* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
  * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's
  * ninth bit (field/scratch.h: kept for the original's code and shadow mode) [2 x $1 bytes, by

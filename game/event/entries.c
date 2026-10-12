@@ -1,6 +1,7 @@
 /* The registered entries of the commands (event/event.h), and their guards,
  * for the callers that reach a handler by its address -- the original's own
- * loops over object 0's function at map setup ($C0:595C, $C0:597D), and
+ * loop that starts a character's script, its opening up to its first zero
+ * byte ($C0:597D), and
  * ct_fuzz, which exercises each alone. An operation's entry runs the command
  * by its row, as the engine does; a bridge is its own entry. Either way the
  * guard is the row's. */

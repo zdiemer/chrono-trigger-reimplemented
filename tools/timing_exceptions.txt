@@ -70,6 +70,13 @@ menu_object_cmd_load_palette_row vblank-tail its time is the spawn it attributes
 # time, and the vblank check finds none of the handlers' writes moved.
 console_vblank_vector drift a long jump to the RAM stub with no access of its own: 32 clocks a call estimated as 0, the same at every vblank
 console_line_vector drift as console_vblank_vector, at the line interrupt
+# The field's jumps (field/main_loop.c): the main loop going round after its
+# frame wait, and the field's restart on a fresh stack, which the port takes
+# with no bus access of its own (it sets the stack and the PC), so their
+# estimates are 0 against the 18 and 54 clocks the original's branch and
+# stack reset take, the same every time.
+field_main_loop_goes_round drift the main loop's branch back to its top with no access of its own: 18 clocks a call estimated as 0, the same every frame
+field_start_again drift the field's restart on a fresh stack with no access of its own: 54 clocks a call estimated as 0, at a location change with the screen dark
 # The field's frame and its loading (field/main_loop.c, field/location.c,
 # field/battle_return.c). These run nearly everything they do as C under their
 # own stretch, each piece at its own routine's calibrated time; what is left as
@@ -80,6 +87,7 @@ console_line_vector drift as console_vblank_vector, at the line interrupt
 field_frame vblank-tail the field's frame, the frame's work run inline and attributed; 2.93% of its vblank calls off by 1024 clocks or more, writing RAM the next vblank sends
 field_frame worst the field's frame, the frame's work run inline and attributed: at most 74413 clocks, in a frame whose scripts and objects run long, writing RAM the next vblank sends
 field_enter drift a location's entry, its loading and setup attributed to their routines (cost_milli 1), with the screen blanked; what is left over-estimates by 1693 clocks a call on average
+field_enter worst as for its drift: the whole location's load is C under its stretch now, the palette and the animations' loads with it, at most 50640 clocks off against a 50468 limit, with the screen blanked, ending the load sooner or later
 field_load_tile_graphics worst unpacks a location's tile graphics while the screen is blanked, its time following the packed data: 2.4% error in calls of 1.9 million clocks, ending a load sooner or later
 field_load_bg3_graphics drift the BG3 graphics' unpacking attributed to the decompressor (cost_milli 1), with the screen blanked; the remainder follows the data
 field_load_bg3_graphics worst as for its drift: a load with the screen blanked, ending sooner or later

@@ -1368,6 +1368,12 @@ enum { FIELD_SPRITE_RANGE_NEXT_COUNT = 3 };   /* by sprite range (0 priority bit
 uint16_t field_sprite_range_next(const GameState *g, unsigned i);
 void set_field_sprite_range_next(GameState *g, unsigned i, uint16_t v);
 
+/* The scene the field ends for: event $FF's screen command keeps it here while the picture
+ * fades, and the field's end ($C0:3FD6) starts it, the scene engine's below $80 and bank $FD's
+ * from $80 */
+uint8_t field_scene_to_start(const GameState *g);
+void set_field_scene_to_start(GameState *g, uint8_t v);
+
 enum { FIELD_SCRATCH_MORE_COUNT = 2 };   /* by cell ($E7, $E8) */
 /* Two scratch cells past event_scratch, $E7-$E8: the larger sprite layouts' placing keeps where
  * its last four sprites' records start there, or (the 24-sprite layout's) the third of them's

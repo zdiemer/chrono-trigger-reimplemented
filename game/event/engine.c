@@ -18,6 +18,7 @@
  * the bridges on the machine, and hands what the port doesn't have to the
  * original. */
 #include "event/engine.h"
+#include "event/calls.h"
 #include "event/event_data.h"
 #include "event/leaves.h"
 #include "event/party.h"
@@ -336,6 +337,35 @@ static EventTurnEnd run_opening(GameState *g, FieldObject object, const EventRun
         return TURN_NOT_OURS;
     set_event_object_script_position(g, object_current(g), (uint16_t)(at + 1));
     return TURN_OVER;
+}
+
+/* The map's own script is object 0's: as the map starts, and again as it
+ * comes back after a menu or a battle, its second function runs up to its
+ * first zero byte, all at once, before any object's turn. Where it stops is
+ * kept nowhere: the function starts afresh every time. */
+enum { MAP_OBJECT = 0, MAP_STARTS_FUNCTION = 1 };
+
+// $C0:595C
+EventTurnEnd event_run_map_script_commands(GameState *g, const EventRunner *r, uint16_t *stopped_at)
+{
+    object_make_current_recognised(g, MAP_OBJECT);
+    uint16_t at = object_function_start(g, MAP_OBJECT, MAP_STARTS_FUNCTION);
+    EventStep st;
+    for (;;) {
+        *stopped_at = at;
+        /* past the buffer the script runs on into the next bank, which no
+         * map's does: the original's, whose bus it is */
+        if (at >= EVENT_SCRIPT_BYTES)
+            return TURN_OFF_THE_SCRIPT;
+        if (script_byte(g, at) == 0)
+            return TURN_OVER;
+        /* a command the original ran may have left the data bank elsewhere */
+        if (!r->state_is_ours(r->ctx))
+            return TURN_NOT_OURS;
+        if (!r->run(r->ctx, at, &st))
+            return TURN_HANDED_BACK;
+        at = st.next;
+    }
 }
 
 // $C0:58DE (inside the map setup routine)

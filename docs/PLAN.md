@@ -485,10 +485,9 @@ after the list's move returns, which leaves them as none of its paths work
 out yet (TODO.md).
 
 **`$C0`: the field and events**, 3% left after seventeen chunks, and 98% of
-what real play runs of it native. What is left is the map's own script's
-start (`$C0:595C`) and the script's unpacking (`$C0:56D4`), which the
-objects' setup and the loadings call out to, the switch's sound
-(`$C0:1B90`), and waits the timing service takes over where their callers
+what real play runs of it native. What is left is a character's start
+(`$C0:597D`), which the menus call, the switch's sound (`$C0:1B90`), and
+waits the timing service takes over where their callers
 are ports (TODO.md, "Frame waits still made on the machine"). Every event
 command has a row; event's bridges still call the unpacker (`$C3:0002`,
 TODO.md).
@@ -525,11 +524,9 @@ reaches them: none does (the title left idle is the likeliest way in), so a
 port there would rest on fuzzing alone.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
-wave 1: bank `$FD`") and the time warp (`game/warp/`, REIMPLEMENTATION.md):
-the location's tile animation loader `$FD:DE98`, blocked on the work RAM port
-writes through `$217F` (TODO.md, "P1 leftovers"); and of the warp, its line
-handler `$FD:DE87` (empty, and never enabled) and a palette turn `$FD:DD1D` no
-code reaches. The battle's routines in the bank go with `$C1` (above).
+wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
+animated tiles (`core/tile_animation.c`): the warp's line handler `$FD:DE87`
+(empty, and never enabled) and a palette turn `$FD:DD1D` no code reaches. The battle's routines in the bank go with `$C1` (above).
 
 REIMPLEMENTATION.md's "What drafts don't do yet" lists where the draft tool still falls
 short, starting with D and DB where only interrupts reach.
@@ -557,9 +554,14 @@ by an audit; the fourth is the program itself.
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
   and main loop: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
-  to frame 2 and stops at `$C0:7084`, in the field's code after its first
-  start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
-  program (`$7E`) is ported.
+  the field's first start -- the location loaded, its objects and its own
+  script started, the main loop's frames, the field's end into the title's
+  scene -- to frame 55, and stops at `$7E:3000`, the scene program's first
+  instruction (REIMPLEMENTATION.md, "Phase 4a, the native frame"). Over
+  3,000 frames from power-on `--interpreted log` lists 952 addresses still
+  interpreted, none of them in `$C0` or `$FD`: the title's program (`$7E`,
+  758), the scene engine's curtain (`$C3`, 150) and the menus' attract scene
+  that follows the title (`$C6`, 41; `$C2`, 3). The title's program is next.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch
