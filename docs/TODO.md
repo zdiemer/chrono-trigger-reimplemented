@@ -928,6 +928,28 @@ rest waits, is [PLAN.md](PLAN.md).
   `race_rules.c`'s `with_low_byte` and `& 0xFF` want the map to narrow those
   cells.
 
+- **What the endings' review left** (none rated translation):
+  `scene/endings.c`'s modes are numbers with names, not the endings they
+  are (`ending_mode` returns `unsigned`, `MODE_CAPTIONED_TOO` names
+  nothing, mode 14 falls into a `default:`, the header doesn't say which
+  ending each mode shows): an `Ending` enum named for the endings, used as
+  the type; `set_up_ground_layers`, `show_credits` and `show_last_scene`
+  set the screen register group by register group in the original's order
+  (the same window sweep four times): build one `VidScreen` each and apply
+  it, as `screen.c` does; `UNPACK_BUFFER`, `PLANE_MAP_HALF`,
+  `WORKING_PALETTE` and `0xC995` (race.c's `PLANE_COLUMN_COPY`) are
+  defined again in several places, one buffer under three names (once, in
+  `scene.h`); cells declared wider than they mean and a flag incremented
+  (`reset_disabled = 1` aside); scaffolding written through
+  `set_scene_race_picture`, an accessor named for the race;
+  `attract/main_loop.c` picks between two calls that differ only in
+  address with an if/else. In `tools/timing_exceptions.txt`,
+  `scene_ending_set_up`'s reason names constant work and the unpacker but
+  not mode 10's mosaic, the path its time follows, and
+  `scene_ending_load_picture` gives the ground variant's "at most 542602",
+  where its own mechanism is the interrupt splitting a call of fixed work:
+  check both against the gate's output.
+
 - **What the world map's setup review left** (none rated translation; the
   `menu_epoch_build_map` guard is a real precondition and the main loop's
   call-out unreachable): `overworld/setup.c`'s loaders take the ROM call
