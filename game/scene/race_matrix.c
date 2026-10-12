@@ -147,7 +147,7 @@ bool scene_matrix_code_present(Snes *s)
 /* Regroup the scaled picture into tiles in the tilemap buffer, a word at a
  * time: strip by strip, the tiles of a strip from left to right, in each tile
  * the rows of its first two bitplanes and then of its other two. */
-static void gather_picture_into_tiles(GameState *g)
+void scene_gather_picture_into_tiles(GameState *g)
 {
     uint16_t word = 0;
     for (uint16_t strip = 0; strip < STRIPS; strip++) {
@@ -170,7 +170,7 @@ static void gather_picture_into_tiles(GameState *g)
  * its callers put back; nothing it leaves in the registers is read. */
 void scene_gather_picture(Snes *s)
 {
-    gather_picture_into_tiles(state_of(s));
+    scene_gather_picture_into_tiles(state_of(s));
     m_rts(s);
 }
 
@@ -225,7 +225,7 @@ static unsigned next_waiting(const GameState *g, unsigned from)
 static void gather_scaled_picture(GameState *g)
 {
     set_scene_race_tilemap_pending(g, (uint16_t)(scene_race_tilemap_pending(g) + 1));
-    TIMED_AS(g, 0x7EB574, gather_picture_into_tiles(g));
+    TIMED_AS(g, 0x7EB574, scene_gather_picture_into_tiles(g));
 }
 
 /* ---- Entries: the main loop's scaling ----------------------------------------------------------- */

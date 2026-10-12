@@ -1526,6 +1526,201 @@ meaning = "The branch in the star field's drawing that puts the far stars in fro
 source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 (the program's $7E:5640); the star field $7E:579B"
 
 [[var]]
+name = "scene_ending_picture_ready"
+addr = "7E:0021"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_scaler_request_state"
+meaning = "In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and gathered into tiles and waits for the vblank to send them, which clears its low byte; the main loop scales no new picture until then"
+source = "game/scene/endings.c, the picture's scaling $7E:8930, its gathering $7E:8983 and its upload $7E:89C0"
+
+[[var]]
+name = "scene_ending_picture_half"
+addr = "7E:004C"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: how far the zooming picture reaches out from the point it is drawn round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is what the drawing reads)"
+source = "game/scene/endings.c, the picture's scaling $7E:8930 and its placing $7E:8850"
+
+[[var]]
+name = "scene_ending_picture_source"
+addr = "7E:004E"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: where in the second bank of work RAM the frame of the zooming picture to scale next starts, $1200 on by $400 a frame of its animation"
+source = "game/scene/endings.c, the picture's frame $7E:891B and its scaling $7E:8930"
+
+[[var]]
+name = "scene_ending_picture_zoom"
+addr = "7E:0056"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its gathering"
+source = "game/scene/endings.c, the picture's scaling $7E:8930 and its gathering $7E:8983"
+
+[[var]]
+name = "scene_ending_picture_tall"
+addr = "7E:007B"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: nonzero while the zooming picture is the tall one, 64 rows drawn as sixteen sprites, rather than 32 rows as eight; the scaling reads it as a word, the drawing its low byte"
+source = "game/scene/endings.c, the picture's scaling $7E:8930 and its placing $7E:8850"
+
+[[var]]
+name = "scene_ending_caption_gap"
+addr = "7E:007D"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: how many frames go by between one caption fading out and the next starting to fade in"
+source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_ending_caption_shown"
+addr = "7E:007F"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: how many frames a caption stays up once it has faded in, its last 32 fading it out"
+source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_ending_caption_countdown"
+addr = "7E:0081"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: the frames left of the caption's gap or of its time up; the setup starts it at 1, so the first caption comes the next frame"
+source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_ending_window_left"
+addr = "7E:0071"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: the left edge of the four-sided window an ending's frame task ($7E:9A0C) sweeps across the screen, two pixels a frame to 0"
+source = "game/scene/endings.c, the last scene's colors $7E:8DF3; the window's task $7E:9A0C"
+
+[[var]]
+name = "scene_ending_window_corners"
+addr = "7E:0073"
+size = 2
+count = 4
+stride = 2
+index = "the corner, in the order the task hands them to the window's drawing"
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: the lines of the swept window's four corners, in quarter lines, each moved down a little a frame until $390"
+source = "game/scene/endings.c, the last scene's colors $7E:8DF3; the window's task $7E:9A0C"
+
+[[var]]
+name = "scene_ending_caption_text"
+addr = "7E:0382"
+size = 2
+subsystem = "scene"
+reuses = "scene_race_final_score"
+meaning = "In the shared endings: where the next caption's text is in the program; the captions end at the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651"
+source = "game/scene/endings.c, the setup $7E:8538; the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_ending_picture_sprite_counts"
+addr = "7E:88B9"
+count = 2
+stride = 0x21
+index = "the picture: 0 the short one, 1 the tall one"
+subsystem = "scene"
+reuses = "overworld_sign_label"
+meaning = "The count bytes of the zooming picture's two sprite lists in the program (one more than the sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of its sprites as the picture covers"
+source = "game/scene/endings.c, the picture's gathering $7E:8983 and its placing $7E:8850"
+
+[[var]]
+name = "scene_ending_window_above"
+addr = "7E:9070"
+count = 2
+stride = 3
+index = "the entry: the lines above the picture, split in two"
+subsystem = "scene"
+meaning = "The line counts of the first two entries of the per-line table for window 1's edges in the shared endings: together, the lines above the zooming picture, where the window is shut"
+source = "game/scene/endings.c, the picture's placing $7E:8850"
+
+[[var]]
+name = "scene_ending_window_lines"
+addr = "7E:9076"
+count = 2
+stride = 3
+index = "the entry: the picture's upper and lower half"
+subsystem = "scene"
+meaning = "The line counts of the window table's entries for the zooming picture's two halves: 16 lines each for the short picture, 32 for the tall"
+source = "game/scene/endings.c, the picture's placing $7E:8850"
+
+[[var]]
+name = "scene_ending_window_from"
+addr = "7E:9077"
+count = 2
+stride = 3
+index = "the entry: the picture's upper and lower half"
+subsystem = "scene"
+meaning = "Window 1's left edge on the zooming picture's lines: the picture's left"
+source = "game/scene/endings.c, the picture's placing $7E:8850"
+
+[[var]]
+name = "scene_ending_window_to"
+addr = "7E:9078"
+count = 2
+stride = 3
+index = "the entry: the picture's upper and lower half"
+subsystem = "scene"
+meaning = "Window 1's right edge on the zooming picture's lines: 64 pixels on from its left, or the screen's edge"
+source = "game/scene/endings.c, the picture's placing $7E:8850"
+
+[[var]]
+name = "scene_caption_letter_attributes"
+addr = "7E:6525"
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "The attributes the program's captions give their letters' sprites, the operand of a load in the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's high half of the names) where the shared endings' setup writes it"
+source = "game/scene/endings.c, the setup $7E:8538"
+
+[[var]]
+name = "scene_plane_far_color_math"
+addr = "7E:4562"
+subsystem = "scene"
+meaning = "The color math's layers on the last line of the race's per-line table for it (scene_race_math_line_counts), which the endings' plane shares; the shared endings' second picture writes 5"
+source = "game/scene/endings.c, the second picture's start $7E:8790"
+
+[[var]]
+name = "scene_plane_tiles_expander"
+addr = "7E:5E44"
+size = 2
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the shared endings' third scene writes ($5EF8)"
+source = "game/scene/endings.c, the third scene's start $7E:8C14"
+
+[[var]]
+name = "scene_plane_tiles_stride"
+addr = "7E:5E4A"
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "How far the loop over a picture's tiles ($7E:5E3C) moves on after each, the operand of its add: $10, or $30 where the shared endings' third scene writes it"
+source = "game/scene/endings.c, the third scene's start $7E:8C14"
+
+[[var]]
 name = "scene_perspective_line_step"
 addr = "7E:3634"
 size = 2

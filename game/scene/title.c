@@ -190,7 +190,7 @@ enum { REST_OF_PLANE_BYTES = 0x1000 };
  * the rows left the VRAM address, and repeats its two bytes into the data
  * port's low half alone, which the upload calls model as words, so it goes
  * through the SNES-only escape. */
-static void load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
+void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 {
     vid_start_vram_uploads(pf, PF_AT(0x7E5ABE), SCENE_VRAM_LOW_BYTES);
     vid_set_vram_address(pf, PF_AT(0x7E5AC4), PLANE_VRAM);
@@ -216,7 +216,7 @@ static void load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank)
 void scene_title_load_plane_map(Snes *s)
 {
     uint8_t picture_bank = (s->bus.wram_port_addr & 0x10000) ? SCENE_UPPER_WORK_RAM : SCENE_LOWER_WORK_RAM;
-    load_plane_map(state_of(s), m_platform(s), picture_bank);
+    scene_load_plane_map(state_of(s), m_platform(s), picture_bank);
     m_set_a8(s, 0x80);
     m_rts(s);
 }

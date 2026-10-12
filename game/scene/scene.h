@@ -26,6 +26,8 @@
  *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
+ *   endings.c     the endings modes 10, 11, 14 and 15 share: their setup, the
+ *                 zooming picture, and the scenes their scripts start
  *   bridge.c      where ports meet the program's calling conventions
  *   sound.c       the program's messages to the sound driver
  *   sprites.c, circle.c, scaler.c, math.c
@@ -161,6 +163,36 @@ uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, u
  * effects from a table of descriptors (returns where it ends). */
 void scene_send_unpacked(const GameState *g, Platform *pf);
 uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at);
+/* scene/screen.c: the bank the unpacker's destination names; `bytes` of a
+ * resource copied as they are to `to` in that bank, the count handed over in
+ * `page`'s first cell; and the loaded palette made the one the frame sends. */
+void scene_send_palette(Platform *pf);
+uint8_t scene_unpacked_bank(const GameState *g);
+void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes);
+void scene_use_loaded_palette(GameState *g);
+
+/* scene/race.c: the Mode 7 plane's name table the race and the endings share
+ * -- half of it, from what was unpacked, each row of the track doubled across
+ * the plane's 128 tiles; that half sent into VRAM's low bytes -- and rows of a
+ * picture mirrored, from each source row's pixel `last` back to its first, the
+ * rest of the row empty (returns where the next row goes). */
+void scene_double_plane_rows(GameState *g);
+void scene_upload_plane_half(Platform *pf);
+uint32_t scene_mirror_rows(GameState *g, uint32_t to, uint32_t from, uint16_t last, unsigned rows);
+
+/* scene/race_matrix.c: the scaled picture regrouped into sprite tiles in the
+ * tilemap buffer. */
+void scene_gather_picture_into_tiles(GameState *g);
+
+/* scene/title.c: a 32x32-tile picture's tile numbers, unpacked in
+ * `picture_bank`, as the plane's name table. */
+void scene_load_plane_map(GameState *g, Platform *pf, uint8_t picture_bank);
+
+/* scene/staff_roll.c: the credits' letters' colors, and their map blanked
+ * (the in-front half of every word from the caller's own code at
+ * `in_front_site`). */
+void scene_set_letter_colors(GameState *g);
+void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site);
 
 /* scene/race_matrix.c: the regrouping routine written, through the work RAM
  * port as the caller has pointed it, for a picture at `source` into the page
@@ -305,6 +337,41 @@ bool scene_credits_test_present(Snes *s);
 void scene_go_on_after_the_credits(Snes *s);
 bool scene_fade_in_the_picture_present(Snes *s);
 void scene_fade_in_the_picture(Snes *s);
+/* scene/endings.c (the program in RAM) */
+bool scene_ending_set_up_present(Snes *s);
+void scene_ending_set_up(Snes *s);
+bool scene_ending_load_picture_present(Snes *s);
+void scene_ending_load_picture(Snes *s);
+bool scene_ending_load_ground_and_picture_present(Snes *s);
+void scene_ending_load_ground_and_picture(Snes *s);
+bool scene_ending_start_stars_present(Snes *s);
+void scene_ending_start_stars(Snes *s);
+bool scene_ending_start_mode7_picture_present(Snes *s);
+void scene_ending_start_mode7_picture(Snes *s);
+bool scene_ending_prepare_credits_present(Snes *s);
+void scene_ending_prepare_credits(Snes *s);
+bool scene_ending_set_last_colors_present(Snes *s);
+void scene_ending_set_last_colors(Snes *s);
+bool scene_ending_show_credits_present(Snes *s);
+void scene_ending_show_credits(Snes *s);
+bool scene_ending_show_last_scene_present(Snes *s);
+void scene_ending_show_last_scene(Snes *s);
+bool scene_ending_scroll_bg2_present(Snes *s);
+void scene_ending_scroll_bg2(Snes *s);
+bool scene_ending_upload_picture_present(Snes *s);
+void scene_ending_upload_picture(Snes *s);
+bool scene_ending_place_picture_present(Snes *s);
+void scene_ending_place_picture(Snes *s);
+bool scene_ending_pick_picture_frame_present(Snes *s);
+void scene_ending_pick_picture_frame(Snes *s);
+bool scene_ending_scale_picture_present(Snes *s);
+void scene_ending_scale_picture(Snes *s);
+bool scene_ending_gather_picture_present(Snes *s);
+void scene_ending_gather_picture(Snes *s);
+/* scene/bridge.c: where the endings' scaling of their picture goes on in the
+ * original's scaler. */
+void scene_bridge_scale_ending_picture(Snes *s);
+
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
 bool scene_matrix_code_present(Snes *s);

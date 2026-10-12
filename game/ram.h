@@ -8443,6 +8443,11 @@
  * bytes] */
 #define RAM_SCENE_SCALER_PAIRS 0x7E001Fu
 #define RAM_SCENE_SCALER_PAIRS_DP 0x1Fu      /* page scene */
+/* In the endings that share $7E:8538: nonzero while the zooming picture has been scaled and
+ * gathered into tiles and waits for the vblank to send them, which clears its low byte; the main
+ * loop scales no new picture until then [2 bytes] */
+#define RAM_SCENE_ENDING_PICTURE_READY 0x7E0021u
+#define RAM_SCENE_ENDING_PICTURE_READY_DP 0x21u /* page scene */
 /* Bitmap scaler: the cells between its width and its source, where the race's copy of a picture
  * request leaves the request's state; nothing reads them [2 bytes] */
 #define RAM_SCENE_SCALER_REQUEST_STATE 0x7E0021u
@@ -8538,6 +8543,20 @@
  * character codes, a line ended by '/', the text by a backslash [2 bytes] */
 #define RAM_SCENE_CREDITS_TEXT 0x7E004Au
 #define RAM_SCENE_CREDITS_TEXT_DP 0x4Au      /* page scene */
+/* In the shared endings: how far the zooming picture reaches out from the point it is drawn
+ * round, the 8.8 quotient of 8 over its zoom: half its width as it is shown (its low byte is
+ * what the drawing reads) [2 bytes] */
+#define RAM_SCENE_ENDING_PICTURE_HALF 0x7E004Cu
+#define RAM_SCENE_ENDING_PICTURE_HALF_DP 0x4Cu /* page scene */
+/* In the shared endings: where in the second bank of work RAM the frame of the zooming picture
+ * to scale next starts, $1200 on by $400 a frame of its animation [2 bytes] */
+#define RAM_SCENE_ENDING_PICTURE_SOURCE 0x7E004Eu
+#define RAM_SCENE_ENDING_PICTURE_SOURCE_DP 0x4Eu /* page scene */
+/* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
+ * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
+ * gathering [2 bytes] */
+#define RAM_SCENE_ENDING_PICTURE_ZOOM 0x7E0056u
+#define RAM_SCENE_ENDING_PICTURE_ZOOM_DP 0x56u /* page scene */
 /* The Mode 7 matrix the scene keeps and copies to the hardware [8 bytes] */
 #define RAM_SCENE_MODE7_MATRIX 0x7E005Au
 #define RAM_SCENE_MODE7_MATRIX_DP 0x5Au      /* page scene */
@@ -8567,6 +8586,34 @@
  * go on to The End (counted up as it is set) */
 #define RAM_SCENE_CREDITS_OVER 0x7E006Au
 #define RAM_SCENE_CREDITS_OVER_DP 0x6Au      /* page scene */
+/* In the shared endings: the left edge of the four-sided window an ending's frame task
+ * ($7E:9A0C) sweeps across the screen, two pixels a frame to 0 [2 bytes] */
+#define RAM_SCENE_ENDING_WINDOW_LEFT 0x7E0071u
+#define RAM_SCENE_ENDING_WINDOW_LEFT_DP 0x71u /* page scene */
+/* In the shared endings: the lines of the swept window's four corners, in quarter lines, each
+ * moved down a little a frame until $390 [4 x $2 bytes, by the corner, in the order the task
+ * hands them to the window's drawing] */
+#define RAM_SCENE_ENDING_WINDOW_CORNERS 0x7E0073u
+#define RAM_SCENE_ENDING_WINDOW_CORNERS_COUNT 4u
+#define RAM_SCENE_ENDING_WINDOW_CORNERS_STRIDE 0x02u
+#define RAM_SCENE_ENDING_WINDOW_CORNERS_DP 0x73u /* page scene */
+/* In the shared endings: nonzero while the zooming picture is the tall one, 64 rows drawn as
+ * sixteen sprites, rather than 32 rows as eight; the scaling reads it as a word, the drawing its
+ * low byte [2 bytes] */
+#define RAM_SCENE_ENDING_PICTURE_TALL 0x7E007Bu
+#define RAM_SCENE_ENDING_PICTURE_TALL_DP 0x7Bu /* page scene */
+/* In the shared endings: how many frames go by between one caption fading out and the next
+ * starting to fade in [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTION_GAP 0x7E007Du
+#define RAM_SCENE_ENDING_CAPTION_GAP_DP 0x7Du /* page scene */
+/* In the shared endings: how many frames a caption stays up once it has faded in, its last 32
+ * fading it out [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTION_SHOWN 0x7E007Fu
+#define RAM_SCENE_ENDING_CAPTION_SHOWN_DP 0x7Fu /* page scene */
+/* In the shared endings: the frames left of the caption's gap or of its time up; the setup
+ * starts it at 1, so the first caption comes the next frame [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTION_COUNTDOWN 0x7E0081u
+#define RAM_SCENE_ENDING_CAPTION_COUNTDOWN_DP 0x81u /* page scene */
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
@@ -8713,6 +8760,9 @@
  * bits (1 a repdigit, 2 777, 3 123 or 1234, 4 a round thousand), and $20, $40 and $80 for
  * reaching 1300, 1500 and 2000 */
 #define RAM_SCENE_RACE_PRIZE 0x7E0381u
+/* In the shared endings: where the next caption's text is in the program; the captions end at
+ * the staff roll's text ($AB1A). Modes 10 and 11 start it at $A651 [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTION_TEXT 0x7E0382u
 /* Crono's score as he won, as it is shown (half scene_race_score) [2 bytes] */
 #define RAM_SCENE_RACE_FINAL_SCORE 0x7E0382u
 /* Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the
@@ -8962,6 +9012,10 @@
 #define RAM_SCENE_RACE_MATH_LINE_COUNTS 0x7E452Bu
 #define RAM_SCENE_RACE_MATH_LINE_COUNTS_COUNT 2u
 #define RAM_SCENE_RACE_MATH_LINE_COUNTS_STRIDE 0x03u
+/* The color math's layers on the last line of the race's per-line table for it
+ * (scene_race_math_line_counts), which the endings' plane shares; the shared endings' second
+ * picture writes 5 */
+#define RAM_SCENE_PLANE_FAR_COLOR_MATH 0x7E4562u
 /* The line counts of the race's per-line table for BG1's scroll, set from the horizon as
  * scene_race_line_counts are [2 x $3 bytes, by 0 the lines above the horizon, 1 the lines from
  * it] */
@@ -9040,6 +9094,46 @@
  * the next instruction over it ($0080), which draws every star behind them, behind the credits
  * [2 bytes] */
 #define RAM_SCENE_STARS_DEPTH_BRANCH 0x7E582Eu
+/* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
+ * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
+ * shared endings' third scene writes ($5EF8) [2 bytes] */
+#define RAM_SCENE_PLANE_TILES_EXPANDER 0x7E5E44u
+/* How far the loop over a picture's tiles ($7E:5E3C) moves on after each, the operand of its
+ * add: $10, or $30 where the shared endings' third scene writes it */
+#define RAM_SCENE_PLANE_TILES_STRIDE 0x7E5E4Au
+/* The attributes the program's captions give their letters' sprites, the operand of a load in
+ * the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's
+ * high half of the names) where the shared endings' setup writes it */
+#define RAM_SCENE_CAPTION_LETTER_ATTRIBUTES 0x7E6525u
+/* The count bytes of the zooming picture's two sprite lists in the program (one more than the
+ * sprites drawn): the gathering sets each from the picture's zoom, so the list draws as many of
+ * its sprites as the picture covers [2 x $21 bytes, by the picture: 0 the short one, 1 the tall
+ * one] */
+#define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS 0x7E88B9u
+#define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS_COUNT 2u
+#define RAM_SCENE_ENDING_PICTURE_SPRITE_COUNTS_STRIDE 0x21u
+/* The line counts of the first two entries of the per-line table for window 1's edges in the
+ * shared endings: together, the lines above the zooming picture, where the window is shut [2 x
+ * $3 bytes, by the entry: the lines above the picture, split in two] */
+#define RAM_SCENE_ENDING_WINDOW_ABOVE 0x7E9070u
+#define RAM_SCENE_ENDING_WINDOW_ABOVE_COUNT 2u
+#define RAM_SCENE_ENDING_WINDOW_ABOVE_STRIDE 0x03u
+/* The line counts of the window table's entries for the zooming picture's two halves: 16 lines
+ * each for the short picture, 32 for the tall [2 x $3 bytes, by the entry: the picture's upper
+ * and lower half] */
+#define RAM_SCENE_ENDING_WINDOW_LINES 0x7E9076u
+#define RAM_SCENE_ENDING_WINDOW_LINES_COUNT 2u
+#define RAM_SCENE_ENDING_WINDOW_LINES_STRIDE 0x03u
+/* Window 1's left edge on the zooming picture's lines: the picture's left [2 x $3 bytes, by the
+ * entry: the picture's upper and lower half] */
+#define RAM_SCENE_ENDING_WINDOW_FROM 0x7E9077u
+#define RAM_SCENE_ENDING_WINDOW_FROM_COUNT 2u
+#define RAM_SCENE_ENDING_WINDOW_FROM_STRIDE 0x03u
+/* Window 1's right edge on the zooming picture's lines: 64 pixels on from its left, or the
+ * screen's edge [2 x $3 bytes, by the entry: the picture's upper and lower half] */
+#define RAM_SCENE_ENDING_WINDOW_TO 0x7E9078u
+#define RAM_SCENE_ENDING_WINDOW_TO_COUNT 2u
+#define RAM_SCENE_ENDING_WINDOW_TO_STRIDE 0x03u
 /* The scroll register the credits' upload sends their scroll to, the low byte of its address as
  * the operands of the upload's two stores: $10, BG2's vertical scroll, as the program comes;
  * $12, BG3's, where the staff roll's setup has written it [2 x $5 bytes, by the store: 0 the
