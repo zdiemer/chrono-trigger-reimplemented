@@ -1522,8 +1522,68 @@ name = "scene_stars_depth_branch"
 addr = "7E:582E"
 size = 2
 subsystem = "scene"
-meaning = "The branch in the star field's drawing that puts the far stars in front of the layers (a BMI over its own load of the near stars' attributes); the staff roll's setup writes a branch to the next instruction over it ($0080), which draws every star behind them, behind the credits"
-source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 (the program's $7E:5640); the star field $7E:579B"
+meaning = "The branch in the star field's drawing that puts the near stars (the eight nearest sizes) in front of the layers (a BMI over its own load of the far stars' attributes); the staff roll's setup writes a branch to the next instruction over it ($0080), which draws every star behind them, behind the credits"
+source = "game/scene/staff_roll.c, the staff roll's setup $7E:8EA8 (the program's $7E:5640); game/scene/stars.c, the flight $7E:579B"
+
+[[var]]
+name = "scene_random_seed"
+addr = "7E:0386"
+size = 2
+subsystem = "scene"
+meaning = "The scene program's stirred random numbers' seed: each draw stirs into it what it is handed, the frame counter, the scene's call cells and where the beam is, and keeps the number drawn; a byte draw stirs only its low byte"
+source = "game/scene/random.c, scene_draw_random $C3:02DD (through $7E:3443)"
+
+[[var]]
+name = "scene_stars"
+addr = "7E:0C00"
+count = 128
+stride = 4
+index = "star: its sprite entry's number"
+subsystem = "scene"
+reuses = "scene_tilemap_buffer"
+meaning = "The star field the endings and the staff roll fly through: each star's place across and down from the middle of the view, signed bytes, which the field's drift moves every frame; a star is drawn smaller the farther it is (scene_star_depths)"
+source = "game/scene/stars.c, the scatter $7E:5777, the flight $7E:579B"
+[[var.field]]
+name = "across"
+offset = 0x0
+meaning = "Right of the middle (negative: left)"
+[[var.field]]
+name = "down"
+offset = 0x1
+meaning = "Below the middle (negative: above)"
+
+[[var]]
+name = "scene_star_depths"
+addr = "7E:0E00"
+count = 128
+stride = 4
+index = "star: its sprite entry's number"
+subsystem = "scene"
+reuses = "scene_tilemap_buffer"
+meaning = "How far each star of the field is from the viewer, 0-127 (127 the farthest): the field's speed moves it every frame, and a star that passes the viewer or the far end comes back at the other at a new random place"
+source = "game/scene/stars.c, the scatter $7E:5777, the flight $7E:579B"
+
+[[var]]
+name = "scene_stars_last_distance"
+addr = "7E:0044"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_bg3_scroll_x", "scene_race_demo"]
+meaning = "What the star field's flight divided the last star's place by: its depth and the nearest distance (scaffolding: nothing reads it)"
+source = "game/scene/stars.c, the flight $7E:579B"
+
+[[var]]
+name = "scene_stars_drift_frames"
+addr = "7E:0058"
+size = 2
+count = 3
+stride = 2
+index = "what drifts: 0 across, 1 down, 2 the speed"
+page = "scene"
+subsystem = "scene"
+reuses = ["scene_race_racers", "scene_mode7_matrix"]
+meaning = "Behind The End, the star field drifts: the frames left before the drift across, the drift down and the field's speed each take a new random value"
+source = "game/scene/stars.c, The End's drift $7E:9897, $7E:98AC, $7E:98E3"
 
 [[var]]
 name = "scene_ending_picture_ready"
@@ -1687,6 +1747,42 @@ index = "the entry: the picture's upper and lower half"
 subsystem = "scene"
 meaning = "Window 1's right edge on the zooming picture's lines: 64 pixels on from its left, or the screen's edge"
 source = "game/scene/endings.c, the picture's placing $7E:8850"
+
+[[var]]
+name = "scene_caption_line_x"
+addr = "7E:64D6"
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "Where a line of the program's captions starts across, the operand of a load in the caption's drawing ($7E:64CA), which a caption's text sets for its first line and every later caption starts from"
+source = "game/scene/captions.c, the caption's drawing $7E:64CA"
+
+[[var]]
+name = "scene_caption_line_y"
+addr = "7E:64DA"
+subsystem = "scene"
+reuses = "overworld_map"
+meaning = "Where the first line of the program's captions starts down, the operand of a load in the caption's drawing ($7E:64CA), which a caption's text sets and every later caption starts from"
+source = "game/scene/captions.c, the caption's drawing $7E:64CA"
+
+[[var]]
+name = "scene_ending_caption_phase"
+addr = "7E:0083"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: counts the captions' turns, odd while a caption is up, even in the gap before the next"
+source = "game/scene/captions.c, the captions' task $7E:9B4F"
+
+[[var]]
+name = "scene_ending_captions_left"
+addr = "7E:0085"
+size = 2
+page = "scene"
+subsystem = "scene"
+reuses = "scene_race_racers"
+meaning = "In the shared endings: how many captions are still to be shown; at 0 the captions' task does nothing"
+source = "game/scene/captions.c, the captions' task $7E:9B4F"
 
 [[var]]
 name = "scene_caption_letter_attributes"

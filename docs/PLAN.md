@@ -64,9 +64,9 @@ in place of the ports: the native coverage.
 
 | | Now | Done when |
 |---|---|---|
-| ROM code reimplemented (`burndown.py`) | 12% left (88% has a port) | 0% |
-| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program 67%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
-| Code run in place of hand ports (`fallbacks.py`) | the reference play (33 movies): 24.8 KiB, 139 M instructions (handback 13.8 KiB, unported 11.1 KiB); shipping mode with the routes 22.1 KiB, 342 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
+| ROM code reimplemented (`burndown.py`) | 9% left (91% has a port) | 0% |
+| Native coverage: of the code real play runs, the share that runs as hand ports | 87% (212.6 KiB run by the 28 movies; battle 97%, field and events 98%, menus and overworld 84%, scene program about 75%, battle frame work 87%, field graphics 73%, scene engine 71%) | 100% |
+| Code run in place of hand ports (`fallbacks.py`) | the reference play (35 movies): 24.1 KiB, 90 M instructions (handback 13.2 KiB, unported 11.1 KiB); shipping mode with the routes 21.5 KiB, 190 M (the long routes); no entry refuses in real play over the library; the native shape runs every movie and reaches every route's outcome, with no exceptions (REIMPLEMENTATION.md, "The fallback measure", "The last refusals in real play: the attract demo's states") | 0, no refusal, the native shape passing |
 | Ports that read as source (`portstyle.py`) | 0.02 ops/line | ~0 |
 | Ports off the machine (`portstyle.py`) | 27% of functions take a `Snes *` | entry wrappers only |
 | ROM data behind named accessors | every read but one (`battle/scripts.c`); the accessors still address a mapped ROM image | backed by an asset pack imported once from the user's ROM (Phase 4a, "Assets") |
@@ -163,9 +163,10 @@ isn't ported yet, so retiring it is porting its callee. In order:
    task back to its port first; and the dactyl's flight, which
    `field-65m-bc-dactyl.ctm` rides now.
 2. **The scene program**, its unported modes after movies reach them, and
-   the attract program's own frame tasks, which the attract demo runs as the
-   original's (`$7E:6A23`, `$7E:5D71`, `$7E:69AF` and their neighbours, the
-   largest of its handbacks).
+   the title's and the attract program's own frame tasks, which the movies
+   run as the original's (`$7E:5D71`, `$7E:6A23`, `$7E:69AF` and their
+   neighbours, the largest of its handbacks), and what the Beyond Time
+   ending still runs as the original's (`$7E:99B5`, `$7E:9AF3`-`$7E:9E2B`).
 3. **The battle's frame work** (87%): its largest handbacks now are waits on
    the display -- the line wait (`$CD:3B82`), the pause's (`$CD:3E44`) and the
    frame waits with their transfers (`$CD:3E75`, `$CD:3ED2`), which go with the
@@ -224,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 280 files, 117 of 85,527 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 283 files, 117 of 86,235 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -278,13 +279,13 @@ docstring says which way it is wrong). **12% of the code is still generated.**
 | battle (`$C1`, `$CE`) | 63.9K | 63.9K | 17.0K | 0% | 436 |
 | field engine, events (`$C0`) | 59.4K | 57.5K | 14.0K | 3% | 384 |
 | menus, text, overworld (`$C2`) | 59.1K | 46.3K | 12.2K | 22% | 467 |
-| scene program, RAM (`$7E`) | 24.9K | 12.6K | 1.9K | 49% | 75 |
+| scene program, RAM (`$7E`) | 24.9K | 15.3K | 2.1K | 39% | 99 |
 | battle frame work (`$CD`) | 15.4K | 14.5K | 5.2K | 6% | 194 |
 | field graphics (`$FD`) | 15.1K | 11.8K | 0.5K | 22% | 87 |
 | battle sprites (`$CF`) | 6.8K | 6.8K | 0.3K | 0% | 45 |
 | battle NMI, graphics (`$D1`) | 5.7K | 5.7K | 0.0K | 0% | 54 |
 | battle setup (`$CC`) | 4.8K | 4.8K | 0.1K | 0% | 11 |
-| scene engine (`$C3`) | 3.8K | 3.6K | 0.9K | 7% | 28 |
+| scene engine (`$C3`) | 3.8K | 3.6K | 0.9K | 7% | 29 |
 | scene data (`$C6`) | 3.4K | 3.4K | 2.3K | 0% | 26 |
 | sound driver (`$C7`) | 2.6K | 2.6K | 0.0K | 0% | 43 |
 | misc (`$FF`) | 1.5K | 1.5K | 0.0K | 0% | 12 |
@@ -505,16 +506,20 @@ ending's staff roll, mode 13, with the credits' roll the Beyond Time ending
 shares (history file, "Phase 3, the scene program: the staff roll"); and so
 are the endings that share `$7E:8538` (modes 10, 11, 14 and 15): their
 setup, the picture the main loop zooms, and the scenes their scripts start
-(REIMPLEMENTATION.md, "Phase 3, the scene program: the shared endings").
-**Next**, by what the library reaches: the endings' own frame tasks, which
-still run as the original's -- the captions' drawing and timing (`$7E:64CA`,
-`$7E:9B4F`), the stars' and the swept window's (`$7E:999C`, `$7E:99B5`,
-`$7E:9A0C`), the vblank tasks `$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B` and the
-mode 7 picture's expansion `$7E:5EF8` -- the largest of the scene program's
-handbacks. The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
-`$7E:8A01`-`$7E:8B51` no movie reaches. The stars the endings show (`$7E:5777`, `$7E:579B`,
-`$7E:9897`) and the captions' first timing (`$7E:9BB8`) wait for the program's random numbers as game code (TODO.md, "The
-scene program's randomness and parity"). The program's other scenes (modes 1 and 3-8, whose routines lie around the
+(history file, "Phase 3, the scene program: the shared endings"); and so are
+the star field, the captions and the last scene's swept window, with the
+program's stirred random numbers as game code (REIMPLEMENTATION.md, "Phase 3,
+the scene program: the star field, the captions and the random numbers").
+**Next**, by what the library reaches: the title's frame tasks, which every
+movie that starts at the title runs as the original's (`$7E:5D71`, the
+pendulum's `$7E:5BCF`, the logo's `$7E:5D01`-`$7E:5D32`); the Beyond Time
+ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
+Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
+signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
+animated sprites and their first timing (`$7E:9BF9`, `$7E:9BB8`, which draw
+on the table of random bytes, already game code) and the signed sprite
+lists (`$7E:3A97`). The helpers before the shared setup (`$7E:7FC4`-`$7E:8537`) and
+`$7E:8A01`-`$7E:8B51` no movie reaches. The program's other scenes (modes 1 and 3-8, whose routines lie around the
 title's between `$7E:53BB` and `$7E:7FC3`, about 6 KiB) wait for a movie that
 reaches them: none does (the title left idle is the likeliest way in), so a
 port there would rest on fuzzing alone.

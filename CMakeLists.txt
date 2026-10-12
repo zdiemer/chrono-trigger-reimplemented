@@ -246,6 +246,9 @@ add_library(ct_game STATIC
   game/scene/sound.c
   game/scene/sprites.c
   game/scene/staff_roll.c
+  game/scene/stars.c
+  game/scene/captions.c
+  game/scene/random.c
   game/scene/endings.c
   game/scene/title.c
   game/battle/animation.c

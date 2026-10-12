@@ -304,15 +304,6 @@ static void keep_controller(GameState *g)
 
 /* ---- The opening ------------------------------------------------------------------------------- */
 
-// $7E:3448
-/* The next of the game's random bytes ($C0:FE00), for the scene program. */
-static uint8_t random_byte(GameState *g)
-{
-    uint8_t step = (uint8_t)(scene_random_step(g) + 1);
-    set_scene_random_step(g, step);
-    return scene_random_byte(g, step);
-}
-
 // $7E:3F59
 /* Channel 0's script calls this to pick one of the race's two openings at
  * random: where the script goes on. */
@@ -320,7 +311,7 @@ enum { OPENING_PICK = 2 };
 
 static void pick_opening(GameState *g)
 {
-    unsigned which = (random_byte(g) & OPENING_PICK) / OPENING_PICK;
+    unsigned which = (scene_next_random_byte(g) & OPENING_PICK) / OPENING_PICK;
     set_scene_channels_script(g, 0, scene_race_openings(g, which));
 }
 

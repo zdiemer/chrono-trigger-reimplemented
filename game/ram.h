@@ -8507,6 +8507,10 @@
  * there are no boosts [2 bytes] */
 #define RAM_SCENE_RACE_DEMO 0x7E0044u
 #define RAM_SCENE_RACE_DEMO_DP 0x44u         /* page scene */
+/* What the star field's flight divided the last star's place by: its depth and the nearest
+ * distance (scaffolding: nothing reads it) */
+#define RAM_SCENE_STARS_LAST_DISTANCE 0x7E0044u
+#define RAM_SCENE_STARS_LAST_DISTANCE_DP 0x44u /* page scene */
 /* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
  * every other frame, or a row of 8 a frame when they roll fast [2 bytes] */
 #define RAM_SCENE_CREDITS_SCROLL 0x7E0046u
@@ -8557,6 +8561,13 @@
  * gathering [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_ZOOM 0x7E0056u
 #define RAM_SCENE_ENDING_PICTURE_ZOOM_DP 0x56u /* page scene */
+/* Behind The End, the star field drifts: the frames left before the drift across, the drift down
+ * and the field's speed each take a new random value [3 x $2 bytes, by what drifts: 0 across, 1
+ * down, 2 the speed] */
+#define RAM_SCENE_STARS_DRIFT_FRAMES 0x7E0058u
+#define RAM_SCENE_STARS_DRIFT_FRAMES_COUNT 3u
+#define RAM_SCENE_STARS_DRIFT_FRAMES_STRIDE 0x02u
+#define RAM_SCENE_STARS_DRIFT_FRAMES_DP 0x58u /* page scene */
 /* The Mode 7 matrix the scene keeps and copies to the hardware [8 bytes] */
 #define RAM_SCENE_MODE7_MATRIX 0x7E005Au
 #define RAM_SCENE_MODE7_MATRIX_DP 0x5Au      /* page scene */
@@ -8614,6 +8625,14 @@
  * starts it at 1, so the first caption comes the next frame [2 bytes] */
 #define RAM_SCENE_ENDING_CAPTION_COUNTDOWN 0x7E0081u
 #define RAM_SCENE_ENDING_CAPTION_COUNTDOWN_DP 0x81u /* page scene */
+/* In the shared endings: counts the captions' turns, odd while a caption is up, even in the gap
+ * before the next [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTION_PHASE 0x7E0083u
+#define RAM_SCENE_ENDING_CAPTION_PHASE_DP 0x83u /* page scene */
+/* In the shared endings: how many captions are still to be shown; at 0 the captions' task does
+ * nothing [2 bytes] */
+#define RAM_SCENE_ENDING_CAPTIONS_LEFT 0x7E0085u
+#define RAM_SCENE_ENDING_CAPTIONS_LEFT_DP 0x85u /* page scene */
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed [2 bytes] */
 #define RAM_SCENE_RACE_LEAD 0x7E008Eu
@@ -8768,6 +8787,10 @@
 /* Scene mode bits: bit 7 = interrupts stay enabled through the NMI work (IRQs in use) and the
  * shorter work RAM clear (the title coming back); bit 5 = don't send song changes */
 #define RAM_SCENE_FLAGS 0x7E0384u
+/* The scene program's stirred random numbers' seed: each draw stirs into it what it is handed,
+ * the frame counter, the scene's call cells and where the beam is, and keeps the number drawn; a
+ * byte draw stirs only its low byte [2 bytes] */
+#define RAM_SCENE_RANDOM_SEED 0x7E0386u
 /* Nonzero while a song is being sent to the sound driver; the race skips its sound parameter
  * meanwhile */
 #define RAM_SCENE_SONG_SENDING 0x7E0388u
@@ -8877,12 +8900,27 @@
 #define RAM_SCENE_RACE_TURNING 0x7E0A3Au
 #define RAM_SCENE_RACE_TURNING_COUNT 2u
 #define RAM_SCENE_RACE_TURNING_STRIDE 0x02u
+/* The star field the endings and the staff roll fly through: each star's place across and down
+ * from the middle of the view, signed bytes, which the field's drift moves every frame; a star
+ * is drawn smaller the farther it is (scene_star_depths) [128 x $4 bytes, by star: its sprite
+ * entry's number] */
+#define RAM_SCENE_STARS 0x7E0C00u
+#define RAM_SCENE_STARS_COUNT 128u
+#define RAM_SCENE_STARS_STRIDE 0x04u
+#define RAM_SCENE_STARS_ACROSS 0x7E0C00u     /* Right of the middle (negative: left) */
+#define RAM_SCENE_STARS_DOWN 0x7E0C01u       /* Below the middle (negative: above) */
 /* Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's
  * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
  * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
  * makes the ripple. In the race, all $800 go to whichever half of the racers' tilemap is ready
  * [2048 bytes] */
 #define RAM_SCENE_TILEMAP_BUFFER 0x7E0C00u
+/* How far each star of the field is from the viewer, 0-127 (127 the farthest): the field's speed
+ * moves it every frame, and a star that passes the viewer or the far end comes back at the other
+ * at a new random place [128 x $4 bytes, by star: its sprite entry's number] */
+#define RAM_SCENE_STAR_DEPTHS 0x7E0E00u
+#define RAM_SCENE_STAR_DEPTHS_COUNT 128u
+#define RAM_SCENE_STAR_DEPTHS_STRIDE 0x04u
 /* A racer's picture to scale for this frame: the scaler's settings, which the program's main
  * loop copies into the scaler's cells ($7E:51F4) when the request is pending [2 x $E bytes, by
  * racer: 0 Crono, 1 Johnny] */
@@ -9089,10 +9127,10 @@
 /* The count of the panel's corners' sprite list (the program's data): 4, three sprites; 1, none,
  * without the panel */
 #define RAM_SCENE_RACE_CORNER_SPRITES 0x7E53AEu
-/* The branch in the star field's drawing that puts the far stars in front of the layers (a BMI
- * over its own load of the near stars' attributes); the staff roll's setup writes a branch to
- * the next instruction over it ($0080), which draws every star behind them, behind the credits
- * [2 bytes] */
+/* The branch in the star field's drawing that puts the near stars (the eight nearest sizes) in
+ * front of the layers (a BMI over its own load of the far stars' attributes); the staff roll's
+ * setup writes a branch to the next instruction over it ($0080), which draws every star behind
+ * them, behind the credits [2 bytes] */
 #define RAM_SCENE_STARS_DEPTH_BRANCH 0x7E582Eu
 /* The routine the program's loop over a picture's tiles ($7E:5E3C) calls on each, the operand of
  * its call: the title's expansion of a tile into the plane's pixels ($5E54), or the one the
@@ -9101,6 +9139,13 @@
 /* How far the loop over a picture's tiles ($7E:5E3C) moves on after each, the operand of its
  * add: $10, or $30 where the shared endings' third scene writes it */
 #define RAM_SCENE_PLANE_TILES_STRIDE 0x7E5E4Au
+/* Where a line of the program's captions starts across, the operand of a load in the caption's
+ * drawing ($7E:64CA), which a caption's text sets for its first line and every later caption
+ * starts from */
+#define RAM_SCENE_CAPTION_LINE_X 0x7E64D6u
+/* Where the first line of the program's captions starts down, the operand of a load in the
+ * caption's drawing ($7E:64CA), which a caption's text sets and every later caption starts from */
+#define RAM_SCENE_CAPTION_LINE_Y 0x7E64DAu
 /* The attributes the program's captions give their letters' sprites, the operand of a load in
  * the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's
  * high half of the names) where the shared endings' setup writes it */

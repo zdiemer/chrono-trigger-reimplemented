@@ -400,6 +400,8 @@ void field_update_object_in_window(Snes *s);
  * it finds one of its own). */
 void field_draw_window_shape(GameState *g);
 bool field_window_shape_fits(const GameState *g);
+/* Where the original's drawing leaves Y, for its callers' scaffolding. */
+uint16_t field_window_shape_fill_leaves_y(const GameState *g);
 bool field_window_shape_starts_on_a_line(const GameState *g);
 void field_rasterize_quad(Snes *s);
 bool field_window_shape_table_in_place(Snes *s);

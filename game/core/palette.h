@@ -22,6 +22,8 @@ typedef struct {
     uint8_t from_level, to_level;
 } PaletteFade;
 void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade);
+/* The same, darkening the colors rather than lightening them. */
+void palette_start_fade_to_black(GameState *g, unsigned slot, PaletteFade fade);
 
 void palette_animate(Snes *s);
 void palette_clear_animations(Snes *s);

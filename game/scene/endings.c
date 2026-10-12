@@ -11,15 +11,17 @@
  *   loop each pass to the size channel 1 asks for and drawn as sprites through
  *   a window round it (the frame routine $7E:8930, its gathering, placing and
  *   upload), loaded with a new ground ($7E:8790) or on its own ($7E:87CC);
- * - the stars ($7E:8BAF): every task stopped, the star field scattered, its
- *   sprites' tiles and colors;
+ * - the stars ($7E:8BAF): every task stopped, the star field scattered
+ *   (stars.c), its sprites' tiles and colors;
  * - a Mode 7 picture ($7E:8C14): its pixels and name table, its colors;
  * - the credits ($7E:8CD0, then the vblank task $7E:8D56): their letters, the
  *   picture they roll over (a 4x4 pattern of tiles across a 32x32 map), and
  *   the screen they roll up on, slowly, through the staff roll's own tasks
  *   (staff_roll.c); mode 15 goes straight on with its script instead;
  * - the last scene ($7E:8DF3, then the vblank task $7E:8E44): its colors and
- *   the window a task sweeps across it.
+ *   the window a frame task sweeps across it ($7E:9A0C).
+ *
+ * The captions' turns are captions.c's, the star field's flight stars.c's.
  *
  * Every entry is the scene program's code in work RAM, guarded by a hash of
  * it. What the scripts call runs on the calling channel's page with the
@@ -28,17 +30,18 @@
  * original's code it calls out to finds the stack where it expects.
  *
  * Left as the original's, behind call-outs: the program's unpacker
- * ($7E:3691), the first step of a script ($7E:3749), and what draws on the
- * program's random numbers -- the stars' scatter ($7E:5777) and the captions'
- * first timing ($7E:9BB8) -- which wait for the randomness to be game code
- * (docs/TODO.md); and the expansion of the Mode 7 picture's tiles
- * ($7E:5E3C, through $7E:5EF8). */
+ * ($7E:3691), the first step of a script ($7E:3749), the captions' first
+ * timing ($7E:9BB8), the expansion of the Mode 7 picture's tiles ($7E:5E3C,
+ * through $7E:5EF8), and the sprite list the swept window's rider is
+ * ($7E:3A97). */
 #include "scene/race.h"
 
 #include "charge.h"
 #include "core/palette.h"
 #include "cpu_io.h"
+#include "field/field.h"
 #include "original_effects.h"
+#include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
@@ -471,15 +474,18 @@ static void first_script_step(Snes *s, uint16_t picture_script)
  * numbers; it reads none of the registers. */
 enum { TIME_CAPTIONS = 0x7E9BB8, TIME_CAPTIONS_IGNORES = DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C };
 
-/* The stars' scatter ($7E:5777) mixes the registers it is called with into its
- * random numbers: A as the screen's blanking left it, and the carry the
- * script's call came with, which nothing here touches. */
-enum { SCATTER_STARS = 0x7E5777, SCATTER_IGNORES = DC_X | DC_Y | DC_N | DC_Z, BLANKING_LEFT_IN_A = 0x0080 };
+/* The stars' scatter starts its draws from what the original hands its first
+ * one unexamined: A as the screen's blanking left it, and the carry the
+ * script's call came with, which nothing here touches. The overflow its last
+ * draw leaves is what the script routine leaves. */
+enum { SCATTER_STARS = 0x7E5777, BLANKING_LEFT_IN_A = 0x0080 };
 
 static void scatter_stars(Snes *s)
 {
-    s->cpu.a = BLANKING_LEFT_IN_A;
-    m_jsr_dc(s, 0x7E8BCB, SCATTER_STARS, SCATTER_IGNORES);
+    GameState *g = state_of(s);
+    SceneRandom last = { 0, false, false };
+    TIMED_AS(g, SCATTER_STARS, last = scene_scatter_stars(g, m_platform(s), (SceneRandom){ BLANKING_LEFT_IN_A, m_flag(s, CPU_FLAG_C), false }));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, last.overflow));
 }
 
 /* The program's loop over a picture's tiles ($7E:5E3C), Y of them, each
@@ -952,6 +958,93 @@ static void show_last_scene(GameState *g, Platform *pf)
     set_scene_line_effects(g, SWEEP_LINE_CHANNELS);
 }
 
+/* ---- The last scene's window ------------------------------------------------------------------- */
+
+/* A frame task sweeps the last scene's window across it: a four-sided shape
+ * drawn into the per-line table the scene's window effect reads (the field's
+ * window shapes' drawing, field/window_shape.c), from its left edge to the
+ * screen's right, its left side's two corners and its right side's moving down
+ * a little a frame. While the left edge comes in from the right a sprite rides
+ * on it, two pixels a frame; once it is at 0, the corners go on down until the
+ * last is past the bottom, and the window is gone: the fixed color and the
+ * video settings go back to plain, and the task ends. Meanwhile BG2's picture
+ * drifts down a line every other frame. The corners are kept in quarter lines,
+ * and move at different speeds, so the shape slants. */
+enum { SWEEP_TABLE_BANK = 0x7E, SWEEP_TABLE = 0xE000, SCREEN_RIGHT_EDGE = 0xFF };
+enum { LEFT_TOP, RIGHT_BOTTOM, RIGHT_TOP, LEFT_BOTTOM };   /* scene_ending_window_corners */
+enum { QUARTERS = 4, LEFT_TOP_DOWN = 8, LEFT_BOTTOM_DOWN = 9, SWEPT_PAST = 0x390, EDGE_STEP = 2 };
+enum { RIDER = 0xA1E2, RIDER_BEHIND_THE_EDGE = 12 };
+
+static uint8_t corner_line(const GameState *g, unsigned corner)
+{
+    return (uint8_t)(scene_ending_window_corners(g, corner) / QUARTERS);
+}
+
+static void move_corner(GameState *g, unsigned corner, uint16_t by)
+{
+    uint16_t at = scene_ending_window_corners(g, corner);
+    if (at < SWEPT_PAST)
+        set_scene_ending_window_corners(g, corner, (uint16_t)(at + by));
+}
+
+/* The shape's four corners, round it from the left edge's top. */
+typedef struct {
+    uint8_t x, y;
+} SweepCorner;
+
+static void sweep_corners(const GameState *g, SweepCorner corners[4])
+{
+    uint8_t left = (uint8_t)scene_ending_window_left(g);
+    corners[0] = (SweepCorner){ left, (uint8_t)(corner_line(g, LEFT_TOP) + LEFT_TOP_DOWN) };
+    corners[1] = (SweepCorner){ left, (uint8_t)(corner_line(g, LEFT_BOTTOM) + LEFT_BOTTOM_DOWN) };
+    corners[2] = (SweepCorner){ SCREEN_RIGHT_EDGE, corner_line(g, RIGHT_TOP) };
+    corners[3] = (SweepCorner){ SCREEN_RIGHT_EDGE, corner_line(g, RIGHT_BOTTOM) };
+}
+
+static void draw_sweep_window(GameState *g)
+{
+    SweepCorner corners[4];
+    sweep_corners(g, corners);
+    set_field_window_shape_table_address(g, SWEEP_TABLE);
+    set_field_window_shape_table_bank(g, SWEEP_TABLE_BANK);
+    for (unsigned c = 0; c < 4; c++) {
+        set_field_window_shape_corners_x(g, c, corners[c].x);
+        set_field_window_shape_corners_y(g, c, corners[c].y);
+    }
+    TIMED_AS(g, 0xC30EFA, field_draw_window_shape(g));
+}
+
+typedef enum { SWEEP_GOES_ON, SWEEP_OVER } Sweep;
+
+/* The window's edges after the rider's frame: the left edge in by two, its
+ * corners down together (the rider follows the top one) or, at 0, on down
+ * at their own speeds; the right side's down. */
+static Sweep move_sweep_window(GameState *g, Platform *pf)
+{
+    uint16_t left = scene_ending_window_left(g);
+    if (left) {
+        set_scene_ending_window_left(g, (uint16_t)(left - EDGE_STEP));
+        uint16_t top = (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) + QUARTERS);
+        set_scene_ending_window_corners(g, LEFT_TOP, top);
+        set_scene_ending_window_corners(g, LEFT_BOTTOM, top);
+    } else {
+        move_corner(g, LEFT_TOP, 1);
+        move_corner(g, LEFT_BOTTOM, 3);
+    }
+    if (scene_ending_window_corners(g, RIGHT_BOTTOM) >= SWEPT_PAST) {
+        vid_set_fixed_color(pf, PF_AT(0x7E9A9C), 0, 0);
+        vid_set_video_config(pf, PF_AT(0x7E9A9C), &(VidVideoConfig){ 0 });
+        return SWEEP_OVER;
+    }
+    set_scene_ending_window_corners(g, RIGHT_BOTTOM, (uint16_t)(scene_ending_window_corners(g, RIGHT_BOTTOM) + 1));
+    move_corner(g, RIGHT_TOP, 3);
+    if (tm_odd_frame(pf, PF_AT(0x7E9AB3))) {
+        uint16_t scroll = scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL);
+        set_scene_channel_register(g, STEERING_CHANNEL, CREDITS_SCROLL, (uint16_t)((scroll & 0xFF00) | (uint8_t)(scroll - 1)));
+    }
+    return SWEEP_GOES_ON;
+}
+
 // $7E:8E88
 /* In vblank: BG2's scroll down, where the steering channel holds it. */
 static void scroll_bg2(const GameState *g, Platform *pf)
@@ -1050,7 +1143,8 @@ void scene_ending_load_ground_and_picture(Snes *s)
 bool scene_ending_start_stars_present(Snes *s)
 {
     return scene_on_channel_page(s) && shared_pieces_present(s) && m_code_matches(s, 0x7E8BAF, 0x56, 0x5EC2D58A5B1FEC0Cull) &&
-           m_code_matches(s, 0x7E7EF8, 0xD, 0x03922383AB303EFCull) && m_code_matches(s, 0x7E7F05, 0xD, 0xE7828FA5FF3586ECull);
+           m_code_matches(s, 0x7E7EF8, 0xD, 0x03922383AB303EFCull) && m_code_matches(s, 0x7E7F05, 0xD, 0xE7828FA5FF3586ECull) &&
+           scene_stars_scatter_code_present(s);
 }
 
 /* Back, Y is past the working palette, as the palette's copy left it; the
@@ -1156,6 +1250,71 @@ bool scene_ending_scroll_bg2_present(Snes *s)
 void scene_ending_scroll_bg2(Snes *s)
 {
     scroll_bg2(state_of(s), m_platform(s));
+    m_rts(s);
+}
+
+/* The window's task: the scene's page, a data bank on the registers (the
+ * rider's sprite list streams through the work RAM port), the window's edges
+ * where the sweep keeps them, and no corner on the last line, nor the
+ * table's right side, which its drawing reads first: from there the
+ * original's fill of the lines below runs round the bank into low RAM. */
+bool scene_ending_sweep_window_present(Snes *s)
+{
+    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E9A0C, 0xB1, 0x0B37DD86CDAEC523ull))
+        return false;
+    vars_peek(true);
+    const GameState *g = state_of(s);
+    bool ok = scene_ending_window_left(g) < 0x8000 && field_window_shape_right_start(g) < SCREEN_RIGHT_EDGE;
+    if (scene_ending_window_left(g))   /* the rider's sprites stay in the table, and off the sweep's cells */
+        ok = ok && scene_sprites_fit(g, (uint8_t)(wram_read8(g, (uint32_t)SCENE_LOWER_WORK_RAM << 16 | RIDER) - 1));
+    SweepCorner corners[4];
+    sweep_corners(g, corners);
+    for (unsigned c = 0; c < 4; c++)
+        ok = ok && scene_ending_window_corners(g, c) < 0x8000 && corners[c].y < SCREEN_RIGHT_EDGE;
+    vars_peek(false);
+    return ok;
+}
+
+/* The rider is a sprite list drawn by the program's list drawer with signed
+ * offsets ($7E:3A97), the list in A and its place in the scene's sprite
+ * offsets, with 16-bit A; it reads nothing else but the direct page and the
+ * data bank, and comes back with 16-bit A and Y the next free entry. */
+enum { DRAW_SIGNED_LIST = 0x7E3A97, DRAW_IGNORES = DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+static void draw_rider(Snes *s)
+{
+    GameState *g = state_of(s);
+    set_scene_sprite_offset_x(g, (uint16_t)(scene_ending_window_left(g) - RIDER_BEHIND_THE_EDGE));
+    uint16_t line = (uint16_t)(scene_ending_window_corners(g, LEFT_TOP) / QUARTERS);
+    set_scene_sprite_offset_y(g, (uint8_t)line);
+    set_scene_sprite_offset_y_high(g, (uint8_t)(line >> 8));
+    s->cpu.a = RIDER;
+    m_set_flag(s, CPU_FLAG_M, false);
+    m_jsl_dc(s, 0x7E9A6A, DRAW_SIGNED_LIST, DRAW_IGNORES);
+}
+
+/* The list's exit for a task that takes itself off. */
+enum { REMOVE_SWEEP_TASK = 0x7E39A7 };
+
+/* A frame task, entered with 16-bit A. Back, A's high byte is the right
+ * side's top corner's (the last the original loaded), or 0 where the sweep
+ * is over, and Y where the rider's list or the window's drawing left it. */
+void scene_ending_sweep_window(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    draw_sweep_window(g);
+    if (scene_ending_window_left(g))
+        draw_rider(s);
+    else
+        ORIGINAL_EFFECT(s->cpu.y = field_window_shape_fill_leaves_y(g));
+    if (move_sweep_window(g, pf) == SWEEP_OVER) {
+        ORIGINAL_EFFECT(s->cpu.a = 0);
+        m_stop_at(s, REMOVE_SWEEP_TASK, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
+        return;
+    }
+    ORIGINAL_EFFECT(s->cpu.a = scene_ending_window_corners(g, RIGHT_TOP));
+    s->cpu.p |= CPU_FLAG_M;
     m_rts(s);
 }
 

@@ -870,6 +870,98 @@ state = "staff_roll"
 args = ["--db", "7E", "--keep", "7E3000-7EC994"]
 why = "called by the script's call command"
 
+# The star field (game/scene/stars.c) and its random numbers (game/scene/random.c), from the staff roll: the
+# program kept, the scene's page and the data bank on the registers, as the frame's lists call the tasks.
+
+[[routine]]
+name = "scene_stars_scatter"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+iterations = 2000
+why = "the scatter as the setups make it, from whatever A and the carry hold; the beam's noise as the state's machine reads it"
+
+[[routine]]
+name = "scene_stars_fly"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E582E-7E582F=0430,0080",
+        "--fill", "7E0011-7E0012=0000,0004,0040,0100,01F8,01FC"]
+why = "the flight from a first entry at a star's place (the guard's), with the drawing as the program comes or as the staff roll patches it; the speed, the drift and every star random"
+
+[[routine]]
+name = "scene_stars_fly"
+variant = "loose"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "the flight with its first entry and the drawing's branch random: the guard turns away what isn't at a star's place or isn't one of the two branches, the original then running past the table"
+
+[[routine]]
+name = "scene_stars_fly_after_captions"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0011-7E0012=0000,0008,0044,00FC,0100,0140",
+        "--fill", "7E0013-7E0013=00-1F", "--fill", "7E0014-7E0014=09-09"]
+why = "the Beyond Time ending's field after its captions: the cursor before the 64th entry (the rest of its group put off the screen) or past it, the high table's cursor in the table"
+
+[[routine]]
+name = "scene_stars_start_drift"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994"]
+why = "The End's drift starting, from what the list calls the task with"
+
+[[routine]]
+name = "scene_stars_keep_drifting"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0058-7E005D=00-02"]
+why = "a frame of the drift with its counts at 0-2 frames left, so each runs out often (0: a count wraps round)"
+
+[[routine]]
+name = "scene_hide_rest_of_group"
+subsystem = "scene"
+state = "staff_roll"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0013-7E0013=00-1F", "--fill", "7E0014-7E0014=09-09"]
+why = "the high table's cursor in the table (the guard's), the entry's cursor random"
+
+[[routine]]
+name = "scene_ending_sweep_window"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0071-7E0072=0000,0002,0010,00E0",
+        "--fill", "7E0074-7E007A:2=00-03", "--fill", "7E036B-7E036B=00-00", "--fill", "7E0011-7E0012=0000,0040,0100",
+        "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09"]
+why = "the last scene's window anywhere in its sweep, the left edge in (the rider drawn) or at 0, the corners on either side of where the sweep ends, the sprite cursor where the rider fits; the guard turns away a corner or the right side on the last line, from where the original's fill runs round into low RAM"
+
+# The captions over the shared endings (game/scene/captions.c), from the Beyond Time ending.
+
+[[routine]]
+name = "scene_draw_caption"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EC994", "--range", "X=A651-AB1A", "--fill", "7E0011-7E0012=0000,0040,0100",
+        "--fill", "7E0013-7E0013=00-1F", "--fill", "7E0014-7E0014=09-09"]
+why = "a caption drawn from anywhere in the captions' text (mostly the middle of one), the cursor at the table's start or partway; the guard turns away text whose letters don't fit"
+
+[[routine]]
+name = "scene_turn_captions"
+subsystem = "scene"
+state = "ending"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EC994", "--fill", "7E0083-7E0084=0000,0001,0002,0003",
+        "--fill", "7E0085-7E0086=0000,0001,0002", "--fill", "7E0081-7E0082=0001,0002,0021,0022,0140",
+        "--fill", "7E0382-7E0383=A651,A672,AB00,AB1A", "--fill", "7E038D-7E038D=0F,8F,07",
+        "--fill", "7E0011-7E0012=0000,0040", "--fill", "7E0013-7E0013=00-0F", "--fill", "7E0014-7E0014=09-09"]
+why = "every turn: captions left or none, up or in the gap, the countdown at its end, at the fade-out or counting, the text at a caption or the captions' end, the screen up or still coming up"
+
+[[routine]]
+name = "field_rasterize_quad_from_its_start"
+subsystem = "scene"
+state = "ending"
+args = ["--long", "--fill", "7E0350-7E0352=7EE000", "--fill", "7E0360-7E0367=00-FF", "--fill", "7E036B-7E036B=00-00"]
+why = "the shared endings' swept window: the table at $7E:E000, the corners random"
+
 # The endings modes 10, 11, 14 and 15 share (game/scene/endings.c), from the Beyond Time ending's movie while
 # its zooming picture shows: the program kept, as the program's mode table, its lists and its scripts call them.
 

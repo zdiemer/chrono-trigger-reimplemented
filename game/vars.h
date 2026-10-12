@@ -12856,6 +12856,11 @@ void set_scene_bg3_scroll_x(GameState *g, uint16_t v);
 uint16_t scene_race_demo(const GameState *g);
 void set_scene_race_demo(GameState *g, uint16_t v);
 
+/* What the star field's flight divided the last star's place by: its depth and the nearest
+ * distance (scaffolding: nothing reads it) */
+uint8_t scene_stars_last_distance(const GameState *g);
+void set_scene_stars_last_distance(GameState *g, uint8_t v);
+
 /* How far the staff credits have rolled up the screen: their layer's vertical scroll, a pixel
  * every other frame, or a row of 8 a frame when they roll fast */
 uint16_t scene_credits_scroll(const GameState *g);
@@ -12949,6 +12954,12 @@ void set_scene_ending_picture_source(GameState *g, uint16_t v);
 uint16_t scene_ending_picture_zoom(const GameState *g);
 void set_scene_ending_picture_zoom(GameState *g, uint16_t v);
 
+enum { SCENE_STARS_DRIFT_FRAMES_COUNT = 3 };   /* by what drifts: 0 across, 1 down, 2 the speed */
+/* Behind The End, the star field drifts: the frames left before the drift across, the drift down
+ * and the field's speed each take a new random value */
+uint16_t scene_stars_drift_frames(const GameState *g, unsigned i);
+void set_scene_stars_drift_frames(GameState *g, unsigned i, uint16_t v);
+
 /* Matrix parameter A */
 uint16_t scene_mode7_matrix_a(const GameState *g);
 void set_scene_mode7_matrix_a(GameState *g, uint16_t v);
@@ -13020,6 +13031,16 @@ void set_scene_ending_caption_shown(GameState *g, uint16_t v);
  * starts it at 1, so the first caption comes the next frame */
 uint16_t scene_ending_caption_countdown(const GameState *g);
 void set_scene_ending_caption_countdown(GameState *g, uint16_t v);
+
+/* In the shared endings: counts the captions' turns, odd while a caption is up, even in the gap
+ * before the next */
+uint16_t scene_ending_caption_phase(const GameState *g);
+void set_scene_ending_caption_phase(GameState *g, uint16_t v);
+
+/* In the shared endings: how many captions are still to be shown; at 0 the captions' task does
+ * nothing */
+uint16_t scene_ending_captions_left(const GameState *g);
+void set_scene_ending_captions_left(GameState *g, uint16_t v);
 
 /* How far Crono is ahead of Johnny, in 32nds of the distance (negative when behind): who leads
  * decides each bike's top speed */
@@ -13213,6 +13234,12 @@ void set_scene_race_final_score(GameState *g, uint16_t v);
 uint8_t scene_flags(const GameState *g);
 void set_scene_flags(GameState *g, uint8_t v);
 
+/* The scene program's stirred random numbers' seed: each draw stirs into it what it is handed,
+ * the frame counter, the scene's call cells and where the beam is, and keeps the number drawn; a
+ * byte draw stirs only its low byte */
+uint16_t scene_random_seed(const GameState *g);
+void set_scene_random_seed(GameState *g, uint16_t v);
+
 /* Nonzero while a song is being sent to the sound driver; the race skips its sound parameter
  * meanwhile */
 uint8_t scene_song_sending(const GameState *g);
@@ -13375,6 +13402,14 @@ enum { SCENE_RACE_TURNING_COUNT = 2 };   /* by 0 turning one way (R), 1 the othe
 uint16_t scene_race_turning(const GameState *g, unsigned i);
 void set_scene_race_turning(GameState *g, unsigned i, uint16_t v);
 
+enum { SCENE_STARS_COUNT = 128 };   /* by star: its sprite entry's number */
+/* Right of the middle (negative: left) */
+uint8_t scene_stars_across(const GameState *g, unsigned i);
+void set_scene_stars_across(GameState *g, unsigned i, uint8_t v);
+/* Below the middle (negative: above) */
+uint8_t scene_stars_down(const GameState *g, unsigned i);
+void set_scene_stars_down(GameState *g, unsigned i, uint8_t v);
+
 /* Tilemap the scene builds in work RAM for vblank. In the title, its first $80 bytes are BG3's
  * first two rows, which in BG mode 2 hold the columns' horizontal and vertical offsets: each
  * frame the vertical ones ($0C40-$0C7F) move a column to the right and go to VRAM $7000, which
@@ -13383,6 +13418,13 @@ void set_scene_race_turning(GameState *g, unsigned i, uint16_t v);
 enum { SCENE_TILEMAP_BUFFER_BYTES = 2048 };
 uint8_t scene_tilemap_buffer_byte(const GameState *g, unsigned at);
 void set_scene_tilemap_buffer_byte(GameState *g, unsigned at, uint8_t v);
+
+enum { SCENE_STAR_DEPTHS_COUNT = 128 };   /* by star: its sprite entry's number */
+/* How far each star of the field is from the viewer, 0-127 (127 the farthest): the field's speed
+ * moves it every frame, and a star that passes the viewer or the far end comes back at the other
+ * at a new random place */
+uint8_t scene_star_depths(const GameState *g, unsigned i);
+void set_scene_star_depths(GameState *g, unsigned i, uint8_t v);
 
 enum { SCENE_RACE_PICTURE_REQUESTS_COUNT = 2 };   /* by racer: 0 Crono, 1 Johnny */
 /* The picture's width in pairs of eight-pixel groups */
@@ -13670,9 +13712,10 @@ void set_scene_race_bar_cap_x(GameState *g, uint8_t v);
 uint8_t scene_race_corner_sprites(const GameState *g);
 void set_scene_race_corner_sprites(GameState *g, uint8_t v);
 
-/* The branch in the star field's drawing that puts the far stars in front of the layers (a BMI
- * over its own load of the near stars' attributes); the staff roll's setup writes a branch to
- * the next instruction over it ($0080), which draws every star behind them, behind the credits */
+/* The branch in the star field's drawing that puts the near stars (the eight nearest sizes) in
+ * front of the layers (a BMI over its own load of the far stars' attributes); the staff roll's
+ * setup writes a branch to the next instruction over it ($0080), which draws every star behind
+ * them, behind the credits */
 uint16_t scene_stars_depth_branch(const GameState *g);
 void set_scene_stars_depth_branch(GameState *g, uint16_t v);
 
@@ -13686,6 +13729,17 @@ void set_scene_plane_tiles_expander(GameState *g, uint16_t v);
  * add: $10, or $30 where the shared endings' third scene writes it */
 uint8_t scene_plane_tiles_stride(const GameState *g);
 void set_scene_plane_tiles_stride(GameState *g, uint8_t v);
+
+/* Where a line of the program's captions starts across, the operand of a load in the caption's
+ * drawing ($7E:64CA), which a caption's text sets for its first line and every later caption
+ * starts from */
+uint8_t scene_caption_line_x(const GameState *g);
+void set_scene_caption_line_x(GameState *g, uint8_t v);
+
+/* Where the first line of the program's captions starts down, the operand of a load in the
+ * caption's drawing ($7E:64CA), which a caption's text sets and every later caption starts from */
+uint8_t scene_caption_line_y(const GameState *g);
+void set_scene_caption_line_y(GameState *g, uint8_t v);
 
 /* The attributes the program's captions give their letters' sprites, the operand of a load in
  * the caption's drawing ($7E:64CA): $3E as the program comes, $3F (the eighth sprite palette's

@@ -1993,9 +1993,8 @@ re-runs the census.
   object-queue type over its head, tail and link accessors; `field/frames.c`
   names the pending uploads and the empty upload queue by bare index and
   value; the older SNES-shaped calls `tm_ack_*` and `tm_reset_beam_latch`
-  still return register bits; `tm_entropy` and `tm_snes_entropy_read` have no
-  caller, so the gate doesn't test their SNES half; a call `native_await_latch`
-  sees interrupted before the original's own latch goes uncompared.
+  still return register bits; a call `native_await_latch` sees interrupted
+  before the original's own latch goes uncompared.
 
 - **The gate's wait for its song to play** (`$C2:CBE0`,
   `menu/sound_bridge.c`): once the gate's screen has started its song, its
@@ -2309,20 +2308,10 @@ re-runs the census.
   in no movie) waits for a line from the script. Neither is followed by a
   register write, so the wait looks like pacing; take it out when the frame
   work's own remainder is ported.
-- **The scene program's randomness and parity**: `$C3:02DD` mixes the beam
-  counters into its seed and stays generated, with `$C3:01E4` (the noise
-  effect, called from `$7E:6844`, and from bank C6's `$C6:E27E` through
-  `$C3:000E`, which no movie runs) and `$7E:3443`. Port the mixing as game code
-  over `tm_entropy`, validated by `--native on` rather than fuzzing (a port
-  reads other counters, and the output is cosmetic). The mixer reads the
-  registers its callers have (A, X and the carry), so the routines that only
-  hand it on stay the original's with it: the stars' scatter, flight and
-  drift (`$7E:5777`, `$7E:579B`, and The End's `$7E:9897`/`$7E:98AC` with
-  `$7E:98E3`; history file, "Phase 3, the scene program: the staff roll"), and
-  the shared endings' first timing of their captions (`$7E:9BB8`, a call-out
-  of `$7E:8538`'s port).
-  `$7E:9AB3` reads `$213F`'s field bit to move something every other frame:
-  `tm_odd_frame`, as the credits' scroll (`$7E:9ED6`) now does.
+- **The scene program's noise effect**: `$C3:01E4` (called from `$7E:6844`,
+  and from bank C6's `$C6:E27E` through `$C3:000E`, which no movie runs)
+  still calls the original's stir `$C3:02DD`; it takes `scene_draw_random`
+  (scene/random.c) when it is ported.
 - **The timer resets.** `$C2:0043` past `$C2:00F2`, `$C2:940D` past
   `$C2:94B8` and `$FD:EB13` clear `$4207-$420A` in a run of CPU register
   writes (where the menu ports stop). Nothing enables the timers after them, so

@@ -127,13 +127,23 @@ bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
 void tm_wait_line(Platform *pf, PfOrigin o, uint16_t line) { (void)pf; (void)o; (void)line; }
 
 /* A 32-bit xorshift: small, and the same on every host. */
-uint16_t tm_entropy(Platform *pf, PfOrigin o)
+static uint16_t next_entropy(Platform *pf)
 {
-    (void)o;
     uint32_t x = pf->timing.entropy;
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
     pf->timing.entropy = x;
     return (uint16_t)(x >> 8);
+}
+
+TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width)
+{
+    (void)o;
+    TmEntropy e;
+    for (unsigned i = 0; i < TM_ENTROPY_VALUES; i++) {
+        uint16_t v = next_entropy(pf);
+        e.value[i] = width == TM_ENTROPY_WORDS ? v : (uint8_t)v;
+    }
+    return e;
 }
