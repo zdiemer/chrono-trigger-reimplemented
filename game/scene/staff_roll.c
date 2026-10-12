@@ -26,10 +26,8 @@
  * by '/', the whole by a backslash. The letters' tiles follow the codes from
  * '@' on, a space being the blank tile.
  *
- * The stars themselves (their scatter, $7E:5777, their flight, $7E:579B, and
- * The End's drift, $7E:9897) draw on the scene program's random numbers, which
- * mix the registers they are called with into the seed; they stay the
- * original's until that mixing is game code (docs/TODO.md). */
+ * The stars themselves -- their scatter, their flight and The End's drift --
+ * are stars.c's. */
 #include "scene/scene.h"
 
 #include "charge.h"
@@ -329,10 +327,18 @@ static void play_music_fast(Snes *s)
     au_driver_call(m_platform(s), PF_CALL(0x7E8EB2, SCENE_SEND), SEND_IGNORES);
 }
 
-/* The stars scattered at random ($7E:5777), with 8-bit A. */
-enum { SCATTER_STARS = 0x7E5777, SCATTER_IGNORES = DC_X | DC_Y | DC_N | DC_Z };
+/* The stars scattered at random, their first draw from what the send left in
+ * A and the carry (the original hands them on unexamined); the overflow its
+ * last draw leaves goes on to the unpacker. */
+enum { SCATTER_STARS = 0x7E5777 };
 
-static void scatter_stars(Snes *s) { m_jsr_dc(s, 0x7E8EBE, SCATTER_STARS, SCATTER_IGNORES); }
+static void scatter_stars(Snes *s)
+{
+    GameState *g = state_of(s);
+    SceneDraw first = scene_draw_from(s->cpu.a, m_flag(s, CPU_FLAG_C), TM_ENTROPY_BYTES);
+    TIMED_AS(g, SCATTER_STARS, scene_scatter_stars(g, m_platform(s), first));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_V, scene_random_last_overflow()));
+}
 
 /* The program's unpacker ($7E:3691): the resource's place in its list in X,
  * and the unpacking into the destination set. */
@@ -444,7 +450,7 @@ bool scene_staff_roll_set_up_present(Snes *s)
            m_code_matches(s, 0x7E38E7, 0x24, 0xDD4B67DA62CC8E67ull) &&
            m_code_matches(s, 0x7E36CC, 0x3C, 0x45191A42A1EEF6A8ull) &&
            m_code_matches(s, 0x7E9023, 0x06, 0xF09D7328034315D8ull) &&
-           m_code_matches(s, 0x7E375F, 0x1B, 0x5BCDF92C47B920DDull);
+           m_code_matches(s, 0x7E375F, 0x1B, 0x5BCDF92C47B920DDull) && scene_stars_scatter_code_present(s);
 }
 
 /* Entered with 8-bit A; back, the song's start has left the overflow, which

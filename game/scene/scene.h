@@ -26,6 +26,9 @@
  *   perspective.c the Mode 7 plane in perspective, the race's and the endings'
  *   staff_roll.c  the telepod ending's last scene: the staff credits over the
  *                 stars, and The End
+ *   stars.c       the star field the endings fly through
+ *   captions.c    the captions over the shared endings
+ *   random.c      the program's random numbers
  *   endings.c     the endings modes 10, 11, 14 and 15 share: their setup, the
  *                 zooming picture, and the scenes their scripts start
  *   bridge.c      where ports meet the program's calling conventions
@@ -48,6 +51,7 @@
 
 #include <stdbool.h>
 
+#include "platform/timing.h"
 #include "platform/video.h"
 #include "snes/system.h"
 #include "state.h"
@@ -114,6 +118,44 @@ bool scene_add_task(GameState *g, SceneTaskList list, SceneTask task);
 bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task);
 /* Whether a list holds the task (NO_TASK: whether it has an empty slot). */
 bool scene_task_listed(const GameState *g, SceneTaskList list, SceneTask task);
+
+/* scene/sprites.c: a sprite put straight into an entry of the frame's sprite
+ * table (a byte offset), with no cursor and no offset, as the star field
+ * places its own. */
+typedef struct {
+    uint8_t x, y, tile, attributes;
+} SceneSprite;
+void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite);
+/* The same at the scene's cursor, which moves on, small or large; and whether
+ * `sprites` more fit from the cursor. */
+void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large);
+bool scene_sprites_fit(const GameState *g, unsigned sprites);
+/* How many sprites a list in the program holds; and where the lists are
+ * drawn from next (X's 9th bit kept). */
+uint8_t scene_sprite_list_length(const GameState *g, uint16_t list);
+void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y);
+/* The rest of the cursor's group of four sprites put off the screen, as the
+ * frame's last sprites leave it. */
+void scene_hide_rest_of_group(GameState *g);
+
+/* scene/random.c: the program's random numbers -- the next of the game's
+ * table of random bytes, and a stirred draw, a byte or a word. A draw is its
+ * number with one bit more above it, the bit its sum spilled; the next draw
+ * starts from it (scene_draw_from makes a first one). Whether the last draw's
+ * final step lost its sign is the original's to leave behind (scaffolding). */
+typedef uint32_t SceneDraw;
+static inline SceneDraw scene_draw_from(uint16_t number, bool spilled, TmEntropyWidth width)
+{
+    unsigned bits = width == TM_ENTROPY_WORDS ? 16 : 8;
+    return (SceneDraw)(number & ((1u << bits) - 1)) | (spilled ? 1u << bits : 0);
+}
+uint8_t scene_next_random_byte(GameState *g);
+SceneDraw scene_draw_random(GameState *g, Platform *pf, PfOrigin o, SceneDraw last, uint16_t salt, TmEntropyWidth width);
+bool scene_random_last_overflow(void);
+
+/* scene/stars.c: every star of the field scattered at random, from a first
+ * draw. */
+void scene_scatter_stars(GameState *g, Platform *pf, SceneDraw first);
 
 /* A sequence channel: one of the two the program runs a script on
  * (scene_channels), whose page its routines run on when a script calls them. */
@@ -358,6 +400,8 @@ bool scene_ending_show_credits_present(Snes *s);
 void scene_ending_show_credits(Snes *s);
 bool scene_ending_show_last_scene_present(Snes *s);
 void scene_ending_show_last_scene(Snes *s);
+bool scene_ending_sweep_window_present(Snes *s);
+void scene_ending_sweep_window(Snes *s);
 bool scene_ending_scroll_bg2_present(Snes *s);
 void scene_ending_scroll_bg2(Snes *s);
 bool scene_ending_upload_picture_present(Snes *s);
@@ -373,6 +417,25 @@ void scene_ending_gather_picture(Snes *s);
 /* scene/bridge.c: where the endings' scaling of their picture goes on in the
  * original's scaler. */
 void scene_bridge_scale_ending_picture(Snes *s);
+
+/* scene/stars.c (the program in RAM) */
+bool scene_stars_scatter_code_present(Snes *s);
+bool scene_stars_scatter_present(Snes *s);
+void scene_stars_scatter(Snes *s);
+bool scene_stars_fly_present(Snes *s);
+void scene_stars_fly(Snes *s);
+bool scene_stars_fly_after_captions_present(Snes *s);
+void scene_stars_fly_after_captions(Snes *s);
+bool scene_stars_drift_present(Snes *s);
+bool scene_stars_start_drift_present(Snes *s);
+void scene_stars_start_drift(Snes *s);
+void scene_stars_keep_drifting(Snes *s);
+
+/* scene/captions.c (the program in RAM) */
+bool scene_draw_caption_present(Snes *s);
+void scene_draw_caption(Snes *s);
+bool scene_turn_captions_present(Snes *s);
+void scene_turn_captions(Snes *s);
 
 /* scene/race_matrix.c */
 void scene_write_matrix_code(Snes *s);
@@ -439,6 +502,8 @@ void scene_send_sound_command_again(Snes *s);
 void scene_wait_sound_command_echo_loop(Snes *s);
 
 /* scene/sprites.c */
+bool scene_hide_rest_of_group_present(Snes *s);
+void scene_hide_rest_of_group_entry(Snes *s);
 bool scene_sprite_list_fits(Snes *s);
 bool scene_clipped_sprite_list_fits(Snes *s);
 bool scene_sprite_fits(Snes *s);

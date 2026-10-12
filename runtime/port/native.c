@@ -2201,6 +2201,19 @@ static int32_t intercept(void *ctx, Snes *s)
         }
 
         st->calls++;
+
+        /* SHADOW: a port waiting for the original to latch the beam
+         * (native_await_latch) is resumed by the original's next latch, which
+         * only the innermost comparison watches; an entry the original reaches
+         * meanwhile is inside the stretch that port stands for, so it isn't
+         * compared on its own, which would hide the latch from the port (the
+         * stars' scatter, $7E:5777, inside the setups that scatter them). Such
+         * calls are counted on the entry's line, as not compared; its guard
+         * doesn't run. */
+        if (rt->mode == NATIVE_SHADOW && rt->nactive > 0 && rt->active[rt->nactive - 1].phase == PH_LATCH) {
+            st->in_latch_wait++;
+            return -1;
+        }
         if (rt->page_report)
             count_page(st, s->cpu.d);
         if (!entry_applies(e, s)) {
@@ -2599,6 +2612,8 @@ void native_report(const NativeRuntime *rt, FILE *out)
         }
         if (st->abandoned)
             fprintf(out, "  abandoned %u", st->abandoned);
+        if (st->in_latch_wait)
+            fprintf(out, "  in a latch wait %u (not compared)", st->in_latch_wait);
         if (st->skipped)
             fprintf(out, "  skipped %u", st->skipped);
         fprintf(out, "\n");

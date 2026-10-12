@@ -95,6 +95,14 @@ static void next_entry(SpriteCursor *c)
 static uint8_t moved_x(const GameState *g, uint8_t x) { return (uint8_t)(x + scene_sprite_offset_x(g)); }
 static uint8_t moved_y(const GameState *g, uint8_t y) { return (uint8_t)(y + scene_sprite_offset_y(g)); }
 
+void scene_place_sprite(GameState *g, uint16_t entry, SceneSprite sprite)
+{
+    set_entry(g, entry, ENTRY_X, sprite.x);
+    set_entry(g, entry, ENTRY_Y, sprite.y);
+    set_entry(g, entry, ENTRY_TILE, sprite.tile);
+    set_entry(g, entry, ENTRY_ATTRIBUTES, sprite.attributes);
+}
+
 /* ---- Lists ------------------------------------------------------------------------------------ */
 
 /* A list: its count byte, then its entries. */
@@ -175,6 +183,44 @@ static void add_sprite(GameState *g, uint16_t source, bool large)
     set_cursor(g, c);
 }
 
+/* A sprite added at the cursor as it is, small or large (the captions'
+ * letters). */
+void scene_add_sprite_at_cursor(GameState *g, SceneSprite sprite, bool large)
+{
+    SpriteCursor c = cursor(g);
+    scene_place_sprite(g, c.entry, sprite);
+    if (large)
+        shift_in(g, c.high, HIGH_LARGE);
+    else
+        shift_in_small(g, c.high);
+    next_entry(&c);
+    set_cursor(g, c);
+}
+
+// $7E:3870
+/* The frame's sprites done: the entries left in the group of four the cursor
+ * is in are put past the screen's right edge (X's 9th bit). With the cursor
+ * at a group's start, that is the whole of the next group. */
+void scene_hide_rest_of_group(GameState *g)
+{
+    SpriteCursor c = cursor(g);
+    uint8_t bits = scene_sprite_high_table_byte(g, c.high);
+    for (unsigned n = (c.entry / ENTRY_BYTES) % SPRITES_PER_HIGH_BYTE; n < SPRITES_PER_HIGH_BYTE; n++)
+        bits = (uint8_t)(HIGH_X9 | bits >> 2);
+    set_scene_sprite_high_table_byte(g, c.high, bits);
+}
+
+/* How many sprites a list in the program holds. */
+uint8_t scene_sprite_list_length(const GameState *g, uint16_t list) { return list_sprites(g, list); }
+
+/* Where the scenes' sprite lists are drawn from next: X and Y. X's 9th bit,
+ * which only the clipped lists use, stays as it was. */
+void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y)
+{
+    set_scene_sprite_offset_x(g, (uint16_t)((scene_sprite_offset_x(g) >> 8) << 8 | x));
+    set_scene_sprite_offset_y(g, y);
+}
+
 /* As C calls, for the program's routines ported as C. */
 void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }
@@ -240,11 +286,39 @@ static bool list_fits(Snes *s, bool clipped)
     return !clipped || end <= SCENE_SPRITE_TABLE || list >= SPRITE_TABLES_END;
 }
 
+/* The cursor's high-table byte inside the table. */
+static bool high_cursor_in_table(Snes *s)
+{
+    vars_peek(true);
+    uint16_t high = scene_sprite_high_pointer(state_of(s));
+    vars_peek(false);
+    return high >= SCENE_SPRITE_HIGH_TABLE && high < SPRITE_TABLES_END;
+}
+
 bool scene_sprite_list_fits(Snes *s) { return list_fits(s, false); }
 bool scene_clipped_sprite_list_fits(Snes *s) { return list_fits(s, true); }
 bool scene_sprite_fits(Snes *s) { return cursor_fits(s, 1); }
 
 /* ---- Entries: 16-bit A and index registers, on the scene's page ------------------------- */
+
+bool scene_hide_rest_of_group_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E3870, 0x1B, 0xB778A96EC9EEDB9Aull) && scene_on_scene_page_low_bank(s) &&
+           high_cursor_in_table(s);
+}
+
+/* Back with 8-bit A, holding the byte it left, and the count it reached and
+ * the carry of its last compare, as the original leaves them. */
+void scene_hide_rest_of_group_entry(Snes *s)
+{
+    GameState *g = state_of(s);
+    scene_hide_rest_of_group(g);
+    ORIGINAL_EFFECT(s->cpu.a = scene_sprite_high_table_byte(g, cursor(g).high));
+    ORIGINAL_EFFECT(m_set_flag(s, CPU_FLAG_C, true));   /* the count of the group's sprites reached, */
+    ORIGINAL_EFFECT(s->cpu.x = SPRITES_PER_HIGH_BYTE);  /* which stays in X */
+    s->cpu.p |= CPU_FLAG_M;
+    m_rts(s);
+}
 
 /* The list at A, small sprites; back, Y is the next free entry. The original's
  * A ends with the list's high byte, which it already has (its low byte isn't

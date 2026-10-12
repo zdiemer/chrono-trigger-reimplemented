@@ -364,11 +364,11 @@ void palette_stop_animations(GameState *g)
 /* Every channel of the colors, as a fade's mode. */
 enum { ALL_CHANNELS = 0 };
 
-/* The scene program's start of the telepod ending's fade ($7E:9FA9). The
- * frame counter starts at 0, so the first step comes a period on. */
-void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade)
+/* A fade a mode starts in a slot of its own. The frame counter starts at 0,
+ * so the first step comes a period on. */
+static void start_fade(GameState *g, unsigned slot, AnimationType type, PaletteFade fade)
 {
-    set_palette_animations_kind(g, slot, FADE_TO_WHITE << TYPE_SHIFT);
+    set_palette_animations_kind(g, slot, (uint8_t)(type << TYPE_SHIFT));
     set_palette_animations_first_color(g, slot, fade.first_color);
     set_palette_animations_color_count(g, slot, fade.color_count);
     set_palette_animations_step(g, slot, fade.step);
@@ -378,6 +378,12 @@ void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade)
     set_palette_animations_fade_level(g, slot, fade.from_level);
     set_palette_animations_fade_target(g, slot, fade.to_level);
 }
+
+/* The scene program's start of the telepod ending's fade ($7E:9FA9). */
+void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade) { start_fade(g, slot, FADE_TO_WHITE, fade); }
+
+/* The scene program's captions fading in and out ($7E:9B4F). */
+void palette_start_fade_to_black(GameState *g, unsigned slot, PaletteFade fade) { start_fade(g, slot, FADE_TO_BLACK, fade); }
 
 /* ---- A location's animations ---------------------------------------------------------------- */
 

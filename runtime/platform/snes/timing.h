@@ -139,27 +139,37 @@ PF_API bool tm_frame_time_left(Platform *pf, PfOrigin o, uint16_t line)
     return pf_snes_drain_budgets || beam >= PF_SNES_BLANK_FROM_LINE || beam < line;
 }
 
-/* The three bytes the scenes' noise reads ($C3:02DD), in its order: the
- * counters latched ($2137), then the horizontal counter's low byte ($213C),
- * the vertical's low byte ($213D) and its ninth bit ($213D again). The bytes
- * are kept for tm_snes_entropy_read. */
-extern uint8_t pf_snes_entropy_bytes[3];
+/* The scenes' noise, read as their stir ($C3:02DD) reads it, a byte or a word
+ * at a time: the counters latched by a compare with $2137, then an add of the
+ * horizontal counter ($213C) and two subtracts of the vertical ($213D). A
+ * 16-bit read takes the next register's byte as its high byte ($2138, the
+ * sprite memory, which steps its address; $213D; $213E), and $2137 reads as
+ * the bus's last byte, the compare's operand's high byte. Shadow mode reads
+ * what the original latches (native_await_latch). */
+enum { PF_SNES_LATCH_OPERAND_HIGH = 0x21 };
 
-PF_API uint16_t tm_entropy(Platform *pf, PfOrigin o)
+static inline uint16_t pf_snes_entropy_read(Snes *s, uint16_t reg, TmEntropyWidth width)
 {
-    Snes *s = pf_snes(pf);
-    pf_snes_begin("tm_entropy", o);
-    pf_snes_get(s, 0x2137);
-    pf_snes_entropy_bytes[0] = pf_snes_get(s, 0x213C);
-    pf_snes_entropy_bytes[1] = pf_snes_get(s, 0x213D);
-    pf_snes_entropy_bytes[2] = pf_snes_get(s, 0x213D);
-    pf_snes_end();
-    return (uint16_t)(pf_snes_entropy_bytes[0] | pf_snes_entropy_bytes[1] << 8) ^ (uint16_t)(pf_snes_entropy_bytes[2] << 15);
+    uint8_t low = pf_snes_get(s, reg);
+    return width == TM_ENTROPY_WORDS ? (uint16_t)(low | pf_snes_get(s, (uint16_t)(reg + 1)) << 8) : low;
 }
 
-/* SNES only: the bytes the last tm_entropy read, for a wrapper that mixes them
- * into the seed as the original does, a byte at a time with its carries. */
-static inline const uint8_t *tm_snes_entropy_read(void) { return pf_snes_entropy_bytes; }
+PF_API TmEntropy tm_entropy(Platform *pf, PfOrigin o, TmEntropyWidth width)
+{
+    Snes *s = pf_snes(pf);
+    TmEntropy e;
+    pf_snes_begin("tm_entropy", o);
+    s->bus.open_bus = PF_SNES_LATCH_OPERAND_HIGH;
+    uint32_t latches = s->ppu.latch_count;
+    e.value[0] = pf_snes_entropy_read(s, 0x2137, width);
+    if (s->ppu.latch_count != latches)   /* the read latches only where the game has latching on */
+        native_await_latch(s);
+    e.value[1] = pf_snes_entropy_read(s, 0x213C, width);
+    e.value[2] = pf_snes_entropy_read(s, 0x213D, width);
+    e.value[3] = pf_snes_entropy_read(s, 0x213D, width);
+    pf_snes_end();
+    return e;
+}
 
 /* ---- SNES only: the status the original's wait loops poll ---------------------------------- */
 

@@ -2096,7 +2096,7 @@ compares what it compared before):
 | *new* `tm_wait_frame(pf, o)` | Yields the main thread to the driver. SNES backend: a call-out to the mode's wait routine, whose loop is an idle entry (the API sketch above) |
 | *new* `bool tm_frame_time_left(pf, o, line)` | True: a host has time for all of it. SNES backend: latch and read the vertical counter as `$C0:5A46` does, true while it is above `line` or at line 240 or later |
 | *new* `tm_wait_line(pf, o, line)` | Returns. SNES backend: `$CD:3B82`'s loops |
-| *new* `uint16_t tm_entropy(pf, o)` | A host generator the driver seeds, so a replay reproduces it. SNES backend: latch and read the counters as `$C3:02DD` does |
+| *new* `TmEntropy tm_entropy(pf, o, width)` | Four values of noise, bytes or words, from a host generator the driver seeds, so a replay reproduces them. SNES backend: latch and read the counters as `$C3:02DD` does, a byte or a word at a time (REIMPLEMENTATION.md, "Phase 3, the scene program: the star field, the captions and the random numbers") |
 | `bool tm_odd_frame(pf, o)` | The driver's frame count, odd or even. SNES backend: the original's 16-bit read of `$213E`-`$213F`, the field's bit 7 of the high byte, the word kept for scaffolding (`tm_snes_odd_frame_read`; added with the staff roll, REIMPLEMENTATION.md, "Phase 3, the scene program: the staff roll") |
 | *new* `bool in_ready(pf, o)` (input) | True. SNES backend: `$4212` bit 0 clear |
 
@@ -2114,8 +2114,7 @@ without a beam", tracks them):
 |---|---|---|
 | The event scheduler `$C0:5A46` | generated, beam budget | run the due object scripts while `tm_frame_time_left(pf, o, limit)`; natively, all of them every frame |
 | The sprite frame queue `$C0:CA76` | generated, beam budget | the same over the animation queue, with its script-set limit |
-| `$C3:02DD` and its callers `$C3:01E4`, `$7E:3443` | generated | the seed mixing as game code, over `tm_entropy` |
-| `$7E:9AB3` | generated | `tm_odd_frame`, as the credits' scroll `$7E:9ED6` (ported) reads it |
+| `$C3:02DD` for `$C3:01E4` | generated | the stir as game code (`scene_draw_random`, ported for the star field), over `tm_entropy` |
 | The races `$C0:3B71` and `$C0:4181`; the attract's `$7E:31B0`/`$7E:31B7`; `$FD:EADA` before it enables the vblank handler (the field's `$C0:0B28` is `tm_wait_frame_then_enable` now); the generated flag waits `$CD:044A`, `$CD:3E55`, `$CF:FCFB`, `$FD:EAEB`; every idle entry on a flag a handler clears | idle entries, or generated | `tm_wait_frame` |
 | The line handlers' hblank waits `$C0:ECEB`, `$D1:FEB8`, `$C3:0530`/`$C3:0538` | idle entries | gone: the blank is `vid_raster_display` at the handler's line |
 | The controller-busy waits in `$C2:84EC` and `$C3:0A8E` | ports that stop at the original's loop | `in_ready` |
@@ -2153,7 +2152,7 @@ and only idle entries call them (below).
 | `tm_wait_frame_then_enable(pf, PF_CALL_DC(site, routine, set), sources, line)` | the call of the original's wait for the vblank with the handlers off, which then turns them on (the field's screen setup, `$C0:0B38`) | waits a frame, then `tm_set_line` and `tm_enable_interrupts` |
 | `tm_frame_time_left(pf, o, line)` | `$213F`, `$2137`, `$213D` twice; true while the line is above `line` or at 240 and below | true |
 | `tm_wait_line(pf, PF_CALL_DC(...), line)` | the line in A, and the call of `$CD:3B82` | returns |
-| `tm_entropy(pf, o)` | `$2137`, `$213C`, `$213D` twice, as `$C3:02DD` reads them; the bytes kept for the wrapper (`tm_snes_entropy_read`) | a 32-bit xorshift the driver seeds |
+| `tm_entropy(pf, o, width)` | `$2137`, `$213C`, `$213D` twice, a byte or a word at a time as `$C3:02DD` reads them (a word's high bytes are `$2138`, `$213D` and `$213E`), `$2137` reading as the bus's last byte, the compare's operand's `$21`; shadow mode waits for the original's latch | four values from a 32-bit xorshift the driver seeds |
 | `in_ready(pf, o)` | `$4212` bit 0 clear | true |
 
 The host backend is `runtime/platform/native/` (`host.h`, `timing.c`,

@@ -168,15 +168,17 @@ int main(void)
     tm_wait_line(&pf, PF_CALL(0, 0), 64);
 
     /* the generator replays from its seed */
-    uint16_t first[8], again[8];
+    TmEntropy first[8], again[8];
     for (int i = 0; i < 8; i++)
-        first[i] = tm_entropy(&pf, PF_AT(0));
+        first[i] = tm_entropy(&pf, PF_AT(0), TM_ENTROPY_WORDS);
     static Platform replay;
     tm_host_start(&replay, &program, 12345);
     for (int i = 0; i < 8; i++)
-        again[i] = tm_entropy(&replay, PF_AT(0));
-    CHECK(memcmp(first, again, sizeof first) == 0, "the same seed draws the same words");
-    CHECK(first[0] != first[1] || first[1] != first[2], "the words vary");
+        again[i] = tm_entropy(&replay, PF_AT(0), TM_ENTROPY_WORDS);
+    CHECK(memcmp(first, again, sizeof first) == 0, "the same seed draws the same noise");
+    CHECK(first[0].value[0] != first[0].value[1] || first[0].value[1] != first[1].value[0], "the noise varies");
+    TmEntropy bytes = tm_entropy(&pf, PF_AT(0), TM_ENTROPY_BYTES);
+    CHECK(bytes.value[0] <= 0xFF && bytes.value[3] <= 0xFF, "bytes are bytes");
 
     /* the pads, as the driver sets them */
     CHECK(in_ready(&pf, PF_AT(0)), "the controllers are read");

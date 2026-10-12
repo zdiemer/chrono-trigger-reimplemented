@@ -2490,97 +2490,131 @@ the endings' scenes' line effects (`$C6:E241`, `$C6:E27E`), which call the
 scene engine's unported `$C3:000E`; and the dactyl's flight, which
 `field-65m-bc-dactyl.ctm` (route `dactyl_65m_bc`) reaches now.
 
-### Phase 3, the scene program: the shared endings (`$7E:8538`-`$7E:8E94`, `$7E:8983`)
+### Phase 3, the scene program: the star field, the captions and the random numbers (`$7E:5777`-`$7E:5854`, `$7E:64CA`, `$7E:9897`-`$7E:9AC0`, `$7E:9B4F`, `$7E:3870`, `$C3:02DD`)
 
-The fourth chunk of bank `$7E`, after the staff roll (history file, "Phase
-3, the scene program: the staff roll", for the one before).
+The fifth chunk of bank `$7E`, after the shared endings (history file, "Phase
+3, the scene program: the shared endings", for the one before).
 
-**How it was chosen.** PLAN.md's next: the endings that share `$7E:8538`.
-Ranked by `tools/fallbacks.py --by routine` over the Beyond Time ending, the
-group was the setup (408 bytes), the main loop's scaling `$7E:8930` (refused
-by the idle entry, 121,332 instructions, 1.5 million passes), the picture's
-placing `$7E:8850` (182,861), its upload `$7E:89C0` (65,439) and frame
-`$7E:891B` (38,203), and the scripts' scene routines and vblank tasks
-between them; about 1.9 KiB. The helpers from `$7E:7FC4` and the routines
-at `$7E:8A01`-`$7E:8B51` no movie reaches and are left for a movie or a
-chunk of their own; `$7E:8EA8` and `$7E:9E7B` on were the staff roll's.
+**How it was chosen.** The frame tasks `scene_run_frame_tasks` and
+`scene_run_vblank_tasks` still handed to the original, ranked by
+`tools/fallbacks.py --by routine` over the reference play: the stars' flight
+`$7E:579B` (27.2 million instructions, all of it the telepod ending's), the
+captions' drawing `$7E:64CA` (11.9 million), the Beyond Time ending's star
+field `$7E:999C` (3.5 million), the sprites' last group `$7E:3870` (2.9
+million, every movie: the title runs it), the window shapes' edges `$C3:1025`
+under the swept window `$7E:9A0C` (2.7 million) and the captions' timing
+`$7E:9B4F`. The stars waited on TODO.md's "randomness and parity": the stir
+`$C3:02DD` mixes the beam position into the program's seed, and the routines
+that hand it their registers stayed the original's with it. So the stir came
+first.
 
-**What it is.** `scene/endings.c`. The setup (`scene_ending_set_up`) loads
-the captions' letters (2-bit tiles widened to 4, `$7E:66B0`, ported inline),
-the regrouping code for the zooming picture, the Mode 7 ground (its pixels,
-its name table in two halves, each row followed by 64 empty tiles,
-`$7E:37CA`, and blanked past it), mode 10's picture laid out from tile numbers
-(`$7E:860C`) with its vblank task added, the ground's line tables and the
-scene's colors, and picks the two scripts by mode (modes 10 and 11 start the
-captions' text). The zooming picture is a module: two shapes (32 rows as
-eight sprites, 64 as sixteen), the main loop's scaling (`$7E:8930`) handing
-the animation's frame to the scaler at the zoom channel 1 holds unless the last
-picture waits to be sent, its gathering after the scaler returns (`$7E:8983`,
-a new entry: the list cut to the sprites the picture covers at its zoom), its
-placing round channel 1's point with the window table round it (`$7E:8850`,
-a frame and a vblank task), its frame (`$7E:891B`) and its upload
-(`$7E:89C0`). The scripts' scenes: a new picture (`$7E:87CC`) or a picture
-over a new ground (`$7E:8790`), its frames mirrored into place as the race's
-are (`scene_mirror_rows`); the stars (`$7E:8BAF`); a Mode 7 picture
-(`$7E:8C14`, through the title's name-table loader, now a C call); the
-credits made ready (`$7E:8CD0`: a 4x4 pattern of tiles across a 32x32 map,
-mode 15 instead going on with its script) and shown (`$7E:8D56`, the staff
-roll's blanking with its own site for the in-front fill); and the last
-scene's colors and window (`$7E:8DF3`, `$7E:8E44`), with BG2's scroll in the
-credits (`$7E:8E88`). Shared with the race and the staff roll and made C
-calls: the resource copy `$7E:36AA` and the palette's `$7E:38AF` (screen.c),
-the plane's halves `$7E:8752` and `$7E:37A6`, the mirroring `$7E:3ED3`, the
-regrouping `$7E:B574` and the letters' colors `$7E:8CB2`. `attract_frame_pass`
-takes the passes that name the endings' scaling as it took the race's.
-Left at the edge, as call-outs: the unpacker and a script's first step as in
-the race, the stars' scatter and the captions' first timing (`$7E:5777`,
-`$7E:9BB8`, the program's random numbers, TODO.md), and the Mode 7 picture's
-tiles' expansion (`$7E:5E3C` through `$7E:5EF8`, the call-out's set resting on
-a `--poison-dc` run since the loop's call is patched at run time).
+**The random numbers, and how they are checked.** `scene/random.c`. A draw
+(`scene_draw_random`) stirs a seed with where the beam is, the frame
+counter, the scene's call cells, a salt and the draw before it: a byte or a
+word as the original's 8- and 16-bit callers draw, and one bit more, the bit
+its last sum spilled (`SceneDraw`), which the next draw starts from, turned
+over by a bit. The stir is a ones'-complement sum -- what one step spills
+over the top comes back in at the bottom of the next, and a value is taken
+away by adding its complement -- which is the original's mix exactly, so
+given the same noise it draws the same numbers. `tm_entropy` changed to give
+the four values it stirs (`TmEntropy`, bytes or words): the SNES backend
+reads them as `$C3:02DD` does -- `$2137`, whose read latches the counters and
+gives no counter but the bus's last byte (`$21`, and for a word a byte of
+sprite memory), then `$213C` and `$213D` twice -- and in shadow mode waits
+for the original's latch (`native_await_latch`), so the port reads the beam
+the original latched; a host draws all four from its seeded generator. The
+call is shaped by this one stir, its only caller. **The choice: exact
+reproduction, compared by shadow mode**, not `--native on` alone as TODO.md
+suggested: every star placed, every drift and the seed itself are compared
+on every call, where the shipping mode would only show the stars look
+random. What it cost: a star's byte sums each take in the bit the sum
+before spilled (`sum_after`, nine-bit sums), as the original's do -- for a
+negative drift, speed or offset that bit is nearly always set -- and the
+salt is what the original has at hand (the task's slot; 4 after the
+sprites' last group). The runtime needed one change: an entry the original
+reaches while a port waits for its latch is not compared on its own
+(`runtime/port/native.c`), since only the innermost comparison watches the
+latches and the nested one hid them (the scatter, registered, inside the
+setups that run it inline); such calls show on the entry's line as `in a
+latch wait N (not compared)`, and their guards don't run. Over the library
+that is the scatter's 2 calls and, inside the captioned field's flight, the
+flight's and the last group's 557 each. The stir's other caller, the noise
+effect `$C3:01E4`, is still the original's.
 
-**The registers.** Settled from liveness before the logic: the scripts'
-routines leave Y and V, read after the call command; each leaves Y where the
-original's last block move or copy left it (named in the wrapper) and V as
-the last call-out did, or clear after the mirroring's last step. The frame
-and vblank tasks leave A's high byte and Y as the sprite lists' code does
-(scaffolding), the scaling the carry as it came and the gathering the carry
-of its last compare (the picture under half its size). The script routines
-keep the calling page and a byte of the bank on the stack, as the original
-does, under their call-outs; they run with 8-bit A between.
+**What it is.** `scene/stars.c`: the field of 128 stars the staff roll and
+the shared endings fly through, each a place across and down and a depth
+(`scene_stars`, `scene_star_depths`, new in the map over the tilemap
+buffer). The scatter (`$7E:5777`, now a C call from both setups, and an
+entry), the flight (`$7E:579B`: each star moved by the field's speed, one
+that leaves coming back at a new random place, drifted, and drawn as a
+sprite in one of sixteen sizes at its place over its distance, the nearer
+half in front of the layers unless the staff roll's patch puts all behind),
+the Beyond Time ending's field after its captions (`$7E:999C`, which first
+puts the rest of the captions' last group of sprites off the screen) and
+The End's drift (`$7E:9897`, `$7E:98AC`, `$7E:98E3`: across, down and the
+speed each hold a random time, then take a new value; the field never
+stands still). `scene/captions.c`: the captions' text drawn as sprites
+(`$7E:64CA`: letters 16x16 or two 8x8, spaces, lines, a new place, which
+the program keeps in two operands of its own code, new in the map) and
+their turns (`$7E:9B4F`: a caption waits for the screen to come up, stays,
+fades out over its last 32 frames, and the gap before the next fades it in,
+through a new `palette_start_fade_to_black`). In `scene/sprites.c`, the
+sprites' last group hidden (`$7E:3870`), a sprite at the cursor and one at
+an entry. In `scene/endings.c`, the last scene's swept window (`$7E:9A0C`):
+the four-sided window drawn by the field's window shapes (whose entry
+`$C3:0EFA` is now registered as well as `$C3:0011`, its guard taking the
+endings' table in bank `$7E` past low RAM), the rider sprite list through a
+call-out to `$7E:3A97`, the corners moved, and BG2 drifting a line every
+other frame by `tm_odd_frame` (`$7E:9AB3`, the parity TODO.md listed).
 
-**What shadow mode and fuzzing found.** Over the 35 movies every call matches; only `endings-beyond-time` reaches
-the group, in modes 11 and 14: the setup 2, the main loop's scaling 1,547,154
-(901 interrupted), its gathering 3,025 (1,020 interrupted), the placing 5,375,
-the frame 3,473, the upload 6,698, BG2's scroll 3,211, the picture's loads 1
-and 2 (one interrupted), the stars 1 and the Mode 7 picture 1 (both
-interrupted), the credits' preparation, their screen, the last colors and the
-last screen 1 each, and `attract_frame_pass` 1,547,826 compared. Shadow mode found the
-script routines' 8-bit A at their call-outs, the rows' counts the plane's
-padding and doubling leave on their page, the data bank the darkening's block
-move leaves before the first script step (and the one the captions' timing
-leaves at the setup's return), and the task lists the stops clear (the
-list at `$0920`, not the frame's copy). Fuzzed seed 1 from a state in the ending (`tools/fuzz_routines.toml`,
-`ending`), the program kept: the setup in all four modes 300 (202 compared,
-98 refused by the guard where the random vblank list had no room for mode
-10's task), the scripts' scenes 300 each, the frame and vblank tasks, the
-scaling, the gathering and the endings' pass 20,000 each; 0 mismatched. The
-expansion's call-out, `--poison-dc`, 300 states and 1,200 call-outs
-scrambled, 0 mismatched. Fuzzing found the
-sprites' Y offset's high byte the placing clears (the movie's is 0 already)
-and the Y mode 15's credits leave (past the task list the stop cleared). Only
-fuzzing reaches mode 10 (its mosaic and captions) and mode 15 (no credits):
-the movie runs modes 11 and 14.
+**The registers.** Settled from liveness first: a frame task leaves A's
+high byte and Y as the original (the NMI's song send may read them), worked
+out in the wrappers from the state; the scatter leaves the overflow of its
+last draw, which the scripts' interpreter may read
+(`tools/v_readers.py`); `$C3:0EFA`'s Y is read after the swept window, so
+the window shapes' entry leaves where the original's fill leaves it;
+`$7E:3870` leaves X at 4, which the flight after it stirs in.
+
+**What shadow mode and fuzzing found.** Over the 35 movies every call matches and none is refused: in
+`endings-telepod-lavos` the flight 3027, The End's drift 2468 and its start
+1, the staff roll's setup 1; in `endings-beyond-time` the flight 227, the
+field after the captions 784 (1 interrupted), the captions' turns 8605 and
+their drawing 6711, the swept window 785; the sprites' last group 79,861
+over every movie; the window shapes' entry at its start 3457 (the endings'
+and the Black Omen's searchlights, which reach it too). The scatter as an
+entry is never called: both setups run it inline. Shadow mode found the
+nested comparison hiding the latches, the carry `$7E:999C` hands the flight
+(always set) and its salt (4 where it made room), the farthest star whose
+distance wraps to 0 (the divider's `$FFFF`; a division by zero in the first
+port), and the carry and X `$7E:3870` leaves. Fuzzed seed 1 (`tools/fuzz_routines.toml`, the `staff_roll` and `ending`
+states, the program kept), 0 mismatched: the flight, the field after the
+captions, the drift's start and frames, the last group 20000 each, the
+flight's loose variant 43 compared (19957 turned away: a first entry off a
+star's place, or another branch), the scatter 2000, the captions' drawing
+16703 and turns 18363 compared (the rest turned away: text whose letters
+don't fit the table), the swept window 19595 and the window shapes at their
+start 19594 (the rest turned away: a corner on the last line), the two
+setups 300 each. Fuzzing found the data bank the captions' drawing goes
+back with (its pushed word's other byte, 0), and the original's fill of a
+window whose corner is on the last line, which runs round bank `$7E` into
+low RAM: the guards turn those away. Only fuzzing reaches the scatter alone,
+a caption's text from anywhere in it, and the sweep's every corner.
 
 **Numbers.** Over the reference play the code run in place of hand ports
-(the baseline's lines summed) fell from 29.8 KiB and 140.5 million
-instructions to 27.7 KiB and 139.8 million; the scene program's from 8.2 KiB
-to 6.2 KiB and 61.4 to 60.8 million (its native share from about 56% to about
-67%). One line is new: `$7E:3023`, the main loop's test after the passes the
-endings' pass doesn't take (8 bytes, 29,631 instructions), filed under the
-pass's port where the boot's call held them before (15,785 passes then,
-10,448 now). Calibrated: the new rows (`--drifted`, and the setups by hand
-from the measure); the setup and the two picture loaders carry worst-error
-timing exceptions, as the race's setup does.
+fell from 24.8 KiB and 139.3 million instructions to 24.1 KiB and 90.5
+million; the scene program's from 7.2 KiB and 60.3 million to 4.6 KiB and
+14.2 million (its native share from about 67% to about 75%), the scene
+engine's from 1.0 KiB and 5.9 million to 0.6 KiB and 2.6 million. Calibrated:
+the new rows, and the two setups that run the scatter inline, timed as the
+scatter (whose rate is its measured original/native ratio, since no movie
+calls it alone), and the field's entry, whose wrapper now works out the Y
+it leaves. The window shapes' entry at its start carries a worst-error
+exception, as the field's entry does: the original steps an edge's run a
+pixel at a time and the port a line at a time, so the error follows the
+shapes' widths (54% on average, at most 80,345 clocks). In the shipping
+mode, the movies and the routes run 21.5 KiB and 190 million instructions
+of the original's code in place of hand ports, from 22.1 KiB and 342
+million.
 
 ### Phase 4a, timing: the frame's budgets and the menus' tasks (`$C0:59D9`-`$C0:5A92`, `$C0:CA76`-`$C0:CAD8`, `$C2:81B9`-`$C2:8247`)
 
@@ -2856,8 +2890,8 @@ routine and left the loop's test after it to the original. A second entry at
 scaling: it calls the scaling through the machine (it stops in the scaler's
 code, which takes frames) and makes the test. The idle entry keeps the other
 passes: the empty routine's, and then the endings' own scaling (`$7E:8930`,
-which the pass took over once it was a port: "Phase 3, the scene program:
-the shared endings"). For the two entries at one address, shadow mode no longer
+which the pass took over once it was a port: history file, "Phase 3, the
+scene program: the shared endings"). For the two entries at one address, shadow mode no longer
 considers the entries after an idle entry it skips: the original runs that
 pass, and a later entry's guard turning it away is not a refusal.
 

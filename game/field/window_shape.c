@@ -21,6 +21,7 @@
 
 #include "field/bridge.h"
 #include "field/scratch.h"
+#include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
 #include "vars.h"
@@ -233,21 +234,37 @@ static void rasterize_quad(GameState *g)
     ORIGINAL_EFFECT(leave_for_original(g, last, fill_length, right_side_found));
 }
 
-/* The guard: the table where the game puts it, in bank $7F far enough from
- * the bank's end that neither the table nor the fill leaves it, and the right
- * side starting on a line. Where else a table can be, the fill (which can
- * repeat 64 KiB) runs over the stack the original's registers are saved on,
- * and the port writes the table but doesn't reproduce the registers that
- * would come back from it. The game points the table at
- * field_window_edge_lines or its copy. */
-enum { TABLE_BANK = 0x7F, TABLE_END = 0xFC00, LINES = 0x100 };
+/* The guard: the table where the game puts it, in bank $7F, or in bank $7E
+ * past low RAM, far enough from the bank's end that neither the table nor
+ * the fill leaves it, and the right side starting on a line. Where else a
+ * table can be, the fill (which can repeat 64 KiB) runs over the stack the
+ * original's registers are saved on, and the port writes the table but
+ * doesn't reproduce the registers that would come back from it. The field
+ * points the table at field_window_edge_lines or its copy; the shared
+ * endings' swept window ($7E:9A0C) at a table of its own in bank $7E. */
+enum { TABLE_BANK = 0x7F, LOW_TABLE_BANK = 0x7E, PAST_LOW_RAM = 0x2000, TABLE_END = 0xFC00, LINES = 0x100 };
 
 bool field_window_shape_starts_on_a_line(const GameState *g) { return field_window_shape_right_start(g) < LINES; }
 
+/* In bank $7E the lines below the right side are filled only where the right
+ * side starts above the last line: from the last, the fill runs round the
+ * bank into low RAM. The right side starts at a corner, or where it was. */
+static bool fill_stays_in_its_bank(const GameState *g)
+{
+    if (field_window_shape_right_start(g) >= LAST_LINE)
+        return false;
+    for (unsigned c = 0; c < CORNERS; c++)
+        if (corner(g, c).y >= LAST_LINE)
+            return false;
+    return true;
+}
+
 bool field_window_shape_fits(const GameState *g)
 {
-    return field_window_shape_table_bank(g) == TABLE_BANK && field_window_shape_table_address(g) < TABLE_END &&
-           field_window_shape_starts_on_a_line(g);
+    uint8_t bank = field_window_shape_table_bank(g);
+    uint16_t address = field_window_shape_table_address(g);
+    bool placed = bank == TABLE_BANK || (bank == LOW_TABLE_BANK && address >= PAST_LOW_RAM && fill_stays_in_its_bank(g));
+    return placed && address < TABLE_END && field_window_shape_starts_on_a_line(g);
 }
 
 bool field_window_shape_table_in_place(Snes *s)
@@ -264,11 +281,29 @@ void field_draw_window_shape(GameState *g)
     rasterize_quad(g);
 }
 
-/* Entered through the JMP at $C3:0011 with 16-bit X; it sets its own direct
- * page and restores the caller's, and nothing it leaves in the registers is
- * read after (the entry's don't-care set). */
+/* Where the original's fill leaves Y: past the last line it copied down,
+ * of the lines above the top where there are any, or else of those below the
+ * right side; past the first of those where there are none. */
+uint16_t field_window_shape_leaves_y(const GameState *g)
+{
+    uint16_t table = field_window_shape_table_address(g), right_start = field_window_shape_right_start(g);
+    uint16_t top = field_window_shape_top(g);
+    uint16_t below = (uint16_t)((LAST_LINE - right_start) * LINE_BYTES - 1);
+    if (top)
+        return (uint16_t)(table + LINE_BYTES + top * LINE_BYTES);
+    if (below)
+        return (uint16_t)(table + LINE_BYTES);
+    return (uint16_t)(right_start * LINE_BYTES + table + LINE_BYTES);
+}
+
+/* Entered through the JMP at $C3:0011, or at $C3:0EFA itself (the shared
+ * endings' swept window), with 16-bit X; it sets its own direct page and
+ * restores the caller's. Of what it leaves in the registers, only Y is read
+ * after, by the swept window's task, which leaves its list with it. */
 void field_rasterize_quad(Snes *s)
 {
-    field_draw_window_shape(state_of(s));
+    GameState *g = state_of(s);
+    field_draw_window_shape(g);
+    ORIGINAL_EFFECT(s->cpu.y = field_window_shape_leaves_y(g));
     m_rtl(s);
 }
