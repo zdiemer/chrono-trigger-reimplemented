@@ -21,6 +21,7 @@
 #include "battle/entries.h"
 #include "battle/frame.h"
 #include "battle/screen_data.h"
+#include "core/tile_animation.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/input.h"
@@ -277,8 +278,7 @@ void battle_irq_after_hblank(Snes *s)
         m_set_a8(s, 0);
         m_set_nz8(s, 0);
         m_push8(s, s->cpu.p);
-        m_jsl_dc(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, DC_A | DC_X | DC_Y | DC_N | DC_Z);
-        if (!battle_widths_m8_x16(s))
+        if (!battle_run_long(s, 0xD1FEDA, TILE_ANIMATION_UPLOADS, tile_animation_upload) || !battle_widths_m8_x16(s))
             return;
         s->cpu.p = m_pull8(s);
         if (s->cpu.p & CPU_FLAG_X) {

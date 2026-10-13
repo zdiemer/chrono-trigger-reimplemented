@@ -19,6 +19,7 @@
 #include "field/battle_return.h"
 #include "field/field.h"
 #include "event/chests.h"
+#include "event/event.h"
 #include "field/dialog_window.h"
 #include "field/map.h"
 #include "field/frames.h"
@@ -31,6 +32,7 @@
 #include "core/console.h"
 #include "core/display.h"
 #include "core/input.h"
+#include "core/palette.h"
 #include "field/battle_start.h"
 #include "field/main_loop.h"
 #include "field/sprites.h"
@@ -267,7 +269,8 @@ static bool fade_out(Snes *s, FadeOut way)
     GameState *g = state_of(s);
     while (field_dims_a_step(g))
         if (!field_run(s, fade_sites[way].walk, WALK, READS_NOTHING, field_walk_the_leader, on_the_field_page(s, false)) ||
-            !bridge_call_long(s, fade_sites[way].palettes, PALETTE_ANIMATION, READS_NOTHING, on_the_field_page(s, false)) ||
+            !field_run_long(s, fade_sites[way].palettes, PALETTE_ANIMATION, READS_NOTHING, palette_animate,
+                            on_the_field_page(s, false)) ||
             !call(s, fade_sites[way].wait, FIELD_FRAME_WAIT))
             return false;
     return true;
@@ -338,8 +341,8 @@ static void go_on_on_the_field(Snes *s)
     if (!field_run(s, 0xC00324, TILE_LOOKS, READS_NOTHING, field_load_tile_looks, on_the_field_page(s, false)) ||
         !walk_a_frame(s, 0xC00327) ||
         !field_run(s, 0xC0032A, BG3_TILE_LOOKS, READS_NOTHING, field_load_bg3_tile_looks, on_the_field_page(s, false)) ||
-        !call(s, 0xC0032D, SCRIPT_UNPACKED) ||
-        !bridge_call(s, 0xC00330, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, on_the_field_page(s, false)) ||
+        !field_run(s, 0xC0032D, SCRIPT_UNPACKED, READS_NOTHING, field_load_the_script, on_the_field_page(s, false)) ||
+        !field_run(s, 0xC00330, MAP_SCRIPT_STARTS, READS_THE_OVERFLOW, event_run_map_script, on_the_field_page(s, false)) ||
         !field_run_on_page(s, 0xC0033C, CHESTS_MARK_THE_MAP_ENTRY, READS_NOTHING, field_mark_the_chests,
                            FIELD_LAYERS_PAGE) ||
         !walk_a_frame(s, 0xC00340) ||

@@ -12,6 +12,7 @@
  * running (field/field.h, field_effect_status) until they arrive. */
 #include "event/bridge.h"
 #include "core/display.h"
+#include "core/palette.h"
 #include "field/field.h"
 #include "field/layers.h"
 #include "field/screen_effects.h"
@@ -381,10 +382,10 @@ static void end_the_field_for_a_scene(Snes *s, uint8_t scene)
 {
     GameState *g = state_of(s);
     BridgeMachine as = event_machine(s, false);
-    keep_byte(g, KEPT_FOURTH, scene);
+    set_field_scene_to_start(g, scene);
     while (field_dims_a_step(g)) {
         if (!field_run(s, 0xC03FC3, WALK_THE_LEADER, READS_NOTHING, field_walk_the_leader, as) ||
-            !bridge_call_long(s, 0xC03FC6, PALETTE_ANIMATION, READS_NOTHING, as) ||
+            !field_run_long(s, 0xC03FC6, PALETTE_ANIMATION, READS_NOTHING, palette_animate, as) ||
             !field_wait_frame(s, 0xC03FCA, FRAME_WAIT, READS_NOTHING, as))
             return;
     }

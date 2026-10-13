@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 287 files, 117 of 87,175 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 288 files, 117 of 88,201 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -485,10 +485,9 @@ after the list's move returns, which leaves them as none of its paths work
 out yet (TODO.md).
 
 **`$C0`: the field and events**, 3% left after seventeen chunks, and 98% of
-what real play runs of it native. What is left is the map's own script's
-start (`$C0:595C`) and the script's unpacking (`$C0:56D4`), which the
-objects' setup and the loadings call out to, the switch's sound
-(`$C0:1B90`), and waits the timing service takes over where their callers
+what real play runs of it native. What is left is a character's start
+(`$C0:597D`), which the menus call, the switch's sound (`$C0:1B90`), and
+waits the timing service takes over where their callers
 are ports (TODO.md, "Frame waits still made on the machine"). Every event
 command has a row; event's bridges still call the unpacker (`$C3:0002`,
 TODO.md).
@@ -508,11 +507,12 @@ are the endings that share `$7E:8538` (modes 10, 11, 14 and 15): their
 setup, the picture the main loop zooms, and the scenes their scripts start
 (history file, "Phase 3, the scene program: the shared endings"); and so are
 the star field, the captions and the last scene's swept window, with the
-program's stirred random numbers as game code (REIMPLEMENTATION.md, "Phase 3,
-the scene program: the star field, the captions and the random numbers").
-**Next**, by what the library reaches: the title's frame tasks, which every
-movie that starts at the title runs as the original's (`$7E:5D71`, the
-pendulum's `$7E:5BCF`, the logo's `$7E:5D01`-`$7E:5D32`); the Beyond Time
+program's stirred random numbers as game code (history file, "Phase 3, the
+scene program: the star field, the captions and the random numbers"); and so
+are the program's start and end and the title from its setup to the button
+that ends it (REIMPLEMENTATION.md, "Phase 4a, the native frame: the title").
+**Next**, by what the library reaches: the title's scripts' routines and fades
+(below, "The native frame"); the Beyond Time
 ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
 Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
 signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
@@ -525,11 +525,9 @@ reaches them: none does (the title left idle is the likeliest way in), so a
 port there would rest on fuzzing alone.
 
 **What `$FD` has left** after wave 1 (docs/history/reimplementation-waves.md, "Phase 3,
-wave 1: bank `$FD`") and the time warp (`game/warp/`, REIMPLEMENTATION.md):
-the location's tile animation loader `$FD:DE98`, blocked on the work RAM port
-writes through `$217F` (TODO.md, "P1 leftovers"); and of the warp, its line
-handler `$FD:DE87` (empty, and never enabled) and a palette turn `$FD:DD1D` no
-code reaches. The battle's routines in the bank go with `$C1` (above).
+wave 1: bank `$FD`"), the time warp (`game/warp/`) and the location's
+animated tiles (`core/tile_animation.c`): the warp's line handler `$FD:DE87`
+(empty, and never enabled) and a palette turn `$FD:DD1D` no code reaches. The battle's routines in the bank go with `$C1` (above).
 
 REIMPLEMENTATION.md's "What drafts don't do yet" lists where the draft tool still falls
 short, starting with D and DB where only interrupts reach.
@@ -556,10 +554,21 @@ by an audit; the fourth is the program itself.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
-  and main loop: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
-  to frame 2 and stops at `$C0:7084`, in the field's code after its first
-  start has asked the menus about the saves (`$C2:8004`, a port now). The meter moves far past that only once the title's scene
-  program (`$7E`) is ported.
+  and main loop, and the scene program's start and the title: `ct_play
+  --generated off --interpreted stop` (PLAYING.md) runs the field's first
+  start, the program's start into the title, the title's setup and its frames
+  -- the pendulum, the logo's sweep, the sprites, the ripple -- to frame 827,
+  and stops at `$7E:37F3`, where channel 0's script calls one of the
+  program's routines (REIMPLEMENTATION.md, "Phase 4a, the native frame: the
+  title"). Over 3,000 frames from power-on `--interpreted log` lists 536
+  addresses still interpreted, none of them in `$C0` or `$FD`: the title's
+  program (`$7E`, 342), the scene engine's curtain (`$C3`, 150) and the
+  menus' attract scene that follows the title (`$C6`, 41; `$C2`, 3). Next: the
+  script's routine call as a C table of the routines the title's scripts call
+  (the ripple's start `$7E:5DA7`, already C, and the palette's fades to black
+  and to white `$7E:5DB4`, `$7E:5DE9`, which need a fade that takes its mode),
+  then the fade tasks (`$7E:347A`-`$7E:34E3`), the rest of the title's program
+  and the scene engine's curtain in `$C3`.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

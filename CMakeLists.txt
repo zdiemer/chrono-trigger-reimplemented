@@ -237,6 +237,7 @@ add_library(ct_game STATIC
   game/scene/guards.c
   game/scene/math.c
   game/scene/perspective.c
+  game/scene/program.c
   game/scene/race.c
   game/scene/race_camera.c
   game/scene/race_drawing.c

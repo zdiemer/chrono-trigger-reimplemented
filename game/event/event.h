@@ -20,6 +20,8 @@ void event_run_init_scripts(Snes *s);
 void event_run_object_script(Snes *s);
 bool event_has_objects(Snes *s);
 bool event_runs_an_object(Snes *s);
+void event_run_map_script(Snes *s);
+bool event_map_script_can_run(Snes *s);
 
 /* The commands, by their rows (event/entries.c): entry name, opcode. The
  * operations' entries run the command by its row; the bridges' entries are the

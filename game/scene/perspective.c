@@ -136,7 +136,7 @@ static Turned turned_camera(GameState *g, SceneChannel ch)
     SceneProgramPage page = scene_program_channel(ch);
     uint16_t turn = plane_register(g, ch, PLANE_TURN);
     uint8_t height = (uint8_t)plane_register(g, ch, PLANE_HEIGHT);
-    int16_t cos = race_cosine(g, turn), sin = race_sine(g, turn);
+    int16_t cos = scene_cosine(g, turn), sin = scene_sine(g, turn);
     Turned t;
     t.along = (uint16_t)scene_multiply16(g, page, magnitude(cos), height);
     t.across = (uint16_t)scene_multiply16(g, page, magnitude(sin), height);

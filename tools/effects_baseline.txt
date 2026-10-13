@@ -123,6 +123,7 @@ game/field/line_effects.c keep_wave_line field_direction event_searchlight_work 
 game/field/line_effects.c keep_wave_line field_direction field_direction
 game/field/line_effects.c wave_line_kept field_direction event_searchlight_work # the direction routine's cells, which it and the wave keep write before they read; event $FE leaves its own last values there for shadow mode
 game/field/line_effects.c wave_line_kept field_direction field_direction
+game/field/main_loop.c field_start_the_scene field_scene_to_start event_scratch # the scene number event $FF's end of the field asks for, which it writes plainly (event/screen.c) before every stop here, the only way in
 game/field/motion.c field_direction_to_target field_own_tile_x event_searchlight_work only # the direction routine's cells, which it and the wave keep write before they read; event $FE leaves its own last values there for shadow mode
 game/field/motion.c field_direction_to_target field_own_tile_x field_own_tile only
 game/field/motion.c field_direction_to_target field_own_tile_y event_searchlight_work only # the direction routine's cells, which it and the wave keep write before they read; event $FE leaves its own last values there for shadow mode

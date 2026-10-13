@@ -20,6 +20,8 @@
 #include "scene/scene.h"
 
 #include "charge.h"
+#include "core/palette.h"
+#include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/timing.h"
 #include "platform/video.h"
@@ -50,13 +52,17 @@ static void stop_display(Platform *pf)
     vid_set_display(pf, PF_AT(0x7E3035), &(VidDisplay){ .blank = true });
 }
 
-/* Stops at the call that follows, which the program has not been taken apart
- * past, with 8-bit A. */
+/* Then the sound put back to normal (scene/sound.c), which waits on the sound
+ * driver and so returns to the program's end where it waits (an entry of its
+ * own), and the game handed back to the field (scene/program.c). */
+enum { SOUND_CALL = 0x7E3038, SOUND_BACK_TO_NORMAL = 0x7E3177, THE_SOUND_READS_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
 void scene_program_restart(Snes *s)
 {
     stop_display(m_platform(s));
     s->cpu.p |= CPU_FLAG_M;
-    m_stop_at(s, 0x7E3038, DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C);
+    if (scene_run(s, SOUND_CALL, SOUND_BACK_TO_NORMAL, THE_SOUND_READS_NOTHING, scene_sound_back_to_normal))
+        scene_hand_back_to_the_field(s);
 }
 
 /* ---- The program's work RAM cleared --------------------------------------------------------- */
@@ -78,7 +84,7 @@ enum { DIRECT_PAGE_BYTES = 0x0100, FROM_THE_STACK = 0x000900, FROM_THE_TASKS = 0
  * multiplier keeps afterwards. The second transfer keeps the first one's mode,
  * destination and bank, so it programs only its source and size. Returns
  * whether it was the title's shorter clear. */
-static bool clear_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
+bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
 {
     vid_set_mode7(pf, PF_AT(0x7E3096), &(VidMode7){ .a = (int16_t)(matrix_left << 8 | matrix_left) }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E309D), &(VidMode7){ .b = 0 }, VID_M7_MATRIX_B);
@@ -95,7 +101,7 @@ static bool clear_work_ram(GameState *g, Platform *pf, uint8_t matrix_left)
  * page; the longer one stops at $7E:30E9, where the program goes on. */
 void scene_clear_work_ram(Snes *s)
 {
-    bool shorter = clear_work_ram(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
+    bool shorter = scene_clear_the_work_ram(state_of(s), m_platform(s), (uint8_t)s->cpu.a);
     s->cpu.d = 0x0000;
     if (!shorter) {
         m_stop_at(s, 0x7E30E9, DC_A | DC_X | DC_Y | DC_C);
@@ -128,7 +134,7 @@ static const VidScreen first_screen = {
 
 // $7E:30F9
 /* Set first_screen up, with the sprite cursor at the start of the high table. */
-static void init_video(GameState *g, Platform *pf)
+void scene_set_up_first_screen(GameState *g, Platform *pf)
 {
     set_scene_sprite_high_pointer(g, SCENE_SPRITE_HIGH_TABLE);
     vid_apply_screen(pf, PF_AT(0x7E30F9), &first_screen);
@@ -138,7 +144,7 @@ static void init_video(GameState *g, Platform *pf)
  * scene's page again; A's high byte ends 0, with 8-bit A and 16-bit X. */
 void scene_init_video(Snes *s)
 {
-    init_video(state_of(s), m_platform(s));
+    scene_set_up_first_screen(state_of(s), m_platform(s));
     s->cpu.p = (uint8_t)((s->cpu.p | CPU_FLAG_M) & ~CPU_FLAG_X);
     s->cpu.a = 0x0000;
     m_rts(s);
@@ -170,6 +176,24 @@ void scene_upload_sprites(Snes *s)
     m_rts(s);
 }
 
+// $7E:380B
+/* The vblank task that sends the frame's sprites: the frame's last group of
+ * four finished (scene/sprites.c), then the table sent. */
+void scene_finish_and_upload_sprites(Snes *s)
+{
+    GameState *g = state_of(s);
+    TIMED_AS(g, 0x7E3870, scene_hide_rest_of_group(g));
+    upload_sprites(g, m_platform(s));
+    m_rts(s);
+}
+
+/* The task's call of the group's end, and the upload after it. */
+bool scene_finish_and_upload_sprites_present(Snes *s)
+{
+    return m_code_matches(s, 0x7E380B, 3, 0xC2A0DA17CDCB993Full) && scene_hide_rest_of_group_present(s) &&
+           scene_upload_sprites_present(s);
+}
+
 bool scene_clear_sprite_table_present(Snes *s) { return m_code_matches(s, 0x7E3843, 45, 0x36CEE4DC10A522A8ull); }
 
 /* A Y below the picture, where a sprite shows nowhere: the product of 1 times
@@ -179,7 +203,7 @@ enum { BELOW_THE_PICTURE = -32 };
 // $7E:3843
 /* Hide every sprite: every byte of the sprite table set to a Y below the
  * picture, for the scene to place its sprites again. */
-static void clear_sprite_table(Platform *pf)
+void scene_hide_every_sprite(Platform *pf)
 {
     vid_set_mode7(pf, PF_AT(0x7E3845), &(VidMode7){ .a = 1 }, VID_M7_MATRIX_A);
     vid_set_mode7(pf, PF_AT(0x7E384D), &(VidMode7){ .b = BELOW_THE_PICTURE * 256 }, VID_M7_MATRIX_B_HIGH);
@@ -190,7 +214,7 @@ static void clear_sprite_table(Platform *pf)
 
 void scene_clear_sprite_table(Snes *s)
 {
-    clear_sprite_table(m_platform(s));
+    scene_hide_every_sprite(m_platform(s));
     m_rts(s);
 }
 
@@ -207,6 +231,43 @@ void scene_upload_palette(Snes *s)
 {
     scene_send_palette(m_platform(s));
     m_rts(s);
+}
+
+/* ---- The palettes' animations, a frame at a time ---------------------------------------------- */
+
+/* The task reads the multiplier's operands into its first scratch word before
+ * the animations, which multiply, and writes them back after. The registers
+ * can't be read: both bytes read back as the bus last had them, the read's own
+ * address's high byte, and the write multiplies them. Scaffolding: the
+ * multiplier and the cell left as the original leaves them. */
+enum { MULTIPLIER_READ_BACK = 0x4242 };
+
+static void put_the_multiplier_back(Snes *s, uint16_t kept)
+{
+    GameState *g = state_of(s);
+    set_scene_call_first(g, scene_program_own(), kept);
+    hw_set_multiplicand(g, (uint8_t)kept);
+    (void)hw_multiply_by(g, (uint8_t)(kept >> 8));
+}
+
+/* The animations (core/palette.c), through bank $FD's jump to them, read none
+ * of the registers, and leave Y past their slots for the next task. */
+enum { ANIMATIONS_CALL = 0x7E3801, PALETTE_ANIMATIONS = 0xFDFFF7, THE_ANIMATIONS_READ_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
+
+// $7E:37FA
+/* A frame task: the palettes animate a frame. */
+void scene_animate_the_palettes(Snes *s)
+{
+    m_set_flag(s, CPU_FLAG_M, true);
+    if (!scene_run_long(s, ANIMATIONS_CALL, PALETTE_ANIMATIONS, THE_ANIMATIONS_READ_NOTHING, palette_animate))
+        return;
+    ORIGINAL_EFFECT(put_the_multiplier_back(s, MULTIPLIER_READ_BACK));
+    m_rts(s);
+}
+
+bool scene_animate_the_palettes_present(Snes *s)
+{
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull);
 }
 
 /* ---- The loaders' transfer ------------------------------------------------------------------ */

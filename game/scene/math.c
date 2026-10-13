@@ -32,6 +32,7 @@
 #include "original_effects.h"
 #include "port/machine.h"
 #include "port/vars_ram.h"
+#include "scene/scene_data.h"
 #include "vars.h"
 
 /* The multiplier as the original leaves it: its last partial product, the high
@@ -78,12 +79,17 @@ static uint32_t multiply(GameState *g, SceneProgramPage page)
 /* The original sums the middle partial products in 16 bits, and one that
  * overflows goes into the product a byte too low; no scene's product does, and
  * the entry's guard hands such a product to the original. */
+bool scene_multiplies_exactly(uint16_t a, uint16_t b, bool carried)
+{
+    uint32_t middle = (((uint32_t)(a & 0xFF) * (b >> 8) + (uint32_t)(a >> 8) * (b & 0xFF)) & 0xFFFF) +
+                      ((uint32_t)(a & 0xFF) * (b & 0xFF) >> 8) + (carried ? 1 : 0);
+    return middle <= 0xFFFF;
+}
+
 static bool multiplies_exactly(const GameState *g, SceneProgramPage page)
 {
-    uint16_t a = scene_call_first(g, page), b = scene_call_second(g, page);
-    uint32_t middle = (((uint32_t)(a & 0xFF) * (b >> 8) + (uint32_t)(a >> 8) * (b & 0xFF)) & 0xFFFF) +
-                      ((uint32_t)(a & 0xFF) * (b & 0xFF) >> 8) + (carries_into_the_product(g, page) ? 1 : 0);
-    return middle <= 0xFFFF;
+    return scene_multiplies_exactly(scene_call_first(g, page), scene_call_second(g, page),
+                                    carries_into_the_product(g, page));
 }
 
 /* ---- multiply_signed ------------------------------------------------------------------------ */
@@ -140,6 +146,23 @@ uint32_t scene_multiply_signed16(GameState *g, SceneProgramPage page, uint16_t a
     return product;
 }
 
+/* ---- The sine --------------------------------------------------------------------------------- */
+
+enum { TURN = 0x400, HALF_TURN = 0x200, QUARTER_TURN = 0x100 };
+
+// $7E:3465
+int16_t scene_sine(const GameState *g, uint16_t angle)
+{
+    uint16_t step = angle & (TURN - 1);
+    int16_t magnitude = scene_sine_magnitude(g, step);
+    return step < HALF_TURN ? (int16_t)-magnitude : magnitude;
+}
+
+// $7E:3461
+int16_t scene_cosine(const GameState *g, uint16_t angle) { return scene_sine(g, (uint16_t)(angle + QUARTER_TURN)); }
+
+bool scene_sine_second_half(uint16_t angle) { return (angle & (TURN - 1)) >= HALF_TURN; }
+
 /* ---- The arithmetic as C calls -------------------------------------------------------------- */
 
 /* For the ports that do the program's arithmetic where it calls it: each sets
@@ -171,12 +194,14 @@ int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint1
 /* ---- divide ----------------------------------------------------------------------------------- */
 
 // $7E:339F
-/* The dividend by the divisor, into the quotient and the remainder. */
-static void divide(GameState *g, SceneProgramPage page)
+/* The dividend by the divisor, into the quotient and the remainder; the
+ * quotient returned. */
+static uint32_t divide(GameState *g, SceneProgramPage page)
 {
     uint32_t dividend = scene_call_dividend(g, page), divisor = scene_call_divisor(g, page);
     set_scene_call_quotient(g, page, dividend / divisor);
     set_scene_call_remainder(g, page, dividend % divisor);
+    return dividend / divisor;
 }
 
 /* The original shifts the dividend out of its cell as it goes, bringing the
@@ -187,6 +212,16 @@ enum { TOP_BIT_32 = 0x80000000u };
 static void leave_dividend_shifted_out(GameState *g, SceneProgramPage page, bool carry)
 {
     set_scene_call_dividend(g, page, carry ? TOP_BIT_32 : 0);
+}
+
+uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor, bool carry)
+{
+    set_scene_call_dividend(g, page, dividend);
+    set_scene_call_divisor(g, page, divisor);
+    uint32_t quotient;
+    TIMED_AS(g, 0x7E339F, quotient = divide(g, page));
+    ORIGINAL_EFFECT(leave_dividend_shifted_out(g, page, carry));
+    return quotient;
 }
 
 /* ---- divide_8_8 ------------------------------------------------------------------------------ */
@@ -343,7 +378,7 @@ void scene_divide(Snes *s)
 {
     GameState *g = state_of(s);
     SceneProgramPage page = scene_program_page_at_entry(s);
-    divide(g, page);
+    (void)divide(g, page);
     ORIGINAL_EFFECT(leave_dividend_shifted_out(g, page, m_flag(s, CPU_FLAG_C)));
     m_rts(s);
 }

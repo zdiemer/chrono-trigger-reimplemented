@@ -11,6 +11,8 @@
  * the uncompressed ones are copied from the bank as they are. */
 #include "scene/scene.h"
 
+#include "data/decompress.h"
+
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -184,3 +186,31 @@ void scene_copy_resource(Snes *s) { copy_resource_entry(s, SCENE_LOWER_WORK_RAM)
 
 /* A resource into the second bank of work RAM. */
 void scene_copy_resource_to_upper_ram(Snes *s) { copy_resource_entry(s, SCENE_UPPER_WORK_RAM); }
+
+/* ---- Resources unpacked ------------------------------------------------------------------------ */
+
+/* The decompressor, run as C from the unpacker's call; it reads none of the
+ * registers. */
+enum { UNPACK_CALL = 0x7E36A4, DECOMPRESSOR = 0xC30557, THE_DECOMPRESSOR_READS_NOTHING = DC_A | DC_X | DC_N | DC_Z | DC_C };
+
+// $7E:3691
+/* One of the program's resources unpacked, by its place in the resource table
+ * (a byte offset, in X), to where the caller has set the unpacker's
+ * destination. It keeps its caller's flags on the stack around the
+ * decompressor, and leaves in A what the last of its loads had there: the
+ * stream's address past its first byte. */
+void scene_unpack_resource(Snes *s)
+{
+    GameState *g = state_of(s);
+    uint32_t stream = scene_resource_stream(g, s->cpu.x);
+    set_decompress_source(g, stream);
+    m_push8(s, s->cpu.p);
+    m_set_flag(s, CPU_FLAG_M, false);
+    s->cpu.a = (uint16_t)(stream >> 8);
+    if (!scene_run_long(s, UNPACK_CALL, DECOMPRESSOR, THE_DECOMPRESSOR_READS_NOTHING, decompress))
+        return;
+    s->cpu.p = m_pull8(s);
+    m_rts(s);
+}
+
+bool scene_unpack_present(Snes *s) { return m_code_matches(s, 0x7E3691, 25, 0xF55FAA2BAD9EB17Aull); }

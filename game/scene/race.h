@@ -92,11 +92,6 @@ typedef enum { RACE_RUNNING = 0, RACE_CRONO_COASTING = 1, RACE_CRONO_PULLED_AWAY
 /* A song is on its way to the sound driver: the race sends nothing then. */
 static inline bool race_song_sending(const GameState *g) { return scene_song_sending(g) != 0; }
 
-/* The game's sine: 1024 steps a turn, the magnitude in 256ths from the table
- * at $C0:F900, negative for the first half turn; the cosine a quarter turn on. */
-int16_t race_sine(const GameState *g, uint16_t angle);
-int16_t race_cosine(const GameState *g, uint16_t angle);
-
 /* The scene's tasks this part of the program adds and removes: their
  * addresses in the program, as the lists hold them (within bank $7E). */
 enum {
@@ -137,8 +132,6 @@ void race_forget_divisors(GameState *g);
 
 /* scene/bridge.c: the frame of a subroutine the race's setup runs inline,
  * entered and left, under the call-outs it makes. */
-void scene_bridge_enter(Snes *s, uint32_t call);
-void scene_bridge_leave(Snes *s);
 
 /* scene/bridge.c: where the main loop's scaling of a racer's picture goes on
  * in the original's scaler, with the carry its first row takes. */

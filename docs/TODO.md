@@ -1980,9 +1980,7 @@ rest waits, is [PLAN.md](PLAN.md).
   `$C0:A88D`, map data beyond VRAM, single-byte battle window positions), and
   GBA's constraints.
 - **P1 leftovers**: `$217F` mirror writes still come from unported video code
-  (the last of it in `$FD` is the location's tile animation loader `$FD:DE98`,
-  which writes `$7F:0400` through the work RAM port that way; the others are
-  the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
+  (the battle's triangle and circle rasterizers `$CD:3810`-`$CD:3B05`, which
   write the window table through the work RAM port with 16-bit stores, so each
   edge's low byte also lands on APU port 3, as the quadrilaterals' `$D1:F9E7`
   did before it was C and left that byte as scaffolding, `hw_port_leave_spill`;
@@ -2129,8 +2127,8 @@ re-runs the census.
     moments); no object the game makes does.
 - **What the main loop's requests left** (history/reimplementation-chunks.md, "Phase 3, field and
   events: the switches and the main loop's requests"):
-  - `$C0:0C76` hands the field's new start after a location change to the
-    original (`$C0:0CC0`: a fresh stack, then `$C0:0000`), and stops at the
+  - `$C0:0C76` stops at the field's new start after a location change
+    (`$C0:0CC0`, a port: a fresh stack, then `$C0:0000`), and at the
     frame wait or the field's turn the original jumps to at the tile copy's
     and the battle's ends; the tile copy's and the battle's stretches span
     frames, so shadow mode counts some of their calls interrupted and fuzzing
@@ -2208,8 +2206,6 @@ re-runs the census.
     handlers off through `tm_wait_frame_then_enable` on the SNES backend
     (`$C0:0B38`, an `[[entry]]` hint so that liveness knows it as a routine);
     the host backend waits a frame and turns them on;
-  - the map's own script (`$C0:595C`) and the script's unpacking (`$C0:56D4`)
-    are still call-outs from the objects' setup and both loadings;
   - the dialog window's look (its frame and text area tile maps, the window
     design's tiles and colours, the choice pointer) is built into work RAM
     and sent as the original's transfers: a native renderer could draw the
@@ -2239,8 +2235,8 @@ re-runs the census.
     `$04C0` afterwards, and the menus' port shows the service those calls
     ask for (`$0B`, what the party wears) ignores it (`menu/party_bridge.c`),
     so `DC_Y` holds at `$C0:9DC3` and the parse column goes, but only
-    once `$C0:595C`/`$C0:597D` are ported too (they reach the handlers' entries
-    as the original's code). The sound commands' calls to the driver keep Y
+    once `$C0:597D` is ported too (it reaches the handlers' entries as the
+    original's code; `$C0:595C` is the engine's now). The sound commands' calls to the driver keep Y
     and A's high byte for the same reason.
   - *The scratch cells* (`$D9-$E4`) and the command cells (`$C1-$D2`, the
     saved position among them) are read only by the command that wrote them --
@@ -2639,21 +2635,28 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The title's loader is in fragments.** The title's graphics loader
-  (`$7E:5978`-`$7E:5A00`) is registered a block at a time
-  (`scene_title_load_*`), each named for what it puts in VRAM, because the
-  loader around them calls the program's unpacker and its own routines
-  (`$7E:3691`, `$7E:38AF`, `$7E:89ED`, `$7E:5E3C`). The race's setup was
-  ported whole as a list of graphics, each unpacked and sent (history/reimplementation-chunks.md,
-  "Phase 3, the scene program: the rest of the jet bike race"); the title's
-  would retire five entries the same way.
-- **The race's setup calls the original three times.** The program's unpacker
-  by resource (`$7E:3691`, before the decompressor `$C3:0557`), the camera
-  script's first step (`$7E:3749`, before the sequencer `$C3:0AFF`) and, for
-  the race without its panel, the curtain's step (`$C3:000E`, the field's
-  `$C3:01E4`) are call-outs; with the unpacker as C, the setup's machine
-  (the frames and the data bank and direct page it keeps on the stack around
-  them, `scene/bridge.c`) comes down. The setup's mirroring of the racers'
+- **The title's loader's blocks are still entries.** The title's setup
+  (`$7E:5978`) is C whole now, unpacking and sending each graphic itself; the
+  blocks it used to be registered as (`scene_title_load_*`, `$7E:597B`-`$7E:59CC`)
+  are still registered, though only a caller by address reaches them and none
+  does. Retire them, and their fuzz rows, as the race's were.
+- **The decompressor's port and the original part on streams that aren't
+  streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
+  resource numbers past the table's 73 entries, where the "streams" are other
+  bytes of bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states; on
+  the table's own entries none do. Find which input the decompressor
+  (`$C3:0557`, `decompress`) takes apart from the original -- a source in work
+  RAM the destination overwrites is the likeliest -- and guard or match it.
+- **The race's and the endings' setups call through the machine.** The
+  program's unpacker by resource (`$7E:3691`) and a channel's first script
+  step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which
+  the title's setup runs as C (`scene_run`), but the race's and the endings'
+  setups still make them calls on the machine (`m_jsr_dc`), which the registry
+  answers with the ports; and, for the race without its panel, the curtain's
+  step (`$C3:000E`, the field's `$C3:01E4`) is the original's. Run them as C
+  and recalibrate the setups' time; then the setup's machine (the frames and
+  the data bank and direct page it keeps on the stack around them,
+  `scene/bridge.c`) can come down. The setup's mirroring of the racers'
   pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
@@ -2664,11 +2667,6 @@ waits on M5 rather than on a backend.
   two lines either way and an end at line 112) that the guard hands to the
   original. Port them with those scenes.
 
-- **Scene work that is still the original's, beside its ports.** The title
-  logo's sweep before it lands (`$7E:5CBA`, where `scene_title_move_logo`
-  stops) and the ripple's new first offset each frame (`$7E:600E`, where
-  `scene_title_ripple_columns` stops) are the program's code; porting them
-  would end two stops mid-routine.
 - **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:

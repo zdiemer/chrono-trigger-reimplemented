@@ -23,4 +23,11 @@ static inline uint16_t command_handler(const GameState *g, uint8_t command)
     return rom_read16(g, 0xC05D6Eu + 2u * command);
 }
 
+/* The built-in commands ($C0:5D37-$C0:5D6D): three runs of commands with no
+ * header, which every script load copies to the end of the script buffer for
+ * the commands and routines that point an object at them. `at` is the byte's
+ * offset from the first run. */
+enum { BUILT_IN_COMMANDS_BYTES = 0x37 };
+static inline uint8_t built_in_command_byte(const GameState *g, uint16_t at) { return rom_read8(g, 0xC05D37u + at); }
+
 #endif

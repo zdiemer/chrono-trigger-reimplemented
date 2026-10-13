@@ -108,6 +108,14 @@ static inline void m_rtl(Snes *s)
     native_note_return(s);
 }
 
+/* A call made from a port came back where it was made from: the machine is at
+ * the return address, with the stack as it was before the call. A bridge asks
+ * this after a call-out, to go on as C or leave the rest to the original. */
+static inline bool m_came_back(const Snes *s, uint32_t returns_to, uint16_t stack)
+{
+    return s->cpu.s == stack && s->cpu.pb == (uint8_t)(returns_to >> 16) && s->cpu.pc == (uint16_t)returns_to;
+}
+
 /* Flags. */
 static inline bool m_flag(const Snes *s, uint8_t f) { return s->cpu.p & f; }
 static inline void m_set_flag(Snes *s, uint8_t f, bool on) { s->cpu.p = on ? (s->cpu.p | f) : (s->cpu.p & ~f); }

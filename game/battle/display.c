@@ -21,6 +21,7 @@
 #include "battle/bridge.h"
 #include "battle/entries.h"
 #include "battle/frame_data.h"
+#include "core/palette.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/native.h"
@@ -245,6 +246,9 @@ enum { ALL_LINE_EFFECTS = 0xFF };
 /* The call-outs read nothing of the registers. */
 enum { READS_NOTHING = DC_A | DC_X | DC_Y | DC_FLAGS };
 
+/* The palettes' animation, through the original's jump to it. */
+enum { PALETTE_ANIMATION = 0xFDFFF7 };
+
 // $CD:09F1
 /* The setup runs with the data bank $7E from the line effects on. */
 static bool set_the_display_up(Snes *s)
@@ -263,7 +267,8 @@ static bool set_the_display_up(Snes *s)
     NATIVE_TIME_AS(s, 0xCD06C4, battle_scroll_layers(g, BATTLE_SCROLL_STEADY));
     s->cpu.a = 0;
     NATIVE_TIME_AS(s, 0xCD0B1E, battle_keep_animations_off_the_cycle(g));
-    if (!battle_call_long(s, 0xCD0AD2, 0xD1F426, READS_NOTHING) || !battle_call_long(s, 0xCD0AD6, 0xFDFFF7, READS_NOTHING | DC_DB))
+    if (!battle_call_long(s, 0xCD0AD2, 0xD1F426, READS_NOTHING) ||
+        !battle_call_long(s, 0xCD0AD6, PALETTE_ANIMATION, READS_NOTHING | DC_DB))
         return false;
     NATIVE_TIME_AS(s, 0xCD0ADE, battle_turn_the_gradient(g));
     return true;
@@ -365,8 +370,7 @@ void battle_nmi_alternate(Snes *s)
     m_jsl_dc(s, 0xD1F549, 0xCD0C89, DC_A | DC_X | DC_Y | DC_N | DC_Z | DC_C);
     if (!battle_widths_m8_x16(s))
         return;
-    m_jsl_dc(s, 0xD1F54D, 0xFDFFF7, DC_A | DC_X | DC_Y | DC_FLAGS);
-    if (!battle_widths_m8_x16(s))
+    if (!battle_run_long(s, 0xD1F54D, PALETTE_ANIMATION, palette_animate) || !battle_widths_m8_x16(s))
         return;
     m_return_to_interrupted_bank_first(s);
 }

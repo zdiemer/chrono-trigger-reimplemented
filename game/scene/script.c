@@ -772,3 +772,27 @@ void scene_script_wait_for_sound(Snes *s)
     m_set_nz16(s, script(g, ch));
     m_rts(s);
 }
+
+/* ---- A channel's script started from the program ------------------------------------------------ */
+
+/* The interpreter reads none of A, X and the flags it sets; Y, the overflow and
+ * the carry pass through it to the routines its commands call. */
+enum { INTERPRETER = 0xC30AFF, THE_INTERPRETER_PASSES_Y_THE_OVERFLOW_AND_THE_CARRY = DC_A | DC_X | DC_N | DC_Z };
+
+// $7E:3749, $7E:3754
+/* A channel's script run until it ends its turn, as the program's setups start
+ * one: on the channel's page, which the original sets through A, with the
+ * scripts' bank. */
+static void run_from_the_program(Snes *s, SceneChannel ch, uint32_t call)
+{
+    s->cpu.d = (uint16_t)(CHANNEL_PAGES + ch * CHANNEL_PAGE_BYTES);
+    s->cpu.a = s->cpu.d;
+    s->cpu.db = SCRIPT_BANK;
+    if (scene_run_long(s, call, INTERPRETER, THE_INTERPRETER_PASSES_Y_THE_OVERFLOW_AND_THE_CARRY, scene_run_sequence))
+        m_rts(s);
+}
+
+void scene_run_channel_0_script(Snes *s) { run_from_the_program(s, 0, 0x7E374F); }
+void scene_run_channel_1_script(Snes *s) { run_from_the_program(s, 1, 0x7E375A); }
+
+bool scene_channel_script_start_present(Snes *s) { return m_code_matches(s, 0x7E3749, 22, 0xB1CDD688B2BFDC2Aull); }

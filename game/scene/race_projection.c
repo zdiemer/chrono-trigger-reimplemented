@@ -47,7 +47,7 @@ typedef struct {
 static TurnBack turn_back(const GameState *g)
 {
     uint16_t back = (uint16_t)(QUARTER_TURN - race_camera(g, CAMERA_ANGLE));
-    return (TurnBack){ race_sine(g, back), race_cosine(g, back) };
+    return (TurnBack){ scene_sine(g, back), scene_cosine(g, back) };
 }
 
 /* The turn is kept in scene_race_view with its negatives, where the

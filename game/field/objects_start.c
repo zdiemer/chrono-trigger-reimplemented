@@ -14,7 +14,7 @@
  *   scripts' saved places cleared;
  * - each object runs its opening, and the party starts on the map
  *   (event/bridge.c, $C0:58DE);
- * - the map's own script starts ($C0:595C, still the original's);
+ * - the map's own script starts (event/engine.c, $C0:595C);
  * - and what the party wears shows (menu/party.h).
  *
  * The objects' scripts then take their turns a frame at a time
@@ -224,7 +224,7 @@ void field_set_up_the_objects(Snes *s)
     field_objects_let_go(g, true);
     if (!field_run(s, 0xC056C5, FIELD_START_THE_OBJECTS_ENTRY, READS_NOTHING, field_start_the_objects,
                    page(s)) ||
-        !bridge_call(s, 0xC056C8, MAP_SCRIPT_STARTS, THE_MAP_SCRIPT_READS_THE_OVERFLOW, page(s)))
+        !field_run(s, 0xC056C8, MAP_SCRIPT_STARTS, THE_MAP_SCRIPT_READS_THE_OVERFLOW, event_run_map_script, page(s)))
         return;
     show_what_the_party_wears(s);
     m_rts(s);

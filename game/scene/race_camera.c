@@ -29,20 +29,7 @@
 /* Compared as the race compares: by the sign of the difference. */
 static bool at_least(uint16_t a, uint16_t b) { return (int16_t)(a - b) >= 0; }
 
-/* ---- Turning: the sine ------------------------------------------------------------------------ */
-
-enum { TURN = 0x400, HALF_TURN = 0x200, QUARTER_TURN = 0x100 };
-
-// $7E:3465
-int16_t race_sine(const GameState *g, uint16_t angle)
-{
-    uint16_t step = angle & (TURN - 1);
-    int16_t magnitude = scene_sine_magnitude(g, step);
-    return step < HALF_TURN ? (int16_t)-magnitude : magnitude;
-}
-
-// $7E:3461
-int16_t race_cosine(const GameState *g, uint16_t angle) { return race_sine(g, (uint16_t)(angle + QUARTER_TURN)); }
+enum { TURN = 0x400 };
 
 /* ---- The camera moving along ------------------------------------------------------------------ */
 
@@ -78,8 +65,8 @@ static uint16_t turned_distance(GameState *g, int16_t factor)
 static void aim_camera(GameState *g)
 {
     uint16_t angle = race_camera(g, CAMERA_ANGLE);
-    set_scene_race_camera_offset(g, 1, turned_distance(g, race_cosine(g, angle)));
-    set_scene_race_camera_offset(g, 0, turned_distance(g, race_sine(g, angle)));
+    set_scene_race_camera_offset(g, 1, turned_distance(g, scene_cosine(g, angle)));
+    set_scene_race_camera_offset(g, 0, turned_distance(g, scene_sine(g, angle)));
     uint16_t horizon = (uint16_t)(HORIZON_BASE - race_camera(g, CAMERA_PITCH));
     set_scene_race_horizon(g, horizon);
     set_scene_race_bg3_scroll_y(g, (uint16_t)(horizon - BG3_HORIZON_LIFT));

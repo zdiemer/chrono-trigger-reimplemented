@@ -25,6 +25,9 @@ void palette_start_fade_to_white(GameState *g, unsigned slot, PaletteFade fade);
 /* The same, darkening the colors rather than lightening them. */
 void palette_start_fade_to_black(GameState *g, unsigned slot, PaletteFade fade);
 
+/* Start the current location's palette animations (the field's loading). */
+void palette_load_location_animations(GameState *g);
+
 void palette_animate(Snes *s);
 void palette_clear_animations(Snes *s);
 void palette_load_animations(Snes *s);
