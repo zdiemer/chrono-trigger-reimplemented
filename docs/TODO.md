@@ -930,6 +930,18 @@ rest waits, is [PLAN.md](PLAN.md).
   asset pack has to carry those bytes too, or the warp has to be shown
   never to reach past the table (fuzz the scale's range) and the read
   clamped.
+- **What the boot path's second review left** (none rated translation;
+  the tables now follow the interpreter rule): `screen.c`'s
+  `end_the_scene` adds 1 to a byte through a word accessor, and ending the
+  scene is written three ways (`script.c`, `race_rules.c`'s `marked`);
+  five one-line `*_leaves` twins in `screen.c` exist because `leaves`
+  (`scene.h`) isn't given the task; `run` takes `uint8_t channel`, forcing
+  an adapter in `title.c`; `title.c`'s `routine_of` falls back to row 0 on
+  no match and repeats `script.c`'s lookup, and `PROGRAM_DATA_BANK`
+  restates `script.c`'s `PROGRAM_BANK`; `CALMS_EVERY = 0x1F` is a mask
+  named as a period; `program.c`'s title special case is a mode test where
+  the table wants a column, and `MODE_ENDING_TOO`/`MODE_ENDING_AGAIN` don't
+  say what differs.
 - **What the boot path's review left** (none rated translation): the
   setups still run under the dispatch's return (`scene/program.c`,
   `scene_bridge_enter`), because each calls the original's code (the
