@@ -117,8 +117,6 @@ static bool run_entry(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_ca
     return m_came_back(s, returns_to, stack);
 }
 
-void scene_bridge_forget_the_stop(Snes *s) { native_dont_care_at_stop(s, 0, 0); }
-
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *))
 {
     return run_entry(s, site, routine, dont_care, entry, false);

@@ -455,12 +455,18 @@ bool scene_staff_roll_set_up_present(Snes *s)
 
 /* Entered with 8-bit A; back, the song's start has left the overflow, which
  * the program reads, and the data bank and the direct page are 0. */
-void scene_staff_roll_set_up(Snes *s)
+bool scene_staff_roll_set_up_scene(Snes *s)
 {
     set_up_staff_roll(s);
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     s->cpu.p |= CPU_FLAG_M;
+    return true;
+}
+
+void scene_staff_roll_set_up(Snes *s)
+{
+    scene_staff_roll_set_up_scene(s);
     m_rts(s);
 }
 

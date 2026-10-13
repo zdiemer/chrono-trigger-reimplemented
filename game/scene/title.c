@@ -294,23 +294,33 @@ static void place_pendulum(const GameState *g, Platform *pf)
                    scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y), VID_SCROLL_H | VID_SCROLL_V);
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_title_place_pendulum(Snes *s)
+static TaskEnd place_pendulum_task(GameState *g, Platform *pf)
 {
-    place_pendulum(state_of(s), m_platform(s));
-    m_rts(s);
+    place_pendulum(g, pf);
+    return task_goes_on();
 }
+
+void scene_title_place_pendulum(Snes *s) { scene_task_alone(s, SCENE_TASK_PLACE_PENDULUM); }
 
 /* ---- What the title's frame tasks leave -------------------------------------------------------------- */
 
-/* A frame task leaves A as its last load or store had it; the list's runner
- * hands it to the frame's work where the task is the list's last, which reads
- * its high byte. Scaffolding, as each task's wrapper works it out. */
-static void leave_in_a(Snes *s, uint16_t a) { s->cpu.a = a; }
+/* A frame task leaves A as its last load or store had it, which the frame's
+ * work reads the high byte of where the task is the list's last; a task that
+ * draws sprites leaves the next free entry in Y, which the next task takes on.
+ * The vblank tasks leave nothing anything reads. */
+static TaskLeftovers leaves_a(uint16_t a) { return (TaskLeftovers){ .a_set = true, .a = a }; }
 
-/* A task that is done leaves the list through the list's exit, which reads A's
- * high byte as the task leaves it, and Y. */
-enum { TASK_LEAVES = 0x7E39A7, THE_EXIT_READS_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C };
+static TaskLeftovers leaves_a_and_the_next_free_entry(const GameState *g, uint16_t a)
+{
+    return (TaskLeftovers){ .a_set = true, .a = a, .y_set = true, .y = scene_sprite_index(g) };
+}
+
+static TaskLeftovers leaves_nothing_read(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    return (TaskLeftovers){ 0 };
+}
 
 /* ---- The pendulum's swing ------------------------------------------------------------------------ */
 
@@ -358,14 +368,21 @@ static void swing_the_pendulum(GameState *g)
     set_scene_title_pendulum_swing(g, swing ? swing : NARROWEST);
 }
 
-/* The task, with 16-bit A; Y passes through it to the next task. */
-void scene_title_swing_pendulum(Snes *s)
+static TaskEnd swing_pendulum_task(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
+    (void)pf;
     swing_the_pendulum(g);
-    ORIGINAL_EFFECT(leave_in_a(s, scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y)));
-    m_rts(s);
+    return task_goes_on();
 }
+
+/* It leaves BG1's scroll, the last it stored. */
+static TaskLeftovers swing_pendulum_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a(scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y));
+}
+
+void scene_title_swing_pendulum(Snes *s) { scene_task_alone(s, SCENE_TASK_SWING_PENDULUM); }
 
 /* The program's multiply comes out as the product for every operand the
  * pendulum gives it, but for the byte after the product, which carries into
@@ -450,20 +467,23 @@ static void sweep_the_logo(GameState *g, uint16_t timer)
     set_scene_title_logo_y(g, (uint16_t)(down + SWEEP_UP + scene_sine_second_half(timer)));
 }
 
-/* Landed, the task takes itself off its list through the list's exit at
- * $7E:39A7, with A the logo's Y as it was last stored. */
-void scene_title_move_logo(Snes *s)
+/* Landed, the task is done. */
+static TaskEnd move_logo_task(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
-    if (!move_logo(g, m_platform(s))) {
-        sweep_the_logo(g, (uint16_t)(scene_title_timer(g) - TIMER_STEP));
-        ORIGINAL_EFFECT(leave_in_a(s, scene_title_logo_y(g)));
-        m_rts(s);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_in_a(s, LOGO_Y));
-    m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
+    if (move_logo(g, pf))
+        return task_is_done();
+    sweep_the_logo(g, (uint16_t)(scene_title_timer(g) - TIMER_STEP));
+    return task_goes_on();
 }
+
+/* It leaves the logo's Y as it was last stored. */
+static TaskLeftovers move_logo_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a(scene_title_logo_y(g));
+}
+
+void scene_title_move_logo(Snes *s) { scene_task_alone(s, SCENE_TASK_MOVE_LOGO); }
 
 /* The task, the sine's lookup and the multiply; the multiply comes out as the
  * product for the sweep's two, with the byte after the product carried into
@@ -481,6 +501,27 @@ bool scene_title_move_logo_present(Snes *s)
               scene_multiplies_exactly(magnitude_of(scene_sine(g, timer)), SWEEP_DOWN, after & 0x40);
     vars_peek(false);
     return ok;
+}
+
+/* ---- The routines the scripts call, reached by their addresses ------------------------------------ */
+
+static const SceneScriptRoutine *routine_of(uint16_t routine);
+
+/* The fades set the data bank to the first bank's around their stores, and
+ * through the stack's imbalance come back with it on the program's. */
+enum { PROGRAM_DATA_BANK = 0x7E };
+
+/* A routine a caller reaches by its address (the interpreter runs them as C):
+ * its work on the channel whose page D is, and back with 16-bit A. */
+static void routine_alone(Snes *s, uint16_t routine)
+{
+    const SceneScriptRoutine *r = routine_of(routine);
+    r->run(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
+    ORIGINAL_EFFECT(s->cpu.a = r->leaves_a(s->cpu.a));
+    if (r->leaves_the_program_bank)
+        s->cpu.db = PROGRAM_DATA_BANK;
+    s->cpu.p &= (uint8_t)~CPU_FLAG_M;
+    m_rts(s);
 }
 
 /* ---- The ripple ---------------------------------------------------------------------------------- */
@@ -503,12 +544,66 @@ static void start_ripple(GameState *g, Platform *pf, SceneChannel channel)
     set_scene_channel_register(g, channel, BG1_SCROLL_Y, (uint16_t)RIPPLE_BG1_SCROLL_Y);
 }
 
-/* The channel's page is D. */
-void scene_title_start_ripple(Snes *s)
+static void start_ripple_on(GameState *g, Platform *pf, uint8_t channel) { start_ripple(g, pf, channel); }
+
+/* It leaves the scroll it stored. */
+static uint16_t start_ripple_leaves(uint16_t called_with)
 {
-    start_ripple(state_of(s), m_platform(s), scene_program_page_at_entry(s).index);
-    m_rts(s);
+    (void)called_with;
+    return (uint16_t)RIPPLE_BG1_SCROLL_Y;
 }
+
+void scene_title_start_ripple(Snes *s) { routine_alone(s, SCENE_ROUTINE_START_RIPPLE); }
+
+/* ---- The sprites' colors fading -------------------------------------------------------------------- */
+
+/* The scripts' two fades of the title's sprite colors, in the palette
+ * animations' first slot: sprite palette 4 fading out to black four levels a
+ * frame, and sprite palette 3's first eleven colors, tinted yellow at half
+ * strength, fading back to the colors as loaded two levels a frame. */
+enum { TITLE_FADE_SLOT = 0 };
+static const PaletteFade palette_4_darkens = {
+    .first_color = 0xC0, .color_count = 16, .step = 4, .period = 1, .from_level = 0, .to_level = 0xFF,
+};
+static const PaletteFade palette_3_untints = {
+    .first_color = 0xB0, .color_count = 11, .step = 2, .period = 1, .from_level = 0x80, .to_level = 0,
+    .tint = PALETTE_TINT_YELLOW,
+};
+
+// $7E:5DB4
+static void darken_sprite_palette_4(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    palette_start_fade_to_black(g, TITLE_FADE_SLOT, palette_4_darkens);
+}
+
+// $7E:5DE9
+static void untint_sprite_palette_3(GameState *g, Platform *pf, uint8_t channel)
+{
+    (void)pf;
+    (void)channel;
+    palette_start_fade_to_white(g, TITLE_FADE_SLOT, palette_3_untints);
+}
+
+/* Each stores its slot a byte at a time, the last byte stored over the high
+ * byte A came with. */
+static uint16_t darken_sprite_palette_4_leaves(uint16_t called_with)
+{
+    return (uint16_t)((called_with & 0xFF00) | palette_4_darkens.to_level);
+}
+
+static uint16_t untint_sprite_palette_3_leaves(uint16_t called_with)
+{
+    return (uint16_t)((called_with & 0xFF00) | palette_3_untints.to_level);
+}
+
+void scene_title_darken_sprite_palette_4(Snes *s) { routine_alone(s, SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4); }
+void scene_title_untint_sprite_palette_3(Snes *s) { routine_alone(s, SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3); }
+
+/* Their code: they set the data bank to the first bank's themselves. */
+bool scene_title_darken_sprite_palette_4_present(Snes *s) { return m_code_matches(s, 0x7E5DB4, 0x35, 0x66F8CACF30C8ED2Aull); }
+bool scene_title_untint_sprite_palette_3_present(Snes *s) { return m_code_matches(s, 0x7E5DE9, 0x35, 0xCD5DBFFFAB320D2Bull); }
 
 /* The task, the sine's lookup and the multiply; the multiply comes out as the
  * product for the wave the task gives it. */
@@ -560,14 +655,50 @@ static void wave_the_first_column(GameState *g)
     set_column_offset(g, 0, (uint16_t)(((uint16_t)(wave(g) - PICTURE_PLACE) & OFFSET_BITS) | OFFSETS_BG1));
 }
 
-/* A frame task, with 16-bit A; Y passes through it to the next task. */
-void scene_title_ripple_columns(Snes *s)
+static TaskEnd ripple_task(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
+    (void)pf;
     ripple_columns(g);
     wave_the_first_column(g);
-    ORIGINAL_EFFECT(leave_in_a(s, column_offset(g, 0)));
-    m_rts(s);
+    return task_goes_on();
+}
+
+/* It leaves the first column's offset, the last it stored. */
+static TaskLeftovers ripple_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a(column_offset(g, 0));
+}
+
+void scene_title_ripple_columns(Snes *s) { scene_task_alone(s, SCENE_TASK_RIPPLE); }
+
+/* The ripple calms: every 32 frames its height drops by one, and at none the
+ * task is done. */
+enum { CALMS_EVERY = 0x1F };
+
+// $7E:5BBF
+static TaskEnd calm_the_ripple_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (scene_frame_counter(g) & CALMS_EVERY)
+        return task_goes_on();
+    uint16_t height = (uint16_t)(scene_channel_register(g, TITLE_CHANNEL, RIPPLE_HEIGHT) - 1);
+    set_scene_channel_register(g, TITLE_CHANNEL, RIPPLE_HEIGHT, height);
+    return height ? task_goes_on() : task_is_done();
+}
+
+/* It leaves the frame counter's place in the 32, which it looked at. */
+static TaskLeftovers calm_the_ripple_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a(scene_frame_counter(g) & CALMS_EVERY);
+}
+
+void scene_title_calm_the_ripple(Snes *s) { scene_task_alone(s, SCENE_TASK_CALM_THE_RIPPLE); }
+
+bool scene_title_calm_the_ripple_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5BBF, 0x10, 0xEDDBC4A520DBAF3Dull);
 }
 
 bool scene_title_ripple_columns_present(Snes *s)
@@ -602,12 +733,13 @@ static void upload_ripple(const GameState *g, Platform *pf)
     vid_set_scroll(pf, PF_AT(0x7E623E), VID_BG3, scene_bg3_scroll_x(g), 0, VID_SCROLL_H);
 }
 
-/* Nothing it leaves in the registers is read. */
-void scene_title_upload_ripple(Snes *s)
+static TaskEnd upload_ripple_task(GameState *g, Platform *pf)
 {
-    upload_ripple(state_of(s), m_platform(s));
-    m_rts(s);
+    upload_ripple(g, pf);
+    return task_goes_on();
 }
+
+void scene_title_upload_ripple(Snes *s) { scene_task_alone(s, SCENE_TASK_UPLOAD_RIPPLE); }
 
 /* ---- The setup ---------------------------------------------------------------------------------- */
 
@@ -725,15 +857,15 @@ static void leave_a_on_the_registers_page(Snes *s) { s->cpu.a = (uint16_t)(M_DP_
 enum { WHOLE_WORDS_PORT = 0x80 };
 
 // $7E:5978
-/* The title set up, as the program's dispatch calls it: its graphics unpacked
+/* The title set up, as the program's dispatch calls it (scene/program.c): its graphics unpacked
  * and sent, the plane's pixels built from the layers' tiles and its name
  * table from BG2's map, the rest of BG1's map filled, the palette made
  * current, channel 0's script started, the title's state, the logo's
  * highlight white, the pendulum's screen; the screen at full brightness, the
  * fades a step a frame, the palette animations stopped, and the title's song
- * started. It returns through the original's wait for the song to start
- * playing ($7E:5AAA), where the port stops. */
-void scene_title_set_up(Snes *s)
+ * started; true unless a call-out stopped it. It returns through the original's
+ * wait for the song to start playing ($7E:5AAA), where the port stops. */
+bool scene_title_set_up_scene(Snes *s)
 {
     GameState *g = state_of(s);
     Platform *pf = m_platform(s);
@@ -741,33 +873,33 @@ void scene_title_set_up(Snes *s)
     vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
     vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
     if (!unpack(s, 0x7E5989, SPRITE_TILES_RESOURCE))
-        return;
+        return false;
     set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
     set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
     send_unpacked(g, pf);
     if (!unpack(s, 0x7E599D, LAYER_TILES_RESOURCE))
-        return;
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
     send_unpacked(g, pf);
     vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
     build_plane_pixels(g, pf);
     if (!unpack(s, 0x7E59B9, BG1_MAP_RESOURCE))
-        return;
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
     send_unpacked(g, pf);
     if (!unpack(s, 0x7E59C9, BG2_MAP_RESOURCE))
-        return;
+        return false;
     vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
     send_unpacked(g, pf);
     TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
     fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
     set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
     if (!unpack(s, 0x7E59FA, PALETTE_RESOURCE))
-        return;
+        return false;
     scene_use_loaded_palette(g);
     set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
     if (!run_the_first_script(s))
-        return;
+        return false;
     the_title_starts(g);
     set_palette_working(g, LOGO_HIGHLIGHT, WHITE);
     set_palette_base(g, LOGO_HIGHLIGHT, WHITE);
@@ -782,7 +914,17 @@ void scene_title_set_up(Snes *s)
     m_set_flag(s, CPU_FLAG_M, true);
     ORIGINAL_EFFECT(leave_a_on_the_registers_page(s));
     scene_bridge_start_song(s, SONG_CALL, TITLE_SONG);
-    m_stop_at(s, MUSIC_WAIT, THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW);
+    return true;
+}
+
+/* The original's wait for the title's song to start playing, which returns
+ * to the program's first frame. */
+void scene_title_wait_for_its_song(Snes *s) { m_stop_at(s, MUSIC_WAIT, THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW); }
+
+void scene_title_set_up(Snes *s)
+{
+    if (scene_title_set_up_scene(s))
+        scene_title_wait_for_its_song(s);
 }
 
 /* The setup's code, and the program's routines it runs inline: the
@@ -809,8 +951,6 @@ static void draw_list_at(GameState *g, uint16_t x, uint16_t y, uint16_t list)
     TIMED_AS(g, 0xC30D0E, scene_draw_sprite_list(g, list, false));
 }
 
-static void leave_the_next_free_entry(Snes *s) { s->cpu.y = scene_sprite_index(state_of(s)); }
-
 /* The lists' sprites fit in the tables from the cursor, all looked at without
  * the machine's time. */
 static bool lists_fit(Snes *s, const uint16_t *lists, unsigned count)
@@ -836,40 +976,60 @@ static void draw_the_clock(GameState *g)
     draw_list_at(g, x, (uint16_t)(y + CLOCK_HALF), CLOCK_LOWER);
 }
 
-void scene_title_draw_the_clock(Snes *s)
+static TaskEnd draw_the_clock_task(GameState *g, Platform *pf)
 {
-    draw_the_clock(state_of(s));
-    leave_the_next_free_entry(s);
-    ORIGINAL_EFFECT(leave_in_a(s, CLOCK_LOWER));
-    m_rts(s);
+    (void)pf;
+    draw_the_clock(g);
+    return task_goes_on();
 }
+
+static TaskLeftovers draw_the_clock_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a_and_the_next_free_entry(g, CLOCK_LOWER);
+}
+
+void scene_title_draw_the_clock(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_CLOCK); }
 
 /* The clock's hands, where the clock settles. */
 enum { HANDS = 0x61B4, HANDS_X = 0x3A, HANDS_Y = 0x64 };
 
 // $7E:5D20
-void scene_title_draw_the_hands(Snes *s)
+static TaskEnd draw_the_hands_task(GameState *g, Platform *pf)
 {
-    draw_list_at(state_of(s), HANDS_X, HANDS_Y, HANDS);
-    leave_the_next_free_entry(s);
-    ORIGINAL_EFFECT(leave_in_a(s, HANDS));
-    m_rts(s);
+    (void)pf;
+    draw_list_at(g, HANDS_X, HANDS_Y, HANDS);
+    return task_goes_on();
 }
+
+static TaskLeftovers draw_the_hands_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a_and_the_next_free_entry(g, HANDS);
+}
+
+void scene_title_draw_the_hands(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_HANDS); }
 
 /* The copyright line, in two lists. */
 enum { COPYRIGHT_Y = 0xD0, COPYRIGHT_LEFT = 0x6186, COPYRIGHT_LEFT_X = 0x78, COPYRIGHT_RIGHT = 0x61A7,
        COPYRIGHT_RIGHT_X = 0xB8 };
 
 // $7E:5E1E
-void scene_title_draw_the_copyright(Snes *s)
+static TaskEnd draw_the_copyright_task(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
+    (void)pf;
     draw_list_at(g, COPYRIGHT_LEFT_X, COPYRIGHT_Y, COPYRIGHT_LEFT);
     draw_list_at(g, COPYRIGHT_RIGHT_X, COPYRIGHT_Y, COPYRIGHT_RIGHT);
-    leave_the_next_free_entry(s);
-    ORIGINAL_EFFECT(leave_in_a(s, COPYRIGHT_RIGHT));
-    m_rts(s);
+    return task_goes_on();
 }
+
+static TaskLeftovers draw_the_copyright_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a_and_the_next_free_entry(g, COPYRIGHT_RIGHT);
+}
+
+void scene_title_draw_the_copyright(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_COPYRIGHT); }
 
 /* The rest of the name, five sprite groups that slide right out from behind
  * the clock as the title settles, each at its own pace (sixteenths of a pixel
@@ -894,13 +1054,20 @@ static void slide_the_name(GameState *g)
     }
 }
 
-void scene_title_slide_the_name(Snes *s)
+static TaskEnd slide_the_name_task(GameState *g, Platform *pf)
 {
-    slide_the_name(state_of(s));
-    leave_the_next_free_entry(s);
-    ORIGINAL_EFFECT(leave_in_a(s, slides[SLIDES - 1].list));
-    m_rts(s);
+    (void)pf;
+    slide_the_name(g);
+    return task_goes_on();
 }
+
+static TaskLeftovers slide_the_name_leaves(const GameState *g, TaskEnd end)
+{
+    (void)end;
+    return leaves_a_and_the_next_free_entry(g, slides[SLIDES - 1].list);
+}
+
+void scene_title_slide_the_name(Snes *s) { scene_task_alone(s, SCENE_TASK_SLIDE_THE_NAME); }
 
 /* ---- The title's wait for a button ----------------------------------------------------------------- */
 
@@ -909,63 +1076,58 @@ void scene_title_slide_the_name(Snes *s)
  * left the title starts watching for a button and lets the console reset; at
  * the end the picture goes, and its task leaves the list. */
 enum { BOTTOM_RIGHT = 0x61D9, BOTTOM_RIGHT_X = 0x90, BOTTOM_RIGHT_Y = 0xB0, A_SECOND_LEFT = 60 };
-enum { BUTTON_WATCH = 0x5B99 };
-
-typedef enum { STILL_WAITING, WATCHING_FROM_NOW, WAIT_OVER } TitleWait;
-
 // $7E:5D32
-static TitleWait count_the_wait_down(GameState *g)
+/* Done when the wait is over. */
+static TaskEnd count_the_wait_down_task(GameState *g, Platform *pf)
 {
+    (void)pf;
     scene_draw_lists_at(g, BOTTOM_RIGHT_X, BOTTOM_RIGHT_Y);
     TIMED_AS(g, 0xC30D5E, scene_draw_sprite_list(g, BOTTOM_RIGHT, true));
     uint16_t left = (uint16_t)(scene_title_wait(g) - 1);
     set_scene_title_wait(g, left);
     if (left == 0)
-        return WAIT_OVER;
-    if (left != A_SECOND_LEFT)
-        return STILL_WAITING;
-    scene_add_task(g, SCENE_FRAME_TASKS, BUTTON_WATCH);
-    set_scene_reset_disabled(g, 0);
-    return WATCHING_FROM_NOW;
+        return task_is_done();
+    if (left == A_SECOND_LEFT) {
+        scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_WATCH_FOR_A_BUTTON);
+        set_scene_reset_disabled(g, 0);
+    }
+    return task_goes_on();
 }
 
-void scene_title_count_the_wait_down(Snes *s)
+/* It leaves what the picture's clipped list left, at the end; the watch it
+ * adds, as it adds it; and the wait otherwise. */
+static TaskLeftovers count_the_wait_down_leaves(const GameState *g, TaskEnd end)
 {
-    GameState *g = state_of(s);
-    TitleWait wait = count_the_wait_down(g);
-    leave_the_next_free_entry(s);
-    if (wait == WAIT_OVER) {
-        ORIGINAL_EFFECT(leave_in_a(s, scene_clipped_list_leaves_a(g, BOTTOM_RIGHT, BOTTOM_RIGHT)));
-        m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
-        return;
+    if (end.outcome == TASK_IS_DONE)
+        return leaves_a_and_the_next_free_entry(g, scene_clipped_list_leaves_a(g, BOTTOM_RIGHT, BOTTOM_RIGHT));
+    if (scene_title_wait(g) == A_SECOND_LEFT) {
+        TaskLeftovers l = leaves_a_and_the_next_free_entry(g, SCENE_TASK_WATCH_FOR_A_BUTTON);
+        l.a_8bit = true;   /* the reset's flag, stored a byte */
+        return l;
     }
-    if (wait == WATCHING_FROM_NOW) {
-        ORIGINAL_EFFECT(leave_in_a(s, BUTTON_WATCH));
-        m_set_flag(s, CPU_FLAG_M, true);   /* as the original's byte store leaves it */
-    } else {
-        ORIGINAL_EFFECT(leave_in_a(s, scene_title_wait(g)));
-    }
-    m_rts(s);
+    return leaves_a_and_the_next_free_entry(g, scene_title_wait(g));
 }
+
+void scene_title_count_the_wait_down(Snes *s) { scene_task_alone(s, SCENE_TASK_COUNT_THE_WAIT_DOWN); }
 
 /* The watch for a button: once the title takes buttons, and none has been
  * taken yet, any button ends the title -- the music fades out (scene/screen.c's
  * task) -- and the task leaves the list. A button other than the shoulders
  * also marks the game started from the title, for the field. */
-enum { MUSIC_FADES = 0x34AB, SHOULDER_BUTTONS = 0x30, STARTED_FROM_THE_TITLE = 1 };
-
-typedef enum { NO_BUTTON, BUTTON_TAKEN } ButtonWatch;
+enum { SHOULDER_BUTTONS = 0x30, STARTED_FROM_THE_TITLE = 1, BUTTON_TAKEN = 1 };
 
 // $7E:5B99
-static ButtonWatch watch_for_a_button(GameState *g)
+/* Done once a button is taken. */
+static TaskEnd watch_for_a_button_task(GameState *g, Platform *pf)
 {
+    (void)pf;
     if (scene_title_ignores_buttons(g) || scene_title_button_taken(g) || scene_joypad(g) == 0)
-        return NO_BUTTON;
-    set_scene_title_button_taken(g, (uint8_t)(scene_title_button_taken(g) + 1));
-    scene_add_task(g, SCENE_FRAME_TASKS, MUSIC_FADES);
+        return task_goes_on();
+    set_scene_title_button_taken(g, BUTTON_TAKEN);
+    scene_add_task(g, SCENE_FRAME_TASKS, SCENE_TASK_MUSIC_FADES);
     if (!(scene_joypad(g) & SHOULDER_BUTTONS))
         set_scene_title_left_with_a_button(g, STARTED_FROM_THE_TITLE);
-    return BUTTON_TAKEN;
+    return task_is_done();
 }
 
 /* Watching, it leaves A the last word it looked at: the first of the two flags
@@ -979,18 +1141,17 @@ static uint16_t last_looked_at(const GameState *g)
     return scene_joypad(g);
 }
 
-void scene_title_watch_for_a_button(Snes *s)
+/* Taken, it leaves the task it added. */
+static TaskLeftovers watch_for_a_button_leaves(const GameState *g, TaskEnd end)
 {
-    GameState *g = state_of(s);
-    if (watch_for_a_button(g) == BUTTON_TAKEN) {
-        ORIGINAL_EFFECT(leave_in_a(s, MUSIC_FADES));
-        m_set_flag(s, CPU_FLAG_M, true);   /* as the original's byte stores leave it */
-        m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
-        return;
-    }
-    ORIGINAL_EFFECT(leave_in_a(s, last_looked_at(g)));
-    m_rts(s);
+    if (end.outcome != TASK_IS_DONE)
+        return leaves_a(last_looked_at(g));
+    TaskLeftovers l = leaves_a(SCENE_TASK_MUSIC_FADES);
+    l.a_8bit = true;   /* the started flag, stored a byte */
+    return l;
 }
+
+void scene_title_watch_for_a_button(Snes *s) { scene_task_alone(s, SCENE_TASK_WATCH_FOR_A_BUTTON); }
 
 /* ---- The guards ------------------------------------------------------------------------------------- */
 
@@ -1045,4 +1206,51 @@ bool scene_title_watch_for_a_button_present(Snes *s)
 {
     return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5B99, 0x26, 0x155297E6694755C1ull) &&
            m_code_matches(s, 0x7E395E, 0x16, 0xBC6CC1EBF7C4F36Aull) && a_slot_free(s);
+}
+
+/* ---- The title's tasks, for the lists ------------------------------------------------------------- */
+
+const SceneTaskPort scene_title_tasks[] = {
+    { SCENE_TASK_SWING_PENDULUM, SCENE_FRAME_TASKS, swing_pendulum_task, scene_title_swing_pendulum_present,
+      swing_pendulum_leaves, false },
+    { SCENE_TASK_MOVE_LOGO, SCENE_FRAME_TASKS, move_logo_task, scene_title_move_logo_present, move_logo_leaves, false },
+    { SCENE_TASK_DRAW_THE_CLOCK, SCENE_FRAME_TASKS, draw_the_clock_task, scene_title_draw_the_clock_present,
+      draw_the_clock_leaves, false },
+    { SCENE_TASK_DRAW_THE_HANDS, SCENE_FRAME_TASKS, draw_the_hands_task, scene_title_draw_the_hands_present,
+      draw_the_hands_leaves, false },
+    { SCENE_TASK_DRAW_THE_COPYRIGHT, SCENE_FRAME_TASKS, draw_the_copyright_task,
+      scene_title_draw_the_copyright_present, draw_the_copyright_leaves, false },
+    { SCENE_TASK_SLIDE_THE_NAME, SCENE_FRAME_TASKS, slide_the_name_task, scene_title_slide_the_name_present,
+      slide_the_name_leaves, false },
+    { SCENE_TASK_COUNT_THE_WAIT_DOWN, SCENE_FRAME_TASKS, count_the_wait_down_task,
+      scene_title_count_the_wait_down_present, count_the_wait_down_leaves, false },
+    { SCENE_TASK_WATCH_FOR_A_BUTTON, SCENE_FRAME_TASKS, watch_for_a_button_task,
+      scene_title_watch_for_a_button_present, watch_for_a_button_leaves, false },
+    { SCENE_TASK_RIPPLE, SCENE_FRAME_TASKS, ripple_task, scene_title_ripple_columns_present, ripple_leaves, false },
+    { SCENE_TASK_CALM_THE_RIPPLE, SCENE_FRAME_TASKS, calm_the_ripple_task, scene_title_calm_the_ripple_present,
+      calm_the_ripple_leaves, false },
+    { SCENE_TASK_PLACE_PENDULUM, SCENE_VBLANK_TASKS, place_pendulum_task, scene_title_place_pendulum_present,
+      leaves_nothing_read, false },
+    { SCENE_TASK_UPLOAD_RIPPLE, SCENE_VBLANK_TASKS, upload_ripple_task, scene_title_upload_ripple_present,
+      leaves_nothing_read, false },
+};
+const unsigned scene_title_task_count = sizeof scene_title_tasks / sizeof scene_title_tasks[0];
+
+/* ---- The routines the title's scripts call, for the interpreter -------------------------------------- */
+
+const SceneScriptRoutine scene_title_routines[] = {
+    { SCENE_ROUTINE_START_RIPPLE, start_ripple_on, scene_title_start_ripple_present, start_ripple_leaves, false },
+    { SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4, darken_sprite_palette_4, scene_title_darken_sprite_palette_4_present,
+      darken_sprite_palette_4_leaves, true },
+    { SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3, untint_sprite_palette_3, scene_title_untint_sprite_palette_3_present,
+      untint_sprite_palette_3_leaves, true },
+};
+const unsigned scene_title_routine_count = sizeof scene_title_routines / sizeof scene_title_routines[0];
+
+static const SceneScriptRoutine *routine_of(uint16_t routine)
+{
+    for (unsigned n = 0; n < scene_title_routine_count; n++)
+        if (scene_title_routines[n].routine == routine)
+            return &scene_title_routines[n];
+    return &scene_title_routines[0];
 }

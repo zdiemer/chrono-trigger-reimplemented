@@ -18996,8 +18996,12 @@ why = "the program kept, the sound's port read back, so the song's start ends"
 name = "scene_animate_the_palettes"
 subsystem = "scene"
 state = "attract"
-args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
-why = "the program kept, on the scene's own page, as the title's frame and its lists call it"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0520-7E05AF=00-7F", "--fill", "7E0524-7E0525=00-01",
+        "--fill", "7E0530-7E0531=00-01", "--fill", "7E053C-7E053D=00-01", "--fill", "7E0548-7E0549=00-01",
+        "--fill", "7E0554-7E0555=00-01", "--fill", "7E0560-7E0561=00-01", "--fill", "7E056C-7E056D=00-01",
+        "--fill", "7E0520-7E0520=80-FF", "--fill", "7E052B-7E052B=C0-FF", "--fill", "7E052C-7E052C=80-FF",
+        "--fill", "7E0537-7E0537=C0-FF"]
+why = "the program kept, on the scene's own page, and the animations' slots as palette_animate's constraints make them (core/palette.c's guard takes only slots that fit)"
 
 [[routine]]
 name = "scene_finish_and_upload_sprites"
@@ -19061,3 +19065,68 @@ state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
         "--fill", "7E0920-7E092F=00-00"]
 why = "the program kept, on the scene's own page, and the frame's first slots free for the task it adds"
+
+[[routine]]
+name = "menu_object_mode_start_jump"
+at = "C2:0000"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 500
+why = "as menu_object_mode_start, through bank $C2's jump to it"
+
+[[routine]]
+name = "scene_title_darken_sprite_palette_4"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "on channel 0's page, as the title's script calls it"
+
+[[routine]]
+name = "scene_title_untint_sprite_palette_3"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0A00", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "on channel 0's page, as the title's script calls it"
+
+[[routine]]
+name = "scene_title_calm_the_ripple"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_brighten"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_darken"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_darken_and_end"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the frame's list calls it"
+
+[[routine]]
+name = "scene_fade_the_music_out"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends"
+
+[[routine]]
+name = "scene_darken_in_silence_and_end"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends"

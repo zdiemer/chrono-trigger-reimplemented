@@ -114,6 +114,8 @@ void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t so
     ORIGINAL_EFFECT(leave_offsets(g, &o, (uint16_t)((destination & 0x00FF) | page << 8)));
 }
 
+uint16_t scene_matrix_writer_leaves_y(void) { return STRIPS * 2; }
+
 /* Entered with 16-bit index registers: X the first destination page's
  * address, Y the source base. The routine sets the direct page and the data
  * bank to 0 itself, and the overflow is its last sum's, the tile step's 28 + 4,

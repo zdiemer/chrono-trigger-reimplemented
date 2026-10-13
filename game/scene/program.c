@@ -77,29 +77,45 @@ static void as_the_screen_s_setup_leaves_it(Snes *s)
 
 /* ---- The scene's setup, by its mode ------------------------------------------------------------ */
 
-/* The low bits of scene_flags are the scene's mode, which picks its setup
- * from the program's table ($7E:3043), sixteen of them: the race's
- * (scene/race.c), the title's (scene/title.c), the shared endings'
- * (scene/endings.c) and the staff roll's (scene/staff_roll.c) are ports; the
- * attract sequence's other scenes, and the ones no movie reaches, are still the
- * original's. */
+/* The low bits of scene_flags are the scene's mode, which picks its setup:
+ * the race's (scene/race.c; the attract sequence's race is mode 9), the
+ * title's (scene/title.c), the shared endings' (scene/endings.c) and the
+ * staff roll's (scene/staff_roll.c) are C; the attract sequence's other
+ * scenes, and the ones no movie reaches, are still the original's, called by
+ * the routine the program's own table names for the mode. */
 enum { SCENE_MODE_BITS = 0x1F, SCENE_MODES = 16, PROGRAM_BANK = 0x7E0000 };
 
-enum {
-    RACE_SET_UP = 0x3B48, TITLE_SET_UP = 0x5978, ENDINGS_SET_UP = 0x8538, STAFF_ROLL_SET_UP = 0x8EA8,
+typedef enum {
+    MODE_RACE = 0, MODE_TITLE = 2, MODE_ATTRACT_RACE = 9, MODE_ENDING = 10, MODE_ENDING_TOO = 11,
+    MODE_STAFF_ROLL = 13, MODE_ENDING_AGAIN = 14, MODE_LAST_ENDING = 15,
+} SceneMode;
+
+/* The setups' routines, by which their time is reckoned. */
+enum { RACE_SET_UP = 0x7E3B48, TITLE_SET_UP = 0x7E5978, ENDINGS_SET_UP = 0x7E8538, STAFF_ROLL_SET_UP = 0x7E8EA8 };
+
+static const struct {
+    SceneMode mode;
+    uint32_t routine;
+    bool (*set_up)(Snes *s);
+    bool (*present)(Snes *s);
+    bool binary;   /* its code adds, so it runs in binary mode */
+} setups[] = {
+    { MODE_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
+    { MODE_TITLE, TITLE_SET_UP, scene_title_set_up_scene, scene_title_set_up_present, false },
+    { MODE_ATTRACT_RACE, RACE_SET_UP, scene_race_set_up_scene, scene_race_set_up_present, false },
+    { MODE_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { MODE_ENDING_TOO, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { MODE_STAFF_ROLL, STAFF_ROLL_SET_UP, scene_staff_roll_set_up_scene, scene_staff_roll_set_up_present, false },
+    { MODE_ENDING_AGAIN, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
+    { MODE_LAST_ENDING, ENDINGS_SET_UP, scene_ending_set_up_scene, scene_ending_set_up_present, true },
 };
-static const uint16_t setups[SCENE_MODES] = {
-    RACE_SET_UP, 0x6B04, TITLE_SET_UP, 0x671F, 0x53BB, 0x7092, 0x78DD, 0x6248,
-    0x6248, RACE_SET_UP, ENDINGS_SET_UP, ENDINGS_SET_UP, 0x8E95, STAFF_ROLL_SET_UP, ENDINGS_SET_UP, ENDINGS_SET_UP,
-};
+enum { SETUP_PORTS = sizeof setups / sizeof setups[0] };
 
 /* What the program's dispatch leaves a setup: the mode doubled in A and X,
  * the flags of the index's move to X, and the carry its doubling left clear.
  * The setups are reached through a table in RAM, which liveness can't follow,
  * so every register is as the original has it; Y and the overflow are as the
- * program was started with them, which none of the start changes. The setup
- * is a call on the machine, which runs whatever the registry has there: what a
- * setup leaves in Y, which the frame's tasks may read, is then its own. */
+ * program was started with them, which none of the start changes. */
 static void enter_as_the_dispatch_does(Snes *s, uint8_t mode)
 {
     uint16_t index = (uint16_t)(mode * 2);
@@ -109,17 +125,42 @@ static void enter_as_the_dispatch_does(Snes *s, uint8_t mode)
     m_set_flag(s, CPU_FLAG_C, false);
 }
 
-enum { SETUP_CALL = 0x7E300A, THE_SETUPS_MAY_READ_ANYTHING = 0 };
+/* The dispatch's call, whose return the setups run under; a scene whose
+ * setup is the original's is a call of the routine the program's own table
+ * names for its mode. */
+enum { SETUP_DISPATCH = 0x7E300A, THE_SETUPS_MAY_READ_ANYTHING = 0 };
 
 static void first_frame(Snes *s);
 
-/* The scene's setup, then its first frame. A setup that waits (the title's)
- * stops the port, and the first frame goes on from its return ($7E:300D). */
+/* The scene's setup as C where it is a port and the program's code for it is
+ * the code the port stands for, then its first frame. Every setup still
+ * calls the original's code (the unpacker's decompressor, a script's first
+ * step, the sound driver), whose calls the original makes with the dispatch's
+ * return under them, so the setup runs with it there, as the stack is at
+ * those calls; and the title's setup ends in the original's wait for its song
+ * to start, which returns through it to the first frame ($7E:300D). */
 static void set_the_scene_up(Snes *s)
 {
     uint8_t mode = scene_flags(state_of(s)) & SCENE_MODE_BITS;
     enter_as_the_dispatch_does(s, mode);
-    if (scene_run(s, SETUP_CALL, PROGRAM_BANK | setups[mode], THE_SETUPS_MAY_READ_ANYTHING, NULL))
+    for (unsigned n = 0; n < SETUP_PORTS; n++) {
+        if (setups[n].mode != mode || (setups[n].binary && m_flag(s, CPU_FLAG_D)) || !setups[n].present(s))
+            continue;
+        bool done = false;
+        scene_bridge_enter(s, SETUP_DISPATCH);
+        NATIVE_TIME_AS(s, setups[n].routine, done = setups[n].set_up(s));
+        if (!done)
+            return;
+        if (mode == MODE_TITLE) {
+            scene_title_wait_for_its_song(s);
+            return;
+        }
+        scene_bridge_leave(s);
+        first_frame(s);
+        return;
+    }
+    uint16_t original_setup = scene_program_setups(state_of(s), mode);
+    if (scene_run(s, SETUP_DISPATCH, PROGRAM_BANK | original_setup, THE_SETUPS_MAY_READ_ANYTHING, NULL))
         first_frame(s);
 }
 

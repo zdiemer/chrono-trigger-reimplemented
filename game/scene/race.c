@@ -594,13 +594,24 @@ bool scene_race_set_up_present(Snes *s)
 /* Entered from the program's mode table with 8-bit A; back, the matrix code's
  * writer has left the data bank and the direct page at 0 and the overflow
  * clear, which the program reads. */
-void scene_race_set_up_entry(Snes *s)
+/* The setup leaves Y as the matrix code's writer left it, which the frame's
+ * first vblank tasks may read. */
+static void leave_y_as_the_writer_does(Snes *s) { s->cpu.y = scene_matrix_writer_leaves_y(); }
+
+bool scene_race_set_up_scene(Snes *s)
 {
     scene_race_set_up(s);
+    ORIGINAL_EFFECT(leave_y_as_the_writer_does(s));
     s->cpu.d = 0x0000;
     s->cpu.db = 0x00;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
+    return true;
+}
+
+void scene_race_set_up_entry(Snes *s)
+{
+    scene_race_set_up_scene(s);
     m_rts(s);
 }
 

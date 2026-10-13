@@ -1518,6 +1518,16 @@ meaning = "The fourth matrix entry of the line above the screen (scene_plane_lin
 source = "game/scene/perspective.c, scene_build_perspective $7E:357B"
 
 [[var]]
+name = "scene_program_setups"
+addr = "7E:3043"
+size = 2
+count = 16
+index = "the scene's mode"
+subsystem = "scene"
+meaning = "The program's table of the scenes' setups by mode, the routines its dispatch calls (the program's data)"
+source = "game/scene/program.c, scene_program_start $7E:3000"
+
+[[var]]
 name = "scene_perspective_start"
 addr = "7E:35FD"
 size = 2
