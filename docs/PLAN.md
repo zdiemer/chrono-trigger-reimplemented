@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 288 files, 117 of 88,201 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 289 files, 117 of 88,861 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -510,8 +510,7 @@ the star field, the captions and the last scene's swept window, with the
 program's stirred random numbers as game code (history file, "Phase 3, the
 scene program: the star field, the captions and the random numbers"); and so
 are the program's start and end and the title from its setup to its end
-(history file, "Phase 4a, the native frame: the title"; REIMPLEMENTATION.md,
-"Phase 4a, the native frame: the scene's tables as C").
+(history file, "Phase 4a, the native frame: the title"; history file, "Phase 4a, the native frame: the scene's tables as C").
 **Next**, by what the library reaches: the attract sequence's other scenes
 (modes 1 and 3, the attract demo's); the Beyond Time
 ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
@@ -559,15 +558,14 @@ by an audit; the fourth is the program itself.
   to its end: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
   the field's first start, the program's start into the title, the title's
   frames and its scripts' routines, the music fading out and the screen going
-  dark, and the scene's end into the menus' attract scene, to frame 2140, and
-  stops at `$C6:E241`, in that scene's object scripts (REIMPLEMENTATION.md,
-  "Phase 4a, the native frame: the scene's tables as C"). Over 3,000 frames
-  from power-on `--interpreted log` lists 417 addresses still interpreted,
-  none of them in `$C0` or `$FD`: the attract sequence's other scenes in the
-  program (`$7E`, 224), the scene engine's curtain (`$C3`, 150) and the menus'
-  attract scene (`$C6`, 41; `$C2`, 2). Next: the menus' attract scene from
-  `$C6:E241`, then the curtain in `$C3` and the attract sequence's other
-  scenes (modes 1 and 3), which only the attract demo reaches.
+  dark, the scene's end into the menus' attract scene and its curtain, to
+  frame 2663, and stops at `$7E:6B04`, the setup of the attract sequence's
+  next scene (REIMPLEMENTATION.md, "Phase 4a, the native frame: the
+  curtain"). Over 3,000 frames from power-on `--interpreted log` lists 224
+  addresses still interpreted, all of them the attract sequence's scenes 1
+  and 3 in the program (`$7E`). Next: those two scenes (`$7E:53BB`-`$7E:7FC3`,
+  about 6 KiB, which only the attract demo reaches), then on to the load
+  screen and a new game.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

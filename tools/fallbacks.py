@@ -94,6 +94,7 @@ INSN = re.compile(r"^insn (\w+) ([0-9A-F]{6}) (\d+) (\d+) ([0-9A-F]{2}(?:[0-9A-F
 EVENT = re.compile(r"^event (\w+) ([0-9A-F]{6}) ([0-9A-F]{6}) (\d+) (\S+)$")
 REFUSAL = re.compile(r"^refusal ([0-9A-F]{6}) (\w+) (\d+) (\S+)$")
 STATE = re.compile(r"^state ([0-9A-F]{6}) (\w+) (.*)$")
+OPEN = re.compile(r"^open ([0-9A-F]{6}) (\d+) (\S+)$")
 
 
 def canonical(addr):
@@ -141,6 +142,7 @@ class Measure:
         self.names = {}                         # port address -> name
         self.refusals = collections.Counter()   # (entry, name, why) -> count
         self.states = collections.defaultdict(list)
+        self.open = collections.Counter()       # (port, name) -> instructions under its unfinished comparison
         self.files = 0
 
     def read(self, path):
@@ -166,6 +168,11 @@ class Measure:
                 entry, why, count, name = m.groups()
                 self.refusals[(fmt(int(entry, 16)), name, why)] += int(count)
                 self.names[fmt(int(entry, 16))] = name
+                continue
+            m = OPEN.match(line)
+            if m:
+                port, count, name = m.groups()
+                self.open[(fmt(int(port, 16)), name)] += int(count)
                 continue
             m = STATE.match(line)
             if m:
@@ -218,7 +225,8 @@ def totals_line(m):
     nbytes = len(set().union(*(total[(None, k)][1] for k in KINDS)))
     ninsns = sum(total[(None, k)][0] for k in KINDS)
     parts = ", ".join("%s %s/%d" % (k, kib(len(total[(None, k)][1])), total[(None, k)][0]) for k in KINDS)
-    return "%s of code, %d instructions in place of hand ports (%s)" % (kib(nbytes), ninsns, parts)
+    return "%s of code, %d instructions in place of hand ports (%s); %d under comparisons still open" % (
+        kib(nbytes), ninsns, parts, sum(m.open.values()))
 
 
 def describe(m, routine, row):
@@ -304,6 +312,9 @@ def check(m, baseline_path, out):
     for routine, n, b, bn, bb, row in rose:
         out.write("rose: %s %d instructions (baseline %d), %d bytes (baseline %d): %s\n"
                   % (routine, n, bn, b, bb, describe(m, routine, row)))
+    for (port, name), n in sorted(m.open.items()):
+        out.write("open: %s %s, %d instructions the original ran under its comparison, still open when a run ended\n"
+                  % (port, name, n))
     summary = "%s; %d routine(s) new, %d rose, %d malformed" % (totals_line(m), len(new), len(rose), len(bad))
     if gains or gone:
         summary += "; %d fell and %d went (--update takes the gain)" % (len(gains), len(gone))

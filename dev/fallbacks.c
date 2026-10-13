@@ -29,6 +29,8 @@ typedef struct Frame {
     bool interrupt;
     uint32_t routine, port;
     uint16_t floor, start;
+    uint64_t hidden;   /* COVERED: the instructions it has not counted so far */
+    const char *name;  /* COVERED: its port's name */
 } Frame;
 
 /* Counted by (a, b, c, d): instructions by (pc, kind, routine, port), and
@@ -251,6 +253,8 @@ void fallbacks_note(Fallbacks *f, uint32_t pc, uint8_t p, bool e)
     uint32_t routine = eff.routine == BANK_ONLY ? BANK_ONLY | (pc & 0xFF0000) : eff.routine;
 
     uint8_t op = snes_bus_peek(&s->bus, pc);
+    if (eff.kind == COVERED)
+        f->frames[f->depth - 1].hidden++;
     if (eff.kind != COVERED) {
         bool m8 = e || (p & CPU_FLAG_M), x8 = e || (p & CPU_FLAG_X);
         add(f, pc, eff.kind, routine, eff.port, (uint8_t)misses_instruction_length(op, m8, x8));
@@ -419,7 +423,7 @@ static void on_entered(void *ctx, Snes *s, const NativeEntry *e)
     f->pending = false;
     f->pending_rti = false;
     if (f->shadow)
-        enter(f, (Frame){ .kind = COVERED, .routine = cpu_pc24(&s->cpu), .port = e->addr, .floor = sp });
+        enter(f, (Frame){ .kind = COVERED, .routine = cpu_pc24(&s->cpu), .port = e->addr, .floor = sp, .name = e->name });
 }
 
 /* SHADOW: a wait loop's head, where an idle entry applies. A pass that came
@@ -495,7 +499,7 @@ int fallbacks_write(Fallbacks *f, const char *path)
         return -1;
     fprintf(out, "# fallbacks (dev/fallbacks.h; tools/fallbacks.py reads it)\n"
                  "# insn KIND PC LEN COUNT ROUTINE PORT | event KIND PORT WHERE COUNT NAME | "
-                 "refusal ENTRY WHY COUNT NAME | state ENTRY WHY ...\n");
+                 "refusal ENTRY WHY COUNT NAME | state ENTRY WHY ... | open PORT COUNT NAME\n");
     for (size_t i = 0; i < f->cap; i++) {
         const Count *k = &f->slots[i];
         if (!k->used || k->b >= EV_CALLOUT || !k->n)
@@ -509,6 +513,13 @@ int fallbacks_write(Fallbacks *f, const char *path)
             put_addr(out, k->d);
         fputc('\n', out);
     }
+    /* SHADOW: comparisons the run ended inside, and what the original ran
+     * under them uncounted since they began: one that never finishes would
+     * hide everything after it until its routine returns, so it is shown */
+    for (int i = 1; i < f->depth; i++)
+        if (f->frames[i].kind == COVERED && f->frames[i].hidden)
+            fprintf(out, "open %06X %llu %s\n", (unsigned)f->frames[i].port,
+                    (unsigned long long)f->frames[i].hidden, f->frames[i].name ? f->frames[i].name : "?");
     for (size_t i = 0; i < f->cap; i++) {
         const Count *k = &f->slots[i];
         if (!k->used || k->b < EV_CALLOUT)
@@ -537,5 +548,10 @@ void fallbacks_summary(const Fallbacks *f, FILE *out)
     uint64_t refusals = 0;
     for (int i = 0; i < f->nrefusals; i++)
         refusals += f->refusals[i].count;
-    fprintf(out, " instructions; %llu refusals at %d entries\n", (unsigned long long)refusals, f->nrefusals);
+    uint64_t open = 0;
+    for (int i = 1; i < f->depth; i++)
+        if (f->frames[i].kind == COVERED)
+            open += f->frames[i].hidden;
+    fprintf(out, " instructions; %llu refusals at %d entries; %llu instructions under comparisons still open\n",
+            (unsigned long long)refusals, f->nrefusals, (unsigned long long)open);
 }

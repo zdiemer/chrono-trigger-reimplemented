@@ -39,6 +39,9 @@ enum { COLORS = 256 };
 /* Where the scene keeps the sprites' graphics. */
 enum { SPRITE_GRAPHICS = 0x4000 };
 
+/* The rows of this file's tasks (below), which their entries run. */
+enum ScreenTaskRow { ROW_ANIMATE_PALETTES, ROW_FINISH_SPRITES, ROW_BRIGHTEN, ROW_DARKEN, ROW_MUSIC_FADES, ROW_DARKEN_IN_SILENCE_AND_END, ROW_DARKEN_AND_END };
+
 /* ---- The program stops ---------------------------------------------------------------------- */
 
 bool scene_program_restart_present(Snes *s) { return m_code_matches(s, 0x7E302A, 14, 0x614033C5F8C83156ull); }
@@ -195,7 +198,7 @@ static TaskLeftovers finish_sprites_leaves(const GameState *g, TaskEnd end)
     return (TaskLeftovers){ 0 };
 }
 
-void scene_finish_and_upload_sprites(Snes *s) { scene_task_alone(s, SCENE_TASK_FINISH_SPRITES); }
+void scene_finish_and_upload_sprites(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_FINISH_SPRITES]); }
 
 /* The task's call of the group's end, and the upload after it. */
 bool scene_finish_and_upload_sprites_present(Snes *s)
@@ -280,7 +283,7 @@ static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end
                             .overflow_clear = true };
 }
 
-void scene_animate_the_palettes(Snes *s) { scene_task_alone(s, SCENE_TASK_ANIMATE_PALETTES); }
+void scene_animate_the_palettes(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_ANIMATE_PALETTES]); }
 
 /* The task's code, and the animations' room in their slots (core/palette.c). */
 bool scene_animate_the_palettes_present(Snes *s)
@@ -403,11 +406,11 @@ static TaskLeftovers darken_and_end_leaves(const GameState *g, TaskEnd end)
     return fade_leaves(SCENE_TASK_DARKEN_AND_END);
 }
 
-void scene_brighten(Snes *s) { scene_task_alone(s, SCENE_TASK_BRIGHTEN); }
-void scene_darken(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN); }
-void scene_fade_the_music_out(Snes *s) { scene_task_alone(s, SCENE_TASK_MUSIC_FADES); }
-void scene_darken_in_silence_and_end(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN_IN_SILENCE_AND_END); }
-void scene_darken_and_end(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN_AND_END); }
+void scene_brighten(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_BRIGHTEN]); }
+void scene_darken(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN]); }
+void scene_fade_the_music_out(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_MUSIC_FADES]); }
+void scene_darken_in_silence_and_end(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN_IN_SILENCE_AND_END]); }
+void scene_darken_and_end(Snes *s) { scene_task_alone(s, &scene_screen_tasks[ROW_DARKEN_AND_END]); }
 
 /* Each one's code; the cells and the sound buffer are reached through the data
  * bank. */
@@ -429,17 +432,17 @@ bool scene_darken_and_end_present(Snes *s)
 /* ---- The frame's own tasks, for the lists ---------------------------------------------------- */
 
 const SceneTaskPort scene_screen_tasks[] = {
-    { SCENE_TASK_ANIMATE_PALETTES, SCENE_FRAME_TASKS, animate_the_palettes_task, scene_animate_the_palettes_present,
+    [ROW_ANIMATE_PALETTES] = { SCENE_TASK_ANIMATE_PALETTES, SCENE_FRAME_TASKS, animate_the_palettes_task, scene_animate_the_palettes_present,
       animate_the_palettes_leaves, false },
-    { SCENE_TASK_FINISH_SPRITES, SCENE_VBLANK_TASKS, finish_sprites_task, scene_finish_and_upload_sprites_present,
+    [ROW_FINISH_SPRITES] = { SCENE_TASK_FINISH_SPRITES, SCENE_VBLANK_TASKS, finish_sprites_task, scene_finish_and_upload_sprites_present,
       finish_sprites_leaves, false },
-    { SCENE_TASK_BRIGHTEN, SCENE_FRAME_TASKS, brighten_task, scene_brighten_present, brighten_leaves, false },
-    { SCENE_TASK_DARKEN, SCENE_FRAME_TASKS, darken_task, scene_darken_present, darken_leaves, false },
-    { SCENE_TASK_MUSIC_FADES, SCENE_FRAME_TASKS, fade_the_music_out_task, scene_fade_the_music_out_present,
+    [ROW_BRIGHTEN] = { SCENE_TASK_BRIGHTEN, SCENE_FRAME_TASKS, brighten_task, scene_brighten_present, brighten_leaves, false },
+    [ROW_DARKEN] = { SCENE_TASK_DARKEN, SCENE_FRAME_TASKS, darken_task, scene_darken_present, darken_leaves, false },
+    [ROW_MUSIC_FADES] = { SCENE_TASK_MUSIC_FADES, SCENE_FRAME_TASKS, fade_the_music_out_task, scene_fade_the_music_out_present,
       fade_the_music_out_leaves, true },
-    { SCENE_TASK_DARKEN_IN_SILENCE_AND_END, SCENE_FRAME_TASKS, darken_in_silence_and_end_task,
+    [ROW_DARKEN_IN_SILENCE_AND_END] = { SCENE_TASK_DARKEN_IN_SILENCE_AND_END, SCENE_FRAME_TASKS, darken_in_silence_and_end_task,
       scene_darken_in_silence_and_end_present, darken_in_silence_and_end_leaves, true },
-    { SCENE_TASK_DARKEN_AND_END, SCENE_FRAME_TASKS, darken_and_end_task, scene_darken_and_end_present,
+    [ROW_DARKEN_AND_END] = { SCENE_TASK_DARKEN_AND_END, SCENE_FRAME_TASKS, darken_and_end_task, scene_darken_and_end_present,
       darken_and_end_leaves, false },
 };
 const unsigned scene_screen_task_count = sizeof scene_screen_tasks / sizeof scene_screen_tasks[0];

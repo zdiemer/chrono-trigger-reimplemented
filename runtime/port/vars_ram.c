@@ -4032,6 +4032,10 @@ uint16_t menu_object_slots_iris_frames(const GameState *g, unsigned slot) { IN_R
 void set_menu_object_slots_iris_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 357, "set_menu_object_slots_iris_frames", "count", slot, 64u); w16(g, 0x7E0B54u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_iris_stretch(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "menu_object_slots_iris_stretch", "count", slot, 64u); return r16(g, 0x7E0B54u + (uint32_t)slot * 0x40u); }
 void set_menu_object_slots_iris_stretch(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 357, "set_menu_object_slots_iris_stretch", "count", slot, 64u); w16(g, 0x7E0B54u + (uint32_t)slot * 0x40u, v); }
+uint8_t menu_object_slots_curtain_sweep(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "menu_object_slots_curtain_sweep", "count", slot, 64u); return r8(g, 0x7E0B52u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_curtain_sweep(GameState *g, unsigned slot, uint8_t v) { IN_RANGE(g, 357, "set_menu_object_slots_curtain_sweep", "count", slot, 64u); w8(g, 0x7E0B52u + (uint32_t)slot * 0x40u, v); }
+uint16_t menu_object_slots_curtain_table(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "menu_object_slots_curtain_table", "count", slot, 64u); return r16(g, 0x7E0B54u + (uint32_t)slot * 0x40u); }
+void set_menu_object_slots_curtain_table(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 357, "set_menu_object_slots_curtain_table", "count", slot, 64u); w16(g, 0x7E0B54u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "menu_object_slots_capsule_frames", "count", slot, 64u); return r16(g, 0x7E0B56u + (uint32_t)slot * 0x40u); }
 void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v) { IN_RANGE(g, 357, "set_menu_object_slots_capsule_frames", "count", slot, 64u); w16(g, 0x7E0B56u + (uint32_t)slot * 0x40u, v); }
 uint16_t menu_object_slots_command_state(const GameState *g, unsigned slot) { IN_RANGE(g, 357, "menu_object_slots_command_state", "count", slot, 64u); return r16(g, 0x7E0B62u + (uint32_t)slot * 0x40u); }
@@ -6847,6 +6851,8 @@ uint8_t scene_curtain_table_bank_high(const GameState *g) { return r8(g, 0x7E035
 void set_scene_curtain_table_bank_high(GameState *g, uint8_t v) { w8(g, 0x7E0355u, v); }
 uint16_t scene_circle_table(const GameState *g) { return r16(g, 0x7E0356u); }
 void set_scene_circle_table(GameState *g, uint16_t v) { w16(g, 0x7E0356u, v); }
+uint16_t scene_curtain_noise_page(const GameState *g) { return r16(g, 0x7E0356u); }
+void set_scene_curtain_noise_page(GameState *g, uint16_t v) { w16(g, 0x7E0356u, v); }
 uint8_t scene_circle_table_bank(const GameState *g) { return r8(g, 0x7E0358u); }
 void set_scene_circle_table_bank(GameState *g, uint8_t v) { w8(g, 0x7E0358u, v); }
 uint8_t scene_race_winner(const GameState *g) { return r8(g, 0x7E0380u); }
@@ -6891,10 +6897,16 @@ uint8_t scene_random_step(const GameState *g) { return r8(g, 0x7E039Bu); }
 void set_scene_random_step(GameState *g, uint8_t v) { w8(g, 0x7E039Bu, v); }
 uint16_t scene_circle_count(const GameState *g) { return r16(g, 0x7E03F0u); }
 void set_scene_circle_count(GameState *g, uint16_t v) { w16(g, 0x7E03F0u, v); }
+uint8_t scene_curtain_fill(const GameState *g) { return r8(g, 0x7E03F0u); }
+void set_scene_curtain_fill(GameState *g, uint8_t v) { w8(g, 0x7E03F0u, v); }
 uint16_t scene_circle_decision(const GameState *g) { return r16(g, 0x7E03F2u); }
 void set_scene_circle_decision(GameState *g, uint16_t v) { w16(g, 0x7E03F2u, v); }
+uint8_t scene_curtain_move(const GameState *g) { return r8(g, 0x7E03F2u); }
+void set_scene_curtain_move(GameState *g, uint8_t v) { w8(g, 0x7E03F2u, v); }
 uint16_t scene_circle_row(const GameState *g) { return r16(g, 0x7E03F4u); }
 void set_scene_circle_row(GameState *g, uint16_t v) { w16(g, 0x7E03F4u, v); }
+uint16_t scene_curtain_end(const GameState *g) { return r16(g, 0x7E03F4u); }
+void set_scene_curtain_end(GameState *g, uint16_t v) { w16(g, 0x7E03F4u, v); }
 uint16_t scene_circle_center_row_half(const GameState *g) { return r16(g, 0x7E03F6u); }
 void set_scene_circle_center_row_half(GameState *g, uint16_t v) { w16(g, 0x7E03F6u, v); }
 uint8_t scene_nmi_stub_jump(const GameState *g) { return r8(g, 0x7E0500u); }

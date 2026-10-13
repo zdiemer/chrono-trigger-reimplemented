@@ -215,9 +215,10 @@ extern const SceneScriptRoutine scene_title_routines[];
 extern const unsigned scene_title_routine_count;
 
 /* scene/frame.c: a task's registered entry, for a caller that reaches it by
- * its address (fuzzing; the lists run it as C): its frame, and back as the
- * original's would come back, or through the lists' exits. */
-void scene_task_alone(Snes *s, SceneTask task);
+ * its address (fuzzing; the lists run it as C): the row's frame, on the row's
+ * list, and back as the original's would come back, or through the lists'
+ * exits. */
+void scene_task_alone(Snes *s, const SceneTaskPort *port);
 
 /* scene/sprites.c: a sprite put straight into an entry of the frame's sprite
  * table (a byte offset), with no cursor and no offset, as the star field
@@ -573,6 +574,14 @@ void scene_first_frame(Snes *s);
 bool scene_program_start_present(Snes *s);
 void scene_program_hands_back(Snes *s);
 bool scene_setup_present(Snes *s);
+/* scene/curtain.c: a frame's step of the curtain (the scene engine's $C3:01E4,
+ * and its jump $C3:000E) */
+void scene_sweep_the_curtain(Snes *s);
+void scene_curtain_step(GameState *g, Platform *pf, uint16_t salt);
+void scene_curtain_start(GameState *g, uint8_t sweep, uint16_t table, uint8_t bank);
+bool scene_curtain_table_fits(uint8_t bank, uint16_t table);
+void scene_curtain_jump(Snes *s);
+bool scene_sweep_the_curtain_present(Snes *s);
 bool scene_program_end_present(Snes *s);
 /* The game back to the field's start on the game's fresh stack, as the
  * program ends. */

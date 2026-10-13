@@ -1494,10 +1494,6 @@ rest waits, is [PLAN.md](PLAN.md).
     the handlers and of the routines the scripts name, each row the
     operation's own (`NATIVE_TIME_AS`), with what nothing ports handed to the
     original;
-  - what the scenes' scripts call and nothing ports yet: `$C6:E241` and
-    `$C6:E27E`, the endings' scenes' line effects, which call the scene
-    engine's `$C3:000E` (unported) and program a line channel the line
-    service would take;
   - no movie flies the Epoch over the Black Omen or enters it
     (`$C2:4510`-`$C2:452F`, `$C2:4A0A`-`$C2:4A19`), takes off at the story's
     point `$D3` or boards at `$D2`, or sets off for `$1F2` before the Epoch
@@ -2182,13 +2178,8 @@ re-runs the census.
     high byte as the original has it (field/leaves.c);
 - **What the screen effects left** (history/reimplementation-chunks.md, "Phase 3, field and events:
   the screen effects and the credits"):
-  - the curtain's sweep is still bank `$C3`'s (`$C3:01E4`, through the jump
-    at `$C3:000E`): each frame it moves every line's edge on by a few pixels
-    picked by the scene engine's random mixer (`$C3:02DD`), which reads the
-    beam's position (the H/V counter latches), so it waits on a timing
-    service before it can be C; the attract demo's curtains (512 steps in
-    `attract-demo`) are compared inside the field's frame, and fuzzing checks
-    around the call and at it;
+  - the field still calls the curtain's step (`scene/curtain.c`, `$C3:01E4`)
+    through the machine at its jump (`$C3:000E`); call it as C;
   - the ripple (event `$FF` `$9E`) and the field's close into scene `$85`
     (`$9B`) run for frames with the original's routines between their steps
     (BG1 drawn and its tile map readied, the frame's effects, the frame
@@ -2390,10 +2381,6 @@ re-runs the census.
   in no movie) waits for a line from the script. Neither is followed by a
   register write, so the wait looks like pacing; take it out when the frame
   work's own remainder is ported.
-- **The scene program's noise effect**: `$C3:01E4` (called from `$7E:6844`,
-  and from bank C6's `$C6:E27E` through `$C3:000E`, which no movie runs)
-  still calls the original's stir `$C3:02DD`; it takes `scene_draw_random`
-  (scene/random.c) when it is ported.
 - **The timer resets.** `$C2:0043` past `$C2:00F2` and `$C2:940D` past
   `$C2:94B8` clear `$4207-$420A` in a run of CPU register writes (where the
   menu ports stop). Nothing enables the timers after them, so natively they
@@ -2686,8 +2673,8 @@ waits on M5 rather than on a backend.
   step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which
   the title's setup runs as C (`scene_run`), but the race's and the endings'
   setups still make them calls on the machine (`m_jsr_dc`), which the registry
-  answers with the ports; and, for the race without its panel, the curtain's
-  step (`$C3:000E`, the field's `$C3:01E4`) is the original's. Run them as C
+  answers with the ports, and the race's curtain step the same
+  (`$C3:000E`, scene/curtain.c). Run them as C
   and recalibrate the setups' time; then the setup's machine (the frames and
   the data bank and direct page it keeps on the stack around them,
   `scene/bridge.c`) can come down. The setup's mirroring of the racers'

@@ -5186,8 +5186,46 @@ addr = "7E:0355"
 page = "decompress"
 subsystem = "scene"
 reuses = "scene_circle_radius"
-meaning = "The byte after the curtain's table's bank, which the curtain reads with it as a word (only the bank's low bit counts) and the race's setup writes 0 with it"
-source = "game/scene/race.c, scene_race_set_up $7E:3B48"
+meaning = "The byte after the curtain's table's bank, which the curtain reads with it as a word (only the bank's low bit counts) and the race's setup writes 0 with it; the curtain's steps keep their place in the game's random bytes ($C0:FE00 on) there"
+source = "game/scene/race.c, scene_race_set_up $7E:3B48; game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
+
+[[var]]
+name = "scene_curtain_noise_page"
+addr = "7E:0356"
+size = 2
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_table"
+meaning = "The page and bank of the curtain's pointer into the game's random bytes ($FE, $C0), which every step writes (scaffolding)"
+source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
+
+[[var]]
+name = "scene_curtain_fill"
+addr = "7E:03F0"
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_count"
+meaning = "The edge the curtain's first step fills its lines with: 0 at the left, $FF at the right (scaffolding)"
+source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
+
+[[var]]
+name = "scene_curtain_move"
+addr = "7E:03F2"
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_decision"
+meaning = "How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding)"
+source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
+
+[[var]]
+name = "scene_curtain_end"
+addr = "7E:03F4"
+size = 2
+page = "decompress"
+subsystem = "scene"
+reuses = "scene_circle_row"
+meaning = "Where the curtain's lines end, past the 224th (scaffolding)"
+source = "game/scene/curtain.c, scene_sweep_the_curtain $C3:01E4"
 
 [[var]]
 name = "scene_circle_count"
@@ -12620,6 +12658,17 @@ source = "game/menu/objects.c, menu_run_objects $C2:051D; game/menu/script.c, me
   offset = 0x24
   size = 2
   meaning = "The capsule iris's stretch: the lines its lower half is moved down by"
+
+  [[var.field]]
+  name = "curtain_sweep"
+  offset = 0x22
+  meaning = "A curtain's way across (scene_curtain_sweep: 1 from the left, 2 from the right)"
+
+  [[var.field]]
+  name = "curtain_table"
+  offset = 0x24
+  size = 2
+  meaning = "Where a curtain keeps its lines' edges in bank $7E (scene_curtain_table)"
 
   [[var.field]]
   name = "capsule_frames"

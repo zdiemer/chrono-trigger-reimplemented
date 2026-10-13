@@ -572,6 +572,9 @@ static void effect_apply(VidObserver *ob, VidLineTarget target, int i, uint8_t v
     case VID_LINE_WINDOW1_LEFT:
         ob->state.windows.w1_left = v;
         break;
+    case VID_LINE_WINDOW1_RIGHT:
+        ob->state.windows.w1_right = v;
+        break;
     case VID_LINE_MODE7_AB:
     case VID_LINE_MODE7_CD: {
         /* The Mode 7 registers share one latch: each write leaves the byte

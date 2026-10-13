@@ -352,3 +352,105 @@ void menu_object_squashed_iris_1(Snes *s) { squashed_entry(s, 1); }
 void menu_object_squashed_iris_2(Snes *s) { squashed_entry(s, 2); }
 void menu_object_capsule_iris_1(Snes *s) { capsule_entry(s, 1); }
 void menu_object_capsule_iris_2(Snes *s) { capsule_entry(s, 2); }
+
+/* ---- the curtain ------------------------------------------------------------------------------- */
+
+/* A curtain (scene/curtain.c) on slot 2: window 1's right edge line by line,
+ * from the object's table of edges, sweeping the way the object says. Each
+ * frame's step sends the edges to one half of the table or the other, and the
+ * slot's two runs of 112 lines show the half just sent. */
+enum { CURTAIN_SLOT = 2, CURTAIN_HALF = 0x70 };
+
+/* The half shown is reckoned from the object's own table, by the parity of
+ * the curtain's steps. */
+static uint16_t curtain_shown(const GameState *g, MenuObject o)
+{
+    uint16_t table = menu_object_slots_curtain_table(g, o);
+    return (scene_curtain_steps(g) & 1) ? table : (uint16_t)(table + 2 * CURTAIN_HALF);
+}
+
+static void show_the_curtain(GameState *g, MenuObject o)
+{
+    uint16_t shown = curtain_shown(g, o);
+    unsigned first = 2u * (CURTAIN_SLOT - FIRST_SLOT);
+    set_menu_object_hdma_pointers(g, first, shown);
+    set_menu_object_hdma_pointers(g, first + 1, (uint16_t)(shown + CURTAIN_HALF));
+}
+
+/* A step of it: the scene engine's step (its stir takes the caller's X, the
+ * object), and the half it sent shown. */
+static void step_the_curtain(GameState *g, Platform *pf, MenuObject o, uint16_t salt)
+{
+    TIMED_AS(g, 0xC301E4, scene_curtain_step(g, pf, salt));
+    show_the_curtain(g, o);
+}
+
+// $C6:E241
+static void start_the_curtain(GameState *g, Platform *pf, MenuObject o)
+{
+    menu_start_line_effect(g, pf, 0xC6E253, CURTAIN_SLOT, VID_LINE_WINDOW1_RIGHT);
+    scene_curtain_start(g, menu_object_slots_curtain_sweep(g, o), menu_object_slots_curtain_table(g, o), LINE_TABLE_BANK);
+    step_the_curtain(g, pf, o, menu_object_current(g));
+}
+
+/* Back, A has the second half's address as the last add left it, in 16-bit A,
+ * with its flags, and X the object; the start leaves Y the object's table,
+ * which it loaded. */
+static void as_the_curtain_leaves_it(Snes *s, MenuObject o)
+{
+    GameState *g = state_of(s);
+    uint16_t shown = curtain_shown(g, o);
+    uint32_t sum = (uint32_t)shown + CURTAIN_HALF;
+    m_rep(s, CPU_FLAG_M);
+    s->cpu.a = (uint16_t)sum;
+    m_set_nz16(s, s->cpu.a);
+    m_set_flag(s, CPU_FLAG_C, sum > 0xFFFF);
+    m_set_flag(s, CPU_FLAG_V, !(shown & 0x8000) && (sum & 0x8000));
+    s->cpu.x = menu_object_current(g);
+}
+
+void menu_object_start_curtain(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    start_the_curtain(g, m_platform(s), o);
+    as_the_curtain_leaves_it(s, o);
+    s->cpu.y = menu_object_slots_curtain_table(g, o);
+    m_rtl(s);
+}
+
+// $C6:E27E
+/* A frame's step of a curtain the object started; the stir takes X as the
+ * caller has it. */
+void menu_object_step_curtain(Snes *s)
+{
+    GameState *g = state_of(s);
+    MenuObject o = menu_object_running(g);
+    step_the_curtain(g, m_platform(s), o, s->cpu.x);
+    as_the_curtain_leaves_it(s, o);
+    m_rtl(s);
+}
+
+/* The slot can start, the object's table fits the curtain's, and the stir's
+ * cells are reached through a data bank on low RAM. */
+bool menu_curtain_can_start(Snes *s)
+{
+    if (!menu_line_effect_can_start(s) || !m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    bool fits = scene_curtain_table_fits(LINE_TABLE_BANK, menu_object_slots_curtain_table(g, menu_object_running(g)));
+    vars_peek(false);
+    return fits;
+}
+
+bool menu_curtain_can_step(Snes *s)
+{
+    if (!m_bank_reaches_low_ram(s))
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    bool fits = scene_curtain_table_fits(scene_curtain_table_bank(g), scene_curtain_table(g));
+    vars_peek(false);
+    return fits;
+}

@@ -6620,6 +6620,12 @@ void set_menu_object_slots_iris_frames(GameState *g, unsigned slot, uint16_t v);
 /* The capsule iris's stretch: the lines its lower half is moved down by */
 uint16_t menu_object_slots_iris_stretch(const GameState *g, unsigned slot);
 void set_menu_object_slots_iris_stretch(GameState *g, unsigned slot, uint16_t v);
+/* A curtain's way across (scene_curtain_sweep: 1 from the left, 2 from the right) */
+uint8_t menu_object_slots_curtain_sweep(const GameState *g, unsigned slot);
+void set_menu_object_slots_curtain_sweep(GameState *g, unsigned slot, uint8_t v);
+/* Where a curtain keeps its lines' edges in bank $7E (scene_curtain_table) */
+uint16_t menu_object_slots_curtain_table(const GameState *g, unsigned slot);
+void set_menu_object_slots_curtain_table(GameState *g, unsigned slot, uint16_t v);
 /* The capsule iris's frame count, which picks the pair of tables it draws into */
 uint16_t menu_object_slots_capsule_frames(const GameState *g, unsigned slot);
 void set_menu_object_slots_capsule_frames(GameState *g, unsigned slot, uint16_t v);
@@ -13257,13 +13263,19 @@ uint8_t scene_curtain_table_bank(const GameState *g);
 void set_scene_curtain_table_bank(GameState *g, uint8_t v);
 
 /* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
- * bank's low bit counts) and the race's setup writes 0 with it */
+ * bank's low bit counts) and the race's setup writes 0 with it; the curtain's steps keep their
+ * place in the game's random bytes ($C0:FE00 on) there */
 uint8_t scene_curtain_table_bank_high(const GameState *g);
 void set_scene_curtain_table_bank_high(GameState *g, uint8_t v);
 
 /* Address of the circle's per-line table (224 lines of left and right X) */
 uint16_t scene_circle_table(const GameState *g);
 void set_scene_circle_table(GameState *g, uint16_t v);
+
+/* The page and bank of the curtain's pointer into the game's random bytes ($FE, $C0), which
+ * every step writes (scaffolding) */
+uint16_t scene_curtain_noise_page(const GameState *g);
+void set_scene_curtain_noise_page(GameState *g, uint16_t v);
 
 /* Bit 0: the circle's table is in bank $7F rather than $7E */
 uint8_t scene_circle_table_bank(const GameState *g);
@@ -13367,15 +13379,28 @@ void set_scene_random_step(GameState *g, uint8_t v);
 uint16_t scene_circle_count(const GameState *g);
 void set_scene_circle_count(GameState *g, uint16_t v);
 
+/* The edge the curtain's first step fills its lines with: 0 at the left, $FF at the right
+ * (scaffolding) */
+uint8_t scene_curtain_fill(const GameState *g);
+void set_scene_curtain_fill(GameState *g, uint8_t v);
+
 /* Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped,
  * then the mode while the lower half is filled */
 uint16_t scene_circle_decision(const GameState *g);
 void set_scene_circle_decision(GameState *g, uint16_t v);
 
+/* How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding) */
+uint8_t scene_curtain_move(const GameState *g);
+void set_scene_curtain_move(GameState *g, uint8_t v);
+
 /* Scratch of the circle: the table address of the line y above the center, stepped up two bytes
  * a time */
 uint16_t scene_circle_row(const GameState *g);
 void set_scene_circle_row(GameState *g, uint16_t v);
+
+/* Where the curtain's lines end, past the 224th (scaffolding) */
+uint16_t scene_curtain_end(const GameState *g);
+void set_scene_curtain_end(GameState *g, uint16_t v);
 
 /* Scratch of the circle: half the table address of the center line, which halves the subtraction
  * that finds the line x above it */

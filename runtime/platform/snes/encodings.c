@@ -107,7 +107,7 @@ static const PfSnesEncoding encodings[] = {
     { 0xC20B22, 0, 0, 7, WORDS, STEPS(TL, TH, SL, SH, SB, P, C, D, ZL, ZH, GO), 0 },       /* ... its second */
     /* the line effects the scenes' objects start, $C6:E000-$C6:E5A7 */
     MENU_LINE(0xC6E012), MENU_LINE(0xC6E32A), MENU_LINE(0xC6E45A), MENU_LINE(0xC6E352), MENU_LINE(0xC6E482),
-    MENU_LINE(0xC6E5A7),
+    MENU_LINE(0xC6E5A7), MENU_LINE(0xC6E253),
     /* the top layer's wave over the world maps */
     MENU_LINE(0xC2769A), MENU_LINE(0xC2779E),
     /* the Epoch's map view */

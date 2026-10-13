@@ -615,11 +615,9 @@ static void run_tasks(Snes *s, SceneTaskList list)
 enum { THE_EXITS_READ_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C,
        THE_HAND_OVER_READS_THE_NEXT_TASK_TOO = DC_AL | DC_N | DC_V | DC_Z | DC_C };
 
-void scene_task_alone(Snes *s, SceneTask task)
+void scene_task_alone(Snes *s, const SceneTaskPort *port)
 {
     GameState *g = state_of(s);
-    SceneTaskList list = m_flag(s, CPU_FLAG_M) ? SCENE_VBLANK_TASKS : SCENE_FRAME_TASKS;
-    const SceneTaskPort *port = port_of(task, list);
     if (port->calls_out)
         m_set_flag(s, CPU_FLAG_M, true);
     TaskEnd end = port->run(g, m_platform(s));
