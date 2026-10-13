@@ -509,10 +509,11 @@ setup, the picture the main loop zooms, and the scenes their scripts start
 the star field, the captions and the last scene's swept window, with the
 program's stirred random numbers as game code (history file, "Phase 3, the
 scene program: the star field, the captions and the random numbers"); and so
-are the program's start and end and the title from its setup to the button
-that ends it (REIMPLEMENTATION.md, "Phase 4a, the native frame: the title").
-**Next**, by what the library reaches: the title's scripts' routines and fades
-(below, "The native frame"); the Beyond Time
+are the program's start and end and the title from its setup to its end
+(history file, "Phase 4a, the native frame: the title"; REIMPLEMENTATION.md,
+"Phase 4a, the native frame: the scene's tables as C").
+**Next**, by what the library reaches: the attract sequence's other scenes
+(modes 1 and 3, the attract demo's); the Beyond Time
 ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
 Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
 signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
@@ -554,21 +555,19 @@ by an audit; the fourth is the program itself.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
-  and main loop, and the scene program's start and the title: `ct_play
-  --generated off --interpreted stop` (PLAYING.md) runs the field's first
-  start, the program's start into the title, the title's setup and its frames
-  -- the pendulum, the logo's sweep, the sprites, the ripple -- to frame 827,
-  and stops at `$7E:37F3`, where channel 0's script calls one of the
-  program's routines (REIMPLEMENTATION.md, "Phase 4a, the native frame: the
-  title"). Over 3,000 frames from power-on `--interpreted log` lists 536
-  addresses still interpreted, none of them in `$C0` or `$FD`: the title's
-  program (`$7E`, 342), the scene engine's curtain (`$C3`, 150) and the
-  menus' attract scene that follows the title (`$C6`, 41; `$C2`, 3). Next: the
-  script's routine call as a C table of the routines the title's scripts call
-  (the ripple's start `$7E:5DA7`, already C, and the palette's fades to black
-  and to white `$7E:5DB4`, `$7E:5DE9`, which need a fade that takes its mode),
-  then the fade tasks (`$7E:347A`-`$7E:34E3`), the rest of the title's program
-  and the scene engine's curtain in `$C3`.
+  and main loop, and the scene program's start and the title from its setup
+  to its end: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
+  the field's first start, the program's start into the title, the title's
+  frames and its scripts' routines, the music fading out and the screen going
+  dark, and the scene's end into the menus' attract scene, to frame 2140, and
+  stops at `$C6:E241`, in that scene's object scripts (REIMPLEMENTATION.md,
+  "Phase 4a, the native frame: the scene's tables as C"). Over 3,000 frames
+  from power-on `--interpreted log` lists 417 addresses still interpreted,
+  none of them in `$C0` or `$FD`: the attract sequence's other scenes in the
+  program (`$7E`, 224), the scene engine's curtain (`$C3`, 150) and the menus'
+  attract scene (`$C6`, 41; `$C2`, 2). Next: the menus' attract scene from
+  `$C6:E241`, then the curtain in `$C3` and the attract sequence's other
+  scenes (modes 1 and 3), which only the attract demo reaches.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

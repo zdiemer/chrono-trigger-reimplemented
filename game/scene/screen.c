@@ -23,6 +23,7 @@
 #include "core/palette.h"
 #include "cpu_io.h"
 #include "original_effects.h"
+#include "platform/audio.h"
 #include "platform/timing.h"
 #include "platform/video.h"
 #include "port/machine.h"
@@ -179,13 +180,22 @@ void scene_upload_sprites(Snes *s)
 // $7E:380B
 /* The vblank task that sends the frame's sprites: the frame's last group of
  * four finished (scene/sprites.c), then the table sent. */
-void scene_finish_and_upload_sprites(Snes *s)
+static TaskEnd finish_sprites_task(GameState *g, Platform *pf)
 {
-    GameState *g = state_of(s);
     TIMED_AS(g, 0x7E3870, scene_hide_rest_of_group(g));
-    upload_sprites(g, m_platform(s));
-    m_rts(s);
+    upload_sprites(g, pf);
+    return task_goes_on();
 }
+
+/* Nothing it leaves in the registers is read. */
+static TaskLeftovers finish_sprites_leaves(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    return (TaskLeftovers){ 0 };
+}
+
+void scene_finish_and_upload_sprites(Snes *s) { scene_task_alone(s, SCENE_TASK_FINISH_SPRITES); }
 
 /* The task's call of the group's end, and the upload after it. */
 bool scene_finish_and_upload_sprites_present(Snes *s)
@@ -242,33 +252,197 @@ void scene_upload_palette(Snes *s)
  * multiplier and the cell left as the original leaves them. */
 enum { MULTIPLIER_READ_BACK = 0x4242 };
 
-static void put_the_multiplier_back(Snes *s, uint16_t kept)
+static void put_the_multiplier_back(GameState *g, uint16_t kept)
 {
-    GameState *g = state_of(s);
     set_scene_call_first(g, scene_program_own(), kept);
     hw_set_multiplicand(g, (uint8_t)kept);
     (void)hw_multiply_by(g, (uint8_t)(kept >> 8));
 }
 
-/* The animations (core/palette.c), through bank $FD's jump to them, read none
- * of the registers, and leave Y past their slots for the next task. */
-enum { ANIMATIONS_CALL = 0x7E3801, PALETTE_ANIMATIONS = 0xFDFFF7, THE_ANIMATIONS_READ_NOTHING = DC_A | DC_X | DC_Y | DC_N | DC_V | DC_Z | DC_C };
-
 // $7E:37FA
-/* A frame task: the palettes animate a frame. */
-void scene_animate_the_palettes(Snes *s)
+/* A frame task: the palettes animate a frame (core/palette.c, through bank
+ * $FD's jump to them). */
+static TaskEnd animate_the_palettes_task(GameState *g, Platform *pf)
 {
-    m_set_flag(s, CPU_FLAG_M, true);
-    if (!scene_run_long(s, ANIMATIONS_CALL, PALETTE_ANIMATIONS, THE_ANIMATIONS_READ_NOTHING, palette_animate))
-        return;
-    ORIGINAL_EFFECT(put_the_multiplier_back(s, MULTIPLIER_READ_BACK));
-    m_rts(s);
+    (void)pf;
+    TIMED_AS(g, 0xFDFFF7, palette_animate_a_frame(g));
+    ORIGINAL_EFFECT(put_the_multiplier_back(g, MULTIPLIER_READ_BACK));
+    return task_goes_on();
 }
 
+/* It leaves A and Y as the animations leave them, past their slots. */
+static TaskLeftovers animate_the_palettes_leaves(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    uint16_t past_the_slots = palette_animations_leave();
+    return (TaskLeftovers){ .a_set = true, .a = past_the_slots, .y_set = true, .y = past_the_slots, .a_8bit = true,
+                            .overflow_clear = true };
+}
+
+void scene_animate_the_palettes(Snes *s) { scene_task_alone(s, SCENE_TASK_ANIMATE_PALETTES); }
+
+/* The task's code, and the animations' room in their slots (core/palette.c). */
 bool scene_animate_the_palettes_present(Snes *s)
 {
-    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull);
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E37FA, 0x11, 0x87E8A981D5C5DAFEull) &&
+           palette_animate_runs(s);
 }
+
+/* ---- The screen's fades ---------------------------------------------------------------------- */
+
+/* The scenes' fades of the whole screen, a step of brightness every so many
+ * frames (the fades' pace, which a scene sets): up to full brightness, down
+ * to dark, and down to dark at the end of a scene -- after the music has faded
+ * out over $40 steps and with the sound then stopped, or as it is -- where the
+ * program's main loop ends the scene. */
+enum { FULL_BRIGHTNESS = 0x0F, DARK = 0x00, MUSIC_FADE_STEPS = 0x40, SILENT = 0x00 };
+
+/* Whether this frame takes a step: the countdown runs out, and starts over. */
+static bool fade_steps(GameState *g)
+{
+    uint8_t left = (uint8_t)(scene_fade_countdown(g) - 1);
+    set_scene_fade_countdown(g, left);
+    if (left)
+        return false;
+    set_scene_fade_countdown(g, scene_fade_period(g));
+    return true;
+}
+
+/* A step darker; true at dark. */
+static bool darker(GameState *g)
+{
+    uint8_t level = (uint8_t)(scene_brightness(g) - 1);
+    set_scene_brightness(g, level);
+    return level == DARK;
+}
+
+/* The scene is over: the program's main loop leaves (its flag counted up, a
+ * byte). */
+static void end_the_scene(GameState *g)
+{
+    uint16_t over = scene_program_over(g);
+    set_scene_program_over(g, (uint16_t)((over & 0xFF00) | (uint8_t)(over + 1)));
+}
+
+// $7E:347A
+static TaskEnd brighten_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (!fade_steps(g))
+        return task_goes_on();
+    uint8_t level = (uint8_t)(scene_brightness(g) + 1);
+    set_scene_brightness(g, level);
+    return level == FULL_BRIGHTNESS ? task_is_done() : task_goes_on();
+}
+
+// $7E:3495
+static TaskEnd darken_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    return fade_steps(g) && darker(g) ? task_is_done() : task_goes_on();
+}
+
+/* The driver's command reads A's high byte, the list's task, as it called. */
+enum { DRIVER = 0xC70004, THE_DRIVER_READS_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_Z };
+
+// $7E:34AB
+/* The music fades out, and the screen goes dark after it, in silence. */
+static TaskEnd fade_the_music_out_task(GameState *g, Platform *pf)
+{
+    (void)g;
+    au_fade(pf, PF_CALL_DC(0x7E34B8, DRIVER, THE_DRIVER_READS_A_HIGH_AND_Y), AU_FADE_MUSIC, MUSIC_FADE_STEPS, SILENT);
+    return (TaskEnd){ TASK_HANDS_OVER, SCENE_TASK_DARKEN_IN_SILENCE_AND_END };
+}
+
+// $7E:34C2
+static TaskEnd darken_in_silence_and_end_task(GameState *g, Platform *pf)
+{
+    if (!fade_steps(g) || !darker(g))
+        return task_goes_on();
+    au_command(pf, PF_CALL_DC(0x7E34DA, DRIVER, THE_DRIVER_READS_A_HIGH_AND_Y),
+               (AudioCommand){ .command = AU_STOP_ALL, .count = 0 });
+    end_the_scene(g);
+    return task_is_done();
+}
+
+// $7E:34E3
+static TaskEnd darken_and_end_task(GameState *g, Platform *pf)
+{
+    (void)pf;
+    if (!fade_steps(g) || !darker(g))
+        return task_goes_on();
+    end_the_scene(g);
+    return task_is_done();
+}
+
+/* Each works in 8-bit A, whose high byte is still what the list called it
+ * with, the task. */
+static TaskLeftovers fade_leaves(SceneTask task)
+{
+    return (TaskLeftovers){ .a_set = true, .a = task, .a_8bit = true, .a_high_as_called = true };
+}
+static TaskLeftovers brighten_leaves(const GameState *g, TaskEnd end) { (void)g; (void)end; return fade_leaves(SCENE_TASK_BRIGHTEN); }
+static TaskLeftovers darken_leaves(const GameState *g, TaskEnd end) { (void)g; (void)end; return fade_leaves(SCENE_TASK_DARKEN); }
+static TaskLeftovers fade_the_music_out_leaves(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    return fade_leaves(SCENE_TASK_MUSIC_FADES);
+}
+static TaskLeftovers darken_in_silence_and_end_leaves(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    return fade_leaves(SCENE_TASK_DARKEN_IN_SILENCE_AND_END);
+}
+static TaskLeftovers darken_and_end_leaves(const GameState *g, TaskEnd end)
+{
+    (void)g;
+    (void)end;
+    return fade_leaves(SCENE_TASK_DARKEN_AND_END);
+}
+
+void scene_brighten(Snes *s) { scene_task_alone(s, SCENE_TASK_BRIGHTEN); }
+void scene_darken(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN); }
+void scene_fade_the_music_out(Snes *s) { scene_task_alone(s, SCENE_TASK_MUSIC_FADES); }
+void scene_darken_in_silence_and_end(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN_IN_SILENCE_AND_END); }
+void scene_darken_and_end(Snes *s) { scene_task_alone(s, SCENE_TASK_DARKEN_AND_END); }
+
+/* Each one's code; the cells and the sound buffer are reached through the data
+ * bank. */
+bool scene_brighten_present(Snes *s) { return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E347A, 0x1B, 0x4B223E782CD157AAull); }
+bool scene_darken_present(Snes *s) { return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E3495, 0x16, 0x6311E869565DC92Eull); }
+bool scene_fade_the_music_out_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34AB, 0x17, 0x929CC3F85DA015F6ull);
+}
+bool scene_darken_in_silence_and_end_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34C2, 0x21, 0x0DBC28C33AF5017Full);
+}
+bool scene_darken_and_end_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E34E3, 0x18, 0xCC5C4AA8697F86C8ull);
+}
+
+/* ---- The frame's own tasks, for the lists ---------------------------------------------------- */
+
+const SceneTaskPort scene_screen_tasks[] = {
+    { SCENE_TASK_ANIMATE_PALETTES, SCENE_FRAME_TASKS, animate_the_palettes_task, scene_animate_the_palettes_present,
+      animate_the_palettes_leaves, false },
+    { SCENE_TASK_FINISH_SPRITES, SCENE_VBLANK_TASKS, finish_sprites_task, scene_finish_and_upload_sprites_present,
+      finish_sprites_leaves, false },
+    { SCENE_TASK_BRIGHTEN, SCENE_FRAME_TASKS, brighten_task, scene_brighten_present, brighten_leaves, false },
+    { SCENE_TASK_DARKEN, SCENE_FRAME_TASKS, darken_task, scene_darken_present, darken_leaves, false },
+    { SCENE_TASK_MUSIC_FADES, SCENE_FRAME_TASKS, fade_the_music_out_task, scene_fade_the_music_out_present,
+      fade_the_music_out_leaves, true },
+    { SCENE_TASK_DARKEN_IN_SILENCE_AND_END, SCENE_FRAME_TASKS, darken_in_silence_and_end_task,
+      scene_darken_in_silence_and_end_present, darken_in_silence_and_end_leaves, true },
+    { SCENE_TASK_DARKEN_AND_END, SCENE_FRAME_TASKS, darken_and_end_task, scene_darken_and_end_present,
+      darken_and_end_leaves, false },
+};
+const unsigned scene_screen_task_count = sizeof scene_screen_tasks / sizeof scene_screen_tasks[0];
 
 /* ---- The loaders' transfer ------------------------------------------------------------------ */
 

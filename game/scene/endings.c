@@ -590,6 +590,10 @@ static void start_captions(GameState *g)
 
 // $7E:8538
 /* The shared endings' setup, from the program's mode table. */
+/* The setup leaves Y past the per-line effects' descriptors, where their
+ * setup stopped reading, which the frame's first vblank tasks may read. */
+static void leave_y_past_the_descriptors(Snes *s, uint16_t end) { s->cpu.y = end; }
+
 static void set_up_ending(Snes *s)
 {
     GameState *g = state_of(s);
@@ -611,11 +615,13 @@ static void set_up_ending(Snes *s)
     set_scene_reset_disabled(g, 1);
     m_jsr_dc(s, 0x7E870E, TIME_CAPTIONS, TIME_CAPTIONS_IGNORES);
 
-    TIMED_AS(g, 0x7E36CC, scene_set_up_line_effects(g, pf, ENDING_LINE_EFFECTS));
+    uint16_t descriptors_end = 0;
+    TIMED_AS(g, 0x7E36CC, descriptors_end = scene_set_up_line_effects(g, pf, ENDING_LINE_EFFECTS));
     set_scene_line_effects(g, ENDING_LINE_CHANNELS);
     set_scene_fade_period(g, FADE_EVERY_FRAME);
     set_scene_fade_countdown(g, FADE_EVERY_FRAME);
     set_up_ground_layers(pf);
+    ORIGINAL_EFFECT(leave_y_past_the_descriptors(s, descriptors_end));
 }
 
 /* ---- The scenes the scripts call --------------------------------------------------------------- */
@@ -1102,12 +1108,18 @@ bool scene_ending_set_up_present(Snes *s)
 /* Entered from the program's mode table with 8-bit A; back on the scene's
  * page, the data bank as the captions' timing left it, and the overflow the
  * per-line effects' setup leaves, clear. */
-void scene_ending_set_up(Snes *s)
+bool scene_ending_set_up_scene(Snes *s)
 {
     set_up_ending(s);
     s->cpu.d = 0x0000;
     m_set_flag(s, CPU_FLAG_V, false);
     s->cpu.p |= CPU_FLAG_M;
+    return true;
+}
+
+void scene_ending_set_up(Snes *s)
+{
+    scene_ending_set_up_scene(s);
     m_rts(s);
 }
 

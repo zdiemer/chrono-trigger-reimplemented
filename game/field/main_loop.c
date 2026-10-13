@@ -355,19 +355,28 @@ void field_start_again(Snes *s)
 }
 
 /* The scenes an event command asks for: below $80 the scene engine's (its
- * flags, scene.h, in A), from $80 bank $FD's, by the original's jumps to
- * them, the time gate's tunnels and the rest of bank $FD's own (warp/). What
- * each reads first it sets, the flags the look at the scene's number left
- * among it. */
-enum { SCENE_ENGINE = 0xC30000, FIRST_FD_SCENE = 0x80, SCENE_FIELD_CLOSES_INTO = 0x85 };
+ * flags, scene.h, in A); from $80 the time warp's tunnel (warp/), as long as
+ * the trip: the longest for $80, then shorter for $81 and $82, and the one
+ * that flickers for the rest. Each starts the warp's setup and runs its
+ * frames, still the original's code from its start. What each reads first it
+ * sets, the flags the look at the scene's number left among it. */
+enum { SCENE_ENGINE = 0xC30000, SCENE_FIELD_CLOSES_INTO = 0x85 };
 enum { THE_SCENE_READS_A = DC_X | DC_Y | DC_N | DC_Z | DC_C };
-static const uint32_t fd_scenes[] = { 0xFDFFF1, 0xFDFFEB, 0xFDFFE8, 0xFDFFE5 };   /* $80, $81, $82, the rest */
-enum { FD_SCENES = sizeof fd_scenes / sizeof fd_scenes[0] };
+enum { SCENE_LONG_WARP = 0x80, SCENE_SHORT_WARP = 0x81, SCENE_SHORTEST_WARP = 0x82 };
+enum { LONG_WARP = 0xFDDA00, SHORT_WARP = 0xFDDA5F, SHORTEST_WARP = 0xFDDABE, FLICKERING_WARP = 0xFDDB1D };
 
-static unsigned fd_scene(uint8_t scene)
+static void start_the_scene(Snes *s, uint8_t scene)
 {
-    unsigned n = (unsigned)(scene - FIRST_FD_SCENE);
-    return n < FD_SCENES ? n : FD_SCENES - 1;
+    if (scene == SCENE_LONG_WARP)
+        m_stop_at(s, LONG_WARP, THE_SCENE_READS_A);
+    else if (scene == SCENE_SHORT_WARP)
+        m_stop_at(s, SHORT_WARP, THE_SCENE_READS_A);
+    else if (scene == SCENE_SHORTEST_WARP)
+        m_stop_at(s, SHORTEST_WARP, THE_SCENE_READS_A);
+    else if (scene > SCENE_SHORTEST_WARP)
+        m_stop_at(s, FLICKERING_WARP, THE_SCENE_READS_A);
+    else
+        m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
 }
 
 /* The scene's number in A, over the field's page's low byte (which the
@@ -384,10 +393,7 @@ void field_start_the_scene(Snes *s)
 {
     uint8_t scene = field_scene_to_start(state_of(s));
     hand_over_the_scene(s, scene);
-    if (scene < FIRST_FD_SCENE)
-        m_stop_at(s, SCENE_ENGINE, THE_SCENE_READS_A);
-    else
-        m_stop_at(s, fd_scenes[fd_scene(scene)], THE_SCENE_READS_A);
+    start_the_scene(s, scene);
 }
 
 // $C0:2643

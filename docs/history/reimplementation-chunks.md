@@ -9093,3 +9093,90 @@ the objects' setup, the battle's return, two event commands). Two are
 exceptions: the main loop's turn and the field's restart make no bus access
 of their own (they set the stack and the PC), so their estimates are 0
 against the 18 and 54 clocks the original's branch and stack reset take.
+
+## Phase 4a, the native frame: the title (`$7E:3000`-`$7E:303B`, `$7E:30F6`, `$7E:3177`-`$7E:31AF`, `$7E:3691`, `$7E:3749`-`$7E:375E`, `$7E:37FA`-`$7E:380D`, `$7E:5978`-`$7E:5AAA`, `$7E:5B99`-`$7E:5E53`, `$7E:600E`)
+
+The second chunk of the native frame's stream, after the field's first start
+(history file, "Phase 4a, the native frame: the field's first start with
+nothing interpreted").
+
+**How it was chosen.** By the strict player again: it stopped at frame 55 on
+`$7E:3000`, the scene program's first instruction, and each stop after it was
+ported with what it needs, until the run reached the title's scripts: the
+program's start, the title's setup, the frame's task lists and the title's
+tasks. `--interpreted log` over 3,000 frames listed 952 addresses before, 758
+of them the title's program.
+
+**What it is.**
+- The program's start and end (`scene/program.c`): the state a scene starts
+  with, its work RAM cleared, the sound put back to normal (`scene/sound.c`,
+  `$7E:3177`: the five driver commands, each sent and waited for, with the
+  last one's wait the original's), every sprite hidden and the first screen,
+  then the scene's setup from the program's table of sixteen by its mode,
+  each a call on the machine the registry answers (the title's, the race's,
+  the endings' and the staff roll's are C), and the first frame: the palette
+  sent, a frame waited out, the frame's work once and the interrupts on. The
+  waits the original makes in the middle cut it into entries: the sound's last
+  command returns to `$7E:30F6`, a setup that waits to `$7E:3003` or
+  `$7E:300D`. At the end, the program hands the game back to the field's
+  start on a fresh stack (`$7E:303B`).
+- The program's unpacker by resource (`scene/boot.c`, `$7E:3691`) and a
+  channel's first script step from a setup (`scene/script.c`, `$7E:3749`,
+  `$7E:3754`).
+- The title's setup whole (`scene/title.c`, `$7E:5978`): its five graphics
+  unpacked and sent, the plane's pixels and name table, BG1's fill, the
+  palette, channel 0's first script, the title's starting state (named cells
+  now: the name's five sliding pieces, the pendulum's phase and swing, the
+  wait and the button's two flags), the pendulum's screen and the song, up to
+  the original's wait for it to start.
+- The frame's task lists run the ported tasks from a C table
+  (`scene/frame.c`) and take a task off its list, or hand its slot on, where
+  it leaves through the list's exits (`$7E:39A7`, `$7E:39B1`), which before
+  were the original's code run through the stack: the title's pendulum
+  (`$7E:5BCF`), its logo's whole sweep along its curve (`$7E:5CBA`, with the
+  shared sine and multiply), the clock, its hands, the copyright and the name
+  sliding in (`$7E:5D01`, `$7E:5D20`, `$7E:5E1E`, `$7E:5D71`), the bottom
+  right picture's wait (`$7E:5D32`), the watch for a button that ends the
+  title (`$7E:5B99`), the ripple's first column (`$7E:600E`), and the frame's
+  own palette animation and sprites' finish (`$7E:37FA`, `$7E:380B`).
+- The sine and cosine the race's camera had are the program's, in
+  `scene/math.c`, beside a 32-bit divide that returns its quotient.
+
+**What shadow mode found.** The setups are reached through a table in RAM,
+so the dispatch hands them every register as the original does; the title's
+setup leaves Y where the next task reads it, and the song's call the
+register page in A's high byte. The task lists' exits pull the task's frames
+off the stack, so they can't be entries of their own (their comparisons ended
+at a return no caller made): the list's runner handles them. A guard that
+read work RAM through the machine's accessors added to the run's time and
+moved a generated block's timing; the guards peek. The full library run found
+the race's setup patching the program's main loop (its call of the frame's
+own routine, `$7E:3024`, becomes the race's): the start's guard leaves those
+two bytes out of its hash, which had turned the race's first frame away six
+times. Over the 35 movies, 0 mismatching: the start and its going on 57 calls each, the setup's entry 57 (17 abandoned, inside the start's stretch), the first frame 56 (all inside the setup's stretch, so compared as its), the end 53, the sound back to normal 93 (78 inside the start's), the unpacker 280 (4 interrupted), the channels' first steps 79,681 and 23,096, the title's setup 38; the tasks: the palette animation 72,776, the sprites' finish 79,634, the logo 2,415, the pendulum 26,266, the clock 32,670, its hands 17,130, the copyright 8,730, the name 27,245, the wait 4,027, the watch for a button 51,117, the ripple 53,511; the lists that run them 80,684 each.
+
+**Fuzzing** (seed 1, `tools/fuzz_routines.toml`, compared and mismatched):
+0 mismatched everywhere: the start 359 of 400, the setup's entry 350 of 400, the first frame, the start's going on and the title's setup 400 of 400, the end 20,000, the sound 20,000, the unpacker 1,711 of 2,000 (the rest past the budget), the channels' first steps 13,728 and 13,729 of 20,000 (a script pointer inside the program; the rest run past the budget), and the tasks 20,000 each (the pendulum 19,992, 8 turned away by its guard; the palette animation 19,999), from a state 300 frames into `new-game` with the program kept, the sprite table's cursor at its start and the frame's first slots free where a task's guard asks for them. The start, its setup's entry and the first frame are compared up
+to the first frame's wait (`--stop-at-call 7E31B0`), with the sound's port
+read back; the setup's entry is guarded on A's high byte being 0, which
+fuzzing found the dispatch takes into its index (the start always leaves it
+0). The unpacker over numbers past the resource table's 73 entries mismatched
+30 of 2,000, inside the decompressor's port (TODO.md). **What only fuzzing
+checks**: the program's start where the scene sends no songs, the first frame
+(every shadow call is inside the setup's stretch), the sound's commands one
+by one, and the tasks' exits on states the title never makes (a full sprite
+table, no free slot).
+
+**Measured.** The strict run now goes through the program's start, the
+title's setup and its frames -- the pendulum, the logo's sweep, the sprites,
+the ripple -- to frame 827, and stops at `$7E:37F3`, where channel 0's script
+calls one of the program's routines (the ripple's start, the fades to black
+and to white). Over 3,000 frames `--interpreted log` lists 536 addresses
+(from 952): the title's program 342, the curtain in `$C3` 150, the menus'
+attract scene 44. The reference play's fallbacks went from 34.46 M instructions to 24.95 M: the title's tasks and its setup went, and the frame's lists no longer run the tasks' exits as the original's.
+
+**Timing.** Calibrated: the new entries, and the task lists and tasks whose
+stretches now take the title's tasks inline. One exception: the unpacker,
+whose own part is a few stores (calibrated 1) and whose stretch carries the
+decompressor's error on the scenes' streams, at most 333,201 clocks in loads
+of 405,159 on average, with the screen blanked.

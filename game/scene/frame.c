@@ -425,40 +425,75 @@ bool scene_vblank_tasks_present(Snes *s)
     return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E39BE, 32, 0xC12FC96AEC0DACA2ull);
 }
 
-/* The tasks the port runs as C, by the routine each is: the title's
- * (scene/title.c) and what the frame sends (scene/screen.c). Any other is a
- * call on the machine, which runs whatever the registry has there. */
-static const struct {
-    SceneTask task;
-    void (*port)(Snes *);
-} task_ports[] = {
-    { 0x5BCF, scene_title_swing_pendulum },     { 0x5C98, scene_title_move_logo },
-    { 0x5D01, scene_title_draw_the_clock },     { 0x5D20, scene_title_draw_the_hands },
-    { 0x5D32, scene_title_count_the_wait_down }, { 0x5D71, scene_title_slide_the_name },
-    { 0x5E1E, scene_title_draw_the_copyright }, { 0x5B99, scene_title_watch_for_a_button },
-    { 0x5FFE, scene_title_ripple_columns },     { 0x37FA, scene_animate_the_palettes },
-    { 0x380B, scene_finish_and_upload_sprites }, { 0x5C57, scene_title_place_pendulum },
-    { 0x6212, scene_title_upload_ripple },
-};
-enum { TASK_PORTS = sizeof task_ports / sizeof task_ports[0] };
+/* ---- The tasks ------------------------------------------------------------------------------ */
 
-static void (*port_of(SceneTask task))(Snes *)
+/* The tasks that are C (scene/title.c, scene/screen.c), looked up by the value
+ * on the list and the list it is on. */
+static const SceneTaskPort *port_of(SceneTask task, SceneTaskList list)
 {
-    for (unsigned n = 0; n < TASK_PORTS; n++)
-        if (task_ports[n].task == task)
-            return task_ports[n].port;
+    static const struct {
+        const SceneTaskPort *ports;
+        const unsigned *count;
+    } files[] = { { scene_title_tasks, &scene_title_task_count }, { scene_screen_tasks, &scene_screen_task_count } };
+    for (unsigned f = 0; f < sizeof files / sizeof files[0]; f++)
+        for (unsigned n = 0; n < *files[f].count; n++)
+            if (files[f].ports[n].task == task && files[f].ports[n].list == list)
+                return &files[f].ports[n];
     return NULL;
 }
 
-typedef enum { TASK_RETURNED, TASK_DONE, TASK_STOPPED } TaskEnd;
+/* The program's routines, which the lists' values are the addresses of. */
+enum { PROGRAM_BANK = 0x7E0000 };
 
-/* A frame task that is done leaves through the list's own code rather than
- * returning: it jumps to one of two exits there, which take it off the list,
- * or hand its slot to the task in X, and go on with the list. */
-enum { TASK_LEAVES = 0x7E39A7, TASK_HANDS_OVER = 0x7E39B1 };
+/* A task done takes itself off the list (its slot in the list the scripts
+ * keep; the frame's copy is the frame's work's), or hands its slot to the
+ * task that follows it. */
+static void end_the_task(GameState *g, unsigned slot, TaskEnd end)
+{
+    if (end.outcome == TASK_IS_DONE)
+        set_scene_tasks(g, slot, NO_TASK);
+    else if (end.outcome == TASK_HANDS_OVER)
+        set_scene_tasks(g, slot, end.next);
+}
 
-/* The frames a task's call keeps under its return address, put back as the
- * list's code puts them back: the direct page, P, the slot and the data bank. */
+/* What a task leaves for the code after it: Y for the next task, and A (A's
+ * high byte is what the frame's work reads after the list's last task; a slot
+ * handed over leaves the task that takes it). */
+static void leave_y(Snes *s, TaskLeftovers l)
+{
+    if (l.y_set)
+        s->cpu.y = l.y;
+}
+
+static void leave_a(Snes *s, TaskLeftovers l, TaskEnd end)
+{
+    if (end.outcome == TASK_HANDS_OVER)
+        s->cpu.a = end.next;
+    else if (l.a_set)
+        s->cpu.a = l.a_high_as_called ? (uint16_t)((s->cpu.a & 0xFF00) | (l.a & 0x00FF)) : l.a;
+}
+
+/* The list's exits, in its own code, where a task that is done jumps. */
+enum { TASK_LEAVES = 0x7E39A7, TASK_HANDS_OVER_EXIT = 0x7E39B1 };
+
+/* A list's loop calls a task from its own code (the frame list's at
+ * $7E:3998, the vblank list's at $7E:39CF), with the data bank, the slot, P
+ * and D saved under the call, and for the vblank list the direct page in
+ * 8-bit A. A task that is done jumps to one of two exits in the loop, which
+ * take it off the list, or hand its slot to the task in X; they unwind the
+ * frames under the call and go on with the list. */
+enum { FRAME_TASK_CALL = 0x7E3998, VBLANK_TASK_CALL = 0x7E39CF };
+enum { THE_TASKS_READ_ANYTHING = 0, JSR_SIZE = 3 };
+
+static void keep_the_list_s_frames(Snes *s, uint16_t index)
+{
+    Cpu *c = &s->cpu;
+    m_push8(s, c->db);
+    m_push16(s, index);
+    m_push8(s, c->p);
+    m_push16(s, c->d);
+}
+
 static void unwind_the_task_s_frames(Snes *s)
 {
     Cpu *c = &s->cpu;
@@ -468,21 +503,13 @@ static void unwind_the_task_s_frames(Snes *s)
     c->db = m_pull8(s);
 }
 
-/* One task, called as the list's loop calls it: the data bank, the slot, P and
- * D saved around a call through the list, and for the vblank list the direct
- * page in 8-bit A. The slot's load that found the task sets N and Z before P
- * is saved. A frame task done at one of the list's exits is handled here; a
- * task that leaves any other way is the original's from there. */
-static TaskEnd call_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
+static TaskEnd run_the_original_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
 {
     Cpu *c = &s->cpu;
     bool vblank = list == SCENE_VBLANK_TASKS;
     uint16_t index = (uint16_t)(slot * 2);
     m_set_nz16(s, task);
-    m_push8(s, c->db);
-    m_push16(s, index);
-    m_push8(s, c->p);
-    m_push16(s, c->d);
+    keep_the_list_s_frames(s, index);
     uint16_t below_the_call = c->s;
     c->x = index;
     c->a = task;
@@ -491,31 +518,80 @@ static TaskEnd call_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask t
         m_set_nz16(s, c->d);
         m_set_flag(s, CPU_FLAG_M, true);
     }
-    if (scene_run(s, vblank ? 0x7E39CF : 0x7E3998, 0x7E0000u | task, 0, port_of(task))) {
+    uint32_t call = vblank ? VBLANK_TASK_CALL : FRAME_TASK_CALL;
+    if (scene_run(s, call, PROGRAM_BANK | task, THE_TASKS_READ_ANYTHING, NULL)) {
         unwind_the_task_s_frames(s);
         c->x = index;
-        return TASK_RETURNED;
+        return task_goes_on();
     }
     uint32_t at = cpu_pc24(c);
-    bool at_an_exit = !vblank && (at == TASK_LEAVES || at == TASK_HANDS_OVER) && c->s == (uint16_t)(below_the_call - 2);
+    bool at_an_exit = !vblank && (at == TASK_LEAVES || at == TASK_HANDS_OVER_EXIT) &&
+                      c->s == (uint16_t)(below_the_call - (JSR_SIZE - 1));
     if (!at_an_exit)
-        return TASK_STOPPED;
-    scene_bridge_forget_the_stop(s);
-    SceneTask next = at == TASK_HANDS_OVER ? c->x : NO_TASK;
-    if (at == TASK_HANDS_OVER) {
+        return (TaskEnd){ TASK_LEFT_TO_THE_ORIGINAL, NO_TASK };
+    native_dont_care_at_stop(s, 0, 0);   /* the stop is the loop's, which goes on as C */
+    TaskEnd end = at == TASK_HANDS_OVER_EXIT ? (TaskEnd){ TASK_HANDS_OVER, c->x } : task_is_done();
+    if (end.outcome == TASK_HANDS_OVER) {
         m_set_flag(s, CPU_FLAG_M, false);
-        c->a = next;
+        c->a = end.next;
     }
     (void)m_pull16(s);
     unwind_the_task_s_frames(s);
-    set_scene_tasks(state_of(s), slot, next);
-    return TASK_DONE;
+    set_scene_tasks(state_of(s), slot, end.next);
+    return end;
+}
+
+/* The list calls a task with A the task (the vblank list: the direct page),
+ * which a task's own calls may read. */
+static void as_the_list_calls(Snes *s, SceneTaskList list, SceneTask task)
+{
+    s->cpu.a = list == SCENE_VBLANK_TASKS ? s->cpu.d : task;
+}
+
+/* A task the port has as C runs where the program's code for it is the code
+ * the port stands for, in binary mode, as every list runs. */
+static bool runs_as_c(Snes *s, const SceneTaskPort *port)
+{
+    return port && !m_flag(s, CPU_FLAG_D) && port->present(s);
+}
+
+/* One task's frame, on a list's slot. As C, it is timed as the program's
+ * routine for it; the list then has P back as it saved it, with the flags of
+ * the slot's load, and the slot in X. A task the port doesn't have is the
+ * original's, called through the machine. */
+static TaskEnd run_task(Snes *s, SceneTaskList list, unsigned slot, SceneTask task)
+{
+    const SceneTaskPort *port = port_of(task, list);
+    if (!runs_as_c(s, port))
+        return run_the_original_task(s, list, slot, task);
+    GameState *g = state_of(s);
+    TaskEnd end = task_goes_on();
+    uint16_t index = (uint16_t)(slot * 2);
+    m_set_nz16(s, task);
+    if (port->calls_out) {
+        keep_the_list_s_frames(s, index);
+        scene_bridge_enter(s, list == SCENE_VBLANK_TASKS ? VBLANK_TASK_CALL : FRAME_TASK_CALL);
+        m_set_flag(s, CPU_FLAG_M, true);
+    }
+    ORIGINAL_EFFECT(as_the_list_calls(s, list, task));
+    NATIVE_TIME_AS(s, PROGRAM_BANK | task, end = port->run(g, m_platform(s)));
+    if (port->calls_out) {
+        scene_bridge_leave(s);
+        unwind_the_task_s_frames(s);
+    }
+    TaskLeftovers l = port->leaves(g, end);
+    leave_y(s, l);
+    ORIGINAL_EFFECT(leave_a(s, l, end));
+    end_the_task(g, slot, end);
+    s->cpu.x = index;
+    return end;
 }
 
 // $7E:398A, $7E:39BE
 /* Every task on a list, in order; the list is read again after each task,
  * which can change it. A is the last task's, or 0 where the last slot was
- * empty; the carry is the loop's compare. */
+ * empty; the carry is the loop's compare. A task the original runs that
+ * leaves some other way than the list's own is the original's from there. */
 static void run_tasks(Snes *s, SceneTaskList list)
 {
     GameState *g = state_of(s);
@@ -523,13 +599,45 @@ static void run_tasks(Snes *s, SceneTaskList list)
     m_set_flag(s, CPU_FLAG_M, false);
     for (unsigned slot = 0; slot < count; slot++) {
         SceneTask task = list == SCENE_VBLANK_TASKS ? scene_early_tasks(g, slot) : scene_tasks_running(g, slot);
-        if (task != NO_TASK && call_task(s, list, slot, task) == TASK_STOPPED)
-            return;
         if (task == NO_TASK)
             s->cpu.a = 0;
+        else if (run_task(s, list, slot, task).outcome == TASK_LEFT_TO_THE_ORIGINAL)
+            return;
         m_set_flag(s, CPU_FLAG_C, slot + 1 == count);   /* the loop's compare; its X, N and Z aren't read */
     }
     m_rtl(s);
+}
+
+/* A task reached by its address, alone: its frame as the list runs it, and
+ * back to the list as the original's would come back -- returning, or done
+ * through the list's exit that empties its slot, or that hands it over, which
+ * read A's high byte and Y (the exits put P back as the list saved it). */
+enum { THE_EXITS_READ_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C,
+       THE_HAND_OVER_READS_THE_NEXT_TASK_TOO = DC_AL | DC_N | DC_V | DC_Z | DC_C };
+
+void scene_task_alone(Snes *s, SceneTask task)
+{
+    GameState *g = state_of(s);
+    SceneTaskList list = m_flag(s, CPU_FLAG_M) ? SCENE_VBLANK_TASKS : SCENE_FRAME_TASKS;
+    const SceneTaskPort *port = port_of(task, list);
+    if (port->calls_out)
+        m_set_flag(s, CPU_FLAG_M, true);
+    TaskEnd end = port->run(g, m_platform(s));
+    TaskLeftovers l = port->leaves(g, end);
+    leave_y(s, l);
+    ORIGINAL_EFFECT(leave_a(s, l, (TaskEnd){ end.outcome == TASK_HANDS_OVER ? TASK_GOES_ON : end.outcome, NO_TASK }));
+    if (l.a_8bit)
+        m_set_flag(s, CPU_FLAG_M, true);
+    if (l.overflow_clear)
+        m_set_flag(s, CPU_FLAG_V, false);
+    if (end.outcome == TASK_GOES_ON) {
+        m_rts(s);
+    } else if (end.outcome == TASK_IS_DONE) {
+        m_stop_at_own(s, TASK_LEAVES, THE_EXITS_READ_A_HIGH_AND_Y);
+    } else {
+        s->cpu.x = end.next;
+        m_stop_at_own(s, TASK_HANDS_OVER_EXIT, THE_HAND_OVER_READS_THE_NEXT_TASK_TOO);
+    }
 }
 
 /* The frame's tasks, from the copy of the list the frame's work made, each

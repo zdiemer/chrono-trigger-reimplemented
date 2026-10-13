@@ -119,6 +119,106 @@ bool scene_remove_task(GameState *g, SceneTaskList list, SceneTask task);
 /* Whether a list holds the task (NO_TASK: whether it has an empty slot). */
 bool scene_task_listed(const GameState *g, SceneTaskList list, SceneTask task);
 
+/* The tasks that are C, by the values the lists hold for them (the program's
+ * routines, by their addresses: the lists' own encoding, which the scripts
+ * write). */
+enum {
+    SCENE_TASK_ANIMATE_PALETTES = 0x37FA,     /* scene/screen.c */
+    SCENE_TASK_FINISH_SPRITES = 0x380B,
+    SCENE_TASK_BRIGHTEN = 0x347A,             /* scene/screen.c: the screen's fades */
+    SCENE_TASK_DARKEN = 0x3495,
+    SCENE_TASK_MUSIC_FADES = 0x34AB,
+    SCENE_TASK_DARKEN_IN_SILENCE_AND_END = 0x34C2,
+    SCENE_TASK_DARKEN_AND_END = 0x34E3,
+    SCENE_TASK_WATCH_FOR_A_BUTTON = 0x5B99,   /* scene/title.c */
+    SCENE_TASK_CALM_THE_RIPPLE = 0x5BBF,
+    SCENE_TASK_SWING_PENDULUM = 0x5BCF,
+    SCENE_TASK_PLACE_PENDULUM = 0x5C57,
+    SCENE_TASK_MOVE_LOGO = 0x5C98,
+    SCENE_TASK_DRAW_THE_CLOCK = 0x5D01,
+    SCENE_TASK_DRAW_THE_HANDS = 0x5D20,
+    SCENE_TASK_COUNT_THE_WAIT_DOWN = 0x5D32,
+    SCENE_TASK_SLIDE_THE_NAME = 0x5D71,
+    SCENE_TASK_DRAW_THE_COPYRIGHT = 0x5E1E,
+    SCENE_TASK_RIPPLE = 0x5FFE,
+    SCENE_TASK_UPLOAD_RIPPLE = 0x6212,
+};
+
+/* How a task's frame ends: it stays on its list, it is done (its slot
+ * empties), or it hands its slot to another task; or, for a task the
+ * original runs, it left the list some other way, and the original goes on
+ * from there. */
+typedef enum { TASK_GOES_ON, TASK_IS_DONE, TASK_HANDS_OVER, TASK_LEFT_TO_THE_ORIGINAL } TaskOutcome;
+typedef struct {
+    TaskOutcome outcome;
+    SceneTask next;   /* TASK_HANDS_OVER: the task that takes the slot */
+} TaskEnd;
+static inline TaskEnd task_goes_on(void) { return (TaskEnd){ TASK_GOES_ON, NO_TASK }; }
+static inline TaskEnd task_is_done(void) { return (TaskEnd){ TASK_IS_DONE, NO_TASK }; }
+
+/* What a task leaves in the registers for the code after it, which the lists
+ * hand on (scaffolding: the frame's work reads A's high byte after the last
+ * frame task, and an original task Y, the next free sprite entry). */
+typedef struct {
+    bool a_set, y_set;
+    uint16_t a, y;
+    bool a_8bit;           /* its last byte store left A 8-bit (the list puts P back) */
+    bool a_high_as_called; /* A's high byte is what the task was called with (the list's task) */
+    bool overflow_clear;   /* a callee of its cleared the overflow (the list puts P back) */
+} TaskLeftovers;
+
+/* A task that is C: its frame, on the list it runs on; the guard that says
+ * the program's code for it is the one the port stands for (it takes the
+ * machine, for the code's hash and the page the lists run on); and what it
+ * leaves. */
+typedef struct {
+    SceneTask task;
+    SceneTaskList list;
+    TaskEnd (*run)(GameState *g, Platform *pf);
+    bool (*present)(Snes *s);
+    TaskLeftovers (*leaves)(const GameState *g, TaskEnd end);
+    /* It calls the original's code (the sound driver): with 8-bit A, and with
+     * the stack as the original's call has it, the frames the list keeps under
+     * the task's return, which shadow mode pairs the call with the original's
+     * by. */
+    bool calls_out;
+} SceneTaskPort;
+
+/* The tasks each file has as C (scene/title.c, scene/screen.c), which the
+ * lists' runner looks a task up in. */
+extern const SceneTaskPort scene_title_tasks[];
+extern const unsigned scene_title_task_count;
+extern const SceneTaskPort scene_screen_tasks[];
+extern const unsigned scene_screen_task_count;
+
+/* The program's routines the scripts call (their command $A0), which are C,
+ * by the values the scripts hold for them (the routines' addresses). */
+enum {
+    SCENE_ROUTINE_START_RIPPLE = 0x5DA7,          /* scene/title.c */
+    SCENE_ROUTINE_DARKEN_SPRITE_PALETTE_4 = 0x5DB4,
+    SCENE_ROUTINE_UNTINT_SPRITE_PALETTE_3 = 0x5DE9,
+};
+
+/* A routine a script calls, as C: its work on the calling channel; the guard
+ * that says the program's code for it is the code the port stands for; and
+ * what it leaves in A for the script's interpreter, which A held the
+ * routine's address when it called. */
+typedef struct {
+    uint16_t routine;
+    void (*run)(GameState *g, Platform *pf, uint8_t channel);
+    bool (*present)(Snes *s);
+    uint16_t (*leaves_a)(uint16_t called_with);
+    bool leaves_the_program_bank;   /* it comes back with the data bank on the program's */
+} SceneScriptRoutine;
+
+extern const SceneScriptRoutine scene_title_routines[];
+extern const unsigned scene_title_routine_count;
+
+/* scene/frame.c: a task's registered entry, for a caller that reaches it by
+ * its address (fuzzing; the lists run it as C): its frame, and back as the
+ * original's would come back, or through the lists' exits. */
+void scene_task_alone(Snes *s, SceneTask task);
+
 /* scene/sprites.c: a sprite put straight into an entry of the frame's sprite
  * table (a byte offset), with no cursor and no offset, as the star field
  * places its own. */
@@ -270,6 +370,9 @@ void scene_blank_credits_map(Platform *pf, PfOrigin in_front_site);
  * port as the caller has pointed it, for a picture at `source` into the page
  * at `destination`. */
 void scene_write_matrix_code_for(GameState *g, uint16_t destination, uint16_t source);
+/* The writer's Y as it comes back: past its table of strips, two bytes each
+ * (scaffolding, for the code after a setup that ends with it). */
+uint16_t scene_matrix_writer_leaves_y(void);
 
 /* scene/perspective.c: the Mode 7 plane's perspective built again for a
  * channel's camera, as the race's camera check and the endings ask for it. */
@@ -334,6 +437,16 @@ void scene_init_video(Snes *s);
 bool scene_upload_sprites_present(Snes *s);
 void scene_upload_sprites(Snes *s);
 void scene_finish_and_upload_sprites(Snes *s);
+void scene_brighten(Snes *s);
+void scene_darken(Snes *s);
+void scene_fade_the_music_out(Snes *s);
+void scene_darken_in_silence_and_end(Snes *s);
+void scene_darken_and_end(Snes *s);
+bool scene_brighten_present(Snes *s);
+bool scene_darken_present(Snes *s);
+bool scene_fade_the_music_out_present(Snes *s);
+bool scene_darken_in_silence_and_end_present(Snes *s);
+bool scene_darken_and_end_present(Snes *s);
 void scene_animate_the_palettes(Snes *s);
 bool scene_animate_the_palettes_present(Snes *s);
 bool scene_finish_and_upload_sprites_present(Snes *s);
@@ -348,6 +461,15 @@ void scene_setup_line_effects(Snes *s);
 
 /* scene/title.c (the program in RAM) */
 void scene_title_set_up(Snes *s);
+/* The setups as the program's dispatch runs them (scene/program.c): each
+ * leaves the registers as its routine returns them, and is true unless a
+ * call-out of its stopped. The title's then waits for its song, in the
+ * original's loop. */
+bool scene_title_set_up_scene(Snes *s);
+void scene_title_wait_for_its_song(Snes *s);
+bool scene_race_set_up_scene(Snes *s);
+bool scene_ending_set_up_scene(Snes *s);
+bool scene_staff_roll_set_up_scene(Snes *s);
 bool scene_title_set_up_present(Snes *s);
 bool scene_title_loader_present(Snes *s);
 void scene_title_load_sprite_graphics(Snes *s);
@@ -380,10 +502,16 @@ bool scene_title_move_logo_present(Snes *s);
 void scene_title_move_logo(Snes *s);
 bool scene_title_start_ripple_present(Snes *s);
 void scene_title_start_ripple(Snes *s);
+void scene_title_darken_sprite_palette_4(Snes *s);
+void scene_title_untint_sprite_palette_3(Snes *s);
+bool scene_title_darken_sprite_palette_4_present(Snes *s);
+bool scene_title_untint_sprite_palette_3_present(Snes *s);
 bool scene_title_expand_plane_tile_present(Snes *s);
 void scene_title_expand_plane_tile(Snes *s);
 bool scene_title_ripple_columns_present(Snes *s);
 void scene_title_ripple_columns(Snes *s);
+void scene_title_calm_the_ripple(Snes *s);
+bool scene_title_calm_the_ripple_present(Snes *s);
 bool scene_title_upload_ripple_present(Snes *s);
 void scene_title_upload_ripple(Snes *s);
 
@@ -434,9 +562,7 @@ void scene_bridge_leave(Snes *s);
  * and the original carries on from where it did. */
 bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
 bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
-/* A sibling that stopped where the caller goes on as C (a task at the task
- * list's exits): the stop it declared is the caller's no longer. */
-void scene_bridge_forget_the_stop(Snes *s);
+
 
 /* scene/program.c (the program in RAM): its start, the pieces of it its waits
  * cut, and its end. */

@@ -13589,6 +13589,12 @@ void set_scene_palette_byte(GameState *g, unsigned at, uint8_t v);
 uint16_t scene_main_loop_call(const GameState *g);
 void set_scene_main_loop_call(GameState *g, uint16_t v);
 
+enum { SCENE_PROGRAM_SETUPS_COUNT = 16 };   /* by the scene's mode */
+/* The program's table of the scenes' setups by mode, the routines its dispatch calls (the
+ * program's data) */
+uint16_t scene_program_setups(const GameState *g, unsigned i);
+void set_scene_program_setups(GameState *g, unsigned i, uint16_t v);
+
 /* Which routine starts the plane's perspective lines, the operand of the program's own call: the
  * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
  * the line above it) */

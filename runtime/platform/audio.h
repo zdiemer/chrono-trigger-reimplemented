@@ -36,6 +36,7 @@ enum {
     AU_BEND_BOTH = 0x85,        /* p1 steps, p2 the tempo's and the pitch's modifiers both */
     AU_BEND_TEMPO = 0x86,       /* p1 steps, p2 the tempo's modifier: 0 as written, 1-127 faster, 128-255 slower */
     AU_BEND_EFFECTS_PITCH = 0x89, /* p1 steps, p2 the pitch modifier of the effect voices */
+    AU_STOP_ALL = 0xF0,         /* the music and every effect */
     AU_STOP_EFFECTS = 0xF2,     /* p1 which pair of effect voices: 0 voices 6-7, 1 voices 4-5 */
     AU_FAST_FORWARD = 0xF6      /* p1 1: everything played fast (the driver's timer at 8 kHz); 0: back at its pace */
 };

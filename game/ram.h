@@ -9036,6 +9036,11 @@
 /* The routine the program's main loop calls each pass, the operand of its own call, which a
  * scene's setup points at its work (the race's: the racers' pictures scaled, $51D1) [2 bytes] */
 #define RAM_SCENE_MAIN_LOOP_CALL 0x7E3024u
+/* The program's table of the scenes' setups by mode, the routines its dispatch calls (the
+ * program's data) [16 x $2 bytes, by the scene's mode] */
+#define RAM_SCENE_PROGRAM_SETUPS 0x7E3043u
+#define RAM_SCENE_PROGRAM_SETUPS_COUNT 16u
+#define RAM_SCENE_PROGRAM_SETUPS_STRIDE 0x02u
 /* Which routine starts the plane's perspective lines, the operand of the program's own call: the
  * race's setup writes its routine ($45B0, from the horizon) and the endings' theirs ($9B46, from
  * the line above it) [2 bytes] */

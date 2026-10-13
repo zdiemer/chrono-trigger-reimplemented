@@ -561,11 +561,54 @@ static bool machine_as_expected(Snes *s, SceneChannel *ch)
  * does. Either way the flags are the callee's. */
 static bool can_continue(Snes *s, SceneChannel *ch) { return machine_as_expected(s, ch); }
 
+/* ---- The program's routines the scripts call ------------------------------------------------- */
+
+/* The routines that are C (scene/title.c), by the value the script holds. */
+static const SceneScriptRoutine *routine_port(uint16_t routine)
+{
+    for (unsigned n = 0; n < scene_title_routine_count; n++)
+        if (scene_title_routines[n].routine == routine)
+            return &scene_title_routines[n];
+    return NULL;
+}
+
+/* The call reads the routine's address from the scene's own page, where the
+ * interpreter puts it ($7E:37F3), and calls it with A the same. */
+enum { PROGRAM_BANK = 0x7E0000 };
+
+static bool call_present(Snes *s) { return m_code_matches(s, 0x7E37F3, 7, 0x7238FF62A389BBE0ull); }
+
+static void leave_the_call(Snes *s, uint16_t routine, uint16_t a)
+{
+    set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
+    s->cpu.a = a;
+}
+
+/* A routine the port has, as C, where the program's code for the call and for
+ * it is the code the port stands for: its work on the calling channel, timed
+ * as the routine, with 16-bit A after. False where it isn't. */
+static bool call_routine_as_c(Snes *s, SceneChannel ch, uint16_t routine)
+{
+    const SceneScriptRoutine *r = routine_port(routine);
+    if (!r || !call_present(s) || !r->present(s))
+        return false;
+    GameState *g = state_of(s);
+    NATIVE_TIME_AS(s, PROGRAM_BANK | routine, r->run(g, m_platform(s), ch));
+    ORIGINAL_EFFECT(leave_the_call(s, routine, r->leaves_a(routine)));
+    if (r->leaves_the_program_bank)
+        s->cpu.db = PROGRAM_BANK >> 16;
+    set_widths16(s);
+    return true;
+}
+
 // $C3:0C51
 /* A routine of the program, which $7E:37F3 calls through the scene's own page:
- * the routine's address is what that call reads. */
+ * the routine's address is what that call reads. As C where the port has it;
+ * the original's otherwise. */
 static bool call_routine(Snes *s, SceneChannel *ch, uint16_t routine)
 {
+    if (call_routine_as_c(s, *ch, routine))
+        return true;
     set_scene_call_script_scratch(state_of(s), scene_program_own(), routine);
     s->cpu.a = routine;   /* as the original loaded it: some routines read it */
     set_widths16(s);

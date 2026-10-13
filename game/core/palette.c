@@ -361,9 +361,6 @@ void palette_stop_animations(GameState *g)
         stop(g, slot);
 }
 
-/* Every channel of the colors, as a fade's mode. */
-enum { ALL_CHANNELS = 0 };
-
 /* A fade a mode starts in a slot of its own. The frame counter starts at 0,
  * so the first step comes a period on. */
 static void start_fade(GameState *g, unsigned slot, AnimationType type, PaletteFade fade)
@@ -374,7 +371,7 @@ static void start_fade(GameState *g, unsigned slot, AnimationType type, PaletteF
     set_palette_animations_step(g, slot, fade.step);
     set_palette_animations_delay(g, slot, 0);
     set_palette_animations_period(g, slot, fade.period);
-    set_palette_animations_fade_mode(g, slot, ALL_CHANNELS);
+    set_palette_animations_fade_mode(g, slot, (uint8_t)fade.tint);
     set_palette_animations_fade_level(g, slot, fade.from_level);
     set_palette_animations_fade_target(g, slot, fade.to_level);
 }
@@ -672,11 +669,18 @@ bool palette_fade_loop_can_run(Snes *s)
 
 /* It leaves the last slot's offset in A and Y, the carry of its last
  * comparison set and the overflow clear. */
+void palette_animate_a_frame(GameState *g)
+{
+    last_run.ran = false;
+    run_animations(g);
+}
+
+uint16_t palette_animations_leave(void) { return SLOTS_END; }
+
 void palette_animate(Snes *s)
 {
     GameState *g = state_of(s);
-    last_run.ran = false;
-    run_animations(g);
+    palette_animate_a_frame(g);
     s->cpu.x = last_run.ran ? run_end(g, last_run.slot, last_run.type) : ANIMATIONS_PAGE;
     s->cpu.a = SLOTS_END;
     s->cpu.y = SLOTS_END;
