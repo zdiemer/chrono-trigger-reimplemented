@@ -930,6 +930,29 @@ rest waits, is [PLAN.md](PLAN.md).
   asset pack has to carry those bytes too, or the warp has to be shown
   never to reach past the table (fuzz the scale's range) and the read
   clamped.
+- **What the boot path's review left** (none rated translation):
+  `scene/frame.c`'s task table is a C table, but keyed by bare routine
+  addresses (`0x5BCF`), its handlers `Snes *` wrappers run under a pushed
+  JSR frame (`scene_run`), and a finished task found by stopping at the
+  list's exit and reading the PC and stack depth (`call_task`); the tasks'
+  logic is already plain C, so the table wants entries
+  `TaskEnd (*)(GameState *, Platform *)` returning continue, done or
+  hand-over, keyed by named task constants, A's leftover in a leaves
+  helper (CLAUDE.md, "An interpreter dispatches through a C table"); the
+  same for `scene/program.c`'s `setups[]` and `field/main_loop.c`'s
+  `fd_scenes[]`, the ROM's pointer tables copied in and run through an
+  emulated JSR; `title.c`'s setup is a long `Snes *` body and
+  `run_the_first_script` keeps D and DB on the machine stack; `title.c`
+  adds 1 to a bool (`button_taken + 1`); `math.c`'s `scene_divide32`
+  takes a carry only a leftover uses, and `scene_sine_second_half`
+  exports a carry; `tile_animation.c` threads `LoadLeft` through
+  `load_slot` for scaffolding; `location.c`'s built-in command copies by
+  raw offsets and its script loading sits in the `Snes *` entry;
+  `title.c`'s guards re-run the logic to predict exact multiplies;
+  `scene_unpack_resource`'s timing reason blames the unpacker's error,
+  which is 6% on its own line, where the worst is 82% of the mean (give
+  the worst call's size).
+
 - **What the time warp's review left** (none rated translation):
   `WarpKind` carries ROM columns (`frame_entry`, `window_site`) beside the
   kinds' length and flicker, used as `PF_AT(...)` and `charge_as(...)`
