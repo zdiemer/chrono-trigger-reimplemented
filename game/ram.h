@@ -8558,6 +8558,12 @@
 #define RAM_SCENE_RACE_RACERS_OUT_OF_SIGHT 0x7E0063u /* Nonzero when the bike isn't drawn: Johnny's when Crono is $1000 or more ahead */
 #define RAM_SCENE_RACE_RACERS_DRIFT_UP 0x7E0065u /* How fast the bike drifts toward the higher lanes: it builds up while the bike steers that way and dies away by $10 a frame */
 #define RAM_SCENE_RACE_RACERS_DRIFT_DOWN 0x7E0067u /* How fast the bike drifts toward the lower lanes */
+/* The five sprites that slide into the title from the left as it settles: where each is, in
+ * sixteenths of a pixel [5 x $2 bytes, by slide] */
+#define RAM_SCENE_TITLE_SLIDES 0x7E0046u
+#define RAM_SCENE_TITLE_SLIDES_COUNT 5u
+#define RAM_SCENE_TITLE_SLIDES_STRIDE 0x02u
+#define RAM_SCENE_TITLE_SLIDES_DP 0x46u      /* page scene */
 /* Where in VRAM the staff credits' next row of text goes: a row of the 32x32 map at $4800, a row
  * on each line and round again; the setup starts it a row before the map, which the first line's
  * step brings to its first row [2 bytes] */
@@ -8576,6 +8582,12 @@
  * to scale next starts, $1200 on by $400 a frame of its animation [2 bytes] */
 #define RAM_SCENE_ENDING_PICTURE_SOURCE 0x7E004Eu
 #define RAM_SCENE_ENDING_PICTURE_SOURCE_DP 0x4Eu /* page scene */
+/* Where each of the title's five sliding sprites stops, in sixteenths of a pixel [5 x $2 bytes,
+ * by slide] */
+#define RAM_SCENE_TITLE_SLIDE_ENDS 0x7E0050u
+#define RAM_SCENE_TITLE_SLIDE_ENDS_COUNT 5u
+#define RAM_SCENE_TITLE_SLIDE_ENDS_STRIDE 0x02u
+#define RAM_SCENE_TITLE_SLIDE_ENDS_DP 0x50u  /* page scene */
 /* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
  * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
  * gathering [2 bytes] */
@@ -8603,6 +8615,9 @@
  * ($7E:5D01); it lands at $3A [2 bytes] */
 #define RAM_SCENE_TITLE_LOGO_Y 0x7E0064u
 #define RAM_SCENE_TITLE_LOGO_Y_DP 0x64u      /* page scene */
+/* The pendulum's swing's phase, a step of the sine table's turn of $400 [2 bytes] */
+#define RAM_SCENE_TITLE_PENDULUM_PHASE 0x7E0066u
+#define RAM_SCENE_TITLE_PENDULUM_PHASE_DP 0x66u /* page scene */
 /* The title's timer, which the logo's task counts down by two a frame from $F8 while the logo
  * sweeps in; below $72 the logo lands, BG1, BG2 and the sprites come on and channel 0 goes on to
  * the next script [2 bytes] */
@@ -8617,10 +8632,24 @@
  * go on to The End (counted up as it is set) */
 #define RAM_SCENE_CREDITS_OVER 0x7E006Au
 #define RAM_SCENE_CREDITS_OVER_DP 0x6Au      /* page scene */
+/* How far the pendulum swings, the factor its phase's sine is scaled by [2 bytes] */
+#define RAM_SCENE_TITLE_PENDULUM_SWING 0x7E006Cu
+#define RAM_SCENE_TITLE_PENDULUM_SWING_DP 0x6Cu /* page scene */
+/* Nonzero while the title takes no button (its scripts set it); its watch for a button waits [2
+ * bytes] */
+#define RAM_SCENE_TITLE_IGNORES_BUTTONS 0x7E006Eu
+#define RAM_SCENE_TITLE_IGNORES_BUTTONS_DP 0x6Eu /* page scene */
+/* Nonzero once a button has ended the title [2 bytes] */
+#define RAM_SCENE_TITLE_BUTTON_TAKEN 0x7E0070u
+#define RAM_SCENE_TITLE_BUTTON_TAKEN_DP 0x70u /* page scene */
 /* In the shared endings: the left edge of the four-sided window an ending's frame task
  * ($7E:9A0C) sweeps across the screen, two pixels a frame to 0 [2 bytes] */
 #define RAM_SCENE_ENDING_WINDOW_LEFT 0x7E0071u
 #define RAM_SCENE_ENDING_WINDOW_LEFT_DP 0x71u /* page scene */
+/* Frames the title's bottom right picture shows for; at 60 left the title starts watching for a
+ * button and lets the console reset, at 0 the picture goes [2 bytes] */
+#define RAM_SCENE_TITLE_WAIT 0x7E0072u
+#define RAM_SCENE_TITLE_WAIT_DP 0x72u        /* page scene */
 /* In the shared endings: the lines of the swept window's four corners, in quarter lines, each
  * moved down a little a frame until $390 [4 x $2 bytes, by the corner, in the order the task
  * hands them to the window's drawing] */
@@ -9240,6 +9269,8 @@
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_STRIDE 0x04u
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_C 0x7EF488u /* The matrix's third entry: the sine's, negated */
 #define RAM_SCENE_PLANE_MATRIX_BOTTOM_ROW_D 0x7EF48Au /* The matrix's fourth entry: the cosine's, as the first */
+/* 1 where the title was left with a button other than the shoulders (event memory's byte $60) */
+#define RAM_SCENE_TITLE_LEFT_WITH_A_BUTTON 0x7F0060u
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes
  * after another, before it is gathered into tiles [1152 x $2 bytes, by word of the picture, $10
  * a row] */

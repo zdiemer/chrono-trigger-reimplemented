@@ -225,7 +225,7 @@ Nothing lands without it, and it is the same gate for every phase:
 The rewrite of the ports written before the reimplementation bar is done:
 scene, event, field, menu, battle, core and sound are all at the bar and
 merged (docs/history/reimplementation-phase3a.md has each subsystem's account).
-**1 of 287 files, 117 of 87,175 lines, is left on the backlog**: `data/decompress.c`,
+**1 of 288 files, 117 of 88,201 lines, is left on the backlog**: `data/decompress.c`,
 the one line in `tools/portstyle_baseline.txt`. What is still on the machine
 is, outside core, the entries' wrappers, the guards and the bridges round the
 call-outs to the original's code:
@@ -507,11 +507,12 @@ are the endings that share `$7E:8538` (modes 10, 11, 14 and 15): their
 setup, the picture the main loop zooms, and the scenes their scripts start
 (history file, "Phase 3, the scene program: the shared endings"); and so are
 the star field, the captions and the last scene's swept window, with the
-program's stirred random numbers as game code (REIMPLEMENTATION.md, "Phase 3,
-the scene program: the star field, the captions and the random numbers").
-**Next**, by what the library reaches: the title's frame tasks, which every
-movie that starts at the title runs as the original's (`$7E:5D71`, the
-pendulum's `$7E:5BCF`, the logo's `$7E:5D01`-`$7E:5D32`); the Beyond Time
+program's stirred random numbers as game code (history file, "Phase 3, the
+scene program: the star field, the captions and the random numbers"); and so
+are the program's start and end and the title from its setup to the button
+that ends it (REIMPLEMENTATION.md, "Phase 4a, the native frame: the title").
+**Next**, by what the library reaches: the title's scripts' routines and fades
+(below, "The native frame"); the Beyond Time
 ending's remaining tasks -- the zooming picture's turn (`$7E:99B5`), the
 Mode 7 picture's vblank tasks (`$7E:9AF3`, `$7E:9DBC`, `$7E:9E2B`, with the
 signed multiply `$7E:33D6`), its tiles' expansion (`$7E:5EF8`), the two
@@ -553,15 +554,21 @@ by an audit; the fourth is the program itself.
 - **The native frame.** The power-on path and the interrupts' entries are
   hand ports (`core/console.c`; history/reimplementation-chunks.md, "Phase 3, field and events: the
   console's start and the field's frame"), and so are the field's first start
-  and main loop: `ct_play --generated off --interpreted stop` (PLAYING.md) runs
-  the field's first start -- the location loaded, its objects and its own
-  script started, the main loop's frames, the field's end into the title's
-  scene -- to frame 55, and stops at `$7E:3000`, the scene program's first
-  instruction (REIMPLEMENTATION.md, "Phase 4a, the native frame"). Over
-  3,000 frames from power-on `--interpreted log` lists 952 addresses still
-  interpreted, none of them in `$C0` or `$FD`: the title's program (`$7E`,
-  758), the scene engine's curtain (`$C3`, 150) and the menus' attract scene
-  that follows the title (`$C6`, 41; `$C2`, 3). The title's program is next.
+  and main loop, and the scene program's start and the title: `ct_play
+  --generated off --interpreted stop` (PLAYING.md) runs the field's first
+  start, the program's start into the title, the title's setup and its frames
+  -- the pendulum, the logo's sweep, the sprites, the ripple -- to frame 827,
+  and stops at `$7E:37F3`, where channel 0's script calls one of the
+  program's routines (REIMPLEMENTATION.md, "Phase 4a, the native frame: the
+  title"). Over 3,000 frames from power-on `--interpreted log` lists 536
+  addresses still interpreted, none of them in `$C0` or `$FD`: the title's
+  program (`$7E`, 342), the scene engine's curtain (`$C3`, 150) and the
+  menus' attract scene that follows the title (`$C6`, 41; `$C2`, 3). Next: the
+  script's routine call as a C table of the routines the title's scripts call
+  (the ripple's start `$7E:5DA7`, already C, and the palette's fades to black
+  and to white `$7E:5DB4`, `$7E:5DE9`, which need a fade that takes its mode),
+  then the fade tasks (`$7E:347A`-`$7E:34E3`), the rest of the title's program
+  and the scene engine's curtain in `$C3`.
 
   **Timing** (PLATFORM.md, "Timing without a beam, as built"): the calls and
   their host backend are built, the field's budgets, the menus' task switch

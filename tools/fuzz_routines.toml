@@ -309,7 +309,7 @@ name = "scene_title_ripple_columns"
 at = "7E:5FFE"
 subsystem = "scene"
 state = "race"
-args = ["--db", "7E", "--keep", "7E3000-7EB5FF"]
+args = ["--d", "0000", "--db", "7E", "--keep", "7E3000-7EB5FF"]
 
 [[routine]]
 name = "scene_run_frame_tasks"
@@ -18906,3 +18906,158 @@ state = "warp"
 args = ["--interrupt"]
 iterations = 5000
 why = "everything random but the stack: the handler sets its own page and bank"
+
+# ---- scene: the title's program --------------------------------------------------------------------
+
+[[routine]]
+name = "scene_program_start"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
+        "--budget", "20000000", "--stop-at-call", "7E31B0"]
+iterations = 400
+why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
+
+[[routine]]
+name = "scene_setup_and_first_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
+        "--budget", "20000000", "--stop-at-call", "7E31B0", "--range", "A=0000-00FF"]
+iterations = 400
+why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end: A's high byte 0, as the guard asks (the dispatch takes it into its index)"
+
+[[routine]]
+name = "scene_first_frame"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
+        "--budget", "20000000", "--stop-at-call", "7E31B0"]
+iterations = 400
+why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
+
+[[routine]]
+name = "scene_program_hands_back"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the title's frame and its lists call it"
+
+[[routine]]
+name = "scene_unpack_resource"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--range", "X=0000-00D8/3", "--fill", "7E0303-7E0304=00-00",
+        "--fill", "7E0305-7E0305=7F-7F", "--budget", "8000000"]
+iterations = 2000
+why = "one of the resource table's 73 entries, unpacked to the second bank as the scenes' setups unpack them: past the table the streams are other data, which the decompressor's port and the original read apart"
+
+[[routine]]
+name = "scene_run_channel_0_script"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0A21-7E0A21=30-B5",
+        "--budget", "8000000"]
+why = "the program kept, the channel's script pointer inside the program, as scene_run_sequence's (a random one jumps into work RAM the two runs part on)"
+
+[[routine]]
+name = "scene_run_channel_1_script"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0B21-7E0B21=30-B5",
+        "--budget", "8000000"]
+why = "the program kept, the channel's script pointer inside the program, as scene_run_sequence's (a random one jumps into work RAM the two runs part on)"
+
+[[routine]]
+name = "scene_program_goes_on"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--fill", "7E0384-7E0384=00-0F", "--apu-loopback",
+        "--budget", "20000000", "--stop-at-call", "7E31B0"]
+iterations = 400
+why = "the program kept, a mode the setups' table has, the sound's port read back; compared up to the first frame's wait (or a setup's own), which ct_fuzz has no vblank to end"
+
+[[routine]]
+name = "scene_sound_back_to_normal"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
+why = "the program kept, the sound's port read back, so each command's wait ends"
+
+[[routine]]
+name = "scene_title_set_up"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback", "--budget", "20000000"]
+iterations = 400
+why = "the program kept, the sound's port read back, so the song's start ends"
+
+[[routine]]
+name = "scene_animate_the_palettes"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the title's frame and its lists call it"
+
+[[routine]]
+name = "scene_finish_and_upload_sprites"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit)"
+
+[[routine]]
+name = "scene_title_swing_pendulum"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF"]
+why = "the program kept, on the scene's own page, as the title's frame and its lists call it"
+
+[[routine]]
+name = "scene_title_draw_the_clock"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit)"
+
+[[routine]]
+name = "scene_title_draw_the_hands"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit)"
+
+[[routine]]
+name = "scene_title_draw_the_copyright"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit)"
+
+[[routine]]
+name = "scene_title_slide_the_name"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit)"
+
+[[routine]]
+name = "scene_title_count_the_wait_down"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0011-7E0012=00-00", "--fill", "7E0013-7E0013=00-00", "--fill", "7E0014-7E0014=09-09", "--fill", "7E0920-7E092F=00-00"]
+why = "the program kept, on the scene's own page, the sprite table's cursor at its start as each frame's first list finds it (the guards take only lists that fit), and the frame's first slots free for the task it adds"
+
+[[routine]]
+name = "scene_title_watch_for_a_button"
+subsystem = "scene"
+state = "attract"
+args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF",
+        "--fill", "7E0920-7E092F=00-00"]
+why = "the program kept, on the scene's own page, and the frame's first slots free for the task it adds"

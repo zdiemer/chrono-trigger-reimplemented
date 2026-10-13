@@ -221,6 +221,15 @@ void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y)
     set_scene_sprite_offset_y(g, y);
 }
 
+/* Where the scene's sprite lists are drawn from, as the program stores it: X
+ * and Y each a word, Y's high byte in the byte after its offset. */
+void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y)
+{
+    set_scene_sprite_offset_x(g, x);
+    set_scene_sprite_offset_y(g, (uint8_t)y);
+    set_scene_sprite_offset_y_high(g, (uint8_t)(y >> 8));
+}
+
 /* As C calls, for the program's routines ported as C. */
 void scene_draw_sprite(GameState *g, uint16_t source) { add_sprite(g, source, false); }
 void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped) { load_sprite_list(g, list, clipped); }

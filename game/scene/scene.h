@@ -134,6 +134,12 @@ bool scene_sprites_fit(const GameState *g, unsigned sprites);
  * drawn from next (X's 9th bit kept). */
 uint8_t scene_sprite_list_length(const GameState *g, uint16_t list);
 void scene_move_sprite_offset(GameState *g, uint8_t x, uint8_t y);
+/* Where the lists are drawn from, both words as the program stores them. */
+void scene_draw_lists_at(GameState *g, uint16_t x, uint16_t y);
+/* A list drawn as the program's list routines draw it (scene_load_sprite_list,
+ * its clipped form): for the program's routines ported as C. */
+void scene_draw_sprite_list(GameState *g, uint16_t list, bool clipped);
+uint16_t scene_clipped_list_leaves_a(const GameState *g, uint16_t list, uint16_t a);
 /* The rest of the cursor's group of four sprites put off the screen, as the
  * frame's last sprites leave it. */
 void scene_hide_rest_of_group(GameState *g);
@@ -184,6 +190,15 @@ bool scene_music_reached(MusicStatus music, uint8_t level);
 enum { SCENE_CIRCLE_ROUND = 0, SCENE_CIRCLE_SQUASHED = 1, SCENE_CIRCLE_KEEPS_OUTSIDE = 0x80 };
 void scene_circle_draw(GameState *g, uint8_t mode);
 
+/* scene/math.c: the game's sine, as the scene programs take it: 1024 steps a
+ * turn, the magnitude in 256ths from the table at $C0:F900, negative for the
+ * first half turn; the cosine a quarter turn on. The lookup also leaves
+ * whether the step is in the second half of the turn (scene_sine_second_half),
+ * the carry its compare leaves, which some callers carry on into a divide. */
+int16_t scene_sine(const GameState *g, uint16_t angle);
+int16_t scene_cosine(const GameState *g, uint16_t angle);
+bool scene_sine_second_half(uint16_t angle);
+
 /* The CPU's divider, as the scene programs divide by it: a 16-bit dividend
  * over a byte, $FFFF for a divisor of 0. */
 static inline uint16_t scene_divider_quotient(uint16_t dividend, uint8_t divisor)
@@ -197,6 +212,13 @@ static inline uint16_t scene_divider_quotient(uint16_t dividend, uint8_t divisor
  * a value's high byte over a divisor; and the first divisor from `from` whose
  * quotient of `dividend` falls under `limit`. */
 uint32_t scene_multiply16(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
+/* Whether the program's multiply comes out as the product, with or without the
+ * byte after the product's top bit carried in (the multiply's guard). */
+bool scene_multiplies_exactly(uint16_t a, uint16_t b, bool carried);
+/* The 32-bit divide's quotient and remainder of `dividend` over `divisor` (not
+ * 0, under $80000000: the divide's guard), the caller's carry brought in as
+ * the original brings it. Returns the quotient. */
+uint32_t scene_divide32(GameState *g, SceneProgramPage page, uint32_t dividend, uint32_t divisor, bool carry);
 int16_t scene_multiply_by_signed_byte(GameState *g, SceneProgramPage page, uint16_t a, uint16_t b);
 uint16_t scene_divide_8_8_by(GameState *g, SceneProgramPage page, uint16_t dividend, uint16_t divisor);
 uint8_t scene_find_divisor_from(GameState *g, uint16_t dividend, uint8_t from, uint16_t limit);
@@ -211,6 +233,12 @@ uint16_t scene_set_up_line_effects(const GameState *g, Platform *pf, uint16_t at
  * bank, the count handed over in `page`'s first cell; and the loaded palette
  * made the one the frame sends. */
 void scene_send_palette(Platform *pf);
+/* scene/screen.c: the program's work RAM cleared (true: the title's shorter
+ * clear, which keeps what lies below the task lists), every sprite hidden, and
+ * the screen every scene starts from. */
+bool scene_clear_the_work_ram(GameState *g, Platform *pf, uint8_t matrix_left);
+void scene_hide_every_sprite(Platform *pf);
+void scene_set_up_first_screen(GameState *g, Platform *pf);
 uint8_t scene_unpacked_bank(const GameState *g);
 void scene_copy_resource_to(GameState *g, SceneProgramPage page, unsigned resource, uint16_t to, uint16_t bytes);
 void scene_use_loaded_palette(GameState *g);
@@ -269,6 +297,8 @@ void scene_boot_line_irq_wait_hblank_loop(Snes *s);
 void scene_boot_line_irq_blank(Snes *s);
 void scene_copy_resource(Snes *s);
 void scene_copy_resource_to_upper_ram(Snes *s);
+void scene_unpack_resource(Snes *s);
+bool scene_unpack_present(Snes *s);
 /* `count` bytes of bank $FE from `from` into `bank` at `to`, as those two
  * copy them. */
 void scene_copy_resource_bytes(GameState *g, uint8_t bank, uint16_t from, uint16_t to, uint32_t count);
@@ -284,8 +314,12 @@ bool scene_vblank_tasks_present(Snes *s);
 void scene_run_frame_tasks(Snes *s);
 void scene_run_vblank_tasks(Snes *s);
 
+
 /* scene/script.c */
 void scene_run_sequence(Snes *s);
+void scene_run_channel_0_script(Snes *s);
+void scene_run_channel_1_script(Snes *s);
+bool scene_channel_script_start_present(Snes *s);
 void scene_script_wait_for_sound(Snes *s);
 bool scene_sequence_bank_is_scripts(Snes *s);
 bool scene_sequence_waits_on_channel(Snes *s);
@@ -299,6 +333,10 @@ bool scene_init_video_present(Snes *s);
 void scene_init_video(Snes *s);
 bool scene_upload_sprites_present(Snes *s);
 void scene_upload_sprites(Snes *s);
+void scene_finish_and_upload_sprites(Snes *s);
+void scene_animate_the_palettes(Snes *s);
+bool scene_animate_the_palettes_present(Snes *s);
+bool scene_finish_and_upload_sprites_present(Snes *s);
 bool scene_clear_sprite_table_present(Snes *s);
 void scene_clear_sprite_table(Snes *s);
 bool scene_upload_palette_present(Snes *s);
@@ -309,6 +347,8 @@ bool scene_setup_line_effects_present(Snes *s);
 void scene_setup_line_effects(Snes *s);
 
 /* scene/title.c (the program in RAM) */
+void scene_title_set_up(Snes *s);
+bool scene_title_set_up_present(Snes *s);
 bool scene_title_loader_present(Snes *s);
 void scene_title_load_sprite_graphics(Snes *s);
 void scene_title_load_layer_tiles(Snes *s);
@@ -321,6 +361,20 @@ void scene_title_set_up_pendulum(Snes *s);
 bool scene_title_load_plane_map_present(Snes *s);
 void scene_title_load_plane_map(Snes *s);
 bool scene_title_place_pendulum_present(Snes *s);
+void scene_title_swing_pendulum(Snes *s);
+void scene_title_draw_the_clock(Snes *s);
+bool scene_title_draw_the_clock_present(Snes *s);
+void scene_title_draw_the_hands(Snes *s);
+bool scene_title_draw_the_hands_present(Snes *s);
+void scene_title_draw_the_copyright(Snes *s);
+bool scene_title_draw_the_copyright_present(Snes *s);
+void scene_title_slide_the_name(Snes *s);
+bool scene_title_slide_the_name_present(Snes *s);
+void scene_title_count_the_wait_down(Snes *s);
+bool scene_title_count_the_wait_down_present(Snes *s);
+void scene_title_watch_for_a_button(Snes *s);
+bool scene_title_watch_for_a_button_present(Snes *s);
+bool scene_title_swing_pendulum_present(Snes *s);
 void scene_title_place_pendulum(Snes *s);
 bool scene_title_move_logo_present(Snes *s);
 void scene_title_move_logo(Snes *s);
@@ -366,6 +420,37 @@ void scene_leave_perspective_registers(Snes *s, SceneChannel ch);
 /* scene/bridge.c: a scene's song, from the program's routine that starts one,
  * called from a setup at `call`. */
 void scene_bridge_start_song(Snes *s, uint32_t call, uint8_t song);
+/* scene/bridge.c: the frame a call from `call` leaves on the stack, for the
+ * calls a port makes as the routine the call reached would. */
+void scene_bridge_enter(Snes *s, uint32_t call);
+void scene_bridge_leave(Snes *s);
+/* scene/bridge.c: a sibling port's registered entry run as C, as the
+ * original's JSR (JSL) at `site` calls `routine`: under the return address the
+ * call pushes, where the sibling's own call-outs and stops need it, and timed
+ * as its routine. Where the registry wouldn't run `entry` for the state (its
+ * guard or its widths turn it away, or `entry` is NULL: the original's routine
+ * has no port), the call is a real one, declaring `dont_care`. True if it came
+ * back to the call's return with the stack as it was; otherwise it stopped,
+ * and the original carries on from where it did. */
+bool scene_run(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+bool scene_run_long(Snes *s, uint32_t site, uint32_t routine, uint16_t dont_care, void (*entry)(Snes *));
+/* A sibling that stopped where the caller goes on as C (a task at the task
+ * list's exits): the stop it declared is the caller's no longer. */
+void scene_bridge_forget_the_stop(Snes *s);
+
+/* scene/program.c (the program in RAM): its start, the pieces of it its waits
+ * cut, and its end. */
+void scene_program_start(Snes *s);
+void scene_program_goes_on(Snes *s);
+void scene_setup_and_first_frame(Snes *s);
+void scene_first_frame(Snes *s);
+bool scene_program_start_present(Snes *s);
+void scene_program_hands_back(Snes *s);
+bool scene_setup_present(Snes *s);
+bool scene_program_end_present(Snes *s);
+/* The game back to the field's start on the game's fresh stack, as the
+ * program ends. */
+void scene_hand_back_to_the_field(Snes *s);
 /* scene/staff_roll.c (the program in RAM) */
 bool scene_staff_roll_set_up_present(Snes *s);
 void scene_staff_roll_set_up(Snes *s);
@@ -494,6 +579,8 @@ bool scene_race_pick_opening_present(Snes *s);
 void scene_race_pick_opening(Snes *s);
 
 /* scene/sound.c (the program in RAM) */
+void scene_sound_back_to_normal(Snes *s);
+bool scene_sound_back_to_normal_present(Snes *s);
 bool scene_wait_for_music_present(Snes *s);
 void scene_wait_for_music_loop(Snes *s);
 bool scene_send_sound_command_present(Snes *s);

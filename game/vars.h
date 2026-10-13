@@ -12953,6 +12953,12 @@ void set_scene_race_racers_drift_up(GameState *g, unsigned i, uint16_t v);
 uint16_t scene_race_racers_drift_down(const GameState *g, unsigned i);
 void set_scene_race_racers_drift_down(GameState *g, unsigned i, uint16_t v);
 
+enum { SCENE_TITLE_SLIDES_COUNT = 5 };   /* by slide */
+/* The five sprites that slide into the title from the left as it settles: where each is, in
+ * sixteenths of a pixel */
+uint16_t scene_title_slides(const GameState *g, unsigned i);
+void set_scene_title_slides(GameState *g, unsigned i, uint16_t v);
+
 /* Where in VRAM the staff credits' next row of text goes: a row of the 32x32 map at $4800, a row
  * on each line and round again; the setup starts it a row before the map, which the first line's
  * step brings to its first row */
@@ -12974,6 +12980,11 @@ void set_scene_ending_picture_half(GameState *g, uint16_t v);
  * to scale next starts, $1200 on by $400 a frame of its animation */
 uint16_t scene_ending_picture_source(const GameState *g);
 void set_scene_ending_picture_source(GameState *g, uint16_t v);
+
+enum { SCENE_TITLE_SLIDE_ENDS_COUNT = 5 };   /* by slide */
+/* Where each of the title's five sliding sprites stops, in sixteenths of a pixel */
+uint16_t scene_title_slide_ends(const GameState *g, unsigned i);
+void set_scene_title_slide_ends(GameState *g, unsigned i, uint16_t v);
 
 /* In the shared endings: the zoom the picture in the tilemap buffer was scaled at, the scaler's
  * row step (128ths of a source row an output row: $80 its own size, more smaller), kept for its
@@ -13010,6 +13021,10 @@ void set_scene_title_logo_x(GameState *g, uint16_t v);
 uint16_t scene_title_logo_y(const GameState *g);
 void set_scene_title_logo_y(GameState *g, uint16_t v);
 
+/* The pendulum's swing's phase, a step of the sine table's turn of $400 */
+uint16_t scene_title_pendulum_phase(const GameState *g);
+void set_scene_title_pendulum_phase(GameState *g, uint16_t v);
+
 /* The title's timer, which the logo's task counts down by two a frame from $F8 while the logo
  * sweeps in; below $72 the logo lands, BG1, BG2 and the sprites come on and channel 0 goes on to
  * the next script */
@@ -13027,10 +13042,27 @@ void set_scene_race_score(GameState *g, uint16_t v);
 uint8_t scene_credits_over(const GameState *g);
 void set_scene_credits_over(GameState *g, uint8_t v);
 
+/* How far the pendulum swings, the factor its phase's sine is scaled by */
+uint16_t scene_title_pendulum_swing(const GameState *g);
+void set_scene_title_pendulum_swing(GameState *g, uint16_t v);
+
+/* Nonzero while the title takes no button (its scripts set it); its watch for a button waits */
+uint16_t scene_title_ignores_buttons(const GameState *g);
+void set_scene_title_ignores_buttons(GameState *g, uint16_t v);
+
+/* Nonzero once a button has ended the title */
+uint16_t scene_title_button_taken(const GameState *g);
+void set_scene_title_button_taken(GameState *g, uint16_t v);
+
 /* In the shared endings: the left edge of the four-sided window an ending's frame task
  * ($7E:9A0C) sweeps across the screen, two pixels a frame to 0 */
 uint16_t scene_ending_window_left(const GameState *g);
 void set_scene_ending_window_left(GameState *g, uint16_t v);
+
+/* Frames the title's bottom right picture shows for; at 60 left the title starts watching for a
+ * button and lets the console reset, at 0 the picture goes */
+uint16_t scene_title_wait(const GameState *g);
+void set_scene_title_wait(GameState *g, uint16_t v);
 
 enum { SCENE_ENDING_WINDOW_CORNERS_COUNT = 4 };   /* by the corner, in the order the task hands them to the window's drawing */
 /* In the shared endings: the lines of the swept window's four corners, in quarter lines, each
@@ -13858,6 +13890,10 @@ void set_scene_plane_matrix_bottom_row_c(GameState *g, unsigned line, uint16_t v
 /* The matrix's fourth entry: the cosine's, as the first */
 uint16_t scene_plane_matrix_bottom_row_d(const GameState *g, unsigned line);
 void set_scene_plane_matrix_bottom_row_d(GameState *g, unsigned line, uint16_t v);
+
+/* 1 where the title was left with a button other than the shoulders (event memory's byte $60) */
+uint8_t scene_title_left_with_a_button(const GameState *g);
+void set_scene_title_left_with_a_button(GameState *g, uint8_t v);
 
 enum { SCENE_RACE_PICTURE_COUNT = 1152 };   /* by word of the picture, $10 a row */
 /* A racer's picture as the scaler leaves it (or the Beyond Time ending's), a row of $20 bytes

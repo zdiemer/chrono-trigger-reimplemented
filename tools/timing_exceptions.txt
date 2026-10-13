@@ -24,6 +24,8 @@
 # follows the compressed data, literals against copies of every length.
 decompress worst a load 7 vblanks long on average, 6% error; its error moves the end of the load, a frame sooner or later, not a video write
 decompress_direct worst the decompressor writing straight to memory: as decompress
+scene_unpack_resource worst a scene's resource unpacked through the decompressor, which runs inside its stretch at the decompressor's estimate (its own part is a few stores, calibrated 1): the decompressor's error, at most 333201 clocks in loads of 405159 on average while a scene's setup has the screen blanked, moving when the setup ends
+scene_unpack_resource drift as its worst: the decompressor's error on the scenes' streams (+5.8%), carried by the stretch it runs in
 
 # Main-loop work that runs on into vblank after the NMI handler, writing RAM
 # (tables and tile buffers the next frame uploads), not video registers: its

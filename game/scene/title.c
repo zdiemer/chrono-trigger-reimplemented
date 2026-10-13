@@ -8,14 +8,19 @@
  * the left, so a wave runs across the picture. The endings come back to it.
  *
  * Its pieces here:
- * - the loader's blocks, each putting a part of the title's graphics in VRAM
- *   (the loader around them decompresses the program's resources and is still
- *   the original's, so each block is an entry of its own): the sprites' tiles,
- *   the layers' tiles, the plane's pixels (built from 4-bit tiles, a row at a
- *   time: expand_plane_tile) and its name table, and BG1's and BG2's tilemaps;
- * - the pendulum's screen (set_up_pendulum) and its place each frame
- *   (place_pendulum);
- * - the logo's task, from the moment it lands (move_logo);
+ * - the setup (scene_title_set_up), as the program's dispatch calls it: the
+ *   title's resources unpacked (scene/boot.c) and sent to VRAM -- the sprites'
+ *   tiles, the layers' tiles, the plane's pixels (built from 4-bit tiles, a
+ *   row at a time: expand_plane_tile) and its name table, and BG1's and BG2's
+ *   tilemaps -- the palette, channel 0's first script, the title's state, the
+ *   pendulum's screen (set_up_pendulum) and the title's song, whose start the
+ *   original waits for; the loader's blocks are entries of their own too;
+ * - the frame's tasks, which the task list runs as C (scene/frame.c): the
+ *   pendulum's swing (swing_the_pendulum) and its place (place_pendulum), the
+ *   logo's sweep and landing (move_logo), the sprites drawn over the picture
+ *   -- the clock, its hands, the copyright and the name sliding in -- the
+ *   wait for the bottom right picture to go, and the watch for a button that
+ *   ends the title;
  * - the ripple: mode 2 (start_ripple), the offsets moved on each frame
  *   (ripple_columns) and sent to VRAM with BG3's scroll (upload_ripple).
  *
@@ -23,6 +28,8 @@
  * by a hash of its code. */
 #include "scene/scene.h"
 
+#include "charge.h"
+#include "core/palette.h"
 #include "cpu_io.h"
 #include "original_effects.h"
 #include "platform/video.h"
@@ -294,12 +301,110 @@ void scene_title_place_pendulum(Snes *s)
     m_rts(s);
 }
 
+/* ---- What the title's frame tasks leave -------------------------------------------------------------- */
+
+/* A frame task leaves A as its last load or store had it; the list's runner
+ * hands it to the frame's work where the task is the list's last, which reads
+ * its high byte. Scaffolding, as each task's wrapper works it out. */
+static void leave_in_a(Snes *s, uint16_t a) { s->cpu.a = a; }
+
+/* A task that is done leaves the list through the list's exit, which reads A's
+ * high byte as the task leaves it, and Y. */
+enum { TASK_LEAVES = 0x7E39A7, THE_EXIT_READS_A_HIGH_AND_Y = DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C };
+
+/* ---- The pendulum's swing ------------------------------------------------------------------------ */
+
+/* The pendulum is the plane turned about its centre. Each frame its phase
+ * moves on, and the plane turns a half turn and the phase's cosine times the
+ * swing (a quarter of the product's middle bytes) more; channel 0's script
+ * zooms it (its first register), which scales the turn's matrix, and the
+ * plane's vertical scroll follows the zoom's reciprocal. The swing narrows by
+ * one a frame, to the narrowest. */
+enum { PLANE_ZOOM = 0, PHASE_STEP = 7, HALF_TURN = 0x200, ZOOM_ONE = 0x10000, SCROLL_TOP = 0x100, NARROWEST = 1 };
+
+/* The middle two bytes of a product, where the program takes a scaled value. */
+static uint16_t middle_of(uint32_t product) { return (uint16_t)(product >> 8); }
+
+static uint16_t magnitude_of(int16_t v) { return (uint16_t)(v < 0 ? -v : v); }
+static uint16_t signed_like(uint16_t magnitude, int16_t like) { return like < 0 ? (uint16_t)-magnitude : magnitude; }
+
+/* How far the plane is turned this frame. */
+static uint16_t pendulum_turn(GameState *g, uint16_t phase)
+{
+    int16_t lean = scene_cosine(g, phase);
+    uint32_t leaning = scene_multiply16(g, scene_program_own(), magnitude_of(lean), scene_title_pendulum_swing(g));
+    return (uint16_t)(signed_like((uint16_t)(middle_of(leaning) >> 2), lean) + HALF_TURN);
+}
+
+// $7E:5BCF
+static void swing_the_pendulum(GameState *g)
+{
+    SceneProgramPage own = scene_program_own();
+    uint16_t zoom = scene_channel_register(g, TITLE_CHANNEL, PLANE_ZOOM);
+    uint16_t phase = (uint16_t)(scene_title_pendulum_phase(g) + PHASE_STEP);
+    set_scene_title_pendulum_phase(g, phase);
+    uint16_t turn = pendulum_turn(g, phase);
+    /* the cosine is scaled as the word it is, its sign and all, and one more */
+    uint16_t across = (uint16_t)(middle_of(scene_multiply16(g, own, (uint16_t)scene_cosine(g, turn), zoom)) + 1);
+    int16_t sine = scene_sine(g, turn);
+    uint16_t down = signed_like(middle_of(scene_multiply16(g, own, magnitude_of(sine), zoom)), sine);
+    set_scene_mode7_matrix_a(g, across);
+    set_scene_mode7_matrix_d(g, across);
+    set_scene_mode7_matrix_b(g, down);
+    set_scene_mode7_matrix_c(g, (uint16_t)-down);
+    uint32_t reciprocal = scene_divide32(g, own, ZOOM_ONE, zoom, scene_sine_second_half(turn));
+    set_scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y, (uint16_t)(reciprocal - SCROLL_TOP));
+    uint16_t swing = (uint16_t)(scene_title_pendulum_swing(g) - 1);
+    set_scene_title_pendulum_swing(g, swing ? swing : NARROWEST);
+}
+
+/* The task, with 16-bit A; Y passes through it to the next task. */
+void scene_title_swing_pendulum(Snes *s)
+{
+    GameState *g = state_of(s);
+    swing_the_pendulum(g);
+    ORIGINAL_EFFECT(leave_in_a(s, scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y)));
+    m_rts(s);
+}
+
+/* The program's multiply comes out as the product for every operand the
+ * pendulum gives it, but for the byte after the product, which carries into
+ * each of the three in turn, shifted a place by each; and the zoom is never 0,
+ * which the divide can't take. Both looked at the way the task will work them
+ * out, without the machine's time. */
+static bool swing_is_exact(GameState *g)
+{
+    uint16_t zoom = scene_channel_register(g, TITLE_CHANNEL, PLANE_ZOOM);
+    if (zoom == 0)
+        return false;
+    uint8_t after = scene_call_after_the_product(g, scene_program_own());
+    uint16_t phase = (uint16_t)(scene_title_pendulum_phase(g) + PHASE_STEP);
+    int16_t lean = scene_cosine(g, phase);
+    uint16_t swing = scene_title_pendulum_swing(g);
+    if (!scene_multiplies_exactly(magnitude_of(lean), swing, after & 0x80))
+        return false;
+    uint32_t leaning = (uint32_t)magnitude_of(lean) * swing + (after & 0x80 ? 0x100 : 0);
+    uint16_t turn = (uint16_t)(signed_like((uint16_t)(middle_of(leaning) >> 2), lean) + HALF_TURN);
+    return scene_multiplies_exactly((uint16_t)scene_cosine(g, turn), zoom, after & 0x40) &&
+           scene_multiplies_exactly(magnitude_of(scene_sine(g, turn)), zoom, after & 0x20);
+}
+
+/* The task, the sine's lookup, the multiply and the divide. */
+bool scene_title_swing_pendulum_present(Snes *s)
+{
+    if (!scene_on_scene_page_low_bank(s) || !m_code_matches(s, 0x7E5BCF, 0x88, 0x7996EBA4B11B8E02ull) ||
+        !m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull) || !m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull) ||
+        !m_code_matches(s, 0x7E339F, 55, 0x03E628A5184CD799ull))
+        return false;
+    vars_peek(true);
+    bool ok = swing_is_exact(state_of(s));
+    vars_peek(false);
+    return ok;
+}
+
 /* ---- The logo ------------------------------------------------------------------------------------ */
 
-bool scene_title_move_logo_present(Snes *s)
-{
-    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5C98, 40, 0x8FB5D2E8EEA2AD92ull);
-}
+bool scene_title_move_logo_present(Snes *s);
 
 /* The logo sweeps in while the title's timer counts down by two a frame, and
  * lands when it drops below LOGO_LANDS: at (56, 58), with the script that
@@ -309,9 +414,9 @@ enum { LOGO_LANDS = 0x72, LOGO_X = 0x38, LOGO_Y = 0x3A, AFTER_THE_LOGO = 0x5B51 
 // $7E:5C98
 /* The logo's task. Where it lands: BG1, BG2 and the sprites come on (and
  * nothing on the sub screen), it rests where it belongs, and channel 0 goes on
- * to the next script. True if it landed; its sweep until then is still the
- * original's. The timer is compared by the sign of the difference, as the
- * original compares it, so a timer past $8000 lands at once. */
+ * to the next script. True if it landed. The timer is compared by the sign of
+ * the difference, as the original compares it, so a timer past $8000 lands at
+ * once. */
 static bool move_logo(GameState *g, Platform *pf)
 {
     if ((int16_t)(scene_title_timer(g) - LOGO_LANDS) >= 0)
@@ -324,20 +429,58 @@ static bool move_logo(GameState *g, Platform *pf)
     return true;
 }
 
+/* Until it lands, the logo sweeps in along a curve as the timer counts down
+ * two a frame: across by the timer's cosine times $D8 about 32 pixels left of
+ * the screen's edge, and down by its sine times $C3 about 64 lines up. Each
+ * sum takes in the carry the sine's lookup left (whether its step is in the
+ * second half of the turn), as the original's does. */
+enum { TIMER_STEP = 2, SWEEP_ACROSS = 0xD8, SWEEP_DOWN = 0xC3, SWEEP_LEFT = 0xFFE0, SWEEP_UP = 0xFFC0 };
+
+static uint16_t magnitude_of_word(uint16_t v) { return (v & 0x8000) ? (uint16_t)-v : v; }
+
+// $7E:5CBA
+static void sweep_the_logo(GameState *g, uint16_t timer)
+{
+    SceneProgramPage own = scene_program_own();
+    set_scene_title_timer(g, timer);
+    int16_t across = scene_cosine(g, timer);
+    uint16_t x = signed_like(middle_of(scene_multiply16(g, own, magnitude_of(across), SWEEP_ACROSS)), across);
+    set_scene_title_logo_x(g, (uint16_t)(x + SWEEP_LEFT + scene_sine_second_half((uint16_t)(timer + 0x100))));
+    uint16_t down = magnitude_of_word(middle_of(scene_multiply16(g, own, magnitude_of(scene_sine(g, timer)), SWEEP_DOWN)));
+    set_scene_title_logo_y(g, (uint16_t)(down + SWEEP_UP + scene_sine_second_half(timer)));
+}
+
 /* Landed, the task takes itself off its list through the list's exit at
- * $7E:39A7; still sweeping, it goes on at $7E:5CBA with A the timer less two,
- * where this port stops. */
+ * $7E:39A7, with A the logo's Y as it was last stored. */
 void scene_title_move_logo(Snes *s)
 {
     GameState *g = state_of(s);
-    uint16_t timer_after = (uint16_t)(scene_title_timer(g) - 2);
     if (!move_logo(g, m_platform(s))) {
-        s->cpu.a = timer_after;
-        m_stop_at(s, 0x7E5CBA, DC_X | DC_N | DC_V | DC_Z | DC_C);
+        sweep_the_logo(g, (uint16_t)(scene_title_timer(g) - TIMER_STEP));
+        ORIGINAL_EFFECT(leave_in_a(s, scene_title_logo_y(g)));
+        m_rts(s);
         return;
     }
-    s->cpu.a = LOGO_Y;
-    m_stop_at(s, 0x7E39A7, DC_AL | DC_X | DC_N | DC_V | DC_Z | DC_C);
+    ORIGINAL_EFFECT(leave_in_a(s, LOGO_Y));
+    m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
+}
+
+/* The task, the sine's lookup and the multiply; the multiply comes out as the
+ * product for the sweep's two, with the byte after the product carried into
+ * each in turn. */
+bool scene_title_move_logo_present(Snes *s)
+{
+    if (!scene_on_scene_page_io_bank(s) || !m_code_matches(s, 0x7E5C98, 0x69, 0xFA57CFEE9EC2DECBull) ||
+        !m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull) || !m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull))
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    uint16_t timer = (uint16_t)(scene_title_timer(g) - TIMER_STEP);
+    uint8_t after = scene_call_after_the_product(g, scene_program_own());
+    bool ok = scene_multiplies_exactly(magnitude_of(scene_cosine(g, timer)), SWEEP_ACROSS, after & 0x80) &&
+              scene_multiplies_exactly(magnitude_of(scene_sine(g, timer)), SWEEP_DOWN, after & 0x40);
+    vars_peek(false);
+    return ok;
 }
 
 /* ---- The ripple ---------------------------------------------------------------------------------- */
@@ -367,10 +510,9 @@ void scene_title_start_ripple(Snes *s)
     m_rts(s);
 }
 
-bool scene_title_ripple_columns_present(Snes *s)
-{
-    return m_bank_reaches_low_ram(s) && m_code_matches(s, 0x7E5FFE, 16, 0x0744D6BC8E4FFD3Cull);
-}
+/* The task, the sine's lookup and the multiply; the multiply comes out as the
+ * product for the wave the task gives it. */
+bool scene_title_ripple_columns_present(Snes *s);
 
 /* BG3's map, which the scene builds in its tilemap buffer: its second row is
  * the columns' vertical offsets. */
@@ -399,19 +541,48 @@ static void ripple_columns(GameState *g)
         set_column_offset(g, column, column_offset(g, column - 1));
 }
 
-/* Stops where the new offset is worked out, at $7E:600E, with A the offset
- * the second column took, X where the copy's loop ended and the flags of its
- * last compare. */
+/* The first column's new offset: the wave, sixteen sine steps a frame, times
+ * the ripple's height (channel 0's seventh register), about the column's
+ * place in the picture, as an entry that offsets BG1. */
+enum { RIPPLE_HEIGHT = 6, WAVE_STEPS_A_FRAME_SHIFT = 4, PICTURE_PLACE = 0x4A, OFFSET_BITS = 0x03FF,
+       OFFSETS_BG1 = 0x2000 };
+
+static uint16_t wave(GameState *g)
+{
+    int16_t sine = scene_sine(g, (uint16_t)(scene_frame_counter(g) << WAVE_STEPS_A_FRAME_SHIFT));
+    uint16_t height = scene_channel_register(g, TITLE_CHANNEL, RIPPLE_HEIGHT);
+    return signed_like(middle_of(scene_multiply16(g, scene_program_own(), magnitude_of(sine), height)), sine);
+}
+
+// $7E:600E
+static void wave_the_first_column(GameState *g)
+{
+    set_column_offset(g, 0, (uint16_t)(((uint16_t)(wave(g) - PICTURE_PLACE) & OFFSET_BITS) | OFFSETS_BG1));
+}
+
+/* A frame task, with 16-bit A; Y passes through it to the next task. */
 void scene_title_ripple_columns(Snes *s)
 {
     GameState *g = state_of(s);
     ripple_columns(g);
-    s->cpu.a = column_offset(g, 1);
-    s->cpu.x = VERTICAL_OFFSETS - OFFSET_BYTES;
-    m_set_flag(s, CPU_FLAG_N, false);
-    m_set_flag(s, CPU_FLAG_Z, true);
-    m_set_flag(s, CPU_FLAG_C, true);
-    s->cpu.pc = 0x600E;
+    wave_the_first_column(g);
+    ORIGINAL_EFFECT(leave_in_a(s, column_offset(g, 0)));
+    m_rts(s);
+}
+
+bool scene_title_ripple_columns_present(Snes *s)
+{
+    if (!m_bank_reaches_low_ram(s) || !scene_on_scene_page(s) || !m_code_matches(s, 0x7E5FFE, 16, 0x0744D6BC8E4FFD3Cull) ||
+        !m_code_matches(s, 0x7E600E, 0x31, 0xCD6FF1A3B834EB74ull) || !m_code_matches(s, 0x7E3461, 0x19, 0xA2486F18B991C163ull) ||
+        !m_code_matches(s, 0x7E31BF, 74, 0x479627EBF1311CAFull))
+        return false;
+    vars_peek(true);
+    GameState *g = state_of(s);
+    int16_t sine = scene_sine(g, (uint16_t)(scene_frame_counter(g) << WAVE_STEPS_A_FRAME_SHIFT));
+    bool ok = scene_multiplies_exactly(magnitude_of(sine), scene_channel_register(g, TITLE_CHANNEL, RIPPLE_HEIGHT),
+                                       scene_call_after_the_product(g, scene_program_own()) & 0x80);
+    vars_peek(false);
+    return ok;
 }
 
 bool scene_title_upload_ripple_present(Snes *s)
@@ -436,4 +607,442 @@ void scene_title_upload_ripple(Snes *s)
 {
     upload_ripple(state_of(s), m_platform(s));
     m_rts(s);
+}
+
+/* ---- The setup ---------------------------------------------------------------------------------- */
+
+/* The title's resources, by their place in the program's resource table: the
+ * sprites' tiles, the layers' tiles (which the plane's pixels are built from
+ * too), BG1's map, BG2's map (whose first rows are the plane's picture too)
+ * and the palette. */
+enum {
+    SPRITE_TILES_RESOURCE = 0x48, LAYER_TILES_RESOURCE = 0x45, BG1_MAP_RESOURCE = 0x4E, BG2_MAP_RESOURCE = 0x4B,
+    PALETTE_RESOURCE = 0x51,
+};
+
+/* Where the unpacker puts them: the second bank's $0200 for what goes on to
+ * VRAM; the palette at $2000 in the bank the fill of BG1's map leaves the
+ * unpacker's destination in, the first. */
+enum { UNPACKED_GRAPHICS = 0x7F0200, UNPACKED_PALETTE_AT = 0x2000 };
+
+/* The program's transfer sends what was unpacked a word at a time into
+ * VRAM's data port, a byte to each of its two registers. */
+enum { WORDS_TO_TWO_REGISTERS = 0x01 };
+
+/* The plane's pixels: the first 160 of the layers' tiles, 32 bytes each. */
+enum { PLANE_TILES = 0xA0, TILE_PLANES_BYTES = 0x10 };
+
+/* The title's resources are unpacked by the program's unpacker (scene/boot.c),
+ * from the setup's own calls; it reads X, the resource, and the overflow. */
+enum { UNPACKER = 0x7E3691, THE_UNPACKER_READS_X_AND_THE_OVERFLOW = DC_A | DC_Y | DC_N | DC_Z | DC_C };
+
+static bool unpack(Snes *s, uint32_t site, uint16_t resource)
+{
+    s->cpu.x = resource;
+    return scene_run(s, site, UNPACKER, THE_UNPACKER_READS_X_AND_THE_OVERFLOW, scene_unpack_resource);
+}
+
+static void send_unpacked(GameState *g, Platform *pf) { TIMED_AS(g, 0x7E38E7, scene_send_unpacked(g, pf)); }
+
+// $7E:5E3C
+/* The plane's pixels, from the layers' tiles as they were unpacked: each
+ * tile expanded to a byte a pixel in turn. */
+static void build_plane_pixels(GameState *g, Platform *pf)
+{
+    uint16_t tile = (uint16_t)UNPACKED_GRAPHICS;
+    for (unsigned n = 0; n < PLANE_TILES; n++) {
+        TIMED_AS(g, 0x7E5E54, tile = expand_plane_tile(g, pf, SCENE_UPPER_WORK_RAM, tile));
+        tile = (uint16_t)(tile + TILE_PLANES_BYTES);
+    }
+}
+
+/* The title's state as it starts: five sprites at the left that slide to
+ * where they stop as it settles (in sixteenths of a pixel), the logo's
+ * timer and where it starts its sweep, and the pendulum's swing. */
+enum { SLIDES = 5, SLIDE_START = 0x05A0 };
+static const uint16_t slide_ends[SLIDES] = { 0x0670, 0x0770, 0x0860, 0x09A0, 0x0A90 };
+enum { LOGO_TIMER = 0x00F8, LOGO_START_X = 0x00D8, LOGO_START_Y = 0x0082 };
+enum { PENDULUM_PHASE = 0x14C8, PENDULUM_SWING = 0x0200 };
+
+static void the_title_starts(GameState *g)
+{
+    for (unsigned n = 0; n < SLIDES; n++) {
+        set_scene_title_slide_ends(g, n, slide_ends[n]);
+        set_scene_title_slides(g, n, SLIDE_START);
+    }
+    set_scene_title_timer(g, LOGO_TIMER);
+    set_scene_title_logo_x(g, LOGO_START_X);
+    set_scene_title_logo_y(g, LOGO_START_Y);
+    set_scene_title_pendulum_phase(g, PENDULUM_PHASE);
+    set_scene_title_pendulum_swing(g, PENDULUM_SWING);
+}
+
+/* The sprites' last palette's first color, white in the palette and on the
+ * screen. */
+enum { LOGO_HIGHLIGHT = 0xF1, WHITE = 0xFFFF };
+
+/* Channel 0's first script, the pendulum's, run a turn from the setup ($7E:3749
+ * on the channel's page); the setup keeps its page and data bank on the stack
+ * across it, and the script's first commands read Y as the palette's copy left
+ * it, past the working palette. */
+enum { FIRST_SCRIPT = 0x5B05, CHANNEL_0_CALL = 0x7E5A0A, CHANNEL_0_STEP = 0x7E3749, PAST_THE_WORKING_PALETTE = 0x2400 };
+enum { THE_STEP_READS_Y = DC_A | DC_X | DC_N | DC_Z };
+
+static void leave_y_past_the_palette(Snes *s) { s->cpu.y = PAST_THE_WORKING_PALETTE; }
+
+/* The palette animations' stop leaves Y past their last slot, which the
+ * song's call to the driver reads. */
+enum { PAST_THE_ANIMATIONS_SLOTS = 0x0090 };
+static void leave_y_past_the_slots(Snes *s) { s->cpu.y = PAST_THE_ANIMATIONS_SLOTS; }
+
+static bool run_the_first_script(Snes *s)
+{
+    uint16_t page = s->cpu.d;
+    uint8_t bank = s->cpu.db;
+    m_push16(s, page);
+    m_push8(s, bank);
+    m_set_flag(s, CPU_FLAG_M, false);
+    ORIGINAL_EFFECT(leave_y_past_the_palette(s));
+    if (!scene_run(s, CHANNEL_0_CALL, CHANNEL_0_STEP, THE_STEP_READS_Y, scene_run_channel_0_script))
+        return false;
+    s->cpu.db = m_pull8(s);
+    s->cpu.d = m_pull16(s);
+    return true;
+}
+
+/* The title's music, which the setup waits for. */
+enum { TITLE_SONG = 0x30, SONG_CALL = 0x7E5AA7, MUSIC_WAIT = 0x7E5AAA };
+enum { FULL_BRIGHTNESS = 0x0F, FADE_EVERY_FRAME = 1 };
+enum { THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW = DC_AL | DC_X | DC_N | DC_Z | DC_D };
+
+/* What the pendulum's screen leaves in A's high byte, written through a
+ * direct page on the register block: the song's call hands it on to the
+ * program's first frame. */
+static void leave_a_on_the_registers_page(Snes *s) { s->cpu.a = (uint16_t)(M_DP_PPU | (s->cpu.a & 0x00FF)); }
+
+/* The name table's transfer leaves the VRAM port's setting for whole words in
+ * A, which the fill takes as its own. */
+enum { WHOLE_WORDS_PORT = 0x80 };
+
+// $7E:5978
+/* The title set up, as the program's dispatch calls it: its graphics unpacked
+ * and sent, the plane's pixels built from the layers' tiles and its name
+ * table from BG2's map, the rest of BG1's map filled, the palette made
+ * current, channel 0's script started, the title's state, the logo's
+ * highlight white, the pendulum's screen; the screen at full brightness, the
+ * fades a step a frame, the palette animations stopped, and the title's song
+ * started. It returns through the original's wait for the song to start
+ * playing ($7E:5AAA), where the port stops. */
+void scene_title_set_up(Snes *s)
+{
+    GameState *g = state_of(s);
+    Platform *pf = m_platform(s);
+    set_decompress_dest(g, UNPACKED_GRAPHICS);
+    vid_start_vram_uploads(pf, PF_AT(0x7E597D), SCENE_VRAM_WHOLE_WORDS);
+    vid_set_vram_address(pf, PF_AT(0x7E5983), SPRITE_TILES_VRAM);
+    if (!unpack(s, 0x7E5989, SPRITE_TILES_RESOURCE))
+        return;
+    set_scene_call_transfer_control(g, scene_program_own(), WORDS_TO_TWO_REGISTERS);
+    set_scene_call_transfer_register(g, scene_program_own(), VID_SNES_VRAM_DATA_LOW);
+    send_unpacked(g, pf);
+    if (!unpack(s, 0x7E599D, LAYER_TILES_RESOURCE))
+        return;
+    vid_set_vram_address(pf, PF_AT(0x7E59A3), LAYER_TILES_VRAM);
+    send_unpacked(g, pf);
+    vid_set_vram_address(pf, PF_AT(0x7E59AD), PLANE_VRAM);
+    build_plane_pixels(g, pf);
+    if (!unpack(s, 0x7E59B9, BG1_MAP_RESOURCE))
+        return;
+    vid_set_vram_address(pf, PF_AT(0x7E59BF), BG1_MAP_VRAM);
+    send_unpacked(g, pf);
+    if (!unpack(s, 0x7E59C9, BG2_MAP_RESOURCE))
+        return;
+    vid_set_vram_address(pf, PF_AT(0x7E59CF), BG2_MAP_VRAM);
+    send_unpacked(g, pf);
+    TIMED_AS(g, 0x7E5AB6, scene_load_plane_map(g, pf, scene_unpacked_bank(g)));
+    fill_bg1_map(g, pf, WHOLE_WORDS_PORT);
+    set_decompress_dest(g, (decompress_dest(g) & 0xFF0000u) | UNPACKED_PALETTE_AT);
+    if (!unpack(s, 0x7E59FA, PALETTE_RESOURCE))
+        return;
+    scene_use_loaded_palette(g);
+    set_scene_channels_script(g, TITLE_CHANNEL, FIRST_SCRIPT);
+    if (!run_the_first_script(s))
+        return;
+    the_title_starts(g);
+    set_palette_working(g, LOGO_HIGHLIGHT, WHITE);
+    set_palette_base(g, LOGO_HIGHLIGHT, WHITE);
+    set_up_pendulum(pf);
+    set_scene_brightness(g, FULL_BRIGHTNESS);
+    set_scene_fade_period(g, FADE_EVERY_FRAME);
+    set_scene_fade_countdown(g, FADE_EVERY_FRAME);
+    TIMED_AS(g, 0xFDFFEE, palette_stop_animations(g));
+    ORIGINAL_EFFECT(leave_y_past_the_slots(s));
+    set_scene_song(g, TITLE_SONG);
+    set_scene_song_playing(g, TITLE_SONG);
+    m_set_flag(s, CPU_FLAG_M, true);
+    ORIGINAL_EFFECT(leave_a_on_the_registers_page(s));
+    scene_bridge_start_song(s, SONG_CALL, TITLE_SONG);
+    m_stop_at(s, MUSIC_WAIT, THE_WAIT_READS_A_HIGH_AND_THE_OVERFLOW);
+}
+
+/* The setup's code, and the program's routines it runs inline: the
+ * decompressor's destination set, the plane's tiles' loop, the palette made
+ * current, the song started, the transfer, the plane's name table, BG1's
+ * fill, the pendulum's screen and the tiles' expansion. */
+bool scene_title_set_up_present(Snes *s)
+{
+    return scene_on_scene_page(s) && m_bank_reaches_io(s) && m_code_matches(s, 0x7E5978, 0x132, 0x83E38A729D4C39C0ull) &&
+           m_code_matches(s, 0x7E5E3C, 24, 0x47BD25FE5072C3D3ull) && m_code_matches(s, 0x7E89ED, 0x14, 0x22A581F747CC4E58ull) &&
+           m_code_matches(s, 0x7E38AF, 0x14, 0xD31DAC893D4743DCull) && m_code_matches(s, 0x7E375F, 0x1B, 0x5BCDF92C47B920DDull) &&
+           scene_transfer_present(s) && scene_title_load_plane_map_present(s) && scene_title_set_up_pendulum_present(s) &&
+           m_code_matches(s, 0x7E5E54, 164, 0xEE4E5864DAEE75ACull);
+}
+
+/* ---- The title's sprites --------------------------------------------------------------------------- */
+
+/* The title's frame tasks that draw its sprites, each a list or two of the
+ * program's (scene/sprites.c) where the title puts them. A list's routine
+ * leaves the next free entry in Y, which the next task takes on. */
+static void draw_list_at(GameState *g, uint16_t x, uint16_t y, uint16_t list)
+{
+    scene_draw_lists_at(g, x, y);
+    TIMED_AS(g, 0xC30D0E, scene_draw_sprite_list(g, list, false));
+}
+
+static void leave_the_next_free_entry(Snes *s) { s->cpu.y = scene_sprite_index(state_of(s)); }
+
+/* The lists' sprites fit in the tables from the cursor, all looked at without
+ * the machine's time. */
+static bool lists_fit(Snes *s, const uint16_t *lists, unsigned count)
+{
+    vars_peek(true);
+    unsigned sprites = 0;
+    for (unsigned n = 0; n < count; n++)
+        sprites += scene_sprite_list_length(state_of(s), lists[n]);
+    bool ok = scene_sprites_fit(state_of(s), sprites);
+    vars_peek(false);
+    return ok;
+}
+
+/* The clock, in two lists, its upper half and its lower half a quarter of the
+ * plane's height below, where the logo is. */
+enum { CLOCK_UPPER = 0x603F, CLOCK_LOWER = 0x60BC, CLOCK_HALF = 0x40 };
+
+// $7E:5D01
+static void draw_the_clock(GameState *g)
+{
+    uint16_t x = scene_title_logo_x(g), y = scene_title_logo_y(g);
+    draw_list_at(g, x, y, CLOCK_UPPER);
+    draw_list_at(g, x, (uint16_t)(y + CLOCK_HALF), CLOCK_LOWER);
+}
+
+void scene_title_draw_the_clock(Snes *s)
+{
+    draw_the_clock(state_of(s));
+    leave_the_next_free_entry(s);
+    ORIGINAL_EFFECT(leave_in_a(s, CLOCK_LOWER));
+    m_rts(s);
+}
+
+/* The clock's hands, where the clock settles. */
+enum { HANDS = 0x61B4, HANDS_X = 0x3A, HANDS_Y = 0x64 };
+
+// $7E:5D20
+void scene_title_draw_the_hands(Snes *s)
+{
+    draw_list_at(state_of(s), HANDS_X, HANDS_Y, HANDS);
+    leave_the_next_free_entry(s);
+    ORIGINAL_EFFECT(leave_in_a(s, HANDS));
+    m_rts(s);
+}
+
+/* The copyright line, in two lists. */
+enum { COPYRIGHT_Y = 0xD0, COPYRIGHT_LEFT = 0x6186, COPYRIGHT_LEFT_X = 0x78, COPYRIGHT_RIGHT = 0x61A7,
+       COPYRIGHT_RIGHT_X = 0xB8 };
+
+// $7E:5E1E
+void scene_title_draw_the_copyright(Snes *s)
+{
+    GameState *g = state_of(s);
+    draw_list_at(g, COPYRIGHT_LEFT_X, COPYRIGHT_Y, COPYRIGHT_LEFT);
+    draw_list_at(g, COPYRIGHT_RIGHT_X, COPYRIGHT_Y, COPYRIGHT_RIGHT);
+    leave_the_next_free_entry(s);
+    ORIGINAL_EFFECT(leave_in_a(s, COPYRIGHT_RIGHT));
+    m_rts(s);
+}
+
+/* The rest of the name, five sprite groups that slide right out from behind
+ * the clock as the title settles, each at its own pace (sixteenths of a pixel
+ * a frame) until it stops where it belongs. */
+enum { SLIDES_Y = 0x52, SUBPIXEL_SHIFT = 4, SCREEN_X_BITS = 0xFF };
+static const struct {
+    uint16_t list, pace;
+} slides[SLIDES] = {
+    { 0x60F1, 0x04 }, { 0x610A, 0x09 }, { 0x6123, 0x0E }, { 0x6148, 0x14 }, { 0x6161, 0x18 },
+};
+
+// $7E:5D71
+static void slide_the_name(GameState *g)
+{
+    for (unsigned n = 0; n < SLIDES; n++) {
+        uint16_t at = (uint16_t)(scene_title_slides(g, n) + slides[n].pace);
+        uint16_t end = scene_title_slide_ends(g, n);
+        if ((int16_t)(at - end) >= 0)   /* compared as the program compares, by the sign of the difference */
+            at = end;
+        set_scene_title_slides(g, n, at);
+        draw_list_at(g, (uint16_t)((at >> SUBPIXEL_SHIFT) & SCREEN_X_BITS), SLIDES_Y, slides[n].list);
+    }
+}
+
+void scene_title_slide_the_name(Snes *s)
+{
+    slide_the_name(state_of(s));
+    leave_the_next_free_entry(s);
+    ORIGINAL_EFFECT(leave_in_a(s, slides[SLIDES - 1].list));
+    m_rts(s);
+}
+
+/* ---- The title's wait for a button ----------------------------------------------------------------- */
+
+/* The bottom right's picture (a list clipped at the screen's edge) shows while
+ * the title's wait counts down a frame at a time. With a second of the wait
+ * left the title starts watching for a button and lets the console reset; at
+ * the end the picture goes, and its task leaves the list. */
+enum { BOTTOM_RIGHT = 0x61D9, BOTTOM_RIGHT_X = 0x90, BOTTOM_RIGHT_Y = 0xB0, A_SECOND_LEFT = 60 };
+enum { BUTTON_WATCH = 0x5B99 };
+
+typedef enum { STILL_WAITING, WATCHING_FROM_NOW, WAIT_OVER } TitleWait;
+
+// $7E:5D32
+static TitleWait count_the_wait_down(GameState *g)
+{
+    scene_draw_lists_at(g, BOTTOM_RIGHT_X, BOTTOM_RIGHT_Y);
+    TIMED_AS(g, 0xC30D5E, scene_draw_sprite_list(g, BOTTOM_RIGHT, true));
+    uint16_t left = (uint16_t)(scene_title_wait(g) - 1);
+    set_scene_title_wait(g, left);
+    if (left == 0)
+        return WAIT_OVER;
+    if (left != A_SECOND_LEFT)
+        return STILL_WAITING;
+    scene_add_task(g, SCENE_FRAME_TASKS, BUTTON_WATCH);
+    set_scene_reset_disabled(g, 0);
+    return WATCHING_FROM_NOW;
+}
+
+void scene_title_count_the_wait_down(Snes *s)
+{
+    GameState *g = state_of(s);
+    TitleWait wait = count_the_wait_down(g);
+    leave_the_next_free_entry(s);
+    if (wait == WAIT_OVER) {
+        ORIGINAL_EFFECT(leave_in_a(s, scene_clipped_list_leaves_a(g, BOTTOM_RIGHT, BOTTOM_RIGHT)));
+        m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
+        return;
+    }
+    if (wait == WATCHING_FROM_NOW) {
+        ORIGINAL_EFFECT(leave_in_a(s, BUTTON_WATCH));
+        m_set_flag(s, CPU_FLAG_M, true);   /* as the original's byte store leaves it */
+    } else {
+        ORIGINAL_EFFECT(leave_in_a(s, scene_title_wait(g)));
+    }
+    m_rts(s);
+}
+
+/* The watch for a button: once the title takes buttons, and none has been
+ * taken yet, any button ends the title -- the music fades out (scene/screen.c's
+ * task) -- and the task leaves the list. A button other than the shoulders
+ * also marks the game started from the title, for the field. */
+enum { MUSIC_FADES = 0x34AB, SHOULDER_BUTTONS = 0x30, STARTED_FROM_THE_TITLE = 1 };
+
+typedef enum { NO_BUTTON, BUTTON_TAKEN } ButtonWatch;
+
+// $7E:5B99
+static ButtonWatch watch_for_a_button(GameState *g)
+{
+    if (scene_title_ignores_buttons(g) || scene_title_button_taken(g) || scene_joypad(g) == 0)
+        return NO_BUTTON;
+    set_scene_title_button_taken(g, (uint8_t)(scene_title_button_taken(g) + 1));
+    scene_add_task(g, SCENE_FRAME_TASKS, MUSIC_FADES);
+    if (!(scene_joypad(g) & SHOULDER_BUTTONS))
+        set_scene_title_left_with_a_button(g, STARTED_FROM_THE_TITLE);
+    return BUTTON_TAKEN;
+}
+
+/* Watching, it leaves A the last word it looked at: the first of the two flags
+ * that stopped it, or the buttons. */
+static uint16_t last_looked_at(const GameState *g)
+{
+    if (scene_title_ignores_buttons(g))
+        return scene_title_ignores_buttons(g);
+    if (scene_title_button_taken(g))
+        return scene_title_button_taken(g);
+    return scene_joypad(g);
+}
+
+void scene_title_watch_for_a_button(Snes *s)
+{
+    GameState *g = state_of(s);
+    if (watch_for_a_button(g) == BUTTON_TAKEN) {
+        ORIGINAL_EFFECT(leave_in_a(s, MUSIC_FADES));
+        m_set_flag(s, CPU_FLAG_M, true);   /* as the original's byte stores leave it */
+        m_stop_at_own(s, TASK_LEAVES, THE_EXIT_READS_A_HIGH_AND_Y);
+        return;
+    }
+    ORIGINAL_EFFECT(leave_in_a(s, last_looked_at(g)));
+    m_rts(s);
+}
+
+/* ---- The guards ------------------------------------------------------------------------------------- */
+
+/* Each task's code, the list routines' room in the sprite tables, and for the
+ * ones that add a task a free slot on the list (the program's search for one
+ * runs on past the list). */
+bool scene_title_draw_the_clock_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5D01, 0x1F, 0xB936C903C78757F8ull) &&
+           lists_fit(s, (const uint16_t[]){ CLOCK_UPPER, CLOCK_LOWER }, 2);
+}
+
+bool scene_title_draw_the_hands_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5D20, 0x12, 0xC1DD4B546447006Full) &&
+           lists_fit(s, (const uint16_t[]){ HANDS }, 1);
+}
+
+bool scene_title_draw_the_copyright_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5E1E, 0x1E, 0xEC6A93C4974CF6BFull) &&
+           lists_fit(s, (const uint16_t[]){ COPYRIGHT_LEFT, COPYRIGHT_RIGHT }, 2);
+}
+
+bool scene_title_slide_the_name_present(Snes *s)
+{
+    if (!scene_on_scene_page_low_bank(s) || !m_code_matches(s, 0x7E5D5D, 0x14, 0xA935FDCB5F62F6B7ull) ||
+        !m_code_matches(s, 0x7E5D71, 0x36, 0x85628350BE2195F4ull))
+        return false;
+    uint16_t lists[SLIDES];
+    for (unsigned n = 0; n < SLIDES; n++)
+        lists[n] = slides[n].list;
+    return lists_fit(s, lists, SLIDES);
+}
+
+static bool a_slot_free(Snes *s)
+{
+    vars_peek(true);
+    bool ok = scene_task_listed(state_of(s), SCENE_FRAME_TASKS, NO_TASK);
+    vars_peek(false);
+    return ok;
+}
+
+bool scene_title_count_the_wait_down_present(Snes *s)
+{
+    return scene_on_scene_page_io_bank(s) && m_code_matches(s, 0x7E5D32, 0x2B, 0x22D6F5D871A739F0ull) &&
+           m_code_matches(s, 0x7E395E, 0x16, 0xBC6CC1EBF7C4F36Aull) &&
+           lists_fit(s, (const uint16_t[]){ BOTTOM_RIGHT }, 1) && a_slot_free(s);
+}
+
+bool scene_title_watch_for_a_button_present(Snes *s)
+{
+    return scene_on_scene_page_low_bank(s) && m_code_matches(s, 0x7E5B99, 0x26, 0x155297E6694755C1ull) &&
+           m_code_matches(s, 0x7E395E, 0x16, 0xBC6CC1EBF7C4F36Aull) && a_slot_free(s);
 }

@@ -2635,21 +2635,28 @@ waits on M5 rather than on a backend.
   which the original reads through the work RAM port, overlaps the race's scaler
   output (and the event variables), so the map can't name it in the scene's
   subsystem (`ram_map.py coverage --open`).
-- **The title's loader is in fragments.** The title's graphics loader
-  (`$7E:5978`-`$7E:5A00`) is registered a block at a time
-  (`scene_title_load_*`), each named for what it puts in VRAM, because the
-  loader around them calls the program's unpacker and its own routines
-  (`$7E:3691`, `$7E:38AF`, `$7E:89ED`, `$7E:5E3C`). The race's setup was
-  ported whole as a list of graphics, each unpacked and sent (history/reimplementation-chunks.md,
-  "Phase 3, the scene program: the rest of the jet bike race"); the title's
-  would retire five entries the same way.
-- **The race's setup calls the original three times.** The program's unpacker
-  by resource (`$7E:3691`, before the decompressor `$C3:0557`), the camera
-  script's first step (`$7E:3749`, before the sequencer `$C3:0AFF`) and, for
-  the race without its panel, the curtain's step (`$C3:000E`, the field's
-  `$C3:01E4`) are call-outs; with the unpacker as C, the setup's machine
-  (the frames and the data bank and direct page it keeps on the stack around
-  them, `scene/bridge.c`) comes down. The setup's mirroring of the racers'
+- **The title's loader's blocks are still entries.** The title's setup
+  (`$7E:5978`) is C whole now, unpacking and sending each graphic itself; the
+  blocks it used to be registered as (`scene_title_load_*`, `$7E:597B`-`$7E:59CC`)
+  are still registered, though only a caller by address reaches them and none
+  does. Retire them, and their fuzz rows, as the race's were.
+- **The decompressor's port and the original part on streams that aren't
+  streams.** Fuzzing the program's unpacker (`scene_unpack_resource`) over
+  resource numbers past the table's 73 entries, where the "streams" are other
+  bytes of bank `$FE` pointing anywhere, mismatched on 30 of 2,000 states; on
+  the table's own entries none do. Find which input the decompressor
+  (`$C3:0557`, `decompress`) takes apart from the original -- a source in work
+  RAM the destination overwrites is the likeliest -- and guard or match it.
+- **The race's and the endings' setups call through the machine.** The
+  program's unpacker by resource (`$7E:3691`) and a channel's first script
+  step (`$7E:3749`) are ports now (`scene/boot.c`, `scene/script.c`), which
+  the title's setup runs as C (`scene_run`), but the race's and the endings'
+  setups still make them calls on the machine (`m_jsr_dc`), which the registry
+  answers with the ports; and, for the race without its panel, the curtain's
+  step (`$C3:000E`, the field's `$C3:01E4`) is the original's. Run them as C
+  and recalibrate the setups' time; then the setup's machine (the frames and
+  the data bank and direct page it keeps on the stack around them,
+  `scene/bridge.c`) can come down. The setup's mirroring of the racers'
   pictures runs long loops of its own, which is why it carries timing
   exceptions; the arrangers (`$7E:3EB7`, `$7E:3ED3`, the latter the ending's
   too) timed as their own routines would fit it better.
@@ -2660,11 +2667,6 @@ waits on M5 rather than on a backend.
   two lines either way and an end at line 112) that the guard hands to the
   original. Port them with those scenes.
 
-- **Scene work that is still the original's, beside its ports.** The title
-  logo's sweep before it lands (`$7E:5CBA`, where `scene_title_move_logo`
-  stops) and the ripple's new first offset each frame (`$7E:600E`, where
-  `scene_title_ripple_columns` stops) are the program's code; porting them
-  would end two stops mid-routine.
 - **What scene's second review accepted as later work** (history/reimplementation-phase3a.md, "Phase
   3a: scene reworked to the review"). None changes behaviour; each is a
   reading the code should give and doesn't yet:

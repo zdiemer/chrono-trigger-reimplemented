@@ -137,7 +137,8 @@ DELEGATES = ("bridge_call", "bridge_call_long", "field_run", "field_run_long", "
              "bridge_call_on_page", "field_run_or_hand_over",
              "battle_call",
              "battle_call_long", "menu_call", "menu_call_long", "menu_call_returning",
-             "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line")
+             "field_wait_frame", "battle_wait_frame", "battle_wait_frames", "battle_wait_line",
+             "scene_run", "scene_run_long")
 BRIDGES = {
     "game/field/bridge.c": ("bridge_call", "bridge_call_long", "bridge_back", "field_run", "field_run_long",
                             "field_run_holding", "field_run_on_page", "bridge_call_on_page", "field_run_or_hand_over",
@@ -145,6 +146,7 @@ BRIDGES = {
     "game/battle/bridge.c": ("battle_call", "battle_call_long", "battle_back", "run_entry", "battle_stop_after_call",
                              "battle_wait_frame", "battle_wait_frames", "battle_wait_line"),
     "game/menu/bridge.c": ("menu_call", "menu_call_long", "menu_call_returning", "menu_back"),
+    "game/scene/bridge.c": ("scene_run", "scene_run_long", "run_entry"),
 }
 BRIDGE_FILE, BRIDGE_BODIES = "game/field/bridge.c", BRIDGES["game/field/bridge.c"]
 DECLARATIONS = ("m_jsr_dc", "m_jsl_dc", "au_driver_call", "PF_CALL_DC") + STOPS + DELEGATES

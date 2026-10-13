@@ -593,6 +593,90 @@ size = 2
 meaning = "Matrix parameter D"
 
 [[var]]
+name = "scene_title_slides"
+addr = "7E:0046"
+size = 2
+count = 5
+stride = 2
+index = "slide"
+page = "scene"
+reuses = ["scene_race_racers", "scene_credits_scroll", "scene_credits_row_vram", "scene_credits_text", "scene_ending_picture_half", "scene_ending_picture_source"]
+subsystem = "scene"
+meaning = "The five sprites that slide into the title from the left as it settles: where each is, in sixteenths of a pixel"
+source = "game/scene/title.c, scene_title_set_up $7E:5978"
+
+[[var]]
+name = "scene_title_slide_ends"
+addr = "7E:0050"
+size = 2
+count = 5
+stride = 2
+index = "slide"
+page = "scene"
+reuses = ["scene_race_racers", "scene_ending_picture_zoom", "scene_stars_drift_frames"]
+subsystem = "scene"
+meaning = "Where each of the title's five sliding sprites stops, in sixteenths of a pixel"
+source = "game/scene/title.c, scene_title_set_up $7E:5978"
+
+[[var]]
+name = "scene_title_pendulum_phase"
+addr = "7E:0066"
+size = 2
+page = "scene"
+reuses = "scene_race_racers"
+subsystem = "scene"
+meaning = "The pendulum's swing's phase, a step of the sine table's turn of $400"
+source = "game/scene/title.c, scene_title_set_up $7E:5978"
+
+[[var]]
+name = "scene_title_pendulum_swing"
+addr = "7E:006C"
+size = 2
+page = "scene"
+reuses = "scene_race_racers"
+subsystem = "scene"
+meaning = "How far the pendulum swings, the factor its phase's sine is scaled by"
+source = "game/scene/title.c, scene_title_set_up $7E:5978"
+
+[[var]]
+name = "scene_title_ignores_buttons"
+addr = "7E:006E"
+size = 2
+page = "scene"
+reuses = "scene_race_racers"
+subsystem = "scene"
+meaning = "Nonzero while the title takes no button (its scripts set it); its watch for a button waits"
+source = "game/scene/title.c, scene_title_watch_for_a_button $7E:5B99"
+
+[[var]]
+name = "scene_title_button_taken"
+addr = "7E:0070"
+size = 2
+page = "scene"
+reuses = ["scene_race_racers", "scene_ending_window_left"]
+subsystem = "scene"
+meaning = "Nonzero once a button has ended the title"
+source = "game/scene/title.c, scene_title_watch_for_a_button $7E:5B99"
+
+[[var]]
+name = "scene_title_wait"
+addr = "7E:0072"
+size = 2
+page = "scene"
+reuses = ["scene_race_racers", "scene_ending_window_left", "scene_ending_window_corners"]
+subsystem = "scene"
+meaning = "Frames the title's bottom right picture shows for; at 60 left the title starts watching for a button and lets the console reset, at 0 the picture goes"
+source = "game/scene/title.c, scene_title_count_the_wait_down $7E:5D32"
+
+[[var]]
+name = "scene_title_left_with_a_button"
+addr = "7F:0060"
+reuses = "event_memory"
+subsystem = "scene"
+meaning = "1 where the title was left with a button other than the shoulders (event memory's byte $60)"
+source = "game/scene/title.c, scene_title_watch_for_a_button $7E:5B99"
+
+[[var]]
 name = "scene_title_logo_x"
 addr = "7E:0062"
 size = 2
