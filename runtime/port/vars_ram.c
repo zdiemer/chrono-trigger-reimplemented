@@ -6605,6 +6605,8 @@ uint8_t battle_pause_blocked(const GameState *g) { return r8(g, 0x7ECE16u); }
 void set_battle_pause_blocked(GameState *g, uint8_t v) { w8(g, 0x7ECE16u, v); }
 uint8_t battle_message_shown(const GameState *g) { return r8(g, 0x7ECE17u); }
 void set_battle_message_shown(GameState *g, uint8_t v) { w8(g, 0x7ECE17u, v); }
+uint8_t battle_message_opening(const GameState *g) { return r8(g, 0x7ECE18u); }
+void set_battle_message_opening(GameState *g, uint8_t v) { w8(g, 0x7ECE18u, v); }
 uint8_t battle_frame_advance_count(const GameState *g) { return r8(g, 0x7ECE19u); }
 void set_battle_frame_advance_count(GameState *g, uint8_t v) { w8(g, 0x7ECE19u, v); }
 uint8_t battle_frame_advance_count_high(const GameState *g) { return r8(g, 0x7ECE1Au); }

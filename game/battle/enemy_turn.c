@@ -20,6 +20,7 @@
 #include "battle/enemy_actions.h"
 #include "battle/enemy_scripts.h"
 #include "battle/entries.h"
+#include "battle/message.h"
 #include "battle/random.h"
 #include "battle/rules_data.h"
 #include "battle/targets.h"
@@ -194,7 +195,7 @@ static bool show_message(Snes *s, uint32_t site, uint8_t message)
     if (message == 0)
         return true;
     m_set_a8(s, message);
-    return battle_call_long(s, site, 0xCD0033, READS_A);
+    return battle_run_long(s, site, 0xCD0033, battle_show_an_enemy_message);
 }
 
 /* The enemy whose script the turn runs, whose selectors pick for it. */

@@ -19849,6 +19849,13 @@ meaning = "Id of the battle message last opened by id ($FF once it has closed), 
 source = "game/battle/nmi.c battle_nmi $D1:E77C; $CD:02A5"
 
 [[var]]
+name = "battle_message_opening"
+addr = "7E:CE18"
+subsystem = "battle"
+meaning = "Id of the battle message being opened by id ($CD:02AA), which becomes battle_message_shown once its text is set"
+source = "game/battle/message.c battle_show_message_by_id $CD:0295"
+
+[[var]]
 name = "battle_alternate_base"
 addr = "7E:CA25"
 subsystem = "battle"
