@@ -930,6 +930,14 @@ rest waits, is [PLAN.md](PLAN.md).
   asset pack has to carry those bytes too, or the warp has to be shown
   never to reach past the table (fuzz the scale's range) and the read
   clamped.
+- **What the boot path's third review left** (none rated translation):
+  `scene/curtain.c` keeps its cursor in `scene_curtain_table_bank_high`
+  where a local would do, copies through the work-RAM port, needs a comment
+  at line 135 saying why, and its `sweep` wants a `CurtainSweep` type;
+  `menu/line_effects.c`'s `as_the_curtain_leaves_it` rebuilds C and V by
+  hand (declare them don't-care if the liveness analysis agrees), and
+  `curtain_shown` repeats the scene's rule; `menu/frame.c` should name its
+  literal `0xC20348`.
 - **What the boot path's second review left** (none rated translation;
   the tables now follow the interpreter rule): `screen.c`'s
   `end_the_scene` adds 1 to a byte through a word accessor, and ending the

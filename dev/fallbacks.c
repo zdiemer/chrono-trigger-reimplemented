@@ -189,7 +189,6 @@ static void add(Fallbacks *f, uint32_t a, uint32_t b, uint32_t c, uint32_t d, ui
     k->len = len;
 }
 
-/* Extents the machine has left: S rose above where they began. */
 /* SHADOW: an instruction a comparison covers, counted on the comparison it is
  * under (the nearest covered frame that is a comparison's own, past the
  * callees' frames above it), so what a comparison that never finishes hides
@@ -203,6 +202,7 @@ static void count_hidden(Fallbacks *f)
         }
 }
 
+/* Extents the machine has left: S rose above where they began. */
 static void leave_finished(Fallbacks *f, uint16_t s)
 {
     while (f->depth > 1 && s > f->frames[f->depth - 1].floor)
