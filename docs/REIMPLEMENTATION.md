@@ -2532,9 +2532,11 @@ start's comparison and the first frame's comparison finished, 45,103: the
 loop's pass the frame's interrupt cuts, once a frame, counted as every other
 interrupted idle pass is. The runtime now tells the measure that a set-aside
 comparison is finished (`settle_nested`), and a run that ends inside a
-comparison writes what it hid (`open` lines, `tools/fallbacks.py` reports
-them; 62,653 instructions over the library, movies ending inside the battle's
-frame work). The reference play's count went from 25.12 M to 52.21 M with the
+comparison writes what it hid (`open` lines): every instruction a comparison
+covers, its callees' included, is counted on the comparison's own line, and
+the `open PORT` lines take part in the ratchet like the other kinds (a new
+one, or one that rose, fails `--check`), so a comparison that stops finishing
+can't pass for a gain. Over the library 62,881 instructions sit under comparisons still open at a movie's end (16 ports, the battle's frame work's the most), now baseline lines of their own. The reference play's count went from 25.12 M to 52.21 M with the
 fix and this chunk's ports: the battle's wait loops run as call-outs' callees
 (`$CD:0453` 20.7 M, `$CD:0033` 6.7 M, `$CD:0024` 1.4 M), the race setup's
 arrangers and the menus' and field's code after set-aside comparisons. The

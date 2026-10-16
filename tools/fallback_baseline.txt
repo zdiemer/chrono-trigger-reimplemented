@@ -2,7 +2,8 @@
 # measure"): every routine whose code the reference play (the movies in shadow mode) still
 # runs as the original's in place of hand ports, as `routine instructions bytes # reason`.
 # A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes
-# on one, is a new fallback, and needs its reason.
+# on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran
+# under that port's comparisons still open when a run ended, which hides it from the rest.
 7E:---- 216679 1480  # no port yet (scene program (RAM))
 7E:0500 568164 19  # handback by console_vblank_stub (scene program (RAM))
 7E:3023 29631 8  # handback by attract_frame_pass (scene program (RAM))
@@ -331,3 +332,19 @@ FD:DB27 769 13  # handback by warp_flickering_frame (field graphics)
 FD:EADA 8 5  # handback by warp_set_up: the idle wait's leaving pass (field graphics)
 FD:EAEB 8616 7  # handback by warp_wait_for_frame: the idle wait's leaving pass (field graphics)
 FF:---- 168061 402  # no port yet (misc)
+open 7E:3003 5 0  # hidden under scene_setup_and_first_frame's comparison, still open when a run ended
+open C0:0097 35 0  # hidden under field_frame's comparison, still open when a run ended
+open C1:007E 5733 0  # hidden under battle_wait_for_frame's comparison, still open when a run ended
+open C1:106E 18 0  # hidden under battle_wait_step's comparison, still open when a run ended
+open C1:4058 32422 0  # hidden under battle_show_action's comparison, still open when a run ended
+open C1:8120 5 0  # hidden under battle_main_loop's comparison, still open when a run ended
+open C1:812C 86 0  # hidden under battle_main_loop_body's comparison, still open when a run ended
+open C1:8290 11547 0  # hidden under battle_dispatch_expired_timers's comparison, still open when a run ended
+open C1:B967 194 0  # hidden under battle_carry_out_member_action's comparison, still open when a run ended
+open C2:23CF 9 0  # hidden under overworld_main_loop's comparison, still open when a run ended
+open C7:0004 1209 0  # hidden under sound_driver_command's comparison, still open when a run ended
+open C7:0655 7904 0  # hidden under sound_driver_upload_block's comparison, still open when a run ended
+open C7:09DA 2 0  # hidden under sound_driver_send_counter's comparison, still open when a run ended
+open CD:0036 6 0  # hidden under battle_sit_out_the_pause_long's comparison, still open when a run ended
+open CD:3E44 4 0  # hidden under battle_sit_out_the_pause's comparison, still open when a run ended
+open CD:3E75 3702 0  # hidden under battle_wait_for_the_next_frame's comparison, still open when a run ended
