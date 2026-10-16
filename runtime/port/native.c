@@ -1471,6 +1471,11 @@ static void settle_nested(NativeRuntime *rt, Snes *s, uint32_t pc)
                      enclosing->addr, enclosing->name);
             detail(rt, "abandoned", a->entry, msg);
         }
+        /* set aside, its comparison is over: an observer's stretch for it
+         * ends here (the fallback measure no longer counts what follows as
+         * the port's) */
+        if (rt->observer.finished)
+            rt->observer.finished(rt->observer.ctx, a->entry);
         active_pop(rt);
     }
 }

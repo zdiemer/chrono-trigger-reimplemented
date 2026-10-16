@@ -2638,6 +2638,10 @@ const NativeEntry game_natives[] = {
       .guard = menu_glyph_16_colour_is_drawable, .cost_milli = 13586, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
     { .addr = 0xC25E36, .name = "menu_draw_glyph", .fn = menu_draw_glyph, NEEDS_M8_X16_BINARY,
       .guard = menu_glyph_is_drawable, .cost_milli = 13580, .dont_care = DC_A | DC_X | DC_N | DC_V | DC_Z | DC_C },
+    { .addr = 0xC20346, .name = "menu_wait_for_frame", .fn = menu_wait_for_frame, NEEDS_M8, .cost_milli = 2500,
+      .guard = menu_frame_wait_on_page },
+    { .addr = 0xC2046E, .name = "menu_wait_for_frame_jump", .fn = menu_wait_for_frame, NEEDS_M8, .cost_milli = 4750,
+      .guard = menu_frame_wait_on_page },
     { .addr = 0xC20348, .name = "menu_wait_for_frame_loop", .fn = menu_wait_for_frame_loop, NEEDS_M8, .idle = true,
       .guard = menu_frame_wait_on_page, .dont_care = DC_X | DC_Y | DC_N | DC_Z | DC_C },
     /* the menus' tasks (game/menu/tasks.c) */
@@ -4189,6 +4193,10 @@ const NativeEntry game_natives[] = {
     /* the same routine through its jump (JSL $C30008 from the field and bank C6) */
     { .addr = 0xC30008, .name = "scene_draw_circle_jump", .fn = scene_draw_circle, .p_mask = CPU_FLAG_D, .p_value = 0,
       .cost_milli = 18654, .guard = scene_circle_table_is_clear },
+    { .addr = 0xC301E4, .name = "scene_sweep_the_curtain", .fn = scene_sweep_the_curtain, .p_mask = CPU_FLAG_D,
+      .p_value = 0, .cost_milli = 9649, .guard = scene_sweep_the_curtain_present },
+    /* its jump (JSL $C3000E from the field, the race and bank C6) */
+    { .addr = 0xC3000E, .name = "scene_curtain_jump", .fn = scene_curtain_jump, .cost_milli = 1000 },
     { .addr = 0xC309E9, .name = "scene_write_matrix_code", .fn = scene_write_matrix_code, .p_mask = CPU_FLAG_X | CPU_FLAG_D,
       .p_value = 0, .cost_milli = 19279, .dont_care = DC_A | DC_X | DC_N | DC_Z | DC_C | DC_Y},
     { .addr = 0xC3099C, .name = "scene_copy_resource", .fn = scene_copy_resource, .p_mask = CPU_FLAG_X,
@@ -4238,6 +4246,10 @@ const NativeEntry game_natives[] = {
       .cost_milli = 4000, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_line_effect_can_start },
     { .addr = 0xC6E470, .name = "menu_object_window2_lines_2", .fn = menu_object_window2_lines_2, NEEDS_M8_X16,
       .cost_milli = 4000, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_line_effect_can_start },
+    { .addr = 0xC6E241, .name = "menu_object_start_curtain", .fn = menu_object_start_curtain, NEEDS_M8_X16_BINARY,
+      .cost_milli = 4000, .guard = menu_curtain_can_start },
+    { .addr = 0xC6E27E, .name = "menu_object_step_curtain", .fn = menu_object_step_curtain, NEEDS_M8_X16_BINARY,
+      .cost_milli = 1, .guard = menu_curtain_can_step },
     { .addr = 0xC6E595, .name = "menu_object_bg1_scroll_lines", .fn = menu_object_bg1_scroll_lines, NEEDS_M8_X16,
       .cost_milli = 4000, .dont_care = DC_A | DC_Y | DC_N | DC_V | DC_Z, .guard = menu_line_effect_can_start },
     { .addr = 0xC6E368, .name = "menu_object_squashed_iris_1", .fn = menu_object_squashed_iris_1, NEEDS_M8_X16_BINARY,

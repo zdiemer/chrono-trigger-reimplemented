@@ -78,6 +78,7 @@ console_line_vector drift as console_vblank_vector, at the line interrupt
 # estimates are 0 against the 18 and 54 clocks the original's branch and
 # stack reset take, the same every time.
 field_main_loop_goes_round drift the main loop's branch back to its top with no access of its own: 18 clocks a call estimated as 0, the same every frame
+scene_curtain_jump drift the scene engine's jump to the curtain's step, which the port makes by stopping there with no access of its own: 18 clocks a call (the JMP) estimated as 0
 field_start_again drift the field's restart on a fresh stack with no access of its own: 54 clocks a call estimated as 0, at a location change with the screen dark
 # The field's frame and its loading (field/main_loop.c, field/location.c,
 # field/battle_return.c). These run nearly everything they do as C under their

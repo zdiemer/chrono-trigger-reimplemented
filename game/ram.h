@@ -4340,6 +4340,8 @@
 #define RAM_MENU_OBJECT_SLOTS_IRIS_RADIUS 0x7E0B52u /* An iris's radius in lines */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_FRAMES 0x7E0B54u /* The squashed iris's frame count, which picks the pair of tables it draws into */
 #define RAM_MENU_OBJECT_SLOTS_IRIS_STRETCH 0x7E0B54u /* The capsule iris's stretch: the lines its lower half is moved down by */
+#define RAM_MENU_OBJECT_SLOTS_CURTAIN_SWEEP 0x7E0B52u /* A curtain's way across (scene_curtain_sweep: 1 from the left, 2 from the right) */
+#define RAM_MENU_OBJECT_SLOTS_CURTAIN_TABLE 0x7E0B54u /* Where a curtain keeps its lines' edges in bank $7E (scene_curtain_table) */
 #define RAM_MENU_OBJECT_SLOTS_CAPSULE_FRAMES 0x7E0B56u /* The capsule iris's frame count, which picks the pair of tables it draws into */
 #define RAM_MENU_OBJECT_SLOTS_COMMAND_STATE 0x7E0B62u /* What the running command keeps between frames, cleared after every command the script finishes: a move's started flag */
 #define RAM_MENU_OBJECT_SLOTS_MOVE_TARGET 0x7E0B64u /* Where a move command's object is going */
@@ -8813,12 +8815,17 @@
 #define RAM_SCENE_CURTAIN_TABLE_BANK 0x7E0354u
 #define RAM_SCENE_CURTAIN_TABLE_BANK_DP 0x54u /* page decompress */
 /* The byte after the curtain's table's bank, which the curtain reads with it as a word (only the
- * bank's low bit counts) and the race's setup writes 0 with it */
+ * bank's low bit counts) and the race's setup writes 0 with it; the curtain's steps keep their
+ * place in the game's random bytes ($C0:FE00 on) there */
 #define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH 0x7E0355u
 #define RAM_SCENE_CURTAIN_TABLE_BANK_HIGH_DP 0x55u /* page decompress */
 /* Address of the circle's per-line table (224 lines of left and right X) [2 bytes] */
 #define RAM_SCENE_CIRCLE_TABLE 0x7E0356u
 #define RAM_SCENE_CIRCLE_TABLE_DP 0x56u      /* page decompress */
+/* The page and bank of the curtain's pointer into the game's random bytes ($FE, $C0), which
+ * every step writes (scaffolding) [2 bytes] */
+#define RAM_SCENE_CURTAIN_NOISE_PAGE 0x7E0356u
+#define RAM_SCENE_CURTAIN_NOISE_PAGE_DP 0x56u /* page decompress */
 /* Bit 0: the circle's table is in bank $7F rather than $7E */
 #define RAM_SCENE_CIRCLE_TABLE_BANK 0x7E0358u
 #define RAM_SCENE_CIRCLE_TABLE_BANK_DP 0x58u /* page decompress */
@@ -8881,14 +8888,24 @@
  * lines [2 bytes] */
 #define RAM_SCENE_CIRCLE_COUNT 0x7E03F0u
 #define RAM_SCENE_CIRCLE_COUNT_DP 0xF0u      /* page decompress */
+/* The edge the curtain's first step fills its lines with: 0 at the left, $FF at the right
+ * (scaffolding) */
+#define RAM_SCENE_CURTAIN_FILL 0x7E03F0u
+#define RAM_SCENE_CURTAIN_FILL_DP 0xF0u      /* page decompress */
 /* Scratch of the circle: the midpoint algorithm's decision value while the outline is stepped,
  * then the mode while the lower half is filled [2 bytes] */
 #define RAM_SCENE_CIRCLE_DECISION 0x7E03F2u
 #define RAM_SCENE_CIRCLE_DECISION_DP 0xF2u   /* page decompress */
+/* How far the curtain's last run of lines moved its edges, 8-11 pixels (scaffolding) */
+#define RAM_SCENE_CURTAIN_MOVE 0x7E03F2u
+#define RAM_SCENE_CURTAIN_MOVE_DP 0xF2u      /* page decompress */
 /* Scratch of the circle: the table address of the line y above the center, stepped up two bytes
  * a time [2 bytes] */
 #define RAM_SCENE_CIRCLE_ROW 0x7E03F4u
 #define RAM_SCENE_CIRCLE_ROW_DP 0xF4u        /* page decompress */
+/* Where the curtain's lines end, past the 224th (scaffolding) [2 bytes] */
+#define RAM_SCENE_CURTAIN_END 0x7E03F4u
+#define RAM_SCENE_CURTAIN_END_DP 0xF4u       /* page decompress */
 /* Scratch of the circle: half the table address of the center line, which halves the subtraction
  * that finds the line x above it [2 bytes] */
 #define RAM_SCENE_CIRCLE_CENTER_ROW_HALF 0x7E03F6u

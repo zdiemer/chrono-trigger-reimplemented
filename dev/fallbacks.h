@@ -39,6 +39,11 @@
  * Refusals are also recorded per entry with the first few machine states, for
  * the gate's refusal check (tools/fallbacks.py --refusals).
  *
+ * SHADOW: a covered stretch ends where its comparison is over, however it
+ * ended (set aside inside another's included); one still open when the run
+ * ends is written with the instructions it hid (`open` lines), so nothing
+ * hides under a comparison that never finishes.
+ *
  * One measure per process: the generated code's hook and the interpreter's
  * wrapper are global. */
 #ifndef CT_DEV_FALLBACKS_H

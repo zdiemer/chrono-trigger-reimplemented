@@ -94,6 +94,7 @@ INSN = re.compile(r"^insn (\w+) ([0-9A-F]{6}) (\d+) (\d+) ([0-9A-F]{2}(?:[0-9A-F
 EVENT = re.compile(r"^event (\w+) ([0-9A-F]{6}) ([0-9A-F]{6}) (\d+) (\S+)$")
 REFUSAL = re.compile(r"^refusal ([0-9A-F]{6}) (\w+) (\d+) (\S+)$")
 STATE = re.compile(r"^state ([0-9A-F]{6}) (\w+) (.*)$")
+OPEN = re.compile(r"^open ([0-9A-F]{6}) (\d+) (\S+)$")
 
 
 def canonical(addr):
@@ -141,6 +142,7 @@ class Measure:
         self.names = {}                         # port address -> name
         self.refusals = collections.Counter()   # (entry, name, why) -> count
         self.states = collections.defaultdict(list)
+        self.open = collections.Counter()       # (port, name) -> instructions under its unfinished comparison
         self.files = 0
 
     def read(self, path):
@@ -166,6 +168,11 @@ class Measure:
                 entry, why, count, name = m.groups()
                 self.refusals[(fmt(int(entry, 16)), name, why)] += int(count)
                 self.names[fmt(int(entry, 16))] = name
+                continue
+            m = OPEN.match(line)
+            if m:
+                port, count, name = m.groups()
+                self.open[(fmt(int(port, 16)), name)] += int(count)
                 continue
             m = STATE.match(line)
             if m:
@@ -218,7 +225,8 @@ def totals_line(m):
     nbytes = len(set().union(*(total[(None, k)][1] for k in KINDS)))
     ninsns = sum(total[(None, k)][0] for k in KINDS)
     parts = ", ".join("%s %s/%d" % (k, kib(len(total[(None, k)][1])), total[(None, k)][0]) for k in KINDS)
-    return "%s of code, %d instructions in place of hand ports (%s)" % (kib(nbytes), ninsns, parts)
+    return "%s of code, %d instructions in place of hand ports (%s); %d under comparisons still open" % (
+        kib(nbytes), ninsns, parts, sum(m.open.values()))
 
 
 def describe(m, routine, row):
@@ -262,7 +270,7 @@ def print_totals(m, by, top, out):
 
 # ---- the baseline ---------------------------------------------------------------------
 
-LINE = re.compile(r"^([0-9A-F]{2}:(?:[0-9A-F]{4}|----)) (\d+) (\d+)\s*(?:#\s*(.*))?$")
+LINE = re.compile(r"^((?:open )?[0-9A-F]{2}:(?:[0-9A-F]{4}|----)) (\d+) (\d+)\s*(?:#\s*(.*))?$")
 
 
 def read_baseline(path):
@@ -282,6 +290,18 @@ def read_baseline(path):
     return rows, bad
 
 
+def open_rows(m):
+    """`open PORT` -> instructions hidden under that port's comparisons still open when a run ended."""
+    rows = collections.Counter()
+    for (port, _name), n in m.open.items():
+        rows["open " + port] += n
+    return rows
+
+
+def open_names(m):
+    return {"open " + port: name for (port, name) in m.open}
+
+
 def check(m, baseline_path, out):
     base, bad = read_baseline(baseline_path)
     now = m.routines()
@@ -296,14 +316,27 @@ def check(m, baseline_path, out):
             rose.append((routine, n, b, bn, bb, row))
         elif n < bn * GAIN or b < bb:
             gains.append(routine)
-    gone = [r for r in base if r not in now]
+    opened = open_rows(m)
+    names = open_names(m)
+    for key, n in sorted(opened.items()):
+        if key not in base:
+            new.append((key, n, 0, None))
+        elif n > base[key][0] * (1 + INSTRUCTION_SLACK[0]) + INSTRUCTION_SLACK[1]:
+            rose.append((key, n, 0, base[key][0], 0, None))
+        elif n < base[key][0] * GAIN:
+            gains.append(key)
+    gone = [r for r in base if r not in now and r not in opened]
     for line in bad:
         out.write("baseline: %s\n" % line)
+    def said(routine, row):
+        if row is None:
+            return "hidden under %s's comparison, still open when a run ended" % names.get(routine, "?")
+        return describe(m, routine, row)
     for routine, n, b, row in new:
-        out.write("new: %s %d instructions, %d bytes: %s\n" % (routine, n, b, describe(m, routine, row)))
+        out.write("new: %s %d instructions, %d bytes: %s\n" % (routine, n, b, said(routine, row)))
     for routine, n, b, bn, bb, row in rose:
         out.write("rose: %s %d instructions (baseline %d), %d bytes (baseline %d): %s\n"
-                  % (routine, n, bn, b, bb, describe(m, routine, row)))
+                  % (routine, n, bn, b, bb, said(routine, row)))
     summary = "%s; %d routine(s) new, %d rose, %d malformed" % (totals_line(m), len(new), len(rose), len(bad))
     if gains or gone:
         summary += "; %d fell and %d went (--update takes the gain)" % (len(gains), len(gone))
@@ -318,11 +351,17 @@ def update(m, baseline_path):
         old = base.get(routine)
         reason = old[2] if old else describe(m, routine, row)
         lines.append("%s %d %d  # %s" % (routine, row[0], len(row[1]), reason))
+    names = open_names(m)
+    for key, n in sorted(open_rows(m).items()):
+        old = base.get(key)
+        reason = old[2] if old else "hidden under %s's comparison, still open when a run ended" % names.get(key, "?")
+        lines.append("%s %d 0  # %s" % (key, n, reason))
     head = ("# The fallback measure's baseline (tools/fallbacks.py --check; docs/REIMPLEMENTATION.md, \"The fallback\n"
             "# measure\"): every routine whose code the reference play (the movies in shadow mode) still\n"
             "# runs as the original's in place of hand ports, as `routine instructions bytes # reason`.\n"
             "# A port that lands lowers these, and `--update` takes the gain; a new line, or more bytes\n"
-            "# on one, is a new fallback, and needs its reason.\n")
+            "# on one, is a new fallback, and needs its reason. An `open PORT` line is what the original ran\n"
+            "# under that port's comparisons still open when a run ended, which hides it from the rest.\n")
     baseline_path.write_text(head + "\n".join(lines) + "\n", newline="")
     return len(lines)
 

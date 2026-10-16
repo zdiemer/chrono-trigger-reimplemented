@@ -19130,3 +19130,53 @@ subsystem = "scene"
 state = "attract"
 args = ["--d", "0000", "--db", "00", "--keep", "7E3000-7EB5FF", "--apu-loopback"]
 why = "the program kept, on the scene's own page, as the frame's list calls it; the sound's port read back, so the driver's command ends"
+
+[[routine]]
+name = "scene_sweep_the_curtain"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--db", "00", "--fill", "7E0350-7E0350=00-03", "--fill", "7E0354-7E0354=7E-7F"]
+why = "a sweep of any way or none, at any step, its table in either bank anywhere (the guard turns away a table over low RAM's first $2000 bytes, where the stack is)"
+
+[[routine]]
+name = "scene_curtain_jump"
+subsystem = "scene"
+state = "attract"
+args = ["--long", "--db", "00", "--fill", "7E0350-7E0350=00-03", "--fill", "7E0354-7E0354=7E-7F"]
+why = "as scene_sweep_the_curtain, through the scene engine's jump"
+
+[[routine]]
+name = "menu_object_start_curtain"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A"]
+iterations = 2000
+why = "called by JSL from a script command on the object mode's page, the running object a slot"
+
+[[routine]]
+name = "menu_object_step_curtain"
+subsystem = "menu"
+state = "objects"
+args = ["--long", "--d", "0000", "--db", "00", "--fill", "7E004E-7E004E=30-30", "--fill", "7E004F-7E004F=0B-1A",
+        "--fill", "7E0350-7E0350=00-03", "--fill", "7E0354-7E0354=7E-7F"]
+iterations = 2000
+why = "as menu_object_start_curtain, a curtain under way"
+
+[[routine]]
+name = "menu_wait_for_frame"
+at = "C2:0346"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00"]
+iterations = 2000
+why = "the object mode's page; compared where it waits"
+
+[[routine]]
+name = "menu_wait_for_frame_jump"
+at = "C2:046E"
+subsystem = "menu"
+state = "objects"
+args = ["--keep", "7EB000-7EB507", "--d", "0000", "--db", "00"]
+iterations = 2000
+why = "as menu_wait_for_frame, through its jump"
+

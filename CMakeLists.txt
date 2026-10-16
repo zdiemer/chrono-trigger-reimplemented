@@ -233,6 +233,7 @@ add_library(ct_game STATIC
   game/scene/boot.c
   game/scene/bridge.c
   game/scene/circle.c
+  game/scene/curtain.c
   game/scene/frame.c
   game/scene/guards.c
   game/scene/math.c

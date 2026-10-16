@@ -16,6 +16,17 @@
 #include "port/vars_ram.h"
 #include "vars.h"
 
+// $C2:0346, $C2:046E (the wait's start, and the jump to it)
+/* The sprite-object mode's wait for the next frame starts from the count it
+ * sees now (8-bit A), and waits in its loop. */
+void menu_wait_for_frame(Snes *s)
+{
+    uint8_t seen = menu_object_frame_counter(state_of(s));
+    s->cpu.a = (uint16_t)((s->cpu.a & 0xFF00) | seen);
+    m_set_nz8(s, seen);
+    m_stop_at(s, 0xC20348, DC_N | DC_Z);
+}
+
 // $C2:0348 (the loop in the wait for the next frame at $C2:0346)
 /* The sprite-object mode waits for the vblank handler to count a frame past
  * the one it saw (in A). Idle entry: one pass, which goes on to the routine's

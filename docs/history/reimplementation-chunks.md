@@ -9180,3 +9180,72 @@ stretches now take the title's tasks inline. One exception: the unpacker,
 whose own part is a few stores (calibrated 1) and whose stretch carries the
 decompressor's error on the scenes' streams, at most 333,201 clocks in loads
 of 405,159 on average, with the screen blanked.
+
+## Phase 4a, the native frame: the scene's tables as C, the title's routines and the screen's fades (`$7E:300A`, `$7E:347A`-`$7E:34FA`, `$7E:37F3`, `$7E:398A`-`$7E:39BD`, `$7E:5BBF`, `$7E:5DB4`-`$7E:5E1D`, `$C0:3FD6`, `$C2:0000`)
+
+The third chunk of the native frame's stream, after the title (history file,
+"Phase 4a, the native frame: the title").
+
+**How it was chosen.** The title's review asked for the scene's three
+dispatches through addresses to be C tables (TODO.md, "What the boot path's
+review left"); the strict player then stopped at `$7E:37F3`, where channel
+0's script calls one of the program's routines, and each stop after it was
+ported until the run left the title for the menus' attract scene.
+
+**What it is.**
+- The task lists run their tasks from C tables of rows (`SceneTaskPort`,
+  scene.h): each task by a named constant (the value the lists hold, the
+  program's routine's address, the lists' own encoding), its frame as
+  `TaskEnd (*)(GameState *, Platform *)` -- it goes on, is done, or hands its
+  slot over -- its guard, and a leaves helper for what it leaves in A and Y,
+  the scaffolding the frame's work and the original's tasks read. The list
+  empties or hands over the slot itself; a task's registered entry
+  (`scene_task_alone`) is a one-line wrapper for callers by address and
+  fuzzing. The title's rows are in `scene/title.c`, the frame's own and the
+  fades' in `scene/screen.c`.
+- The scene's setups by named mode (`scene/program.c`): the race's, the
+  title's, the endings' and the staff roll's as C, called directly; a mode
+  without a port stops at the program's own dispatch, which picks from its
+  table. The field's scene starts by named scene (`field/main_loop.c`): the
+  time warp's four starts by the trip's length, not bank `$FD`'s jump table.
+- The routines the title's scripts call (`$7E:37F3`), from a C table of rows
+  (`SceneScriptRoutine`): the ripple's start, and two fades of sprite palettes
+  in the palette animations' first slot, one of them toward a tint
+  (`PaletteTint`, core/palette.h: a fade's mode is the color it moves toward).
+- The screen's fades (`$7E:347A`-`$7E:34FA`): up to full brightness, down to
+  dark, and down to dark at a scene's end, after the music has faded out and
+  with the sound stopped (`AU_STOP_ALL`), or as it is; the ripple calming
+  (`$7E:5BBF`); bank `$C2`'s jump to the menus' object mode (`$C2:0000`).
+
+**What shadow mode found.** The setups, called without the dispatch's return
+under them, made their calls of the original's code (the unpacker, a
+script's first step) at a stack 2 bytes higher than the original's, and
+shadow mode pairs a call-out with the original's by the stack it is made at:
+the race's loader's calls paired with its pictures', and mismatched on X. So
+the setups run under the dispatch's return, as the stack is at those calls,
+until they make no call-outs. Run as C, each setup also leaves Y where the
+first frame's vblank tasks may read it (the race's as its matrix code's writer
+leaves it, past its eight strips; the endings' past their line effects'
+descriptors), which as their own entries shadow mode had taken from the
+original. The two fade tasks that call the sound driver (`$7E:34AB`,
+`$7E:34C2`) make that call in 8-bit A, and, for the same pairing, with the
+frames the list keeps under a task's return on the stack (`calls_out` in their
+rows). The unported setups are called by the routine the program's own table
+names (`scene_program_setups`, a cell of the program's image), where a stop at
+the dispatch had left its one instruction to the original. Over the 35
+movies, 0 mismatching: the lists 80,684 calls each, every task on them now compared in their stretch; the start 57 and the setup's entry 57 (17 inside the start's stretch); the fades up 525, down 240, down at a scene's end 165, the music's fade-out 36 (all inside the list's stretch, compared as its) and the darkening in silence after it 540; the ripple calming 7,726; the scripts' three routines 35 each; bank $C2's jump 47; the field's scene start 61.
+
+**Fuzzing** (seed 1, `tools/fuzz_routines.toml`, compared and mismatched):
+0 mismatched everywhere: the five fades, the ripple calming and the three script routines 0 of 20,000 each; the palette animation task 0 of 18,386 of 20,000 (1,614 turned away by the animations' guard), with the animations' slots as palette_animate's own constraints make them; the title's tasks again through their one-line entries, 0 of 20,000 each (the pendulum 19,992); the start and the setup's entry 0 of 375 of 400 each, up to the first frame's wait; bank $C2's jump 0 of 500, the field's scene start 0 of 20,000. The fades' entries alone found that a fade leaves A's high byte as it was called, the list's task, and the two palette fades that they come back with the data bank on the program's (their stack imbalance), which the leaves helpers now say. **What only fuzzing checks**: the tasks' leftovers on paths
+the title doesn't take (a fade's countdown run past its pace, a brightness
+past full), and the two palette fades' entries alone.
+
+**Measured.** The strict run now goes through the title to its end -- its
+scripts' routines, the ripple calming, the music fading out and the screen
+going dark -- and on through the scene's end and the field's start of the
+menus' attract scene, to frame 2140, and stops at `$C6:E241`, in that scene.
+Over 3,000 frames `--interpreted log` lists 417 addresses (from 536): the
+the attract sequence's other scenes in the program 224, the curtain in `$C3` 150, the menus' attract scene 43.
+The reference play's fallbacks went from 24.95 M instructions to 25.12 M, with the title's fades, its ripple calming and its routines' calls gone: what rose is the measure seeing the title's main loop's pass that the frame's interrupt cuts each frame (the idle entry's, `$7E:3023`-`$7E:3028` and the empty routine's RTS, `$7E:3176`) and the title's wait for its song (`$7E:5AAA`), which the first frame's comparison had covered while it never finished (its setup stopped inside it); they are counted now, as the race's passes were.
+
+**Timing.** Calibrated: the new entries, the lists (whose stretches take the tasks inline, without the call's frames), the start's first frame, and the field's scene start. The race's and the endings' setups' worst-case exceptions moved to the program's start and the setup's entry, whose stretches now run them as C (tools/timing_exceptions.txt), and the race's late screens write to the setup's entry (tools/vblank_check_exceptions.txt).

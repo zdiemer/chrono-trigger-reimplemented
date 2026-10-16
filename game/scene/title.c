@@ -39,6 +39,9 @@
 #include "wram.h"
 
 
+/* The rows of this file's tasks (below), which their entries run. */
+enum TitleTaskRow { ROW_SWING_PENDULUM, ROW_MOVE_LOGO, ROW_DRAW_THE_CLOCK, ROW_DRAW_THE_HANDS, ROW_DRAW_THE_COPYRIGHT, ROW_SLIDE_THE_NAME, ROW_COUNT_THE_WAIT_DOWN, ROW_WATCH_FOR_A_BUTTON, ROW_RIPPLE, ROW_CALM_THE_RIPPLE, ROW_PLACE_PENDULUM, ROW_UPLOAD_RIPPLE };
+
 /* Where the title keeps its graphics in VRAM. */
 enum {
     PLANE_VRAM = 0x0000,         /* the Mode 7 plane: its name table in the low bytes, its pixels in the high */
@@ -300,7 +303,7 @@ static TaskEnd place_pendulum_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-void scene_title_place_pendulum(Snes *s) { scene_task_alone(s, SCENE_TASK_PLACE_PENDULUM); }
+void scene_title_place_pendulum(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_PLACE_PENDULUM]); }
 
 /* ---- What the title's frame tasks leave -------------------------------------------------------------- */
 
@@ -382,7 +385,7 @@ static TaskLeftovers swing_pendulum_leaves(const GameState *g, TaskEnd end)
     return leaves_a(scene_channel_register(g, TITLE_CHANNEL, BG1_SCROLL_Y));
 }
 
-void scene_title_swing_pendulum(Snes *s) { scene_task_alone(s, SCENE_TASK_SWING_PENDULUM); }
+void scene_title_swing_pendulum(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_SWING_PENDULUM]); }
 
 /* The program's multiply comes out as the product for every operand the
  * pendulum gives it, but for the byte after the product, which carries into
@@ -483,7 +486,7 @@ static TaskLeftovers move_logo_leaves(const GameState *g, TaskEnd end)
     return leaves_a(scene_title_logo_y(g));
 }
 
-void scene_title_move_logo(Snes *s) { scene_task_alone(s, SCENE_TASK_MOVE_LOGO); }
+void scene_title_move_logo(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_MOVE_LOGO]); }
 
 /* The task, the sine's lookup and the multiply; the multiply comes out as the
  * product for the sweep's two, with the byte after the product carried into
@@ -670,7 +673,7 @@ static TaskLeftovers ripple_leaves(const GameState *g, TaskEnd end)
     return leaves_a(column_offset(g, 0));
 }
 
-void scene_title_ripple_columns(Snes *s) { scene_task_alone(s, SCENE_TASK_RIPPLE); }
+void scene_title_ripple_columns(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_RIPPLE]); }
 
 /* The ripple calms: every 32 frames its height drops by one, and at none the
  * task is done. */
@@ -694,7 +697,7 @@ static TaskLeftovers calm_the_ripple_leaves(const GameState *g, TaskEnd end)
     return leaves_a(scene_frame_counter(g) & CALMS_EVERY);
 }
 
-void scene_title_calm_the_ripple(Snes *s) { scene_task_alone(s, SCENE_TASK_CALM_THE_RIPPLE); }
+void scene_title_calm_the_ripple(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_CALM_THE_RIPPLE]); }
 
 bool scene_title_calm_the_ripple_present(Snes *s)
 {
@@ -739,7 +742,7 @@ static TaskEnd upload_ripple_task(GameState *g, Platform *pf)
     return task_goes_on();
 }
 
-void scene_title_upload_ripple(Snes *s) { scene_task_alone(s, SCENE_TASK_UPLOAD_RIPPLE); }
+void scene_title_upload_ripple(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_UPLOAD_RIPPLE]); }
 
 /* ---- The setup ---------------------------------------------------------------------------------- */
 
@@ -989,7 +992,7 @@ static TaskLeftovers draw_the_clock_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, CLOCK_LOWER);
 }
 
-void scene_title_draw_the_clock(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_CLOCK); }
+void scene_title_draw_the_clock(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_CLOCK]); }
 
 /* The clock's hands, where the clock settles. */
 enum { HANDS = 0x61B4, HANDS_X = 0x3A, HANDS_Y = 0x64 };
@@ -1008,7 +1011,7 @@ static TaskLeftovers draw_the_hands_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, HANDS);
 }
 
-void scene_title_draw_the_hands(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_HANDS); }
+void scene_title_draw_the_hands(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_HANDS]); }
 
 /* The copyright line, in two lists. */
 enum { COPYRIGHT_Y = 0xD0, COPYRIGHT_LEFT = 0x6186, COPYRIGHT_LEFT_X = 0x78, COPYRIGHT_RIGHT = 0x61A7,
@@ -1029,7 +1032,7 @@ static TaskLeftovers draw_the_copyright_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, COPYRIGHT_RIGHT);
 }
 
-void scene_title_draw_the_copyright(Snes *s) { scene_task_alone(s, SCENE_TASK_DRAW_THE_COPYRIGHT); }
+void scene_title_draw_the_copyright(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_DRAW_THE_COPYRIGHT]); }
 
 /* The rest of the name, five sprite groups that slide right out from behind
  * the clock as the title settles, each at its own pace (sixteenths of a pixel
@@ -1067,7 +1070,7 @@ static TaskLeftovers slide_the_name_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, slides[SLIDES - 1].list);
 }
 
-void scene_title_slide_the_name(Snes *s) { scene_task_alone(s, SCENE_TASK_SLIDE_THE_NAME); }
+void scene_title_slide_the_name(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_SLIDE_THE_NAME]); }
 
 /* ---- The title's wait for a button ----------------------------------------------------------------- */
 
@@ -1108,7 +1111,7 @@ static TaskLeftovers count_the_wait_down_leaves(const GameState *g, TaskEnd end)
     return leaves_a_and_the_next_free_entry(g, scene_title_wait(g));
 }
 
-void scene_title_count_the_wait_down(Snes *s) { scene_task_alone(s, SCENE_TASK_COUNT_THE_WAIT_DOWN); }
+void scene_title_count_the_wait_down(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_COUNT_THE_WAIT_DOWN]); }
 
 /* The watch for a button: once the title takes buttons, and none has been
  * taken yet, any button ends the title -- the music fades out (scene/screen.c's
@@ -1151,7 +1154,7 @@ static TaskLeftovers watch_for_a_button_leaves(const GameState *g, TaskEnd end)
     return l;
 }
 
-void scene_title_watch_for_a_button(Snes *s) { scene_task_alone(s, SCENE_TASK_WATCH_FOR_A_BUTTON); }
+void scene_title_watch_for_a_button(Snes *s) { scene_task_alone(s, &scene_title_tasks[ROW_WATCH_FOR_A_BUTTON]); }
 
 /* ---- The guards ------------------------------------------------------------------------------------- */
 
@@ -1211,27 +1214,27 @@ bool scene_title_watch_for_a_button_present(Snes *s)
 /* ---- The title's tasks, for the lists ------------------------------------------------------------- */
 
 const SceneTaskPort scene_title_tasks[] = {
-    { SCENE_TASK_SWING_PENDULUM, SCENE_FRAME_TASKS, swing_pendulum_task, scene_title_swing_pendulum_present,
+    [ROW_SWING_PENDULUM] = { SCENE_TASK_SWING_PENDULUM, SCENE_FRAME_TASKS, swing_pendulum_task, scene_title_swing_pendulum_present,
       swing_pendulum_leaves, false },
-    { SCENE_TASK_MOVE_LOGO, SCENE_FRAME_TASKS, move_logo_task, scene_title_move_logo_present, move_logo_leaves, false },
-    { SCENE_TASK_DRAW_THE_CLOCK, SCENE_FRAME_TASKS, draw_the_clock_task, scene_title_draw_the_clock_present,
+    [ROW_MOVE_LOGO] = { SCENE_TASK_MOVE_LOGO, SCENE_FRAME_TASKS, move_logo_task, scene_title_move_logo_present, move_logo_leaves, false },
+    [ROW_DRAW_THE_CLOCK] = { SCENE_TASK_DRAW_THE_CLOCK, SCENE_FRAME_TASKS, draw_the_clock_task, scene_title_draw_the_clock_present,
       draw_the_clock_leaves, false },
-    { SCENE_TASK_DRAW_THE_HANDS, SCENE_FRAME_TASKS, draw_the_hands_task, scene_title_draw_the_hands_present,
+    [ROW_DRAW_THE_HANDS] = { SCENE_TASK_DRAW_THE_HANDS, SCENE_FRAME_TASKS, draw_the_hands_task, scene_title_draw_the_hands_present,
       draw_the_hands_leaves, false },
-    { SCENE_TASK_DRAW_THE_COPYRIGHT, SCENE_FRAME_TASKS, draw_the_copyright_task,
+    [ROW_DRAW_THE_COPYRIGHT] = { SCENE_TASK_DRAW_THE_COPYRIGHT, SCENE_FRAME_TASKS, draw_the_copyright_task,
       scene_title_draw_the_copyright_present, draw_the_copyright_leaves, false },
-    { SCENE_TASK_SLIDE_THE_NAME, SCENE_FRAME_TASKS, slide_the_name_task, scene_title_slide_the_name_present,
+    [ROW_SLIDE_THE_NAME] = { SCENE_TASK_SLIDE_THE_NAME, SCENE_FRAME_TASKS, slide_the_name_task, scene_title_slide_the_name_present,
       slide_the_name_leaves, false },
-    { SCENE_TASK_COUNT_THE_WAIT_DOWN, SCENE_FRAME_TASKS, count_the_wait_down_task,
+    [ROW_COUNT_THE_WAIT_DOWN] = { SCENE_TASK_COUNT_THE_WAIT_DOWN, SCENE_FRAME_TASKS, count_the_wait_down_task,
       scene_title_count_the_wait_down_present, count_the_wait_down_leaves, false },
-    { SCENE_TASK_WATCH_FOR_A_BUTTON, SCENE_FRAME_TASKS, watch_for_a_button_task,
+    [ROW_WATCH_FOR_A_BUTTON] = { SCENE_TASK_WATCH_FOR_A_BUTTON, SCENE_FRAME_TASKS, watch_for_a_button_task,
       scene_title_watch_for_a_button_present, watch_for_a_button_leaves, false },
-    { SCENE_TASK_RIPPLE, SCENE_FRAME_TASKS, ripple_task, scene_title_ripple_columns_present, ripple_leaves, false },
-    { SCENE_TASK_CALM_THE_RIPPLE, SCENE_FRAME_TASKS, calm_the_ripple_task, scene_title_calm_the_ripple_present,
+    [ROW_RIPPLE] = { SCENE_TASK_RIPPLE, SCENE_FRAME_TASKS, ripple_task, scene_title_ripple_columns_present, ripple_leaves, false },
+    [ROW_CALM_THE_RIPPLE] = { SCENE_TASK_CALM_THE_RIPPLE, SCENE_FRAME_TASKS, calm_the_ripple_task, scene_title_calm_the_ripple_present,
       calm_the_ripple_leaves, false },
-    { SCENE_TASK_PLACE_PENDULUM, SCENE_VBLANK_TASKS, place_pendulum_task, scene_title_place_pendulum_present,
+    [ROW_PLACE_PENDULUM] = { SCENE_TASK_PLACE_PENDULUM, SCENE_VBLANK_TASKS, place_pendulum_task, scene_title_place_pendulum_present,
       leaves_nothing_read, false },
-    { SCENE_TASK_UPLOAD_RIPPLE, SCENE_VBLANK_TASKS, upload_ripple_task, scene_title_upload_ripple_present,
+    [ROW_UPLOAD_RIPPLE] = { SCENE_TASK_UPLOAD_RIPPLE, SCENE_VBLANK_TASKS, upload_ripple_task, scene_title_upload_ripple_present,
       leaves_nothing_read, false },
 };
 const unsigned scene_title_task_count = sizeof scene_title_tasks / sizeof scene_title_tasks[0];
