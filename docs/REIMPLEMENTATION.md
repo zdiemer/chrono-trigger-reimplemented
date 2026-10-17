@@ -2535,9 +2535,9 @@ mismatches over the 14 rows -- the two setups 300 states each, the tasks
 20,000 each (a page's 90th frame, a fade over or not, a mosaic due and a
 curtain under way among the variants), none turned away. The palace's setup
 sends the map itself, where the original increments the buffer's flag and
-sends through the vblank task's code: on a flag at $FF, which the game never
-has, the original's wraps and sends nothing, so that row keeps the flag at 0
-or 1 (an accepted divergence, written at `finish_the_palace`).
+sends through the vblank task's code; a flag already at $FF, which the game
+never has, wraps there and sends nothing, and the port keeps that wrap
+(`finish_the_palace`), so its row fuzzes the flag's whole range.
 
 **Measured.** The strict run goes on through both scenes and the attract
 sequence's field scenes to frame 3449, and stops at `$C0:3B76`, in the field's
